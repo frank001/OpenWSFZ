@@ -1,0 +1,9 @@
+// Generated from version.hpp.in by CMake. Do not edit the generated
+// file; edit version.hpp.in and reconfigure.
+#pragma once
+
+#define OPENWSFZ_VERSION_MAJOR  @OPENWSFZ_VERSION_MAJOR@
+#define OPENWSFZ_VERSION_MINOR  @OPENWSFZ_VERSION_MINOR@
+#define OPENWSFZ_VERSION_PATCH  @OPENWSFZ_VERSION_PATCH@
+#define OPENWSFZ_VERSION_STRING "@OPENWSFZ_VERSION_STRING@"
+#define OPENWSFZ_GIT_SHA        "@OPENWSFZ_GIT_SHA@"

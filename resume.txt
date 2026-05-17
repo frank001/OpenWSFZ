@@ -1,0 +1,10 @@
+start analyst and read requirements_draft.md
+
+
+One and foremost I would like to create a program that HAM operators would like to use and even
+  prefer over existing software, with focus on cross-platform availability and free of restrictions.
+  I understand the complexitity of the requirements and want to start with something that is testable
+   and easily expandable when new requirements arrive. We will be bounching the evolving requirements
+   back and forth between the ANALYST, ARCHITECT, DEVELOPER, and QA as necessary.
+
+
