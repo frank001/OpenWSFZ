@@ -1,17 +1,3 @@
-# Build output
-build/
-build-*/
-out/
-cmake-build-*/
-_deps/
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-CTestTestfile.cmake
-install_manifest.txt
-compile_commands.json
-.cache/
-
 # IDE / editor
 .vs/
 .vscode/
@@ -22,22 +8,6 @@ compile_commands.json
 *.swp
 *.swo
 *~
-
-# Generated binaries / objects
-*.exe
-*.dll
-*.so
-*.dylib
-*.lib
-*.a
-*.o
-*.obj
-*.pdb
-*.ilk
-*.exp
-
-# Vendored dependencies fetched via CMake FetchContent live in build/_deps;
-# anything in vendor/ is intentional and should be committed.
 
 # Node (only relevant if/when OpenSpec runs locally)
 node_modules/
@@ -54,14 +24,6 @@ desktop.ini
 .env
 .env.local
 *.local.json
-openwsfz.local.toml
-
-# Test / coverage artifacts
-*.gcda
-*.gcno
-*.gcov
-coverage/
-lcov.info
 
 # Working / scratch notes (not part of the repo)
 resume.txt
