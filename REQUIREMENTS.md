@@ -1,7 +1,7 @@
 # OpenWSFZ &mdash; Requirements Document
 
-**Version:** 1.0
-**Date:** 2026-05-17
+**Version:** 1.1
+**Date:** 2026-05-18
 **Status:** Draft
 **Prepared by:** Requirements Analyst (AI-assisted)
 **For:** Architecture & Planning Team
@@ -265,6 +265,7 @@ data in v1:
 | Frontend layout                           | Own top-level folder with conventional subfolders for HTML, CSS, JS. All files plain on disk and user-editable.                   | User-stated.                                                                      |
 | Process model (v1)                        | Terminal-launched, foreground.                                                                                                    | User-stated.                                                                      |
 | Development workflow                      | Four-role AI-assisted workflow: ANALYST, ARCHITECT, DEVELOPER, QA. Requirements cycle through whichever role needs to weigh in.    | User-stated methodology.                                                          |
+| Development tooling                       | **Serena MCP server** SHALL be wired into Claude Code for the **DEVELOPER** role. To be brought into the workflow at a convenient point chosen by the ARCHITECT. | User-stated.                                                                      |
 
 ---
 
@@ -312,6 +313,7 @@ data in v1:
 | 12 | Repo posture &mdash; the project's GitHub repo exists; confirm public/private state and whether contribution model (issues, PRs) is live yet. | Product Owner     | Low           |
 | 13 | The `feature/project-skeleton` scaffolding pre-dates this document; the ARCHITECT should decide what to keep, discard, or revise.             | ARCHITECT         | Medium        |
 | 14 | Performance NFR-002 / NFR-003 have no numeric targets; the ARCHITECT should propose concrete budgets aligned with WSJT-X behaviour.            | ARCHITECT         | Medium        |
+| 15 | **Serena tooling integration** &mdash; the **Serena MCP server** will be wired into **Claude Code for the DEVELOPER role**. The ARCHITECT should identify a convenient point to bring it into the workflow (e.g. before DEVELOPER work begins, alongside the DEVELOPER prompt under `prompts/`). | ARCHITECT         | Medium        |
 
 ---
 
@@ -353,3 +355,4 @@ data in v1:
 | Version | Date       | Author                                | Changes                                                |
 |---------|------------|---------------------------------------|--------------------------------------------------------|
 | 1.0     | 2026-05-17 | Requirements Analyst (AI-assisted)    | Initial draft. Interview conducted across all six phases; defaults accepted for Phase 2 accessibility, Phase 5 timeline, Phase 5 assumptions, and Phase 6 risks. |
+| 1.1     | 2026-05-18 | Requirements Analyst (AI-assisted)    | Added development-tooling constraint in &sect;6 &mdash; **Serena MCP server wired into Claude Code for the DEVELOPER role** &mdash; and open question #15 in &sect;8 asking the ARCHITECT to choose a convenient integration point. |

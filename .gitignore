@@ -62,3 +62,6 @@ openwsfz.local.toml
 *.gcov
 coverage/
 lcov.info
+
+# Working / scratch notes (not part of the repo)
+resume.txt
