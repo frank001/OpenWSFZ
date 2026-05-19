@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Reference the TraceabilityCheck tool as a project reference so we can
+      test its internal classes directly. The tool's Program.cs is excluded from
+      compilation via InternalsVisibleTo / shared class files.
+    -->
+    <Compile Include="..\..\tools\TraceabilityCheck\RequirementsParser.cs" />
+    <Compile Include="..\..\tools\TraceabilityCheck\TestAssemblyScanner.cs" />
+    <Compile Include="..\..\tools\TraceabilityCheck\TraceabilityAnalyser.cs" />
+    <Compile Include="..\..\tools\TraceabilityCheck\ReportEmitter.cs" />
+    <Compile Include="..\..\tools\TraceabilityCheck\DebtFileParser.cs" />
+  </ItemGroup>
+</Project>

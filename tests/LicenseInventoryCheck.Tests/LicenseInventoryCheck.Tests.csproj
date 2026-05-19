@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Share tool source files directly so we can test internal classes. -->
+    <Compile Include="..\..\tools\LicenseInventoryCheck\LicencePolicy.cs" />
+    <Compile Include="..\..\tools\LicenseInventoryCheck\DependencyEntry.cs" />
+    <Compile Include="..\..\tools\LicenseInventoryCheck\NuGetEnumerator.cs" />
+    <Compile Include="..\..\tools\LicenseInventoryCheck\SubmoduleEnumerator.cs" />
+    <Compile Include="..\..\tools\LicenseInventoryCheck\LicenceReportEmitter.cs" />
+  </ItemGroup>
+</Project>

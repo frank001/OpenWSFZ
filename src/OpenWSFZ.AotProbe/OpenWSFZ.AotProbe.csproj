@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      This project's sole purpose is to exercise the AOT-publish path on each
+      supported OS in CI at the earliest possible moment (risk R2 in
+      IMPLEMENTATION_PLAN.md §9). It is DELETED in Phase 1 when
+      OpenWSFZ.Daemon takes over the AOT-publish responsibility.
+    -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>OpenWSFZ.AotProbe</RootNamespace>
+    <PublishAot>true</PublishAot>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
