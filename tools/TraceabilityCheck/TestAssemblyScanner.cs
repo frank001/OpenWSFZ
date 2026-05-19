@@ -25,7 +25,7 @@ public static class TestAssemblyScanner
 
         foreach (var path in assemblyPaths)
         {
-            var ctx = new AssemblyLoadContext(name: null, isCollectible: true);
+            var ctx = new TestAssemblyLoadContext(path);
             try
             {
                 var assembly = ctx.LoadFromAssemblyPath(Path.GetFullPath(path));
@@ -42,7 +42,16 @@ public static class TestAssemblyScanner
 
     private static void ScanAssembly(Assembly assembly, string path, List<TestEntry> results)
     {
-        foreach (var type in assembly.GetTypes())
+        Type[] types;
+        try
+        {
+            types = assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            types = ex.Types.OfType<Type>().ToArray();
+        }
+        foreach (var type in types)
         {
             foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
             {
@@ -137,6 +146,28 @@ public static class TestAssemblyScanner
         }
 
         return ids;
+    }
+}
+
+/// <summary>
+/// An <see cref="AssemblyLoadContext"/> that resolves the dependencies of a
+/// specific test assembly using its accompanying <c>.deps.json</c> manifest,
+/// so that xunit and other test-framework assemblies are found correctly on
+/// all platforms (including Linux, which does not fall back to the GAC).
+/// </summary>
+internal sealed class TestAssemblyLoadContext : AssemblyLoadContext
+{
+    private readonly AssemblyDependencyResolver _resolver;
+
+    public TestAssemblyLoadContext(string assemblyPath) : base(isCollectible: true)
+    {
+        _resolver = new AssemblyDependencyResolver(assemblyPath);
+    }
+
+    protected override Assembly? Load(AssemblyName assemblyName)
+    {
+        var resolvedPath = _resolver.ResolveAssemblyToPath(assemblyName);
+        return resolvedPath != null ? LoadFromAssemblyPath(resolvedPath) : null;
     }
 }
 
