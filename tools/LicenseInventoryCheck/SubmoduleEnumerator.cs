@@ -107,7 +107,11 @@ public static class SubmoduleEnumerator
             };
             using var proc = System.Diagnostics.Process.Start(psi);
             var output = proc?.StandardOutput.ReadToEnd() ?? string.Empty;
-            proc?.WaitForExit();
+            bool exited = proc?.WaitForExit(5_000) ?? true;   // 5-second timeout
+            if (!exited)
+            {
+                proc?.Kill();
+            }
 
             // Output format: "<mode> commit <sha>\t<path>"
             var parts = output.Split(' ', '\t');
