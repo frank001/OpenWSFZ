@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      OpenWSFZ.Daemon is the production executable and the AOT-publish
+      prove-out project (replacing OpenWSFZ.AotProbe from Phase 0).
+      PublishAot surfaces AOT incompatibilities while the codebase is small.
+    -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>OpenWSFZ.Daemon</RootNamespace>
+    <PublishAot>true</PublishAot>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenWSFZ.Web\OpenWSFZ.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Web front-end files served as static files by the daemon at runtime.
+      CopyToOutputDirectory: makes them available via dotnet run and in test output.
+      CopyToPublishDirectory: makes them available alongside the published binary.
+      The Link attribute places them under a web\ subdirectory in the output,
+      matching the path that WebApp.cs resolves via AppContext.BaseDirectory/web/.
+    -->
+    <None Include="..\..\web\**" Link="web\%(RecursiveDir)%(FileName)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+</Project>
