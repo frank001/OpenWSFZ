@@ -2,7 +2,7 @@
 
 ### Requirement: Solution structure
 
-The repository SHALL contain a single `OpenWSFZ.sln` at the root that references every project under `/src/` and `/tests/`. A `dotnet build` invocation from the repository root SHALL build every project in dependency order with zero errors and zero warnings.
+The repository SHALL contain a single `OpenWSFZ.slnx` at the root that references every project under `/src/` and `/tests/`. A `dotnet build` invocation from the repository root SHALL build every project in dependency order with zero errors and zero warnings.
 
 #### Scenario: Empty solution builds clean
 
@@ -11,7 +11,7 @@ The repository SHALL contain a single `OpenWSFZ.sln` at the root that references
 
 #### Scenario: New project added is picked up by the solution
 
-- **WHEN** a project file is added under `/src/` or `/tests/` and referenced in `OpenWSFZ.sln`
+- **WHEN** a project file is added under `/src/` or `/tests/` and referenced in `OpenWSFZ.slnx`
 - **THEN** the next `dotnet build` from the repository root SHALL build the new project
 
 ### Requirement: .NET SDK version pinning
@@ -39,7 +39,7 @@ A minimal stub executable project SHALL be present in the solution with `<Publis
 #### Scenario: AOT publish succeeds on each target OS
 
 - **WHEN** the CI workflow runs on each of `windows-latest`, `ubuntu-latest`, and `macos-latest`
-- **THEN** `dotnet publish -c Release -r <rid> --self-contained --p:PublishAot=true` SHALL exit with code 0 and produce a single-file native executable artefact
+- **THEN** `dotnet publish -c Release -r <rid> --self-contained -p:PublishAot=true` SHALL exit with code 0 and produce a single-file native executable artefact
 
 #### Scenario: AOT-incompatible code blocks merge
 
