@@ -61,6 +61,19 @@ jobs:
       - name: Build (Release)
         run: dotnet build -c Release --no-restore
 
+      # -----------------------------------------------------------------
+      # AOT publish — must run BEFORE dotnet test so the E2E tests can
+      # find the published binary at bin/Release/net10.0/<rid>/publish/.
+      # Also exercises the AOT toolchain on each OS (build-pipeline spec).
+      # -----------------------------------------------------------------
+      - name: AOT publish (Daemon)
+        run: >
+          dotnet publish src/OpenWSFZ.Daemon
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained
+          -p:PublishAot=true
+
       - name: Test (Release)
         run: >
           dotnet test -c Release --no-build
@@ -74,17 +87,6 @@ jobs:
         with:
           name: test-results-${{ matrix.os }}
           path: TestResults/
-
-      # -----------------------------------------------------------------
-      # AOT publish — exercises the AOT toolchain on each OS (build-pipeline spec)
-      # -----------------------------------------------------------------
-      - name: AOT publish (Daemon)
-        run: >
-          dotnet publish src/OpenWSFZ.Daemon
-          -c Release
-          -r ${{ matrix.rid }}
-          --self-contained
-          -p:PublishAot=true
 
       # =================================================================
       # Linux-only gates (G3, G5, and coverage reporting)
