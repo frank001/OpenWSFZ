@@ -11,7 +11,7 @@ A first-party .NET console application SHALL exist at `tools/LicenseInventoryChe
 
 ### Requirement: Enumeration of NuGet dependencies
 
-The tool SHALL enumerate every NuGet package referenced (directly or transitively) by every project in `OpenWSFZ.sln`. The enumeration source SHALL be each project's `obj/project.assets.json` produced by `dotnet restore`.
+The tool SHALL enumerate every NuGet package referenced (directly or transitively) by every project in `OpenWSFZ.slnx`. The enumeration source SHALL be each project's `obj/project.assets.json` produced by `dotnet restore`.
 
 #### Scenario: Direct NuGet reference is enumerated
 
