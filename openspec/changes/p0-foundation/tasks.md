@@ -2,7 +2,7 @@
 
 - [x] 1.1 Create `global.json` at the repository root pinning a .NET 10 LTS SDK feature band with `"rollForward": "latestFeature"`.
 - [x] 1.2 Create `Directory.Packages.props` at the repository root enabling central package management (`<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>`) and pinning the initial set of package versions (xUnit, Coverlet, ReportGenerator, FluentAssertions 6.x).
-- [x] 1.3 Create `OpenWSFZ.sln` at the repository root.
+- [x] 1.3 Create `OpenWSFZ.slnx` at the repository root.
 - [x] 1.4 Add a `.editorconfig` at the repository root with C# formatting defaults (4-space indent, LF line endings, UTF-8, file-scoped namespaces, sorted using directives) so all generated and hand-written code is consistent from day one.
 
 ## 2. Abstractions project

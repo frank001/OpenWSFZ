@@ -10,7 +10,7 @@ namespace TraceabilityCheck;
 /// </summary>
 public static class DebtFileParser
 {
-    private static readonly Regex IdOnLine = new(@"(?:FR|NFR)-\d{3}", RegexOptions.Compiled);
+    private static readonly Regex IdOnLine = new(@"\b(?:FR|NFR)-\d{3}\b", RegexOptions.Compiled);
 
     /// <summary>
     /// Parses the debt file at <paramref name="path"/> and returns all requirement IDs found.
