@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Test framework -->
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+
+    <!-- Code coverage -->
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+
+    <!-- Coverage report generation (Linux CI step only) -->
+    <PackageVersion Include="ReportGenerator" Version="5.4.5" />
+
+    <!--
+      FluentAssertions is pinned to the last 6.x release.
+      Version 7.0+ changed to a commercial licence; see dependency-licence-policy.
+    -->
+    <PackageVersion Include="FluentAssertions" Version="6.12.2" />
+  </ItemGroup>
+</Project>
