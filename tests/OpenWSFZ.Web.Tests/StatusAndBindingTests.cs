@@ -22,13 +22,12 @@ public sealed class StatusAndBindingTests : IClassFixture<WebTestFactory>
         });
     }
 
-    [Fact(DisplayName = "FR-002, NFR-004: GET / returns index page on loopback")]
+    [Fact(DisplayName = "FR-002, NFR-004: status endpoint is reachable from loopback")]
     public async Task GetRoot_Returns200WithHtmlBody()
     {
-        // Arrange: the web/ directory does not exist in the test output; ASP.NET
-        // returns 404 for static files when the root is absent.  That is expected
-        // behaviour and does not indicate a failure of the endpoint itself.
-        // Verify the server is reachable and returns a known response.
+        // Note: the web/ directory is absent from the test output, so GET / returns 404.
+        // This test instead verifies that the server is reachable on the loopback address
+        // and that the status endpoint responds — confirming FR-002 and NFR-004.
         var response = await _client.GetAsync("/api/v1/status");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
