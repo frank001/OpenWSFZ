@@ -72,11 +72,11 @@
 - [x] 9.1 Run `dotnet build` from the repository root on Windows, Linux, and macOS; confirm zero errors and zero warnings.
 - [x] 9.2 Run `dotnet test` from the repository root; confirm the tool-tests pass and the count of non-tool tests is 0.
 - [x] 9.3 Run `dotnet publish -c Release -r <rid> --self-contained --p:PublishAot=true` against `OpenWSFZ.AotProbe` on each of Windows, Linux, and macOS; confirm a single-file native executable is produced on each.
-- [ ] 9.4 Trigger the CI workflow on a feature branch by opening a draft pull-request; confirm all three matrix legs report green, the Linux-only `TraceabilityCheck` and `LicenseInventoryCheck` steps report green, and the coverage and inert-gate steps complete without error.
+- [x] 9.4 Trigger the CI workflow on a feature branch by opening a draft pull-request; confirm all three matrix legs report green, the Linux-only `TraceabilityCheck` and `LicenseInventoryCheck` steps report green, and the coverage and inert-gate steps complete without error.
 - [ ] 9.5 Inform the Product Owner that the workflow is in place and the branch-protection settings on `main` are ready to be configured (require all G1, G3, G5, and at-least-one-review).
 
 ## 10. Hand-off
 
-- [ ] 10.1 Mark the PR ready-for-review and request the QA role's gate review.
-- [ ] 10.2 Once merged, archive this change via `openspec archive p0-foundation` so its specs migrate to `openspec/specs/` as the live source-of-truth specifications.
+- [x] 10.1 Mark the PR ready-for-review and request the QA role's gate review.
+- [x] 10.2 Once merged, archive this change via `openspec archive p0-foundation` so its specs migrate to `openspec/specs/` as the live source-of-truth specifications.
 - [ ] 10.3 Open the Phase 1 OpenSpec change proposal (`p1-walking-skeleton`) using `openspec new change p1-walking-skeleton` and reference `IMPLEMENTATION_PLAN.md` &sect;8 for its task seed.
