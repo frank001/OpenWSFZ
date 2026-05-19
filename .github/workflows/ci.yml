@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-x64
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # -----------------------------------------------------------------
+      # Cache: NuGet packages and obj/ directories
+      # Key is derived from Directory.Packages.props + all .csproj files
+      # -----------------------------------------------------------------
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Cache obj/ directories
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/**/obj
+            tools/**/obj
+            tests/**/obj
+          key: obj-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: obj-${{ runner.os }}-
+
+      # -----------------------------------------------------------------
+      # Gate G1: Build and test on all three operating systems
+      # -----------------------------------------------------------------
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build -c Release --no-restore
+
+      - name: Test (Release)
+        run: >
+          dotnet test -c Release --no-build
+          --logger trx
+          --collect:"XPlat Code Coverage"
+          --results-directory TestResults/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: TestResults/
+
+      # -----------------------------------------------------------------
+      # AOT publish — exercises the AOT toolchain on each OS (build-pipeline spec)
+      # -----------------------------------------------------------------
+      - name: AOT publish (AotProbe)
+        run: >
+          dotnet publish src/OpenWSFZ.AotProbe
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained
+          -p:PublishAot=true
+
+      # =================================================================
+      # Linux-only gates (G3, G5, and coverage reporting)
+      # =================================================================
+
+      # -----------------------------------------------------------------
+      # Gate G3: TraceabilityCheck
+      # -----------------------------------------------------------------
+      - name: Gate G3 — Traceability check
+        if: runner.os == 'Linux'
+        run: >
+          dotnet run --project tools/TraceabilityCheck -c Release --no-build --
+          --requirements REQUIREMENTS.md
+          --assemblies $(find . -path "*/bin/Release/net10.0/*.Tests.dll" | tr '\n' ' ')
+          --report traceability.md
+          --debt-file traceability-debt.md
+
+      - name: Upload traceability report
+        if: runner.os == 'Linux' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: traceability-report
+          path: traceability.md
+
+      # -----------------------------------------------------------------
+      # Gate G5: LicenseInventoryCheck
+      # -----------------------------------------------------------------
+      - name: Gate G5 — Licence inventory check
+        if: runner.os == 'Linux'
+        run: >
+          dotnet run --project tools/LicenseInventoryCheck -c Release --no-build --
+          --solution-root .
+          --report licence-inventory.md
+
+      - name: Upload licence inventory report
+        if: runner.os == 'Linux' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: licence-inventory-report
+          path: licence-inventory.md
+
+      # -----------------------------------------------------------------
+      # Coverage reporting (informational only — never fails the workflow)
+      # Implements: "Coverage reporting is informational" (ci-quality-gates spec)
+      # -----------------------------------------------------------------
+      - name: Generate coverage report
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:"TestResults/**/coverage.cobertura.xml" \
+            -targetdir:"coverage-report" \
+            -reporttypes:Html
+
+      - name: Upload coverage report
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage-report/
+
+      # -----------------------------------------------------------------
+      # Gate G2 (inert placeholder) — Performance gate
+      # Becomes a real gate when Phase X lands tests tagged tier=performance.
+      # -----------------------------------------------------------------
+      - name: Gate G2 — Performance gate (inert until performance tests exist)
+        if: runner.os == 'Linux'
+        run: |
+          # Count tests tagged [Trait("tier", "performance")] — exit 0 when none present.
+          # This step becomes a real gate in a later phase.
+          echo "Performance gate: no performance tests present — gate passes vacuously."
+
+      # -----------------------------------------------------------------
+      # Gate G4 (inert placeholder) — UI-visibility gate
+      # Becomes a real gate when Phase X lands tests tagged tier=ui-visibility.
+      # -----------------------------------------------------------------
+      - name: Gate G4 — UI-visibility gate (inert until UI-visibility tests exist)
+        if: runner.os == 'Linux'
+        run: |
+          # Count tests tagged [Trait("tier", "ui-visibility")] — exit 0 when none present.
+          # This step becomes a real gate in a later phase.
+          # See UI visibility rule in MEMORY.md: controls only appear once backend is testable.
+          echo "UI-visibility gate: no ui-visibility tests present — gate passes vacuously."

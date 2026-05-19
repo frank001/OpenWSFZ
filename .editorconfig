@@ -1,0 +1,43 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 4
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+# File-scoped namespaces (warning so TreatWarningsAsErrors catches violations)
+csharp_style_namespace_declarations = file_scoped:warning
+
+# Using directives — sorted, System first, no blank-line separation between groups
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# Always use braces
+csharp_prefer_braces = true:warning
+
+# Expression-bodied members
+csharp_style_expression_bodied_methods = false:none
+csharp_style_expression_bodied_properties = true:suggestion
+
+# Explicit types for built-in types; var when type is obvious
+csharp_style_var_for_built_in_types = false:warning
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:none
+
+# Null patterns
+dotnet_style_null_propagation = true:suggestion
+dotnet_style_coalesce_expression = true:suggestion
+
+[*.{csproj,props,targets}]
+indent_size = 2
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+# Markdown allows trailing spaces for hard line breaks
+trim_trailing_whitespace = false
