@@ -17,9 +17,7 @@ JS8, JT9, JT65, WSPR, and related).
 
 ## Status
 
-Pre-architecture. `REQUIREMENTS.md` is the current input. The technical
-specification and implementation plan are being designed before any code is
-written.
+Active v1 development. The first OpenSpec change — [`p0-foundation`](openspec/changes/p0-foundation/proposal.md) — establishes the build pipeline, CI quality gates, and tooling foundation. All subsequent v1 work proceeds through the [OpenSpec workflow](openspec/).
 
 ## License
 

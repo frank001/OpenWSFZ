@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpenWSFZ.Abstractions/OpenWSFZ.Abstractions.csproj" />
+    <Project Path="src/OpenWSFZ.AotProbe/OpenWSFZ.AotProbe.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LicenseInventoryCheck.Tests/LicenseInventoryCheck.Tests.csproj" />
+    <Project Path="tests/TraceabilityCheck.Tests/TraceabilityCheck.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/LicenseInventoryCheck/LicenseInventoryCheck.csproj" />
+    <Project Path="tools/TraceabilityCheck/TraceabilityCheck.csproj" />
+  </Folder>
+</Solution>
