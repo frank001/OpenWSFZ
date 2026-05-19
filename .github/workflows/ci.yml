@@ -78,9 +78,9 @@ jobs:
       # -----------------------------------------------------------------
       # AOT publish — exercises the AOT toolchain on each OS (build-pipeline spec)
       # -----------------------------------------------------------------
-      - name: AOT publish (AotProbe)
+      - name: AOT publish (Daemon)
         run: >
-          dotnet publish src/OpenWSFZ.AotProbe
+          dotnet publish src/OpenWSFZ.Daemon
           -c Release
           -r ${{ matrix.rid }}
           --self-contained
