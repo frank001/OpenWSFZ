@@ -57,10 +57,19 @@ public static class WebApp
         var webRoot = Path.Combine(AppContext.BaseDirectory, "web");
         if (Directory.Exists(webRoot))
         {
+            var fileProvider = new PhysicalFileProvider(webRoot);
+
+            // Map GET / → /index.html (must precede UseStaticFiles).
+            app.UseDefaultFiles(new DefaultFilesOptions
+            {
+                FileProvider = fileProvider,
+                RequestPath  = string.Empty,
+            });
+
             app.UseStaticFiles(new StaticFileOptions
             {
-                FileProvider = new PhysicalFileProvider(webRoot),
-                RequestPath = string.Empty,
+                FileProvider = fileProvider,
+                RequestPath  = string.Empty,
             });
         }
 
