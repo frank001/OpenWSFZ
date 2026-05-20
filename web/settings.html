@@ -8,15 +8,19 @@
 </head>
 <body>
 
-  <div id="settings-page">
+  <header id="settings-page">
 
-    <div class="settings-nav">
+    <nav class="settings-nav" aria-label="Breadcrumb">
       <a href="/">← Back to main</a>
-      <span>/</span>
+      <span aria-hidden="true">/</span>
       <span>Settings</span>
-    </div>
+    </nav>
 
     <h1>Settings</h1>
+
+  </header>
+
+  <main id="settings-main">
 
     <form id="settings-form" novalidate>
 
@@ -45,7 +49,7 @@
 
     </form>
 
-  </div>
+  </main>
 
   <script type="module" src="js/settings.js"></script>
 </body>

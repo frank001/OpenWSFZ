@@ -217,15 +217,26 @@ label {
 }
 
 /* ── Settings page ─────────────────────────────────────────────────────── */
-#settings-page {
+#settings-page,
+#settings-main {
   max-width: 520px;
-  margin: 2rem auto;
+  margin: 0 auto;
   padding: 0 1rem;
+}
+
+#settings-page {
+  padding-top: 2rem;
+  padding-bottom: 0.5rem;
+}
+
+#settings-main {
+  padding-top: 0;
+  padding-bottom: 2rem;
 }
 
 #settings-page h1 {
   font-size: 1.2rem;
-  margin: 0 0 1.5rem;
+  margin: 0 0 0;
   color: var(--color-text);
 }
 
