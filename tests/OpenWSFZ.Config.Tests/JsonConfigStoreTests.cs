@@ -69,6 +69,29 @@ public sealed class JsonConfigStoreTests
         File.Exists(configPath).Should().BeTrue("the store should create the default config file");
     }
 
+    // ── Corrupt config (advisory D) ──────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-004: JsonConfigStore returns defaults and does not throw when config file is corrupt")]
+    public void Load_ReturnsDefaults_AndDoesNotThrow_WhenFileIsCorrupt()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+
+        // Write garbage to the config file.
+        File.WriteAllText(configPath, "{ this is not valid JSON !!!");
+
+        // Act — must not throw; corrupt file must not be overwritten.
+        var store = new JsonConfigStore(configPath);
+
+        // Assert — defaults returned.
+        store.Current.AudioDeviceName.Should().BeNull();
+        store.Current.Port.Should().Be(8080);
+
+        // Assert — file is intact (not overwritten with defaults).
+        File.ReadAllText(configPath).Should().Contain("this is not valid JSON",
+            "a corrupt config file must be preserved so the operator can recover it");
+    }
+
     // ── Task 8.3 ─────────────────────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-004: JsonConfigStore.SaveAsync writes atomically")]

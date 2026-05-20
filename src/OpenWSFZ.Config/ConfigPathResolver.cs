@@ -16,10 +16,10 @@ public static class ConfigPathResolver
     private const string ConfigFile  = "config.json";
 
     /// <summary>
-    /// Resolves the config file path and returns both the path and its source
+    /// Resolves the config file path and returns both the resolved path and its source
     /// (for logging at startup).
     /// </summary>
-    public static (string Path, string Source) Resolve(string? cliOverride = null)
+    public static (string ResolvedPath, string Source) Resolve(string? cliOverride = null)
     {
         if (!string.IsNullOrWhiteSpace(cliOverride))
             return (cliOverride, "--config flag");
@@ -33,7 +33,7 @@ public static class ConfigPathResolver
 
     /// <summary>Returns only the resolved path (convenience overload).</summary>
     public static string ResolvePath(string? cliOverride = null) =>
-        Resolve(cliOverride).Path;
+        Resolve(cliOverride).ResolvedPath;
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 

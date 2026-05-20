@@ -18,9 +18,9 @@ public sealed class ConfigPathResolverTests
     [Fact(DisplayName = "FR-005: ConfigPathResolver returns CLI flag path when provided")]
     public void Resolve_ReturnsFlagPath_WhenCliOverrideProvided()
     {
-        var (path, source) = ConfigPathResolver.Resolve("/custom/override/config.json");
+        var (resolvedPath, source) = ConfigPathResolver.Resolve("/custom/override/config.json");
 
-        path.Should().Be("/custom/override/config.json");
+        resolvedPath.Should().Be("/custom/override/config.json");
         source.Should().Be("--config flag");
     }
 
@@ -34,9 +34,9 @@ public sealed class ConfigPathResolverTests
         {
             Environment.SetEnvironmentVariable(EnvVar, "/env/var/config.json");
 
-            var (path, source) = ConfigPathResolver.Resolve(null);
+            var (resolvedPath, source) = ConfigPathResolver.Resolve(null);
 
-            path.Should().Be("/env/var/config.json");
+            resolvedPath.Should().Be("/env/var/config.json");
             source.Should().Contain(EnvVar);
         }
         finally
@@ -56,9 +56,9 @@ public sealed class ConfigPathResolverTests
             // Ensure no env var is set.
             Environment.SetEnvironmentVariable(EnvVar, null);
 
-            var (path, _) = ConfigPathResolver.Resolve(null);
+            var (resolvedPath, _) = ConfigPathResolver.Resolve(null);
 
-            path.Should().EndWith(
+            resolvedPath.Should().EndWith(
                 Path.Combine("OpenWSFZ", "config.json"),
                 "the platform default must point to AppData/OpenWSFZ/config.json");
         }

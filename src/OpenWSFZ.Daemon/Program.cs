@@ -7,7 +7,7 @@ using OpenWSFZ.Web;
 var options = LaunchOptions.Parse(args);
 
 // Resolve the config file path (CLI flag → env var → platform default).
-var (configPath, configSource) = OpenWSFZ.Config.ConfigPathResolver.Resolve(options.ConfigPath);
+var (configPath, configSource) = ConfigPathResolver.Resolve(options.ConfigPath);
 Console.Error.WriteLine($"[OpenWSFZ] Config: {configSource} → {configPath}");
 
 // Load (or create) the config file and wire DI.
