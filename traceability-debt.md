@@ -31,15 +31,11 @@ NFR-008  # Extensibility — protocol layer plugin point (IModeDecoder / IModeRe
 FR-002  # Self-hosted web UI served on http://127.0.0.1:<port>
 FR-008  # Waterfall display — live spectrogram of audio input in the main UI
 FR-009  # Decoded messages list — display FT8 messages with decoded text and audio offset
-FR-010  # Settings page navigable from the main page
 FR-011  # Save action on Settings page writes changes to the active config file
-FR-014  # Frontend folder layout — own top-level folder with conventional subfolders
-FR-015  # Frontend files user-editable — plain files on disk, no rebuild required
 NFR-012  # Accessibility — semantic HTML, keyboard navigation, sufficient contrast
 
 ## Pending — Phase 6 (Polish / UX)
 
-FR-012  # Dark theme by default
 FR-013  # CSS-file-based theming — edit CSS files on disk; no in-app switcher in v1
 FR-016  # Strict UI visibility rule — no placeholders, no greyed-out future controls
 NFR-013  # UX competitive bar — HAM operators prefer OpenWSFZ over existing software
