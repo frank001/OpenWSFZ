@@ -34,12 +34,12 @@ A `Directory.Packages.props` file at the repository root SHALL declare every NuG
 
 ### Requirement: AOT-publish readiness verified on each supported OS
 
-A minimal stub executable project SHALL be present in the solution with `<PublishAot>true</PublishAot>` enabled. The CI workflow SHALL run `dotnet publish` with the AOT flag for `win-x64`, `linux-x64`, and `osx-x64` and SHALL fail the build if any of those publish invocations fail.
+The `OpenWSFZ.Daemon` executable project SHALL carry `<PublishAot>true</PublishAot>`. The CI workflow SHALL run `dotnet publish` with the AOT flag for `win-x64`, `linux-x64`, and `osx-arm64` and SHALL fail the build if any of those publish invocations fail.
 
 #### Scenario: AOT publish succeeds on each target OS
 
 - **WHEN** the CI workflow runs on each of `windows-latest`, `ubuntu-latest`, and `macos-latest`
-- **THEN** `dotnet publish -c Release -r <rid> --self-contained -p:PublishAot=true` SHALL exit with code 0 and produce a single-file native executable artefact
+- **THEN** `dotnet publish -c Release -r <rid> --self-contained -p:PublishAot=true` against `OpenWSFZ.Daemon` SHALL exit with code 0 and produce a single-file native executable artefact
 
 #### Scenario: AOT-incompatible code blocks merge
 
