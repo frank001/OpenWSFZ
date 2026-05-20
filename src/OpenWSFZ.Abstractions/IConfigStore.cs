@@ -12,6 +12,12 @@ public interface IConfigStore
     AppConfig Current { get; }
 
     /// <summary>
+    /// Raised on the calling thread immediately after a successful <see cref="SaveAsync"/>.
+    /// The argument is the newly-saved configuration.
+    /// </summary>
+    event Action<AppConfig>? OnSaved;
+
+    /// <summary>
     /// Persists <paramref name="config"/> to disk atomically and updates
     /// <see cref="Current"/> to reflect the new values.
     /// </summary>

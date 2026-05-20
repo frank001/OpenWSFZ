@@ -23,6 +23,9 @@ public sealed class JsonConfigStore : IConfigStore
     public AppConfig Current => _current;
 
     /// <inheritdoc/>
+    public event Action<AppConfig>? OnSaved;
+
+    /// <inheritdoc/>
     public async Task SaveAsync(AppConfig config, CancellationToken ct = default)
     {
         var dir = Path.GetDirectoryName(_path)
@@ -51,6 +54,7 @@ public sealed class JsonConfigStore : IConfigStore
 
             File.Move(tmp, _path, overwrite: true);
             _current = config;
+            OnSaved?.Invoke(config);
         }
         catch
         {

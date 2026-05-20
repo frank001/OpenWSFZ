@@ -16,14 +16,69 @@ var configStore = new JsonConfigStore(configPath);
 // CLI --port wins; fall back to the persisted config value.
 var port = options.Port ?? configStore.Current.Port;
 
+// ── Audio capture ─────────────────────────────────────────────────────────────
+
+var audioSource     = new PlatformAudioSource();
+var captureManager  = new CaptureManager(audioSource);
+
 // Create and configure the web application.
 var app = WebApp.Create(
     port,
-    configStore:   configStore,
-    audioProvider: new PlatformAudioDeviceProvider());
+    configStore:    configStore,
+    audioProvider:  new PlatformAudioDeviceProvider(),
+    captureManager: captureManager);
 
-// Emit the welcome banner once Kestrel is bound and ready.
-app.Lifetime.ApplicationStarted.Register(() => WelcomeBannerEmitter.Emit(port));
+// ── Lifecycle hooks ──────────────────────────────────────────────────────────
+
+// Start capture at startup if a device is already configured.
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    WelcomeBannerEmitter.Emit(port);
+
+    var deviceName = configStore.Current.AudioDeviceName;
+    if (deviceName is not null)
+    {
+        _ = captureManager
+            .StartAsync(deviceName)
+            .ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    Console.Error.WriteLine(
+                        $"[OpenWSFZ] Audio capture failed to start: {t.Exception?.GetBaseException().Message}");
+            });
+    }
+});
+
+// Restart capture when the device name changes via POST /api/v1/config.
+string? runningDevice = configStore.Current.AudioDeviceName;
+configStore.OnSaved += newConfig =>
+{
+    var newDevice = newConfig.AudioDeviceName;
+    if (newDevice == runningDevice) return;
+
+    runningDevice = newDevice;
+
+    _ = Task.Run(async () =>
+    {
+        await captureManager.StopAsync();
+        if (newDevice is not null)
+        {
+            try { await captureManager.StartAsync(newDevice); }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(
+                    $"[OpenWSFZ] Audio capture failed to restart: {ex.Message}");
+            }
+        }
+    });
+};
+
+// Stop capture and dispose on application shutdown.
+app.Lifetime.ApplicationStopping.Register(() =>
+{
+    captureManager.StopAsync().GetAwaiter().GetResult();
+    captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
+});
 
 await app.RunAsync();
 

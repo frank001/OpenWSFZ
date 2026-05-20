@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using OpenWSFZ.Abstractions;
+using OpenWSFZ.Audio;
 using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
@@ -35,9 +36,10 @@ public static class WebApp
     /// </param>
     public static WebApplication Create(
         int port,
-        IBindPolicy?         bindPolicy    = null,
-        IConfigStore?        configStore   = null,
-        IAudioDeviceProvider? audioProvider = null)
+        IBindPolicy?          bindPolicy      = null,
+        IConfigStore?         configStore     = null,
+        IAudioDeviceProvider? audioProvider   = null,
+        CaptureManager?       captureManager  = null)
     {
         var builder = WebApplication.CreateBuilder();
 
@@ -104,9 +106,10 @@ public static class WebApp
 
         app.MapGet("/api/v1/status", (IConfigStore store) =>
             TypedResults.Ok(new DaemonStatus(
-                State:       "Running",
-                Version:     AssemblyVersion.Get(),
-                AudioDevice: store.Current.AudioDeviceName)));
+                State:         "Running",
+                Version:       AssemblyVersion.Get(),
+                AudioDevice:   store.Current.AudioDeviceName,
+                CaptureActive: captureManager?.IsCapturing ?? false)));
 
         app.MapGet("/api/v1/audio/devices", async (
             IAudioDeviceProvider provider,
@@ -178,9 +181,12 @@ internal sealed class InMemoryConfigStore : IConfigStore
 
     public AppConfig Current => _current;
 
+    public event Action<AppConfig>? OnSaved;
+
     public Task SaveAsync(AppConfig config, CancellationToken ct = default)
     {
         _current = config;
+        OnSaved?.Invoke(config);
         return Task.CompletedTask;
     }
 }

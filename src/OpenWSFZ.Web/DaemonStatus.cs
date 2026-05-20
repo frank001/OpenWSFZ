@@ -6,4 +6,5 @@ namespace OpenWSFZ.Web;
 public sealed record DaemonStatus(
     string  State,
     string  Version,
-    string? AudioDevice = null);
+    string? AudioDevice    = null,
+    bool    CaptureActive  = false);

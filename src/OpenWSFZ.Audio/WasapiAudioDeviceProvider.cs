@@ -7,13 +7,17 @@ namespace OpenWSFZ.Audio;
 
 /// <summary>
 /// Enumerates WASAPI capture endpoints on Windows using NAudio's
-/// <see cref="MMDeviceEnumerator"/>. COM initialisation is handled internally
-/// by NAudio.Wasapi.
+/// <see cref="MMDeviceEnumerator"/>. All COM work is dispatched to a dedicated
+/// STA background thread via <see cref="StaThread"/> to satisfy WASAPI's
+/// apartment-threading requirement.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class WasapiAudioDeviceProvider : IAudioDeviceProvider
 {
     public Task<IReadOnlyList<AudioDeviceInfo>> GetDevicesAsync(CancellationToken ct = default)
+        => StaThread.Run(EnumerateDevices);
+
+    private static IReadOnlyList<AudioDeviceInfo> EnumerateDevices()
     {
         var devices = new List<AudioDeviceInfo>();
 
@@ -35,7 +39,7 @@ internal sealed class WasapiAudioDeviceProvider : IAudioDeviceProvider
             // Return whatever we collected; never throw.
         }
 
-        return Task.FromResult<IReadOnlyList<AudioDeviceInfo>>(devices);
+        return devices;
     }
 }
 #endif
