@@ -131,6 +131,12 @@ public static class WebApp
             }
             catch (JsonException)
             {
+                // Results.BadRequest (non-generic) is intentional: mixing TypedResults.BadRequest<string>
+                // with TypedResults.Ok<AppConfig> in the same lambda produces a type-unification error
+                // (CS1593) because C# cannot infer a common return type across the two IResult
+                // implementations. The non-generic Results.* form returns IResult directly, which
+                // resolves the inference. TypedResults.Ok on the happy path is preserved for
+                // OpenAPI schema generation on the success response.
                 return Results.BadRequest("Malformed JSON.");
             }
 
@@ -165,7 +171,7 @@ public static class WebApp
 /// </summary>
 internal sealed class InMemoryConfigStore : IConfigStore
 {
-    private AppConfig _current;
+    private volatile AppConfig _current;
 
     public InMemoryConfigStore(AppConfig? initial = null)
         => _current = initial ?? new AppConfig();

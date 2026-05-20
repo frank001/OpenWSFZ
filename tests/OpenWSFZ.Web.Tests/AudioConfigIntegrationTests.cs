@@ -194,6 +194,11 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
 
         doc.RootElement.TryGetProperty("audioDevice", out _).Should().BeTrue(
             "the status response must include the audioDevice field (may be null)");
+
+        // Version must not expose raw build metadata.
+        doc.RootElement.GetProperty("version").GetString()
+            .Should().NotContain("+",
+                "the version field must not expose raw build metadata (full git SHA)");
     }
 
     // ── Task 9.6 ─────────────────────────────────────────────────────────────
