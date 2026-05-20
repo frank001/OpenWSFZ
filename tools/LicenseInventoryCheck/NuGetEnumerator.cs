@@ -10,6 +10,19 @@ namespace LicenseInventoryCheck;
 public static class NuGetEnumerator
 {
     /// <summary>
+    /// Packages that use <c>&lt;license type="file"&gt;</c> in their .nuspec instead of an
+    /// SPDX expression. Values are the authoritative SPDX identifiers for those packages.
+    /// Keyed by package ID (case-insensitive).
+    /// </summary>
+    internal static readonly Dictionary<string, string> KnownFileLicences =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        // NAudio uses <license type="file">license.txt</license>.
+        // Actual licence: MIT — https://github.com/naudio/NAudio/blob/master/license.txt
+        { "NAudio", "MIT" },
+    };
+
+    /// <summary>
     /// Maps well-known legacy <c>licenseUrl</c> values (GitHub blobs / raw URLs that
     /// pre-date the <c>licenses.nuget.org</c> convention) to their SPDX identifiers.
     /// Keyed by case-insensitive URL prefix so minor path variations (e.g., casing,
@@ -160,14 +173,23 @@ public static class NuGetEnumerator
 
                 // Modern format: <license type="expression">MIT</license>
                 var licenseEl = xdoc.Descendants(ns + "license").FirstOrDefault();
-                if (licenseEl != null &&
-                    string.Equals(
-                        licenseEl.Attribute("type")?.Value,
-                        "expression",
-                        StringComparison.OrdinalIgnoreCase) &&
-                    !string.IsNullOrWhiteSpace(licenseEl.Value))
+                if (licenseEl != null)
                 {
-                    return licenseEl.Value.Trim();
+                    var licType = licenseEl.Attribute("type")?.Value ?? string.Empty;
+
+                    if (string.Equals(licType, "expression", StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrWhiteSpace(licenseEl.Value))
+                    {
+                        return licenseEl.Value.Trim();
+                    }
+
+                    // <license type="file"> means the SPDX expression is not embedded.
+                    // Consult the known-file-licences table for packages with well-established licences.
+                    if (string.Equals(licType, "file", StringComparison.OrdinalIgnoreCase) &&
+                        KnownFileLicences.TryGetValue(packageId, out var knownSpdx))
+                    {
+                        return knownSpdx;
+                    }
                 }
 
                 // Legacy format: <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>

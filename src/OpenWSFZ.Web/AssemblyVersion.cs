@@ -16,10 +16,21 @@ internal static class AssemblyVersion
 
     public static string Get() => s_version;
 
-    private static string Resolve() =>
-        typeof(AssemblyVersion).Assembly
+    private static string Resolve()
+    {
+        var informational = typeof(AssemblyVersion).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion
-        ?? typeof(AssemblyVersion).Assembly.GetName().Version?.ToString()
-        ?? "0.0.0";
+            ?.InformationalVersion;
+
+        if (informational is not null)
+        {
+            // Strip build metadata (everything after '+') — the full git SHA is noise
+            // in an API response. The clean semver e.g. "0.1.0" is what clients expect.
+            var plusIndex = informational.IndexOf('+');
+            return plusIndex >= 0 ? informational[..plusIndex] : informational;
+        }
+
+        return typeof(AssemblyVersion).Assembly.GetName().Version?.ToString()
+               ?? "0.0.0";
+    }
 }

@@ -1,23 +1,23 @@
 namespace OpenWSFZ.Daemon;
 
 /// <summary>
-/// CLI-derived launch options for Phase 1.
-/// Superseded by <c>IConfigSnapshot</c> in Phase 2 when the TOML config system lands;
-/// <c>--port</c> will remain as a runtime override above config.
+/// CLI-derived launch options parsed before host construction.
 /// </summary>
-internal sealed record LaunchOptions(int Port = 8080)
+internal sealed record LaunchOptions(int? Port = null, string? ConfigPath = null)
 {
     /// <summary>
     /// Parses <paramref name="args"/> and returns a <see cref="LaunchOptions"/> instance.
     /// Recognised arguments:
     /// <list type="bullet">
-    ///   <item><c>--port &lt;n&gt;</c> — bind port (default 8080)</item>
+    ///   <item><c>--port &lt;n&gt;</c> — bind port override (when absent, the persisted config value is used)</item>
+    ///   <item><c>--config &lt;path&gt;</c> — override config file path (default: platform/env-var resolution)</item>
     /// </list>
-    /// Unknown arguments are silently ignored (forward-compatible for Phase 2 args).
+    /// Unknown arguments are silently ignored (forward-compatible).
     /// </summary>
     public static LaunchOptions Parse(string[] args)
     {
-        int port = 8080;
+        int?    port       = null;
+        string? configPath = null;
 
         for (int i = 0; i < args.Length - 1; i++)
         {
@@ -26,8 +26,13 @@ internal sealed record LaunchOptions(int Port = 8080)
                 port = p;
                 i++;
             }
+            else if (args[i] == "--config" && !string.IsNullOrWhiteSpace(args[i + 1]))
+            {
+                configPath = args[i + 1];
+                i++;
+            }
         }
 
-        return new LaunchOptions(Port: port);
+        return new LaunchOptions(Port: port, ConfigPath: configPath);
     }
 }
