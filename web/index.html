@@ -4,60 +4,53 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OpenWSFZ</title>
-  <style>
-    body    { background: #1a1a1a; color: #e0e0e0; font-family: monospace; margin: 2rem; }
-    h1, h2  { color: #7ec8e3; }
-    h2      { font-size: 0.95em; margin-top: 1.5rem; }
-    pre     { background: #111; border: 1px solid #333; padding: 1rem; white-space: pre-wrap; }
-    #connection-status { color: #aaa; font-size: 0.85em; margin-bottom: 0.5rem; }
-  </style>
+  <link rel="stylesheet" href="css/app.css" />
 </head>
 <body>
-  <h1>OpenWSFZ</h1>
-  <p id="connection-status">Connecting…</p>
 
-  <h2>Daemon Status</h2>
-  <pre id="daemon-status">(waiting for status)</pre>
+  <!-- Status bar -->
+  <header id="status-bar">
+    <span class="app-name">OpenWSFZ</span>
 
-  <h2>Last message</h2>
-  <pre id="last-message"></pre>
+    <span id="ws-state" class="connecting" title="WebSocket connection state">Connecting…</span>
 
-  <script>
-    const connStatus  = document.getElementById('connection-status');
-    const daemonStatus = document.getElementById('daemon-status');
-    const lastMessage  = document.getElementById('last-message');
+    <span id="audio-device" title="Active audio device">(no device)</span>
 
-    function connect() {
-      const ws = new WebSocket(`ws://${location.host}/api/v1/ws`);
+    <nav>
+      <a href="/settings.html">⚙ Settings</a>
+    </nav>
+  </header>
 
-      ws.onopen = () => { connStatus.textContent = 'Connected'; };
+  <!-- Main content -->
+  <div id="app">
 
-      ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data);
-          // Always update the raw message feed.
-          lastMessage.textContent = JSON.stringify(msg, null, 2);
-          // Persist the status payload so heartbeats do not overwrite it.
-          if (msg.type === 'status' && msg.payload) {
-            daemonStatus.textContent = JSON.stringify(msg.payload, null, 2);
-          }
-        } catch {
-          lastMessage.textContent = ev.data;
-        }
-      };
+    <!-- Waterfall / spectrogram panel -->
+    <section id="waterfall-panel" aria-label="Waterfall display">
+      <canvas id="waterfall"></canvas>
+    </section>
 
-      ws.onclose = () => {
-        connStatus.textContent = 'Disconnected — retrying in 3 s…';
-        setTimeout(connect, 3000);
-      };
+    <!-- Decoded messages panel -->
+    <section id="decodes-panel" aria-label="Decoded FT8 messages">
+      <table id="decodes-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>dB</th>
+            <th>DT</th>
+            <th>Freq</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody id="decodes-body">
+          <tr>
+            <td class="td-no-data" colspan="5">No decodes yet — waiting for FT8 signal</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
 
-      ws.onerror = () => {
-        connStatus.textContent = 'Connection error';
-        ws.close();
-      };
-    }
+  </div>
 
-    connect();
-  </script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
