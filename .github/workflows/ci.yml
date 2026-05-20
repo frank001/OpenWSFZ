@@ -5,6 +5,11 @@ on:
   pull_request:
     branches: [main]
 
+# Opt in to Node.js 24 for all actions ahead of the forced migration on 2026-06-02.
+# Remove this block once all referenced actions ship Node.js 24 as their default runtime.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-test:
     name: Build & Test (${{ matrix.os }})
@@ -18,7 +23,7 @@ jobs:
           - os: ubuntu-latest
             rid: linux-x64
           - os: macos-latest
-            rid: osx-x64
+            rid: osx-arm64
 
     steps:
       - name: Checkout (with submodules)

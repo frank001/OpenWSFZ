@@ -17,6 +17,9 @@ public sealed class RealServerFixture : IAsyncLifetime
     /// <summary>The port Kestrel actually bound to (available after <see cref="InitializeAsync"/>).</summary>
     public int Port { get; private set; }
 
+    /// <summary>The host/IP Kestrel actually bound to (available after <see cref="InitializeAsync"/>).</summary>
+    public string BoundHost { get; private set; } = string.Empty;
+
     public async Task InitializeAsync()
     {
         // Port 0 → OS assigns an ephemeral port.
@@ -31,7 +34,9 @@ public sealed class RealServerFixture : IAsyncLifetime
         var addr = feature?.Addresses.FirstOrDefault()
             ?? throw new InvalidOperationException("Server did not bind to any address.");
 
-        Port = new Uri(addr).Port;
+        var uri  = new Uri(addr);
+        Port      = uri.Port;
+        BoundHost = uri.Host;
     }
 
     public async Task DisposeAsync()

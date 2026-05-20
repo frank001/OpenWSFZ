@@ -30,8 +30,14 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
 
         using var doc = JsonDocument.Parse(frame!);
         doc.RootElement.GetProperty("type").GetString().Should().Be("status");
-        doc.RootElement.GetProperty("payload").GetProperty("state").GetString()
-           .Should().Be("Running");
+
+        var payload = doc.RootElement.GetProperty("payload");
+        payload.GetProperty("state").GetString().Should().Be("Running");
+        var version = payload.GetProperty("version").GetString();
+        version.Should().NotBeNullOrEmpty(
+            "version must be set via <Version> in Directory.Build.props");
+        version.Should().NotBe("0.0.0",
+            "fallback sentinel must not reach the wire; set <Version> in Directory.Build.props");
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }
@@ -66,10 +72,9 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
     [Fact(DisplayName = "NFR-004: server is bound to 127.0.0.1 loopback only")]
     public void Server_IsBoundToLoopback()
     {
-        // The RealServerFixture starts on 127.0.0.1; verify the port is reachable
-        // only on loopback (i.e., Port > 0 and was assigned by LoopbackBindPolicy).
-        _fixture.Port.Should().BeInRange(1, 65535,
-            "a real loopback port must be bound");
+        var ip = System.Net.IPAddress.Parse(_fixture.BoundHost);
+        System.Net.IPAddress.IsLoopback(ip).Should()
+            .BeTrue($"LoopbackBindPolicy must bind to 127.0.0.1, but got {_fixture.BoundHost}");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
