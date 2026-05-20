@@ -70,8 +70,8 @@
 - [x] 10.1 Run `dotnet build -c Release` — confirm zero errors, zero warnings.
 - [x] 10.2 Run `dotnet test -c Release --no-build` — confirm all tests pass including the new static-asset integration tests.
 - [x] 10.3 Run TraceabilityCheck locally — confirm FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, FR-014, FR-015, FR-016 are mapped.
-- [ ] 10.4 Publish `OpenWSFZ.Daemon` AOT for the current RID, launch the binary, open `http://127.0.0.1:8080` in a browser — confirm the dark main page loads with the waterfall canvas placeholder and the decodes table.
-- [ ] 10.5 Click the Settings link — confirm the Settings page loads, the device selector is populated from the API, the port field shows the current value, and Save returns a success message.
-- [ ] 10.6 Open DevTools → Network → WS — confirm the WebSocket connection is established on page load and the status bar updates after the first `status` event.
+- [x] 10.4 Publish `OpenWSFZ.Daemon` AOT for the current RID, launch the binary, open `http://127.0.0.1:8080` in a browser — confirm the dark main page loads with the waterfall canvas placeholder and the decodes table.
+- [x] 10.5 Click the Settings link — confirm the Settings page loads, the device selector is populated from the API, the port field shows the current value, and Save returns a success message.
+- [x] 10.6 Open DevTools → Network → WS — confirm the WebSocket connection is established on page load and the status bar updates after the first `status` event.
 
 <!-- Tasks 10.4–10.6 require manual browser verification by the operator. -->
