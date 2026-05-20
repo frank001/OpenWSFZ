@@ -144,6 +144,10 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
     [Fact(DisplayName = "FR-004: POST /api/v1/config persists and returns updated config")]
     public async Task PostConfig_PersistsUpdatedConfig_AndSubsequentGetReflectsChange()
     {
+        // Reset to known state before this test — the fixture store is shared across tests
+        // in the class (IClassFixture) so previous tests may have mutated it.
+        await _fixture.ConfigStore.SaveAsync(new AppConfig());
+
         var payload = """{"audioDeviceName":"NewMic","port":9090}""";
         using var body = new StringContent(payload, Encoding.UTF8, "application/json");
 

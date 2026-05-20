@@ -64,6 +64,11 @@ internal sealed class SubprocessAudioDeviceProvider : IAudioDeviceProvider
 
             return _parser(stdout);
         }
+        catch (OperationCanceledException)
+        {
+            // Propagate cancellation — callers that cancel the token expect the exception.
+            throw;
+        }
         catch
         {
             // Tool absent, permission denied, or any other failure → empty list.

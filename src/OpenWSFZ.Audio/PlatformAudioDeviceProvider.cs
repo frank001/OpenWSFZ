@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Audio;
@@ -22,8 +21,10 @@ public sealed class PlatformAudioDeviceProvider : IAudioDeviceProvider
 
     private static IAudioDeviceProvider ResolveForCurrentPlatform()
     {
+#if WASAPI_SUPPORTED
         if (OperatingSystem.IsWindows())
             return new WasapiAudioDeviceProvider();
+#endif
 
         if (OperatingSystem.IsLinux())
             return SubprocessAudioDeviceProvider.ForLinux();

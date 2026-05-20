@@ -1,3 +1,4 @@
+#if WASAPI_SUPPORTED
 using System.Runtime.Versioning;
 using NAudio.CoreAudioApi;
 using OpenWSFZ.Abstractions;
@@ -37,3 +38,4 @@ internal sealed class WasapiAudioDeviceProvider : IAudioDeviceProvider
         return Task.FromResult<IReadOnlyList<AudioDeviceInfo>>(devices);
     }
 }
+#endif

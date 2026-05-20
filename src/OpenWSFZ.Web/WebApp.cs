@@ -138,7 +138,7 @@ public static class WebApp
                 return Results.BadRequest("Missing or empty request body.");
 
             await store.SaveAsync(config, ct);
-            return Results.Ok(store.Current);
+            return TypedResults.Ok(store.Current);
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────

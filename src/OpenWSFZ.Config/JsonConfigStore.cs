@@ -10,7 +10,7 @@ namespace OpenWSFZ.Config;
 public sealed class JsonConfigStore : IConfigStore
 {
     private readonly string _path;
-    private AppConfig _current;
+    private volatile AppConfig _current;
 
     /// <param name="path">Resolved config file path (from <see cref="ConfigPathResolver"/>).</param>
     public JsonConfigStore(string path)
@@ -76,9 +76,14 @@ public sealed class JsonConfigStore : IConfigStore
             return JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)
                 ?? new AppConfig();
         }
-        catch
+        catch (Exception ex)
         {
-            // Corrupt / unreadable config — return defaults, do not overwrite.
+            // Corrupt / unreadable config — return defaults and do not overwrite so the
+            // operator can inspect and recover the file.  Log to stderr so the problem
+            // is visible at startup without requiring a full logging stack.
+            Console.Error.WriteLine(
+                $"[OpenWSFZ] WARNING: config file '{path}' could not be read ({ex.GetType().Name}: {ex.Message}). " +
+                "Using defaults — the file has NOT been overwritten.");
             return new AppConfig();
         }
     }
