@@ -109,9 +109,12 @@ public sealed class DaemonProcess : IAsyncDisposable
 
     private static string GetRid()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "win-x64";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))   return "linux-x64";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))     return "osx-x64";
+        var arch = RuntimeInformation.ProcessArchitecture;
+        var archSuffix = arch == Architecture.Arm64 ? "arm64" : "x64";
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return $"win-{archSuffix}";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))   return $"linux-{archSuffix}";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))     return $"osx-{archSuffix}";
         throw new PlatformNotSupportedException("Unsupported OS for E2E tests.");
     }
 

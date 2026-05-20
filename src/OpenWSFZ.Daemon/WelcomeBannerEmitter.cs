@@ -2,8 +2,8 @@ namespace OpenWSFZ.Daemon;
 
 /// <summary>
 /// Writes the welcome banner to stdout once the HTTP listener is ready.
-/// Bound to <see cref="Microsoft.AspNetCore.Hosting.IWebHostEnvironment"/> via
-/// <c>app.Lifetime.ApplicationStarted</c> in <c>Program.cs</c>.
+/// Invoked from <see cref="Microsoft.Extensions.Hosting.IHostApplicationLifetime.ApplicationStarted"/>
+/// in <c>Program.cs</c>.
 /// </summary>
 internal static class WelcomeBannerEmitter
 {

@@ -22,15 +22,16 @@ public sealed class StatusAndBindingTests : IClassFixture<WebTestFactory>
         });
     }
 
-    [Fact(DisplayName = "FR-002, NFR-004: status endpoint is reachable from loopback")]
+    [Fact(DisplayName = "FR-002, NFR-004: GET / returns index page on loopback")]
     public async Task GetRoot_Returns200WithHtmlBody()
     {
-        // Note: the web/ directory is absent from the test output, so GET / returns 404.
-        // This test instead verifies that the server is reachable on the loopback address
-        // and that the status endpoint responds — confirming FR-002 and NFR-004.
-        var response = await _client.GetAsync("/api/v1/status");
+        var response = await _client.GetAsync("/");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
+
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("<html", "the response body must be an HTML page");
     }
 
     [Fact(DisplayName = "FR-002: GET /api/v1/status returns DaemonStatus JSON")]

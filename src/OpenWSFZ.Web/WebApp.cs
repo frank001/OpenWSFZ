@@ -35,12 +35,13 @@ public static class WebApp
         builder.Services.ConfigureHttpJsonOptions(opts =>
             opts.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));
 
-        // Kestrel: resolve endpoint via bind policy.
+        // Kestrel: always resolve IBindPolicy from DI so the same instance is used
+        // everywhere — Kestrel, the DI container, and future callers all see the
+        // same object.  Constructing a second instance inline would cause Kestrel
+        // to silently bypass any config-derived state on the registered singleton.
         builder.WebHost.ConfigureKestrel((_, kestrel) =>
         {
-            var policy = bindPolicy ?? new LoopbackBindPolicy(
-                kestrel.ApplicationServices
-                    .GetRequiredService<Microsoft.Extensions.Logging.ILogger<LoopbackBindPolicy>>());
+            var policy = kestrel.ApplicationServices.GetRequiredService<IBindPolicy>();
             var endpoint = policy.Resolve(IPAddress.Loopback, port);
             kestrel.Listen(endpoint);
         });
@@ -75,7 +76,7 @@ public static class WebApp
 
         // Endpoints.
         app.MapGet("/api/v1/status", () =>
-            TypedResults.Ok(new DaemonStatus(State: "Running", Version: GetVersion())));
+            TypedResults.Ok(new DaemonStatus(State: "Running", Version: AssemblyVersion.Get())));
 
         app.MapGet("/api/v1/ws", async (HttpContext ctx) =>
         {
@@ -92,9 +93,4 @@ public static class WebApp
         return app;
     }
 
-    private static string GetVersion()
-    {
-        var asm = typeof(WebApp).Assembly;
-        return asm.GetName().Version?.ToString() ?? "0.0.0";
-    }
 }
