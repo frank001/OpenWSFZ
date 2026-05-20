@@ -45,6 +45,11 @@ public sealed class StatusAndBindingTests : IClassFixture<WebTestFactory>
         var body = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(body);
         doc.RootElement.GetProperty("state").GetString().Should().Be("Running");
+        var version = doc.RootElement.GetProperty("version").GetString();
+        version.Should().NotBeNullOrEmpty(
+            "version must be set via <Version> in Directory.Build.props");
+        version.Should().NotBe("0.0.0",
+            "fallback sentinel must not reach the wire; set <Version> in Directory.Build.props");
     }
 
     [Fact(DisplayName = "NFR-004: Kestrel listener address is 127.0.0.1")]

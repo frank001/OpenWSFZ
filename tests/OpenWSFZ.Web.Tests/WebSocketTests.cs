@@ -30,8 +30,14 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
 
         using var doc = JsonDocument.Parse(frame!);
         doc.RootElement.GetProperty("type").GetString().Should().Be("status");
-        doc.RootElement.GetProperty("payload").GetProperty("state").GetString()
-           .Should().Be("Running");
+
+        var payload = doc.RootElement.GetProperty("payload");
+        payload.GetProperty("state").GetString().Should().Be("Running");
+        var version = payload.GetProperty("version").GetString();
+        version.Should().NotBeNullOrEmpty(
+            "version must be set via <Version> in Directory.Build.props");
+        version.Should().NotBe("0.0.0",
+            "fallback sentinel must not reach the wire; set <Version> in Directory.Build.props");
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }

@@ -5,42 +5,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OpenWSFZ</title>
   <style>
-    body { background: #1a1a1a; color: #e0e0e0; font-family: monospace; margin: 2rem; }
-    h1   { color: #7ec8e3; }
-    pre  { background: #111; border: 1px solid #333; padding: 1rem; white-space: pre-wrap; }
-    #status { color: #aaa; font-size: 0.85em; margin-bottom: 0.5rem; }
+    body    { background: #1a1a1a; color: #e0e0e0; font-family: monospace; margin: 2rem; }
+    h1, h2  { color: #7ec8e3; }
+    h2      { font-size: 0.95em; margin-top: 1.5rem; }
+    pre     { background: #111; border: 1px solid #333; padding: 1rem; white-space: pre-wrap; }
+    #connection-status { color: #aaa; font-size: 0.85em; margin-bottom: 0.5rem; }
   </style>
 </head>
 <body>
   <h1>OpenWSFZ</h1>
-  <p id="status">Connecting…</p>
-  <pre id="output">(waiting for status)</pre>
+  <p id="connection-status">Connecting…</p>
+
+  <h2>Daemon Status</h2>
+  <pre id="daemon-status">(waiting for status)</pre>
+
+  <h2>Last message</h2>
+  <pre id="last-message"></pre>
 
   <script>
-    const status = document.getElementById('status');
-    const output = document.getElementById('output');
+    const connStatus  = document.getElementById('connection-status');
+    const daemonStatus = document.getElementById('daemon-status');
+    const lastMessage  = document.getElementById('last-message');
 
     function connect() {
       const ws = new WebSocket(`ws://${location.host}/api/v1/ws`);
 
-      ws.onopen = () => { status.textContent = 'Connected'; };
+      ws.onopen = () => { connStatus.textContent = 'Connected'; };
 
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
-          output.textContent = JSON.stringify(msg, null, 2);
+          // Always update the raw message feed.
+          lastMessage.textContent = JSON.stringify(msg, null, 2);
+          // Persist the status payload so heartbeats do not overwrite it.
+          if (msg.type === 'status' && msg.payload) {
+            daemonStatus.textContent = JSON.stringify(msg.payload, null, 2);
+          }
         } catch {
-          output.textContent = ev.data;
+          lastMessage.textContent = ev.data;
         }
       };
 
       ws.onclose = () => {
-        status.textContent = 'Disconnected — retrying in 3 s…';
+        connStatus.textContent = 'Disconnected — retrying in 3 s…';
         setTimeout(connect, 3000);
       };
 
       ws.onerror = () => {
-        status.textContent = 'Connection error';
+        connStatus.textContent = 'Connection error';
         ws.close();
       };
     }
