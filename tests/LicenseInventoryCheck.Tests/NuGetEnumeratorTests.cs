@@ -89,4 +89,63 @@ public sealed class NuGetEnumeratorTests
             Directory.Delete(root, recursive: true);
         }
     }
+
+    [Fact(DisplayName = "P0-Tool: Package with <license type=\"file\"> resolves via KnownFileLicences table")]
+    public void Enumerate_LicenceTypeFile_ResolvedViaKnownTable()
+    {
+        // Arrange: a synthetic NuGet cache with a .nuspec using <license type="file">.
+        var root     = Path.Combine(Path.GetTempPath(), $"lic-test-{Guid.NewGuid():N}");
+        var objDir   = Path.Combine(root, "src", "MyProject", "obj");
+        var cacheDir = Path.Combine(root, "fakecache");
+        Directory.CreateDirectory(objDir);
+
+        // Write the .nuspec for the package into the fake cache.
+        foreach (var (pkgId, _) in NuGetEnumerator.KnownFileLicences)
+        {
+            var nuspecDir = Path.Combine(cacheDir, pkgId.ToLowerInvariant(), "1.0.0");
+            Directory.CreateDirectory(nuspecDir);
+            File.WriteAllText(
+                Path.Combine(nuspecDir, pkgId.ToLowerInvariant() + ".nuspec"),
+                $"""
+                <?xml version="1.0"?>
+                <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+                  <metadata>
+                    <id>{pkgId}</id>
+                    <version>1.0.0</version>
+                    <license type="file">license.txt</license>
+                    <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+                  </metadata>
+                </package>
+                """);
+
+            // Write the project.assets.json referencing the package and the fake cache.
+            File.WriteAllText(
+                Path.Combine(objDir, "project.assets.json"),
+                $$"""
+                {
+                  "version": 3,
+                  "packageFolders": { "{{cacheDir.Replace("\\", "\\\\")}}" : {} },
+                  "libraries": {
+                    "{{pkgId}}/1.0.0": { "type": "package" }
+                  }
+                }
+                """);
+
+            try
+            {
+                var entries = NuGetEnumerator.Enumerate(root);
+
+                var entry = entries.Single(e =>
+                    string.Equals(e.Name, pkgId, StringComparison.OrdinalIgnoreCase));
+
+                entry.Licence.Should().Be(
+                    NuGetEnumerator.KnownFileLicences[pkgId],
+                    $"KnownFileLicences must resolve '{pkgId}' to its known SPDX expression");
+            }
+            finally
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }
