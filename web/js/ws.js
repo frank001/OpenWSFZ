@@ -62,6 +62,7 @@ export function connect(onEvent) {
     });
 
     ws.addEventListener('close', () => {
+      ws = null;  // must be cleared so the visibilitychange guard (!ws) works correctly
       onEvent({ type: '__state', payload: 'disconnected' });
       scheduleReconnect();
     });
