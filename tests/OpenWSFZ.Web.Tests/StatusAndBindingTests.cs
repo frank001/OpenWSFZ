@@ -22,15 +22,16 @@ public sealed class StatusAndBindingTests : IClassFixture<WebTestFactory>
         });
     }
 
-    [Fact(DisplayName = "FR-002, NFR-004: status endpoint is reachable from loopback")]
+    [Fact(DisplayName = "FR-002, NFR-004: GET / returns index page on loopback")]
     public async Task GetRoot_Returns200WithHtmlBody()
     {
-        // Note: the web/ directory is absent from the test output, so GET / returns 404.
-        // This test instead verifies that the server is reachable on the loopback address
-        // and that the status endpoint responds — confirming FR-002 and NFR-004.
-        var response = await _client.GetAsync("/api/v1/status");
+        var response = await _client.GetAsync("/");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
+
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("<html", "the response body must be an HTML page");
     }
 
     [Fact(DisplayName = "FR-002: GET /api/v1/status returns DaemonStatus JSON")]
@@ -44,6 +45,11 @@ public sealed class StatusAndBindingTests : IClassFixture<WebTestFactory>
         var body = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(body);
         doc.RootElement.GetProperty("state").GetString().Should().Be("Running");
+        var version = doc.RootElement.GetProperty("version").GetString();
+        version.Should().NotBeNullOrEmpty(
+            "version must be set via <Version> in Directory.Build.props");
+        version.Should().NotBe("0.0.0",
+            "fallback sentinel must not reach the wire; set <Version> in Directory.Build.props");
     }
 
     [Fact(DisplayName = "NFR-004: Kestrel listener address is 127.0.0.1")]

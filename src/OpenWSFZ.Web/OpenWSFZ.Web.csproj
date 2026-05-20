@@ -7,11 +7,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
     <!--
-      Suppress the launchSettings-related warning — we do not use launchSettings.json;
-      the daemon drives Kestrel configuration directly via LaunchOptions.
-    -->
-    <UserSecretsId></UserSecretsId>
-    <!--
       Enable the Roslyn RequestDelegateGenerator source generator so that MapGet/MapPost
       lambdas are resolved at compile time rather than via reflection.
       Required for AOT publish of OpenWSFZ.Daemon (which references this library).

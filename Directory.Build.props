@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      Product version for all assemblies. Increment per release.
+      Setting <Version> causes the SDK to populate AssemblyVersion,
+      FileVersion, and AssemblyInformationalVersion automatically.
+      AssemblyInformationalVersion carries the human-readable semantic
+      version and is preserved through AOT trimming.
+    -->
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

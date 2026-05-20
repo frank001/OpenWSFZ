@@ -14,15 +14,20 @@ internal static class WebSocketHub
 
     public static async Task HandleAsync(WebSocket ws, CancellationToken ct)
     {
-        var status = new DaemonStatus(State: "Running", Version: GetVersion());
+        var status = new DaemonStatus(State: "Running", Version: AssemblyVersion.Get());
         var statusMsg = new WsMessage(Type: "status", Payload: status);
 
         // Send initial status event on connect.
         await SendJsonAsync(ws, statusMsg, ct);
 
         // Heartbeat loop.
+        // receiveTask is hoisted outside the loop so only one ReceiveAsync call is
+        // ever in-flight on this socket.  Spawning a new one each iteration would
+        // leave orphaned tasks concurrently calling ReceiveAsync — not permitted by
+        // the ASP.NET Core WebSocket implementation (throws InvalidOperationException).
         using var timer = new PeriodicTimer(HeartbeatInterval);
         var heartbeatMsg = new WsMessage(Type: "heartbeat");
+        var receiveTask = ReceiveUntilCloseAsync(ws, ct);
 
         while (!ct.IsCancellationRequested)
         {
@@ -30,7 +35,6 @@ internal static class WebSocketHub
             {
                 // Wait for the next tick or until the client closes.
                 var timerTask = timer.WaitForNextTickAsync(ct).AsTask();
-                var receiveTask = ReceiveUntilCloseAsync(ws, ct);
 
                 var completed = await Task.WhenAny(timerTask, receiveTask);
 
@@ -87,9 +91,4 @@ internal static class WebSocketHub
         }
     }
 
-    private static string GetVersion()
-    {
-        var asm = typeof(WebSocketHub).Assembly;
-        return asm.GetName().Version?.ToString() ?? "0.0.0";
-    }
 }

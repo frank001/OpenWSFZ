@@ -52,4 +52,4 @@
 - [x] 7.2 Run `dotnet test -c Release --no-build` — confirm all tests pass (integration + E2E included).
 - [x] 7.3 Run TraceabilityCheck locally — confirm FR-002, FR-007, and NFR-004 are mapped and no stale references introduced.
 - [x] 7.4 Run LicenseInventoryCheck locally — confirm gate still passes with the new ASP.NET Core / `Microsoft.Extensions.*` dependencies.
-- [ ] 7.5 Publish `OpenWSFZ.Daemon` for the current RID with AOT, launch the binary manually, open `http://127.0.0.1:8080/` in a browser, and confirm the placeholder page loads and the WebSocket status event arrives in DevTools.
+- [x] 7.5 Publish `OpenWSFZ.Daemon` for the current RID with AOT, launch the binary manually, open `http://127.0.0.1:8080/` in a browser, and confirm the placeholder page loads and the WebSocket status event arrives in DevTools.

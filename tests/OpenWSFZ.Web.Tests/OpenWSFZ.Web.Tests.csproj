@@ -24,4 +24,15 @@
     -->
     <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Copy the web/ static files into the test output directory so that
+      WebApp.Create can find them via AppContext.BaseDirectory/web/ and serve
+      GET / → index.html through UseStaticFiles during integration tests.
+    -->
+    <None Include="..\..\web\**" Link="web\%(RecursiveDir)%(FileName)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
