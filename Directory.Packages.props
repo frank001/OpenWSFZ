@@ -23,5 +23,8 @@
 
     <!-- Integration test host for ASP.NET Core (Phase 1) -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
+
+    <!-- Audio device enumeration — Windows WASAPI (Phase 2) -->
+    <PackageVersion Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Define WASAPI_SUPPORTED only when building on Windows so that
+       WasapiAudioDeviceProvider.cs (which references NAudio) is excluded
+       from compilation on Linux and macOS. -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <DefineConstants>$(DefineConstants);WASAPI_SUPPORTED</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Windows WASAPI device enumeration -->
+    <PackageReference Include="NAudio" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+  </ItemGroup>
+</Project>

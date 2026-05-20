@@ -89,4 +89,65 @@ public sealed class NuGetEnumeratorTests
             Directory.Delete(root, recursive: true);
         }
     }
+
+    /// <summary>
+    /// Test data: every entry in <see cref="NuGetEnumerator.KnownFileLicences"/>.
+    /// Structured as a <c>[Theory]</c> so each package produces an independent test result.
+    /// </summary>
+    public static IEnumerable<object[]> KnownFileLicenceEntries() =>
+        NuGetEnumerator.KnownFileLicences.Select(kv => new object[] { kv.Key, kv.Value });
+
+    [Theory(DisplayName = "P0-Tool: Package with <license type=\"file\"> resolves via KnownFileLicences table")]
+    [MemberData(nameof(KnownFileLicenceEntries))]
+    public void Enumerate_LicenceTypeFile_ResolvedViaKnownTable(string packageId, string expectedSpdx)
+    {
+        // Arrange: a synthetic NuGet cache with a .nuspec using <license type="file">.
+        var root     = Path.Combine(Path.GetTempPath(), $"lic-test-{Guid.NewGuid():N}");
+        var objDir   = Path.Combine(root, "src", "MyProject", "obj");
+        var cacheDir = Path.Combine(root, "fakecache");
+        Directory.CreateDirectory(objDir);
+
+        var nuspecDir = Path.Combine(cacheDir, packageId.ToLowerInvariant(), "1.0.0");
+        Directory.CreateDirectory(nuspecDir);
+        File.WriteAllText(
+            Path.Combine(nuspecDir, packageId.ToLowerInvariant() + ".nuspec"),
+            $"""
+            <?xml version="1.0"?>
+            <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+              <metadata>
+                <id>{packageId}</id>
+                <version>1.0.0</version>
+                <license type="file">license.txt</license>
+                <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+              </metadata>
+            </package>
+            """);
+
+        File.WriteAllText(
+            Path.Combine(objDir, "project.assets.json"),
+            $$"""
+            {
+              "version": 3,
+              "packageFolders": { "{{cacheDir.Replace("\\", "\\\\")}}" : {} },
+              "libraries": {
+                "{{packageId}}/1.0.0": { "type": "package" }
+              }
+            }
+            """);
+
+        try
+        {
+            var entries = NuGetEnumerator.Enumerate(root);
+
+            var entry = entries.Single(e =>
+                string.Equals(e.Name, packageId, StringComparison.OrdinalIgnoreCase));
+
+            entry.Licence.Should().Be(expectedSpdx,
+                $"KnownFileLicences must resolve '{packageId}' to its known SPDX expression");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }

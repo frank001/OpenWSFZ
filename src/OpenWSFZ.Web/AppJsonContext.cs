@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Web;
 
@@ -9,6 +11,9 @@ namespace OpenWSFZ.Web;
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(DaemonStatus))]
 [JsonSerializable(typeof(WsMessage))]
+[JsonSerializable(typeof(AudioDeviceInfo))]
+[JsonSerializable(typeof(List<AudioDeviceInfo>))]
+[JsonSerializable(typeof(AppConfig))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for WebSocket text frames.</summary>
