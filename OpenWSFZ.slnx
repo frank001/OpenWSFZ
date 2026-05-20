@@ -1,11 +1,15 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/OpenWSFZ.Abstractions/OpenWSFZ.Abstractions.csproj" />
+    <Project Path="src/OpenWSFZ.Audio/OpenWSFZ.Audio.csproj" />
+    <Project Path="src/OpenWSFZ.Config/OpenWSFZ.Config.csproj" />
     <Project Path="src/OpenWSFZ.Daemon/OpenWSFZ.Daemon.csproj" />
     <Project Path="src/OpenWSFZ.Web/OpenWSFZ.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/LicenseInventoryCheck.Tests/LicenseInventoryCheck.Tests.csproj" />
+    <Project Path="tests/OpenWSFZ.Audio.Tests/OpenWSFZ.Audio.Tests.csproj" />
+    <Project Path="tests/OpenWSFZ.Config.Tests/OpenWSFZ.Config.Tests.csproj" />
     <Project Path="tests/OpenWSFZ.E2E.Tests/OpenWSFZ.E2E.Tests.csproj" />
     <Project Path="tests/OpenWSFZ.Web.Tests/OpenWSFZ.Web.Tests.csproj" />
     <Project Path="tests/TraceabilityCheck.Tests/TraceabilityCheck.Tests.csproj" />

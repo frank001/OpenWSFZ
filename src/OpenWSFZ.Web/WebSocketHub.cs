@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Web;
 
@@ -12,9 +13,12 @@ internal static class WebSocketHub
 {
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(5);
 
-    public static async Task HandleAsync(WebSocket ws, CancellationToken ct)
+    public static async Task HandleAsync(WebSocket ws, IConfigStore configStore, CancellationToken ct)
     {
-        var status = new DaemonStatus(State: "Running", Version: AssemblyVersion.Get());
+        var status = new DaemonStatus(
+            State:       "Running",
+            Version:     AssemblyVersion.Get(),
+            AudioDevice: configStore.Current.AudioDeviceName);
         var statusMsg = new WsMessage(Type: "status", Payload: status);
 
         // Send initial status event on connect.

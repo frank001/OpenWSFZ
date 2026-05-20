@@ -16,5 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+    <ProjectReference Include="..\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj" />
+    <ProjectReference Include="..\OpenWSFZ.Config\OpenWSFZ.Config.csproj" />
   </ItemGroup>
 </Project>

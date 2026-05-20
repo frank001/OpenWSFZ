@@ -20,16 +20,6 @@ NFR-010  # Extensibility — bind/auth policy seam (IBindPolicy, IAuthPolicy)
 NFR-011  # Extensibility — architecture iterative and easy to extend
 NFR-014  # Process — four AI-assisted roles: ANALYST, ARCHITECT, DEVELOPER, QA
 
-## Pending — Phase 2 (Configuration)
-
-FR-004  # Configuration persistence — persist settings to config file via Save action
-FR-005  # Configurable config-file path — overridable via CLI flag and/or env var
-FR-006  # Default config ships with app — fresh install is in a known runnable state
-
-## Pending — Phase 3 (Audio)
-
-FR-003  # USB audio device selection — enumerate capture devices and let operator choose
-
 ## Pending — Phase 4 (Decoder)
 
 FR-001  # FT8 receive-only decode — decode transmissions from configured audio input
