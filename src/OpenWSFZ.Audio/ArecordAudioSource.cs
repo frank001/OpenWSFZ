@@ -115,8 +115,12 @@ internal sealed class ArecordAudioSource : IAudioSource
                 RedirectStandardError  = true,
                 UseShellExecute        = false,
             };
-            // Use -EncodedCommand so we don't fight quoting.
-            var script = $"$f=New-Object IO.FileStream('{filePath}',[IO.FileMode]::Open);$o=[Console]::OpenStandardOutput();$f.CopyTo($o)";
+            // ReadAllBytes reads the entire file into memory and releases the file handle
+            // before any bytes are written to stdout.  The original FileStream approach held
+            // an exclusive Windows lock on the file for the duration of the pipe, causing
+            // File.Delete to fail in the test finally block with "being used by another process"
+            // (Windows kernel race: handle release is not instantaneous after process exit).
+            var script = $"$out=[Console]::OpenStandardOutput();$b=[System.IO.File]::ReadAllBytes('{filePath}');$out.Write($b,0,$b.Length);$out.Flush()";
             var encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script));
             psi.ArgumentList.Add("-NoProfile");
             psi.ArgumentList.Add("-NonInteractive");
