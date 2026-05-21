@@ -6,8 +6,7 @@ JS8, JT9, JT65, WSPR, and related).
 
 ## Project intent
 
-- **For HAM operators**, designed to be something they would prefer over
-  existing software.
+- **For HAM operators**, as a flexible alternative for existing software.
 - **Cross-platform** (Windows, Linux, macOS) and **free of restrictions**.
 - **MIT-licensed**, clean-room implementation derived from public protocol
   specifications. No code, algorithms, or assets are taken from the GPL-3.0
