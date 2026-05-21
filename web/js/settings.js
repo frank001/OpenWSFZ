@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       for (const dev of devices) {
         const opt = document.createElement('option');
-        opt.value       = dev.name;   // we persist by name (matches audioDeviceName)
+        opt.value       = dev.id;    // persist by device ID (WasapiAudioSource.GetDevice needs the GUID)
         opt.textContent = dev.name;
         deviceSelect.appendChild(opt);
       }

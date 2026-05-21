@@ -75,9 +75,9 @@
 
 ## 15. Exit gate verification (M5)
 
-- [x] 15.1 Run `dotnet build -c Release` — confirmed zero errors, zero warnings.
-- [x] 15.2 Run `dotnet test -c Release --no-build` — confirmed all 97 tests pass.
+- [x] 15.1 Run `dotnet build -c Release` — confirmed zero errors, zero warnings (98 tests after defect fix adds T-1).
+- [x] 15.2 Run `dotnet test -c Release --no-build` — confirmed all 98 tests pass.
 - [x] 15.3 Run TraceabilityCheck locally — confirmed FR-003 is mapped and debt file is clean.
-- [ ] 15.4 Run the daemon (`dotnet run --project src/OpenWSFZ.Daemon`), open the Settings page — confirm the device selector is populated with real audio devices.
-- [ ] 15.5 Select a device and Save; confirm `GET /api/v1/status` returns `captureActive: true` within a few seconds.
-- [ ] 15.6 Publish AOT (`dotnet publish -c Release -r win-x64 src/OpenWSFZ.Daemon`); confirm no AOT trim warnings related to NAudio capture path.
+- [x] 15.4 Run the daemon (`dotnet run --project src/OpenWSFZ.Daemon`), open the Settings page — confirmed: 13 real audio devices returned by `GET /api/v1/audio/devices`. Also discovered and fixed a UI bug: settings.js was persisting `dev.name` but `WasapiAudioSource.GetDevice` requires the device ID (GUID); fixed to `dev.id`.
+- [x] 15.5 Select a device and Save; confirm `GET /api/v1/status` returns `captureActive: true` within a few seconds. Confirmed via `POST /api/v1/config` with the Jabra EVOLVE LINK device GUID → status returned `captureActive: true`.
+- [x] 15.6 Publish AOT (`dotnet publish -c Release -r win-x64 src/OpenWSFZ.Daemon`); confirmed no AOT trim warnings related to NAudio capture path. Build succeeded; ILC note about MMDeviceEnumeratorComObject COM ctor is a pre-existing NAudio interop diagnostic unrelated to the capture path.
