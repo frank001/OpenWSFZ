@@ -18,6 +18,21 @@ public sealed class CaptureManager : IAsyncDisposable
     private volatile bool _isCapturing;
 
     /// <summary>True while a capture session is actively running.</summary>
+    /// <remarks>
+    /// <para>
+    /// This flag may briefly read <c>true</c> even when no audio is flowing.
+    /// <see cref="StartAsync"/> sets the flag synchronously before the background
+    /// capture task begins; if <see cref="IAudioSource.CaptureAsync"/> throws before
+    /// yielding any chunks (e.g. device not found or <see cref="AudioCaptureException"/>),
+    /// there is a short window where <c>IsCapturing == true</c> but no data is being
+    /// produced. The flag self-corrects to <c>false</c> once the <c>finally</c> block
+    /// in the capture task executes.
+    /// </para>
+    /// <para>
+    /// Phase 5 consumers must not treat <c>IsCapturing == true</c> as a guarantee that
+    /// chunks will be delivered to <see cref="Samples"/>.
+    /// </para>
+    /// </remarks>
     public bool IsCapturing => _isCapturing;
 
     /// <summary>

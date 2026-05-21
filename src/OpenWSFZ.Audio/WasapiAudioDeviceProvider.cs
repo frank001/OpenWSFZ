@@ -6,6 +6,12 @@ using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Audio;
 
+// NOTE: NAudio's MMDeviceEnumerator uses [ComImport] COM activation, which is incompatible
+// with NativeAOT (BuiltInComInterop.IsSupported=false). The AOT-published binary therefore
+// cannot enumerate or capture WASAPI devices. Development and testing use dotnet run (JIT,
+// no RID), where COM interop is available. Resolution: replace [ComImport] usage with
+// ComWrappers. Tracked as a Phase 6 item.
+
 /// <summary>
 /// Enumerates WASAPI capture endpoints on Windows using NAudio's
 /// <see cref="MMDeviceEnumerator"/>. All COM work is dispatched to a dedicated
