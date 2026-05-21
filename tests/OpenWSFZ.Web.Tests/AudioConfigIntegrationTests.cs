@@ -18,9 +18,11 @@ internal sealed class TestConfigStore : IConfigStore
 {
     private AppConfig _current = new();
     public AppConfig Current => _current;
+    public event Action<AppConfig>? OnSaved;
     public Task SaveAsync(AppConfig config, CancellationToken ct = default)
     {
         _current = config;
+        OnSaved?.Invoke(config);
         return Task.CompletedTask;
     }
 }
@@ -199,6 +201,24 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
         doc.RootElement.GetProperty("version").GetString()
             .Should().NotContain("+",
                 "the version field must not expose raw build metadata (full git SHA)");
+    }
+
+    // ── Task 13.1 ────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-003: GET /api/v1/status includes captureActive field")]
+    public async Task GetStatus_IncludesCaptureActiveField()
+    {
+        var response = await _client.GetAsync("/api/v1/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+
+        doc.RootElement.TryGetProperty("captureActive", out var captureProp).Should().BeTrue(
+            "the status response must include the captureActive boolean field");
+        captureProp.ValueKind.Should().Be(JsonValueKind.False,
+            "captureActive should be false when no CaptureManager is wired into the test fixture");
     }
 
     // ── Task 9.6 ─────────────────────────────────────────────────────────────
