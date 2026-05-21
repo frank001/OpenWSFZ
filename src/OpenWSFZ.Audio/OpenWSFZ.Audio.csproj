@@ -18,6 +18,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Logging abstractions — ILogger<T>/ILoggerFactory for WasapiAudioDeviceProvider
+         and PlatformAudioDeviceProvider. Not in Microsoft.NETCore.App shared framework
+         for plain SDK class libraries; must be referenced explicitly. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+
     <!-- Windows WASAPI device enumeration -->
     <PackageReference Include="NAudio" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
   </ItemGroup>

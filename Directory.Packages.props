@@ -26,5 +26,9 @@
 
     <!-- Audio device enumeration — Windows WASAPI (Phase 2) -->
     <PackageVersion Include="NAudio" Version="2.2.1" />
+
+    <!-- Logging abstractions (ILogger<T>, ILoggerFactory) for class libraries
+         that are not covered by the Microsoft.AspNetCore.App shared framework. -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
   </ItemGroup>
 </Project>
