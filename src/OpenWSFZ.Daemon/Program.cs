@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Audio;
 using OpenWSFZ.Config;
 using OpenWSFZ.Daemon;
@@ -22,11 +24,14 @@ var audioSource     = new PlatformAudioSource();
 var captureManager  = new CaptureManager(audioSource);
 
 // Create and configure the web application.
+// audioProviderFactory defers construction of PlatformAudioDeviceProvider until
+// DI resolves it, so the app's own ILoggerFactory is available when it's built.
 var app = WebApp.Create(
     port,
-    configStore:    configStore,
-    audioProvider:  new PlatformAudioDeviceProvider(),
-    captureManager: captureManager);
+    configStore:          configStore,
+    audioProviderFactory: sp => new PlatformAudioDeviceProvider(
+                                    sp.GetRequiredService<ILoggerFactory>()),
+    captureManager:       captureManager);
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────
 

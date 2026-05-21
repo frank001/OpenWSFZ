@@ -36,10 +36,11 @@ public static class WebApp
     /// </param>
     public static WebApplication Create(
         int port,
-        IBindPolicy?          bindPolicy      = null,
-        IConfigStore?         configStore     = null,
-        IAudioDeviceProvider? audioProvider   = null,
-        CaptureManager?       captureManager  = null)
+        IBindPolicy?                                  bindPolicy           = null,
+        IConfigStore?                                 configStore          = null,
+        IAudioDeviceProvider?                         audioProvider        = null,
+        Func<IServiceProvider, IAudioDeviceProvider>? audioProviderFactory = null,
+        CaptureManager?                               captureManager       = null)
     {
         var builder = WebApplication.CreateBuilder();
 
@@ -53,8 +54,11 @@ public static class WebApp
         builder.Services.AddSingleton<IConfigStore>(
             configStore ?? new InMemoryConfigStore());
 
-        builder.Services.AddSingleton<IAudioDeviceProvider>(
-            audioProvider ?? new InMemoryAudioDeviceProvider());
+        if (audioProviderFactory is not null)
+            builder.Services.AddSingleton<IAudioDeviceProvider>(audioProviderFactory);
+        else
+            builder.Services.AddSingleton<IAudioDeviceProvider>(
+                audioProvider ?? new InMemoryAudioDeviceProvider());
 
         // AOT-safe JSON serialisation.
         builder.Services.ConfigureHttpJsonOptions(opts =>

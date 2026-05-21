@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Audio;
 using System.Diagnostics;
@@ -31,6 +32,31 @@ internal sealed class InfiniteAudioSource : IAudioSource
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
+
+#if WASAPI_SUPPORTED
+/// <summary>
+/// Minimal <see cref="ILogger{T}"/> that records whether a Warning-or-higher
+/// entry was emitted. Used in T-1 to verify enumeration failures are logged.
+/// </summary>
+internal sealed class CapturingLogger<T> : ILogger<T>
+{
+    public bool HasWarning { get; private set; }
+
+    IDisposable? ILogger.BeginScope<TState>(TState state) => null;
+    bool ILogger.IsEnabled(LogLevel logLevel) => true;
+
+    void ILogger.Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        if (logLevel >= LogLevel.Warning)
+            HasWarning = true;
+    }
+}
+#endif
 
 // ── CaptureManager unit tests ─────────────────────────────────────────────────
 
@@ -174,5 +200,30 @@ public sealed class WasapiAudioDeviceProviderTests
             .NotThrowAsync(
                 because: "GetDevicesAsync must not throw when called from an MTA thread — " +
                          "the STA fix ensures COM is initialised on the correct thread");
+    }
+
+    // T-1 — defect fix: enumeration failures must be logged, not silently swallowed.
+    [Fact(DisplayName = "P4-Audio-T1: WasapiAudioDeviceProvider logs Warning and returns empty list when enumeration throws")]
+    public async Task GetDevicesAsync_LogsWarningAndReturnsEmptyList_WhenEnumerationThrows()
+    {
+        if (!OperatingSystem.IsWindows())
+            return; // WASAPI is not available on non-Windows platforms — skip silently.
+
+#if WASAPI_SUPPORTED
+        // Arrange: a logger that captures warning calls, plus a seam that simulates a COM failure.
+        var capturingLogger = new CapturingLogger<WasapiAudioDeviceProvider>();
+        var provider = new WasapiAudioDeviceProvider(
+            capturingLogger,
+            () => throw new InvalidOperationException("Simulated COM failure"));
+
+        // Act
+        var devices = await provider.GetDevicesAsync();
+
+        // Assert
+        devices.Should().BeEmpty(
+            "no devices were collected before the exception was thrown");
+        capturingLogger.HasWarning.Should().BeTrue(
+            "a Warning must be logged so that WASAPI failures are visible in the application log");
+#endif
     }
 }
