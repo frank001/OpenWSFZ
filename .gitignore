@@ -47,3 +47,6 @@ licence-inventory.md
 
 # Working / scratch notes (not part of the repo)
 resume.txt
+
+# Serena MCP tool — logs and runtime artefacts (project config is committed)
+daemon_log.txt
