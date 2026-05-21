@@ -46,7 +46,7 @@ in progress.
 - **PCM audio capture** streams 32-bit float mono at 12 000 Hz from the
   selected device into the decode pipeline.
 - **Settings page** loads and saves configuration (device selection, port)
-  with a REST round-trip; changes are persisted to a TOML config file.
+  with a REST round-trip; changes are persisted to a JSON config file.
 - **WebSocket** pushes live status events to connected browser tabs.
 - **Dark-theme UI** with a waterfall panel (placeholder — no live data yet).
 
