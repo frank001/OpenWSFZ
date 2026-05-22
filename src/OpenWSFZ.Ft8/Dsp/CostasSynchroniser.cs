@@ -11,9 +11,9 @@ internal static class CostasSynchroniser
 {
     /// <summary>
     /// The FT8 Costas array: tone index (0-7) for each of the 7 sync symbols.
-    /// Source: Franke &amp; Taylor, "The FT4 and FT8 Communication Protocols", QEX Nov/Dec 2019.
+    /// Source: Franke &amp; Taylor, "The FT4 and FT8 Communication Protocols", QEX Nov/Dec 2019, Table 1.
     /// </summary>
-    public static ReadOnlySpan<int> CostasPattern => [2, 5, 6, 0, 4, 1, 3];
+    public static ReadOnlySpan<int> CostasPattern => [3, 1, 4, 0, 6, 5, 2];
 
     /// <summary>Positions of the three Costas arrays within the 79-symbol frame.</summary>
     private static ReadOnlySpan<int> CostasPositions => [0, 36, 72];

@@ -9,6 +9,19 @@ namespace OpenWSFZ.Ft8.Tests;
 /// </summary>
 public sealed class CostasSynchroniserTests
 {
+    /// <summary>
+    /// Pinning test: the Costas pattern must match the FT8 spec exactly (Franke & Taylor 2019, Table 1).
+    /// The existing grid-based tests are self-referential (they read the pattern from the code under
+    /// test), so they cannot catch a wrong value here. This test is the spec anchor.
+    /// </summary>
+    [Fact(DisplayName = "FR-001: CostasPattern matches FT8 specification [3,1,4,0,6,5,2]")]
+    public void CostasPattern_MatchesFt8Specification()
+    {
+        int[] expected = [3, 1, 4, 0, 6, 5, 2];
+        CostasSynchroniser.CostasPattern.ToArray().Should().Equal(expected,
+            "the FT8 Costas array is [3,1,4,0,6,5,2] per Franke & Taylor 2019 — wrong value = zero decodes");
+    }
+
     [Fact]
     public void FindCandidates_PerfectCostasGrid_ReturnsHighScoringCandidate()
     {
