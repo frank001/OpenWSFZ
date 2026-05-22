@@ -22,7 +22,7 @@ NFR-014  # Process — four AI-assisted roles: ANALYST, ARCHITECT, DEVELOPER, QA
 
 ## Pending — Phase 4 (Decoder)
 
-FR-001  # FT8 receive-only decode — decode transmissions from configured audio input
+# FR-001 removed — implemented in p5-ft8-decoder (Ft8Decoder, CycleFramer)
 NFR-003  # Real-time decoding — each 15-second FT8 cycle fully decoded before next cycle
 NFR-008  # Extensibility — protocol layer plugin point (IModeDecoder / IModeRegistry)
 
@@ -30,7 +30,7 @@ NFR-008  # Extensibility — protocol layer plugin point (IModeDecoder / IModeRe
 
 FR-002  # Self-hosted web UI served on http://127.0.0.1:<port>
 FR-008  # Waterfall display — live spectrogram of audio input in the main UI
-FR-009  # Decoded messages list — display FT8 messages with decoded text and audio offset
+# FR-009 removed — implemented in p5-ft8-decoder (decode event → #decodes-table UI)
 FR-011  # Save action on Settings page writes changes to the active config file
 NFR-012  # Accessibility — semantic HTML, keyboard navigation, sufficient contrast
 

@@ -63,6 +63,15 @@ FT8 transmissions are framed by three Costas arrays (7 symbols each at positions
 Synchronisation is achieved by sliding a 7×7 template across the time–frequency grid and
 locating the peak correlation. This gives the sample offset and frequency offset before LDPC.
 
+**v1 known limitation — frequency sweep only:**  
+The v1 implementation (`CostasSynchroniser`) slides the template over frequency (tone-bin
+offset) but not time (symbol offset is fixed at 0). The FT8 protocol allows ±1 second of
+clock skew between transmitter and receiver, meaning the first Costas array may arrive
+anywhere from sample −12 000 to +12 000 of the captured buffer. Transmissions that start
+more than ~0.1 s off the UTC cycle boundary will be missed until the time-domain sweep
+is implemented (see task 4.2-bis). Operators using GPS-disciplined or NTP-synchronised
+clocks (standard practice) will be minimally affected by this gap in v1.
+
 **Alternatives considered:**
 - *Matched filter in frequency domain*: equivalent but more complex to implement cleanly in
   a streaming context. Rejected for v1.

@@ -1,0 +1,100 @@
+namespace OpenWSFZ.Ft8.Dsp;
+
+/// <summary>
+/// Locates FT8 transmissions within a 79-symbol log-energy grid by cross-correlating
+/// the received grid against the known Costas array pattern.
+///
+/// FT8 transmissions carry three Costas arrays of 7 symbols each at positions
+/// 0, 36, and 72 within the 79-symbol frame (Franke &amp; Taylor 2019).
+/// </summary>
+internal static class CostasSynchroniser
+{
+    /// <summary>
+    /// The FT8 Costas array: tone index (0-7) for each of the 7 sync symbols.
+    /// Source: Franke &amp; Taylor, "The FT4 and FT8 Communication Protocols", QEX Nov/Dec 2019.
+    /// </summary>
+    public static ReadOnlySpan<int> CostasPattern => [2, 5, 6, 0, 4, 1, 3];
+
+    /// <summary>Positions of the three Costas arrays within the 79-symbol frame.</summary>
+    private static ReadOnlySpan<int> CostasPositions => [0, 36, 72];
+
+    /// <summary>
+    /// Searches the log-energy grid for FT8 synchronisation candidates.
+    /// </summary>
+    /// <param name="grid">
+    /// A <c>float[79, 8]</c> log-energy grid produced by <see cref="SymbolExtractor.Extract"/>.
+    /// </param>
+    /// <param name="threshold">
+    /// Minimum correlation score (normalised, 0–1) to report a candidate.
+    /// Values around 0.4–0.6 are typical starting points.
+    /// </param>
+    /// <returns>
+    /// Candidates sorted by score descending. Each candidate's <c>FreqBinOffset</c> is an
+    /// integer number of 6.25 Hz tone bins from the grid's base frequency.
+    /// </returns>
+    public static IReadOnlyList<SyncCandidate> FindCandidates(float[,] grid, float threshold = 0.4f)
+    {
+        int symbols = grid.GetLength(0); // 79
+        int tones   = grid.GetLength(1); // 8
+
+        // Maximum correlation score: all three Costas arrays aligned perfectly.
+        // Each array contributes 7 tone matches; each match contributes 1.0 normalised.
+        float maxPossible = CostasPositions.Length * CostasPattern.Length; // 21
+
+        var candidates = new List<SyncCandidate>();
+
+        // We slide the frequency base by integer bin offsets (0 to 7 — wrapping into
+        // the 8 available tones).  A full sweep requires the grid to have been built
+        // with a sufficiently low base frequency; the caller (Ft8Decoder) handles
+        // sweeping over coarser frequency increments of ToneSpacing.
+        for (int freqShift = 0; freqShift < tones; freqShift++)
+        {
+            float score = ComputeCostasScore(grid, symbols, tones, freqShift);
+            float normScore = score / maxPossible;
+
+            if (normScore >= threshold)
+            {
+                candidates.Add(new SyncCandidate(
+                    SymbolOffset:  0,         // single-pass: no time shift in this pass
+                    FreqBinOffset: freqShift,
+                    Score:         normScore));
+            }
+        }
+
+        candidates.Sort((a, b) => b.Score.CompareTo(a.Score));
+        return candidates;
+    }
+
+    private static float ComputeCostasScore(float[,] grid, int symbols, int tones, int freqShift)
+    {
+        float score = 0f;
+
+        foreach (int pos in CostasPositions)
+        {
+            for (int i = 0; i < CostasPattern.Length; i++)
+            {
+                int sym  = pos + i;
+                int tone = (CostasPattern[i] + freqShift) % tones;
+
+                if (sym >= symbols) break;
+
+                // Score contribution: exp(energy at Costas tone) relative to all tones in symbol.
+                float  costas = grid[sym, tone];
+                float  maxE   = costas;
+                for (int t = 0; t < tones; t++)
+                    if (grid[sym, t] > maxE) maxE = grid[sym, t];
+
+                // Normalised soft-match: 1 if energy at Costas position is the peak.
+                score += costas >= maxE - 0.1f ? 1.0f : 0.0f;
+            }
+        }
+
+        return score;
+    }
+}
+
+/// <summary>A synchronisation candidate returned by <see cref="CostasSynchroniser"/>.</summary>
+/// <param name="SymbolOffset">Symbol index offset of the transmission start within the buffer.</param>
+/// <param name="FreqBinOffset">Tone-bin offset of the lowest tone from the grid base frequency.</param>
+/// <param name="Score">Normalised correlation score in [0, 1].</param>
+internal sealed record SyncCandidate(int SymbolOffset, int FreqBinOffset, float Score);
