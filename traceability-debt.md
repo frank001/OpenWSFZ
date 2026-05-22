@@ -38,6 +38,7 @@ NFR-012  # Accessibility — semantic HTML, keyboard navigation, sufficient cont
 
 FR-013  # CSS-file-based theming — edit CSS files on disk; no in-app switcher in v1
 FR-016  # Strict UI visibility rule — no placeholders, no greyed-out future controls
+FR-018  # Cycle countdown timer (testing aid) — Settings toggle, persisted in AppConfig.ShowCycleCountdown
 NFR-013  # UX competitive bar — HAM operators prefer OpenWSFZ over existing software
 
 ## Pending — Phase 7 (Hardening / release prep)
