@@ -6,5 +6,6 @@ namespace OpenWSFZ.Abstractions;
 /// Future phases will add FT8 parameters, UI preferences, etc.
 /// </summary>
 public sealed record AppConfig(
-    string? AudioDeviceName = null,
-    int     Port            = 8080);
+    string? AudioDeviceName    = null,
+    int     Port               = 8080,
+    bool    ShowCycleCountdown = false);

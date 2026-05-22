@@ -6,7 +6,8 @@
  * @module main
  */
 
-import { connect } from './ws.js';
+import { connect }    from './ws.js';
+import { getConfig }  from './api.js';
 
 const BG_COLOUR          = '#0d1117';
 const PLACEHOLDER_COLOUR = '#8b949e';
@@ -95,6 +96,58 @@ function handleDecodes(results) {
   }
 }
 
+// ── Cycle countdown timer (FR-018) ────────────────────────────────────────
+
+/** Duration of one FT8 cycle in seconds. */
+const CYCLE_DURATION_S = 15;
+
+/**
+ * Window in seconds after the cycle boundary during which a test recording
+ * started will still capture enough of the FT8 transmission to be useful.
+ * Derived from the decoder's time-domain sweep range.
+ */
+const GO_WINDOW_S = 8;
+
+const cycleTimerEl   = /** @type {HTMLElement} */ (document.getElementById('cycle-timer'));
+const cycleDisplayEl = /** @type {HTMLElement} */ (document.getElementById('cycle-display'));
+
+/**
+ * Update the cycle display element with the current phase.
+ *
+ * Phases:
+ *   posInCycle < GO_WINDOW_S  → "GO" (green) — good time to start a test recording
+ *   posInCycle >= GO_WINDOW_S → "X.Xs" countdown to the next cycle boundary
+ */
+function tickCycleTimer() {
+  const posInCycle = (Date.now() / 1000) % CYCLE_DURATION_S;
+  if (posInCycle < GO_WINDOW_S) {
+    cycleDisplayEl.textContent = 'GO';
+    cycleDisplayEl.className   = 'cycle-go';
+  } else {
+    const remaining = CYCLE_DURATION_S - posInCycle;
+    cycleDisplayEl.textContent = remaining.toFixed(1) + 's';
+    cycleDisplayEl.className   = 'cycle-counting';
+  }
+}
+
+/**
+ * Fetch the current config.  If ShowCycleCountdown is true, unhide the timer
+ * element and start a 100 ms interval tick.
+ * Failures are silently swallowed — the timer stays hidden on any error.
+ */
+async function startCycleTimerIfEnabled() {
+  try {
+    const config = await getConfig();
+    if (config.showCycleCountdown) {
+      cycleTimerEl.removeAttribute('hidden');
+      tickCycleTimer();
+      setInterval(tickCycleTimer, 100);
+    }
+  } catch {
+    // Config fetch failed — timer stays hidden (fail-safe).
+  }
+}
+
 // ── Status bar elements ───────────────────────────────────────────────────
 
 const wsStateEl      = /** @type {HTMLElement} */ (document.getElementById('ws-state'));
@@ -108,6 +161,9 @@ function setWsState(state, label) {
 // ── Initialise ────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+
+  // Start cycle countdown timer (shows only when enabled in config).
+  startCycleTimerIfEnabled();
 
   // Paint waterfall placeholder.
   const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('waterfall'));

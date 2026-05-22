@@ -9,10 +9,11 @@
 
 import { getConfig, getDevices, postConfig } from './api.js';
 
-const deviceSelect = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
-const portInput    = /** @type {HTMLInputElement}  */ (document.getElementById('port-input'));
-const saveBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('save-btn'));
-const feedback     = /** @type {HTMLElement}       */ (document.getElementById('feedback'));
+const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
+const portInput             = /** @type {HTMLInputElement}  */ (document.getElementById('port-input'));
+const cycleCountdownToggle  = /** @type {HTMLInputElement}  */ (document.getElementById('cycle-countdown-toggle'));
+const saveBtn               = /** @type {HTMLButtonElement} */ (document.getElementById('save-btn'));
+const feedback              = /** @type {HTMLElement}       */ (document.getElementById('feedback'));
 
 // ── Load config and devices ───────────────────────────────────────────────
 
@@ -49,6 +50,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Pre-fill port.
     portInput.value = String(config.port);
 
+    // Pre-check the cycle countdown toggle.
+    cycleCountdownToggle.checked = config.showCycleCountdown ?? false;
+
   } catch (err) {
     showFeedback(`Failed to load settings: ${err.message}`, 'error');
   }
@@ -60,8 +64,9 @@ saveBtn.addEventListener('click', async () => {
   saveBtn.disabled = true;
   clearFeedback();
 
-  const audioDeviceName = deviceSelect.value.trim() || null;
-  const port            = parseInt(portInput.value, 10);
+  const audioDeviceName    = deviceSelect.value.trim() || null;
+  const port               = parseInt(portInput.value, 10);
+  const showCycleCountdown = cycleCountdownToggle.checked;
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     showFeedback('Port must be a number between 1 and 65535.', 'error');
@@ -70,7 +75,7 @@ saveBtn.addEventListener('click', async () => {
   }
 
   try {
-    await postConfig({ audioDeviceName, port });
+    await postConfig({ audioDeviceName, port, showCycleCountdown });
     showFeedback('Saved ✓', 'success');
     // Re-enable after a short delay so the operator can see the feedback.
     setTimeout(() => { saveBtn.disabled = false; }, 2000);
