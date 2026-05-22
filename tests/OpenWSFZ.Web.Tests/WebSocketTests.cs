@@ -85,7 +85,7 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
             .BeTrue($"LoopbackBindPolicy must bind to 127.0.0.1, but got {_fixture.BoundHost}");
     }
 
-    [Fact(DisplayName = "decode event is received by connected client after BroadcastDecodes")]
+    [Fact(DisplayName = "FR-009: connected WebSocket client receives decode event after BroadcastDecodes")]
     public async Task WebSocket_DecodeEventReceived_AfterBroadcast()
     {
         using var ws = new ClientWebSocket();

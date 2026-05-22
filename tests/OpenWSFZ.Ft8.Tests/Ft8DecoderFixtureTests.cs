@@ -12,7 +12,8 @@ namespace OpenWSFZ.Ft8.Tests;
 /// </summary>
 public sealed class Ft8DecoderFixtureTests
 {
-    [Fact(Skip = "WAV fixture not yet committed — see task 8.1")]
+    [Fact(Skip = "WAV fixture not yet committed — see task 8.1",
+          DisplayName = "FR-001: Ft8Decoder returns DecodeResult records from a known-good WAV fixture")]
     public async Task DecodeAsync_WavFixture_ReturnsKnownDecodes()
     {
         // Load the WAV fixture from embedded resources.
@@ -53,7 +54,7 @@ public sealed class Ft8DecoderFixtureTests
             "at least one decoded message should match the reference file");
     }
 
-    [Fact]
+    [Fact(DisplayName = "FR-001: Ft8Decoder returns empty list for all-silent PCM input")]
     public async Task DecodeAsync_SilentPcm_ReturnsEmptyList()
     {
         var clock   = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));
@@ -65,7 +66,7 @@ public sealed class Ft8DecoderFixtureTests
         results.Should().BeEmpty("silence should produce no decoded messages");
     }
 
-    [Fact]
+    [Fact(DisplayName = "FR-001: Ft8Decoder respects CancellationToken and throws OperationCanceledException")]
     public async Task DecodeAsync_Cancelled_ThrowsOperationCancelled()
     {
         var clock   = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));

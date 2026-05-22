@@ -101,7 +101,7 @@ public sealed class CycleFramerTests
     // ── Task 9.4: Cancellation mid-accumulation ───────────────────────────────
 
     [Fact]
-    public async Task RunAsync_Cancelled_ReturnsCleanlyAndCompletesOutput()
+    public async Task RunAsync_Cancelled_ReturnsCleanly()
     {
         var clock  = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));
         var (sourceWriter, framer, outputReader) = CreateFramer(clock);
@@ -119,14 +119,27 @@ public sealed class CycleFramerTests
         // RunAsync should complete without throwing.
         var act = async () => await framerTask;
         await act.Should().NotThrowAsync("cancellation should be handled gracefully");
+    }
 
-        // Output channel should be completed (ReadAllAsync terminates).
-        bool anyOutput = false;
-        await foreach (var _ in outputReader.Item1.ReadAllAsync(CancellationToken.None))
-            anyOutput = true;
+    // ── FR-017: Cancellation must not permanently kill the output channel ─────
 
-        // We don't assert anyOutput — a partial window is not emitted — just that the loop ends.
-        _ = anyOutput;
+    [Fact(DisplayName = "FR-017: CycleFramer cancellation does not complete the output channel")]
+    public async Task RunAsync_Cancelled_DoesNotCompleteOutputChannel()
+    {
+        var clock  = new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        var source = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<float[]>();
+        var framer = new CycleFramer(source.Reader, clock);
+
+        using var cts = new CancellationTokenSource();
+        var runTask = Task.Run(() => framer.RunAsync(output.Writer, cts.Token));
+
+        cts.Cancel();
+        await runTask;
+
+        // Output channel must still be writable — the decode pump should survive a restart.
+        output.Writer.TryWrite(new float[180_000]).Should().BeTrue(
+            "cancelling the framer for a device restart must not complete the output channel");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

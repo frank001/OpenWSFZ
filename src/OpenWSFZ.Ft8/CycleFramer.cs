@@ -75,14 +75,16 @@ public sealed class CycleFramer
                     }
                 }
             }
+
+            // Source channel ended naturally (e.g. CaptureManager disposed on shutdown).
+            // Signal downstream that no more windows will arrive.
+            output.TryComplete();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // Normal shutdown — swallow.
-        }
-        finally
-        {
-            output.TryComplete();
+            // Cancelled for a device restart — do NOT complete the output channel.
+            // Program.cs owns the channel lifetime and calls TryComplete() on
+            // ApplicationStopping. The decode pump must survive the restart.
         }
     }
 
