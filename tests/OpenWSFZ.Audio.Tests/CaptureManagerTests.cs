@@ -33,6 +33,37 @@ internal sealed class InfiniteAudioSource : IAudioSource
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
+/// <summary>
+/// <see cref="ILogger{T}"/> that records every log entry for assertion in tests.
+/// Thread-safe.
+/// </summary>
+internal sealed class RecordingLogger<T> : ILogger<T>
+{
+    private readonly List<(LogLevel Level, string Message, Exception? Exception)> _entries = new();
+    private readonly object _lock = new();
+
+    public IReadOnlyList<(LogLevel Level, string Message, Exception? Exception)> Entries
+    {
+        get { lock (_lock) return [.. _entries]; }
+    }
+
+    public bool HasLevel(LogLevel level) => Entries.Any(e => e.Level == level);
+
+    IDisposable? ILogger.BeginScope<TState>(TState state) => null;
+    bool ILogger.IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+    void ILogger.Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        var msg = formatter(state, exception);
+        lock (_lock) _entries.Add((logLevel, msg, exception));
+    }
+}
+
 #if WASAPI_SUPPORTED
 /// <summary>
 /// Minimal <see cref="ILogger{T}"/> that records whether a Warning-or-higher
@@ -86,6 +117,85 @@ public sealed class CaptureManagerTests
 
         cm.IsCapturing.Should().BeFalse(
             "capture was explicitly stopped");
+    }
+
+    // ── FR-021: capture stop logging ─────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-021 Case 1: CaptureManager logs Information when session ends via StopAsync (operator-stopped)")]
+    public async Task StartAsync_WhenStopAsyncCalled_LogsInformation()
+    {
+        // Arrange
+        var logger = new RecordingLogger<CaptureManager>();
+        await using var cm = new CaptureManager(new InfiniteAudioSource(), logger);
+        await cm.StartAsync("mic-001");
+
+        // Act — operator-stop
+        await cm.StopAsync();
+
+        // Allow the capture task to settle after cancellation.
+        var deadline = Task.Delay(TimeSpan.FromSeconds(5));
+        while (cm.IsCapturing)
+        {
+            if (await Task.WhenAny(Task.Delay(10), deadline) == deadline) break;
+        }
+
+        // Assert — exactly one termination entry at Information that names the device.
+        logger.Entries.Should().Contain(
+            e => e.Level == LogLevel.Information
+              && e.Message.Contains("mic-001")
+              && (e.Message.Contains("stopped") || e.Message.Contains("drained")),
+            "FR-021 Case 1: an operator-stopped session must log at Information with the device ID");
+    }
+
+    [Fact(DisplayName = "FR-021 Case 2: CaptureManager logs Warning when source ends unexpectedly (no cancellation)")]
+    public async Task StartAsync_WhenSourceEndsNaturally_LogsWarning()
+    {
+        // Arrange — source yields 3 chunks then ends (simulates unexpected driver stop).
+        var logger = new RecordingLogger<CaptureManager>();
+        await using var cm = new CaptureManager(new FiniteAudioSource(chunkCount: 3), logger);
+
+        // Act
+        await cm.StartAsync("mic-002");
+
+        // Wait for the capture task to complete.
+        var deadline = Task.Delay(TimeSpan.FromSeconds(5));
+        while (cm.IsCapturing)
+        {
+            if (await Task.WhenAny(Task.Delay(10), deadline) == deadline) break;
+        }
+
+        // Assert — a Warning entry must appear that names the device.
+        logger.Entries.Should().Contain(
+            e => e.Level == LogLevel.Warning && e.Message.Contains("mic-002"),
+            "FR-021 Case 2: an unexpected source end must log at Warning with the device ID; " +
+            "a silent stop is a violation of FR-021");
+    }
+
+    [Fact(DisplayName = "FR-021 Case 3: CaptureManager logs Error with exception when source throws")]
+    public async Task StartAsync_WhenSourceThrows_LogsError()
+    {
+        // Arrange — source throws on the first iteration.
+        var exception = new AudioCaptureException("mic-003", "device ejected");
+        var logger    = new RecordingLogger<CaptureManager>();
+        await using var cm = new CaptureManager(new FaultyAudioSource(exception), logger);
+
+        // Act
+        await cm.StartAsync("mic-003");
+
+        // Allow the capture task to reach the catch block.
+        var deadline = Task.Delay(TimeSpan.FromSeconds(5));
+        while (cm.IsCapturing)
+        {
+            if (await Task.WhenAny(Task.Delay(10), deadline) == deadline) break;
+        }
+
+        // Assert — an Error entry must appear with the original exception attached.
+        logger.Entries.Should().Contain(
+            e => e.Level == LogLevel.Error
+              && e.Message.Contains("mic-003")
+              && e.Exception == exception,
+            "FR-021 Case 3: an exception-driven termination must log at Error with the exception object " +
+            "so the full stack trace is available in the log");
     }
 
     // B10 regression test

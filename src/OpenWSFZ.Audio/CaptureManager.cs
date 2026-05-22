@@ -99,18 +99,41 @@ public sealed class CaptureManager : IAsyncDisposable
                     await _channel.Writer.WriteAsync(chunk, linkedCt);
                 }
 
-                _logger?.LogInformation("Capture stream ended (device: '{DeviceId}').", deviceId);
+                // The source's async enumerable ended without throwing an exception.
+                // Distinguish the three FR-021 termination cases:
+                if (linkedCt.IsCancellationRequested)
+                {
+                    // Case 1 (race): source drained gracefully as part of a requested stop.
+                    // Cancellation was in flight; this is still an operator-stop.
+                    _logger?.LogInformation(
+                        "Capture stopped on device '{DeviceId}' (operator-stopped, source drained).",
+                        deviceId);
+                }
+                else
+                {
+                    // Case 2: unexpected end — source ended without any cancellation signal.
+                    // This indicates a driver-level or audio-engine stop not requested by the app.
+                    _logger?.LogWarning(
+                        "Capture ended unexpectedly on device '{DeviceId}'. " +
+                        "The audio source stopped without a cancellation signal — " +
+                        "this may indicate a driver-level or audio-engine stop not requested by the application.",
+                        deviceId);
+                }
             }
             catch (OperationCanceledException) when (linkedCt.IsCancellationRequested)
             {
-                // Normal shutdown — swallow.
-                _logger?.LogInformation("Capture stopped (device: '{DeviceId}').", deviceId);
+                // Case 1: normal operator-stop or application shutdown.
+                _logger?.LogInformation(
+                    "Capture stopped on device '{DeviceId}' (operator-stopped).",
+                    deviceId);
             }
             catch (Exception ex)
             {
-                // Device not found, device disconnected, or any other capture failure.
-                // Surface via event; the finally block still resets IsCapturing.
-                _logger?.LogError(ex, "Audio capture failed on device '{DeviceId}'.", deviceId);
+                // Case 3: exception-driven failure — device not found, disconnected, etc.
+                // Log at Error with full exception details (type, message, stack trace).
+                _logger?.LogError(ex,
+                    "Capture failed on device '{DeviceId}': {ExType} — {ExMessage}",
+                    deviceId, ex.GetType().Name, ex.Message);
                 CaptureFailed?.Invoke(ex);
             }
             finally
