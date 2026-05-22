@@ -147,6 +147,7 @@ Only one persona is in scope for v1.
 | FR-014 | Frontend folder layout                                 | The frontend SHALL live in its own top-level folder with conventional subfolders for HTML, CSS, and JS.                                                                           | Must Have   |
 | FR-015 | Frontend files user-editable                           | All frontend files (HTML, CSS, JS) SHALL be plain files on disk that an operator can edit without rebuilding the application.                                                     | Must Have   |
 | FR-016 | Strict UI visibility rule                              | Any control visible in the web UI MUST be fully implemented and bound to a working backend. No "coming soon" placeholders and no greyed-out future controls are permitted.        | Must Have   |
+| FR-017 | Decode start/stop control                              | The main UI SHALL provide a control (button or toggle) that starts and stops the FT8 decode pipeline. Activating **stop** SHALL halt audio capture and decode processing immediately. Activating **start** SHALL resume both, subject to a configured audio device being present. The current decode state (active / stopped) SHALL be clearly indicated in the status area of the main UI. The decode state SHALL persist to the configuration file so that a session explicitly stopped by the operator does not auto-resume on the next application launch. | Must Have   |
 
 ### 4.2 User Journeys
 
@@ -207,7 +208,7 @@ data in v1:
 | Data                       | Lifecycle in v1                              | Persistence                                                       |
 |----------------------------|----------------------------------------------|-------------------------------------------------------------------|
 | Audio input stream         | Read in real time during a session.          | Not persisted.                                                    |
-| Configuration              | Read on startup; written when the operator Saves from Settings. | A configuration file at a default or overridden path.    |
+| Configuration              | Read on startup; written when the operator Saves from Settings or toggles the decode start/stop control. | A configuration file at a default or overridden path.    |
 | Decoded FT8 messages       | Created in real time; displayed in the UI.   | **Not persisted**; ephemeral to the session.                       |
 | Frontend assets (HTML/CSS/JS) | Read-only when serving the web UI.        | Plain files on disk; user-editable.                               |
 | Log output                 | Written to stderr / stdout during a session. | Not persisted by the application itself (operator may redirect).  |
@@ -356,3 +357,4 @@ data in v1:
 |---------|------------|---------------------------------------|--------------------------------------------------------|
 | 1.0     | 2026-05-17 | Requirements Analyst (AI-assisted)    | Initial draft. Interview conducted across all six phases; defaults accepted for Phase 2 accessibility, Phase 5 timeline, Phase 5 assumptions, and Phase 6 risks. |
 | 1.1     | 2026-05-18 | Requirements Analyst (AI-assisted)    | Added development-tooling constraint in &sect;6 &mdash; **Serena MCP server wired into Claude Code for the DEVELOPER role** &mdash; and open question #15 in &sect;8 asking the ARCHITECT to choose a convenient integration point. |
+| 1.2     | 2026-05-22 | QA (AI-assisted)                      | Added **FR-017** (decode start/stop control) following operator observation that there is no way to pause decoding without changing the audio device or restarting the application. Updated &sect;4.4 data requirements to note that decode state is now persisted. |
