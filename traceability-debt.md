@@ -32,6 +32,7 @@ FR-002  # Self-hosted web UI served on http://127.0.0.1:<port>
 FR-008  # Waterfall display — live spectrogram of audio input in the main UI
 # FR-009 removed — implemented in p5-ft8-decoder (decode event → #decodes-table UI)
 FR-011  # Save action on Settings page writes changes to the active config file
+FR-019  # Configurable logging — ILogger<T> throughout all components, level from AppConfig.LogLevel
 NFR-012  # Accessibility — semantic HTML, keyboard navigation, sufficient contrast
 
 ## Pending — Phase 6 (Polish / UX)
