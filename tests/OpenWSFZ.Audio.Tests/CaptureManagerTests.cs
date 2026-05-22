@@ -88,6 +88,31 @@ public sealed class CaptureManagerTests
             "capture was explicitly stopped");
     }
 
+    // B10 regression test
+    [Fact(DisplayName = "B10: CaptureManager sets IsCapturing=false when source ends without cancellation")]
+    public async Task StartAsync_WhenSourceEndsNaturally_SetsIsCapturingFalse()
+    {
+        // Arrange — source yields 3 chunks then ends normally, simulating an unexpected
+        // WASAPI stop (RecordingStopped fired with e.Exception == null).
+        await using var cm = new CaptureManager(new FiniteAudioSource(chunkCount: 3));
+
+        // Act — start the capture; the finite source will drain on its own.
+        await cm.StartAsync("test-device");
+
+        // Allow the capture task to drain the finite source and reach its finally block.
+        // Poll with a 5-second deadline so the test fails clearly rather than hanging.
+        var deadline = Task.Delay(TimeSpan.FromSeconds(5));
+        while (cm.IsCapturing)
+        {
+            if (await Task.WhenAny(Task.Delay(10), deadline) == deadline)
+                break;
+        }
+
+        // Assert — once the source ends naturally, IsCapturing must be false.
+        cm.IsCapturing.Should().BeFalse(
+            "once the source ends naturally, the capture task must exit and clear IsCapturing");
+    }
+
     // B9 regression test
     [Fact(DisplayName = "B9: CaptureManager raises CaptureFailed when IAudioSource throws AudioCaptureException")]
     public async Task StartAsync_WhenSourceThrows_RaisesCaptureFailed()
@@ -182,6 +207,35 @@ public sealed class ArecordAudioSourceTests
             .ThrowAsync<AudioCaptureException>(
                 because: "arecord exiting non-zero signals a capture failure");
     }
+}
+
+/// <summary>
+/// <see cref="IAudioSource"/> that yields a fixed number of chunks and then
+/// ends the enumeration normally — simulating an unexpected WASAPI stop with
+/// no exception (e.g. <c>RecordingStopped</c> fired with <c>e.Exception == null</c>).
+/// Used for the B10 regression test.
+/// </summary>
+internal sealed class FiniteAudioSource : IAudioSource
+{
+    private readonly int _chunkCount;
+
+    public int SampleRate   => 12_000;
+    public int ChannelCount => 1;
+
+    public FiniteAudioSource(int chunkCount) => _chunkCount = chunkCount;
+
+    public async IAsyncEnumerable<float[]> CaptureAsync(
+        string deviceId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        for (int i = 0; i < _chunkCount; i++)
+        {
+            await Task.Yield();
+            yield return new float[2048];
+        }
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 /// <summary>

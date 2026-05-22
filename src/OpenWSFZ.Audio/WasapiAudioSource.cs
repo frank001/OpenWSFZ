@@ -37,8 +37,15 @@ internal sealed class WasapiAudioSource : IAudioSource
         var         setupTcs       = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
+        // staCts is cancelled either when ct is cancelled (normal StopAsync path)
+        // or when RecordingStopped fires for any reason (unexpected stop path).
+        // The STA thread blocks on staCts.Token so both signals unblock it promptly.
+        // Without this, an unexpected RecordingStopped leaves the STA thread blocked
+        // on ct indefinitely, causing await staTask to hang forever (B10).
+        using var staCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
         // The STA thread owns all COM objects for the entire capture session.
-        // It blocks on ct until cancellation, then performs cleanup.
+        // It blocks on staCts until cancellation or an unexpected stop, then cleans up.
         var staTask = StaThread.Run<bool>(() =>
         {
             WasapiCapture? capture = null;
@@ -90,8 +97,21 @@ internal sealed class WasapiAudioSource : IAudioSource
                     }
                 };
 
-                capture.RecordingStopped += (_, _) =>
-                    innerChannel.Writer.TryComplete();
+                capture.RecordingStopped += (_, e) =>
+                {
+                    // Propagate any WASAPI error through the channel so CaptureManager
+                    // surfaces it via CaptureFailed.  A null Exception means a graceful
+                    // stop (e.g. capture.StopRecording() was called from the finally block).
+                    if (e.Exception is not null)
+                        innerChannel.Writer.TryComplete(e.Exception);
+                    else
+                        innerChannel.Writer.TryComplete();
+
+                    // Wake the STA thread so staTask completes promptly.
+                    // Without this, await staTask in the finally block below would
+                    // hang until the caller's ct is cancelled (which may never happen).
+                    staCts.Cancel();
+                };
 
                 capture.StartRecording();
 
@@ -99,7 +119,8 @@ internal sealed class WasapiAudioSource : IAudioSource
                 setupTcs.SetResult();
 
                 // Block the STA thread alive while the session is running.
-                ct.WaitHandle.WaitOne();
+                // Uses staCts.Token so RecordingStopped can also unblock it (B10).
+                staCts.Token.WaitHandle.WaitOne();
             }
             catch (Exception ex)
             {

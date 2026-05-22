@@ -43,9 +43,6 @@ void ConfigureLogging(ILoggingBuilder lb)
 // container exists (CaptureManager, CycleFramer, Ft8Decoder).
 using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
 
-// Re-attach a logger to the config store now that the factory is available.
-var configLogger = loggerFactory.CreateLogger<JsonConfigStore>();
-
 // Log the startup info that the bootstrap Console.Error already printed.
 var startupLogger = loggerFactory.CreateLogger("OpenWSFZ.Daemon.Program");
 startupLogger.LogInformation("Config: {Source} → {Path}", configSource, configPath);
