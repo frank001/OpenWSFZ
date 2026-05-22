@@ -17,6 +17,12 @@ namespace OpenWSFZ.Web;
 /// The static <see cref="BroadcastDecodes"/> method sends a <c>decode</c> event
 /// to every currently-open connection.  Connections that cannot accept the frame
 /// within 1 second are closed and removed.
+///
+/// <para>
+/// A per-socket <see cref="SemaphoreSlim"/>(1,1) serialises all <c>SendAsync</c> calls
+/// on the same socket, preventing concurrent-send violations when heartbeat and broadcast
+/// decode events overlap (required for WAV fixture tests and any high-throughput scenario).
+/// </para>
 /// </summary>
 internal static class WebSocketHub
 {
@@ -26,11 +32,30 @@ internal static class WebSocketHub
     // Thread-safe set of all active connections.
     private static readonly ConcurrentDictionary<WebSocket, byte> ActiveSockets = new();
 
+    // Per-socket send serialiser: SemaphoreSlim(1,1) ensures at most one SendAsync
+    // is in-flight on any given socket at any time.
+    private static readonly ConcurrentDictionary<WebSocket, SemaphoreSlim> SendLocks = new();
+
+    // ── Socket registration ───────────────────────────────────────────────────
+
+    private static void RegisterSocket(WebSocket ws)
+    {
+        ActiveSockets.TryAdd(ws, 0);
+        SendLocks.TryAdd(ws, new SemaphoreSlim(1, 1));
+    }
+
+    private static void UnregisterSocket(WebSocket ws)
+    {
+        ActiveSockets.TryRemove(ws, out _);
+        if (SendLocks.TryRemove(ws, out var sem))
+            sem.Dispose();
+    }
+
     // ── Per-connection handler ────────────────────────────────────────────────
 
     public static async Task HandleAsync(WebSocket ws, IConfigStore configStore, CancellationToken ct)
     {
-        ActiveSockets.TryAdd(ws, 0);
+        RegisterSocket(ws);
         try
         {
             var status    = new DaemonStatus(
@@ -70,7 +95,7 @@ internal static class WebSocketHub
         }
         finally
         {
-            ActiveSockets.TryRemove(ws, out _);
+            UnregisterSocket(ws);
 
             if (ws.State is WebSocketState.Open or WebSocketState.CloseReceived)
             {
@@ -88,7 +113,8 @@ internal static class WebSocketHub
     /// <summary>
     /// Broadcasts a <c>decode</c> event to all currently connected WebSocket clients.
     /// Stale connections (those that cannot accept the frame within 1 second) are closed
-    /// and removed silently.
+    /// and removed silently.  Concurrent calls from the decode pump are safe: each socket
+    /// has its own send semaphore that serialises overlapping sends.
     /// </summary>
     public static void BroadcastDecodes(IReadOnlyList<DecodeResult> results)
     {
@@ -108,22 +134,48 @@ internal static class WebSocketHub
     private static async Task SendWithTimeoutAsync(WebSocket ws, ArraySegment<byte> data)
     {
         if (ws.State != WebSocketState.Open) return;
+        if (!SendLocks.TryGetValue(ws, out var sem)) return;
 
         using var cts = new CancellationTokenSource(SendTimeout);
+
+        // Acquire the per-socket send lock with the same timeout budget.
         try
         {
-            await ws.SendAsync(data, WebSocketMessageType.Text, endOfMessage: true, cts.Token);
+            await sem.WaitAsync(cts.Token);
         }
         catch (OperationCanceledException)
         {
-            // Timeout — close and remove.
-            ActiveSockets.TryRemove(ws, out _);
+            // Timed out waiting for the lock (another send is stuck).
+            UnregisterSocket(ws);
+            try { await ws.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "Send timeout", default); }
+            catch { /* best-effort */ }
+            return;
+        }
+        catch (ObjectDisposedException)
+        {
+            // Socket was unregistered and semaphore disposed between TryGetValue and WaitAsync.
+            return;
+        }
+
+        try
+        {
+            if (ws.State == WebSocketState.Open)
+                await ws.SendAsync(data, WebSocketMessageType.Text, endOfMessage: true, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Send itself timed out — close and remove.
+            UnregisterSocket(ws);
             try { await ws.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "Send timeout", default); }
             catch { /* best-effort */ }
         }
         catch (WebSocketException)
         {
-            ActiveSockets.TryRemove(ws, out _);
+            UnregisterSocket(ws);
+        }
+        finally
+        {
+            try { sem.Release(); } catch (ObjectDisposedException) { /* already disposed on unregister */ }
         }
     }
 
@@ -131,13 +183,28 @@ internal static class WebSocketHub
 
     private static async Task SendJsonAsync(WebSocket ws, WsMessage message, CancellationToken ct)
     {
-        var json  = JsonSerializer.Serialize(message, AppJsonContext.Default.WsMessage);
-        var bytes = Encoding.UTF8.GetBytes(json);
-        await ws.SendAsync(
-            new ArraySegment<byte>(bytes),
-            WebSocketMessageType.Text,
-            endOfMessage: true,
-            ct);
+        if (!SendLocks.TryGetValue(ws, out var sem)) return;
+
+        var json    = JsonSerializer.Serialize(message, AppJsonContext.Default.WsMessage);
+        var bytes   = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        try
+        {
+            await sem.WaitAsync(ct);
+        }
+        catch (OperationCanceledException) { return; }
+        catch (ObjectDisposedException)    { return; }
+
+        try
+        {
+            if (ws.State == WebSocketState.Open)
+                await ws.SendAsync(segment, WebSocketMessageType.Text, endOfMessage: true, ct);
+        }
+        finally
+        {
+            try { sem.Release(); } catch (ObjectDisposedException) { }
+        }
     }
 
     private static async Task ReceiveUntilCloseAsync(WebSocket ws, CancellationToken ct)
