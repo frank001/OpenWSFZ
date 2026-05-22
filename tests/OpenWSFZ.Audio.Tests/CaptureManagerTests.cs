@@ -87,6 +87,31 @@ public sealed class CaptureManagerTests
         cm.IsCapturing.Should().BeFalse(
             "capture was explicitly stopped");
     }
+
+    // B9 regression test
+    [Fact(DisplayName = "B9: CaptureManager raises CaptureFailed when IAudioSource throws AudioCaptureException")]
+    public async Task StartAsync_WhenSourceThrows_RaisesCaptureFailed()
+    {
+        // Arrange
+        var exception = new AudioCaptureException("test-device", "device not found");
+        await using var cm = new CaptureManager(new FaultyAudioSource(exception));
+
+        var failureTcs = new TaskCompletionSource<Exception>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        cm.CaptureFailed += ex => failureTcs.TrySetResult(ex);
+
+        // Act
+        await cm.StartAsync("test-device");
+
+        // Assert — the event must fire and carry the original exception.
+        var caughtEx = await failureTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        caughtEx.Should().BeSameAs(exception,
+            "CaptureFailed must surface the original exception to the subscriber");
+
+        cm.IsCapturing.Should().BeFalse(
+            "IsCapturing must be false once the capture task has faulted");
+    }
 }
 
 // ── ArecordAudioSource unit tests ─────────────────────────────────────────────
@@ -157,6 +182,33 @@ public sealed class ArecordAudioSourceTests
             .ThrowAsync<AudioCaptureException>(
                 because: "arecord exiting non-zero signals a capture failure");
     }
+}
+
+/// <summary>
+/// <see cref="IAudioSource"/> that throws a given exception on the first iteration.
+/// Used to simulate device-not-found and other capture failures.
+/// </summary>
+internal sealed class FaultyAudioSource : IAudioSource
+{
+    private readonly Exception _exception;
+
+    public int SampleRate   => 12_000;
+    public int ChannelCount => 1;
+
+    public FaultyAudioSource(Exception exception) => _exception = exception;
+
+    public async IAsyncEnumerable<float[]> CaptureAsync(
+        string deviceId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await Task.Yield(); // ensure the exception is thrown asynchronously
+        throw _exception;
+#pragma warning disable CS0162
+        yield break;        // satisfies the compiler's async-enumerable requirement
+#pragma warning restore CS0162
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 // ── WasapiAudioDeviceProvider MTA thread test ─────────────────────────────────

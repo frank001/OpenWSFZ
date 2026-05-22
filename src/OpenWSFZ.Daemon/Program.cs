@@ -26,6 +26,11 @@ var port = options.Port ?? configStore.Current.Port;
 var audioSource    = new PlatformAudioSource();
 var captureManager = new CaptureManager(audioSource);
 
+// Surface inner capture faults (device not found, device disconnected, etc.)
+// to the operator.  CaptureFailed fires on the thread-pool; Console.Error is thread-safe.
+captureManager.CaptureFailed += ex =>
+    Console.Error.WriteLine($"[OpenWSFZ] Audio capture error: {ex.Message}");
+
 // ── FT8 decode pipeline ──────────────────────────────────────────────────────
 
 var clock       = new SystemClock();
@@ -125,14 +130,9 @@ await app.RunAsync();
 
 void StartPipeline(string deviceName)
 {
-    _ = captureManager
-        .StartAsync(deviceName)
-        .ContinueWith(t =>
-        {
-            if (t.IsFaulted)
-                Console.Error.WriteLine(
-                    $"[OpenWSFZ] Audio capture failed to start: {t.Exception?.GetBaseException().Message}");
-        });
+    // StartAsync itself completes before _captureTask runs; inner faults are
+    // reported via the captureManager.CaptureFailed event (wired above).
+    _ = captureManager.StartAsync(deviceName);
 
     framerCts = new CancellationTokenSource();
     var ct = framerCts.Token;

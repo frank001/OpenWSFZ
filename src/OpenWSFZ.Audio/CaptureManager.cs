@@ -36,6 +36,13 @@ public sealed class CaptureManager : IAsyncDisposable
     public bool IsCapturing => _isCapturing;
 
     /// <summary>
+    /// Raised when the capture session terminates abnormally (device not found,
+    /// device disconnected, or any other unrecoverable error).
+    /// Invoked on a thread-pool thread; subscribers must be thread-safe.
+    /// </summary>
+    public event Action<Exception>? CaptureFailed;
+
+    /// <summary>
     /// A reader over the live PCM sample channel.
     /// The channel is bounded (capacity 16) with <c>DropOldest</c> overflow
     /// so the capture thread never blocks even when the consumer stalls.
@@ -80,6 +87,12 @@ public sealed class CaptureManager : IAsyncDisposable
             catch (OperationCanceledException) when (linkedCt.IsCancellationRequested)
             {
                 // Normal shutdown — swallow.
+            }
+            catch (Exception ex)
+            {
+                // Device not found, device disconnected, or any other capture failure.
+                // Surface via event; the finally block still resets IsCapturing.
+                CaptureFailed?.Invoke(ex);
             }
             finally
             {
