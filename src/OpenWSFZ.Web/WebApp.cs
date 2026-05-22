@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Audio;
 using System.Collections.Generic;
@@ -40,7 +41,9 @@ public static class WebApp
         IConfigStore?                                 configStore          = null,
         IAudioDeviceProvider?                         audioProvider        = null,
         Func<IServiceProvider, IAudioDeviceProvider>? audioProviderFactory = null,
-        CaptureManager?                               captureManager       = null)
+        CaptureManager?                               captureManager       = null,
+        AudioActivityMonitor?                         audioMonitor         = null,
+        Action<ILoggingBuilder>?                      configureLogging     = null)
     {
         var builder = WebApplication.CreateBuilder();
 
@@ -77,8 +80,12 @@ public static class WebApp
             kestrel.Listen(endpoint);
         });
 
-        // Logging: suppress noisy ASP.NET Core startup messages in production.
-        builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Warning);
+        // Logging: use the caller-supplied configuration (FR-019) or fall back to
+        // a minimal warning-only setup so tests stay quiet by default.
+        if (configureLogging is not null)
+            configureLogging(builder.Logging);
+        else
+            builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
         var app = builder.Build();
 
@@ -113,7 +120,8 @@ public static class WebApp
                 State:         "Running",
                 Version:       AssemblyVersion.Get(),
                 AudioDevice:   store.Current.AudioDeviceName,
-                CaptureActive: captureManager?.IsCapturing ?? false)));
+                CaptureActive: captureManager?.IsCapturing ?? false,
+                AudioActive:   audioMonitor?.IsActive ?? false)));
 
         app.MapGet("/api/v1/audio/devices", async (
             IAudioDeviceProvider provider,
@@ -156,6 +164,15 @@ public static class WebApp
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────
 
+        // Create a per-class logger from the DI container after the app is built.
+        // audioMonitor is captured from the outer scope (closure); it is null in tests
+        // that don't wire up audio capture.
+        var wsLogger = app.Services.GetRequiredService<ILoggerFactory>()
+                                   .CreateLogger("OpenWSFZ.Web.WebSocketHub");
+
+        // Wire the static broadcast logger used by the fire-and-forget path.
+        WebSocketHub.SetBroadcastLogger(wsLogger);
+
         app.MapGet("/api/v1/ws", async (HttpContext ctx, IConfigStore store) =>
         {
             if (!ctx.WebSockets.IsWebSocketRequest)
@@ -165,7 +182,7 @@ public static class WebApp
             }
 
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-            await WebSocketHub.HandleAsync(ws, store, ctx.RequestAborted);
+            await WebSocketHub.HandleAsync(ws, store, audioMonitor, wsLogger, ctx.RequestAborted);
         });
 
         return app;

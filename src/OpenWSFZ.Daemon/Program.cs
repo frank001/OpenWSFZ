@@ -5,6 +5,7 @@ using OpenWSFZ.Abstractions;
 using OpenWSFZ.Audio;
 using OpenWSFZ.Config;
 using OpenWSFZ.Daemon;
+using OpenWSFZ.Daemon.Logging;
 using OpenWSFZ.Ft8;
 using OpenWSFZ.Web;
 
@@ -15,8 +16,40 @@ var options = LaunchOptions.Parse(args);
 var (configPath, configSource) = ConfigPathResolver.Resolve(options.ConfigPath);
 Console.Error.WriteLine($"[OpenWSFZ] Config: {configSource} → {configPath}");
 
-// Load (or create) the config file and wire DI.
+// Load (or create) the config file.
+// Note: constructed before the logger exists (bootstrap phase).
 var configStore = new JsonConfigStore(configPath);
+
+// ── Logging setup (FR-019) ────────────────────────────────────────────────────
+// Parse the configured log level.  Invalid values fall back to Information.
+var logLevel = Enum.TryParse<LogLevel>(configStore.Current.LogLevel, ignoreCase: true, out var parsedLevel)
+    ? parsedLevel
+    : LogLevel.Information;
+
+// Suppress ASP.NET Core / System framework categories at Warning or higher
+// (whichever is more restrictive) so they don't pollute the operator log.
+var frameworkLevel = logLevel > LogLevel.Warning ? logLevel : LogLevel.Warning;
+
+void ConfigureLogging(ILoggingBuilder lb)
+{
+    lb.ClearProviders();
+    lb.AddProvider(new StderrLoggerProvider(logLevel));
+    lb.SetMinimumLevel(logLevel);
+    lb.AddFilter("Microsoft", frameworkLevel);
+    lb.AddFilter("System",    frameworkLevel);
+}
+
+// Standalone logger factory for components created before the ASP.NET Core DI
+// container exists (CaptureManager, CycleFramer, Ft8Decoder).
+using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
+
+// Re-attach a logger to the config store now that the factory is available.
+var configLogger = loggerFactory.CreateLogger<JsonConfigStore>();
+
+// Log the startup info that the bootstrap Console.Error already printed.
+var startupLogger = loggerFactory.CreateLogger("OpenWSFZ.Daemon.Program");
+startupLogger.LogInformation("Config: {Source} → {Path}", configSource, configPath);
+startupLogger.LogInformation("Log level: {Level}", logLevel);
 
 // CLI --port wins; fall back to the persisted config value.
 var port = options.Port ?? configStore.Current.Port;
@@ -24,17 +57,21 @@ var port = options.Port ?? configStore.Current.Port;
 // ── Audio capture ─────────────────────────────────────────────────────────────
 
 var audioSource    = new PlatformAudioSource();
-var captureManager = new CaptureManager(audioSource);
+var captureManager = new CaptureManager(audioSource, loggerFactory.CreateLogger<CaptureManager>());
 
-// Surface inner capture faults (device not found, device disconnected, etc.)
-// to the operator.  CaptureFailed fires on the thread-pool; Console.Error is thread-safe.
+// Surface inner capture faults to the operator.
 captureManager.CaptureFailed += ex =>
-    Console.Error.WriteLine($"[OpenWSFZ] Audio capture error: {ex.Message}");
+    startupLogger.LogError(ex, "Audio capture error: {Message}", ex.Message);
+
+// ── Audio activity monitor (FR-020) ──────────────────────────────────────────
+
+var audioMonitor = new AudioActivityMonitor();
+captureManager.ChunkReceived = audioMonitor.ObserveSamples;
 
 // ── FT8 decode pipeline ──────────────────────────────────────────────────────
 
-var clock       = new SystemClock();
-var ft8Decoder  = new Ft8Decoder(clock);
+var clock          = new SystemClock();
+var ft8Decoder     = new Ft8Decoder(clock, loggerFactory.CreateLogger<Ft8Decoder>());
 var decodeEventBus = new DecodeEventBus();
 
 // Channel 1: CycleFramer → float[] PCM windows → decode pump
@@ -46,8 +83,8 @@ var framerOutput = Channel.CreateBounded<float[]>(new BoundedChannelOptions(2)
     SingleReader = true,
 });
 
-CancellationTokenSource? framerCts = null;
-Task? framerTask = null;
+CancellationTokenSource? framerCts  = null;
+Task?                    framerTask = null;
 
 // Create and configure the web application.
 var app = WebApp.Create(
@@ -55,13 +92,16 @@ var app = WebApp.Create(
     configStore:          configStore,
     audioProviderFactory: sp => new PlatformAudioDeviceProvider(
                                     sp.GetRequiredService<ILoggerFactory>()),
-    captureManager:       captureManager);
+    captureManager:       captureManager,
+    audioMonitor:         audioMonitor,
+    configureLogging:     ConfigureLogging);
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     WelcomeBannerEmitter.Emit(port);
+    startupLogger.LogInformation("OpenWSFZ started on port {Port}.", port);
 
     var deviceName = configStore.Current.AudioDeviceName;
     if (deviceName is not null)
@@ -79,7 +119,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[OpenWSFZ] Decode error: {ex.Message}");
+                startupLogger.LogError(ex, "Decode error: {Message}", ex.Message);
             }
         }
     });
@@ -99,6 +139,9 @@ configStore.OnSaved += newConfig =>
         await StopFramerAsync();
         await captureManager.StopAsync();
 
+        // Reset activity monitor when the pipeline restarts (FR-020).
+        audioMonitor.Reset();
+
         if (newDevice is not null)
         {
             try
@@ -108,8 +151,8 @@ configStore.OnSaved += newConfig =>
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine(
-                    $"[OpenWSFZ] Audio capture failed to restart: {ex.Message}");
+                startupLogger.LogError(ex,
+                    "Audio capture failed to restart on device '{Device}'.", newDevice);
             }
         }
     });
@@ -118,6 +161,7 @@ configStore.OnSaved += newConfig =>
 // Stop pipeline and dispose on application shutdown.
 app.Lifetime.ApplicationStopping.Register(() =>
 {
+    startupLogger.LogInformation("Application stopping — shutting down capture pipeline.");
     StopFramerAsync().GetAwaiter().GetResult();
     captureManager.StopAsync().GetAwaiter().GetResult();
     captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -130,6 +174,8 @@ await app.RunAsync();
 
 void StartPipeline(string deviceName)
 {
+    startupLogger.LogInformation("Starting FT8 pipeline for device '{Device}'.", deviceName);
+
     // StartAsync itself completes before _captureTask runs; inner faults are
     // reported via the captureManager.CaptureFailed event (wired above).
     _ = captureManager.StartAsync(deviceName);
@@ -137,7 +183,11 @@ void StartPipeline(string deviceName)
     framerCts = new CancellationTokenSource();
     var ct = framerCts.Token;
 
-    var cycleFramer = new CycleFramer(captureManager.Samples, clock);
+    var cycleFramer = new CycleFramer(
+        captureManager.Samples,
+        clock,
+        loggerFactory.CreateLogger<CycleFramer>());
+
     framerTask = Task.Run(() => cycleFramer.RunAsync(framerOutput.Writer, ct));
 }
 
@@ -152,9 +202,9 @@ async Task StopFramerAsync()
     if (task is not null)
     {
         try { await task.WaitAsync(TimeSpan.FromSeconds(3)); }
-        catch (TimeoutException) { }
-        catch (OperationCanceledException) { }
-        catch (Exception) { }
+        catch (TimeoutException)          { }
+        catch (OperationCanceledException){ }
+        catch (Exception)                 { }
     }
 
     cts.Dispose();

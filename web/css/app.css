@@ -216,6 +216,44 @@ label {
   white-space: normal !important;
 }
 
+/* ── Audio activity indicator (FR-020) ────────────────────────────────── */
+#audio-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  cursor: default;
+}
+
+.audio-indicator-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-muted);
+  transition: background 0.3s;
+}
+
+.audio-indicator-label {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+#audio-indicator.audio-active .audio-indicator-dot {
+  background: var(--color-success);
+}
+
+#audio-indicator.audio-active .audio-indicator-label {
+  color: var(--color-success);
+}
+
+#audio-indicator.audio-inactive .audio-indicator-dot {
+  background: var(--color-muted);
+}
+
 /* ── Cycle countdown timer (FR-018) ───────────────────────────────────── */
 #cycle-timer {
   display: flex;

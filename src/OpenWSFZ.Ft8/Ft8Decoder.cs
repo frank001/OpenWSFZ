@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Ft8.Dsp;
 
@@ -42,9 +43,14 @@ public sealed class Ft8Decoder : IModeDecoder
     // below SyncThreshold, so sweeping further is futile without lowering the threshold.
     private const int SecondCostasEnd = (42 + 1) * SamplesPerSymbol; // 82 560
 
-    private readonly IClock _clock;
+    private readonly IClock              _clock;
+    private readonly ILogger<Ft8Decoder>? _logger;
 
-    public Ft8Decoder(IClock clock) => _clock = clock;
+    public Ft8Decoder(IClock clock, ILogger<Ft8Decoder>? logger = null)
+    {
+        _clock  = clock;
+        _logger = logger;
+    }
 
     /// <inheritdoc/>
     public Task<IReadOnlyList<DecodeResult>> DecodeAsync(float[] pcm, CancellationToken ct = default)
@@ -53,12 +59,20 @@ public sealed class Ft8Decoder : IModeDecoder
 
         // Guard: if the signal is below the noise floor, there is nothing to decode.
         // This also prevents the all-zero codeword from being accepted as a valid message.
-        if (ComputeRms(pcm) < 1e-6f)
+        var rms = ComputeRms(pcm);
+        if (rms < 1e-6f)
+        {
+            _logger?.LogDebug("Cycle skipped — RMS {Rms:E3} is below silence guard.", rms);
             return Task.FromResult<IReadOnlyList<DecodeResult>>([]);
+        }
 
         // Capture cycle-start time before the (potentially slow) decode.
         var cycleStart = AlignToCycleStart(_clock.UtcNow);
         string timeStr = cycleStart.ToString("HH:mm:ss");
+
+        _logger?.LogDebug(
+            "Starting decode for cycle {Time}; pcm = {Samples} samples, RMS = {Rms:E3}.",
+            timeStr, pcm.Length, rms);
 
         var results = new List<DecodeResult>();
         var seen    = new HashSet<string>(StringComparer.Ordinal);
@@ -74,6 +88,10 @@ public sealed class Ft8Decoder : IModeDecoder
 
         for (int startSample = 0; startSample <= maxStartSample; startSample += SamplesPerSymbol)
         {
+            _logger?.LogTrace(
+                "Time-domain sweep: startSample = {Start} / {Max} ({StartS:F2} s).",
+                startSample, maxStartSample, (double)startSample / SampleRate);
+
             // Sweep base frequencies in steps of one tone spacing.
             for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += ToneSpacing)
             {
@@ -124,6 +142,9 @@ public sealed class Ft8Decoder : IModeDecoder
                 }
             }
         }
+
+        _logger?.LogInformation(
+            "Cycle {Time}: {Count} decode(s) found.", timeStr, results.Count);
 
         return Task.FromResult<IReadOnlyList<DecodeResult>>(results);
     }

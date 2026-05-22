@@ -69,6 +69,61 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }
 
+    [Fact(DisplayName = "FR-020: heartbeat frame carries audioActive boolean field")]
+    public async Task WebSocket_HeartbeatCarriesAudioActiveField()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+
+        // Consume the initial status frame.
+        await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+
+        // Wait for the first heartbeat, skipping any decode frames.
+        string? heartbeat = null;
+        var deadline = TimeSpan.FromSeconds(6);
+        while (heartbeat is null)
+        {
+            var frame = await ReadFrameAsync(ws, timeout: deadline);
+            frame.Should().NotBeNull("heartbeat must arrive within 6 s");
+            using var doc = JsonDocument.Parse(frame!);
+            if (doc.RootElement.GetProperty("type").GetString() == "heartbeat")
+                heartbeat = frame;
+        }
+
+        // The heartbeat payload must contain 'audioActive' as a boolean.
+        using var heartbeatDoc = JsonDocument.Parse(heartbeat);
+        var payload = heartbeatDoc.RootElement.GetProperty("payload");
+        payload.ValueKind.Should().Be(JsonValueKind.Object,
+            "FR-020 requires the heartbeat payload to be an object");
+        payload.TryGetProperty("audioActive", out var audioActiveProp).Should().BeTrue(
+            "FR-020 requires heartbeat payload to include 'audioActive'");
+        audioActiveProp.ValueKind.Should().Be(JsonValueKind.False,
+            "no audio capture is running in tests so audioActive must be false");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "FR-020: status event payload carries audioActive boolean field")]
+    public async Task WebSocket_StatusEventCarriesAudioActiveField()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+
+        var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+        frame.Should().NotBeNull("status event must arrive on connect");
+
+        using var doc = JsonDocument.Parse(frame!);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("status");
+
+        var payload = doc.RootElement.GetProperty("payload");
+        payload.TryGetProperty("audioActive", out var audioActiveProp).Should().BeTrue(
+            "FR-020 requires the status payload to include 'audioActive'");
+        audioActiveProp.ValueKind.Should().Be(JsonValueKind.False,
+            "no audio capture is running in tests so audioActive must be false");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
     [Fact(DisplayName = "FR-002: plain HTTP GET to /api/v1/ws returns 400")]
     public async Task WebSocket_PlainHttpReturns400()
     {

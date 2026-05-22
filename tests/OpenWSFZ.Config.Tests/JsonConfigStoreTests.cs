@@ -165,4 +165,45 @@ public sealed class JsonConfigStoreTests
         System.IO.Path.GetFullPath(files[0]).Should().Be(
             System.IO.Path.GetFullPath(configPath));
     }
+
+    // ── FR-019: configurable log level ────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-019: AppConfig.LogLevel defaults to \"Information\"")]
+    public void AppConfig_LogLevel_DefaultsToInformation()
+    {
+        var config = new AppConfig();
+
+        config.LogLevel.Should().Be("Information",
+            "the default log level is Information so operators see pipeline events without noise");
+    }
+
+    [Fact(DisplayName = "FR-019: AppConfig.LogLevel round-trips via config file")]
+    public async Task AppConfig_LogLevel_RoundTrips()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        await store.SaveAsync(new AppConfig(LogLevel: "Debug"));
+
+        var reloaded = new JsonConfigStore(configPath);
+        reloaded.Current.LogLevel.Should().Be("Debug",
+            "the LogLevel value must persist through a save/reload cycle");
+    }
+
+    [Fact(DisplayName = "FR-019: AppConfig.LogLevel defaults to \"Information\" when field is absent from config file")]
+    public void AppConfig_LogLevel_DefaultsToInformation_WhenAbsentFromFile()
+    {
+        // Simulate a config file written before FR-019 was added.
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath, """{"audioDeviceName":"TestMic","port":9090}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.LogLevel.Should().Be("Information",
+            "a config file without logLevel must load with the default 'Information'");
+        store.Current.AudioDeviceName.Should().Be("TestMic",
+            "other fields must be preserved when logLevel is absent");
+    }
 }

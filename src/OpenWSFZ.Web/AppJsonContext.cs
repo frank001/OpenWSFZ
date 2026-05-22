@@ -11,6 +11,8 @@ namespace OpenWSFZ.Web;
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(DaemonStatus))]
 [JsonSerializable(typeof(WsMessage))]
+[JsonSerializable(typeof(WsHeartbeatMessage))]
+[JsonSerializable(typeof(HeartbeatPayload))]
 [JsonSerializable(typeof(WsDecodeMessage))]
 [JsonSerializable(typeof(AudioDeviceInfo))]
 [JsonSerializable(typeof(List<AudioDeviceInfo>))]
@@ -19,8 +21,17 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(List<DecodeResult>))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
-/// <summary>Envelope for status/heartbeat WebSocket text frames.</summary>
+/// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
 internal sealed record WsMessage(string Type, DaemonStatus? Payload = null);
+
+/// <summary>
+/// Envelope for <c>heartbeat</c> WebSocket text frames (FR-020).
+/// Wire format: <c>{"type":"heartbeat","payload":{"audioActive":true}}</c>
+/// </summary>
+internal sealed record WsHeartbeatMessage(string Type, HeartbeatPayload Payload);
+
+/// <summary>Payload for <c>heartbeat</c> WebSocket text frames (FR-020).</summary>
+internal sealed record HeartbeatPayload(bool AudioActive);
 
 /// <summary>Envelope for <c>decode</c> WebSocket text frames.</summary>
 internal sealed record WsDecodeMessage(string Type, List<DecodeResult> Payload);

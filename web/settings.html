@@ -54,6 +54,23 @@
         </p>
       </div>
 
+      <div class="field-group">
+        <label for="log-level-select">Application log level</label>
+        <select id="log-level-select">
+          <option value="Trace">Trace — all internal loop counters, per-sample values</option>
+          <option value="Debug">Debug — framer offsets, Costas scores, sweep positions</option>
+          <option value="Information">Information — pipeline events, decode results (default)</option>
+          <option value="Warning">Warning — recoverable anomalies (buffer overflow, reconnects)</option>
+          <option value="Error">Error — operation failures that do not terminate the app</option>
+          <option value="Critical">Critical — unrecoverable failures only</option>
+          <option value="None">None — suppress all output</option>
+        </select>
+        <p class="field-hint">
+          Applies to the next application start. Output is written to stderr
+          in the format <code>[OpenWSFZ] YYYY-MM-DD HH:MM:SS [LEVEL]  Component — message</code>.
+        </p>
+      </div>
+
       <div class="form-footer">
         <button id="save-btn" type="button" class="primary">Save</button>
         <p id="feedback" aria-live="polite"></p>

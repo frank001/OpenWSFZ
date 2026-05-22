@@ -7,4 +7,9 @@ public sealed record DaemonStatus(
     string  State,
     string  Version,
     string? AudioDevice    = null,
-    bool    CaptureActive  = false);
+    bool    CaptureActive  = false,
+    /// <summary>
+    /// True if at least one audio sample with |value| > 1×10⁻⁶ was received
+    /// since application start or the last pipeline restart (FR-020).
+    /// </summary>
+    bool    AudioActive    = false);

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Config;
@@ -9,14 +10,19 @@ namespace OpenWSFZ.Config;
 /// </summary>
 public sealed class JsonConfigStore : IConfigStore
 {
-    private readonly string _path;
-    private volatile AppConfig _current;
+    private readonly string                   _path;
+    private readonly ILogger<JsonConfigStore>? _logger;
+    private volatile AppConfig                _current;
 
     /// <param name="path">Resolved config file path (from <see cref="ConfigPathResolver"/>).</param>
-    public JsonConfigStore(string path)
+    /// <param name="logger">Optional logger.  When <c>null</c> the store operates silently.</param>
+    public JsonConfigStore(string path, ILogger<JsonConfigStore>? logger = null)
     {
         _path    = path;
+        _logger  = logger;
         _current = Load(path);
+        // Note: Load() runs before the logger exists when called at bootstrap before
+        // the log level is known.  Bootstrap warnings fall back to Console.Error.
     }
 
     /// <inheritdoc/>
@@ -54,6 +60,7 @@ public sealed class JsonConfigStore : IConfigStore
 
             File.Move(tmp, _path, overwrite: true);
             _current = config;
+            _logger?.LogInformation("Configuration saved to '{Path}'.", _path);
             OnSaved?.Invoke(config);
         }
         catch

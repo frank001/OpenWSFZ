@@ -12,6 +12,7 @@ import { getConfig, getDevices, postConfig } from './api.js';
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const portInput             = /** @type {HTMLInputElement}  */ (document.getElementById('port-input'));
 const cycleCountdownToggle  = /** @type {HTMLInputElement}  */ (document.getElementById('cycle-countdown-toggle'));
+const logLevelSelect        = /** @type {HTMLSelectElement} */ (document.getElementById('log-level-select'));
 const saveBtn               = /** @type {HTMLButtonElement} */ (document.getElementById('save-btn'));
 const feedback              = /** @type {HTMLElement}       */ (document.getElementById('feedback'));
 
@@ -53,6 +54,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Pre-check the cycle countdown toggle.
     cycleCountdownToggle.checked = config.showCycleCountdown ?? false;
 
+    // Pre-select the current log level (default to 'Information' if not set).
+    logLevelSelect.value = config.logLevel ?? 'Information';
+
   } catch (err) {
     showFeedback(`Failed to load settings: ${err.message}`, 'error');
   }
@@ -67,6 +71,7 @@ saveBtn.addEventListener('click', async () => {
   const audioDeviceName    = deviceSelect.value.trim() || null;
   const port               = parseInt(portInput.value, 10);
   const showCycleCountdown = cycleCountdownToggle.checked;
+  const logLevel           = logLevelSelect.value;
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     showFeedback('Port must be a number between 1 and 65535.', 'error');
@@ -75,7 +80,7 @@ saveBtn.addEventListener('click', async () => {
   }
 
   try {
-    await postConfig({ audioDeviceName, port, showCycleCountdown });
+    await postConfig({ audioDeviceName, port, showCycleCountdown, logLevel });
     showFeedback('Saved ✓', 'success');
     // Re-enable after a short delay so the operator can see the feedback.
     setTimeout(() => { saveBtn.disabled = false; }, 2000);

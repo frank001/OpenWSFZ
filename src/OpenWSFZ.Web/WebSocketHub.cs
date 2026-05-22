@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Web;
@@ -11,7 +12,7 @@ namespace OpenWSFZ.Web;
 ///
 /// Each connection runs a loop that:
 ///   - Sends an initial <c>status</c> event on connect.
-///   - Sends a <c>heartbeat</c> event every 5 seconds.
+///   - Sends a <c>heartbeat</c> event every 5 seconds (carrying <c>audioActive</c>).
 ///   - Receives and discards incoming frames until the client closes.
 ///
 /// The static <see cref="BroadcastDecodes"/> method sends a <c>decode</c> event
@@ -36,6 +37,16 @@ internal static class WebSocketHub
     // is in-flight on any given socket at any time.
     private static readonly ConcurrentDictionary<WebSocket, SemaphoreSlim> SendLocks = new();
 
+    // Static logger for the fire-and-forget BroadcastDecodes path.
+    // Initialised by WebApp.Create after the DI container is built (via SetBroadcastLogger).
+    private static ILogger _broadcastLogger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
+    /// <summary>
+    /// Sets the logger used by the static <see cref="BroadcastDecodes"/> path.
+    /// Called once at application start from <c>WebApp.Create</c>.
+    /// </summary>
+    internal static void SetBroadcastLogger(ILogger logger) => _broadcastLogger = logger;
+
     // ── Socket registration ───────────────────────────────────────────────────
 
     private static void RegisterSocket(WebSocket ws)
@@ -53,23 +64,42 @@ internal static class WebSocketHub
 
     // ── Per-connection handler ────────────────────────────────────────────────
 
-    public static async Task HandleAsync(WebSocket ws, IConfigStore configStore, CancellationToken ct)
+    /// <summary>
+    /// Handles a single WebSocket connection: sends the initial status event, then
+    /// pumps heartbeats every 5 seconds until the client disconnects or <paramref name="ct"/>
+    /// is cancelled.
+    /// </summary>
+    /// <param name="ws">Accepted WebSocket.</param>
+    /// <param name="configStore">Config store for the initial status event.</param>
+    /// <param name="audioMonitor">
+    /// Tracks audio activity since the last heartbeat. May be <c>null</c> in tests.
+    /// </param>
+    /// <param name="logger">Per-connection logger.</param>
+    /// <param name="ct">Cancellation token tied to the HTTP request lifetime.</param>
+    public static async Task HandleAsync(
+        WebSocket ws,
+        IConfigStore configStore,
+        AudioActivityMonitor? audioMonitor,
+        ILogger logger,
+        CancellationToken ct)
     {
         RegisterSocket(ws);
+        logger.LogInformation("WebSocket connection accepted.");
+
         try
         {
+            // Build initial status event (audioActive reflects activity since startup).
             var status    = new DaemonStatus(
-                State:       "Running",
-                Version:     AssemblyVersion.Get(),
-                AudioDevice: configStore.Current.AudioDeviceName);
+                State:        "Running",
+                Version:      AssemblyVersion.Get(),
+                AudioDevice:  configStore.Current.AudioDeviceName,
+                AudioActive:  audioMonitor?.IsActive ?? false);
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
-            // Send initial status event on connect.
-            await SendJsonAsync(ws, statusMsg, ct);
+            await SendStatusAsync(ws, statusMsg, ct);
 
-            using var timer = new PeriodicTimer(HeartbeatInterval);
-            var heartbeatMsg = new WsMessage(Type: "heartbeat");
-            var receiveTask  = ReceiveUntilCloseAsync(ws, ct);
+            using var timer     = new PeriodicTimer(HeartbeatInterval);
+            var       receiveTask = ReceiveUntilCloseAsync(ws, ct);
 
             while (!ct.IsCancellationRequested)
             {
@@ -81,7 +111,13 @@ internal static class WebSocketHub
                     if (completed == receiveTask || ws.State != WebSocketState.Open)
                         break;
 
-                    await SendJsonAsync(ws, heartbeatMsg, ct);
+                    // Build heartbeat: consume-and-reset the activity window (FR-020).
+                    var active       = audioMonitor?.ConsumeAndReset() ?? false;
+                    var heartbeatMsg = new WsHeartbeatMessage(
+                        Type:    "heartbeat",
+                        Payload: new HeartbeatPayload(AudioActive: active));
+
+                    await SendHeartbeatAsync(ws, heartbeatMsg, ct);
                 }
                 catch (OperationCanceledException)
                 {
@@ -95,6 +131,7 @@ internal static class WebSocketHub
         }
         finally
         {
+            logger.LogInformation("WebSocket connection closed.");
             UnregisterSocket(ws);
 
             if (ws.State is WebSocketState.Open or WebSocketState.CloseReceived)
@@ -146,6 +183,7 @@ internal static class WebSocketHub
         catch (OperationCanceledException)
         {
             // Timed out waiting for the lock (another send is stuck).
+            _broadcastLogger.LogWarning("WebSocket send timeout waiting for lock — dropping connection.");
             UnregisterSocket(ws);
             try { await ws.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "Send timeout", default); }
             catch { /* best-effort */ }
@@ -165,12 +203,14 @@ internal static class WebSocketHub
         catch (OperationCanceledException)
         {
             // Send itself timed out — close and remove.
+            _broadcastLogger.LogWarning("WebSocket send timed out during broadcast — dropping connection.");
             UnregisterSocket(ws);
             try { await ws.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "Send timeout", default); }
             catch { /* best-effort */ }
         }
-        catch (WebSocketException)
+        catch (WebSocketException ex)
         {
+            _broadcastLogger.LogDebug(ex, "WebSocket exception during broadcast — removing connection.");
             UnregisterSocket(ws);
         }
         finally
@@ -181,11 +221,37 @@ internal static class WebSocketHub
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static async Task SendJsonAsync(WebSocket ws, WsMessage message, CancellationToken ct)
+    private static async Task SendStatusAsync(WebSocket ws, WsMessage message, CancellationToken ct)
     {
         if (!SendLocks.TryGetValue(ws, out var sem)) return;
 
         var json    = JsonSerializer.Serialize(message, AppJsonContext.Default.WsMessage);
+        var bytes   = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        try
+        {
+            await sem.WaitAsync(ct);
+        }
+        catch (OperationCanceledException) { return; }
+        catch (ObjectDisposedException)    { return; }
+
+        try
+        {
+            if (ws.State == WebSocketState.Open)
+                await ws.SendAsync(segment, WebSocketMessageType.Text, endOfMessage: true, ct);
+        }
+        finally
+        {
+            try { sem.Release(); } catch (ObjectDisposedException) { }
+        }
+    }
+
+    private static async Task SendHeartbeatAsync(WebSocket ws, WsHeartbeatMessage message, CancellationToken ct)
+    {
+        if (!SendLocks.TryGetValue(ws, out var sem)) return;
+
+        var json    = JsonSerializer.Serialize(message, AppJsonContext.Default.WsHeartbeatMessage);
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);
 

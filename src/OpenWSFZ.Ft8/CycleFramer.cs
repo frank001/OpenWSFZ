@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Ft8;
@@ -26,13 +27,15 @@ public sealed class CycleFramer
     private const int CycleDurationSecs = 15;
     private const int SamplesPerCycle   = SampleRate * CycleDurationSecs; // 180 000
 
-    private readonly ChannelReader<float[]> _source;
-    private readonly IClock                 _clock;
+    private readonly ChannelReader<float[]>  _source;
+    private readonly IClock                  _clock;
+    private readonly ILogger<CycleFramer>?   _logger;
 
-    public CycleFramer(ChannelReader<float[]> source, IClock clock)
+    public CycleFramer(ChannelReader<float[]> source, IClock clock, ILogger<CycleFramer>? logger = null)
     {
         _source = source;
         _clock  = clock;
+        _logger = logger;
     }
 
     /// <summary>
@@ -45,9 +48,13 @@ public sealed class CycleFramer
         try
         {
             // Determine how many samples into the current cycle we are at start-up.
-            int leadingSilence  = ComputeLeadingSamples(_clock.UtcNow);
-            var window          = new float[SamplesPerCycle];
-            int filled          = leadingSilence; // leading zeros already in place (array is zero-initialised)
+            int leadingSilence = ComputeLeadingSamples(_clock.UtcNow);
+            var window         = new float[SamplesPerCycle];
+            int filled         = leadingSilence; // leading zeros already in place (array is zero-initialised)
+
+            _logger?.LogInformation(
+                "CycleFramer started; leading silence = {Samples} samples ({Seconds:F3} s).",
+                leadingSilence, leadingSilence / (double)SampleRate);
 
             await foreach (var chunk in _source.ReadAllAsync(ct))
             {
@@ -68,6 +75,7 @@ public sealed class CycleFramer
                     {
                         // Window complete — emit it (non-blocking; drop if consumer is slow).
                         output.TryWrite(window);
+                        _logger?.LogDebug("Window emitted ({Samples} samples).", SamplesPerCycle);
 
                         // Start a fresh window.
                         window = new float[SamplesPerCycle];
@@ -78,6 +86,7 @@ public sealed class CycleFramer
 
             // Source channel ended naturally (e.g. CaptureManager disposed on shutdown).
             // Signal downstream that no more windows will arrive.
+            _logger?.LogInformation("CycleFramer source ended; completing output channel.");
             output.TryComplete();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -85,6 +94,7 @@ public sealed class CycleFramer
             // Cancelled for a device restart — do NOT complete the output channel.
             // Program.cs owns the channel lifetime and calls TryComplete() on
             // ApplicationStopping. The decode pump must survive the restart.
+            _logger?.LogDebug("CycleFramer cancelled (device restart or shutdown).");
         }
     }
 

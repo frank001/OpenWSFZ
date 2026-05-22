@@ -150,12 +150,24 @@ async function startCycleTimerIfEnabled() {
 
 // ── Status bar elements ───────────────────────────────────────────────────
 
-const wsStateEl      = /** @type {HTMLElement} */ (document.getElementById('ws-state'));
-const audioDeviceEl  = /** @type {HTMLElement} */ (document.getElementById('audio-device'));
+const wsStateEl        = /** @type {HTMLElement} */ (document.getElementById('ws-state'));
+const audioDeviceEl    = /** @type {HTMLElement} */ (document.getElementById('audio-device'));
+const audioIndicatorEl = /** @type {HTMLElement} */ (document.getElementById('audio-indicator'));
 
 function setWsState(state, label) {
   wsStateEl.className = state;
   wsStateEl.textContent = label;
+}
+
+/**
+ * Update the audio activity indicator (FR-020).
+ * @param {boolean} active
+ */
+function setAudioActive(active) {
+  audioIndicatorEl.className = active ? 'audio-active' : 'audio-inactive';
+  audioIndicatorEl.title = active
+    ? 'Audio active — signal above noise floor detected in the last 5 seconds'
+    : 'Audio inactive — no signal above noise floor in the last 5 seconds';
 }
 
 // ── Initialise ────────────────────────────────────────────────────────────
@@ -181,13 +193,21 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         setWsState('disconnected', 'Disconnected');
         audioDeviceEl.textContent = '(no device)';
+        setAudioActive(false);
       }
       return;
     }
 
     if (event.type === 'status' && event.payload) {
-      const { audioDevice } = event.payload;
+      const { audioDevice, audioActive } = event.payload;
       audioDeviceEl.textContent = audioDevice ?? '(no device)';
+      setAudioActive(audioActive ?? false);
+      return;
+    }
+
+    if (event.type === 'heartbeat' && event.payload) {
+      // Update audio activity indicator from the heartbeat window (FR-020).
+      setAudioActive(event.payload.audioActive ?? false);
       return;
     }
 
