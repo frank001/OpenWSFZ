@@ -43,10 +43,11 @@ internal static class CostasSynchroniser
 
         var candidates = new List<SyncCandidate>();
 
-        // We slide the frequency base by integer bin offsets (0 to 7 — wrapping into
-        // the 8 available tones).  A full sweep requires the grid to have been built
-        // with a sufficiently low base frequency; the caller (Ft8Decoder) handles
-        // sweeping over coarser frequency increments of ToneSpacing.
+        // Frequency sweep: slide the base by integer bin offsets (0 to 7, wrapping into
+        // the 8 available tones). The caller (Ft8Decoder) performs the outer time-domain
+        // sweep — it calls SymbolExtractor.Extract with each candidate startSample, then
+        // passes the resulting grid here.  SymbolOffset is therefore always 0; the actual
+        // time shift is tracked by the caller.
         for (int freqShift = 0; freqShift < tones; freqShift++)
         {
             float score = ComputeCostasScore(grid, symbols, tones, freqShift);
@@ -55,7 +56,7 @@ internal static class CostasSynchroniser
             if (normScore >= threshold)
             {
                 candidates.Add(new SyncCandidate(
-                    SymbolOffset:  0,         // single-pass: no time shift in this pass
+                    SymbolOffset:  0,
                     FreqBinOffset: freqShift,
                     Score:         normScore));
             }

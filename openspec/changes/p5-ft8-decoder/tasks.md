@@ -26,7 +26,7 @@
 - [x] 4.1 Embed the FT8 Costas array pattern constant (`int[7]` of tone indices) per the specification
 - [x] 4.2 Implement `CostasSynchroniser` in `OpenWSFZ.Ft8`: slides the 7×7 Costas template across the energy grid in both time (symbol offset) and frequency (tone-bin offset) dimensions; returns a list of `(symbolOffset, freqBinOffset, score)` candidates above a correlation threshold
       — **v1 note**: frequency sweep only; symbol offset is fixed at 0 (see task 4.2-bis)
-- [ ] 4.2-bis Add time-domain sweep to `CostasSynchroniser`: outer loop over candidate symbol offsets (0 to ~15, covering ±1 s at 1920 samples/symbol); pass `symbolOffset` as `startSample` to `SymbolExtractor.Extract`; update `CostasSynchroniserTests` to exercise a non-zero symbol offset. Required before the WAV fixture test is enabled; documented as v1 known limitation in `design.md` until resolved.
+- [x] 4.2-bis Add time-domain sweep to `CostasSynchroniser`: outer loop over candidate symbol offsets (0 to ~15, covering ±1 s at 1920 samples/symbol); pass `symbolOffset` as `startSample` to `SymbolExtractor.Extract`; update `CostasSynchroniserTests` to exercise a non-zero symbol offset. Required before the WAV fixture test is enabled; documented as v1 known limitation in `design.md` until resolved.
 - [x] 4.3 Unit test (`Ft8Decoder: CostasSynchroniserTests`): energy grid derived from a synthetic FT8-framed buffer → synchroniser returns a candidate with correct symbol offset and frequency bin
 
 ## 5. LDPC(174,87) Decoder and CRC-14
@@ -97,4 +97,4 @@
 
 ## 14. Known Follow-Up Items
 
-- [ ] 14.1 (S4) Guard concurrent `SendAsync` calls on the same WebSocket in `WebSocketHub.BroadcastDecodes`. Current fire-and-forget pattern is safe at 15-second decode intervals but not resilient to rapid back-to-back decode cycles (e.g. WAV fixture testing). Implement per-socket `SemaphoreSlim` or `Channel`-based send queue before enabling the WAV fixture test and high-throughput scenarios.
+- [x] 14.1 (S4) Guard concurrent `SendAsync` calls on the same WebSocket in `WebSocketHub.BroadcastDecodes`. Current fire-and-forget pattern is safe at 15-second decode intervals but not resilient to rapid back-to-back decode cycles (e.g. WAV fixture testing). Implement per-socket `SemaphoreSlim` or `Channel`-based send queue before enabling the WAV fixture test and high-throughput scenarios.

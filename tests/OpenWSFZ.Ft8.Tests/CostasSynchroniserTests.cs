@@ -1,5 +1,6 @@
 using FluentAssertions;
 using OpenWSFZ.Ft8.Dsp;
+using System;
 using Xunit;
 
 namespace OpenWSFZ.Ft8.Tests;
@@ -67,7 +68,66 @@ public sealed class CostasSynchroniserTests
         candidates.Should().BeEmpty("random noise should not match the Costas pattern at high threshold");
     }
 
+    /// <summary>
+    /// Task 4.2-bis: verifies that the time-domain sweep path works end-to-end.
+    /// The caller (Ft8Decoder) extracts the grid with a non-zero startSample;
+    /// CostasSynchroniser must still return the correct frequency-bin candidate.
+    /// </summary>
+    [Fact(DisplayName = "FR-001: CostasSynchroniser detects Costas pattern when SymbolExtractor.Extract is called with a non-zero startSample (4.2-bis)")]
+    public void FindCandidates_GridExtractedAtNonZeroStartSample_DetectsCorrectFreqBin()
+    {
+        // The FT8 signal starts 5 symbols into the buffer (as if the operator started
+        // the daemon 5 × 0.16 s ≈ 0.8 s into the UTC cycle).
+        const int    symbolOffset = 5;
+        const int    freqShift    = 3;
+        const double baseFreqHz   = 500.0;
+
+        int   startSample = symbolOffset * SymbolExtractor.SamplesPerSymbol;
+        float[] pcm       = BuildSyntheticFt8Pcm(symbolOffset, freqShift, baseFreqHz);
+
+        // Let the caller (simulated here) extract the grid with the correct startSample.
+        var grid       = SymbolExtractor.Extract(pcm, startSample, baseFreqHz);
+        var candidates = CostasSynchroniser.FindCandidates(grid, threshold: 0.5f);
+
+        candidates.Should().NotBeEmpty(
+            "Costas tones are embedded at the expected symbol + frequency offset");
+        candidates[0].FreqBinOffset.Should().Be(freqShift,
+            $"the signal was placed {freqShift} tone-bins above the base frequency");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates a PCM buffer that contains FT8 Costas tones (and silence for data symbols)
+    /// starting at the given symbol offset.
+    /// </summary>
+    private static float[] BuildSyntheticFt8Pcm(int symbolOffset, int freqShift, double baseFreqHz)
+    {
+        const int SampleRate = 12_000;
+
+        int startSample  = symbolOffset * SymbolExtractor.SamplesPerSymbol;
+        int totalSamples = startSample + SymbolExtractor.SymbolCount * SymbolExtractor.SamplesPerSymbol;
+        var pcm          = new float[totalSamples];
+
+        ReadOnlySpan<int> costasPositions = [0, 36, 72];
+        ReadOnlySpan<int> pattern         = CostasSynchroniser.CostasPattern;
+
+        foreach (int pos in costasPositions)
+        {
+            for (int i = 0; i < pattern.Length; i++)
+            {
+                int    sym          = pos + i;
+                int    toneIdx      = (pattern[i] + freqShift) % 8;
+                double toneHz       = baseFreqHz + toneIdx * SymbolExtractor.ToneSpacingHz;
+                int    sampleStart  = startSample + sym * SymbolExtractor.SamplesPerSymbol;
+
+                for (int s = 0; s < SymbolExtractor.SamplesPerSymbol; s++)
+                    pcm[sampleStart + s] = (float)Math.Sin(2.0 * Math.PI * toneHz * s / SampleRate);
+            }
+        }
+
+        return pcm;
+    }
 
     private static float[,] BuildPerfectCostasGrid(int freqShift)
     {
