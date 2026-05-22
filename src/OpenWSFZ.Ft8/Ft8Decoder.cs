@@ -19,9 +19,10 @@ namespace OpenWSFZ.Ft8;
 /// </summary>
 public sealed class Ft8Decoder : IModeDecoder
 {
-    private const int    SampleRate   = SymbolExtractor.SampleRate;      // 12 000 Hz
-    private const double ToneSpacing  = SymbolExtractor.ToneSpacingHz;  // 6.25 Hz
-    private const int    SymbolCount  = SymbolExtractor.SymbolCount;     // 79
+    private const int    SampleRate      = SymbolExtractor.SampleRate;       // 12 000 Hz
+    private const double ToneSpacing    = SymbolExtractor.ToneSpacingHz;   // 6.25 Hz
+    private const int    SymbolCount    = SymbolExtractor.SymbolCount;      // 79
+    private const int    SamplesPerSymbol = SymbolExtractor.SamplesPerSymbol; // 1 920
     private const int    InfoBits     = LdpcDecoder.InfoBits;            // 91
     private const int    MsgBits      = 77;
     private const int    CrcBits      = 14;
@@ -33,6 +34,13 @@ public sealed class Ft8Decoder : IModeDecoder
 
     // Costas sync threshold (tune for sensitivity vs. false-alarm rate).
     private const float  SyncThreshold = 0.45f;
+
+    // Time-domain sweep: maximum start sample such that the first two Costas arrays
+    // (positions 0–6 and 36–42) still fit fully in the buffer.
+    // Second Costas array occupies symbols 36–42 → last sample index = (42+1)×1920 − 1 = 82 559.
+    // Signals starting beyond this offset have only one Costas array present → score ≤ 7/21 = 0.33,
+    // below SyncThreshold, so sweeping further is futile without lowering the threshold.
+    private const int SecondCostasEnd = (42 + 1) * SamplesPerSymbol; // 82 560
 
     private readonly IClock _clock;
 
@@ -55,50 +63,65 @@ public sealed class Ft8Decoder : IModeDecoder
         var results = new List<DecodeResult>();
         var seen    = new HashSet<string>(StringComparer.Ordinal);
 
-        // Sweep base frequencies in steps of one tone spacing.
-        for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += ToneSpacing)
+        // Time-domain sweep: try each symbol-aligned start position from 0 up to the
+        // latest offset where the first two Costas arrays (positions 0–6 and 36–42)
+        // both fit within the buffer.  This covers:
+        //   • On-air signals with up to ~8 s clock skew (NTP is typically < 0.5 s).
+        //   • Pre-recorded WAV files played back without UTC alignment (Voicemeeter tests).
+        // The third Costas array (positions 72–78) may be absent for late-starting signals;
+        // the maximum achievable Costas score is then 14/21 ≈ 0.67, still above SyncThreshold.
+        int maxStartSample = Math.Max(0, pcm.Length - SecondCostasEnd);
+
+        for (int startSample = 0; startSample <= maxStartSample; startSample += SamplesPerSymbol)
         {
-            ct.ThrowIfCancellationRequested();
-
-            var grid       = SymbolExtractor.Extract(pcm, startSample: 0, baseFrequencyHz: baseHz);
-            var candidates = CostasSynchroniser.FindCandidates(grid, SyncThreshold);
-
-            foreach (var cand in candidates)
+            // Sweep base frequencies in steps of one tone spacing.
+            for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += ToneSpacing)
             {
                 ct.ThrowIfCancellationRequested();
 
-                double actualBase = baseHz + cand.FreqBinOffset * ToneSpacing;
-                int    freqHz     = (int)Math.Round(actualBase + 3 * ToneSpacing); // centre tone
+                var grid       = SymbolExtractor.Extract(pcm, startSample, baseFrequencyHz: baseHz);
+                var candidates = CostasSynchroniser.FindCandidates(grid, SyncThreshold);
 
-                // Derive soft LLRs from the energy grid.
-                var llr = ComputeLlrs(grid, cand.FreqBinOffset);
+                foreach (var cand in candidates)
+                {
+                    ct.ThrowIfCancellationRequested();
 
-                // LDPC decode.
-                var decoded = LdpcDecoder.Decode(llr);
-                if (decoded is null) continue;
+                    double actualBase = baseHz + cand.FreqBinOffset * ToneSpacing;
+                    int    freqHz     = (int)Math.Round(actualBase + 3 * ToneSpacing); // centre tone
 
-                // CRC-14 check: decoded is exactly 91 bytes (77 msg bits + 14 CRC bits).
-                // bits[0..76]  = message payload
-                // bits[77..90] = appended CRC-14
-                bool crcOk = Crc14.Verify(decoded, 91);
-                if (!crcOk) continue;
+                    // Derive soft LLRs from the energy grid.
+                    var llr = ComputeLlrs(grid, cand.FreqBinOffset);
 
-                // Unpack the 77-bit message payload.
-                var msgBits = new ReadOnlySpan<byte>(decoded, 0, MsgBits);
-                string msg  = MessageUnpacker.Unpack(msgBits);
+                    // LDPC decode.
+                    var decoded = LdpcDecoder.Decode(llr);
+                    if (decoded is null) continue;
 
-                // De-duplicate.
-                if (!seen.Add(msg)) continue;
+                    // CRC-14 check: decoded is exactly 91 bytes (77 msg bits + 14 CRC bits).
+                    // bits[0..76]  = message payload
+                    // bits[77..90] = appended CRC-14
+                    bool crcOk = Crc14.Verify(decoded, 91);
+                    if (!crcOk) continue;
 
-                // Estimate SNR: peak log-energy minus noise floor estimate.
-                float snrEst = EstimateSnr(grid);
+                    // Unpack the 77-bit message payload.
+                    var msgBits = new ReadOnlySpan<byte>(decoded, 0, MsgBits);
+                    string msg  = MessageUnpacker.Unpack(msgBits);
 
-                results.Add(new DecodeResult(
-                    Time:    timeStr,
-                    Snr:     (int)Math.Round(snrEst),
-                    Dt:      0.0,      // timing offset — requires sub-symbol sync (future work)
-                    FreqHz:  freqHz,
-                    Message: msg));
+                    // De-duplicate across the full time+frequency sweep.
+                    if (!seen.Add(msg)) continue;
+
+                    // Estimate SNR: peak log-energy minus noise floor estimate.
+                    float snrEst = EstimateSnr(grid);
+
+                    // Dt: seconds from the UTC cycle boundary to where the signal was found.
+                    double dt = (double)startSample / SampleRate;
+
+                    results.Add(new DecodeResult(
+                        Time:    timeStr,
+                        Snr:     (int)Math.Round(snrEst),
+                        Dt:      Math.Round(dt, 1),
+                        FreqHz:  freqHz,
+                        Message: msg));
+                }
             }
         }
 

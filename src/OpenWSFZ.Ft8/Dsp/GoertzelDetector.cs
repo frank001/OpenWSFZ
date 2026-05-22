@@ -16,23 +16,23 @@ internal static class GoertzelDetector
     /// <returns>Squared magnitude — proportional to energy at the target frequency.</returns>
     public static float ComputeEnergy(ReadOnlySpan<float> samples, double targetFrequencyHz, double sampleRateHz)
     {
-        // Pre-compute the Goertzel coefficient.
-        double normalised = targetFrequencyHz / sampleRateHz;
-        double omega      = 2.0 * Math.PI * normalised;
-        double coeff      = 2.0 * Math.Cos(omega);
+        // Pre-compute the Goertzel coefficient in single precision.
+        // float is sufficient for the ~6 Hz tone-spacing resolution of FT8 at 12 kHz,
+        // and is 2-3× faster than double on modern JIT — necessary because the
+        // time-domain sweep in Ft8Decoder multiplies this call count by ~50.
+        float coeff = 2.0f * MathF.Cos(2.0f * MathF.PI * (float)(targetFrequencyHz / sampleRateHz));
 
-        double s1 = 0.0;
-        double s2 = 0.0;
+        float s1 = 0f;
+        float s2 = 0f;
 
         foreach (var sample in samples)
         {
-            double s0 = sample + coeff * s1 - s2;
+            float s0 = sample + coeff * s1 - s2;
             s2 = s1;
             s1 = s0;
         }
 
         // Squared magnitude: |X|² = s1² + s2² - coeff·s1·s2
-        double energy = s1 * s1 + s2 * s2 - coeff * s1 * s2;
-        return (float)energy;
+        return s1 * s1 + s2 * s2 - coeff * s1 * s2;
     }
 }
