@@ -90,6 +90,10 @@ internal sealed class WasapiAudioSource : IAudioSource
 
                 var resampler = new WdlResamplingSampleProvider(samples, 12_000);
 
+                // D1: latches true on the first DataAvailable callback.
+                // Accessed only from the WASAPI capture thread (sequential); no lock needed.
+                var dataAvailableFired = false;
+
                 // DataAvailable fires on the WASAPI capture thread.
                 capture.DataAvailable += (_, e) =>
                 {
@@ -99,6 +103,17 @@ internal sealed class WasapiAudioSource : IAudioSource
                     // it may silently terminate the thread without firing RecordingStopped.
                     try
                     {
+                        // D1: Log the first buffer so we can distinguish Scenario A
+                        // (DataAvailable fires) from Scenario B (DataAvailable never fires).
+                        if (!dataAvailableFired)
+                        {
+                            dataAvailableFired = true;
+                            _logger?.LogInformation(
+                                "DIAG DataAvailable: first buffer received — " +
+                                "BytesRecorded={BytesRecorded}, WaveFormat={WaveFormat}",
+                                e.BytesRecorded, capture.WaveFormat);
+                        }
+
                         buffer.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
                         // Drain the resampler in 2 048-sample chunks.

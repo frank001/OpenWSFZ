@@ -89,10 +89,17 @@ public sealed class CaptureManager : IAsyncDisposable
 
         _captureTask = Task.Run(async () =>
         {
+            // D2: count every chunk delivered to the pipeline.
+            // Appended to all exit-path log messages so Scenario A (chunks arrive but
+            // are silent) can be distinguished from Scenario B (no chunks ever arrive).
+            var chunksReceived = 0;
+
             try
             {
                 await foreach (var chunk in _source.CaptureAsync(deviceId, linkedCt))
                 {
+                    chunksReceived++;
+
                     // Notify the audio activity monitor before queuing the chunk (FR-020).
                     ChunkReceived?.Invoke(chunk);
 
@@ -106,8 +113,9 @@ public sealed class CaptureManager : IAsyncDisposable
                     // Case 1 (race): source drained gracefully as part of a requested stop.
                     // Cancellation was in flight; this is still an operator-stop.
                     _logger?.LogInformation(
-                        "Capture stopped on device '{DeviceId}' (operator-stopped, source drained).",
-                        deviceId);
+                        "Capture stopped on device '{DeviceId}' (operator-stopped, source drained). " +
+                        "Chunks received: {ChunksReceived}.",
+                        deviceId, chunksReceived);
                 }
                 else
                 {
@@ -115,17 +123,19 @@ public sealed class CaptureManager : IAsyncDisposable
                     // This indicates a driver-level or audio-engine stop not requested by the app.
                     _logger?.LogWarning(
                         "Capture ended unexpectedly on device '{DeviceId}'. " +
+                        "Chunks received: {ChunksReceived}. " +
                         "The audio source stopped without a cancellation signal — " +
                         "this may indicate a driver-level or audio-engine stop not requested by the application.",
-                        deviceId);
+                        deviceId, chunksReceived);
                 }
             }
             catch (OperationCanceledException) when (linkedCt.IsCancellationRequested)
             {
                 // Case 1: normal operator-stop or application shutdown.
                 _logger?.LogInformation(
-                    "Capture stopped on device '{DeviceId}' (operator-stopped).",
-                    deviceId);
+                    "Capture stopped on device '{DeviceId}' (operator-stopped). " +
+                    "Chunks received: {ChunksReceived}.",
+                    deviceId, chunksReceived);
             }
             catch (Exception ex)
             {
