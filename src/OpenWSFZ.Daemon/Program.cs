@@ -83,6 +83,32 @@ var framerOutput = Channel.CreateBounded<float[]>(new BoundedChannelOptions(2)
 CancellationTokenSource? framerCts  = null;
 Task?                    framerTask = null;
 
+// S6: watchdog restart action. Wraps StopFramerAsync / StopAsync / StartPipeline
+// so the heartbeat loop can fire-and-forget it without blocking.
+// The top-level try-catch ensures restart failures are logged rather than
+// silently swallowed by the discarded ValueTask at the call site.
+Func<Task> restartPipeline = () => Task.Run(async () =>
+{
+    try
+    {
+        var device = configStore.Current.AudioDeviceName;
+        startupLogger.LogWarning(
+            "Watchdog: audio silent for 15 s while capturing on '{Device}' — restarting pipeline.",
+            device);
+        await StopFramerAsync();
+        await captureManager.StopAsync();
+        audioMonitor.Reset();
+        if (device is not null)
+            StartPipeline(device);
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(ex,
+            "Watchdog pipeline restart failed on device '{Device}': {Message}",
+            configStore.Current.AudioDeviceName, ex.Message);
+    }
+});
+
 // Create and configure the web application.
 var app = WebApp.Create(
     port,
@@ -91,7 +117,8 @@ var app = WebApp.Create(
                                     sp.GetRequiredService<ILoggerFactory>()),
     captureManager:       captureManager,
     audioMonitor:         audioMonitor,
-    configureLogging:     ConfigureLogging);
+    configureLogging:     ConfigureLogging,
+    restartPipeline:      restartPipeline);
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────
 

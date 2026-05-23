@@ -43,7 +43,8 @@ public static class WebApp
         Func<IServiceProvider, IAudioDeviceProvider>? audioProviderFactory = null,
         CaptureManager?                               captureManager       = null,
         AudioActivityMonitor?                         audioMonitor         = null,
-        Action<ILoggingBuilder>?                      configureLogging     = null)
+        Action<ILoggingBuilder>?                      configureLogging     = null,
+        Func<Task>?                                   restartPipeline      = null)
     {
         var builder = WebApplication.CreateBuilder();
 
@@ -182,7 +183,10 @@ public static class WebApp
             }
 
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-            await WebSocketHub.HandleAsync(ws, store, audioMonitor, wsLogger, ctx.RequestAborted);
+            await WebSocketHub.HandleAsync(
+                ws, store, audioMonitor,
+                captureManager, restartPipeline,
+                wsLogger, ctx.RequestAborted);
         });
 
         return app;

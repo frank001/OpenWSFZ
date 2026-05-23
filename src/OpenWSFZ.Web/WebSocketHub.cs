@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
+using OpenWSFZ.Audio;
 
 namespace OpenWSFZ.Web;
 
@@ -80,11 +81,22 @@ internal static class WebSocketHub
         WebSocket ws,
         IConfigStore configStore,
         AudioActivityMonitor? audioMonitor,
+        CaptureManager? captureManager,
+        Func<Task>? restartPipeline,
         ILogger logger,
         CancellationToken ct)
     {
         RegisterSocket(ws);
         logger.LogInformation("WebSocket connection accepted.");
+
+        // S6: construct watchdog only when both dependencies are available.
+        // The watchdog is per-connection; its counter is local to this call.
+        var watchdog = captureManager is not null && restartPipeline is not null
+            ? new AudioWatchdog(
+                  isCapturing: () => captureManager.IsCapturing,
+                  onRestart:   restartPipeline,
+                  threshold:   3)
+            : null;
 
         try
         {
@@ -112,7 +124,13 @@ internal static class WebSocketHub
                         break;
 
                     // Build heartbeat: consume-and-reset the activity window (FR-020).
-                    var active       = audioMonitor?.ConsumeAndReset() ?? false;
+                    var active = audioMonitor?.ConsumeAndReset() ?? false;
+
+                    // S6: tick the watchdog with the already-consumed flag.
+                    // Fire-and-forget — does not block heartbeat emission.
+                    if (watchdog is not null)
+                        _ = watchdog.TickAsync(active);
+
                     var heartbeatMsg = new WsHeartbeatMessage(
                         Type:    "heartbeat",
                         Payload: new HeartbeatPayload(AudioActive: active));
