@@ -2,6 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
@@ -18,6 +19,13 @@ namespace OpenWSFZ.Audio;
 [SupportedOSPlatform("windows")]
 internal sealed class WasapiAudioSource : IAudioSource
 {
+    private readonly ILogger<WasapiAudioSource>? _logger;
+
+    public WasapiAudioSource(ILogger<WasapiAudioSource>? logger = null)
+    {
+        _logger = logger;
+    }
+
     public int SampleRate   => 12_000;
     public int ChannelCount => 1;
 
@@ -49,7 +57,8 @@ internal sealed class WasapiAudioSource : IAudioSource
         // It blocks on staCts until cancellation or an unexpected stop, then cleans up.
         var staTask = StaThread.Run<bool>(() =>
         {
-            WasapiCapture? capture = null;
+            WasapiCapture?       capture        = null;
+            AudioSessionControl? sessionControl = null;   // B15: outer scope keeps COM ref alive
 
             try
             {
@@ -141,16 +150,24 @@ internal sealed class WasapiAudioSource : IAudioSource
                 // does not fire.  Covers: default-device switches, exclusive-mode
                 // takeover, audio engine restarts, driver-level format changes.
                 // Best-effort: failure to register must not prevent capture.
-                AudioSessionControl? sessionControl = null;
+                // sessionControl declared in outer scope (B15) so the GC cannot
+                // collect it while the STA thread is blocked on WaitOne().
                 try
                 {
                     sessionControl = device.AudioSessionManager.AudioSessionControl;
                     sessionControl.RegisterEventClient(
                         new WasapiSessionEventClient(innerChannel, staCts));
                 }
-                catch
+                catch (Exception ex)
                 {
-                    sessionControl = null; // registration failed; proceed without it
+                    // B16: Log so the operator can tell whether B11 is working.
+                    // Do NOT prevent capture — registration is best-effort.
+                    _logger?.LogWarning(ex,
+                        "WASAPI session event registration failed on device '{DeviceId}'; " +
+                        "session-disconnect events will not be detected. " +
+                        "Capture continues without event-driven termination detection.",
+                        deviceId);
+                    sessionControl = null;
                 }
 
                 // Signal that setup succeeded so the async caller can start reading.
@@ -168,6 +185,14 @@ internal sealed class WasapiAudioSource : IAudioSource
             }
             finally
             {
+                // Dispose sessionControl before capture: cleanly unregisters the
+                // WASAPI session event client before tearing down the capture session.
+                if (sessionControl is not null)
+                {
+                    try { sessionControl.Dispose(); } catch { }
+                    sessionControl = null;
+                }
+
                 // Stop and dispose on the STA thread that owns the COM objects.
                 if (capture is not null)
                 {
@@ -236,13 +261,30 @@ internal sealed class WasapiAudioSource : IAudioSource
             try { _staCts.Cancel(); } catch (ObjectDisposedException) { }
         }
 
+        // B17: Handle session expiry. AudioSessionStateExpired fires when the session
+        // is being destroyed normally (e.g. device removed quietly, format change).
+        // On some drivers this fires without a corresponding OnSessionDisconnected.
+        public void OnStateChanged(AudioSessionState state)
+        {
+            if (state == AudioSessionState.AudioSessionStateExpired)
+            {
+                var ex = new AudioCaptureException(
+                    "unknown",
+                    "WASAPI audio session expired (OnStateChanged: Expired).");
+
+                _channel.Writer.TryComplete(ex);
+                try { _staCts.Cancel(); } catch (ObjectDisposedException) { }
+            }
+            // AudioSessionStateInactive: session paused but not destroyed — do not
+            // complete the channel; audio may resume (e.g. brief device re-negotiation).
+        }
+
         // All other session events are irrelevant for capture monitoring.
         public void OnVolumeChanged(float volume, bool isMuted)                                      { }
         public void OnDisplayNameChanged(string displayName)                                         { }
         public void OnIconPathChanged(string iconPath)                                               { }
         public void OnChannelVolumeChanged(uint channelCount, IntPtr newVolumes, uint channelIndex)  { }
         public void OnGroupingParamChanged(ref Guid groupingId)                                      { }
-        public void OnStateChanged(AudioSessionState state)                                          { }
     }
 }
 #endif

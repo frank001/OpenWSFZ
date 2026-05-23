@@ -53,7 +53,7 @@ var port = options.Port ?? configStore.Current.Port;
 
 // ── Audio capture ─────────────────────────────────────────────────────────────
 
-var audioSource    = new PlatformAudioSource();
+var audioSource    = new PlatformAudioSource(loggerFactory);
 var captureManager = new CaptureManager(audioSource, loggerFactory.CreateLogger<CaptureManager>());
 
 // Surface inner capture faults to the operator.
