@@ -112,12 +112,16 @@ public sealed class CaptureManager : IAsyncDisposable
                 else
                 {
                     // Case 2: unexpected end — source ended without any cancellation signal.
-                    // This indicates a driver-level or audio-engine stop not requested by the app.
-                    _logger?.LogWarning(
-                        "Capture ended unexpectedly on device '{DeviceId}'. " +
-                        "The audio source stopped without a cancellation signal — " +
-                        "this may indicate a driver-level or audio-engine stop not requested by the application.",
-                        deviceId);
+                    // Treat this as a fault so the CaptureFailed restart path is triggered.
+                    // Without this, IsCapturing goes false and the S6 watchdog cannot restart —
+                    // the watchdog only handles the hung-while-capturing scenario, not this one.
+                    var unexpectedEndEx = new AudioCaptureException(deviceId,
+                        "The audio source stopped unexpectedly without a cancellation signal. " +
+                        "This may indicate a driver-level power-management stop, a format " +
+                        "re-negotiation, or a session expiry not surfaced as a session event.");
+                    _logger?.LogWarning(unexpectedEndEx,
+                        "Capture ended unexpectedly on device '{DeviceId}'.", deviceId);
+                    CaptureFailed?.Invoke(unexpectedEndEx);
                 }
             }
             catch (OperationCanceledException) when (linkedCt.IsCancellationRequested)

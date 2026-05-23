@@ -171,6 +171,32 @@ public sealed class CaptureManagerTests
             "a silent stop is a violation of FR-021");
     }
 
+    [Fact(DisplayName = "B19: CaptureManager raises CaptureFailed when source ends without cancellation")]
+    public async Task StartAsync_WhenSourceEndsNaturally_RaisesCaptureFailed()
+    {
+        // Arrange — FiniteAudioSource (3 chunks) simulates WASAPI RecordingStopped
+        // with e.Exception == null (graceful unexpected stop).
+        await using var cm = new CaptureManager(new FiniteAudioSource(chunkCount: 3));
+
+        var failureTcs = new TaskCompletionSource<Exception>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        cm.CaptureFailed += ex => failureTcs.TrySetResult(ex);
+
+        // Act
+        await cm.StartAsync("mic-b19");
+
+        // Assert — CaptureFailed must fire and carry an AudioCaptureException.
+        var caughtEx = await failureTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        caughtEx.Should().BeOfType<AudioCaptureException>(
+            "Case 2 (unexpected source end) must raise CaptureFailed with " +
+            "AudioCaptureException so the B20 restart path is triggered — without " +
+            "this, the pipeline stays permanently idle after any graceful WASAPI stop");
+
+        cm.IsCapturing.Should().BeFalse(
+            "IsCapturing must be false once the unexpected stop completes");
+    }
+
     [Fact(DisplayName = "FR-021 Case 3: CaptureManager logs Error with exception when source throws")]
     public async Task StartAsync_WhenSourceThrows_LogsError()
     {
