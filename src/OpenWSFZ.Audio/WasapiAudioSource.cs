@@ -74,7 +74,7 @@ internal sealed class WasapiAudioSource : IAudioSource
                     throw new AudioCaptureException(deviceId, ex.Message);
                 }
 
-                capture = new WasapiCapture(device);
+                capture = new WasapiCapture(device, useEventSync: true);
 
                 // ── NAudio resampling pipeline ────────────────────────────────
                 var buffer = new BufferedWaveProvider(capture.WaveFormat)
