@@ -74,7 +74,7 @@ internal sealed class WasapiAudioSource : IAudioSource
                     throw new AudioCaptureException(deviceId, ex.Message);
                 }
 
-                capture = new WasapiCapture(device, useEventSync: true);
+                capture = new WasapiCapture(device, useEventSync: false);
 
                 // L-1 (DIAG): log device identity and negotiated WaveFormat so any
                 // format/channel mismatch is immediately visible.
