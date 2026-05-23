@@ -93,7 +93,7 @@
   — Re-certified after QA-review fixes (2026-05-21): 0 failed, 119 passed, 1 skipped (WAV fixture, needs real audio)
   — Fixed: B1 heartbeat test loop; B2 `LdpcDecoder.InfoBits = 91`; S1 dead code; S2 XSS innerHTML→textContent; S3 Array.IndexOf→pre-computed VarNeighboursIdx
 - [ ] 13.4 Manual smoke test: start daemon with a configured audio device, open `http://127.0.0.1:8080`, confirm decoded FT8 rows appear in the table after one 15-second cycle
-- [ ] 13.5 Commit all changes to `feat/p5-ft8-decoder`, push, and open a draft PR to `main`
+- [x] 13.5 Commit all changes to `feat/p5-ft8-decoder`, push, and open a draft PR to `main`
 
 ## 14. Known Follow-Up Items
 

@@ -19,4 +19,9 @@
     <ProjectReference Include="..\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj" />
     <ProjectReference Include="..\OpenWSFZ.Config\OpenWSFZ.Config.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Expose internal types (AudioWatchdog, etc.) to the Web test project. -->
+    <InternalsVisibleTo Include="OpenWSFZ.Web.Tests" />
+  </ItemGroup>
 </Project>
