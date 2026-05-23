@@ -85,8 +85,9 @@ var framerOutput = Channel.CreateBounded<float[]>(new BoundedChannelOptions(2)
     SingleReader = true,
 });
 
-CancellationTokenSource? framerCts  = null;
-Task?                    framerTask = null;
+CancellationTokenSource? framerCts          = null;
+Task?                    framerTask         = null;
+var                      captureRestartCount = 0; // L-13 (DIAG): counts auto-restart attempts
 
 // Surface inner capture faults to the operator and auto-restart the pipeline.
 // Audio capture must always be running (Captain's directive).
@@ -109,12 +110,19 @@ captureManager.CaptureFailed += ex =>
     {
         await Task.Delay(TimeSpan.FromSeconds(5));
 
-        // Guard: if a device-change or another restart path has already
-        // restarted capture, do not start a second session.
-        if (captureManager.IsCapturing) return;
+        // L-14 (DIAG): log the IsCapturing guard result so we can tell whether
+        // the restart was skipped because another path already recovered.
+        var isCapturing = captureManager.IsCapturing;
+        startupLogger.LogDebug(
+            "Restart guard check on '{Device}': IsCapturing={IsCapturing}.",
+            device, isCapturing);
+        if (isCapturing) return;
 
+        // L-13 (DIAG): increment and log restart attempt number.
+        captureRestartCount++;
         startupLogger.LogInformation(
-            "Auto-restarting audio capture on device '{Device}' after failure.", device);
+            "Auto-restarting audio capture on device '{Device}' after failure " +
+            "(attempt #{RestartCount}).", device, captureRestartCount);
 
         await StopFramerAsync();
         audioMonitor.Reset();
