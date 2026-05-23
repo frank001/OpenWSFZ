@@ -49,13 +49,16 @@ internal sealed class AudioWatchdog
     /// <summary>
     /// Advances the watchdog state for one heartbeat window.
     /// </summary>
-    /// <param name="audioWasActive">
-    /// The value returned by <c>AudioActivityMonitor.ConsumeAndReset()</c>
-    /// in the heartbeat loop for this window.
+    /// <param name="dataWasFlowing">
+    /// The value returned by <c>DataFlowMonitor.ConsumeAndReset()</c> in the
+    /// heartbeat loop for this window. Any chunk receipt — regardless of
+    /// amplitude — counts as data flowing. This correctly distinguishes a
+    /// genuine WASAPI silent-stall (no buffers delivered) from a quiet radio
+    /// frequency (buffers delivered but samples below the FT8 signal threshold).
     /// </param>
-    public async ValueTask TickAsync(bool audioWasActive)
+    public async ValueTask TickAsync(bool dataWasFlowing)
     {
-        if (audioWasActive || !_isCapturing())
+        if (dataWasFlowing || !_isCapturing())
         {
             _silentWindows = 0;
             return;

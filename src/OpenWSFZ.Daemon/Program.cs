@@ -62,8 +62,17 @@ captureManager.CaptureFailed += ex =>
 
 // ── Audio activity monitor (FR-020) ──────────────────────────────────────────
 
-var audioMonitor = new AudioActivityMonitor();
-captureManager.ChunkReceived = audioMonitor.ObserveSamples;
+var audioMonitor    = new AudioActivityMonitor();
+var dataFlowMonitor = new DataFlowMonitor();
+
+// Wire both monitors to the capture callback.
+// audioMonitor tracks amplitude for the heartbeat UI (FR-020).
+// dataFlowMonitor tracks any-chunk-received for the watchdog (B18).
+captureManager.ChunkReceived = chunk =>
+{
+    audioMonitor.ObserveSamples(chunk);
+    dataFlowMonitor.OnChunkReceived();
+};
 
 // ── FT8 decode pipeline ──────────────────────────────────────────────────────
 
@@ -98,6 +107,7 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
         await StopFramerAsync();
         await captureManager.StopAsync();
         audioMonitor.Reset();
+        dataFlowMonitor.Reset();
         if (device is not null)
             StartPipeline(device);
     }
@@ -117,6 +127,7 @@ var app = WebApp.Create(
                                     sp.GetRequiredService<ILoggerFactory>()),
     captureManager:       captureManager,
     audioMonitor:         audioMonitor,
+    dataFlowMonitor:      dataFlowMonitor,
     configureLogging:     ConfigureLogging,
     restartPipeline:      restartPipeline);
 
@@ -163,8 +174,9 @@ configStore.OnSaved += newConfig =>
         await StopFramerAsync();
         await captureManager.StopAsync();
 
-        // Reset activity monitor when the pipeline restarts (FR-020).
+        // Reset monitors when the pipeline restarts (FR-020, B18).
         audioMonitor.Reset();
+        dataFlowMonitor.Reset();
 
         if (newDevice is not null)
         {

@@ -43,6 +43,7 @@ public static class WebApp
         Func<IServiceProvider, IAudioDeviceProvider>? audioProviderFactory = null,
         CaptureManager?                               captureManager       = null,
         AudioActivityMonitor?                         audioMonitor         = null,
+        DataFlowMonitor?                              dataFlowMonitor      = null,
         Action<ILoggingBuilder>?                      configureLogging     = null,
         Func<Task>?                                   restartPipeline      = null)
     {
@@ -184,7 +185,7 @@ public static class WebApp
 
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
             await WebSocketHub.HandleAsync(
-                ws, store, audioMonitor,
+                ws, store, audioMonitor, dataFlowMonitor,
                 captureManager, restartPipeline,
                 wsLogger, ctx.RequestAborted);
         });

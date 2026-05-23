@@ -81,6 +81,7 @@ internal static class WebSocketHub
         WebSocket ws,
         IConfigStore configStore,
         AudioActivityMonitor? audioMonitor,
+        DataFlowMonitor? dataFlowMonitor,
         CaptureManager? captureManager,
         Func<Task>? restartPipeline,
         ILogger logger,
@@ -124,12 +125,18 @@ internal static class WebSocketHub
                         break;
 
                     // Build heartbeat: consume-and-reset the activity window (FR-020).
+                    // active = amplitude > threshold (used for UI heartbeat only).
                     var active = audioMonitor?.ConsumeAndReset() ?? false;
 
-                    // S6: tick the watchdog with the already-consumed flag.
+                    // B18: watchdog uses data-flow (any chunk received), not amplitude.
+                    // A working WASAPI device always delivers buffers even when the
+                    // radio frequency is quiet, so flow==false means a genuine stall.
+                    var dataFlowing = dataFlowMonitor?.ConsumeAndReset() ?? false;
+
+                    // S6: tick the watchdog with the data-flow flag.
                     // Fire-and-forget — does not block heartbeat emission.
                     if (watchdog is not null)
-                        _ = watchdog.TickAsync(active);
+                        _ = watchdog.TickAsync(dataFlowing);
 
                     var heartbeatMsg = new WsHeartbeatMessage(
                         Type:    "heartbeat",
