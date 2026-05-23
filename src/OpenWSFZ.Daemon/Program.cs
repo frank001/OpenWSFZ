@@ -143,7 +143,10 @@ configStore.OnSaved += newConfig =>
         {
             try
             {
-                await captureManager.StartAsync(newDevice);
+                // B14: Call StartPipeline only — it calls captureManager.StartAsync
+                // internally.  The previous redundant StartAsync here caused a
+                // double-start: StartPipeline's fire-and-forget StartAsync began with
+                // StopAsync(), cancelling the session just started by the first call.
                 StartPipeline(newDevice);
             }
             catch (Exception ex)

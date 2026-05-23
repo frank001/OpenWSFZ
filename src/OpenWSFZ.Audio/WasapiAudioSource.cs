@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 using System.Threading.Channels;
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using OpenWSFZ.Abstractions;
@@ -83,17 +84,31 @@ internal sealed class WasapiAudioSource : IAudioSource
                 // DataAvailable fires on the WASAPI capture thread.
                 capture.DataAvailable += (_, e) =>
                 {
-                    buffer.AddSamples(e.Buffer, 0, e.BytesRecorded);
-
-                    // Drain the resampler in 2 048-sample chunks.
-                    var outBuf = new float[2048];
-                    int read;
-                    while ((read = resampler.Read(outBuf, 0, outBuf.Length)) > 0)
+                    // B13: Wrap the entire handler so any exception (corrupt buffer,
+                    // unexpected resampler state, etc.) is surfaced through the channel
+                    // rather than propagating into NAudio's internal capture loop where
+                    // it may silently terminate the thread without firing RecordingStopped.
+                    try
                     {
-                        var chunk = new float[read];
-                        outBuf.AsSpan(0, read).CopyTo(chunk);
-                        innerChannel.Writer.TryWrite(chunk);
-                        outBuf = new float[2048];
+                        buffer.AddSamples(e.Buffer, 0, e.BytesRecorded);
+
+                        // Drain the resampler in 2 048-sample chunks.
+                        var outBuf = new float[2048];
+                        int read;
+                        while ((read = resampler.Read(outBuf, 0, outBuf.Length)) > 0)
+                        {
+                            var chunk = new float[read];
+                            outBuf.AsSpan(0, read).CopyTo(chunk);
+                            innerChannel.Writer.TryWrite(chunk);
+                            outBuf = new float[2048];
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Complete the channel so CaptureAsync exits and CaptureManager
+                        // surfaces the error via CaptureFailed.
+                        innerChannel.Writer.TryComplete(ex);
+                        try { staCts.Cancel(); } catch (ObjectDisposedException) { }
                     }
                 };
 
@@ -110,10 +125,33 @@ internal sealed class WasapiAudioSource : IAudioSource
                     // Wake the STA thread so staTask completes promptly.
                     // Without this, await staTask in the finally block below would
                     // hang until the caller's ct is cancelled (which may never happen).
-                    staCts.Cancel();
+                    // B12: Guard with catch(ObjectDisposedException) — WASAPI fires
+                    // RecordingStopped a second time from capture.StopRecording() in the
+                    // finally block, which races with staCts disposal at the end of
+                    // CaptureAsync.  The second call is harmless; the STA is already
+                    // unblocking.
+                    try { staCts.Cancel(); }
+                    catch (ObjectDisposedException) { /* staCts already disposed — STA is unblocking */ }
                 };
 
                 capture.StartRecording();
+
+                // B11: Subscribe to WASAPI audio session events so Windows-initiated
+                // session termination is detected even if NAudio's RecordingStopped
+                // does not fire.  Covers: default-device switches, exclusive-mode
+                // takeover, audio engine restarts, driver-level format changes.
+                // Best-effort: failure to register must not prevent capture.
+                AudioSessionControl? sessionControl = null;
+                try
+                {
+                    sessionControl = device.AudioSessionManager.AudioSessionControl;
+                    sessionControl.RegisterEventClient(
+                        new WasapiSessionEventClient(innerChannel, staCts));
+                }
+                catch
+                {
+                    sessionControl = null; // registration failed; proceed without it
+                }
 
                 // Signal that setup succeeded so the async caller can start reading.
                 setupTcs.SetResult();
@@ -164,5 +202,47 @@ internal sealed class WasapiAudioSource : IAudioSource
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    // ── B11: WASAPI session event listener ────────────────────────────────────
+    // Receives IAudioSessionEvents notifications from the Windows audio engine
+    // on a COM event thread (Thread C in the thread-model reference).
+    // When Windows terminates the session (device change, exclusive-mode takeover,
+    // audio engine restart, format change), OnSessionDisconnected fires and we
+    // complete the innerChannel so CaptureAsync exits and CaptureManager raises
+    // CaptureFailed — even if NAudio's RecordingStopped never fires.
+    private sealed class WasapiSessionEventClient : IAudioSessionEventsHandler
+    {
+        private readonly Channel<float[]>        _channel;
+        private readonly CancellationTokenSource _staCts;
+
+        public WasapiSessionEventClient(
+            Channel<float[]>        channel,
+            CancellationTokenSource staCts)
+        {
+            _channel = channel;
+            _staCts  = staCts;
+        }
+
+        public void OnSessionDisconnected(AudioSessionDisconnectReason disconnectReason)
+        {
+            // Windows terminated the session: complete the channel with a descriptive
+            // exception so CaptureManager surfaces the event via CaptureFailed, and
+            // FR-021 logs it at Error level.
+            var ex = new AudioCaptureException(
+                "unknown",
+                $"WASAPI audio session disconnected: {disconnectReason}");
+
+            _channel.Writer.TryComplete(ex);
+            try { _staCts.Cancel(); } catch (ObjectDisposedException) { }
+        }
+
+        // All other session events are irrelevant for capture monitoring.
+        public void OnVolumeChanged(float volume, bool isMuted)                                      { }
+        public void OnDisplayNameChanged(string displayName)                                         { }
+        public void OnIconPathChanged(string iconPath)                                               { }
+        public void OnChannelVolumeChanged(uint channelCount, IntPtr newVolumes, uint channelIndex)  { }
+        public void OnGroupingParamChanged(ref Guid groupingId)                                      { }
+        public void OnStateChanged(AudioSessionState state)                                          { }
+    }
 }
 #endif
