@@ -101,13 +101,15 @@ internal static class WebSocketHub
 
         try
         {
-            // Build initial status event (audioActive reflects activity since startup).
+            // Build initial status event. AudioActive mirrors IsCapturing for consistency
+            // with the heartbeat: audioActive is true whenever WASAPI is delivering buffers,
+            // not when amplitude exceeds an arbitrary threshold.
             var status    = new DaemonStatus(
                 State:         "Running",
                 Version:       AssemblyVersion.Get(),
                 AudioDevice:   configStore.Current.AudioDeviceName,
                 CaptureActive: captureManager?.IsCapturing ?? false,
-                AudioActive:   audioMonitor?.IsActive ?? false);
+                AudioActive:   captureManager?.IsCapturing ?? false);
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);
@@ -125,14 +127,15 @@ internal static class WebSocketHub
                     if (completed == receiveTask || ws.State != WebSocketState.Open)
                         break;
 
-                    // Build heartbeat: consume-and-reset the activity window (FR-020).
-                    // active = amplitude > threshold (used for UI heartbeat only).
-                    var active = audioMonitor?.ConsumeAndReset() ?? false;
+                    // Reset the amplitude window each tick — result is no longer used for
+                    // audioActive; kept so AudioActivityMonitor doesn't accumulate stale state.
+                    audioMonitor?.ConsumeAndReset();
 
-                    // B18: watchdog uses data-flow (any chunk received), not amplitude.
-                    // A working WASAPI device always delivers buffers even when the
-                    // radio frequency is quiet, so flow==false means a genuine stall.
+                    // B18 / B21: watchdog and audioActive both use data-flow (any chunk
+                    // received), not amplitude. A quiet radio band is not an application
+                    // failure — audioActive must be true whenever WASAPI is delivering buffers.
                     var dataFlowing = dataFlowMonitor?.ConsumeAndReset() ?? false;
+                    var active      = dataFlowing; // audioActive = WASAPI is delivering data
 
                     // P-2 (DIAG): log heartbeat state to the server log so the distinction
                     // between a silent-but-running capture and a genuinely stopped capture
