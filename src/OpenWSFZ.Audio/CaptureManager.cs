@@ -163,7 +163,7 @@ public sealed class CaptureManager : IAsyncDisposable
 
     /// <summary>
     /// Cancels the active capture session and waits for it to drain
-    /// (up to 2 seconds). Safe to call when no session is running.
+    /// (up to 10 seconds). Safe to call when no session is running.
     /// </summary>
     public async Task StopAsync()
     {
@@ -177,9 +177,15 @@ public sealed class CaptureManager : IAsyncDisposable
         {
             try
             {
-                await task.WaitAsync(TimeSpan.FromSeconds(2));
+                await task.WaitAsync(TimeSpan.FromSeconds(10));
             }
-            catch (TimeoutException) { }
+            catch (TimeoutException)
+            {
+                _logger?.LogWarning(
+                    "StopAsync: capture task did not complete within 10 s — " +
+                    "old session may still be writing to the channel. " +
+                    "Device overlap in the output stream is possible.");
+            }
             catch (OperationCanceledException) { }
             catch (Exception) { }
         }
