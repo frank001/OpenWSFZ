@@ -31,7 +31,7 @@ internal sealed record WsMessage(string Type, DaemonStatus? Payload = null);
 internal sealed record WsHeartbeatMessage(string Type, HeartbeatPayload Payload);
 
 /// <summary>Payload for <c>heartbeat</c> WebSocket text frames (FR-020).</summary>
-internal sealed record HeartbeatPayload(bool AudioActive);
+internal sealed record HeartbeatPayload(bool AudioActive, bool CaptureActive);
 
 /// <summary>Envelope for <c>decode</c> WebSocket text frames.</summary>
 internal sealed record WsDecodeMessage(string Type, List<DecodeResult> Payload);

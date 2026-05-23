@@ -131,10 +131,12 @@ internal sealed class WasapiAudioSource : IAudioSource
                         }
 
                         // L-3 (DIAG): periodic heartbeat every 100 DataAvailable callbacks.
+                        // Must be LogInformation (not LogDebug) — the daemon runs at
+                        // Information level, so Debug entries are filtered out entirely.
                         dataAvailableCount++;
                         if (dataAvailableCount % 100 == 0)
                         {
-                            _logger?.LogDebug(
+                            _logger?.LogInformation(
                                 "DIAG DataAvailable: {Count} buffers on '{DeviceId}' — " +
                                 "BytesRecorded={Bytes}, BufferedMs={BufferedMs:F0}",
                                 dataAvailableCount,

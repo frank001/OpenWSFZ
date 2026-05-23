@@ -103,10 +103,11 @@ internal static class WebSocketHub
         {
             // Build initial status event (audioActive reflects activity since startup).
             var status    = new DaemonStatus(
-                State:        "Running",
-                Version:      AssemblyVersion.Get(),
-                AudioDevice:  configStore.Current.AudioDeviceName,
-                AudioActive:  audioMonitor?.IsActive ?? false);
+                State:         "Running",
+                Version:       AssemblyVersion.Get(),
+                AudioDevice:   configStore.Current.AudioDeviceName,
+                CaptureActive: captureManager?.IsCapturing ?? false,
+                AudioActive:   audioMonitor?.IsActive ?? false);
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);
@@ -133,6 +134,13 @@ internal static class WebSocketHub
                     // radio frequency is quiet, so flow==false means a genuine stall.
                     var dataFlowing = dataFlowMonitor?.ConsumeAndReset() ?? false;
 
+                    // P-2 (DIAG): log heartbeat state to the server log so the distinction
+                    // between a silent-but-running capture and a genuinely stopped capture
+                    // is visible without needing to watch the browser WebSocket stream.
+                    logger.LogInformation(
+                        "Heartbeat: captureActive={CaptureActive}, audioActive={AudioActive}, dataFlowing={DataFlowing}",
+                        captureManager?.IsCapturing ?? false, active, dataFlowing);
+
                     // S6: tick the watchdog with the data-flow flag.
                     // Fire-and-forget — does not block heartbeat emission.
                     if (watchdog is not null)
@@ -140,7 +148,9 @@ internal static class WebSocketHub
 
                     var heartbeatMsg = new WsHeartbeatMessage(
                         Type:    "heartbeat",
-                        Payload: new HeartbeatPayload(AudioActive: active));
+                        Payload: new HeartbeatPayload(
+                            AudioActive:   active,
+                            CaptureActive: captureManager?.IsCapturing ?? false));
 
                     await SendHeartbeatAsync(ws, heartbeatMsg, ct);
                 }
