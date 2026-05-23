@@ -160,6 +160,31 @@ internal sealed class WasapiAudioSource : IAudioSource
                                 deviceId, e.BytesRecorded, rawHasData);
                         }
 
+                        // DIAG: interpret first sample as IEEE 754 float to confirm signal is present.
+                        // A non-zero firstSample with rawHasData=True confirms valid audio in the raw bytes.
+                        if (e.BytesRecorded >= 4 && (dataAvailableCount <= 5 || dataAvailableCount % 100 == 0))
+                        {
+                            var firstSample = BitConverter.ToSingle(e.Buffer, 0);
+                            _logger?.LogInformation(
+                                "DIAG first sample on '{DeviceId}': {FirstSample:G6} (rawHasData={HasData})",
+                                deviceId, firstSample, rawHasData);
+                        }
+
+                        // DIAG: direct float cast bypassing NAudio pipeline.
+                        // maxAbs > 0 confirms valid signal in raw bytes; zeros introduced downstream.
+                        // Only run when rawHasData is True to avoid noise from zero-filled buffers.
+                        if (rawHasData && (dataAvailableCount <= 5 || dataAvailableCount % 100 == 0))
+                        {
+                            var span   = e.Buffer.AsSpan(0, e.BytesRecorded);
+                            var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(span);
+                            var maxAbs = 0f;
+                            foreach (var s in floats)
+                                if (MathF.Abs(s) > maxAbs) maxAbs = MathF.Abs(s);
+                            _logger?.LogInformation(
+                                "DIAG direct cast on '{DeviceId}': {FloatCount} floats, maxAbs={MaxAbs:G6}",
+                                deviceId, floats.Length, maxAbs);
+                        }
+
                         buffer.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
                         // L-4 (DIAG): warn when BufferedWaveProvider is near-full (>80% of 5 s).
