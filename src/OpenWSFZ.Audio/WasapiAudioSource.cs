@@ -145,6 +145,21 @@ internal sealed class WasapiAudioSource : IAudioSource
                                 buffer.BufferedDuration.TotalMilliseconds);
                         }
 
+                        // DIAG: check whether WASAPI is delivering non-zero bytes.
+                        // If rawHasData=False the device itself is returning silence — OS/hardware cause.
+                        // If rawHasData=True but resampler output is zero, the pipeline is the cause.
+                        // Short-circuits on first non-zero byte so the scan is inexpensive.
+                        var rawHasData = false;
+                        for (var i = 0; i < e.BytesRecorded && !rawHasData; i++)
+                            rawHasData = e.Buffer[i] != 0;
+
+                        if (dataAvailableCount <= 5 || dataAvailableCount % 100 == 0)
+                        {
+                            _logger?.LogInformation(
+                                "DIAG raw bytes on '{DeviceId}': BytesRecorded={Bytes}, rawHasData={HasData}",
+                                deviceId, e.BytesRecorded, rawHasData);
+                        }
+
                         buffer.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
                         // L-4 (DIAG): warn when BufferedWaveProvider is near-full (>80% of 5 s).
@@ -174,6 +189,13 @@ internal sealed class WasapiAudioSource : IAudioSource
                                     "({Samples} samples). Consumer may be stalled.",
                                     deviceId,
                                     chunk.Length);
+                            }
+                            // check if outBuf contains any data other than zeros. If not, log a warning that the resampler is producing silent output, which may be caused by a mismatch between the capture format and the resampler's expected input format.
+                            else if (chunk.All(sample => sample == 0)) {
+                                _logger?.LogWarning(
+                                    "DIAG Resampler output all zeros on '{DeviceId}' — " +
+                                    "possible format mismatch or silent input.",
+                                    deviceId);
                             }
 
                             outBuf = new float[2048];
