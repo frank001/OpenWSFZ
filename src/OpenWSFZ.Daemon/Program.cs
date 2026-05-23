@@ -56,10 +56,6 @@ var port = options.Port ?? configStore.Current.Port;
 var audioSource    = new PlatformAudioSource(loggerFactory);
 var captureManager = new CaptureManager(audioSource, loggerFactory.CreateLogger<CaptureManager>());
 
-// Surface inner capture faults to the operator.
-captureManager.CaptureFailed += ex =>
-    startupLogger.LogError(ex, "Audio capture error: {Message}", ex.Message);
-
 // ── Audio activity monitor (FR-020) ──────────────────────────────────────────
 
 var audioMonitor    = new AudioActivityMonitor();
@@ -91,6 +87,41 @@ var framerOutput = Channel.CreateBounded<float[]>(new BoundedChannelOptions(2)
 
 CancellationTokenSource? framerCts  = null;
 Task?                    framerTask = null;
+
+// Surface inner capture faults to the operator and auto-restart the pipeline.
+// Audio capture must always be running (Captain's directive).
+// Registered here (after all closed-over variables are declared) so the
+// lambda's forward references resolve correctly at compile time.
+captureManager.CaptureFailed += ex =>
+{
+    startupLogger.LogError(ex,
+        "Audio capture failed on '{Device}': {Message}",
+        configStore.Current.AudioDeviceName, ex.Message);
+
+    // Auto-restart: schedule a restart with a 5-second backoff to prevent
+    // rapid restart loops on persistent failures (e.g. device genuinely
+    // unavailable) while keeping recovery prompt for transient stops
+    // (driver power-management, format re-negotiation, session expiry).
+    var device = configStore.Current.AudioDeviceName;
+    if (device is null) return;
+
+    _ = Task.Run(async () =>
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5));
+
+        // Guard: if a device-change or another restart path has already
+        // restarted capture, do not start a second session.
+        if (captureManager.IsCapturing) return;
+
+        startupLogger.LogInformation(
+            "Auto-restarting audio capture on device '{Device}' after failure.", device);
+
+        await StopFramerAsync();
+        audioMonitor.Reset();
+        dataFlowMonitor.Reset();
+        StartPipeline(device);
+    });
+};
 
 // S6: watchdog restart action. Wraps StopFramerAsync / StopAsync / StartPipeline
 // so the heartbeat loop can fire-and-forget it without blocking.
