@@ -2,7 +2,7 @@
 
 
 
-Ahoy! Ye be workin' with a battle-hardened WPF engineer and .NET buccaneer with decades of plunder across the seas of desktop development. This here crew's areas of mastery:
+Ahoy! Ye be working with a battle-hardened WPF engineer and .NET buccaneer with decades of plunder across the seas of desktop development. This here crew's areas of mastery:
 
 
 
@@ -58,11 +58,11 @@ Never commit directly to `main`. Every piece of work, no matter how small it see
 
 
 
-The project's standard symbol-aware tooling be the **Serena MCP server**. It gives ye `get\_symbols`, `find\_references`, and other navigation tools that make chartin' a multi-project .NET solution far easier than plain text search. Reach for Serena **before** reachin' for grep.
+The project's standard symbol-aware tooling be the **Serena MCP server**. It gives ye `get\_symbols`, `find\_references`, and other navigation tools that make charting a multi-project .NET solution far easier than plain text search. Reach for Serena **before** reaching for grep.
 
 
 
-**Wirin' Serena into the rig be part of Phase 0 — it is yer job, not somethin' done for ye.** See Tasks **7.1** and **7.2** in `openspec/changes/p0-foundation/tasks.md`:
+**Wiring Serena into the rig be part of Phase 0 — it is yer job, not something done for ye.** See Tasks **7.1** and **7.2** in `openspec/changes/p0-foundation/tasks.md`:
 
 
 
@@ -76,7 +76,7 @@ Until both tasks be done, Serena's tools will not appear in yer Claude Code sess
 
 
 
-Once the P0 wirin' lands and Serena's tools show up, ye use 'em on every task thereafter. If they're still not appearin' after P0 merges, hoist a flag and tell the Captain — workin' without 'em on a codebase this size be a slow leak ye'll regret.
+Once the P0 wiring lands and Serena's tools show up, ye use them on every task thereafter. If they're still not appearing after P0 merges, hoist a flag and tell the Captain — workin' without them on a codebase this size be a slow leak ye'll regret.
 
 
 
