@@ -91,6 +91,7 @@ internal sealed class WasapiAudioSource : IAudioSource
                 var resampler = new WdlResamplingSampleProvider(samples, 12_000);
 
                 // DataAvailable fires on the WASAPI capture thread.
+                var dataAvailableFired = false; // D1 (DIAG)
                 capture.DataAvailable += (_, e) =>
                 {
                     // B13: Wrap the entire handler so any exception (corrupt buffer,
@@ -99,6 +100,16 @@ internal sealed class WasapiAudioSource : IAudioSource
                     // it may silently terminate the thread without firing RecordingStopped.
                     try
                     {
+                        // D1 (DIAG): log the first buffer to confirm WASAPI is actually delivering data.
+                        if (!dataAvailableFired)
+                        {
+                            dataAvailableFired = true;
+                            _logger?.LogInformation(
+                                "DIAG DataAvailable: first buffer on '{DeviceId}' — " +
+                                "BytesRecorded={Bytes}, WaveFormat={Format}",
+                                deviceId, e.BytesRecorded, capture.WaveFormat);
+                        }
+
                         buffer.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
                         // Drain the resampler in 2 048-sample chunks.
@@ -123,17 +134,27 @@ internal sealed class WasapiAudioSource : IAudioSource
 
                 capture.RecordingStopped += (_, e) =>
                 {
-                    // Propagate any WASAPI error through the channel so CaptureManager
-                    // surfaces it via CaptureFailed.  A null Exception means a graceful
-                    // stop (e.g. capture.StopRecording() was called from the finally block).
+                    // DIAG: this is the one log entry that has never existed in this codebase.
+                    // null exception = graceful stop (doStop was set) → Case 2 in CaptureManager.
+                    // non-null exception = WASAPI error → Case 3.  The exception type and message
+                    // tell us exactly why WASAPI stopped.
                     if (e.Exception is not null)
+                    {
+                        _logger?.LogError(e.Exception,
+                            "DIAG RecordingStopped — WASAPI error on '{DeviceId}': {ExType} — {ExMessage}",
+                            deviceId, e.Exception.GetType().Name, e.Exception.Message);
                         innerChannel.Writer.TryComplete(e.Exception);
+                    }
                     else
+                    {
+                        _logger?.LogWarning(
+                            "DIAG RecordingStopped — null exception on '{DeviceId}' " +
+                            "(graceful/unexpected stop; doStop was set internally by NAudio).",
+                            deviceId);
                         innerChannel.Writer.TryComplete();
+                    }
 
                     // Wake the STA thread so staTask completes promptly.
-                    // Without this, await staTask in the finally block below would
-                    // hang until the caller's ct is cancelled (which may never happen).
                     // B12: Guard with catch(ObjectDisposedException) — WASAPI fires
                     // RecordingStopped a second time from capture.StopRecording() in the
                     // finally block, which races with staCts disposal at the end of
@@ -156,7 +177,7 @@ internal sealed class WasapiAudioSource : IAudioSource
                 {
                     sessionControl = device.AudioSessionManager.AudioSessionControl;
                     sessionControl.RegisterEventClient(
-                        new WasapiSessionEventClient(innerChannel, staCts));
+                        new WasapiSessionEventClient(innerChannel, staCts, deviceId, _logger));
                 }
                 catch (Exception ex)
                 {
@@ -237,24 +258,35 @@ internal sealed class WasapiAudioSource : IAudioSource
     // CaptureFailed — even if NAudio's RecordingStopped never fires.
     private sealed class WasapiSessionEventClient : IAudioSessionEventsHandler
     {
-        private readonly Channel<float[]>        _channel;
-        private readonly CancellationTokenSource _staCts;
+        private readonly Channel<float[]>             _channel;
+        private readonly CancellationTokenSource      _staCts;
+        private readonly string                       _deviceId;
+        private readonly ILogger<WasapiAudioSource>?  _logger;
 
         public WasapiSessionEventClient(
-            Channel<float[]>        channel,
-            CancellationTokenSource staCts)
+            Channel<float[]>            channel,
+            CancellationTokenSource     staCts,
+            string                      deviceId,
+            ILogger<WasapiAudioSource>? logger)
         {
-            _channel = channel;
-            _staCts  = staCts;
+            _channel  = channel;
+            _staCts   = staCts;
+            _deviceId = deviceId;
+            _logger   = logger;
         }
 
         public void OnSessionDisconnected(AudioSessionDisconnectReason disconnectReason)
         {
+            // DIAG
+            _logger?.LogError(
+                "DIAG OnSessionDisconnected on '{DeviceId}': reason = {Reason}",
+                _deviceId, disconnectReason);
+
             // Windows terminated the session: complete the channel with a descriptive
             // exception so CaptureManager surfaces the event via CaptureFailed, and
             // FR-021 logs it at Error level.
             var ex = new AudioCaptureException(
-                "unknown",
+                _deviceId,
                 $"WASAPI audio session disconnected: {disconnectReason}");
 
             _channel.Writer.TryComplete(ex);

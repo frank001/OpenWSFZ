@@ -89,10 +89,13 @@ public sealed class CaptureManager : IAsyncDisposable
 
         _captureTask = Task.Run(async () =>
         {
+            var chunksReceived = 0; // D2 (DIAG): count chunks to see if WASAPI ever delivers data
             try
             {
                 await foreach (var chunk in _source.CaptureAsync(deviceId, linkedCt))
                 {
+                    chunksReceived++; // D2 (DIAG)
+
                     // Notify the audio activity monitor before queuing the chunk (FR-020).
                     ChunkReceived?.Invoke(chunk);
 
@@ -106,8 +109,8 @@ public sealed class CaptureManager : IAsyncDisposable
                     // Case 1 (race): source drained gracefully as part of a requested stop.
                     // Cancellation was in flight; this is still an operator-stop.
                     _logger?.LogInformation(
-                        "Capture stopped on device '{DeviceId}' (operator-stopped, source drained).",
-                        deviceId);
+                        "Capture stopped on device '{DeviceId}' (operator-stopped, source drained). Chunks received: {ChunksReceived}.",
+                        deviceId, chunksReceived);
                 }
                 else
                 {
@@ -120,7 +123,8 @@ public sealed class CaptureManager : IAsyncDisposable
                         "This may indicate a driver-level power-management stop, a format " +
                         "re-negotiation, or a session expiry not surfaced as a session event.");
                     _logger?.LogWarning(unexpectedEndEx,
-                        "Capture ended unexpectedly on device '{DeviceId}'.", deviceId);
+                        "Capture ended unexpectedly on device '{DeviceId}'. Chunks received: {ChunksReceived}.",
+                        deviceId, chunksReceived);
                     CaptureFailed?.Invoke(unexpectedEndEx);
                 }
             }
@@ -128,16 +132,16 @@ public sealed class CaptureManager : IAsyncDisposable
             {
                 // Case 1: normal operator-stop or application shutdown.
                 _logger?.LogInformation(
-                    "Capture stopped on device '{DeviceId}' (operator-stopped).",
-                    deviceId);
+                    "Capture stopped on device '{DeviceId}' (operator-stopped). Chunks received: {ChunksReceived}.",
+                    deviceId, chunksReceived);
             }
             catch (Exception ex)
             {
                 // Case 3: exception-driven failure — device not found, disconnected, etc.
                 // Log at Error with full exception details (type, message, stack trace).
                 _logger?.LogError(ex,
-                    "Capture failed on device '{DeviceId}': {ExType} — {ExMessage}",
-                    deviceId, ex.GetType().Name, ex.Message);
+                    "Capture failed on device '{DeviceId}': {ExType} — {ExMessage}. Chunks received: {ChunksReceived}.",
+                    deviceId, ex.GetType().Name, ex.Message, chunksReceived);
                 CaptureFailed?.Invoke(ex);
             }
             finally
