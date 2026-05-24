@@ -125,11 +125,6 @@ public sealed class CaptureManager : IAsyncDisposable
                     _logger?.LogWarning(unexpectedEndEx,
                         "Capture ended unexpectedly on device '{DeviceId}'. Chunks received: {ChunksReceived}.",
                         deviceId, chunksReceived);
-                    // L-12 (DIAG): confirm the event is actually being raised (Case 2).
-                    _logger?.LogWarning(
-                        "Invoking CaptureFailed on '{DeviceId}' (Case 2 — unexpected end). " +
-                        "Chunks received before stop: {ChunksReceived}.",
-                        deviceId, chunksReceived);
                     CaptureFailed?.Invoke(unexpectedEndEx);
                 }
             }
@@ -147,11 +142,6 @@ public sealed class CaptureManager : IAsyncDisposable
                 _logger?.LogError(ex,
                     "Capture failed on device '{DeviceId}': {ExType} — {ExMessage}. Chunks received: {ChunksReceived}.",
                     deviceId, ex.GetType().Name, ex.Message, chunksReceived);
-                // L-12 (DIAG): confirm the event is actually being raised (Case 3).
-                _logger?.LogError(
-                    "Invoking CaptureFailed on '{DeviceId}' (Case 3 — exception). " +
-                    "Chunks received before stop: {ChunksReceived}.",
-                    deviceId, chunksReceived);
                 CaptureFailed?.Invoke(ex);
             }
             finally

@@ -126,94 +126,22 @@ internal sealed class WasapiAudioSource : IAudioSource
                     capture.WaveFormat.Channels == 2 ? "stereo→mono(left)" : "mono",
                     capture.WaveFormat.SampleRate);
 
-                // DataAvailable fires on the WASAPI capture thread.
-                var dataAvailableFired  = false; // D1 (DIAG)
-                var dataAvailableCount  = 0;     // L-3 (DIAG): periodic heartbeat counter
-                var zeroOutputCount     = 0;     // D1 (DIAG): consecutive zero-output resampler drain runs
+                // DataAvailable fires on the WASAPI capture thread (~50 Hz).
                 capture.DataAvailable += (_, e) =>
                 {
-                    // B13: Wrap the entire handler so any exception (corrupt buffer,
-                    // unexpected resampler state, etc.) is surfaced through the channel
-                    // rather than propagating into NAudio's internal capture loop where
-                    // it may silently terminate the thread without firing RecordingStopped.
                     try
                     {
-                        // D1 (DIAG): log the first buffer to confirm WASAPI is actually delivering data.
-                        if (!dataAvailableFired)
-                        {
-                            dataAvailableFired = true;
-                            _logger?.LogInformation(
-                                "DIAG DataAvailable: first buffer on '{DeviceId}' — " +
-                                "BytesRecorded={Bytes}, WaveFormat={Format}",
-                                deviceId, e.BytesRecorded, capture.WaveFormat);
-                        }
-
-                        // L-3 (DIAG): periodic heartbeat every 100 DataAvailable callbacks.
-                        // Must be LogInformation (not LogDebug) — the daemon runs at
-                        // Information level, so Debug entries are filtered out entirely.
-                        dataAvailableCount++;
-                        if (dataAvailableCount % 100 == 0)
-                        {
-                            _logger?.LogInformation(
-                                "DIAG DataAvailable: {Count} buffers on '{DeviceId}' — " +
-                                "BytesRecorded={Bytes}, BufferedMs={BufferedMs:F0}",
-                                dataAvailableCount,
-                                deviceId,
-                                e.BytesRecorded,
-                                buffer.BufferedDuration.TotalMilliseconds);
-                        }
-
-                        // DIAG: check whether WASAPI is delivering non-zero bytes.
-                        // If rawHasData=False the device itself is returning silence — OS/hardware cause.
-                        // If rawHasData=True but resampler output is zero, the pipeline is the cause.
-                        // Short-circuits on first non-zero byte so the scan is inexpensive.
-                        var rawHasData = false;
-                        for (var i = 0; i < e.BytesRecorded && !rawHasData; i++)
-                            rawHasData = e.Buffer[i] != 0;
-
-                        if (dataAvailableCount <= 5 || dataAvailableCount % 100 == 0)
-                        {
-                            _logger?.LogInformation(
-                                "DIAG raw bytes on '{DeviceId}': BytesRecorded={Bytes}, rawHasData={HasData}",
-                                deviceId, e.BytesRecorded, rawHasData);
-                        }
-
-                        // DIAG: interpret first sample as IEEE 754 float to confirm signal is present.
-                        // A non-zero firstSample with rawHasData=True confirms valid audio in the raw bytes.
-                        if (e.BytesRecorded >= 4 && (dataAvailableCount <= 5 || dataAvailableCount % 100 == 0))
-                        {
-                            var firstSample = BitConverter.ToSingle(e.Buffer, 0);
-                            _logger?.LogInformation(
-                                "DIAG first sample on '{DeviceId}': {FirstSample:G6} (rawHasData={HasData})",
-                                deviceId, firstSample, rawHasData);
-                        }
-
-                        // DIAG: direct float cast bypassing NAudio pipeline.
-                        // maxAbs > 0 confirms valid signal in raw bytes; zeros introduced downstream.
-                        // Only run when rawHasData is True to avoid noise from zero-filled buffers.
-                        if (rawHasData && (dataAvailableCount <= 5 || dataAvailableCount % 100 == 0))
-                        {
-                            var span   = e.Buffer.AsSpan(0, e.BytesRecorded);
-                            var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(span);
-                            var maxAbs = 0f;
-                            foreach (var s in floats)
-                                if (MathF.Abs(s) > maxAbs) maxAbs = MathF.Abs(s);
-                            _logger?.LogInformation(
-                                "DIAG direct cast on '{DeviceId}': {FloatCount} floats, maxAbs={MaxAbs:G6}",
-                                deviceId, floats.Length, maxAbs);
-                        }
-
                         buffer.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
-                        // L-4 (DIAG): warn when BufferedWaveProvider is near-full (>80% of 5 s).
-                        var bufferedMs = buffer.BufferedDuration.TotalMilliseconds;
-                        if (bufferedMs > 4000)
+                        // Warn if the buffer is near-full (> 4 s). This indicates the consumer
+                        // is stalling and new audio will be silently discarded.
+                        if (buffer.BufferedDuration.TotalMilliseconds > 4000)
                         {
                             _logger?.LogWarning(
-                                "DIAG BufferedWaveProvider near full on '{DeviceId}': " +
-                                "{BufferedMs:F0} ms buffered — resampler may not be draining fast enough.",
+                                "BufferedWaveProvider near full on '{DeviceId}': " +
+                                "{BufferedMs:F0} ms — consumer may be stalled.",
                                 deviceId,
-                                bufferedMs);
+                                buffer.BufferedDuration.TotalMilliseconds);
                         }
 
                         // Drain the resampler in 2 048-sample chunks.
@@ -224,81 +152,18 @@ internal sealed class WasapiAudioSource : IAudioSource
                             var chunk = new float[read];
                             outBuf.AsSpan(0, read).CopyTo(chunk);
 
-                            // L-6 (DIAG): log when the inner channel is full and a chunk is dropped.
                             if (!innerChannel.Writer.TryWrite(chunk))
                             {
                                 _logger?.LogWarning(
-                                    "DIAG innerChannel full on '{DeviceId}' — chunk dropped " +
-                                    "({Samples} samples). Consumer may be stalled.",
+                                    "Audio chunk dropped on '{DeviceId}' ({Samples} samples) — " +
+                                    "consumer is not keeping up.",
                                     deviceId,
                                     chunk.Length);
-                            }
-                            // D1 (DIAG): rate-limited zero-output warning. Fires on the first
-                            // occurrence and every 100 thereafter. Includes rawHasData so the
-                            // operator can immediately distinguish the two root causes:
-                            //   rawHasData=false → WASAPI is delivering silence (device/OS issue)
-                            //   rawHasData=true  → NAudio pipeline is zeroing good data (format issue)
-                            else if (chunk.All(sample => sample == 0))
-                            {
-                                zeroOutputCount++;
-                                if (zeroOutputCount == 1)
-                                {
-                                    _logger?.LogWarning(
-                                        "DIAG Resampler output all zeros on '{DeviceId}' " +
-                                        "(run #1, rawHasData={RawHasData}) — {Diagnosis}",
-                                        deviceId,
-                                        rawHasData,
-                                        rawHasData
-                                            ? "NAudio pipeline is zeroing good data — check encoding type, channel count, and format negotiation."
-                                            : "WASAPI is delivering silence — check device selection, mute state, signal source, and OS audio policy.");
-
-                                    // D5 (DIAG): if rawHasData=True and the device is stereo, log the
-                                    // first two interleaved L/R float pairs from the raw buffer.
-                                    // If L0 ≈ −R0 and L1 ≈ −R1, the device delivers a differential
-                                    // (balanced) signal and the stereo-to-mono conversion is cancelling it.
-                                    if (rawHasData && capture.WaveFormat.Channels == 2 && e.BytesRecorded >= 16)
-                                    {
-                                        var span = e.Buffer.AsSpan(0, 16); // 4 floats × 4 bytes = 2 stereo frames
-                                        var f    = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(span);
-                                        _logger?.LogWarning(
-                                            "DIAG Phase-cancellation check on '{DeviceId}': " +
-                                            "L0={L0:G4}, R0={R0:G4}, L1={L1:G4}, R1={R1:G4} — " +
-                                            "if L ≈ −R the device delivers a differential signal; stereo averaging cancels it.",
-                                            deviceId, f[0], f[1], f[2], f[3]);
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                // Non-zero audio is flowing — reset the consecutive-zero run counter
-                                // so the next zero-output event is always logged as run #1.
-                                zeroOutputCount = 0;
-                            }
-                            // Advisory: outBuf is reused each iteration; the meaningful allocation
-                            // is the fresh float[read] chunk copy above. No re-allocation needed here.
-                        }
-
-                        // L-5 (DIAG): warn if a non-empty buffer produced no resampler output.
-                        // D2: rate-limited to once every 100 callbacks to prevent log flooding.
-                        if (e.BytesRecorded > 0 && dataAvailableCount > 1)
-                        {
-                            var samplesInBuffer = buffer.BufferedBytes /
-                                (capture.WaveFormat.BitsPerSample / 8 * capture.WaveFormat.Channels);
-                            if (samplesInBuffer > 0 && dataAvailableCount % 100 == 1)
-                            {
-                                _logger?.LogWarning(
-                                    "DIAG Resampler produced 0 output on '{DeviceId}' " +
-                                    "despite {SamplesInBuffer} samples in buffer (at callback #{Count}).",
-                                    deviceId,
-                                    samplesInBuffer,
-                                    dataAvailableCount);
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        // Complete the channel so CaptureAsync exits and CaptureManager
-                        // surfaces the error via CaptureFailed.
                         innerChannel.Writer.TryComplete(ex);
                         try { staCts.Cancel(); } catch (ObjectDisposedException) { }
                     }
@@ -306,23 +171,17 @@ internal sealed class WasapiAudioSource : IAudioSource
 
                 capture.RecordingStopped += (_, e) =>
                 {
-                    // DIAG: this is the one log entry that has never existed in this codebase.
-                    // null exception = graceful stop (doStop was set) → Case 2 in CaptureManager.
-                    // non-null exception = WASAPI error → Case 3.  The exception type and message
-                    // tell us exactly why WASAPI stopped.
                     if (e.Exception is not null)
                     {
                         _logger?.LogError(e.Exception,
-                            "DIAG RecordingStopped — WASAPI error on '{DeviceId}': {ExType} — {ExMessage}",
+                            "RecordingStopped with error on '{DeviceId}': {ExType} — {ExMessage}",
                             deviceId, e.Exception.GetType().Name, e.Exception.Message);
                         innerChannel.Writer.TryComplete(e.Exception);
                     }
                     else
                     {
-                        _logger?.LogWarning(
-                            "DIAG RecordingStopped — null exception on '{DeviceId}' " +
-                            "(graceful/unexpected stop; doStop was set internally by NAudio).",
-                            deviceId);
+                        _logger?.LogInformation(
+                            "RecordingStopped (graceful) on '{DeviceId}'.", deviceId);
                         innerChannel.Writer.TryComplete();
                     }
 
@@ -336,12 +195,9 @@ internal sealed class WasapiAudioSource : IAudioSource
                     catch (ObjectDisposedException) { /* staCts already disposed — STA is unblocking */ }
                 };
 
-                // L-7 (DIAG): confirm the StartRecording call was accepted by NAudio.
-                _logger?.LogInformation(
-                    "Calling capture.StartRecording() on '{DeviceId}'.", deviceId);
+                _logger?.LogDebug("Starting capture on '{DeviceId}'.", deviceId);
                 capture.StartRecording();
-                _logger?.LogInformation(
-                    "capture.StartRecording() returned on '{DeviceId}'.", deviceId);
+                _logger?.LogDebug("Capture started on '{DeviceId}'.", deviceId);
 
                 // B11: Subscribe to WASAPI audio session events so Windows-initiated
                 // session termination is detected even if NAudio's RecordingStopped
@@ -375,12 +231,9 @@ internal sealed class WasapiAudioSource : IAudioSource
                 // Uses staCts.Token so RecordingStopped can also unblock it (B10).
                 staCts.Token.WaitHandle.WaitOne();
 
-                // L-8 (DIAG): the most informative log in the entire STA thread.
-                // Distinguishes operator-stop (ct cancelled) from unexpected stop (staCts only).
                 _logger?.LogInformation(
-                    "DIAG STA WaitOne unblocked on '{DeviceId}' — " +
-                    "ct.IsCancellationRequested={CtCancelled}, " +
-                    "staCts.IsCancellationRequested={StaCancelled}",
+                    "Capture session unblocked on '{DeviceId}' " +
+                    "(ct={CtCancelled}, staCts={StaCancelled}).",
                     deviceId,
                     ct.IsCancellationRequested,
                     staCts.IsCancellationRequested);
@@ -393,17 +246,13 @@ internal sealed class WasapiAudioSource : IAudioSource
             }
             finally
             {
-                // L-9 (DIAG): trace every cleanup step so we can tell exactly how far
-                // the finally block progressed if something throws.
                 _logger?.LogInformation(
-                    "DIAG STA finally: beginning cleanup on '{DeviceId}'.", deviceId);
+                    "Audio capture cleanup starting on '{DeviceId}'.", deviceId);
 
                 // Dispose sessionControl before capture: cleanly unregisters the
                 // WASAPI session event client before tearing down the capture session.
                 if (sessionControl is not null)
                 {
-                    _logger?.LogInformation(
-                        "DIAG STA finally: disposing sessionControl on '{DeviceId}'.", deviceId);
                     try { sessionControl.Dispose(); } catch { }
                     sessionControl = null;
                 }
@@ -417,25 +266,15 @@ internal sealed class WasapiAudioSource : IAudioSource
                     // the thread-pool thread violates the STA COM apartment rule the resulting
                     // COMException is swallowed — acceptable during shutdown since the process
                     // is exiting and the device is being abandoned regardless.
-                    _logger?.LogInformation(
-                        "DIAG STA finally: calling capture.StopRecording() on '{DeviceId}' (3 s timeout).",
-                        deviceId);
+                    _logger?.LogInformation("Stopping capture on '{DeviceId}'.", deviceId);
                     var stopTask = Task.Run(() => { try { capture.StopRecording(); } catch { } });
                     if (stopTask.Wait(TimeSpan.FromSeconds(3)))
                     {
-                        _logger?.LogInformation(
-                            "DIAG STA finally: capture.StopRecording() completed on '{DeviceId}'.", deviceId);
                         // P2: same treatment as StopRecording — some drivers hang in Dispose() too.
-                        _logger?.LogInformation(
-                            "DIAG STA finally: calling capture.Dispose() on '{DeviceId}' (3 s timeout).",
-                            deviceId);
                         var disposeTask = Task.Run(() => { try { capture.Dispose(); } catch { } });
-                        if (disposeTask.Wait(TimeSpan.FromSeconds(3)))
-                            _logger?.LogInformation(
-                                "DIAG STA finally: capture.Dispose() completed on '{DeviceId}'.", deviceId);
-                        else
+                        if (!disposeTask.Wait(TimeSpan.FromSeconds(3)))
                             _logger?.LogWarning(
-                                "DIAG STA finally: capture.Dispose() timed out after 3 s on '{DeviceId}' " +
+                                "capture.Dispose() timed out after 3 s on '{DeviceId}' " +
                                 "— abandoning device handle; OS will reclaim on process exit.", deviceId);
                     }
                     else
@@ -443,13 +282,13 @@ internal sealed class WasapiAudioSource : IAudioSource
                         // StopRecording timed out — skip Dispose (it would also hang).
                         // The device handle is abandoned; the OS reclaims it on process exit.
                         _logger?.LogWarning(
-                            "DIAG STA finally: capture.StopRecording() timed out after 3 s on '{DeviceId}' " +
+                            "capture.StopRecording() timed out after 3 s on '{DeviceId}' " +
                             "— abandoning device handle; OS will reclaim on process exit.", deviceId);
                     }
                 }
 
                 _logger?.LogInformation(
-                    "DIAG STA finally: cleanup complete on '{DeviceId}'.", deviceId);
+                    "Audio capture cleanup complete on '{DeviceId}'.", deviceId);
             }
 
             return true;
@@ -545,9 +384,8 @@ internal sealed class WasapiAudioSource : IAudioSource
 
         public void OnSessionDisconnected(AudioSessionDisconnectReason disconnectReason)
         {
-            // DIAG
             _logger?.LogError(
-                "DIAG OnSessionDisconnected on '{DeviceId}': reason = {Reason}",
+                "WASAPI session disconnected on '{DeviceId}': {Reason}",
                 _deviceId, disconnectReason);
 
             // Windows terminated the session: complete the channel with a descriptive
@@ -566,33 +404,20 @@ internal sealed class WasapiAudioSource : IAudioSource
         // On some drivers this fires without a corresponding OnSessionDisconnected.
         public void OnStateChanged(AudioSessionState state)
         {
-            // L-10 (DIAG): log all state transitions, not just Expired, so the full
-            // session lifecycle is visible (Active → Inactive → Expired sequence).
-            _logger?.LogInformation(
-                "DIAG OnStateChanged on '{DeviceId}': state = {State}",
-                _deviceId, state);
+            if (state != AudioSessionState.AudioSessionStateExpired) return;
 
-            if (state == AudioSessionState.AudioSessionStateExpired)
-            {
-                var ex = new AudioCaptureException(
-                    _deviceId,
-                    "WASAPI audio session expired (OnStateChanged: Expired).");
+            _logger?.LogWarning(
+                "WASAPI audio session expired on '{DeviceId}'.", _deviceId);
 
-                _channel.Writer.TryComplete(ex);
-                try { _staCts.Cancel(); } catch (ObjectDisposedException) { }
-            }
-            // AudioSessionStateInactive: session paused but not destroyed — do not
-            // complete the channel; audio may resume (e.g. brief device re-negotiation).
+            var ex = new AudioCaptureException(
+                _deviceId,
+                "WASAPI audio session expired (OnStateChanged: Expired).");
+
+            _channel.Writer.TryComplete(ex);
+            try { _staCts.Cancel(); } catch (ObjectDisposedException) { }
         }
 
-        // L-11 (DIAG): log volume/mute — a muted session explains silent audio without
-        // terminating the session, so it would trip the watchdog without this log.
-        public void OnVolumeChanged(float volume, bool isMuted)
-        {
-            _logger?.LogInformation(
-                "DIAG OnVolumeChanged on '{DeviceId}': volume={Volume:F2}, isMuted={IsMuted}",
-                _deviceId, volume, isMuted);
-        }
+        public void OnVolumeChanged(float volume, bool isMuted) { }
         public void OnDisplayNameChanged(string displayName)                                         { }
         public void OnIconPathChanged(string iconPath)                                               { }
         public void OnChannelVolumeChanged(uint channelCount, IntPtr newVolumes, uint channelIndex)  { }
