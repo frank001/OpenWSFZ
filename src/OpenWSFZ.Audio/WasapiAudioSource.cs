@@ -425,9 +425,18 @@ internal sealed class WasapiAudioSource : IAudioSource
                     {
                         _logger?.LogInformation(
                             "DIAG STA finally: capture.StopRecording() completed on '{DeviceId}'.", deviceId);
+                        // P2: same treatment as StopRecording — some drivers hang in Dispose() too.
                         _logger?.LogInformation(
-                            "DIAG STA finally: calling capture.Dispose() on '{DeviceId}'.", deviceId);
-                        try { capture.Dispose(); } catch { }
+                            "DIAG STA finally: calling capture.Dispose() on '{DeviceId}' (3 s timeout).",
+                            deviceId);
+                        var disposeTask = Task.Run(() => { try { capture.Dispose(); } catch { } });
+                        if (disposeTask.Wait(TimeSpan.FromSeconds(3)))
+                            _logger?.LogInformation(
+                                "DIAG STA finally: capture.Dispose() completed on '{DeviceId}'.", deviceId);
+                        else
+                            _logger?.LogWarning(
+                                "DIAG STA finally: capture.Dispose() timed out after 3 s on '{DeviceId}' " +
+                                "— abandoning device handle; OS will reclaim on process exit.", deviceId);
                     }
                     else
                     {

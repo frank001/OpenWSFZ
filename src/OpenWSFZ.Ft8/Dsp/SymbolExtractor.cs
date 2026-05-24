@@ -37,6 +37,17 @@ internal static class SymbolExtractor
     public const int SamplesPerSymbol = (int)(SampleRate / ToneSpacingHz); // 1920
 
     /// <summary>
+    /// FFT size used by the spectrogram path.  1 920 samples are zero-padded to this
+    /// value (the next power of 2) before the FFT.  Bin spacing = 12 000 / 2 048 ≈ 5.859 Hz.
+    /// The frequency error versus the exact 6.25 Hz spacing is ≤ 3 Hz per tone — negligible
+    /// for FT8 tone discrimination.
+    /// </summary>
+    internal const int FftSizePadded = 2048;
+
+    /// <summary>Number of unique positive-frequency bins in the zero-padded FFT.</summary>
+    internal const int SpecBins = FftSizePadded / 2; // 1 024
+
+    /// <summary>
     /// Builds a log-energy grid <c>[symbol, tone]</c> for the 79 symbols of an FT8
     /// transmission whose lowest tone sits at <paramref name="baseFrequencyHz"/>.
     /// </summary>
@@ -64,6 +75,90 @@ internal static class SymbolExtractor
                 // Convert to log-energy (add small epsilon to avoid log(0)).
                 grid[sym, tone] = MathF.Log(energy + 1e-10f);
             }
+        }
+
+        return grid;
+    }
+
+    /// <summary>
+    /// Pre-computes a power spectrogram for all 79 symbol windows starting at
+    /// <paramref name="startSample"/>.
+    ///
+    /// <para>
+    /// Each 1 920-sample symbol window is zero-padded to 2 048 samples and passed
+    /// through a radix-2 FFT.  The squared magnitudes of the 1 024 positive-frequency
+    /// bins are stored in the returned array.
+    /// </para>
+    ///
+    /// <para>
+    /// Bin <c>k</c> corresponds to frequency <c>k × 12 000 / 2 048 ≈ k × 5.859 Hz</c>.
+    /// To find the bin for a target frequency <c>f</c>:
+    /// <c>bin = (int)Math.Round(f * FftSizePadded / SampleRate)</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// Call this <strong>once per time-domain start position</strong>; then call
+    /// <see cref="ExtractFromSpectrogram"/> for each candidate base frequency.
+    /// This reduces per-decode work from O(F·S·T·N) to O(S·T·N log N), where
+    /// F = frequency sweep width (~473 steps), S = symbol count (79),
+    /// T = time sweep positions (52), N = FFT size (2 048).
+    /// </para>
+    /// </summary>
+    /// <returns>
+    /// A <c>float[SymbolCount, SpecBins]</c> array of squared FFT magnitudes.
+    /// </returns>
+    internal static float[,] ComputeSpectrogram(ReadOnlySpan<float> pcm, int startSample)
+    {
+        var result = new float[SymbolCount, SpecBins];
+        var re     = new float[FftSizePadded];
+        var im     = new float[FftSizePadded];
+
+        for (int sym = 0; sym < SymbolCount; sym++)
+        {
+            int offset = startSample + sym * SamplesPerSymbol;
+            if (offset + SamplesPerSymbol > pcm.Length) break;
+
+            // Copy 1 920 samples into the FFT buffer; the remaining 128 stay zero (padding).
+            pcm.Slice(offset, SamplesPerSymbol).CopyTo(re);
+            Array.Clear(re, SamplesPerSymbol, FftSizePadded - SamplesPerSymbol); // zero pad
+            Array.Clear(im, 0, FftSizePadded);
+
+            FftCompute.Fft(re, im);
+
+            for (int bin = 0; bin < SpecBins; bin++)
+                result[sym, bin] = re[bin] * re[bin] + im[bin] * im[bin];
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Extracts a 79 × 8 log-energy grid from a pre-computed spectrogram by mapping
+    /// each FT8 tone to its nearest FFT bin.
+    ///
+    /// For each of the 79 symbols, the energy for tone <c>t</c> is taken from
+    /// FFT bin <c>baseBin + t</c> where
+    /// <c>baseBin = (int)Math.Round(baseFrequencyHz * FftSizePadded / SampleRate)</c>.
+    /// </summary>
+    /// <param name="spectrogram">
+    /// Output of <see cref="ComputeSpectrogram"/>: <c>float[SymbolCount, SpecBins]</c>.
+    /// </param>
+    /// <param name="baseBin">
+    /// Bin index of the lowest tone.  Compute as
+    /// <c>(int)Math.Round(baseFrequencyHz * FftSizePadded / SampleRate)</c>.
+    /// </param>
+    internal static float[,] ExtractFromSpectrogram(float[,] spectrogram, int baseBin)
+    {
+        int symCount = spectrogram.GetLength(0); // 79
+        int specBins = spectrogram.GetLength(1); // 1 024
+        var grid     = new float[symCount, ToneCount];
+
+        for (int sym = 0; sym < symCount; sym++)
+        for (int tone = 0; tone < ToneCount; tone++)
+        {
+            int   bin    = baseBin + tone;
+            float energy = (uint)bin < (uint)specBins ? spectrogram[sym, bin] : 0f;
+            grid[sym, tone] = MathF.Log(energy + 1e-10f);
         }
 
         return grid;

@@ -58,6 +58,44 @@ public sealed class GoertzelDetectorTests
             "the tone carrying the pure sine should have the highest log-energy");
     }
 
+    [Fact(DisplayName = "SymbolExtractor.ComputeSpectrogram + ExtractFromSpectrogram: peak tone matches known-good signal")]
+    public void Spectrogram_PureToneSingleSymbol_PeaksAtCorrectTone()
+    {
+        // Same setup as Extract_PureToneSingleSymbol_PeaksAtCorrectTone.
+        double baseHz     = 1000.0;
+        int    targetTone = 3;
+        double toneHz     = baseHz + targetTone * SymbolExtractor.ToneSpacingHz; // 1018.75 Hz
+
+        var pcm = new float[15 * SampleRate];
+        var sym = GenerateSine(toneHz, SymbolExtractor.SamplesPerSymbol, SampleRate);
+        sym.CopyTo(new Span<float>(pcm, 0, SymbolExtractor.SamplesPerSymbol));
+
+        var spectrogram = SymbolExtractor.ComputeSpectrogram(pcm, startSample: 0);
+        int baseBin     = (int)Math.Round(baseHz * SymbolExtractor.FftSizePadded
+                                                  / (double)SymbolExtractor.SampleRate);
+        var grid        = SymbolExtractor.ExtractFromSpectrogram(spectrogram, baseBin);
+
+        int   peakTone = 0;
+        float peakVal  = grid[0, 0];
+        for (int t = 1; t < SymbolExtractor.ToneCount; t++)
+        {
+            if (grid[0, t] > peakVal) { peakVal = grid[0, t]; peakTone = t; }
+        }
+
+        peakTone.Should().Be(targetTone,
+            "the FFT-based spectrogram should identify the same dominant tone as the Goertzel path");
+    }
+
+    [Fact(DisplayName = "SymbolExtractor.ComputeSpectrogram: produces SymbolCount × SpecBins array")]
+    public void Spectrogram_Dimensions_AreCorrect()
+    {
+        var pcm         = new float[15 * SampleRate];
+        var spectrogram = SymbolExtractor.ComputeSpectrogram(pcm, startSample: 0);
+
+        spectrogram.GetLength(0).Should().Be(SymbolExtractor.SymbolCount);
+        spectrogram.GetLength(1).Should().Be(SymbolExtractor.SpecBins);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static float[] GenerateSine(double frequencyHz, int samples, int sampleRate)

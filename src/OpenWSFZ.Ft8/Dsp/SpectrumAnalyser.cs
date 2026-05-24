@@ -92,55 +92,11 @@ public sealed class SpectrumAnalyser
         SpectrumReady?.Invoke(magnitudes);
     }
 
-    // ── Cooley-Tukey radix-2 DIT FFT ─────────────────────────────────────────
+    // ── FFT ───────────────────────────────────────────────────────────────────
 
-    private static void Fft(float[] re, float[] im)
-    {
-        var n = re.Length;
-
-        // Bit-reversal permutation.
-        for (int i = 1, j = 0; i < n; i++)
-        {
-            var bit = n >> 1;
-            for (; (j & bit) != 0; bit >>= 1) j ^= bit;
-            j ^= bit;
-            if (i < j)
-            {
-                (re[i], re[j]) = (re[j], re[i]);
-                (im[i], im[j]) = (im[j], im[i]);
-            }
-        }
-
-        // Butterfly passes.
-        for (var len = 2; len <= n; len <<= 1)
-        {
-            var ang = -2f * MathF.PI / len;
-            var wRe = MathF.Cos(ang);
-            var wIm = MathF.Sin(ang);
-
-            for (var i = 0; i < n; i += len)
-            {
-                var curRe = 1f;
-                var curIm = 0f;
-                for (var j = 0; j < len / 2; j++)
-                {
-                    var uRe = re[i + j];
-                    var uIm = im[i + j];
-                    var vRe = re[i + j + len / 2] * curRe - im[i + j + len / 2] * curIm;
-                    var vIm = re[i + j + len / 2] * curIm + im[i + j + len / 2] * curRe;
-
-                    re[i + j]           = uRe + vRe;
-                    im[i + j]           = uIm + vIm;
-                    re[i + j + len / 2] = uRe - vRe;
-                    im[i + j + len / 2] = uIm - vIm;
-
-                    var nextRe = curRe * wRe - curIm * wIm;
-                    curIm = curRe * wIm + curIm * wRe;
-                    curRe = nextRe;
-                }
-            }
-        }
-    }
+    // Delegates to the shared FftCompute utility so the algorithm is not duplicated
+    // between this class and SymbolExtractor's spectrogram path.
+    private static void Fft(float[] re, float[] im) => FftCompute.Fft(re, im);
 
     private static float[] BuildHannWindow()
     {

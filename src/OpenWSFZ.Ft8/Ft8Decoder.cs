@@ -92,12 +92,19 @@ public sealed class Ft8Decoder : IModeDecoder
                 "Time-domain sweep: startSample = {Start} / {Max} ({StartS:F2} s).",
                 startSample, maxStartSample, (double)startSample / SampleRate);
 
+            // P1: pre-compute 79 FFTs once for this time offset, replacing ~24 000 Goertzel calls.
+            // Reduces per-decode work from ~29.8 billion ops (Goertzel) to ~109 million ops
+            // (FFT phase + array lookups), giving a ~275× speedup per decode cycle.
+            var spectrogram = SymbolExtractor.ComputeSpectrogram(pcm, startSample);
+
             // Sweep base frequencies in steps of one tone spacing.
             for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += ToneSpacing)
             {
                 ct.ThrowIfCancellationRequested();
 
-                var grid       = SymbolExtractor.Extract(pcm, startSample, baseFrequencyHz: baseHz);
+                int baseBin    = (int)Math.Round(baseHz * SymbolExtractor.FftSizePadded
+                                                         / (double)SymbolExtractor.SampleRate);
+                var grid       = SymbolExtractor.ExtractFromSpectrogram(spectrogram, baseBin);
                 var candidates = CostasSynchroniser.FindCandidates(grid, SyncThreshold);
 
                 foreach (var cand in candidates)
