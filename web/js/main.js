@@ -6,40 +6,11 @@
  * @module main
  */
 
-import { connect }    from './ws.js';
-import { getConfig }  from './api.js';
+import { connect }           from './ws.js';
+import { getConfig }         from './api.js';
+import { WaterfallRenderer } from './spectrum.js';
 
-const BG_COLOUR          = '#0d1117';
-const PLACEHOLDER_COLOUR = '#8b949e';
-const PLACEHOLDER_TEXT   = 'Waterfall — awaiting audio input';
-const MAX_DECODE_ROWS    = 200;
-
-/**
- * Paint a static dark-background placeholder on the waterfall canvas.
- * Phase 5 (FT8 decoder) will replace this with real spectrogram rendering.
- * @param {HTMLCanvasElement} canvas
- */
-function paintWaterfallPlaceholder(canvas) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  // Match the canvas bitmap size to its CSS-rendered size.
-  const { width, height } = canvas.getBoundingClientRect();
-  canvas.width  = Math.round(width  * devicePixelRatio);
-  canvas.height = Math.round(height * devicePixelRatio);
-  ctx.scale(devicePixelRatio, devicePixelRatio);
-
-  // Fill background.
-  ctx.fillStyle = BG_COLOUR;
-  ctx.fillRect(0, 0, width, height);
-
-  // Centred placeholder text.
-  ctx.fillStyle    = PLACEHOLDER_COLOUR;
-  ctx.font         = '14px system-ui, sans-serif';
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(PLACEHOLDER_TEXT, width / 2, height / 2);
-}
+const MAX_DECODE_ROWS = 200;
 
 // ── Decoded-messages table ────────────────────────────────────────────────
 
@@ -177,12 +148,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start cycle countdown timer (shows only when enabled in config).
   startCycleTimerIfEnabled();
 
-  // Paint waterfall placeholder.
-  const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('waterfall'));
-  paintWaterfallPlaceholder(canvas);
-
-  // Re-paint on window resize so it always fills the panel.
-  const observer = new ResizeObserver(() => paintWaterfallPlaceholder(canvas));
+  // Live waterfall renderer — replaces the static placeholder.
+  const canvas   = /** @type {HTMLCanvasElement} */ (document.getElementById('waterfall'));
+  const renderer = new WaterfallRenderer(canvas);
+  const observer = new ResizeObserver(() => renderer.resize());
   observer.observe(canvas.parentElement ?? canvas);
 
   // Connect WebSocket and update status bar.
@@ -208,6 +177,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.type === 'heartbeat' && event.payload) {
       // Update audio activity indicator from the heartbeat window (FR-020).
       setAudioActive(event.payload.audioActive ?? false);
+      return;
+    }
+
+    if (event.type === 'spectrum' && Array.isArray(event.payload)) {
+      renderer.render(event.payload);
       return;
     }
 
