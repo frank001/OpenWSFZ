@@ -113,6 +113,7 @@ var framerOutput = Channel.CreateBounded<float[]>(new BoundedChannelOptions(2)
 CancellationTokenSource? framerCts          = null;
 Task?                    framerTask         = null;
 var                      captureRestartCount = 0; // L-13 (DIAG): counts auto-restart attempts
+var                      restartSemaphore   = new SemaphoreSlim(1, 1); // B2: serialise concurrent restart paths
 
 // Surface inner capture faults to the operator and auto-restart the pipeline.
 // Audio capture must always be running (Captain's directive).
@@ -149,11 +150,7 @@ captureManager.CaptureFailed += ex =>
             "Auto-restarting audio capture on device '{Device}' after failure " +
             "(attempt #{RestartCount}).", device, captureRestartCount);
 
-        await StopFramerAsync();
-        audioMonitor.Reset();
-        dataFlowMonitor.Reset();
-        spectrumAnalyser.Reset();
-        StartPipeline(device);
+        await RestartPipelineAsync(device, stopCaptureManager: false);
     });
 };
 
@@ -169,13 +166,7 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
         startupLogger.LogWarning(
             "Watchdog: audio silent for 15 s while capturing on '{Device}' — restarting pipeline.",
             device);
-        await StopFramerAsync();
-        await captureManager.StopAsync();
-        audioMonitor.Reset();
-        dataFlowMonitor.Reset();
-        spectrumAnalyser.Reset();
-        if (device is not null)
-            StartPipeline(device);
+        await RestartPipelineAsync(device, stopCaptureManager: true);
     }
     catch (Exception ex)
     {
@@ -209,14 +200,21 @@ app.Lifetime.ApplicationStarted.Register(() =>
         StartPipeline(deviceName);
 
     // Decode-pump: reads completed PCM windows, decodes, broadcasts results.
+    // A3: pass the application stopping token so ReadAllAsync exits promptly on
+    // shutdown rather than waiting for the current DecodeAsync to finish.
+    var stoppingToken = app.Lifetime.ApplicationStopping;
     _ = Task.Run(async () =>
     {
-        await foreach (var pcmWindow in framerOutput.Reader.ReadAllAsync())
+        await foreach (var pcmWindow in framerOutput.Reader.ReadAllAsync(stoppingToken))
         {
             try
             {
                 var results = await ft8Decoder.DecodeAsync(pcmWindow);
                 decodeEventBus.Publish(results);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break; // clean shutdown
             }
             catch (Exception ex)
             {
@@ -237,29 +235,14 @@ configStore.OnSaved += newConfig =>
 
     _ = Task.Run(async () =>
     {
-        await StopFramerAsync();
-        await captureManager.StopAsync();
-
-        // Reset monitors when the pipeline restarts (FR-020, B18).
-        audioMonitor.Reset();
-        dataFlowMonitor.Reset();
-        spectrumAnalyser.Reset();
-
-        if (newDevice is not null)
+        try
         {
-            try
-            {
-                // B14: Call StartPipeline only — it calls captureManager.StartAsync
-                // internally.  The previous redundant StartAsync here caused a
-                // double-start: StartPipeline's fire-and-forget StartAsync began with
-                // StopAsync(), cancelling the session just started by the first call.
-                StartPipeline(newDevice);
-            }
-            catch (Exception ex)
-            {
-                startupLogger.LogError(ex,
-                    "Audio capture failed to restart on device '{Device}'.", newDevice);
-            }
+            await RestartPipelineAsync(newDevice, stopCaptureManager: true);
+        }
+        catch (Exception ex)
+        {
+            startupLogger.LogError(ex,
+                "Audio capture failed to restart on device '{Device}'.", newDevice);
         }
     });
 };
@@ -268,10 +251,21 @@ configStore.OnSaved += newConfig =>
 app.Lifetime.ApplicationStopping.Register(() =>
 {
     startupLogger.LogInformation("Application stopping — shutting down capture pipeline.");
-    StopFramerAsync().GetAwaiter().GetResult();
-    captureManager.StopAsync().GetAwaiter().GetResult();
-    captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
-    framerOutput.Writer.TryComplete();
+
+    // B2: wait for any in-progress restart to complete before tearing down,
+    // so shutdown cannot race with a concurrent CaptureFailed / watchdog restart.
+    restartSemaphore.Wait();
+    try
+    {
+        StopFramerAsync().GetAwaiter().GetResult();
+        captureManager.StopAsync().GetAwaiter().GetResult();
+        captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        framerOutput.Writer.TryComplete();
+    }
+    finally
+    {
+        restartSemaphore.Release();
+    }
 });
 
 await app.RunAsync();
@@ -316,6 +310,27 @@ async Task StopFramerAsync()
     cts.Dispose();
     framerCts  = null;
     framerTask = null;
+}
+
+async Task RestartPipelineAsync(string? device, bool stopCaptureManager)
+{
+    // B2: serialise all restart callers (CaptureFailed, watchdog, config change).
+    await restartSemaphore.WaitAsync();
+    try
+    {
+        await StopFramerAsync();
+        if (stopCaptureManager)
+            await captureManager.StopAsync();
+        audioMonitor.Reset();
+        dataFlowMonitor.Reset();
+        spectrumAnalyser.Reset();
+        if (device is not null)
+            StartPipeline(device);
+    }
+    finally
+    {
+        restartSemaphore.Release();
+    }
 }
 
 // Public partial Program class — type anchor for WebApplicationFactory<Program> in tests.

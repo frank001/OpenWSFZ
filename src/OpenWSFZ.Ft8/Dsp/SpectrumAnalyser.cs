@@ -145,8 +145,11 @@ public sealed class SpectrumAnalyser
     private static float[] BuildHannWindow()
     {
         var w = new float[FftSize];
+        // Periodic (not symmetric) Hann window — correct for spectral analysis.
+        // Symmetric form uses (N-1) in the denominator and introduces a small
+        // discontinuity that increases spectral leakage.
         for (var i = 0; i < FftSize; i++)
-            w[i] = 0.5f * (1f - MathF.Cos(2f * MathF.PI * i / (FftSize - 1)));
+            w[i] = 0.5f * (1f - MathF.Cos(2f * MathF.PI * i / FftSize));
         return w;
     }
 }

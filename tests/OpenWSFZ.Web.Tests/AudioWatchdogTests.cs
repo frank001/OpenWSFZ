@@ -71,6 +71,32 @@ public sealed class AudioWatchdogTests
             "even when the audio amplitude is below the FT8 signal threshold");
     }
 
+    // ── T3: Singleton shared across multiple heartbeat callers ────────────────
+
+    [Fact(DisplayName = "T3: Singleton AudioWatchdog accumulates ticks from multiple callers and fires only once at threshold")]
+    public async Task Watchdog_SharedAcrossCallers_FiresOnceAtThreshold()
+    {
+        // Validates the B3 fix: a single watchdog instance must accumulate ticks from
+        // all connected clients' heartbeat loops and fire exactly once at the threshold.
+        // With the old per-connection design, two clients each reaching the threshold
+        // independently would trigger two concurrent restarts.
+        var restartCount = 0;
+
+        var watchdog = new AudioWatchdog(
+            isCapturing: () => true,
+            onRestart:   () => { restartCount++; return Task.CompletedTask; },
+            threshold:   3);
+
+        // Simulate two heartbeat loops sharing one singleton — interleaved, sequential.
+        await watchdog.TickAsync(dataWasFlowing: false); // client A, window 1
+        await watchdog.TickAsync(dataWasFlowing: false); // client B, window 1
+        await watchdog.TickAsync(dataWasFlowing: false); // client A, window 2 → threshold
+
+        restartCount.Should().Be(1,
+            "a singleton watchdog accumulates ticks across all callers and fires exactly once, " +
+            "not once per connected client");
+    }
+
     [Fact(DisplayName = "S6: Watchdog resets counter when data flows in an intervening window")]
     public async Task Watchdog_ResetsCounter_WhenDataFlowing()
     {

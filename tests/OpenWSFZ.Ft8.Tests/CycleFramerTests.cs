@@ -121,6 +121,45 @@ public sealed class CycleFramerTests
         await act.Should().NotThrowAsync("cancellation should be handled gracefully");
     }
 
+    // ── T1: ComputeLeadingSamples with offsetSecs == 0 but Millisecond > 0 ─────
+
+    [Fact]
+    public void ComputeLeadingSamples_AtBoundaryWithNonZeroMilliseconds_IncludesSubSecondOffset()
+    {
+        // Daemon starts exactly at a 15-second UTC boundary (Second % 15 == 0) but
+        // 750 ms past it.  The old code returned 0 immediately; the fix must include
+        // the millisecond component: 0 * 12000 + round(0.75 * 12000) = 9000 samples.
+        var utc     = new DateTime(2026, 5, 21, 15, 30, 15, 750, DateTimeKind.Utc);
+        int leading = CycleFramer.ComputeLeadingSamples(utc);
+
+        leading.Should().Be(9_000,
+            "750 ms into a cycle boundary = 0.75 × 12 000 = 9 000 leading silence samples");
+    }
+
+    // ── T2: Natural source-end must NOT complete the output channel ───────────
+
+    [Fact(DisplayName = "FR-017: Natural source-end does not complete output channel (decode pump survives device-failure restart)")]
+    public async Task RunAsync_SourceEndsNaturally_DoesNotCompleteOutputChannel()
+    {
+        var clock  = new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        var source = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<float[]>();
+        var framer = new CycleFramer(source.Reader, clock);
+
+        using var cts = new CancellationTokenSource();
+        var runTask   = Task.Run(() => framer.RunAsync(output.Writer, cts.Token));
+
+        // Complete the source without cancelling the framer — simulates a device failure.
+        source.Writer.Complete();
+        await runTask;
+
+        // The output channel must remain writable so the next StartPipeline call's
+        // framer can deliver windows to the existing decode pump.
+        output.Writer.TryWrite(new float[180_000]).Should().BeTrue(
+            "a natural source-end (device failure) must not complete the output channel; " +
+            "the decode pump must survive to accept windows from the next StartPipeline call");
+    }
+
     // ── FR-017: Cancellation must not permanently kill the output channel ─────
 
     [Fact(DisplayName = "FR-017: CycleFramer cancellation does not complete the output channel")]

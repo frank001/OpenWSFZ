@@ -84,10 +84,13 @@ public sealed class CycleFramer
                 }
             }
 
-            // Source channel ended naturally (e.g. CaptureManager disposed on shutdown).
-            // Signal downstream that no more windows will arrive.
-            _logger?.LogInformation("CycleFramer source ended; completing output channel.");
-            output.TryComplete();
+            // Source channel ended naturally (device failure or CaptureManager disposed).
+            // Do NOT complete the output channel — Program.cs owns the channel lifetime
+            // and calls TryComplete() on ApplicationStopping. The decode pump must
+            // survive device-failure restarts.
+            _logger?.LogInformation(
+                "CycleFramer source ended (device failure or natural completion) — " +
+                "exiting without completing output channel.");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -107,10 +110,9 @@ public sealed class CycleFramer
         int totalSecs  = utcNow.Second + utcNow.Minute * 60;
         int offsetSecs = totalSecs % CycleDurationSecs;
 
-        if (offsetSecs == 0) return 0; // already at a boundary
-
-        // Samples elapsed in the current cycle at the moment we started.
-        // Prepend silence for that period so the window aligns correctly.
+        // Note: no early return for offsetSecs == 0 — when the daemon starts exactly
+        // at a 15-second UTC boundary but Millisecond > 0, elapsedSamples must still
+        // include the sub-second offset to keep the window aligned correctly.
         int elapsedSamples = offsetSecs * SampleRate
                            + (int)(utcNow.Millisecond / 1000.0 * SampleRate);
 

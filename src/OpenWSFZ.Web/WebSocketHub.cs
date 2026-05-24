@@ -83,21 +83,16 @@ internal static class WebSocketHub
         AudioActivityMonitor? audioMonitor,
         DataFlowMonitor? dataFlowMonitor,
         CaptureManager? captureManager,
-        Func<Task>? restartPipeline,
+        AudioWatchdog? watchdog,
         ILogger logger,
         CancellationToken ct)
     {
         RegisterSocket(ws);
         logger.LogInformation("WebSocket connection accepted.");
 
-        // S6: construct watchdog only when both dependencies are available.
-        // The watchdog is per-connection; its counter is local to this call.
-        var watchdog = captureManager is not null && restartPipeline is not null
-            ? new AudioWatchdog(
-                  isCapturing: () => captureManager.IsCapturing,
-                  onRestart:   restartPipeline,
-                  threshold:   3)
-            : null;
+        // B3: watchdog is a singleton constructed once in WebApp.Create and injected here.
+        // Do not construct per-connection — multiple clients sharing independent watchdogs
+        // would each trigger a restart after the threshold, causing N concurrent restarts.
 
         try
         {
@@ -247,10 +242,11 @@ internal static class WebSocketHub
         catch (OperationCanceledException)
         {
             // Timed out waiting for the lock (another send is stuck).
+            // Abort immediately — CloseAsync with default CT would block indefinitely
+            // on an already-unresponsive socket (R2).
             _broadcastLogger.LogWarning("WebSocket send timeout waiting for lock — dropping connection.");
             UnregisterSocket(ws);
-            try { await ws.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "Send timeout", default); }
-            catch { /* best-effort */ }
+            try { ws.Abort(); } catch { /* best-effort */ }
             return;
         }
         catch (ObjectDisposedException)
@@ -266,11 +262,11 @@ internal static class WebSocketHub
         }
         catch (OperationCanceledException)
         {
-            // Send itself timed out — close and remove.
+            // Send itself timed out — abort immediately rather than attempting a
+            // graceful close handshake on an already-unresponsive socket (R2).
             _broadcastLogger.LogWarning("WebSocket send timed out during broadcast — dropping connection.");
             UnregisterSocket(ws);
-            try { await ws.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "Send timeout", default); }
-            catch { /* best-effort */ }
+            try { ws.Abort(); } catch { /* best-effort */ }
         }
         catch (WebSocketException ex)
         {

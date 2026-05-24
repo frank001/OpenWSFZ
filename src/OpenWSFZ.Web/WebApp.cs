@@ -175,6 +175,16 @@ public static class WebApp
         // Wire the static broadcast logger used by the fire-and-forget path.
         WebSocketHub.SetBroadcastLogger(wsLogger);
 
+        // B3: construct a singleton AudioWatchdog so all connected clients share one
+        // instance. Per-connection watchdogs would cause N concurrent pipeline restarts
+        // when N clients are connected and the audio goes silent.
+        var audioWatchdog = captureManager is not null && restartPipeline is not null
+            ? new AudioWatchdog(
+                  isCapturing: () => captureManager.IsCapturing,
+                  onRestart:   restartPipeline,
+                  threshold:   3)
+            : null;
+
         app.MapGet("/api/v1/ws", async (HttpContext ctx, IConfigStore store) =>
         {
             if (!ctx.WebSockets.IsWebSocketRequest)
@@ -186,7 +196,7 @@ public static class WebApp
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
             await WebSocketHub.HandleAsync(
                 ws, store, audioMonitor, dataFlowMonitor,
-                captureManager, restartPipeline,
+                captureManager, audioWatchdog,
                 wsLogger, ctx.RequestAborted);
         });
 
