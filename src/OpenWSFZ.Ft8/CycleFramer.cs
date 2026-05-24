@@ -75,7 +75,7 @@ public sealed class CycleFramer
                     {
                         // Window complete — emit it (non-blocking; drop if consumer is slow).
                         output.TryWrite(window);
-                        _logger?.LogDebug("Window emitted ({Samples} samples).", SamplesPerCycle);
+                        _logger?.LogInformation("Window emitted ({Samples} samples).", SamplesPerCycle);
 
                         // Start a fresh window.
                         window = new float[SamplesPerCycle];

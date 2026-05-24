@@ -69,7 +69,7 @@ public sealed class Ft8Decoder : IModeDecoder
         var rms = ComputeRms(pcm);
         if (rms < 1e-6f)
         {
-            _logger?.LogDebug("Cycle skipped — RMS {Rms:E3} is below silence guard.", rms);
+            _logger?.LogInformation("Cycle skipped — RMS {Rms:E3} is below silence guard (threshold 1e-6).", rms);
             return Task.FromResult<IReadOnlyList<DecodeResult>>([]);
         }
 
