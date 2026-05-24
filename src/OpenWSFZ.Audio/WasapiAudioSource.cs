@@ -80,12 +80,24 @@ internal sealed class WasapiAudioSource : IAudioSource
                 // format/channel mismatch is immediately visible.
                 _logger?.LogInformation(
                     "WASAPI device opened: '{DeviceId}' ('{FriendlyName}') — " +
-                    "WaveFormat={SampleRate} Hz, {BitsPerSample}-bit, {Channels} ch",
+                    "WaveFormat={SampleRate} Hz, {BitsPerSample}-bit, {Channels} ch, Encoding={Encoding}",
                     deviceId,
                     device.FriendlyName,
                     capture.WaveFormat.SampleRate,
                     capture.WaveFormat.BitsPerSample,
-                    capture.WaveFormat.Channels);
+                    capture.WaveFormat.Channels,
+                    capture.WaveFormat.Encoding);
+
+                // D3 (DIAG): log sub-format GUID for Extensible format.
+                // {00000001-...} = PCM, {00000003-...} = IEEE float.
+                // Any other GUID indicates a compressed format that the NAudio
+                // pipeline may not handle correctly.
+                if (capture.WaveFormat is WaveFormatExtensible ext)
+                {
+                    _logger?.LogInformation(
+                        "WASAPI sub-format on '{DeviceId}': {SubFormat}",
+                        deviceId, ext.SubFormat);
+                }
 
                 // ── NAudio resampling pipeline ────────────────────────────────
                 var buffer = new BufferedWaveProvider(capture.WaveFormat)
@@ -112,6 +124,7 @@ internal sealed class WasapiAudioSource : IAudioSource
                 // DataAvailable fires on the WASAPI capture thread.
                 var dataAvailableFired  = false; // D1 (DIAG)
                 var dataAvailableCount  = 0;     // L-3 (DIAG): periodic heartbeat counter
+                var zeroOutputCount     = 0;     // D1 (DIAG): consecutive zero-output resampler drain runs
                 capture.DataAvailable += (_, e) =>
                 {
                     // B13: Wrap the entire handler so any exception (corrupt buffer,
@@ -215,29 +228,51 @@ internal sealed class WasapiAudioSource : IAudioSource
                                     deviceId,
                                     chunk.Length);
                             }
-                            // check if outBuf contains any data other than zeros. If not, log a warning that the resampler is producing silent output, which may be caused by a mismatch between the capture format and the resampler's expected input format.
-                            else if (chunk.All(sample => sample == 0)) {
-                                _logger?.LogWarning(
-                                    "DIAG Resampler output all zeros on '{DeviceId}' — " +
-                                    "possible format mismatch or silent input.",
-                                    deviceId);
+                            // D1 (DIAG): rate-limited zero-output warning. Fires on the first
+                            // occurrence and every 100 thereafter. Includes rawHasData so the
+                            // operator can immediately distinguish the two root causes:
+                            //   rawHasData=false → WASAPI is delivering silence (device/OS issue)
+                            //   rawHasData=true  → NAudio pipeline is zeroing good data (format issue)
+                            else if (chunk.All(sample => sample == 0))
+                            {
+                                zeroOutputCount++;
+                                if (zeroOutputCount == 1 || zeroOutputCount % 100 == 0)
+                                {
+                                    _logger?.LogWarning(
+                                        "DIAG Resampler output all zeros on '{DeviceId}' " +
+                                        "(run #{Count}, rawHasData={RawHasData}) — {Diagnosis}",
+                                        deviceId,
+                                        zeroOutputCount,
+                                        rawHasData,
+                                        rawHasData
+                                            ? "NAudio pipeline is zeroing good data — check encoding type, channel count, and format negotiation."
+                                            : "WASAPI is delivering silence — check device selection, mute state, signal source, and OS audio policy.");
+                                }
                             }
-
-                            outBuf = new float[2048];
+                            else
+                            {
+                                // Non-zero audio is flowing — reset the consecutive-zero run counter
+                                // so the next zero-output event is always logged as run #1.
+                                zeroOutputCount = 0;
+                            }
+                            // Advisory: outBuf is reused each iteration; the meaningful allocation
+                            // is the fresh float[read] chunk copy above. No re-allocation needed here.
                         }
 
                         // L-5 (DIAG): warn if a non-empty buffer produced no resampler output.
+                        // D2: rate-limited to once every 100 callbacks to prevent log flooding.
                         if (e.BytesRecorded > 0 && dataAvailableCount > 1)
                         {
                             var samplesInBuffer = buffer.BufferedBytes /
                                 (capture.WaveFormat.BitsPerSample / 8 * capture.WaveFormat.Channels);
-                            if (samplesInBuffer > 0)
+                            if (samplesInBuffer > 0 && dataAvailableCount % 100 == 1)
                             {
                                 _logger?.LogWarning(
                                     "DIAG Resampler produced 0 output on '{DeviceId}' " +
-                                    "despite {SamplesInBuffer} samples in buffer.",
+                                    "despite {SamplesInBuffer} samples in buffer (at callback #{Count}).",
                                     deviceId,
-                                    samplesInBuffer);
+                                    samplesInBuffer,
+                                    dataAvailableCount);
                             }
                         }
                     }
