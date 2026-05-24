@@ -133,6 +133,46 @@ internal static class SymbolExtractor
     }
 
     /// <summary>
+    /// Fills <paramref name="result"/> with the power spectrogram for the 79 symbol windows
+    /// starting at <paramref name="startSample"/>.
+    ///
+    /// <para>
+    /// Functionally identical to <see cref="ComputeSpectrogram"/> but writes into a
+    /// caller-provided buffer instead of allocating a new array.  Use this overload
+    /// from long-running paths (e.g. <c>Ft8Decoder.DecodeAsync</c>) to avoid 316 KB
+    /// LOH allocations on every call.
+    /// </para>
+    /// </summary>
+    /// <param name="pcm">Full PCM buffer.</param>
+    /// <param name="startSample">First sample of the first symbol.</param>
+    /// <param name="result">
+    /// Pre-allocated <c>float[SymbolCount, SpecBins]</c> buffer to fill.
+    /// All elements are fully overwritten for symbols within the buffer bounds;
+    /// symbols that would fall outside <paramref name="pcm"/> leave the corresponding
+    /// rows unchanged (same guard as <see cref="ComputeSpectrogram"/>).
+    /// </param>
+    internal static void FillSpectrogram(ReadOnlySpan<float> pcm, int startSample, float[,] result)
+    {
+        var re = new float[FftSizePadded];
+        var im = new float[FftSizePadded];
+
+        for (int sym = 0; sym < SymbolCount; sym++)
+        {
+            int offset = startSample + sym * SamplesPerSymbol;
+            if (offset + SamplesPerSymbol > pcm.Length) break;
+
+            pcm.Slice(offset, SamplesPerSymbol).CopyTo(re);
+            Array.Clear(re, SamplesPerSymbol, FftSizePadded - SamplesPerSymbol);
+            Array.Clear(im, 0, FftSizePadded);
+
+            FftCompute.Fft(re, im);
+
+            for (int bin = 0; bin < SpecBins; bin++)
+                result[sym, bin] = re[bin] * re[bin] + im[bin] * im[bin];
+        }
+    }
+
+    /// <summary>
     /// Extracts a 79 × 8 log-energy grid from a pre-computed spectrogram by mapping
     /// each FT8 tone to its nearest FFT bin.
     ///

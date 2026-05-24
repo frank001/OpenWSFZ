@@ -154,6 +154,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const observer = new ResizeObserver(() => renderer.resize());
   observer.observe(canvas.parentElement ?? canvas);
 
+  // W2: requestAnimationFrame throttle state for spectrum rendering.
+  // Coalesces rapid onmessage deliveries into at most one putImageData call per
+  // browser frame, preventing the JS main thread from being starved by putImageData.
+  let pendingSpectrumBins = null;
+  let spectrumRafPending  = false;
+
   // Connect WebSocket and update status bar.
   connect((event) => {
     if (event.type === '__state') {
@@ -181,7 +187,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (event.type === 'spectrum' && Array.isArray(event.payload)) {
-      renderer.render(event.payload);
+      // W2: store latest bins; schedule a single render on the next animation frame.
+      // If another frame is already pending, just update the pending data — the already-
+      // scheduled rAF callback will pick up the latest value when it fires.
+      pendingSpectrumBins = event.payload;
+      if (!spectrumRafPending) {
+        spectrumRafPending = true;
+        requestAnimationFrame(() => {
+          spectrumRafPending = false;
+          if (pendingSpectrumBins !== null) {
+            renderer.render(pendingSpectrumBins);
+            pendingSpectrumBins = null;
+          }
+        });
+      }
       return;
     }
 

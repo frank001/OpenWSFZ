@@ -28,6 +28,7 @@ public sealed class Ft8Decoder : IModeDecoder
     private const int    MsgBits      = 77;
     private const int    CrcBits      = 14;
     private const int    CodeLength   = LdpcDecoder.CodeLength;          // 174
+    private const int    SpecBins     = SymbolExtractor.SpecBins;        // 1 024
 
     // Frequency sweep parameters.
     private const double MinFreqHz    = 50.0;
@@ -45,6 +46,12 @@ public sealed class Ft8Decoder : IModeDecoder
 
     private readonly IClock              _clock;
     private readonly ILogger<Ft8Decoder>? _logger;
+
+    // Pre-allocated spectrogram buffer — 79 × 1 024 floats ≈ 316 KB.
+    // Allocated once at construction to avoid LOH allocations on every decode cycle.
+    // Safe to share across DecodeAsync invocations: CycleFramer emits windows serially
+    // (one at a time) so DecodeAsync is never called concurrently on the same instance.
+    private readonly float[,] _spectrogram = new float[SymbolCount, SpecBins];
 
     public Ft8Decoder(IClock clock, ILogger<Ft8Decoder>? logger = null)
     {
@@ -93,9 +100,9 @@ public sealed class Ft8Decoder : IModeDecoder
                 startSample, maxStartSample, (double)startSample / SampleRate);
 
             // P1: pre-compute 79 FFTs once for this time offset, replacing ~24 000 Goertzel calls.
-            // Reduces per-decode work from ~29.8 billion ops (Goertzel) to ~109 million ops
-            // (FFT phase + array lookups), giving a ~275× speedup per decode cycle.
-            var spectrogram = SymbolExtractor.ComputeSpectrogram(pcm, startSample);
+            // W1: FillSpectrogram writes into the pre-allocated instance field (_spectrogram)
+            // instead of allocating a new 316 KB LOH array, eliminating GC pressure.
+            SymbolExtractor.FillSpectrogram(pcm, startSample, _spectrogram);
 
             // Sweep base frequencies in steps of one tone spacing.
             for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += ToneSpacing)
@@ -104,7 +111,7 @@ public sealed class Ft8Decoder : IModeDecoder
 
                 int baseBin    = (int)Math.Round(baseHz * SymbolExtractor.FftSizePadded
                                                          / (double)SymbolExtractor.SampleRate);
-                var grid       = SymbolExtractor.ExtractFromSpectrogram(spectrogram, baseBin);
+                var grid       = SymbolExtractor.ExtractFromSpectrogram(_spectrogram, baseBin);
                 var candidates = CostasSynchroniser.FindCandidates(grid, SyncThreshold);
 
                 foreach (var cand in candidates)
