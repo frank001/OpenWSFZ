@@ -108,17 +108,22 @@ internal sealed class WasapiAudioSource : IAudioSource
 
                 ISampleProvider samples = buffer.ToSampleProvider();
 
+                // D6: LeftChannelSampleProvider replaces StereoToMonoSampleProvider.
+                // StereoToMonoSampleProvider averages (L + R) / 2 — when the device
+                // delivers a differential (balanced) signal (L = −R), every output
+                // sample is zero regardless of signal amplitude. Extracting the left
+                // channel alone carries the full signal without phase cancellation.
                 if (capture.WaveFormat.Channels == 2)
-                    samples = new StereoToMonoSampleProvider(samples);
+                    samples = new LeftChannelSampleProvider(samples);
 
                 var resampler = new WdlResamplingSampleProvider(samples, 12_000);
 
                 // L-2 (DIAG): confirm which resampling path was taken and the target rate.
                 _logger?.LogInformation(
                     "Resampling pipeline ready on '{DeviceId}': " +
-                    "stereoToMono={StereoToMono}, inputRate={InputRate} Hz → 12000 Hz",
+                    "channelMode={ChannelMode}, inputRate={InputRate} Hz → 12000 Hz",
                     deviceId,
-                    capture.WaveFormat.Channels == 2,
+                    capture.WaveFormat.Channels == 2 ? "stereo→mono(left)" : "mono",
                     capture.WaveFormat.SampleRate);
 
                 // DataAvailable fires on the WASAPI capture thread.
@@ -236,17 +241,31 @@ internal sealed class WasapiAudioSource : IAudioSource
                             else if (chunk.All(sample => sample == 0))
                             {
                                 zeroOutputCount++;
-                                if (zeroOutputCount == 1 || zeroOutputCount % 100 == 0)
+                                if (zeroOutputCount == 1)
                                 {
                                     _logger?.LogWarning(
                                         "DIAG Resampler output all zeros on '{DeviceId}' " +
-                                        "(run #{Count}, rawHasData={RawHasData}) — {Diagnosis}",
+                                        "(run #1, rawHasData={RawHasData}) — {Diagnosis}",
                                         deviceId,
-                                        zeroOutputCount,
                                         rawHasData,
                                         rawHasData
                                             ? "NAudio pipeline is zeroing good data — check encoding type, channel count, and format negotiation."
                                             : "WASAPI is delivering silence — check device selection, mute state, signal source, and OS audio policy.");
+
+                                    // D5 (DIAG): if rawHasData=True and the device is stereo, log the
+                                    // first two interleaved L/R float pairs from the raw buffer.
+                                    // If L0 ≈ −R0 and L1 ≈ −R1, the device delivers a differential
+                                    // (balanced) signal and the stereo-to-mono conversion is cancelling it.
+                                    if (rawHasData && capture.WaveFormat.Channels == 2 && e.BytesRecorded >= 16)
+                                    {
+                                        var span = e.Buffer.AsSpan(0, 16); // 4 floats × 4 bytes = 2 stereo frames
+                                        var f    = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(span);
+                                        _logger?.LogWarning(
+                                            "DIAG Phase-cancellation check on '{DeviceId}': " +
+                                            "L0={L0:G4}, R0={R0:G4}, L1={L1:G4}, R1={R1:G4} — " +
+                                            "if L ≈ −R the device delivers a differential signal; stereo averaging cancels it.",
+                                            deviceId, f[0], f[1], f[2], f[3]);
+                                    }
                                 }
                             }
                             else
@@ -430,6 +449,44 @@ internal sealed class WasapiAudioSource : IAudioSource
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    // ── D6: Left-channel stereo-to-mono extractor ────────────────────────────
+
+    /// <summary>
+    /// Extracts the left channel from a stereo IEEE float sample stream.
+    /// Used instead of <see cref="StereoToMonoSampleProvider"/> when the audio device
+    /// delivers a differential (balanced) signal where L = −R: averaging both channels
+    /// produces silence, but either channel alone carries the full signal.
+    /// </summary>
+    private sealed class LeftChannelSampleProvider : ISampleProvider
+    {
+        private readonly ISampleProvider _source;
+        private float[]                  _stereoBuffer = new float[4096];
+
+        public LeftChannelSampleProvider(ISampleProvider source)
+        {
+            if (source.WaveFormat.Channels != 2)
+                throw new ArgumentException("Source must be stereo.", nameof(source));
+            _source    = source;
+            WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(
+                source.WaveFormat.SampleRate, channels: 1);
+        }
+
+        public WaveFormat WaveFormat { get; }
+
+        public int Read(float[] buffer, int offset, int count)
+        {
+            int stereoCount = count * 2;
+            if (_stereoBuffer.Length < stereoCount)
+                _stereoBuffer = new float[stereoCount];
+
+            int read = _source.Read(_stereoBuffer, 0, stereoCount);
+            int mono = read / 2;
+            for (int i = 0; i < mono; i++)
+                buffer[offset + i] = _stereoBuffer[i * 2]; // left channel (index 0 of each interleaved pair)
+            return mono;
+        }
+    }
 
     // ── B11: WASAPI session event listener ────────────────────────────────────
     // Receives IAudioSessionEvents notifications from the Windows audio engine
