@@ -47,6 +47,13 @@ public static class WebApp
         Action<ILoggingBuilder>?                      configureLogging     = null,
         Func<Task>?                                   restartPipeline      = null)
     {
+        // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
+        // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(appScope)
+        // only aborts connections belonging to this instance, preventing test-infrastructure
+        // apps (e.g. WebApplicationFactory) from aborting sockets owned by a concurrently
+        // running integration-test server.
+        var appScope = Guid.NewGuid();
+
         var builder = WebApplication.CreateBuilder();
 
         // ── Services ──────────────────────────────────────────────────────────
@@ -185,6 +192,14 @@ public static class WebApp
                   threshold:   3)
             : null;
 
+        // S1: abort only this app instance's WebSocket connections at the start of
+        // ApplicationStopping so the browser UI goes dark immediately at Ctrl+C.
+        // Registered here (inside Create, before the caller's ApplicationStopping hooks)
+        // so it fires first — before the capture pipeline's semaphore wait and teardown.
+        // The scope guard ensures that a test-infrastructure app (e.g. WebApplicationFactory)
+        // cannot abort sockets owned by a concurrently-running integration-test server.
+        app.Lifetime.ApplicationStopping.Register(() => WebSocketHub.AbortAll(appScope));
+
         app.MapGet("/api/v1/ws", async (HttpContext ctx, IConfigStore store) =>
         {
             if (!ctx.WebSockets.IsWebSocketRequest)
@@ -197,7 +212,7 @@ public static class WebApp
             await WebSocketHub.HandleAsync(
                 ws, store, audioMonitor, dataFlowMonitor,
                 captureManager, audioWatchdog,
-                wsLogger, ctx.RequestAborted);
+                wsLogger, appScope, ctx.RequestAborted);
         });
 
         return app;

@@ -402,7 +402,7 @@ internal sealed class WasapiAudioSource : IAudioSource
                 // WASAPI session event client before tearing down the capture session.
                 if (sessionControl is not null)
                 {
-                    _logger?.LogDebug(
+                    _logger?.LogInformation(
                         "DIAG STA finally: disposing sessionControl on '{DeviceId}'.", deviceId);
                     try { sessionControl.Dispose(); } catch { }
                     sessionControl = null;
@@ -411,12 +411,32 @@ internal sealed class WasapiAudioSource : IAudioSource
                 // Stop and dispose on the STA thread that owns the COM objects.
                 if (capture is not null)
                 {
-                    _logger?.LogDebug(
-                        "DIAG STA finally: calling capture.StopRecording() on '{DeviceId}'.", deviceId);
-                    try { capture.StopRecording(); } catch { }
-                    _logger?.LogDebug(
-                        "DIAG STA finally: calling capture.Dispose() on '{DeviceId}'.", deviceId);
-                    try { capture.Dispose();       } catch { }
+                    // S2: some drivers (e.g. Jabra EVOLVE LINK USB) take 10+ seconds to
+                    // acknowledge StopRecording().  Running it on a background thread with
+                    // a 3-second timeout lets the STA finally block complete promptly.  If
+                    // the thread-pool thread violates the STA COM apartment rule the resulting
+                    // COMException is swallowed — acceptable during shutdown since the process
+                    // is exiting and the device is being abandoned regardless.
+                    _logger?.LogInformation(
+                        "DIAG STA finally: calling capture.StopRecording() on '{DeviceId}' (3 s timeout).",
+                        deviceId);
+                    var stopTask = Task.Run(() => { try { capture.StopRecording(); } catch { } });
+                    if (stopTask.Wait(TimeSpan.FromSeconds(3)))
+                    {
+                        _logger?.LogInformation(
+                            "DIAG STA finally: capture.StopRecording() completed on '{DeviceId}'.", deviceId);
+                        _logger?.LogInformation(
+                            "DIAG STA finally: calling capture.Dispose() on '{DeviceId}'.", deviceId);
+                        try { capture.Dispose(); } catch { }
+                    }
+                    else
+                    {
+                        // StopRecording timed out — skip Dispose (it would also hang).
+                        // The device handle is abandoned; the OS reclaims it on process exit.
+                        _logger?.LogWarning(
+                            "DIAG STA finally: capture.StopRecording() timed out after 3 s on '{DeviceId}' " +
+                            "— abandoning device handle; OS will reclaim on process exit.", deviceId);
+                    }
                 }
 
                 _logger?.LogInformation(

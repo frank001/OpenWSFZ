@@ -248,6 +248,9 @@ configStore.OnSaved += newConfig =>
 };
 
 // Stop pipeline and dispose on application shutdown.
+// Note: WebApp.Create registers its own ApplicationStopping hook (AbortAll) which fires
+// before this callback (registration order is preserved).  WebSocket connections are
+// already aborted and the browser UI is dark by the time we reach this callback.
 app.Lifetime.ApplicationStopping.Register(() =>
 {
     startupLogger.LogInformation("Application stopping — shutting down capture pipeline.");
