@@ -98,3 +98,20 @@
 ## 14. Known Follow-Up Items
 
 - [x] 14.1 (S4) Guard concurrent `SendAsync` calls on the same WebSocket in `WebSocketHub.BroadcastDecodes`. Current fire-and-forget pattern is safe at 15-second decode intervals but not resilient to rapid back-to-back decode cycles (e.g. WAV fixture testing). Implement per-socket `SemaphoreSlim` or `Channel`-based send queue before enabling the WAV fixture test and high-throughput scenarios.
+
+## 15. Live Waterfall Spectrum Display (dev-briefing-15)
+
+### Server
+
+- [x] S.1 Implement `SpectrumAnalyser` in `src/OpenWSFZ.Ft8/Dsp/SpectrumAnalyser.cs`: 2048-point ring buffer, Hann window, radix-2 Cooley-Tukey FFT, dBFS output (512 bins, 0–2994 Hz), `Reset()` method
+- [x] S.2 Wire `spectrumAnalyser` into `Program.cs`: declare after monitors, add `Push(chunk)` to `ChunkReceived`, add `Reset()` at all three pipeline-restart locations, wire `SpectrumReady` → `spectrumBus.Publish`
+- [x] S.3 Add `SpectrumEventBus` to `src/OpenWSFZ.Web/SpectrumEventBus.cs` (public façade over `WebSocketHub.BroadcastSpectrum`; exposes `HasClients` so Daemon can gate serialisation without touching the internal hub)
+- [x] S.4 Add `HasClients` property and `BroadcastSpectrum(int[] bins)` to `WebSocketHub`
+- [x] S.5 Add `WsSpectrumMessage` record + `[JsonSerializable]` registrations to `AppJsonContext`
+- [x] S.6 Add `SpectrumAnalyserTests.cs` to `tests/OpenWSFZ.Ft8.Tests/`: T-1 (sine peak), T-2 (silence floor), T-3 (fire-count)
+
+### Client
+
+- [x] C.1 Create `web/js/spectrum.js`: `WaterfallRenderer` class with ImageData pixel buffer, scroll-down, 4-stop colormap, frequency axis ticks
+- [x] C.2 Update `web/js/main.js`: import `WaterfallRenderer`, replace placeholder, wire `spectrum` WS event (before `decode` branch)
+- [x] C.3 Add `cursor: crosshair` to `#waterfall` in `web/css/app.css`
