@@ -7,6 +7,7 @@ using OpenWSFZ.Config;
 using OpenWSFZ.Daemon;
 using OpenWSFZ.Daemon.Logging;
 using OpenWSFZ.Ft8;
+using OpenWSFZ.Ft8.Dsp;
 using OpenWSFZ.Web;
 
 // Parse CLI options before building the host.
@@ -61,13 +62,37 @@ var captureManager = new CaptureManager(audioSource, loggerFactory.CreateLogger<
 var audioMonitor    = new AudioActivityMonitor();
 var dataFlowMonitor = new DataFlowMonitor();
 
-// Wire both monitors to the capture callback.
+// ── Spectrum analyser ─────────────────────────────────────────────────────
+var spectrumAnalyser = new SpectrumAnalyser();
+var spectrumBus      = new SpectrumEventBus();
+
+// Wire monitors and spectrum analyser to the capture callback.
 // audioMonitor tracks amplitude for the heartbeat UI (FR-020).
 // dataFlowMonitor tracks any-chunk-received for the watchdog (B18).
+// spectrumAnalyser accumulates samples and fires SpectrumReady every 2048 samples.
 captureManager.ChunkReceived = chunk =>
 {
     audioMonitor.ObserveSamples(chunk);
     dataFlowMonitor.OnChunkReceived();
+    spectrumAnalyser.Push(chunk);
+};
+
+spectrumAnalyser.SpectrumReady += magnitudes =>
+{
+    // Gate: skip serialisation if no clients are connected.
+    if (!spectrumBus.HasClients) return;
+
+    // Map dBFS [−120, 0] → int [0, 255].
+    var bins = new int[SpectrumAnalyser.OutputBinCount];
+    for (var i = 0; i < bins.Length; i++)
+    {
+        var db = magnitudes[i];
+        if (db < -120f) db = -120f;
+        if (db >    0f) db =    0f;
+        bins[i] = (int)MathF.Round((db + 120f) / 120f * 255f);
+    }
+
+    spectrumBus.Publish(bins);
 };
 
 // ── FT8 decode pipeline ──────────────────────────────────────────────────────
@@ -127,6 +152,7 @@ captureManager.CaptureFailed += ex =>
         await StopFramerAsync();
         audioMonitor.Reset();
         dataFlowMonitor.Reset();
+        spectrumAnalyser.Reset();
         StartPipeline(device);
     });
 };
@@ -147,6 +173,7 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
         await captureManager.StopAsync();
         audioMonitor.Reset();
         dataFlowMonitor.Reset();
+        spectrumAnalyser.Reset();
         if (device is not null)
             StartPipeline(device);
     }
@@ -216,6 +243,7 @@ configStore.OnSaved += newConfig =>
         // Reset monitors when the pipeline restarts (FR-020, B18).
         audioMonitor.Reset();
         dataFlowMonitor.Reset();
+        spectrumAnalyser.Reset();
 
         if (newDevice is not null)
         {

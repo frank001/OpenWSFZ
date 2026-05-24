@@ -186,6 +186,32 @@ internal static class WebSocketHub
     // ── Broadcast ────────────────────────────────────────────────────────────
 
     /// <summary>
+    /// True when at least one WebSocket client is currently connected.
+    /// Used to gate FFT computation and serialisation when no clients exist.
+    /// </summary>
+    internal static bool HasClients => !ActiveSockets.IsEmpty;
+
+    /// <summary>
+    /// Broadcasts a <c>spectrum</c> event carrying the given magnitude bins to all
+    /// currently connected WebSocket clients. Stale connections are closed and removed.
+    /// </summary>
+    /// <param name="bins">
+    /// Array of 512 integers in [0, 255], mapping 0–2994 Hz frequency bins.
+    /// </param>
+    internal static void BroadcastSpectrum(int[] bins)
+    {
+        if (ActiveSockets.IsEmpty) return;
+
+        var msg     = new WsSpectrumMessage(Type: "spectrum", Payload: bins);
+        var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsSpectrumMessage);
+        var bytes   = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        foreach (var (ws, _) in ActiveSockets)
+            _ = SendWithTimeoutAsync(ws, segment);
+    }
+
+    /// <summary>
     /// Broadcasts a <c>decode</c> event to all currently connected WebSocket clients.
     /// Stale connections (those that cannot accept the frame within 1 second) are closed
     /// and removed silently.  Concurrent calls from the decode pump are safe: each socket

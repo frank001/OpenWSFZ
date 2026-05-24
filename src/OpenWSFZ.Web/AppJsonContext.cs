@@ -19,6 +19,8 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(AppConfig))]
 [JsonSerializable(typeof(DecodeResult))]
 [JsonSerializable(typeof(List<DecodeResult>))]
+[JsonSerializable(typeof(WsSpectrumMessage))]
+[JsonSerializable(typeof(int[]))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -35,3 +37,6 @@ internal sealed record HeartbeatPayload(bool AudioActive, bool CaptureActive);
 
 /// <summary>Envelope for <c>decode</c> WebSocket text frames.</summary>
 internal sealed record WsDecodeMessage(string Type, List<DecodeResult> Payload);
+
+/// <summary>Envelope for <c>spectrum</c> WebSocket text frames.</summary>
+internal sealed record WsSpectrumMessage(string Type, int[] Payload);
