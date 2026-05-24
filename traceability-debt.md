@@ -29,7 +29,7 @@ NFR-008  # Extensibility — protocol layer plugin point (IModeDecoder / IModeRe
 ## Pending — Phase 5 (HTTP / WebSocket / Waterfall)
 
 FR-002  # Self-hosted web UI served on http://127.0.0.1:<port>
-FR-008  # Waterfall display — live spectrogram of audio input in the main UI
+# FR-008 removed — implemented in p5-ft8-decoder (SpectrumAnalyser + WaterfallRenderer; tests in SpectrumAnalyserTests)
 # FR-009 removed — implemented in p5-ft8-decoder (decode event → #decodes-table UI)
 FR-011  # Save action on Settings page writes changes to the active config file
 FR-019  # Configurable logging — ILogger<T> throughout all components, level from AppConfig.LogLevel

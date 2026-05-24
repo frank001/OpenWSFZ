@@ -121,7 +121,7 @@ public sealed class CaptureManagerTests
 
     // ── FR-021: capture stop logging ─────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-021 Case 1: CaptureManager logs Information when session ends via StopAsync (operator-stopped)")]
+    [Fact(DisplayName = "FR-021: Case 1 — CaptureManager logs Information when session ends via StopAsync (operator-stopped)")]
     public async Task StartAsync_WhenStopAsyncCalled_LogsInformation()
     {
         // Arrange
@@ -144,10 +144,10 @@ public sealed class CaptureManagerTests
             e => e.Level == LogLevel.Information
               && e.Message.Contains("mic-001")
               && (e.Message.Contains("stopped") || e.Message.Contains("drained")),
-            "FR-021 Case 1: an operator-stopped session must log at Information with the device ID");
+            "FR-021: Case 1 — an operator-stopped session must log at Information with the device ID");
     }
 
-    [Fact(DisplayName = "FR-021 Case 2: CaptureManager logs Warning when source ends unexpectedly (no cancellation)")]
+    [Fact(DisplayName = "FR-021: Case 2 — CaptureManager logs Warning when source ends unexpectedly (no cancellation)")]
     public async Task StartAsync_WhenSourceEndsNaturally_LogsWarning()
     {
         // Arrange — source yields 3 chunks then ends (simulates unexpected driver stop).
@@ -167,7 +167,7 @@ public sealed class CaptureManagerTests
         // Assert — a Warning entry must appear that names the device.
         logger.Entries.Should().Contain(
             e => e.Level == LogLevel.Warning && e.Message.Contains("mic-002"),
-            "FR-021 Case 2: an unexpected source end must log at Warning with the device ID; " +
+            "FR-021: Case 2 — an unexpected source end must log at Warning with the device ID; " +
             "a silent stop is a violation of FR-021");
     }
 
@@ -197,7 +197,7 @@ public sealed class CaptureManagerTests
             "IsCapturing must be false once the unexpected stop completes");
     }
 
-    [Fact(DisplayName = "FR-021 Case 3: CaptureManager logs Error with exception when source throws")]
+    [Fact(DisplayName = "FR-021: Case 3 — CaptureManager logs Error with exception when source throws")]
     public async Task StartAsync_WhenSourceThrows_LogsError()
     {
         // Arrange — source throws on the first iteration.
@@ -220,7 +220,7 @@ public sealed class CaptureManagerTests
             e => e.Level == LogLevel.Error
               && e.Message.Contains("mic-003")
               && e.Exception == exception,
-            "FR-021 Case 3: an exception-driven termination must log at Error with the exception object " +
+            "FR-021: Case 3 — an exception-driven termination must log at Error with the exception object " +
             "so the full stack trace is available in the log");
     }
 

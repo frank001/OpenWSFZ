@@ -1,6 +1,6 @@
 /**
  * Main page logic.
- * - Paints the waterfall canvas placeholder.
+ * - Initialises the live waterfall renderer (WaterfallRenderer).
  * - Connects the WebSocket client and updates the status bar.
  *
  * @module main
