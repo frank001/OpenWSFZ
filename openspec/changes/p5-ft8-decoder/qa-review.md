@@ -1,5 +1,117 @@
 # QA Review — p5-ft8-decoder
 
+**Reviewer:** QA (Round 4, 2026-05-24)
+**Branch:** `feat/p5-ft8-decoder`
+**Scope:** Spectrum visualisation — dev-briefing-15 implementation
+**Verdict:** ❌ RETURN TO DEVELOPER — 1 blocker (CI failure); 2 advisories
+
+---
+
+## Round 4 — Spectrum Visualisation Review
+
+### CI Status
+
+Gate G3 (Traceability check, Linux) is **failing**. All other gates pass.
+
+```
+FAIL: 1 requirement(s) not mapped to any test:
+  FR-021
+```
+
+---
+
+### B5 — BLOCKER · FR-021 test display names do not match the scanner regex
+
+**File:** `tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs`, lines 124, 150, 200
+
+**Root cause:** `TestAssemblyScanner.ExtractIds` uses the regex:
+
+```
+^((?:FR|NFR)-\d{3})(?:\s*,\s*((?:FR|NFR)-\d{3}))*\s*:
+```
+
+This requires the requirement ID to be followed **immediately** by optional whitespace and
+then a colon. The developer placed "Case N" between the ID and the colon, which prevents
+the scanner from recognising the tag.
+
+| Line | Current (broken) | Required |
+|---|---|---|
+| 124 | `"FR-021 Case 1: CaptureManager logs Information …"` | `"FR-021: Case 1 — CaptureManager logs Information …"` |
+| 150 | `"FR-021 Case 2: CaptureManager logs Warning …"` | `"FR-021: Case 2 — CaptureManager logs Warning …"` |
+| 200 | `"FR-021 Case 3: CaptureManager logs Error with exception …"` | `"FR-021: Case 3 — CaptureManager logs Error with exception …"` |
+
+Move "Case N" to the right of the colon, separated by " — " for readability.
+The assertion messages inside each test that repeat the old format should be updated
+to match, though they do not affect the scanner.
+
+**Fix is trivial — three one-line display name changes.**
+
+---
+
+### A1 — Advisory · FR-008 debt not discharged
+
+**File:** `traceability-debt.md` line 32; `tests/OpenWSFZ.Ft8.Tests/SpectrumAnalyserTests.cs`
+
+FR-008 (Waterfall display — live spectrogram of audio input) is now implemented.
+The debt file rule states: *"Remove an ID from this file once its implementing phase's
+tests arrive."* The implementing tests exist (`SpectrumAnalyserTests`) but carry no
+`FR-008` display name, so the tool cannot discharge the exemption automatically.
+
+**Required:**
+
+1. Add `[Fact(DisplayName = "FR-008: ...")]` to at least the T-1 (sine wave peak) and
+   T-3 (fires once per FftSize) tests — these most directly demonstrate that the live
+   spectrum is computed and delivered. T-2 (silence floor) may share the tag or carry
+   its own `FR-008` entry.
+
+2. Remove `FR-008` from `traceability-debt.md`.
+
+This is advisory only because the debt file exemption currently prevents a CI failure.
+However, leaving the debt untagged indefinitely is contrary to the project's traceability
+discipline. Address in this same commit alongside B5.
+
+---
+
+### A2 — Advisory · Stale JSDoc in `main.js`
+
+**File:** `web/js/main.js`, line 4
+
+```
+ * - Paints the waterfall canvas placeholder.
+```
+
+This module no longer paints a placeholder. It initialises a live `WaterfallRenderer`.
+Update the comment accordingly. One line change.
+
+---
+
+### What Was Reviewed
+
+| Area | Assessment |
+|---|---|
+| `SpectrumAnalyser.cs` | ✅ Matches briefing exactly. FFT, Hann window, `Reset()` all correct. |
+| `SpectrumEventBus.cs` | ✅ Correct. `HasClients` exposure is a reasonable design choice. |
+| `WebSocketHub` additions | ✅ `HasClients`, `BroadcastSpectrum` correctly implemented. |
+| `AppJsonContext.cs` | ✅ `WsSpectrumMessage` and `int[]` registered. |
+| `Program.cs` wiring | ✅ `Push` present; `Reset()` called in all 3 restart locations; `using` added. |
+| `spectrum.js` | ✅ Matches briefing. `copyWithin` scroll correct. Alpha pre-initialised. Colormap correct. Frequency axis correct. |
+| `main.js` | ✅ Placeholder removed. `spectrum` event handled before `decode`. `WaterfallRenderer` instantiated. |
+| `app.css` | ✅ `cursor: crosshair` added. |
+| `SpectrumAnalyserTests.cs` | ✅ T-1, T-2, T-3 all present and correctly written. Peak bin, silence floor, fire-count assertions are meaningful. |
+| `CaptureManagerTests.cs` | ❌ FR-021 display names use wrong format — see B5. |
+
+---
+
+### Checklist for Re-submission
+
+- [ ] Fix **B5**: rename the three FR-021 test display names so the colon follows the ID directly
+- [ ] Fix **A1**: add `FR-008` display names to SpectrumAnalyserTests; remove `FR-008` from debt file
+- [ ] Fix **A2**: update the stale JSDoc comment in `main.js`
+- [ ] Run `dotnet test -c Release` locally — confirm 0 failed
+- [ ] Push — confirm Gate G3 goes green
+
+---
+
 **Reviewer:** QA (Round 3, 2026-05-22)
 **Branch:** `feat/p5-ft8-decoder`
 **Verdict:** ✅ ALL BLOCKERS RESOLVED — B4 fix applied 2026-05-22; ready for draft PR
