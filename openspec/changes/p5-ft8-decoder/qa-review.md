@@ -1,5 +1,120 @@
 # QA Review — p5-ft8-decoder
 
+**Reviewer:** QA (Round 5, 2026-05-25)
+**Branch:** `feat/p5-ft8-decoder`
+**Scope:** dev-briefings 16–23 (B1/B2/B3 blockers, perf work, shutdown fix, hot-path logging removal, silence-guard diagnostics)
+**Verdict:** ✅ APPROVED — no blockers; 3 advisories carried forward
+
+---
+
+## Round 5 — Dev-briefings 16–23 Review
+
+### CI Status
+
+All three CI legs pass on the latest push (`9d28e99`).
+
+| Gate | ubuntu-latest | macos-latest | windows-latest |
+|---|---|---|---|
+| G1 — Build | ✅ | ✅ | ✅ |
+| G3 — Traceability | ✅ | ✅ | ✅ |
+| G5 — Licence | ✅ | ✅ | ✅ |
+
+Test suite: **100 passed, 1 skipped** (WAV fixture — known, tracked), 0 failed.
+
+---
+
+### What Was Reviewed
+
+| Area | Assessment |
+|---|---|
+| **B1 — CycleFramer natural source-end** | ✅ `output.TryComplete()` removed from the non-cancellation path. Test T2 (`RunAsync_SourceEndsNaturally_DoesNotCompleteOutputChannel`) present and correct. |
+| **B2 — Restart semaphore** | ✅ `restartSemaphore = new SemaphoreSlim(1, 1)` present. `RestartPipelineAsync` helper wraps all three caller paths (`CaptureFailed`, `OnSaved`, watchdog). `ApplicationStopping` acquires semaphore before teardown. |
+| **B3 — AudioWatchdog singleton** | ✅ Watchdog constructed once in `WebApp.Create`; passed to `HandleAsync` as an injected parameter. Per-connection construction removed. Test T3 present. |
+| **R1 — ComputeLeadingSamples ms offset** | ✅ Early `return 0` removed. Test T1 (`ComputeLeadingSamples_AtBoundaryWithNonZeroMilliseconds_IncludesSubSecondOffset`) present and covers `Second%15==0, Millisecond=750`. |
+| **R2 — SendWithTimeoutAsync CloseAsync** | ✅ Both `OperationCanceledException` catch blocks in `SendWithTimeoutAsync` now call `ws.Abort()` instead of `ws.CloseAsync(…, default)`. |
+| **A1 — Hann window periodic form** | ✅ `FftSize - 1` → `FftSize`; docstring explains reasoning. Applied to both the `SpectrumAnalyser` path and the new `FillSpectrogram` path. |
+| **A3 — ReadAllAsync no CT** | ✅ `stoppingToken` threaded through to `ReadAllAsync` and propagated into `DecodeAsync`. Shutdown exits the pump at cancellation boundary, not at decode completion. |
+| **FftCompute.cs — shared FFT utility** | ✅ Extracted correctly. Both `SpectrumAnalyser` and `SymbolExtractor` delegate to `FftCompute.Fft`. No logic duplication. |
+| **FillSpectrogram / spectrogram path** | ✅ `_spectrogram` pre-allocated at construction (316 KB on LOH, once per decoder instance). `FillSpectrogram` writes into the buffer; `re`/`im` work arrays (8 KB each, SOH) allocated per call — acceptable. |
+| **rAF throttle — main.js** | ✅ `pendingSpectrumBins` + `spectrumRafPending` flag correctly coalesce rapid WebSocket messages into a single `putImageData` per animation frame. |
+| **WasapiAudioSource cleanup** | ✅ Hot-path diagnostic calls removed. `StopRecording` and `Dispose` run on background thread-pool threads with 3 s timeout each; STA thread is no longer blocked by slow driver shutdown. |
+| **LeftChannelSampleProvider** | ✅ Correctly extracts left channel at index `i * 2` from interleaved stereo. `_stereoBuffer` growth condition is safe (`stereoCount = count * 2`; normal 2048-sample reads do not trigger growth). |
+| **Silence-guard / window-emission logs** | Promoted to `Information` — see A2 below. |
+| **appScope / AbortAll** | ✅ Scope ID scopes `AbortAll` to the owning `WebApp` instance. Integration-test isolation is correct. `ConcurrentDictionary<WebSocket, Guid>` value type change is internal — no public API break. |
+| **New tests (T1, T2, T3)** | ✅ All three required tests present, correctly named, and test the right behaviours. |
+
+---
+
+### A1 — Advisory · Untracked advisory A2 from dev-briefing-16 (tone-index modulo wrap)
+
+`CostasSynchroniser.FindCandidates` still produces candidates with `FreqBinOffset` 1–7.
+`ComputeLlrs` wraps those offsets modulo 8 (`(t + freqShift) % 8`), reading lower-frequency
+bins from the same 8-element grid. These candidates produce incorrect LLRs, almost
+always fail LDPC/CRC, and are discarded — but they waste decode work.
+
+This was advisory in dev-briefing-16 and remains unaddressed. Track as a known
+follow-up item for a later phase. **Does not block merge.**
+
+---
+
+### A2 — Advisory · Window-emission log at `Information` level
+
+**File:** `src/OpenWSFZ.Ft8/CycleFramer.cs`
+
+The `"Window emitted ({Samples} samples)."` message was promoted to `Information` by
+dev-briefing-23 to confirm windows were flowing. At that level it appears in the
+default console output every 15 seconds (240 lines/hour) with no actionable content
+for operators.
+
+Now that the silence-guard diagnosis is complete, this should revert to `LogDebug`.
+**Does not block merge**, but the line should land at `Debug` before p5 is archived.
+
+---
+
+### A3 — Advisory · `AudioWatchdog._silentWindows` has no thread-safety mechanism
+
+**File:** `src/OpenWSFZ.Web/AudioWatchdog.cs`, line 21
+
+`_silentWindows` is a plain `int` with no `Interlocked` or locking. Two concurrent
+heartbeat loops (one per connected WebSocket client) can race on the read-modify-write:
+
+```csharp
+if (++_silentWindows >= _threshold)
+{
+    _silentWindows = 0;
+    await _onRestart();
+}
+```
+
+If two clients simultaneously see `_silentWindows = 2` and both increment past threshold,
+both fire `_onRestart()`. The `restartSemaphore` in `Program.cs` serialises the restarts,
+so the second restart runs immediately after the first — no data loss, but an unnecessary
+double restart occurs.
+
+The race is probabilistic (5-second heartbeat windows, unlikely to collide in practice)
+and the damage is bounded. Test T3 tests sequential calls, not true concurrency.
+
+Mitigation options: `Interlocked.Increment` + `Interlocked.Exchange`, or a `lock` around
+the whole tick body.
+
+**Does not block merge.** Should be addressed in the next phase that touches `AudioWatchdog`.
+
+---
+
+### Checklist for Merge
+
+- [x] All Round 4 blockers resolved (B5, A1, A2 from Round 4)
+- [x] All dev-briefing-16 blockers resolved (B1, B2, B3)
+- [x] All dev-briefing-16 recommended fixes resolved (R1, R2)
+- [x] Required tests T1, T2, T3 present and passing
+- [x] CI green — all 3 legs pass
+- [x] 100 tests pass, 0 failures
+- [ ] A2 (window-emission log): revert `LogInformation` → `LogDebug` in `CycleFramer.cs` before archiving *(non-blocking — can merge as-is)*
+
+**Ready to merge to `main`.**
+
+---
+
 **Reviewer:** QA (Round 4, 2026-05-24)
 **Branch:** `feat/p5-ft8-decoder`
 **Scope:** Spectrum visualisation — dev-briefing-15 implementation
