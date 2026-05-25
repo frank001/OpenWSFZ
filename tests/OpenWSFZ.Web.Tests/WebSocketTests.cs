@@ -51,12 +51,75 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         // Consume the initial status frame.
         await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
 
-        // Wait for the heartbeat (interval is 5 s; allow 6 s for CI jitter).
-        var heartbeat = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(6));
-        heartbeat.Should().NotBeNull("heartbeat must arrive within 6 s");
+        // Loop until a heartbeat arrives, skipping any decode or other frames.
+        // WebSocketHub.ActiveSockets is process-wide, so a concurrent decode test
+        // may broadcast a decode frame to this socket before the heartbeat arrives.
+        // Do not shorten the deadline; 6 seconds exists to absorb CI jitter.
+        string? heartbeat = null;
+        var deadline = TimeSpan.FromSeconds(6);
+        while (heartbeat is null)
+        {
+            var frame = await ReadFrameAsync(ws, timeout: deadline);
+            frame.Should().NotBeNull("heartbeat must arrive within 6 s");
+            using var doc = JsonDocument.Parse(frame!);
+            if (doc.RootElement.GetProperty("type").GetString() == "heartbeat")
+                heartbeat = frame;
+        }
 
-        using var doc = JsonDocument.Parse(heartbeat!);
-        doc.RootElement.GetProperty("type").GetString().Should().Be("heartbeat");
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "FR-020: heartbeat frame carries audioActive boolean field")]
+    public async Task WebSocket_HeartbeatCarriesAudioActiveField()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+
+        // Consume the initial status frame.
+        await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+
+        // Wait for the first heartbeat, skipping any decode frames.
+        string? heartbeat = null;
+        var deadline = TimeSpan.FromSeconds(6);
+        while (heartbeat is null)
+        {
+            var frame = await ReadFrameAsync(ws, timeout: deadline);
+            frame.Should().NotBeNull("heartbeat must arrive within 6 s");
+            using var doc = JsonDocument.Parse(frame!);
+            if (doc.RootElement.GetProperty("type").GetString() == "heartbeat")
+                heartbeat = frame;
+        }
+
+        // The heartbeat payload must contain 'audioActive' as a boolean.
+        using var heartbeatDoc = JsonDocument.Parse(heartbeat);
+        var payload = heartbeatDoc.RootElement.GetProperty("payload");
+        payload.ValueKind.Should().Be(JsonValueKind.Object,
+            "FR-020 requires the heartbeat payload to be an object");
+        payload.TryGetProperty("audioActive", out var audioActiveProp).Should().BeTrue(
+            "FR-020 requires heartbeat payload to include 'audioActive'");
+        audioActiveProp.ValueKind.Should().Be(JsonValueKind.False,
+            "no audio capture is running in tests so audioActive must be false");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "FR-020: status event payload carries audioActive boolean field")]
+    public async Task WebSocket_StatusEventCarriesAudioActiveField()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+
+        var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+        frame.Should().NotBeNull("status event must arrive on connect");
+
+        using var doc = JsonDocument.Parse(frame!);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("status");
+
+        var payload = doc.RootElement.GetProperty("payload");
+        payload.TryGetProperty("audioActive", out var audioActiveProp).Should().BeTrue(
+            "FR-020 requires the status payload to include 'audioActive'");
+        audioActiveProp.ValueKind.Should().Be(JsonValueKind.False,
+            "no audio capture is running in tests so audioActive must be false");
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }
@@ -75,6 +138,34 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         var ip = System.Net.IPAddress.Parse(_fixture.BoundHost);
         System.Net.IPAddress.IsLoopback(ip).Should()
             .BeTrue($"LoopbackBindPolicy must bind to 127.0.0.1, but got {_fixture.BoundHost}");
+    }
+
+    [Fact(DisplayName = "FR-009: connected WebSocket client receives decode event after BroadcastDecodes")]
+    public async Task WebSocket_DecodeEventReceived_AfterBroadcast()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+
+        // Drain the initial status frame.
+        await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+
+        // Inject a decode result via the public DecodeEventBus.
+        var bus = new DecodeEventBus();
+        bus.Publish([new OpenWSFZ.Abstractions.DecodeResult("15:30:00", -12, 0.3, 1234, "Q1AW Q1TTT EN43")]);
+
+        // The decode event should arrive promptly.
+        var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+        frame.Should().NotBeNull("decode event should be received");
+
+        using var doc = JsonDocument.Parse(frame!);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("decode");
+
+        var payload = doc.RootElement.GetProperty("payload");
+        payload.ValueKind.Should().Be(JsonValueKind.Array);
+        payload.GetArrayLength().Should().Be(1);
+        payload[0].GetProperty("message").GetString().Should().Be("Q1AW Q1TTT EN43");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -52,6 +52,22 @@ public sealed class StatusAndBindingTests : IClassFixture<WebTestFactory>
             "fallback sentinel must not reach the wire; set <Version> in Directory.Build.props");
     }
 
+    [Fact(DisplayName = "FR-020: GET /api/v1/status response includes audioActive boolean field")]
+    public async Task GetStatus_IncludesAudioActiveField()
+    {
+        var response = await _client.GetAsync("/api/v1/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+
+        doc.RootElement.TryGetProperty("audioActive", out var audioActiveProp).Should().BeTrue(
+            "FR-020 requires the status response to include 'audioActive'");
+        audioActiveProp.ValueKind.Should().Be(JsonValueKind.False,
+            "no audio capture is running in tests so audioActive must be false");
+    }
+
     [Fact(DisplayName = "NFR-004: Kestrel listener address is 127.0.0.1")]
     public async Task ServerAddresses_AreLoopbackOnly()
     {

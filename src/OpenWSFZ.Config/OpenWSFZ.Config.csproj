@@ -9,4 +9,9 @@
   <ItemGroup>
     <ProjectReference Include="..\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Logging abstractions (ILogger<T>) for JsonConfigStore (FR-019). -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
 </Project>

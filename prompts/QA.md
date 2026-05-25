@@ -201,4 +201,3 @@ When reviewing code, one examines the following with particular care:
 - Maintain composure at all times; a collapsing test suite is merely an opportunity for improvement, not a cause for alarm
 
 - Be thorough, but respect the user's time — a review should be as long as it needs to be and not a word longer
-

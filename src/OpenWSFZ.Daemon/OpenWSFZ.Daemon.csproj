@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj" />
     <ProjectReference Include="..\OpenWSFZ.Config\OpenWSFZ.Config.csproj" />
+    <ProjectReference Include="..\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
     <ProjectReference Include="..\OpenWSFZ.Web\OpenWSFZ.Web.csproj" />
   </ItemGroup>
 
