@@ -2,7 +2,7 @@
 
 ### Requirement: USB audio capture device enumeration
 
-The application SHALL enumerate audio capture devices available on the host OS and expose them through a stable `IAudioDeviceProvider` interface. The implementation SHALL use OS-native APIs (WASAPI on Windows; subprocess-based enumeration on Linux and macOS in Phase 2). The interface SHALL return an empty list — never throw — when no devices are found or the underlying tool is unavailable.
+The application SHALL enumerate audio capture devices available on the host OS and expose them through a stable `IAudioDeviceProvider` interface. The implementation SHALL use OS-native APIs (WASAPI on Windows; subprocess-based enumeration on Linux and macOS). The interface SHALL return an empty list — never throw — when no devices are found or the underlying tool is unavailable. On Windows, enumeration SHALL be performed on a COM STA thread to satisfy WASAPI's apartment-threading requirement.
 
 #### Scenario: Devices enumerated on Windows via WASAPI
 
@@ -23,6 +23,11 @@ The application SHALL enumerate audio capture devices available on the host OS a
 
 - **WHEN** `IAudioDeviceProvider.GetDevicesAsync()` is called on a host with no audio capture devices
 - **THEN** the implementation SHALL return an empty list (zero elements)
+
+#### Scenario: Windows enumeration succeeds from a non-STA calling thread
+
+- **WHEN** `IAudioDeviceProvider.GetDevicesAsync()` is called from a thread-pool thread (MTA apartment)
+- **THEN** the implementation SHALL internally switch to a COM STA thread for the `MMDeviceEnumerator` call and return the correct device list without throwing
 
 ---
 

@@ -197,4 +197,3 @@ Document the agreed strategy in the OpenSpec change artifacts so it travels with
 - When ye must say "I don't know", say it plainly and propose how to find out
 
 - Keep responses focused; don't pad answers with unnecessary prose
-

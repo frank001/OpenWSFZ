@@ -92,6 +92,46 @@ public sealed class JsonConfigStoreTests
             "a corrupt config file must be preserved so the operator can recover it");
     }
 
+    // ── FR-018: ShowCycleCountdown ────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-018: AppConfig.ShowCycleCountdown defaults to false and round-trips via config file")]
+    public async Task AppConfig_ShowCycleCountdown_DefaultsFalse_AndRoundTrips()
+    {
+        // Default value must be false — the testing aid is hidden on first run.
+        var defaults = new AppConfig();
+        defaults.ShowCycleCountdown.Should().BeFalse(
+            "ShowCycleCountdown defaults to false so the cycle timer is hidden unless the operator opts in");
+
+        // Value must persist through a save/reload cycle.
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store      = new JsonConfigStore(configPath);
+
+        await store.SaveAsync(new AppConfig(ShowCycleCountdown: true));
+
+        var reloaded = new JsonConfigStore(configPath);
+        reloaded.Current.ShowCycleCountdown.Should().BeTrue(
+            "ShowCycleCountdown: true must persist through the config file");
+    }
+
+    [Fact(DisplayName = "FR-018: AppConfig.ShowCycleCountdown defaults to false when field is absent from config file")]
+    public void AppConfig_ShowCycleCountdown_DefaultsFalse_WhenAbsentFromFile()
+    {
+        // Simulate an older config file written before ShowCycleCountdown was added.
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+
+        // Write a config that has no showCycleCountdown field.
+        File.WriteAllText(configPath, """{"audioDeviceName":"TestMic","port":9090}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.ShowCycleCountdown.Should().BeFalse(
+            "a config file written before FR-018 existed must load with ShowCycleCountdown: false");
+        store.Current.AudioDeviceName.Should().Be("TestMic",
+            "other fields must be preserved when ShowCycleCountdown is absent");
+    }
+
     // ── Task 8.3 ─────────────────────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-004: JsonConfigStore.SaveAsync writes atomically")]
@@ -124,5 +164,46 @@ public sealed class JsonConfigStoreTests
             "only the config file should remain — no temp files left behind");
         System.IO.Path.GetFullPath(files[0]).Should().Be(
             System.IO.Path.GetFullPath(configPath));
+    }
+
+    // ── FR-019: configurable log level ────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-019: AppConfig.LogLevel defaults to \"Information\"")]
+    public void AppConfig_LogLevel_DefaultsToInformation()
+    {
+        var config = new AppConfig();
+
+        config.LogLevel.Should().Be("Information",
+            "the default log level is Information so operators see pipeline events without noise");
+    }
+
+    [Fact(DisplayName = "FR-019: AppConfig.LogLevel round-trips via config file")]
+    public async Task AppConfig_LogLevel_RoundTrips()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        await store.SaveAsync(new AppConfig(LogLevel: "Debug"));
+
+        var reloaded = new JsonConfigStore(configPath);
+        reloaded.Current.LogLevel.Should().Be("Debug",
+            "the LogLevel value must persist through a save/reload cycle");
+    }
+
+    [Fact(DisplayName = "FR-019: AppConfig.LogLevel defaults to \"Information\" when field is absent from config file")]
+    public void AppConfig_LogLevel_DefaultsToInformation_WhenAbsentFromFile()
+    {
+        // Simulate a config file written before FR-019 was added.
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath, """{"audioDeviceName":"TestMic","port":9090}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.LogLevel.Should().Be("Information",
+            "a config file without logLevel must load with the default 'Information'");
+        store.Current.AudioDeviceName.Should().Be("TestMic",
+            "other fields must be preserved when logLevel is absent");
     }
 }

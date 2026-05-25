@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Audio;
@@ -11,9 +12,9 @@ public sealed class PlatformAudioSource : IAudioSource
 {
     private readonly IAudioSource _inner;
 
-    public PlatformAudioSource()
+    public PlatformAudioSource(ILoggerFactory? loggerFactory = null)
     {
-        _inner = ResolveForCurrentPlatform();
+        _inner = ResolveForCurrentPlatform(loggerFactory);
     }
 
     public int SampleRate   => _inner.SampleRate;
@@ -24,11 +25,12 @@ public sealed class PlatformAudioSource : IAudioSource
 
     public ValueTask DisposeAsync() => _inner.DisposeAsync();
 
-    private static IAudioSource ResolveForCurrentPlatform()
+    private static IAudioSource ResolveForCurrentPlatform(
+        ILoggerFactory? loggerFactory = null)
     {
 #if WASAPI_SUPPORTED
         if (OperatingSystem.IsWindows())
-            return new WasapiAudioSource();
+            return new WasapiAudioSource(loggerFactory?.CreateLogger<WasapiAudioSource>());
 #endif
         if (OperatingSystem.IsLinux())
             return new ArecordAudioSource();

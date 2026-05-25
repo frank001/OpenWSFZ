@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Audio;
 using System.Collections.Generic;
@@ -40,8 +41,19 @@ public static class WebApp
         IConfigStore?                                 configStore          = null,
         IAudioDeviceProvider?                         audioProvider        = null,
         Func<IServiceProvider, IAudioDeviceProvider>? audioProviderFactory = null,
-        CaptureManager?                               captureManager       = null)
+        CaptureManager?                               captureManager       = null,
+        AudioActivityMonitor?                         audioMonitor         = null,
+        DataFlowMonitor?                              dataFlowMonitor      = null,
+        Action<ILoggingBuilder>?                      configureLogging     = null,
+        Func<Task>?                                   restartPipeline      = null)
     {
+        // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
+        // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(appScope)
+        // only aborts connections belonging to this instance, preventing test-infrastructure
+        // apps (e.g. WebApplicationFactory) from aborting sockets owned by a concurrently
+        // running integration-test server.
+        var appScope = Guid.NewGuid();
+
         var builder = WebApplication.CreateBuilder();
 
         // ── Services ──────────────────────────────────────────────────────────
@@ -77,8 +89,12 @@ public static class WebApp
             kestrel.Listen(endpoint);
         });
 
-        // Logging: suppress noisy ASP.NET Core startup messages in production.
-        builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Warning);
+        // Logging: use the caller-supplied configuration (FR-019) or fall back to
+        // a minimal warning-only setup so tests stay quiet by default.
+        if (configureLogging is not null)
+            configureLogging(builder.Logging);
+        else
+            builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
         var app = builder.Build();
 
@@ -113,7 +129,8 @@ public static class WebApp
                 State:         "Running",
                 Version:       AssemblyVersion.Get(),
                 AudioDevice:   store.Current.AudioDeviceName,
-                CaptureActive: captureManager?.IsCapturing ?? false)));
+                CaptureActive: captureManager?.IsCapturing ?? false,
+                AudioActive:   audioMonitor?.IsActive ?? false)));
 
         app.MapGet("/api/v1/audio/devices", async (
             IAudioDeviceProvider provider,
@@ -156,6 +173,33 @@ public static class WebApp
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────
 
+        // Create a per-class logger from the DI container after the app is built.
+        // audioMonitor is captured from the outer scope (closure); it is null in tests
+        // that don't wire up audio capture.
+        var wsLogger = app.Services.GetRequiredService<ILoggerFactory>()
+                                   .CreateLogger("OpenWSFZ.Web.WebSocketHub");
+
+        // Wire the static broadcast logger used by the fire-and-forget path.
+        WebSocketHub.SetBroadcastLogger(wsLogger);
+
+        // B3: construct a singleton AudioWatchdog so all connected clients share one
+        // instance. Per-connection watchdogs would cause N concurrent pipeline restarts
+        // when N clients are connected and the audio goes silent.
+        var audioWatchdog = captureManager is not null && restartPipeline is not null
+            ? new AudioWatchdog(
+                  isCapturing: () => captureManager.IsCapturing,
+                  onRestart:   restartPipeline,
+                  threshold:   3)
+            : null;
+
+        // S1: abort only this app instance's WebSocket connections at the start of
+        // ApplicationStopping so the browser UI goes dark immediately at Ctrl+C.
+        // Registered here (inside Create, before the caller's ApplicationStopping hooks)
+        // so it fires first — before the capture pipeline's semaphore wait and teardown.
+        // The scope guard ensures that a test-infrastructure app (e.g. WebApplicationFactory)
+        // cannot abort sockets owned by a concurrently-running integration-test server.
+        app.Lifetime.ApplicationStopping.Register(() => WebSocketHub.AbortAll(appScope));
+
         app.MapGet("/api/v1/ws", async (HttpContext ctx, IConfigStore store) =>
         {
             if (!ctx.WebSockets.IsWebSocketRequest)
@@ -165,7 +209,10 @@ public static class WebApp
             }
 
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-            await WebSocketHub.HandleAsync(ws, store, ctx.RequestAborted);
+            await WebSocketHub.HandleAsync(
+                ws, store, audioMonitor, dataFlowMonitor,
+                captureManager, audioWatchdog,
+                wsLogger, appScope, ctx.RequestAborted);
         });
 
         return app;
