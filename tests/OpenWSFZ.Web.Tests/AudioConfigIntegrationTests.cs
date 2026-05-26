@@ -134,8 +134,8 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
         using var doc = JsonDocument.Parse(body);
 
         // Both fields must be present (values may vary depending on test order).
-        doc.RootElement.TryGetProperty("audioDeviceName", out _).Should().BeTrue(
-            "audioDeviceName field must be present in the config response");
+        doc.RootElement.TryGetProperty("audioDeviceId", out _).Should().BeTrue(
+            "audioDeviceId field must be present in the config response");
         doc.RootElement.TryGetProperty("port", out var portProp).Should().BeTrue(
             "port field must be present in the config response");
         portProp.GetInt32().Should().BePositive("port must be a positive integer");
@@ -150,7 +150,7 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
         // in the class (IClassFixture) so previous tests may have mutated it.
         await _fixture.ConfigStore.SaveAsync(new AppConfig());
 
-        var payload = """{"audioDeviceName":"NewMic","port":9090}""";
+        var payload = """{"audioDeviceId":"NewMic","audioDeviceFriendlyName":"New Microphone","port":9090}""";
         using var body = new StringContent(payload, Encoding.UTF8, "application/json");
 
         var postResponse = await _client.PostAsync("/api/v1/config", body);
@@ -159,14 +159,18 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
 
         var postBody = await postResponse.Content.ReadAsStringAsync();
         using var postDoc = JsonDocument.Parse(postBody);
-        postDoc.RootElement.GetProperty("audioDeviceName").GetString().Should().Be("NewMic");
+        postDoc.RootElement.GetProperty("audioDeviceId").GetString().Should().Be("NewMic");
+        postDoc.RootElement.GetProperty("audioDeviceFriendlyName").GetString()
+            .Should().Be("New Microphone");
         postDoc.RootElement.GetProperty("port").GetInt32().Should().Be(9090);
 
         // Subsequent GET must reflect the persisted values.
         var getResponse = await _client.GetAsync("/api/v1/config");
         var getBody     = await getResponse.Content.ReadAsStringAsync();
         using var getDoc = JsonDocument.Parse(getBody);
-        getDoc.RootElement.GetProperty("audioDeviceName").GetString().Should().Be("NewMic");
+        getDoc.RootElement.GetProperty("audioDeviceId").GetString().Should().Be("NewMic");
+        getDoc.RootElement.GetProperty("audioDeviceFriendlyName").GetString()
+            .Should().Be("New Microphone");
         getDoc.RootElement.GetProperty("port").GetInt32().Should().Be(9090);
     }
 
@@ -219,6 +223,28 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
             "the status response must include the captureActive boolean field");
         captureProp.ValueKind.Should().Be(JsonValueKind.False,
             "captureActive should be false when no CaptureManager is wired into the test fixture");
+    }
+
+    // ── FR-019: console log level round-trip ─────────────────────────────────
+
+    [Fact(DisplayName = "FR-019: LogLevel round-trips via POST /api/v1/config and GET /api/v1/config")]
+    public async Task LogLevel_RoundTrips_ViaConfigApi()
+    {
+        // Reset to a known state.
+        await _fixture.ConfigStore.SaveAsync(new AppConfig());
+
+        var payload = """{"port":8080,"logLevel":"Debug"}""";
+        using var body = new StringContent(payload, Encoding.UTF8, "application/json");
+
+        var postResponse = await _client.PostAsync("/api/v1/config", body);
+        postResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var getResponse = await _client.GetAsync("/api/v1/config");
+        var getBody     = await getResponse.Content.ReadAsStringAsync();
+        using var getDoc = JsonDocument.Parse(getBody);
+        getDoc.RootElement.GetProperty("logLevel").GetString()
+            .Should().Be("Debug",
+                "the logLevel value must round-trip through POST/GET without modification");
     }
 
     // ── Task 9.6 ─────────────────────────────────────────────────────────────

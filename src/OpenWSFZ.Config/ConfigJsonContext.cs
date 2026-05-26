@@ -13,4 +13,5 @@ namespace OpenWSFZ.Config;
     WriteIndented                = true,
     DefaultIgnoreCondition       = JsonIgnoreCondition.Never)]
 [JsonSerializable(typeof(AppConfig))]
+[JsonSerializable(typeof(LoggingConfig))]
 public sealed partial class ConfigJsonContext : JsonSerializerContext { }

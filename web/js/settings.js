@@ -1,7 +1,7 @@
 /**
  * Settings page logic.
  * - Loads audio devices and current config from the API on page load.
- * - Populates the device selector and port field.
+ * - Populates the device selector, port field, and logging controls.
  * - Handles Save: POSTs updated config and shows success/error feedback.
  *
  * @module settings
@@ -16,6 +16,18 @@ const logLevelSelect        = /** @type {HTMLSelectElement} */ (document.getElem
 const saveBtn               = /** @type {HTMLButtonElement} */ (document.getElementById('save-btn'));
 const feedback              = /** @type {HTMLElement}       */ (document.getElementById('feedback'));
 
+// Logging controls
+const loggingFileEnabled    = /** @type {HTMLInputElement}  */ (document.getElementById('logging-file-enabled'));
+const loggingDirectory      = /** @type {HTMLInputElement}  */ (document.getElementById('logging-directory'));
+const loggingFileLogLevel   = /** @type {HTMLSelectElement} */ (document.getElementById('logging-file-log-level'));
+const loggingSchedule       = /** @type {HTMLSelectElement} */ (document.getElementById('logging-rotation-schedule'));
+const loggingTime           = /** @type {HTMLInputElement}  */ (document.getElementById('logging-rotation-time'));
+const loggingDay            = /** @type {HTMLSelectElement} */ (document.getElementById('logging-rotation-day'));
+const loggingMaxFiles       = /** @type {HTMLInputElement}  */ (document.getElementById('logging-max-files'));
+const loggingDependent      = /** @type {HTMLElement}       */ (document.getElementById('logging-dependent'));
+const loggingTimeGroup      = /** @type {HTMLElement}       */ (document.getElementById('logging-time-group'));
+const loggingDayGroup       = /** @type {HTMLElement}       */ (document.getElementById('logging-day-group'));
+
 // ── Load config and devices ───────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -24,8 +36,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Populate device selector.
     deviceSelect.innerHTML = '';
-
-    // Always add a "none" option so the operator can explicitly deselect.
     const noneOpt = document.createElement('option');
     noneOpt.value       = '';
     noneOpt.textContent = '(none)';
@@ -39,28 +49,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       for (const dev of devices) {
         const opt = document.createElement('option');
-        opt.value       = dev.id;    // persist by device ID (WasapiAudioSource.GetDevice needs the GUID)
+        opt.value       = dev.id;
         opt.textContent = dev.name;
         deviceSelect.appendChild(opt);
       }
     }
 
-    // Pre-select the currently configured device.
-    deviceSelect.value = config.audioDeviceName ?? '';
+    // Pre-select the configured device (p7: use audioDeviceId, not audioDeviceName).
+    deviceSelect.value = config.audioDeviceId ?? '';
 
     // Pre-fill port.
     portInput.value = String(config.port);
 
-    // Pre-check the cycle countdown toggle.
+    // Pre-check cycle countdown.
     cycleCountdownToggle.checked = config.showCycleCountdown ?? false;
 
-    // Pre-select the current log level (default to 'Information' if not set).
+    // Pre-select console log level.
     logLevelSelect.value = config.logLevel ?? 'Information';
+
+    // Pre-fill logging controls (p6).
+    const lg = config.logging ?? {};
+    loggingFileEnabled.checked  = lg.fileEnabled       ?? false;
+    loggingDirectory.value      = lg.directory         ?? 'logs';
+    loggingFileLogLevel.value   = lg.fileLogLevel      ?? 'Information';
+    loggingSchedule.value       = lg.rotationSchedule  ?? 'daily';
+    loggingTime.value           = lg.rotationTime      ?? '00:00';
+    loggingDay.value            = lg.rotationDayOfWeek ?? 'Monday';
+    loggingMaxFiles.value       = String(lg.maxFiles   ?? 7);
+
+    updateLoggingVisibility();
 
   } catch (err) {
     showFeedback(`Failed to load settings: ${err.message}`, 'error');
   }
 });
+
+// ── Visibility helpers (p6) ───────────────────────────────────────────────
+
+function updateLoggingVisibility() {
+  const enabled  = loggingFileEnabled.checked;
+  const schedule = loggingSchedule.value;
+
+  // Grey out all dependent controls when file logging is disabled.
+  loggingDependent.querySelectorAll('input, select').forEach(el => {
+    /** @type {HTMLInputElement|HTMLSelectElement} */ (el).disabled = !enabled;
+  });
+  loggingFileLogLevel.disabled     = !enabled;
+  loggingSchedule.disabled         = !enabled;
+  loggingTime.disabled             = !enabled;
+  loggingDay.disabled              = !enabled;
+  loggingMaxFiles.disabled         = !enabled;
+
+  // Show/hide time and day based on schedule.
+  loggingTimeGroup.style.display = (enabled && (schedule === 'daily' || schedule === 'weekly'))
+      ? '' : 'none';
+  loggingDayGroup.style.display  = (enabled && schedule === 'weekly')
+      ? '' : 'none';
+}
+
+loggingFileEnabled.addEventListener('change', updateLoggingVisibility);
+loggingSchedule.addEventListener('change',    updateLoggingVisibility);
 
 // ── Save ──────────────────────────────────────────────────────────────────
 
@@ -68,7 +116,13 @@ saveBtn.addEventListener('click', async () => {
   saveBtn.disabled = true;
   clearFeedback();
 
-  const audioDeviceName    = deviceSelect.value.trim() || null;
+  // p7: capture both device ID (for WASAPI) and friendly name (for display).
+  const audioDeviceId           = deviceSelect.value.trim() || null;
+  const selectedOption          = deviceSelect.options[deviceSelect.selectedIndex];
+  const audioDeviceFriendlyName = audioDeviceId
+      ? (selectedOption?.textContent?.trim() || null)
+      : null;
+
   const port               = parseInt(portInput.value, 10);
   const showCycleCountdown = cycleCountdownToggle.checked;
   const logLevel           = logLevelSelect.value;
@@ -79,10 +133,27 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
+  // p6: collect logging config.
+  const logging = {
+    fileEnabled:       loggingFileEnabled.checked,
+    directory:         loggingDirectory.value.trim() || 'logs',
+    fileLogLevel:      loggingFileLogLevel.value,
+    rotationSchedule:  loggingSchedule.value,
+    rotationTime:      loggingTime.value || '00:00',
+    rotationDayOfWeek: loggingDay.value,
+    maxFiles:          parseInt(loggingMaxFiles.value, 10) || 7,
+  };
+
   try {
-    await postConfig({ audioDeviceName, port, showCycleCountdown, logLevel });
+    await postConfig({
+      audioDeviceId,
+      audioDeviceFriendlyName,
+      port,
+      showCycleCountdown,
+      logLevel,
+      logging,
+    });
     showFeedback('Saved ✓', 'success');
-    // Re-enable after a short delay so the operator can see the feedback.
     setTimeout(() => { saveBtn.disabled = false; }, 2000);
   } catch (err) {
     showFeedback(`Save failed — ${err.message}`, 'error');
@@ -94,7 +165,7 @@ saveBtn.addEventListener('click', async () => {
 
 function showFeedback(message, type) {
   feedback.textContent = message;
-  feedback.className   = type; // 'success' | 'error'
+  feedback.className   = type;
 }
 
 function clearFeedback() {

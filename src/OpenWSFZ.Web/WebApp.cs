@@ -45,7 +45,8 @@ public static class WebApp
         AudioActivityMonitor?                         audioMonitor         = null,
         DataFlowMonitor?                              dataFlowMonitor      = null,
         Action<ILoggingBuilder>?                      configureLogging     = null,
-        Func<Task>?                                   restartPipeline      = null)
+        Func<Task>?                                   restartPipeline      = null,
+        Action<IServiceCollection>?                   configureServices    = null)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
         // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(appScope)
@@ -71,6 +72,9 @@ public static class WebApp
         else
             builder.Services.AddSingleton<IAudioDeviceProvider>(
                 audioProvider ?? new InMemoryAudioDeviceProvider());
+
+        // Caller-supplied DI registrations (e.g. LoggingPipeline, LogRotationService).
+        configureServices?.Invoke(builder.Services);
 
         // AOT-safe JSON serialisation.
         builder.Services.ConfigureHttpJsonOptions(opts =>
@@ -128,7 +132,7 @@ public static class WebApp
             TypedResults.Ok(new DaemonStatus(
                 State:         "Running",
                 Version:       AssemblyVersion.Get(),
-                AudioDevice:   store.Current.AudioDeviceName,
+                AudioDevice:   store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
                 CaptureActive: captureManager?.IsCapturing ?? false,
                 AudioActive:   audioMonitor?.IsActive ?? false)));
 
