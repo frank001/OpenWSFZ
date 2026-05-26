@@ -83,9 +83,27 @@ public sealed class JsonConfigStore : IConfigStore
 
         try
         {
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)
+            var json   = File.ReadAllText(path);
+            var config = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)
                 ?? new AppConfig();
+
+            // Migrate legacy audioDeviceName → audioDeviceId (p7 field rename).
+            if (config.AudioDeviceId is null)
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("audioDeviceName", out var legacy) &&
+                    legacy.ValueKind == JsonValueKind.String)
+                {
+                    config = config with { AudioDeviceId = legacy.GetString() };
+                }
+            }
+
+            // Guard against STJ source-generation overriding the property initialiser
+            // with null when the "logging" key is absent from older config files.
+            if (config.Logging is null)
+                config = config with { Logging = new LoggingConfig() };
+
+            return config;
         }
         catch (Exception ex)
         {

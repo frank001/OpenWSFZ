@@ -12,46 +12,29 @@ namespace OpenWSFZ.Ft8.Tests;
 /// </summary>
 public sealed class Ft8DecoderFixtureTests
 {
-    [Fact(Skip = "WAV fixture not yet committed — see task 8.1",
-          DisplayName = "FR-001: Ft8Decoder returns DecodeResult records from a known-good WAV fixture")]
+    // Skipped: the GF(2) systematic encoder (TestFt8Encoder.LdpcEncode) cannot produce valid
+    // codewords because the embedded H matrix is incomplete — 10 parity column indices
+    // (91–99 and 104) are absent from every check row, making the 87×83 parity sub-system
+    // under-determined. Fixing the encoder requires the complete FT8 LDPC H matrix from the
+    // WSJT-X source (ldpc_174_91_table.f90); tracked as task D6.
+    [Fact(Skip = "Synthetic encoder incomplete — H matrix missing 10 parity columns (see D6)",
+          DisplayName = "FR-001: Ft8Decoder returns DecodeResult records from a known-good synthetic FT8 fixture (D6)")]
     public async Task DecodeAsync_WavFixture_ReturnsKnownDecodes()
     {
-        // Load the WAV fixture from embedded resources.
-        var assembly = typeof(Ft8DecoderFixtureTests).Assembly;
-        const string resourceName = "OpenWSFZ.Ft8.Tests.Fixtures.ft8-sample.raw";
+        const double baseFreqHz = 1500.0;
+        byte[] msgBits  = TestFt8Encoder.PackType1(c1: 2, c2: 1_674_730, rg: 10_331);
+        byte[] infoBits = TestFt8Encoder.AppendCrc14(msgBits);
+        byte[] codeword = TestFt8Encoder.LdpcEncode(infoBits);
+        int[]  symbols  = TestFt8Encoder.BitsToSymbols(codeword);
+        float[] pcm     = TestFt8Encoder.SymbolsToPcm(symbols, baseFreqHz, startSample: 0);
 
-        await using var stream = assembly.GetManifestResourceStream(resourceName)
-            ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
-
-        // Read raw 32-bit float LE PCM (15 s × 12 000 Hz = 180 000 samples).
-        const int sampleCount = 180_000;
-        var pcm = new float[sampleCount];
-        var bytes = new byte[sampleCount * 4];
-        _ = await stream.ReadAsync(bytes.AsMemory());
-        Buffer.BlockCopy(bytes, 0, pcm, 0, bytes.Length);
-
-        // Load reference decodes.
-        const string refResource = "OpenWSFZ.Ft8.Tests.Fixtures.ft8-sample.ref";
-        await using var refStream = assembly.GetManifestResourceStream(refResource)
-            ?? throw new InvalidOperationException($"Reference file '{refResource}' not found.");
-        using var reader = new StreamReader(refStream);
-        var referenceMessages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string? line;
-        while ((line = await reader.ReadLineAsync()) is not null)
-        {
-            if (!string.IsNullOrWhiteSpace(line))
-                referenceMessages.Add(line.Trim());
-        }
-
-        // Decode.
         var clock   = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));
         var decoder = new Ft8Decoder(clock);
         var results = await decoder.DecodeAsync(pcm, CancellationToken.None);
 
-        results.Should().NotBeEmpty("the fixture should contain at least one decodable FT8 message");
-        var decodedMessages = results.Select(r => r.Message).ToHashSet();
-        decodedMessages.Should().IntersectWith(referenceMessages,
-            "at least one decoded message should match the reference file");
+        results.Should().NotBeEmpty("the synthetic fixture should contain at least one decodable FT8 message");
+        results.Select(r => r.Message).Should().Contain("CQ W1AW FN31",
+            "the known-good synthetic frame for 'CQ W1AW FN31' must decode correctly end-to-end");
     }
 
     [Fact(DisplayName = "FR-001: Ft8Decoder returns empty list for all-silent PCM input")]

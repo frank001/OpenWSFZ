@@ -30,6 +30,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!--
       Web front-end files served as static files by the daemon at runtime.
       CopyToOutputDirectory: makes them available via dotnet run and in test output.

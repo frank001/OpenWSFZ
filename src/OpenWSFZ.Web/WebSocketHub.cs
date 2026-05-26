@@ -135,7 +135,7 @@ internal static class WebSocketHub
             var status    = new DaemonStatus(
                 State:         "Running",
                 Version:       AssemblyVersion.Get(),
-                AudioDevice:   configStore.Current.AudioDeviceName,
+                AudioDevice:   configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
                 CaptureActive: captureManager?.IsCapturing ?? false,
                 AudioActive:   captureManager?.IsCapturing ?? false);
             var statusMsg = new WsMessage(Type: "status", Payload: status);

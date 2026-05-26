@@ -9,6 +9,7 @@ using OpenWSFZ.Daemon.Logging;
 using OpenWSFZ.Ft8;
 using OpenWSFZ.Ft8.Dsp;
 using OpenWSFZ.Web;
+using Serilog;
 
 // Parse CLI options before building the host.
 var options = LaunchOptions.Parse(args);
@@ -21,7 +22,7 @@ Console.Error.WriteLine($"[OpenWSFZ] Config: {configSource} → {configPath}");
 // Note: constructed before the logger exists (bootstrap phase).
 var configStore = new JsonConfigStore(configPath);
 
-// ── Logging setup (FR-019) ────────────────────────────────────────────────────
+// ── Logging setup (FR-019, FR-022, FR-023, FR-024) ────────────────────────────
 // Parse the configured log level.  Invalid values fall back to Information.
 var logLevel = Enum.TryParse<LogLevel>(configStore.Current.LogLevel, ignoreCase: true, out var parsedLevel)
     ? parsedLevel
@@ -31,18 +32,23 @@ var logLevel = Enum.TryParse<LogLevel>(configStore.Current.LogLevel, ignoreCase:
 // (whichever is more restrictive) so they don't pollute the operator log.
 var frameworkLevel = logLevel > LogLevel.Warning ? logLevel : LogLevel.Warning;
 
+// Bootstrap the Serilog pipeline before any loggerFactory is created so that
+// CaptureManager / CycleFramer / Ft8Decoder startup logs reach the file sink.
+var loggingPipeline = new LoggingPipeline();
+loggingPipeline.Apply(configStore.Current.Logging ?? new LoggingConfig(), consoleLevel: logLevel);
+
+// Standalone logger factory delegates to Log.Logger (set above).
+using var loggerFactory = new Serilog.Extensions.Logging.SerilogLoggerFactory(
+    Log.Logger, dispose: false);
+
 void ConfigureLogging(ILoggingBuilder lb)
 {
     lb.ClearProviders();
-    lb.AddProvider(new StderrLoggerProvider(logLevel));
+    lb.AddSerilog(Log.Logger, dispose: false);
     lb.SetMinimumLevel(logLevel);
     lb.AddFilter("Microsoft", frameworkLevel);
     lb.AddFilter("System",    frameworkLevel);
 }
-
-// Standalone logger factory for components created before the ASP.NET Core DI
-// container exists (CaptureManager, CycleFramer, Ft8Decoder).
-using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
 
 // Log the startup info that the bootstrap Console.Error already printed.
 var startupLogger = loggerFactory.CreateLogger("OpenWSFZ.Daemon.Program");
@@ -82,14 +88,22 @@ spectrumAnalyser.SpectrumReady += magnitudes =>
     // Gate: skip serialisation if no clients are connected.
     if (!spectrumBus.HasClients) return;
 
-    // Map dBFS [−120, 0] → int [0, 255].
+    // Map dBFS [−100, −20] → int [0, 255]. (D1)
+    // FT8 signals at typical SDR/microphone levels sit at roughly −70 to −85 dBFS per
+    // FFT bin. The old [−120, 0] range mapped them to intensities 64–106, visually
+    // indistinguishable from the noise floor at ≈64 (uniform blue-cyan wash).
+    // Narrowing to [−100, −20] places those signals at intensities 125–188 — clearly
+    // distinct from a noise floor at 0 and from clipping at 255.
+    const float DbMin   = -100f;
+    const float DbMax   =  -20f;
+    const float DbRange = DbMax - DbMin; // 80 dB
     var bins = new int[SpectrumAnalyser.OutputBinCount];
     for (var i = 0; i < bins.Length; i++)
     {
         var db = magnitudes[i];
-        if (db < -120f) db = -120f;
-        if (db >    0f) db =    0f;
-        bins[i] = (int)MathF.Round((db + 120f) / 120f * 255f);
+        if (db < DbMin) db = DbMin;
+        if (db > DbMax) db = DbMax;
+        bins[i] = (int)MathF.Round((db - DbMin) / DbRange * 255f);
     }
 
     spectrumBus.Publish(bins);
@@ -123,13 +137,14 @@ captureManager.CaptureFailed += ex =>
 {
     startupLogger.LogError(ex,
         "Audio capture failed on '{Device}': {Message}",
-        configStore.Current.AudioDeviceName, ex.Message);
+        configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
+        ex.Message);
 
     // Auto-restart: schedule a restart with a 5-second backoff to prevent
     // rapid restart loops on persistent failures (e.g. device genuinely
     // unavailable) while keeping recovery prompt for transient stops
     // (driver power-management, format re-negotiation, session expiry).
-    var device = configStore.Current.AudioDeviceName;
+    var device = configStore.Current.AudioDeviceId;
     if (device is null) return;
 
     _ = Task.Run(async () =>
@@ -162,17 +177,19 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
 {
     try
     {
-        var device = configStore.Current.AudioDeviceName;
+        var device      = configStore.Current.AudioDeviceId;
+        var displayName = configStore.Current.AudioDeviceFriendlyName ?? device;
         startupLogger.LogWarning(
             "Watchdog: audio silent for 15 s while capturing on '{Device}' — restarting pipeline.",
-            device);
+            displayName);
         await RestartPipelineAsync(device, stopCaptureManager: true);
     }
     catch (Exception ex)
     {
         startupLogger.LogError(ex,
             "Watchdog pipeline restart failed on device '{Device}': {Message}",
-            configStore.Current.AudioDeviceName, ex.Message);
+            configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
+            ex.Message);
     }
 });
 
@@ -186,7 +203,12 @@ var app = WebApp.Create(
     audioMonitor:         audioMonitor,
     dataFlowMonitor:      dataFlowMonitor,
     configureLogging:     ConfigureLogging,
-    restartPipeline:      restartPipeline);
+    restartPipeline:      restartPipeline,
+    configureServices:    services =>
+    {
+        services.AddSingleton(loggingPipeline);
+        services.AddHostedService<LogRotationService>();
+    });
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────
 
@@ -195,7 +217,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
     WelcomeBannerEmitter.Emit(port);
     startupLogger.LogInformation("OpenWSFZ started on port {Port}.", port);
 
-    var deviceName = configStore.Current.AudioDeviceName;
+    var deviceName = configStore.Current.AudioDeviceId;
     if (deviceName is not null)
         StartPipeline(deviceName);
 
@@ -225,10 +247,16 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 
 // Restart pipeline when the device name changes via POST /api/v1/config.
-string? runningDevice = configStore.Current.AudioDeviceName;
+string? runningDevice = configStore.Current.AudioDeviceId;
 configStore.OnSaved += newConfig =>
 {
-    var newDevice = newConfig.AudioDeviceName;
+    // Re-apply the logging pipeline on every save so file-logging changes
+    // and console level changes take effect immediately (FR-022, FR-019).
+    var newConsoleLevel = Enum.TryParse<LogLevel>(newConfig.LogLevel,
+        ignoreCase: true, out var nl) ? nl : LogLevel.Information;
+    loggingPipeline.Apply(newConfig.Logging ?? new LoggingConfig(), consoleLevel: newConsoleLevel);
+
+    var newDevice = newConfig.AudioDeviceId;
     if (newDevice == runningDevice) return;
 
     runningDevice = newDevice;
@@ -265,6 +293,7 @@ app.Lifetime.ApplicationStopping.Register(() =>
         captureManager.StopAsync().GetAwaiter().GetResult();
         captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
         framerOutput.Writer.TryComplete();
+        loggingPipeline.Dispose();    // flush buffered file events before process exit
     }
     finally
     {

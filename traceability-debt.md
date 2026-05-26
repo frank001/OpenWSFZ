@@ -32,7 +32,7 @@ FR-002  # Self-hosted web UI served on http://127.0.0.1:<port>
 # FR-008 removed — implemented in p5-ft8-decoder (SpectrumAnalyser + WaterfallRenderer; tests in SpectrumAnalyserTests)
 # FR-009 removed — implemented in p5-ft8-decoder (decode event → #decodes-table UI)
 FR-011  # Save action on Settings page writes changes to the active config file
-FR-019  # Configurable logging — ILogger<T> throughout all components, level from AppConfig.LogLevel
+# FR-019 removed — implemented in p6-file-logging (console level, Serilog pipeline); tested via FR-019: LogLevel round-trips via POST/GET /api/v1/config
 FR-020  # Audio activity indicator in heartbeat — audioActive bool in heartbeat + status WS payloads
 NFR-012  # Accessibility — semantic HTML, keyboard navigation, sufficient contrast
 

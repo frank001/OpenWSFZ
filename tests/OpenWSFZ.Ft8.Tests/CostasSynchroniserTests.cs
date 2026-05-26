@@ -57,10 +57,11 @@ public sealed class CostasSynchroniserTests
     public void FindCandidates_NoisyGrid_ReturnsNoCandidatesAboveThreshold()
     {
         // Random log-energy values — no meaningful Costas pattern.
+        // Grid is GridWidth = 15 columns wide, matching the D4 convention. (D4)
         var rng  = new Random(42);
-        var grid = new float[79, 8];
+        var grid = new float[79, SymbolExtractor.GridWidth];
         for (int s = 0; s < 79; s++)
-            for (int t = 0; t < 8; t++)
+            for (int t = 0; t < SymbolExtractor.GridWidth; t++)
                 grid[s, t] = (float)(rng.NextDouble() * 2.0 - 1.0);
 
         var candidates = CostasSynchroniser.FindCandidates(grid, threshold: 0.9f);
@@ -116,10 +117,12 @@ public sealed class CostasSynchroniserTests
         {
             for (int i = 0; i < pattern.Length; i++)
             {
-                int    sym          = pos + i;
-                int    toneIdx      = (pattern[i] + freqShift) % 8;
-                double toneHz       = baseFreqHz + toneIdx * SymbolExtractor.ToneSpacingHz;
-                int    sampleStart  = startSample + sym * SymbolExtractor.SamplesPerSymbol;
+                int    sym         = pos + i;
+                // No % 8: the tone column is pattern[i] + freqShift (range 0–13 for freqShift
+                // 0–7), matching the GridWidth = 15 convention in ExtractFromSpectrogram. (D4)
+                int    toneCol     = pattern[i] + freqShift;
+                double toneHz      = baseFreqHz + toneCol * SymbolExtractor.ToneSpacingHz;
+                int    sampleStart = startSample + sym * SymbolExtractor.SamplesPerSymbol;
 
                 for (int s = 0; s < SymbolExtractor.SamplesPerSymbol; s++)
                     pcm[sampleStart + s] = (float)Math.Sin(2.0 * Math.PI * toneHz * s / SampleRate);
@@ -131,14 +134,17 @@ public sealed class CostasSynchroniserTests
 
     private static float[,] BuildPerfectCostasGrid(int freqShift)
     {
-        var grid = new float[79, 8];
+        // Grid is GridWidth = 15 columns wide so any freqShift 0–7 keeps all
+        // 8 signal tones within bounds without % 8 wrapping. (D4)
+        var grid = new float[79, SymbolExtractor.GridWidth];
 
-        // Fill base with very low energy.
+        // Fill with very low energy.
         for (int s = 0; s < 79; s++)
-            for (int t = 0; t < 8; t++)
+            for (int t = 0; t < SymbolExtractor.GridWidth; t++)
                 grid[s, t] = -10f;
 
-        // Place high energy at the three Costas array positions.
+        // Place high energy at the three Costas array positions using real
+        // FT8-spec tone placement — no modulo wrapping. (D4)
         ReadOnlySpan<int> positions = [0, 36, 72];
         ReadOnlySpan<int> pattern   = CostasSynchroniser.CostasPattern;
 
@@ -147,7 +153,7 @@ public sealed class CostasSynchroniserTests
             for (int i = 0; i < pattern.Length; i++)
             {
                 int sym  = pos + i;
-                int tone = (pattern[i] + freqShift) % 8;
+                int tone = pattern[i] + freqShift; // no % wrapping (D4)
                 grid[sym, tone] = 10f;
             }
         }
