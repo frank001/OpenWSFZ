@@ -87,12 +87,24 @@ internal static class TestFt8Encoder
 
     /// <summary>
     /// Appends a 14-bit CRC to the 77 message bits, returning a 91-bit information vector.
+    ///
+    /// <para>
+    /// Matches the FT8 standard (kgoba/ft8_lib <c>crc.c ftx_add_crc()</c>): the CRC is
+    /// computed over <b>82 bits</b> — the 77 message bits followed by 5 implicit zero-padding
+    /// bits — and stored MSB-first at bit positions [77..90] of the returned array.
+    /// </para>
     /// </summary>
     public static byte[] AppendCrc14(byte[] msgBits)
     {
         var info = new byte[91];
         Array.Copy(msgBits, info, 77);
-        uint crc = Crc14.Compute(info, 77);
+
+        // FT8 CRC is computed over 82 bits: 77 message bits + 5 zero-padding bits.
+        // See kgoba/ft8_lib crc.c ftx_add_crc(): ftx_compute_crc(a91, 96−14) = 82 bits.
+        var crcBuf = new byte[82]; // zero-initialised; crcBuf[77..81] = 0
+        Array.Copy(msgBits, crcBuf, 77);
+        uint crc = Crc14.Compute(crcBuf, 82);
+
         for (int i = 0; i < 14; i++)
             info[77 + i] = (byte)((crc >> (13 - i)) & 1);
         return info;

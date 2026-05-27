@@ -193,10 +193,12 @@ public sealed class Ft8Decoder : IModeDecoder
                     if (decoded is null) continue;
                     diag_ldpc++;
 
-                    // CRC-14 check: decoded is exactly 91 bytes (77 msg bits + 14 CRC bits).
-                    // bits[0..76]  = message payload
-                    // bits[77..90] = appended CRC-14
-                    bool crcOk = Crc14.Verify(decoded, 91);
+                    // CRC-14 check (FT8 standard): the CRC covers 82 bits —
+                    // 77 message bits + 5 implicit zero-padding bits — NOT 77 bits.
+                    // See kgoba/ft8_lib crc.c ftx_add_crc(): ftx_compute_crc(a91, 96−14)=82.
+                    // Using Crc14.Verify(decoded, 91) computes over 77 bits only and
+                    // always fails for live on-air signals.  (D14)
+                    bool crcOk = Crc14.VerifyFt8(decoded);
                     if (!crcOk) continue;
                     diag_crc++;
 
