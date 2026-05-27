@@ -18,6 +18,15 @@
     <PublishAot Condition="'$(RuntimeIdentifier)'!=''">true</PublishAot>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!--
+      Serilog 4.x carries IL2104 trim warnings from its internal reflection-based
+      sink/enricher discovery code paths.  Our usage is exclusively the explicit
+      LoggerConfiguration builder — we never invoke the auto-discovery paths —
+      so the warnings are benign.  IlcTreatWarningsAsErrors=false allows the AOT
+      linker to warn without aborting the publish.  The C# compiler's
+      TreatWarningsAsErrors setting above is unaffected by this property.
+    -->
+    <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
