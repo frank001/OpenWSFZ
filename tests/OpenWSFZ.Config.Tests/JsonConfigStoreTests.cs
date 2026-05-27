@@ -38,7 +38,7 @@ public sealed class JsonConfigStoreTests
         var configPath = System.IO.Path.Combine(dir.Path, "config.json");
 
         // Write a known config to disk.
-        var expected = new AppConfig(AudioDeviceName: "TestMic", Port: 9090);
+        var expected = new AppConfig(AudioDeviceId: "TestMic", Port: 9090);
         File.WriteAllText(
             configPath,
             JsonSerializer.Serialize(expected, ConfigJsonContext.Default.AppConfig));
@@ -47,7 +47,7 @@ public sealed class JsonConfigStoreTests
         var store = new JsonConfigStore(configPath);
 
         // Assert
-        store.Current.AudioDeviceName.Should().Be("TestMic");
+        store.Current.AudioDeviceId.Should().Be("TestMic");
         store.Current.Port.Should().Be(9090);
     }
 
@@ -64,7 +64,7 @@ public sealed class JsonConfigStoreTests
         var store = new JsonConfigStore(configPath);
 
         // Assert — defaults returned and file written.
-        store.Current.AudioDeviceName.Should().BeNull();
+        store.Current.AudioDeviceId.Should().BeNull();
         store.Current.Port.Should().Be(8080);
         File.Exists(configPath).Should().BeTrue("the store should create the default config file");
     }
@@ -84,7 +84,7 @@ public sealed class JsonConfigStoreTests
         var store = new JsonConfigStore(configPath);
 
         // Assert — defaults returned.
-        store.Current.AudioDeviceName.Should().BeNull();
+        store.Current.AudioDeviceId.Should().BeNull();
         store.Current.Port.Should().Be(8080);
 
         // Assert — file is intact (not overwritten with defaults).
@@ -128,8 +128,8 @@ public sealed class JsonConfigStoreTests
 
         store.Current.ShowCycleCountdown.Should().BeFalse(
             "a config file written before FR-018 existed must load with ShowCycleCountdown: false");
-        store.Current.AudioDeviceName.Should().Be("TestMic",
-            "other fields must be preserved when ShowCycleCountdown is absent");
+        store.Current.AudioDeviceId.Should().Be("TestMic",
+            "legacy audioDeviceName must be migrated to AudioDeviceId");
     }
 
     // ── Task 8.3 ─────────────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ public sealed class JsonConfigStoreTests
         var configPath = System.IO.Path.Combine(dir.Path, "config.json");
         var store = new JsonConfigStore(configPath);
 
-        var updated = new AppConfig(AudioDeviceName: "SavedMic", Port: 7070);
+        var updated = new AppConfig(AudioDeviceId: "SavedMic", Port: 7070);
 
         // Act
         await store.SaveAsync(updated);
@@ -151,11 +151,11 @@ public sealed class JsonConfigStoreTests
         var onDisk = JsonSerializer.Deserialize(
             File.ReadAllText(configPath),
             ConfigJsonContext.Default.AppConfig);
-        onDisk!.AudioDeviceName.Should().Be("SavedMic");
+        onDisk!.AudioDeviceId.Should().Be("SavedMic");
         onDisk.Port.Should().Be(7070);
 
         // Assert — in-memory current updated.
-        store.Current.AudioDeviceName.Should().Be("SavedMic");
+        store.Current.AudioDeviceId.Should().Be("SavedMic");
         store.Current.Port.Should().Be(7070);
 
         // Assert — no orphaned temp files remain.
@@ -203,7 +203,86 @@ public sealed class JsonConfigStoreTests
 
         store.Current.LogLevel.Should().Be("Information",
             "a config file without logLevel must load with the default 'Information'");
-        store.Current.AudioDeviceName.Should().Be("TestMic",
-            "other fields must be preserved when logLevel is absent");
+        store.Current.AudioDeviceId.Should().Be("TestMic",
+            "legacy audioDeviceName must be migrated to AudioDeviceId");
+    }
+
+    // ── p7: audioDeviceName migration ────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-025: Legacy audioDeviceName config is migrated to AudioDeviceId on load")]
+    public void Load_MigratesLegacyAudioDeviceName_ToAudioDeviceId()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+
+        File.WriteAllText(configPath, """{"audioDeviceName":"LegacyDevice","port":8080}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.AudioDeviceId.Should().Be("LegacyDevice",
+            "the legacy audioDeviceName value must be promoted to AudioDeviceId");
+        store.Current.AudioDeviceFriendlyName.Should().BeNull(
+            "no friendly name was stored in the legacy config");
+        store.Current.Port.Should().Be(8080);
+    }
+
+    [Fact(DisplayName = "FR-025: AudioDeviceFriendlyName round-trips via config file")]
+    public async Task AudioDeviceFriendlyName_RoundTrips()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        await store.SaveAsync(new AppConfig(
+            AudioDeviceId:           "{0.0.1.00000000}.{test-guid}",
+            AudioDeviceFriendlyName: "Test Microphone"));
+
+        var reloaded = new JsonConfigStore(configPath);
+        reloaded.Current.AudioDeviceId.Should().Be("{0.0.1.00000000}.{test-guid}");
+        reloaded.Current.AudioDeviceFriendlyName.Should().Be("Test Microphone");
+    }
+
+    // ── p6: LoggingConfig defaults and round-trip ─────────────────────────────────
+
+    [Fact(DisplayName = "FR-022: AppConfig.Logging defaults to file logging disabled")]
+    public void AppConfig_Logging_DefaultsToFileDisabled()
+    {
+        var config = new AppConfig();
+
+        config.Logging.FileEnabled.Should().BeFalse(
+            "file logging must be opt-in; operators are not surprised by unexpected files on first run");
+        config.Logging.Directory.Should().Be("logs");
+        config.Logging.FileLogLevel.Should().Be("Information");
+        config.Logging.RotationSchedule.Should().Be("daily");
+        config.Logging.MaxFiles.Should().Be(7);
+    }
+
+    [Fact(DisplayName = "FR-022: AppConfig.Logging round-trips via config file")]
+    public async Task AppConfig_Logging_RoundTrips()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        var logging = new LoggingConfig { FileEnabled = true, Directory = "C:\\logs", MaxFiles = 3 };
+        await store.SaveAsync(new AppConfig() { Logging = logging });
+
+        var reloaded = new JsonConfigStore(configPath);
+        reloaded.Current.Logging.FileEnabled.Should().BeTrue();
+        reloaded.Current.Logging.Directory.Should().Be("C:\\logs");
+        reloaded.Current.Logging.MaxFiles.Should().Be(3);
+    }
+
+    [Fact(DisplayName = "FR-022: AppConfig.Logging defaults when logging key absent from config file")]
+    public void AppConfig_Logging_Defaults_WhenAbsentFromFile()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath, """{"audioDeviceId":"mic","port":8080}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.Logging.FileEnabled.Should().BeFalse(
+            "Logging must default to disabled when the key is absent");
     }
 }

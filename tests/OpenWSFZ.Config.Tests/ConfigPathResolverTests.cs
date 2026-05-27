@@ -75,7 +75,7 @@ public sealed class ConfigPathResolverTests
     {
         var config = new AppConfig();
 
-        config.AudioDeviceName.Should().BeNull(
+        config.AudioDeviceId.Should().BeNull(
             "no audio device is selected by default");
         config.Port.Should().Be(8080,
             "the default HTTP port is 8080");

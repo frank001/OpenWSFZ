@@ -71,9 +71,7 @@ public sealed class GoertzelDetectorTests
         sym.CopyTo(new Span<float>(pcm, 0, SymbolExtractor.SamplesPerSymbol));
 
         var spectrogram = SymbolExtractor.ComputeSpectrogram(pcm, startSample: 0);
-        int baseBin     = (int)Math.Round(baseHz * SymbolExtractor.FftSizePadded
-                                                  / (double)SymbolExtractor.SampleRate);
-        var grid        = SymbolExtractor.ExtractFromSpectrogram(spectrogram, baseBin);
+        var grid        = SymbolExtractor.ExtractFromSpectrogram(spectrogram, baseHz);
 
         int   peakTone = 0;
         float peakVal  = grid[0, 0];

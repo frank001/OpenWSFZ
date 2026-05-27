@@ -71,6 +71,69 @@
         </p>
       </div>
 
+      <fieldset id="logging-settings">
+        <legend>File logging</legend>
+
+        <div class="field-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="logging-file-enabled" />
+            Write logs to a file
+          </label>
+        </div>
+
+        <div class="field-group" id="logging-dependent">
+          <label for="logging-directory">Log directory</label>
+          <input type="text" id="logging-directory" placeholder="logs" />
+          <p class="field-hint">Relative to the executable, or an absolute path.</p>
+        </div>
+
+        <div class="field-group" id="logging-level-group">
+          <label for="logging-file-log-level">File log level</label>
+          <select id="logging-file-log-level">
+            <option value="Verbose">Verbose</option>
+            <option value="Debug">Debug</option>
+            <option value="Information">Information (default)</option>
+            <option value="Warning">Warning</option>
+            <option value="Error">Error</option>
+            <option value="Fatal">Fatal</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="logging-rotation-schedule">Rotation schedule</label>
+          <select id="logging-rotation-schedule">
+            <option value="session">Session — new file on each start</option>
+            <option value="hourly">Hourly — at each UTC hour boundary</option>
+            <option value="daily" selected>Daily — at a configured UTC time</option>
+            <option value="weekly">Weekly — on a configured day and time</option>
+          </select>
+        </div>
+
+        <div class="field-group" id="logging-time-group">
+          <label for="logging-rotation-time">Rotation time (UTC, HH:MM)</label>
+          <input type="time" id="logging-rotation-time" value="00:00" />
+        </div>
+
+        <div class="field-group" id="logging-day-group" style="display:none">
+          <label for="logging-rotation-day">Day of week</label>
+          <select id="logging-rotation-day">
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+            <option value="Sunday">Sunday</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="logging-max-files">Maximum files to keep</label>
+          <input type="number" id="logging-max-files" min="1" value="7" />
+        </div>
+
+      </fieldset>
+
       <div class="form-footer">
         <button id="save-btn" type="button" class="primary">Save</button>
         <p id="feedback" aria-live="polite"></p>

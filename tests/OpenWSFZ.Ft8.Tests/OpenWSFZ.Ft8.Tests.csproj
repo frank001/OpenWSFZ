@@ -18,5 +18,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
   </ItemGroup>
 </Project>
