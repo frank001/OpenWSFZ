@@ -35,7 +35,6 @@ internal static class CostasSynchroniser
     public static IReadOnlyList<SyncCandidate> FindCandidates(float[,] grid, float threshold = 0.4f)
     {
         int symbols = grid.GetLength(0); // 79
-        int tones   = grid.GetLength(1); // 8
 
         // Maximum correlation score: all three Costas arrays aligned perfectly.
         // Each array contributes 7 tone matches; each match contributes 1.0 normalised.
@@ -98,8 +97,17 @@ internal static class CostasSynchroniser
                 // −60 dBFS) produces log-energy above −10.
                 if (maxE < -18f) continue;
 
-                // Normalised soft-match: 1 if energy at Costas position is the peak.
-                score += costas >= maxE - 0.1f ? 1.0f : 0.0f;
+                // Soft energy fraction: exp(costas − maxE) = E_costas / E_max  ∈ (0, 1].
+                // For a real FT8 signal, costas ≈ maxE → contribution ≈ 1.0 per position.
+                // For random noise (8 equiprobable bins), expected contribution ≈ 1/8 per
+                // position → expected normalised score ≈ 0.125 — well below the 0.45
+                // threshold even without additional filtering.
+                // For a busy band where a competing signal's data tone is momentarily
+                // stronger than our Costas tone at one position, exp(costas − maxE) ∈ (0, 1)
+                // rather than 0, preserving the accumulated score across all 21 positions.
+                // The D9 noise-floor gate above already guards against the degenerate case
+                // where all 8 log-energies are near log(ε) ≈ −23 (silent band). (D10, D11)
+                score += MathF.Exp(costas - maxE);
             }
         }
 
