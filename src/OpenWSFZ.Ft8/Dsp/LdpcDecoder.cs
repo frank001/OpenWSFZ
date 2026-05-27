@@ -353,4 +353,35 @@ internal static class LdpcDecoder
         }
         return true;
     }
+
+    /// <summary>
+    /// Counts how many of the 83 parity-check equations fail when the given LLRs
+    /// are hard-decided (positive → 0, negative → 1) before any BP iterations.
+    ///
+    /// <para>
+    /// Interpretation:
+    /// <list type="bullet">
+    ///   <item>~0 failures  — LLRs are already a valid codeword; LDPC should converge in 1 iteration.</item>
+    ///   <item>~10–20       — Noisy LLRs with mostly correct signs; LDPC should still converge.</item>
+    ///   <item>~41 (≈ 83/2) — Systematic sign errors (wrong Gray-code grouping, wrong H matrix, etc.).</item>
+    /// </list>
+    /// </para>
+    /// </summary>
+    /// <param name="llr">174 channel LLRs — positive = more likely 0.</param>
+    /// <returns>Number of unsatisfied parity checks in [0, <see cref="CheckCount"/>].</returns>
+    internal static int CountInitialParityFailures(ReadOnlySpan<float> llr)
+    {
+        var hardBits = new byte[CodeLength];
+        for (int v = 0; v < CodeLength; v++)
+            hardBits[v] = llr[v] >= 0f ? (byte)0 : (byte)1;
+
+        int failures = 0;
+        for (int c = 0; c < CheckCount; c++)
+        {
+            int parity = 0;
+            foreach (int v in H[c]) parity ^= hardBits[v];
+            if (parity != 0) failures++;
+        }
+        return failures;
+    }
 }
