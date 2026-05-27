@@ -87,12 +87,24 @@ internal static class TestFt8Encoder
 
     /// <summary>
     /// Appends a 14-bit CRC to the 77 message bits, returning a 91-bit information vector.
+    ///
+    /// <para>
+    /// Matches the FT8 standard (kgoba/ft8_lib <c>crc.c ftx_add_crc()</c>): the CRC is
+    /// computed over <b>82 bits</b> — the 77 message bits followed by 5 implicit zero-padding
+    /// bits — and stored MSB-first at bit positions [77..90] of the returned array.
+    /// </para>
     /// </summary>
     public static byte[] AppendCrc14(byte[] msgBits)
     {
         var info = new byte[91];
         Array.Copy(msgBits, info, 77);
-        uint crc = Crc14.Compute(info, 77);
+
+        // FT8 CRC is computed over 82 bits: 77 message bits + 5 zero-padding bits.
+        // See kgoba/ft8_lib crc.c ftx_add_crc(): ftx_compute_crc(a91, 96−14) = 82 bits.
+        var crcBuf = new byte[82]; // zero-initialised; crcBuf[77..81] = 0
+        Array.Copy(msgBits, crcBuf, 77);
+        uint crc = Crc14.Compute(crcBuf, 82);
+
         for (int i = 0; i < 14; i++)
             info[77 + i] = (byte)((crc >> (13 - i)) & 1);
         return info;
@@ -225,7 +237,14 @@ internal static class TestFt8Encoder
     /// Converts 174 codeword bits into 79 FT8 symbol indices.
     ///
     /// The three Costas arrays are inserted at symbol positions 0–6, 36–42, and
-    /// 72–78.  Each of the 58 data symbols is Gray-coded from 3 consecutive bits.
+    /// 72–78.  Each of the 58 data symbols is Gray-coded from 3 consecutive bits
+    /// using the FT8 kFT8_Gray_map from kgoba/ft8_lib: { 0, 1, 3, 2, 5, 6, 4, 7 }.
+    ///
+    /// NOTE: this differs from the standard G(n)=n^(n>>1) map for binary values 4–7:
+    ///   binary 4 → tone 5 (not 6), 5 → 6 (not 7), 6 → 4 (not 5), 7 → 7 (not 4).
+    /// Using the wrong map produces incorrect tones for all b2=1 symbols, which causes
+    /// the LLR groupings in the decoder to give wrong signs and LDPC never converges
+    /// on live on-air FT8 signals.  (D13)
     /// </summary>
     public static int[] BitsToSymbols(byte[] codeword)
     {
@@ -246,19 +265,25 @@ internal static class TestFt8Encoder
             if (!isCostas) dataPos.Add(s);
         }
 
-        // Map 3-bit groups to Gray-coded tone indices.
-        // Gray(n) = n ^ (n >> 1) produces the 8-FSK tone for bits (b2, b1, b0).
+        // Map 3-bit groups to FT8 tone indices using kFT8_Gray_map.
+        // Source: kgoba/ft8_lib ft8/constants.c, kFT8_Gray_map.
+        // Public-domain constant.
         for (int di = 0; di < 58; di++)
         {
             int b2     = codeword[di * 3];
             int b1     = codeword[di * 3 + 1];
             int b0     = codeword[di * 3 + 2];
             int binary = (b2 << 2) | (b1 << 1) | b0;
-            symbols[dataPos[di]] = binary ^ (binary >> 1); // Gray code
+            symbols[dataPos[di]] = s_ft8GrayMap[binary];
         }
 
         return symbols;
     }
+
+    // FT8 Gray code map: binary value (0–7) → tone index (0–7).
+    // Source: kgoba/ft8_lib ft8/constants.c, kFT8_Gray_map = { 0, 1, 3, 2, 5, 6, 4, 7 }.
+    // This differs from the standard G(n)=n^(n>>1) code for n=4..7 (D13).
+    private static readonly int[] s_ft8GrayMap = { 0, 1, 3, 2, 5, 6, 4, 7 };
 
     /// <summary>
     /// Generates a 180 000-sample (15 s at 12 kHz) mono float-32 PCM buffer

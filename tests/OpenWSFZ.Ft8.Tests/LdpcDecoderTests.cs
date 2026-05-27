@@ -93,12 +93,9 @@ public sealed class LdpcDecoderTests
             var result = LdpcDecoder.Decode(llr);
             if (result is not null)
             {
-                // Count only those that also pass CRC-14 (91-bit block).
-                // For a random 87-bit decode, build the 91-bit block and check CRC.
+                // Count only those that also pass CRC-14 (FT8 82-bit check).
                 // (A result that passes parity but fails CRC is the realistic false-positive.)
-                var block = new byte[91];
-                Array.Copy(result, block, Math.Min(result.Length, 91));
-                if (Crc14.Verify(block, 91)) falsePasses++;
+                if (Crc14.VerifyFt8(result)) falsePasses++;
             }
         }
 
@@ -198,9 +195,9 @@ public sealed class LdpcDecoderTests
                 return m + MathF.Log(MathF.Exp(a-m)+MathF.Exp(b-m)+MathF.Exp(c-m)+MathF.Exp(d-m));
             }
 
-            llr[bitIdx++] = LSE(e0,e1,e2,e3) - LSE(e4,e5,e6,e7);  // bit 2: b2=0→tones 0-3
-            llr[bitIdx++] = LSE(e0,e1,e6,e7) - LSE(e2,e3,e4,e5);  // bit 1: b1=0→tones 0,1,6,7
-            llr[bitIdx++] = LSE(e0,e3,e5,e6) - LSE(e1,e2,e4,e7);  // bit 0: b0=0→tones 0,3,5,6
+            llr[bitIdx++] = LSE(e0,e1,e2,e3) - LSE(e4,e5,e6,e7);  // bit 2: b2=0→tones {0,1,2,3}
+            llr[bitIdx++] = LSE(e0,e1,e5,e6) - LSE(e2,e3,e4,e7);  // bit 1: b1=0→tones {0,1,5,6}
+            llr[bitIdx++] = LSE(e0,e3,e4,e5) - LSE(e1,e2,e6,e7);  // bit 0: b0=0→tones {0,3,4,5}
         }
 
         // Verify LLR sign quality before asserting decode.
@@ -214,9 +211,9 @@ public sealed class LdpcDecoderTests
         var decoded = LdpcDecoder.Decode(llr);
         decoded.Should().NotBeNull("Goertzel LLRs for a valid codeword must converge in LDPC");
 
-        // CRC-14 must pass.
-        bool crcOk = Crc14.Verify(decoded!, 91);
-        crcOk.Should().BeTrue("decoded info bits must pass CRC-14");
+        // CRC-14 must pass (FT8 82-bit CRC: 77 msg + 5 zero padding).
+        bool crcOk = Crc14.VerifyFt8(decoded!);
+        crcOk.Should().BeTrue("decoded info bits must pass CRC-14 (82-bit FT8 convention)");
     }
 
     [Fact]
