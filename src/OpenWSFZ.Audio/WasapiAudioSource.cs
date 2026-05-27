@@ -104,6 +104,16 @@ internal sealed class WasapiAudioSource : IAudioSource
                 {
                     BufferDuration          = TimeSpan.FromSeconds(5),
                     DiscardOnBufferOverflow = true,
+                    // D7: Must be false. The default (true) causes Read() to zero-pad when
+                    // the buffer is empty, which makes WdlResamplingSampleProvider.Read()
+                    // always return a full count.  The drain loop
+                    //   while ((read = resampler.Read(...)) > 0)
+                    // then never terminates: the DataAvailable callback hangs, the WASAPI
+                    // capture thread is blocked, and the pipeline floods with zero chunks
+                    // at CPU speed instead of real-time audio.  With ReadFully = false,
+                    // Read() returns 0 when the buffer is drained, the resampler returns 0,
+                    // and the loop exits cleanly after each real batch of audio.
+                    ReadFully               = false,
                 };
 
                 ISampleProvider samples = buffer.ToSampleProvider();

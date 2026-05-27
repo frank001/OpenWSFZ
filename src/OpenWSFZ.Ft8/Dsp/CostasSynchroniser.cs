@@ -43,14 +43,13 @@ internal static class CostasSynchroniser
 
         var candidates = new List<SyncCandidate>();
 
-        // Frequency sweep: slide the base by integer bin offsets (0 to 7, wrapping into
-        // the 8 available tones). The caller (Ft8Decoder) performs the outer time-domain
-        // sweep — it calls SymbolExtractor.Extract with each candidate startSample, then
-        // passes the resulting grid here.  SymbolOffset is therefore always 0; the actual
-        // time shift is tracked by the caller.
-        for (int freqShift = 0; freqShift < tones; freqShift++)
+        // Frequency sweep: slide by integer tone offsets 0–7. The grid has 15 columns
+        // (GridWidth = ToneCount + 7) so that offset 7 still keeps all 8 signal tones
+        // within bounds — no modulo-8 wrapping needed. (D4)
+        // The caller (Ft8Decoder) performs the outer time-domain sweep.
+        for (int freqShift = 0; freqShift < SymbolExtractor.ToneCount; freqShift++)
         {
-            float score = ComputeCostasScore(grid, symbols, tones, freqShift);
+            float score = ComputeCostasScore(grid, symbols, freqShift);
             float normScore = score / maxPossible;
 
             if (normScore >= threshold)
@@ -66,8 +65,12 @@ internal static class CostasSynchroniser
         return candidates;
     }
 
-    private static float ComputeCostasScore(float[,] grid, int symbols, int tones, int freqShift)
+    private static float ComputeCostasScore(float[,] grid, int symbols, int freqShift)
     {
+        // The 8 signal tones occupy columns [freqShift, freqShift + ToneCount).
+        // The grid is GridWidth = 15 columns wide, so any freqShift 0–7 keeps the
+        // signal tones within bounds without wrapping. (D4)
+        const int tones = SymbolExtractor.ToneCount; // 8
         float score = 0f;
 
         foreach (int pos in CostasPositions)
@@ -75,15 +78,25 @@ internal static class CostasSynchroniser
             for (int i = 0; i < CostasPattern.Length; i++)
             {
                 int sym  = pos + i;
-                int tone = (CostasPattern[i] + freqShift) % tones;
+                int tone = CostasPattern[i] + freqShift; // no % wrapping (D4)
 
                 if (sym >= symbols) break;
 
-                // Score contribution: exp(energy at Costas tone) relative to all tones in symbol.
-                float  costas = grid[sym, tone];
-                float  maxE   = costas;
-                for (int t = 0; t < tones; t++)
+                // Score contribution: energy at the Costas tone relative to the peak
+                // among all 8 signal tones for this symbol.
+                float costas = grid[sym, tone];
+                float maxE   = costas;
+                for (int t = freqShift; t < freqShift + tones; t++)
                     if (grid[sym, t] > maxE) maxE = grid[sym, t];
+
+                // Noise-floor gate: when all 8 tones have energy near log(ε) ≈ −23
+                // (the FFT spectrogram floor = log(0 + 1e-10)), they are all within
+                // 0.1 log-units of each other and every tone trivially satisfies the
+                // soft-match criterion — producing a "perfect" Costas score in silent
+                // frequency bands.  Require the maximum energy to be above −18 to
+                // avoid counting noise symbols.  Any real signal of interest (even at
+                // −60 dBFS) produces log-energy above −10.
+                if (maxE < -18f) continue;
 
                 // Normalised soft-match: 1 if energy at Costas position is the peak.
                 score += costas >= maxE - 0.1f ? 1.0f : 0.0f;

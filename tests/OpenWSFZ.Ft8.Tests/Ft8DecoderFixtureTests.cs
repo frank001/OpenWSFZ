@@ -12,13 +12,7 @@ namespace OpenWSFZ.Ft8.Tests;
 /// </summary>
 public sealed class Ft8DecoderFixtureTests
 {
-    // Skipped: the GF(2) systematic encoder (TestFt8Encoder.LdpcEncode) cannot produce valid
-    // codewords because the embedded H matrix is incomplete — 10 parity column indices
-    // (91–99 and 104) are absent from every check row, making the 87×83 parity sub-system
-    // under-determined. Fixing the encoder requires the complete FT8 LDPC H matrix from the
-    // WSJT-X source (ldpc_174_91_table.f90); tracked as task D6.
-    [Fact(Skip = "Synthetic encoder incomplete — H matrix missing 10 parity columns (see D6)",
-          DisplayName = "FR-001: Ft8Decoder returns DecodeResult records from a known-good synthetic FT8 fixture (D6)")]
+    [Fact(DisplayName = "FR-001: Ft8Decoder returns DecodeResult records from a known-good synthetic FT8 fixture")]
     public async Task DecodeAsync_WavFixture_ReturnsKnownDecodes()
     {
         const double baseFreqHz = 1500.0;
