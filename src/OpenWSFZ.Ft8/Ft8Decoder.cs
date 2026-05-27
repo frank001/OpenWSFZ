@@ -48,6 +48,15 @@ public sealed class Ft8Decoder : IModeDecoder
     // below SyncThreshold, so sweeping further is futile without lowering the threshold.
     private const int SecondCostasEnd = (42 + 1) * SamplesPerSymbol; // 82 560
 
+    // Time-domain sweep step: half a symbol period (960 samples = 80 ms).
+    // Using a full symbol period (1920 samples) as the step means a signal whose dt
+    // falls exactly halfway between two sweep positions has every symbol window contaminated
+    // 50/50 with the adjacent symbol — LLRs lose sign reliability and LDPC diverges (D11).
+    // At half-symbol step the worst-case contamination drops to 25 %, which is tolerable.
+    // The extra time-sweep positions double the Costas scan count but not the Goertzel
+    // calls (those are only made for confirmed Costas hits, still single-digit per offset).
+    private const int TimeSweepStep = SamplesPerSymbol / 2; // 960
+
     private readonly IClock              _clock;
     private readonly ILogger<Ft8Decoder>? _logger;
 
@@ -88,16 +97,25 @@ public sealed class Ft8Decoder : IModeDecoder
         var results = new List<DecodeResult>();
         var seen    = new HashSet<string>(StringComparer.Ordinal);
 
-        // Time-domain sweep: try each symbol-aligned start position from 0 up to the
+        // D11 diagnostic counters: distinguish Costas-miss / LDPC-fail / CRC-fail.
+        // Logged at Information level alongside the final decode count so the operator
+        // can see immediately which stage of the pipeline is dropping signals.
+        int diag_costas   = 0; // Costas candidates that passed the sync threshold
+        int diag_ldpc     = 0; // candidates where LDPC converged
+        int diag_crc      = 0; // candidates where CRC-14 also passed
+
+        // Time-domain sweep: try each half-symbol-aligned start position from 0 up to the
         // latest offset where the first two Costas arrays (positions 0–6 and 36–42)
         // both fit within the buffer.  This covers:
         //   • On-air signals with up to ~8 s clock skew (NTP is typically < 0.5 s).
         //   • Pre-recorded WAV files played back without UTC alignment (Voicemeeter tests).
         // The third Costas array (positions 72–78) may be absent for late-starting signals;
         // the maximum achievable Costas score is then 14/21 ≈ 0.67, still above SyncThreshold.
+        // Step is TimeSweepStep = 960 (half symbol) rather than 1920 (full symbol) so that
+        // the worst-case symbol-boundary contamination is ≤ 25 % instead of 50 %. (D11)
         int maxStartSample = Math.Max(0, pcm.Length - SecondCostasEnd);
 
-        for (int startSample = 0; startSample <= maxStartSample; startSample += SamplesPerSymbol)
+        for (int startSample = 0; startSample <= maxStartSample; startSample += TimeSweepStep)
         {
             _logger?.LogTrace(
                 "Time-domain sweep: startSample = {Start} / {Max} ({StartS:F2} s).",
@@ -121,10 +139,15 @@ public sealed class Ft8Decoder : IModeDecoder
                 foreach (var cand in candidates)
                 {
                     ct.ThrowIfCancellationRequested();
+                    diag_costas++;
 
                     // Candidate's exact signal base (tone 0 frequency).
                     double actualBase = baseHz + cand.FreqBinOffset * ToneSpacing;
                     int    freqHz     = (int)Math.Round(actualBase + 3 * ToneSpacing); // centre tone
+
+                    _logger?.LogDebug(
+                        "Costas hit: startSample={Start}, base={Base:F2} Hz, score={Score:F3}.",
+                        startSample, actualBase, cand.Score);
 
                     // Goertzel exact-frequency grid for the confirmed candidate.
                     // FT8 tones are exact multiples of 6.25 Hz (align on 1920-pt DFT
@@ -141,12 +164,14 @@ public sealed class Ft8Decoder : IModeDecoder
                     // LDPC decode.
                     var decoded = LdpcDecoder.Decode(llr);
                     if (decoded is null) continue;
+                    diag_ldpc++;
 
                     // CRC-14 check: decoded is exactly 91 bytes (77 msg bits + 14 CRC bits).
                     // bits[0..76]  = message payload
                     // bits[77..90] = appended CRC-14
                     bool crcOk = Crc14.Verify(decoded, 91);
                     if (!crcOk) continue;
+                    diag_crc++;
 
                     // Guard: the all-zeros 91-bit block trivially satisfies LDPC parity and
                     // CRC-14 (initial register = 0). No valid FT8 transmission encodes to all
@@ -181,7 +206,9 @@ public sealed class Ft8Decoder : IModeDecoder
         }
 
         _logger?.LogInformation(
-            "Cycle {Time}: {Count} decode(s) found.", timeStr, results.Count);
+            "Cycle {Time}: {Count} decode(s) found. " +
+            "[diag] Costas candidates={Costas}, LDPC converged={Ldpc}, CRC passed={Crc}.",
+            timeStr, results.Count, diag_costas, diag_ldpc, diag_crc);
 
         return Task.FromResult<IReadOnlyList<DecodeResult>>(results);
     }
