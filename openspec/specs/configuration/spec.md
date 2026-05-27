@@ -2,7 +2,7 @@
 
 ### Requirement: Configuration file persistence
 
-The application SHALL persist operator settings to a JSON configuration file. The file SHALL be read at startup and written atomically (write-to-temp then rename) on Save to prevent corruption. The Phase 2 schema SHALL contain at minimum `audioDeviceName` (nullable string) and `port` (integer).
+The application SHALL persist operator settings to a JSON configuration file. The file SHALL be read at startup and written atomically (write-to-temp then rename) on Save to prevent corruption. The configuration schema SHALL contain `audioDeviceId` (nullable string), `audioDeviceFriendlyName` (nullable string), `port` (integer), and `logging` (object) at minimum.
 
 #### Scenario: Config file loaded at startup
 
@@ -33,7 +33,38 @@ If no config file exists at the resolved path on startup, the daemon SHALL creat
 #### Scenario: Default config values are valid
 
 - **WHEN** the default config file is created
-- **THEN** it SHALL contain `audioDeviceName: null` and `port: 8080` at minimum, and the daemon SHALL start successfully using those values
+- **THEN** it SHALL contain `audioDeviceId: null`, `audioDeviceFriendlyName: null`, `port: 8080`, and a `logging` object with `fileEnabled: false`, `directory: "logs"`, `fileLogLevel: "Information"`, `rotationSchedule: "daily"`, `rotationTime: "00:00"`, `rotationDayOfWeek: "Monday"`, and `maxFiles: 7`; and the daemon SHALL start successfully using those values
+
+---
+
+### Requirement: Logging configuration schema
+
+The `AppConfig` schema SHALL include a `logging` object that controls the file logging sink. All fields SHALL have defaults so that existing config files without a `logging` key continue to load without error.
+
+#### Scenario: logging object with all fields round-trips correctly
+
+- **WHEN** a config file contains a `logging` object with all seven fields set to non-default values
+- **THEN** `GET /api/v1/config` SHALL return those exact values and `POST /api/v1/config` with a modified `logging` object SHALL persist the change
+
+#### Scenario: Missing logging object uses defaults
+
+- **WHEN** a config file has no `logging` key
+- **THEN** the daemon SHALL behave as if `logging` were `{ "fileEnabled": false, "directory": "logs", "fileLogLevel": "Information", "rotationSchedule": "daily", "rotationTime": "00:00", "rotationDayOfWeek": "Monday", "maxFiles": 7 }`
+
+#### Scenario: fileLogLevel accepts valid level strings
+
+- **WHEN** `logging.fileLogLevel` is set to one of `"Verbose"`, `"Debug"`, `"Information"`, `"Warning"`, `"Error"`, `"Fatal"`
+- **THEN** the daemon SHALL accept the value and apply it to the file sink threshold
+
+#### Scenario: rotationSchedule accepts valid schedule strings
+
+- **WHEN** `logging.rotationSchedule` is set to one of `"session"`, `"hourly"`, `"daily"`, `"weekly"`
+- **THEN** the daemon SHALL accept the value and configure rotation accordingly
+
+#### Scenario: rotationDayOfWeek ignored when schedule is not weekly
+
+- **WHEN** `logging.rotationSchedule` is not `"weekly"`
+- **THEN** the `rotationDayOfWeek` field SHALL be stored and round-tripped but SHALL have no effect on rotation behaviour
 
 ---
 
@@ -44,14 +75,30 @@ The web server SHALL expose `GET /api/v1/config` and `POST /api/v1/config` endpo
 #### Scenario: GET returns current config
 
 - **WHEN** a client sends `GET /api/v1/config`
-- **THEN** the server SHALL respond with HTTP 200, `Content-Type: application/json`, and the current in-memory configuration serialised as JSON
+- **THEN** the server SHALL respond with HTTP 200, `Content-Type: application/json`, and the current in-memory configuration serialised as JSON, including `audioDeviceId` and `audioDeviceFriendlyName` fields
 
 #### Scenario: POST writes and persists config
 
-- **WHEN** a client sends `POST /api/v1/config` with a valid JSON body
+- **WHEN** a client sends `POST /api/v1/config` with a valid JSON body containing `audioDeviceId` and `audioDeviceFriendlyName`
 - **THEN** the server SHALL update the in-memory configuration, call `IConfigStore.SaveAsync()`, and respond with HTTP 200 and the updated configuration as JSON
 
 #### Scenario: POST with malformed JSON returns 400
 
 - **WHEN** a client sends `POST /api/v1/config` with a body that is not valid JSON
 - **THEN** the server SHALL respond with HTTP 400 and SHALL NOT modify or persist the configuration
+
+---
+
+### Requirement: Legacy audioDeviceName migration
+
+The daemon SHALL silently migrate config files that contain the legacy `audioDeviceName` field (written by versions prior to p7) so that existing operators are not disrupted.
+
+#### Scenario: Legacy config file is read without error
+
+- **WHEN** the daemon starts and the config file contains an `audioDeviceName` key but no `audioDeviceId` key
+- **THEN** the daemon SHALL treat the value of `audioDeviceName` as `audioDeviceId`, set `audioDeviceFriendlyName` to `null`, and start normally — including starting audio capture if the migrated ID is non-null
+
+#### Scenario: Re-save after migration writes new schema
+
+- **WHEN** the operator saves settings (via `POST /api/v1/config`) after a legacy config has been loaded
+- **THEN** the written config file SHALL contain `audioDeviceId` and `audioDeviceFriendlyName` fields and SHALL NOT be required to retain the legacy `audioDeviceName` key
