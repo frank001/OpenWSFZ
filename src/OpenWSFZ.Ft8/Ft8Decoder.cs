@@ -7,15 +7,19 @@ namespace OpenWSFZ.Ft8;
 /// <summary>
 /// Cleanroom FT8 decoder implementing <see cref="IModeDecoder"/>.
 ///
-/// Pipeline per cycle:
-///   1. Sweep candidate base frequencies across the audio passband (50–3000 Hz,
-///      steps of one tone width = 6.25 Hz).
-///   2. For each candidate frequency, extract the 79×8 log-energy grid via
-///      <see cref="SymbolExtractor"/>.
-///   3. Run <see cref="CostasSynchroniser"/> to find sync candidates in the grid.
-///   4. For each sync candidate, derive LLRs from the log-energy grid, run
-///      <see cref="LdpcDecoder"/>, verify with <see cref="Crc14"/>, unpack with
-///      <see cref="MessageUnpacker"/>.
+/// Pipeline per cycle (hybrid FFT + Goertzel):
+///   1. For each symbol-aligned time offset, compute a 79 × 1 024 FFT spectrogram
+///      once via <see cref="SymbolExtractor.FillSpectrogram"/>.
+///   2. Sweep candidate base frequencies (50–3000 Hz, steps of 6.25 Hz).
+///      For each step, extract a 79 × 15 log-energy grid from the spectrogram
+///      (<see cref="SymbolExtractor.ExtractFromSpectrogram"/>) and run
+///      <see cref="CostasSynchroniser.FindCandidates"/> to find Costas sync hits.
+///   3. For each Costas candidate, recompute the 79 × 15 grid via Goertzel
+///      (<see cref="SymbolExtractor.Extract"/>) at the exact tone frequencies.
+///      Goertzel eliminates the spectral leakage that the zero-padded FFT path
+///      introduces (FT8 tones align on 1920-pt DFT bins, not 2048-pt bins).
+///   4. Derive 174 soft LLRs from the Goertzel grid, run <see cref="LdpcDecoder"/>,
+///      verify with <see cref="Crc14"/>, unpack with <see cref="MessageUnpacker"/>.
 ///   5. De-duplicate messages; return the unique set as <see cref="DecodeResult"/> records.
 /// </summary>
 public sealed class Ft8Decoder : IModeDecoder
@@ -99,30 +103,40 @@ public sealed class Ft8Decoder : IModeDecoder
                 "Time-domain sweep: startSample = {Start} / {Max} ({StartS:F2} s).",
                 startSample, maxStartSample, (double)startSample / SampleRate);
 
-            // P1: pre-compute 79 FFTs once for this time offset, replacing ~24 000 Goertzel calls.
+            // P1: pre-compute 79 FFTs once for this time offset.
             // W1: FillSpectrogram writes into the pre-allocated instance field (_spectrogram)
             // instead of allocating a new 316 KB LOH array, eliminating GC pressure.
             SymbolExtractor.FillSpectrogram(pcm, startSample, _spectrogram);
 
-            // Sweep base frequencies in steps of one tone spacing.
+            // Sweep base frequencies for Costas candidate detection.
             for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += ToneSpacing)
             {
                 ct.ThrowIfCancellationRequested();
 
-                int baseBin    = (int)Math.Round(baseHz * SymbolExtractor.FftSizePadded
-                                                         / (double)SymbolExtractor.SampleRate);
-                var grid       = SymbolExtractor.ExtractFromSpectrogram(_spectrogram, baseBin);
-                var candidates = CostasSynchroniser.FindCandidates(grid, SyncThreshold);
+                // FFT-based coarse grid for fast Costas correlation.
+                // bin alignment corrected per D3 (Math.Round, not simple offset).
+                var fftGrid    = SymbolExtractor.ExtractFromSpectrogram(_spectrogram, baseHz);
+                var candidates = CostasSynchroniser.FindCandidates(fftGrid, SyncThreshold);
 
                 foreach (var cand in candidates)
                 {
                     ct.ThrowIfCancellationRequested();
 
+                    // Candidate's exact signal base (tone 0 frequency).
                     double actualBase = baseHz + cand.FreqBinOffset * ToneSpacing;
                     int    freqHz     = (int)Math.Round(actualBase + 3 * ToneSpacing); // centre tone
 
-                    // Derive soft LLRs from the energy grid.
-                    var llr = ComputeLlrs(grid, cand.FreqBinOffset);
+                    // Goertzel exact-frequency grid for the confirmed candidate.
+                    // FT8 tones are exact multiples of 6.25 Hz (align on 1920-pt DFT
+                    // bins) but NOT on 2048-pt bins, so the FFT grid has spectral
+                    // leakage that corrupts LLR signs.  Goertzel evaluates the DFT at
+                    // the precise tone frequencies — zero leakage, correct LLR signs.
+                    // Only called for confirmed Costas hits, so overhead is negligible.
+                    // Column 0 of the returned grid is signal tone 0 → freqShift = 0.
+                    float[,] grid = SymbolExtractor.Extract(pcm, startSample, actualBase);
+
+                    // Derive soft LLRs from the Goertzel grid (freqShift = 0).
+                    var llr = ComputeLlrs(grid, freqShift: 0);
 
                     // LDPC decode.
                     var decoded = LdpcDecoder.Decode(llr);
@@ -134,6 +148,15 @@ public sealed class Ft8Decoder : IModeDecoder
                     bool crcOk = Crc14.Verify(decoded, 91);
                     if (!crcOk) continue;
 
+                    // Guard: the all-zeros 91-bit block trivially satisfies LDPC parity and
+                    // CRC-14 (initial register = 0). No valid FT8 transmission encodes to all
+                    // zeros; this check prevents a noise burst with all-positive LLRs from
+                    // producing the spurious "DE DE AA00" decode. (D2)
+                    bool allZeros = true;
+                    for (int z = 0; z < decoded.Length; z++)
+                        if (decoded[z] != 0) { allZeros = false; break; }
+                    if (allZeros) continue;
+
                     // Unpack the 77-bit message payload.
                     var msgBits = new ReadOnlySpan<byte>(decoded, 0, MsgBits);
                     string msg  = MessageUnpacker.Unpack(msgBits);
@@ -141,8 +164,8 @@ public sealed class Ft8Decoder : IModeDecoder
                     // De-duplicate across the full time+frequency sweep.
                     if (!seen.Add(msg)) continue;
 
-                    // Estimate SNR: peak log-energy minus noise floor estimate.
-                    float snrEst = EstimateSnr(grid);
+                    // Estimate SNR: peak log-energy minus noise floor (freqShift = 0).
+                    float snrEst = EstimateSnr(grid, freqShift: 0);
 
                     // Dt: seconds from the UTC cycle boundary to where the signal was found.
                     double dt = (double)startSample / SampleRate;
@@ -191,14 +214,16 @@ public sealed class Ft8Decoder : IModeDecoder
             int s = dataSym[di];
 
             // Log-energies for the 8 tones at this symbol.
-            float e0 = grid[s, (0 + freqShift) % 8];
-            float e1 = grid[s, (1 + freqShift) % 8];
-            float e2 = grid[s, (2 + freqShift) % 8];
-            float e3 = grid[s, (3 + freqShift) % 8];
-            float e4 = grid[s, (4 + freqShift) % 8];
-            float e5 = grid[s, (5 + freqShift) % 8];
-            float e6 = grid[s, (6 + freqShift) % 8];
-            float e7 = grid[s, (7 + freqShift) % 8];
+            // The grid is GridWidth = 15 columns wide; freqShift 0–7 maps to columns
+            // freqShift..freqShift+7, all within bounds — no % 8 wrapping needed. (D4)
+            float e0 = grid[s, freqShift + 0];
+            float e1 = grid[s, freqShift + 1];
+            float e2 = grid[s, freqShift + 2];
+            float e3 = grid[s, freqShift + 3];
+            float e4 = grid[s, freqShift + 4];
+            float e5 = grid[s, freqShift + 5];
+            float e6 = grid[s, freqShift + 6];
+            float e7 = grid[s, freqShift + 7];
 
             // 3-bit Gray code: bit2 (MSB), bit1, bit0 (LSB).
             // Sum log-energies for symbols where bit=0 vs bit=1.
@@ -212,9 +237,11 @@ public sealed class Ft8Decoder : IModeDecoder
             float b1_0 = LogSumExp(e0, e1, e6, e7);
             float b1_1 = LogSumExp(e2, e3, e4, e5);
 
-            // Bit 0 (LSB) = 0 for tones 0,3,4,7; 1 for tones 1,2,5,6.
-            float b0_0 = LogSumExp(e0, e3, e4, e7);
-            float b0_1 = LogSumExp(e1, e2, e5, e6);
+            // Bit 0 (LSB) = 0 for tones 0,3,5,6; 1 for tones 1,2,4,7.
+            // Inverse Gray table: tone 4 → binary 111 (b0=1), tone 5 → 110 (b0=0),
+            // tone 6 → 100 (b0=0), tone 7 → 101 (b0=1).
+            float b0_0 = LogSumExp(e0, e3, e5, e6);
+            float b0_1 = LogSumExp(e1, e2, e4, e7);
 
             // LLR positive → bit=0.
             llr[bitIdx++] = b2_0 - b2_1;
@@ -233,23 +260,25 @@ public sealed class Ft8Decoder : IModeDecoder
             MathF.Exp(c - maxV) + MathF.Exp(d - maxV));
     }
 
-    private static float EstimateSnr(float[,] grid)
+    private static float EstimateSnr(float[,] grid, int freqShift)
     {
         // Simple estimate: mean peak log-energy of data symbols minus mean of off-tones.
+        // Only the 8 signal columns [freqShift, freqShift + 8) are relevant. (D4)
+        const int tones = 8;
         float peakSum = 0f, noiseSum = 0f;
         int   count   = 0;
 
         for (int s = 0; s < SymbolCount; s++)
         {
             float max = float.MinValue, sum = 0f;
-            for (int t = 0; t < 8; t++)
+            for (int t = freqShift; t < freqShift + tones; t++)
             {
                 float e = grid[s, t];
                 if (e > max) max = e;
                 sum += e;
             }
             peakSum  += max;
-            noiseSum += (sum - max) / 7f;
+            noiseSum += (sum - max) / (tones - 1f);
             count++;
         }
 

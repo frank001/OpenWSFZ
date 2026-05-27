@@ -48,16 +48,29 @@ internal static class SymbolExtractor
     internal const int SpecBins = FftSizePadded / 2; // 1 024
 
     /// <summary>
-    /// Builds a log-energy grid <c>[symbol, tone]</c> for the 79 symbols of an FT8
+    /// Width of the log-energy grid returned by <see cref="Extract"/> and
+    /// <see cref="ExtractFromSpectrogram"/>: 8 signal tones + 7 guard columns so that
+    /// any <c>freqShift</c> in 0–7 keeps all 8 signal tones within bounds without
+    /// requiring modulo-8 wrapping.  (D4)
+    /// </summary>
+    public const int GridWidth = ToneCount + 7; // 15
+
+    /// <summary>
+    /// Builds a log-energy grid <c>[symbol, column]</c> for the 79 symbols of an FT8
     /// transmission whose lowest tone sits at <paramref name="baseFrequencyHz"/>.
+    ///
+    /// The grid has <see cref="GridWidth"/> = 15 columns.  Columns 0–7 correspond to
+    /// the 8 FT8 tones at <c>baseFrequencyHz + c × 6.25 Hz</c>.  The extra 7 columns
+    /// (8–14) allow <see cref="CostasSynchroniser"/> to use frequency offsets up to 7
+    /// without wrapping.  (D4)
     /// </summary>
     /// <param name="pcm">Full 15-second PCM buffer (must be ≥ <paramref name="startSample"/> + 79 × 1920 samples).</param>
     /// <param name="startSample">Sample index at which the first symbol begins.</param>
-    /// <param name="baseFrequencyHz">Frequency of the lowest (tone 0) bin, in Hz.</param>
-    /// <returns>A <c>float[79, 8]</c> array of log-energies (natural log).</returns>
+    /// <param name="baseFrequencyHz">Frequency of the lowest (tone 0) column, in Hz.</param>
+    /// <returns>A <c>float[79, 15]</c> array of log-energies (natural log).</returns>
     public static float[,] Extract(ReadOnlySpan<float> pcm, int startSample, double baseFrequencyHz)
     {
-        var grid = new float[SymbolCount, ToneCount];
+        var grid = new float[SymbolCount, GridWidth];
 
         for (int sym = 0; sym < SymbolCount; sym++)
         {
@@ -67,13 +80,13 @@ internal static class SymbolExtractor
 
             var window = pcm.Slice(offset, SamplesPerSymbol);
 
-            for (int tone = 0; tone < ToneCount; tone++)
+            for (int col = 0; col < GridWidth; col++)
             {
-                double freq   = baseFrequencyHz + tone * ToneSpacingHz;
+                double freq   = baseFrequencyHz + col * ToneSpacingHz;
                 float  energy = GoertzelDetector.ComputeEnergy(window, freq, SampleRate);
 
                 // Convert to log-energy (add small epsilon to avoid log(0)).
-                grid[sym, tone] = MathF.Log(energy + 1e-10f);
+                grid[sym, col] = MathF.Log(energy + 1e-10f);
             }
         }
 
@@ -159,7 +172,16 @@ internal static class SymbolExtractor
         for (int sym = 0; sym < SymbolCount; sym++)
         {
             int offset = startSample + sym * SamplesPerSymbol;
-            if (offset + SamplesPerSymbol > pcm.Length) break;
+            if (offset + SamplesPerSymbol > pcm.Length)
+            {
+                // Zero any row that falls outside the buffer. Without this, stale data
+                // from a previous startSample iteration (the pre-allocated _spectrogram
+                // buffer in Ft8Decoder is reused across time-sweep positions) can satisfy
+                // Costas correlation checks and produce phantom decode candidates. (D5)
+                for (int bin = 0; bin < SpecBins; bin++)
+                    result[sym, bin] = 0f;
+                continue;
+            }
 
             pcm.Slice(offset, SamplesPerSymbol).CopyTo(re);
             Array.Clear(re, SamplesPerSymbol, FftSizePadded - SamplesPerSymbol);
@@ -173,32 +195,43 @@ internal static class SymbolExtractor
     }
 
     /// <summary>
-    /// Extracts a 79 × 8 log-energy grid from a pre-computed spectrogram by mapping
-    /// each FT8 tone to its nearest FFT bin.
+    /// Extracts a 79 × 15 log-energy grid from a pre-computed spectrogram.
     ///
-    /// For each of the 79 symbols, the energy for tone <c>t</c> is taken from
-    /// FFT bin <c>baseBin + t</c> where
-    /// <c>baseBin = (int)Math.Round(baseFrequencyHz * FftSizePadded / SampleRate)</c>.
+    /// <para>
+    /// Each column <c>c</c> (0–14) is mapped to the FFT bin nearest to the exact
+    /// FT8 tone frequency <c>baseHz + c × 6.25 Hz</c>:
+    /// <code>bin = (int)Math.Round((baseHz + c × ToneSpacingHz) × FftSizePadded / SampleRate)</code>
+    /// This corrects the bin-alignment error that arose when the old implementation
+    /// simply added <c>c</c> to <c>baseBin</c> — valid only when the FFT bin spacing
+    /// equals the FT8 tone spacing (6.25 Hz), but the zero-padded FFT has bin spacing
+    /// ≈ 5.859 Hz, causing drift of up to −2.9 dB at tone 7.  (D3)
+    /// </para>
+    ///
+    /// <para>
+    /// The grid is 15 columns wide (not 8) so that any <c>freqShift</c> in 0–7 used
+    /// by <see cref="CostasSynchroniser"/> or <c>Ft8Decoder.ComputeLlrs</c> accesses
+    /// valid columns without modulo-8 wrapping.  (D4)
+    /// </para>
     /// </summary>
     /// <param name="spectrogram">
     /// Output of <see cref="ComputeSpectrogram"/>: <c>float[SymbolCount, SpecBins]</c>.
     /// </param>
-    /// <param name="baseBin">
-    /// Bin index of the lowest tone.  Compute as
-    /// <c>(int)Math.Round(baseFrequencyHz * FftSizePadded / SampleRate)</c>.
+    /// <param name="baseHz">
+    /// Frequency of the lowest tone (column 0), in Hz.
     /// </param>
-    internal static float[,] ExtractFromSpectrogram(float[,] spectrogram, int baseBin)
+    internal static float[,] ExtractFromSpectrogram(float[,] spectrogram, double baseHz)
     {
         int symCount = spectrogram.GetLength(0); // 79
         int specBins = spectrogram.GetLength(1); // 1 024
-        var grid     = new float[symCount, ToneCount];
+        var grid     = new float[symCount, GridWidth]; // 79 × 15
 
         for (int sym = 0; sym < symCount; sym++)
-        for (int tone = 0; tone < ToneCount; tone++)
+        for (int col = 0; col < GridWidth; col++)
         {
-            int   bin    = baseBin + tone;
+            // Exact bin for this column's tone frequency. (D3)
+            int   bin    = (int)Math.Round((baseHz + col * ToneSpacingHz) * FftSizePadded / SampleRate);
             float energy = (uint)bin < (uint)specBins ? spectrogram[sym, bin] : 0f;
-            grid[sym, tone] = MathF.Log(energy + 1e-10f);
+            grid[sym, col] = MathF.Log(energy + 1e-10f);
         }
 
         return grid;
