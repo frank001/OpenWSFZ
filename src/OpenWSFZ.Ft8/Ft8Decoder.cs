@@ -38,6 +38,21 @@ public sealed class Ft8Decoder : IModeDecoder
     private const double MinFreqHz    = 50.0;
     private const double MaxFreqHz    = 3000.0;
 
+    // Outer frequency sweep step: one full 8-tone signal band = 8 × 6.25 = 50 Hz.
+    //
+    // The CostasSynchroniser sweeps freqShift 0–7 within each 15-wide grid window,
+    // covering the 8 × 6.25 = 50 Hz band with 6.25 Hz resolution.  Each real FT8
+    // signal (whose tones are always on the 6.25 Hz grid) therefore falls in exactly
+    // ONE (baseHz, freqShift) combination — no duplicates.
+    //
+    // Previously the outer loop stepped by ToneSpacing (6.25 Hz), causing every signal
+    // to be detected 8 times (once per freqShift 0–7).  With a busy band of 15 signals
+    // that inflated 15 Goertzel calls to ~120, and with 102 time positions the full
+    // decode required several minutes.  With this fix the worst-case is ~15 Goertzel
+    // calls per time position × 102 positions = ~1 530 calls, completing well within
+    // the 15-second cycle budget.  (D12)
+    private const double FreqSweepStep = ToneSpacing * 8; // 50.0 Hz
+
     // Costas sync threshold (tune for sensitivity vs. false-alarm rate).
     private const float  SyncThreshold = 0.45f;
 
@@ -127,7 +142,9 @@ public sealed class Ft8Decoder : IModeDecoder
             SymbolExtractor.FillSpectrogram(pcm, startSample, _spectrogram);
 
             // Sweep base frequencies for Costas candidate detection.
-            for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += ToneSpacing)
+            // Step is FreqSweepStep = 50 Hz (8 × ToneSpacing) so that each signal
+            // is found by exactly one (baseHz, freqShift) pair.  (D12)
+            for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += FreqSweepStep)
             {
                 ct.ThrowIfCancellationRequested();
 
@@ -154,7 +171,8 @@ public sealed class Ft8Decoder : IModeDecoder
                     // bins) but NOT on 2048-pt bins, so the FFT grid has spectral
                     // leakage that corrupts LLR signs.  Goertzel evaluates the DFT at
                     // the precise tone frequencies — zero leakage, correct LLR signs.
-                    // Only called for confirmed Costas hits, so overhead is negligible.
+                    // With the 50 Hz outer sweep step each signal produces at most one
+                    // Costas hit per time position, keeping Goertzel call count low.
                     // Column 0 of the returned grid is signal tone 0 → freqShift = 0.
                     float[,] grid = SymbolExtractor.Extract(pcm, startSample, actualBase);
 
