@@ -50,3 +50,6 @@ resume.txt
 
 # Serena MCP tool — logs and runtime artefacts (project config is committed)
 daemon_log.txt
+
+# Application log files (FR-022) — operator artefacts, not source
+logs/

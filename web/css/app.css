@@ -378,3 +378,29 @@ label {
   color: var(--color-muted);
   font-style: italic;
 }
+
+/* ── Logging settings fieldset (FR-022) ───────────────────────────────── */
+#logging-settings {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin: 0;
+}
+
+#logging-settings legend {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 0.25rem;
+}
+
+/* Disabled inputs and selects within the logging section are visually muted
+   to indicate the controls depend on the "Write logs to a file" toggle. */
+#logging-settings input:disabled,
+#logging-settings select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: var(--color-muted);
+}
