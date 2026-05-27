@@ -115,9 +115,13 @@ public sealed class Ft8Decoder : IModeDecoder
         // D11 diagnostic counters: distinguish Costas-miss / LDPC-fail / CRC-fail.
         // Logged at Information level alongside the final decode count so the operator
         // can see immediately which stage of the pipeline is dropping signals.
-        int diag_costas   = 0; // Costas candidates that passed the sync threshold
-        int diag_ldpc     = 0; // candidates where LDPC converged
-        int diag_crc      = 0; // candidates where CRC-14 also passed
+        int diag_costas      = 0; // Costas candidates that passed the sync threshold
+        int diag_ldpc        = 0; // candidates where LDPC converged
+        int diag_crc         = 0; // candidates where CRC-14 also passed
+        // D13 diagnostic: sum of initial parity failures (before BP) across all candidates.
+        // Divide by diag_costas to get avg.  Values near 41 (≈ CheckCount/2) indicate
+        // systematic LLR sign errors; values near 0 indicate LLRs already correct.
+        int diag_paritySum   = 0;
 
         // Time-domain sweep: try each half-symbol-aligned start position from 0 up to the
         // latest offset where the first two Costas arrays (positions 0–6 and 36–42)
@@ -179,6 +183,11 @@ public sealed class Ft8Decoder : IModeDecoder
                     // Derive soft LLRs from the Goertzel grid (freqShift = 0).
                     var llr = ComputeLlrs(grid, freqShift: 0);
 
+                    // D13 diagnostic: count initial parity failures from hard-decision LLRs
+                    // before BP iterations begin.  ~0 = already valid codeword; ~41 = systematic
+                    // LLR sign error (wrong Gray code, wrong H matrix, or bad Gray-code grouping).
+                    diag_paritySum += LdpcDecoder.CountInitialParityFailures(llr);
+
                     // LDPC decode.
                     var decoded = LdpcDecoder.Decode(llr);
                     if (decoded is null) continue;
@@ -223,10 +232,12 @@ public sealed class Ft8Decoder : IModeDecoder
             }
         }
 
+        float avgParity = diag_costas > 0 ? (float)diag_paritySum / diag_costas : 0f;
         _logger?.LogInformation(
             "Cycle {Time}: {Count} decode(s) found. " +
-            "[diag] Costas candidates={Costas}, LDPC converged={Ldpc}, CRC passed={Crc}.",
-            timeStr, results.Count, diag_costas, diag_ldpc, diag_crc);
+            "[diag] Costas candidates={Costas}, LDPC converged={Ldpc}, CRC passed={Crc}, " +
+            "avg_initial_parity_fail={AvgParity:F1}/83.",
+            timeStr, results.Count, diag_costas, diag_ldpc, diag_crc, avgParity);
 
         return Task.FromResult<IReadOnlyList<DecodeResult>>(results);
     }
@@ -270,23 +281,28 @@ public sealed class Ft8Decoder : IModeDecoder
             float e6 = grid[s, freqShift + 6];
             float e7 = grid[s, freqShift + 7];
 
-            // 3-bit Gray code: bit2 (MSB), bit1, bit0 (LSB).
-            // Sum log-energies for symbols where bit=0 vs bit=1.
-            // Tone encoding: tone t encodes Gray(t).
-            // Gray codes: 0=000, 1=001, 2=011, 3=010, 4=110, 5=111, 6=101, 7=100.
-            // Bit 2 (MSB) = 0 for tones 0-3, 1 for tones 4-7.
+            // 3-bit Gray code using the FT8 kFT8_Gray_map from kgoba/ft8_lib:
+            //   { 0, 1, 3, 2, 5, 6, 4, 7 }  (index = bits3, value = tone)
+            // Inverse (tone → bits3):
+            //   tone 0 → 0 (000)  tone 1 → 1 (001)  tone 2 → 3 (011)  tone 3 → 2 (010)
+            //   tone 4 → 6 (110)  tone 5 → 4 (100)  tone 6 → 5 (101)  tone 7 → 7 (111)
+            //
+            // NOTE: this is NOT the standard G(n)=n^(n>>1) code.  They agree for binary
+            // values 0–3 but differ for 4–7.  Using G(n) instead gives wrong LLR signs
+            // for all b2=1 symbols (~50% of data symbols) and causes LDPC to never
+            // converge on live FT8 signals.  (D13)
+            //
+            // Bit 2 (MSB) = 0 for tones {0,1,2,3}, 1 for tones {4,5,6,7}.
             float b2_0 = LogSumExp(e0, e1, e2, e3);
             float b2_1 = LogSumExp(e4, e5, e6, e7);
 
-            // Bit 1 = 0 for tones 0-1,6-7; 1 for tones 2-5.
-            float b1_0 = LogSumExp(e0, e1, e6, e7);
-            float b1_1 = LogSumExp(e2, e3, e4, e5);
+            // Bit 1 = 0 for tones {0,1,5,6}, 1 for tones {2,3,4,7}.
+            float b1_0 = LogSumExp(e0, e1, e5, e6);
+            float b1_1 = LogSumExp(e2, e3, e4, e7);
 
-            // Bit 0 (LSB) = 0 for tones 0,3,5,6; 1 for tones 1,2,4,7.
-            // Inverse Gray table: tone 4 → binary 111 (b0=1), tone 5 → 110 (b0=0),
-            // tone 6 → 100 (b0=0), tone 7 → 101 (b0=1).
-            float b0_0 = LogSumExp(e0, e3, e5, e6);
-            float b0_1 = LogSumExp(e1, e2, e4, e7);
+            // Bit 0 (LSB) = 0 for tones {0,3,4,5}, 1 for tones {1,2,6,7}.
+            float b0_0 = LogSumExp(e0, e3, e4, e5);
+            float b0_1 = LogSumExp(e1, e2, e6, e7);
 
             // LLR positive → bit=0.
             llr[bitIdx++] = b2_0 - b2_1;

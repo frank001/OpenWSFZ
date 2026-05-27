@@ -198,9 +198,9 @@ public sealed class LdpcDecoderTests
                 return m + MathF.Log(MathF.Exp(a-m)+MathF.Exp(b-m)+MathF.Exp(c-m)+MathF.Exp(d-m));
             }
 
-            llr[bitIdx++] = LSE(e0,e1,e2,e3) - LSE(e4,e5,e6,e7);  // bit 2: b2=0→tones 0-3
-            llr[bitIdx++] = LSE(e0,e1,e6,e7) - LSE(e2,e3,e4,e5);  // bit 1: b1=0→tones 0,1,6,7
-            llr[bitIdx++] = LSE(e0,e3,e5,e6) - LSE(e1,e2,e4,e7);  // bit 0: b0=0→tones 0,3,5,6
+            llr[bitIdx++] = LSE(e0,e1,e2,e3) - LSE(e4,e5,e6,e7);  // bit 2: b2=0→tones {0,1,2,3}
+            llr[bitIdx++] = LSE(e0,e1,e5,e6) - LSE(e2,e3,e4,e7);  // bit 1: b1=0→tones {0,1,5,6}
+            llr[bitIdx++] = LSE(e0,e3,e4,e5) - LSE(e1,e2,e6,e7);  // bit 0: b0=0→tones {0,3,4,5}
         }
 
         // Verify LLR sign quality before asserting decode.
