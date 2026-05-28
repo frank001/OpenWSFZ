@@ -52,8 +52,10 @@
 
 ## 8. WAV Fixture
 
-- [ ] 8.1 Obtain or synthesise a 15-second 12 kHz mono WAV clip containing at least one valid FT8 transmission with known decode output; name it `ft8-sample.wav`  ← NEEDS REAL AUDIO CAPTURE
-- [ ] 8.2 Commit `ft8-sample.wav` and `ft8-sample.ref` (reference decode lines, one per result) to `tests/OpenWSFZ.Ft8.Tests/Fixtures/`; embed both as `EmbeddedResource` in the test project  ← NEEDS REAL AUDIO CAPTURE
+- [x] 8.1 Obtain or synthesise a 15-second 12 kHz mono WAV clip containing at least one valid FT8 transmission with known decode output; name it `ft8-sample.wav`
+      — synthesised via `tools/GenerateFt8Fixture` using `TestFt8Encoder`-identical logic ("CQ W1AW FN31", 1500 Hz, 12 kHz IEEE float WAV)
+- [x] 8.2 Commit `ft8-sample.wav` and `ft8-sample.ref` (reference decode lines, one per result) to `tests/OpenWSFZ.Ft8.Tests/Fixtures/`; embed both as `EmbeddedResource` in the test project
+      — `WavFixtureHelper` added to load the WAV; `DecodeAsync_EmbeddedWavFixture_MatchesRefFile` test added; all 186 tests pass
 
 ## 9. CycleFramer
 
