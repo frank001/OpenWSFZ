@@ -72,6 +72,12 @@ internal static class SymbolExtractor
     {
         var grid = new float[SymbolCount, GridWidth];
 
+        // p8: pre-compute the 15 Goertzel coefficients once per Extract call.
+        // Saves GridWidth × (SymbolCount − 1) = 15 × 78 = 1,170 MathF.Cos evaluations.
+        var coeffs = new float[GridWidth];
+        for (int col = 0; col < GridWidth; col++)
+            coeffs[col] = GoertzelDetector.Coeff(baseFrequencyHz + col * ToneSpacingHz, SampleRate);
+
         for (int sym = 0; sym < SymbolCount; sym++)
         {
             int offset = startSample + sym * SamplesPerSymbol;
@@ -82,10 +88,7 @@ internal static class SymbolExtractor
 
             for (int col = 0; col < GridWidth; col++)
             {
-                double freq   = baseFrequencyHz + col * ToneSpacingHz;
-                float  energy = GoertzelDetector.ComputeEnergy(window, freq, SampleRate);
-
-                // Convert to log-energy (add small epsilon to avoid log(0)).
+                float energy = GoertzelDetector.ComputeEnergyWithCoeff(window, coeffs[col]);
                 grid[sym, col] = MathF.Log(energy + 1e-10f);
             }
         }
