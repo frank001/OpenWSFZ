@@ -210,7 +210,10 @@ Any unbound control fails the build. This implements FR-016 directly.
 | G3 | Traceability check passes (&sect;6.2) | Linux only |
 | G4 | Strict UI visibility check passes (&sect;6.3) | Linux only |
 | G5 | License-inventory check passes (TECHNICAL_SPEC &sect;9.4) | Linux only |
-| G6 | At least one human review approval | GitHub PR settings |
+| G6 | Decoder-correctness gate: real-signal fixture integration test passes (FR-029 / NFR-016) | Matrix: Windows + Linux + macOS (runs inside G1 `dotnet test`) |
+| G7 | At least one human review approval | GitHub PR settings |
+
+G6 is structurally active from the moment the real-signal fixture integration test is committed to `tests/OpenWSFZ.Ft8.Tests/`. It runs inside the existing G1 `dotnet test` step — no separate CI step is required. See `RECOVERY_PLAN.md` and `p10-decoder-ground-truth` for context.
 
 The **soak** tier (&sect;4.6) does **not** block PRs. It gates the next release tag (&sect;10.2).
 
@@ -247,6 +250,31 @@ The QA role reviews **the tests first**, then the implementation.
 2. The traceability check now lists changed / removed IDs.
 3. The QA role identifies which tests are affected (the report points at them).
 4. Tests are updated alongside the requirement change in the same PR / OpenSpec change.
+
+### 8.4 Decoder defect process rule (NFR-016)
+
+This rule is mandatory. It exists because 18 consecutive speculative fixes failed to produce
+a single real decode, and the failure mode was a validation gap — not a DSP gap. See
+`RECOVERY_PLAN.md` for full context.
+
+**Rule:** A decoder defect "root cause" claim is not accepted until a **failing reproducible
+test over a committed real-signal WAV fixture** exists that demonstrates the defect.
+
+Concretely:
+
+1. **Before proposing a fix:** add a test to `tests/OpenWSFZ.Ft8.Tests/` (or the replay
+   harness) that decodes a committed WAV fixture and fails because of the defect. The test
+   must cite the defect's associated requirement ID in its display name.
+2. **The fix is validated by making that test green.** If the fix does not make the failing
+   test pass, it does not fix the defect.
+3. **Live smoke tests are confirmation only.** A positive live smoke test (real signals
+   appearing in `ALL.TXT`) confirms the fix works end-to-end; it does **not** substitute
+   for a reproducible CI test.
+4. **A failing live smoke test is a bug report, not a root cause.** Translate it into a
+   reproducible failing test first, then diagnose.
+
+The G6 CI gate (§7, gate 6) enforces this rule structurally: a change that regresses
+real-signal recovery fails CI and cannot merge.
 
 ---
 
