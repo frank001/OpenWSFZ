@@ -22,6 +22,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(WsSpectrumMessage))]
 [JsonSerializable(typeof(int[]))]
 [JsonSerializable(typeof(LoggingConfig))]
+[JsonSerializable(typeof(DecodeLogConfig))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>

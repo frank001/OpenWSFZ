@@ -71,6 +71,45 @@
         </p>
       </div>
 
+      <fieldset id="decode-log-settings">
+        <legend>Decode log (ALL.TXT)</legend>
+
+        <div class="field-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="decode-log-enabled" />
+            Write ALL.TXT decode log
+          </label>
+          <p class="field-hint">
+            Appends one line per decoded FT8 message to the file below in
+            WSJT-X compatible format after each 15-second cycle.
+          </p>
+        </div>
+
+        <div class="field-group" id="decode-log-dependent">
+          <label for="decode-log-path">ALL.TXT path</label>
+          <input type="text" id="decode-log-path" placeholder="ALL.TXT" />
+          <p class="field-hint">
+            Relative to the executable, or an absolute path.
+          </p>
+        </div>
+
+        <div class="field-group">
+          <label for="decode-log-dial-freq">Dial frequency (MHz)</label>
+          <input
+            type="number"
+            id="decode-log-dial-freq"
+            step="0.001"
+            min="0"
+            placeholder="e.g. 7.074"
+          />
+          <p class="field-hint">
+            Your radio's VFO setting — written to each ALL.TXT line.
+            Leave at 0.000 if you do not need this column.
+          </p>
+        </div>
+
+      </fieldset>
+
       <fieldset id="logging-settings">
         <legend>File logging</legend>
 

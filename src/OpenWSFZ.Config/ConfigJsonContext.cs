@@ -14,4 +14,5 @@ namespace OpenWSFZ.Config;
     DefaultIgnoreCondition       = JsonIgnoreCondition.Never)]
 [JsonSerializable(typeof(AppConfig))]
 [JsonSerializable(typeof(LoggingConfig))]
+[JsonSerializable(typeof(DecodeLogConfig))]
 public sealed partial class ConfigJsonContext : JsonSerializerContext { }
