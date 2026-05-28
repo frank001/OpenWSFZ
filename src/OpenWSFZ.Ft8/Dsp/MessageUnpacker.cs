@@ -46,6 +46,32 @@ internal static class MessageUnpacker
         };
     }
 
+    /// <summary>
+    /// Attempts to unpack a 77-bit FT8 message payload into a human-readable string.
+    /// Returns <c>null</c> for message types that are not yet implemented (i3 ∉ {0, 1, 5},
+    /// or i3=0 with n3 ∈ {4, 5}) so that callers can skip rather than display a raw
+    /// hex fallback.
+    /// </summary>
+    /// <param name="bits">Array of at least 77 bytes, each 0 or 1 (MSB-first).</param>
+    /// <returns>
+    /// Decoded message string, or <c>null</c> if the message type is not supported.
+    /// </returns>
+    public static string? TryUnpack(ReadOnlySpan<byte> bits)
+    {
+        if (bits.Length < 77) return null;
+
+        // i3: bits 74–76 (3 bits, MSB-first)
+        int i3 = (bits[74] << 2) | (bits[75] << 1) | bits[76];
+
+        return i3 switch
+        {
+            0 => UnpackType1Or2OrNull(bits),
+            1 => UnpackType1(bits),
+            5 => UnpackFreeText(bits),
+            _ => null,                      // i3=2,3,4,6,7 — not yet implemented
+        };
+    }
+
     // ── Type 1: Standard QSO ──────────────────────────────────────────────────
 
     private static string UnpackType1Or2(ReadOnlySpan<byte> bits)
@@ -53,6 +79,14 @@ internal static class MessageUnpacker
         // n3: bits 71–73 (3 bits)
         int n3 = (bits[71] << 2) | (bits[72] << 1) | bits[73];
         return n3 <= 3 ? UnpackType1(bits) : HexFallback(bits, 77);
+    }
+
+    // Null-returning variant used by TryUnpack — returns null for n3=4,5 instead of
+    // calling HexFallback, so callers can distinguish "decoded" from "unsupported".
+    private static string? UnpackType1Or2OrNull(ReadOnlySpan<byte> bits)
+    {
+        int n3 = (bits[71] << 2) | (bits[72] << 1) | bits[73];
+        return n3 <= 3 ? UnpackType1(bits) : null;
     }
 
     private static string UnpackType1(ReadOnlySpan<byte> bits)

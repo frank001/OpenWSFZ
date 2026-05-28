@@ -184,7 +184,8 @@ public sealed class Ft8Decoder : IModeDecoder
                     Interlocked.Increment(ref diag_crc);
 
                     var msgBits = new ReadOnlySpan<byte>(decoded, 0, MsgBits);
-                    string msg  = MessageUnpacker.Unpack(msgBits);
+                    string? msg = MessageUnpacker.TryUnpack(msgBits);
+                    if (msg is null) continue; // unsupported message type (i3=2,3,4,6,7) — skip silently
 
                     double dt = (double)startSample / SampleRate;
                     bag.Add(new DecodeResult(
