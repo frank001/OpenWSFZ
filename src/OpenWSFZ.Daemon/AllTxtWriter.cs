@@ -59,7 +59,7 @@ public sealed class AllTxtWriter
             // Open in append mode (create if absent), write all lines, close (D2).
             await using var writer = new StreamWriter(path, append: true, System.Text.Encoding.ASCII)
             {
-                NewLine = "\n"
+                NewLine = "\r\n"
             };
 
             string date     = cycleUtc.ToString("yyMMdd");
@@ -72,7 +72,7 @@ public sealed class AllTxtWriter
                 string timestamp = $"{date}_{timePart}";
 
                 // D5: exact WSJT-X column layout.
-                string line = $"{timestamp}     {dialMhz:F3} Rx FT8 {result.Snr,6} {result.Dt,5:F1} {result.FreqHz,4} {result.Message}";
+                string line = $"{timestamp}     {dialMhz:F3} Rx FT8 {result.Snr,6} {result.Dt,4:F1} {result.FreqHz,4} {result.Message}";
                 await writer.WriteLineAsync(line);
             }
         }

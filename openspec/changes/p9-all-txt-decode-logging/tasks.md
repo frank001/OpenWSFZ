@@ -6,9 +6,9 @@
 
 ## 2. Configuration model
 
-- [ ] 2.1 Create `src/OpenWSFZ.Abstractions/DecodeLogConfig.cs` — a `sealed record DecodeLogConfig` with `bool Enabled = false`, `string Path = "ALL.TXT"`, `double DialFrequencyMHz = 0.0`; follow the pattern of `LoggingConfig.cs`
-- [ ] 2.2 Add `DecodeLogConfig DecodeLog { get; init; } = new();` property to `AppConfig` in `src/OpenWSFZ.Abstractions/AppConfig.cs`
-- [ ] 2.3 Verify `dotnet build -c Release` is still green (0 errors, 0 warnings) after config changes
+- [x] 2.1 Create `src/OpenWSFZ.Abstractions/DecodeLogConfig.cs` — a `sealed record DecodeLogConfig` with `bool Enabled = false`, `string Path = "ALL.TXT"`, `double DialFrequencyMHz = 0.0`; follow the pattern of `LoggingConfig.cs`
+- [x] 2.2 Add `DecodeLogConfig DecodeLog { get; init; } = new();` property to `AppConfig` in `src/OpenWSFZ.Abstractions/AppConfig.cs`
+- [x] 2.3 Verify `dotnet build -c Release` is still green (0 errors, 0 warnings) after config changes
 
 ## 3. AllTxtWriter service
 
@@ -39,3 +39,23 @@
       — Re-certified 2026-05-28: 190 passed, 0 failed, 0 skipped (4 new Daemon.Tests + 186 existing)
 - [ ] 6.3 Run the daemon against a live or recorded FT8 session; confirm `ALL.TXT` is created and each line matches the expected column layout against a known WSJT-X `ALL.TXT` for the same signals
       ← REQUIRES CAPTAIN: live hardware smoke test
+
+## 7. Defects — Round 34 (2026-05-28 smoke test)
+
+### D16 — DT field width (5 chars → 4 chars)
+- [x] D16.1 `AllTxtWriter.cs` line 75: `{result.Dt,5:F1}` → `{result.Dt,4:F1}`
+- [x] D16.2 `AllTxtWriterTests.cs`: update FR-028 line-format expected string — 2 spaces before "0.2" (was 3)
+- [x] D16.3 `specs/decode-log/spec.md`: update column alignment scenario and field-width description; remove "3 spaces" note
+- [x] D16.4 `REQUIREMENTS.md`: fix FR-028 format string `{dt,5:F1}` → `{dt,4:F1}`; add CRLF note
+
+### D17 — Line endings (LF → CRLF)
+- [x] D17.1 `AllTxtWriter.cs` line 62: `NewLine = "\n"` → `NewLine = "\r\n"`
+- [x] D17.2 `specs/decode-log/spec.md`: update line-termination clause to `\r\n`
+- [x] D17.3 `REQUIREMENTS.md`: add CRLF clause to FR-028 (done as part of D16.4)
+
+### D18 — Zero real FT8 decodes (diagnostic instrumentation only — no fix yet)
+- [x] D18.1 `Ft8Decoder.cs`: add D18-1 PCM window statistics (count / min / max / rms) at Debug level
+- [x] D18.2 `Ft8Decoder.cs`: add D18-2 Costas score at known 731 Hz / startSample ∈ [960, 1440] candidate
+- [x] D18.3 `Ft8Decoder.cs`: add D18-3 LDPC initial parity failures at 731 Hz candidate
+- [ ] D18.4 CAPTAIN: run one live decode cycle with Debug log level on `OpenWSFZ.Ft8` namespace; paste `[D18-1]`, `[D18-2]`, `[D18-3]` lines back to QA for root-cause determination
+      ← REQUIRES CAPTAIN: live hardware run with debug logging

@@ -110,6 +110,16 @@ public sealed class Ft8Decoder : IModeDecoder
             "Starting decode for cycle {Time}; pcm = {Samples} samples, RMS = {Rms:E3}.",
             timeStr, pcm.Length, rms);
 
+        // TEMPORARY D18 DIAGNOSTIC — remove after investigation
+        if (_logger?.IsEnabled(LogLevel.Debug) ?? false)
+        {
+            float d18_min = float.MaxValue, d18_max = float.MinValue, d18_sumSq = 0f;
+            foreach (var s in pcm) { d18_min = MathF.Min(d18_min, s); d18_max = MathF.Max(d18_max, s); d18_sumSq += s * s; }
+            float d18_rms = MathF.Sqrt(d18_sumSq / pcm.Length);
+            _logger!.LogDebug("[D18-1] PCM count={Count} min={Min:F4} max={Max:F4} rms={Rms:F4}",
+                pcm.Length, d18_min, d18_max, d18_rms);
+        }
+
         var results = new List<DecodeResult>();
         var seen    = new HashSet<string>(StringComparer.Ordinal);
 
@@ -164,10 +174,32 @@ public sealed class Ft8Decoder : IModeDecoder
                         "Costas hit: startSample={Start}, base={Base:F2} Hz, score={Score:F3}.",
                         startSample, actualBase, cand.Score);
 
+                    // TEMPORARY D18 DIAGNOSTIC — remove after investigation
+                    if (Math.Abs(baseHz - 700.0) < 1.0 && cand.FreqBinOffset == 5 &&
+                        startSample is >= 960 and <= 1440 &&
+                        (_logger?.IsEnabled(LogLevel.Debug) ?? false))
+                    {
+                        float d18_maxE = float.MinValue;
+                        for (int d18_s = 0; d18_s < 7; d18_s++)
+                            for (int d18_t = cand.FreqBinOffset; d18_t < cand.FreqBinOffset + 8; d18_t++)
+                                if (fftGrid[d18_s, d18_t] > d18_maxE) d18_maxE = fftGrid[d18_s, d18_t];
+                        _logger!.LogDebug("[D18-2] Costas at 731 Hz startSample={S}: score={Score:F4} maxE={MaxE:F2}",
+                            startSample, cand.Score, d18_maxE);
+                    }
+
                     float[,] grid = SymbolExtractor.Extract(pcm, startSample, actualBase);
                     var llr       = ComputeLlrs(grid, freqShift: 0);
 
-                    Interlocked.Add(ref diag_paritySum, LdpcDecoder.CountInitialParityFailures(llr));
+                    int d18_fails = LdpcDecoder.CountInitialParityFailures(llr);
+                    Interlocked.Add(ref diag_paritySum, d18_fails);
+
+                    // TEMPORARY D18 DIAGNOSTIC — remove after investigation
+                    if (Math.Abs(baseHz - 700.0) < 1.0 && cand.FreqBinOffset == 5 &&
+                        startSample is >= 960 and <= 1440 &&
+                        (_logger?.IsEnabled(LogLevel.Debug) ?? false))
+                    {
+                        _logger!.LogDebug("[D18-3] LDPC initial parity failures at 731 Hz: {Count}/83", d18_fails);
+                    }
 
                     var decoded = LdpcDecoder.Decode(llr);
                     if (decoded is null) continue;

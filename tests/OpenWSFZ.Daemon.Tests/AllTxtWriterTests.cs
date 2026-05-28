@@ -47,9 +47,9 @@ public sealed class AllTxtWriterTests : IDisposable
 
         var lines = await File.ReadAllLinesAsync(tmpFile);
         lines.Should().HaveCount(1);
-        // Format: "{timestamp}     {dialMhz:F3} Rx FT8 {snr,6} {dt,5:F1} {freq,4} {message}"
-        // snr=3  → "     3" (6 chars); dt=0.2 → "  0.2" (5 chars); plus 1-space separator = 3 spaces before "0.2".
-        lines[0].Should().Be("260528_172930     7.074 Rx FT8      3   0.2 2252 Q4DSA QD1BER JO22",
+        // Format: "{timestamp}     {dialMhz:F3} Rx FT8 {snr,6} {dt,4:F1} {freq,4} {message}"
+        // snr=3  → "     3" (6 chars); dt=0.2 → " 0.2" (4 chars); plus 1-space separator = 2 spaces before "0.2".
+        lines[0].Should().Be("260528_172930     7.074 Rx FT8      3  0.2 2252 Q4DSA QD1BER JO22",
             "the line must exactly match the WSJT-X ALL.TXT column layout");
     }
 
