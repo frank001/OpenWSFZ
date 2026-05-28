@@ -95,8 +95,8 @@
   — Re-certified 2026-05-28: 0 failed, 186 passed, 0 skipped (WAV fixture test now active via synthetic PCM — see tasks 8.1–8.2)
   — Previous note: Re-certified after QA-review fixes (2026-05-21): 0 failed, 119 passed, 1 skipped (WAV fixture, needs real audio)
   — Fixed: B1 heartbeat test loop; B2 `LdpcDecoder.InfoBits = 91`; S1 dead code; S2 XSS innerHTML→textContent; S3 Array.IndexOf→pre-computed VarNeighboursIdx
-- [ ] 13.4 Manual smoke test: start daemon with a configured audio device, open `http://127.0.0.1:8080`, confirm decoded FT8 rows appear in the table after one 15-second cycle
-  ← REQUIRES CAPTAIN: hardware smoke test, cannot be automated. Run: `dotnet run --project src/OpenWSFZ.Daemon -c Release`
+- [x] 13.4 Manual smoke test: start daemon with a configured audio device, open `http://127.0.0.1:8080`, confirm decoded FT8 rows appear in the table after one 15-second cycle
+  — Verified by Captain 2026-05-28: daemon running, audio device configured, FT8 decode rows appeared in the UI after the first 15-second cycle. ✓
 - [x] 13.5 Commit all changes to `feat/p5-ft8-decoder`, push, and open a draft PR to `main`
 
 ## 14. Known Follow-Up Items
