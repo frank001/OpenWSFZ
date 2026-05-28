@@ -123,4 +123,87 @@ public sealed class Ft8DecoderFixtureTests
             "a signal at quarter-symbol offset (worst case between sweep steps) must decode");
         results.Select(r => r.Message).Should().Contain("CQ W1AW FN31");
     }
+
+    /// <summary>
+    /// FR-026 performance regression test: DecodeAsync must complete within 10 seconds
+    /// on a synthetic fixture containing 8 simultaneous FT8 signals.
+    ///
+    /// A single-signal fixture cannot expose the candidate explosion that caused the
+    /// ~59-second decode regression.  Eight concurrent signals approximate a moderately
+    /// busy band.  The 10-second budget is conservative (target post-fix is under 5 s);
+    /// it provides headroom for CI runner variance while still catching regressions.
+    ///
+    /// De-duplication by message string is verified: the decoder must return at least 6
+    /// of the 8 known callsigns (all 8 expected on a fast machine; 6 is the floor to
+    /// tolerate marginal-SNR edge cases at the frequency extremes).
+    /// </summary>
+    [Fact(DisplayName = "FR-026: DecodeAsync completes within 10 s on 8-signal fixture")]
+    [Trait("Category", "Performance")]
+    public async Task DecodeAsync_MultiSignal_CompletesWithinBudget()
+    {
+        // Eight callsigns with distinct 28-bit encodings, each at a unique base frequency
+        // on the 50 Hz outer sweep grid (MinFreqHz=50, FreqSweepStep=50).
+        var signals = new (string callsign, double baseHz)[]
+        {
+            ("W1AW", 500.0),
+            ("W2AW", 750.0),
+            ("W3AW", 1000.0),
+            ("W4AW", 1250.0),
+            ("W5AW", 1500.0),
+            ("W6AW", 1750.0),
+            ("W7AW", 2000.0),
+            ("W8AW", 2250.0),
+        };
+        const string grid = "FN31";
+
+        // Build a composite PCM buffer: superimpose all 8 signals.
+        const int totalSamples = 180_000;
+        var pcm = new float[totalSamples];
+
+        var expectedCallsigns = new List<string>();
+        foreach (var (callsign, baseHz) in signals)
+        {
+            ulong c2      = TestFt8Encoder.EncodeCallsign28(callsign);
+            ulong rg      = TestFt8Encoder.EncodeReport15Grid(grid);
+            byte[] msg    = TestFt8Encoder.PackType1(c1: 2, c2: c2, rg: rg);
+            byte[] info   = TestFt8Encoder.AppendCrc14(msg);
+            byte[] cw     = TestFt8Encoder.LdpcEncode(info);
+            int[]  syms   = TestFt8Encoder.BitsToSymbols(cw);
+            float[] frame = TestFt8Encoder.SymbolsToPcm(syms, baseHz, startSample: 0);
+
+            for (int i = 0; i < totalSamples; i++)
+                pcm[i] += frame[i];
+
+            expectedCallsigns.Add($"CQ {callsign} {grid}");
+        }
+
+        // Additive Gaussian noise — σ = 0.001, seeded for reproducibility.
+        // Signal amplitude = 0.5 (default); SNR ≈ 54 dB — well above the LDPC floor.
+        var rng = new Random(42);
+        const double sigma = 0.001;
+        for (int i = 0; i < totalSamples; i++)
+        {
+            // Box-Muller transform.
+            double u1 = 1.0 - rng.NextDouble();
+            double u2 = 1.0 - rng.NextDouble();
+            double z  = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2);
+            pcm[i] += (float)(z * sigma);
+        }
+
+        var clock   = new FakeClock(new DateTime(2026, 5, 28, 15, 30, 0, DateTimeKind.Utc));
+        var decoder = new Ft8Decoder(clock);
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var results = await decoder.DecodeAsync(pcm, CancellationToken.None);
+        sw.Stop();
+
+        sw.ElapsedMilliseconds.Should().BeLessThan(10_000,
+            "FR-026: decode must complete within 10 seconds on an 8-signal fixture");
+
+        var decodedMessages = results.Select(r => r.Message).ToList();
+        int hits = expectedCallsigns.Count(expected => decodedMessages.Contains(expected));
+        hits.Should().BeGreaterThanOrEqualTo(6,
+            $"at least 6 of 8 known FT8 messages must be decoded; got {hits}. " +
+            $"Decoded: [{string.Join(", ", decodedMessages)}]");
+    }
 }

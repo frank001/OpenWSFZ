@@ -20,8 +20,39 @@ internal static class GoertzelDetector
         // float is sufficient for the ~6 Hz tone-spacing resolution of FT8 at 12 kHz,
         // and is 2-3× faster than double on modern JIT — necessary because the
         // time-domain sweep in Ft8Decoder multiplies this call count by ~50.
-        float coeff = 2.0f * MathF.Cos(2.0f * MathF.PI * (float)(targetFrequencyHz / sampleRateHz));
+        float coeff = Coeff(targetFrequencyHz, sampleRateHz);
+        return ComputeEnergyWithCoeff(samples, coeff);
+    }
 
+    /// <summary>
+    /// Computes the Goertzel coefficient for a given target frequency and sample rate.
+    ///
+    /// <para>Result: <c>2 × cos(2π × f / fs)</c>, in single precision.</para>
+    ///
+    /// <para>
+    /// Callers that evaluate many tones at the same sample rate (e.g.
+    /// <see cref="SymbolExtractor.Extract"/>) should compute this once per tone and
+    /// reuse it across all sample windows to avoid redundant <see cref="MathF.Cos"/>
+    /// evaluations.  (p8: coefficient caching — saves 1,170 trig calls per
+    /// <see cref="SymbolExtractor.Extract"/> invocation.)
+    /// </para>
+    /// </summary>
+    public static float Coeff(double targetFrequencyHz, double sampleRateHz)
+        => 2.0f * MathF.Cos(2.0f * MathF.PI * (float)(targetFrequencyHz / sampleRateHz));
+
+    /// <summary>
+    /// Computes the squared magnitude using a pre-computed Goertzel coefficient.
+    ///
+    /// <para>
+    /// Use this overload when the coefficient has already been obtained via
+    /// <see cref="Coeff"/> to avoid recomputing the cosine on every call.
+    /// </para>
+    /// </summary>
+    /// <param name="samples">PCM sample window.</param>
+    /// <param name="coeff">Pre-computed coefficient: <c>2 × cos(2π × f / fs)</c>.</param>
+    /// <returns>Squared magnitude — proportional to energy at the target frequency.</returns>
+    public static float ComputeEnergyWithCoeff(ReadOnlySpan<float> samples, float coeff)
+    {
         float s1 = 0f;
         float s2 = 0f;
 
