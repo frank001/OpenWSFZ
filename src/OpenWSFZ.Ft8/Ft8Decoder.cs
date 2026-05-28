@@ -56,6 +56,13 @@ public sealed class Ft8Decoder : IModeDecoder
     // Costas sync threshold (tune for sensitivity vs. false-alarm rate).
     private const float  SyncThreshold = 0.45f;
 
+    // p8: bound Goertzel call count regardless of band noise level.
+    // FindCandidates returns candidates sorted by score descending; take the top N.
+    // A real signal produces at most one strong hit per (time, baseHz) pair; the
+    // second slot handles partial-overlap edge cases.  Value is a named constant so
+    // future tuning is explicit.
+    private const int MaxCandidatesPerSweep = 2;
+
     // Time-domain sweep: maximum start sample such that the first two Costas arrays
     // (positions 0–6 and 36–42) still fit fully in the buffer.
     // Second Costas array occupies symbols 36–42 → last sample index = (42+1)×1920 − 1 = 82 559.
@@ -74,12 +81,6 @@ public sealed class Ft8Decoder : IModeDecoder
 
     private readonly IClock              _clock;
     private readonly ILogger<Ft8Decoder>? _logger;
-
-    // Pre-allocated spectrogram buffer — 79 × 1 024 floats ≈ 316 KB.
-    // Allocated once at construction to avoid LOH allocations on every decode cycle.
-    // Safe to share across DecodeAsync invocations: CycleFramer emits windows serially
-    // (one at a time) so DecodeAsync is never called concurrently on the same instance.
-    private readonly float[,] _spectrogram = new float[SymbolCount, SpecBins];
 
     public Ft8Decoder(IClock clock, ILogger<Ft8Decoder>? logger = null)
     {
@@ -112,134 +113,103 @@ public sealed class Ft8Decoder : IModeDecoder
         var results = new List<DecodeResult>();
         var seen    = new HashSet<string>(StringComparer.Ordinal);
 
-        // D11 diagnostic counters: distinguish Costas-miss / LDPC-fail / CRC-fail.
-        // Logged at Information level alongside the final decode count so the operator
-        // can see immediately which stage of the pipeline is dropping signals.
-        int diag_costas      = 0; // Costas candidates that passed the sync threshold
-        int diag_ldpc        = 0; // candidates where LDPC converged
-        int diag_crc         = 0; // candidates where CRC-14 also passed
-        // D13 diagnostic: sum of initial parity failures (before BP) across all candidates.
-        // Divide by diag_costas to get avg.  Values near 41 (≈ CheckCount/2) indicate
-        // systematic LLR sign errors; values near 0 indicate LLRs already correct.
-        int diag_paritySum   = 0;
-
-        // Time-domain sweep: try each half-symbol-aligned start position from 0 up to the
-        // latest offset where the first two Costas arrays (positions 0–6 and 36–42)
-        // both fit within the buffer.  This covers:
-        //   • On-air signals with up to ~8 s clock skew (NTP is typically < 0.5 s).
-        //   • Pre-recorded WAV files played back without UTC alignment (Voicemeeter tests).
-        // The third Costas array (positions 72–78) may be absent for late-starting signals;
-        // the maximum achievable Costas score is then 14/21 ≈ 0.67, still above SyncThreshold.
-        // Step is TimeSweepStep = 960 (half symbol) rather than 1920 (full symbol) so that
-        // the worst-case symbol-boundary contamination is ≤ 25 % instead of 50 %. (D11)
         int maxStartSample = Math.Max(0, pcm.Length - SecondCostasEnd);
+        int stepCount      = maxStartSample / TimeSweepStep + 1;
 
-        for (int startSample = 0; startSample <= maxStartSample; startSample += TimeSweepStep)
+        // Thread-safe result accumulator.  Capacity hint avoids repeated resizing on
+        // a typical busy-band cycle (expect O(10–50) unique messages).
+        var bag = new System.Collections.Concurrent.ConcurrentBag<DecodeResult>();
+
+        // Diagnostic counters — updated via Interlocked because the parallel body runs
+        // on multiple threads.
+        int diag_costas    = 0;
+        int diag_ldpc      = 0;
+        int diag_crc       = 0;
+        int diag_paritySum = 0;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        Parallel.For(0, stepCount, new ParallelOptions { CancellationToken = ct }, i =>
         {
+            int startSample = i * TimeSweepStep;
+            if (startSample > maxStartSample) return;
+
             _logger?.LogTrace(
                 "Time-domain sweep: startSample = {Start} / {Max} ({StartS:F2} s).",
                 startSample, maxStartSample, (double)startSample / SampleRate);
 
-            // P1: pre-compute 79 FFTs once for this time offset.
-            // W1: FillSpectrogram writes into the pre-allocated instance field (_spectrogram)
-            // instead of allocating a new 316 KB LOH array, eliminating GC pressure.
-            SymbolExtractor.FillSpectrogram(pcm, startSample, _spectrogram);
+            // Per-iteration spectrogram buffer (~316 KB, short-lived, collected after loop).
+            var spectrogram = new float[SymbolCount, SpecBins];
+            SymbolExtractor.FillSpectrogram(pcm, startSample, spectrogram);
 
-            // Sweep base frequencies for Costas candidate detection.
-            // Step is FreqSweepStep = 50 Hz (8 × ToneSpacing) so that each signal
-            // is found by exactly one (baseHz, freqShift) pair.  (D12)
             for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += FreqSweepStep)
             {
                 ct.ThrowIfCancellationRequested();
 
-                // FFT-based coarse grid for fast Costas correlation.
-                // bin alignment corrected per D3 (Math.Round, not simple offset).
-                var fftGrid    = SymbolExtractor.ExtractFromSpectrogram(_spectrogram, baseHz);
+                var fftGrid    = SymbolExtractor.ExtractFromSpectrogram(spectrogram, baseHz);
                 var candidates = CostasSynchroniser.FindCandidates(fftGrid, SyncThreshold);
+                int take       = Math.Min(candidates.Count, MaxCandidatesPerSweep);
 
-                foreach (var cand in candidates)
+                for (int ci = 0; ci < take; ci++)
                 {
                     ct.ThrowIfCancellationRequested();
-                    diag_costas++;
+                    var cand = candidates[ci];
 
-                    // Candidate's exact signal base (tone 0 frequency).
+                    Interlocked.Increment(ref diag_costas);
+
                     double actualBase = baseHz + cand.FreqBinOffset * ToneSpacing;
-                    int    freqHz     = (int)Math.Round(actualBase + 3 * ToneSpacing); // centre tone
+                    int    freqHz     = (int)Math.Round(actualBase + 3 * ToneSpacing);
 
                     _logger?.LogDebug(
                         "Costas hit: startSample={Start}, base={Base:F2} Hz, score={Score:F3}.",
                         startSample, actualBase, cand.Score);
 
-                    // Goertzel exact-frequency grid for the confirmed candidate.
-                    // FT8 tones are exact multiples of 6.25 Hz (align on 1920-pt DFT
-                    // bins) but NOT on 2048-pt bins, so the FFT grid has spectral
-                    // leakage that corrupts LLR signs.  Goertzel evaluates the DFT at
-                    // the precise tone frequencies — zero leakage, correct LLR signs.
-                    // With the 50 Hz outer sweep step each signal produces at most one
-                    // Costas hit per time position, keeping Goertzel call count low.
-                    // Column 0 of the returned grid is signal tone 0 → freqShift = 0.
                     float[,] grid = SymbolExtractor.Extract(pcm, startSample, actualBase);
+                    var llr       = ComputeLlrs(grid, freqShift: 0);
 
-                    // Derive soft LLRs from the Goertzel grid (freqShift = 0).
-                    var llr = ComputeLlrs(grid, freqShift: 0);
+                    Interlocked.Add(ref diag_paritySum, LdpcDecoder.CountInitialParityFailures(llr));
 
-                    // D13 diagnostic: count initial parity failures from hard-decision LLRs
-                    // before BP iterations begin.  ~0 = already valid codeword; ~41 = systematic
-                    // LLR sign error (wrong Gray code, wrong H matrix, or bad Gray-code grouping).
-                    diag_paritySum += LdpcDecoder.CountInitialParityFailures(llr);
-
-                    // LDPC decode.
                     var decoded = LdpcDecoder.Decode(llr);
                     if (decoded is null) continue;
-                    diag_ldpc++;
+                    Interlocked.Increment(ref diag_ldpc);
 
-                    // CRC-14 check (FT8 standard): the CRC covers 82 bits —
-                    // 77 message bits + 5 implicit zero-padding bits — NOT 77 bits.
-                    // See kgoba/ft8_lib crc.c ftx_add_crc(): ftx_compute_crc(a91, 96−14)=82.
-                    // Using Crc14.Verify(decoded, 91) computes over 77 bits only and
-                    // always fails for live on-air signals.  (D14)
                     bool crcOk = Crc14.VerifyFt8(decoded);
                     if (!crcOk) continue;
-                    diag_crc++;
 
-                    // Guard: the all-zeros 91-bit block trivially satisfies LDPC parity and
-                    // CRC-14 (initial register = 0). No valid FT8 transmission encodes to all
-                    // zeros; this check prevents a noise burst with all-positive LLRs from
-                    // producing the spurious "DE DE AA00" decode. (D2)
                     bool allZeros = true;
                     for (int z = 0; z < decoded.Length; z++)
                         if (decoded[z] != 0) { allZeros = false; break; }
                     if (allZeros) continue;
 
-                    // Unpack the 77-bit message payload.
+                    Interlocked.Increment(ref diag_crc);
+
                     var msgBits = new ReadOnlySpan<byte>(decoded, 0, MsgBits);
                     string msg  = MessageUnpacker.Unpack(msgBits);
 
-                    // De-duplicate across the full time+frequency sweep.
-                    if (!seen.Add(msg)) continue;
-
-                    // Estimate SNR: peak log-energy minus noise floor (freqShift = 0).
-                    float snrEst = EstimateSnr(grid, freqShift: 0);
-
-                    // Dt: seconds from the UTC cycle boundary to where the signal was found.
                     double dt = (double)startSample / SampleRate;
-
-                    results.Add(new DecodeResult(
+                    bag.Add(new DecodeResult(
                         Time:    timeStr,
-                        Snr:     (int)Math.Round(snrEst),
+                        Snr:     (int)Math.Round(EstimateSnr(grid, freqShift: 0)),
                         Dt:      Math.Round(dt, 1),
                         FreqHz:  freqHz,
                         Message: msg));
                 }
             }
-        }
+        });
+
+        sw.Stop();
+
+        // Merge bag results; apply de-duplication after parallel loop.
+        foreach (var r in bag)
+            if (seen.Add(r.Message))
+                results.Add(r);
 
         float avgParity = diag_costas > 0 ? (float)diag_paritySum / diag_costas : 0f;
         _logger?.LogInformation(
             "Cycle {Time}: {Count} decode(s) found. " +
             "[diag] Costas candidates={Costas}, LDPC converged={Ldpc}, CRC passed={Crc}, " +
-            "avg_initial_parity_fail={AvgParity:F1}/83.",
-            timeStr, results.Count, diag_costas, diag_ldpc, diag_crc, avgParity);
+            "avg_initial_parity_fail={AvgParity:F1}/83, elapsed={Elapsed} ms.",
+            timeStr, results.Count, diag_costas, diag_ldpc, diag_crc, avgParity, sw.ElapsedMilliseconds);
 
         return Task.FromResult<IReadOnlyList<DecodeResult>>(results);
     }
