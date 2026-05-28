@@ -175,12 +175,13 @@ public sealed class Ft8Decoder : IModeDecoder
 
                     bool crcOk = Crc14.VerifyFt8(decoded);
                     if (!crcOk) continue;
-                    Interlocked.Increment(ref diag_crc);
 
                     bool allZeros = true;
                     for (int z = 0; z < decoded.Length; z++)
                         if (decoded[z] != 0) { allZeros = false; break; }
                     if (allZeros) continue;
+
+                    Interlocked.Increment(ref diag_crc);
 
                     var msgBits = new ReadOnlySpan<byte>(decoded, 0, MsgBits);
                     string msg  = MessageUnpacker.Unpack(msgBits);
