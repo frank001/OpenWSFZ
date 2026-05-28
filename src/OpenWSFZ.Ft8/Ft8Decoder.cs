@@ -110,16 +110,6 @@ public sealed class Ft8Decoder : IModeDecoder
             "Starting decode for cycle {Time}; pcm = {Samples} samples, RMS = {Rms:E3}.",
             timeStr, pcm.Length, rms);
 
-        // TEMPORARY D18 DIAGNOSTIC — remove after investigation
-        if (_logger?.IsEnabled(LogLevel.Debug) ?? false)
-        {
-            float d18_min = float.MaxValue, d18_max = float.MinValue, d18_sumSq = 0f;
-            foreach (var s in pcm) { d18_min = MathF.Min(d18_min, s); d18_max = MathF.Max(d18_max, s); d18_sumSq += s * s; }
-            float d18_rms = MathF.Sqrt(d18_sumSq / pcm.Length);
-            _logger!.LogDebug("[D18-1] PCM count={Count} min={Min:F4} max={Max:F4} rms={Rms:F4}",
-                pcm.Length, d18_min, d18_max, d18_rms);
-        }
-
         var results = new List<DecodeResult>();
         var seen    = new HashSet<string>(StringComparer.Ordinal);
 
@@ -174,66 +164,10 @@ public sealed class Ft8Decoder : IModeDecoder
                         "Costas hit: startSample={Start}, base={Base:F2} Hz, score={Score:F3}.",
                         startSample, actualBase, cand.Score);
 
-                    // TEMPORARY D18 DIAGNOSTIC — remove after investigation
-                    if (Math.Abs(actualBase - 731.25) < 7.0 &&
-                        startSample is >= 960 and <= 1920 &&
-                        (_logger?.IsEnabled(LogLevel.Debug) ?? false))
-                    {
-                        float d18_maxE = float.MinValue;
-                        for (int d18_s = 0; d18_s < 7; d18_s++)
-                            for (int d18_t = cand.FreqBinOffset; d18_t < cand.FreqBinOffset + 8; d18_t++)
-                                if (fftGrid[d18_s, d18_t] > d18_maxE) d18_maxE = fftGrid[d18_s, d18_t];
-                        _logger!.LogDebug("[D18-2] Costas at 731 Hz startSample={S}: score={Score:F4} maxE={MaxE:F2}",
-                            startSample, cand.Score, d18_maxE);
-                    }
-
-                    // TEMPORARY D18 DIAGNOSTIC — remove after investigation
-                    if (Math.Abs(actualBase - 731.25) < 10.0 &&
-                        (_logger?.IsEnabled(LogLevel.Debug) ?? false))
-                    {
-                        _logger!.LogDebug(
-                            "[D18-4] Goertzel tones for actualBase={Base:F2} Hz: {T0:F2} {T1:F2} {T2:F2} {T3:F2} {T4:F2} {T5:F2} {T6:F2} {T7:F2}",
-                            actualBase,
-                            actualBase + 0 * ToneSpacing, actualBase + 1 * ToneSpacing,
-                            actualBase + 2 * ToneSpacing, actualBase + 3 * ToneSpacing,
-                            actualBase + 4 * ToneSpacing, actualBase + 5 * ToneSpacing,
-                            actualBase + 6 * ToneSpacing, actualBase + 7 * ToneSpacing);
-                    }
-
                     float[,] grid = SymbolExtractor.Extract(pcm, startSample, actualBase);
+                    var llr       = ComputeLlrs(grid, freqShift: 0);
 
-                    // TEMPORARY D18 DIAGNOSTIC — remove after investigation
-                    if (Math.Abs(actualBase - 731.25) < 10.0 &&
-                        (_logger?.IsEnabled(LogLevel.Debug) ?? false))
-                    {
-                        var d18_sb = new System.Text.StringBuilder();
-                        for (int d18_sym = 0; d18_sym < Math.Min(8, grid.GetLength(0)); d18_sym++)
-                            d18_sb.Append($"sym{d18_sym}:[{grid[d18_sym, 0]:F3},{grid[d18_sym, 3]:F3}] ");
-                        _logger!.LogDebug("[D18-5] Energy grid (tone0,tone3) at 731 Hz: {Grid}", d18_sb.ToString());
-                    }
-
-                    var llr = ComputeLlrs(grid, freqShift: 0);
-
-                    // TEMPORARY D18 DIAGNOSTIC — remove after investigation
-                    if (Math.Abs(actualBase - 731.25) < 10.0 &&
-                        (_logger?.IsEnabled(LogLevel.Debug) ?? false))
-                    {
-                        _logger!.LogDebug(
-                            "[D18-6] First 12 LLRs at 731 Hz: {L0:+0.00;-0.00} {L1:+0.00;-0.00} {L2:+0.00;-0.00} {L3:+0.00;-0.00} {L4:+0.00;-0.00} {L5:+0.00;-0.00} {L6:+0.00;-0.00} {L7:+0.00;-0.00} {L8:+0.00;-0.00} {L9:+0.00;-0.00} {L10:+0.00;-0.00} {L11:+0.00;-0.00}",
-                            llr[0], llr[1], llr[2], llr[3], llr[4], llr[5],
-                            llr[6], llr[7], llr[8], llr[9], llr[10], llr[11]);
-                    }
-
-                    int d18_fails = LdpcDecoder.CountInitialParityFailures(llr);
-                    Interlocked.Add(ref diag_paritySum, d18_fails);
-
-                    // TEMPORARY D18 DIAGNOSTIC — remove after investigation
-                    if (Math.Abs(actualBase - 731.25) < 7.0 &&
-                        startSample is >= 960 and <= 1920 &&
-                        (_logger?.IsEnabled(LogLevel.Debug) ?? false))
-                    {
-                        _logger!.LogDebug("[D18-3] LDPC initial parity failures at 731 Hz: {Count}/83", d18_fails);
-                    }
+                    Interlocked.Add(ref diag_paritySum, LdpcDecoder.CountInitialParityFailures(llr));
 
                     var decoded = LdpcDecoder.Decode(llr);
                     if (decoded is null) continue;
