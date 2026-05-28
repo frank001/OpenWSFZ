@@ -76,5 +76,20 @@
 - [x] D18.6 `Ft8Decoder.cs`: add D18-4 Goertzel tone frequency log for `actualBase ≈ 731 Hz` (placed before `SymbolExtractor.Extract` call; tones computed inline as `actualBase + k × ToneSpacing`)
 - [x] D18.7 `Ft8Decoder.cs`: add D18-5 raw energy grid log (tone0, tone3, first 8 symbols) after `SymbolExtractor.Extract` returns
 - [x] D18.8 `Ft8Decoder.cs`: add D18-6 first-12-LLR log after `ComputeLlrs` for `actualBase ≈ 731 Hz`
-- [ ] D18.9 CAPTAIN: run one live decode cycle; paste `[D18-2]`–`[D18-6]` log lines back to QA
-      ← REQUIRES CAPTAIN: live hardware run with debug logging
+- [x] D18.9 CAPTAIN: run one live decode cycle; paste `[D18-2]`–`[D18-6]` log lines back to QA
+      ← Log file openswfz-20260528T220232Z.log delivered 2026-05-29; all diagnostics collected; root cause identified (see dev-briefing-36)
+
+## 9. Defects — Round 36 (2026-05-29 QA analysis of Round 35 log)
+
+### D18 — Root cause fix (CostasSynchroniser)
+
+- [x] D18.10 `CostasSynchroniser.cs`: add `LogSumExp8` private helper (8-argument log-sum-exp)
+- [x] D18.11 `CostasSynchroniser.cs`: replace `score += MathF.Exp(costas - maxE)` with softmax formula `score += MathF.Exp(costas - logSumAll)` where `logSumAll = LogSumExp8(all 8 tones)`
+- [x] D18.12 `CostasSynchroniser.cs`: update XML doc comment in `FindCandidates` to describe the softmax scoring
+- [x] D18.13 `Ft8Decoder.cs`: remove all 6 `// TEMPORARY D18 DIAGNOSTIC` blocks (D18-1 through D18-6); `d18_*` variables gone; `Interlocked.Add` one-liner restored
+- [x] D18.14 Add `CostasSynchroniserTests` unit test: uniform-energy grid (all cells = −2.0f) must return no candidates above threshold 0.45 (see dev-briefing-36 §5.2)
+- [x] D18.15 `dotnet build -c Release` — 0 errors, 0 warnings
+- [x] D18.16 `dotnet test -c Release` — 190 passed, 0 failed, 0 skipped (52 Ft8 incl. new crowded-band test)
+- [x] D18.17 Commit to `feat/p9-all-txt-decode-logging`
+- [ ] D18.18 CAPTAIN: live smoke test — confirm real amateur callsigns appear in ALL.TXT
+      ← REQUIRES CAPTAIN: live hardware smoke test

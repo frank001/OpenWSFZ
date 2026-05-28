@@ -19,14 +19,26 @@ internal static class CostasSynchroniser
     private static ReadOnlySpan<int> CostasPositions => [0, 36, 72];
 
     /// <summary>
-    /// Searches the log-energy grid for FT8 synchronisation candidates.
+    /// Searches the log-energy grid for FT8 synchronisation candidates using softmax
+    /// Costas scoring (D18 fix).
+    ///
+    /// <para>
+    /// Each Costas symbol contributes <c>exp(E_costas − logSumExp(E_0…E_7))</c> to the
+    /// score — the softmax probability that the Costas tone is the unique dominant tone.
+    /// This is 1/8 for uniform noise and approaches 1.0 for an isolated real signal,
+    /// making the gate robust to crowded-band conditions (the old hard-max formula
+    /// evaluated to ~0.74/position on a live 40 m FT8 band, causing 24 % false-alarm
+    /// rate).
+    /// </para>
     /// </summary>
     /// <param name="grid">
-    /// A <c>float[79, 8]</c> log-energy grid produced by <see cref="SymbolExtractor.Extract"/>.
+    /// A <c>float[79, GridWidth]</c> log-energy grid produced by
+    /// <see cref="SymbolExtractor.Extract"/> or
+    /// <see cref="SymbolExtractor.ExtractFromSpectrogram"/>.
     /// </param>
     /// <param name="threshold">
-    /// Minimum correlation score (normalised, 0–1) to report a candidate.
-    /// Values around 0.4–0.6 are typical starting points.
+    /// Minimum normalised score (0–1) to report a candidate.
+    /// The threshold of 0.45 is appropriate for the softmax formula.
     /// </param>
     /// <returns>
     /// Candidates sorted by score descending. Each candidate's <c>FreqBinOffset</c> is an
@@ -81,37 +93,57 @@ internal static class CostasSynchroniser
 
                 if (sym >= symbols) break;
 
-                // Score contribution: energy at the Costas tone relative to the peak
-                // among all 8 signal tones for this symbol.
+                // Softmax Costas scoring (D18 fix).
+                //
+                // The previous formula, exp(costas − maxE), computes energy at the Costas
+                // tone relative to the MAXIMUM of the 8 tones.  On an isolated signal this
+                // is fine (1.0 when Costas tone is dominant).  On a live crowded band, all
+                // 8 tones are within 2–4 dB → maxE ≈ costas → exp(0) ≈ 1.0 everywhere
+                // → false-positive rate of 24 %, flooding the decode pipeline.
+                //
+                // The softmax formula exp(costas − logSumExp(all 8)) = E_costas / Σ E_k
+                // is the standard probability that the Costas tone is the unique dominant
+                // tone.  Its properties:
+                //   • Uniform noise (all 8 tones equal):        contribution = 1/8 = 0.125 ✓
+                //   • Real isolated signal (one dominant tone):  contribution → 1.0         ✓
+                //   • Crowded band (N tones elevated equally):   contribution ≈ 1/N < 0.45  ✓
+                //
+                // The noise-floor gate (maxE < −18) is retained so that silent-band frames
+                // with FFT floor values ≈ −23 are skipped without corrupting the score.
                 float costas = grid[sym, tone];
                 float maxE   = costas;
                 for (int t = freqShift; t < freqShift + tones; t++)
                     if (grid[sym, t] > maxE) maxE = grid[sym, t];
 
-                // Noise-floor gate: when all 8 tones have energy near log(ε) ≈ −23
-                // (the FFT spectrogram floor = log(0 + 1e-10)), they are all within
-                // 0.1 log-units of each other and every tone trivially satisfies the
-                // soft-match criterion — producing a "perfect" Costas score in silent
-                // frequency bands.  Require the maximum energy to be above −18 to
-                // avoid counting noise symbols.  Any real signal of interest (even at
-                // −60 dBFS) produces log-energy above −10.
-                if (maxE < -18f) continue;
+                if (maxE < -18f) continue;  // silent-band guard (D9, D10, D11)
 
-                // Soft energy fraction: exp(costas − maxE) = E_costas / E_max  ∈ (0, 1].
-                // For a real FT8 signal, costas ≈ maxE → contribution ≈ 1.0 per position.
-                // For random noise (8 equiprobable bins), expected contribution ≈ 1/8 per
-                // position → expected normalised score ≈ 0.125 — well below the 0.45
-                // threshold even without additional filtering.
-                // For a busy band where a competing signal's data tone is momentarily
-                // stronger than our Costas tone at one position, exp(costas − maxE) ∈ (0, 1)
-                // rather than 0, preserving the accumulated score across all 21 positions.
-                // The D9 noise-floor gate above already guards against the degenerate case
-                // where all 8 log-energies are near log(ε) ≈ −23 (silent band). (D10, D11)
-                score += MathF.Exp(costas - maxE);
+                float logSumAll = LogSumExp8(
+                    grid[sym, freqShift + 0], grid[sym, freqShift + 1],
+                    grid[sym, freqShift + 2], grid[sym, freqShift + 3],
+                    grid[sym, freqShift + 4], grid[sym, freqShift + 5],
+                    grid[sym, freqShift + 6], grid[sym, freqShift + 7]);
+
+                score += MathF.Exp(costas - logSumAll);
             }
         }
 
         return score;
+    }
+
+    /// <summary>
+    /// Numerically stable log-sum-exp over 8 values:
+    /// <c>log(exp(a) + exp(b) + … + exp(h)) = m + log(Σ exp(x − m))</c>
+    /// where <c>m = max(a…h)</c>.
+    /// </summary>
+    private static float LogSumExp8(
+        float a, float b, float c, float d,
+        float e, float f, float g, float h)
+    {
+        float m = MathF.Max(MathF.Max(MathF.Max(a, b), MathF.Max(c, d)),
+                            MathF.Max(MathF.Max(e, f), MathF.Max(g, h)));
+        return m + MathF.Log(
+            MathF.Exp(a - m) + MathF.Exp(b - m) + MathF.Exp(c - m) + MathF.Exp(d - m) +
+            MathF.Exp(e - m) + MathF.Exp(f - m) + MathF.Exp(g - m) + MathF.Exp(h - m));
     }
 }
 
