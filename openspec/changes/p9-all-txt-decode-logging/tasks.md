@@ -1,3 +1,15 @@
+## ⚠️ Phase 0 Freeze Notice (2026-05-29)
+
+Decoder-correctness work (D18 and any future DSP defects) has been **split out of p9 to
+`p10-decoder-ground-truth`**. No further DSP-algorithm changes on this branch.
+
+The ALL.TXT logging feature (FR-026/027/028) is functionally complete — all code changes
+are done and all automated tests pass. The only remaining open items on p9 are live
+hardware smoke tests (6.3, D18.18), which are Captain-required and are acceptance
+confirmation only. See `RECOVERY_PLAN.md` for context.
+
+---
+
 ## 1. Requirements
 
 - [x] 1.1 Add `FR-027` to `REQUIREMENTS.md`: *Dial frequency configuration — the operator SHALL be able to configure the radio dial frequency (in MHz) via a `decodeLog.dialFrequencyMHz` field (double, default `0.0`) in `AppConfig`. The value is used when writing the ALL.TXT decode log.*
