@@ -37,6 +37,7 @@
 - [x] 6.1 `dotnet build -c Release` — 0 errors, 0 warnings
 - [x] 6.2 `dotnet test -c Release` — all tests green, including new `AllTxtWriterTests`
       — Re-certified 2026-05-28: 190 passed, 0 failed, 0 skipped (4 new Daemon.Tests + 186 existing)
+      — Re-certified 2026-05-28 (Round 34): 189 passed, 0 failed, 0 skipped
 - [ ] 6.3 Run the daemon against a live or recorded FT8 session; confirm `ALL.TXT` is created and each line matches the expected column layout against a known WSJT-X `ALL.TXT` for the same signals
       ← REQUIRES CAPTAIN: live hardware smoke test
 
@@ -57,5 +58,23 @@
 - [x] D18.1 `Ft8Decoder.cs`: add D18-1 PCM window statistics (count / min / max / rms) at Debug level
 - [x] D18.2 `Ft8Decoder.cs`: add D18-2 Costas score at known 731 Hz / startSample ∈ [960, 1440] candidate
 - [x] D18.3 `Ft8Decoder.cs`: add D18-3 LDPC initial parity failures at 731 Hz candidate
-- [ ] D18.4 CAPTAIN: run one live decode cycle with Debug log level on `OpenWSFZ.Ft8` namespace; paste `[D18-1]`, `[D18-2]`, `[D18-3]` lines back to QA for root-cause determination
+- [x] D18.4 CAPTAIN: run one live decode cycle with Debug log level on `OpenWSFZ.Ft8` namespace; paste `[D18-1]`, `[D18-2]`, `[D18-3]` lines back to QA for root-cause determination
+      ← Log file openswfz-20260528T214034Z.log delivered 2026-05-28; D18-1 collected (both cycles); D18-2/D18-3 absent (window too narrow — see dev-briefing-35 §2.1)
+
+## 8. Defects — Round 35 (2026-05-28 QA review of Round 34)
+
+### Mandatory fix
+
+- [x] R35.1 `AllTxtWriter.cs`: update XML doc comment `{dt,5:F1}` → `{dt,4:F1}` (stale D16 follow-up)
+- [x] R35.2 `dotnet build -c Release` — 0 errors, 0 warnings
+- [x] R35.3 Commit to `feat/p9-all-txt-decode-logging`
+      — Re-certified 2026-05-29: 189 passed, 0 failed, 0 skipped
+
+### D18 — second diagnostic pass (no fix yet)
+
+- [x] D18.5 `Ft8Decoder.cs`: widen D18-2/D18-3 condition to `Math.Abs(actualBase - 731.25) < 7.0 && startSample is >= 960 and <= 1920`
+- [x] D18.6 `Ft8Decoder.cs`: add D18-4 Goertzel tone frequency log for `actualBase ≈ 731 Hz` (placed before `SymbolExtractor.Extract` call; tones computed inline as `actualBase + k × ToneSpacing`)
+- [x] D18.7 `Ft8Decoder.cs`: add D18-5 raw energy grid log (tone0, tone3, first 8 symbols) after `SymbolExtractor.Extract` returns
+- [x] D18.8 `Ft8Decoder.cs`: add D18-6 first-12-LLR log after `ComputeLlrs` for `actualBase ≈ 731 Hz`
+- [ ] D18.9 CAPTAIN: run one live decode cycle; paste `[D18-2]`–`[D18-6]` log lines back to QA
       ← REQUIRES CAPTAIN: live hardware run with debug logging

@@ -10,7 +10,7 @@ namespace OpenWSFZ.Daemon;
 /// <para>
 /// Line format (exactly matching WSJT-X ALL.TXT):
 /// <code>
-/// YYMMDD_HHMMSS     D.DDD Rx FT8 {snr,6} {dt,5:F1} {freq,4} {message}
+/// YYMMDD_HHMMSS     D.DDD Rx FT8 {snr,6} {dt,4:F1} {freq,4} {message}
 /// </code>
 /// </para>
 ///
