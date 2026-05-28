@@ -18,5 +18,11 @@ public sealed record AppConfig(
     string  LogLevel                = "Information")
 {
     /// <summary>File logging configuration. Always non-null; defaults to file logging disabled.</summary>
-    public LoggingConfig Logging { get; init; } = new();
+    public LoggingConfig    Logging   { get; init; } = new();
+
+    /// <summary>
+    /// WSJT-X compatible ALL.TXT decode log configuration (FR-027, FR-028).
+    /// Always non-null; defaults to decode logging disabled.
+    /// </summary>
+    public DecodeLogConfig  DecodeLog { get; init; } = new();
 }
