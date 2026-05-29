@@ -2,6 +2,7 @@ using System;
 using FluentAssertions;
 using OpenWSFZ.Ft8.Dsp;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace OpenWSFZ.Ft8.Tests;
 
@@ -146,4 +147,5 @@ public sealed class SymbolExtractorTests
         spectrogram[1, bin1].Should().BeGreaterThan(spectrogram[1, bin1 + 1] * 10f,
             "symbol 1 at 1250 Hz should peak at bin 200");
     }
+
 }

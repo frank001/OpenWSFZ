@@ -54,12 +54,18 @@ public sealed class MessageUnpackerTests
 
     // Extra-field values.
     // Report (bit 14 = 1): extra = 0x4000 | val.
-    // SNR +11 dB: val = 11 + 35 = 46  →  extra = 16 430  (valid: val ∈ [1,60])
+    // SNR +11 dB (plain): val = 11 + 35 = 46  →  extra = 16 430  (valid: val ∈ [4,63])
     private const ulong Extra_SnrPlus11 = 16_430UL;    // 0x4000 | 46
+    // R-prefix report "R-11": val = 64 + (-11 + 35) = 88  →  extra = 16 472
+    private const ulong Extra_RMinus11  = 16_472UL;    // 0x4000 | 88  (R-prefix, valid: val ∈ [64,127])
+    // R-prefix report "R+08" (near-ceiling): val = 64 + (8 + 35) = 107  →  extra = 16 491
+    private const ulong Extra_RPlus08   = 16_491UL;    // 0x4000 | 107  (R-prefix, valid)
+    // val = 128: first value ABOVE the valid R-prefix range  →  extra = 16 512
+    private const ulong Extra_Val128    = 16_512UL;    // 0x4000 | 128  (val > 127, rejected)
     // val = 2194 (+2159 dB display) — from corpus false-positive   →  extra = 18 578
-    private const ulong Extra_Val2194   = 18_578UL;    // 0x4000 | 2194
+    private const ulong Extra_Val2194   = 18_578UL;    // 0x4000 | 2194  (val > 127, rejected)
     // val = 4052 (+4017 dB display)   →  extra = 20 436
-    private const ulong Extra_Val4052   = 20_436UL;    // 0x4000 | 4052
+    private const ulong Extra_Val4052   = 20_436UL;    // 0x4000 | 4052  (val > 127, rejected)
     // Grid FN13: r1=F(5), r2=N(13), 1, 3  →  val = 5*1800 + 13*100 + 1*10 + 3 = 10 313
     private const ulong Extra_FN13      = 10_313UL;    // bit 14 = 0, val = 10 313
 
@@ -72,12 +78,38 @@ public sealed class MessageUnpackerTests
         result.Should().Contain("K0ABC");
     }
 
+    [Fact(DisplayName = "FR-029: TryUnpack returns decoded string containing 'R-11' for R-prefix report val 88")]
+    public void TryUnpack_RPrefix_Minus11_ReturnsDecodedString()
+    {
+        var bits = BuildType1Bits(Packed_K0ABC, Packed_W1ABC, Extra_RMinus11);
+        string? result = MessageUnpacker.TryUnpack(bits);
+        result.Should().NotBeNull("val=88 is a valid R-prefix SNR report (val 64–127)");
+        result.Should().Contain("R-11", "val=88 should decode as R-prefix SNR −11 dB");
+    }
+
+    [Fact(DisplayName = "FR-029: TryUnpack returns decoded string containing 'R+08' for R-prefix report val 107")]
+    public void TryUnpack_RPrefix_Plus08_ReturnsDecodedString()
+    {
+        var bits = BuildType1Bits(Packed_K0ABC, Packed_W1ABC, Extra_RPlus08);
+        string? result = MessageUnpacker.TryUnpack(bits);
+        result.Should().NotBeNull("val=107 is a valid R-prefix SNR report (val 64–127)");
+        result.Should().Contain("R+08", "val=107 should decode as R-prefix SNR +8 dB");
+    }
+
+    [Fact(DisplayName = "FR-029: TryUnpack returns null for report extra field with val 128 (above valid R-prefix ceiling)")]
+    public void TryUnpack_ExtraVal128_ReturnsNull()
+    {
+        var bits = BuildType1Bits(Packed_K0ABC, Packed_W1ABC, Extra_Val128);
+        string? result = MessageUnpacker.TryUnpack(bits);
+        result.Should().BeNull("val=128 exceeds the valid R-prefix ceiling of 127");
+    }
+
     [Fact(DisplayName = "FR-029: TryUnpack returns null for report extra field with val 2194 (+2159 dB)")]
     public void TryUnpack_ExtraVal2194_ReturnsNull()
     {
         var bits = BuildType1Bits(Packed_K0ABC, Packed_W1ABC, Extra_Val2194);
         string? result = MessageUnpacker.TryUnpack(bits);
-        result.Should().BeNull("SNR val=2194 is far outside the valid range [1,60]");
+        result.Should().BeNull("SNR val=2194 is far outside the valid range [1,127]");
     }
 
     [Fact(DisplayName = "FR-029: TryUnpack returns null for report extra field with val 4052 (+4017 dB)")]
@@ -85,7 +117,7 @@ public sealed class MessageUnpackerTests
     {
         var bits = BuildType1Bits(Packed_K0ABC, Packed_W1ABC, Extra_Val4052);
         string? result = MessageUnpacker.TryUnpack(bits);
-        result.Should().BeNull("SNR val=4052 is far outside the valid range [1,60]");
+        result.Should().BeNull("SNR val=4052 is far outside the valid range [1,127]");
     }
 
     // NOTE: The callsign validator (IsValidCallsign28) is intentionally NOT called in
@@ -108,7 +140,7 @@ public sealed class MessageUnpackerTests
     {
         var bits = BuildType1Bits(Packed_K0ABC, Packed_W1ABC, Extra_FN13);
         string? result = MessageUnpacker.TryUnpack(bits);
-        result.Should().NotBeNull("FN13 is a valid grid square (val=10313 < 32724)");
+        result.Should().NotBeNull("FN13 is a valid grid square; grid extras always pass the 14-bit-constrained validator");
         result.Should().Contain("FN13");
     }
 
@@ -123,7 +155,8 @@ public sealed class MessageUnpackerTests
         // n3=0 (bits 71-73=0), i3=1 (bits 74-76=001)
         bits[76] = 1; // i3 = 1
         string? result = MessageUnpacker.TryUnpack(bits);
-        result.Should().BeNull("i3=1 message with val=2194 must be rejected by SNR range check");
+        result.Should().BeNull("i3=1 message with val=2194 must be rejected by SNR range check (valid range [1,127])");
+
     }
 
     // ── Original Unpack tests ─────────────────────────────────────────────────

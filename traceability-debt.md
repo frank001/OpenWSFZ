@@ -51,12 +51,12 @@ NFR-015  # Stability — no crash or memory leak for a normal operating session
 
 ## Pending — Phase 10 (Decoder ground truth — p10-decoder-ground-truth)
 
-# FR-029 — partially covered: WavReader unit tests cite FR-029 now.
-#           Full coverage: real-signal fixture integration test (task 7.3) cites FR-029
-#           once the corpus WAVs are captured (CAPTAIN required). Remove this comment
-#           once the fixture integration test is committed.
-NFR-016  # Decoder-correctness gate G6 — real-signal fixture integration test runs in CI,
-         # blocking merges that regress real-signal recovery. Gate is structurally active
-         # once task 7.3 (fixture integration test) is committed. The G6 gate itself is
-         # already enforced by the existing dotnet test step (G1) — G6 is a named label
-         # for the specific real-signal fixture test running within that gate.
+# FR-029 is fully covered: WavReaderTests (unit) + RealSignalFixtureTests (oracle integration)
+# + ReplayHarnessTests all cite FR-029 in their display-name prefixes. Removed from debt.
+NFR-016  # Decoder-correctness gate G6 — real-signal fixture integration test runs in CI on
+         # every push/PR to main, blocking merges that regress real-signal recovery.
+         # The gate runs inside the G1 dotnet test step; G6 is the named label for
+         # RealSignalFixtureTests within that step. NFR-016 stays in debt until a test
+         # explicitly prefixes its display name "NFR-016: ..." per the TraceabilityCheck
+         # convention (currently only FR-029 appears in the prefix; NFR-016 appears in
+         # the suffix as "(G6 gate — NFR-016)"). Remove when that prefix test is added.
