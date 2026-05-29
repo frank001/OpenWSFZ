@@ -1,9 +1,8 @@
 ﻿# p10 Recovery-Rate Findings
 
-**Date:** 2026-05-29 18:00:00 UTC  
-**Corpus:** 42 × 15-second WAVs, 12 kHz mono int16, 7.074 MHz  
-**WSJT-X answer keys:** 887 total decodes across 42 cycles  
-**Decoder revision:** p11 — Bluestein 1920-pt DFT + mixed-radix callsign decode
+**Date:** 2026-05-29 16:09:53 UTC
+**Corpus:** 42 × 15-second WAVs, 12 kHz mono int16, 7.074 MHz
+**WSJT-X answer keys:** 887 total decodes across 42 cycles
 
 ## Per-file results
 
@@ -62,19 +61,8 @@
 | Our false positives | 185 |
 | **Recovery rate** | **0.0%** |
 
-## Decision-gate outcome — updated p11 analysis
+## Decision-gate outcome
 
-Recovery rate is **0.0%** — the Bluestein 1920-pt DFT spectrogram and mixed-radix
-callsign decode are correctly implemented (verified by unit tests), but the G6 fixture
-WAV files contain **co-frequency FT8 interferers 10–60 dB stronger** than the expected
-target signals.  WSJT-X recovers the target signals via iterative subtraction; our
-single-pass decoder cannot.
+Recovery rate is **0.0%** — no real off-air FT8 signals decoded.
 
-**Root cause:** The G6 fixture WAVs were recorded from a crowded 40m FT8 band.  Each
-target signal (e.g., `LW9END 9A7W R-11` at 575 Hz) has another, stronger FT8 station
-transmitting at the same base frequency simultaneously.  The Bluestein spectrogram
-correctly shows the dominant signal, but the dominant signal is not the target.
-
-**Next step:** Implement iterative subtraction — decode the dominant co-frequency signal,
-regenerate its PCM, subtract from the audio, then decode the residual.  This is a follow-on
-change beyond the p11 Bluestein DFT port scope.
+**Decision: Phase 2A — Port `ft8_lib`.** The homegrown DSP algorithms are fundamentally unable to decode real signals. Per `RECOVERY_PLAN.md` §6, 18 failed root-cause attempts combined with 0% recovery confirms the port path. See `p11-decoder-port` for the follow-on change.
