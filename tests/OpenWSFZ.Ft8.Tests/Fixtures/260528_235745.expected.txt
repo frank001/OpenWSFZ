@@ -1,0 +1,6 @@
+# Answer-key subset for 260528_235745 (2026-05-28 23:57:45 UTC)
+# Source: WSJT-X YYMMDD_HHMMSS Save All on 7.074 MHz
+# Only strong, unambiguous decodes listed (SNR >= +6 dB)
+UK8OM K2ZJ FN13
+EA6LU F4MGP JN04
+A93MO IU6STP JN63

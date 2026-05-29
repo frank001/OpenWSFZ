@@ -103,6 +103,11 @@ public sealed class JsonConfigStore : IConfigStore
             if (config.Logging is null)
                 config = config with { Logging = new LoggingConfig() };
 
+            // Same guard for the newer "decodeLog" key (absent in config files created
+            // before p9; STJ source-gen sets the property to null instead of new()).
+            if (config.DecodeLog is null)
+                config = config with { DecodeLog = new DecodeLogConfig() };
+
             return config;
         }
         catch (Exception ex)

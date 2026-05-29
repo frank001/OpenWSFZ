@@ -6,10 +6,19 @@ using Xunit;
 namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
-/// Ft8Decoder: Ft8DecoderFixtureTests
+/// Ft8Decoder: Ft8DecoderFixtureTests — INTERNAL CONSISTENCY CHECKS ONLY
 ///
-/// Full-pipeline integration test using an embedded WAV fixture.
-/// Skipped until ft8-sample.wav is committed to Fixtures/ (task 8.1–8.2).
+/// ⚠️ These tests use <see cref="TestFt8Encoder"/> to build synthetic inputs that
+/// share the same Gray map, CRC convention, LDPC generator, and waveform synthesis
+/// as the decoder. A self-consistent encoder/decoder pair always round-trips, so
+/// green results here prove only that the decoder agrees with <em>itself</em> — not
+/// that it can decode real off-air FT8 signals.
+///
+/// Per <c>RECOVERY_PLAN.md</c> D3 and FR-029: <strong>these tests are classified as
+/// internal-consistency checks and are NOT accepted as evidence of decoder
+/// correctness against real signals.</strong> The authoritative correctness oracle
+/// is <see cref="RealSignalFixtureTests"/>, which decodes real WSJT-X Save All
+/// recordings.
 /// </summary>
 public sealed class Ft8DecoderFixtureTests
 {

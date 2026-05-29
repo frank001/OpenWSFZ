@@ -16,6 +16,12 @@ const logLevelSelect        = /** @type {HTMLSelectElement} */ (document.getElem
 const saveBtn               = /** @type {HTMLButtonElement} */ (document.getElementById('save-btn'));
 const feedback              = /** @type {HTMLElement}       */ (document.getElementById('feedback'));
 
+// Decode log controls (p9)
+const decodeLogEnabled      = /** @type {HTMLInputElement}  */ (document.getElementById('decode-log-enabled'));
+const decodeLogPath         = /** @type {HTMLInputElement}  */ (document.getElementById('decode-log-path'));
+const decodeLogDialFreq     = /** @type {HTMLInputElement}  */ (document.getElementById('decode-log-dial-freq'));
+const decodeLogDependent    = /** @type {HTMLElement}       */ (document.getElementById('decode-log-dependent'));
+
 // Logging controls
 const loggingFileEnabled    = /** @type {HTMLInputElement}  */ (document.getElementById('logging-file-enabled'));
 const loggingDirectory      = /** @type {HTMLInputElement}  */ (document.getElementById('logging-directory'));
@@ -67,6 +73,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Pre-select console log level.
     logLevelSelect.value = config.logLevel ?? 'Information';
 
+    // Pre-fill decode log controls (p9).
+    const dl = config.decodeLog ?? {};
+    decodeLogEnabled.checked  = dl.enabled          ?? false;
+    decodeLogPath.value       = dl.path             ?? 'ALL.TXT';
+    decodeLogDialFreq.value   = String(dl.dialFrequencyMHz ?? 0.0);
+    updateDecodeLogVisibility();
+
     // Pre-fill logging controls (p6).
     const lg = config.logging ?? {};
     loggingFileEnabled.checked  = lg.fileEnabled       ?? false;
@@ -83,6 +96,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     showFeedback(`Failed to load settings: ${err.message}`, 'error');
   }
 });
+
+// ── Visibility helpers (p9) ──────────────────────────────────────────────
+
+function updateDecodeLogVisibility() {
+  const enabled = decodeLogEnabled.checked;
+  decodeLogDependent.querySelectorAll('input').forEach(el => {
+    /** @type {HTMLInputElement} */ (el).disabled = !enabled;
+  });
+}
+
+decodeLogEnabled.addEventListener('change', updateDecodeLogVisibility);
 
 // ── Visibility helpers (p6) ───────────────────────────────────────────────
 
@@ -133,6 +157,13 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
+  // p9: collect decode log config.
+  const decodeLog = {
+    enabled:          decodeLogEnabled.checked,
+    path:             decodeLogPath.value.trim() || 'ALL.TXT',
+    dialFrequencyMHz: parseFloat(decodeLogDialFreq.value) || 0.0,
+  };
+
   // p6: collect logging config.
   const logging = {
     fileEnabled:       loggingFileEnabled.checked,
@@ -151,6 +182,7 @@ saveBtn.addEventListener('click', async () => {
       port,
       showCycleCountdown,
       logLevel,
+      decodeLog,
       logging,
     });
     showFeedback('Saved ✓', 'success');

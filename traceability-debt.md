@@ -48,3 +48,15 @@ NFR-013  # UX competitive bar — HAM operators prefer OpenWSFZ over existing so
 NFR-002  # Performance — user experience comparable to WSJT-X
 NFR-005  # Distribution — source-only via GitHub repository
 NFR-015  # Stability — no crash or memory leak for a normal operating session
+
+## Pending — Phase 10 (Decoder ground truth — p10-decoder-ground-truth)
+
+# FR-029 — partially covered: WavReader unit tests cite FR-029 now.
+#           Full coverage: real-signal fixture integration test (task 7.3) cites FR-029
+#           once the corpus WAVs are captured (CAPTAIN required). Remove this comment
+#           once the fixture integration test is committed.
+NFR-016  # Decoder-correctness gate G6 — real-signal fixture integration test runs in CI,
+         # blocking merges that regress real-signal recovery. Gate is structurally active
+         # once task 7.3 (fixture integration test) is committed. The G6 gate itself is
+         # already enforced by the existing dotnet test step (G1) — G6 is a named label
+         # for the specific real-signal fixture test running within that gate.
