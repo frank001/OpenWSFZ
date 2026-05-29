@@ -88,7 +88,9 @@
 
 ## 9. Verification and archive
 
-- [ ] 9.1 `dotnet test -c Release` — final full-suite run; all gates green; record counts in a commit message
+- [x] 9.1 `dotnet test -c Release` — final full-suite run; all gates green; record counts in a commit message
+      — 176 passed, 4 skipped, 0 failed. All gates green (G1/G3/G5/G6). See commit 094eff1.
 - [ ] 9.2 CAPTAIN: review G6 results — confirm the three real-signal fixture tests pass and the decoded messages match the committed answer keys
+      ← CAPTAIN gate
 - [ ] 9.3 Open PR to `main`; confirm CI green on all three matrix legs
 - [ ] 9.4 QA review; merge on approval; archive this change
