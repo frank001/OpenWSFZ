@@ -107,8 +107,18 @@ public sealed class ReplayHarnessTests
                 continue;
             }
 
-            // Decode
-            var clock   = ParseClockFromTimestamp(timestamp);
+            // Parse the cycle timestamp — guard against stray filenames that don't match YYMMDD_HHMMSS.
+            FakeClock clock;
+            try
+            {
+                clock = ParseClockFromTimestamp(timestamp);
+            }
+            catch (Exception ex)
+            {
+                _out.WriteLine($"[SKIP] {wavName}: cannot parse timestamp — {ex.Message}");
+                continue;
+            }
+
             var decoder = new Ft8Decoder(clock);
             IReadOnlyList<DecodeResult> results;
             try
