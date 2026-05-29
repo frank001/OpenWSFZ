@@ -48,6 +48,12 @@ licence-inventory.md
 # Working / scratch notes (not part of the repo)
 resume.txt
 
+# Captain's raw WAV corpus — too large to commit; used locally only
+p10-decoder-ground-truth_items/
+
+# Daemon runtime output — generated files
+ALL.TXT
+
 # Serena MCP tool — logs and runtime artefacts (project config is committed)
 daemon_log.txt
 
