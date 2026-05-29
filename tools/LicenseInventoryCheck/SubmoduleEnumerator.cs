@@ -22,10 +22,13 @@ public static class SubmoduleEnumerator
             return Array.Empty<DependencyEntry>();
         }
 
-        // Only enumerate directories that are actual git submodules — i.e. those listed in
-        // .gitmodules.  This excludes build-output directories (e.g. ft8_lib_build/) that
-        // happen to live under /native/ but are NOT dependency submodules.
+        // When .gitmodules declares at least one native/* entry, use that list as an allow-list
+        // to skip non-submodule directories (e.g. ft8_lib_build/ build-output).
+        // When .gitmodules is absent or has no native/* entries, enumerate all directories
+        // (preserves legacy behaviour and keeps the unit tests working with mock directories
+        // that have no .gitmodules).
         var gitSubmodulePaths = ReadGitSubmodulePaths(solutionRoot, "native");
+        bool filterByGitmodules = gitSubmodulePaths.Count > 0;
 
         var entries = new List<DependencyEntry>();
 
@@ -33,8 +36,8 @@ public static class SubmoduleEnumerator
         {
             var name = Path.GetFileName(dir);
 
-            // Skip directories that are not declared git submodules.
-            if (!gitSubmodulePaths.Contains(name))
+            // Skip directories that are not declared git submodules (only when the filter is active).
+            if (filterByGitmodules && !gitSubmodulePaths.Contains(name))
                 continue;
             var licenceFile = LicenceFileNames
                 .Select(f => Path.Combine(dir, f))

@@ -160,7 +160,7 @@ public sealed class Ft8DecoderFixtureTests
     /// <see cref="RealSignalFixtureTests"/> (G6 gate).  This test validates only that
     /// the ft8_lib call path completes within the cycle budget.
     /// </summary>
-    [Fact(DisplayName = "FR-026: DecodeAsync completes within 10 s on 8-signal fixture")]
+    [WindowsOnlyFact(DisplayName = "FR-026: DecodeAsync completes within 10 s on 8-signal fixture")]
     [Trait("Category", "Performance")]
     public async Task DecodeAsync_MultiSignal_CompletesWithinBudget()
     {

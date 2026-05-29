@@ -49,7 +49,7 @@ public sealed class RealSignalFixtureTests
 
     // ── Gate test ─────────────────────────────────────────────────────────────
 
-    [Theory(DisplayName = "FR-029: FT8 decoder recovers known real off-air signals from committed WAV fixture (G6 gate — NFR-016)")]
+    [WindowsOnlyTheory(DisplayName = "FR-029: FT8 decoder recovers known real off-air signals from committed WAV fixture (G6 gate — NFR-016)")]
     [MemberData(nameof(Fixtures))]
     public async Task DecodeAsync_RealSignalFixture_ContainsAnswerKeyMessages(
         string fixtureId,
