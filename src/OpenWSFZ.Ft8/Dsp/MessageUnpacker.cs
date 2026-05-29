@@ -83,10 +83,22 @@ internal static class MessageUnpacker
 
     // Null-returning variant used by TryUnpack — returns null for n3=4,5 instead of
     // calling HexFallback, so callers can distinguish "decoded" from "unsupported".
+    // Also filters out false positives whose callsign or report field contents are
+    // structurally impossible for a real FT8 Type 1 message.  (p11 Part 1)
     private static string? UnpackType1Or2OrNull(ReadOnlySpan<byte> bits)
     {
         int n3 = (bits[71] << 2) | (bits[72] << 1) | bits[73];
-        return n3 <= 3 ? UnpackType1(bits) : null;
+        if (n3 > 3) return null;
+
+        ulong c1 = ReadBits(bits, 0,  28);
+        ulong c2 = ReadBits(bits, 28, 28);
+        ulong rg = ReadBits(bits, 56, 15);
+
+        if (!IsValidCallsign28(c1)) return null;
+        if (!IsValidCallsign28(c2)) return null;
+        if (!IsValidExtra15(rg))    return null;
+
+        return UnpackType1(bits);
     }
 
     private static string UnpackType1(ReadOnlySpan<byte> bits)
@@ -187,6 +199,50 @@ internal static class MessageUnpacker
         for (int i = 0; i < count; i++)
             val = (val << 1) | bits[start + i];
         return val;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> if <paramref name="packed"/> decodes to a valid FT8 callsign
+    /// per the base-37 encoding invariant (Franke &amp; Taylor 2019 §4.1):
+    /// position 2 of the 6-character padded form must be a digit ('0'–'9') and
+    /// positions 3–5 must be letters (A–Z) or space.
+    /// Special packed values ≤ 2 (DE, QRZ, CQ) are always valid.
+    /// </summary>
+    private static bool IsValidCallsign28(ulong packed)
+    {
+        if (packed <= 2) return true; // DE / QRZ / CQ
+
+        ulong p = packed - 3;
+        Span<char> chars = stackalloc char[6];
+        for (int i = 5; i >= 0; i--)
+        {
+            chars[i] = CallAlphabet[(int)(p % 37)];
+            p /= 37;
+        }
+
+        // Position 2 must be a digit.
+        if (!char.IsDigit(chars[2])) return false;
+
+        // Positions 3–5 must not be digits.
+        for (int i = 3; i <= 5; i++)
+            if (char.IsDigit(chars[i])) return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> if the 15-bit extra field is within the documented FT8 encoding range.
+    /// For signal reports (bit 14 = 1): valid val ∈ [1, 60] (RRR / RR73 / 73 / SNR −34 to +25 dB).
+    /// For grid squares (bit 14 = 0): valid val &lt; 32 724 (standard grids + R-prefix contest range).
+    /// </summary>
+    private static bool IsValidExtra15(ulong packed)
+    {
+        bool isReport = (packed & 0x4000UL) != 0;
+        ulong val     = packed & 0x3FFFUL;
+
+        return isReport
+            ? val >= 1 && val <= 60   // covers RRR/RR73/73 and SNR −34 to +25 dB
+            : val < 32_724;           // standard 4-char grids + R-prefix contest range
     }
 
     /// <summary>Returns the first <paramref name="bitCount"/> bits as a hex string.</summary>
