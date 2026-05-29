@@ -228,8 +228,12 @@ public sealed class Ft8DecoderFixtureTests
     [Fact(DisplayName = "FR-001: Ft8Decoder decodes embedded WAV fixture and matches ft8-sample.ref")]
     public async Task DecodeAsync_EmbeddedWavFixture_MatchesRefFile()
     {
-        float[] pcm = WavFixtureHelper.LoadEmbeddedWav("ft8-sample.wav");
-        var refLines = WavFixtureHelper.LoadEmbeddedLines("ft8-sample.ref");
+        float[] pcm      = WavFixtureHelper.LoadEmbeddedWav("ft8-sample.wav");
+        var     refLines = WavFixtureHelper.LoadEmbeddedLines("ft8-sample.ref");
+
+        refLines.Should().NotBeEmpty(
+            "ft8-sample.ref must contain at least one reference decode line; " +
+            "if the file is blank the test asserts nothing");
 
         var clock   = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));
         var decoder = new Ft8Decoder(clock);
