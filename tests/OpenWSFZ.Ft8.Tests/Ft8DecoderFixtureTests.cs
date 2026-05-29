@@ -26,7 +26,7 @@ public sealed class Ft8DecoderFixtureTests
     public async Task DecodeAsync_WavFixture_ReturnsKnownDecodes()
     {
         const double baseFreqHz = 1500.0;
-        byte[] msgBits  = TestFt8Encoder.PackType1(c1: 2, c2: 1_674_730, rg: 10_331);
+        byte[] msgBits  = TestFt8Encoder.PackType1(c1: 2, c2: 6_516_426, rg: 10_331);
         byte[] infoBits = TestFt8Encoder.AppendCrc14(msgBits);
         byte[] codeword = TestFt8Encoder.LdpcEncode(infoBits);
         int[]  symbols  = TestFt8Encoder.BitsToSymbols(codeword);
@@ -91,7 +91,7 @@ public sealed class Ft8DecoderFixtureTests
         // With TimeSweepStep=960 the sweep lands at startSample=960 — perfect alignment.
         int startSample = SymbolExtractor.SamplesPerSymbol / 2; // 960
 
-        byte[] msgBits  = TestFt8Encoder.PackType1(c1: 2, c2: 1_674_730, rg: 10_331);
+        byte[] msgBits  = TestFt8Encoder.PackType1(c1: 2, c2: 6_516_426, rg: 10_331);
         byte[] infoBits = TestFt8Encoder.AppendCrc14(msgBits);
         byte[] codeword = TestFt8Encoder.LdpcEncode(infoBits);
         int[]  symbols  = TestFt8Encoder.BitsToSymbols(codeword);
@@ -118,7 +118,7 @@ public sealed class Ft8DecoderFixtureTests
         const double baseFreqHz  = 1500.0;
         int startSample = SymbolExtractor.SamplesPerSymbol / 4; // 480
 
-        byte[] msgBits  = TestFt8Encoder.PackType1(c1: 2, c2: 1_674_730, rg: 10_331);
+        byte[] msgBits  = TestFt8Encoder.PackType1(c1: 2, c2: 6_516_426, rg: 10_331);
         byte[] infoBits = TestFt8Encoder.AppendCrc14(msgBits);
         byte[] codeword = TestFt8Encoder.LdpcEncode(infoBits);
         int[]  symbols  = TestFt8Encoder.BitsToSymbols(codeword);

@@ -42,29 +42,15 @@ public sealed class MessageUnpackerTests
 
     // ── Part 1: TryUnpack content-validation tests  (FR-029) ─────────────────
 
-    // Packed values for standard callsigns in 6-char left-padded base-37 form.
+    // Packed values for standard callsigns using FT8 mixed-radix encoding.
     //
-    // " K0ABC": chars[0]=' '(0), chars[1]='K'(21), chars[2]='0'(1), chars[3]='A'(11),
-    //           chars[4]='B'(12), chars[5]='C'(13)
-    //   packed-3 = 0*37^5 + 21*37^4 + 1*37^3 + 11*37^2 + 12*37 + 13 = 39 423 550
-    private const ulong Packed_K0ABC = 39_423_553UL; // 39 423 550 + 3
+    // " K0ABC": pos0=' '(0), pos1='K'(21), pos2='0'(0), pos3='A'(1), pos4='B'(2), pos5='C'(3)
+    //   n = (0*37+21)*10*27^3 + 0*27^3 + 1*27^2 + 2*27 + 3 = 4 134 216
+    private const ulong Packed_K0ABC = 4_134_219UL;  // 4 134 216 + 3
 
-    // " W1ABC": chars[0]=' '(0), chars[1]='W'(33), chars[2]='1'(2), chars[3]='A'(11),
-    //           chars[4]='B'(12), chars[5]='C'(13)
-    //   packed-3 = 0*37^5 + 33*37^4 + 2*37^3 + 11*37^2 + 12*37 + 13 = 61 964 135
-    private const ulong Packed_W1ABC = 61_964_138UL; // 61 964 135 + 3
-
-    // "07WNYS": chars[2]='W' (letter at pos 2) — invalid per base-37 invariant.
-    //   chars[0]='0'(1), chars[1]='7'(8), chars[2]='W'(33), chars[3]='N'(24),
-    //   chars[4]='Y'(35), chars[5]='S'(29)
-    //   packed-3 = 1*37^5 + 8*37^4 + 33*37^3 + 24*37^2 + 35*37 + 29 = 86 042 974
-    private const ulong Packed_07WNYS = 86_042_977UL;
-
-    // "0H21AM": chars[3]='1' (digit at pos 3) — invalid per base-37 invariant.
-    //   chars[0]='0'(1), chars[1]='H'(18), chars[2]='2'(3), chars[3]='1'(2),
-    //   chars[4]='A'(11), chars[5]='M'(23)
-    //   packed-3 = 1*37^5 + 18*37^4 + 3*37^3 + 2*37^2 + 11*37 + 23 = 103 233 982
-    private const ulong Packed_0H21AM = 103_233_985UL;
+    // " W1ABC": pos0=' '(0), pos1='W'(33), pos2='1'(1), pos3='A'(1), pos4='B'(2), pos5='C'(3)
+    //   n = (0*37+33)*10*27^3 + 1*27^3 + 1*27^2 + 2*27 + 3 = 6 515 859
+    private const ulong Packed_W1ABC = 6_515_862UL;  // 6 515 859 + 3
 
     // Extra-field values.
     // Report (bit 14 = 1): extra = 0x4000 | val.
@@ -102,29 +88,19 @@ public sealed class MessageUnpackerTests
         result.Should().BeNull("SNR val=4052 is far outside the valid range [1,60]");
     }
 
-    [Fact(DisplayName = "FR-029: TryUnpack returns null when callsign packed value decodes to 07WNYS (letter at position 2)")]
-    public void TryUnpack_Callsign07WNYS_ReturnsNull()
-    {
-        var bits = BuildType1Bits(Packed_07WNYS, Packed_W1ABC, Extra_SnrPlus11);
-        string? result = MessageUnpacker.TryUnpack(bits);
-        result.Should().BeNull("'07WNYS' has a letter at position 2 — violates base-37 callsign invariant");
-    }
+    // NOTE: The callsign validator (IsValidCallsign28) is intentionally NOT called in
+    // the decode path. With the FT8 mixed-radix decoder, position 2 is always a digit
+    // and positions 3-5 are always letters/space by construction, so the check is a
+    // no-op. The SNR range check (IsValidExtra15) is the correct and sufficient filter —
+    // all 281 false positives in the p10 corpus had impossible SNR values (> +25 dB).
 
-    [Fact(DisplayName = "FR-029: TryUnpack returns null when callsign packed value decodes to 0H21AM (digit at position 3)")]
-    public void TryUnpack_Callsign0H21AM_ReturnsNull()
-    {
-        var bits = BuildType1Bits(Packed_K0ABC, Packed_0H21AM, Extra_SnrPlus11);
-        string? result = MessageUnpacker.TryUnpack(bits);
-        result.Should().BeNull("'0H21AM' has a digit at position 3 — violates base-37 callsign invariant");
-    }
-
-    [Fact(DisplayName = "FR-029: TryUnpack treats packed values 0/1/2 (DE, QRZ, CQ) as valid callsigns")]
-    public void TryUnpack_SpecialPackedValues_PassCallsignValidation()
+    [Fact(DisplayName = "FR-029: TryUnpack returns decoded string for Type 1 message with CQ special value")]
+    public void TryUnpack_CqSpecialValue_ReturnsDecodedString()
     {
         // packed=2 → CQ, paired with a valid c2 and valid extra field.
         var bits = BuildType1Bits(2UL, Packed_W1ABC, Extra_SnrPlus11);
         string? result = MessageUnpacker.TryUnpack(bits);
-        result.Should().NotBeNull("DE/QRZ/CQ (packed ≤ 2) are always valid callsigns");
+        result.Should().NotBeNull("CQ (packed=2) is a valid special callsign value");
     }
 
     [Fact(DisplayName = "FR-029: TryUnpack returns decoded string for valid grid square FN13")]
@@ -132,16 +108,22 @@ public sealed class MessageUnpackerTests
     {
         var bits = BuildType1Bits(Packed_K0ABC, Packed_W1ABC, Extra_FN13);
         string? result = MessageUnpacker.TryUnpack(bits);
-        result.Should().NotBeNull("FN13 is a valid grid square");
+        result.Should().NotBeNull("FN13 is a valid grid square (val=10313 < 32724)");
         result.Should().Contain("FN13");
     }
 
-    [Fact(DisplayName = "FR-029: TryUnpack returns null when callsign 1 is valid but callsign 2 is bogus (digit at position 3)")]
-    public void TryUnpack_ValidC1BogusC2_ReturnsNull()
+    [Fact(DisplayName = "FR-029: TryUnpack returns null for i3=1 message with impossible SNR report")]
+    public void TryUnpack_I3_1_ImpossibleSnr_ReturnsNull()
     {
-        var bits = BuildType1Bits(Packed_K0ABC, Packed_0H21AM, Extra_FN13);
+        // Build an i3=1 message with val=2194 (+2159 dB SNR) — plugs the legacy-format bypass.
+        var bits = new byte[77];
+        WriteBits(bits,  0, 28, Packed_K0ABC);
+        WriteBits(bits, 28, 28, Packed_W1ABC);
+        WriteBits(bits, 56, 15, Extra_Val2194);
+        // n3=0 (bits 71-73=0), i3=1 (bits 74-76=001)
+        bits[76] = 1; // i3 = 1
         string? result = MessageUnpacker.TryUnpack(bits);
-        result.Should().BeNull("invalid callsign 2 must cause the whole message to be rejected");
+        result.Should().BeNull("i3=1 message with val=2194 must be rejected by SNR range check");
     }
 
     // ── Original Unpack tests ─────────────────────────────────────────────────

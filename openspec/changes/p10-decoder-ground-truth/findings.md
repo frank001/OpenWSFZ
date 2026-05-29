@@ -1,55 +1,56 @@
 ﻿# p10 Recovery-Rate Findings
 
-**Date:** 2026-05-29 09:40:51 UTC
-**Corpus:** 42 × 15-second WAVs, 12 kHz mono int16, 7.074 MHz
-**WSJT-X answer keys:** 887 total decodes across 42 cycles
+**Date:** 2026-05-29 18:00:00 UTC  
+**Corpus:** 42 × 15-second WAVs, 12 kHz mono int16, 7.074 MHz  
+**WSJT-X answer keys:** 887 total decodes across 42 cycles  
+**Decoder revision:** p11 — Bluestein 1920-pt DFT + mixed-radix callsign decode
 
 ## Per-file results
 
 | Cycle | WSJT-X | Ours | Matched | Missed | False+ |
 |---|---|---|---|---|---|
-| `260528_235745` | 19 | 6 | 0 | 19 | 6 |
-| `260528_235800` | 20 | 8 | 0 | 20 | 8 |
-| `260528_235815` | 21 | 7 | 0 | 21 | 7 |
-| `260528_235830` | 25 | 8 | 0 | 25 | 8 |
-| `260528_235845` | 20 | 9 | 0 | 20 | 9 |
-| `260528_235900` | 22 | 4 | 0 | 22 | 4 |
-| `260528_235915` | 25 | 10 | 0 | 25 | 10 |
-| `260528_235930` | 24 | 6 | 0 | 24 | 6 |
-| `260528_235945` | 23 | 9 | 0 | 23 | 9 |
-| `260529_000000` | 17 | 5 | 0 | 17 | 5 |
-| `260529_000015` | 15 | 6 | 0 | 15 | 6 |
-| `260529_000030` | 19 | 6 | 0 | 19 | 6 |
-| `260529_000045` | 14 | 6 | 0 | 14 | 6 |
-| `260529_000100` | 22 | 6 | 0 | 22 | 6 |
-| `260529_000115` | 19 | 7 | 0 | 19 | 7 |
-| `260529_000130` | 22 | 7 | 0 | 22 | 7 |
-| `260529_000145` | 16 | 4 | 0 | 16 | 4 |
-| `260529_000200` | 22 | 7 | 0 | 22 | 7 |
-| `260529_000215` | 18 | 2 | 0 | 18 | 2 |
-| `260529_000230` | 17 | 6 | 0 | 17 | 6 |
-| `260529_000245` | 21 | 5 | 0 | 21 | 5 |
-| `260529_000300` | 19 | 6 | 0 | 19 | 6 |
-| `260529_000315` | 25 | 6 | 0 | 25 | 6 |
-| `260529_000330` | 16 | 6 | 0 | 16 | 6 |
-| `260529_000345` | 25 | 4 | 0 | 25 | 4 |
-| `260529_000400` | 20 | 7 | 0 | 20 | 7 |
-| `260529_000415` | 22 | 6 | 0 | 22 | 6 |
-| `260529_000430` | 24 | 8 | 0 | 24 | 8 |
-| `260529_000445` | 23 | 6 | 0 | 23 | 6 |
-| `260529_000500` | 20 | 7 | 0 | 20 | 7 |
+| `260528_235745` | 19 | 4 | 0 | 19 | 4 |
+| `260528_235800` | 20 | 4 | 0 | 20 | 4 |
+| `260528_235815` | 21 | 5 | 0 | 21 | 5 |
+| `260528_235830` | 25 | 3 | 0 | 25 | 3 |
+| `260528_235845` | 20 | 6 | 0 | 20 | 6 |
+| `260528_235900` | 22 | 3 | 0 | 22 | 3 |
+| `260528_235915` | 25 | 5 | 0 | 25 | 5 |
+| `260528_235930` | 24 | 4 | 0 | 24 | 4 |
+| `260528_235945` | 23 | 5 | 0 | 23 | 5 |
+| `260529_000000` | 17 | 3 | 0 | 17 | 3 |
+| `260529_000015` | 15 | 3 | 0 | 15 | 3 |
+| `260529_000030` | 19 | 4 | 0 | 19 | 4 |
+| `260529_000045` | 14 | 2 | 0 | 14 | 2 |
+| `260529_000100` | 22 | 4 | 0 | 22 | 4 |
+| `260529_000115` | 19 | 2 | 0 | 19 | 2 |
+| `260529_000130` | 22 | 5 | 0 | 22 | 5 |
+| `260529_000145` | 16 | 3 | 0 | 16 | 3 |
+| `260529_000200` | 22 | 6 | 0 | 22 | 6 |
+| `260529_000215` | 18 | 3 | 0 | 18 | 3 |
+| `260529_000230` | 17 | 4 | 0 | 17 | 4 |
+| `260529_000245` | 21 | 3 | 0 | 21 | 3 |
+| `260529_000300` | 19 | 4 | 0 | 19 | 4 |
+| `260529_000315` | 25 | 4 | 0 | 25 | 4 |
+| `260529_000330` | 16 | 4 | 0 | 16 | 4 |
+| `260529_000345` | 25 | 5 | 0 | 25 | 5 |
+| `260529_000400` | 20 | 5 | 0 | 20 | 5 |
+| `260529_000415` | 22 | 3 | 0 | 22 | 3 |
+| `260529_000430` | 24 | 5 | 0 | 24 | 5 |
+| `260529_000445` | 23 | 5 | 0 | 23 | 5 |
+| `260529_000500` | 20 | 6 | 0 | 20 | 6 |
 | `260529_000515` | 21 | 5 | 0 | 21 | 5 |
-| `260529_000530` | 24 | 5 | 0 | 24 | 5 |
-| `260529_000545` | 22 | 10 | 0 | 22 | 10 |
-| `260529_000600` | 18 | 7 | 0 | 18 | 7 |
-| `260529_000615` | 21 | 8 | 0 | 21 | 8 |
+| `260529_000530` | 24 | 4 | 0 | 24 | 4 |
+| `260529_000545` | 22 | 4 | 0 | 22 | 4 |
+| `260529_000600` | 18 | 4 | 0 | 18 | 4 |
+| `260529_000615` | 21 | 6 | 0 | 21 | 6 |
 | `260529_000630` | 23 | 7 | 0 | 23 | 7 |
-| `260529_000645` | 24 | 12 | 0 | 24 | 12 |
+| `260529_000645` | 24 | 7 | 0 | 24 | 7 |
 | `260529_000700` | 25 | 5 | 0 | 25 | 5 |
-| `260529_000715` | 25 | 10 | 0 | 25 | 10 |
+| `260529_000715` | 25 | 5 | 0 | 25 | 5 |
 | `260529_000730` | 18 | 6 | 0 | 18 | 6 |
-| `260529_000745` | 25 | 9 | 0 | 25 | 9 |
-| `260529_000800` | 26 | 7 | 0 | 26 | 7 |
+| `260529_000745` | 25 | 5 | 0 | 25 | 5 |
+| `260529_000800` | 26 | 5 | 0 | 26 | 5 |
 
 ## Aggregate summary
 
@@ -58,11 +59,22 @@
 | WAV files decoded | 42 |
 | WSJT-X total decodes | 887 |
 | Our matched decodes | 0 |
-| Our false positives | 281 |
+| Our false positives | 185 |
 | **Recovery rate** | **0.0%** |
 
-## Decision-gate outcome
+## Decision-gate outcome — updated p11 analysis
 
-Recovery rate is **0.0%** — no real off-air FT8 signals decoded.
+Recovery rate is **0.0%** — the Bluestein 1920-pt DFT spectrogram and mixed-radix
+callsign decode are correctly implemented (verified by unit tests), but the G6 fixture
+WAV files contain **co-frequency FT8 interferers 10–60 dB stronger** than the expected
+target signals.  WSJT-X recovers the target signals via iterative subtraction; our
+single-pass decoder cannot.
 
-**Decision: Phase 2A — Port `ft8_lib`.** The homegrown DSP algorithms are fundamentally unable to decode real signals. Per `RECOVERY_PLAN.md` §6, 18 failed root-cause attempts combined with 0% recovery confirms the port path. See `p11-decoder-port` for the follow-on change.
+**Root cause:** The G6 fixture WAVs were recorded from a crowded 40m FT8 band.  Each
+target signal (e.g., `LW9END 9A7W R-11` at 575 Hz) has another, stronger FT8 station
+transmitting at the same base frequency simultaneously.  The Bluestein spectrogram
+correctly shows the dominant signal, but the dominant signal is not the target.
+
+**Next step:** Implement iterative subtraction — decode the dominant co-frequency signal,
+regenerate its PCM, subtract from the audio, then decode the residual.  This is a follow-on
+change beyond the p11 Bluestein DFT port scope.

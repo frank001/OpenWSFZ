@@ -15,6 +15,73 @@ namespace OpenWSFZ.Ft8.Dsp;
 /// </summary>
 internal static class SymbolExtractor
 {
+    // ── Bluestein chirp-Z pre-computed tables ────────────────────────────────
+    //
+    // The Bluestein algorithm computes an N-point DFT for arbitrary N using a
+    // power-of-two FFT as a subroutine.  For N = 1 920: the next power of 2
+    // above 2N − 1 = 3 839 is 4 096.
+    //
+    // Identity: X[k] = exp(−jπk²/N) · (a ⋆ h)[k]
+    //   where a[n] = x[n] · exp(−jπn²/N)   (chirp-modulated input)
+    //         h[n] = exp(+jπn²/N)           (chirp filter, even-symmetric)
+    //
+    // The convolution is computed as IFFT(FFT(a) · FFT(h)).
+    // Since |exp(−jπk²/N)| = 1, |X[k]|² = |(a ⋆ h)[k]|² — no output-chirp
+    // multiplication is needed when only squared magnitudes are required.
+    //
+    // Reference: kgoba/ft8_lib — the 1 920-point DFT is the key insight that
+    // aligns bin spacing (12 000/1 920 = 6.25 Hz) with FT8 tone spacing.
+
+    /// <summary>FFT size for the Bluestein convolution (≥ 2 × 1920 − 1 = 3839; next power of 2).</summary>
+    private const int BluesteinFftSize = 4096;
+
+    // Chirp tables (initialised once in the static constructor).
+    // s_chirpRe[n] = cos(−πn²/N),  s_chirpIm[n] = sin(−πn²/N)
+    private static readonly float[] s_chirpRe;
+    private static readonly float[] s_chirpIm;
+
+    // Frequency-domain Bluestein filter: FFT of h[n] = exp(+jπn²/N), padded to BluesteinFftSize.
+    private static readonly float[] s_filterFftRe;
+    private static readonly float[] s_filterFftIm;
+
+    static SymbolExtractor()
+    {
+        int N = SamplesPerSymbol; // 1 920
+        int M = BluesteinFftSize; // 4 096
+
+        s_chirpRe = new float[N];
+        s_chirpIm = new float[N];
+
+        var hRe = new float[M];
+        var hIm = new float[M];
+
+        for (int n = 0; n < N; n++)
+        {
+            double angle = Math.PI * (double)n * n / N;  // πn²/N
+
+            s_chirpRe[n] = (float)Math.Cos(-angle);  // exp(−jπn²/N) real
+            s_chirpIm[n] = (float)Math.Sin(-angle);  // exp(−jπn²/N) imag
+
+            float hRen = (float)Math.Cos(angle);     // exp(+jπn²/N) real
+            float hImn = (float)Math.Sin(angle);     // exp(+jπn²/N) imag
+
+            hRe[n] = hRen;
+            hIm[n] = hImn;
+
+            if (n > 0)
+            {
+                // Wrap-around for negative-index chirp values.
+                // h[−n] = exp(+jπ(−n)²/N) = exp(+jπn²/N) = h[n].
+                hRe[M - n] = hRen;
+                hIm[M - n] = hImn;
+            }
+        }
+
+        // Pre-compute FFT of the filter kernel (done once at startup).
+        FftCompute.Fft(hRe, hIm);
+        s_filterFftRe = hRe;
+        s_filterFftIm = hIm;
+    }
     /// <summary>FT8 tone spacing in Hz.</summary>
     public const double ToneSpacingHz = 6.25;
 
@@ -37,15 +104,21 @@ internal static class SymbolExtractor
     public const int SamplesPerSymbol = (int)(SampleRate / ToneSpacingHz); // 1920
 
     /// <summary>
-    /// FFT size used by the spectrogram path.  1 920 samples are zero-padded to this
-    /// value (the next power of 2) before the FFT.  Bin spacing = 12 000 / 2 048 ≈ 5.859 Hz.
-    /// The frequency error versus the exact 6.25 Hz spacing is ≤ 3 Hz per tone — negligible
-    /// for FT8 tone discrimination.
+    /// FFT size used by the legacy <see cref="FillSpectrogram"/> / <see cref="ComputeSpectrogram"/>
+    /// path.  1 920 samples are zero-padded to this value (the next power of 2) before the FFT.
+    /// Bin spacing = 12 000 / 2 048 ≈ 5.859 Hz — NOT aligned with FT8 tone spacing (6.25 Hz).
     /// </summary>
     internal const int FftSizePadded = 2048;
 
-    /// <summary>Number of unique positive-frequency bins in the zero-padded FFT.</summary>
+    /// <summary>Number of unique positive-frequency bins in the legacy zero-padded FFT.</summary>
     internal const int SpecBins = FftSizePadded / 2; // 1 024
+
+    /// <summary>
+    /// Number of unique positive-frequency bins in the exact 1 920-point DFT.
+    /// Bin spacing = 12 000 / 1 920 = 6.25 Hz — exactly equal to FT8 tone spacing.
+    /// Each FT8 tone falls on exactly one bin with no spectral leakage.
+    /// </summary>
+    internal const int ExactSpecBins = SamplesPerSymbol / 2; // 960
 
     /// <summary>
     /// Width of the log-energy grid returned by <see cref="Extract"/> and
@@ -198,16 +271,114 @@ internal static class SymbolExtractor
     }
 
     /// <summary>
-    /// Extracts a 79 × 15 log-energy grid from a pre-computed spectrogram.
+    /// Fills <paramref name="result"/> with a 1 920-point exact-DFT spectrogram
+    /// for the 79 symbol windows starting at <paramref name="startSample"/>.
     ///
     /// <para>
-    /// Each column <c>c</c> (0–14) is mapped to the FFT bin nearest to the exact
-    /// FT8 tone frequency <c>baseHz + c × 6.25 Hz</c>:
-    /// <code>bin = (int)Math.Round((baseHz + c × ToneSpacingHz) × FftSizePadded / SampleRate)</code>
-    /// This corrects the bin-alignment error that arose when the old implementation
-    /// simply added <c>c</c> to <c>baseBin</c> — valid only when the FFT bin spacing
-    /// equals the FT8 tone spacing (6.25 Hz), but the zero-padded FFT has bin spacing
-    /// ≈ 5.859 Hz, causing drift of up to −2.9 dB at tone 7.  (D3)
+    /// Uses the Bluestein chirp-Z algorithm to compute the 1 920-point DFT via a
+    /// 4 096-point FFT as a subroutine.  Bin spacing = 12 000 / 1 920 = <b>6.25 Hz</b>
+    /// exactly — each FT8 tone falls on exactly one bin with no spectral leakage.
+    /// The 2 048-point zero-padded FFT previously used by <see cref="FillSpectrogram"/>
+    /// had bin spacing ≈ 5.859 Hz, splitting each FT8 tone across two bins and
+    /// corrupting the LLRs fed to the LDPC decoder.
+    /// </para>
+    ///
+    /// <para>
+    /// Since |exp(−jπk²/N)| = 1, the squared magnitudes of the Bluestein output
+    /// equal the squared magnitudes of the true DFT — no output-chirp multiplication
+    /// is needed.
+    /// </para>
+    ///
+    /// <para>
+    /// Pre-computed tables (<c>s_chirpRe/Im</c>, <c>s_filterFftRe/Im</c>) are
+    /// initialised once in the static constructor and shared across all calls.
+    /// Thread-safe for concurrent reads.
+    /// </para>
+    /// </summary>
+    /// <param name="pcm">Full PCM buffer.</param>
+    /// <param name="startSample">First sample of the first symbol.</param>
+    /// <param name="result">
+    /// Pre-allocated <c>float[SymbolCount, ExactSpecBins]</c> (79 × 960) buffer to fill.
+    /// Out-of-bounds symbol rows are zeroed as a stale-data guard (D5).
+    /// </param>
+    internal static void FillSpectrogramExact(
+        ReadOnlySpan<float> pcm, int startSample, float[,] result)
+    {
+        int N = SamplesPerSymbol; // 1 920
+        int M = BluesteinFftSize; // 4 096
+
+        // Per-call work buffers — allocated here to be thread-safe in Parallel.For.
+        var aRe = new float[M];
+        var aIm = new float[M];
+
+        for (int sym = 0; sym < SymbolCount; sym++)
+        {
+            int offset = startSample + sym * SamplesPerSymbol;
+
+            if (offset + SamplesPerSymbol > pcm.Length)
+            {
+                // Zero guard — prevents stale data from a previous startSample
+                // iteration from producing phantom Costas hits. (D5)
+                for (int bin = 0; bin < ExactSpecBins; bin++)
+                    result[sym, bin] = 0f;
+                continue;
+            }
+
+            // ── Step 1: chirp-modulate input into zero-padded buffer ──────────
+            // a[n] = x[n] · exp(−jπn²/N) = x[n] · (s_chirpRe[n] + j·s_chirpIm[n])
+            // Zero-padding aRe/aIm[N..M-1] ensures the circular convolution acts
+            // as a linear convolution over the support [0..N-1].
+            for (int n = 0; n < N; n++)
+            {
+                float xn = pcm[offset + n];
+                aRe[n] = xn * s_chirpRe[n];
+                aIm[n] = xn * s_chirpIm[n];
+            }
+            Array.Clear(aRe, N, M - N);
+            Array.Clear(aIm, N, M - N);
+
+            // ── Step 2: FFT of chirp-modulated input ──────────────────────────
+            FftCompute.Fft(aRe, aIm);
+
+            // ── Step 3: Pointwise multiply by pre-computed filter FFT ─────────
+            // (aRe + j·aIm) ← (aRe + j·aIm) · (s_filterFftRe + j·s_filterFftIm)
+            for (int k = 0; k < M; k++)
+            {
+                float re = aRe[k] * s_filterFftRe[k] - aIm[k] * s_filterFftIm[k];
+                float im = aRe[k] * s_filterFftIm[k] + aIm[k] * s_filterFftRe[k];
+                aRe[k] = re;
+                aIm[k] = im;
+            }
+
+            // ── Step 4: IFFT via conjugate trick — conj(FFT(conj(Y))) / M ─────
+            for (int k = 0; k < M; k++) aIm[k] = -aIm[k]; // conjugate
+            FftCompute.Fft(aRe, aIm);
+            float invM = 1f / M;
+            for (int k = 0; k < M; k++)
+            {
+                aRe[k] *=  invM;
+                aIm[k] = -aIm[k] * invM; // re-conjugate and scale
+            }
+
+            // ── Step 5: Store |y[k]|² for positive-frequency bins ─────────────
+            // |X[k]|² = |y[k]|² because |exp(−jπk²/N)| = 1.
+            for (int bin = 0; bin < ExactSpecBins; bin++)
+            {
+                float re = aRe[bin];
+                float im = aIm[bin];
+                result[sym, bin] = re * re + im * im;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts a 79 × 15 log-energy grid from a pre-computed exact-DFT spectrogram.
+    ///
+    /// <para>
+    /// With the 1 920-point DFT, bin spacing equals FT8 tone spacing (6.25 Hz exactly).
+    /// Each FT8 tone at <c>baseHz + c × 6.25 Hz</c> falls on exactly bin
+    /// <c>round((baseHz + c × ToneSpacingHz) / ToneSpacingHz)</c> — integer arithmetic,
+    /// no rounding error, no leakage correction needed.
     /// </para>
     ///
     /// <para>
@@ -217,7 +388,7 @@ internal static class SymbolExtractor
     /// </para>
     /// </summary>
     /// <param name="spectrogram">
-    /// Output of <see cref="ComputeSpectrogram"/>: <c>float[SymbolCount, SpecBins]</c>.
+    /// Output of <see cref="FillSpectrogramExact"/>: <c>float[SymbolCount, ExactSpecBins]</c>.
     /// </param>
     /// <param name="baseHz">
     /// Frequency of the lowest tone (column 0), in Hz.
@@ -225,14 +396,14 @@ internal static class SymbolExtractor
     internal static float[,] ExtractFromSpectrogram(float[,] spectrogram, double baseHz)
     {
         int symCount = spectrogram.GetLength(0); // 79
-        int specBins = spectrogram.GetLength(1); // 1 024
+        int specBins = spectrogram.GetLength(1); // 960
         var grid     = new float[symCount, GridWidth]; // 79 × 15
 
         for (int sym = 0; sym < symCount; sym++)
         for (int col = 0; col < GridWidth; col++)
         {
-            // Exact bin for this column's tone frequency. (D3)
-            int   bin    = (int)Math.Round((baseHz + col * ToneSpacingHz) * FftSizePadded / SampleRate);
+            // Exact bin — no rounding error with the 1 920-point DFT.
+            int   bin    = (int)Math.Round((baseHz + col * ToneSpacingHz) / ToneSpacingHz);
             float energy = (uint)bin < (uint)specBins ? spectrogram[sym, bin] : 0f;
             grid[sym, col] = MathF.Log(energy + 1e-10f);
         }

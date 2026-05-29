@@ -290,13 +290,18 @@ internal static class LdpcDecoder
                     else if (absM < minAbs2) { minAbs2 = absM; }
                 }
 
+                // Normalized min-sum (α = 0.8, matching kgoba/ft8_lib ldpc.c).
+                // The plain min-sum overestimates check-to-variable messages, which
+                // hurts convergence on marginal-SNR real-world signals.  Multiplying
+                // by 0.8 compensates and approximates the sum-product behaviour.
+                const float Alpha = 0.8f;
                 for (int j = 0; j < degree; j++)
                 {
                     float msg    = v2c[c][j];
                     int   thisSgn = msg >= 0f ? 1 : -1;
                     int   outSgn  = signProd * thisSgn; // product of all other signs
                     float outAbs  = j == minIdx ? minAbs2 : minAbs1;
-                    c2v[c][j]    = outSgn * outAbs;
+                    c2v[c][j]    = Alpha * outSgn * outAbs;
                 }
             }
 

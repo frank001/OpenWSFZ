@@ -63,6 +63,14 @@ internal static class MessageUnpacker
         // i3: bits 74–76 (3 bits, MSB-first)
         int i3 = (bits[74] << 2) | (bits[75] << 1) | bits[76];
 
+        // i3=1 is the legacy Standard QSO format — same callsign + callsign + extra layout
+        // as i3=0, so apply the same extra-field validation to plug the false-positive bypass.
+        if (i3 == 1)
+        {
+            ulong rg = ReadBits(bits, 56, 15);
+            if (!IsValidExtra15(rg)) return null;
+        }
+
         return i3 switch
         {
             0 => UnpackType1Or2OrNull(bits),
@@ -83,20 +91,15 @@ internal static class MessageUnpacker
 
     // Null-returning variant used by TryUnpack — returns null for n3=4,5 instead of
     // calling HexFallback, so callers can distinguish "decoded" from "unsupported".
-    // Also filters out false positives whose callsign or report field contents are
-    // structurally impossible for a real FT8 Type 1 message.  (p11 Part 1)
+    // Also filters out false positives whose report/grid extra field contains an
+    // impossible value for a real FT8 signal.  (p11 Part 1)
     private static string? UnpackType1Or2OrNull(ReadOnlySpan<byte> bits)
     {
         int n3 = (bits[71] << 2) | (bits[72] << 1) | bits[73];
         if (n3 > 3) return null;
 
-        ulong c1 = ReadBits(bits, 0,  28);
-        ulong c2 = ReadBits(bits, 28, 28);
         ulong rg = ReadBits(bits, 56, 15);
-
-        if (!IsValidCallsign28(c1)) return null;
-        if (!IsValidCallsign28(c2)) return null;
-        if (!IsValidExtra15(rg))    return null;
+        if (!IsValidExtra15(rg)) return null;
 
         return UnpackType1(bits);
     }
@@ -150,18 +153,34 @@ internal static class MessageUnpacker
         if (packed <= 2)
             return packed switch { 0 => "DE", 1 => "QRZ", _ => "CQ" };
 
-        // Remove CQ variant prefix space.
-        packed -= 3;
+        // FT8 standard mixed-radix callsign decoding (Franke & Taylor 2019;
+        // kgoba/ft8_lib unpack.c).
+        //
+        // The 28-bit field stores a 6-character callsign using positional alphabets:
+        //   pos 5, 4, 3 : {space, A-Z}            (27 options each, space=0 A=1…Z=26)
+        //   pos 2       : {0-9}                    (10 options — digit only)
+        //   pos 1, 0    : {space, 0-9, A-Z}        (37 options, space=0 '0'=1…'9'=10 A=11…Z=36)
+        //
+        // Decode from LSBs upward, then Trim both ends to remove padding spaces.
+        ulong n = packed - 3;
 
-        // 6-character base-37 callsign.
-        var chars = new char[6];
-        for (int i = 5; i >= 0; i--)
+        Span<char> c = stackalloc char[6];
+
+        for (int i = 5; i >= 3; i--)
         {
-            chars[i] = CallAlphabet[(int)(packed % 37)];
-            packed /= 37;
+            ulong v = n % 27; n /= 27;
+            c[i] = v == 0 ? ' ' : (char)('A' + v - 1);
         }
 
-        return new string(chars).TrimStart(' ');
+        c[2] = (char)('0' + (n % 10)); n /= 10;
+
+        for (int i = 1; i >= 0; i--)
+        {
+            ulong v = n % 37; n /= 37;
+            c[i] = v == 0 ? ' ' : v <= 10 ? (char)('0' + v - 1) : (char)('A' + v - 11);
+        }
+
+        return new string(c).Trim();
     }
 
     private static string DecodeReport15(ulong packed)

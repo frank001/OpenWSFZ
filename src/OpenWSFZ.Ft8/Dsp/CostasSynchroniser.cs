@@ -123,6 +123,13 @@ internal static class CostasSynchroniser
                     grid[sym, freqShift + 4], grid[sym, freqShift + 5],
                     grid[sym, freqShift + 6], grid[sym, freqShift + 7]);
 
+                // Softmax Costas scoring (D18 fix).
+                //
+                // exp(costas − logSumAll) = E_costas / Σ_k E_k is the softmax probability
+                // that the Costas tone is the unique dominant tone.
+                //   • Uniform noise (all 8 tones equal):        contribution = 1/8 = 0.125
+                //   • Real isolated signal (one dominant tone):  contribution → 1.0
+                //   • Crowded band (N tones elevated equally):   contribution ≈ 1/N < threshold
                 score += MathF.Exp(costas - logSumAll);
             }
         }
