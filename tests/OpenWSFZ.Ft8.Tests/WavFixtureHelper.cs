@@ -54,7 +54,7 @@ internal static class WavFixtureHelper
         ushort bitsPerSample = 0;
         float[]? samples    = null;
 
-        while (stream.Position < stream.Length - 8)
+        while (stream.Position + 8 <= stream.Length)
         {
             var chunkId   = ReadFourCc(reader);
             var chunkSize = reader.ReadInt32();
@@ -71,6 +71,9 @@ internal static class WavFixtureHelper
                 // Skip any extra fmt bytes (e.g. extensible header)
                 int extraBytes = chunkSize - 16;
                 if (extraBytes > 0) reader.ReadBytes(extraBytes);
+
+                // WAV spec: odd-sized chunks are followed by one pad byte.
+                if (chunkSize % 2 != 0 && stream.Position < stream.Length) reader.ReadByte();
             }
             else if (chunkId == "data")
             {
@@ -92,6 +95,9 @@ internal static class WavFixtureHelper
                         reader.ReadSingle();         // discard remaining channels
                     samples[i] = ch0;
                 }
+
+                // WAV spec: odd-sized chunks are followed by one pad byte.
+                if (chunkSize % 2 != 0 && stream.Position < stream.Length) reader.ReadByte();
             }
             else
             {

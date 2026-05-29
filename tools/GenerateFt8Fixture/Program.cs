@@ -8,6 +8,8 @@
 /// Run once:  dotnet run --project tools/GenerateFt8Fixture
 /// </summary>
 
+using OpenWSFZ.Ft8.Dsp;
+
 Ft8FixtureGenerator.Run(args);
 
 internal static class Ft8FixtureGenerator
@@ -22,9 +24,12 @@ internal static class Ft8FixtureGenerator
 
         // ── Generate FT8 PCM ─────────────────────────────────────────────────
         const double baseFreqHz = 1500.0;
-        ulong c1 = 2;           // "CQ"
-        ulong c2 = 1_674_730;   // "Q1AW" (pre-computed 28-bit value)
-        ulong rg = 10_331;      // "FN31" (pre-computed 15-bit value)
+        // Pre-computed via TestFt8Encoder.EncodeCallsign28("CQ") → 2
+        ulong c1 = 2;
+        // Pre-computed via TestFt8Encoder.EncodeCallsign28("Q1AW") → 1_674_730
+        ulong c2 = 1_674_730;
+        // Pre-computed via TestFt8Encoder.EncodeReport15Grid("FN31") → 10_331
+        ulong rg = 10_331;
 
         byte[] msgBits  = PackType1(c1, c2, rg);
         byte[] infoBits = AppendCrc14(msgBits);
@@ -114,31 +119,11 @@ internal static class Ft8FixtureGenerator
 
         var crcBuf = new byte[82];
         Array.Copy(msgBits, crcBuf, 77);
-        uint crc = Crc14Compute(crcBuf, 82);
+        uint crc = Crc14.Compute(crcBuf, 82); // delegates to production OpenWSFZ.Ft8.Dsp.Crc14
 
         for (int i = 0; i < 14; i++)
             info[77 + i] = (byte)((crc >> (13 - i)) & 1);
         return info;
-    }
-
-    private static uint Crc14Compute(byte[] bits, int length)
-    {
-        // Must match Crc14.Compute in OpenWSFZ.Ft8/Dsp/Crc14.cs exactly.
-        // Franke & Taylor 2019 / WSJT-X CRC-14: feedback-XOR style.
-        const uint poly = 0x2757u;
-        const int  crcBits = 14;
-        const uint mask    = (1u << crcBits) - 1u; // 0x3FFF
-
-        uint crc = 0u;
-        for (int i = 0; i < length; i++)
-        {
-            uint bit      = bits[i] & 1u;
-            uint feedback = ((crc >> (crcBits - 1)) ^ bit) & 1u;
-            crc           = (crc << 1) & mask;
-            if (feedback != 0)
-                crc ^= poly;
-        }
-        return crc;
     }
 
     private static byte[] LdpcEncode(byte[] infoBits)
