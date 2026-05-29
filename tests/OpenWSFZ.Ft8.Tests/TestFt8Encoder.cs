@@ -43,31 +43,64 @@ internal static class TestFt8Encoder
     }
 
     /// <summary>
-    /// Encodes a callsign string into a 28-bit packed integer.
+    /// Encodes a callsign string into a 28-bit packed integer using the FT8 standard
+    /// mixed-radix encoding (Franke &amp; Taylor 2019; kgoba/ft8_lib pack.c).
+    ///
+    /// The district digit (first decimal digit) is placed at position 2 of the
+    /// 6-character form; positions 3-5 hold the suffix (letter/space only);
+    /// positions 0-1 hold the prefix (letter, digit, or space).
     /// Special values: 0="DE", 1="QRZ", 2="CQ".
-    /// For a regular callsign: right-pads to 6 chars, base-37 encodes, adds 3.
     /// </summary>
     public static ulong EncodeCallsign28(string callsign)
     {
-        // Special cases.
         if (callsign.Equals("DE",  StringComparison.OrdinalIgnoreCase)) return 0;
         if (callsign.Equals("QRZ", StringComparison.OrdinalIgnoreCase)) return 1;
         if (callsign.Equals("CQ",  StringComparison.OrdinalIgnoreCase)) return 2;
 
-        const string alpha = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        // Left-pad to 6 chars (base-37 standard callsign form).
-        var padded = callsign.ToUpperInvariant().PadLeft(6, ' ');
-        if (padded.Length > 6) padded = padded[^6..];
+        string cs = callsign.ToUpperInvariant();
 
-        ulong packed = 0;
-        foreach (char ch in padded)
+        // Find the DISTRICT digit — the LAST decimal digit in the callsign
+        // (matching ft8_lib's pack.c convention).
+        // The district digit is ALWAYS the last digit before the letter-only suffix:
+        //   "QA7W"  → last digit = '7' at idx 2 (prefix="9A", suffix="W")
+        //   "Q0ABC" → last digit = '0' at idx 1 (prefix="K", suffix="ABC")
+        //   "QW9END"→ last digit = '9' at idx 2 (prefix="LW", suffix="END")
+        int digitPos = -1;
+        for (int i = cs.Length - 1; i >= 0; i--)
+            if (char.IsDigit(cs[i])) { digitPos = i; break; }
+
+        if (digitPos < 0 || digitPos > 2)
         {
-            int idx = alpha.IndexOf(ch);
-            if (idx < 0) idx = 0; // unknown → space
-            packed = packed * 37 + (ulong)idx;
+            // Fallback: left-pad and place as-is (handles edge cases).
+            digitPos = Math.Min(2, cs.Length - 1);
         }
 
-        return packed + 3; // offset for special values 0-2
+        // Build the 6-character form: prefix right-aligned before position 2,
+        // district digit at position 2, suffix at positions 3-5, padded with spaces.
+        char[] c6 = new char[6] { ' ', ' ', ' ', ' ', ' ', ' ' };
+        for (int i = 0; i < digitPos && 2 - digitPos + i >= 0; i++)
+            c6[2 - digitPos + i] = cs[i];
+        c6[2] = cs[digitPos];
+        for (int i = 0; i < 3 && digitPos + 1 + i < cs.Length; i++)
+            c6[3 + i] = cs[digitPos + 1 + i];
+
+        // Mixed-radix encode:
+        //   pos 0,1 : from {space, 0-9, A-Z} (37 values; space=0, '0'=1…'9'=10, A=11…Z=36)
+        //   pos 2   : from {0-9}             (10 values)
+        //   pos 3-5 : from {space, A-Z}      (27 values; space=0, A=1…Z=26)
+        static ulong idx37(char ch)
+            => ch == ' ' ? 0UL : (ch >= '0' && ch <= '9') ? (ulong)(ch - '0' + 1) : (ulong)(ch - 'A' + 11);
+        static ulong idx10(char ch) => (ulong)(ch - '0');
+        static ulong idx27(char ch) => ch == ' ' ? 0UL : (ulong)(ch - 'A' + 1);
+
+        ulong n = idx37(c6[0]);
+        n = n * 37 + idx37(c6[1]);
+        n = n * 10 + idx10(c6[2]);
+        n = n * 27 + idx27(c6[3]);
+        n = n * 27 + idx27(c6[4]);
+        n = n * 27 + idx27(c6[5]);
+
+        return n + 3;
     }
 
     /// <summary>

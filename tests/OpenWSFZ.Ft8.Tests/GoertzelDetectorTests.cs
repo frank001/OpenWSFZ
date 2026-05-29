@@ -58,10 +58,11 @@ public sealed class GoertzelDetectorTests
             "the tone carrying the pure sine should have the highest log-energy");
     }
 
-    [Fact(DisplayName = "SymbolExtractor.ComputeSpectrogram + ExtractFromSpectrogram: peak tone matches known-good signal")]
+    [Fact(DisplayName = "SymbolExtractor.FillSpectrogramExact + ExtractFromSpectrogram: peak tone matches known-good signal")]
     public void Spectrogram_PureToneSingleSymbol_PeaksAtCorrectTone()
     {
-        // Same setup as Extract_PureToneSingleSymbol_PeaksAtCorrectTone.
+        // Verify the 1920-pt exact-DFT spectrogram identifies the dominant tone.
+        // Uses FillSpectrogramExact (Bluestein) + ExtractFromSpectrogram.
         double baseHz     = 1000.0;
         int    targetTone = 3;
         double toneHz     = baseHz + targetTone * SymbolExtractor.ToneSpacingHz; // 1018.75 Hz
@@ -70,8 +71,9 @@ public sealed class GoertzelDetectorTests
         var sym = GenerateSine(toneHz, SymbolExtractor.SamplesPerSymbol, SampleRate);
         sym.CopyTo(new Span<float>(pcm, 0, SymbolExtractor.SamplesPerSymbol));
 
-        var spectrogram = SymbolExtractor.ComputeSpectrogram(pcm, startSample: 0);
-        var grid        = SymbolExtractor.ExtractFromSpectrogram(spectrogram, baseHz);
+        var spectrogram = new float[SymbolExtractor.SymbolCount, SymbolExtractor.ExactSpecBins];
+        SymbolExtractor.FillSpectrogramExact(pcm, startSample: 0, spectrogram);
+        var grid = SymbolExtractor.ExtractFromSpectrogram(spectrogram, baseHz);
 
         int   peakTone = 0;
         float peakVal  = grid[0, 0];
@@ -81,7 +83,7 @@ public sealed class GoertzelDetectorTests
         }
 
         peakTone.Should().Be(targetTone,
-            "the FFT-based spectrogram should identify the same dominant tone as the Goertzel path");
+            "the exact-DFT spectrogram should identify the correct dominant tone");
     }
 
     [Fact(DisplayName = "SymbolExtractor.ComputeSpectrogram: produces SymbolCount × SpecBins array")]

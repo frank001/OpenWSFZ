@@ -7,17 +7,16 @@ namespace OpenWSFZ.Ft8;
 /// <summary>
 /// Cleanroom FT8 decoder implementing <see cref="IModeDecoder"/>.
 ///
-/// Pipeline per cycle (hybrid FFT + Goertzel):
-///   1. For each symbol-aligned time offset, compute a 79 × 1 024 FFT spectrogram
-///      once via <see cref="SymbolExtractor.FillSpectrogram"/>.
-///   2. Sweep candidate base frequencies (50–3000 Hz, steps of 6.25 Hz).
+/// Pipeline per cycle (exact-DFT spectrogram + Goertzel):
+///   1. For each symbol-aligned time offset, compute a 79 × 960 exact-DFT spectrogram
+///      once via <see cref="SymbolExtractor.FillSpectrogramExact"/> (Bluestein chirp-Z,
+///      1 920-point DFT, bin spacing = 6.25 Hz — exactly aligned with FT8 tone spacing).
+///   2. Sweep candidate base frequencies (50–3000 Hz, steps of 50 Hz).
 ///      For each step, extract a 79 × 15 log-energy grid from the spectrogram
 ///      (<see cref="SymbolExtractor.ExtractFromSpectrogram"/>) and run
 ///      <see cref="CostasSynchroniser.FindCandidates"/> to find Costas sync hits.
 ///   3. For each Costas candidate, recompute the 79 × 15 grid via Goertzel
 ///      (<see cref="SymbolExtractor.Extract"/>) at the exact tone frequencies.
-///      Goertzel eliminates the spectral leakage that the zero-padded FFT path
-///      introduces (FT8 tones align on 1920-pt DFT bins, not 2048-pt bins).
 ///   4. Derive 174 soft LLRs from the Goertzel grid, run <see cref="LdpcDecoder"/>,
 ///      verify with <see cref="Crc14"/>, unpack with <see cref="MessageUnpacker"/>.
 ///   5. De-duplicate messages; return the unique set as <see cref="DecodeResult"/> records.
@@ -32,7 +31,7 @@ public sealed class Ft8Decoder : IModeDecoder
     private const int    MsgBits      = 77;
     private const int    CrcBits      = 14;
     private const int    CodeLength   = LdpcDecoder.CodeLength;          // 174
-    private const int    SpecBins     = SymbolExtractor.SpecBins;        // 1 024
+    private const int    ExactSpecBins = SymbolExtractor.ExactSpecBins;  // 960
 
     // Frequency sweep parameters.
     private const double MinFreqHz    = 50.0;
@@ -53,15 +52,29 @@ public sealed class Ft8Decoder : IModeDecoder
     // the 15-second cycle budget.  (D12)
     private const double FreqSweepStep = ToneSpacing * 8; // 50.0 Hz
 
+    // Costas sync threshold.  Must be low enough to catch real signals under crowded
+    // 40m band conditions where interference from nearby FT8 transmissions can
+    // reduce per-symbol scores at some Costas positions while leaving other Costas
+    // positions near 1.0.  The CRC-14 gate (1-in-16384 false positive per LDPC run)
+    // provides the final false-positive suppression.
     // Costas sync threshold (tune for sensitivity vs. false-alarm rate).
-    private const float  SyncThreshold = 0.45f;
+    // The CRC-14 gate (1-in-16384 false positive per LDPC run) provides the final
+    // false-positive suppression.  0.1 is low enough to catch real signals under
+    // crowded-band conditions while avoiding excessive false alarms.
+    private const float  SyncThreshold = 0.1f;
 
-    // p8: bound Goertzel call count regardless of band noise level.
-    // FindCandidates returns candidates sorted by score descending; take the top N.
-    // A real signal produces at most one strong hit per (time, baseHz) pair; the
-    // second slot handles partial-overlap edge cases.  Value is a named constant so
-    // future tuning is explicit.
-    private const int MaxCandidatesPerSweep = 2;
+    // LLR clamp applied before LDPC.  Strong adjacent-channel interference can
+    // produce LLRs of ±7–8 with the wrong sign, completely overwhelming the 6
+    // neighbour-contributions (~6 × 0.3 = 1.8) that LDPC needs to flip the bit.
+    // Clamping to ±1.5 reduces wrong LLRs to a magnitude that the correct neighbours
+    // can overcome, while leaving typical clean signal LLRs (≈0.3) unchanged.
+    private const float  LlrClamp = 1.5f;
+
+    // Maximum candidates per (startSample, baseHz) sweep position.
+    // Under crowded-band conditions the QW9END signal may rank below the top 2
+    // for a given baseHz due to adjacent interferers with higher Costas scores.
+    // Expanding to 8 (all freqShifts) ensures every candidate is attempted.
+    private const int MaxCandidatesPerSweep = 8;
 
     // Time-domain sweep: maximum start sample such that the first two Costas arrays
     // (positions 0–6 and 36–42) still fit fully in the buffer.
@@ -138,9 +151,11 @@ public sealed class Ft8Decoder : IModeDecoder
                 "Time-domain sweep: startSample = {Start} / {Max} ({StartS:F2} s).",
                 startSample, maxStartSample, (double)startSample / SampleRate);
 
-            // Per-iteration spectrogram buffer (~316 KB, short-lived, collected after loop).
-            var spectrogram = new float[SymbolCount, SpecBins];
-            SymbolExtractor.FillSpectrogram(pcm, startSample, spectrogram);
+            // Per-iteration exact-DFT spectrogram buffer (~237 KB, 79 × 960 × 4 bytes).
+            // Bluestein chirp-Z gives 1920-point DFT, bin spacing = 6.25 Hz exactly —
+            // each FT8 tone falls on one bin with no spectral leakage.
+            var spectrogram = new float[SymbolCount, ExactSpecBins];
+            SymbolExtractor.FillSpectrogramExact(pcm, startSample, spectrogram);
 
             for (double baseHz = MinFreqHz; baseHz <= MaxFreqHz; baseHz += FreqSweepStep)
             {
@@ -164,8 +179,16 @@ public sealed class Ft8Decoder : IModeDecoder
                         "Costas hit: startSample={Start}, base={Base:F2} Hz, score={Score:F3}.",
                         startSample, actualBase, cand.Score);
 
-                    float[,] grid = SymbolExtractor.Extract(pcm, startSample, actualBase);
+                    // Use the exact-DFT spectrogram for LLR extraction.
+                    // The 1920-pt Bluestein spectrogram gives zero inter-bin crosstalk for
+                    // FT8-grid-aligned tones and correct carrier-offset handling (rounds to the
+                    // nearest 6.25 Hz bin), matching ft8_lib's approach of using the same
+                    // spectrogram for both Costas detection and symbol energy extraction.
+                    float[,] grid = SymbolExtractor.ExtractFromSpectrogram(spectrogram, actualBase);
                     var llr       = ComputeLlrs(grid, freqShift: 0);
+
+                    // No LLR clamping — strong-signal LLRs (~8-9) must dominate over
+                    // interference (~2-3) so LDPC converges to the correct codeword.
 
                     Interlocked.Add(ref diag_paritySum, LdpcDecoder.CountInitialParityFailures(llr));
 
