@@ -1,0 +1,9 @@
+ft8_lib source:   kgoba/ft8_lib tag 2.0 (commit 50ee0c06361388a992c80a1af9c1189652b72e51)
+Shim version:     FT8_SHIM_VERSION = 20240001
+Compiler:         MSVC 19.51.36244 (Visual Studio 18 / VS 2022)
+Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
+Platform:         Windows x64
+Build date:       2026-05-29
+MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
+                  stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
+sizeof(FT8Result): 48 bytes
