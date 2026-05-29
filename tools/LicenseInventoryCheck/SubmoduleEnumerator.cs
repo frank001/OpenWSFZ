@@ -22,11 +22,20 @@ public static class SubmoduleEnumerator
             return Array.Empty<DependencyEntry>();
         }
 
+        // Only enumerate directories that are actual git submodules — i.e. those listed in
+        // .gitmodules.  This excludes build-output directories (e.g. ft8_lib_build/) that
+        // happen to live under /native/ but are NOT dependency submodules.
+        var gitSubmodulePaths = ReadGitSubmodulePaths(solutionRoot, "native");
+
         var entries = new List<DependencyEntry>();
 
         foreach (var dir in Directory.EnumerateDirectories(nativeDir))
         {
             var name = Path.GetFileName(dir);
+
+            // Skip directories that are not declared git submodules.
+            if (!gitSubmodulePaths.Contains(name))
+                continue;
             var licenceFile = LicenceFileNames
                 .Select(f => Path.Combine(dir, f))
                 .FirstOrDefault(File.Exists);
@@ -90,6 +99,38 @@ public static class SubmoduleEnumerator
 
         // Unknown — will fail the policy check.
         return "unknown";
+    }
+
+    /// <summary>
+    /// Reads <c>.gitmodules</c> from <paramref name="solutionRoot"/> and returns the
+    /// set of directory names (final path component) of submodules whose path starts
+    /// with <paramref name="prefix"/> (e.g. "native").  Returns an empty set when
+    /// <c>.gitmodules</c> does not exist or is unreadable.
+    /// </summary>
+    private static HashSet<string> ReadGitSubmodulePaths(string solutionRoot, string prefix)
+    {
+        var gitmodulesPath = Path.Combine(solutionRoot, ".gitmodules");
+        if (!File.Exists(gitmodulesPath))
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in File.ReadLines(gitmodulesPath))
+        {
+            var trimmed = line.Trim();
+            if (!trimmed.StartsWith("path", StringComparison.OrdinalIgnoreCase)) continue;
+            // Format: "path = native/ft8_lib"
+            var eq = trimmed.IndexOf('=');
+            if (eq < 0) continue;
+            var path = trimmed[(eq + 1)..].Trim();
+            if (path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith(prefix + "\\", StringComparison.OrdinalIgnoreCase))
+            {
+                // Extract the directory name after the prefix separator.
+                result.Add(Path.GetFileName(path));
+            }
+        }
+
+        return result;
     }
 
     private static string ReadPinnedSha(string solutionRoot, string submoduleName)
