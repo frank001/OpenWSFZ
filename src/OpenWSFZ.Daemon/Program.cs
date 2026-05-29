@@ -114,6 +114,7 @@ spectrumAnalyser.SpectrumReady += magnitudes =>
 var clock          = new SystemClock();
 var ft8Decoder     = new Ft8Decoder(clock, loggerFactory.CreateLogger<Ft8Decoder>());
 var decodeEventBus = new DecodeEventBus();
+var allTxtWriter   = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllTxtWriter>());
 
 // Channel 1: CycleFramer → float[] PCM windows → decode pump
 // Channel 2: decode pump → DecodeEventBus (direct call, no channel needed)
@@ -207,6 +208,7 @@ var app = WebApp.Create(
     configureServices:    services =>
     {
         services.AddSingleton(loggingPipeline);
+        services.AddSingleton(allTxtWriter);
         services.AddHostedService<LogRotationService>();
     });
 
@@ -231,8 +233,12 @@ app.Lifetime.ApplicationStarted.Register(() =>
         {
             try
             {
-                var results = await ft8Decoder.DecodeAsync(pcmWindow);
+                // Capture UTC timestamp immediately before decode so AllTxtWriter
+                // can use the correct date in the YYMMDD prefix (D3 / FR-028).
+                var cycleUtc = DateTime.UtcNow;
+                var results  = await ft8Decoder.DecodeAsync(pcmWindow);
                 decodeEventBus.Publish(results);
+                await allTxtWriter.AppendAsync(cycleUtc, results);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

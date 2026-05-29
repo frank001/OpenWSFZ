@@ -13,21 +13,11 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
-    <ProjectReference Include="..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
-  </ItemGroup>
-
-  <!-- Real-signal WAV fixtures and their WSJT-X answer-key subsets (FR-029) -->
-  <ItemGroup>
-    <EmbeddedResource Include="Fixtures\260528_235745.wav" />
-    <EmbeddedResource Include="Fixtures\260528_235745.expected.txt" />
-    <EmbeddedResource Include="Fixtures\260529_000030.wav" />
-    <EmbeddedResource Include="Fixtures\260529_000030.expected.txt" />
-    <EmbeddedResource Include="Fixtures\260529_000200.wav" />
-    <EmbeddedResource Include="Fixtures\260529_000200.expected.txt" />
+    <ProjectReference Include="..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
   </ItemGroup>
 </Project>

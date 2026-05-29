@@ -96,6 +96,30 @@ public sealed class CostasSynchroniserTests
             $"the signal was placed {freqShift} tone-bins above the base frequency");
     }
 
+    /// <summary>
+    /// Regression guard for the D18 softmax fix: a grid where all 8 tones at every
+    /// symbol position have equal energy simulates a fully-saturated crowded band.
+    /// The old hard-max formula returned score 1.0 per Costas position (false positive).
+    /// The softmax formula must return score 1/8 = 0.125 per position → normalised 0.125
+    /// → no candidates above threshold 0.45.
+    /// </summary>
+    [Fact(DisplayName = "CostasSynchroniser: uniform-energy grid scores below threshold (crowded-band guard)")]
+    public void FindCandidates_UniformEnergyGrid_ScoresBelowThreshold()
+    {
+        // All 79 × 15 cells at −2.0 f: energy is above the noise-floor gate (−18 f)
+        // but identical across all 8 tones — pure crowded-band simulation.
+        var grid = new float[79, SymbolExtractor.GridWidth];
+        for (int s = 0; s < 79; s++)
+            for (int c = 0; c < SymbolExtractor.GridWidth; c++)
+                grid[s, c] = -2.0f;
+
+        var candidates = CostasSynchroniser.FindCandidates(grid, threshold: 0.45f);
+
+        candidates.Should().BeEmpty(
+            "a uniform-energy grid represents pure crowded-band noise " +
+            "and must not pass the Costas gate");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>

@@ -74,6 +74,16 @@ jobs:
           --self-contained
           -p:PublishAot=true
 
+      # -----------------------------------------------------------------
+      # Gate G1: Build-and-test — all matrix legs
+      # Gate G6: Decoder-correctness — real-signal fixture integration test
+      #          (FR-029 / NFR-016). G6 runs inside the G1 dotnet test step
+      #          because the real-signal fixture test lives in
+      #          OpenWSFZ.Ft8.Tests. A failing real-signal fixture test
+      #          exits non-zero here and blocks merge on all three legs.
+      #          The fixture test is expected to be red until the decoder is
+      #          fixed in a follow-on change (see RECOVERY_PLAN.md Phase 2).
+      # -----------------------------------------------------------------
       - name: Test (Release)
         run: >
           dotnet test -c Release --no-build
