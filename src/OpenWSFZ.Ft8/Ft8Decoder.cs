@@ -9,15 +9,15 @@ namespace OpenWSFZ.Ft8;
 ///
 /// Pipeline per cycle (exact-DFT spectrogram):
 ///   1. For each symbol-aligned time offset, compute a 79 × 960 exact-DFT spectrogram
-///      once via <see cref="SymbolExtractor.FillSpectrogramExact"/> (Bluestein chirp-Z,
-///      1 920-point DFT, bin spacing = 6.25 Hz — exactly aligned with FT8 tone spacing).
-///   2. Sweep candidate base frequencies (50–3000 Hz, steps of 50 Hz).
+///      once via <see cref="SymbolExtractor.FillSpectrogramExact"/>.
+///   2. Sweep candidate base frequencies (50–3 000 Hz, steps of 50 Hz).
 ///      Extract a 79 × 15 log-energy grid via <see cref="SymbolExtractor.ExtractFromSpectrogram"/>
 ///      and run <see cref="CostasSynchroniser.FindCandidates"/> to find Costas sync hits.
 ///   3. For each Costas candidate, re-extract the 79 × 15 grid from the same spectrogram
-///      at the exact candidate base frequency, derive 174 soft LLRs, run <see cref="LdpcDecoder"/>,
-///      verify with <see cref="Crc14"/>, and unpack with <see cref="MessageUnpacker"/>.
-///   4. De-duplicate; return the unique set as <see cref="DecodeResult"/> records.
+///      at the exact candidate base frequency, derive 174 soft LLRs via
+///      <see cref="ComputeLlrs"/>, run <see cref="LdpcDecoder"/>, verify with
+///      <see cref="Crc14"/>, unpack with <see cref="MessageUnpacker"/>.
+///   4. De-duplicate messages; return the unique set as <see cref="DecodeResult"/> records.
 /// </summary>
 public sealed class Ft8Decoder : IModeDecoder
 {

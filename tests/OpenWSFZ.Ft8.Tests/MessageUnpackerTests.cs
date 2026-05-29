@@ -96,7 +96,7 @@ public sealed class MessageUnpackerTests
         result.Should().Contain("R+08", "val=107 should decode as R-prefix SNR +8 dB");
     }
 
-    [Fact(DisplayName = "FR-029: TryUnpack returns null for report extra field with val 128 (above valid R-prefix ceiling)")]
+    [Fact(DisplayName = "FR-029: TryUnpack returns null for report extra field with val 128 (above valid R-prefix ceiling of 127)")]
     public void TryUnpack_ExtraVal128_ReturnsNull()
     {
         var bits = BuildType1Bits(Packed_Q0ABC, Packed_W1ABC, Extra_Val128);

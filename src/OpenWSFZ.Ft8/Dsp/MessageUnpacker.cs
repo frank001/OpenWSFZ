@@ -242,24 +242,29 @@ internal static class MessageUnpacker
     /// <list type="bullet">
     ///   <item>val 1 = RRR, val 2 = RR73, val 3 = 73 (special)</item>
     ///   <item>val 4–63: plain SNR report (SNR = val − 35, range −31 to +28 dB)</item>
-    ///   <item>val 64–127: R-prefix report — "roger + SNR" (SNR = val − 64 − 35)</item>
+    ///   <item>val 64–127: R-prefix report — "roger + SNR" (SNR = val − 64 − 35, range −35 to +28 dB)</item>
     /// </list>
     /// Maximum valid val = 127.  Values 128–16383 have no defined FT8 meaning and
     /// are strong indicators of a false-positive LDPC convergence.
     /// </para>
     ///
-    /// <para>Grid squares (bit 14 = 0): after the 14-bit mask, val is at most 16 383,
-    /// always within the standard 4-char grid range (0–32 399) — no filtering
-    /// is possible until the 15-bit mask ambiguity is resolved.</para>
+    /// <para>Grid squares (bit 14 = 0): after the 14-bit mask, val is at most 16 383.
+    /// The letter sub-fields are validated (r1 ∈ [0,17], r2 ∈ [0,17]) to reject impossible
+    /// Maidenhead combinations that the 14-bit range alone does not exclude.</para>
     /// </summary>
     private static bool IsValidExtra15(ulong packed)
     {
         bool isReport = (packed & 0x4000UL) != 0;
         ulong val     = packed & 0x3FFFUL;
 
-        return isReport
-            ? val >= 1 && val <= 127  // specials (1–3), plain SNR (4–63), R+SNR (64–127)
-            : true;                   // 14-bit mask → val ≤ 16383, always a valid grid
+        if (isReport)
+            return val >= 1 && val <= 127; // specials (1–3), plain SNR (4–63), R+SNR (64–127)
+
+        // Grid square: validate sub-fields so impossible letter combinations are rejected.
+        // Standard 4-char Maidenhead: r1 ∈ [0,17], r2 ∈ [0,17], r3 ∈ [0,9], r4 ∈ [0,9].
+        // With the 14-bit mask val ≤ 16 383, which is within the standard grid space,
+        // so only the letter sub-fields need guarding.
+        return (val / 1800) < 18 && ((val % 1800) / 100) < 18;
     }
 
     /// <summary>Returns the first <paramref name="bitCount"/> bits as a hex string.</summary>
