@@ -90,5 +90,12 @@ public sealed class AllTxtWriter
                 "Decode results and WebSocket broadcast are unaffected.",
                 path, ex.Message);
         }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "FR-028: Cannot write decode log to '{Path}' — {Message}. " +
+                "Decode results and WebSocket broadcast are unaffected.",
+                path, ex.Message);
+        }
     }
 }

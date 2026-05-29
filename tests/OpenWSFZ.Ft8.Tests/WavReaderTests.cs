@@ -114,6 +114,68 @@ public sealed class WavReaderTests
             "a 15-second 12 kHz cycle produces exactly 180 000 samples");
     }
 
+    [Fact(DisplayName = "FR-029: WavReader reads correct sample count when WAV contains an odd-sized JUNK chunk (RIFF pad-byte)")]
+    public void Read_WavWithOddSizedJunkChunk_ReturnsCorrectSampleCount()
+    {
+        // Build a hand-crafted WAV that has a 7-byte JUNK chunk (odd length) between
+        // the fmt and data chunks.  Per the RIFF spec, such a chunk is followed by one
+        // silent pad byte (not counted in chunkSize) to maintain word alignment.
+        // Without the pad-byte skip in WavReader, the next chunk header is read one
+        // byte early, producing garbage and throwing InvalidDataException.
+        var samples    = new short[] { 100, 200, 300 }; // 3 samples → 6 bytes
+        byte[] junk    = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]; // 7 bytes (odd)
+
+        byte[] sampleBytes = new byte[samples.Length * 2];
+        for (int i = 0; i < samples.Length; i++)
+        {
+            sampleBytes[i * 2]     = (byte)( samples[i]        & 0xFF);
+            sampleBytes[i * 2 + 1] = (byte)((samples[i] >> 8)  & 0xFF);
+        }
+
+        // Chunk byte sizes (excluding the 8-byte header each):
+        //   fmt  : 16  (even, no pad)
+        //   JUNK :  7  (odd → 1 pad byte written after data; riffSize counts the pad)
+        //   data :  6  (even, no pad)
+        // riffSize = 4("WAVE") + (8+16) + (8+7+1) + (8+6) = 4+24+16+14 = 58
+        int riffSize = 4 + (8 + 16) + (8 + junk.Length + 1) + (8 + sampleBytes.Length);
+
+        using var ms = new MemoryStream();
+        using var w  = new BinaryWriter(ms);
+
+        // RIFF header
+        w.Write(new[] { (byte)'R', (byte)'I', (byte)'F', (byte)'F' });
+        w.Write(riffSize);
+        w.Write(new[] { (byte)'W', (byte)'A', (byte)'V', (byte)'E' });
+
+        // fmt chunk (16 bytes, even)
+        w.Write(new[] { (byte)'f', (byte)'m', (byte)'t', (byte)' ' });
+        w.Write(16);
+        w.Write((short)1);       // PCM
+        w.Write((short)1);       // mono
+        w.Write(12_000);         // sample rate
+        w.Write(24_000);         // byte rate
+        w.Write((short)2);       // block align
+        w.Write((short)16);      // bits per sample
+
+        // JUNK chunk (7 bytes of data + 1 pad)
+        w.Write(new[] { (byte)'J', (byte)'U', (byte)'N', (byte)'K' });
+        w.Write(junk.Length);    // chunkSize = 7 (odd)
+        w.Write(junk);           // 7 bytes of data
+        w.Write((byte)0);        // 1 pad byte (not counted in chunkSize)
+
+        // data chunk (6 bytes, even)
+        w.Write(new[] { (byte)'d', (byte)'a', (byte)'t', (byte)'a' });
+        w.Write(sampleBytes.Length);
+        w.Write(sampleBytes);
+
+        ms.Position = 0;
+        float[] pcm = WavReader.Read(ms);
+
+        pcm.Should().HaveCount(3,
+            "WavReader must skip the RIFF pad byte after the odd-sized JUNK chunk " +
+            "and correctly parse the following data chunk");
+    }
+
     // ── Rejection tests ───────────────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-029: WavReader rejects WAV with non-12 kHz sample rate")]

@@ -86,15 +86,21 @@ internal static class WavReader
                     // Skip any extension bytes (e.g., extensible format extra fields)
                     int extra = chunkSize - 16;
                     if (extra > 0) reader.ReadBytes(extra);
+                    // RIFF spec: chunks with odd data size are followed by one pad byte.
+                    if (chunkSize % 2 != 0 && stream.Position < stream.Length) reader.ReadByte();
                     break;
 
                 case "data":
                     audioData = reader.ReadBytes(chunkSize);
+                    // RIFF spec: chunks with odd data size are followed by one pad byte.
+                    if (chunkSize % 2 != 0 && stream.Position < stream.Length) reader.ReadByte();
                     break;
 
                 default:
                     // Skip unknown/optional chunks (INFO, LIST, JUNK, etc.)
                     reader.ReadBytes(chunkSize);
+                    // RIFF spec: chunks with odd data size are followed by one pad byte.
+                    if (chunkSize % 2 != 0 && stream.Position < stream.Length) reader.ReadByte();
                     break;
             }
         }

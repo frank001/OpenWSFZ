@@ -134,7 +134,6 @@ public sealed class AllTxtWriterTests : IDisposable
         public event Action<AppConfig>? OnSaved;
         public Task SaveAsync(AppConfig config, CancellationToken ct = default)
         {
-            Current.GetType(); // suppress unused warning on the event field
             OnSaved?.Invoke(config);
             return Task.CompletedTask;
         }
