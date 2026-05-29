@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace OpenWSFZ.Ft8.Interop;
 
+
 /// <summary>
 /// P/Invoke binding layer between managed C# and the native <c>libft8.dll</c> shim.
 ///
@@ -80,6 +81,12 @@ internal static class Ft8LibInterop
             throw new ArgumentException(
                 $"PCM buffer must be exactly 180 000 samples (15 s × 12 kHz). Got {pcm.Length}.",
                 nameof(pcm));
+
+        // libft8.dll is Windows x64 only in p12. On other platforms return empty rather than
+        // crashing — the decoder reports "no decodes" which is correct: the native backend is
+        // not available. Cross-platform support is deferred to a future change.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return [];
 
         EnsureInitialized();
 
