@@ -52,8 +52,10 @@
 
 ## 8. WAV Fixture
 
-- [ ] 8.1 Obtain or synthesise a 15-second 12 kHz mono WAV clip containing at least one valid FT8 transmission with known decode output; name it `ft8-sample.wav`  ← NEEDS REAL AUDIO CAPTURE
-- [ ] 8.2 Commit `ft8-sample.wav` and `ft8-sample.ref` (reference decode lines, one per result) to `tests/OpenWSFZ.Ft8.Tests/Fixtures/`; embed both as `EmbeddedResource` in the test project  ← NEEDS REAL AUDIO CAPTURE
+- [x] 8.1 Obtain or synthesise a 15-second 12 kHz mono WAV clip containing at least one valid FT8 transmission with known decode output; name it `ft8-sample.wav`
+      — synthesised via `tools/GenerateFt8Fixture` using `TestFt8Encoder`-identical logic ("CQ Q1AW FN31", 1500 Hz, 12 kHz IEEE float WAV)
+- [x] 8.2 Commit `ft8-sample.wav` and `ft8-sample.ref` (reference decode lines, one per result) to `tests/OpenWSFZ.Ft8.Tests/Fixtures/`; embed both as `EmbeddedResource` in the test project
+      — `WavFixtureHelper` added to load the WAV; `DecodeAsync_EmbeddedWavFixture_MatchesRefFile` test added; all 186 tests pass
 
 ## 9. CycleFramer
 
@@ -90,9 +92,11 @@
 - [x] 13.1 Update `traceability-debt.md`: remove `FR-001` and `FR-009` from the debt list (they are now implemented)
 - [x] 13.2 Verify `dotnet build -c Release` exits 0 with 0 warnings across all projects
 - [x] 13.3 Verify `dotnet test -c Release` exits 0 with all tests green (including all new `OpenWSFZ.Ft8.Tests`)
-  — Re-certified after QA-review fixes (2026-05-21): 0 failed, 119 passed, 1 skipped (WAV fixture, needs real audio)
+  — Re-certified 2026-05-28: 0 failed, 186 passed, 0 skipped (WAV fixture test now active via synthetic PCM — see tasks 8.1–8.2)
+  — Previous note: Re-certified after QA-review fixes (2026-05-21): 0 failed, 119 passed, 1 skipped (WAV fixture, needs real audio)
   — Fixed: B1 heartbeat test loop; B2 `LdpcDecoder.InfoBits = 91`; S1 dead code; S2 XSS innerHTML→textContent; S3 Array.IndexOf→pre-computed VarNeighboursIdx
-- [ ] 13.4 Manual smoke test: start daemon with a configured audio device, open `http://127.0.0.1:8080`, confirm decoded FT8 rows appear in the table after one 15-second cycle
+- [x] 13.4 Manual smoke test: start daemon with a configured audio device, open `http://127.0.0.1:8080`, confirm decoded FT8 rows appear in the table after one 15-second cycle
+  — Verified by Captain 2026-05-28: daemon running, audio device configured, FT8 decode rows appeared in the UI after the first 15-second cycle. ✓
 - [x] 13.5 Commit all changes to `feat/p5-ft8-decoder`, push, and open a draft PR to `main`
 
 ## 14. Known Follow-Up Items
