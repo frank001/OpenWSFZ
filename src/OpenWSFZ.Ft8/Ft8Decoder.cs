@@ -7,19 +7,17 @@ namespace OpenWSFZ.Ft8;
 /// <summary>
 /// Cleanroom FT8 decoder implementing <see cref="IModeDecoder"/>.
 ///
-/// Pipeline per cycle (exact-DFT spectrogram + Goertzel):
+/// Pipeline per cycle (exact-DFT spectrogram):
 ///   1. For each symbol-aligned time offset, compute a 79 × 960 exact-DFT spectrogram
 ///      once via <see cref="SymbolExtractor.FillSpectrogramExact"/> (Bluestein chirp-Z,
 ///      1 920-point DFT, bin spacing = 6.25 Hz — exactly aligned with FT8 tone spacing).
 ///   2. Sweep candidate base frequencies (50–3000 Hz, steps of 50 Hz).
-///      For each step, extract a 79 × 15 log-energy grid from the spectrogram
-///      (<see cref="SymbolExtractor.ExtractFromSpectrogram"/>) and run
-///      <see cref="CostasSynchroniser.FindCandidates"/> to find Costas sync hits.
-///   3. For each Costas candidate, recompute the 79 × 15 grid via Goertzel
-///      (<see cref="SymbolExtractor.Extract"/>) at the exact tone frequencies.
-///   4. Derive 174 soft LLRs from the Goertzel grid, run <see cref="LdpcDecoder"/>,
-///      verify with <see cref="Crc14"/>, unpack with <see cref="MessageUnpacker"/>.
-///   5. De-duplicate messages; return the unique set as <see cref="DecodeResult"/> records.
+///      Extract a 79 × 15 log-energy grid via <see cref="SymbolExtractor.ExtractFromSpectrogram"/>
+///      and run <see cref="CostasSynchroniser.FindCandidates"/> to find Costas sync hits.
+///   3. For each Costas candidate, re-extract the 79 × 15 grid from the same spectrogram
+///      at the exact candidate base frequency, derive 174 soft LLRs, run <see cref="LdpcDecoder"/>,
+///      verify with <see cref="Crc14"/>, and unpack with <see cref="MessageUnpacker"/>.
+///   4. De-duplicate; return the unique set as <see cref="DecodeResult"/> records.
 /// </summary>
 public sealed class Ft8Decoder : IModeDecoder
 {
@@ -52,23 +50,19 @@ public sealed class Ft8Decoder : IModeDecoder
     // the 15-second cycle budget.  (D12)
     private const double FreqSweepStep = ToneSpacing * 8; // 50.0 Hz
 
-    // Costas sync threshold.  Must be low enough to catch real signals under crowded
-    // 40m band conditions where interference from nearby FT8 transmissions can
-    // reduce per-symbol scores at some Costas positions while leaving other Costas
-    // positions near 1.0.  The CRC-14 gate (1-in-16384 false positive per LDPC run)
-    // provides the final false-positive suppression.
-    // Costas sync threshold (tune for sensitivity vs. false-alarm rate).
-    // The CRC-14 gate (1-in-16384 false positive per LDPC run) provides the final
-    // false-positive suppression.  0.1 is low enough to catch real signals under
-    // crowded-band conditions while avoiding excessive false alarms.
-    private const float  SyncThreshold = 0.1f;
-
-    // LLR clamp applied before LDPC.  Strong adjacent-channel interference can
-    // produce LLRs of ±7–8 with the wrong sign, completely overwhelming the 6
-    // neighbour-contributions (~6 × 0.3 = 1.8) that LDPC needs to flip the bit.
-    // Clamping to ±1.5 reduces wrong LLRs to a magnitude that the correct neighbours
-    // can overcome, while leaving typical clean signal LLRs (≈0.3) unchanged.
-    private const float  LlrClamp = 1.5f;
+    // Costas sync threshold — must be strictly above the uniform-noise floor of 0.125.
+    // Under uniform noise each of the 21 Costas symbols scores exp(E)/(8×exp(E)) = 1/8;
+    // summing 21 contributions and dividing by maxPossible = 21 gives exactly 0.125.
+    // A threshold of 0.20 sits comfortably above the noise floor while remaining below
+    // 0.33 (three equal-power interferers), keeping false-alarm rates low on a crowded
+    // 40 m band.  The CRC-14 gate (1-in-16 384 per LDPC run) provides the final filter.
+    //
+    // NOTE: on a busy 40 m band with many simultaneous signals the softmax LogSumAll
+    // denominator is raised by adjacent-channel interference, depressing all Costas
+    // scores below the theoretical noise floor (< 0.125).  Lowering the threshold
+    // below 0.125 does not recover real signals — it only admits more noise candidates.
+    // Proper multi-signal decoding requires iterative subtraction (ft8_lib Phase 2B).
+    private const float  SyncThreshold = 0.20f;
 
     // Maximum candidates per (startSample, baseHz) sweep position.
     // Under crowded-band conditions the QW9END signal may rank below the top 2

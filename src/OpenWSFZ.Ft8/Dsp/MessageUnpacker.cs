@@ -185,14 +185,17 @@ internal static class MessageUnpacker
 
     private static string DecodeReport15(ulong packed)
     {
-        // Bit 0: 0 = grid, 1 = signal report or RRR/73 etc.
+        // Bit 14: 0 = grid square, 1 = signal report / RRR / RR73 / 73.
         bool isReport = (packed & 0x4000UL) != 0;
         ulong val     = packed & 0x3FFFUL;
 
         if (!isReport)
         {
-            // Grid square: 2 letters + 2 digits (4 chars from 18²×10² = 32400 combos).
-            if (val >= 32400) return $"R{val - 32400}";
+            // Grid square: 2 letters + 2 digits (4 chars from 18²×10² = 32 400 combos).
+            // R-prefix contest serials (val ≥ 32 400) are not supported: after the 14-bit
+            // mask, val is at most 16 383 < 32 400, so R-prefix messages are silently
+            // mis-decoded as standard grids.  Correct handling requires the full 15-bit
+            // value; this is deferred pending spec clarification.
             int r1 = (int)(val / 1800);
             int r2 = (int)((val % 1800) / 100);
             int r3 = (int)((val % 100) / 10);
@@ -201,12 +204,24 @@ internal static class MessageUnpacker
         }
         else
         {
-            // Signal report: offset integer dB.
+            // Signal report encoding (ft8_lib / WSJT-X convention):
+            //   val 1 = RRR, 2 = RR73, 3 = 73
+            //   val 4–63:  plain SNR,  display as +DD or -DD  (SNR = val − 35)
+            //   val 64–127: R-prefix,  display as R+DD or R-DD (SNR = val − 64 − 35)
             if (val == 1) return "RRR";
             if (val == 2) return "RR73";
             if (val == 3) return "73";
-            int snr = (int)val - 35; // range -35 to +49
-            return snr >= 0 ? $"+{snr:D2}" : $"{snr:D3}";
+
+            if (val >= 64)
+            {
+                // R-prefix — "roger, your signal is X dB"
+                int snr = (int)(val - 64) - 35;
+                return snr >= 0 ? $"R+{snr:D2}" : $"R{snr:D2}";
+            }
+
+            // Plain SNR report (val 4–63 → SNR −31 to +28 dB).
+            int snrPlain = (int)val - 35;
+            return snrPlain >= 0 ? $"+{snrPlain:D2}" : $"{snrPlain:D2}";
         }
     }
 
@@ -221,38 +236,21 @@ internal static class MessageUnpacker
     }
 
     /// <summary>
-    /// Returns <c>true</c> if <paramref name="packed"/> decodes to a valid FT8 callsign
-    /// per the base-37 encoding invariant (Franke &amp; Taylor 2019 §4.1):
-    /// position 2 of the 6-character padded form must be a digit ('0'–'9') and
-    /// positions 3–5 must be letters (A–Z) or space.
-    /// Special packed values ≤ 2 (DE, QRZ, CQ) are always valid.
-    /// </summary>
-    private static bool IsValidCallsign28(ulong packed)
-    {
-        if (packed <= 2) return true; // DE / QRZ / CQ
-
-        ulong p = packed - 3;
-        Span<char> chars = stackalloc char[6];
-        for (int i = 5; i >= 0; i--)
-        {
-            chars[i] = CallAlphabet[(int)(p % 37)];
-            p /= 37;
-        }
-
-        // Position 2 must be a digit.
-        if (!char.IsDigit(chars[2])) return false;
-
-        // Positions 3–5 must not be digits.
-        for (int i = 3; i <= 5; i++)
-            if (char.IsDigit(chars[i])) return false;
-
-        return true;
-    }
-
-    /// <summary>
     /// Returns <c>true</c> if the 15-bit extra field is within the documented FT8 encoding range.
-    /// For signal reports (bit 14 = 1): valid val ∈ [1, 60] (RRR / RR73 / 73 / SNR −34 to +25 dB).
-    /// For grid squares (bit 14 = 0): valid val &lt; 32 724 (standard grids + R-prefix contest range).
+    ///
+    /// <para>Report field (bit 14 = 1) encoding (ft8_lib / WSJT-X convention):
+    /// <list type="bullet">
+    ///   <item>val 1 = RRR, val 2 = RR73, val 3 = 73 (special)</item>
+    ///   <item>val 4–63: plain SNR report (SNR = val − 35, range −31 to +28 dB)</item>
+    ///   <item>val 64–127: R-prefix report — "roger + SNR" (SNR = val − 64 − 35)</item>
+    /// </list>
+    /// Maximum valid val = 127.  Values 128–16383 have no defined FT8 meaning and
+    /// are strong indicators of a false-positive LDPC convergence.
+    /// </para>
+    ///
+    /// <para>Grid squares (bit 14 = 0): after the 14-bit mask, val is at most 16 383,
+    /// always within the standard 4-char grid range (0–32 399) — no filtering
+    /// is possible until the 15-bit mask ambiguity is resolved.</para>
     /// </summary>
     private static bool IsValidExtra15(ulong packed)
     {
@@ -260,8 +258,8 @@ internal static class MessageUnpacker
         ulong val     = packed & 0x3FFFUL;
 
         return isReport
-            ? val >= 1 && val <= 60   // covers RRR/RR73/73 and SNR −34 to +25 dB
-            : val < 32_724;           // standard 4-char grids + R-prefix contest range
+            ? val >= 1 && val <= 127  // specials (1–3), plain SNR (4–63), R+SNR (64–127)
+            : true;                   // 14-bit mask → val ≤ 16383, always a valid grid
     }
 
     /// <summary>Returns the first <paramref name="bitCount"/> bits as a hex string.</summary>
