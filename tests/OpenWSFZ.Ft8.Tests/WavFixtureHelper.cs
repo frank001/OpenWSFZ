@@ -57,7 +57,7 @@ internal static class WavFixtureHelper
         while (stream.Position + 8 <= stream.Length)
         {
             var chunkId   = ReadFourCc(reader);
-            var chunkSize = reader.ReadInt32();
+            var chunkSize = (int)reader.ReadUInt32(); // WAV spec: chunk sizes are uint32; cast safe for in-memory files
 
             if (chunkId == "fmt ")
             {
@@ -68,7 +68,13 @@ internal static class WavFixtureHelper
                 reader.ReadUInt16(); // blockAlign
                 bitsPerSample = reader.ReadUInt16();
 
-                // Skip any extra fmt bytes (e.g. extensible header)
+                // Skip any extra fmt bytes (e.g. extensible header).
+                // Reject sub-16-byte fmt chunks: they predate cbSize and leave the stream pointer
+                // misaligned, corrupting every subsequent chunk parse.
+                if (chunkSize < 16)
+                    throw new InvalidDataException(
+                        $"fmt chunk too short: {chunkSize} bytes (minimum 16)");
+
                 int extraBytes = chunkSize - 16;
                 if (extraBytes > 0) reader.ReadBytes(extraBytes);
 
@@ -101,9 +107,13 @@ internal static class WavFixtureHelper
             }
             else
             {
-                // Skip unknown chunk (align to even byte boundary per WAV spec)
-                var skip = chunkSize % 2 == 0 ? chunkSize : chunkSize + 1;
-                reader.ReadBytes(skip);
+                // Skip unknown chunk (align to even byte boundary per WAV spec).
+                // Widen to long before adding 1 to avoid int overflow when chunkSize == int.MaxValue.
+                long skip = chunkSize + (chunkSize % 2 != 0 ? 1L : 0L);
+                if (skip > int.MaxValue)
+                    throw new InvalidDataException(
+                        $"Unknown chunk size too large to skip: {chunkSize} bytes");
+                reader.ReadBytes((int)skip);
             }
         }
 
