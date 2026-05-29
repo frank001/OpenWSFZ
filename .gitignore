@@ -54,6 +54,13 @@ p10-decoder-ground-truth_items/
 # Daemon runtime output — generated files
 ALL.TXT
 
+# Native build artifacts — obj files and intermediate DLL (patched sources are committed)
+native/ft8_lib_build/obj/
+native/ft8_lib_build/*.obj
+native/ft8_lib_build/*.exp
+native/ft8_lib_build/*.lib
+native/ft8_lib_build/libft8.dll
+
 # Serena MCP tool — logs and runtime artefacts (project config is committed)
 daemon_log.txt
 

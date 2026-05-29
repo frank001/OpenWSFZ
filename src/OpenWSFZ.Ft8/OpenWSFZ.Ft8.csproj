@@ -15,4 +15,11 @@
     <!-- Logging abstractions (ILogger<T>/ILoggerFactory) for CycleFramer and Ft8Decoder (FR-019). -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- libft8.dll: pre-compiled native shim wrapping kgoba/ft8_lib v2.0 (MIT).
+         Link="libft8.dll" flattens the path so the DLL lands at the output root
+         (AppContext.BaseDirectory/libft8.dll) where NativeLibrary.Load can find it. -->
+    <Content Include="Native\win-x64\libft8.dll" CopyToOutputDirectory="Always" Link="libft8.dll" />
+  </ItemGroup>
 </Project>

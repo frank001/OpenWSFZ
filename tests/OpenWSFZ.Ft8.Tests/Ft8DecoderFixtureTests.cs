@@ -1,6 +1,5 @@
 using FluentAssertions;
 using OpenWSFZ.Ft8;
-using OpenWSFZ.Ft8.Dsp;
 using Xunit;
 
 namespace OpenWSFZ.Ft8.Tests;
@@ -89,7 +88,7 @@ public sealed class Ft8DecoderFixtureTests
         // With the old full-symbol sweep this position falls equidistant between
         // startSample=0 and startSample=1920, giving 50% contamination at both.
         // With TimeSweepStep=960 the sweep lands at startSample=960 — perfect alignment.
-        int startSample = SymbolExtractor.SamplesPerSymbol / 2; // 960
+        const int startSample = 960; // half symbol period (SamplesPerSymbol/2 = 1920/2)
 
         byte[] msgBits  = TestFt8Encoder.PackType1(c1: 2, c2: 6_516_426, rg: 10_331);
         byte[] infoBits = TestFt8Encoder.AppendCrc14(msgBits);
@@ -116,7 +115,7 @@ public sealed class Ft8DecoderFixtureTests
     public async Task DecodeAsync_QuarterSymbolOffset_ReturnsKnownDecodes()
     {
         const double baseFreqHz  = 1500.0;
-        int startSample = SymbolExtractor.SamplesPerSymbol / 4; // 480
+        const int startSample = 480; // quarter symbol period (SamplesPerSymbol/4 = 1920/4)
 
         byte[] msgBits  = TestFt8Encoder.PackType1(c1: 2, c2: 6_516_426, rg: 10_331);
         byte[] infoBits = TestFt8Encoder.AppendCrc14(msgBits);

@@ -1,5 +1,3 @@
-using OpenWSFZ.Ft8.Dsp;
-
 namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
@@ -136,7 +134,7 @@ internal static class TestFt8Encoder
         // See kgoba/ft8_lib crc.c ftx_add_crc(): ftx_compute_crc(a91, 96−14) = 82 bits.
         var crcBuf = new byte[82]; // zero-initialised; crcBuf[77..81] = 0
         Array.Copy(msgBits, crcBuf, 77);
-        uint crc = Crc14.Compute(crcBuf, 82);
+        uint crc = Crc14Inline(crcBuf, 82);
 
         for (int i = 0; i < 14; i++)
             info[77 + i] = (byte)((crc >> (13 - i)) & 1);
@@ -360,5 +358,25 @@ internal static class TestFt8Encoder
             bits[start + i] = (byte)(value & 1);
             value >>= 1;
         }
+    }
+
+    /// <summary>
+    /// CRC-14 computation inlined from the retired <c>OpenWSFZ.Ft8.Dsp.Crc14</c> class.
+    /// Polynomial 0x2757 (Franke &amp; Taylor 2019 / kgoba/ft8_lib <c>crc.c</c>).
+    /// </summary>
+    private static uint Crc14Inline(ReadOnlySpan<byte> bits, int bitCount)
+    {
+        const uint poly = 0x2757u;
+        const int  crcBits = 14;
+        const uint mask = (1u << crcBits) - 1u; // 0x3FFF
+        uint crc = 0u;
+        for (int i = 0; i < bitCount; i++)
+        {
+            uint bit      = bits[i] & 1u;
+            uint feedback = ((crc >> (crcBits - 1)) ^ bit) & 1u;
+            crc           = (crc << 1) & mask;
+            if (feedback != 0) crc ^= poly;
+        }
+        return crc;
     }
 }
