@@ -12,4 +12,9 @@ public sealed record DaemonStatus(
     /// True if at least one audio sample with |value| > 1×10⁻⁶ was received
     /// since application start or the last pipeline restart (FR-020).
     /// </summary>
-    bool    AudioActive    = false);
+    bool    AudioActive    = false,
+    /// <summary>
+    /// Whether the FT8 decode pipeline is currently enabled (FR-017).
+    /// Reflects <c>AppConfig.DecodingEnabled</c> — the authoritative persisted state.
+    /// </summary>
+    bool    DecodingEnabled = false);

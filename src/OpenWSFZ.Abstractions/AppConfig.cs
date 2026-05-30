@@ -11,6 +11,12 @@ public sealed record AppConfig(
     int     Port                    = 8080,
     bool    ShowCycleCountdown      = false,
     /// <summary>
+    /// Whether the FT8 decode pipeline is enabled (FR-017).
+    /// Defaults to <c>true</c> — existing config files without this field
+    /// deserialise to <c>true</c>, preserving the current unconditional-start behaviour.
+    /// </summary>
+    bool    DecodingEnabled         = true,
+    /// <summary>
     /// Minimum log level for the console sink.
     /// One of: Trace, Debug, Information, Warning, Error, Critical, None.
     /// Default: "Information".

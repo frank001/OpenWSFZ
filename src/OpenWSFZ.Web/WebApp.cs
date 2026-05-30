@@ -130,11 +130,12 @@ public static class WebApp
 
         app.MapGet("/api/v1/status", (IConfigStore store) =>
             TypedResults.Ok(new DaemonStatus(
-                State:         "Running",
-                Version:       AssemblyVersion.Get(),
-                AudioDevice:   store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive: captureManager?.IsCapturing ?? false,
-                AudioActive:   audioMonitor?.IsActive ?? false)));
+                State:           "Running",
+                Version:         AssemblyVersion.Get(),
+                AudioDevice:     store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
+                CaptureActive:   captureManager?.IsCapturing ?? false,
+                AudioActive:     audioMonitor?.IsActive ?? false,
+                DecodingEnabled: store.Current.DecodingEnabled)));
 
         app.MapGet("/api/v1/audio/devices", async (
             IAudioDeviceProvider provider,
@@ -173,6 +174,38 @@ public static class WebApp
 
             await store.SaveAsync(config, ct);
             return TypedResults.Ok(store.Current);
+        });
+
+        app.MapPost("/api/v1/decode/start", async (
+            IConfigStore store,
+            CancellationToken ct) =>
+        {
+            if (store.Current.AudioDeviceId is null)
+                return Results.BadRequest(
+                    "No audio device configured. Select a device in Settings before starting decoding.");
+
+            await store.SaveAsync(store.Current with { DecodingEnabled = true }, ct);
+            return TypedResults.Ok(new DaemonStatus(
+                State:           "Running",
+                Version:         AssemblyVersion.Get(),
+                AudioDevice:     store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
+                CaptureActive:   captureManager?.IsCapturing ?? false,
+                AudioActive:     audioMonitor?.IsActive ?? false,
+                DecodingEnabled: store.Current.DecodingEnabled));
+        });
+
+        app.MapPost("/api/v1/decode/stop", async (
+            IConfigStore store,
+            CancellationToken ct) =>
+        {
+            await store.SaveAsync(store.Current with { DecodingEnabled = false }, ct);
+            return TypedResults.Ok(new DaemonStatus(
+                State:           "Running",
+                Version:         AssemblyVersion.Get(),
+                AudioDevice:     store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
+                CaptureActive:   captureManager?.IsCapturing ?? false,
+                AudioActive:     audioMonitor?.IsActive ?? false,
+                DecodingEnabled: store.Current.DecodingEnabled));
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────
