@@ -106,7 +106,109 @@ link /DLL /OUT:libft8.dll /EXPORT:ft8_lib_version_check /EXPORT:ft8_decode_all ^
 copy libft8.dll ..\..\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
 ```
 
+## Build Procedure (Linux x64, GCC)
+
+Prerequisites: GCC ≥ 10, `build-essential`. WSL2 running Debian is acceptable.
+
+Run from `native/ft8_lib/` inside the repository root:
+
+```bash
+gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
+    ft8/constants.c ft8/crc.c ft8/decode.c ft8/ldpc.c \
+    ft8/message.c ft8/text.c \
+    common/monitor.c \
+    fft/kiss_fft.c fft/kiss_fftr.c
+gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
+    ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
+
+gcc -shared -o libft8.so \
+    constants.o crc.o decode.o ldpc.o message.o text.o \
+    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o \
+    -lm
+```
+
+> **Note:** `-D_GNU_SOURCE` is required. `ft8_lib/ft8/message.c` calls `stpcpy`, which is
+> a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
+> `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
+
+Verify exports (both symbols must appear):
+
+```bash
+nm -D libft8.so | grep "ft8_"
+```
+
+Install to repo:
+
+```bash
+mkdir -p ../../src/OpenWSFZ.Ft8/Native/linux-x64
+cp libft8.so ../../src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so
+```
+
+Expected binary size: ~100–150 KB.
+
+Use the **unpatched** submodule sources (`native/ft8_lib/`) — GCC supports C11 VLAs
+natively; the MSVC VLA patches in `native/ft8_lib_build/patched/` are not needed.
+
+---
+
+## Build Procedure (macOS ARM64, Clang)
+
+Prerequisites: Xcode Command Line Tools (`xcode-select --install`) — available on any
+macOS machine or the `macos-latest` GitHub Actions runner.
+
+> **Note:** Since no Mac is available locally, in practice this binary is produced via
+> the one-shot `workflow_dispatch` GitHub Actions workflow described in
+> `tasks.md` sections 2.1–2.7. The workflow is deleted after the binary is committed.
+> The commands below are provided for manual reproduction if needed.
+
+Run from `native/ft8_lib/` inside the repository root:
+
+```bash
+clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -c \
+    ft8/constants.c ft8/crc.c ft8/decode.c ft8/ldpc.c \
+    ft8/message.c ft8/text.c \
+    common/monitor.c \
+    fft/kiss_fft.c fft/kiss_fftr.c
+clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -c \
+    ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
+
+clang -dynamiclib -target arm64-apple-macos11.0 \
+    -o libft8.dylib \
+    constants.o crc.o decode.o ldpc.o message.o text.o \
+    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
+```
+
+> **Note:** `-D_GNU_SOURCE` is required for `stpcpy` on macOS as well (same reason as
+> Linux — see note in the Linux section above).
+
+Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore):
+
+```bash
+nm -gU libft8.dylib | grep "ft8_"
+```
+
+Install to repo:
+
+```bash
+mkdir -p ../../src/OpenWSFZ.Ft8/Native/osx-arm64
+cp libft8.dylib ../../src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
+```
+
+Expected binary size: ~60–120 KB.
+
+The `-target arm64-apple-macos11.0` flag is required: the CI matrix configures the
+`macos-latest` leg with `rid: osx-arm64`, and the .NET 10 runtime on that runner
+executes as ARM64. A P/Invoke native library loaded by an ARM64 .NET process must
+itself be ARM64. macOS 11.0 (Big Sur) is the minimum deployment target because it
+is the first macOS version released on Apple Silicon hardware.
+
+Use the **unpatched** submodule sources (`native/ft8_lib/`) — Clang supports C11 VLAs
+natively; the MSVC VLA patches are not needed.
+
+---
+
 ## Version File
 
 `win-x64/libft8.version.txt` records the source commit SHA, compiler version, and build
-date so the DLL is auditable without needing to rebuild it.
+date so the DLL is auditable without needing to rebuild it. The file covers all three
+platform binaries (Windows, Linux, macOS) — each platform adds its own row.

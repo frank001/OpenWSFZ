@@ -148,6 +148,32 @@ Note: `NativeLibrary.SetDllImportResolver` throws `InvalidOperationException` if
 
 ---
 
+## Post-Review Finding — macOS Architecture Mismatch
+
+**Severity:** Critical — tasks.md and all specs specified `macOS x64` / `x86_64-apple-macos10.15`; the CI matrix has `macos-latest` with `rid: osx-arm64`; these are incompatible  
+**Raised after:** Developer remarked on toolchain availability; inspection of `ci.yml` line 22 confirmed the conflict
+
+The CI workflow `.github/workflows/ci.yml` configures the macOS leg as:
+
+```yaml
+- os: macos-latest
+  rid: osx-arm64
+```
+
+`macos-latest` on GitHub Actions is ARM64 (Apple Silicon). The .NET 10 runtime on that runner executes as ARM64. A P/Invoke call from an ARM64 .NET process **requires** an ARM64 native library. Loading an `x86_64` Mach-O via P/Invoke from an ARM64 process is not supported; the OS loader rejects it with `EBADARCH`. Had the developer followed the original `tasks.md` instructions (building for `x86_64-apple-macos10.15`), the G6 tests would not skip on `macos-latest` — they would crash at library load time. This is a worse outcome than the current skip-based silent failure.
+
+**Root cause:** The `design.md` Non-Goal listed "ARM64 / Apple Silicon support" as out-of-scope, but that Non-Goal was written without reference to the CI matrix. The CI was configured in p0-foundation before the decoder existed; the `osx-arm64` RID was set to match the actual `macos-latest` runner architecture. No one checked alignment between the decoder architecture target and the CI RID when p12 originally scoped the macOS work.
+
+**Correction applied:** All five artifacts (`tasks.md`, `design.md`, `specs/ft8lib-interop/spec.md`, `specs/ft8-decoder/spec.md`, this document) have been updated to:
+- Target `arm64-apple-macos11.0` for the macOS binary
+- Use `Native/osx-arm64/libft8.dylib` as the path (not `osx-x64`)
+- Produce the binary via a temporary `workflow_dispatch` GitHub Actions workflow on `macos-latest` (since no Mac is available locally)
+- Remove the Non-Goal about ARM64; replace it with "Universal (fat) binary support"
+
+The `NativeLibrary.SetDllImportResolver` resolver code in `tasks.md` 5.3 is unaffected — it uses `OSPlatform.OSX` to detect macOS regardless of processor architecture, which is correct.
+
+---
+
 ## Additional Observations
 
 ### O1 — `Marshal.SizeOf<Ft8NativeResult>()` check runs at first load, not every call
@@ -181,8 +207,8 @@ The existing `libft8.version.txt` tracks only the Windows build. After the Linux
 | **R2** | `Ft8LibInterop.cs` | Add `SetDllImportResolver` before first DllImport call | 5.3 |
 | **R3** | `Ft8LibInterop.cs` `LoadAndVerify()` | Replace hardcoded `"libft8.dll"` path with platform-appropriate name | 5.4 |
 | **R4** | `OpenWSFZ.Ft8.csproj` | Add `<Content>` items for `libft8.so` and `libft8.dylib` | 4.2 |
-| **R5** | `Native/linux-x64/libft8.so` | Build and commit Linux x64 binary | 1.1–1.5 |
-| **R6** | `Native/osx-x64/libft8.dylib` | Build and commit macOS x64 binary | 2.1–2.5 |
+| **R5** | `Native/linux-x64/libft8.so` | Build and commit Linux x64 binary (WSL Debian acceptable) | 1.0–1.5 |
+| **R6** | `Native/osx-arm64/libft8.dylib` | Build and commit macOS ARM64 binary (via GitHub Actions `workflow_dispatch`) | 2.1–2.7 |
 | **R7** | `WindowsOnlyAttributes.cs` | Delete file; replace all `[WindowsOnly*]` uses | 6.1–6.3 |
 | **R8** | `libft8.version.txt` | Add Linux and macOS build rows | 3.1 |
 | **R9** | `Native/BUILD.md` | Add Linux and macOS build sections | 7.1–7.2 |
@@ -202,10 +228,11 @@ The developer must provide the following evidence before this change goes to QA 
 - [ ] `git ls-files src/OpenWSFZ.Ft8/Native/` lists:
   - `win-x64/libft8.dll`
   - `linux-x64/libft8.so`
-  - `osx-x64/libft8.dylib`
+  - `osx-arm64/libft8.dylib`
 - [ ] `libft8.version.txt` contains rows for all three platforms
 - [ ] `nm -D libft8.so | grep "ft8_"` output (paste in PR or commit message) — both `ft8_lib_version_check` and `ft8_decode_all` visible
-- [ ] `nm -gU libft8.dylib | grep "ft8_"` output — both symbols visible
+- [ ] macOS exports verified — paste the **Verify exports** step log from the one-shot GitHub Actions build workflow into the PR description; both `_ft8_lib_version_check` and `_ft8_decode_all` must be visible (`nm -gU` on macOS prefixes symbols with an underscore)
+- [ ] `file src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib` (run from WSL or CI log) — must report `Mach-O 64-bit dynamically linked shared library arm64`
 - [ ] `dotnet run --project tools/TraceabilityCheck` — G3 green
 - [ ] `dotnet run --project tools/LicenseInventoryCheck` — G5 green
 
