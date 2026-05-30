@@ -8,8 +8,6 @@
 /// Run once:  dotnet run --project tools/GenerateFt8Fixture
 /// </summary>
 
-using OpenWSFZ.Ft8.Dsp;
-
 Ft8FixtureGenerator.Run(args);
 
 internal static class Ft8FixtureGenerator
@@ -119,7 +117,7 @@ internal static class Ft8FixtureGenerator
 
         var crcBuf = new byte[82];
         Array.Copy(msgBits, crcBuf, 77);
-        uint crc = Crc14.Compute(crcBuf, 82); // delegates to production OpenWSFZ.Ft8.Dsp.Crc14
+        uint crc = Crc14Inline(crcBuf, 82);
 
         for (int i = 0; i < 14; i++)
             info[77 + i] = (byte)((crc >> (13 - i)) & 1);
@@ -290,4 +288,24 @@ internal static class Ft8FixtureGenerator
         [0x26,0x44,0xeb,0xad,0xeb,0x44,0xb9,0x46,0x7d,0x1f,0x42,0xc0],
         [0x60,0x8c,0xc8,0x57,0x59,0x4b,0xfb,0xb5,0x5d,0x69,0x60,0x00],
     ];
+
+    /// <summary>
+    /// CRC-14 computation inlined from the retired <c>OpenWSFZ.Ft8.Dsp.Crc14</c> class.
+    /// Polynomial 0x2757 (Franke &amp; Taylor 2019 / kgoba/ft8_lib crc.c).
+    /// </summary>
+    private static uint Crc14Inline(ReadOnlySpan<byte> bits, int bitCount)
+    {
+        const uint poly    = 0x2757u;
+        const int  crcLen  = 14;
+        const uint mask    = (1u << crcLen) - 1u;
+        uint crc = 0u;
+        for (int i = 0; i < bitCount; i++)
+        {
+            uint bit      = bits[i] & 1u;
+            uint feedback = ((crc >> (crcLen - 1)) ^ bit) & 1u;
+            crc           = (crc << 1) & mask;
+            if (feedback != 0) crc ^= poly;
+        }
+        return crc;
+    }
 }

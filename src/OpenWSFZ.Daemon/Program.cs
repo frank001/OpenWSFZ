@@ -116,9 +116,12 @@ var ft8Decoder     = new Ft8Decoder(clock, loggerFactory.CreateLogger<Ft8Decoder
 var decodeEventBus = new DecodeEventBus();
 var allTxtWriter   = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllTxtWriter>());
 
-// Channel 1: CycleFramer → float[] PCM windows → decode pump
+// Channel 1: CycleFramer → (float[] Pcm, DateTime CycleStart) windows → decode pump
+// CycleFramer records the cycle-start timestamp when the window begins accumulating;
+// the decode pump forwards it to DecodeAsync so that DecodeResult.Time reflects when
+// the audio was captured, not when the decoder was eventually invoked (R3).
 // Channel 2: decode pump → DecodeEventBus (direct call, no channel needed)
-var framerOutput = Channel.CreateBounded<float[]>(new BoundedChannelOptions(2)
+var framerOutput = Channel.CreateBounded<(float[] Pcm, DateTime CycleStart)>(new BoundedChannelOptions(2)
 {
     FullMode     = BoundedChannelFullMode.DropOldest,
     SingleWriter = true,
@@ -229,16 +232,15 @@ app.Lifetime.ApplicationStarted.Register(() =>
     var stoppingToken = app.Lifetime.ApplicationStopping;
     _ = Task.Run(async () =>
     {
-        await foreach (var pcmWindow in framerOutput.Reader.ReadAllAsync(stoppingToken))
+        await foreach (var (pcmWindow, cycleStart) in framerOutput.Reader.ReadAllAsync(stoppingToken))
         {
             try
             {
-                // Capture UTC timestamp immediately before decode so AllTxtWriter
-                // can use the correct date in the YYMMDD prefix (D3 / FR-028).
-                var cycleUtc = DateTime.UtcNow;
-                var results  = await ft8Decoder.DecodeAsync(pcmWindow);
+                // cycleStart is the UTC instant at which CycleFramer began accumulating
+                // this window — the authoritative cycle timestamp (R3 / FR-028).
+                var results  = await ft8Decoder.DecodeAsync(pcmWindow, cycleStart);
                 decodeEventBus.Publish(results);
-                await allTxtWriter.AppendAsync(cycleUtc, results);
+                await allTxtWriter.AppendAsync(cycleStart, results);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
