@@ -3,11 +3,13 @@ Shim version:     FT8_SHIM_VERSION = 20240001
 Compiler:         MSVC 19.51.36246 (Visual Studio 18 / VS 2026)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
 Platform:         Windows x64
-Build date:       2026-05-30 (R5 rebuild)
+Build date:       2026-05-30 (R6 rebuild)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
 sizeof(FT8Result): 48 bytes
-SNR formula:      noise-floor based (R5) — waterfall median noise floor + per-candidate
+SNR formula:      noise-floor based (R5/R6) — waterfall median noise floor + per-candidate
                   max-over-8-tones signal level; SNR = signal_db - noise_db - 26
                   (26 dB = 10*log10(2500/6.25) bandwidth correction, WSJT-X convention)
-                  Replaces saturating score * 0.5f - 26 formula (R1).
+                  R6 post-correction: if SNR < -10 dB, subtract 8 dB (compensates for the
+                  ~8 dB order-statistic upward bias of max-over-8 noise samples at very
+                  weak signals: WSJT-X SNR ≤ -20 dB). See r6-snr-weak-signal.md.
