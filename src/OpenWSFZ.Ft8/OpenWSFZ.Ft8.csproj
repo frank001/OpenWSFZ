@@ -22,9 +22,6 @@
          NativeLibrary.SetDllImportResolver selects the correct file at runtime. -->
     <Content Include="Native\win-x64\libft8.dll"     CopyToOutputDirectory="Always" Link="libft8.dll"    />
     <Content Include="Native\linux-x64\libft8.so"    CopyToOutputDirectory="Always" Link="libft8.so"     />
-    <!-- Condition is temporary — will be removed once libft8.dylib is committed (p13 task 2.4–2.6). -->
-    <Content Include="Native\osx-arm64\libft8.dylib"
-             Condition="Exists('$(MSBuildThisFileDirectory)Native\osx-arm64\libft8.dylib')"
-             CopyToOutputDirectory="Always" Link="libft8.dylib"  />
+    <Content Include="Native\osx-arm64\libft8.dylib" CopyToOutputDirectory="Always" Link="libft8.dylib"  />
   </ItemGroup>
 </Project>
