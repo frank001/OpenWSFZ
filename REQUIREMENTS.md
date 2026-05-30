@@ -1,7 +1,7 @@
 # OpenWSFZ &mdash; Requirements Document
 
-**Version:** 1.1
-**Date:** 2026-05-18
+**Version:** 1.10
+**Date:** 2026-05-31
 **Status:** Draft
 **Prepared by:** Requirements Analyst (AI-assisted)
 **For:** Architecture & Planning Team
@@ -16,11 +16,15 @@ WSJT-X is a Qt desktop application under GPL-3.0, OpenWSFZ is
 controlled entirely from a web page served by the application itself,
 letting licensed radio operators run it on whatever desktop hardware
 they prefer (Windows, Linux, macOS) and reach it from a local browser.
-**v1 is a tightly scoped proof of concept: FT8 receive-only decoding,
-loopback-only web UI, single operator, source-only distribution.**
-Transmit, rig control, the wider mode menu, remote / LAN operation,
-and headless deployment are all explicitly deferred to subsequent
-versions on the way to a public release.
+**The project uses the following versioning scheme: v0.x covers all
+work prior to a confirmed QSO; v1.0 is reached when the software can
+make a confirmed two-way contact (RX + CAT control + TX); each
+user-facing feature shipped increments the minor version.
+The current release is v0.11.** The v0.x body of work is a tightly
+scoped proof of concept: FT8 receive-only decoding, loopback-only web
+UI, single operator, source-only distribution. Transmit, rig control,
+the wider mode menu, remote / LAN operation, and headless deployment
+are all explicitly deferred to v1.0+ on the way to a public release.
 
 ---
 
@@ -43,7 +47,7 @@ community use once public-release readiness is reached.
 
 ### 2.2 Scope
 
-**In Scope (v1)**
+**In Scope (v0.x)**
 
 - Receive-only **FT8** decoding from a chosen audio source.
 - A self-hosted **web UI** served by the application itself, reachable
@@ -63,7 +67,7 @@ community use once public-release readiness is reached.
 - **Source-only distribution** via the project's GitHub repository
   (private until public-release readiness is reached).
 
-**Out of Scope (v1, deferred to v2+)**
+**Out of Scope (v0.x, deferred to v1.0+)**
 
 - Transmit (modulation, audio output, PTT, QSO state machine).
 - Non-FT8 modes (FT4, JT9, JT65, WSPR, Q65, MSK144, Echo).
@@ -84,7 +88,7 @@ community use once public-release readiness is reached.
 | Role                          | Name / Team                           | Interest                                                                                  |
 |-------------------------------|---------------------------------------|-------------------------------------------------------------------------------------------|
 | Product Owner / Sponsor       | The project author (solo)             | All product decisions, scope, direction.                                                  |
-| Primary user (v1)             | The project author                    | Personal use, end-to-end testing on their own gear.                                       |
+| Primary user (v0.x)           | The project author                    | Personal use, end-to-end testing on their own gear.                                       |
 | Aspirational user community   | Licensed amateur-radio operators (HAMs) worldwide | Future adoption after the project goes public.                                |
 | Future contributors           | TBD post-public-release               | Source contributions, issue reports, peer review.                                         |
 | ANALYST role (AI-assisted)    | See `prompts/ANALYST.md`              | Requirements gathering and documentation.                                                 |
@@ -96,7 +100,7 @@ community use once public-release readiness is reached.
 
 ## 3. User Personas
 
-Only one persona is in scope for v1.
+Only one persona is in scope for v0.x.
 
 ### 3.1 Licensed Amateur-Radio Operator (HAM)
 
@@ -118,7 +122,7 @@ Only one persona is in scope for v1.
   - Holds a valid amateur-radio licence (regulator exam passed);
     therefore familiar with radio operation, modes, frequencies,
     callsigns.
-  - Comfortable with building from source &mdash; v1 ships source-only.
+  - Comfortable with building from source &mdash; v0.x ships source-only.
   - Comfortable editing configuration files and CSS.
   - Assumed technically literate but not necessarily a professional
     software engineer.
@@ -207,17 +211,17 @@ Only one persona is in scope for v1.
 |-------------------------------------|----------------|-----------|----------------------------------------------------------------------------------------------------------------------------------|
 | Host OS audio subsystem             | Native API     | Inbound   | USB audio capture. Implementation details (WASAPI / ALSA / CoreAudio / PortAudio / etc.) are the architect's call.               |
 | Host OS filesystem                  | Native API     | Both      | Read the configuration file at startup; write it on Save. Serve frontend assets read-only.                                       |
-| Web browser on the same machine     | HTTP + WebSocket | Both    | Only client of the application in v1. Loopback bind only.                                                                        |
-| **Future** rig control (v2+)        | Serial / USB / network CAT | Both | Explicitly deferred; architecture must keep this door open.                                                                  |
-| **Future** PSK Reporter / DX cluster | HTTPS / telnet | Outbound  | Not in v1, but typical for HAM tools and worth noting for the architect.                                                         |
-| **Future** logbook formats (ADIF, Cabrillo) | File I/O | Outbound | Not in v1; deferred with decode persistence.                                                                                  |
+| Web browser on the same machine     | HTTP + WebSocket | Both    | Only client of the application in v0.x. Loopback bind only.                                                                      |
+| **Future** rig control (v1.0)       | Serial / USB / network CAT | Both | Required for v1.0 (confirmed QSO); architecture must keep this door open.                                                    |
+| **Future** PSK Reporter / DX cluster | HTTPS / telnet | Outbound  | Not in v0.x, but typical for HAM tools and worth noting for the architect.                                                       |
+| **Future** logbook formats (ADIF, Cabrillo) | File I/O | Outbound | Not in v0.x; deferred with decode persistence.                                                                                |
 
 ### 4.4 Data Requirements
 
 The application creates, reads, updates, or deletes the following
-data in v1:
+data in v0.x:
 
-| Data                       | Lifecycle in v1                              | Persistence                                                       |
+| Data                       | Lifecycle in v0.x                            | Persistence                                                       |
 |----------------------------|----------------------------------------------|-------------------------------------------------------------------|
 | Audio input stream         | Read in real time during a session.          | Not persisted.                                                    |
 | Configuration              | Read on startup; written when the operator Saves from Settings, toggles the decode start/stop control, or changes the cycle-countdown visibility. | A configuration file at a default or overridden path. Fields include (non-exhaustive): audio device name, `DecodingEnabled`, `ShowCycleCountdown`, `LogLevel`. |
@@ -231,18 +235,18 @@ data in v1:
 
 | ID      | Category           | Requirement                                                                                                                                                          | Target / Metric                                                                                                                       |
 |---------|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| NFR-001 | Portability        | The application SHALL build and run on Windows, Linux, and macOS from a single source tree.                                                                          | Three reference platforms: Windows + MSVC, Linux + GCC or Clang, macOS + Clang. x86_64 only in v1.                                    |
+| NFR-001 | Portability        | The application SHALL build and run on Windows, Linux, and macOS from a single source tree.                                                                          | Three reference platforms: Windows + MSVC, Linux + GCC or Clang, macOS + Clang. x86_64 only in v0.x.                                  |
 | NFR-002 | Performance        | The application SHALL provide a perceived user experience comparable to WSJT-X for decode latency, waterfall refresh rate, and resource footprint on modern hardware. | *"Match the WSJT-X user-perceived experience."* No hard numbers specified by the user; architect to set reasonable defaults.          |
 | NFR-003 | Real-time decoding | Each 15-second FT8 cycle's worth of audio SHALL be fully decoded before the next cycle ends, on the target hardware.                                                 | Hard real-time deadline. (Inherent property of the FT8 protocol.)                                                                     |
-| NFR-004 | Security (v1)      | The application SHALL bind only to the loopback interface (`127.0.0.1`) in v1.                                                                                       | No external network listener exposed.                                                                                                 |
-| NFR-005 | Distribution       | v1 SHALL be distributed as source only, via the project's GitHub repository.                                                                                         | Tagged source releases. No installer toolchain, no code-signing, no auto-update mechanism in v1.                                      |
+| NFR-004 | Security (v0.x)    | The application SHALL bind only to the loopback interface (`127.0.0.1`) in v0.x.                                                                                     | No external network listener exposed.                                                                                                 |
+| NFR-005 | Distribution       | v0.x SHALL be distributed as source only, via the project's GitHub repository.                                                                                       | Tagged source releases. No installer toolchain, no code-signing, no auto-update mechanism in v0.x.                                    |
 | NFR-006 | Test coverage      | Every behavioural requirement (functional and non-functional) SHALL have at least one automated test that fails when the behaviour is broken.                        | Coverage-tool reports are informational. The bar is **meaningful behaviour coverage**, not line coverage.                             |
 | NFR-007 | Test discipline    | Tests SHALL be respected: a failing test blocks progress (merge / release).                                                                                          | Red builds gate everything downstream. No "merge over a failing test" exceptions.                                                     |
 | NFR-008 | Extensibility &mdash; protocol layer | The protocol / decoder layer SHALL be designed as a plugin point so additional modes (FT4, WSPR, etc.) can be added without redesigning audio, scheduling, UI, or logbook. | FT8 is the first plugin.                                                                                                              |
-| NFR-009 | Extensibility &mdash; deployment    | The deployment abstraction SHALL not foreclose a future Windows-service deployment mode running alongside the standalone executable.                                  | v1 is terminal-launched on all platforms; service mode is deferred but must remain reachable without a rewrite.                       |
-| NFR-010 | Extensibility &mdash; network       | The bind / authentication abstraction SHALL support a future LAN / remote operation mode without rewrite.                                                              | v1 only binds to loopback. Future remote operation may bind to LAN / public addresses, add authentication, and add TLS.               |
+| NFR-009 | Extensibility &mdash; deployment    | The deployment abstraction SHALL not foreclose a future Windows-service deployment mode running alongside the standalone executable.                                  | v0.x is terminal-launched on all platforms; service mode is deferred but must remain reachable without a rewrite.                     |
+| NFR-010 | Extensibility &mdash; network       | The bind / authentication abstraction SHALL support a future LAN / remote operation mode without rewrite.                                                              | v0.x only binds to loopback. Future remote operation may bind to LAN / public addresses, add authentication, and add TLS.             |
 | NFR-011 | Extensibility &mdash; general       | The architecture SHALL be iterative and easy to extend as requirements arrive.                                                                                         | A new feature should be addable without rewriting unrelated subsystems.                                                               |
-| NFR-012 | Accessibility (web UI) | The web UI SHALL use standard sensible web accessibility patterns: semantic HTML, working keyboard navigation, and sufficient contrast in the default dark theme.       | No formal WCAG conformance target for v1.                                                                                             |
+| NFR-012 | Accessibility (web UI) | The web UI SHALL use standard sensible web accessibility patterns: semantic HTML, working keyboard navigation, and sufficient contrast in the default dark theme.       | No formal WCAG conformance target for v0.x.                                                                                           |
 | NFR-013 | UX competitive bar (aspirational) | The user experience SHALL aim to be one that licensed HAM operators prefer over existing software.                                                                  | Subjective; informs UX, stability, and documentation effort. Not gated on a numeric metric.                                           |
 | NFR-014 | Process &mdash; multi-role workflow | The development process SHALL operate across four AI-assisted roles: **ANALYST**, **ARCHITECT**, **DEVELOPER**, **QA**, with requirements cycling between them as needed. | The ANALYST persona's `prompts/ANALYST.md` already exists. Equivalent prompt files for ARCHITECT, DEVELOPER, QA are expected to follow. |
 | NFR-015 | Stability          | The application SHALL run for the duration of a normal operating session without crash or memory leak.                                                                | "Normal operating session" left to the architect to quantify; comparable to a WSJT-X session in practice.                             |
@@ -250,8 +254,8 @@ data in v1:
 
 ### 5.1 Compliance & Regulatory
 
-- **Not applicable for v1.** Specifically:
-  - v1 does **not transmit**, so FCC / Ofcom / IARU / national
+- **Not applicable for v0.x.** Specifically:
+  - v0.x does **not transmit**, so FCC / Ofcom / IARU / national
     regulator transmit rules do not bind the application.
   - No persisted user data, no external network calls &mdash; **GDPR /
     HIPAA / PCI-DSS / SOC2 are not applicable.**
@@ -272,12 +276,12 @@ data in v1:
 | Preferred implementation language         | **C#**                                                                                                                            | User preference.                                                                  |
 | Acceptable fallback language              | **C++**                                                                                                                           | If C# proves impractical for FT8 DSP, cross-platform audio I/O, or packaging.    |
 | Implementation provenance                 | Clean-room from public protocol specifications. GPL-3.0 source (WSJT-X / JS8Call) may be a behavioural reference only, never a source of code, algorithms, or assets. | Maintain MIT licensing.                                            |
-| Target OSes (v1)                          | Windows, Linux, macOS &mdash; **x86_64** only                                                                                     | Cross-platform driver, scoped to desktop x86_64 for v1.                          |
-| Distribution model (v1)                   | Source only, via the project's GitHub repository.                                                                                 | User preference; minimises packaging / code-signing complexity for v1.           |
-| Bind address (v1)                         | `127.0.0.1` loopback only.                                                                                                        | Proof-of-concept simplicity, no auth required.                                    |
+| Target OSes (v0.x)                        | Windows, Linux, macOS &mdash; **x86_64** only                                                                                     | Cross-platform driver, scoped to desktop x86_64 for v0.x.                        |
+| Distribution model (v0.x)                 | Source only, via the project's GitHub repository.                                                                                 | User preference; minimises packaging / code-signing complexity for v0.x.         |
+| Bind address (v0.x)                       | `127.0.0.1` loopback only.                                                                                                        | Proof-of-concept simplicity, no auth required.                                    |
 | Web frontend                              | Vanilla HTML / CSS / JS. No bundler. No build-time Node toolchain.                                                                | User-stated.                                                                      |
 | Frontend layout                           | Own top-level folder with conventional subfolders for HTML, CSS, JS. All files plain on disk and user-editable.                   | User-stated.                                                                      |
-| Process model (v1)                        | Terminal-launched, foreground.                                                                                                    | User-stated.                                                                      |
+| Process model (v0.x)                      | Terminal-launched, foreground.                                                                                                    | User-stated.                                                                      |
 | Development workflow                      | Four-role AI-assisted workflow: ANALYST, ARCHITECT, DEVELOPER, QA. Requirements cycle through whichever role needs to weigh in.    | User-stated methodology.                                                          |
 | Development tooling                       | **Serena MCP server** SHALL be wired into Claude Code for the **DEVELOPER** role. To be brought into the workflow at a convenient point chosen by the ARCHITECT. | User-stated.                                                                      |
 
@@ -285,7 +289,7 @@ data in v1:
 
 ## 7. Assumptions
 
-1. **C# is practical** for FT8 DSP at the v1 performance bar on
+1. **C# is practical** for FT8 DSP at the v0.x performance bar on
    modern x86_64 desktop hardware (decode-only, real-time within the
    15-second FT8 cycle). The ARCHITECT should validate this in design
    and choose C++ as the fallback if invalidated.
@@ -293,16 +297,16 @@ data in v1:
    FT8 decode plus waterfall rendering plus an embedded web server
    in a single process without aggressive optimisation.
 3. **Source-only distribution is acceptable** to the licensed-operator
-   audience for v1. Non-builders self-select out of v1.
+   audience for v0.x. Non-builders self-select out of v0.x.
 4. **No bundler is needed** for the vanilla-JS web UI; modern browsers
    handle ES modules and other standards-track features natively.
 5. **CSS file edits on disk** are an acceptable UX for theming. No
-   in-app theme switcher is required in v1.
+   in-app theme switcher is required in v0.x.
 6. **Three further AI-role prompts will be authored** for ARCHITECT,
    DEVELOPER, and QA, following the same pattern as
    `prompts/ANALYST.md`. These are not yet in the repository.
 7. **Public-release readiness is gated on TX + rig control** working,
-   not on v1. v1 is an internal milestone reached privately.
+   not on v0.x. v0.x is an internal milestone reached privately.
 8. **The current scaffolding work on the `feature/project-skeleton`
    branch is preliminary**, not approved, and may not survive design
    review by the ARCHITECT.
@@ -323,7 +327,7 @@ data in v1:
 | 8  | UX competitive bar (NFR-013) is subjective. Architecture / QA should propose a concrete way to evaluate it before release.                    | ARCHITECT, QA     | Medium        |
 | 9  | CSS theming granularity &mdash; CSS-custom-property pattern for skin-only changes, full-file edits, or both.                                  | ARCHITECT         | Low           |
 | 10 | Future-mode IP/port discovery for headless / LAN / remote deployment (mDNS, fixed port, etc.).                                                | ARCHITECT         | Low (deferred) |
-| 11 | Future Windows-service deployment without rewrite of the v1 lifecycle abstraction.                                                            | ARCHITECT         | Low (deferred) |
+| 11 | Future Windows-service deployment without rewrite of the v0.x lifecycle abstraction.                                                          | ARCHITECT         | Low (deferred) |
 | 12 | Repo posture &mdash; the project's GitHub repo exists; confirm public/private state and whether contribution model (issues, PRs) is live yet. | Product Owner     | Low           |
 | 13 | The `feature/project-skeleton` scaffolding pre-dates this document; the ARCHITECT should decide what to keep, discard, or revise.             | ARCHITECT         | Medium        |
 | 14 | Performance NFR-002 / NFR-003 have no numeric targets; the ARCHITECT should propose concrete budgets aligned with WSJT-X behaviour.            | ARCHITECT         | Medium        |
@@ -337,27 +341,27 @@ data in v1:
 |---------------------|----------------------------------------------------------------------------------------------------------------------------------|
 | ADIF                | Amateur Data Interchange Format &mdash; the standard log file format used to exchange QSO records between logging applications. |
 | ARCHITECT           | One of the four AI-assisted roles in this project. Owns system design from this document.                                       |
-| ARM64 / aarch64     | 64-bit ARM CPU architecture. Examples: Raspberry Pi 4/5, Banana Pi BPI-R4, Apple Silicon Macs. Out of scope for v1.             |
+| ARM64 / aarch64     | 64-bit ARM CPU architecture. Examples: Raspberry Pi 4/5, Banana Pi BPI-R4, Apple Silicon Macs. Out of scope for v0.x.           |
 | Analyst             | This role; produces and maintains `REQUIREMENTS.md`.                                                                            |
-| BPI-R4              | Banana Pi BPI-R4 8G &mdash; MediaTek MT7988 router-class single-board computer. Stated as the user's future personal deployment target; deferred to v2+. |
+| BPI-R4              | Banana Pi BPI-R4 8G &mdash; MediaTek MT7988 router-class single-board computer. Stated as the user's future personal deployment target; deferred to v1.0+. |
 | CAT                 | Computer-Aided Transceiver &mdash; the protocol family for controlling a radio over a wire.                                     |
 | CSS                 | Cascading Style Sheets &mdash; the styling language for the web UI.                                                              |
 | Cabrillo            | A contest log file format.                                                                                                       |
 | DSP                 | Digital Signal Processing.                                                                                                       |
-| DX cluster          | A networked feed of "spots" &mdash; operator reports of stations heard on the air. Not in v1.                                    |
+| DX cluster          | A networked feed of "spots" &mdash; operator reports of stations heard on the air. Not in v0.x.                                  |
 | DEVELOPER           | One of the four AI-assisted roles. Owns implementation.                                                                          |
-| FT4                 | A faster variant of FT8 with shorter transmission cycles. Out of scope for v1.                                                  |
-| FT8                 | A weak-signal digital amateur-radio mode with 15-second transmission cycles. The only mode in v1 scope.                          |
+| FT4                 | A faster variant of FT8 with shorter transmission cycles. Out of scope for v0.x.                                                |
+| FT8                 | A weak-signal digital amateur-radio mode with 15-second transmission cycles. The only mode in v0.x scope.                        |
 | HAM                 | Licensed amateur-radio operator.                                                                                                 |
 | K1JT                | Callsign of Joe Taylor, the principal author of the WSJT family of weak-signal modes.                                            |
 | MIT License         | The permissive open-source licence selected by the project.                                                                      |
 | OpenSpec            | Spec-driven development tool published by Fission-AI. Used during the premature-scaffolding work on `feature/project-skeleton`; status TBD post-design. |
-| PSK Reporter        | A crowdsourced propagation reporting service for received signals. Not in v1.                                                    |
-| PTT                 | Push-To-Talk &mdash; the signal that keys a transmitter. Not in v1.                                                              |
+| PSK Reporter        | A crowdsourced propagation reporting service for received signals. Not in v0.x.                                                  |
+| PTT                 | Push-To-Talk &mdash; the signal that keys a transmitter. Not in v0.x.                                                            |
 | QA                  | One of the four AI-assisted roles. Owns test design and the discipline around NFR-006 / NFR-007.                                |
 | QSO                 | A two-way radio contact between licensed operators.                                                                              |
 | Rig control         | Software control of a radio (frequency, mode, PTT) via CAT.                                                                      |
-| TX                  | Transmit. Out of scope for v1.                                                                                                   |
+| TX                  | Transmit. Required for v1.0; out of scope for v0.x.                                                                             |
 | WSJT-X              | The reference application by K1JT et al. for weak-signal modes. GPL-3.0. Behavioural reference only.                            |
 | Waterfall           | A scrolling spectrogram of audio energy versus frequency over time. Standard view for weak-signal operating.                     |
 | WebSocket / WS      | A standard browser-server bidirectional channel; expected to carry decode events and other live updates from the daemon to the UI. |
@@ -378,3 +382,4 @@ data in v1:
 | 1.7     | 2026-05-25 | QA (AI-assisted)                      | Added **FR-022** (file logging sink), **FR-023** (log rotation), **FR-024** (log file retention), **FR-025** (audio device friendly name display). Amended **FR-019** to remove the "exclusively to stderr" constraint and update the log-level-change timing to "immediately on settings save". |
 | 1.8     | 2026-05-28 | QA (AI-assisted)                      | Added **FR-026** (FT8 decode throughput — already implemented in p8 tests, now formally recorded), **FR-027** (dial frequency configuration), **FR-028** (WSJT-X compatible ALL.TXT decode log). |
 | 1.9     | 2026-05-29 | ARCHITECT (AI-assisted)               | Added **FR-029** (reproducible real-signal decode verification — WAV corpus, WAV→PCM reader, replay harness, real-signal fixture integration test as the authoritative oracle) and **NFR-016** (decoder-correctness CI gate G6 — reproducible-evidence rule, real-signal fixture test gates every PR). These requirements are the output of `RECOVERY_PLAN.md` Phase 1 and are implemented by `p10-decoder-ground-truth`. |
+| 1.10    | 2026-05-31 | QA (AI-assisted)                      | Updated versioning language throughout. The project version scheme is now formalised: **v0.x** covers all work prior to a confirmed QSO; **v1.0** is reached when the software can make a confirmed two-way contact (RX + CAT control + TX); each user-facing feature shipped increments the minor version. All prior references to "v1" (the receive-only proof of concept) updated to "v0.x"; all references to "v2+" updated to "v1.0+". Current release tagged **v0.11**. |
