@@ -77,6 +77,6 @@
 
 - [x] 7.1 `dotnet run --project tools/TraceabilityCheck` — G3 green. If FR-017 appears as unmapped, add a `FR-017: DecodeControlEndpointTests` mapping comment to the new test class.
 - [x] 7.2 `dotnet run --project tools/LicenseInventoryCheck` — G5 green.
-- [ ] 7.3 Commit all changes on branch `feat/p14-decode-start-stop`. Open PR to `main`. Confirm CI green on all three matrix legs.
+- [x] 7.3 Commit all changes on branch `feat/p14-decode-start-stop`. Open PR to `main`. Confirm CI green on all three matrix legs.
 - [ ] 7.4 CAPTAIN: review and approve.
 - [ ] 7.5 Merge PR; archive this change (`opsx:archive p14-decode-start-stop`).
