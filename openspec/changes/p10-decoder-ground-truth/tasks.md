@@ -87,8 +87,8 @@
 
 - [x] 10.1 Convene the decision gate on the §6 recovery-rate result: 0 recovered → port a proven decoder (e.g. `ft8_lib`); partial → patch against this oracle; parity → bug is elsewhere (no decoder rework)
       — DECISION: **Phase 2A — Port `ft8_lib`**. Recovery rate = 0.0% (0/887 signals recovered). All 42 cycles: 0 matched, 281 false positives. See `findings.md`.
-- [ ] 10.2 Open the follow-on change for the chosen decoder strategy; this change closes once the oracle, CI gate, and process rule are in place
-      — CAPTAIN: open `p11-decoder-port` change to port MIT `kgoba/ft8_lib` decode path to managed C#
+- [x] 10.2 Open the follow-on change for the chosen decoder strategy; this change closes once the oracle, CI gate, and process rule are in place
+      — p11-decoder-port was a homegrown Bluestein attempt (also 0% recovery); Phase 2A proper opened as `p12-ft8lib-port` (port `kgoba/ft8_lib` MIT C library to managed C#)
 
 ## 11. Verification & archive
 
@@ -96,5 +96,5 @@
       — Confirmed valid before implementation started
 - [x] 11.2 Sync any modified live specs (`ci-quality-gates`) and confirm traceability/licence gates green
       — Live `ci-quality-gates` spec updated; kgoba recordings not used (live capture sufficient) so G5 unaffected
-- [ ] 11.3 Captain review of the recovery-rate findings and the decision-gate outcome
-      ← CAPTAIN: review `findings.md` and confirm Phase 2A (port ft8_lib) as the path forward
+- [x] 11.3 Captain review of the recovery-rate findings and the decision-gate outcome
+      — CONFIRMED 2026-05-29: Phase 2A (port `kgoba/ft8_lib`) approved. Homegrown DSP path closed.
