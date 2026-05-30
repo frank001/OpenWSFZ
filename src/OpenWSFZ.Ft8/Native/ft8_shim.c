@@ -246,7 +246,20 @@ int ft8_decode_all(
                          (float)cand->freq_sub / mon.wf.freq_osr) / mon.symbol_period;
         float dt      = (cand->time_offset +
                          (float)cand->time_sub / mon.wf.time_osr) * mon.symbol_period;
-        float snr_f   = (float)cand->score * 0.5f;
+
+        /* The WSJT-X SNR convention references the signal power against the noise
+         * floor integrated over a 2500 Hz bandwidth.  FT8 tone spacing is 6.25 Hz,
+         * so the bandwidth correction is 10 × log10(2500 / 6.25) ≈ 26 dB.
+         *
+         * cand->score is the average dB margin of each Costas sync bin over its
+         * immediate waterfall neighbours — a sync-quality proxy, not a calibrated
+         * SNR.  Subtracting 26 dB aligns it to the WSJT-X SNR range of
+         * approximately −30 to +10 dB for typical off-air signals.
+         *
+         * TODO: estimate the per-call noise floor from the waterfall (e.g. median
+         * bin magnitude across all blocks at the end of monitor_process) for a
+         * tighter, non-fixed-offset approximation. */
+        float snr_f = (float)cand->score * 0.5f - 26.0f;
 
         FT8Result* r = &results[num_decoded++];
         r->freq_hz = (int)roundf(freq_hz);
