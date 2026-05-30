@@ -84,7 +84,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const lg = config.logging ?? {};
     loggingFileEnabled.checked  = lg.fileEnabled       ?? false;
     loggingDirectory.value      = lg.directory         ?? 'logs';
-    loggingFileLogLevel.value   = lg.fileLogLevel      ?? 'Information';
+    // Normalise legacy Serilog names (Verbose → Trace, Fatal → Critical) that may
+    // appear in config files written before the UI adopted MEL terminology.
+    loggingFileLogLevel.value   = normaliseMelLevel(lg.fileLogLevel);
     loggingSchedule.value       = lg.rotationSchedule  ?? 'daily';
     loggingTime.value           = lg.rotationTime      ?? '00:00';
     loggingDay.value            = lg.rotationDayOfWeek ?? 'Monday';
@@ -194,6 +196,22 @@ saveBtn.addEventListener('click', async () => {
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────
+
+/**
+ * Normalise a file log-level string to MEL terminology.
+ * Config files written by older versions of the UI used Serilog names
+ * (Verbose, Fatal); the current UI uses MEL names (Trace, Critical).
+ * Unknown values are passed through and will fall back to the select's
+ * default when assigned.
+ *
+ * @param {string|undefined} level
+ * @returns {string}
+ */
+function normaliseMelLevel(level) {
+  if (level === 'Verbose') return 'Trace';
+  if (level === 'Fatal')   return 'Critical';
+  return level ?? 'Information';
+}
 
 function showFeedback(message, type) {
   feedback.textContent = message;

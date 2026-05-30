@@ -66,7 +66,7 @@
           <option value="None">None — suppress all output</option>
         </select>
         <p class="field-hint">
-          Applies to the next application start. Output is written to stderr
+          Takes effect immediately when saved. Output is written to stderr
           in the format <code>[OpenWSFZ] YYYY-MM-DD HH:MM:SS [LEVEL]  Component — message</code>.
         </p>
       </div>
@@ -129,12 +129,12 @@
         <div class="field-group" id="logging-level-group">
           <label for="logging-file-log-level">File log level</label>
           <select id="logging-file-log-level">
-            <option value="Verbose">Verbose</option>
-            <option value="Debug">Debug</option>
-            <option value="Information">Information (default)</option>
-            <option value="Warning">Warning</option>
-            <option value="Error">Error</option>
-            <option value="Fatal">Fatal</option>
+            <option value="Trace">Trace — all internal loop counters, per-sample values</option>
+            <option value="Debug">Debug — framer offsets, Costas scores, LLR magnitudes</option>
+            <option value="Information">Information — pipeline events, decode results (default)</option>
+            <option value="Warning">Warning — recoverable anomalies only</option>
+            <option value="Error">Error — operation failures only</option>
+            <option value="Critical">Critical — unrecoverable failures only</option>
           </select>
         </div>
 
