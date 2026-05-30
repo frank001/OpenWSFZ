@@ -223,7 +223,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
     startupLogger.LogInformation("OpenWSFZ started on port {Port}.", port);
 
     var deviceName = configStore.Current.AudioDeviceId;
-    if (deviceName is not null)
+    if (deviceName is not null && configStore.Current.DecodingEnabled)
         StartPipeline(deviceName);
 
     // Decode-pump: reads completed PCM windows, decodes, broadcasts results.
@@ -255,7 +255,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 
 // Restart pipeline when the device name changes via POST /api/v1/config.
-string? runningDevice = configStore.Current.AudioDeviceId;
+string? runningDevice  = configStore.Current.AudioDeviceId;
+bool    runningEnabled = configStore.Current.DecodingEnabled;
 configStore.OnSaved += newConfig =>
 {
     // Re-apply the logging pipeline on every save so file-logging changes
@@ -264,23 +265,76 @@ configStore.OnSaved += newConfig =>
         ignoreCase: true, out var nl) ? nl : LogLevel.Information;
     loggingPipeline.Apply(newConfig.Logging ?? new LoggingConfig(), consoleLevel: newConsoleLevel);
 
-    var newDevice = newConfig.AudioDeviceId;
-    if (newDevice == runningDevice) return;
+    var newDevice  = newConfig.AudioDeviceId;
+    var newEnabled = newConfig.DecodingEnabled;
 
-    runningDevice = newDevice;
-
-    _ = Task.Run(async () =>
+    // ── Device-change transition ──────────────────────────────────────────
+    if (newDevice != runningDevice)
     {
-        try
+        runningDevice  = newDevice;
+        runningEnabled = newEnabled;
+
+        _ = Task.Run(async () =>
         {
-            await RestartPipelineAsync(newDevice, stopCaptureManager: true);
-        }
-        catch (Exception ex)
+            try
+            {
+                await RestartPipelineAsync(newDevice, stopCaptureManager: true);
+            }
+            catch (Exception ex)
+            {
+                startupLogger.LogError(ex,
+                    "Audio capture failed to restart on device '{Device}'.", newDevice);
+            }
+        });
+        return;
+    }
+
+    // ── DecodingEnabled transition ────────────────────────────────────────
+    if (newEnabled == runningEnabled) return;
+
+    runningEnabled = newEnabled;
+
+    if (newEnabled && newDevice is not null)
+    {
+        // Operator enabled decoding — start pipeline.
+        _ = Task.Run(async () =>
         {
-            startupLogger.LogError(ex,
-                "Audio capture failed to restart on device '{Device}'.", newDevice);
-        }
-    });
+            try
+            {
+                await restartSemaphore.WaitAsync();
+                try { StartPipeline(newDevice); }
+                finally { restartSemaphore.Release(); }
+            }
+            catch (Exception ex)
+            {
+                startupLogger.LogError(ex,
+                    "Failed to start pipeline after DecodingEnabled = true on device '{Device}'.",
+                    newDevice);
+            }
+        });
+    }
+    else if (!newEnabled && runningDevice is not null)
+    {
+        // Operator disabled decoding — stop pipeline.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await restartSemaphore.WaitAsync();
+                try
+                {
+                    await StopFramerAsync();
+                    await captureManager.StopAsync();
+                }
+                finally { restartSemaphore.Release(); }
+            }
+            catch (Exception ex)
+            {
+                startupLogger.LogError(ex,
+                    "Failed to stop pipeline after DecodingEnabled = false.");
+            }
+        });
+    }
 };
 
 // Stop pipeline and dispose on application shutdown.
