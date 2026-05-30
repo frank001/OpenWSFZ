@@ -259,8 +259,16 @@ string? runningDevice  = configStore.Current.AudioDeviceId;
 bool    runningEnabled = configStore.Current.DecodingEnabled;
 configStore.OnSaved += newConfig =>
 {
-    // Re-apply the logging pipeline on every save so file-logging changes
-    // and console level changes take effect immediately (FR-022, FR-019).
+    // Re-apply the Serilog pipeline on every save so that rotation config and
+    // file-sink changes (directory, FileEnabled, FileLogLevel) are picked up
+    // on the next log-rotation event without a restart.
+    //
+    // NOTE: the MEL ILoggerFactory was wired to the Serilog instance captured
+    // at startup (lb.AddSerilog(Log.Logger, ...)) and the MEL minimum level was
+    // fixed via lb.SetMinimumLevel(). Neither updates dynamically, so console-
+    // level and file-level changes do NOT take effect until the next restart.
+    // TODO: replace with a SerilogLoggingLevelSwitch wired to both the Serilog
+    //       pipeline and the MEL factory to achieve true live log-level updates.
     var newConsoleLevel = Enum.TryParse<LogLevel>(newConfig.LogLevel,
         ignoreCase: true, out var nl) ? nl : LogLevel.Information;
     loggingPipeline.Apply(newConfig.Logging ?? new LoggingConfig(), consoleLevel: newConsoleLevel);
