@@ -1,37 +1,23 @@
 # ft8-decoder Specification
 
 ## Purpose
-TBD - created by archiving change p8-ft8-decode-performance. Update Purpose after archive.
+Specifies the behavioural requirements for the OpenWSFZ FT8 decoder component. The decoder accepts a 15-second 12 kHz mono PCM buffer and returns all decodable FT8 messages present in that window. From p12, decoding is delegated to the `kgoba/ft8_lib` native library via the `ft8lib-interop` layer; see that spec for P/Invoke and ABI requirements.
+
 ## Requirements
+
 ### Requirement: FT8 decode cycle completes within the 15-second budget
 
-The FT8 decoder SHALL complete a full decode cycle — including all time-domain sweep positions, Costas candidate detection, Goertzel extraction, LDPC decode, and CRC verification — within **13 seconds** of wall-clock time on a single modern CPU core, leaving at least 2 seconds headroom before the next cycle window is delivered by the framer.
+The FT8 decoder SHALL complete a full decode cycle — including all time-domain analysis, sync candidate detection, LDPC decode, iterative signal subtraction, and message unpacking — within **13 seconds** of wall-clock time on a single modern CPU core, leaving at least 2 seconds headroom before the next cycle window is delivered by the framer.
 
 #### Scenario: Decode completes within budget on a multi-signal fixture
 
-- **WHEN** `Ft8Decoder.DecodeAsync` is called with a PCM buffer containing 8 simultaneous synthetic FT8 signals at distinct frequencies with additive noise
-- **THEN** the method SHALL return within 10,000 ms (CI budget, allowing for runner variance) and SHALL decode at least 6 of the 8 known messages
+- **WHEN** `Ft8Decoder.DecodeAsync` is called with a real off-air PCM buffer containing multiple simultaneous FT8 signals
+- **THEN** the method SHALL return within 13 000 ms on a development machine and within 30 000 ms on a CI runner (allowing for runner variance)
 
 #### Scenario: Decode does not stall the cycle pump on a live band
 
 - **WHEN** a continuous stream of 15-second PCM windows is delivered by `CycleFramer` on a band with up to 30 simultaneous FT8 transmissions
 - **THEN** the decode pump SHALL complete each window before the second subsequent window arrives (i.e., at most one window queued at any time during steady-state operation)
-
----
-
-### Requirement: Costas candidate count is bounded relative to signal density
-
-The FFT-based Costas scan SHALL produce no more than **2 candidates per (time-position, base-frequency) sweep pair**. Excess candidates above this cap SHALL be discarded before Goertzel extraction is performed.
-
-#### Scenario: Candidate count does not exceed cap on a busy band
-
-- **WHEN** `Ft8Decoder.DecodeAsync` processes a PCM window containing 20 simultaneous FT8 signals
-- **THEN** the total number of Goertzel `Extract` calls SHALL be no greater than 2 × (time positions) × (frequency sweep steps) and SHALL NOT grow proportionally with the number of signals beyond this bound
-
-#### Scenario: Highest-scoring candidates are retained when cap is applied
-
-- **WHEN** a given (time-position, base-frequency) sweep pair produces more than 2 Costas candidates above the threshold
-- **THEN** the 2 candidates with the highest normalised Costas scores SHALL be retained and the remainder discarded
 
 ---
 
@@ -42,16 +28,32 @@ The decode cycle log line SHALL include the wall-clock elapsed time in milliseco
 #### Scenario: Elapsed time appears in the cycle log line
 
 - **WHEN** `Ft8Decoder.DecodeAsync` completes a decode cycle
-- **THEN** the logged Information message SHALL include an `elapsed` field in milliseconds, e.g. `elapsed=2341 ms`, alongside the existing Costas/LDPC/CRC diagnostic counters
+- **THEN** the logged Information message SHALL include an `elapsed` field in milliseconds, e.g. `elapsed=2341 ms`, alongside the cycle summary counters
 
 ---
 
-### Requirement: Goertzel extraction coefficients are computed once per call
+### Requirement: Real off-air signal recovery (G6 gate) — all three reference platforms
 
-For a given call to `SymbolExtractor.Extract`, the 15 Goertzel frequency coefficients (one per tone column) SHALL be computed exactly once and reused across all 79 symbol windows. Recomputing `MathF.Cos` per (symbol, tone) pair is prohibited.
+The FT8 decoder SHALL correctly decode real off-air FT8 transmissions captured from the 40 m band on **all three reference platforms** (Windows x64, Linux x64, macOS x64), per **NFR-001**. Given a 15-second PCM window from the committed WAV fixture corpus, the decoder SHALL recover the signals identified by WSJT-X for the same recording.
 
-#### Scenario: Coefficient computation does not scale with symbol count
+The G6 gate CI check SHALL execute and pass on all three matrix legs. A skip on any leg is a gate failure.
 
-- **WHEN** `SymbolExtractor.Extract` is called for a signal at any base frequency
-- **THEN** the number of `MathF.Cos` evaluations SHALL equal the number of tone columns (15), not the number of (symbol × column) pairs (1,185)
+#### Scenario: Decoder recovers the strongest signals from a busy-band fixture (Windows)
 
+- **WHEN** `Ft8Decoder.DecodeAsync` is called on Windows with a PCM buffer from the committed fixture corpus (`260528_235745`, `260529_000030`, or `260529_000200`)
+- **THEN** the returned `DecodeResult` list SHALL contain every message listed in the fixture's `.expected.txt` answer-key file
+
+#### Scenario: Decoder recovers the strongest signals from a busy-band fixture (Linux)
+
+- **WHEN** `Ft8Decoder.DecodeAsync` is called on Linux x64 with a PCM buffer from the committed fixture corpus
+- **THEN** the returned `DecodeResult` list SHALL contain every message listed in the fixture's `.expected.txt` answer-key file
+
+#### Scenario: Decoder recovers the strongest signals from a busy-band fixture (macOS)
+
+- **WHEN** `Ft8Decoder.DecodeAsync` is called on macOS x64 with a PCM buffer from the committed fixture corpus
+- **THEN** the returned `DecodeResult` list SHALL contain every message listed in the fixture's `.expected.txt` answer-key file
+
+#### Scenario: Decoder produces no decode for a silent buffer
+
+- **WHEN** `Ft8Decoder.DecodeAsync` is called with 180 000 samples of silence (all zeros)
+- **THEN** the method SHALL return an empty list without throwing
