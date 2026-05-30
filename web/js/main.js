@@ -12,6 +12,10 @@ import { WaterfallRenderer } from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
 
+// ── Decode pipeline state ─────────────────────────────────────────────────
+/** @type {boolean} Mirrors the server-side DecodingEnabled flag. */
+let decodingEnabled = true;
+
 // ── Decoded-messages table ────────────────────────────────────────────────
 
 const decodesBody = /** @type {HTMLTableSectionElement} */ (document.getElementById('decodes-body'));
@@ -124,6 +128,8 @@ async function startCycleTimerIfEnabled() {
 const wsStateEl        = /** @type {HTMLElement} */ (document.getElementById('ws-state'));
 const audioDeviceEl    = /** @type {HTMLElement} */ (document.getElementById('audio-device'));
 const audioIndicatorEl = /** @type {HTMLElement} */ (document.getElementById('audio-indicator'));
+const decodeBadgeEl    = /** @type {HTMLElement} */ (document.getElementById('decode-badge'));
+const decodeToggleEl   = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('decode-toggle')));
 
 function setWsState(state, label) {
   wsStateEl.className = state;
@@ -139,6 +145,35 @@ function setAudioActive(active) {
   audioIndicatorEl.title = active
     ? 'Audio active — signal above noise floor detected in the last 5 seconds'
     : 'Audio inactive — no signal above noise floor in the last 5 seconds';
+}
+
+/**
+ * Update the decode badge and toggle button to reflect the current pipeline state (FR-017).
+ * @param {boolean} enabled  - Whether decoding is active.
+ * @param {boolean} hasDevice - Whether an audio device is configured.
+ */
+function setDecodingState(enabled, hasDevice) {
+  decodingEnabled = enabled;
+
+  if (!hasDevice) {
+    decodeBadgeEl.textContent = 'Stopped';
+    decodeBadgeEl.className   = 'decoding-stopped';
+    decodeToggleEl.textContent = 'No device';
+    decodeToggleEl.disabled    = true;
+    return;
+  }
+
+  if (enabled) {
+    decodeBadgeEl.textContent  = 'Decoding';
+    decodeBadgeEl.className    = 'decoding-active';
+    decodeToggleEl.textContent = 'Stop Decoding';
+    decodeToggleEl.disabled    = false;
+  } else {
+    decodeBadgeEl.textContent  = 'Stopped';
+    decodeBadgeEl.className    = 'decoding-stopped';
+    decodeToggleEl.textContent = 'Start Decoding';
+    decodeToggleEl.disabled    = false;
+  }
 }
 
 // ── Initialise ────────────────────────────────────────────────────────────
@@ -160,6 +195,26 @@ document.addEventListener('DOMContentLoaded', () => {
   let pendingSpectrumBins = null;
   let spectrumRafPending  = false;
 
+  // Decode toggle button — calls /api/v1/decode/start or /decode/stop (FR-017).
+  decodeToggleEl.addEventListener('click', async () => {
+    const endpoint = decodingEnabled ? '/api/v1/decode/stop' : '/api/v1/decode/start';
+    decodeToggleEl.disabled = true;
+    try {
+      const response = await fetch(endpoint, { method: 'POST' });
+      if (response.ok) {
+        const data = await response.json();
+        setDecodingState(data.decodingEnabled ?? decodingEnabled, !!data.audioDevice);
+      } else {
+        // Re-enable button on error so the operator can retry.
+        decodeToggleEl.disabled = false;
+        console.error(`${endpoint} returned HTTP ${response.status}`);
+      }
+    } catch (err) {
+      decodeToggleEl.disabled = false;
+      console.error(`${endpoint} network error:`, err);
+    }
+  });
+
   // Connect WebSocket and update status bar.
   connect((event) => {
     if (event.type === '__state') {
@@ -177,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const { audioDevice, audioActive } = event.payload;
       audioDeviceEl.textContent = audioDevice ?? '(no device)';
       setAudioActive(audioActive ?? false);
+      setDecodingState(event.payload.decodingEnabled ?? true, !!audioDevice);
       return;
     }
 

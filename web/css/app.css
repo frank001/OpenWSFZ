@@ -255,6 +255,34 @@ label {
   background: var(--color-muted);
 }
 
+/* ── Decode state badge (FR-017) ──────────────────────────────────────── */
+#decode-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius);
+  cursor: default;
+}
+
+#decode-badge.decoding-active {
+  background: var(--color-success);
+  color: #0d1117;
+}
+
+#decode-badge.decoding-stopped {
+  background: transparent;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+}
+
+/* Decode toggle button — compact status-bar sizing (FR-017). */
+#decode-toggle {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+
 /* ── Cycle countdown timer (FR-018) ───────────────────────────────────── */
 #cycle-timer {
   display: flex;
