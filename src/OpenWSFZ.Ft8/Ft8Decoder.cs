@@ -167,8 +167,10 @@ public sealed class Ft8Decoder : IModeDecoder
     /// whose leading letter pair encodes values outside [0, 17] (letters beyond 'R').
     /// dB report fields and terminal tokens are validated against their known-valid forms.
     /// </remarks>
-    internal static bool IsPlausibleMessage(string text)
+    internal static bool IsPlausibleMessage(string? text)
     {
+        if (text is null) return false;
+
         // Quick count: only Standard QSO has exactly 3 space-separated tokens.
         int spaces = 0;
         foreach (char c in text) if (c == ' ') spaces++;

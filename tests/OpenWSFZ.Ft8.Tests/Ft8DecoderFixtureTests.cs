@@ -183,8 +183,6 @@ public sealed class Ft8DecoderFixtureTests
         const int totalSamples = 180_000;
         var pcm = new float[totalSamples];
 
-        // expectedCallsigns was used for the signal-count assertion (removed in p12 — see doc).
-        var expectedCallsigns = new List<string>(); _ = expectedCallsigns;
         foreach (var (callsign, baseHz) in signals)
         {
             ulong c2      = TestFt8Encoder.EncodeCallsign28(callsign);
@@ -197,8 +195,6 @@ public sealed class Ft8DecoderFixtureTests
 
             for (int i = 0; i < totalSamples; i++)
                 pcm[i] += frame[i];
-
-            expectedCallsigns.Add($"CQ {callsign} {grid}"); // kept for reference only
         }
 
         // Additive Gaussian noise — σ = 0.001, seeded for reproducibility.
@@ -218,15 +214,13 @@ public sealed class Ft8DecoderFixtureTests
         var decoder = new Ft8Decoder(clock);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var results = await decoder.DecodeAsync(pcm, CancellationToken.None);
+        _ = await decoder.DecodeAsync(pcm, CancellationToken.None);
         sw.Stop();
 
         sw.ElapsedMilliseconds.Should().BeLessThan(10_000,
             "FR-026: decode must complete within 10 seconds on an 8-signal fixture");
-
         // Signal-content check removed in p12: TestFt8Encoder uses i3=0 (FREE TEXT),
         // which ft8_lib correctly rejects. Correctness is guaranteed by G6 gate.
-        _ = results; // suppress unused-variable warning; result list is not nil-checked here
     }
 
     /// <summary>
