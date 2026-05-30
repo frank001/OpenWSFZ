@@ -50,8 +50,8 @@ confirmation only. See `RECOVERY_PLAN.md` for context.
 - [x] 6.2 `dotnet test -c Release` — all tests green, including new `AllTxtWriterTests`
       — Re-certified 2026-05-28: 190 passed, 0 failed, 0 skipped (4 new Daemon.Tests + 186 existing)
       — Re-certified 2026-05-28 (Round 34): 189 passed, 0 failed, 0 skipped
-- [ ] 6.3 Run the daemon against a live or recorded FT8 session; confirm `ALL.TXT` is created and each line matches the expected column layout against a known WSJT-X `ALL.TXT` for the same signals
-      ← REQUIRES CAPTAIN: live hardware smoke test
+- [x] 6.3 Run the daemon against a live or recorded FT8 session; confirm `ALL.TXT` is created and each line matches the expected column layout against a known WSJT-X `ALL.TXT` for the same signals
+      ← Covered by p12 UAT-01 (2026-05-30): 274 live cycles on 7.074 MHz; our ALL.TXT compared line-by-line against WSJT-X; 3 826 matched decodes; column layout confirmed correct.
 
 ## 7. Defects — Round 34 (2026-05-28 smoke test)
 
@@ -103,5 +103,5 @@ confirmation only. See `RECOVERY_PLAN.md` for context.
 - [x] D18.15 `dotnet build -c Release` — 0 errors, 0 warnings
 - [x] D18.16 `dotnet test -c Release` — 190 passed, 0 failed, 0 skipped (52 Ft8 incl. new crowded-band test)
 - [x] D18.17 Commit to `feat/p9-all-txt-decode-logging`
-- [ ] D18.18 CAPTAIN: live smoke test — confirm real amateur callsigns appear in ALL.TXT
-      ← REQUIRES CAPTAIN: live hardware smoke test
+- [x] D18.18 CAPTAIN: live smoke test — confirm real amateur callsigns appear in ALL.TXT
+      ← Covered by p12 UAT-01 (2026-05-30): SP7DSG, DH0GBC, HF40BN, EW2GI, OZ6NC, G4XEX and 3 400+ other real callsigns confirmed in ALL.TXT across 274 live cycles.
