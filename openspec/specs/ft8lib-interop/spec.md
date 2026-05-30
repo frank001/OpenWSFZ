@@ -3,7 +3,7 @@
 ## Purpose
 Specifies the P/Invoke binding layer between managed C# code and the `kgoba/ft8_lib` native decode library. This layer is implemented in `OpenWSFZ.Ft8/Interop/` and was introduced in p12. The ft8-decoder spec depends on this capability for its decode implementation.
 
-Per **NFR-001**, the library SHALL function on all three reference platforms: Windows x64, Linux x64, and macOS x64.
+Per **NFR-001**, the library SHALL function on all three reference platforms: Windows x64, Linux x64, and macOS ARM64.
 
 ## Requirements
 
@@ -15,9 +15,9 @@ The `Ft8LibInterop` class in `OpenWSFZ.Ft8` SHALL expose a single managed method
 |---|---|
 | Windows x64 | `libft8.dll` |
 | Linux x64 | `libft8.so` |
-| macOS x64 | `libft8.dylib` |
+| macOS ARM64 | `libft8.dylib` |
 
-The load path SHALL be `AppContext.BaseDirectory`. A platform-guard that returns empty on non-Windows without loading the library is a violation of this requirement.
+The load path SHALL be `AppContext.BaseDirectory`. A `NativeLibrary.SetDllImportResolver` SHALL be registered on the assembly before the first P/Invoke call to map the `"libft8.dll"` import token to the platform-appropriate file name. A platform-guard that returns empty on non-Windows without loading the library is a violation of this requirement.
 
 #### Scenario: DecodeAll returns results for a real-signal buffer (Windows)
 
@@ -31,7 +31,7 @@ The load path SHALL be `AppContext.BaseDirectory`. A platform-guard that returns
 
 #### Scenario: DecodeAll returns results for a real-signal buffer (macOS)
 
-- **WHEN** `Ft8LibInterop.DecodeAll` is called on macOS x64 with a 180 000-sample PCM buffer containing real FT8 transmissions
+- **WHEN** `Ft8LibInterop.DecodeAll` is called on macOS ARM64 with a 180 000-sample PCM buffer containing real FT8 transmissions
 - **THEN** the method SHALL return one or more `Ft8NativeResult` structs whose `Message` fields match known WSJT-X decodes for that buffer
 
 #### Scenario: DecodeAll returns empty array for a silent buffer
@@ -81,7 +81,7 @@ Pre-compiled native library binaries, built from the committed `ft8_shim.c` + `k
 |---|---|---|
 | Windows x64 | `src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll` | `<Content CopyToOutputDirectory="Always" Link="libft8.dll" />` |
 | Linux x64 | `src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so` | `<Content CopyToOutputDirectory="Always" Link="libft8.so" />` |
-| macOS x64 | `src/OpenWSFZ.Ft8/Native/osx-x64/libft8.dylib` | `<Content CopyToOutputDirectory="Always" Link="libft8.dylib" />` |
+| macOS ARM64 | `src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib` | `<Content CopyToOutputDirectory="Always" Link="libft8.dylib" />` |
 
 A companion `libft8.version.txt` SHALL record, for each platform binary: source commit SHA, compiler toolchain and version, build date, and SNR formula. `BUILD.md` SHALL document the exact compiler commands required to reproduce each binary.
 
