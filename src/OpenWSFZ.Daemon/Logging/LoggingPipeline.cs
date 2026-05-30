@@ -125,7 +125,29 @@ internal sealed class LoggingPipeline : IDisposable
         _                    => LogEventLevel.Information,
     };
 
-    private static LogEventLevel? TryParseSerilogLevel(string? level) =>
-        Enum.TryParse<LogEventLevel>(level, ignoreCase: true, out var parsed)
-            ? parsed : null;
+    /// <summary>
+    /// Parses a log-level string into a Serilog <see cref="LogEventLevel"/>.
+    /// Accepts both MEL names (Trace, Debug, Information, Warning, Error, Critical)
+    /// and native Serilog names (Verbose, Fatal) so that config files written by
+    /// either the old UI (Serilog names) or the current UI (MEL names) round-trip
+    /// correctly. <c>None</c> is excluded because it has no Serilog equivalent and
+    /// the file sink is disabled via <see cref="LoggingConfig.FileEnabled"/> instead.
+    /// </summary>
+    private static LogEventLevel? TryParseSerilogLevel(string? level)
+    {
+        if (level is null) return null;
+
+        // Prefer MEL names so the file and console log-level selects are consistent.
+        // LogLevel.None is excluded — "disable all" is expressed by FileEnabled=false.
+        if (Enum.TryParse<LogLevel>(level, ignoreCase: true, out var mel) &&
+            mel != LogLevel.None)
+            return ToSerilog(mel);
+
+        // Fall back to native Serilog names for backward-compatibility with config
+        // files that were written when the UI used Verbose/Fatal.
+        if (Enum.TryParse<LogEventLevel>(level, ignoreCase: true, out var serilog))
+            return serilog;
+
+        return null;
+    }
 }
