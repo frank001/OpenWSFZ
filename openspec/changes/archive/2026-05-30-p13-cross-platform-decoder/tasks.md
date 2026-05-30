@@ -5,9 +5,9 @@
 > Use the **unpatched** submodule sources (`native/ft8_lib/`) — not the MSVC-patched files in `native/ft8_lib_build/patched/`.
 > Run from the repository root.
 
-- [ ] 1.0 Open a WSL Debian terminal (`wsl -d Debian`). Navigate to the repo root: `cd /mnt/d/Projects/claude/OpenWSFZ`. Verify the submodule sources are present: `ls native/ft8_lib/ft8/` — should list `.c` files.
-- [ ] 1.1 Confirm GCC ≥ 10 is available: `gcc --version`
-- [ ] 1.2 Compile all ft8_lib source files and the shim as position-independent objects:
+- [x] 1.0 Open a WSL Debian terminal (`wsl -d Debian`). Navigate to the repo root: `cd /mnt/d/Projects/claude/OpenWSFZ`. Verify the submodule sources are present: `ls native/ft8_lib/ft8/` — should list `.c` files.
+- [x] 1.1 Confirm GCC ≥ 10 is available: `gcc --version`
+- [x] 1.2 Compile all ft8_lib source files and the shim as position-independent objects:
       ```bash
       cd native/ft8_lib
       gcc -std=c11 -O2 -Wall -fPIC -I. -c \
@@ -18,18 +18,18 @@
       gcc -std=c11 -O2 -Wall -fPIC -I. -c \
           ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
       ```
-- [ ] 1.3 Link the shared library:
+- [x] 1.3 Link the shared library:
       ```bash
       gcc -shared -o libft8.so \
           constants.o crc.o decode.o ldpc.o message.o text.o \
           monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o \
           -lm
       ```
-- [ ] 1.4 Verify exports — both `ft8_lib_version_check` and `ft8_decode_all` must appear:
+- [x] 1.4 Verify exports — both `ft8_lib_version_check` and `ft8_decode_all` must appear:
       ```bash
       nm -D libft8.so | grep "ft8_"
       ```
-- [ ] 1.5 Install binary to repo:
+- [x] 1.5 Install binary to repo:
       ```bash
       mkdir -p ../../src/OpenWSFZ.Ft8/Native/linux-x64
       cp libft8.so ../../src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so
@@ -50,7 +50,7 @@
 >
 > Use the **unpatched** submodule sources (`native/ft8_lib/`).
 
-- [ ] 2.1 Create `.github/workflows/build-macos-dylib.yml` with the following content:
+- [x] 2.1 Create `.github/workflows/build-macos-dylib.yml` with the following content:
 
       ```yaml
       name: Build macOS native library (one-shot)
@@ -93,29 +93,29 @@
                 retention-days: 7
       ```
 
-- [ ] 2.2 Commit the workflow file and push to `feat/p13-cross-platform-decoder`.
-- [ ] 2.3 Navigate to **GitHub → Actions → Build macOS native library (one-shot)** and trigger
+- [x] 2.2 Commit the workflow file and push to `feat/p13-cross-platform-decoder`.
+- [x] 2.3 Navigate to **GitHub → Actions → Build macOS native library (one-shot)** and trigger
       via **Run workflow** (select branch `feat/p13-cross-platform-decoder`).
-- [ ] 2.4 Wait for the workflow to complete. Download the `libft8-dylib-osx-arm64` artifact
+- [x] 2.4 Wait for the workflow to complete. Download the `libft8-dylib-osx-arm64` artifact
       (a ZIP). Extract `libft8.dylib` from it.
-- [ ] 2.5 Copy the **Verify exports** step log output (the `nm -gU` output) for the PR description —
+- [x] 2.5 Copy the **Verify exports** step log output (the `nm -gU` output) for the PR description —
       both `_ft8_lib_version_check` and `_ft8_decode_all` must appear.
-- [ ] 2.6 Install binary to repo:
+- [x] 2.6 Install binary to repo:
       ```bash
       mkdir -p src/OpenWSFZ.Ft8/Native/osx-arm64
       cp libft8.dylib src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
       ```
-- [ ] 2.7 Delete the temporary workflow: `rm .github/workflows/build-macos-dylib.yml`
+- [x] 2.7 Delete the temporary workflow: `rm .github/workflows/build-macos-dylib.yml`
 
 ## 3. Commit native binaries and update version file
 
-- [ ] 3.1 Update `src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt` — add Linux and macOS rows with platform, compiler, and build date. Format mirrors the existing Windows row.
-- [ ] 3.2 Commit both binaries: `git add src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt`
+- [x] 3.1 Update `src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt` — add Linux and macOS rows with platform, compiler, and build date. Format mirrors the existing Windows row.
+- [x] 3.2 Commit both binaries: `git add src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt`
 
 ## 4. Update OpenWSFZ.Ft8.csproj
 
-- [ ] 4.1 Open `src/OpenWSFZ.Ft8/OpenWSFZ.Ft8.csproj`. Locate the existing `<Content Include="Native\win-x64\libft8.dll" … />` item.
-- [ ] 4.2 Replace it with all three platform items:
+- [x] 4.1 Open `src/OpenWSFZ.Ft8/OpenWSFZ.Ft8.csproj`. Locate the existing `<Content Include="Native\win-x64\libft8.dll" … />` item.
+- [x] 4.2 Replace it with all three platform items:
       ```xml
       <!-- libft8 native shim — pre-compiled for each reference platform.
            All three files are included; the OS ignores the ones it cannot load.
@@ -124,18 +124,18 @@
       <Content Include="Native\linux-x64\libft8.so"    CopyToOutputDirectory="Always" Link="libft8.so"    />
       <Content Include="Native\osx-arm64\libft8.dylib" CopyToOutputDirectory="Always" Link="libft8.dylib" />
       ```
-- [ ] 4.3 `dotnet build -c Release` — 0 errors, 0 warnings; confirm all three binary files appear in `bin/Release/net10.0/`
+- [x] 4.3 `dotnet build -c Release` — 0 errors, 0 warnings; confirm all three binary files appear in `bin/Release/net10.0/`
 
 ## 5. Update Ft8LibInterop.cs
 
-- [ ] 5.1 Open `src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs`.
-- [ ] 5.2 **Remove the platform guard** (lines ~85–89) — delete the block:
+- [x] 5.1 Open `src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs`.
+- [x] 5.2 **Remove the platform guard** (lines ~85–89) — delete the block:
       ```csharp
       if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
           return [];
       ```
       (including any associated comment)
-- [ ] 5.3 **Add `NativeLibrary.SetDllImportResolver`** in the static initialiser (before the `LoadAndVerify()` call):
+- [x] 5.3 **Add `NativeLibrary.SetDllImportResolver`** in the static initialiser (before the `LoadAndVerify()` call):
       ```csharp
       NativeLibrary.SetDllImportResolver(
           typeof(Ft8LibInterop).Assembly,
@@ -151,7 +151,7 @@
               return NativeLibrary.Load(fullPath);
           });
       ```
-- [ ] 5.4 **Update `LoadAndVerify()`** — replace the hardcoded `"libft8.dll"` path with the platform-appropriate name:
+- [x] 5.4 **Update `LoadAndVerify()`** — replace the hardcoded `"libft8.dll"` path with the platform-appropriate name:
       ```csharp
       private static void LoadAndVerify()
       {
@@ -175,23 +175,23 @@
                   "Rebuild the native library from the committed shim source (see src/OpenWSFZ.Ft8/Native/BUILD.md).");
       }
       ```
-- [ ] 5.5 `dotnet build -c Release` — 0 errors, 0 warnings
+- [x] 5.5 `dotnet build -c Release` — 0 errors, 0 warnings
 
 ## 6. Remove WindowsOnlyAttributes and fix tests
 
-- [ ] 6.1 Delete `tests/OpenWSFZ.Ft8.Tests/WindowsOnlyAttributes.cs`
-- [ ] 6.2 Open `tests/OpenWSFZ.Ft8.Tests/RealSignalFixtureTests.cs`. Replace `[WindowsOnlyTheory(DisplayName = "...")]` with `[Theory(DisplayName = "...")]` (retain the DisplayName value unchanged).
-- [ ] 6.3 Verify no remaining references: `grep -rn "WindowsOnly" tests/` — must produce no output
-- [ ] 6.4 `dotnet build -c Release` — 0 errors, 0 warnings
+- [x] 6.1 Delete `tests/OpenWSFZ.Ft8.Tests/WindowsOnlyAttributes.cs`
+- [x] 6.2 Open `tests/OpenWSFZ.Ft8.Tests/RealSignalFixtureTests.cs`. Replace `[WindowsOnlyTheory(DisplayName = "...")]` with `[Theory(DisplayName = "...")]` (retain the DisplayName value unchanged).
+- [x] 6.3 Verify no remaining references: `grep -rn "WindowsOnly" tests/` — must produce no output
+- [x] 6.4 `dotnet build -c Release` — 0 errors, 0 warnings
 
 ## 7. Update BUILD.md
 
-- [ ] 7.1 Add a **Build Procedure (Linux x64, GCC)** section to `src/OpenWSFZ.Ft8/Native/BUILD.md` with:
+- [x] 7.1 Add a **Build Procedure (Linux x64, GCC)** section to `src/OpenWSFZ.Ft8/Native/BUILD.md` with:
       - Prerequisites (GCC ≥ 10, `build-essential`)
       - Exact compiler commands (matching tasks 1.2–1.5)
       - Export verification command
       - Approximate expected binary size
-- [ ] 7.2 Add a **Build Procedure (macOS ARM64, Clang)** section with:
+- [x] 7.2 Add a **Build Procedure (macOS ARM64, Clang)** section with:
       - Prerequisites (Xcode Command Line Tools — available on any macOS or `macos-latest` GitHub Actions runner)
       - Exact compiler commands (matching tasks 2.1, using `-target arm64-apple-macos11.0`)
       - Export verification command (`nm -gU libft8.dylib | grep "ft8_"`)
@@ -200,17 +200,17 @@
 
 ## 8. Verify all gates
 
-- [ ] 8.1 `dotnet build -c Release` — G1 gate: 0 errors, 0 warnings
-- [ ] 8.2 `dotnet test tests/OpenWSFZ.Ft8.Tests -c Release --filter "RealSignal"` on Windows — 3/3 pass (G6 gate)
-- [ ] 8.3 `dotnet test -c Release` (full suite) — 0 failures; confirm skipped count unchanged vs. p12 (4 skips for synthetic round-trip tests, no new skips)
-- [ ] 8.4 `dotnet run --project tools/TraceabilityCheck` — G3 gate green
-- [ ] 8.5 `dotnet run --project tools/LicenseInventoryCheck` — G5 gate green
+- [x] 8.1 `dotnet build -c Release` — G1 gate: 0 errors, 0 warnings
+- [x] 8.2 `dotnet test tests/OpenWSFZ.Ft8.Tests -c Release --filter "RealSignal"` on Windows — 3/3 pass (G6 gate)
+- [x] 8.3 `dotnet test -c Release` (full suite) — 0 failures; confirm skipped count unchanged vs. p12 (4 skips for synthetic round-trip tests, no new skips)
+- [x] 8.4 `dotnet run --project tools/TraceabilityCheck` — G3 gate green
+- [x] 8.5 `dotnet run --project tools/LicenseInventoryCheck` — G5 gate green
 
 ## 9. Branch, CI, and PR
 
-- [ ] 9.1 Commit all changes on branch `feat/p13-cross-platform-decoder`
-- [ ] 9.2 Open PR to `main`; confirm CI green on all three matrix legs (`windows-latest`, `ubuntu-latest`, `macos-latest`)
+- [x] 9.1 Commit all changes on branch `feat/p13-cross-platform-decoder`
+- [x] 9.2 Open PR to `main`; confirm CI green on all three matrix legs (`windows-latest`, `ubuntu-latest`, `macos-latest`)
       — **Critical check**: G6 tests must PASS (not skip) on `ubuntu-latest` and `macos-latest`
-- [ ] 9.3 CAPTAIN: review CI results — confirm G6 passes with zero skips on all three legs; approve for merge
+- [x] 9.3 CAPTAIN: review CI results — confirm G6 passes with zero skips on all three legs; approve for merge
       ← CAPTAIN gate
-- [ ] 9.4 Merge PR; archive this change (`opsx:archive p13-cross-platform-decoder`)
+- [x] 9.4 Merge PR; archive this change (`opsx:archive p13-cross-platform-decoder`)
