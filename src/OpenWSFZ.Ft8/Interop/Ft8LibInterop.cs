@@ -82,12 +82,6 @@ internal static class Ft8LibInterop
                 $"PCM buffer must be exactly 180 000 samples (15 s × 12 kHz). Got {pcm.Length}.",
                 nameof(pcm));
 
-        // libft8.dll is Windows x64 only in p12. On other platforms return empty rather than
-        // crashing — the decoder reports "no decodes" which is correct: the native backend is
-        // not available. Cross-platform support is deferred to a future change.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return [];
-
         EnsureInitialized();
 
         var results = new Ft8NativeResult[MaxResults];
@@ -119,28 +113,48 @@ internal static class Ft8LibInterop
 
     private static void LoadAndVerify()
     {
-        // NativeLibrary.Load resolves libft8.dll from AppContext.BaseDirectory first,
-        // matching the CopyToOutputDirectory="Always" MSBuild directive.
-        string dllPath = Path.Combine(AppContext.BaseDirectory, "libft8.dll");
+        // Step 1: register the DllImportResolver BEFORE any P/Invoke call fires.
+        // The resolver intercepts the "libft8.dll" token and redirects it to the
+        // platform-appropriate filename loaded from AppContext.BaseDirectory.
+        // NativeLibrary.SetDllImportResolver throws InvalidOperationException if called
+        // more than once per assembly; the double-checked lock in EnsureInitialized()
+        // guarantees this runs exactly once.
+        NativeLibrary.SetDllImportResolver(
+            typeof(Ft8LibInterop).Assembly,
+            static (libraryName, assembly, searchPath) =>
+            {
+                if (libraryName != "libft8.dll") return IntPtr.Zero;
 
-        if (!File.Exists(dllPath))
+                string fileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "libft8.dll"
+                                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)     ? "libft8.dylib"
+                                : "libft8.so";
+
+                string fullPath = Path.Combine(AppContext.BaseDirectory, fileName);
+                return NativeLibrary.Load(fullPath);
+            });
+
+        // Step 2: existence check for the platform-appropriate binary.
+        string libFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "libft8.dll"
+                           : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)     ? "libft8.dylib"
+                           : "libft8.so";
+
+        string libPath = Path.Combine(AppContext.BaseDirectory, libFileName);
+
+        if (!File.Exists(libPath))
+            throw new DllNotFoundException(
+                $"Native library not found at '{libPath}'. " +
+                "Ensure the project was built and the native binary for this platform is present.");
+
+        // Step 3: ABI self-test — resolver is now active, DllImport call is safe.
+        int actual   = NativeVersionCheck();
+        int expected = ExpectedShimVersion;
+        if (actual != expected)
             throw new InvalidOperationException(
-                $"libft8.dll not found at '{dllPath}'. " +
-                "Ensure the project is built (dotnet build) so the DLL is copied to the output directory.");
+                $"Native library ABI mismatch at '{libPath}'. " +
+                $"Expected FT8_SHIM_VERSION={expected}, got {actual}. " +
+                "Rebuild the native library from the committed shim source (see src/OpenWSFZ.Ft8/Native/BUILD.md).");
 
-        // NativeLibrary.Load verifies the DLL can be loaded and resolves imports.
-        // If it fails (wrong architecture, missing CRT, etc.) it throws DllNotFoundException.
-        NativeLibrary.Load(dllPath);
-
-        // ABI self-test: call the sentinel function and compare the embedded constant.
-        int actual = NativeVersionCheck();
-        if (actual != ExpectedShimVersion)
-            throw new InvalidOperationException(
-                $"libft8.dll ABI mismatch at '{dllPath}'. " +
-                $"Expected FT8_SHIM_VERSION={ExpectedShimVersion}, got {actual}. " +
-                "Rebuild libft8.dll from the committed shim source (see src/OpenWSFZ.Ft8/Native/BUILD.md).");
-
-        // Verify managed struct size matches native. Runs exactly once during lazy init
+        // Step 4: verify managed struct size matches native. Runs exactly once during lazy init
         // so the reflection cost (Marshal.SizeOf uses internal caching, not a compile-time
         // constant) is paid only at first load, not on every decode call.
         int managedSize = Marshal.SizeOf<Ft8NativeResult>();
