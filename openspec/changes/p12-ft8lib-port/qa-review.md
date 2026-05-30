@@ -136,3 +136,76 @@ The following findings are **not merge-blocking**. They are deferred to a follow
 - [x] Run `dotnet run --project tools/LicenseInventoryCheck` — G5 green
 - [x] Rebuild `libft8.dll` and update `libft8.version.txt` — done (MSVC 19.51.36244, 2026-05-30)
 - [x] Update `src/OpenWSFZ.Ft8/Native/BUILD.md` to document the SNR formula and the 26 dB offset rationale
+
+---
+
+## UAT-01 — Live ALL.TXT Comparative Test
+
+**Status:** ⚠️ Conditional — see `uat-01-findings.md`  
+**Analysis date:** 2026-05-30  
+**Gate:** Decode correctness ✅ PASS. SNR calibration ❌ FAIL (R5). Captain decision required on defer vs fix before merge.
+
+### Purpose
+
+Validate that the ft8_lib-based decoder produces output substantively consistent with WSJT-X on identical live RF input, establishing a recovery rate and false-positive rate under real-world conditions.
+
+### Prerequisites
+
+| Item | Requirement |
+|---|---|
+| Frequency | 7.074 MHz (FT8 standard) |
+| Audio routing | Both applications must receive the **same audio source** — same Windows input device, or a virtual audio cable splitting the feed; they must not influence each other's input |
+| WSJT-X version | Record the version number; include it in the artefacts delivered to QA |
+| Cycle alignment | A synchronised start is not required — see Analysis below |
+
+### WAV File Requirement
+
+In WSJT-X: **File → Settings → Advanced → "Save decoded .wav files" → *All*.**
+
+Rationale: *All* captures every 15-second window regardless of whether WSJT-X decoded it — including cycles where our application produced output but WSJT-X did not, which are the primary false-positive evidence source. At 12 kHz mono int16, each file is approximately 360 KB; one hour of testing produces roughly 240 files (≈87 MB). Enable WAV saving before the test begins and retain all files until QA analysis is complete.
+
+### Execution
+
+1. Enable WAV saving (*All*) in WSJT-X before starting either application
+2. Start both applications — a staggered start is expected and handled automatically by the analysis
+3. Run for a minimum of **one hour** on 7.074 MHz; two hours is recommended for statistical confidence
+4. Stop both applications cleanly at the end of the test window
+5. Deliver the following artefacts to QA:
+   - `ALL.TXT` from our application
+   - `ALL.TXT` from WSJT-X
+   - WSJT-X WAV directory (all `.wav` files from the session)
+   - Approximate UTC start and end times of the test session
+
+### Analysis — Overlapping Window Method
+
+Because the two applications have different startup times, the analysis operates exclusively on the **intersection of complete cycles** present in both logs:
+
+1. Parse both ALL.TXT files; extract the UTC timestamp of every decoded cycle
+2. Identify each application's first and last **complete cycle** (timestamps whose seconds component is a valid FT8 boundary: 00, 15, 30, or 45)
+3. Compute the overlap window: `window_start = max(first complete cycle of A, first complete cycle of B)`, `window_end = min(last complete cycle of A, last complete cycle of B)`
+4. Discard all cycles outside this window from both logs before any rate calculations
+5. Within the window, match decodes by cycle timestamp and message text; classify each as Matched / Missed / False Positive
+
+Cycles trimmed by this procedure are reported in the findings document for transparency but are excluded from all rate calculations.
+
+### Pass Criteria
+
+| Metric | Threshold | Rationale |
+|---|---|---|
+| **Recovery rate** (matched ÷ WSJT-X total, within window) | ≥ 70% | The p10 homegrown decoder baseline was 66.6%; ft8_lib should meet or exceed this |
+| **False-positive rate** (our extra decodes ÷ our total, within window) | < 3% | R4 `IsPlausibleMessage` should hold this well below threshold |
+| **SNR accuracy** (matched decodes only) | Within ±5 dB of WSJT-X for the majority of matched decodes | R1 applied the 26 dB correction; residual divergence from different noise-floor estimation approaches is expected |
+| **No plausibility failures** | Zero messages in our output that fail the R4 field-range filter | Any occurrence indicates a gap in `IsPlausibleMessage` |
+
+### QA Deliverable
+
+Upon receipt of the artefacts, QA will produce a `uat-01-findings.md` document containing:
+
+- Test metadata: date, WSJT-X version, window start/end UTC, total cycles in window, cycles trimmed at each boundary
+- Per-cycle breakdown table (WSJT-X count / Our count / Matched / Missed / False Positive)
+- Aggregate recovery rate and false-positive rate
+- False-positive investigation notes, with WAV cross-reference where a suspect decode warrants it
+- SNR accuracy assessment: distribution of (our SNR − WSJT-X SNR) for matched decodes
+- Binary verdict: **Pass** or **Fail** with justification
+
+A **Pass** verdict clears the merge gate (task 9.4). A **Fail** verdict produces an itemised list of required changes before merge may proceed.

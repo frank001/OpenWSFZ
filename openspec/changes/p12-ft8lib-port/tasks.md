@@ -96,3 +96,20 @@
       — PR #13 opened. CI green on all 3 legs (run 26664664470: ubuntu PASS, macos PASS, windows PASS).
       — Two rounds of fixes after initial push: SubmoduleEnumerator.gitmodules filter + Windows-only DLL guard.
 - [ ] 9.4 QA review; merge on approval; archive this change
+      — QA review complete: qa-review.md status ✅ approved for merge (commit f234f8e).
+      — Merge and archive contingent on UAT-01 (task 9.5) and R5 SNR fix (task 9.6) passing.
+- [ ] 9.5 CAPTAIN: Run UAT-01 — Live ALL.TXT Comparative Test (see qa-review.md §UAT-01)
+      — UAT-01 run 2026-05-30. Findings in uat-01-findings.md.
+      — Recovery rate 74.7% ✅  True FP rate 0.7% ✅  SNR calibration ❌ (R5 raised)
+      ← CAPTAIN gate — R5 fix required before merge
+- [x] 9.6 DEVELOPER: Fix R5 — SNR calibration (see r5-snr-calibration.md)
+      Rebuild libft8.dll; update libft8.version.txt and BUILD.md.
+      Run dotnet test — 208 passed, 4 skipped, 0 failed.
+      Deliver to QA for SNR re-check against UAT-01 dataset.
+      — Implemented noise-floor-based SNR in ft8_shim.c: histogram-median noise floor
+        + per-candidate max-over-8-tones signal level across 79-symbol message window.
+        SNR = signal_db − noise_floor_db − 26 dB (WSJT-X 2500 Hz bandwidth convention).
+        libft8.dll rebuilt (MSVC 19.51.36246, 2026-05-30). G6: 3/3 ✅. Suite: 208/4/0 ✅.
+- [ ] 9.7 QA: Re-check SNR delta against UAT-01 matched-pair data after R5 fix
+      Pass criteria: |mean| ≤ 5 dB overall; per-bucket tolerances per r5-snr-calibration.md.
+      On pass: update uat-01-findings.md and clear merge gate.

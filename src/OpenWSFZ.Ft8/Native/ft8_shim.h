@@ -32,7 +32,7 @@ typedef struct
 {
     int   freq_hz;      /* Centre frequency of the signal, Hz                  */
     float dt;           /* Time offset from cycle start, seconds               */
-    int   snr;          /* SNR estimate, dB (approx: cand.score * 0.5)         */
+    int   snr;          /* SNR estimate, dB — noise-floor based (R5)            */
     char  message[36];  /* Null-terminated text, max 35 chars (FTX_MAX_MESSAGE_LENGTH) */
 } FT8Result;
 
