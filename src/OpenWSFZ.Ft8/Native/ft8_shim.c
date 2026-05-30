@@ -39,7 +39,7 @@ char* stpcpy(char* dest, const char* src)
 
 #define FT8_SAMPLE_RATE      12000
 #define FT8_EXPECTED_SAMPLES 180000   /* 15 s × 12 000 Hz */
-#define FT8_SLOT_TIME        15.0f
+/* FT8_SLOT_TIME is already defined in ft8/constants.h */
 
 #define K_MIN_SCORE       10
 #define K_MAX_CANDIDATES  140
@@ -196,6 +196,40 @@ int ft8_decode_all(
     hash_table_init(&hash_table);
     tls_hash_table = &hash_table;
 
+    /* ── 3.5 Noise floor estimation ──────────────────────────────────────── */
+    /*
+     * Estimate the per-bin noise floor using a histogram-based median across
+     * all waterfall magnitude values.  The median is robust against signal
+     * peaks — FT8 signals occupy only a small fraction of all frequency bins
+     * in a typical session, so the median is dominated by noise-only bins.
+     *
+     * Waterfall storage: uint8_t[num_blocks][time_osr][freq_osr][num_bins].
+     * Magnitude in dB: raw_byte * 0.5f - 120.0f  (WF_ELEM_MAG convention).
+     *
+     * WSJT-X SNR convention (2500 Hz reference bandwidth):
+     *   SNR_dB = signal_bin_dB - noise_floor_dB - 10*log10(2500/6.25)
+     *           = signal_bin_dB - noise_floor_dB - 26 dB                  (R5)
+     *
+     * This replaces the saturating cand->score * 0.5f - 26 formula (R1),
+     * which was only accurate for weak signals (where score < ~40).
+     */
+    float noise_floor_db;
+    {
+        uint32_t hist[256];
+        memset(hist, 0, sizeof(hist));
+        int total_wf = mon.wf.num_blocks * mon.wf.block_stride;
+        const WF_ELEM_T* wp = mon.wf.mag;
+        for (int i = 0; i < total_wf; i++)
+            hist[wp[i]]++;
+        uint32_t cumsum = 0;
+        int median_raw  = 0;
+        for (int v = 0; v < 256; v++) {
+            cumsum += hist[v];
+            if (cumsum * 2 >= (uint32_t)total_wf) { median_raw = v; break; }
+        }
+        noise_floor_db = (float)median_raw * 0.5f - 120.0f;
+    }
+
     /* ── 4. Decode each candidate ────────────────────────────────────────── */
     /*
      * Deduplication via a small message-hash table (same approach as demo).
@@ -247,19 +281,50 @@ int ft8_decode_all(
         float dt      = (cand->time_offset +
                          (float)cand->time_sub / mon.wf.time_osr) * mon.symbol_period;
 
-        /* The WSJT-X SNR convention references the signal power against the noise
-         * floor integrated over a 2500 Hz bandwidth.  FT8 tone spacing is 6.25 Hz,
-         * so the bandwidth correction is 10 × log10(2500 / 6.25) ≈ 26 dB.
+        /* R5 — Noise-floor-based SNR estimation.
          *
-         * cand->score is the average dB margin of each Costas sync bin over its
-         * immediate waterfall neighbours — a sync-quality proxy, not a calibrated
-         * SNR.  Subtracting 26 dB aligns it to the WSJT-X SNR range of
-         * approximately −30 to +10 dB for typical off-air signals.
+         * Signal level: for each FT8 symbol in the message window (79 symbols
+         * starting at cand->time_offset), take the maximum waterfall magnitude
+         * across the 8 possible FT8 tone positions.  The max captures whichever
+         * tone is actively being transmitted at each symbol time.  Averaging
+         * these per-symbol maxima gives a stable signal level estimate.
          *
-         * TODO: estimate the per-call noise floor from the waterfall (e.g. median
-         * bin magnitude across all blocks at the end of monitor_process) for a
-         * tighter, non-fixed-offset approximation. */
-        float snr_f = (float)cand->score * 0.5f - 26.0f;
+         * SNR (WSJT-X 2500 Hz bandwidth convention):
+         *   SNR_dB = signal_db − noise_floor_db − 10·log10(2500/6.25)
+         *           = signal_db − noise_floor_db − 26                     (R5)
+         *
+         * This correctly tracks strong signals — the raw waterfall magnitude
+         * does not saturate the way cand->score does (R1). */
+        float signal_db;
+        {
+            float   sum      = 0.0f;
+            int     cnt      = 0;
+            int     bs       = mon.wf.block_stride;
+            int     per_tsub = mon.wf.freq_osr * mon.wf.num_bins;
+            int     nb       = mon.wf.num_bins;
+            int     b_start  = (int)cand->time_offset;
+            if (b_start < 0) b_start = 0;
+            int     b_end    = b_start + 79; /* FT8 message is 79 symbols long */
+            if (b_end > mon.wf.num_blocks) b_end = mon.wf.num_blocks;
+            /* Base index within a block at (cand->time_sub, cand->freq_sub, cand->freq_offset) */
+            int fi_base = (int)cand->time_sub  * per_tsub
+                        + (int)cand->freq_sub   * nb
+                        + (int)cand->freq_offset;
+            for (int b = b_start; b < b_end; b++)
+            {
+                const WF_ELEM_T* row = mon.wf.mag + b * bs + fi_base;
+                float block_max = (float)row[0] * 0.5f - 120.0f;
+                for (int f = 1; f < 8 && (int)cand->freq_offset + f < nb; f++)
+                {
+                    float v = (float)row[f] * 0.5f - 120.0f;
+                    if (v > block_max) block_max = v;
+                }
+                sum += block_max;
+                cnt++;
+            }
+            signal_db = cnt > 0 ? sum / (float)cnt : noise_floor_db;
+        }
+        float snr_f = signal_db - noise_floor_db - 26.0f;
 
         FT8Result* r = &results[num_decoded++];
         r->freq_hz = (int)roundf(freq_hz);
