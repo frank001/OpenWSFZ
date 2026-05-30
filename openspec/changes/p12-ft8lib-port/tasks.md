@@ -137,3 +137,7 @@
 - [ ] 9.9 QA: Final SNR sign-off after R6 fix
       Run tools/SnrAnalyser against UAT-01 dataset.
       On pass: update uat-01-findings.md, clear merge gate, proceed to merge + archive.
+      — Developer deliverable complete. SnrAnalyser: all 5 buckets PASS (see 9.8 note).
+        uat-01-findings.md updated with R5/R6 resolution and SNR merge gate CLEARED.
+        Awaiting CAPTAIN review and final sign-off.
+      ← CAPTAIN gate
