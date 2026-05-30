@@ -8,7 +8,7 @@ The shim source (`ft8_shim.c`) and the `kgoba/ft8_lib` submodule already contain
 
 **Goals:**
 
-- `libft8.so` (Linux x64) and `libft8.dylib` (macOS x64) compiled from the committed shim source and committed to the repo
+- `libft8.so` (Linux x64) and `libft8.dylib` (macOS ARM64) compiled from the committed shim source and committed to the repo
 - All three binaries declared in `OpenWSFZ.Ft8.csproj` and copied to the output directory on every build
 - `Ft8LibInterop.cs` loads the correct binary on every platform via `NativeLibrary.SetDllImportResolver` — no platform guard
 - G6 real-signal fixture tests run and pass on all three CI legs, with zero skips
@@ -16,9 +16,9 @@ The shim source (`ft8_shim.c`) and the `kgoba/ft8_lib` submodule already contain
 
 **Non-Goals:**
 
-- ARM64 / Apple Silicon support (not a reference platform for this project)
+- Universal (fat) binary support — each platform binary targets one architecture only
 - .NET NativeAOT or linker-trimming compatibility for the P/Invoke layer
-- CI-time compilation of native binaries (pre-compiled binaries committed to repo, same as Windows)
+- CI-time compilation of native binaries (pre-compiled binaries committed to repo, same as Windows); the one-shot `workflow_dispatch` build workflow used to produce `libft8.dylib` is deleted after the binary is committed and is not a permanent CI dependency
 - Recovery-rate improvements or decoder algorithm changes
 
 ## Decisions
@@ -43,11 +43,15 @@ The shim source (`ft8_shim.c`) and the `kgoba/ft8_lib` submodule already contain
 
 ---
 
-### D3 — Original submodule sources for Linux/macOS build (no VLA patches)
+### D3 — Original submodule sources for Linux/macOS build (no VLA patches); macOS targets ARM64
 
-**Decision:** Build `libft8.so` and `libft8.dylib` directly from `native/ft8_lib/` (the unpatched submodule sources). Do not apply the VLA patches in `native/ft8_lib_build/patched/`.
+**Decision:** Build `libft8.so` and `libft8.dylib` directly from `native/ft8_lib/` (the unpatched submodule sources). Do not apply the VLA patches in `native/ft8_lib_build/patched/`. The macOS binary targets `arm64-apple-macos11.0` (ARM64 / Apple Silicon).
 
-**Rationale:** The VLA patches in `patched/` were necessary only because MSVC does not support C99/C11 variable-length arrays. GCC (≥10) and Clang (≥3.3) support VLAs natively under `-std=c11`. Using the unpatched sources keeps the Linux and macOS builds identical to what upstream `kgoba/ft8_lib` intends and avoids any risk of the patches introducing subtle divergence.
+**Rationale:** The VLA patches in `patched/` were necessary only because MSVC does not support C99/C11 variable-length arrays. GCC (≥10) and Clang support VLAs natively under `-std=c11`. Using the unpatched sources keeps the Linux and macOS builds identical to what upstream `kgoba/ft8_lib` intends.
+
+The macOS architecture is ARM64 because the CI matrix configures the `macos-latest` leg with `rid: osx-arm64`. The .NET 10 runtime on that runner is ARM64; a P/Invoke shared library loaded by an ARM64 process must itself be ARM64. Building `x86_64` would produce a binary that the ARM64 .NET runtime cannot load, causing a fatal failure on the CI macOS leg. macOS 11.0 (Big Sur) is the minimum deployment target because it is the first macOS version released on Apple Silicon hardware.
+
+**Alternative rejected:** Pinning CI to `macos-13` (x86_64) to preserve the `osx-x64` target. That runner is approaching end-of-life on GitHub Actions, and the CI was already configured for `osx-arm64` in p0-foundation. Aligning the native binary to the existing CI configuration is the lower-risk path.
 
 ---
 
@@ -61,16 +65,17 @@ The shim source (`ft8_shim.c`) and the `kgoba/ft8_lib` submodule already contain
 
 | Risk | Mitigation |
 |---|---|
-| macOS binary must be built on Apple hardware | Developer builds it locally; committing it to the repo removes the CI dependency. If Apple Silicon is the dev machine, target `x86_64-apple-macos10.15` explicitly with `-target`. |
+| No Mac available locally — macOS binary cannot be built on a developer machine | Binary is produced via a temporary `workflow_dispatch` GitHub Actions workflow on `macos-latest` (ARM64). Binary is downloaded and committed to the repo. The temporary workflow file is deleted once the binary is committed. |
+| macOS binary must be ARM64 to match the CI runner | The build workflow uses `-target arm64-apple-macos11.0` explicitly. `file libft8.dylib` in the CI log must report `Mach-O 64-bit dynamically linked shared library arm64`. |
 | Struct packing differs between compilers | The shim uses `int` (4-byte), `float` (4-byte), `int` (4-byte), `char[36]` — all standard C types with no compiler extensions. Size verified by the managed `Marshal.SizeOf` assertion that runs on every call. If packing drifted, the ABI self-test would catch it at startup. |
 | `SetDllImportResolver` must be registered before the first P/Invoke call | The resolver is registered in the static constructor of `Ft8LibInterop`, before `LoadAndVerify()` is called. .NET guarantees static constructors run once before any instance method. |
 | G6 tests were previously never run on Linux/macOS | Removing the `[WindowsOnly*]` guard means CI will run those tests for the first time. If the Linux/macOS binary is not ABI-compatible, CI will fail. This is the intended outcome — the gate correctly blocks until the issue is resolved. |
 
 ## Migration Plan
 
-1. Build `libft8.so` (Linux x64) on an Ubuntu x64 machine per the commands in `BUILD.md`.
-2. Build `libft8.dylib` (macOS x64) on a macOS machine per the commands in `BUILD.md`.
-3. Commit both binaries to the repo under `src/OpenWSFZ.Ft8/Native/{linux-x64,osx-x64}/`.
+1. Build `libft8.so` (Linux x64) in WSL2 (Debian) per the commands in `BUILD.md`.
+2. Build `libft8.dylib` (macOS ARM64) via a temporary `workflow_dispatch` GitHub Actions workflow on `macos-latest` per tasks 2.1–2.7.
+3. Commit both binaries to the repo under `src/OpenWSFZ.Ft8/Native/{linux-x64,osx-arm64}/`.
 4. Update `OpenWSFZ.Ft8.csproj` to declare all three `<Content>` items.
 5. Update `Ft8LibInterop.cs`: add resolver, remove guard, update `LoadAndVerify()`.
 6. Delete `WindowsOnlyAttributes.cs`; replace all `[WindowsOnly*]` usages with `[Fact]`/`[Theory]`.
