@@ -31,7 +31,7 @@ The shim (`ft8_shim.c`) implements this pipeline internally and exposes the simp
 |---|---|---|
 | `freq_hz` | `(min_bin + cand.freq_offset + (float)cand.freq_sub / freq_osr) / symbol_period` | Hz, rounded to int |
 | `dt` | `(cand.time_offset + (float)cand.time_sub / time_osr) * symbol_period` | seconds |
-| `snr` | `cand.score * 0.5f` | dB approximation (same formula as demo/decode_ft8.c) |
+| `snr` | `cand.score * 0.5f - 26.0f` | dB, WSJT-X 2500 Hz bandwidth convention (26 dB = 10×log10(2500/6.25)); see ft8_shim.c comment |
 | `message[36]` | `ftx_message_decode()` output | null-terminated, max 35 chars (FTX_MAX_MESSAGE_LENGTH=35) |
 
 `sizeof(FT8Result)` = 4 (freq_hz) + 4 (dt) + 4 (snr) + 36 (message) = **48 bytes**.

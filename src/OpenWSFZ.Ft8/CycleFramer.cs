@@ -17,6 +17,14 @@ namespace OpenWSFZ.Ft8;
 /// </para>
 ///
 /// <para>
+/// Each emitted item is a <c>(float[] Pcm, DateTime CycleStart)</c> tuple where
+/// <c>CycleStart</c> is the UTC instant at which the 15-second window began.  The
+/// decode pump passes this value directly to <see cref="IModeDecoder.DecodeAsync"/>
+/// so that timestamps in <see cref="DecodeResult"/> records reflect when the audio
+/// was <em>captured</em>, not when the decoder was invoked.
+/// </para>
+///
+/// <para>
 /// When the caller's output channel is full, the new window is dropped with no exception —
 /// the decode pipeline is expected to keep up on modern hardware.
 /// </para>
@@ -40,21 +48,30 @@ public sealed class CycleFramer
 
     /// <summary>
     /// Reads from the source channel, frames samples into 15-second UTC-aligned windows,
-    /// and writes each completed window to <paramref name="output"/>.
+    /// and writes each completed window (along with its cycle-start timestamp) to
+    /// <paramref name="output"/>.
     /// Returns when the source channel completes or <paramref name="ct"/> is cancelled.
     /// </summary>
-    public async Task RunAsync(ChannelWriter<float[]> output, CancellationToken ct)
+    public async Task RunAsync(ChannelWriter<(float[] Pcm, DateTime CycleStart)> output, CancellationToken ct)
     {
         try
         {
+            var startUtc = _clock.UtcNow;
+
             // Determine how many samples into the current cycle we are at start-up.
-            int leadingSilence = ComputeLeadingSamples(_clock.UtcNow);
+            int leadingSilence = ComputeLeadingSamples(startUtc);
             var window         = new float[SamplesPerCycle];
             int filled         = leadingSilence; // leading zeros already in place (array is zero-initialised)
 
+            // The current cycle started at the most recent 15-second UTC boundary.
+            // Computed once here and advanced by CycleDurationSecs after each emission
+            // so the framer — not the decoder — is the authoritative source of cycle
+            // timestamps (R3: avoids the wall-clock race in Ft8Decoder).
+            DateTime cycleStart = AlignToCycleStart(startUtc);
+
             _logger?.LogInformation(
-                "CycleFramer started; leading silence = {Samples} samples ({Seconds:F3} s).",
-                leadingSilence, leadingSilence / (double)SampleRate);
+                "CycleFramer started; leading silence = {Samples} samples ({Seconds:F3} s), cycle start = {CycleStart:HH:mm:ss}.",
+                leadingSilence, leadingSilence / (double)SampleRate, cycleStart);
 
             await foreach (var chunk in _source.ReadAllAsync(ct))
             {
@@ -73,13 +90,15 @@ public sealed class CycleFramer
 
                     if (filled == SamplesPerCycle)
                     {
-                        // Window complete — emit it (non-blocking; drop if consumer is slow).
-                        output.TryWrite(window);
-                        _logger?.LogDebug("Window emitted ({Samples} samples).", SamplesPerCycle);
+                        // Window complete — emit it with its cycle-start timestamp.
+                        output.TryWrite((window, cycleStart));
+                        _logger?.LogDebug("Window emitted ({Samples} samples, cycle {CycleStart:HH:mm:ss}).",
+                            SamplesPerCycle, cycleStart);
 
-                        // Start a fresh window.
-                        window = new float[SamplesPerCycle];
-                        filled = 0;
+                        // Advance to the next cycle.
+                        window     = new float[SamplesPerCycle];
+                        filled     = 0;
+                        cycleStart = cycleStart.AddSeconds(CycleDurationSecs);
                     }
                 }
             }
@@ -117,5 +136,17 @@ public sealed class CycleFramer
                            + (int)(utcNow.Millisecond / 1000.0 * SampleRate);
 
         return Math.Min(elapsedSamples, SamplesPerCycle);
+    }
+
+    /// <summary>
+    /// Returns the UTC instant of the most recent 15-second cycle boundary at or before
+    /// <paramref name="utc"/>.  Used to initialise <c>cycleStart</c> in
+    /// <see cref="RunAsync"/>.
+    /// </summary>
+    private static DateTime AlignToCycleStart(DateTime utc)
+    {
+        int totalSecs  = utc.Second + utc.Minute * 60;
+        int offsetSecs = totalSecs % CycleDurationSecs;
+        return utc.AddSeconds(-offsetSecs).AddMilliseconds(-utc.Millisecond);
     }
 }

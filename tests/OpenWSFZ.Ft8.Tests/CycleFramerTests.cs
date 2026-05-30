@@ -32,9 +32,9 @@ public sealed class CycleFramerTests
 
         // Drain two windows.
         var windows = new List<float[]>();
-        await foreach (var w in outputReader.Item1.ReadAllAsync(cts.Token))
+        await foreach (var (pcm, _) in outputReader.Item1.ReadAllAsync(cts.Token))
         {
-            windows.Add(w);
+            windows.Add(pcm);
             if (windows.Count >= 2) break;
         }
 
@@ -77,9 +77,9 @@ public sealed class CycleFramerTests
         await producer;
 
         float[]? window = null;
-        await foreach (var w in outputReader.Item1.ReadAllAsync(cts.Token))
+        await foreach (var (pcm, _) in outputReader.Item1.ReadAllAsync(cts.Token))
         {
-            window = w;
+            window = pcm;
             break;
         }
 
@@ -143,7 +143,7 @@ public sealed class CycleFramerTests
     {
         var clock  = new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         var source = Channel.CreateUnbounded<float[]>();
-        var output = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<(float[], DateTime)>();
         var framer = new CycleFramer(source.Reader, clock);
 
         using var cts = new CancellationTokenSource();
@@ -155,7 +155,7 @@ public sealed class CycleFramerTests
 
         // The output channel must remain writable so the next StartPipeline call's
         // framer can deliver windows to the existing decode pump.
-        output.Writer.TryWrite(new float[180_000]).Should().BeTrue(
+        output.Writer.TryWrite((new float[180_000], DateTime.UtcNow)).Should().BeTrue(
             "a natural source-end (device failure) must not complete the output channel; " +
             "the decode pump must survive to accept windows from the next StartPipeline call");
     }
@@ -167,7 +167,7 @@ public sealed class CycleFramerTests
     {
         var clock  = new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         var source = Channel.CreateUnbounded<float[]>();
-        var output = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<(float[], DateTime)>();
         var framer = new CycleFramer(source.Reader, clock);
 
         using var cts = new CancellationTokenSource();
@@ -177,8 +177,74 @@ public sealed class CycleFramerTests
         await runTask;
 
         // Output channel must still be writable — the decode pump should survive a restart.
-        output.Writer.TryWrite(new float[180_000]).Should().BeTrue(
+        output.Writer.TryWrite((new float[180_000], DateTime.UtcNow)).Should().BeTrue(
             "cancelling the framer for a device restart must not complete the output channel");
+    }
+
+    // ── R3: CycleFramer emits correct cycle-start timestamp ──────────────────
+
+    [Fact(DisplayName = "R3: CycleFramer emits cycle-start timestamp aligned to the 15-second UTC boundary")]
+    public async Task RunAsync_StartingAtBoundary_EmitsCycleStartAlignedToUtcBoundary()
+    {
+        // Clock starts exactly at a 15-second boundary — no leading silence.
+        var startTime = new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc);
+        var clock     = new FakeClock(startTime);
+
+        var (sourceWriter, framer, outputReader) = CreateFramer(clock);
+
+        var producerTask = FeedSamples(sourceWriter, totalSamples: SamplesPerCycle, chunkSize: 4096);
+
+        using var cts      = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var framerTask     = framer.RunAsync(outputReader.Item2, cts.Token);
+
+        await producerTask;
+
+        DateTime? emittedCycleStart = null;
+        await foreach (var (_, cycleStart) in outputReader.Item1.ReadAllAsync(cts.Token))
+        {
+            emittedCycleStart = cycleStart;
+            break;
+        }
+
+        cts.Cancel();
+        try { await framerTask; } catch { /* cancelled */ }
+
+        emittedCycleStart.Should().NotBeNull();
+        emittedCycleStart!.Value.Should().Be(startTime,
+            "when CycleFramer starts exactly at a 15-second boundary the emitted " +
+            "CycleStart must equal the startup time");
+    }
+
+    [Fact(DisplayName = "R3: CycleFramer emits cycle-start timestamp aligned to boundary when starting mid-cycle")]
+    public async Task RunAsync_StartingMidCycle_EmitsCycleStartAlignedToBoundary()
+    {
+        // Clock starts 7 s into a cycle → cycle started at HH:mm:00 (the :00 boundary).
+        var startUtc        = new DateTime(2026, 5, 21, 15, 30, 7, 0, DateTimeKind.Utc);
+        var expectedCycleStart = new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc);
+        var clock           = new FakeClock(startUtc);
+
+        var (sourceWriter, framer, outputReader) = CreateFramer(clock);
+
+        var producerTask = FeedSamples(sourceWriter, totalSamples: SamplesPerCycle, chunkSize: 4096);
+
+        using var cts      = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var framerTask     = framer.RunAsync(outputReader.Item2, cts.Token);
+
+        await producerTask;
+
+        DateTime? emittedCycleStart = null;
+        await foreach (var (_, cycleStart) in outputReader.Item1.ReadAllAsync(cts.Token))
+        {
+            emittedCycleStart = cycleStart;
+            break;
+        }
+
+        cts.Cancel();
+        try { await framerTask; } catch { /* cancelled */ }
+
+        emittedCycleStart.Should().NotBeNull();
+        emittedCycleStart!.Value.Should().Be(expectedCycleStart,
+            "when starting 7 s into a cycle, CycleStart must be the :00 boundary (not :07)");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -186,11 +252,11 @@ public sealed class CycleFramerTests
     private static (
         (ChannelWriter<float[]> Writer, ChannelReader<float[]> Reader) Source,
         CycleFramer Framer,
-        (ChannelReader<float[]> Reader, ChannelWriter<float[]> Writer) Output)
+        (ChannelReader<(float[], DateTime)> Reader, ChannelWriter<(float[], DateTime)> Writer) Output)
         CreateFramer(FakeClock clock)
     {
         var source = Channel.CreateUnbounded<float[]>();
-        var output = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<(float[], DateTime)>();
         var framer = new CycleFramer(source.Reader, clock);
         return ((source.Writer, source.Reader), framer, (output.Reader, output.Writer));
     }
