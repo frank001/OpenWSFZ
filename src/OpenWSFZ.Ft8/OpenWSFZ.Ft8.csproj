@@ -17,9 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- libft8.dll: pre-compiled native shim wrapping kgoba/ft8_lib v2.0 (MIT).
-         Link="libft8.dll" flattens the path so the DLL lands at the output root
-         (AppContext.BaseDirectory/libft8.dll) where NativeLibrary.Load can find it. -->
-    <Content Include="Native\win-x64\libft8.dll" CopyToOutputDirectory="Always" Link="libft8.dll" />
+    <!-- libft8 native shim — pre-compiled for each reference platform.
+         All three files are included; the OS ignores the ones it cannot load.
+         NativeLibrary.SetDllImportResolver selects the correct file at runtime. -->
+    <Content Include="Native\win-x64\libft8.dll"     CopyToOutputDirectory="Always" Link="libft8.dll"    />
+    <Content Include="Native\linux-x64\libft8.so"    CopyToOutputDirectory="Always" Link="libft8.so"     />
+    <Content Include="Native\osx-arm64\libft8.dylib" CopyToOutputDirectory="Always" Link="libft8.dylib"  />
   </ItemGroup>
 </Project>
