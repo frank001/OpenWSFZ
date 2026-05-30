@@ -1,0 +1,4 @@
+# UAT WAV recordings are too large for the repository (~97 MB).
+# Keep only the text logs (ALL.TXT) and findings documents.
+save/
+logs/

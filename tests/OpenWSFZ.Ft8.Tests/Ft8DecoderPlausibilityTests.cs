@@ -86,8 +86,8 @@ public sealed class Ft8DecoderPlausibilityTests
                $"'{text}' has an impossible Maidenhead letter value ({reason})");
 
     [Theory(DisplayName = "R4: IsPlausibleMessage rejects unrecognisable 3-token last fields")]
-    [InlineData("Q1AW Q1ABC STUB",   "4-char token, not a grid (S > R), not a report")]
-    [InlineData("Q1AW Q1ABC WXYZ",   "4-char token with W > R")]
+    [InlineData("Q1AW Q1ABC STUB",   "4-char token: positions [2]/[3] are not digits so grid letter check is never reached; no other pattern matches")]
+    [InlineData("Q1AW Q1ABC WXYZ",   "4-char token: positions [2]/[3] are not digits so grid letter check is never reached; no other pattern matches")]
     public void IsPlausibleMessage_UnrecognisableField_ReturnsFalse(string text, string reason)
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
                $"'{text}' has an unrecognisable last field ({reason})");

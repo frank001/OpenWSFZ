@@ -90,15 +90,6 @@ internal static class Ft8LibInterop
 
         EnsureInitialized();
 
-        // Verify managed struct size matches native at runtime (catches accidental layout drift).
-        // This is a quick constant comparison — only the first call evaluates it.
-        int managedSize = Marshal.SizeOf<Ft8NativeResult>();
-        if (managedSize != Ft8NativeResult.ExpectedNativeSizeBytes)
-            throw new InvalidOperationException(
-                $"Ft8NativeResult managed struct size ({managedSize}) does not match " +
-                $"native FT8Result size ({Ft8NativeResult.ExpectedNativeSizeBytes}). " +
-                "This is a build configuration error — recheck [StructLayout].");
-
         var results = new Ft8NativeResult[MaxResults];
         int count = NativeDecodeAll(pcm, pcm.Length, results, MaxResults);
 
@@ -148,5 +139,15 @@ internal static class Ft8LibInterop
                 $"libft8.dll ABI mismatch at '{dllPath}'. " +
                 $"Expected FT8_SHIM_VERSION={ExpectedShimVersion}, got {actual}. " +
                 "Rebuild libft8.dll from the committed shim source (see src/OpenWSFZ.Ft8/Native/BUILD.md).");
+
+        // Verify managed struct size matches native. Runs exactly once during lazy init
+        // so the reflection cost (Marshal.SizeOf uses internal caching, not a compile-time
+        // constant) is paid only at first load, not on every decode call.
+        int managedSize = Marshal.SizeOf<Ft8NativeResult>();
+        if (managedSize != Ft8NativeResult.ExpectedNativeSizeBytes)
+            throw new InvalidOperationException(
+                $"Ft8NativeResult managed struct size ({managedSize}) does not match " +
+                $"native FT8Result size ({Ft8NativeResult.ExpectedNativeSizeBytes}). " +
+                "This is a build configuration error — recheck [StructLayout].");
     }
 }
