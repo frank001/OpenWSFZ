@@ -1,0 +1,60 @@
+name: Build macOS dylib
+
+# One-shot workflow: builds libft8.dylib on ARM64, commits it back to the
+# triggering branch, then self-deletes this workflow file.
+# Run manually via: Actions → "Build macOS dylib" → Run workflow → select branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build and commit to'
+        required: true
+        default: 'feat/p15-iterative-subtraction'
+
+jobs:
+  build-dylib:
+    name: Build libft8.dylib (macOS ARM64)
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build libft8.dylib
+        run: |
+          cd native/ft8_lib
+          clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -c \
+              ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
+              ft8/message.c ft8/text.c \
+              common/monitor.c \
+              fft/kiss_fft.c fft/kiss_fftr.c
+          clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -c \
+              ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
+          clang -dynamiclib -target arm64-apple-macos11.0 \
+              -o libft8.dylib \
+              constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
+              monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
+          echo "=== Verify exports ==="
+          nm -gU libft8.dylib | grep "ft8_"
+          echo "=== Copy to repo ==="
+          mkdir -p ../../src/OpenWSFZ.Ft8/Native/osx-arm64
+          cp libft8.dylib ../../src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
+
+      - name: Remove this workflow file (one-shot)
+        run: rm .github/workflows/build-macos-dylib.yml
+
+      - name: Commit and push dylib
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
+          git rm --cached .github/workflows/build-macos-dylib.yml 2>/dev/null || true
+          git commit -m "chore(ci): rebuild libft8.dylib on macOS ARM64 — R3-2b probe-limit fix"
+          git push origin ${{ github.event.inputs.branch }}
