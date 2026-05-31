@@ -84,8 +84,10 @@ subtraction, planned for a future change.
 - **Dark-theme UI** with a real-time waterfall displaying live spectrogram
   data from the active audio device (visual polish is ongoing).
 - **Cross-platform native decoder**: pre-built `libft8` binaries are bundled
-  for Windows x64, Linux x64, and macOS ARM64; no native toolchain is required
-  to build or run.
+  for Windows x64, Linux x64, and macOS ARM64. No native toolchain is required
+  to build or run on Windows or Linux. On macOS the committed dylib is a local-
+  development reference; CI always rebuilds it from source using Clang so that
+  shim changes are picked up automatically.
 
 ## Prerequisites
 
