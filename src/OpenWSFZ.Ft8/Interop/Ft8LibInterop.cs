@@ -32,6 +32,13 @@ internal static class Ft8LibInterop
     /// <summary>Maximum number of decoded messages per cycle.</summary>
     private const int MaxResults = 140;
 
+    /// <summary>
+    /// Number of decode passes executed by the native shim per cycle.
+    /// Mirrors <c>K_MAX_PASSES</c> in <c>ft8_shim.c</c>; both are owned here
+    /// so callers do not need to hard-code the pass count separately.
+    /// </summary>
+    internal const int MaxDecodePasses = 2;
+
     private static readonly object _initLock = new();
     private static volatile bool _initialized;
 
