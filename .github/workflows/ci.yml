@@ -53,6 +53,34 @@ jobs:
           restore-keys: obj-${{ runner.os }}-
 
       # -----------------------------------------------------------------
+      # macOS: rebuild libft8.dylib from source before dotnet build.
+      # The committed osx-arm64/libft8.dylib is a cached reference for local
+      # development; CI always compiles from ft8_shim.c + the submodule so
+      # that any shim change is automatically reflected without a separate
+      # one-shot workflow.
+      # -----------------------------------------------------------------
+      - name: Build native macOS dylib (ARM64, Clang)
+        if: runner.os == 'macOS'
+        run: |
+          cd native/ft8_lib
+          clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -target arm64-apple-macos11.0 -c \
+            ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
+            ft8/message.c ft8/text.c \
+            common/monitor.c \
+            fft/kiss_fft.c fft/kiss_fftr.c
+          clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -target arm64-apple-macos11.0 -c \
+            ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
+          clang -dynamiclib -target arm64-apple-macos11.0 \
+            -o libft8.dylib \
+            constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
+          echo "=== macOS dylib exports ==="
+          nm -gU libft8.dylib | grep "ft8_"
+          cp libft8.dylib ../../src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
+
+      # -----------------------------------------------------------------
       # Gate G1: Build and test on all three operating systems
       # -----------------------------------------------------------------
       - name: Restore
