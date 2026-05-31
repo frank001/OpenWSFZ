@@ -2,8 +2,9 @@
 
 ## Source
 
-- **Library**: kgoba/ft8_lib fork — branch `msvc-compat` (commit `d18ed84`)
-- **Upstream tag**: `2.0` (commit `50ee0c06361388a992c80a1af9c1189652b72e51`)
+- **Library**: frank001/ft8_lib fork — branch `msvc-compat` (commit `d18ed84`)
+- **Fork URL**: `https://github.com/frank001/ft8_lib.git` (submodule URL in `.gitmodules`)
+- **Upstream**: `kgoba/ft8_lib`, tag `2.0` (commit `50ee0c06361388a992c80a1af9c1189652b72e51`)
 - **Fork changes**: MSVC VLA patches (`common/monitor.c`, `ft8/decode.c`) — see commit message on `msvc-compat` branch
 - **Licence**: MIT
 - **Submodule path**: `native/ft8_lib/` (repo root; superproject pointer pinned to `d18ed84`)
