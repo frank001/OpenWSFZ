@@ -111,6 +111,11 @@ static bool hash_table_lookup(callsign_table_t* tbl,
 
 static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t hash)
 {
+    /* Guard: discard new callsigns when the table is full rather than looping
+     * forever.  Full table → unknown callsigns display as <HASH>, matching
+     * WSJT-X first-seen behaviour; no crash, no hang, no data corruption. */
+    if (tbl->count >= HASH_TABLE_SIZE) return;
+
     uint16_t h10 = (hash >> 12) & 0x3FFu;
     int      idx = (h10 * 23) % HASH_TABLE_SIZE;
     while (tbl->entries[idx].callsign[0] != '\0') {
@@ -244,13 +249,21 @@ int ft8_decode_all(
     tls_num_passes = 0;
 
     /* ── 5. Multi-pass decode loop ───────────────────────────────────────── */
+    /* Per-pass configuration table — one row per pass, indexed by pass index.
+     * Add a row here if K_MAX_PASSES is ever increased beyond 2. */
+    static const struct { int min_score; int max_cands; int ldpc; } k_pass_cfg[K_MAX_PASSES] = {
+        { K_MIN_SCORE,       K_MAX_CANDIDATES,  K_LDPC_ITERATIONS  }, /* pass 0 */
+        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 1 */
+    };
     for (int pass = 0; pass < K_MAX_PASSES; pass++)
     {
-        int pass_min_score  = (pass == 0) ? K_MIN_SCORE       : K_MIN_SCORE_PASS2;
-        int pass_max_cands  = (pass == 0) ? K_MAX_CANDIDATES  : K_MAX_CANDIDATES_PASS2;
-        int pass_ldpc       = (pass == 0) ? K_LDPC_ITERATIONS : K_LDPC_ITERATIONS_PASS2;
+        int pass_min_score  = k_pass_cfg[pass].min_score;
+        int pass_max_cands  = k_pass_cfg[pass].max_cands;
+        int pass_ldpc       = k_pass_cfg[pass].ldpc;
 
-        ftx_candidate_t candidates[K_MAX_CANDIDATES_PASS2];
+        /* Size to the per-pass limit; pass 0 uses K_MAX_CANDIDATES (140),
+         * pass 1 uses K_MAX_CANDIDATES_PASS2 (200). */
+        ftx_candidate_t candidates[K_MAX_CANDIDATES_PASS2]; /* max across all passes */
         int ncands = ftx_find_candidates(&mon.wf, pass_max_cands,
                                           candidates, pass_min_score);
 
@@ -282,12 +295,17 @@ int ft8_decode_all(
             }
             if (dup || !found) continue;
 
-            memcpy(&decoded_msgs[walk], &msg, sizeof(msg));
-            decoded_ht[walk] = &decoded_msgs[walk];
-
+            /* Attempt text decode BEFORE occupying the dedup slot.
+             * If ftx_message_decode fails (e.g. Type-4 hash not yet known),
+             * we bail here so the slot stays free; pass 2 can retry the same
+             * payload once the companion callsign has been decoded. */
             char text[FTX_MAX_MESSAGE_LENGTH + 1];
             if (ftx_message_decode(&msg, &s_hash_if, text) != FTX_MESSAGE_RC_OK)
                 continue;
+
+            /* Text decode succeeded — now commit to the dedup table. */
+            memcpy(&decoded_msgs[walk], &msg, sizeof(msg));
+            decoded_ht[walk] = &decoded_msgs[walk];
 
             /* freq, dt, SNR */
             float freq_hz = (mon.min_bin + cand->freq_offset +
@@ -302,7 +320,7 @@ int ft8_decode_all(
                 int pt = mon.wf.freq_osr * mon.wf.num_bins;
                 int nb = mon.wf.num_bins;
                 int b0 = (int)cand->time_offset; if (b0 < 0) b0 = 0;
-                int b1 = b0 + 79; if (b1 > mon.wf.num_blocks) b1 = mon.wf.num_blocks;
+                int b1 = b0 + FT8_NN; if (b1 > mon.wf.num_blocks) b1 = mon.wf.num_blocks;
                 int fi = (int)cand->time_sub * pt + (int)cand->freq_sub * nb +
                          (int)cand->freq_offset;
                 for (int b = b0; b < b1; b++) {
