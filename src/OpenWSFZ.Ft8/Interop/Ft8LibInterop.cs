@@ -46,6 +46,11 @@ internal static class Ft8LibInterop
 
     private static readonly object _initLock = new();
     private static volatile bool _initialized;
+    // Resolver registration is a one-shot per-assembly operation.  Tracked
+    // separately so that a failed verification attempt does not prevent the
+    // resolver from being usable on the next retry (SetDllImportResolver throws
+    // InvalidOperationException if called a second time on the same assembly).
+    private static bool _resolverRegistered;
 
     // ── P/Invoke declarations ────────────────────────────────────────────
 
@@ -173,22 +178,30 @@ internal static class Ft8LibInterop
         // Step 1: register the DllImportResolver BEFORE any P/Invoke call fires.
         // The resolver intercepts the "libft8.dll" token and redirects it to the
         // platform-appropriate filename loaded from AppContext.BaseDirectory.
-        // NativeLibrary.SetDllImportResolver throws InvalidOperationException if called
-        // more than once per assembly; the double-checked lock in EnsureInitialized()
-        // guarantees this runs exactly once.
-        NativeLibrary.SetDllImportResolver(
-            typeof(Ft8LibInterop).Assembly,
-            static (libraryName, assembly, searchPath) =>
-            {
-                if (libraryName != "libft8.dll") return IntPtr.Zero;
+        //
+        // NativeLibrary.SetDllImportResolver throws InvalidOperationException if
+        // called a second time on the same assembly.  We guard with _resolverRegistered
+        // (written inside _initLock) so that a failed verification attempt on a first
+        // call does not prevent the resolver from remaining active on a retry — the
+        // double-checked lock alone is insufficient because it resets when an exception
+        // escapes LoadAndVerify() before _initialized is set.
+        if (!_resolverRegistered)
+        {
+            NativeLibrary.SetDllImportResolver(
+                typeof(Ft8LibInterop).Assembly,
+                static (libraryName, assembly, searchPath) =>
+                {
+                    if (libraryName != "libft8.dll") return IntPtr.Zero;
 
-                string fileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "libft8.dll"
-                                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)     ? "libft8.dylib"
-                                : "libft8.so";
+                    string fileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "libft8.dll"
+                                    : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)     ? "libft8.dylib"
+                                    : "libft8.so";
 
-                string fullPath = Path.Combine(AppContext.BaseDirectory, fileName);
-                return NativeLibrary.Load(fullPath);
-            });
+                    string fullPath = Path.Combine(AppContext.BaseDirectory, fileName);
+                    return NativeLibrary.Load(fullPath);
+                });
+            _resolverRegistered = true;
+        }
 
         // Step 2: existence check for the platform-appropriate binary.
         string libFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "libft8.dll"
