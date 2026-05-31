@@ -82,6 +82,16 @@ int ft8_decode_all(
  */
 int ft8_get_last_pass_counts(int* out_counts, int capacity);
 
+/*
+ * ft8_get_max_passes — return the number of decode passes executed per
+ * ft8_decode_all call (compile-time constant K_MAX_PASSES).
+ *
+ * The managed loader verifies this matches its own MaxDecodePasses constant
+ * at initialisation time, detecting K_MAX_PASSES / MaxDecodePasses drift
+ * before any decode call is attempted.
+ */
+int ft8_get_max_passes(void);
+
 #ifdef __cplusplus
 }
 #endif

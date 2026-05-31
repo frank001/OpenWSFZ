@@ -29,8 +29,13 @@ internal static class Ft8LibInterop
     /// </summary>
     private const int ExpectedShimVersion = 20260001;
 
-    /// <summary>Maximum number of decoded messages per cycle.</summary>
-    private const int MaxResults = 140;
+    /// <summary>
+    /// Maximum number of decoded messages per two-pass decode cycle.
+    /// Sized to the two-pass output capacity: K_MAX_CANDIDATES (pass 1, 140)
+    /// + K_MAX_CANDIDATES_PASS2 (pass 2, 200) = 340.  The <c>results[..count]</c>
+    /// slice in <see cref="DecodeAll"/> returns only the populated portion.
+    /// </summary>
+    private const int MaxResults = 340;  // K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2
 
     /// <summary>
     /// Number of decode passes executed by the native shim per cycle.
@@ -80,6 +85,14 @@ internal static class Ft8LibInterop
     private static extern int NativeGetLastPassCounts(
         [Out] int[] counts,
         int         capacity);
+
+    /// <summary>
+    /// Return the compile-time <c>K_MAX_PASSES</c> constant from the native shim.
+    /// Used at initialisation time to detect drift between the C and C# pass-count
+    /// constants before any decode call is attempted.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_max_passes", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetMaxPasses();
 
     // ── Public API ───────────────────────────────────────────────────────
 
@@ -197,6 +210,17 @@ internal static class Ft8LibInterop
                 $"Native library ABI mismatch at '{libPath}'. " +
                 $"Expected FT8_SHIM_VERSION={expected}, got {actual}. " +
                 "Rebuild the native library from the committed shim source (see src/OpenWSFZ.Ft8/Native/BUILD.md).");
+
+        // Step 3b: K_MAX_PASSES / MaxDecodePasses drift check.
+        // If the native shim is ever rebuilt with a different K_MAX_PASSES while
+        // the managed constant stays at its old value, pass-count data would be
+        // silently truncated or over-read.  Catch this mismatch immediately.
+        int nativeMaxPasses = NativeGetMaxPasses();
+        if (nativeMaxPasses != MaxDecodePasses)
+            throw new InvalidOperationException(
+                $"Native K_MAX_PASSES ({nativeMaxPasses}) does not match managed " +
+                $"MaxDecodePasses ({MaxDecodePasses}). " +
+                "Rebuild the native library or update the managed constant.");
 
         // Step 4: verify managed struct size matches native. Runs exactly once during lazy init
         // so the reflection cost (Marshal.SizeOf uses internal caching, not a compile-time

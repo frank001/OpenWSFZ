@@ -192,6 +192,11 @@ static void suppress_candidate_tiles(
 /* ── ABI sentinel ────────────────────────────────────────────────────────── */
 int ft8_lib_version_check(void) { return FT8_SHIM_VERSION; }
 
+/* ── Pass count query ────────────────────────────────────────────────────── */
+/* Returns the compile-time K_MAX_PASSES constant so the managed layer can   */
+/* detect drift between the C and C# definitions at library load time.       */
+int ft8_get_max_passes(void) { return K_MAX_PASSES; }
+
 /* ── Per-pass stats query ────────────────────────────────────────────────── */
 int ft8_get_last_pass_counts(int* out_counts, int capacity)
 {
@@ -261,6 +266,16 @@ int ft8_decode_all(
     };
     for (int pass = 0; pass < K_MAX_PASSES; pass++)
     {
+        /* Skip candidate search when the result buffer is already full.
+         * ftx_find_candidates is a full waterfall scan (~1-2 ms); there is no
+         * point running it when the inner loop would exit on its first iteration.
+         * Record zero new decodes so TLS pass stats remain consistent. */
+        if (num_decoded >= max_results) {
+            tls_pass_counts[pass] = 0;
+            tls_num_passes        = pass + 1;
+            continue;
+        }
+
         int pass_min_score  = k_pass_cfg[pass].min_score;
         int pass_max_cands  = k_pass_cfg[pass].max_cands;
         int pass_ldpc       = k_pass_cfg[pass].ldpc;
@@ -350,8 +365,10 @@ int ft8_decode_all(
 
             new_decodes++;
 
-            /* Track for suppression */
-            if (nsupp < K_MAX_CANDIDATES_PASS2) {
+            /* Track for suppression — only needed when a subsequent pass will
+             * use the data.  In the final pass this is always false, avoiding
+             * up to 200 struct copies that would be silently discarded. */
+            if (pass < K_MAX_PASSES - 1 && nsupp < K_MAX_CANDIDATES_PASS2) {
                 supp_cands[nsupp] = *cand;
                 supp_msgs[nsupp]  = msg;
                 nsupp++;
