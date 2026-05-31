@@ -44,6 +44,24 @@ is **fully functional** against live audio and recorded fixtures.
 | p14 — Decode start/stop | FR-017: controlled decode lifecycle; CancellationToken wiring | ✅ merged |
 | p15 — Iterative subtraction | Spectrogram-domain second-pass decoder; 69.1% recovery rate | ✅ merged |
 
+## WSJT-X decode parity
+
+> **Key metric:** how well OpenWSFZ recovers the same signals as WSJT-X on
+> identical recordings. Measured against a fixed 42-cycle corpus (887 total
+> WSJT-X decodes, 40 m band, real off-air recordings). Higher is better;
+> false-positive rate must stay ≤ 6%.
+
+| Version | Phase | Recovery rate | Raw | False-positive rate | Approach |
+|---|---|---|---|---|---|
+| v0.10 | p10 baseline | 66.6% | 591 / 887 | 3.9% (24 / 615) | Single-pass ft8_lib decode |
+| v0.15 | p15 | **69.1%** | 613 / 887 | 3.8% (24 / 637) | + spectrogram-domain second-pass (±1-bin suppression) |
+
+The spectrogram-domain approach plateaus at ~69%: the FFT waterfall stores
+carrier frequency at ±3.125 Hz resolution, which prevents coherent
+PCM-domain waveform cancellation. Closing the remaining gap to ≥ 80%
+requires sub-Hz carrier-frequency estimation and PCM-domain waveform
+subtraction, planned for a future change.
+
 ## What works today
 
 - **Daemon** starts, emits a welcome banner, and serves the UI at
