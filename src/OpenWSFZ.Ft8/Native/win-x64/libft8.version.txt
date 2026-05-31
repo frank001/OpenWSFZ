@@ -13,7 +13,7 @@ Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_count
 --- Windows x64 ---
 Compiler:         MSVC 19.51.36246 (Visual Studio 18 / VS 2026)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-05-31 (p15 rebuild — iterative subtraction)
+Build date:       2026-05-31 (p15 rebuild — iterative subtraction; R-3 cosmetic cast cleanup)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
 Sources:          native/ft8_lib @ msvc-compat (d18ed84) + src/OpenWSFZ.Ft8/Native/ft8_shim.c

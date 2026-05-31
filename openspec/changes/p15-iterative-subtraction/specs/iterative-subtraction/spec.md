@@ -2,7 +2,7 @@
 
 ### Requirement: Second-pass spectrogram-domain residual decode
 
-After the first decode pass completes, the shim SHALL perform a second decode pass on the residual waterfall. For each successfully decoded candidate from the first pass, the shim SHALL suppress that signal's energy in `ftx_waterfall_t.mag` by setting all waterfall tiles covering the signal's 79-symbol window and all 8 FT8 tone bins (across all time and frequency over-sampling sub-bins) to the noise-floor median raw byte. The shim SHALL then re-run `ftx_find_candidates` and `ftx_decode_candidate` on the modified waterfall and merge new results with first-pass results, deduplicating via the existing message hash table. The total number of passes SHALL not exceed the named constant `K_MAX_PASSES` (default value: 2).
+After the first decode pass completes, the shim SHALL perform a second decode pass on the residual waterfall. For each successfully decoded candidate from the first pass, the shim SHALL suppress that signal's energy in `ftx_waterfall_t.mag` by setting the exact decoded tone bin and its ±1 nearest neighbours (to cancel Hann-window first sidelobes), as determined from `ft8_encode()`, to the noise-floor median raw byte for each of the 79 FT8 symbols across all time and frequency over-sampling sub-bins. The shim SHALL then re-run `ftx_find_candidates` and `ftx_decode_candidate` on the modified waterfall and merge new results with first-pass results, deduplicating via the existing message hash table. The total number of passes SHALL not exceed the named constant `K_MAX_PASSES` (default value: 2).
 
 #### Scenario: Second pass recovers a signal masked by a stronger co-channel transmission
 
@@ -56,3 +56,33 @@ After each decode cycle, `Ft8Decoder` SHALL log one Debug-level message per pass
 
 - **WHEN** `Ft8Decoder.DecodeAsync` completes a decode cycle with an ILogger configured at Debug level
 - **THEN** the log output SHALL contain `K_MAX_PASSES` messages matching the pattern `"Iterative subtraction: pass N of {max}, K new decodes"` for N = 1 … K_MAX_PASSES
+
+---
+
+## Acceptance Criteria
+
+### AC-IS-1 — Recovery rate: spectrogram-domain ceiling
+
+**Post-p15 measured result:** 69.1% (613/887 matched), up from 66.6% (591/887) baseline.
+
+The spectrogram-domain ±1-bin suppression approach achieves **69.1%** against the 42-cycle WSJT-X corpus. This is the measurable ceiling of the approach: FFT waterfall frequency resolution is ±3.125 Hz/bin (6.25 Hz FT8 tone spacing with `freq_osr=2`), and Hann-window sidelobe leakage across bins ±2 to ±5 cannot be removed without coherent PCM-domain cancellation. Extensive parametric tuning confirmed no further gain is achievable within the spectrogram domain (see `design.md §Decision 6`).
+
+**The ≥80% target from the original proposal is a PCM-domain target**, not a spectrogram-domain target. It is deferred to `p16-pcm-iterative-subtraction`, which will implement sub-Hz carrier-frequency estimation and CP-FSK waveform synthesis for full STFT sidelobe cancellation.
+
+**This criterion is met** for the spectrogram-domain implementation: the implementation delivers the maximum recovery achievable with the chosen approach, and the architectural reason for the gap to 80% is fully documented and understood. Captain's decision recorded 2026-05-31: Option A accepted.
+
+### AC-IS-2 — Fixture answer-key expansion
+
+Answer-key subsets for the three committed fixture WAVs were inspected for new medium-SNR signals recoverable via the second pass. No new signals were found in these specific cycles (iterative-subtraction gains were distributed across other cycles in the corpus, not the committed fixtures). G6 gate: 3/3 passed.
+
+### AC-IS-3 — False-positive rate
+
+False-positive rate: **3.8%** (24/637 total decodes). Well within the ≤6% threshold.
+
+### AC-IS-4 — Per-pass Debug logging
+
+`Ft8Decoder.cs` emits two Debug-level messages per cycle: `"Iterative subtraction: pass 1 of 2, N new decodes"` and `"Iterative subtraction: pass 2 of 2, M new decodes"`. Confirmed via task 7.3.
+
+### AC-IS-5 — Timing budget
+
+Both passes complete in ~2 s combined on development hardware. Well within the 13 s / 30 s CI budget.

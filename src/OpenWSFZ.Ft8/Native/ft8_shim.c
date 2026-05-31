@@ -22,7 +22,7 @@
  *   domain suppression is the most accurate approach available without a
  *   dedicated sub-Hz carrier-frequency estimator.
  *
- *   Measured result on the 42-cycle corpus: 69.0% recovery (612/887).
+ *   Measured result on the 42-cycle corpus: 69.1% recovery (613/887).
  *   Baseline (single pass): 66.6% (591/887).
  *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
@@ -269,7 +269,7 @@ int ft8_decode_all(
                 continue;
 
             /* Cross-pass dedup */
-            int  slot = (int)(msg.hash % (uint16_t)K_MAX_DECODED);
+            int  slot = (int)(msg.hash % K_MAX_DECODED);
             bool dup  = false, found = false;
             int  walk = slot;
             for (int s = 0; s < K_MAX_DECODED; ++s) {
