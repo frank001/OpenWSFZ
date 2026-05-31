@@ -31,7 +31,7 @@ is **fully functional** against live audio and recorded fixtures.
 | p0 — Foundation | Build pipeline, CI quality gates, tooling | ✅ merged |
 | p1 — Walking skeleton | Daemon, embedded web server, WebSocket | ✅ merged |
 | p2 — Audio config | Device enumeration, JSON config, Settings REST round-trip | ✅ merged |
-| p3 — Web frontend | Dark-theme UI, Settings page, waterfall placeholder | ✅ merged |
+| p3 — Web frontend | Dark-theme UI, Settings page, real-time waterfall | ✅ merged |
 | p4 — Audio pipeline | PCM capture (WASAPI / arecord / sox), STA threading fix | ✅ merged |
 | p5 — FT8 decoder | Cycle framer, spectrum analyser, initial decode pipeline | ✅ merged |
 | p6 — File logging | Per-session log files, retention, log-level config | ✅ merged |
@@ -81,8 +81,8 @@ subtraction, planned for a future change.
   directory with automatic retention enforcement.
 - **WebSocket** pushes live status events (including `audioActive` state) to
   connected browser tabs.
-- **Dark-theme UI** with a waterfall panel (placeholder — no live spectrogram
-  data yet).
+- **Dark-theme UI** with a real-time waterfall displaying live spectrogram
+  data from the active audio device (visual polish is ongoing).
 - **Cross-platform native decoder**: pre-built `libft8` binaries are bundled
   for Windows x64, Linux x64, and macOS ARM64; no native toolchain is required
   to build or run.
