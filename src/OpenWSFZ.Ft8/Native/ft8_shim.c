@@ -101,7 +101,11 @@ static bool hash_table_lookup(callsign_table_t* tbl,
                  : (hash_type == FTX_CALLSIGN_HASH_12_BITS) ? 10 : 0;
     uint16_t h10 = (hash >> (12 - sh)) & 0x3FFu;
     int      idx = (h10 * 23) % HASH_TABLE_SIZE;
-    while (tbl->entries[idx].callsign[0] != '\0') {
+    /* Probe-limit guard: cap at HASH_TABLE_SIZE iterations so a full table
+     * (all slots occupied) cannot spin forever.  Mirrors the count-check in
+     * hash_table_add (R3-2). */
+    for (int probe = 0; probe < HASH_TABLE_SIZE; probe++) {
+        if (tbl->entries[idx].callsign[0] == '\0') break;
         if (((tbl->entries[idx].hash & 0x3FFFFFu) >> sh) == hash) {
             strcpy(callsign, tbl->entries[idx].callsign); return true; }
         idx = (idx + 1) % HASH_TABLE_SIZE;
