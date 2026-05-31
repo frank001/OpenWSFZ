@@ -24,8 +24,11 @@ extern "C" {
 #endif
 
 /* Bump this constant whenever the ABI changes (struct layout, function
- * signatures). The managed loader checks it matches FT8_SHIM_VERSION. */
-#define FT8_SHIM_VERSION 20240001
+ * signatures). The managed loader checks it matches FT8_SHIM_VERSION.
+ * History:
+ *   20240001 — initial release (single-pass decode)
+ *   20260001 — p15: iterative subtraction; ft8_get_last_pass_counts added */
+#define FT8_SHIM_VERSION 20260001
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -62,6 +65,32 @@ int ft8_decode_all(
     FT8Result*   results,
     int          max_results
 );
+
+/*
+ * ft8_get_last_pass_counts — return per-pass new-decode counts from the
+ * most recent ft8_decode_all call on this thread.
+ *
+ * Parameters:
+ *   out_counts — caller-allocated array; receives one int per pass executed
+ *   capacity   — size of out_counts; must be ≥ K_MAX_PASSES for full data
+ *
+ * Returns: number of passes actually executed (≤ capacity).
+ *          out_counts[i] = number of new (non-duplicate) decodes in pass i.
+ *
+ * Thread-safe: stored in thread-local storage; concurrent callers on
+ * different threads do not interfere.
+ */
+int ft8_get_last_pass_counts(int* out_counts, int capacity);
+
+/*
+ * ft8_get_max_passes — return the number of decode passes executed per
+ * ft8_decode_all call (compile-time constant K_MAX_PASSES).
+ *
+ * The managed loader verifies this matches its own MaxDecodePasses constant
+ * at initialisation time, detecting K_MAX_PASSES / MaxDecodePasses drift
+ * before any decode call is attempted.
+ */
+int ft8_get_max_passes(void);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 ﻿# p10 Recovery-Rate Findings
 
-**Date:** 2026-05-30 23:53:08 UTC
+**Date:** 2026-05-31 16:04:12 UTC
 **Corpus:** 42 × 15-second WAVs, 12 kHz mono int16, 7.074 MHz
 **WSJT-X answer keys:** 887 total decodes across 42 cycles
 
@@ -10,43 +10,43 @@
 |---|---|---|---|---|---|
 | `260528_235745` | 19 | 11 | 11 | 8 | 0 |
 | `260528_235800` | 20 | 17 | 16 | 4 | 1 |
-| `260528_235815` | 21 | 13 | 13 | 8 | 0 |
+| `260528_235815` | 21 | 14 | 14 | 7 | 0 |
 | `260528_235830` | 25 | 16 | 15 | 10 | 1 |
-| `260528_235845` | 20 | 15 | 15 | 5 | 0 |
-| `260528_235900` | 22 | 15 | 14 | 8 | 1 |
+| `260528_235845` | 20 | 17 | 17 | 3 | 0 |
+| `260528_235900` | 22 | 16 | 15 | 7 | 1 |
 | `260528_235915` | 25 | 13 | 13 | 12 | 0 |
 | `260528_235930` | 24 | 17 | 16 | 8 | 1 |
-| `260528_235945` | 23 | 15 | 15 | 8 | 0 |
+| `260528_235945` | 23 | 16 | 16 | 7 | 0 |
 | `260529_000000` | 17 | 11 | 10 | 7 | 1 |
-| `260529_000015` | 15 | 12 | 12 | 3 | 0 |
+| `260529_000015` | 15 | 13 | 13 | 2 | 0 |
 | `260529_000030` | 19 | 13 | 12 | 7 | 1 |
-| `260529_000045` | 14 | 11 | 11 | 3 | 0 |
+| `260529_000045` | 14 | 12 | 12 | 2 | 0 |
 | `260529_000100` | 22 | 19 | 18 | 4 | 1 |
 | `260529_000115` | 19 | 14 | 14 | 5 | 0 |
-| `260529_000130` | 22 | 15 | 14 | 8 | 1 |
+| `260529_000130` | 22 | 17 | 16 | 6 | 1 |
 | `260529_000145` | 16 | 10 | 10 | 6 | 0 |
-| `260529_000200` | 22 | 14 | 13 | 9 | 1 |
-| `260529_000215` | 18 | 8 | 8 | 10 | 0 |
+| `260529_000200` | 22 | 15 | 14 | 8 | 1 |
+| `260529_000215` | 18 | 9 | 9 | 9 | 0 |
 | `260529_000230` | 17 | 13 | 12 | 5 | 1 |
-| `260529_000245` | 21 | 13 | 13 | 8 | 0 |
+| `260529_000245` | 21 | 14 | 14 | 7 | 0 |
 | `260529_000300` | 19 | 14 | 13 | 6 | 1 |
-| `260529_000315` | 25 | 17 | 17 | 8 | 0 |
+| `260529_000315` | 25 | 18 | 18 | 7 | 0 |
 | `260529_000330` | 16 | 13 | 12 | 4 | 1 |
 | `260529_000345` | 25 | 14 | 14 | 11 | 0 |
 | `260529_000400` | 20 | 13 | 12 | 8 | 1 |
-| `260529_000415` | 22 | 14 | 13 | 9 | 1 |
-| `260529_000430` | 24 | 16 | 15 | 9 | 1 |
-| `260529_000445` | 23 | 14 | 13 | 10 | 1 |
-| `260529_000500` | 20 | 16 | 15 | 5 | 1 |
+| `260529_000415` | 22 | 15 | 14 | 8 | 1 |
+| `260529_000430` | 24 | 17 | 16 | 8 | 1 |
+| `260529_000445` | 23 | 17 | 16 | 7 | 1 |
+| `260529_000500` | 20 | 17 | 16 | 4 | 1 |
 | `260529_000515` | 21 | 19 | 17 | 4 | 2 |
 | `260529_000530` | 24 | 15 | 14 | 10 | 1 |
 | `260529_000545` | 22 | 17 | 17 | 5 | 0 |
 | `260529_000600` | 18 | 16 | 15 | 3 | 1 |
 | `260529_000615` | 21 | 15 | 15 | 6 | 0 |
 | `260529_000630` | 23 | 17 | 16 | 7 | 1 |
-| `260529_000645` | 24 | 16 | 16 | 8 | 0 |
+| `260529_000645` | 24 | 18 | 18 | 6 | 0 |
 | `260529_000700` | 25 | 17 | 16 | 9 | 1 |
-| `260529_000715` | 25 | 15 | 15 | 10 | 0 |
+| `260529_000715` | 25 | 16 | 16 | 9 | 0 |
 | `260529_000730` | 18 | 16 | 15 | 3 | 1 |
 | `260529_000745` | 25 | 18 | 18 | 7 | 0 |
 | `260529_000800` | 26 | 18 | 18 | 8 | 0 |
@@ -57,15 +57,12 @@
 |---|---|
 | WAV files decoded | 42 |
 | WSJT-X total decodes | 887 |
-| Our matched decodes | 591 |
+| Our matched decodes | 613 |
 | Our false positives | 24 |
-| **Recovery rate** | **66.6%** |
+| **Recovery rate** | **69.1%** |
 
 ## Decision-gate outcome
 
-Recovery rate is **66.6%** — within normal operating range.
+Recovery rate is **69.1%** — within normal operating range.
 
-**Status: nominal.** The ~33.4% miss rate relative to WSJT-X reflects ft8_lib not
-implementing iterative subtraction (second-pass decoder). This is an accepted limitation
-of the current ft8_lib-based architecture. Closing this gap is an open product decision;
-no corrective action is required at this measurement.
+**Status: nominal.** Iterative signal subtraction was implemented in p15 (`p15-iterative-subtraction`) using spectrogram-domain ±1-bin narrow suppression. The remaining ~31% gap to WSJT-X is the ceiling of the spectrogram-domain approach: FFT-waterfall ±3.125 Hz frequency resolution prevents coherent PCM-domain waveform cancellation. Closing the remaining gap requires sub-Hz carrier-frequency estimation and PCM-domain waveform subtraction, scheduled as a future change.

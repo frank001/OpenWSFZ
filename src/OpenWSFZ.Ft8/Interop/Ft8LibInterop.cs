@@ -27,13 +27,30 @@ internal static class Ft8LibInterop
     /// The compile-time version constant embedded in the shim (<c>FT8_SHIM_VERSION</c>).
     /// Must match the value returned by <c>ft8_lib_version_check()</c>.
     /// </summary>
-    private const int ExpectedShimVersion = 20240001;
+    private const int ExpectedShimVersion = 20260001;
 
-    /// <summary>Maximum number of decoded messages per cycle.</summary>
-    private const int MaxResults = 140;
+    /// <summary>
+    /// Maximum number of decoded messages per two-pass decode cycle.
+    /// Sized to the two-pass output capacity: K_MAX_CANDIDATES (pass 1, 140)
+    /// + K_MAX_CANDIDATES_PASS2 (pass 2, 200) = 340.  The <c>results[..count]</c>
+    /// slice in <see cref="DecodeAll"/> returns only the populated portion.
+    /// </summary>
+    private const int MaxResults = 340;  // K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2
+
+    /// <summary>
+    /// Number of decode passes executed by the native shim per cycle.
+    /// Mirrors <c>K_MAX_PASSES</c> in <c>ft8_shim.c</c>; both are owned here
+    /// so callers do not need to hard-code the pass count separately.
+    /// </summary>
+    internal const int MaxDecodePasses = 2;
 
     private static readonly object _initLock = new();
     private static volatile bool _initialized;
+    // Resolver registration is a one-shot per-assembly operation.  Tracked
+    // separately so that a failed verification attempt does not prevent the
+    // resolver from being usable on the next retry (SetDllImportResolver throws
+    // InvalidOperationException if called a second time on the same assembly).
+    private static bool _resolverRegistered;
 
     // ── P/Invoke declarations ────────────────────────────────────────────
 
@@ -57,15 +74,38 @@ internal static class Ft8LibInterop
     /// </returns>
     [DllImport("libft8.dll", EntryPoint = "ft8_decode_all", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeDecodeAll(
-        [In] float[]        pcm,
-        int                 pcmLen,
+        [In] float[]            pcm,
+        int                     pcmLen,
         [Out] Ft8NativeResult[] results,
-        int                 maxResults);
+        int                     maxResults);
+
+    /// <summary>
+    /// Return per-pass new-decode counts from the most recent
+    /// <see cref="NativeDecodeAll"/> call on this thread.
+    /// </summary>
+    /// <param name="counts">Caller-allocated output array.</param>
+    /// <param name="capacity">Size of <paramref name="counts"/>.</param>
+    /// <returns>Number of passes actually executed (≤ <paramref name="capacity"/>).</returns>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_pass_counts", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastPassCounts(
+        [Out] int[] counts,
+        int         capacity);
+
+    /// <summary>
+    /// Return the compile-time <c>K_MAX_PASSES</c> constant from the native shim.
+    /// Used at initialisation time to detect drift between the C and C# pass-count
+    /// constants before any decode call is attempted.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_max_passes", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetMaxPasses();
 
     // ── Public API ───────────────────────────────────────────────────────
 
     /// <summary>
     /// Decode all FT8 signals from a 180 000-sample PCM buffer.
+    /// Performs <c>K_MAX_PASSES</c> (currently 2) decode passes internally:
+    /// a first pass on the original waterfall and a second pass on the
+    /// residual after suppressing decoded signal tiles.
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1].</param>
     /// <returns>Array of decoded results (may be empty; never null).</returns>
@@ -97,6 +137,28 @@ internal static class Ft8LibInterop
         return results[..count];
     }
 
+    /// <summary>
+    /// Return per-pass new-decode counts from the most recent
+    /// <see cref="DecodeAll"/> call on this thread.
+    /// Must be called on the same thread that called <see cref="DecodeAll"/>.
+    /// </summary>
+    /// <param name="maxPasses">Maximum number of passes to query (array capacity).</param>
+    /// <returns>
+    /// Array of length equal to the number of passes actually executed,
+    /// where <c>result[i]</c> is the number of new (non-duplicate) messages
+    /// decoded in pass <c>i</c> (0-indexed). Sum equals the total returned
+    /// by <see cref="DecodeAll"/>.
+    /// </returns>
+    public static int[] GetLastPassCounts(int maxPasses)
+    {
+        EnsureInitialized();
+
+        var counts = new int[maxPasses];
+        int numPasses = NativeGetLastPassCounts(counts, maxPasses);
+        if (numPasses <= 0) return [];
+        return counts[..numPasses];
+    }
+
     // ── Lazy initialisation ──────────────────────────────────────────────
 
     private static void EnsureInitialized()
@@ -116,22 +178,30 @@ internal static class Ft8LibInterop
         // Step 1: register the DllImportResolver BEFORE any P/Invoke call fires.
         // The resolver intercepts the "libft8.dll" token and redirects it to the
         // platform-appropriate filename loaded from AppContext.BaseDirectory.
-        // NativeLibrary.SetDllImportResolver throws InvalidOperationException if called
-        // more than once per assembly; the double-checked lock in EnsureInitialized()
-        // guarantees this runs exactly once.
-        NativeLibrary.SetDllImportResolver(
-            typeof(Ft8LibInterop).Assembly,
-            static (libraryName, assembly, searchPath) =>
-            {
-                if (libraryName != "libft8.dll") return IntPtr.Zero;
+        //
+        // NativeLibrary.SetDllImportResolver throws InvalidOperationException if
+        // called a second time on the same assembly.  We guard with _resolverRegistered
+        // (written inside _initLock) so that a failed verification attempt on a first
+        // call does not prevent the resolver from remaining active on a retry — the
+        // double-checked lock alone is insufficient because it resets when an exception
+        // escapes LoadAndVerify() before _initialized is set.
+        if (!_resolverRegistered)
+        {
+            NativeLibrary.SetDllImportResolver(
+                typeof(Ft8LibInterop).Assembly,
+                static (libraryName, assembly, searchPath) =>
+                {
+                    if (libraryName != "libft8.dll") return IntPtr.Zero;
 
-                string fileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "libft8.dll"
-                                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)     ? "libft8.dylib"
-                                : "libft8.so";
+                    string fileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "libft8.dll"
+                                    : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)     ? "libft8.dylib"
+                                    : "libft8.so";
 
-                string fullPath = Path.Combine(AppContext.BaseDirectory, fileName);
-                return NativeLibrary.Load(fullPath);
-            });
+                    string fullPath = Path.Combine(AppContext.BaseDirectory, fileName);
+                    return NativeLibrary.Load(fullPath);
+                });
+            _resolverRegistered = true;
+        }
 
         // Step 2: existence check for the platform-appropriate binary.
         string libFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "libft8.dll"
@@ -153,6 +223,17 @@ internal static class Ft8LibInterop
                 $"Native library ABI mismatch at '{libPath}'. " +
                 $"Expected FT8_SHIM_VERSION={expected}, got {actual}. " +
                 "Rebuild the native library from the committed shim source (see src/OpenWSFZ.Ft8/Native/BUILD.md).");
+
+        // Step 3b: K_MAX_PASSES / MaxDecodePasses drift check.
+        // If the native shim is ever rebuilt with a different K_MAX_PASSES while
+        // the managed constant stays at its old value, pass-count data would be
+        // silently truncated or over-read.  Catch this mismatch immediately.
+        int nativeMaxPasses = NativeGetMaxPasses();
+        if (nativeMaxPasses != MaxDecodePasses)
+            throw new InvalidOperationException(
+                $"Native K_MAX_PASSES ({nativeMaxPasses}) does not match managed " +
+                $"MaxDecodePasses ({MaxDecodePasses}). " +
+                "Rebuild the native library or update the managed constant.");
 
         // Step 4: verify managed struct size matches native. Runs exactly once during lazy init
         // so the reflection cost (Marshal.SizeOf uses internal caching, not a compile-time
