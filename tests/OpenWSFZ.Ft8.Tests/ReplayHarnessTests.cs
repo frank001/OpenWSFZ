@@ -169,15 +169,24 @@ public sealed class ReplayHarnessTests
         sb.AppendLine();
         sb.AppendLine("## Decision-gate outcome");
         sb.AppendLine();
-        sb.AppendLine(recoveryRate == 0.0
-            ? "Recovery rate is **0.0%** — no real off-air FT8 signals decoded.\n\n" +
-              "**Decision: Phase 2A — Port `ft8_lib`.** The homegrown DSP algorithms are " +
-              "fundamentally unable to decode real signals. Per `RECOVERY_PLAN.md` §6, " +
-              "18 failed root-cause attempts combined with 0% recovery confirms the port " +
-              "path. See `p11-decoder-port` for the follow-on change."
-            : $"Recovery rate is **{recoveryRate:F1}%** — partial recovery detected.\n\n" +
-              "**Decision: Phase 2B — Patch against the oracle.** Re-evaluate the patch " +
-              "strategy per `RECOVERY_PLAN.md` §8.");
+        sb.AppendLine(recoveryRate switch
+        {
+            0.0 => "Recovery rate is **0.0%** — no signals decoded.\n\n" +
+                   "**Action required:** ft8_lib interop is broken. Investigate `Ft8LibInterop.cs`, " +
+                   "confirm the native shared library is present in the output directory, and verify " +
+                   "that `LoadAndVerify()` succeeds without exception.",
+
+            < 55.0 => $"Recovery rate is **{recoveryRate:F1}%** — below the established baseline (~66.6%).\n\n" +
+                      "**Action required:** ft8_lib wrapper regression or parameter change. " +
+                      "Compare decoder parameters against the p12 baseline. Review recent changes to " +
+                      "`Ft8LibInterop.cs` and `Ft8Decoder.cs`. G6 gate may still be green if the committed " +
+                      "fixture answer keys are all recovered — check `RealSignalFixtureTests` results.",
+
+            _ => $"Recovery rate is **{recoveryRate:F1}%** — within normal operating range.\n\n" +
+                 "**Status: nominal.** The ~33% miss rate relative to WSJT-X is a known, accepted " +
+                 "limitation of ft8_lib not implementing iterative subtraction (second-pass decoder). " +
+                 "This is a product-level decision deferred to a future change. No action required."
+        });
 
         string findings = sb.ToString();
 
@@ -202,9 +211,12 @@ public sealed class ReplayHarnessTests
         _out.WriteLine($"Our false positives   : {totalFalsePos}");
         _out.WriteLine($"Recovery rate        : {recoveryRate:F1}%");
         _out.WriteLine(string.Empty);
-        _out.WriteLine(recoveryRate == 0.0
-            ? "DECISION: Phase 2A — Port ft8_lib (0% recovery)"
-            : $"DECISION: Phase 2B — Patch (partial recovery at {recoveryRate:F1}%)");
+        _out.WriteLine(recoveryRate switch
+        {
+            0.0    => "DECISION: interop failure — 0% recovery, check Ft8LibInterop.cs",
+            < 55.0 => $"DECISION: regression — {recoveryRate:F1}% is below ~66.6% baseline",
+            _      => $"STATUS: nominal — {recoveryRate:F1}% (iterative subtraction gap is accepted)"
+        });
 
         // ── This test always passes — it is a measurement tool, not a gate ───
         // The real gate is RealSignalFixtureTests which asserts specific messages.
