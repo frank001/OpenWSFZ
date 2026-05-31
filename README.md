@@ -145,11 +145,12 @@ the synthetic encoder used in those fixtures emits free-text FT8 frames (i3=0)
 which `ft8_lib` correctly rejects; correctness for real signals is covered by
 the `RealSignalFixtureTests` ground-truth suite (G6 gate).
 
-All three CI gates pass on every platform:
+All four CI gates pass on every platform:
 
 - **G1** — `dotnet build` with zero warnings
 - **G3** — Requirement traceability (every FR/NFR ID mapped to a test)
 - **G5** — Dependency licence inventory (MIT / Apache-2.0 / BSD only)
+- **G6** — Real off-air signal recovery: three committed 40 m band fixture WAVs decoded against WSJT-X answer keys on Windows x64, Linux x64, and macOS ARM64
 
 ## Architecture
 
