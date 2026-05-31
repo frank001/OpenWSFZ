@@ -21,16 +21,12 @@ namespace OpenWSFZ.Ft8.Tests;
 /// recording. This test asserts that <see cref="Ft8Decoder.DecodeAsync"/> recovers
 /// those signals.
 ///
-/// <para><strong>This test is expected to be RED</strong> until the decoder is
-/// fixed in a follow-on change (Phase 2A — port <c>ft8_lib</c>, or Phase 2B —
-/// patch). A red result here is not a broken test — it is the measurement proving
-/// the decoder cannot decode real off-air FT8 signals, as documented in
-/// <c>RECOVERY_PLAN.md</c> and <c>findings.md</c>.</para>
-///
-/// <para>Gate G6 (NFR-016): this test runs in CI on every push and PR to
-/// <c>main</c>. Once the decoder is fixed in a later change and this test goes
-/// green, it must remain green — any regression that makes it red again will
-/// block merge.</para>
+/// <para><strong>This test is expected to remain GREEN.</strong> The decoder is the
+/// thin C# wrapper around the reference <c>ft8_lib</c> C library (MIT / kgoba),
+/// compiled as a native shared library and loaded via <c>Ft8LibInterop.cs</c>. The
+/// homegrown DSP that could not decode real signals has been replaced (Phase 2A —
+/// <c>p12-ft8lib-port</c>). Any regression that makes this test red is a genuine
+/// defect and will block merge via Gate G6 (NFR-016).</para>
 /// </summary>
 public sealed class RealSignalFixtureTests
 {
@@ -73,7 +69,7 @@ public sealed class RealSignalFixtureTests
 
         // ── Assert answer-key subset is recovered ─────────────────────────────
         // Each expected message must appear in the decoded results.
-        // This test is expected RED until the decoder is fixed (RECOVERY_PLAN.md §5).
+        // G6 gate — this assertion must remain GREEN (NFR-016).
         foreach (string expected in expectedMessages)
         {
             decodedMessages.Should().Contain(expected,
