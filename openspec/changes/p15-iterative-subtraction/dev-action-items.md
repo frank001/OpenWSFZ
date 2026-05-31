@@ -284,3 +284,298 @@ p15 worsens the exposure and the fix is a single line.
 - [x] R3-1 — `ftx_message_decode` called before dedup slot is written; `libft8.dll` + `libft8.so` rebuilt; test suite green (213 passed, 4 skipped)
 - [x] R3-2 — `hash_table_add` overflow guard added; `libft8.dll` + `libft8.so` rebuilt
 - [x] Re-submit to QA for sign-off
+
+---
+
+---
+
+# Round 4 — QA Review (2026-05-31)
+
+**Source:** QA Review — high-effort multi-angle code review (7 finder angles + verifier pass)
+
+---
+
+## 🔴 Required Before Merge
+
+### R4-1 — Increase `MaxResults` to match two-pass output capacity
+
+**File:** `src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs`
+**Line:** 33
+
+**The bug:**
+
+`MaxResults = 140` was set equal to `K_MAX_CANDIDATES` (the single-pass candidate limit) and
+was never updated when the two-pass loop was added. The managed result buffer is passed to
+the native shim as `max_results = 140`. In `ft8_shim.c` the inner loop guards:
+
+```c
+for (int ci = 0; ci < ncands && num_decoded < max_results; ++ci)
+```
+
+If pass 1 decodes all 140 messages (`num_decoded == 140 == max_results`), the pass-2 inner
+loop condition is `false` at `ci = 0`. Every pass-2 candidate is skipped. `tls_pass_counts[1]`
+is `0`. The iterative subtraction feature produces no extra decodes regardless of how many
+signals are masked on the band.
+
+**Fix — one line, no native rebuild required:**
+
+```csharp
+// Before
+private const int MaxResults = 140;
+
+// After
+private const int MaxResults = 340;   // K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2 (two-pass capacity)
+```
+
+The `results[..count]` slice at the call site already returns only the populated portion;
+enlarging the buffer is safe and requires no other change.
+
+> **Rebuild required:** none — this is a managed-only change.
+
+---
+
+### R4-2 — Fix `MaxDecodePasses` / `K_MAX_PASSES` drift exposure
+
+**File:** `src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs`
+**Line:** 40
+
+**The problem:**
+
+`internal const int MaxDecodePasses = 2` (C#) and `#define K_MAX_PASSES 2` (C) are two
+independent literals. `GetLastPassCounts(MaxDecodePasses)` passes `capacity = 2` to the
+native shim, which clamps its return value to `min(tls_num_passes, capacity)`. If the native
+shim is ever rebuilt with `K_MAX_PASSES = 3` while the managed constant stays at 2, pass 3's
+count data is silently dropped — no exception, no diagnostic.
+
+The existing ABI version check (`ExpectedShimVersion`) verifies struct layout but has no
+channel for communicating `K_MAX_PASSES`.
+
+**Fix — expose `K_MAX_PASSES` from the native shim and verify it at initialisation time.**
+
+**Step 1 — add to `ft8_shim.h`:**
+
+```c
+/* Return the number of decode passes executed per ft8_decode_all call.
+ * Managed layer verifies this matches its own MaxDecodePasses constant. */
+int ft8_get_max_passes(void);
+```
+
+**Step 2 — add to `ft8_shim.c`:**
+
+```c
+int ft8_get_max_passes(void) { return K_MAX_PASSES; }
+```
+
+**Step 3 — add export to all three platform link commands in `BUILD.md`:**
+
+```
+/EXPORT:ft8_get_max_passes          (Windows)
+ft8_get_max_passes.o                (Linux / macOS — no separate export syntax needed for shared libs)
+```
+
+**Step 4 — add P/Invoke and init check to `Ft8LibInterop.cs`:**
+
+```csharp
+[DllImport("libft8.dll", EntryPoint = "ft8_get_max_passes", CallingConvention = CallingConvention.Cdecl)]
+private static extern int NativeGetMaxPasses();
+```
+
+In `LoadAndVerify()`, after the existing version check:
+
+```csharp
+int nativeMaxPasses = NativeGetMaxPasses();
+if (nativeMaxPasses != MaxDecodePasses)
+    throw new InvalidOperationException(
+        $"Native K_MAX_PASSES ({nativeMaxPasses}) does not match managed MaxDecodePasses ({MaxDecodePasses}). " +
+        "Rebuild the native library or update the managed constant.");
+```
+
+This follows exactly the same pattern as the existing `ExpectedShimVersion` / `NativeVersionCheck()`
+check and requires no further changes to the decode path.
+
+> **Rebuild required:** yes — `ft8_shim.c` and `ft8_shim.h` are modified.
+> Rebuild `libft8.dll` (Windows) and `libft8.so` (Linux). macOS dylib via CI on push.
+> Bump `FT8_SHIM_VERSION` only if the struct layout or an existing function signature changes;
+> adding a new export alone does not require a version bump.
+
+---
+
+## 🟡 Recommended (Strong — Apply Before Merge)
+
+### R4-3 — Add early-exit guard to outer pass loop when result buffer is full
+
+**File:** `src/OpenWSFZ.Ft8/Native/ft8_shim.c`
+**Line:** 262 (outer pass loop)
+
+When `num_decoded >= max_results` at the start of a pass, the outer loop still calls
+`ftx_find_candidates` (a full waterfall scan, ~1–2 ms) and allocates the candidate array on
+the stack before the inner loop immediately exits on its first iteration. This is pure waste.
+
+**Fix — add one guard at the top of the outer loop body:**
+
+```c
+for (int pass = 0; pass < K_MAX_PASSES; pass++)
+{
+    /* Skip candidate search if the output buffer is already full.
+     * Record zero new decodes for this pass so TLS stats remain consistent. */
+    if (num_decoded >= max_results) {
+        tls_pass_counts[pass] = 0;
+        tls_num_passes        = pass + 1;
+        continue;
+    }
+
+    int pass_max_cands = k_pass_cfg[pass].max_cands;
+    ...
+```
+
+> **Rebuild required:** yes — `ft8_shim.c` is modified.
+
+---
+
+### R4-4 — Fix misleading `{Max}` denominator in per-pass log
+
+**File:** `src/OpenWSFZ.Ft8/Ft8Decoder.cs`
+**Line:** 140
+
+The log message hard-codes `Ft8LibInterop.MaxDecodePasses` as the `{Max}` field rather than
+the number of passes actually executed. If the native library runs fewer passes than
+`MaxDecodePasses` (e.g. after R4-2 is applied and a mismatch causes early return), the log
+reads `"pass 1 of 2"` with no `"pass 2 of 2"` entry — an operator cannot tell whether pass 2
+ran or not.
+
+**Fix — replace the constant with `passCounts.Length`:**
+
+```csharp
+// Before
+passIdx + 1, Ft8LibInterop.MaxDecodePasses, passCounts[passIdx]
+
+// After
+passIdx + 1, passCounts.Length, passCounts[passIdx]
+```
+
+`passCounts.Length` is always authoritative: it reflects what `GetLastPassCounts` actually
+returned from this run, not a compile-time assumption.
+
+> **Rebuild required:** none — managed-only change.
+
+---
+
+### R4-5 — Add a real-signal regression test for pass-2 recovery
+
+**File:** `tests/OpenWSFZ.Ft8.Tests/Ft8LibInteropTests.cs`
+
+The only new test (`GetLastPassCounts_AfterDecodeAllOnSilentBuffer_ReturnsTwoZeroCounts`)
+validates TLS plumbing on a silent buffer. It would pass even if `suppress_candidate_tiles`
+were a no-op, or if `K_MIN_SCORE_PASS2` were set to `INT_MAX`. There is no living regression
+test for the core p15 feature — that pass 2 actually decodes additional signals that pass 1
+missed.
+
+**Required test:**
+
+Using any one of the three committed real-signal fixture WAVs, add a test that:
+
+1. Calls `Ft8LibInterop.DecodeAll` on the fixture PCM.
+2. Calls `Ft8LibInterop.GetLastPassCounts(2)` on the same thread.
+3. Asserts `passCounts[0] > 0` (pass 1 found something on a real-signal fixture).
+4. Asserts `passCounts[0] + passCounts[1]` equals the total decode count returned by
+   `DecodeAll` (spec requirement: sum of pass counts equals total returned).
+
+The fourth assertion is an explicit spec requirement from `specs/ft8lib-interop/spec.md` and
+is not currently exercised by any test. It is also the most likely invariant to break silently
+if R4-1 or R4-3 introduce a regression.
+
+> **Rebuild required:** none.
+
+---
+
+## 🟠 Cleanup — Apply This PR (Low Effort)
+
+### R4-6 — Suppress `supp_cands` / `supp_msgs` tracking in the final pass
+
+**File:** `src/OpenWSFZ.Ft8/Native/ft8_shim.c`
+**Lines:** 353–358 (suppression tracking block inside the inner loop)
+
+With `K_MAX_PASSES = 2`, `pass = 1` is always the final pass.  The suppression guard
+`if (pass < K_MAX_PASSES - 1)` is `if (1 < 1)` — always false.  Despite this, `supp_cands`
+and `supp_msgs` are still allocated and populated on every successful decode in pass 2 (up to
+200 struct copies), then silently discarded when the loop body exits.
+
+**Fix — gate the tracking on whether suppression will actually run:**
+
+```c
+/* Track for suppression — only needed when a subsequent pass will use the data. */
+if (pass < K_MAX_PASSES - 1 && nsupp < K_MAX_CANDIDATES_PASS2) {
+    supp_cands[nsupp] = *cand;
+    supp_msgs[nsupp]  = msg;
+    nsupp++;
+}
+```
+
+> **Rebuild required:** yes — `ft8_shim.c` is modified. Bundle with R4-3 to avoid a
+> separate rebuild cycle.
+
+---
+
+### R4-7 — Correct stale macOS build date in `libft8.version.txt`
+
+**File:** `src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt`
+**Line:** 17
+
+The macOS ARM64 entry reads:
+
+```
+Build date:       TBD — will be rebuilt by CI on push (probe-limit fix applied to ft8_shim.c)
+```
+
+The dylib was rebuilt by CI in commit `aa54b9e` (`chore(ci): rebuild libft8.dylib on macOS
+ARM64 — R3-2b probe-limit fix`). Update this entry to reflect the actual build, consistent
+with the Windows and Linux entries:
+
+```
+Build date:       2026-05-31 (p15 rebuild via CI macos-latest — iterative subtraction;
+                  R3-2b probe-limit fix; ft8_shim.c FT8_SHIM_VERSION=20260001)
+```
+
+> **Rebuild required:** none — documentation only.
+
+---
+
+## ⚪ Noted — No Action Required This PR
+
+| # | Item |
+|---|---|
+| N-5 | `GetLastPassCounts` returns `[]` when called on a thread that has never run `DecodeAll`. Silent but correct: `tls_num_passes = 0` is the correct default TLS state. Add a `Debug.Assert` or note in a future hardening pass if desired. |
+
+---
+
+## Rebuild and test sequence for this round
+
+R4-2, R4-3, and R4-6 all touch `ft8_shim.c`. Bundle them into a single rebuild:
+
+```
+1. Apply R4-1 (Ft8LibInterop.cs — MaxResults)
+2. Apply R4-2 steps 1–2 (ft8_shim.h + ft8_shim.c — ft8_get_max_passes)
+3. Apply R4-3 (ft8_shim.c — early-exit guard)
+4. Apply R4-6 (ft8_shim.c — supp tracking gate)
+5. Rebuild libft8.dll (Windows MSVC) and libft8.so (Linux GCC)
+6. Apply R4-2 steps 3–4 (BUILD.md export + Ft8LibInterop.cs P/Invoke + init check)
+7. Apply R4-4 (Ft8Decoder.cs — log denominator)
+8. Apply R4-5 (Ft8LibInteropTests.cs — real-signal test)
+9. Apply R4-7 (version.txt — macOS date)
+10. dotnet build -c Release → 0 errors, 0 warnings
+11. dotnet test -c Release → all green
+12. Push branch; confirm CI green on all three legs; re-submit to QA
+```
+
+---
+
+## Checklist
+
+- [x] R4-1 — `MaxResults` increased to 340; test suite green
+- [x] R4-2 — `ft8_get_max_passes()` export added; `LoadAndVerify` checks it; `libft8.dll` + `libft8.so` rebuilt
+- [x] R4-3 — Early-exit guard added to outer pass loop; bundled into R4-2 rebuild
+- [x] R4-4 — Log `{Max}` uses `passCounts.Length`
+- [x] R4-5 — Real-signal test added; sum-of-pass-counts assertion present
+- [x] R4-6 — `supp_cands`/`supp_msgs` tracking gated on `pass < K_MAX_PASSES - 1`; bundled into R4-2 rebuild
+- [x] R4-7 — `libft8.version.txt` macOS entry updated
+- [ ] Re-submit to QA for sign-off

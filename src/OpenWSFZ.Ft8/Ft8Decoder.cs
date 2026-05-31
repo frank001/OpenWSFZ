@@ -137,7 +137,7 @@ public sealed class Ft8Decoder : IModeDecoder
         {
             _logger?.LogDebug(
                 "Iterative subtraction: pass {Pass} of {Max}, {K} new decodes.",
-                passIdx + 1, Ft8LibInterop.MaxDecodePasses, passCounts[passIdx]);
+                passIdx + 1, passCounts.Length, passCounts[passIdx]);
         }
 
         // ── Diagnostic log ───────────────────────────────────────────────────
