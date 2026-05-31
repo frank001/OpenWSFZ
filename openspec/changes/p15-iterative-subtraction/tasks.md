@@ -69,7 +69,7 @@
 
 - [x] 9.1 Stage and commit all changes
 - [x] 9.2 Push branch; open draft PR; wait for CI green on all three legs
-- [ ] 9.3 If G6 fails on macOS (binary rebuild needed): use CI workflow_dispatch to rebuild dylib
+- [x] 9.3 If G6 fails on macOS (binary rebuild needed): use CI workflow_dispatch to rebuild dylib
 
 ## 10. QA Review and Merge
 
