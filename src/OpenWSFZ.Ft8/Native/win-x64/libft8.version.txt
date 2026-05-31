@@ -13,7 +13,7 @@ Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_count
 --- Windows x64 ---
 Compiler:         MSVC 19.51.36246 (Visual Studio 18 / VS 2026)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-05-31 (p15 rebuild — iterative subtraction; R-3 cast cleanup; R3-1 dedup order fix; R3-2 hash table overflow guard)
+Build date:       2026-05-31 (p15 rebuild — iterative subtraction; R-3 cast cleanup; R3-1 dedup order fix; R3-2 hash_table_add guard; R3-2b hash_table_lookup probe-limit guard)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
 Sources:          native/ft8_lib @ msvc-compat (d18ed84) + src/OpenWSFZ.Ft8/Native/ft8_shim.c
@@ -23,14 +23,14 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       2026-05-31 (p15 rebuild — iterative subtraction; R3-1 dedup order fix; R3-2 hash table overflow guard)
+Build date:       2026-05-31 (p15 rebuild — iterative subtraction; R3-1 dedup order fix; R3-2 hash_table_add guard; R3-2b hash_table_lookup probe-limit guard)
 Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
 Sources:          native/ft8_lib @ 50ee0c0 (upstream 2.0, VLAs supported) + ft8_shim.c
 
 --- macOS ARM64 ---
 Compiler:         Apple clang (macos-latest GitHub Actions runner, ARM64)
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC -target arm64-apple-macos11.0
-Build date:       TBD — rebuilt by CI on first push of feat/p15-iterative-subtraction
+Build date:       TBD — will be rebuilt by CI on push (probe-limit fix applied to ft8_shim.c)
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
 Sources:          native/ft8_lib @ 50ee0c0 + ft8_shim.c (FT8_SHIM_VERSION=20260001)
 Note:             encode.c is now included in the build (required for ft8_encode in shim)
