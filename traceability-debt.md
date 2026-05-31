@@ -38,6 +38,9 @@ NFR-012  # Accessibility — semantic HTML, keyboard navigation, sufficient cont
 
 ## Pending — Phase 6 (Polish / UX)
 
+FR-030  # Logging configuration hot-reload — all logging settings changes take effect
+        # immediately on save without requiring a restart. Planned for p16.
+
 FR-013  # CSS-file-based theming — edit CSS files on disk; no in-app switcher in v1
 FR-016  # Strict UI visibility rule — no placeholders, no greyed-out future controls
 FR-018  # Cycle countdown timer (testing aid) — Settings toggle, persisted in AppConfig.ShowCycleCountdown
