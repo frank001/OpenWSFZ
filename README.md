@@ -17,13 +17,13 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.11**. v0.x is a tightly scoped proof of concept:
-> FT8 receive-only decoding, loopback-only web UI, single operator.
-> v1.0 is reached when the software can make a confirmed two-way contact
-> (RX + CAT control + TX). Transmit, rig control, LAN/remote operation, and
-> the wider mode menu are deferred to v1.0+.
+> The current release is **v0.15**. v0.x scope: FT8 receive and transmit,
+> CAT rig control, loopback-only web UI, single operator.
+> v1.0 is reached when the software can complete a confirmed two-way contact
+> end-to-end (RX + CAT rig control + TX). LAN/remote operation and the wider
+> mode menu are deferred to v1.0+.
 
-All fourteen development phases to date are merged and archived. FT8 decoding
+All fifteen development phases to date are merged and archived. FT8 decoding
 is **fully functional** against live audio and recorded fixtures.
 
 | Phase | Deliverable | State |
@@ -42,6 +42,7 @@ is **fully functional** against live audio and recorded fixtures.
 | p12 — ft8_lib port | Production P/Invoke decoder; full UAT-01 sign-off | ✅ merged |
 | p13 — Cross-platform decoder | libft8.so (Linux x64) + libft8.dylib (macOS ARM64) | ✅ merged |
 | p14 — Decode start/stop | FR-017: controlled decode lifecycle; CancellationToken wiring | ✅ merged |
+| p15 — Iterative subtraction | Spectrogram-domain second-pass decoder; 69.1% recovery rate | ✅ merged |
 
 ## What works today
 
@@ -135,8 +136,8 @@ The build and test suite has been verified on all three target platforms:
 
 | Platform | Build | Tests | CI |
 |---|---|---|---|
-| Windows x64 | ✅ 0 warnings | ✅ 208 passed, 4 skipped | ✅ GitHub Actions |
-| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 208 passed, 4 skipped | ✅ GitHub Actions |
+| Windows x64 | ✅ 0 warnings | ✅ 213 passed, 4 skipped | ✅ GitHub Actions |
+| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 213 passed, 4 skipped | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
 
 The 4 skipped tests in `OpenWSFZ.Ft8.Tests` are intentional and documented:
