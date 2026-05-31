@@ -1,5 +1,6 @@
-ft8_lib source:   kgoba/ft8_lib tag 2.0 (commit 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20240001
+ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
+                  (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
+Shim version:     FT8_SHIM_VERSION = 20260001 (p15: iterative subtraction)
 sizeof(FT8Result): 48 bytes
 SNR formula:      noise-floor based (R5/R6) — waterfall median noise floor + per-candidate
                   max-over-8-tones signal level; SNR = signal_db - noise_db - 26
@@ -7,24 +8,29 @@ SNR formula:      noise-floor based (R5/R6) — waterfall median noise floor + p
                   R6 post-correction: if SNR < -10 dB, subtract 8 dB (compensates for the
                   ~8 dB order-statistic upward bias of max-over-8 noise samples at very
                   weak signals: WSJT-X SNR ≤ -20 dB). See r6-snr-weak-signal.md.
+Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_counts
 
 --- Windows x64 ---
 Compiler:         MSVC 19.51.36246 (Visual Studio 18 / VS 2026)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-05-30 (R6 rebuild)
+Build date:       2026-05-31 (p15 rebuild — iterative subtraction)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
+Sources:          native/ft8_lib @ msvc-compat (d18ed84) + src/OpenWSFZ.Ft8/Native/ft8_shim.c
 
 --- Linux x64 ---
 Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       2026-05-30
-Patches:          none — unpatched kgoba/ft8_lib sources used directly
+Build date:       2026-05-31 (p15 rebuild — iterative subtraction)
+Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
+Sources:          native/ft8_lib @ 50ee0c0 (upstream 2.0, VLAs supported) + ft8_shim.c
 
 --- macOS ARM64 ---
 Compiler:         Apple clang (macos-latest GitHub Actions runner, ARM64)
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC -target arm64-apple-macos11.0
-Build date:       2026-05-30 (one-shot workflow_dispatch on macos-latest, run 26694075246)
+Build date:       TBD — rebuilt by CI on first push of feat/p15-iterative-subtraction
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
+Sources:          native/ft8_lib @ 50ee0c0 + ft8_shim.c (FT8_SHIM_VERSION=20260001)
+Note:             encode.c is now included in the build (required for ft8_encode in shim)

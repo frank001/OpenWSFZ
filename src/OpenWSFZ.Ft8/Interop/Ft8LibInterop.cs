@@ -27,7 +27,7 @@ internal static class Ft8LibInterop
     /// The compile-time version constant embedded in the shim (<c>FT8_SHIM_VERSION</c>).
     /// Must match the value returned by <c>ft8_lib_version_check()</c>.
     /// </summary>
-    private const int ExpectedShimVersion = 20240001;
+    private const int ExpectedShimVersion = 20260001;
 
     /// <summary>Maximum number of decoded messages per cycle.</summary>
     private const int MaxResults = 140;
@@ -57,15 +57,30 @@ internal static class Ft8LibInterop
     /// </returns>
     [DllImport("libft8.dll", EntryPoint = "ft8_decode_all", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeDecodeAll(
-        [In] float[]        pcm,
-        int                 pcmLen,
+        [In] float[]            pcm,
+        int                     pcmLen,
         [Out] Ft8NativeResult[] results,
-        int                 maxResults);
+        int                     maxResults);
+
+    /// <summary>
+    /// Return per-pass new-decode counts from the most recent
+    /// <see cref="NativeDecodeAll"/> call on this thread.
+    /// </summary>
+    /// <param name="counts">Caller-allocated output array.</param>
+    /// <param name="capacity">Size of <paramref name="counts"/>.</param>
+    /// <returns>Number of passes actually executed (≤ <paramref name="capacity"/>).</returns>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_pass_counts", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastPassCounts(
+        [Out] int[] counts,
+        int         capacity);
 
     // ── Public API ───────────────────────────────────────────────────────
 
     /// <summary>
     /// Decode all FT8 signals from a 180 000-sample PCM buffer.
+    /// Performs <c>K_MAX_PASSES</c> (currently 2) decode passes internally:
+    /// a first pass on the original waterfall and a second pass on the
+    /// residual after suppressing decoded signal tiles.
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1].</param>
     /// <returns>Array of decoded results (may be empty; never null).</returns>
@@ -95,6 +110,28 @@ internal static class Ft8LibInterop
 
         // Return only the populated slice.
         return results[..count];
+    }
+
+    /// <summary>
+    /// Return per-pass new-decode counts from the most recent
+    /// <see cref="DecodeAll"/> call on this thread.
+    /// Must be called on the same thread that called <see cref="DecodeAll"/>.
+    /// </summary>
+    /// <param name="maxPasses">Maximum number of passes to query (array capacity).</param>
+    /// <returns>
+    /// Array of length equal to the number of passes actually executed,
+    /// where <c>result[i]</c> is the number of new (non-duplicate) messages
+    /// decoded in pass <c>i</c> (0-indexed). Sum equals the total returned
+    /// by <see cref="DecodeAll"/>.
+    /// </returns>
+    public static int[] GetLastPassCounts(int maxPasses)
+    {
+        EnsureInitialized();
+
+        var counts = new int[maxPasses];
+        int numPasses = NativeGetLastPassCounts(counts, maxPasses);
+        if (numPasses <= 0) return [];
+        return counts[..numPasses];
     }
 
     // ── Lazy initialisation ──────────────────────────────────────────────

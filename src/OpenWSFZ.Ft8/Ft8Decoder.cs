@@ -24,8 +24,15 @@ namespace OpenWSFZ.Ft8;
 /// </summary>
 public sealed class Ft8Decoder : IModeDecoder
 {
-    private const int ExpectedSampleCount = 180_000;   // 15 s × 12 000 Hz
-    private const float SilenceRmsThreshold = 1e-6f;   // all-zero codeword guard
+    private const int   ExpectedSampleCount  = 180_000;  // 15 s × 12 000 Hz
+    private const float SilenceRmsThreshold = 1e-6f;    // all-zero codeword guard
+
+    /// <summary>
+    /// Number of decode passes performed by the native shim (K_MAX_PASSES).
+    /// Must match the <c>K_MAX_PASSES</c> constant in <c>ft8_shim.c</c>.
+    /// Used when querying per-pass stats via <see cref="Ft8LibInterop.GetLastPassCounts"/>.
+    /// </summary>
+    private const int MaxDecodePasses = 2;
 
     private readonly IClock              _clock;
     private readonly ILogger<Ft8Decoder>? _logger;
@@ -90,7 +97,14 @@ public sealed class Ft8Decoder : IModeDecoder
         // not pin the async continuation's synchronisation context.
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
-        Ft8NativeResult[] native = await Task.Run(() => Ft8LibInterop.DecodeAll(pcm), ct);
+        Ft8NativeResult[] native;
+        int[]             passCounts;
+        (native, passCounts) = await Task.Run(() =>
+        {
+            var r = Ft8LibInterop.DecodeAll(pcm);
+            var p = Ft8LibInterop.GetLastPassCounts(MaxDecodePasses);
+            return (r, p);
+        }, ct);
 
         sw.Stop();
 
@@ -122,6 +136,18 @@ public sealed class Ft8Decoder : IModeDecoder
                 Dt:      Math.Round(nr.Dt, 1),
                 FreqHz:  nr.FreqHz,
                 Message: nr.Message));
+        }
+
+        // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────
+        // Log once per pass: "Iterative subtraction: pass N of max, K new decodes"
+        if (_logger?.IsEnabled(LogLevel.Debug) == true)
+        {
+            for (int passIdx = 0; passIdx < passCounts.Length; passIdx++)
+            {
+                _logger.LogDebug(
+                    "Iterative subtraction: pass {Pass} of {Max}, {K} new decodes.",
+                    passIdx + 1, MaxDecodePasses, passCounts[passIdx]);
+            }
         }
 
         // ── Diagnostic log ───────────────────────────────────────────────────
