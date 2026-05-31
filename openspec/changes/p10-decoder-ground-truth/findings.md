@@ -1,6 +1,6 @@
 ﻿# p10 Recovery-Rate Findings
 
-**Date:** 2026-05-31 15:10:24 UTC
+**Date:** 2026-05-31 16:04:12 UTC
 **Corpus:** 42 × 15-second WAVs, 12 kHz mono int16, 7.074 MHz
 **WSJT-X answer keys:** 887 total decodes across 42 cycles
 
@@ -65,4 +65,4 @@
 
 Recovery rate is **69.1%** — within normal operating range.
 
-**Status: nominal.** The ~33% miss rate relative to WSJT-X is a known, accepted limitation of ft8_lib not implementing iterative subtraction (second-pass decoder). This is a product-level decision deferred to a future change. No action required.
+**Status: nominal.** Iterative signal subtraction was implemented in p15 (`p15-iterative-subtraction`) using spectrogram-domain ±1-bin narrow suppression. The remaining ~31% gap to WSJT-X is the ceiling of the spectrogram-domain approach: FFT-waterfall ±3.125 Hz frequency resolution prevents coherent PCM-domain waveform cancellation. Closing the remaining gap requires sub-Hz carrier-frequency estimation and PCM-domain waveform subtraction, scheduled as a future change.
