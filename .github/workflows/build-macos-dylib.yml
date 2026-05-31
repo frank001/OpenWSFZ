@@ -12,6 +12,9 @@ on:
         required: true
         default: 'feat/p15-iterative-subtraction'
 
+permissions:
+  contents: write   # required to push the committed dylib back to the branch
+
 jobs:
   build-dylib:
     name: Build libft8.dylib (macOS ARM64)
