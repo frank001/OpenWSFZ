@@ -32,7 +32,7 @@ public sealed class CycleFramerTests
 
         // Drain two windows.
         var windows = new List<float[]>();
-        await foreach (var (pcm, _) in outputReader.Item1.ReadAllAsync(cts.Token))
+        await foreach (var (pcm, _, _) in outputReader.Item1.ReadAllAsync(cts.Token))
         {
             windows.Add(pcm);
             if (windows.Count >= 2) break;
@@ -77,7 +77,7 @@ public sealed class CycleFramerTests
         await producer;
 
         float[]? window = null;
-        await foreach (var (pcm, _) in outputReader.Item1.ReadAllAsync(cts.Token))
+        await foreach (var (pcm, _, _) in outputReader.Item1.ReadAllAsync(cts.Token))
         {
             window = pcm;
             break;
@@ -143,7 +143,7 @@ public sealed class CycleFramerTests
     {
         var clock  = new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         var source = Channel.CreateUnbounded<float[]>();
-        var output = Channel.CreateUnbounded<(float[], DateTime)>();
+        var output = Channel.CreateUnbounded<(float[], DateTime, double?)>();
         var framer = new CycleFramer(source.Reader, clock);
 
         using var cts = new CancellationTokenSource();
@@ -155,7 +155,7 @@ public sealed class CycleFramerTests
 
         // The output channel must remain writable so the next StartPipeline call's
         // framer can deliver windows to the existing decode pump.
-        output.Writer.TryWrite((new float[180_000], DateTime.UtcNow)).Should().BeTrue(
+        output.Writer.TryWrite((new float[180_000], DateTime.UtcNow, null)).Should().BeTrue(
             "a natural source-end (device failure) must not complete the output channel; " +
             "the decode pump must survive to accept windows from the next StartPipeline call");
     }
@@ -167,7 +167,7 @@ public sealed class CycleFramerTests
     {
         var clock  = new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         var source = Channel.CreateUnbounded<float[]>();
-        var output = Channel.CreateUnbounded<(float[], DateTime)>();
+        var output = Channel.CreateUnbounded<(float[], DateTime, double?)>();
         var framer = new CycleFramer(source.Reader, clock);
 
         using var cts = new CancellationTokenSource();
@@ -177,7 +177,7 @@ public sealed class CycleFramerTests
         await runTask;
 
         // Output channel must still be writable — the decode pump should survive a restart.
-        output.Writer.TryWrite((new float[180_000], DateTime.UtcNow)).Should().BeTrue(
+        output.Writer.TryWrite((new float[180_000], DateTime.UtcNow, null)).Should().BeTrue(
             "cancelling the framer for a device restart must not complete the output channel");
     }
 
@@ -200,7 +200,7 @@ public sealed class CycleFramerTests
         await producerTask;
 
         DateTime? emittedCycleStart = null;
-        await foreach (var (_, cycleStart) in outputReader.Item1.ReadAllAsync(cts.Token))
+        await foreach (var (_, cycleStart, _) in outputReader.Item1.ReadAllAsync(cts.Token))
         {
             emittedCycleStart = cycleStart;
             break;
@@ -233,7 +233,7 @@ public sealed class CycleFramerTests
         await producerTask;
 
         DateTime? emittedCycleStart = null;
-        await foreach (var (_, cycleStart) in outputReader.Item1.ReadAllAsync(cts.Token))
+        await foreach (var (_, cycleStart, _) in outputReader.Item1.ReadAllAsync(cts.Token))
         {
             emittedCycleStart = cycleStart;
             break;
@@ -247,16 +247,114 @@ public sealed class CycleFramerTests
             "when starting 7 s into a cycle, CycleStart must be the :00 boundary (not :07)");
     }
 
+    // ── P16-Cat: dialFreqProvider tests (defect: dial-freq-snapshot) ─────────
+
+    [Fact(DisplayName = "P16-Cat: dialFreqProvider=null emits null DialFrequencyMHz in every window")]
+    public async Task RunAsync_NullProvider_EmitsNullDialFrequency()
+    {
+        var clock  = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));
+        var source = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<(float[], DateTime, double?)>();
+        // No dialFreqProvider supplied.
+        var framer = new CycleFramer(source.Reader, clock);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        _ = Task.Run(() => framer.RunAsync(output.Writer, cts.Token));
+
+        await FeedSamples((source.Writer, source.Reader), SamplesPerCycle, 4096);
+
+        bool    got          = false;
+        double? emittedFreq  = null;
+        await foreach (var (_, _, dialFreq) in output.Reader.ReadAllAsync(cts.Token))
+        {
+            got         = true;
+            emittedFreq = dialFreq;
+            break;
+        }
+
+        cts.Cancel();
+
+        got.Should().BeTrue("framer should have emitted at least one window");
+        emittedFreq.Should().BeNull("null dialFreqProvider must emit null DialFrequencyMHz");
+    }
+
+    [Fact(DisplayName = "P16-Cat: dialFreqProvider value is carried in emitted tuple")]
+    public async Task RunAsync_WithProvider_EmitsSuppliedDialFrequency()
+    {
+        var clock  = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));
+        var source = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<(float[], DateTime, double?)>();
+        var framer = new CycleFramer(source.Reader, clock, dialFreqProvider: () => 14.074);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        _ = Task.Run(() => framer.RunAsync(output.Writer, cts.Token));
+
+        await FeedSamples((source.Writer, source.Reader), SamplesPerCycle, 4096);
+
+        bool    got         = false;
+        double? emittedFreq = null;
+        await foreach (var (_, _, dialFreq) in output.Reader.ReadAllAsync(cts.Token))
+        {
+            got         = true;
+            emittedFreq = dialFreq;
+            break;
+        }
+
+        cts.Cancel();
+
+        got.Should().BeTrue("framer should have emitted at least one window");
+        emittedFreq.Should().Be(14.074, "provider value must be carried in the emitted tuple");
+    }
+
+    [Fact(DisplayName = "P16-Cat: dial frequency is snapshotted at window-open time, not window-close time")]
+    public async Task RunAsync_FrequencyChangesAfterWindowOpen_SnapshotIsWindowOpenValue()
+    {
+        // Provider: call 1 (startup = window-0 open) returns 14.074,
+        //           call 2 (window-1 open, after first emission) returns 7.074.
+        // If the snapshot were taken at window-CLOSE (wrong), the first emitted tuple would
+        // carry 14.074 from call 1 — but the second tuple would still carry 14.074 (wrong)
+        // because call 2 would fire at window-1 close, not open.  The correct behaviour is:
+        // window-0 → 14.074 (call 1), window-1 → 7.074 (call 2).
+        int callCount = 0;
+        double? Provider() => ++callCount == 1 ? 14.074 : 7.074;
+
+        var clock  = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));
+        var source = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<(float[], DateTime, double?)>();
+        var framer = new CycleFramer(source.Reader, clock, dialFreqProvider: Provider);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        _ = Task.Run(() => framer.RunAsync(output.Writer, cts.Token));
+
+        // Feed two full windows worth of samples.
+        await FeedSamples((source.Writer, source.Reader), SamplesPerCycle * 2, 4096);
+
+        var emitted = new List<double?>();
+        await foreach (var (_, _, dialFreq) in output.Reader.ReadAllAsync(cts.Token))
+        {
+            emitted.Add(dialFreq);
+            if (emitted.Count >= 2) break;
+        }
+
+        cts.Cancel();
+
+        emitted.Should().HaveCount(2, "two full windows of samples must produce two emissions");
+        emitted[0].Should().Be(14.074,
+            "window-0 must carry the frequency snapshotted at startup (window-0 open time)");
+        emitted[1].Should().Be(7.074,
+            "window-1 must carry the frequency snapshotted immediately after window-0 was emitted (window-1 open time)");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static (
         (ChannelWriter<float[]> Writer, ChannelReader<float[]> Reader) Source,
         CycleFramer Framer,
-        (ChannelReader<(float[], DateTime)> Reader, ChannelWriter<(float[], DateTime)> Writer) Output)
+        (ChannelReader<(float[], DateTime, double?)> Reader, ChannelWriter<(float[], DateTime, double?)> Writer) Output)
         CreateFramer(FakeClock clock)
     {
         var source = Channel.CreateUnbounded<float[]>();
-        var output = Channel.CreateUnbounded<(float[], DateTime)>();
+        var output = Channel.CreateUnbounded<(float[], DateTime, double?)>();
         var framer = new CycleFramer(source.Reader, clock);
         return ((source.Writer, source.Reader), framer, (output.Reader, output.Writer));
     }

@@ -17,9 +17,17 @@ namespace OpenWSFZ.Ft8;
 /// </para>
 ///
 /// <para>
-/// Each emitted item is a <c>(float[] Pcm, DateTime CycleStart)</c> tuple where
-/// <c>CycleStart</c> is the UTC instant at which the 15-second window began.  The
-/// decode pump passes this value directly to <see cref="IModeDecoder.DecodeAsync"/>
+/// Each emitted item is a <c>(float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz)</c>
+/// tuple where <c>CycleStart</c> is the UTC instant at which the 15-second window began
+/// and <c>DialFrequencyMHz</c> is the dial frequency snapshot taken at that same instant
+/// (by invoking <c>dialFreqProvider</c>, if supplied).  Snapshotting at window-open time
+/// prevents band-change boundary mislabeling: if the operator changes bands mid-cycle the
+/// decode pump can detect the discrepancy and discard the window rather than logging it
+/// with wrong metadata.
+/// </para>
+///
+/// <para>
+/// The decode pump passes <c>CycleStart</c> directly to <see cref="IModeDecoder.DecodeAsync"/>
 /// so that timestamps in <see cref="DecodeResult"/> records reflect when the audio
 /// was <em>captured</em>, not when the decoder was invoked.
 /// </para>
@@ -38,21 +46,29 @@ public sealed class CycleFramer
     private readonly ChannelReader<float[]>  _source;
     private readonly IClock                  _clock;
     private readonly ILogger<CycleFramer>?   _logger;
+    private readonly Func<double?>?          _dialFreqProvider;
 
-    public CycleFramer(ChannelReader<float[]> source, IClock clock, ILogger<CycleFramer>? logger = null)
+    public CycleFramer(
+        ChannelReader<float[]>  source,
+        IClock                  clock,
+        ILogger<CycleFramer>?   logger           = null,
+        Func<double?>?          dialFreqProvider = null)
     {
-        _source = source;
-        _clock  = clock;
-        _logger = logger;
+        _source           = source;
+        _clock            = clock;
+        _logger           = logger;
+        _dialFreqProvider = dialFreqProvider;
     }
 
     /// <summary>
     /// Reads from the source channel, frames samples into 15-second UTC-aligned windows,
-    /// and writes each completed window (along with its cycle-start timestamp) to
-    /// <paramref name="output"/>.
+    /// and writes each completed window (along with its cycle-start timestamp and dial
+    /// frequency snapshot) to <paramref name="output"/>.
     /// Returns when the source channel completes or <paramref name="ct"/> is cancelled.
     /// </summary>
-    public async Task RunAsync(ChannelWriter<(float[] Pcm, DateTime CycleStart)> output, CancellationToken ct)
+    public async Task RunAsync(
+        ChannelWriter<(float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz)> output,
+        CancellationToken ct)
     {
         try
         {
@@ -68,6 +84,12 @@ public sealed class CycleFramer
             // so the framer — not the decoder — is the authoritative source of cycle
             // timestamps (R3: avoids the wall-clock race in Ft8Decoder).
             DateTime cycleStart = AlignToCycleStart(startUtc);
+
+            // Snapshot the dial frequency at window-open time (startup = open of first window).
+            // This prevents band-change boundary mislabeling: the decode pump compares this
+            // snapshot against the live frequency at decode time and discards the cycle if
+            // they differ (audio spans two bands).
+            double? windowDialFreq = _dialFreqProvider?.Invoke();
 
             _logger?.LogInformation(
                 "CycleFramer started; leading silence = {Samples} samples ({Seconds:F3} s), cycle start = {CycleStart:HH:mm:ss}.",
@@ -90,15 +112,20 @@ public sealed class CycleFramer
 
                     if (filled == SamplesPerCycle)
                     {
-                        // Window complete — emit it with its cycle-start timestamp.
-                        output.TryWrite((window, cycleStart));
+                        // Window complete — emit it with its cycle-start timestamp and
+                        // the dial frequency that was live when this window began accumulating.
+                        output.TryWrite((window, cycleStart, windowDialFreq));
                         _logger?.LogDebug("Window emitted ({Samples} samples, cycle {CycleStart:HH:mm:ss}).",
                             SamplesPerCycle, cycleStart);
 
-                        // Advance to the next cycle.
-                        window     = new float[SamplesPerCycle];
-                        filled     = 0;
-                        cycleStart = cycleStart.AddSeconds(CycleDurationSecs);
+                        // Advance to the next cycle and snapshot the frequency at the new
+                        // window-open boundary — not at window-close — so that a band change
+                        // that happens during the previous window is correctly attributed to
+                        // the next window, not the one just emitted.
+                        window         = new float[SamplesPerCycle];
+                        filled         = 0;
+                        cycleStart     = cycleStart.AddSeconds(CycleDurationSecs);
+                        windowDialFreq = _dialFreqProvider?.Invoke();
                     }
                 }
             }

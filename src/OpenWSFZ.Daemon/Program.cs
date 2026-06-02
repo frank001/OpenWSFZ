@@ -122,15 +122,16 @@ var catEventBus = new CatEventBus();
 var clock          = new SystemClock();
 var ft8Decoder     = new Ft8Decoder(clock, loggerFactory.CreateLogger<Ft8Decoder>());
 var decodeEventBus = new DecodeEventBus();
-// Inject catState so AllTxtWriter uses effective frequency (task 9.1, FR-032).
-var allTxtWriter   = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllTxtWriter>(), catState);
+// AllTxtWriter no longer holds a reference to ICatState; the caller (decode pump) supplies
+// the snapshotted dial frequency for each cycle (defect: dial-freq-snapshot, FR-032).
+var allTxtWriter = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllTxtWriter>());
 
-// Channel 1: CycleFramer → (float[] Pcm, DateTime CycleStart) windows → decode pump
-// CycleFramer records the cycle-start timestamp when the window begins accumulating;
-// the decode pump forwards it to DecodeAsync so that DecodeResult.Time reflects when
-// the audio was captured, not when the decoder was eventually invoked (R3).
+// Channel 1: CycleFramer → (float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz) windows → decode pump
+// CycleFramer records the cycle-start timestamp AND the dial frequency snapshot at window-open
+// time. The decode pump compares the snapshot against the current live frequency; if they differ
+// the cycle audio spans two bands and the window is discarded (defect: dial-freq-snapshot).
 // Channel 2: decode pump → DecodeEventBus (direct call, no channel needed)
-var framerOutput = Channel.CreateBounded<(float[] Pcm, DateTime CycleStart)>(new BoundedChannelOptions(2)
+var framerOutput = Channel.CreateBounded<(float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz)>(new BoundedChannelOptions(2)
 {
     FullMode     = BoundedChannelFullMode.DropOldest,
     SingleWriter = true,
@@ -253,15 +254,35 @@ app.Lifetime.ApplicationStarted.Register(() =>
     var stoppingToken = app.Lifetime.ApplicationStopping;
     _ = Task.Run(async () =>
     {
-        await foreach (var (pcmWindow, cycleStart) in framerOutput.Reader.ReadAllAsync(stoppingToken))
+        await foreach (var (pcmWindow, cycleStart, windowDialFreq) in
+            framerOutput.Reader.ReadAllAsync(stoppingToken))
         {
             try
             {
+                // Snapshot the live frequency immediately before decoding.
+                // If a band change occurred during the 15-second capture window, the audio
+                // spans two bands and cannot be reliably labeled with either frequency.
+                // Discard the cycle: a mislabeled decode is worse than no decode (FR-032,
+                // defect: dial-freq-snapshot).
+                var currentDialFreq = catState.DialFrequencyMHz;
+                if (windowDialFreq != currentDialFreq)
+                {
+                    startupLogger.LogInformation(
+                        "Cycle {CycleStart:HH:mm:ss}: discarded — dial frequency changed " +
+                        "from {Before} to {After} MHz during capture window.",
+                        cycleStart,
+                        windowDialFreq?.ToString("F3") ?? "unknown",
+                        currentDialFreq?.ToString("F3") ?? "unknown");
+                    continue;
+                }
+
                 // cycleStart is the UTC instant at which CycleFramer began accumulating
                 // this window — the authoritative cycle timestamp (R3 / FR-028).
+                // dialFreq falls back to the configured value when CAT is absent.
+                var dialFreq = windowDialFreq ?? configStore.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
                 var results  = await ft8Decoder.DecodeAsync(pcmWindow, cycleStart);
                 decodeEventBus.Publish(results);
-                await allTxtWriter.AppendAsync(cycleStart, results);
+                await allTxtWriter.AppendAsync(cycleStart, dialFreq, results);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -410,7 +431,8 @@ void StartPipeline(string deviceName)
     var cycleFramer = new CycleFramer(
         captureManager.Samples,
         clock,
-        loggerFactory.CreateLogger<CycleFramer>());
+        loggerFactory.CreateLogger<CycleFramer>(),
+        dialFreqProvider: () => catState.DialFrequencyMHz);
 
     framerTask = Task.Run(() => cycleFramer.RunAsync(framerOutput.Writer, ct));
 }
