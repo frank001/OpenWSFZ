@@ -44,6 +44,7 @@ public static class WebApp
         CaptureManager?                               captureManager       = null,
         AudioActivityMonitor?                         audioMonitor         = null,
         DataFlowMonitor?                              dataFlowMonitor      = null,
+        ICatState?                                    catState             = null,
         Action<ILoggingBuilder>?                      configureLogging     = null,
         Func<Task>?                                   restartPipeline      = null,
         Action<IServiceCollection>?                   configureServices    = null)
@@ -126,16 +127,26 @@ public static class WebApp
             });
         }
 
+        // Logger for the config POST endpoint (CAT validation warnings).
+        var configApiLogger = app.Services.GetRequiredService<ILoggerFactory>()
+                                          .CreateLogger("OpenWSFZ.Web.ConfigApi");
+
         // ── REST Endpoints ────────────────────────────────────────────────────
 
         app.MapGet("/api/v1/status", (IConfigStore store) =>
-            TypedResults.Ok(new DaemonStatus(
-                State:           "Running",
-                Version:         AssemblyVersion.Get(),
-                AudioDevice:     store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive:   captureManager?.IsCapturing ?? false,
-                AudioActive:     audioMonitor?.IsActive ?? false,
-                DecodingEnabled: store.Current.DecodingEnabled)));
+        {
+            var effectiveFreq = catState?.DialFrequencyMHz
+                                ?? store.Current.DecodeLog?.DialFrequencyMHz
+                                ?? 0.0;
+            return TypedResults.Ok(new DaemonStatus(
+                State:            "Running",
+                Version:          AssemblyVersion.Get(),
+                AudioDevice:      store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
+                CaptureActive:    captureManager?.IsCapturing ?? false,
+                AudioActive:      audioMonitor?.IsActive ?? false,
+                DecodingEnabled:  store.Current.DecodingEnabled,
+                DialFrequencyMHz: effectiveFreq));
+        });
 
         app.MapGet("/api/v1/audio/devices", async (
             IAudioDeviceProvider provider,
@@ -172,6 +183,33 @@ public static class WebApp
             if (config is null)
                 return Results.BadRequest("Missing or empty request body.");
 
+            // ── CAT config validation (FR-031, FR-034) ─────────────────────────
+            if (config.Cat is { } cat)
+            {
+                var sanitisedCat = cat;
+
+                // Clamp pollIntervalSeconds to [1, 60].
+                if (cat.PollIntervalSeconds < 1 || cat.PollIntervalSeconds > 60)
+                {
+                    var clamped = Math.Clamp(cat.PollIntervalSeconds, 1, 60);
+                    configApiLogger.LogWarning(
+                        "CAT: pollIntervalSeconds {Original} out of range [1, 60] — clamped to {Clamped}.",
+                        cat.PollIntervalSeconds, clamped);
+                    sanitisedCat = sanitisedCat with { PollIntervalSeconds = clamped };
+                }
+
+                // Warn on unknown rigModel (daemon handles graceful disable, no 400 here).
+                if (cat.RigModel is not ("SerialCat" or "RigCtld"))
+                {
+                    configApiLogger.LogWarning(
+                        "CAT: unrecognised rigModel '{RigModel}' — CAT will be disabled at runtime.",
+                        cat.RigModel);
+                }
+
+                if (!ReferenceEquals(sanitisedCat, cat))
+                    config = config with { Cat = sanitisedCat };
+            }
+
             await store.SaveAsync(config, ct);
             return TypedResults.Ok(store.Current);
         });
@@ -185,13 +223,15 @@ public static class WebApp
                     "No audio device configured. Select a device in Settings before starting decoding.");
 
             await store.SaveAsync(store.Current with { DecodingEnabled = true }, ct);
+            var freqStart = catState?.DialFrequencyMHz ?? store.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
             return TypedResults.Ok(new DaemonStatus(
-                State:           "Running",
-                Version:         AssemblyVersion.Get(),
-                AudioDevice:     store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive:   captureManager?.IsCapturing ?? false,
-                AudioActive:     audioMonitor?.IsActive ?? false,
-                DecodingEnabled: store.Current.DecodingEnabled));
+                State:            "Running",
+                Version:          AssemblyVersion.Get(),
+                AudioDevice:      store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
+                CaptureActive:    captureManager?.IsCapturing ?? false,
+                AudioActive:      audioMonitor?.IsActive ?? false,
+                DecodingEnabled:  store.Current.DecodingEnabled,
+                DialFrequencyMHz: freqStart));
         });
 
         app.MapPost("/api/v1/decode/stop", async (
@@ -199,13 +239,15 @@ public static class WebApp
             CancellationToken ct) =>
         {
             await store.SaveAsync(store.Current with { DecodingEnabled = false }, ct);
+            var freqStop = catState?.DialFrequencyMHz ?? store.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
             return TypedResults.Ok(new DaemonStatus(
-                State:           "Running",
-                Version:         AssemblyVersion.Get(),
-                AudioDevice:     store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive:   captureManager?.IsCapturing ?? false,
-                AudioActive:     audioMonitor?.IsActive ?? false,
-                DecodingEnabled: store.Current.DecodingEnabled));
+                State:            "Running",
+                Version:          AssemblyVersion.Get(),
+                AudioDevice:      store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
+                CaptureActive:    captureManager?.IsCapturing ?? false,
+                AudioActive:      audioMonitor?.IsActive ?? false,
+                DecodingEnabled:  store.Current.DecodingEnabled,
+                DialFrequencyMHz: freqStop));
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────
@@ -248,7 +290,7 @@ public static class WebApp
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
             await WebSocketHub.HandleAsync(
                 ws, store, audioMonitor, dataFlowMonitor,
-                captureManager, audioWatchdog,
+                captureManager, audioWatchdog, catState,
                 wsLogger, appScope, ctx.RequestAborted);
         });
 

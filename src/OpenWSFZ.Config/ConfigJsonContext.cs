@@ -15,4 +15,5 @@ namespace OpenWSFZ.Config;
 [JsonSerializable(typeof(AppConfig))]
 [JsonSerializable(typeof(LoggingConfig))]
 [JsonSerializable(typeof(DecodeLogConfig))]
+[JsonSerializable(typeof(CatConfig))]
 public sealed partial class ConfigJsonContext : JsonSerializerContext { }

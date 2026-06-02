@@ -130,10 +130,38 @@ const audioDeviceEl    = /** @type {HTMLElement} */ (document.getElementById('au
 const audioIndicatorEl = /** @type {HTMLElement} */ (document.getElementById('audio-indicator'));
 const decodeBadgeEl    = /** @type {HTMLElement} */ (document.getElementById('decode-badge'));
 const decodeToggleEl   = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('decode-toggle')));
+const dialFreqEl       = /** @type {HTMLElement} */ (document.getElementById('dial-freq'));
+const catBadgeEl       = /** @type {HTMLElement} */ (document.getElementById('cat-badge'));
 
 function setWsState(state, label) {
   wsStateEl.className = state;
   wsStateEl.textContent = label;
+}
+
+/**
+ * Update the dial frequency display (FR-032).
+ * @param {number|null|undefined} freqMHz
+ */
+function setDialFrequency(freqMHz) {
+  const hz = typeof freqMHz === 'number' ? freqMHz : 0;
+  dialFreqEl.textContent = hz.toFixed(3) + ' MHz';
+}
+
+/**
+ * Update the CAT connection badge (FR-033).
+ * Status is 'Connected', 'Connecting', 'Error', 'Disabled', or absent.
+ * @param {string|null|undefined} status
+ */
+function setCatStatus(status) {
+  if (!status || status === 'Disabled') {
+    catBadgeEl.hidden     = true;
+    catBadgeEl.textContent = '';
+    catBadgeEl.className   = '';
+    return;
+  }
+  catBadgeEl.hidden     = false;
+  catBadgeEl.textContent = status;
+  catBadgeEl.className   = 'cat-badge cat-' + status.toLowerCase();
 }
 
 /**
@@ -224,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setWsState('disconnected', 'Disconnected');
         audioDeviceEl.textContent = '(no device)';
         setAudioActive(false);
+        setCatStatus(null);
       }
       return;
     }
@@ -233,6 +262,8 @@ document.addEventListener('DOMContentLoaded', () => {
       audioDeviceEl.textContent = audioDevice ?? '(no device)';
       setAudioActive(audioActive ?? false);
       setDecodingState(event.payload.decodingEnabled ?? true, !!audioDevice);
+      // FR-032: status event carries effective dial frequency.
+      setDialFrequency(event.payload.dialFrequencyMHz);
       return;
     }
 
@@ -257,6 +288,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
       }
+      return;
+    }
+
+    // FR-033: cat_status event updates frequency and CAT indicator (task 13.3).
+    if (event.type === 'cat_status' && event.payload) {
+      setDialFrequency(event.payload.dialFrequencyMHz);
+      setCatStatus(event.payload.status);
       return;
     }
 

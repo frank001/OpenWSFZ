@@ -116,6 +116,7 @@ internal static class WebSocketHub
         DataFlowMonitor? dataFlowMonitor,
         CaptureManager? captureManager,
         AudioWatchdog? watchdog,
+        ICatState? catState,
         ILogger logger,
         Guid scope,
         CancellationToken ct)
@@ -132,12 +133,16 @@ internal static class WebSocketHub
             // Build initial status event. AudioActive mirrors IsCapturing for consistency
             // with the heartbeat: audioActive is true whenever WASAPI is delivering buffers,
             // not when amplitude exceeds an arbitrary threshold.
+            var effectiveFreq = catState?.DialFrequencyMHz
+                                ?? configStore.Current.DecodeLog?.DialFrequencyMHz
+                                ?? 0.0;
             var status    = new DaemonStatus(
-                State:         "Running",
-                Version:       AssemblyVersion.Get(),
-                AudioDevice:   configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
-                CaptureActive: captureManager?.IsCapturing ?? false,
-                AudioActive:   captureManager?.IsCapturing ?? false);
+                State:            "Running",
+                Version:          AssemblyVersion.Get(),
+                AudioDevice:      configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
+                CaptureActive:    captureManager?.IsCapturing ?? false,
+                AudioActive:      captureManager?.IsCapturing ?? false,
+                DialFrequencyMHz: effectiveFreq);
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);
@@ -258,6 +263,24 @@ internal static class WebSocketHub
         {
             _ = SendWithTimeoutAsync(ws, segment);
         }
+    }
+
+    /// <summary>
+    /// Broadcasts a <c>cat_status</c> event to all currently connected WebSocket clients
+    /// (FR-033, D5).
+    /// </summary>
+    internal static void BroadcastCatStatus(CatConnectionStatus status, double? dialFrequencyMHz)
+    {
+        if (ActiveSockets.IsEmpty) return;
+
+        var payload = new CatStatusPayload(status.ToString(), dialFrequencyMHz);
+        var msg     = new WsCatStatusMessage(Type: "cat_status", Payload: payload);
+        var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsCatStatusMessage);
+        var bytes   = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        foreach (var (ws, _) in ActiveSockets)
+            _ = SendWithTimeoutAsync(ws, segment);
     }
 
     private static async Task SendWithTimeoutAsync(WebSocket ws, ArraySegment<byte> data)

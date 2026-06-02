@@ -15,6 +15,12 @@ namespace OpenWSFZ.Daemon;
 /// </para>
 ///
 /// <para>
+/// Dial frequency precedence rule (FR-032):
+/// <c>ICatState.DialFrequencyMHz ?? AppConfig.DecodeLog.DialFrequencyMHz</c>.
+/// When CAT is disabled or in error the configured value is used transparently.
+/// </para>
+///
+/// <para>
 /// The file is opened in append mode, written, and closed once per cycle (D2).
 /// File write failures are logged at Warning and do not throw — the decode
 /// pipeline and WebSocket broadcast are unaffected (D1).
@@ -22,12 +28,23 @@ namespace OpenWSFZ.Daemon;
 /// </summary>
 public sealed class AllTxtWriter
 {
-    private readonly IConfigStore         _configStore;
+    private readonly IConfigStore          _configStore;
+    private readonly ICatState?            _catState;
     private readonly ILogger<AllTxtWriter> _logger;
 
-    public AllTxtWriter(IConfigStore configStore, ILogger<AllTxtWriter> logger)
+    /// <param name="configStore">Provides dial frequency fallback when CAT is absent.</param>
+    /// <param name="logger">Logger for write-failure warnings.</param>
+    /// <param name="catState">
+    /// Optional live CAT state.  When non-null and <see cref="ICatState.DialFrequencyMHz"/>
+    /// is non-null, the live value takes precedence over the operator's configured value (FR-032).
+    /// </param>
+    public AllTxtWriter(
+        IConfigStore           configStore,
+        ILogger<AllTxtWriter>  logger,
+        ICatState?             catState = null)
     {
         _configStore = configStore;
+        _catState    = catState;
         _logger      = logger;
     }
 
@@ -62,8 +79,9 @@ public sealed class AllTxtWriter
                 NewLine = "\r\n"
             };
 
-            string date     = cycleUtc.ToString("yyMMdd");
-            double dialMhz  = config.DialFrequencyMHz;
+            string date    = cycleUtc.ToString("yyMMdd");
+            // FR-032: CAT live value takes precedence over operator-configured fallback.
+            double dialMhz = _catState?.DialFrequencyMHz ?? config.DialFrequencyMHz;
 
             foreach (var result in results)
             {

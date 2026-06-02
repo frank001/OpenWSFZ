@@ -115,14 +115,71 @@ public sealed class AllTxtWriterTests : IDisposable
         logger.HasWarning.Should().BeTrue("a Warning must be logged when the file cannot be written");
     }
 
+    // ── FR-032: effective dial frequency (ICatState precedence) ──────────────
+
+    [Fact(DisplayName = "P16-Cat: FR-032: ICatState frequency takes precedence over decodeLog.dialFrequencyMHz")]
+    public async Task AppendAsync_CatStateFrequencyTakesPrecedence()
+    {
+        var tmpFile = Path.Combine(_tempDir, "ALL.TXT");
+        var config  = new DecodeLogConfig { Enabled = true, Path = tmpFile, DialFrequencyMHz = 7.074 };
+        var catState = new StubCatState(14.074);   // CAT says 14.074 MHz
+        var writer   = MakeWriter(config, catState: catState);
+
+        await writer.AppendAsync(new DateTime(2026, 5, 28, 17, 29, 30, DateTimeKind.Utc),
+            new List<DecodeResult> { new("17:29:30", 3, 0.2, 2252, "TEST") });
+
+        var line = (await File.ReadAllLinesAsync(tmpFile))[0];
+        line.Should().Contain("14.074", "CAT frequency must take precedence over config value");
+        line.Should().NotContain("7.074");
+    }
+
+    [Fact(DisplayName = "P16-Cat: FR-032: falls back to decodeLog.dialFrequencyMHz when ICatState.DialFrequencyMHz is null")]
+    public async Task AppendAsync_FallsBackToConfigFrequency_WhenCatStateIsNull()
+    {
+        var tmpFile  = Path.Combine(_tempDir, "ALL.TXT");
+        var config   = new DecodeLogConfig { Enabled = true, Path = tmpFile, DialFrequencyMHz = 7.074 };
+        var catState = new StubCatState(null);   // CAT disabled / no data
+        var writer   = MakeWriter(config, catState: catState);
+
+        await writer.AppendAsync(new DateTime(2026, 5, 28, 17, 29, 30, DateTimeKind.Utc),
+            new List<DecodeResult> { new("17:29:30", 3, 0.2, 2252, "TEST") });
+
+        var line = (await File.ReadAllLinesAsync(tmpFile))[0];
+        line.Should().Contain("7.074", "should fall back to configured value when CAT is unavailable");
+    }
+
+    [Fact(DisplayName = "P16-Cat: FR-032: no regression when catState is not injected (null)")]
+    public async Task AppendAsync_NoCatState_UsesConfigFrequency()
+    {
+        var tmpFile = Path.Combine(_tempDir, "ALL.TXT");
+        var config  = new DecodeLogConfig { Enabled = true, Path = tmpFile, DialFrequencyMHz = 7.074 };
+        var writer  = MakeWriter(config);   // no catState
+
+        await writer.AppendAsync(new DateTime(2026, 5, 28, 17, 29, 30, DateTimeKind.Utc),
+            new List<DecodeResult> { new("17:29:30", 3, 0.2, 2252, "TEST") });
+
+        var line = (await File.ReadAllLinesAsync(tmpFile))[0];
+        line.Should().Contain("7.074");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static AllTxtWriter MakeWriter(
-        DecodeLogConfig config,
-        ILogger<AllTxtWriter>? logger = null)
+        DecodeLogConfig        config,
+        ILogger<AllTxtWriter>? logger   = null,
+        ICatState?             catState = null)
     {
         var configStore = new StubConfigStore(new AppConfig() with { DecodeLog = config });
-        return new AllTxtWriter(configStore, logger ?? new CapturingLogger<AllTxtWriter>());
+        return new AllTxtWriter(configStore, logger ?? new CapturingLogger<AllTxtWriter>(), catState);
+    }
+
+    // ── Stub ICatState ────────────────────────────────────────────────────────
+
+    private sealed class StubCatState : ICatState
+    {
+        public StubCatState(double? freqMHz) => DialFrequencyMHz = freqMHz;
+        public double?            DialFrequencyMHz { get; }
+        public CatConnectionStatus Status          => CatConnectionStatus.Connected;
     }
 
     // ── Stub IConfigStore ─────────────────────────────────────────────────────

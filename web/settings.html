@@ -110,6 +110,77 @@
 
       </fieldset>
 
+      <!-- CAT rig connection (FR-031, FR-033) -->
+      <fieldset id="cat-settings">
+        <legend>CAT rig connection</legend>
+
+        <div class="field-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="cat-enabled" />
+            Enable CAT frequency polling
+          </label>
+          <p class="field-hint">
+            Polls the rig's VFO-A frequency and displays it live in the status bar.
+            Keeps the ALL.TXT log accurate without manual dial-frequency entry.
+          </p>
+        </div>
+
+        <div class="field-group" id="cat-status-indicator">
+          <label>CAT connection status</label>
+          <span id="cat-status-value" class="cat-status-badge cat-disabled">Disabled</span>
+        </div>
+
+        <div class="field-group">
+          <label for="cat-rig-model">Rig transport</label>
+          <select id="cat-rig-model">
+            <option value="SerialCat">SerialCat — direct serial port</option>
+            <option value="RigCtld">RigCtld — TCP to rigctld daemon</option>
+          </select>
+        </div>
+
+        <!-- Serial CAT fields (shown when RigModel = SerialCat) -->
+        <div id="cat-serial-fields">
+          <div class="field-group">
+            <label for="cat-serial-port">Serial port</label>
+            <input type="text" id="cat-serial-port" placeholder="COM6" />
+            <p class="field-hint">
+              Windows: <code>COM6</code> · Linux: <code>/dev/ttyUSB0</code> · macOS: <code>/dev/cu.usbserial</code>
+            </p>
+          </div>
+
+          <div class="field-group">
+            <label for="cat-baud-rate">Baud rate</label>
+            <input type="number" id="cat-baud-rate" min="1200" max="115200" step="100" placeholder="9600" />
+          </div>
+        </div>
+
+        <!-- rigctld fields (shown when RigModel = RigCtld) -->
+        <div id="cat-rigctld-fields" style="display:none">
+          <div class="field-group">
+            <label for="cat-rigctld-host">rigctld host</label>
+            <input type="text" id="cat-rigctld-host" placeholder="127.0.0.1" />
+          </div>
+
+          <div class="field-group">
+            <label for="cat-rigctld-port">rigctld port</label>
+            <input type="number" id="cat-rigctld-port" min="1" max="65535" placeholder="4532" />
+          </div>
+
+          <p class="field-hint cat-rigctld-note" id="cat-rigctld-note">
+            ⚠ <strong>rigctld must be running before you enable CAT in this mode.</strong>
+            Start it with e.g. <code>rigctld -m &lt;model-id&gt; -r COM6 -s 9600</code>.
+            The daemon will retry automatically if rigctld is not yet available.
+          </p>
+        </div>
+
+        <div class="field-group">
+          <label for="cat-poll-interval">Poll interval (seconds)</label>
+          <input type="number" id="cat-poll-interval" min="1" max="60" placeholder="1" />
+          <p class="field-hint">How often to query the rig. Range: 1–60 seconds.</p>
+        </div>
+
+      </fieldset>
+
       <fieldset id="logging-settings">
         <legend>File logging</legend>
 

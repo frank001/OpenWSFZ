@@ -1,10 +1,12 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Audio;
 using OpenWSFZ.Config;
 using OpenWSFZ.Daemon;
+using OpenWSFZ.Daemon.Cat;
 using OpenWSFZ.Daemon.Logging;
 using OpenWSFZ.Ft8;
 using OpenWSFZ.Ft8.Dsp;
@@ -109,12 +111,19 @@ spectrumAnalyser.SpectrumReady += magnitudes =>
     spectrumBus.Publish(bins);
 };
 
+// ── CAT rig control (FR-031, FR-032) ─────────────────────────────────────────
+
+// CatState is the live telemetry singleton (task 11.1).
+var catState    = new CatState();
+var catEventBus = new CatEventBus();
+
 // ── FT8 decode pipeline ──────────────────────────────────────────────────────
 
 var clock          = new SystemClock();
 var ft8Decoder     = new Ft8Decoder(clock, loggerFactory.CreateLogger<Ft8Decoder>());
 var decodeEventBus = new DecodeEventBus();
-var allTxtWriter   = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllTxtWriter>());
+// Inject catState so AllTxtWriter uses effective frequency (task 9.1, FR-032).
+var allTxtWriter   = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllTxtWriter>(), catState);
 
 // Channel 1: CycleFramer → (float[] Pcm, DateTime CycleStart) windows → decode pump
 // CycleFramer records the cycle-start timestamp when the window begins accumulating;
@@ -206,6 +215,7 @@ var app = WebApp.Create(
     captureManager:       captureManager,
     audioMonitor:         audioMonitor,
     dataFlowMonitor:      dataFlowMonitor,
+    catState:             catState,
     configureLogging:     ConfigureLogging,
     restartPipeline:      restartPipeline,
     configureServices:    services =>
@@ -213,6 +223,17 @@ var app = WebApp.Create(
         services.AddSingleton(loggingPipeline);
         services.AddSingleton(allTxtWriter);
         services.AddHostedService<LogRotationService>();
+
+        // CAT DI wiring (tasks 11.1–11.3, FR-031).
+        // Register the CatState singleton under both its concrete type (for
+        // CatPollingService to call internal Update) and the ICatState interface
+        // (for any future consumer that only needs the read side).
+        services.AddSingleton(catState);
+        services.AddSingleton<ICatState>(catState);
+        services.AddSingleton(catEventBus);
+
+        // CatPollingService as a hosted service (task 11.3).
+        services.AddHostedService<CatPollingService>();
     });
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────
