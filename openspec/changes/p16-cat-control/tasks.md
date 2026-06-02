@@ -115,5 +115,5 @@
 ## 17. Housekeeping
 
 - [x] 17.1 Commit all changes with `feat(p16): CAT control — serial CAT frequency readout`
-- [ ] 17.2 Push and confirm CI green (G1 build/test, G3 traceability, G5 licence, G7 secrets scan)
-- [ ] 17.3 Open PR to `main`; request QA gate review
+- [x] 17.2 Push and confirm CI green (G1 build/test, G3 traceability, G5 licence, G7 secrets scan)
+- [x] 17.3 Open PR to `main`; request QA gate review — https://github.com/frank001/OpenWSFZ/pull/20
