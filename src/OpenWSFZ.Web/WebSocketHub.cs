@@ -267,10 +267,19 @@ internal static class WebSocketHub
     }
 
     /// <summary>
-    /// Broadcasts a <c>cat_status</c> event to all currently connected WebSocket clients
-    /// (FR-033, D5).
+    /// Broadcasts a <c>cat_status</c> event to all WebSocket clients connected to the
+    /// <see cref="WebApp"/> instance identified by <paramref name="scope"/> (FR-033, D5).
+    ///
+    /// <para>
+    /// The scope guard matches the pattern already used in <see cref="AbortAll"/>:
+    /// only sockets whose registered scope equals <paramref name="scope"/> receive the
+    /// frame.  This prevents <c>CatPollingService</c> instances from one in-process
+    /// <c>WebApp</c> (e.g. a <c>WebApplicationFactory</c> test host) from broadcasting
+    /// to sockets belonging to a concurrently running integration-test server.
+    /// </para>
     /// </summary>
-    internal static void BroadcastCatStatus(CatConnectionStatus status, double? dialFrequencyMHz)
+    internal static void BroadcastCatStatus(
+        Guid scope, CatConnectionStatus status, double? dialFrequencyMHz)
     {
         if (ActiveSockets.IsEmpty) return;
 
@@ -280,8 +289,11 @@ internal static class WebSocketHub
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);
 
-        foreach (var (ws, _) in ActiveSockets)
+        foreach (var (ws, socketScope) in ActiveSockets)
+        {
+            if (socketScope != scope) continue;   // scope guard — same pattern as AbortAll
             _ = SendWithTimeoutAsync(ws, segment);
+        }
     }
 
     private static async Task SendWithTimeoutAsync(WebSocket ws, ArraySegment<byte> data)

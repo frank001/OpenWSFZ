@@ -21,7 +21,7 @@ public sealed class CatConfigApiTests : IClassFixture<WebTestFactory>
 
     // ── GET /api/v1/config includes cat section ───────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: GET /api/v1/config response includes cat object")]
+    [Fact(DisplayName = "FR-031: GET /api/v1/config response includes cat object")]
     public async Task GetConfig_IncludesCatSection()
     {
         var client   = _factory.CreateClient();
@@ -39,7 +39,7 @@ public sealed class CatConfigApiTests : IClassFixture<WebTestFactory>
 
     // ── POST round-trip (all seven fields) ────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: POST /api/v1/config with full cat object round-trips all seven fields")]
+    [Fact(DisplayName = "FR-031: POST /api/v1/config with full cat object round-trips all seven fields")]
     public async Task PostConfig_WithFullCatObject_RoundTrips()
     {
         var client  = _factory.CreateClient();
@@ -80,7 +80,7 @@ public sealed class CatConfigApiTests : IClassFixture<WebTestFactory>
 
     // ── pollIntervalSeconds clamping ──────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: POST /api/v1/config clamps pollIntervalSeconds > 60 to 60")]
+    [Fact(DisplayName = "FR-031: POST /api/v1/config clamps pollIntervalSeconds > 60 to 60")]
     public async Task PostConfig_PollIntervalTooHigh_IsClamped()
     {
         var client  = _factory.CreateClient();
@@ -98,7 +98,7 @@ public sealed class CatConfigApiTests : IClassFixture<WebTestFactory>
         loaded!.Cat!.PollIntervalSeconds.Should().Be(60);
     }
 
-    [Fact(DisplayName = "P16-Cat: POST /api/v1/config clamps pollIntervalSeconds < 1 to 1")]
+    [Fact(DisplayName = "FR-031: POST /api/v1/config clamps pollIntervalSeconds < 1 to 1")]
     public async Task PostConfig_PollIntervalTooLow_IsClamped()
     {
         var client  = _factory.CreateClient();
@@ -118,7 +118,7 @@ public sealed class CatConfigApiTests : IClassFixture<WebTestFactory>
 
     // ── Malformed JSON still returns 400 ─────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: POST /api/v1/config with malformed JSON returns 400")]
+    [Fact(DisplayName = "FR-031: POST /api/v1/config with malformed JSON returns 400")]
     public async Task PostConfig_MalformedJson_Returns400()
     {
         var client   = _factory.CreateClient();

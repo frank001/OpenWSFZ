@@ -20,7 +20,7 @@ public sealed class RigctldConnectionTests
 
     // ── ConnectAsync ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: RigctldConnection ConnectAsync opens TCP and IsConnected becomes true")]
+    [Fact(DisplayName = "FR-032: RigctldConnection ConnectAsync opens TCP and IsConnected becomes true")]
     public async Task ConnectAsync_OpensConnection_IsConnectedTrue()
     {
         var tcp = Substitute.For<ITcpConnection>();
@@ -33,7 +33,7 @@ public sealed class RigctldConnectionTests
         sut.IsConnected.Should().BeTrue();
     }
 
-    [Fact(DisplayName = "P16-Cat: RigctldConnection ConnectAsync propagates SocketException when rigctld unreachable")]
+    [Fact(DisplayName = "FR-032: RigctldConnection ConnectAsync propagates SocketException when rigctld unreachable")]
     public async Task ConnectAsync_ConnectionRefused_Throws()
     {
         var tcp = Substitute.For<ITcpConnection>();
@@ -49,7 +49,7 @@ public sealed class RigctldConnectionTests
 
     // ── GetDialFrequencyMhzAsync ─────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: RigctldConnection parses 14074000 → 14.074 MHz")]
+    [Fact(DisplayName = "FR-032: RigctldConnection parses 14074000 → 14.074 MHz")]
     public async Task GetDialFrequencyMhzAsync_ValidResponse_ReturnsMhz()
     {
         var tcp = Substitute.For<ITcpConnection>();
@@ -62,7 +62,7 @@ public sealed class RigctldConnectionTests
         await tcp.Received(1).SendAsync(@"\get_freq" + "\n", Arg.Any<CancellationToken>());
     }
 
-    [Fact(DisplayName = "P16-Cat: RigctldConnection throws InvalidOperationException on RPRT error response")]
+    [Fact(DisplayName = "FR-032: RigctldConnection throws InvalidOperationException on RPRT error response")]
     public async Task GetDialFrequencyMhzAsync_RprtResponse_Throws()
     {
         var tcp = Substitute.For<ITcpConnection>();
@@ -75,7 +75,7 @@ public sealed class RigctldConnectionTests
             .WithMessage("*RPRT*");
     }
 
-    [Fact(DisplayName = "P16-Cat: RigctldConnection throws InvalidOperationException on non-numeric response")]
+    [Fact(DisplayName = "FR-032: RigctldConnection throws InvalidOperationException on non-numeric response")]
     public async Task GetDialFrequencyMhzAsync_NonNumericResponse_Throws()
     {
         var tcp = Substitute.For<ITcpConnection>();
@@ -87,7 +87,7 @@ public sealed class RigctldConnectionTests
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
-    [Fact(DisplayName = "P16-Cat: RigctldConnection throws TimeoutException on receive timeout")]
+    [Fact(DisplayName = "FR-032: RigctldConnection throws TimeoutException on receive timeout")]
     public async Task GetDialFrequencyMhzAsync_ReceiveTimeout_Throws()
     {
         var tcp = Substitute.For<ITcpConnection>();
@@ -102,7 +102,7 @@ public sealed class RigctldConnectionTests
 
     // ── DisconnectAsync / Dispose ─────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: RigctldConnection DisconnectAsync closes connection and IsConnected becomes false")]
+    [Fact(DisplayName = "FR-032: RigctldConnection DisconnectAsync closes connection and IsConnected becomes false")]
     public async Task DisconnectAsync_ClosesConnection()
     {
         var tcp = Substitute.For<ITcpConnection>();
@@ -117,7 +117,7 @@ public sealed class RigctldConnectionTests
         sut.IsConnected.Should().BeFalse();
     }
 
-    [Fact(DisplayName = "P16-Cat: RigctldConnection Dispose closes and disposes TCP")]
+    [Fact(DisplayName = "FR-032: RigctldConnection Dispose closes and disposes TCP")]
     public void Dispose_ClosesAndDisposesTcp()
     {
         var tcp = Substitute.For<ITcpConnection>();

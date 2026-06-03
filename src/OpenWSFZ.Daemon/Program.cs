@@ -114,8 +114,9 @@ spectrumAnalyser.SpectrumReady += magnitudes =>
 // ── CAT rig control (FR-031, FR-032) ─────────────────────────────────────────
 
 // CatState is the live telemetry singleton (task 11.1).
-var catState    = new CatState();
-var catEventBus = new CatEventBus();
+// CatEventBus is constructed inside WebApp.Create (with the app-instance scope)
+// and registered in DI — no manual construction needed here.
+var catState = new CatState();
 
 // ── FT8 decode pipeline ──────────────────────────────────────────────────────
 
@@ -231,7 +232,6 @@ var app = WebApp.Create(
         // (for any future consumer that only needs the read side).
         services.AddSingleton(catState);
         services.AddSingleton<ICatState>(catState);
-        services.AddSingleton(catEventBus);
 
         // CatPollingService as a hosted service (task 11.3).
         services.AddHostedService<CatPollingService>();

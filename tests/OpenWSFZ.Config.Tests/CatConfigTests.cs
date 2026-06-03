@@ -15,7 +15,7 @@ public sealed class CatConfigTests
 {
     // ── Scenario: Missing cat key uses defaults ────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: AppConfig without cat key deserialises with Cat = null (disabled)")]
+    [Fact(DisplayName = "FR-031: AppConfig without cat key deserialises with Cat = null (disabled)")]
     public void Load_MissingCatKey_CatIsNull()
     {
         const string json = """{"port":8080}""";
@@ -29,7 +29,7 @@ public sealed class CatConfigTests
 
     // ── Scenario: cat round-trips correctly ───────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: CatConfig round-trips all seven fields through JSON serialisation")]
+    [Fact(DisplayName = "FR-031: CatConfig round-trips all seven fields through JSON serialisation")]
     public void RoundTrip_AllFields_PreservesValues()
     {
         var original = new AppConfig() with
@@ -61,7 +61,7 @@ public sealed class CatConfigTests
 
     // ── Scenario: JSON key names use camelCase ─────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: CatConfig serialises with camelCase JSON property names")]
+    [Fact(DisplayName = "FR-031: CatConfig serialises with camelCase JSON property names")]
     public void Serialise_CatConfig_UsesCamelCase()
     {
         var config = new AppConfig() with { Cat = new CatConfig { Enabled = false } };
@@ -79,7 +79,7 @@ public sealed class CatConfigTests
 
     // ── Scenario: Default values ──────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: CatConfig defaults: enabled=false, rigModel=SerialCat, baudRate=9600, rigctldHost=127.0.0.1, rigctldPort=4532, pollIntervalSeconds=1")]
+    [Fact(DisplayName = "FR-031: CatConfig defaults: enabled=false, rigModel=SerialCat, baudRate=9600, rigctldHost=127.0.0.1, rigctldPort=4532, pollIntervalSeconds=1")]
     public void Defaults_AreCorrect()
     {
         var cat = new CatConfig();
@@ -93,7 +93,7 @@ public sealed class CatConfigTests
 
     // ── Scenario: Partial cat object loads without error ─────────────────────
 
-    [Fact(DisplayName = "P16-Cat: Partial cat JSON (only enabled present) loads without error and sets enabled correctly")]
+    [Fact(DisplayName = "FR-031: Partial cat JSON (only enabled present) loads without error and sets enabled correctly")]
     public void Load_PartialCatJson_LoadsWithoutError()
     {
         // STJ source-generation does NOT call record property initializers for missing JSON

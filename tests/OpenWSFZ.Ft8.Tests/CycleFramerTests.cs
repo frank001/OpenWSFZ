@@ -247,9 +247,9 @@ public sealed class CycleFramerTests
             "when starting 7 s into a cycle, CycleStart must be the :00 boundary (not :07)");
     }
 
-    // ── P16-Cat: dialFreqProvider tests (defect: dial-freq-snapshot) ─────────
+    // ── FR-032: dialFreqProvider tests (defect: dial-freq-snapshot) ─────────
 
-    [Fact(DisplayName = "P16-Cat: dialFreqProvider=null emits null DialFrequencyMHz in every window")]
+    [Fact(DisplayName = "FR-032: dialFreqProvider=null emits null DialFrequencyMHz in every window")]
     public async Task RunAsync_NullProvider_EmitsNullDialFrequency()
     {
         var clock  = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));
@@ -278,7 +278,7 @@ public sealed class CycleFramerTests
         emittedFreq.Should().BeNull("null dialFreqProvider must emit null DialFrequencyMHz");
     }
 
-    [Fact(DisplayName = "P16-Cat: dialFreqProvider value is carried in emitted tuple")]
+    [Fact(DisplayName = "FR-032: dialFreqProvider value is carried in emitted tuple")]
     public async Task RunAsync_WithProvider_EmitsSuppliedDialFrequency()
     {
         var clock  = new FakeClock(new DateTime(2026, 5, 21, 15, 30, 0, DateTimeKind.Utc));
@@ -306,7 +306,7 @@ public sealed class CycleFramerTests
         emittedFreq.Should().Be(14.074, "provider value must be carried in the emitted tuple");
     }
 
-    [Fact(DisplayName = "P16-Cat: dial frequency is snapshotted at window-open time, not window-close time")]
+    [Fact(DisplayName = "FR-032: dial frequency is snapshotted at window-open time, not window-close time")]
     public async Task RunAsync_FrequencyChangesAfterWindowOpen_SnapshotIsWindowOpenValue()
     {
         // Provider: call 1 (startup = window-0 open) returns 14.074,

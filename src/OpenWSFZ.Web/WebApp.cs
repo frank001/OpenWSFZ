@@ -56,9 +56,18 @@ public static class WebApp
         // running integration-test server.
         var appScope = Guid.NewGuid();
 
+        // CatEventBus carries appScope so BroadcastCatStatus only delivers to sockets
+        // belonging to this WebApp instance (scope guard — mirrors AbortAll pattern).
+        var catEventBus = new CatEventBus(appScope);
+
         var builder = WebApplication.CreateBuilder();
 
         // ── Services ──────────────────────────────────────────────────────────
+
+        // Register the scoped CatEventBus before any caller-supplied registrations so
+        // that CatPollingService (registered via configureServices) resolves the correct
+        // instance when the DI container builds.
+        builder.Services.AddSingleton(catEventBus);
 
         builder.Services.AddSingleton<IBindPolicy>(
             sp => bindPolicy ?? new LoopbackBindPolicy(

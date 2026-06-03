@@ -117,7 +117,7 @@ public sealed class AllTxtWriterTests : IDisposable
 
     // ── FR-032: caller-supplied dial frequency (defect: dial-freq-snapshot) ───
 
-    [Fact(DisplayName = "P16-Cat: AppendAsync uses caller-supplied dialMhz, not live state")]
+    [Fact(DisplayName = "FR-032: AppendAsync uses caller-supplied dialMhz, not live state")]
     public async Task AppendAsync_UsesSuppliedDialMhz()
     {
         // If AppendAsync still read from ICatState this test would need a mock;

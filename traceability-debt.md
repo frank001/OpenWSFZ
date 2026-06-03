@@ -52,6 +52,23 @@ NFR-002  # Performance — user experience comparable to WSJT-X
 NFR-005  # Distribution — source-only via GitHub repository
 NFR-015  # Stability — no crash or memory leak for a normal operating session
 
+## Pending — Phase 16 (CAT control)
+
+FR-033  # CAT status indicator in UI — JavaScript/HTML status bar and badge;
+        # verified manually via hardware acceptance gates (tasks 15 & 16).
+        # No unit test references this ID. Remove when a UI-layer test is added.
+
+NFR-017 # Secrets scan gate G7 — the gate itself IS the test (gitleaks in CI);
+        # no unit test references this ID. Remove when a test with prefix
+        # "NFR-017:" is added (or if the gate is ever made a unit-testable concern).
+
+NFR-018 # Decode parity — v1.0 release gate; enforced by the real-signal fixture
+        # integration tests (FR-029). No separate "NFR-018:" test exists.
+        # Remove when a test explicitly prefixes "NFR-018:".
+
+NFR-019 # Brand neutrality — policy requirement; no automated test is feasible.
+        # Enforced by code review. Remove if a lint/grep-based test is added.
+
 ## Pending — Phase 10 (Decoder ground truth — p10-decoder-ground-truth)
 
 # FR-029 is fully covered: WavReaderTests (unit) + RealSignalFixtureTests (oracle integration)

@@ -24,7 +24,7 @@ public sealed class CatPollingServiceTests
         var state  = new CatState();
         var store  = new StubConfigStore(new AppConfig() with
                          { Cat = cat ?? new CatConfig { Enabled = false } });
-        var bus    = new CatEventBus();
+        var bus    = new CatEventBus(Guid.NewGuid());
         var logger = NullLogger<CatPollingService>.Instance;
         var svc    = new CatPollingService(state, store, bus, logger);
         return (svc, state, store);
@@ -32,7 +32,7 @@ public sealed class CatPollingServiceTests
 
     // ── Disabled path ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: CatPollingService stays Disabled when cat.enabled is false")]
+    [Fact(DisplayName = "FR-034: CatPollingService stays Disabled when cat.enabled is false")]
     public async Task StartAsync_DisabledConfig_StatusRemainsDisabled()
     {
         var (svc, state, _) = MakeService(new CatConfig { Enabled = false });
@@ -47,7 +47,7 @@ public sealed class CatPollingServiceTests
 
     // ── Stop behaviour ────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: CatPollingService StopAsync completes within 3 seconds")]
+    [Fact(DisplayName = "FR-032: CatPollingService StopAsync completes within 3 seconds")]
     public async Task StopAsync_CompletesWithinThreeSeconds()
     {
         var (svc, _, _) = MakeService(new CatConfig { Enabled = false });
@@ -62,7 +62,7 @@ public sealed class CatPollingServiceTests
 
     // ── Unknown rigModel ──────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: CatPollingService sets Disabled for unrecognised rigModel")]
+    [Fact(DisplayName = "FR-034: CatPollingService sets Disabled for unrecognised rigModel")]
     public async Task RunAsync_UnknownRigModel_SetsDisabled()
     {
         var cat = new CatConfig { Enabled = true, RigModel = "UnknownRig2000" };

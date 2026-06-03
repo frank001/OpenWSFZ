@@ -16,7 +16,7 @@ public sealed class SerialCatConnectionTests
 {
     // ── ConnectAsync ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: ConnectAsync opens the serial port and IsConnected becomes true")]
+    [Fact(DisplayName = "FR-032: ConnectAsync opens the serial port and IsConnected becomes true")]
     public async Task ConnectAsync_OpensPort_IsConnectedTrue()
     {
         var port   = Substitute.For<ISerialPort>();
@@ -29,7 +29,7 @@ public sealed class SerialCatConnectionTests
         sut.IsConnected.Should().BeTrue();
     }
 
-    [Fact(DisplayName = "P16-Cat: ConnectAsync propagates UnauthorizedAccessException when port is in use")]
+    [Fact(DisplayName = "FR-032: ConnectAsync propagates UnauthorizedAccessException when port is in use")]
     public async Task ConnectAsync_PortInUse_Throws()
     {
         var port = Substitute.For<ISerialPort>();
@@ -45,7 +45,7 @@ public sealed class SerialCatConnectionTests
 
     // ── GetDialFrequencyMhzAsync ─────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync parses FA00014074000; → 14.074 MHz")]
+    [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync parses FA00014074000; → 14.074 MHz")]
     public async Task GetDialFrequencyMhzAsync_ValidResponse_ReturnsMhz()
     {
         var port = Substitute.For<ISerialPort>();
@@ -60,7 +60,7 @@ public sealed class SerialCatConnectionTests
         port.Received(1).Write("FA;");
     }
 
-    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync parses FA007074000; (9-digit) → 7.074 MHz")]
+    [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync parses FA007074000; (9-digit) → 7.074 MHz")]
     public async Task GetDialFrequencyMhzAsync_NineDigitResponse_ReturnsMhz()
     {
         // Regression: some rig families return 9 Hz digits rather than 11.
@@ -75,7 +75,7 @@ public sealed class SerialCatConnectionTests
         freq.Should().BeApproximately(7.074, precision: 1e-9);
     }
 
-    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync sends FA; without carriage return")]
+    [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync sends FA; without carriage return")]
     public async Task GetDialFrequencyMhzAsync_SendsCommandWithoutCarriageReturn()
     {
         // Regression: "FA;\r" causes Kenwood-compatible rigs to reply with a second
@@ -91,7 +91,7 @@ public sealed class SerialCatConnectionTests
         port.DidNotReceive().Write(Arg.Is<string>(s => s.Contains('\r')));
     }
 
-    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync throws InvalidOperationException when rig returns ? (command error)")]
+    [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync throws InvalidOperationException when rig returns ? (command error)")]
     public async Task GetDialFrequencyMhzAsync_RigCommandError_Throws()
     {
         // Regression: a stale ?; in the receive buffer (from a prior \r-induced error
@@ -107,7 +107,7 @@ public sealed class SerialCatConnectionTests
             .WithMessage("*'?'*");
     }
 
-    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync throws InvalidOperationException on malformed response")]
+    [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync throws InvalidOperationException on malformed response")]
     public async Task GetDialFrequencyMhzAsync_MalformedResponse_Throws()
     {
         var port = Substitute.For<ISerialPort>();
@@ -121,7 +121,7 @@ public sealed class SerialCatConnectionTests
             .WithMessage("*GARBAGE*");
     }
 
-    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync throws InvalidOperationException when response does not start with FA")]
+    [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync throws InvalidOperationException when response does not start with FA")]
     public async Task GetDialFrequencyMhzAsync_WrongPrefix_Throws()
     {
         var port = Substitute.For<ISerialPort>();
@@ -134,7 +134,7 @@ public sealed class SerialCatConnectionTests
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
-    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync re-throws TimeoutException on read timeout")]
+    [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync re-throws TimeoutException on read timeout")]
     public async Task GetDialFrequencyMhzAsync_ReadTimeout_ThrowsTimeoutException()
     {
         var port = Substitute.For<ISerialPort>();
@@ -149,7 +149,7 @@ public sealed class SerialCatConnectionTests
 
     // ── DisconnectAsync / Dispose ─────────────────────────────────────────────
 
-    [Fact(DisplayName = "P16-Cat: DisconnectAsync closes the port and IsConnected becomes false")]
+    [Fact(DisplayName = "FR-032: DisconnectAsync closes the port and IsConnected becomes false")]
     public async Task DisconnectAsync_ClosesPort()
     {
         var port = Substitute.For<ISerialPort>();
@@ -161,7 +161,7 @@ public sealed class SerialCatConnectionTests
         port.Received(1).Close();
     }
 
-    [Fact(DisplayName = "P16-Cat: Dispose closes and disposes the port")]
+    [Fact(DisplayName = "FR-032: Dispose closes and disposes the port")]
     public void Dispose_ClosesAndDisposesPort()
     {
         var port = Substitute.For<ISerialPort>();
