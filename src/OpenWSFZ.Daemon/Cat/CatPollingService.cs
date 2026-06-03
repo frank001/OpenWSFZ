@@ -24,7 +24,7 @@ namespace OpenWSFZ.Daemon.Cat;
 /// </list>
 /// </para>
 /// </summary>
-public sealed class CatPollingService : IHostedService, IAsyncDisposable
+public class CatPollingService : IHostedService, IAsyncDisposable
 {
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
 
@@ -142,7 +142,7 @@ public sealed class CatPollingService : IHostedService, IAsyncDisposable
                 // ── Ensure connected ──────────────────────────────────────────
                 if (connection is null || !connection.IsConnected)
                 {
-                    connection = TryCreateConnection(config);
+                    connection = CreateConnection(config);
                     if (connection is null)
                     {
                         // Unknown rigModel — disable CAT.
@@ -189,6 +189,25 @@ public sealed class CatPollingService : IHostedService, IAsyncDisposable
                     _catState.Update(freq, CatConnectionStatus.Connected);
                     EmitIfChanged(ref lastEmittedFreq, ref lastEmittedStatus,
                                   freq, CatConnectionStatus.Connected);
+
+                    // FR-039: persist last-known frequency across restarts when changed by ≥ 1 Hz.
+                    var storedLast = _configStore.Current.Cat?.LastPolledFrequencyMHz;
+                    if (HasFreqChanged(storedLast, freq))
+                    {
+                        var updated = _configStore.Current with
+                        {
+                            Cat = (_configStore.Current.Cat ?? new CatConfig()) with
+                            {
+                                LastPolledFrequencyMHz = freq
+                            }
+                        };
+                        // Fire-and-forget — a failed persist is not fatal.
+                        _ = _configStore.SaveAsync(updated, CancellationToken.None)
+                                        .ContinueWith(t => _logger.LogWarning(
+                                            "CAT: failed to persist last-known frequency: {Msg}",
+                                            t.Exception?.GetBaseException().Message),
+                                            TaskContinuationOptions.OnlyOnFaulted);
+                    }
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -224,7 +243,12 @@ public sealed class CatPollingService : IHostedService, IAsyncDisposable
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private IRadioConnection? TryCreateConnection(CatConfig config)
+    /// <summary>
+    /// Creates the <see cref="IRadioConnection"/> for the given <paramref name="config"/>.
+    /// Returns <c>null</c> if the rig model is unrecognised.
+    /// Protected virtual to allow injection of test doubles in unit tests.
+    /// </summary>
+    protected virtual IRadioConnection? CreateConnection(CatConfig config)
     {
         try
         {

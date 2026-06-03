@@ -133,15 +133,14 @@ internal static class WebSocketHub
             // Build initial status event. AudioActive mirrors IsCapturing for consistency
             // with the heartbeat: audioActive is true whenever WASAPI is delivering buffers,
             // not when amplitude exceeds an arbitrary threshold.
-            var effectiveFreq = catState?.DialFrequencyMHz
-                                ?? configStore.Current.DecodeLog?.DialFrequencyMHz
-                                ?? 0.0;
+            var effectiveFreq = WebApp.ResolveEffectiveFrequency(catState, configStore.Current);
             var status    = new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
                 AudioDevice:         configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
                 CaptureActive:       captureManager?.IsCapturing ?? false,
                 AudioActive:         captureManager?.IsCapturing ?? false,
+                DecodingEnabled:     configStore.Current.DecodingEnabled,
                 DialFrequencyMHz:    effectiveFreq,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled");
             var statusMsg = new WsMessage(Type: "status", Payload: status);

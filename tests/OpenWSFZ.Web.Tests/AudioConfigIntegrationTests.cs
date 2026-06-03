@@ -274,4 +274,40 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }
+
+    // ── FR-017 regression ────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-017: WebSocket status event reflects DecodingEnabled = true from config store")]
+    public async Task WebSocketStatus_ReflectsDecodingEnabled_True_WhenSeededInConfigStore()
+    {
+        // Seed DecodingEnabled = true before connecting so the initial status
+        // event must carry decodingEnabled: true — not the DaemonStatus default of false.
+        await _fixture.ConfigStore.SaveAsync(new AppConfig { DecodingEnabled = true });
+
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(
+            new Uri($"ws://127.0.0.1:{_fixture.Port}/api/v1/ws"),
+            CancellationToken.None);
+
+        ws.State.Should().Be(WebSocketState.Open);
+
+        // Read the initial status frame.
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var buffer = new byte[4096];
+        var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
+        var frame  = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+        using var doc = JsonDocument.Parse(frame);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("status");
+
+        var payload = doc.RootElement.GetProperty("payload");
+        payload.GetProperty("decodingEnabled").GetBoolean().Should().BeTrue(
+            "the WebSocket status payload must reflect DecodingEnabled = true persisted in the config store " +
+            "(regression: the field was previously absent from HandleAsync and always serialised as false)");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+
+        // Reset to a clean default so subsequent tests start from a known config state.
+        await _fixture.ConfigStore.SaveAsync(new AppConfig());
+    }
 }

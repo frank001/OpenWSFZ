@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Audio;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text.Json;
 
@@ -144,9 +145,7 @@ public static class WebApp
 
         app.MapGet("/api/v1/status", (IConfigStore store) =>
         {
-            var effectiveFreq = catState?.DialFrequencyMHz
-                                ?? store.Current.DecodeLog?.DialFrequencyMHz
-                                ?? 0.0;
+            var effectiveFreq = ResolveEffectiveFrequency(catState, store.Current);
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
@@ -164,6 +163,20 @@ public static class WebApp
         {
             var devices = new List<AudioDeviceInfo>(await provider.GetDevicesAsync(ct));
             return TypedResults.Ok(devices);
+        });
+
+        app.MapGet("/api/v1/serial/ports", () =>
+        {
+            string[] ports;
+            try
+            {
+                ports = System.IO.Ports.SerialPort.GetPortNames().OrderBy(p => p).ToArray();
+            }
+            catch
+            {
+                ports = [];
+            }
+            return TypedResults.Ok(ports);
         });
 
         app.MapGet("/api/v1/config", (IConfigStore store) =>
@@ -233,7 +246,7 @@ public static class WebApp
                     "No audio device configured. Select a device in Settings before starting decoding.");
 
             await store.SaveAsync(store.Current with { DecodingEnabled = true }, ct);
-            var freqStart = catState?.DialFrequencyMHz ?? store.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
+            var freqStart = ResolveEffectiveFrequency(catState, store.Current);
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
@@ -250,7 +263,7 @@ public static class WebApp
             CancellationToken ct) =>
         {
             await store.SaveAsync(store.Current with { DecodingEnabled = false }, ct);
-            var freqStop = catState?.DialFrequencyMHz ?? store.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
+            var freqStop = ResolveEffectiveFrequency(catState, store.Current);
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
@@ -307,6 +320,25 @@ public static class WebApp
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Resolves the effective dial frequency using the three-tier rule (FR-039):
+    ///   1. Live in-session CAT value (<see cref="ICatState.DialFrequencyMHz"/> — non-null)
+    ///   2. Persisted last-known CAT value (<see cref="CatConfig.LastPolledFrequencyMHz"/>),
+    ///      only when <c>cat.enabled</c> is <c>true</c>
+    ///   3. Operator's manual fallback (<see cref="DecodeLogConfig.DialFrequencyMHz"/>)
+    /// </summary>
+    public static double ResolveEffectiveFrequency(ICatState? catState, AppConfig config)
+    {
+        if (catState?.DialFrequencyMHz is { } live)
+            return live;
+
+        var cat = config.Cat;
+        if (cat is { Enabled: true, LastPolledFrequencyMHz: { } persisted })
+            return persisted;
+
+        return config.DecodeLog?.DialFrequencyMHz ?? 0.0;
     }
 }
 

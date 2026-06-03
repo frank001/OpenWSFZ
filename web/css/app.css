@@ -283,8 +283,10 @@ label {
   font-size: 0.8rem;
 }
 
-/* ── Cycle countdown timer (FR-018) ───────────────────────────────────── */
+/* ── Cycle countdown timer (FR-018, FR-036) ───────────────────────────── */
+/* FR-036: reserves layout space regardless of enabled state */
 #cycle-timer {
+  visibility: hidden;
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -431,4 +433,58 @@ label {
   opacity: 0.4;
   cursor: not-allowed;
   color: var(--color-muted);
+}
+
+/* ── Settings tabs (FR-035) ─────────────────────────────────────────────── */
+.settings-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 1.5rem;
+}
+
+.settings-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.5rem 1.2rem;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.settings-tab-btn:hover {
+  color: var(--color-text);
+  background: none;
+}
+
+.settings-tab-btn.active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.settings-tab-panel {
+  display: none;
+}
+
+.settings-tab-panel.active {
+  display: block;
+}
+
+/* Input with an adjacent action button (e.g., serial port refresh) */
+.input-with-action {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.input-with-action select,
+.input-with-action input {
+  flex: 1;
+}
+.input-with-action button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }

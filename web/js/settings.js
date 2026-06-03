@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, postConfig, getStatus } from './api.js';
+import { getConfig, getDevices, postConfig, getStatus, getSerialPorts } from './api.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const portInput             = /** @type {HTMLInputElement}  */ (document.getElementById('port-input'));
@@ -21,11 +21,13 @@ const decodeLogEnabled      = /** @type {HTMLInputElement}  */ (document.getElem
 const decodeLogPath         = /** @type {HTMLInputElement}  */ (document.getElementById('decode-log-path'));
 const decodeLogDialFreq     = /** @type {HTMLInputElement}  */ (document.getElementById('decode-log-dial-freq'));
 const decodeLogDependent    = /** @type {HTMLElement}       */ (document.getElementById('decode-log-dependent'));
+const decodeLogDialFreqHint = /** @type {HTMLElement}       */ (document.getElementById('decode-log-dial-freq-hint'));
 
 // CAT controls (p16)
 const catEnabled         = /** @type {HTMLInputElement}  */ (document.getElementById('cat-enabled'));
 const catRigModel        = /** @type {HTMLSelectElement} */ (document.getElementById('cat-rig-model'));
-const catSerialPort      = /** @type {HTMLInputElement}  */ (document.getElementById('cat-serial-port'));
+const catSerialPort      = /** @type {HTMLSelectElement} */ (document.getElementById('cat-serial-port'));
+const catSerialRefreshBtn = /** @type {HTMLButtonElement} */ (document.getElementById('cat-serial-refresh'));
 const catBaudRate        = /** @type {HTMLInputElement}  */ (document.getElementById('cat-baud-rate'));
 const catRigctldHost     = /** @type {HTMLInputElement}  */ (document.getElementById('cat-rigctld-host'));
 const catRigctldPort     = /** @type {HTMLInputElement}  */ (document.getElementById('cat-rigctld-port'));
@@ -45,6 +47,107 @@ const loggingMaxFiles       = /** @type {HTMLInputElement}  */ (document.getElem
 const loggingDependent      = /** @type {HTMLElement}       */ (document.getElementById('logging-dependent'));
 const loggingTimeGroup      = /** @type {HTMLElement}       */ (document.getElementById('logging-time-group'));
 const loggingDayGroup       = /** @type {HTMLElement}       */ (document.getElementById('logging-day-group'));
+
+// ── Tab switching (FR-035) ────────────────────────────────────────────────
+
+const TAB_STORAGE_KEY = 'settings-tab';
+const tabBtns   = /** @type {NodeListOf<HTMLButtonElement>} */ (document.querySelectorAll('.settings-tab-btn'));
+const tabPanels = /** @type {NodeListOf<HTMLElement>}       */ (document.querySelectorAll('.settings-tab-panel'));
+
+function activateTab(panelId) {
+  tabBtns.forEach(btn => {
+    const isActive = btn.getAttribute('aria-controls') === panelId;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', String(isActive));
+  });
+  tabPanels.forEach(panel => {
+    panel.classList.toggle('active', panel.id === panelId);
+  });
+  sessionStorage.setItem(TAB_STORAGE_KEY, panelId);
+}
+
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const panelId = btn.getAttribute('aria-controls');
+    if (panelId) activateTab(panelId);
+  });
+});
+
+// Restore last active tab on load.
+const savedTab = sessionStorage.getItem(TAB_STORAGE_KEY);
+if (savedTab && document.getElementById(savedTab)) {
+  activateTab(savedTab);
+}
+
+// ── Serial port enumeration (FR-038) ─────────────────────────────────────
+
+let portsLoaded = false;
+
+async function loadSerialPorts() {
+  try {
+    const ports      = await getSerialPorts();
+    const configured = catSerialPort.value;
+
+    catSerialPort.innerHTML = '';
+    if (ports.length === 0) {
+      const opt = document.createElement('option');
+      opt.value       = configured || '';
+      opt.textContent = configured ? configured : '(no ports found)';
+      catSerialPort.appendChild(opt);
+    } else {
+      // If the configured value is not in the list, prepend it.
+      const allPorts = ports.includes(configured) || !configured
+        ? ports
+        : [configured, ...ports];
+
+      for (const p of allPorts) {
+        const opt = document.createElement('option');
+        opt.value       = p;
+        opt.textContent = p;
+        catSerialPort.appendChild(opt);
+      }
+      catSerialPort.value = configured || ports[0] || '';
+    }
+    portsLoaded = true;
+  } catch {
+    // Best-effort; leave the select with its current content.
+  }
+}
+
+catRigModel.addEventListener('change', () => {
+  updateCatVisibility();
+  if (catRigModel.value === 'SerialCat' && !portsLoaded) {
+    loadSerialPorts();
+  }
+});
+
+catSerialRefreshBtn.addEventListener('click', () => {
+  portsLoaded = false;
+  loadSerialPorts();
+});
+
+// ── Dial frequency lock (FR-037) ──────────────────────────────────────────
+
+function updateDialFreqLock() {
+  const locked = catEnabled.checked;
+  decodeLogDialFreq.disabled = locked;
+  if (locked) {
+    decodeLogDialFreqHint.textContent =
+      'Overridden by CAT — the live rig frequency is used while polling is active.';
+  } else {
+    decodeLogDialFreqHint.textContent =
+      'Your radio\'s VFO setting — written to each ALL.TXT line. ' +
+      'Leave at 0.000 if you do not need this column.';
+  }
+}
+
+catEnabled.addEventListener('change', updateDialFreqLock);
+
+// ── Opaque server-managed fields (FR-039) ────────────────────────────────
+// Fields the UI does not expose as editable must be carried forward unchanged
+// when saving, to prevent the POST from resetting them to null.
+
+let catOpaqueFields = {};
 
 // ── Load config and devices ───────────────────────────────────────────────
 
@@ -110,15 +213,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cat = config.cat ?? {};
     catEnabled.checked      = cat.enabled          ?? false;
     catRigModel.value       = cat.rigModel         ?? 'SerialCat';
-    catSerialPort.value     = cat.serialPort        ?? '';
     catBaudRate.value       = String(cat.baudRate   ?? 9600);
     catRigctldHost.value    = cat.rigctldHost       ?? '127.0.0.1';
     catRigctldPort.value    = String(cat.rigctldPort ?? 4532);
     catPollInterval.value   = String(cat.pollIntervalSeconds ?? 1);
     updateCatVisibility();
 
+    // Pre-populate the serial port select with the configured value so the Save
+    // handler can read it before loadSerialPorts() completes.
+    const configuredPort = cat.serialPort ?? '';
+    catSerialPort.innerHTML = '';
+    const initialOpt = document.createElement('option');
+    initialOpt.value       = configuredPort;
+    initialOpt.textContent = configuredPort || 'Loading ports…';
+    catSerialPort.appendChild(initialOpt);
+    catSerialPort.value = configuredPort;
+
     // Show live CAT status from the daemon status endpoint.
     updateCatStatusBadge(status?.catConnectionStatus ?? null);
+
+    // FR-039: carry forward server-managed fields that the UI does not edit.
+    catOpaqueFields = {
+      lastPolledFrequencyMHz: cat.lastPolledFrequencyMHz ?? null,
+    };
+
+    // FR-037: update dial frequency lock state based on loaded CAT enabled flag.
+    updateDialFreqLock();
+
+    // FR-038: populate the serial port list if SerialCat is the active transport.
+    if (catRigModel.value === 'SerialCat') {
+      loadSerialPorts();
+    }
 
   } catch (err) {
     showFeedback(`Failed to load settings: ${err.message}`, 'error');
@@ -142,8 +267,6 @@ function updateCatStatusBadge(status) {
   catStatusValue.textContent = status ?? 'Disabled';
   catStatusValue.className   = `cat-status-badge cat-${s}`;
 }
-
-catRigModel.addEventListener('change', updateCatVisibility);
 
 // ── Visibility helpers (p9) ──────────────────────────────────────────────
 
@@ -205,11 +328,12 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
-  // p16: collect CAT config.
+  // p16: collect CAT config — carry forward opaque server-managed fields (FR-039).
   const cat = {
+    ...catOpaqueFields,          // ← carry forward server-managed fields
     enabled:             catEnabled.checked,
     rigModel:            catRigModel.value,
-    serialPort:          catSerialPort.value.trim()   || 'COM6',
+    serialPort:          catSerialPort.value.trim() || 'COM6',
     baudRate:            parseInt(catBaudRate.value, 10)    || 9600,
     rigctldHost:         catRigctldHost.value.trim()  || '127.0.0.1',
     rigctldPort:         parseInt(catRigctldPort.value, 10) || 4532,

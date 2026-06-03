@@ -106,18 +106,23 @@ function tickCycleTimer() {
 }
 
 /**
- * Fetch the current config.  If ShowCycleCountdown is true, unhide the timer
- * element and start a 100 ms interval tick.
- * Failures are silently swallowed — the timer stays hidden on any error.
+ * Fetch config. If ShowCycleCountdown is true, make the timer visible and
+ * start the 100 ms tick. The hidden attribute is never used — see FR-036.
  */
 async function startCycleTimerIfEnabled() {
+  // Remove the HTML hidden attribute unconditionally — CSS provides the default
+  // visibility: hidden state.  This prevents a FOUC if the attribute is left on
+  // the element at parse time.
+  cycleTimerEl.removeAttribute('hidden');
+
   try {
     const config = await getConfig();
     if (config.showCycleCountdown) {
-      cycleTimerEl.removeAttribute('hidden');
+      cycleTimerEl.style.visibility = 'visible';
       tickCycleTimer();
       setInterval(tickCycleTimer, 100);
     }
+    // If false, CSS default (visibility: hidden) applies — no explicit set needed.
   } catch {
     // Config fetch failed — timer stays hidden (fail-safe).
   }

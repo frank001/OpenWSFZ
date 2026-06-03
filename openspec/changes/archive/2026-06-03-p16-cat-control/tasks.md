@@ -94,23 +94,23 @@
 
 ## 15. Acceptance Gate — Serial CAT mode (manual, hardware required)
 
-- [ ] 15.1 Set `cat.rigModel = "SerialCat"`, `cat.serialPort = "COM6"`, `cat.baudRate = 9600`, `cat.enabled = true`; start the daemon
-- [ ] 15.2 Verify the status bar shows the rig's current VFO-A frequency within 2 poll intervals
-- [ ] 15.3 Tune the rig to a different frequency; verify the status bar updates within 2 poll intervals
-- [ ] 15.4 Verify ALL.TXT log lines show the correct rig frequency when CAT is active
-- [ ] 15.5 Unplug the serial cable; verify the daemon logs a Warning, shows the Error indicator, and continues decoding without crashing
-- [ ] 15.6 Reconnect; verify CAT reconnects automatically and the indicator returns to Connected
-- [ ] 15.7 Confirm no rig-altering commands were sent throughout — observe the rig display
+- [x] 15.1 Set `cat.rigModel = "SerialCat"`, `cat.serialPort = "COM6"`, `cat.baudRate = 9600`, `cat.enabled = true`; start the daemon
+- [x] 15.2 Verify the status bar shows the rig's current VFO-A frequency within 2 poll intervals
+- [x] 15.3 Tune the rig to a different frequency; verify the status bar updates within 2 poll intervals
+- [x] 15.4 Verify ALL.TXT log lines show the correct rig frequency when CAT is active
+- [x] 15.5 Unplug the serial cable; verify the daemon logs a Warning, shows the Error indicator, and continues decoding without crashing
+- [x] 15.6 Reconnect; verify CAT reconnects automatically and the indicator returns to Connected
+- [x] 15.7 Confirm no rig-altering commands were sent throughout — observe the rig display
 
 ## 16. Acceptance Gate — rigctld mode (manual, hardware required)
 
-- [ ] 16.1 Start `rigctld` pointing at the test rig (e.g. `rigctld -m <model-id> -r COM6 -s 9600`)
-- [ ] 16.2 Set `cat.rigModel = "RigCtld"`, `cat.rigctldHost = "127.0.0.1"`, `cat.rigctldPort = 4532`, `cat.enabled = true`; start the daemon
-- [ ] 16.3 Verify the status bar shows the rig's current VFO-A frequency within 2 poll intervals
-- [ ] 16.4 Verify that a second application can connect to `rigctld` simultaneously (confirms no port conflict)
-- [ ] 16.5 Stop `rigctld`; verify the daemon logs a Warning, shows the Error indicator, and continues decoding without crashing
-- [ ] 16.6 Restart `rigctld`; verify CAT reconnects automatically
-- [ ] 16.7 Confirm no rig-altering commands were sent throughout
+- [x] 16.1 Start `rigctld` pointing at the test rig (e.g. `rigctld -m <model-id> -r COM6 -s 9600`)
+- [x] 16.2 Set `cat.rigModel = "RigCtld"`, `cat.rigctldHost = "127.0.0.1"`, `cat.rigctldPort = 4532`, `cat.enabled = true`; start the daemon
+- [x] 16.3 Verify the status bar shows the rig's current VFO-A frequency within 2 poll intervals
+- [x] 16.4 Verify that a second application can connect to `rigctld` simultaneously (confirms no port conflict)
+- [x] 16.5 Stop `rigctld`; verify the daemon logs a Warning, shows the Error indicator, and continues decoding without crashing
+- [x] 16.6 Restart `rigctld`; verify CAT reconnects automatically
+- [x] 16.7 Confirm no rig-altering commands were sent throughout
 
 ## 17. Housekeeping
 

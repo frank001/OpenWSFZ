@@ -264,7 +264,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 // spans two bands and cannot be reliably labeled with either frequency.
                 // Discard the cycle: a mislabeled decode is worse than no decode (FR-032,
                 // defect: dial-freq-snapshot).
-                var currentDialFreq = catState.DialFrequencyMHz;
+                var currentDialFreq = (double?)WebApp.ResolveEffectiveFrequency(catState, configStore.Current);
                 if (windowDialFreq != currentDialFreq)
                 {
                     startupLogger.LogInformation(
@@ -432,7 +432,7 @@ void StartPipeline(string deviceName)
         captureManager.Samples,
         clock,
         loggerFactory.CreateLogger<CycleFramer>(),
-        dialFreqProvider: () => catState.DialFrequencyMHz);
+        dialFreqProvider: () => WebApp.ResolveEffectiveFrequency(catState, configStore.Current));
 
     framerTask = Task.Run(() => cycleFramer.RunAsync(framerOutput.Writer, ct));
 }

@@ -55,4 +55,11 @@ public sealed record CatConfig
     /// Values outside the valid range are clamped with a Warning (FR-034).
     /// </summary>
     public int PollIntervalSeconds { get; init; } = 1;
+
+    /// <summary>
+    /// Last successfully-polled VFO-A frequency in MHz, persisted across restarts (FR-039).
+    /// Written only by <c>CatPollingService</c>; never exposed as an editable UI field.
+    /// <c>null</c> until at least one successful poll has been persisted.
+    /// </summary>
+    public double? LastPolledFrequencyMHz { get; init; } = null;
 }

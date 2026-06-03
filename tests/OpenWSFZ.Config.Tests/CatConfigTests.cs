@@ -91,6 +91,60 @@ public sealed class CatConfigTests
         cat.PollIntervalSeconds.Should().Be(1);
     }
 
+    // ── Scenario: LastPolledFrequencyMHz round-trip (FR-039) ─────────────────
+
+    [Fact(DisplayName = "FR-039: CatConfig LastPolledFrequencyMHz round-trips through JSON serialisation")]
+    public void RoundTrip_LastPolledFrequencyMHz_PreservesValue()
+    {
+        var original = new AppConfig() with
+        {
+            Cat = new CatConfig
+            {
+                Enabled                = true,
+                LastPolledFrequencyMHz = 14.074,
+            }
+        };
+
+        var json   = JsonSerializer.Serialize(original, ConfigJsonContext.Default.AppConfig);
+        var loaded = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        loaded.Cat.Should().NotBeNull();
+        loaded.Cat!.LastPolledFrequencyMHz.Should().BeApproximately(14.074, 1e-9);
+    }
+
+    [Fact(DisplayName = "FR-039: CatConfig LastPolledFrequencyMHz default is null")]
+    public void Defaults_LastPolledFrequencyMHz_IsNull()
+    {
+        var cat = new CatConfig();
+        cat.LastPolledFrequencyMHz.Should().BeNull();
+    }
+
+    [Fact(DisplayName = "FR-039: CatConfig null LastPolledFrequencyMHz round-trips as null")]
+    public void RoundTrip_NullLastPolledFrequencyMHz_RemainsNull()
+    {
+        var original = new AppConfig() with
+        {
+            Cat = new CatConfig { Enabled = false, LastPolledFrequencyMHz = null }
+        };
+
+        var json   = JsonSerializer.Serialize(original, ConfigJsonContext.Default.AppConfig);
+        var loaded = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        loaded.Cat!.LastPolledFrequencyMHz.Should().BeNull();
+    }
+
+    [Fact(DisplayName = "FR-039: CatConfig serialises lastPolledFrequencyMHz as camelCase key")]
+    public void Serialise_LastPolledFrequencyMHz_UsesCamelCase()
+    {
+        var config = new AppConfig() with
+        {
+            Cat = new CatConfig { LastPolledFrequencyMHz = 7.074 }
+        };
+        var json = JsonSerializer.Serialize(config, ConfigJsonContext.Default.AppConfig);
+
+        json.Should().Contain("\"lastPolledFrequencyMHz\"");
+    }
+
     // ── Scenario: Partial cat object loads without error ─────────────────────
 
     [Fact(DisplayName = "FR-031: Partial cat JSON (only enabled present) loads without error and sets enabled correctly")]

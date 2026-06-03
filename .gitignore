@@ -69,6 +69,9 @@ p10-decoder-ground-truth_items/
 # UAT-01 raw WAV corpus for p12-ft8lib-port — local only
 p12-ft8lib-port_UAT-01_items/
 
+# p16 CAT control live capture samples (ALL-*.TXT, *.log) — operator artefacts, local only
+p16-cat-control_items/
+
 # Daemon runtime output — generated files
 ALL.TXT
 

@@ -24,225 +24,259 @@
 
     <form id="settings-form" novalidate>
 
-      <div class="field-group">
-        <label for="device-select">Audio capture device</label>
-        <select id="device-select">
-          <option disabled>Loading devices…</option>
-        </select>
+      <!-- ── Tab navigation ──────────────────────────────────────────────── -->
+      <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+        <button type="button" class="settings-tab-btn active"
+                role="tab" aria-selected="true"  aria-controls="tab-radio"   id="tab-btn-radio">
+          Radio hardware
+        </button>
+        <button type="button" class="settings-tab-btn"
+                role="tab" aria-selected="false" aria-controls="tab-logging" id="tab-btn-logging">
+          Logging
+        </button>
+        <button type="button" class="settings-tab-btn"
+                role="tab" aria-selected="false" aria-controls="tab-advanced" id="tab-btn-advanced">
+          Advanced
+        </button>
       </div>
 
-      <div class="field-group">
-        <label for="port-input">Web UI port</label>
-        <input
-          id="port-input"
-          type="number"
-          min="1"
-          max="65535"
-          placeholder="8080"
-        />
-      </div>
-
-      <div class="field-group">
-        <label class="checkbox-label">
-          <input type="checkbox" id="cycle-countdown-toggle" />
-          Show cycle countdown (testing aid)
-        </label>
-        <p class="field-hint">
-          Displays a countdown in the status bar to the next 15-second FT8 cycle
-          boundary, followed by an 8-second <strong>GO</strong> window — the time
-          during which starting a test recording will capture a usable FT8 signal.
-        </p>
-      </div>
-
-      <div class="field-group">
-        <label for="log-level-select">Application log level</label>
-        <select id="log-level-select">
-          <option value="Trace">Trace — all internal loop counters, per-sample values</option>
-          <option value="Debug">Debug — framer offsets, Costas scores, sweep positions</option>
-          <option value="Information">Information — pipeline events, decode results (default)</option>
-          <option value="Warning">Warning — recoverable anomalies (buffer overflow, reconnects)</option>
-          <option value="Error">Error — operation failures that do not terminate the app</option>
-          <option value="Critical">Critical — unrecoverable failures only</option>
-          <option value="None">None — suppress all output</option>
-        </select>
-        <p class="field-hint">
-          Requires an application restart to take effect. Output is written to stderr
-          in the format <code>[OpenWSFZ] YYYY-MM-DD HH:MM:SS [LEVEL]  Component — message</code>.
-        </p>
-      </div>
-
-      <fieldset id="decode-log-settings">
-        <legend>Decode log (ALL.TXT)</legend>
+      <!-- ── Tab 1: Radio hardware ───────────────────────────────────────── -->
+      <div id="tab-radio" class="settings-tab-panel active" role="tabpanel" aria-labelledby="tab-btn-radio">
 
         <div class="field-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="decode-log-enabled" />
-            Write ALL.TXT decode log
-          </label>
-          <p class="field-hint">
-            Appends one line per decoded FT8 message to the file below in
-            WSJT-X compatible format after each 15-second cycle.
-          </p>
-        </div>
-
-        <div class="field-group" id="decode-log-dependent">
-          <label for="decode-log-path">ALL.TXT path</label>
-          <input type="text" id="decode-log-path" placeholder="ALL.TXT" />
-          <p class="field-hint">
-            Relative to the executable, or an absolute path.
-          </p>
-        </div>
-
-        <div class="field-group">
-          <label for="decode-log-dial-freq">Dial frequency (MHz)</label>
-          <input
-            type="number"
-            id="decode-log-dial-freq"
-            step="0.001"
-            min="0"
-            placeholder="e.g. 7.074"
-          />
-          <p class="field-hint">
-            Your radio's VFO setting — written to each ALL.TXT line.
-            Leave at 0.000 if you do not need this column.
-          </p>
-        </div>
-
-      </fieldset>
-
-      <!-- CAT rig connection (FR-031, FR-033) -->
-      <fieldset id="cat-settings">
-        <legend>CAT rig connection</legend>
-
-        <div class="field-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="cat-enabled" />
-            Enable CAT frequency polling
-          </label>
-          <p class="field-hint">
-            Polls the rig's VFO-A frequency and displays it live in the status bar.
-            Keeps the ALL.TXT log accurate without manual dial-frequency entry.
-          </p>
-        </div>
-
-        <div class="field-group" id="cat-status-indicator">
-          <label>CAT connection status</label>
-          <span id="cat-status-value" class="cat-status-badge cat-disabled">Disabled</span>
-        </div>
-
-        <div class="field-group">
-          <label for="cat-rig-model">Rig transport</label>
-          <select id="cat-rig-model">
-            <option value="SerialCat">SerialCat — direct serial port</option>
-            <option value="RigCtld">RigCtld — TCP to rigctld daemon</option>
+          <label for="device-select">Audio capture device</label>
+          <select id="device-select">
+            <option disabled>Loading devices…</option>
           </select>
         </div>
 
-        <!-- Serial CAT fields (shown when RigModel = SerialCat) -->
-        <div id="cat-serial-fields">
+        <fieldset id="cat-settings">
+          <legend>CAT rig connection</legend>
+
           <div class="field-group">
-            <label for="cat-serial-port">Serial port</label>
-            <input type="text" id="cat-serial-port" placeholder="COM6" />
+            <label class="checkbox-label">
+              <input type="checkbox" id="cat-enabled" />
+              Enable CAT frequency polling
+            </label>
             <p class="field-hint">
-              Windows: <code>COM6</code> · Linux: <code>/dev/ttyUSB0</code> · macOS: <code>/dev/cu.usbserial</code>
+              Polls the rig's VFO-A frequency and displays it live in the status bar.
+              Keeps the ALL.TXT log accurate without manual dial-frequency entry.
+            </p>
+          </div>
+
+          <div class="field-group" id="cat-status-indicator">
+            <label>CAT connection status</label>
+            <span id="cat-status-value" class="cat-status-badge cat-disabled">Disabled</span>
+          </div>
+
+          <div class="field-group">
+            <label for="cat-rig-model">Rig transport</label>
+            <select id="cat-rig-model">
+              <option value="SerialCat">SerialCat — direct serial port</option>
+              <option value="RigCtld">RigCtld — TCP to rigctld daemon</option>
+            </select>
+          </div>
+
+          <!-- Serial CAT fields (shown when RigModel = SerialCat) -->
+          <div id="cat-serial-fields">
+            <div class="field-group">
+              <label for="cat-serial-port">Serial port</label>
+              <div class="input-with-action">
+                <select id="cat-serial-port">
+                  <option value="">Loading ports…</option>
+                </select>
+                <button type="button" id="cat-serial-refresh" title="Refresh port list">↺ Refresh</button>
+              </div>
+              <p class="field-hint">
+                Windows: <code>COM6</code> · Linux: <code>/dev/ttyUSB0</code> · macOS: <code>/dev/cu.usbserial</code>
+              </p>
+            </div>
+
+            <div class="field-group">
+              <label for="cat-baud-rate">Baud rate</label>
+              <input type="number" id="cat-baud-rate" min="1200" max="115200" step="100" placeholder="9600" />
+            </div>
+          </div>
+
+          <!-- rigctld fields (shown when RigModel = RigCtld) -->
+          <div id="cat-rigctld-fields" style="display:none">
+            <div class="field-group">
+              <label for="cat-rigctld-host">rigctld host</label>
+              <input type="text" id="cat-rigctld-host" placeholder="127.0.0.1" />
+            </div>
+
+            <div class="field-group">
+              <label for="cat-rigctld-port">rigctld port</label>
+              <input type="number" id="cat-rigctld-port" min="1" max="65535" placeholder="4532" />
+            </div>
+
+            <p class="field-hint cat-rigctld-note" id="cat-rigctld-note">
+              ⚠ <strong>rigctld must be running before you enable CAT in this mode.</strong>
+              Start it with e.g. <code>rigctld -m &lt;model-id&gt; -r COM6 -s 9600</code>.
+              The daemon will retry automatically if rigctld is not yet available.
             </p>
           </div>
 
           <div class="field-group">
-            <label for="cat-baud-rate">Baud rate</label>
-            <input type="number" id="cat-baud-rate" min="1200" max="115200" step="100" placeholder="9600" />
+            <label for="cat-poll-interval">Poll interval (seconds)</label>
+            <input type="number" id="cat-poll-interval" min="1" max="60" placeholder="1" />
+            <p class="field-hint">How often to query the rig. Range: 1–60 seconds.</p>
           </div>
+
+        </fieldset>
+      </div><!-- /tab-radio -->
+
+      <!-- ── Tab 2: Logging ───────────────────────────────────────────────── -->
+      <div id="tab-logging" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-logging">
+
+        <fieldset id="decode-log-settings">
+          <legend>Decode log (ALL.TXT)</legend>
+
+          <div class="field-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="decode-log-enabled" />
+              Write ALL.TXT decode log
+            </label>
+            <p class="field-hint">
+              Appends one line per decoded FT8 message to the file below in
+              WSJT-X compatible format after each 15-second cycle.
+            </p>
+          </div>
+
+          <div class="field-group" id="decode-log-dependent">
+            <label for="decode-log-path">ALL.TXT path</label>
+            <input type="text" id="decode-log-path" placeholder="ALL.TXT" />
+            <p class="field-hint">
+              Relative to the executable, or an absolute path.
+            </p>
+          </div>
+
+          <div class="field-group">
+            <label for="decode-log-dial-freq">Dial frequency (MHz)</label>
+            <input
+              type="number"
+              id="decode-log-dial-freq"
+              step="0.001"
+              min="0"
+              placeholder="e.g. 7.074"
+            />
+            <p class="field-hint" id="decode-log-dial-freq-hint">
+              Your radio's VFO setting — written to each ALL.TXT line.
+              Leave at 0.000 if you do not need this column.
+            </p>
+          </div>
+
+        </fieldset>
+
+        <fieldset id="logging-settings">
+          <legend>File logging</legend>
+
+          <div class="field-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="logging-file-enabled" />
+              Write logs to a file
+            </label>
+          </div>
+
+          <div class="field-group" id="logging-dependent">
+            <label for="logging-directory">Log directory</label>
+            <input type="text" id="logging-directory" placeholder="logs" />
+            <p class="field-hint">Relative to the executable, or an absolute path.</p>
+          </div>
+
+          <div class="field-group" id="logging-level-group">
+            <label for="logging-file-log-level">File log level</label>
+            <select id="logging-file-log-level">
+              <option value="Trace">Trace — all internal loop counters, per-sample values</option>
+              <option value="Debug">Debug — framer offsets, Costas scores, LLR magnitudes</option>
+              <option value="Information">Information — pipeline events, decode results (default)</option>
+              <option value="Warning">Warning — recoverable anomalies only</option>
+              <option value="Error">Error — operation failures only</option>
+              <option value="Critical">Critical — unrecoverable failures only</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="logging-rotation-schedule">Rotation schedule</label>
+            <select id="logging-rotation-schedule">
+              <option value="session">Session — new file on each start</option>
+              <option value="hourly">Hourly — at each UTC hour boundary</option>
+              <option value="daily" selected>Daily — at a configured UTC time</option>
+              <option value="weekly">Weekly — on a configured day and time</option>
+            </select>
+          </div>
+
+          <div class="field-group" id="logging-time-group">
+            <label for="logging-rotation-time">Rotation time (UTC, HH:MM)</label>
+            <input type="time" id="logging-rotation-time" value="00:00" />
+          </div>
+
+          <div class="field-group" id="logging-day-group" style="display:none">
+            <label for="logging-rotation-day">Day of week</label>
+            <select id="logging-rotation-day">
+              <option value="Monday">Monday</option>
+              <option value="Tuesday">Tuesday</option>
+              <option value="Wednesday">Wednesday</option>
+              <option value="Thursday">Thursday</option>
+              <option value="Friday">Friday</option>
+              <option value="Saturday">Saturday</option>
+              <option value="Sunday">Sunday</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="logging-max-files">Maximum files to keep</label>
+            <input type="number" id="logging-max-files" min="1" value="7" />
+          </div>
+
+        </fieldset>
+      </div><!-- /tab-logging -->
+
+      <!-- ── Tab 3: Advanced ─────────────────────────────────────────────── -->
+      <div id="tab-advanced" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-advanced">
+
+        <div class="field-group">
+          <label for="port-input">Web UI port</label>
+          <input
+            id="port-input"
+            type="number"
+            min="1"
+            max="65535"
+            placeholder="8080"
+          />
         </div>
 
-        <!-- rigctld fields (shown when RigModel = RigCtld) -->
-        <div id="cat-rigctld-fields" style="display:none">
-          <div class="field-group">
-            <label for="cat-rigctld-host">rigctld host</label>
-            <input type="text" id="cat-rigctld-host" placeholder="127.0.0.1" />
-          </div>
-
-          <div class="field-group">
-            <label for="cat-rigctld-port">rigctld port</label>
-            <input type="number" id="cat-rigctld-port" min="1" max="65535" placeholder="4532" />
-          </div>
-
-          <p class="field-hint cat-rigctld-note" id="cat-rigctld-note">
-            ⚠ <strong>rigctld must be running before you enable CAT in this mode.</strong>
-            Start it with e.g. <code>rigctld -m &lt;model-id&gt; -r COM6 -s 9600</code>.
-            The daemon will retry automatically if rigctld is not yet available.
+        <div class="field-group">
+          <label for="log-level-select">Application log level</label>
+          <select id="log-level-select">
+            <option value="Trace">Trace — all internal loop counters, per-sample values</option>
+            <option value="Debug">Debug — framer offsets, Costas scores, sweep positions</option>
+            <option value="Information">Information — pipeline events, decode results (default)</option>
+            <option value="Warning">Warning — recoverable anomalies (buffer overflow, reconnects)</option>
+            <option value="Error">Error — operation failures that do not terminate the app</option>
+            <option value="Critical">Critical — unrecoverable failures only</option>
+            <option value="None">None — suppress all output</option>
+          </select>
+          <p class="field-hint">
+            Requires an application restart to take effect. Output is written to stderr
+            in the format <code>[OpenWSFZ] YYYY-MM-DD HH:MM:SS [LEVEL]  Component — message</code>.
           </p>
         </div>
 
         <div class="field-group">
-          <label for="cat-poll-interval">Poll interval (seconds)</label>
-          <input type="number" id="cat-poll-interval" min="1" max="60" placeholder="1" />
-          <p class="field-hint">How often to query the rig. Range: 1–60 seconds.</p>
-        </div>
-
-      </fieldset>
-
-      <fieldset id="logging-settings">
-        <legend>File logging</legend>
-
-        <div class="field-group">
           <label class="checkbox-label">
-            <input type="checkbox" id="logging-file-enabled" />
-            Write logs to a file
+            <input type="checkbox" id="cycle-countdown-toggle" />
+            Show cycle countdown
           </label>
+          <p class="field-hint">
+            <em>(Testing aid)</em> — Displays a countdown in the status bar to the next
+            15-second FT8 cycle boundary, followed by an 8-second <strong>GO</strong>
+            window — the time during which starting a test recording will capture a
+            usable FT8 signal.
+          </p>
         </div>
 
-        <div class="field-group" id="logging-dependent">
-          <label for="logging-directory">Log directory</label>
-          <input type="text" id="logging-directory" placeholder="logs" />
-          <p class="field-hint">Relative to the executable, or an absolute path.</p>
-        </div>
-
-        <div class="field-group" id="logging-level-group">
-          <label for="logging-file-log-level">File log level</label>
-          <select id="logging-file-log-level">
-            <option value="Trace">Trace — all internal loop counters, per-sample values</option>
-            <option value="Debug">Debug — framer offsets, Costas scores, LLR magnitudes</option>
-            <option value="Information">Information — pipeline events, decode results (default)</option>
-            <option value="Warning">Warning — recoverable anomalies only</option>
-            <option value="Error">Error — operation failures only</option>
-            <option value="Critical">Critical — unrecoverable failures only</option>
-          </select>
-        </div>
-
-        <div class="field-group">
-          <label for="logging-rotation-schedule">Rotation schedule</label>
-          <select id="logging-rotation-schedule">
-            <option value="session">Session — new file on each start</option>
-            <option value="hourly">Hourly — at each UTC hour boundary</option>
-            <option value="daily" selected>Daily — at a configured UTC time</option>
-            <option value="weekly">Weekly — on a configured day and time</option>
-          </select>
-        </div>
-
-        <div class="field-group" id="logging-time-group">
-          <label for="logging-rotation-time">Rotation time (UTC, HH:MM)</label>
-          <input type="time" id="logging-rotation-time" value="00:00" />
-        </div>
-
-        <div class="field-group" id="logging-day-group" style="display:none">
-          <label for="logging-rotation-day">Day of week</label>
-          <select id="logging-rotation-day">
-            <option value="Monday">Monday</option>
-            <option value="Tuesday">Tuesday</option>
-            <option value="Wednesday">Wednesday</option>
-            <option value="Thursday">Thursday</option>
-            <option value="Friday">Friday</option>
-            <option value="Saturday">Saturday</option>
-            <option value="Sunday">Sunday</option>
-          </select>
-        </div>
-
-        <div class="field-group">
-          <label for="logging-max-files">Maximum files to keep</label>
-          <input type="number" id="logging-max-files" min="1" value="7" />
-        </div>
-
-      </fieldset>
+      </div><!-- /tab-advanced -->
 
       <div class="form-footer">
         <button id="save-btn" type="button" class="primary">Save</button>

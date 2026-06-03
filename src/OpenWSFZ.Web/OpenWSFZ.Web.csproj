@@ -21,6 +21,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.IO.Ports" /></ItemGroup>
+
+  <ItemGroup>
     <!-- Expose internal types (AudioWatchdog, etc.) to the Web test project. -->
     <InternalsVisibleTo Include="OpenWSFZ.Web.Tests" />
   </ItemGroup>

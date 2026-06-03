@@ -56,3 +56,11 @@ export function postConfig(config) {
     body:    JSON.stringify(config),
   });
 }
+
+/**
+ * GET /api/v1/serial/ports
+ * @returns {Promise<string[]>}
+ */
+export function getSerialPorts() {
+  return fetchJson('/api/v1/serial/ports');
+}

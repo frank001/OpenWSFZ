@@ -69,6 +69,15 @@ NFR-018 # Decode parity — v1.0 release gate; enforced by the real-signal fixtu
 NFR-019 # Brand neutrality — policy requirement; no automated test is feasible.
         # Enforced by code review. Remove if a lint/grep-based test is added.
 
+## Pending — Phase 17 (Settings UX — p17-settings-ux)
+
+FR-035  # Settings page tabbed layout — UI-layer only; no automated test yet.
+        # Verified manually. Remove when a browser/UI test covers tab switching.
+FR-036  # Cycle countdown visibility: hidden not display:none — CSS/JS behaviour.
+        # No automated test yet. Remove when a DOM assertion test is added.
+FR-037  # Dial frequency input disabled when CAT enabled — JS dynamic locking.
+        # No automated test yet. Remove when a DOM assertion test is added.
+
 ## Pending — Phase 10 (Decoder ground truth — p10-decoder-ground-truth)
 
 # FR-029 is fully covered: WavReaderTests (unit) + RealSignalFixtureTests (oracle integration)
