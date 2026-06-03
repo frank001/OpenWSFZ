@@ -128,4 +128,32 @@ public sealed class RigctldConnectionTests
         tcp.Received().Close();
         tcp.Received(1).Dispose();
     }
+
+    // ── SetDialFrequencyMhzAsync (FR-045) ─────────────────────────────────────
+
+    [Theory(DisplayName = "FR-045: RigctldConnection.SetDialFrequencyMhzAsync sends correct set_freq command")]
+    [InlineData(7.074,   @"\set_freq 7074000" + "\n")]
+    [InlineData(14.074,  @"\set_freq 14074000" + "\n")]
+    [InlineData(0.001,   @"\set_freq 1000" + "\n")]
+    public async Task SetDialFrequencyMhzAsync_SendsCorrectCommand(double freqMHz, string expected)
+    {
+        var tcp = Substitute.For<ITcpConnection>();
+        var sut = new RigctldConnection(Host, Port, tcp);
+
+        await sut.SetDialFrequencyMhzAsync(freqMHz);
+
+        await tcp.Received(1).SendAsync(expected, Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "FR-045: RigctldConnection.SetDialFrequencyMhzAsync does not await a read-back")]
+    public async Task SetDialFrequencyMhzAsync_DoesNotReadBack()
+    {
+        var tcp = Substitute.For<ITcpConnection>();
+        var sut = new RigctldConnection(Host, Port, tcp);
+
+        await sut.SetDialFrequencyMhzAsync(14.074);
+
+        // ReceiveLineAsync must never be called.
+        await tcp.DidNotReceive().ReceiveLineAsync(Arg.Any<CancellationToken>());
+    }
 }

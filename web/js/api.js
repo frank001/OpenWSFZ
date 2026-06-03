@@ -64,3 +64,37 @@ export function postConfig(config) {
 export function getSerialPorts() {
   return fetchJson('/api/v1/serial/ports');
 }
+
+/**
+ * GET /api/v1/frequencies
+ * @returns {Promise<Array<{protocol: string, frequencyMHz: number, description: string}>>}
+ */
+export function getFrequencies() {
+  return fetchJson('/api/v1/frequencies');
+}
+
+/**
+ * POST /api/v1/frequencies
+ * @param {Array<{protocol: string, frequencyMHz: number, description: string}>} entries
+ * @returns {Promise<Array<{protocol: string, frequencyMHz: number, description: string}>>}
+ */
+export function postFrequencies(entries) {
+  return fetchJson('/api/v1/frequencies', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(entries),
+  });
+}
+
+/**
+ * POST /api/v1/tune
+ * @param {number} frequencyMHz
+ * @returns {Promise<{effectiveFrequencyMHz: number}>}
+ */
+export function postTune(frequencyMHz) {
+  return fetchJson('/api/v1/tune', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ frequencyMHz }),
+  });
+}

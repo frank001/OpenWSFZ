@@ -496,3 +496,67 @@ label {
   flex-shrink: 0;
   white-space: nowrap;
 }
+
+/* ── Frequencies table (FR-043) ─────────────────────────────────────────── */
+.freq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.freq-table th,
+.freq-table td {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+.freq-table thead th {
+  background: var(--color-surface);
+  font-weight: 600;
+  color: var(--color-muted);
+}
+.freq-table td input[type="text"],
+.freq-table td input[type="number"] {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 0.25rem 0.375rem;
+  border-radius: 3px;
+}
+.freq-table td:last-child {
+  text-align: center;
+  width: 3rem;
+}
+.freq-delete-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+}
+.freq-delete-btn:hover {
+  border-color: #f85149;
+  color: #f85149;
+}
+.freq-placeholder {
+  text-align: center;
+  color: var(--color-muted);
+  padding: 1rem !important;
+}
+
+/* ── Dial frequency select (FR-044) ─────────────────────────────────────── */
+#dial-freq {
+  display: inline-block;
+}
+select#dial-freq {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 0.15rem 0.375rem;
+  border-radius: 4px;
+  font-size: inherit;
+  cursor: pointer;
+}

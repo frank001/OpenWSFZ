@@ -24,6 +24,14 @@ Console.Error.WriteLine($"[OpenWSFZ] Config: {configSource} → {configPath}");
 // Note: constructed before the logger exists (bootstrap phase).
 var configStore = new JsonConfigStore(configPath);
 
+// Resolve the frequencies.json path — same data directory as app.json (FR-042).
+var frequenciesPath = Path.Combine(
+    Path.GetDirectoryName(configPath) ?? AppContext.BaseDirectory,
+    "frequencies.json");
+
+// Create the FrequencyStore (logger not available yet; assigned after host builds).
+var frequencyStore = new FrequencyStore(frequenciesPath);
+
 // ── Logging setup (FR-019, FR-022, FR-023, FR-024) ────────────────────────────
 // Parse the configured log level.  Invalid values fall back to Information.
 var logLevel = Enum.TryParse<LogLevel>(configStore.Current.LogLevel, ignoreCase: true, out var parsedLevel)
@@ -212,6 +220,7 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
 var app = WebApp.Create(
     port,
     configStore:          configStore,
+    frequencyStore:       frequencyStore,
     audioProviderFactory: sp => new PlatformAudioDeviceProvider(
                                     sp.GetRequiredService<ILoggerFactory>()),
     captureManager:       captureManager,
@@ -226,6 +235,9 @@ var app = WebApp.Create(
         services.AddSingleton(allTxtWriter);
         services.AddHostedService<LogRotationService>();
 
+        // Frequency store DI wiring (FR-042).
+        services.AddSingleton<IFrequencyStore>(frequencyStore);
+
         // CAT DI wiring (tasks 11.1–11.3, FR-031).
         // Register the CatState singleton under both its concrete type (for
         // CatPollingService to call internal Update) and the ICatState interface
@@ -233,8 +245,12 @@ var app = WebApp.Create(
         services.AddSingleton(catState);
         services.AddSingleton<ICatState>(catState);
 
-        // CatPollingService as a hosted service (task 11.3).
-        services.AddHostedService<CatPollingService>();
+        // CatPollingService registered as a singleton so ICatTuner (FR-045) can
+        // be resolved from DI by the web layer.  Also wired as IHostedService
+        // so the ASP.NET Core host starts and stops it automatically.
+        services.AddSingleton<CatPollingService>();
+        services.AddSingleton<ICatTuner>(sp => sp.GetRequiredService<CatPollingService>());
+        services.AddHostedService(sp => sp.GetRequiredService<CatPollingService>());
     });
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────
@@ -412,6 +428,9 @@ app.Lifetime.ApplicationStopping.Register(() =>
         restartSemaphore.Release();
     }
 });
+
+// Load (or create) frequencies.json before starting the web host (FR-042, task 3.3).
+await frequencyStore.LoadAsync();
 
 await app.RunAsync();
 

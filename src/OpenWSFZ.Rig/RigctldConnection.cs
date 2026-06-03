@@ -100,6 +100,24 @@ public sealed class RigctldConnection : IRadioConnection, IDisposable
         return hz / 1_000_000.0;
     }
 
+    /// <summary>
+    /// Sends <c>\set_freq &lt;Hz&gt;\n</c> to command VFO-A to
+    /// <paramref name="frequencyMHz"/> (FR-045).
+    /// The Hz integer is rounded to the nearest integer.
+    /// The method returns after the write completes — no read-back is performed.
+    /// </summary>
+    /// <example>
+    /// <c>14.074 MHz → \set_freq 14074000\n</c>
+    /// </example>
+    public async Task SetDialFrequencyMhzAsync(
+        double            frequencyMHz,
+        CancellationToken cancellationToken = default)
+    {
+        var hz      = (long)Math.Round(frequencyMHz * 1_000_000.0);
+        var command = $@"\set_freq {hz}" + "\n";
+        await _tcp.SendAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Closes the TCP connection.</summary>
     public Task DisconnectAsync(CancellationToken cancellationToken = default)
     {

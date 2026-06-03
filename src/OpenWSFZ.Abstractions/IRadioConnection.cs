@@ -1,12 +1,15 @@
 namespace OpenWSFZ.Abstractions;
 
 /// <summary>
-/// Abstraction over a rig CAT connection (FR-031, FR-032).
+/// Abstraction over a rig CAT connection (FR-031, FR-032, FR-045).
 /// Implementations are in <c>OpenWSFZ.Rig</c>; consumers outside that assembly
 /// depend only on this interface so the protocol details are hidden.
 ///
-/// <para>Only read-only commands (frequency query) are sent in the current version.
-/// No frequency-set, mode-set, or PTT commands are defined here.</para>
+/// <para>
+/// The p16 read-only restriction is hereby amended for frequency only (FR-045):
+/// <see cref="SetDialFrequencyMhzAsync"/> sends a frequency-set command to the rig.
+/// No mode-set, PTT, or other rig-altering commands are defined here.
+/// </para>
 /// </summary>
 public interface IRadioConnection
 {
@@ -26,6 +29,16 @@ public interface IRadioConnection
     /// Thrown when no response arrives within the implementation-defined timeout.
     /// </exception>
     Task<double> GetDialFrequencyMhzAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Commands the rig to tune VFO-A to the specified frequency (FR-045).
+    /// This is a fire-and-forget set: the method sends the command and returns
+    /// without reading back confirmation. The next <see cref="GetDialFrequencyMhzAsync"/>
+    /// poll will reflect the new frequency if the rig accepted the command.
+    /// </summary>
+    /// <param name="frequencyMHz">Target VFO-A frequency in megahertz.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SetDialFrequencyMhzAsync(double frequencyMHz, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// <c>true</c> after a successful <see cref="ConnectAsync"/> and before

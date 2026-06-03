@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, postConfig, getStatus, getSerialPorts } from './api.js';
+import { getConfig, getDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies } from './api.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const portInput             = /** @type {HTMLInputElement}  */ (document.getElementById('port-input'));
@@ -49,6 +49,10 @@ const loggingMaxFiles       = /** @type {HTMLInputElement}  */ (document.getElem
 const loggingDependent      = /** @type {HTMLElement}       */ (document.getElementById('logging-dependent'));
 const loggingTimeGroup      = /** @type {HTMLElement}       */ (document.getElementById('logging-time-group'));
 const loggingDayGroup       = /** @type {HTMLElement}       */ (document.getElementById('logging-day-group'));
+
+// Frequencies tab controls (FR-043)
+const freqTbody  = /** @type {HTMLTableSectionElement} */ (document.getElementById('freq-tbody'));
+const addFreqBtn = /** @type {HTMLButtonElement}       */ (document.getElementById('add-freq-btn'));
 
 // ── Tab switching (FR-035) ────────────────────────────────────────────────
 
@@ -195,6 +199,8 @@ function snapshotForm() {
       rigctldPort:        catRigctldPort.value,
       pollIntervalSeconds: catPollInterval.value,
     },
+    // FR-043: include frequency table in dirty-state comparison (FR-040).
+    _frequencies:         snapshotFrequencies(),
   });
 }
 
@@ -244,11 +250,97 @@ backLink.addEventListener('click', event => {
   }
 });
 
+// ── Frequencies tab (FR-043) ─────────────────────────────────────────────
+
+/**
+ * Read the current frequency table rows as an array of entry objects.
+ * @returns {Array<{protocol: string, frequencyMHz: number, description: string}>}
+ */
+function collectFrequencies() {
+  const rows = /** @type {NodeListOf<HTMLTableRowElement>} */ (
+    freqTbody.querySelectorAll('tr[data-freq-row]')
+  );
+  return Array.from(rows).map(row => ({
+    protocol:     /** @type {HTMLInputElement} */ (row.querySelector('.freq-protocol')).value.trim() || 'FT8',
+    frequencyMHz: parseFloat(/** @type {HTMLInputElement} */ (row.querySelector('.freq-mhz')).value) || 0,
+    description:  /** @type {HTMLInputElement} */ (row.querySelector('.freq-desc')).value.trim(),
+  }));
+}
+
+/**
+ * Serialise the frequency table contents for the dirty-state snapshot.
+ * @returns {string}
+ */
+function snapshotFrequencies() {
+  return JSON.stringify(collectFrequencies());
+}
+
+/**
+ * Build and append a single frequency table row.
+ * @param {string}  protocol
+ * @param {number}  frequencyMHz
+ * @param {string}  description
+ */
+function appendFreqRow(protocol, frequencyMHz, description) {
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-freq-row', '');
+
+  tr.innerHTML = `
+    <td><input type="text"   class="freq-protocol" value="${escAttr(protocol)}" /></td>
+    <td><input type="number" class="freq-mhz"      step="0.001" min="0" value="${escAttr(String(frequencyMHz.toFixed(3)))}" /></td>
+    <td><input type="text"   class="freq-desc"     value="${escAttr(description)}" /></td>
+    <td><button type="button" class="freq-delete-btn" aria-label="Delete row">✕</button></td>
+  `;
+
+  tr.querySelector('.freq-delete-btn').addEventListener('click', () => {
+    tr.remove();
+    syncDirtyUI();  // FR-040: deleting a row marks the form dirty
+  });
+
+  freqTbody.appendChild(tr);
+}
+
+/** Simple HTML attribute escape. */
+function escAttr(s) {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+/**
+ * Render the full frequency table from an array of entries.
+ * Clears any existing rows (including the placeholder).
+ * @param {Array<{protocol: string, frequencyMHz: number, description: string}>} entries
+ */
+function renderFreqTable(entries) {
+  freqTbody.innerHTML = '';
+
+  if (entries.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="4" class="freq-placeholder"><em>No frequencies configured — click Add to begin</em></td>';
+    freqTbody.appendChild(tr);
+    return;
+  }
+
+  for (const e of entries) {
+    appendFreqRow(e.protocol, e.frequencyMHz, e.description ?? '');
+  }
+}
+
+addFreqBtn.addEventListener('click', () => {
+  // Remove the placeholder row if present.
+  const placeholder = freqTbody.querySelector('.freq-placeholder');
+  if (placeholder) placeholder.closest('tr').remove();
+
+  appendFreqRow('FT8', 0.000, '');
+  syncDirtyUI();  // FR-040: adding a row marks the form dirty
+});
+
 // ── Load config and devices ───────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    const [config, devices, status] = await Promise.all([getConfig(), getDevices(), getStatus()]);
+    const [config, devices, status, frequencies] = await Promise.all([
+      getConfig(), getDevices(), getStatus(), getFrequencies(),
+    ]);
 
     // Populate device selector.
     deviceSelect.innerHTML = '';
@@ -342,6 +434,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (catRigModel.value === 'SerialCat') {
       await loadSerialPorts();
     }
+
+    // FR-043: populate the frequencies table.
+    renderFreqTable(Array.isArray(frequencies) ? frequencies : []);
 
     // Capture the clean baseline after all fields are fully populated (FR-040).
     _cleanSnapshot = snapshotForm();
@@ -459,17 +554,24 @@ saveBtn.addEventListener('click', async () => {
     maxFiles:          parseInt(loggingMaxFiles.value, 10) || 7,
   };
 
+  // FR-043: collect current frequency table entries for parallel POST.
+  const freqEntries = collectFrequencies();
+
   try {
-    await postConfig({
-      audioDeviceId,
-      audioDeviceFriendlyName,
-      port,
-      showCycleCountdown,
-      logLevel,
-      decodeLog,
-      logging,
-      cat,
-    });
+    // POST config and frequencies in parallel (FR-043 / FR-007).
+    await Promise.all([
+      postConfig({
+        audioDeviceId,
+        audioDeviceFriendlyName,
+        port,
+        showCycleCountdown,
+        logLevel,
+        decodeLog,
+        logging,
+        cat,
+      }),
+      postFrequencies(freqEntries),
+    ]);
     showFeedback('Saved ✓', 'success');
     _cleanSnapshot = snapshotForm();
     syncDirtyUI();          // clears the badge and removes the beforeunload guard

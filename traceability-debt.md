@@ -92,6 +92,13 @@ FR-040  # Unsaved-changes indicator — JS dirty-state engine; UI-layer only.
 FR-041  # Navigation guard — beforeunload + confirm() interception; UI-layer only.
         # Verified manually. Remove when a browser/UI test covers the guard.
 
+## Pending — Phase 19 (Frequency management — p19-frequency-management)
+
+FR-043  # Frequencies settings tab — JS/HTML table CRUD; UI-layer only.
+        # Verified manually. Remove when a browser/UI test covers the Frequencies tab.
+FR-044  # Frequency selector in main GUI — JS conditional #dial-freq rendering; UI-layer only.
+        # Verified manually. Remove when a browser/UI test covers the CAT state transitions.
+
 ## Pending — Phase 10 (Decoder ground truth — p10-decoder-ground-truth)
 
 # FR-029 is fully covered: WavReaderTests (unit) + RealSignalFixtureTests (oracle integration)

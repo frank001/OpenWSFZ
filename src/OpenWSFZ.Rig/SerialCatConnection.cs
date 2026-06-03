@@ -124,6 +124,25 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
         return Task.FromResult(hz / 1_000_000.0);
     }
 
+    /// <summary>
+    /// Sends <c>FA&lt;11-digit-Hz&gt;;</c> to command VFO-A to
+    /// <paramref name="frequencyMHz"/> (FR-045).
+    /// The Hz integer is rounded to the nearest integer and zero-padded to 11 digits.
+    /// The method returns after the write completes — no read-back is performed.
+    /// </summary>
+    /// <example>
+    /// <c>14.074 MHz → FA00014074000;</c>
+    /// </example>
+    public Task SetDialFrequencyMhzAsync(
+        double            frequencyMHz,
+        CancellationToken cancellationToken = default)
+    {
+        var hz      = (long)Math.Round(frequencyMHz * 1_000_000.0);
+        var command = $"FA{hz:D11};";
+        _port.Write(command);
+        return Task.CompletedTask;
+    }
+
     /// <summary>Closes the serial port.</summary>
     public Task DisconnectAsync(CancellationToken cancellationToken = default)
     {

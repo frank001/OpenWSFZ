@@ -6,11 +6,21 @@
  * @module main
  */
 
-import { connect }           from './ws.js';
-import { getConfig }         from './api.js';
-import { WaterfallRenderer } from './spectrum.js';
+import { connect }                       from './ws.js';
+import { getConfig, getFrequencies, postTune } from './api.js';
+import { WaterfallRenderer }             from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
+
+// ── Active protocol (FR-044) ──────────────────────────────────────────────
+/** Protocol used to filter the frequency list for the dropdown. */
+const activeProtocol = 'FT8';
+
+// ── Cached FT8 frequency list (task 8.1) ─────────────────────────────────
+/**
+ * @type {Array<{protocol: string, frequencyMHz: number, description: string}>}
+ */
+let cachedFt8Frequencies = [];
 
 // ── Decode pipeline state ─────────────────────────────────────────────────
 /** @type {boolean} Mirrors the server-side DecodingEnabled flag. */
@@ -135,7 +145,6 @@ const audioDeviceEl    = /** @type {HTMLElement} */ (document.getElementById('au
 const audioIndicatorEl = /** @type {HTMLElement} */ (document.getElementById('audio-indicator'));
 const decodeBadgeEl    = /** @type {HTMLElement} */ (document.getElementById('decode-badge'));
 const decodeToggleEl   = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('decode-toggle')));
-const dialFreqEl       = /** @type {HTMLElement} */ (document.getElementById('dial-freq'));
 const catBadgeEl       = /** @type {HTMLElement} */ (document.getElementById('cat-badge'));
 
 function setWsState(state, label) {
@@ -143,13 +152,100 @@ function setWsState(state, label) {
   wsStateEl.textContent = label;
 }
 
+// ── Dial frequency rendering (FR-044) ────────────────────────────────────
+
 /**
- * Update the dial frequency display (FR-032).
+ * Replace #dial-freq with a plain <span> showing the formatted frequency.
+ * Used when CAT is disabled, in error, or not yet connected.
  * @param {number|null|undefined} freqMHz
  */
-function setDialFrequency(freqMHz) {
-  const hz = typeof freqMHz === 'number' ? freqMHz : 0;
-  dialFreqEl.textContent = hz.toFixed(3) + ' MHz';
+function renderDialFreqSpan(freqMHz) {
+  const hz  = typeof freqMHz === 'number' ? freqMHz : 0;
+  const old = document.getElementById('dial-freq');
+  if (!old) return;
+
+  // If it's already a span, just update the text.
+  if (old.tagName === 'SPAN') {
+    old.textContent = hz.toFixed(3) + ' MHz';
+    return;
+  }
+
+  const span = document.createElement('span');
+  span.id          = 'dial-freq';
+  span.title       = 'Effective dial frequency (CAT live value or configured value)';
+  span.textContent = hz.toFixed(3) + ' MHz';
+  old.replaceWith(span);
+}
+
+/**
+ * Replace #dial-freq with a <select> populated from the cached FT8 frequency
+ * list. Selects the option closest to freqMHz. Attaches a change handler
+ * that calls POST /api/v1/tune and updates the display on success.
+ * @param {number|null|undefined} freqMHz
+ */
+function renderDialFreqSelect(freqMHz) {
+  const hz  = typeof freqMHz === 'number' ? freqMHz : 0;
+  const old = document.getElementById('dial-freq');
+  if (!old) return;
+
+  // If it's already a select, just update the selected option.
+  if (old.tagName === 'SELECT') {
+    updateSelectValue(/** @type {HTMLSelectElement} */ (old), hz);
+    return;
+  }
+
+  const select = document.createElement('select');
+  select.id    = 'dial-freq';
+  select.title = 'Select working frequency (CAT will tune the rig)';
+
+  if (cachedFt8Frequencies.length === 0) {
+    const opt = document.createElement('option');
+    opt.textContent = hz.toFixed(3) + ' MHz';
+    opt.value       = String(hz);
+    select.appendChild(opt);
+  } else {
+    for (const entry of cachedFt8Frequencies) {
+      const opt = document.createElement('option');
+      opt.value       = String(entry.frequencyMHz);
+      opt.textContent = entry.frequencyMHz.toFixed(3) + ' MHz'
+                        + (entry.description ? ` — ${entry.description}` : '');
+      select.appendChild(opt);
+    }
+  }
+
+  updateSelectValue(select, hz);
+
+  select.addEventListener('change', async () => {
+    const chosen = parseFloat(select.value);
+    if (!isFinite(chosen)) return;
+    try {
+      const result = await postTune(chosen);
+      // Update the display to the confirmed effective frequency.
+      renderDialFreqSelect(result.effectiveFrequencyMHz);
+    } catch (err) {
+      console.error('POST /api/v1/tune failed:', err);
+    }
+  });
+
+  old.replaceWith(select);
+}
+
+/**
+ * Select the option whose value is closest to freqMHz.
+ * @param {HTMLSelectElement} select
+ * @param {number}            freqMHz
+ */
+function updateSelectValue(select, freqMHz) {
+  let best = null;
+  let bestDiff = Infinity;
+  for (const opt of select.options) {
+    const diff = Math.abs(parseFloat(opt.value) - freqMHz);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best     = opt;
+    }
+  }
+  if (best) select.value = best.value;
 }
 
 /**
@@ -209,12 +305,33 @@ function setDecodingState(enabled, hasDevice) {
   }
 }
 
+/**
+ * Dispatch dial-freq rendering based on CAT connection status (FR-044).
+ * @param {string|null|undefined} catStatus
+ * @param {number|null|undefined} freqMHz
+ */
+function updateDialFreq(catStatus, freqMHz) {
+  if (catStatus === 'Connected' || catStatus === 'Connecting') {
+    renderDialFreqSelect(freqMHz);
+  } else {
+    renderDialFreqSpan(freqMHz);
+  }
+}
+
 // ── Initialise ────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
 
   // Start cycle countdown timer (shows only when enabled in config).
   startCycleTimerIfEnabled();
+
+  // Task 8.1: fetch frequency list once on page load and cache it.
+  getFrequencies().then(entries => {
+    if (!Array.isArray(entries)) return;
+    cachedFt8Frequencies = entries.filter(e => e.protocol === activeProtocol);
+  }).catch(() => {
+    // Best-effort; dropdown will fall back to single-option display.
+  });
 
   // Live waterfall renderer — replaces the static placeholder.
   const canvas   = /** @type {HTMLCanvasElement} */ (document.getElementById('waterfall'));
@@ -267,8 +384,9 @@ document.addEventListener('DOMContentLoaded', () => {
       audioDeviceEl.textContent = audioDevice ?? '(no device)';
       setAudioActive(audioActive ?? false);
       setDecodingState(event.payload.decodingEnabled ?? true, !!audioDevice);
-      // FR-032: status event carries effective dial frequency.
-      setDialFrequency(event.payload.dialFrequencyMHz);
+      // FR-032 / FR-044: status event carries effective dial frequency and CAT status.
+      updateDialFreq(event.payload.catConnectionStatus, event.payload.dialFrequencyMHz);
+      setCatStatus(event.payload.catConnectionStatus);
       return;
     }
 
@@ -296,9 +414,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // FR-033: cat_status event updates frequency and CAT indicator (task 13.3).
+    // FR-033 / FR-044: cat_status event updates frequency display and CAT indicator.
     if (event.type === 'cat_status' && event.payload) {
-      setDialFrequency(event.payload.dialFrequencyMHz);
+      updateDialFreq(event.payload.status, event.payload.dialFrequencyMHz);
       setCatStatus(event.payload.status);
       return;
     }

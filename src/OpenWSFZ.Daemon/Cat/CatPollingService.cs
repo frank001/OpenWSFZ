@@ -8,7 +8,7 @@ namespace OpenWSFZ.Daemon.Cat;
 
 /// <summary>
 /// Background service that polls rig frequency via <see cref="IRadioConnection"/>
-/// and keeps <see cref="CatState"/> up to date (FR-032, FR-034).
+/// and keeps <see cref="CatState"/> up to date (FR-032, FR-034, FR-045).
 ///
 /// <para>
 /// Lifecycle:
@@ -23,8 +23,14 @@ namespace OpenWSFZ.Daemon.Cat;
 ///         within two poll intervals without a daemon restart.</item>
 /// </list>
 /// </para>
+///
+/// <para>
+/// Also implements <see cref="ICatTuner"/> (FR-045): <see cref="SetDialFrequencyAsync"/>
+/// sends a frequency-set command on the currently active connection and updates
+/// <see cref="CatState"/> optimistically.
+/// </para>
 /// </summary>
-public class CatPollingService : IHostedService, IAsyncDisposable
+public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
 {
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
 
@@ -35,6 +41,10 @@ public class CatPollingService : IHostedService, IAsyncDisposable
 
     private CancellationTokenSource? _cts;
     private Task?                    _pollingTask;
+
+    // The active connection; set by the poll loop, read by SetDialFrequencyAsync.
+    // Volatile ensures the reference is visible across threads.
+    private volatile IRadioConnection? _activeConnection;
 
     public CatPollingService(
         CatState                    catState,
@@ -92,6 +102,27 @@ public class CatPollingService : IHostedService, IAsyncDisposable
 
     // ── Core poll loop ────────────────────────────────────────────────────────
 
+    // ── ICatTuner ─────────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public async Task SetDialFrequencyAsync(
+        double            frequencyMHz,
+        CancellationToken cancellationToken = default)
+    {
+        var conn = _activeConnection
+            ?? throw new InvalidOperationException(
+                "No active rig connection — CAT is not yet connected.");
+
+        await conn.SetDialFrequencyMhzAsync(frequencyMHz, cancellationToken)
+                  .ConfigureAwait(false);
+
+        // Optimistic update: show the requested frequency immediately in the
+        // status bar; the next poll cycle will confirm (or correct) it.
+        _catState.Update(frequencyMHz, _catState.Status);
+    }
+
+    // ── Core poll loop ────────────────────────────────────────────────────────
+
     private async Task RunAsync(CancellationToken ct)
     {
         IRadioConnection? connection    = null;
@@ -112,6 +143,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable
                         "CAT config changed — reconnecting with new parameters.");
                     if (connection is not null)
                     {
+                        _activeConnection = null;
                         await SafeDisconnectAsync(connection).ConfigureAwait(false);
                         connection = null;
                     }
@@ -160,6 +192,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable
                     try
                     {
                         await connection.ConnectAsync(ct).ConfigureAwait(false);
+                        _activeConnection = connection; // expose to SetDialFrequencyAsync
                         _logger.LogInformation(
                             "CAT connected via {RigModel}.", config.RigModel);
                     }
@@ -173,6 +206,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable
                             "CAT: failed to connect via {RigModel} — {Message}. Retrying in {Delay} s.",
                             config.RigModel, ex.Message, RetryDelay.TotalSeconds);
                         _catState.Update(null, CatConnectionStatus.Error);
+                        _activeConnection = null;
                         EmitIfChanged(ref lastEmittedFreq, ref lastEmittedStatus,
                                       null, CatConnectionStatus.Error);
                         await SafeDisconnectAsync(connection).ConfigureAwait(false);
@@ -219,6 +253,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable
                         "CAT: frequency poll failed via {RigModel} — {Message}. Retrying in {Delay} s.",
                         config.RigModel, ex.Message, RetryDelay.TotalSeconds);
                     _catState.Update(null, CatConnectionStatus.Error);
+                    _activeConnection = null;
                     EmitIfChanged(ref lastEmittedFreq, ref lastEmittedStatus,
                                   null, CatConnectionStatus.Error);
                     await SafeDisconnectAsync(connection).ConfigureAwait(false);
@@ -236,6 +271,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable
         }
         finally
         {
+            _activeConnection = null;
             if (connection is not null)
                 await SafeDisconnectAsync(connection).ConfigureAwait(false);
         }

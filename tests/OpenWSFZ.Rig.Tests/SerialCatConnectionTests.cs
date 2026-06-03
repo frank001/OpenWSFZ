@@ -173,4 +173,32 @@ public sealed class SerialCatConnectionTests
         port.Received(1).Close();
         port.Received(1).Dispose();
     }
+
+    // ── SetDialFrequencyMhzAsync (FR-045) ─────────────────────────────────────
+
+    [Theory(DisplayName = "FR-045: SetDialFrequencyMhzAsync writes correct FA set command")]
+    [InlineData(7.074,  "FA00007074000;")]
+    [InlineData(14.074, "FA00014074000;")]
+    [InlineData(0.001,  "FA00000001000;")]
+    public async Task SetDialFrequencyMhzAsync_WritesCorrectCommand(double freqMHz, string expected)
+    {
+        var port = Substitute.For<ISerialPort>();
+        var sut  = new SerialCatConnection(port);
+
+        await sut.SetDialFrequencyMhzAsync(freqMHz);
+
+        port.Received(1).Write(expected);
+    }
+
+    [Fact(DisplayName = "FR-045: SetDialFrequencyMhzAsync does not read back a confirmation")]
+    public async Task SetDialFrequencyMhzAsync_DoesNotReadBack()
+    {
+        var port = Substitute.For<ISerialPort>();
+        var sut  = new SerialCatConnection(port);
+
+        await sut.SetDialFrequencyMhzAsync(14.074);
+
+        // ReadTo must never be called — the method is fire-and-forget.
+        port.DidNotReceive().ReadTo(Arg.Any<string>());
+    }
 }

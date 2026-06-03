@@ -1,0 +1,19 @@
+{
+  "entries": [
+    { "protocol": "FT8", "frequencyMHz": 1.840,   "description": "160m"  },
+    { "protocol": "FT8", "frequencyMHz": 3.573,   "description": "80m"   },
+    { "protocol": "FT8", "frequencyMHz": 5.357,   "description": "60m"   },
+    { "protocol": "FT8", "frequencyMHz": 7.074,   "description": "40m"   },
+    { "protocol": "FT8", "frequencyMHz": 10.136,  "description": "30m"   },
+    { "protocol": "FT8", "frequencyMHz": 14.074,  "description": "20m"   },
+    { "protocol": "FT8", "frequencyMHz": 18.100,  "description": "17m"   },
+    { "protocol": "FT8", "frequencyMHz": 21.074,  "description": "15m"   },
+    { "protocol": "FT8", "frequencyMHz": 24.915,  "description": "12m"   },
+    { "protocol": "FT8", "frequencyMHz": 28.074,  "description": "10m"   },
+    { "protocol": "FT8", "frequencyMHz": 50.313,  "description": "6m"    },
+    { "protocol": "FT8", "frequencyMHz": 70.100,  "description": "4m"    },
+    { "protocol": "FT8", "frequencyMHz": 144.174, "description": "2m"    },
+    { "protocol": "FT8", "frequencyMHz": 222.065, "description": "1.25m" },
+    { "protocol": "FT8", "frequencyMHz": 432.065, "description": "70cm"  }
+  ]
+}
