@@ -78,6 +78,13 @@ FR-036  # Cycle countdown visibility: hidden not display:none — CSS/JS behavio
 FR-037  # Dial frequency input disabled when CAT enabled — JS dynamic locking.
         # No automated test yet. Remove when a DOM assertion test is added.
 
+## Pending — Phase 18 (Settings dirty-state — p18-settings-dirty-state)
+
+FR-040  # Unsaved-changes indicator — JS dirty-state engine; UI-layer only.
+        # Verified manually. Remove when a browser/UI test covers dirty detection.
+FR-041  # Navigation guard — beforeunload + confirm() interception; UI-layer only.
+        # Verified manually. Remove when a browser/UI test covers the guard.
+
 ## Pending — Phase 10 (Decoder ground truth — p10-decoder-ground-truth)
 
 # FR-029 is fully covered: WavReaderTests (unit) + RealSignalFixtureTests (oracle integration)
