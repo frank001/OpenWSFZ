@@ -116,6 +116,7 @@ internal static class WebSocketHub
         DataFlowMonitor? dataFlowMonitor,
         CaptureManager? captureManager,
         AudioWatchdog? watchdog,
+        ICatState? catState,
         ILogger logger,
         Guid scope,
         CancellationToken ct)
@@ -132,12 +133,17 @@ internal static class WebSocketHub
             // Build initial status event. AudioActive mirrors IsCapturing for consistency
             // with the heartbeat: audioActive is true whenever WASAPI is delivering buffers,
             // not when amplitude exceeds an arbitrary threshold.
+            var effectiveFreq = catState?.DialFrequencyMHz
+                                ?? configStore.Current.DecodeLog?.DialFrequencyMHz
+                                ?? 0.0;
             var status    = new DaemonStatus(
-                State:         "Running",
-                Version:       AssemblyVersion.Get(),
-                AudioDevice:   configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
-                CaptureActive: captureManager?.IsCapturing ?? false,
-                AudioActive:   captureManager?.IsCapturing ?? false);
+                State:               "Running",
+                Version:             AssemblyVersion.Get(),
+                AudioDevice:         configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
+                CaptureActive:       captureManager?.IsCapturing ?? false,
+                AudioActive:         captureManager?.IsCapturing ?? false,
+                DialFrequencyMHz:    effectiveFreq,
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled");
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);
@@ -256,6 +262,36 @@ internal static class WebSocketHub
 
         foreach (var (ws, _) in ActiveSockets)
         {
+            _ = SendWithTimeoutAsync(ws, segment);
+        }
+    }
+
+    /// <summary>
+    /// Broadcasts a <c>cat_status</c> event to all WebSocket clients connected to the
+    /// <see cref="WebApp"/> instance identified by <paramref name="scope"/> (FR-033, D5).
+    ///
+    /// <para>
+    /// The scope guard matches the pattern already used in <see cref="AbortAll"/>:
+    /// only sockets whose registered scope equals <paramref name="scope"/> receive the
+    /// frame.  This prevents <c>CatPollingService</c> instances from one in-process
+    /// <c>WebApp</c> (e.g. a <c>WebApplicationFactory</c> test host) from broadcasting
+    /// to sockets belonging to a concurrently running integration-test server.
+    /// </para>
+    /// </summary>
+    internal static void BroadcastCatStatus(
+        Guid scope, CatConnectionStatus status, double? dialFrequencyMHz)
+    {
+        if (ActiveSockets.IsEmpty) return;
+
+        var payload = new CatStatusPayload(status.ToString(), dialFrequencyMHz);
+        var msg     = new WsCatStatusMessage(Type: "cat_status", Payload: payload);
+        var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsCatStatusMessage);
+        var bytes   = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        foreach (var (ws, socketScope) in ActiveSockets)
+        {
+            if (socketScope != scope) continue;   // scope guard — same pattern as AbortAll
             _ = SendWithTimeoutAsync(ws, segment);
         }
     }

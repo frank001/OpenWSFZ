@@ -25,6 +25,21 @@ desktop.ini
 .env.local
 *.local.json
 
+# Certificates and private keys — must never enter version control
+*.pfx
+*.p12
+*.pem
+*.key
+*.cer
+*.crt
+
+# ASP.NET local-environment overrides — may contain real credentials
+appsettings.Local.json
+appsettings.*.Local.json
+
+# Ad-hoc secrets files
+secrets.json
+
 # .NET build outputs
 /obj/
 /bin/

@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, postConfig } from './api.js';
+import { getConfig, getDevices, postConfig, getStatus } from './api.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const portInput             = /** @type {HTMLInputElement}  */ (document.getElementById('port-input'));
@@ -21,6 +21,18 @@ const decodeLogEnabled      = /** @type {HTMLInputElement}  */ (document.getElem
 const decodeLogPath         = /** @type {HTMLInputElement}  */ (document.getElementById('decode-log-path'));
 const decodeLogDialFreq     = /** @type {HTMLInputElement}  */ (document.getElementById('decode-log-dial-freq'));
 const decodeLogDependent    = /** @type {HTMLElement}       */ (document.getElementById('decode-log-dependent'));
+
+// CAT controls (p16)
+const catEnabled         = /** @type {HTMLInputElement}  */ (document.getElementById('cat-enabled'));
+const catRigModel        = /** @type {HTMLSelectElement} */ (document.getElementById('cat-rig-model'));
+const catSerialPort      = /** @type {HTMLInputElement}  */ (document.getElementById('cat-serial-port'));
+const catBaudRate        = /** @type {HTMLInputElement}  */ (document.getElementById('cat-baud-rate'));
+const catRigctldHost     = /** @type {HTMLInputElement}  */ (document.getElementById('cat-rigctld-host'));
+const catRigctldPort     = /** @type {HTMLInputElement}  */ (document.getElementById('cat-rigctld-port'));
+const catPollInterval    = /** @type {HTMLInputElement}  */ (document.getElementById('cat-poll-interval'));
+const catSerialFields    = /** @type {HTMLElement}       */ (document.getElementById('cat-serial-fields'));
+const catRigctldFields   = /** @type {HTMLElement}       */ (document.getElementById('cat-rigctld-fields'));
+const catStatusValue     = /** @type {HTMLElement}       */ (document.getElementById('cat-status-value'));
 
 // Logging controls
 const loggingFileEnabled    = /** @type {HTMLInputElement}  */ (document.getElementById('logging-file-enabled'));
@@ -38,7 +50,7 @@ const loggingDayGroup       = /** @type {HTMLElement}       */ (document.getElem
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    const [config, devices] = await Promise.all([getConfig(), getDevices()]);
+    const [config, devices, status] = await Promise.all([getConfig(), getDevices(), getStatus()]);
 
     // Populate device selector.
     deviceSelect.innerHTML = '';
@@ -94,10 +106,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     updateLoggingVisibility();
 
+    // Pre-fill CAT controls (p16).
+    const cat = config.cat ?? {};
+    catEnabled.checked      = cat.enabled          ?? false;
+    catRigModel.value       = cat.rigModel         ?? 'SerialCat';
+    catSerialPort.value     = cat.serialPort        ?? '';
+    catBaudRate.value       = String(cat.baudRate   ?? 9600);
+    catRigctldHost.value    = cat.rigctldHost       ?? '127.0.0.1';
+    catRigctldPort.value    = String(cat.rigctldPort ?? 4532);
+    catPollInterval.value   = String(cat.pollIntervalSeconds ?? 1);
+    updateCatVisibility();
+
+    // Show live CAT status from the daemon status endpoint.
+    updateCatStatusBadge(status?.catConnectionStatus ?? null);
+
   } catch (err) {
     showFeedback(`Failed to load settings: ${err.message}`, 'error');
   }
 });
+
+// ── CAT visibility helpers (p16) ─────────────────────────────────────────
+
+function updateCatVisibility() {
+  const model = catRigModel.value;
+  catSerialFields.style.display  = (model === 'SerialCat') ? '' : 'none';
+  catRigctldFields.style.display = (model === 'RigCtld')   ? '' : 'none';
+}
+
+/**
+ * Update the read-only CAT status badge.
+ * @param {string|null} status  'Connected', 'Connecting', 'Error', 'Disabled', or null
+ */
+function updateCatStatusBadge(status) {
+  const s = (status ?? 'Disabled').toLowerCase();
+  catStatusValue.textContent = status ?? 'Disabled';
+  catStatusValue.className   = `cat-status-badge cat-${s}`;
+}
+
+catRigModel.addEventListener('change', updateCatVisibility);
 
 // ── Visibility helpers (p9) ──────────────────────────────────────────────
 
@@ -159,6 +205,17 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
+  // p16: collect CAT config.
+  const cat = {
+    enabled:             catEnabled.checked,
+    rigModel:            catRigModel.value,
+    serialPort:          catSerialPort.value.trim()   || 'COM6',
+    baudRate:            parseInt(catBaudRate.value, 10)    || 9600,
+    rigctldHost:         catRigctldHost.value.trim()  || '127.0.0.1',
+    rigctldPort:         parseInt(catRigctldPort.value, 10) || 4532,
+    pollIntervalSeconds: Math.max(1, Math.min(60, parseInt(catPollInterval.value, 10) || 1)),
+  };
+
   // p9: collect decode log config.
   const decodeLog = {
     enabled:          decodeLogEnabled.checked,
@@ -186,6 +243,7 @@ saveBtn.addEventListener('click', async () => {
       logLevel,
       decodeLog,
       logging,
+      cat,
     });
     showFeedback('Saved ✓', 'success');
     setTimeout(() => { saveBtn.disabled = false; }, 2000);

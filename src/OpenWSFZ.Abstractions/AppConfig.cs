@@ -31,4 +31,12 @@ public sealed record AppConfig(
     /// Always non-null; defaults to decode logging disabled.
     /// </summary>
     public DecodeLogConfig  DecodeLog { get; init; } = new();
+
+    /// <summary>
+    /// CAT rig connection configuration (FR-031).
+    /// Defaults to <c>null</c> (equivalent to <c>enabled = false</c>) so that
+    /// existing config files without a <c>cat</c> key deserialise without error.
+    /// Consumers SHALL treat a <c>null</c> value as <c>new CatConfig()</c> (disabled).
+    /// </summary>
+    public CatConfig?       Cat       { get; init; } = null;
 }

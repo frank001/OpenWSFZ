@@ -35,5 +35,11 @@
     <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
     <PackageVersion Include="Serilog.Sinks.File"    Version="6.0.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.0.0" />
+
+    <!-- Serial port support for CAT rig connection (p16) — MIT licensed -->
+    <PackageVersion Include="System.IO.Ports" Version="9.0.0" />
+
+    <!-- Mocking library for unit tests (p16) — BSD-3-Clause licensed -->
+    <PackageVersion Include="NSubstitute" Version="5.1.0" />
   </ItemGroup>
 </Project>

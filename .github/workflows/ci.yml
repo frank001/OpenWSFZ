@@ -167,6 +167,26 @@ jobs:
           path: licence-inventory.md
 
       # -----------------------------------------------------------------
+      # Gate G7: Secrets scan — gitleaks
+      # Scans the full commit history for secrets, credentials, private
+      # keys, and other sensitive material. Any finding fails the build.
+      # Implements: NFR-017 (security — secrets scan gate).
+      # -----------------------------------------------------------------
+      - name: Gate G7 — Secrets scan (gitleaks)
+        if: runner.os == 'Linux'
+        run: |
+          GITLEAKS_VERSION="8.27.2"
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          chmod +x /tmp/gitleaks
+          /tmp/gitleaks detect \
+            --source . \
+            --redact \
+            --exit-code 1
+
+      # -----------------------------------------------------------------
       # Coverage reporting (informational only — never fails the workflow)
       # Implements: "Coverage reporting is informational" (ci-quality-gates spec)
       # -----------------------------------------------------------------

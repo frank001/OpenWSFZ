@@ -43,7 +43,7 @@ public sealed class AllTxtWriterTests : IDisposable
             new("17:29:30", Snr: 3, Dt: 0.2, FreqHz: 2252, Message: "Q4DSA QD1BER JO22"),
         };
 
-        await writer.AppendAsync(cycleUtc, results);
+        await writer.AppendAsync(cycleUtc, 7.074, results);
 
         var lines = await File.ReadAllLinesAsync(tmpFile);
         lines.Should().HaveCount(1);
@@ -67,7 +67,7 @@ public sealed class AllTxtWriterTests : IDisposable
             new("17:29:30", Snr: 3, Dt: 0.2, FreqHz: 2252, Message: "Q4DSA QD1BER JO22"),
         };
 
-        await writer.AppendAsync(DateTime.UtcNow, results);
+        await writer.AppendAsync(DateTime.UtcNow, 7.074, results);
 
         File.Exists(tmpFile).Should().BeFalse("no file should be created when decodeLog.enabled is false");
     }
@@ -81,7 +81,7 @@ public sealed class AllTxtWriterTests : IDisposable
         var config  = new DecodeLogConfig { Enabled = true, Path = tmpFile, DialFrequencyMHz = 7.074 };
         var writer  = MakeWriter(config);
 
-        await writer.AppendAsync(DateTime.UtcNow, new List<DecodeResult>());
+        await writer.AppendAsync(DateTime.UtcNow, 7.074, new List<DecodeResult>());
 
         File.Exists(tmpFile).Should().BeFalse("no file should be created when results list is empty");
     }
@@ -108,17 +108,40 @@ public sealed class AllTxtWriterTests : IDisposable
         };
 
         // Must not throw.
-        var act = async () => await writer.AppendAsync(DateTime.UtcNow, results);
+        var act = async () => await writer.AppendAsync(DateTime.UtcNow, 7.074, results);
         await act.Should().NotThrowAsync("write failures must be swallowed and logged, not propagated");
 
         // Must have logged a Warning.
         logger.HasWarning.Should().BeTrue("a Warning must be logged when the file cannot be written");
     }
 
+    // ── FR-032: caller-supplied dial frequency (defect: dial-freq-snapshot) ───
+
+    [Fact(DisplayName = "FR-032: AppendAsync uses caller-supplied dialMhz, not live state")]
+    public async Task AppendAsync_UsesSuppliedDialMhz()
+    {
+        // If AppendAsync still read from ICatState this test would need a mock;
+        // the absence of any ICatState parameter proves it cannot.
+        var tmpFile = Path.Combine(_tempDir, "ALL.TXT");
+        var config  = new DecodeLogConfig { Enabled = true, Path = tmpFile, DialFrequencyMHz = 7.074 };
+        var writer  = MakeWriter(config);
+
+        var results = new[] { new DecodeResult("20:27:30", Snr: 5, Dt: 0.9, FreqHz: 1200, Message: "CQ TEST") };
+
+        await writer.AppendAsync(DateTime.UtcNow, dialMhz: 14.074, results);
+
+        var lines = await File.ReadAllLinesAsync(tmpFile);
+        lines.Should().HaveCount(1);
+        lines[0].Should().Contain("14.074",
+            "the caller-supplied dialMhz must appear in the log line");
+        lines[0].Should().NotContain("7.074",
+            "the config's DialFrequencyMHz must not override the caller-supplied value");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static AllTxtWriter MakeWriter(
-        DecodeLogConfig config,
+        DecodeLogConfig        config,
         ILogger<AllTxtWriter>? logger = null)
     {
         var configStore = new StubConfigStore(new AppConfig() with { DecodeLog = config });

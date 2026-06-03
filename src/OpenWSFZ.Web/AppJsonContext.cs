@@ -23,6 +23,10 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(int[]))]
 [JsonSerializable(typeof(LoggingConfig))]
 [JsonSerializable(typeof(DecodeLogConfig))]
+[JsonSerializable(typeof(CatConfig))]
+[JsonSerializable(typeof(CatConnectionStatus))]
+[JsonSerializable(typeof(WsCatStatusMessage))]
+[JsonSerializable(typeof(CatStatusPayload))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -42,3 +46,12 @@ internal sealed record WsDecodeMessage(string Type, List<DecodeResult> Payload);
 
 /// <summary>Envelope for <c>spectrum</c> WebSocket text frames.</summary>
 internal sealed record WsSpectrumMessage(string Type, int[] Payload);
+
+/// <summary>
+/// Envelope for <c>cat_status</c> WebSocket text frames (FR-033).
+/// Wire format: <c>{"type":"cat_status","payload":{"status":"Connected","dialFrequencyMHz":14.074}}</c>
+/// </summary>
+internal sealed record WsCatStatusMessage(string Type, CatStatusPayload Payload);
+
+/// <summary>Payload for <c>cat_status</c> WebSocket text frames (FR-033).</summary>
+internal sealed record CatStatusPayload(string Status, double? DialFrequencyMHz);

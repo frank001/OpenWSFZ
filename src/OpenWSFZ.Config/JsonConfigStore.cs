@@ -108,6 +108,10 @@ public sealed class JsonConfigStore : IConfigStore
             if (config.DecodeLog is null)
                 config = config with { DecodeLog = new DecodeLogConfig() };
 
+            // "cat" key is intentionally nullable: absent in config files written before p16.
+            // Null is the correct default (CAT disabled); no guard needed — consumers use
+            // (config.Cat ?? new CatConfig()) to get a non-null value.
+
             return config;
         }
         catch (Exception ex)
@@ -128,8 +132,10 @@ public sealed class JsonConfigStore : IConfigStore
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
+        // Include cat section with enabled=false so the operator can see the
+        // available settings without having to look up the documentation (FR-031).
         var json = JsonSerializer.Serialize(
-            new AppConfig(),
+            new AppConfig() with { Cat = new CatConfig() },
             ConfigJsonContext.Default.AppConfig);
 
         File.WriteAllText(path, json);

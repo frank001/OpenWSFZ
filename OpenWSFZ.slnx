@@ -6,6 +6,7 @@
     <Project Path="src/OpenWSFZ.Daemon/OpenWSFZ.Daemon.csproj" />
     <Project Path="src/OpenWSFZ.Web/OpenWSFZ.Web.csproj" />
     <Project Path="src/OpenWSFZ.Ft8/OpenWSFZ.Ft8.csproj" />
+    <Project Path="src/OpenWSFZ.Rig/OpenWSFZ.Rig.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/LicenseInventoryCheck.Tests/LicenseInventoryCheck.Tests.csproj" />
@@ -16,6 +17,7 @@
     <Project Path="tests/TraceabilityCheck.Tests/TraceabilityCheck.Tests.csproj" />
     <Project Path="tests/OpenWSFZ.Ft8.Tests/OpenWSFZ.Ft8.Tests.csproj" />
     <Project Path="tests/OpenWSFZ.Daemon.Tests/OpenWSFZ.Daemon.Tests.csproj" />
+    <Project Path="tests/OpenWSFZ.Rig.Tests/OpenWSFZ.Rig.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/GenerateFt8Fixture/GenerateFt8Fixture.csproj" />
