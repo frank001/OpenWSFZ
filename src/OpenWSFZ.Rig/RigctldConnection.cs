@@ -32,7 +32,7 @@ public sealed class RigctldConnection : IRadioConnection, IDisposable
     private readonly int             _port;
     private readonly ITcpConnection  _tcp;
 
-    private bool _connected;
+    private volatile bool _connected;
 
     // ── Public constructor (production use) ───────────────────────────────────
 

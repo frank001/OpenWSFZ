@@ -57,7 +57,54 @@ public sealed class SerialCatConnectionTests
         var freq = await sut.GetDialFrequencyMhzAsync();
 
         freq.Should().BeApproximately(14.074, precision: 1e-9);
-        port.Received(1).Write("FA;\r");
+        port.Received(1).Write("FA;");
+    }
+
+    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync parses FA007074000; (9-digit) → 7.074 MHz")]
+    public async Task GetDialFrequencyMhzAsync_NineDigitResponse_ReturnsMhz()
+    {
+        // Regression: some rig families return 9 Hz digits rather than 11.
+        // FA007074000; was observed in the wild (7.074 MHz, 40 m FT8 dial).
+        var port = Substitute.For<ISerialPort>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA007074000");
+        var sut = new SerialCatConnection(port);
+
+        var freq = await sut.GetDialFrequencyMhzAsync();
+
+        freq.Should().BeApproximately(7.074, precision: 1e-9);
+    }
+
+    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync sends FA; without carriage return")]
+    public async Task GetDialFrequencyMhzAsync_SendsCommandWithoutCarriageReturn()
+    {
+        // Regression: "FA;\r" causes Kenwood-compatible rigs to reply with a second
+        // ?; error response (to the bare \r), which is then read on the next poll cycle.
+        var port = Substitute.For<ISerialPort>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA00014074000");
+        var sut = new SerialCatConnection(port);
+
+        await sut.GetDialFrequencyMhzAsync();
+
+        port.Received(1).Write("FA;");
+        port.DidNotReceive().Write(Arg.Is<string>(s => s.Contains('\r')));
+    }
+
+    [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync throws InvalidOperationException when rig returns ? (command error)")]
+    public async Task GetDialFrequencyMhzAsync_RigCommandError_Throws()
+    {
+        // Regression: a stale ?; in the receive buffer (from a prior \r-induced error
+        // response) caused an alternating success/failure pattern.
+        var port = Substitute.For<ISerialPort>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("?");
+        var sut = new SerialCatConnection(port);
+
+        var act = () => sut.GetDialFrequencyMhzAsync();
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*'?'*");
     }
 
     [Fact(DisplayName = "P16-Cat: GetDialFrequencyMhzAsync throws InvalidOperationException on malformed response")]

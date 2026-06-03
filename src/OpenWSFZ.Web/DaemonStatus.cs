@@ -22,4 +22,9 @@ public sealed record DaemonStatus(
     /// Effective dial frequency in MHz using the CAT precedence rule (FR-032):
     /// <c>ICatState.DialFrequencyMHz ?? AppConfig.DecodeLog.DialFrequencyMHz</c>.
     /// </summary>
-    double  DialFrequencyMHz = 0.0);
+    double  DialFrequencyMHz = 0.0,
+    /// <summary>
+    /// Current CAT connection state as a string (FR-033): <c>"Disabled"</c>, <c>"Connecting"</c>,
+    /// <c>"Connected"</c>, or <c>"Error"</c>.  Defaults to <c>"Disabled"</c> when CAT is not wired up.
+    /// </summary>
+    string  CatConnectionStatus = "Disabled");

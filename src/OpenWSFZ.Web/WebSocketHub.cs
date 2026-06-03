@@ -137,12 +137,13 @@ internal static class WebSocketHub
                                 ?? configStore.Current.DecodeLog?.DialFrequencyMHz
                                 ?? 0.0;
             var status    = new DaemonStatus(
-                State:            "Running",
-                Version:          AssemblyVersion.Get(),
-                AudioDevice:      configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
-                CaptureActive:    captureManager?.IsCapturing ?? false,
-                AudioActive:      captureManager?.IsCapturing ?? false,
-                DialFrequencyMHz: effectiveFreq);
+                State:               "Running",
+                Version:             AssemblyVersion.Get(),
+                AudioDevice:         configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
+                CaptureActive:       captureManager?.IsCapturing ?? false,
+                AudioActive:         captureManager?.IsCapturing ?? false,
+                DialFrequencyMHz:    effectiveFreq,
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled");
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);

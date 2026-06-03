@@ -169,7 +169,7 @@ public sealed class CatPollingService : IHostedService, IAsyncDisposable
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex,
+                        _logger.LogWarning(ex,
                             "CAT: failed to connect via {RigModel} — {Message}. Retrying in {Delay} s.",
                             config.RigModel, ex.Message, RetryDelay.TotalSeconds);
                         _catState.Update(null, CatConnectionStatus.Error);

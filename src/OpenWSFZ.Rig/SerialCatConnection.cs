@@ -14,9 +14,9 @@ namespace OpenWSFZ.Rig;
 /// </para>
 ///
 /// <para>
-/// Serial CAT protocol: the command is written as <c>FA;\r</c> (carriage-return
-/// terminator); the response is read up to the <c>;</c> delimiter and must be
-/// exactly 14 characters before the delimiter (total 15 with the semicolon),
+/// Serial CAT protocol: the command is written as <c>FA;</c>; the response is
+/// read up to the <c>;</c> delimiter and must be
+/// exactly 13 characters before the delimiter (total 14 with the semicolon),
 /// starting with <c>FA</c> followed by 11 decimal Hz digits.
 /// Example: <c>FA00014074000;</c> → 14.074 MHz.
 /// </para>
@@ -24,7 +24,7 @@ namespace OpenWSFZ.Rig;
 public sealed class SerialCatConnection : IRadioConnection, IDisposable
 {
     private const int    ReadTimeoutMs = 500;
-    private const string CatCommand    = "FA;\r";
+    private const string CatCommand    = "FA;";
     private const string ResponseDelim = ";";
 
     private readonly ISerialPort _port;
@@ -72,11 +72,11 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
     }
 
     /// <summary>
-    /// Sends <c>FA;\r</c>, reads the response until <c>;</c>, validates the
+    /// Sends <c>FA;</c>, reads the response until <c>;</c>, validates the
     /// format, and returns VFO-A frequency in MHz.
     /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// The response does not start with <c>FA</c> or is not exactly 15 characters.
+    /// The response does not start with <c>FA</c> or is not exactly 14 characters (13 before <c>;</c> plus the delimiter).
     /// </exception>
     /// <exception cref="TimeoutException">
     /// No response arrived within 500 ms.
@@ -103,18 +103,19 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
                 $"Serial CAT: no response to FA; within {ReadTimeoutMs} ms.", ex);
         }
 
-        // ReadTo returns everything BEFORE the delimiter, so raw = "FA00014074000"
-        // Full response is raw + ";" = 14 chars: FA(2) + 11 Hz digits + semicolon(1).
-        var full = raw + ";";
-        if (full.Length != 14 || !full.StartsWith("FA", StringComparison.Ordinal))
+        // ReadTo returns everything BEFORE the delimiter, so raw = "FA00014074000" (11-digit)
+        // or "FA007074000" (9-digit — some rig families use fewer leading digits).
+        // Full response = raw + ";" = FA(2) + 8..11 Hz digits + semicolon(1).
+        var full       = raw + ";";
+        var digitCount = full.Length - 3; // strip "FA" prefix and ";" suffix
+        if (!full.StartsWith("FA", StringComparison.Ordinal) || digitCount < 8 || digitCount > 11)
         {
             throw new InvalidOperationException(
                 $"Serial CAT: unexpected FA; response (raw='{raw}'). " +
-                "Expected format: FA<11-digit-Hz>;");
+                "Expected format: FA<8–11 digit Hz>;");
         }
 
-        // Digits are positions 2–12 (11 chars = Hz value), position 13 = ';'.
-        if (!long.TryParse(full.AsSpan(2, 11), out var hz) || hz < 0)
+        if (!long.TryParse(full.AsSpan(2, digitCount), out var hz) || hz < 0)
         {
             throw new InvalidOperationException(
                 $"Serial CAT: cannot parse Hz value from response '{raw}'.");

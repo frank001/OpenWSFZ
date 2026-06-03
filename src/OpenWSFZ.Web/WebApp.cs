@@ -139,13 +139,14 @@ public static class WebApp
                                 ?? store.Current.DecodeLog?.DialFrequencyMHz
                                 ?? 0.0;
             return TypedResults.Ok(new DaemonStatus(
-                State:            "Running",
-                Version:          AssemblyVersion.Get(),
-                AudioDevice:      store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive:    captureManager?.IsCapturing ?? false,
-                AudioActive:      audioMonitor?.IsActive ?? false,
-                DecodingEnabled:  store.Current.DecodingEnabled,
-                DialFrequencyMHz: effectiveFreq));
+                State:               "Running",
+                Version:             AssemblyVersion.Get(),
+                AudioDevice:         store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
+                CaptureActive:       captureManager?.IsCapturing ?? false,
+                AudioActive:         audioMonitor?.IsActive ?? false,
+                DecodingEnabled:     store.Current.DecodingEnabled,
+                DialFrequencyMHz:    effectiveFreq,
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
         });
 
         app.MapGet("/api/v1/audio/devices", async (
@@ -225,13 +226,14 @@ public static class WebApp
             await store.SaveAsync(store.Current with { DecodingEnabled = true }, ct);
             var freqStart = catState?.DialFrequencyMHz ?? store.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
             return TypedResults.Ok(new DaemonStatus(
-                State:            "Running",
-                Version:          AssemblyVersion.Get(),
-                AudioDevice:      store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive:    captureManager?.IsCapturing ?? false,
-                AudioActive:      audioMonitor?.IsActive ?? false,
-                DecodingEnabled:  store.Current.DecodingEnabled,
-                DialFrequencyMHz: freqStart));
+                State:               "Running",
+                Version:             AssemblyVersion.Get(),
+                AudioDevice:         store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
+                CaptureActive:       captureManager?.IsCapturing ?? false,
+                AudioActive:         audioMonitor?.IsActive ?? false,
+                DecodingEnabled:     store.Current.DecodingEnabled,
+                DialFrequencyMHz:    freqStart,
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
         });
 
         app.MapPost("/api/v1/decode/stop", async (
@@ -241,13 +243,14 @@ public static class WebApp
             await store.SaveAsync(store.Current with { DecodingEnabled = false }, ct);
             var freqStop = catState?.DialFrequencyMHz ?? store.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
             return TypedResults.Ok(new DaemonStatus(
-                State:            "Running",
-                Version:          AssemblyVersion.Get(),
-                AudioDevice:      store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive:    captureManager?.IsCapturing ?? false,
-                AudioActive:      audioMonitor?.IsActive ?? false,
-                DecodingEnabled:  store.Current.DecodingEnabled,
-                DialFrequencyMHz: freqStop));
+                State:               "Running",
+                Version:             AssemblyVersion.Get(),
+                AudioDevice:         store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
+                CaptureActive:       captureManager?.IsCapturing ?? false,
+                AudioActive:         audioMonitor?.IsActive ?? false,
+                DecodingEnabled:     store.Current.DecodingEnabled,
+                DialFrequencyMHz:    freqStop,
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────

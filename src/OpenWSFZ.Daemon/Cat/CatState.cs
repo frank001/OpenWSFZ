@@ -48,7 +48,8 @@ public sealed class CatState : ICatState
     // ── Internal mutation (CatPollingService only) ────────────────────────────
 
     /// <summary>
-    /// Atomically updates frequency and connection status.
+    /// Updates frequency and connection status.  Each field is individually atomic; the
+    /// two-field compound update is not.
     /// Pass <c>null</c> for <paramref name="freqMHz"/> to clear the last-known frequency
     /// (e.g. on connection loss).
     /// </summary>
