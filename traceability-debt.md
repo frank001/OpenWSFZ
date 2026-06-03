@@ -78,6 +78,13 @@ FR-036  # Cycle countdown visibility: hidden not display:none — CSS/JS behavio
 FR-037  # Dial frequency input disabled when CAT enabled — JS dynamic locking.
         # No automated test yet. Remove when a DOM assertion test is added.
 
+## Pending — Process requirements (no automated test feasible)
+
+NFR-020  # Pre-merge traceability debt review — process/checklist requirement;
+         # enforced by the QA reviewer role, not by an automated test.
+         # Remove if a lint step is added that validates debt-file coverage
+         # as part of the PR pipeline.
+
 ## Pending — Phase 18 (Settings dirty-state — p18-settings-dirty-state)
 
 FR-040  # Unsaved-changes indicator — JS dirty-state engine; UI-layer only.
