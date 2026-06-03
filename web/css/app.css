@@ -7,6 +7,7 @@
   --color-accent:   #58a6ff;
   --color-success:  #3fb950;
   --color-danger:   #f85149;
+  --color-warning:  #d4a017;
   --color-muted:    #8b949e;
   --radius:         6px;
   --font-mono:      ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
@@ -380,6 +381,13 @@ label {
 }
 #feedback.success { color: var(--color-success); }
 #feedback.error   { color: var(--color-danger);  }
+
+/* FR-040: Unsaved-changes indicator */
+#unsaved-badge {
+  font-size: 0.85rem;
+  color: var(--color-warning);
+  font-style: italic;
+}
 
 /* Checkbox row — overrides the default uppercase label style. */
 .checkbox-label {

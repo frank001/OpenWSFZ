@@ -15,6 +15,8 @@ const cycleCountdownToggle  = /** @type {HTMLInputElement}  */ (document.getElem
 const logLevelSelect        = /** @type {HTMLSelectElement} */ (document.getElementById('log-level-select'));
 const saveBtn               = /** @type {HTMLButtonElement} */ (document.getElementById('save-btn'));
 const feedback              = /** @type {HTMLElement}       */ (document.getElementById('feedback'));
+const unsavedBadge          = /** @type {HTMLElement}       */ (document.getElementById('unsaved-badge'));
+const backLink              = /** @type {HTMLAnchorElement} */ (document.getElementById('back-link'));
 
 // Decode log controls (p9)
 const decodeLogEnabled      = /** @type {HTMLInputElement}  */ (document.getElementById('decode-log-enabled'));
@@ -149,6 +151,99 @@ catEnabled.addEventListener('change', updateDialFreqLock);
 
 let catOpaqueFields = {};
 
+// ── Dirty-state snapshot (FR-040) ────────────────────────────────────────
+
+/** JSON string of form values captured immediately after a successful page load.
+ *  Compared against the current form state to determine the dirty flag.
+ *  @type {string}
+ */
+let _cleanSnapshot = '';
+
+/**
+ * Serialise all editable form fields into the same shape as the postConfig
+ * payload.  Used for dirty-state detection; NOT used for the actual save
+ * (the save handler remains the authoritative source to avoid duplication).
+ *
+ * @returns {string}  JSON string of the current form values.
+ */
+function snapshotForm() {
+  return JSON.stringify({
+    audioDeviceId:        deviceSelect.value.trim() || null,
+    port:                 portInput.value,
+    showCycleCountdown:   cycleCountdownToggle.checked,
+    logLevel:             logLevelSelect.value,
+    decodeLog: {
+      enabled:            decodeLogEnabled.checked,
+      path:               decodeLogPath.value.trim(),
+      dialFrequencyMHz:   decodeLogDialFreq.value,
+    },
+    logging: {
+      fileEnabled:        loggingFileEnabled.checked,
+      directory:          loggingDirectory.value.trim(),
+      fileLogLevel:       loggingFileLogLevel.value,
+      rotationSchedule:   loggingSchedule.value,
+      rotationTime:       loggingTime.value,
+      rotationDayOfWeek:  loggingDay.value,
+      maxFiles:           loggingMaxFiles.value,
+    },
+    cat: {
+      enabled:            catEnabled.checked,
+      rigModel:           catRigModel.value,
+      serialPort:         catSerialPort.value.trim(),
+      baudRate:           catBaudRate.value,
+      rigctldHost:        catRigctldHost.value.trim(),
+      rigctldPort:        catRigctldPort.value,
+      pollIntervalSeconds: catPollInterval.value,
+    },
+  });
+}
+
+// ── Dirty-state tracking (FR-040) ────────────────────────────────────────
+
+function isDirty() {
+  return snapshotForm() !== _cleanSnapshot;
+}
+
+function onBeforeUnload(event) {
+  event.preventDefault();
+  // event.returnValue must be set for legacy Chromium compatibility.
+  event.returnValue = '';
+}
+
+function syncDirtyUI() {
+  const dirty = isDirty();
+  unsavedBadge.hidden = !dirty;
+
+  // Guard: add/remove beforeunload only as needed to avoid stale listeners.
+  if (dirty) {
+    window.addEventListener('beforeunload', onBeforeUnload);
+  } else {
+    window.removeEventListener('beforeunload', onBeforeUnload);
+  }
+}
+
+// Register form-level event delegation so every field edit is caught.
+document.getElementById('settings-form').addEventListener('input',  syncDirtyUI);
+document.getElementById('settings-form').addEventListener('change', syncDirtyUI);
+
+// ── Breadcrumb navigation guard (FR-041) ─────────────────────────────────
+
+backLink.addEventListener('click', event => {
+  if (isDirty()) {
+    const confirmed = window.confirm(
+      'You have unsaved changes. Leave without saving?'
+    );
+    if (confirmed) {
+      // Stand down the beforeunload guard — the operator has already confirmed
+      // intent to discard. Without this, the browser fires beforeunload as part
+      // of the navigation and produces a second, redundant prompt.
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    } else {
+      event.preventDefault();
+    }
+  }
+});
+
 // ── Load config and devices ───────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -241,9 +336,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateDialFreqLock();
 
     // FR-038: populate the serial port list if SerialCat is the active transport.
+    // Awaited here (§8.1) so the baseline snapshot is captured after the select
+    // is populated, preventing a spurious dirty state from the programmatic DOM
+    // update that loadSerialPorts() performs.
     if (catRigModel.value === 'SerialCat') {
-      loadSerialPorts();
+      await loadSerialPorts();
     }
+
+    // Capture the clean baseline after all fields are fully populated (FR-040).
+    _cleanSnapshot = snapshotForm();
 
   } catch (err) {
     showFeedback(`Failed to load settings: ${err.message}`, 'error');
@@ -370,6 +471,8 @@ saveBtn.addEventListener('click', async () => {
       cat,
     });
     showFeedback('Saved ✓', 'success');
+    _cleanSnapshot = snapshotForm();
+    syncDirtyUI();          // clears the badge and removes the beforeunload guard
     setTimeout(() => { saveBtn.disabled = false; }, 2000);
   } catch (err) {
     showFeedback(`Save failed — ${err.message}`, 'error');

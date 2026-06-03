@@ -11,7 +11,7 @@
   <header id="settings-page">
 
     <nav class="settings-nav" aria-label="Breadcrumb">
-      <a href="/">← Back to main</a>
+      <a id="back-link" href="/">← Back to main</a>
       <span aria-hidden="true">/</span>
       <span>Settings</span>
     </nav>
@@ -280,6 +280,7 @@
 
       <div class="form-footer">
         <button id="save-btn" type="button" class="primary">Save</button>
+        <span id="unsaved-badge" hidden>Unsaved changes</span>
         <p id="feedback" aria-live="polite"></p>
       </div>
 
