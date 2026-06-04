@@ -79,20 +79,23 @@ subtraction, planned for a future change.
   selected device into the decode pipeline.
 - **FT8 decode start/stop** — the decode pipeline can be started and stopped
   at runtime without restarting the daemon.
-- **Settings page** loads and saves configuration across three tabs (Radio
-  hardware, Logging, Advanced) with a REST round-trip; changes are persisted to
-  a JSON config file. An "Unsaved changes" badge appears when the form is dirty,
-  and a navigation guard prevents accidental loss of edits.
+- **Settings page** loads and saves configuration across four tabs — Radio
+  hardware, Logging, Advanced, and Frequencies — with a REST round-trip;
+  changes are persisted to a JSON config file. Available serial ports are
+  enumerated automatically and presented as a dropdown. An "Unsaved changes"
+  badge appears when the form is dirty, and a navigation guard prevents
+  accidental loss of edits.
 - **CAT rig control** — live dial frequency readout via two selectable
   transports: `SerialCatConnection` (direct serial, `FA;` command) and
   `RigctldConnection` (TCP client to a running `rigctld` daemon). CAT status
   (Connected / Disabled / Error) is shown in the status bar. The last
   successfully-polled frequency is persisted and restored at next startup.
 - **Frequency management** — a configurable list of FT8 working frequencies
-  (15 defaults covering common bands) is stored in `frequencies.json`. The
-  Settings page provides a full CRUD table. When CAT is active the dial-
-  frequency indicator on the main page becomes a selector; choosing a frequency
-  tunes the rig. When CAT is disabled the selection updates the config directly.
+  (15 defaults covering common bands) is stored in `frequencies.json` and
+  managed via the Frequencies tab CRUD table. When CAT is active the
+  dial-frequency indicator on the main page becomes a selector; choosing a
+  frequency tunes the rig. When CAT is disabled the selection updates the
+  config directly.
 - **File logging** — per-session log files are written to a configurable
   directory with automatic retention enforcement.
 - **WebSocket** pushes live status events (including `audioActive` and
