@@ -559,4 +559,5 @@ select#dial-freq {
   border-radius: 4px;
   font-size: inherit;
   cursor: pointer;
+  width: auto;   /* override global select { width: 100% } — F-005 */
 }

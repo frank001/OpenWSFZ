@@ -5,20 +5,26 @@ namespace OpenWSFZ.Rig;
 
 /// <summary>
 /// Implements <see cref="IRadioConnection"/> using a direct serial port and the
-/// serial CAT <c>FA;</c> frequency query command (FR-031, FR-032).
+/// Kenwood/Yaesu serial CAT protocol (FR-031, FR-032, FR-045).
 ///
 /// <para>
 /// Constructable from a port name and baud rate.  All serial I/O uses a 500 ms
-/// <c>ReadTimeout</c>.  Only the read-only <c>FA;</c> command is ever sent — no
-/// frequency-set, mode-set, or PTT commands are issued by this class.
+/// <c>ReadTimeout</c>.
 /// </para>
 ///
 /// <para>
-/// Serial CAT protocol: the command is written as <c>FA;</c>; the response is
-/// read up to the <c>;</c> delimiter and must be
-/// exactly 13 characters before the delimiter (total 14 with the semicolon),
-/// starting with <c>FA</c> followed by 11 decimal Hz digits.
+/// Frequency query (<see cref="GetDialFrequencyMhzAsync"/>): sends <c>FA;</c>,
+/// reads the response up to the <c>;</c> delimiter.  The response must start with
+/// <c>FA</c> followed by 8–11 decimal Hz digits.
 /// Example: <c>FA00014074000;</c> → 14.074 MHz.
+/// The receive buffer is flushed via <c>DiscardInBuffer</c> before each query to
+/// clear any transient rig response from a preceding set command.
+/// </para>
+///
+/// <para>
+/// Frequency set (<see cref="SetDialFrequencyMhzAsync"/>): sends
+/// <c>FA&lt;11-digit-Hz&gt;;</c> (FR-045).  No read-back is performed; any rig
+/// response is cleared by the next <c>GetDialFrequencyMhzAsync</c> call.
 /// </para>
 /// </summary>
 public sealed class SerialCatConnection : IRadioConnection, IDisposable
@@ -83,6 +89,12 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
     /// </exception>
     public Task<double> GetDialFrequencyMhzAsync(CancellationToken cancellationToken = default)
     {
+        // Discard any stale data in the receive buffer before issuing the query.
+        // This drains any response the rig left from a preceding SetDialFrequencyMhzAsync
+        // call (e.g. a "?;" error acknowledgement), which would otherwise be read in
+        // place of the FA; response and cause a spurious InvalidOperationException (F-003).
+        _port.DiscardInBuffer();
+
         _port.Write(CatCommand);
 
         string raw;

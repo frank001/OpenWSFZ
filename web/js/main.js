@@ -188,8 +188,12 @@ function renderDialFreqSelect(freqMHz) {
   const old = document.getElementById('dial-freq');
   if (!old) return;
 
-  // If it's already a select, just update the selected option.
-  if (old.tagName === 'SELECT') {
+  // Re-use existing select only if options are already fully populated.
+  // When the cache was empty at first render (start-up race — F-004) the
+  // select will have fewer options than the cache; fall through to rebuild.
+  if (old.tagName === 'SELECT' &&
+      cachedFt8Frequencies.length > 0 &&
+      old.options.length === cachedFt8Frequencies.length) {
     updateSelectValue(/** @type {HTMLSelectElement} */ (old), hz);
     return;
   }
@@ -326,9 +330,18 @@ document.addEventListener('DOMContentLoaded', () => {
   startCycleTimerIfEnabled();
 
   // Task 8.1: fetch frequency list once on page load and cache it.
+  // F-004: if the dropdown was already rendered before the fetch resolved
+  // (start-up race — WebSocket status arrives before the HTTP round-trip
+  // completes), force a rebuild now so all frequency options appear.
   getFrequencies().then(entries => {
     if (!Array.isArray(entries)) return;
     cachedFt8Frequencies = entries.filter(e => e.protocol === activeProtocol);
+
+    const existing = document.getElementById('dial-freq');
+    if (existing?.tagName === 'SELECT') {
+      const currentVal = parseFloat(/** @type {HTMLSelectElement} */ (existing).value);
+      renderDialFreqSelect(isFinite(currentVal) ? currentVal : 0);
+    }
   }).catch(() => {
     // Best-effort; dropdown will fall back to single-option display.
   });

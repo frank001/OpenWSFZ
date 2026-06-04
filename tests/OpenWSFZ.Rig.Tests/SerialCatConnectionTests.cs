@@ -190,6 +190,33 @@ public sealed class SerialCatConnectionTests
         port.Received(1).Write(expected);
     }
 
+    // ── Buffer-flush guard (F-003) ────────────────────────────────────────────
+
+    [Fact(DisplayName = "F-003: GetDialFrequencyMhzAsync discards the receive buffer before writing FA; (prevents stale-response pollution)")]
+    public async Task GetDialFrequencyMhzAsync_DiscardsInBufferBeforeWritingCommand()
+    {
+        // Arrange — track call order via side-effects.
+        var port      = Substitute.For<ISerialPort>();
+        var callOrder = new List<string>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA00014074000");
+        port.When(p => p.DiscardInBuffer()).Do(_ => callOrder.Add("discard"));
+        port.When(p => p.Write(Arg.Any<string>())).Do(_ => callOrder.Add("write"));
+
+        var sut = new SerialCatConnection(port);
+
+        // Act
+        await sut.GetDialFrequencyMhzAsync();
+
+        // Assert — exactly one discard, and it must precede the write.
+        port.Received(1).DiscardInBuffer();
+        callOrder.Should().Equal(
+            new[] { "discard", "write" },
+            because: "the receive buffer must be flushed before the FA; query is sent " +
+                     "so that any rig response to a preceding SetDialFrequencyMhzAsync call " +
+                     "does not pollute the read that follows (F-003)");
+    }
+
     [Fact(DisplayName = "FR-045: SetDialFrequencyMhzAsync does not read back a confirmation")]
     public async Task SetDialFrequencyMhzAsync_DoesNotReadBack()
     {

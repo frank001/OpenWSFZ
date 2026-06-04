@@ -138,6 +138,8 @@ public sealed class RigctldConnectionTests
     public async Task SetDialFrequencyMhzAsync_SendsCorrectCommand(double freqMHz, string expected)
     {
         var tcp = Substitute.For<ITcpConnection>();
+        // rigctld always acknowledges commands; stub the expected ack.
+        tcp.ReceiveLineAsync(Arg.Any<CancellationToken>()).Returns("RPRT 0");
         var sut = new RigctldConnection(Host, Port, tcp);
 
         await sut.SetDialFrequencyMhzAsync(freqMHz);
@@ -145,15 +147,29 @@ public sealed class RigctldConnectionTests
         await tcp.Received(1).SendAsync(expected, Arg.Any<CancellationToken>());
     }
 
-    [Fact(DisplayName = "FR-045: RigctldConnection.SetDialFrequencyMhzAsync does not await a read-back")]
-    public async Task SetDialFrequencyMhzAsync_DoesNotReadBack()
+    [Fact(DisplayName = "FR-045: RigctldConnection.SetDialFrequencyMhzAsync reads and validates the RPRT 0 acknowledgement (F-006 Root A)")]
+    public async Task SetDialFrequencyMhzAsync_ReadsAndValidatesRprtAck()
     {
         var tcp = Substitute.For<ITcpConnection>();
+        tcp.ReceiveLineAsync(Arg.Any<CancellationToken>()).Returns("RPRT 0");
         var sut = new RigctldConnection(Host, Port, tcp);
 
         await sut.SetDialFrequencyMhzAsync(14.074);
 
-        // ReceiveLineAsync must never be called.
-        await tcp.DidNotReceive().ReceiveLineAsync(Arg.Any<CancellationToken>());
+        // ReceiveLineAsync must be called exactly once to consume the ack.
+        await tcp.Received(1).ReceiveLineAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "FR-045: RigctldConnection.SetDialFrequencyMhzAsync throws InvalidOperationException on non-zero RPRT code (F-006 Root A)")]
+    public async Task SetDialFrequencyMhzAsync_ThrowsOnNonZeroRprt()
+    {
+        var tcp = Substitute.For<ITcpConnection>();
+        tcp.ReceiveLineAsync(Arg.Any<CancellationToken>()).Returns("RPRT -1");
+        var sut = new RigctldConnection(Host, Port, tcp);
+
+        var act = () => sut.SetDialFrequencyMhzAsync(14.074);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*RPRT -1*");
     }
 }

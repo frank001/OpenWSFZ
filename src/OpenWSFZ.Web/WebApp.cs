@@ -410,11 +410,27 @@ public static class WebApp
         // cannot abort sockets owned by a concurrently-running integration-test server.
         app.Lifetime.ApplicationStopping.Register(() => WebSocketHub.AbortAll(appScope));
 
+        // Captured once so the WebSocket handler can gate new connections without
+        // closing over the WebApplication reference itself.
+        var appStopping = app.Lifetime.ApplicationStopping;
+
         app.MapGet("/api/v1/ws", async (HttpContext ctx, IConfigStore store) =>
         {
             if (!ctx.WebSockets.IsWebSocketRequest)
             {
                 ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            // S2: reject new WebSocket upgrade requests once shutdown has started.
+            // Without this gate, the browser's 1-second reconnect timer can fire
+            // while Kestrel is still draining, establishing a new connection that
+            // was never covered by AbortAll — holding up process exit indefinitely.
+            // A 503 response causes ws.js's exponential back-off to take over, so
+            // the browser stops hammering the dying process.
+            if (appStopping.IsCancellationRequested)
+            {
+                ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 return;
             }
 

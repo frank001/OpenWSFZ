@@ -46,6 +46,19 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
     // Volatile ensures the reference is visible across threads.
     private volatile IRadioConnection? _activeConnection;
 
+    // Serialises concurrent GetDialFrequencyMhzAsync (poll loop) and
+    // SetDialFrequencyMhzAsync (HTTP request) on the same IRadioConnection
+    // to prevent interleaved command / response sequences (F-006 Root B).
+    private readonly SemaphoreSlim _connectionLock = new(1, 1);
+
+    // Last values broadcast to clients via _catEventBus.  Promoted from
+    // RunAsync-local variables to class fields so SetDialFrequencyAsync can
+    // update the comparison baseline after an optimistic tune, allowing the
+    // poll loop to publish a correction event when the rig silently ignores
+    // the command (F-006 Root C).
+    private double?             _lastBroadcastFreq;
+    private CatConnectionStatus _lastBroadcastStatus;
+
     public CatPollingService(
         CatState                    catState,
         IConfigStore                configStore,
@@ -96,11 +109,29 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
 
     public async ValueTask DisposeAsync()
     {
-        await StopAsync(CancellationToken.None).ConfigureAwait(false);
-        _cts?.Dispose();
-    }
+        // Atomically take ownership of _cts so a second call sees null and
+        // exits immediately — prevents the double-dispose ObjectDisposedException
+        // that arises when the DI container tracks the same CatPollingService
+        // instance twice (once via AddSingleton, once via the AddHostedService
+        // factory) and calls DisposeAsync on both tracked references (F-003).
+        var cts = Interlocked.Exchange(ref _cts, null);
+        if (cts is null) return;   // never started, or already disposed
 
-    // ── Core poll loop ────────────────────────────────────────────────────────
+        await cts.CancelAsync().ConfigureAwait(false);
+
+        if (_pollingTask is not null)
+        {
+            try
+            {
+                await _pollingTask.WaitAsync(TimeSpan.FromSeconds(3), CancellationToken.None)
+                                  .ConfigureAwait(false);
+            }
+            catch (TimeoutException) { /* loop did not finish in time — acceptable on shutdown */ }
+            catch (OperationCanceledException) { /* expected */ }
+        }
+
+        cts.Dispose();
+    }
 
     // ── ICatTuner ─────────────────────────────────────────────────────────────
 
@@ -113,22 +144,44 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
             ?? throw new InvalidOperationException(
                 "No active rig connection — CAT is not yet connected.");
 
-        await conn.SetDialFrequencyMhzAsync(frequencyMHz, cancellationToken)
-                  .ConfigureAwait(false);
+        // Acquire the connection lock so the poll loop cannot interleave its
+        // GetDialFrequencyMhzAsync I/O with this set command (F-006 Root B).
+        await _connectionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // Re-check after lock acquisition: _activeConnection may have been
+            // nulled by the poll loop's error handler between the fast pre-check
+            // above and here (TOCTOU guard).
+            conn = _activeConnection
+                ?? throw new InvalidOperationException(
+                    "No active rig connection — CAT is not yet connected.");
 
-        // Optimistic update: show the requested frequency immediately in the
-        // status bar; the next poll cycle will confirm (or correct) it.
-        _catState.Update(frequencyMHz, _catState.Status);
+            await conn.SetDialFrequencyMhzAsync(frequencyMHz, cancellationToken)
+                      .ConfigureAwait(false);
+
+            // Optimistic update: push the requested frequency to the status bar
+            // immediately so the operator sees a response before the next poll
+            // cycle confirms it.
+            // Also advance _lastBroadcastFreq so the poll loop can detect a rig
+            // that silently ignores the command — if the next poll returns the
+            // old frequency, HasFreqChanged fires and a correction event is
+            // published (F-006 Root C).
+            _catState.Update(frequencyMHz, _catState.Status);
+            _lastBroadcastFreq = frequencyMHz;
+            _catEventBus.Publish(_catState.Status, frequencyMHz);
+        }
+        finally
+        {
+            _connectionLock.Release();
+        }
     }
 
     // ── Core poll loop ────────────────────────────────────────────────────────
 
     private async Task RunAsync(CancellationToken ct)
     {
-        IRadioConnection? connection    = null;
-        CatConfig?        lastConfig    = null;
-        double?           lastEmittedFreq   = null;
-        CatConnectionStatus lastEmittedStatus = CatConnectionStatus.Disabled;
+        IRadioConnection? connection = null;
+        CatConfig?        lastConfig = null;
 
         try
         {
@@ -154,8 +207,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                 if (!config.Enabled)
                 {
                     _catState.Update(null, CatConnectionStatus.Disabled);
-                    EmitIfChanged(ref lastEmittedFreq, ref lastEmittedStatus,
-                                  null, CatConnectionStatus.Disabled);
+                    EmitIfChanged(null, CatConnectionStatus.Disabled);
                     await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
                     continue;
                 }
@@ -179,15 +231,13 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                     {
                         // Unknown rigModel — disable CAT.
                         _catState.Update(null, CatConnectionStatus.Disabled);
-                        EmitIfChanged(ref lastEmittedFreq, ref lastEmittedStatus,
-                                      null, CatConnectionStatus.Disabled);
+                        EmitIfChanged(null, CatConnectionStatus.Disabled);
                         await Task.Delay(RetryDelay, ct).ConfigureAwait(false);
                         continue;
                     }
 
                     _catState.Update(null, CatConnectionStatus.Connecting);
-                    EmitIfChanged(ref lastEmittedFreq, ref lastEmittedStatus,
-                                  null, CatConnectionStatus.Connecting);
+                    EmitIfChanged(null, CatConnectionStatus.Connecting);
 
                     try
                     {
@@ -207,8 +257,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                             config.RigModel, ex.Message, RetryDelay.TotalSeconds);
                         _catState.Update(null, CatConnectionStatus.Error);
                         _activeConnection = null;
-                        EmitIfChanged(ref lastEmittedFreq, ref lastEmittedStatus,
-                                      null, CatConnectionStatus.Error);
+                        EmitIfChanged(null, CatConnectionStatus.Error);
                         await SafeDisconnectAsync(connection).ConfigureAwait(false);
                         connection = null;
                         await Task.Delay(RetryDelay, ct).ConfigureAwait(false);
@@ -217,14 +266,32 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                 }
 
                 // ── Poll frequency ────────────────────────────────────────────
+                // Acquire _connectionLock across the I/O exchange to serialise
+                // with any concurrent SetDialFrequencyAsync call (F-006 Root B).
+                // If WaitAsync itself is cancelled (ct already fired), the OCE
+                // propagates to the outer catch; the lock was never acquired so
+                // no Release() is needed.
                 try
                 {
-                    var freq = await connection.GetDialFrequencyMhzAsync(ct).ConfigureAwait(false);
-                    _catState.Update(freq, CatConnectionStatus.Connected);
-                    EmitIfChanged(ref lastEmittedFreq, ref lastEmittedStatus,
-                                  freq, CatConnectionStatus.Connected);
+                    await _connectionLock.WaitAsync(ct).ConfigureAwait(false);
+                    double freq;
+                    try
+                    {
+                        freq = await connection.GetDialFrequencyMhzAsync(ct).ConfigureAwait(false);
+                        _catState.Update(freq, CatConnectionStatus.Connected);
+                        // EmitIfChanged is called while the lock is held so that
+                        // _lastBroadcastFreq is updated atomically with respect to
+                        // any concurrent SetDialFrequencyAsync (F-006 Root C).
+                        EmitIfChanged(freq, CatConnectionStatus.Connected);
+                    }
+                    finally
+                    {
+                        _connectionLock.Release();
+                    }
 
-                    // FR-039: persist last-known frequency across restarts when changed by ≥ 1 Hz.
+                    // FR-039: persist last-known frequency across restarts when
+                    // changed by ≥ 1 Hz.  ConfigStore I/O is independent of the
+                    // rig connection and can safely run outside the lock.
                     var storedLast = _configStore.Current.Cat?.LastPolledFrequencyMHz;
                     if (HasFreqChanged(storedLast, freq))
                     {
@@ -254,8 +321,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                         config.RigModel, ex.Message, RetryDelay.TotalSeconds);
                     _catState.Update(null, CatConnectionStatus.Error);
                     _activeConnection = null;
-                    EmitIfChanged(ref lastEmittedFreq, ref lastEmittedStatus,
-                                  null, CatConnectionStatus.Error);
+                    EmitIfChanged(null, CatConnectionStatus.Error);
                     await SafeDisconnectAsync(connection).ConfigureAwait(false);
                     connection = null;
                     await Task.Delay(RetryDelay, ct).ConfigureAwait(false);
@@ -316,19 +382,15 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
     /// Emits a <c>cat_status</c> WebSocket event only when frequency changed by ≥ 1 Hz
     /// or connection status changed (D5).
     /// </summary>
-    private void EmitIfChanged(
-        ref double?             lastFreq,
-        ref CatConnectionStatus lastStatus,
-        double?                 newFreq,
-        CatConnectionStatus     newStatus)
+    private void EmitIfChanged(double? newFreq, CatConnectionStatus newStatus)
     {
-        var freqChanged   = HasFreqChanged(lastFreq, newFreq);
-        var statusChanged = lastStatus != newStatus;
+        var freqChanged   = HasFreqChanged(_lastBroadcastFreq, newFreq);
+        var statusChanged = _lastBroadcastStatus != newStatus;
 
         if (!freqChanged && !statusChanged) return;
 
-        lastFreq   = newFreq;
-        lastStatus = newStatus;
+        _lastBroadcastFreq   = newFreq;
+        _lastBroadcastStatus = newStatus;
 
         _catEventBus.Publish(newStatus, newFreq);
     }

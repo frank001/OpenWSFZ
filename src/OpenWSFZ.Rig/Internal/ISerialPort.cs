@@ -12,5 +12,6 @@ internal interface ISerialPort : IDisposable
     void   Open();
     void   Write(string text);
     string ReadTo(string value);
+    void   DiscardInBuffer();
     void   Close();
 }

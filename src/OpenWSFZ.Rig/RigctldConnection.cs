@@ -6,7 +6,7 @@ namespace OpenWSFZ.Rig;
 
 /// <summary>
 /// Implements <see cref="IRadioConnection"/> over a TCP connection to a running
-/// <c>rigctld</c> daemon (FR-031, FR-032).
+/// <c>rigctld</c> daemon (FR-031, FR-032, FR-045).
 ///
 /// <para>
 /// The operator is responsible for starting <c>rigctld</c> before enabling this mode.
@@ -15,15 +15,12 @@ namespace OpenWSFZ.Rig;
 /// </para>
 ///
 /// <para>
-/// Protocol: send <c>\get_freq\n</c>, read one response line containing the
-/// frequency in Hz as a plain decimal integer (e.g. <c>14074000</c> → 14.074 MHz).
-/// <c>rigctld</c> error responses begin with <c>RPRT</c> and cause
-/// <see cref="InvalidOperationException"/> to be thrown.
-/// </para>
-///
-/// <para>
-/// Only the read-only frequency query is sent — no PTT, frequency-set, or
-/// mode-set commands are issued.
+/// Protocol: each command–response pair is exchanged over the same persistent TCP
+/// connection.  <see cref="GetDialFrequencyMhzAsync"/> sends <c>\get_freq\n</c> and
+/// reads one decimal-integer Hz line.  <see cref="SetDialFrequencyMhzAsync"/> sends
+/// <c>\set_freq &lt;Hz&gt;\n</c> and reads the <c>RPRT 0</c> acknowledgement that
+/// <c>rigctld</c> sends for every command; an <c>RPRT -N</c> reply throws
+/// <see cref="InvalidOperationException"/>.
 /// </para>
 /// </summary>
 public sealed class RigctldConnection : IRadioConnection, IDisposable
@@ -102,10 +99,13 @@ public sealed class RigctldConnection : IRadioConnection, IDisposable
 
     /// <summary>
     /// Sends <c>\set_freq &lt;Hz&gt;\n</c> to command VFO-A to
-    /// <paramref name="frequencyMHz"/> (FR-045).
+    /// <paramref name="frequencyMHz"/> (FR-045), then reads and validates the
+    /// <c>RPRT 0</c> acknowledgement that <c>rigctld</c> sends for every command.
     /// The Hz integer is rounded to the nearest integer.
-    /// The method returns after the write completes — no read-back is performed.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <c>rigctld</c> returned a non-zero RPRT code (e.g. <c>RPRT -1</c>).
+    /// </exception>
     /// <example>
     /// <c>14.074 MHz → \set_freq 14074000\n</c>
     /// </example>
@@ -116,6 +116,15 @@ public sealed class RigctldConnection : IRadioConnection, IDisposable
         var hz      = (long)Math.Round(frequencyMHz * 1_000_000.0);
         var command = $@"\set_freq {hz}" + "\n";
         await _tcp.SendAsync(command, cancellationToken).ConfigureAwait(false);
+
+        // rigctld acknowledges every command with an RPRT line.  Consume it now
+        // so the receive buffer stays aligned for the next GetDialFrequencyMhzAsync
+        // call (F-006 Root A).  An unread RPRT would otherwise be returned as the
+        // Hz value of the next \get_freq and trigger a spurious error.
+        var ack = (await _tcp.ReceiveLineAsync(cancellationToken).ConfigureAwait(false)).Trim();
+        if (!ack.Equals("RPRT 0", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $@"rigctld returned error for \set_freq {hz}: '{ack}'");
     }
 
     /// <summary>Closes the TCP connection.</summary>
