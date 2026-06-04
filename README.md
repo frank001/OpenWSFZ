@@ -175,14 +175,9 @@ The build and test suite has been verified on all three target platforms:
 
 | Platform | Build | Tests | CI |
 |---|---|---|---|
-| Windows x64 | ✅ 0 warnings | ✅ 308 passed, 4 skipped | ✅ GitHub Actions |
-| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 308 passed, 4 skipped | ✅ GitHub Actions |
+| Windows x64 | ✅ 0 warnings | ✅ 308 passed | ✅ GitHub Actions |
+| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 308 passed | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
-
-The 4 skipped tests in `OpenWSFZ.Ft8.Tests` are intentional and documented:
-the synthetic encoder used in those fixtures emits free-text FT8 frames (i3=0)
-which `ft8_lib` correctly rejects; correctness for real signals is covered by
-the `RealSignalFixtureTests` ground-truth suite (G6 gate).
 
 All four CI gates pass on every platform:
 
