@@ -173,4 +173,119 @@ public sealed class SerialCatConnectionTests
         port.Received(1).Close();
         port.Received(1).Dispose();
     }
+
+    // ── SetDialFrequencyMhzAsync (FR-045) ─────────────────────────────────────
+
+    [Theory(DisplayName = "FR-045: SetDialFrequencyMhzAsync writes correct FA set command")]
+    [InlineData(7.074,  "FA00007074000;")]
+    [InlineData(14.074, "FA00014074000;")]
+    [InlineData(0.001,  "FA00000001000;")]
+    public async Task SetDialFrequencyMhzAsync_WritesCorrectCommand(double freqMHz, string expected)
+    {
+        var port = Substitute.For<ISerialPort>();
+        var sut  = new SerialCatConnection(port);
+
+        await sut.SetDialFrequencyMhzAsync(freqMHz);
+
+        port.Received(1).Write(expected);
+    }
+
+    // ── Self-calibrating digit width (p20) ───────────────────────────────────
+
+    [Fact(DisplayName = "p20: SetDialFrequencyMhzAsync uses 11-digit fallback before first GET")]
+    public async Task SetDialFrequencyMhzAsync_BeforeFirstGet_UsesElevenDigitFallback()
+    {
+        // No GetDialFrequencyMhzAsync has been called — _freqWidth is still 0.
+        var port = Substitute.For<ISerialPort>();
+        var sut  = new SerialCatConnection(port);
+
+        await sut.SetDialFrequencyMhzAsync(14.074);
+
+        port.Received(1).Write("FA00014074000;");
+    }
+
+    [Fact(DisplayName = "p20: SetDialFrequencyMhzAsync uses 9-digit width after 9-digit GET response")]
+    public async Task SetDialFrequencyMhzAsync_AfterNineDigitGet_WritesNineDigitCommand()
+    {
+        var port = Substitute.For<ISerialPort>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA007074000");   // 9-digit: 7.074 MHz
+        var sut = new SerialCatConnection(port);
+
+        await sut.GetDialFrequencyMhzAsync();           // calibrates to 9 digits
+        await sut.SetDialFrequencyMhzAsync(7.074);
+
+        port.Received(1).Write("FA007074000;");
+    }
+
+    [Fact(DisplayName = "p20: SetDialFrequencyMhzAsync uses 11-digit width after 11-digit GET response")]
+    public async Task SetDialFrequencyMhzAsync_AfterElevenDigitGet_WritesElevenDigitCommand()
+    {
+        var port = Substitute.For<ISerialPort>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA00014074000");   // 11-digit: 14.074 MHz
+        var sut = new SerialCatConnection(port);
+
+        await sut.GetDialFrequencyMhzAsync();            // calibrates to 11 digits
+        await sut.SetDialFrequencyMhzAsync(14.074);
+
+        port.Received(1).Write("FA00014074000;");
+    }
+
+    [Fact(DisplayName = "p20: Digit width discovered from first GET is stable across subsequent GETs")]
+    public async Task GetDialFrequencyMhzAsync_WidthStableAcrossSubsequentGets()
+    {
+        var port = Substitute.For<ISerialPort>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA007074000");   // 9-digit
+        var sut = new SerialCatConnection(port);
+
+        // Two successive GETs — only the first should set _freqWidth.
+        await sut.GetDialFrequencyMhzAsync();
+        await sut.GetDialFrequencyMhzAsync();
+
+        // SET must still use the 9-digit width, not reset or change after the second GET.
+        await sut.SetDialFrequencyMhzAsync(7.074);
+
+        port.Received(1).Write("FA007074000;");
+    }
+
+    // ── Buffer-flush guard (F-003) ────────────────────────────────────────────
+
+    [Fact(DisplayName = "F-003: GetDialFrequencyMhzAsync discards the receive buffer before writing FA; (prevents stale-response pollution)")]
+    public async Task GetDialFrequencyMhzAsync_DiscardsInBufferBeforeWritingCommand()
+    {
+        // Arrange — track call order via side-effects.
+        var port      = Substitute.For<ISerialPort>();
+        var callOrder = new List<string>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA00014074000");
+        port.When(p => p.DiscardInBuffer()).Do(_ => callOrder.Add("discard"));
+        port.When(p => p.Write(Arg.Any<string>())).Do(_ => callOrder.Add("write"));
+
+        var sut = new SerialCatConnection(port);
+
+        // Act
+        await sut.GetDialFrequencyMhzAsync();
+
+        // Assert — exactly one discard, and it must precede the write.
+        port.Received(1).DiscardInBuffer();
+        callOrder.Should().Equal(
+            new[] { "discard", "write" },
+            because: "the receive buffer must be flushed before the FA; query is sent " +
+                     "so that any rig response to a preceding SetDialFrequencyMhzAsync call " +
+                     "does not pollute the read that follows (F-003)");
+    }
+
+    [Fact(DisplayName = "FR-045: SetDialFrequencyMhzAsync does not read back a confirmation")]
+    public async Task SetDialFrequencyMhzAsync_DoesNotReadBack()
+    {
+        var port = Substitute.For<ISerialPort>();
+        var sut  = new SerialCatConnection(port);
+
+        await sut.SetDialFrequencyMhzAsync(14.074);
+
+        // ReadTo must never be called — the method is fire-and-forget.
+        port.DidNotReceive().ReadTo(Arg.Any<string>());
+    }
 }

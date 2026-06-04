@@ -28,6 +28,10 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(CatConnectionStatus))]
 [JsonSerializable(typeof(WsCatStatusMessage))]
 [JsonSerializable(typeof(CatStatusPayload))]
+[JsonSerializable(typeof(FrequencyEntry))]
+[JsonSerializable(typeof(List<FrequencyEntry>))]
+[JsonSerializable(typeof(TuneRequest))]
+[JsonSerializable(typeof(TuneResponse))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -56,3 +60,9 @@ internal sealed record WsCatStatusMessage(string Type, CatStatusPayload Payload)
 
 /// <summary>Payload for <c>cat_status</c> WebSocket text frames (FR-033).</summary>
 internal sealed record CatStatusPayload(string Status, double? DialFrequencyMHz);
+
+/// <summary>Request body for <c>POST /api/v1/tune</c> (FR-045).</summary>
+internal sealed record TuneRequest(double? FrequencyMHz);
+
+/// <summary>Response body for <c>POST /api/v1/tune</c> (FR-045).</summary>
+internal sealed record TuneResponse(double EffectiveFrequencyMHz);

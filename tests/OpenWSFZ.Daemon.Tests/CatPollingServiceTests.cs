@@ -21,12 +21,13 @@ public sealed class CatPollingServiceTests
     private static (CatPollingService svc, CatState state, IConfigStore store)
         MakeService(CatConfig? cat = null)
     {
-        var state  = new CatState();
-        var store  = new StubConfigStore(new AppConfig() with
-                         { Cat = cat ?? new CatConfig { Enabled = false } });
-        var bus    = new CatEventBus(Guid.NewGuid());
-        var logger = NullLogger<CatPollingService>.Instance;
-        var svc    = new CatPollingService(state, store, bus, logger);
+        var state      = new CatState();
+        var store      = new StubConfigStore(new AppConfig() with
+                             { Cat = cat ?? new CatConfig { Enabled = false } });
+        var bus        = new CatEventBus(Guid.NewGuid());
+        var logger     = NullLogger<CatPollingService>.Instance;
+        var logFactory = NullLoggerFactory.Instance;
+        var svc        = new CatPollingService(state, store, bus, logger, logFactory);
         return (svc, state, store);
     }
 

@@ -38,6 +38,10 @@
                 role="tab" aria-selected="false" aria-controls="tab-advanced" id="tab-btn-advanced">
           Advanced
         </button>
+        <button type="button" class="settings-tab-btn"
+                role="tab" aria-selected="false" aria-controls="tab-frequencies" id="tab-btn-frequencies">
+          Frequencies
+        </button>
       </div>
 
       <!-- ── Tab 1: Radio hardware ───────────────────────────────────────── -->
@@ -277,6 +281,34 @@
         </div>
 
       </div><!-- /tab-advanced -->
+
+      <!-- ── Tab 4: Frequencies ─────────────────────────────────────────── -->
+      <div id="tab-frequencies" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-frequencies">
+
+        <p class="field-hint">
+          Working frequencies used to populate the frequency selector on the main page when CAT
+          is active. Changes take effect after Save.
+        </p>
+
+        <table id="freq-table" class="freq-table">
+          <thead>
+            <tr>
+              <th>Protocol</th>
+              <th>Frequency (MHz)</th>
+              <th>Description</th>
+              <th>Delete</th>
+            </tr>
+          </thead>
+          <tbody id="freq-tbody">
+            <!-- rows populated by settings.js -->
+          </tbody>
+        </table>
+
+        <div class="field-group" style="margin-top:0.75rem">
+          <button id="add-freq-btn" type="button">Add frequency</button>
+        </div>
+
+      </div><!-- /tab-frequencies -->
 
       <div class="form-footer">
         <button id="save-btn" type="button" class="primary">Save</button>

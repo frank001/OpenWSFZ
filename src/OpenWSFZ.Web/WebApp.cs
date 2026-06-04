@@ -40,6 +40,7 @@ public static class WebApp
         int port,
         IBindPolicy?                                  bindPolicy           = null,
         IConfigStore?                                 configStore          = null,
+        IFrequencyStore?                              frequencyStore       = null,
         IAudioDeviceProvider?                         audioProvider        = null,
         Func<IServiceProvider, IAudioDeviceProvider>? audioProviderFactory = null,
         CaptureManager?                               captureManager       = null,
@@ -77,6 +78,9 @@ public static class WebApp
 
         builder.Services.AddSingleton<IConfigStore>(
             configStore ?? new InMemoryConfigStore());
+
+        builder.Services.AddSingleton<IFrequencyStore>(
+            frequencyStore ?? new InMemoryFrequencyStore());
 
         if (audioProviderFactory is not null)
             builder.Services.AddSingleton<IAudioDeviceProvider>(audioProviderFactory);
@@ -275,6 +279,108 @@ public static class WebApp
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
         });
 
+        // ── Frequency list endpoints (FR-042) ─────────────────────────────────
+
+        app.MapGet("/api/v1/frequencies", (IFrequencyStore freqStore) =>
+            TypedResults.Ok(freqStore.Entries.ToList()));
+
+        app.MapPost("/api/v1/frequencies", async (
+            HttpRequest       request,
+            IFrequencyStore   freqStore,
+            CancellationToken ct) =>
+        {
+            List<FrequencyEntry>? entries;
+            try
+            {
+                entries = await request.ReadFromJsonAsync(
+                    AppJsonContext.Default.ListFrequencyEntry, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON — expected an array of frequency entries.");
+            }
+
+            if (entries is null)
+                return Results.BadRequest("Missing or empty request body.");
+
+            await freqStore.SaveAsync(entries, ct);
+            return TypedResults.Ok(freqStore.Entries.ToList());
+        });
+
+        // ── Tune endpoint (FR-045) ────────────────────────────────────────────
+
+        var tuneLogger = app.Services.GetRequiredService<ILoggerFactory>()
+                                     .CreateLogger("OpenWSFZ.Web.TuneApi");
+
+        // Capture ICatTuner from the service container (may be null in tests or when CAT is disabled).
+        // Captured here rather than as a handler parameter to avoid the RequestDelegateGenerator
+        // mistakenly treating a nullable interface as a JSON-bound body parameter.
+        var catTuner = app.Services.GetService<ICatTuner>();
+
+        app.MapPost("/api/v1/tune", async (
+            HttpRequest       request,
+            IConfigStore      store,
+            CancellationToken ct) =>
+        {
+            TuneRequest? body;
+            try
+            {
+                body = await request.ReadFromJsonAsync(AppJsonContext.Default.TuneRequest, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON.");
+            }
+
+            if (body?.FrequencyMHz is not { } freq)
+                return Results.BadRequest("Missing or non-numeric frequencyMHz.");
+
+            if (freq < 0)
+                return Results.BadRequest("frequencyMHz must not be negative.");
+
+            var status = catState?.Status ?? CatConnectionStatus.Disabled;
+
+            if (status is CatConnectionStatus.Connected or CatConnectionStatus.Connecting)
+            {
+                // CAT active path: command the rig; ICatTuner updates CatState optimistically.
+                if (catTuner is null)
+                {
+                    tuneLogger.LogWarning(
+                        "POST /api/v1/tune: CAT status is {Status} but no ICatTuner is registered.",
+                        status);
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status502BadGateway,
+                        detail: "CAT tuner service is not available.");
+                }
+
+                try
+                {
+                    await catTuner.SetDialFrequencyAsync(freq, ct);
+                }
+                catch (Exception ex)
+                {
+                    tuneLogger.LogWarning(ex,
+                        "POST /api/v1/tune: SetDialFrequencyAsync({FreqMHz}) failed: {Message}",
+                        freq, ex.Message);
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status502BadGateway,
+                        detail: "CAT set-frequency command failed.");
+                }
+            }
+            else
+            {
+                // CAT inactive path: update the manual dial frequency config.
+                var updated = store.Current with
+                {
+                    DecodeLog = (store.Current.DecodeLog ?? new DecodeLogConfig())
+                                    with { DialFrequencyMHz = freq }
+                };
+                await store.SaveAsync(updated, ct);
+            }
+
+            return TypedResults.Ok(new TuneResponse(freq));
+        });
+
         // ── WebSocket Endpoint ────────────────────────────────────────────────
 
         // Create a per-class logger from the DI container after the app is built.
@@ -304,11 +410,27 @@ public static class WebApp
         // cannot abort sockets owned by a concurrently-running integration-test server.
         app.Lifetime.ApplicationStopping.Register(() => WebSocketHub.AbortAll(appScope));
 
+        // Captured once so the WebSocket handler can gate new connections without
+        // closing over the WebApplication reference itself.
+        var appStopping = app.Lifetime.ApplicationStopping;
+
         app.MapGet("/api/v1/ws", async (HttpContext ctx, IConfigStore store) =>
         {
             if (!ctx.WebSockets.IsWebSocketRequest)
             {
                 ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            // S2: reject new WebSocket upgrade requests once shutdown has started.
+            // Without this gate, the browser's 1-second reconnect timer can fire
+            // while Kestrel is still draining, establishing a new connection that
+            // was never covered by AbortAll — holding up process exit indefinitely.
+            // A 503 response causes ws.js's exponential back-off to take over, so
+            // the browser stops hammering the dying process.
+            if (appStopping.IsCancellationRequested)
+            {
+                ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 return;
             }
 
@@ -378,4 +500,24 @@ internal sealed class InMemoryAudioDeviceProvider : IAudioDeviceProvider
 
     public Task<IReadOnlyList<AudioDeviceInfo>> GetDevicesAsync(CancellationToken ct = default)
         => Task.FromResult(_devices);
+}
+
+/// <summary>
+/// In-memory <see cref="IFrequencyStore"/> used as the default in tests and when
+/// no persistent store is supplied to <see cref="WebApp.Create"/>.
+/// </summary>
+internal sealed class InMemoryFrequencyStore : IFrequencyStore
+{
+    private volatile IReadOnlyList<FrequencyEntry> _entries;
+
+    public InMemoryFrequencyStore(IReadOnlyList<FrequencyEntry>? initial = null)
+        => _entries = initial ?? [];
+
+    public IReadOnlyList<FrequencyEntry> Entries => _entries;
+
+    public Task SaveAsync(IReadOnlyList<FrequencyEntry> entries, CancellationToken ct = default)
+    {
+        _entries = entries;
+        return Task.CompletedTask;
+    }
 }

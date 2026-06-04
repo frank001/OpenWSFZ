@@ -110,10 +110,11 @@ public sealed class CatPollingServiceFreqPersistTests
         connection.ConnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         connection.GetDialFrequencyMhzAsync(Arg.Any<CancellationToken>()).Returns(14.074);
 
-        var logger = new SpyLogger<CatPollingService>();
-        var state  = new CatState();
-        var bus    = new CatEventBus(Guid.NewGuid());
-        var svc    = new TestableCatPollingService(state, store, bus, logger, connection);
+        var logger     = new SpyLogger<CatPollingService>();
+        var state      = new CatState();
+        var bus        = new CatEventBus(Guid.NewGuid());
+        var logFactory = NullLoggerFactory.Instance;
+        var svc        = new TestableCatPollingService(state, store, bus, logger, logFactory, connection);
 
         // Act — the service must continue running even after the save fails.
         await svc.StartAsync(CancellationToken.None);
@@ -135,10 +136,11 @@ public sealed class CatPollingServiceFreqPersistTests
         IConfigStore store,
         IRadioConnection connection)
     {
-        var state  = new CatState();
-        var bus    = new CatEventBus(Guid.NewGuid());
-        var logger = NullLogger<CatPollingService>.Instance;
-        var svc    = new TestableCatPollingService(state, store, bus, logger, connection);
+        var state      = new CatState();
+        var bus        = new CatEventBus(Guid.NewGuid());
+        var logger     = NullLogger<CatPollingService>.Instance;
+        var logFactory = NullLoggerFactory.Instance;
+        var svc        = new TestableCatPollingService(state, store, bus, logger, logFactory, connection);
         return (svc, state);
     }
 
@@ -157,8 +159,9 @@ public sealed class CatPollingServiceFreqPersistTests
             IConfigStore               configStore,
             CatEventBus                catEventBus,
             ILogger<CatPollingService> logger,
+            ILoggerFactory             loggerFactory,
             IRadioConnection           injectedConnection)
-            : base(catState, configStore, catEventBus, logger)
+            : base(catState, configStore, catEventBus, logger, loggerFactory)
         {
             _injected = injectedConnection;
         }

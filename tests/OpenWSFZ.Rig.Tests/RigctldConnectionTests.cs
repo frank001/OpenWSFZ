@@ -128,4 +128,48 @@ public sealed class RigctldConnectionTests
         tcp.Received().Close();
         tcp.Received(1).Dispose();
     }
+
+    // ── SetDialFrequencyMhzAsync (FR-045) ─────────────────────────────────────
+
+    [Theory(DisplayName = "FR-045: RigctldConnection.SetDialFrequencyMhzAsync sends correct set_freq command")]
+    [InlineData(7.074,   @"\set_freq 7074000" + "\n")]
+    [InlineData(14.074,  @"\set_freq 14074000" + "\n")]
+    [InlineData(0.001,   @"\set_freq 1000" + "\n")]
+    public async Task SetDialFrequencyMhzAsync_SendsCorrectCommand(double freqMHz, string expected)
+    {
+        var tcp = Substitute.For<ITcpConnection>();
+        // rigctld always acknowledges commands; stub the expected ack.
+        tcp.ReceiveLineAsync(Arg.Any<CancellationToken>()).Returns("RPRT 0");
+        var sut = new RigctldConnection(Host, Port, tcp);
+
+        await sut.SetDialFrequencyMhzAsync(freqMHz);
+
+        await tcp.Received(1).SendAsync(expected, Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "FR-045: RigctldConnection.SetDialFrequencyMhzAsync reads and validates the RPRT 0 acknowledgement (F-006 Root A)")]
+    public async Task SetDialFrequencyMhzAsync_ReadsAndValidatesRprtAck()
+    {
+        var tcp = Substitute.For<ITcpConnection>();
+        tcp.ReceiveLineAsync(Arg.Any<CancellationToken>()).Returns("RPRT 0");
+        var sut = new RigctldConnection(Host, Port, tcp);
+
+        await sut.SetDialFrequencyMhzAsync(14.074);
+
+        // ReceiveLineAsync must be called exactly once to consume the ack.
+        await tcp.Received(1).ReceiveLineAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "FR-045: RigctldConnection.SetDialFrequencyMhzAsync throws InvalidOperationException on non-zero RPRT code (F-006 Root A)")]
+    public async Task SetDialFrequencyMhzAsync_ThrowsOnNonZeroRprt()
+    {
+        var tcp = Substitute.For<ITcpConnection>();
+        tcp.ReceiveLineAsync(Arg.Any<CancellationToken>()).Returns("RPRT -1");
+        var sut = new RigctldConnection(Host, Port, tcp);
+
+        var act = () => sut.SetDialFrequencyMhzAsync(14.074);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*RPRT -1*");
+    }
 }

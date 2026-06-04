@@ -30,6 +30,7 @@ internal sealed class SerialPortWrapper : ISerialPort
     public void   Open()                 => _port.Open();
     public void   Write(string text)     => _port.Write(text);
     public string ReadTo(string value)   => _port.ReadTo(value);
+    public void   DiscardInBuffer()      => _port.DiscardInBuffer();
     public void   Close()                => _port.Close();
     public void   Dispose()              => _port.Dispose();
 }

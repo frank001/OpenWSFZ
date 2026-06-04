@@ -24,6 +24,14 @@ Console.Error.WriteLine($"[OpenWSFZ] Config: {configSource} → {configPath}");
 // Note: constructed before the logger exists (bootstrap phase).
 var configStore = new JsonConfigStore(configPath);
 
+// Resolve the frequencies.json path — same data directory as app.json (FR-042).
+var frequenciesPath = Path.Combine(
+    Path.GetDirectoryName(configPath) ?? AppContext.BaseDirectory,
+    "frequencies.json");
+
+// Create the FrequencyStore (logger not available yet; assigned after host builds).
+var frequencyStore = new FrequencyStore(frequenciesPath);
+
 // ── Logging setup (FR-019, FR-022, FR-023, FR-024) ────────────────────────────
 // Parse the configured log level.  Invalid values fall back to Information.
 var logLevel = Enum.TryParse<LogLevel>(configStore.Current.LogLevel, ignoreCase: true, out var parsedLevel)
@@ -212,6 +220,7 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
 var app = WebApp.Create(
     port,
     configStore:          configStore,
+    frequencyStore:       frequencyStore,
     audioProviderFactory: sp => new PlatformAudioDeviceProvider(
                                     sp.GetRequiredService<ILoggerFactory>()),
     captureManager:       captureManager,
@@ -226,6 +235,9 @@ var app = WebApp.Create(
         services.AddSingleton(allTxtWriter);
         services.AddHostedService<LogRotationService>();
 
+        // Frequency store DI wiring (FR-042).
+        services.AddSingleton<IFrequencyStore>(frequencyStore);
+
         // CAT DI wiring (tasks 11.1–11.3, FR-031).
         // Register the CatState singleton under both its concrete type (for
         // CatPollingService to call internal Update) and the ICatState interface
@@ -233,8 +245,12 @@ var app = WebApp.Create(
         services.AddSingleton(catState);
         services.AddSingleton<ICatState>(catState);
 
-        // CatPollingService as a hosted service (task 11.3).
-        services.AddHostedService<CatPollingService>();
+        // CatPollingService registered as a singleton so ICatTuner (FR-045) can
+        // be resolved from DI by the web layer.  Also wired as IHostedService
+        // so the ASP.NET Core host starts and stops it automatically.
+        services.AddSingleton<CatPollingService>();
+        services.AddSingleton<ICatTuner>(sp => sp.GetRequiredService<CatPollingService>());
+        services.AddHostedService(sp => sp.GetRequiredService<CatPollingService>());
     });
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────
@@ -297,13 +313,18 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 
 // Restart pipeline when the device name changes via POST /api/v1/config.
-string? runningDevice  = configStore.Current.AudioDeviceId;
-bool    runningEnabled = configStore.Current.DecodingEnabled;
+string?       runningDevice       = configStore.Current.AudioDeviceId;
+bool          runningEnabled      = configStore.Current.DecodingEnabled;
+// Track the last applied logging state so the OnSaved handler below can skip
+// Apply() on saves that only touch non-logging fields (e.g. Cat.LastPolledFrequencyMHz
+// from FR-039).  LoggingConfig is a sealed record, so == is value equality.
+LoggingConfig lastLoggingConfig   = configStore.Current.Logging ?? new LoggingConfig();
+LogLevel      lastLogConsoleLevel = logLevel;
 configStore.OnSaved += newConfig =>
 {
-    // Re-apply the Serilog pipeline on every save so that rotation config and
-    // file-sink changes (directory, FileEnabled, FileLogLevel) are picked up
-    // on the next log-rotation event without a restart.
+    // Re-apply the Serilog pipeline only when logging-related settings actually
+    // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
+    // create a spurious new log file and reset the active sink.
     //
     // NOTE: the MEL ILoggerFactory was wired to the Serilog instance captured
     // at startup (lb.AddSerilog(Log.Logger, ...)) and the MEL minimum level was
@@ -311,9 +332,15 @@ configStore.OnSaved += newConfig =>
     // level and file-level changes do NOT take effect until the next restart.
     // TODO: replace with a SerilogLoggingLevelSwitch wired to both the Serilog
     //       pipeline and the MEL factory to achieve true live log-level updates.
-    var newConsoleLevel = Enum.TryParse<LogLevel>(newConfig.LogLevel,
+    var newConsoleLevel  = Enum.TryParse<LogLevel>(newConfig.LogLevel,
         ignoreCase: true, out var nl) ? nl : LogLevel.Information;
-    loggingPipeline.Apply(newConfig.Logging ?? new LoggingConfig(), consoleLevel: newConsoleLevel);
+    var newLoggingConfig = newConfig.Logging ?? new LoggingConfig();
+    if (newLoggingConfig != lastLoggingConfig || newConsoleLevel != lastLogConsoleLevel)
+    {
+        lastLoggingConfig   = newLoggingConfig;
+        lastLogConsoleLevel = newConsoleLevel;
+        loggingPipeline.Apply(newLoggingConfig, consoleLevel: newConsoleLevel);
+    }
 
     var newDevice  = newConfig.AudioDeviceId;
     var newEnabled = newConfig.DecodingEnabled;
@@ -412,6 +439,9 @@ app.Lifetime.ApplicationStopping.Register(() =>
         restartSemaphore.Release();
     }
 });
+
+// Load (or create) frequencies.json before starting the web host (FR-042, task 3.3).
+await frequencyStore.LoadAsync();
 
 await app.RunAsync();
 
