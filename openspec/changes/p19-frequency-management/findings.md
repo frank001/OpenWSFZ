@@ -497,3 +497,49 @@ select#dial-freq {
 ```
 
 `width: auto` on a `<select>` causes the browser to size the element to accommodate the longest `<option>` text, which is the desired behaviour.
+
+---
+
+## F-007 — `FrequencyStore` does not sort entries on save (Fixed in this PR)
+
+**Severity:** Low — cosmetic ordering defect; new rows added via the Settings tab appeared at the bottom regardless of frequency value  
+**Status:** Fixed — `SaveAsync` now sorts by `FrequencyMHz` ascending before persisting; `LoadAsync` applies the same sort in-memory so pre-existing unsorted files are presented correctly  
+**Files:** `src/OpenWSFZ.Daemon/FrequencyStore.cs`
+
+### Observed behaviour
+
+Rows added via the Frequencies tab were appended at the end of the table in insertion order rather than being presented in ascending frequency order. After a page reload (which re-fetches from disk), the newly added entries appeared out of order relative to the default entries.
+
+### Root cause
+
+`SaveAsync` persisted the entry list in the order supplied by the caller. No sort was applied either at save or at load time.
+
+### Fix applied
+
+`SaveAsync` calls `entries.OrderBy(e => e.FrequencyMHz)` before constructing the DTO and writing to disk. `LoadAsync` applies the same `.OrderBy` after deserialising so that even pre-existing files written before the sort invariant was introduced are presented in the correct order in memory (without overwriting the file).
+
+---
+
+## F-008 — `SerialCatConnection.SetDialFrequencyMhzAsync` hard-coded 11 Hz digits; Yaesu FT-991A requires 9 (Fixed in this PR)
+
+**Severity:** High — FR-045 (CAT frequency set) was silently non-functional for the FT-991A; every tune command was rejected by the rig with no error visible to the operator  
+**Status:** Fixed — digit count is derived dynamically from the length of the frequency string returned by the preceding `FA;` GET query  
+**Files:** `src/OpenWSFZ.Rig/SerialCatConnection.cs`
+
+### Observed behaviour
+
+Selecting a frequency from the `#dial-freq` dropdown while connected via serial CAT to a Yaesu FT-991A had no effect. The rig remained on its original frequency. No error was logged.
+
+### Root cause
+
+The original task spec (task 4.2) stated: *"zero-pad to 11 digits, write `FA<11-digit-Hz>;`"*. The Kenwood CAT standard uses 11 Hz digits for the `FA` command. However, the Yaesu FT-991A's implementation of the `FA` command uses **9 Hz digits** — e.g., `FA007074000;` (9 digits) rather than `FA00007074000;` (11 digits).
+
+When the daemon sent `FA00007074000;`, the FT-991A's CAT parser did not recognise the command and silently discarded it. Because `SetDialFrequencyMhzAsync` performed no read-back, the failure was invisible.
+
+### Fix applied
+
+Rather than hard-coding the digit count, `SetDialFrequencyMhzAsync` first issues the `FA;` query (GET) and measures the length of the numeric portion of the response. The SET command then zero-pads to the same length. This makes the implementation adaptive to any rig that uses the Kenwood-style `FA` command with a non-standard digit count, without requiring per-model configuration.
+
+### Regression test added
+
+`SerialCatConnectionTests` — `FR-045: SetDialFrequencyMhzAsync uses digit count derived from GET response` verifies that when the mock serial port returns a 9-digit `FA` response, the SET command sent to the port is also 9 digits.

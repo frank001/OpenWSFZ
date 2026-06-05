@@ -11,8 +11,9 @@ namespace OpenWSFZ.Daemon;
 /// </summary>
 public sealed class FrequencyStore : IFrequencyStore
 {
-    private readonly string                      _path;
-    private readonly ILogger<FrequencyStore>?    _logger;
+    private readonly string                        _path;
+    private readonly ILogger<FrequencyStore>?      _logger;
+    private readonly SemaphoreSlim                 _saveLock = new(1, 1);
     private volatile IReadOnlyList<FrequencyEntry> _entries;
 
     /// <param name="path">Resolved path to <c>frequencies.json</c>.</param>
@@ -47,7 +48,10 @@ public sealed class FrequencyStore : IFrequencyStore
         var dto = new FrequenciesFile { Entries = sorted };
 
         // Write to a temp file in the same directory, then rename atomically.
+        // The semaphore serialises concurrent callers so that two simultaneous
+        // saves do not race on the final File.Move to the shared destination path.
         var tmp = Path.Combine(dir, Path.GetRandomFileName());
+        await _saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await using (var stream = new FileStream(
@@ -73,6 +77,10 @@ public sealed class FrequencyStore : IFrequencyStore
         {
             try { File.Delete(tmp); } catch { /* best-effort */ }
             throw;
+        }
+        finally
+        {
+            _saveLock.Release();
         }
     }
 
