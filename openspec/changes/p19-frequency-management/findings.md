@@ -523,7 +523,7 @@ Rows added via the Frequencies tab were appended at the end of the table in inse
 ## F-008 — `SerialCatConnection.SetDialFrequencyMhzAsync` hard-coded 11 Hz digits; Yaesu FT-991A requires 9 (Fixed in this PR)
 
 **Severity:** High — FR-045 (CAT frequency set) was silently non-functional for the FT-991A; every tune command was rejected by the rig with no error visible to the operator  
-**Status:** Fixed — digit count is derived dynamically from the length of the frequency string returned by the preceding `FA;` GET query  
+**Status:** Fixed — digit count is self-calibrated from the first successful `FA;` GET response; the write-once `volatile int _freqWidth` field (p20 refinement) ensures the calibration is thread-safe and immutable once set  
 **Files:** `src/OpenWSFZ.Rig/SerialCatConnection.cs`
 
 ### Observed behaviour
@@ -538,8 +538,69 @@ When the daemon sent `FA00007074000;`, the FT-991A's CAT parser did not recognis
 
 ### Fix applied
 
-Rather than hard-coding the digit count, `SetDialFrequencyMhzAsync` first issues the `FA;` query (GET) and measures the length of the numeric portion of the response. The SET command then zero-pads to the same length. This makes the implementation adaptive to any rig that uses the Kenwood-style `FA` command with a non-standard digit count, without requiring per-model configuration.
+`GetDialFrequencyMhzAsync` measures the digit count from the first successful `FA;` response and records it in `_freqWidth` (written exactly once via `if (_freqWidth == 0) _freqWidth = digitCount`). `SetDialFrequencyMhzAsync` uses `_freqWidth > 0 ? _freqWidth : DefaultFreqWidth` to zero-pad, falling back to 11 digits until the first poll completes. The `volatile` qualifier ensures the poll-loop write is immediately visible to the HTTP-request thread (p20 refinement).
 
-### Regression test added
+### Regression tests added
 
-`SerialCatConnectionTests` — `FR-045: SetDialFrequencyMhzAsync uses digit count derived from GET response` verifies that when the mock serial port returns a 9-digit `FA` response, the SET command sent to the port is also 9 digits.
+`SerialCatConnectionTests` — four tests under the `p20:` prefix verify: 11-digit fallback before first GET; 9-digit width after 9-digit GET; 11-digit width after 11-digit GET; write-once stability across subsequent GETs.
+
+---
+
+## F-009 — Spurious log file created on every CAT frequency persist (Fixed in p20)
+
+**Severity:** Medium  
+**Status:** Fixed — `src/OpenWSFZ.Daemon/Program.cs` (merged via p20, PR #24)  
+**Discovered:** During p20 QA (evidence log analysis)
+
+### Observation
+
+Starting a session, tuning the radio twice, and stopping the daemon produced three log files rather than one. Files 2 and 3 were 0 bytes.
+
+```
+openswfz-20260604T184055Z.log   6064 bytes  ← full session log
+openswfz-20260604T184104Z.log      0 bytes  ← created on first tune
+openswfz-20260604T184116Z.log      0 bytes  ← created on second tune
+```
+
+### Root cause
+
+`configStore.OnSaved` fired on every `_configStore.SaveAsync` call, including the FR-039 persist of `Cat.LastPolledFrequencyMHz` that `CatPollingService` issues on each poll showing a changed frequency.  The `OnSaved` handler in `Program.cs` called `loggingPipeline.Apply()` unconditionally.  `Apply()` creates a fresh timestamped log file each time it runs, calls `Log.CloseAndFlush()`, and replaces `Log.Logger`.
+
+### Fix
+
+Two locals (`lastLoggingConfig`, `lastLogConsoleLevel`) track the last-applied logging state.  The `Apply()` call in `OnSaved` is now gated behind a value-equality check on `LoggingConfig` (a `sealed record`, so comparison is free):
+
+```csharp
+var newLoggingConfig = newConfig.Logging ?? new LoggingConfig();
+if (newLoggingConfig != lastLoggingConfig || newConsoleLevel != lastLogConsoleLevel)
+{
+    lastLoggingConfig   = newLoggingConfig;
+    lastLogConsoleLevel = newConsoleLevel;
+    loggingPipeline.Apply(newLoggingConfig, consoleLevel: newConsoleLevel);
+}
+```
+
+---
+
+## F-010 — Spurious CAT reconnect on every persisted frequency change (Fixed in p20)
+
+**Severity:** Medium  
+**Status:** Fixed — `src/OpenWSFZ.Daemon/Cat/CatPollingService.cs` (merged via p20, PR #24)  
+**Discovered:** During p20 QA (evidence log lines 107–109, 135–136)
+
+### Observation
+
+After each tune the log showed the CAT connection being torn down and rebuilt:
+
+```
+[INF] CAT config changed — reconnecting with new parameters.
+[INF] CAT connected via SerialCat.
+```
+
+### Root cause
+
+`CatPollingService.RunAsync()` used full record equality (`config != lastConfig`) to detect config changes. `CatConfig` includes `LastPolledFrequencyMHz`, which the FR-039 save updates after every poll showing a frequency change — triggering a needless reconnect even when the physical connection parameters were identical.
+
+### Fix
+
+A new `HasConnectionConfigChanged` private static method compares only the seven fields that govern the physical connection, explicitly excluding `LastPolledFrequencyMHz`.

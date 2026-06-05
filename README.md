@@ -17,13 +17,13 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.15**. v0.x scope: FT8 receive and transmit,
+> The current release is **v0.20**. v0.x scope: FT8 receive and transmit,
 > CAT rig control, loopback-only web UI, single operator.
 > v1.0 is reached when the software can complete a confirmed two-way contact
 > end-to-end (RX + CAT rig control + TX). LAN/remote operation and the wider
 > mode menu are deferred to v1.0+.
 
-All fifteen development phases to date are merged and archived. FT8 decoding
+All twenty development phases to date are merged and archived. FT8 decoding
 is **fully functional** against live audio and recorded fixtures.
 
 | Phase | Deliverable | State |
@@ -43,6 +43,11 @@ is **fully functional** against live audio and recorded fixtures.
 | p13 — Cross-platform decoder | libft8.so (Linux x64) + libft8.dylib (macOS ARM64) | ✅ merged |
 | p14 — Decode start/stop | FR-017: controlled decode lifecycle; CancellationToken wiring | ✅ merged |
 | p15 — Iterative subtraction | Spectrogram-domain second-pass decoder; 69.1% recovery rate | ✅ merged |
+| p16 — CAT control | `IRadioConnection` abstraction; `SerialCatConnection`; `RigctldConnection`; `CatPollingService`; CAT config section; Settings CAT UI and status-bar indicator | ✅ merged |
+| p17 — Settings UX & freq persistence | Tabbed Settings page; serial port enumeration; three-tier effective-frequency resolution; dial frequency persisted across restarts (FR-035–FR-039) | ✅ merged |
+| p18 — Settings dirty state | "Unsaved changes" badge and breadcrumb/browser navigation guard (FR-040, FR-041) | ✅ merged |
+| p19 — Frequency management | Configurable FT8 frequency list; `FrequencyStore`; REST tune endpoint; dial-frequency selector on main page (FR-042–FR-045) | ✅ merged |
+| p20 — FA digit width | Self-calibrating digit-width computation in `SerialCatConnection` FA tune command | ✅ merged |
 
 ## WSJT-X decode parity
 
@@ -74,13 +79,27 @@ subtraction, planned for a future change.
   selected device into the decode pipeline.
 - **FT8 decode start/stop** — the decode pipeline can be started and stopped
   at runtime without restarting the daemon.
-- **Settings page** loads and saves configuration (device selection, port,
-  log level) with a REST round-trip; changes are persisted to a JSON config
-  file.
+- **Settings page** loads and saves configuration across four tabs — Radio
+  hardware, Logging, Advanced, and Frequencies — with a REST round-trip;
+  changes are persisted to a JSON config file. Available serial ports are
+  enumerated automatically and presented as a dropdown. An "Unsaved changes"
+  badge appears when the form is dirty, and a navigation guard prevents
+  accidental loss of edits.
+- **CAT rig control** — live dial frequency readout via two selectable
+  transports: `SerialCatConnection` (direct serial, `FA;` command) and
+  `RigctldConnection` (TCP client to a running `rigctld` daemon). CAT status
+  (Connected / Disabled / Error) is shown in the status bar. The last
+  successfully-polled frequency is persisted and restored at next startup.
+- **Frequency management** — a configurable list of FT8 working frequencies
+  (15 defaults covering common bands) is stored in `frequencies.json` and
+  managed via the Frequencies tab CRUD table. When CAT is active the
+  dial-frequency indicator on the main page becomes a selector; choosing a
+  frequency tunes the rig. When CAT is disabled the selection updates the
+  config directly.
 - **File logging** — per-session log files are written to a configurable
   directory with automatic retention enforcement.
-- **WebSocket** pushes live status events (including `audioActive` state) to
-  connected browser tabs.
+- **WebSocket** pushes live status events (including `audioActive` and
+  `catStatus` state) to connected browser tabs.
 - **Dark-theme UI** with a real-time waterfall displaying live spectrogram
   data from the active audio device (visual polish is ongoing).
 - **Cross-platform native decoder**: pre-built `libft8` binaries are bundled
@@ -156,14 +175,9 @@ The build and test suite has been verified on all three target platforms:
 
 | Platform | Build | Tests | CI |
 |---|---|---|---|
-| Windows x64 | ✅ 0 warnings | ✅ 213 passed, 4 skipped | ✅ GitHub Actions |
-| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 213 passed, 4 skipped | ✅ GitHub Actions |
+| Windows x64 | ✅ 0 warnings | ✅ 308 passed | ✅ GitHub Actions |
+| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 308 passed | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
-
-The 4 skipped tests in `OpenWSFZ.Ft8.Tests` are intentional and documented:
-the synthetic encoder used in those fixtures emits free-text FT8 frames (i3=0)
-which `ft8_lib` correctly rejects; correctness for real signals is covered by
-the `RealSignalFixtureTests` ground-truth suite (G6 gate).
 
 All four CI gates pass on every platform:
 

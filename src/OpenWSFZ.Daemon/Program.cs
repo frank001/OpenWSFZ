@@ -313,13 +313,18 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 
 // Restart pipeline when the device name changes via POST /api/v1/config.
-string? runningDevice  = configStore.Current.AudioDeviceId;
-bool    runningEnabled = configStore.Current.DecodingEnabled;
+string?       runningDevice       = configStore.Current.AudioDeviceId;
+bool          runningEnabled      = configStore.Current.DecodingEnabled;
+// Track the last applied logging state so the OnSaved handler below can skip
+// Apply() on saves that only touch non-logging fields (e.g. Cat.LastPolledFrequencyMHz
+// from FR-039).  LoggingConfig is a sealed record, so == is value equality.
+LoggingConfig lastLoggingConfig   = configStore.Current.Logging ?? new LoggingConfig();
+LogLevel      lastLogConsoleLevel = logLevel;
 configStore.OnSaved += newConfig =>
 {
-    // Re-apply the Serilog pipeline on every save so that rotation config and
-    // file-sink changes (directory, FileEnabled, FileLogLevel) are picked up
-    // on the next log-rotation event without a restart.
+    // Re-apply the Serilog pipeline only when logging-related settings actually
+    // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
+    // create a spurious new log file and reset the active sink.
     //
     // NOTE: the MEL ILoggerFactory was wired to the Serilog instance captured
     // at startup (lb.AddSerilog(Log.Logger, ...)) and the MEL minimum level was
@@ -327,9 +332,15 @@ configStore.OnSaved += newConfig =>
     // level and file-level changes do NOT take effect until the next restart.
     // TODO: replace with a SerilogLoggingLevelSwitch wired to both the Serilog
     //       pipeline and the MEL factory to achieve true live log-level updates.
-    var newConsoleLevel = Enum.TryParse<LogLevel>(newConfig.LogLevel,
+    var newConsoleLevel  = Enum.TryParse<LogLevel>(newConfig.LogLevel,
         ignoreCase: true, out var nl) ? nl : LogLevel.Information;
-    loggingPipeline.Apply(newConfig.Logging ?? new LoggingConfig(), consoleLevel: newConsoleLevel);
+    var newLoggingConfig = newConfig.Logging ?? new LoggingConfig();
+    if (newLoggingConfig != lastLoggingConfig || newConsoleLevel != lastLogConsoleLevel)
+    {
+        lastLoggingConfig   = newLoggingConfig;
+        lastLogConsoleLevel = newConsoleLevel;
+        loggingPipeline.Apply(newLoggingConfig, consoleLevel: newConsoleLevel);
+    }
 
     var newDevice  = newConfig.AudioDeviceId;
     var newEnabled = newConfig.DecodingEnabled;

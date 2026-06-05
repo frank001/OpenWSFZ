@@ -34,10 +34,11 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
 {
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
 
-    private readonly CatState              _catState;
-    private readonly IConfigStore          _configStore;
-    private readonly CatEventBus           _catEventBus;
+    private readonly CatState                   _catState;
+    private readonly IConfigStore               _configStore;
+    private readonly CatEventBus                _catEventBus;
     private readonly ILogger<CatPollingService> _logger;
+    private readonly ILoggerFactory             _loggerFactory;
 
     private CancellationTokenSource? _cts;
     private Task?                    _pollingTask;
@@ -63,12 +64,14 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
         CatState                    catState,
         IConfigStore                configStore,
         CatEventBus                 catEventBus,
-        ILogger<CatPollingService>  logger)
+        ILogger<CatPollingService>  logger,
+        ILoggerFactory              loggerFactory)
     {
-        _catState    = catState;
-        _configStore = configStore;
-        _catEventBus = catEventBus;
-        _logger      = logger;
+        _catState      = catState;
+        _configStore   = configStore;
+        _catEventBus   = catEventBus;
+        _logger        = logger;
+        _loggerFactory = loggerFactory;
     }
 
     // ── IHostedService ────────────────────────────────────────────────────────

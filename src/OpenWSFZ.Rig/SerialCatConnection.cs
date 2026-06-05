@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Rig.Internal;
 
@@ -16,33 +17,35 @@ namespace OpenWSFZ.Rig;
 /// Frequency query (<see cref="GetDialFrequencyMhzAsync"/>): sends <c>FA;</c>,
 /// reads the response up to the <c>;</c> delimiter.  The response must start with
 /// <c>FA</c> followed by 8–11 decimal Hz digits.
-/// Example: <c>FA00014074000;</c> → 14.074 MHz.
+/// Example: <c>FA00014074000;</c> (11-digit) or <c>FA007074000;</c> (9-digit) → 7.074 MHz.
 /// The receive buffer is flushed via <c>DiscardInBuffer</c> before each query to
 /// clear any transient rig response from a preceding set command.
+/// On the first successful response the digit count is recorded in <see cref="_freqWidth"/>
+/// and used by all subsequent <see cref="SetDialFrequencyMhzAsync"/> calls.
 /// </para>
 ///
 /// <para>
 /// Frequency set (<see cref="SetDialFrequencyMhzAsync"/>): sends
-/// <c>FA&lt;11-digit-Hz&gt;;</c> (FR-045).  No read-back is performed; any rig
+/// <c>FA&lt;Hz&gt;;</c> with the Hz value zero-padded to the rig's native digit width
+/// (self-calibrated from the first successful query response; falls back to 11 digits
+/// until the first poll completes) (FR-045).  No read-back is performed; any rig
 /// response is cleared by the next <c>GetDialFrequencyMhzAsync</c> call.
 /// </para>
 /// </summary>
 public sealed class SerialCatConnection : IRadioConnection, IDisposable
 {
-    private const int    ReadTimeoutMs   = 500;
-    private const int    DefaultDigits   = 11;
-    private const string CatCommand      = "FA;";
-    private const string ResponseDelim   = ";";
+    private const int    ReadTimeoutMs    = 500;
+    private const int    DefaultFreqWidth = 11;
+    private const string CatCommand       = "FA;";
+    private const string ResponseDelim    = ";";
 
     private readonly ISerialPort _port;
+    private readonly ILogger?    _logger;
 
-    // Digit count observed in the most recent successful GetDialFrequencyMhzAsync
-    // response.  Kenwood rigs (TS-2000, TS-590S …) use 11 digits; Yaesu rigs
-    // (FT-991A, FT-817 …) use 9.  GetDialFrequencyMhzAsync updates this field so
-    // SetDialFrequencyMhzAsync can send the format the rig actually understands.
-    // Defaults to 11 (Kenwood standard) so that the very first SET before any GET
-    // uses a reasonable format.
-    private int _freqDigitCount = DefaultDigits;
+    // Rig's native FA command digit width, discovered on the first successful GET.
+    // Written exactly once (0 → measured value); read-only after that.
+    // volatile ensures the poll-loop write is immediately visible to the HTTP-request thread.
+    private volatile int _freqWidth = 0;
 
     // ── Public constructor (production use) ───────────────────────────────────
 
@@ -51,8 +54,9 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
     /// </summary>
     /// <param name="portName">OS serial port name (e.g. <c>COM6</c>, <c>/dev/ttyUSB0</c>).</param>
     /// <param name="baudRate">Baud rate (e.g. <c>9600</c>).</param>
-    public SerialCatConnection(string portName, int baudRate)
-        : this(new SerialPortWrapper(portName, baudRate)) { }
+    /// <param name="logger">Optional logger; serial I/O bytes are emitted at <c>Debug</c> level.</param>
+    public SerialCatConnection(string portName, int baudRate, ILogger<SerialCatConnection>? logger = null)
+        : this(new SerialPortWrapper(portName, baudRate), logger) { }
 
     // ── Internal constructor (test use) ──────────────────────────────────────
 
@@ -60,10 +64,11 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
     /// Creates a <see cref="SerialCatConnection"/> backed by the supplied
     /// <paramref name="serialPort"/> abstraction.  Used by unit tests.
     /// </summary>
-    internal SerialCatConnection(ISerialPort serialPort)
+    internal SerialCatConnection(ISerialPort serialPort, ILogger? logger = null)
     {
         _port             = serialPort;
         _port.ReadTimeout = ReadTimeoutMs;
+        _logger           = logger;
     }
 
     // ── IRadioConnection ─────────────────────────────────────────────────────
@@ -89,9 +94,11 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
     /// <summary>
     /// Sends <c>FA;</c>, reads the response until <c>;</c>, validates the
     /// format, and returns VFO-A frequency in MHz.
+    /// On the first successful call the digit count is recorded for use by
+    /// <see cref="SetDialFrequencyMhzAsync"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// The response does not start with <c>FA</c> or is not exactly 14 characters (13 before <c>;</c> plus the delimiter).
+    /// The response does not start with <c>FA</c>, or its digit count is outside 8–11.
     /// </exception>
     /// <exception cref="TimeoutException">
     /// No response arrived within 500 ms.
@@ -124,6 +131,8 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
                 $"Serial CAT: no response to FA; within {ReadTimeoutMs} ms.", ex);
         }
 
+        _logger?.LogDebug("Serial CAT GET: raw response '{Raw}'", raw);
+
         // ReadTo returns everything BEFORE the delimiter, so raw = "FA00014074000" (11-digit)
         // or "FA007074000" (9-digit — some rig families use fewer leading digits).
         // Full response = raw + ";" = FA(2) + 8..11 Hz digits + semicolon(1).
@@ -142,33 +151,34 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
                 $"Serial CAT: cannot parse Hz value from response '{raw}'.");
         }
 
-        // Record the digit count this rig uses so SetDialFrequencyMhzAsync can
-        // send the matching format (9 digits for Yaesu FT-991A / FT-817 family,
-        // 11 digits for Kenwood TS-2000 / TS-590 family).
-        _freqDigitCount = digitCount;
+        // Self-calibrate: record the rig's native digit width on the first successful
+        // response so SetDialFrequencyMhzAsync can use the correct zero-pad width.
+        // Written only once (0 → measured value); idempotent for subsequent calls
+        // because the condition is false once _freqWidth is non-zero (D2, D4).
+        if (_freqWidth == 0) _freqWidth = digitCount;
 
         return Task.FromResult(hz / 1_000_000.0);
     }
 
     /// <summary>
-    /// Sends <c>FA&lt;Hz&gt;;</c> to command VFO-A to <paramref name="frequencyMHz"/>
-    /// (FR-045).  The Hz integer is rounded to the nearest integer and zero-padded
-    /// to match the digit count observed in the most recent
-    /// <see cref="GetDialFrequencyMhzAsync"/> response (9 for Yaesu FT-991A / FT-817
-    /// family, 11 for Kenwood TS-2000 / TS-590 family).  Before the first
-    /// <see cref="GetDialFrequencyMhzAsync"/> call the default of 11 digits is used.
+    /// Sends <c>FA&lt;Hz&gt;;</c> to command VFO-A to <paramref name="frequencyMHz"/> (FR-045).
+    /// The Hz integer is rounded to the nearest integer and zero-padded to the rig's native
+    /// digit width (self-calibrated from the first successful <see cref="GetDialFrequencyMhzAsync"/>
+    /// call on this connection).  Falls back to 11 digits until the first poll completes (D3).
     /// The method returns after the write completes — no read-back is performed.
     /// </summary>
     /// <example>
-    /// 9-digit rig (Yaesu):  <c>14.074 MHz → FA014074000;</c><br/>
-    /// 11-digit rig (Kenwood): <c>14.074 MHz → FA00014074000;</c>
+    /// 9-digit rig: <c>14.074 MHz → FA014074000;</c><br/>
+    /// 11-digit rig: <c>14.074 MHz → FA00014074000;</c>
     /// </example>
     public Task SetDialFrequencyMhzAsync(
         double            frequencyMHz,
         CancellationToken cancellationToken = default)
     {
         var hz      = (long)Math.Round(frequencyMHz * 1_000_000.0);
-        var command = $"FA{hz.ToString().PadLeft(_freqDigitCount, '0')};";
+        var width   = _freqWidth > 0 ? _freqWidth : DefaultFreqWidth;
+        var command = $"FA{hz.ToString().PadLeft(width, '0')};";
+        _logger?.LogDebug("Serial CAT SET: writing '{Command}'", command);
         _port.Write(command);
         return Task.CompletedTask;
     }
