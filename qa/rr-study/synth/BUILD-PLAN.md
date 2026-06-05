@@ -29,7 +29,7 @@ text ─► 77-bit payload ─► +14-bit CRC ─► LDPC(174,91) ─► 58 data
 | L6 | `wavio.py` | 16-bit mono PCM WAV writer (48 kHz) | ✅ round-trip | ✅ done |
 | L7 | `packing.py` | Standard-message text → 77-bit payload (callsign 28-bit + grid/report 15-bit, i3/n3 type bits) | ✅ bit-exact vs published worked example + full test suite | 🔶 implemented, §5 gate pending |
 | L8 | `ldpc.py` | 91-bit message → 83 parity bits → 174-bit codeword (FT8 generator matrix) | ✅ parity-check `H·c = 0`, 1000-word self-consistency, exhaustive single-bit error detection | 🔶 implemented, §5 gate pending |
-| L9 | `encoder.py` | Wire L7→L2→L8→L3 into `encode_message(text) -> 79 tones` | ✅ end-to-end tone vector; Costas at 0/36/72 verified | ✅ done (unblocked by L7/L8) |
+| L9 | `encoder.py` | Wire L7→L2→L8→L3 into `encode_message(text) -> 79 tones` | ✅ end-to-end tone vector; Costas at 0/36/72 verified | 🔶 implemented, §5 gate pending |
 | G | **§5 gate** | WSJT-X decodes a clean (+10 dB) render of every study message, else abort | requires WSJT-X | ⛔ ready for QA — hand back |
 
 L1–L6 (the channel/DSP spine) and the structural scaffolding are **independently verifiable now**

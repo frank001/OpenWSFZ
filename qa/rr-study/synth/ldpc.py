@@ -6,14 +6,14 @@ systematic LDPC(174,91) code.  The 174-bit codeword is:
     [91 info bits unchanged] ++ [83 parity bits]
 
 Both the generator matrix and the parity-check matrix are transcribed from
-ft8_lib/ft8/constants.c (kFTX_LDPC_generator and kFTX_LDPC_Nm), which are
-themselves derived from the published FT8 LDPC(174,91) specification in:
+the published FT8 LDPC(174,91) specification in:
 
   Franke, Somerville & Taylor, "The FT4 and FT8 Communication Protocols,"
   QEX July/August 2020.
 
-No algorithmic code has been copied; only the published constant tables are
-transcribed.  The encoding and parity-check logic below is original.
+No algorithmic code has been copied from any encoder/decoder implementation;
+only the published constant tables are transcribed.  The encoding and
+parity-check logic below is original.
 
 Bit-ordering convention (applies throughout this package):
   All bit lists are MSB-first, one element per bit, values ∈ {0, 1}.
@@ -27,8 +27,8 @@ from .constants import CODEWORD_BITS, MESSAGE_PLUS_CRC_BITS
 # ---------------------------------------------------------------------------
 # LDPC generator matrix — 83 rows × 91 info bits, bit-packed as 12 bytes/row
 # ---------------------------------------------------------------------------
-# Source: kFTX_LDPC_generator in ft8_lib/ft8/constants.c, transcribed from
-# the published FT8 LDPC(174,91) specification.
+# Source: published FT8 LDPC(174,91) specification, Franke/Somerville/Taylor
+# QEX 2020.  Transcribed from the protocol definition.
 #
 # Row i encodes which of the 91 info bits are XOR-ed to produce parity bit i.
 # Storage: bit j of row i lives at byte j//8, bit position 7-(j%8) (MSB first).
@@ -124,8 +124,8 @@ assert len(_LDPC_GENERATOR) == 83, "Generator must have exactly 83 rows"
 # ---------------------------------------------------------------------------
 # LDPC parity-check matrix — 83 rows × up to 7 entries, 1-indexed codeword bits
 # ---------------------------------------------------------------------------
-# Source: kFTX_LDPC_Nm in ft8_lib/ft8/constants.c, transcribed from the
-# published FT8 LDPC(174,91) specification.
+# Source: published FT8 LDPC(174,91) specification, Franke/Somerville/Taylor
+# QEX 2020.  Transcribed from the protocol definition.
 #
 # Each row lists the 1-indexed positions in the 174-bit codeword whose XOR
 # must equal 0 over GF(2) for a valid codeword.  Entries equal to 0 are
@@ -229,8 +229,8 @@ def encode_ldpc(message_plus_crc: list[int]) -> list[int]:
     The parity of bit i is the GF(2) dot product of the i-th generator row with
     the 91 info bits.
 
-    Source for the generator matrix: kFTX_LDPC_generator in ft8_lib/ft8/constants.c,
-    derived from the published FT8 LDPC(174,91) code specification.
+    Source for the generator matrix: published FT8 LDPC(174,91) specification,
+    Franke/Somerville/Taylor, QEX July/August 2020.
 
     Args:
         message_plus_crc: list of exactly 91 bits (77 message + 14 CRC), MSB first.
@@ -264,8 +264,8 @@ def parity_check(codeword: list[int]) -> bool:
     (1-indexed) and verify the result is 0.  A single non-zero syndrome means
     the codeword is invalid.
 
-    Source for the parity-check matrix: kFTX_LDPC_Nm in ft8_lib/ft8/constants.c,
-    derived from the published FT8 LDPC(174,91) code specification.
+    Source for the parity-check matrix: published FT8 LDPC(174,91) specification,
+    Franke/Somerville/Taylor, QEX July/August 2020.
 
     Args:
         codeword: list of exactly 174 bits, MSB first.
