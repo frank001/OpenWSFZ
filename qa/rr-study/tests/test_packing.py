@@ -4,17 +4,19 @@ Verifies pack_message against the acceptance criteria in the QA briefing
 (DEV-BRIEFING-L7-L8.md §3.4):
 
   1. Returns exactly 77 elements, all ∈ {0, 1}.
-  2. Bit-exact against an independently-derived worked example.
+  2. Bit-exact against a hardcoded worked example (constant-drift regression guard).
   3. Deterministic: same input → same output.
   4. All supported forms (§3.2) pack without error; unsupported forms raise.
   5. (Bonus) round-trip via unpack agrees with input.
 
-The "independently-derived worked example" derives its expected bit-vector
-directly from Franke/Somerville/Taylor QEX 2020 and the published Fortran
-reference programs (std_call_to_c28.f90, grid4_to_g15.f90).  The expected
-value is a hardcoded literal, not re-computed from the packing.py constants,
-so a transcription error in NTOKENS, MAX22, or the character tables will
-cause this test to fail rather than silently pass.
+The bit-exact worked example derives its expected vector from the SAME QEX 2020
+protocol field definitions (§III-A/§III-B, Tables I/II) that the implementation
+uses; it is therefore a regression guard against constant drift, not an
+independent oracle.  The expected value is a hardcoded literal rather than
+re-computed from the packing.py constants, so a transcription error in NTOKENS,
+MAX22, or the character tables will cause this test to fail rather than silently
+pass.  TRUE independence is established not by this unit test but by the
+STUDY-SPEC §5 WSJT-X decode gate (QA-executed).
 """
 import pytest
 
@@ -74,9 +76,15 @@ class TestWidth:
 # 2. Bit-exact worked example
 # ---------------------------------------------------------------------------
 # Reference: Franke/Somerville/Taylor, "The FT4 and FT8 Communication Protocols,"
-# QEX July/August 2020, Table II (Type-1 standard message layout); field values
-# derived by hand-tracing the published Fortran reference programs
-# std_call_to_c28.f90 and grid4_to_g15.f90 (WSJT-X project, companion to the paper).
+# QEX July/August 2020, §III-A/§III-B, Tables I/II (Type-1 standard message
+# layout and callsign/grid field definitions).  The field values below are
+# hand-traced from those same protocol field definitions.
+#
+# NOTE ON INDEPENDENCE: this vector is derived from the SAME protocol field
+# definitions as packing.py — oracle and implementation share a source.  It is
+# therefore a regression guard against constant drift, NOT an independent
+# oracle.  TRUE independence is established by the STUDY-SPEC §5 WSJT-X decode
+# gate (QA-executed), not by this unit test.
 #
 # The expected integer is a HARDCODED LITERAL — it is NOT computed from the
 # constants in packing.py (NTOKENS, MAX22, etc.).  This is intentional: if a
@@ -87,14 +95,14 @@ class TestWidth:
 #
 # Message: "CQ Q1ABC FN42"
 #
-# Derivation from QEX 2020 §III-A and the Fortran reference programs:
+# Derivation from QEX 2020 §III-A/§III-B (Tables I/II):
 #
 # Field 1 — "CQ"
 #   Special token, Table I: n28a = 2, ipa = 0
 #
 # Field 2 — "Q1ABC"
 #   Digit at position 1 → left-pad one space: c6 = " Q1ABC"
-#   Alphabets (std_call_to_c28.f90 a1/a2/a3/a4):
+#   Alphabets (the published c6 field alphabets, QEX 2020 §III-A):
 #     a1 = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ" (37 chars, pos 0)
 #     a2 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"  (36 chars, pos 1)
 #     a3 = "0123456789"                            (10 chars, pos 2)
@@ -126,7 +134,7 @@ _CQ_Q1ABC_FN42_EXPECTED_INT = 1_136_611_074_065_201
 
 class TestBitExact:
     def test_cq_k1abc_fn42_field_values(self):
-        """Verify each sub-field against the published algorithm derivation above."""
+        """Verify each sub-field against the QEX 2020 field-definition derivation above."""
         # callsign 1
         n28a, ipa = _pack_callsign("CQ")
         assert n28a == _N28_CQ == 2

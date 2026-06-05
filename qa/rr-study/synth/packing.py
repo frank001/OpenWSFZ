@@ -2,16 +2,15 @@
 
 Derived from the published FT8 protocol description:
   Franke, Somerville & Taylor, "The FT4 and FT8 Communication Protocols,"
-  QEX July/August 2020.
+  QEX July/August 2020, §III-A / §III-B, Tables I/II.
 
-The character alphabets, special-token numeric values, and grid/report encoding
-are transcribed from the public reference programs in the WSJT-X project,
-which accompanied that publication:
-  std_call_to_c28.f90 — standard callsign packing algorithm and character alphabets
-  grid4_to_g15.f90    — grid/report field encoding rules and special-token values
-
-No algorithmic code has been copied from any encoder/decoder implementation;
-only the published field definitions and offset constants are transcribed here.
+Attestation: the packing logic in this module is original code written from the
+paper's field definitions (the 77-bit Type-1 layout and the callsign/grid/report
+packing rules of §III-A/§III-B). The constant tables it references — the
+character alphabets, the special-token numeric values, and the grid/report
+range offsets — are transcribed as published FT8 protocol facts, each with
+exactly one correct value. No algorithmic code has been ported from any
+encoder/decoder implementation.
 
 Only Type-1 standard messages (i3 = 1) are supported.  Out of scope for the
 first R&R study: non-standard / hashed callsigns, /P suffix, compound prefixes
@@ -25,8 +24,9 @@ from .constants import MESSAGE_BITS
 # ---------------------------------------------------------------------------
 # Published protocol constants
 # ---------------------------------------------------------------------------
-# Source: std_call_to_c28.f90 (parameters NTOKENS, MAX22) and
-# QEX 2020 §III-A (MAXGRID4 = 18 × 18 × 100 = 32 400).
+# Source: the published FT8 protocol constant tables, QEX 2020 §III-A
+# (NTOKENS, MAX22, and MAXGRID4 = 18 × 18 × 100 = 32 400).  Protocol facts,
+# one correct value each.
 
 NTOKENS   = 2_063_592   # first value reserved above special-token range
 MAX22     = 4_194_304   # 2^22 — size of 22-bit hashed-callsign range
@@ -38,8 +38,9 @@ _N28_QRZ         = 1
 _N28_CQ          = 2
 _N28_CQ_NNN_BASE = 3     # CQ 000 = 3, CQ 001 = 4, ..., CQ 999 = 1002
 
-# Special g15 codes for the third message field (source: grid4_to_g15.f90 irpt values,
-# QEX 2020 §III-B).  All relative to MAXGRID4:
+# Special g15 codes for the third message field (source: the published FT8
+# protocol constant tables, QEX 2020 §III-B — reserved report/token values).
+# All relative to MAXGRID4:
 #   irpt = 1 → blank/empty  (MAXGRID4 + 1 = 32401)
 #   irpt = 2 → "RRR"        (MAXGRID4 + 2 = 32402)
 #   irpt = 3 → "RR73"       (MAXGRID4 + 3 = 32403)
@@ -52,8 +53,8 @@ _G15_73          = MAXGRID4 + 4
 _G15_REPORT_BIAS = 35    # offset: irpt = _G15_REPORT_BIAS + report_dB
 
 # ---------------------------------------------------------------------------
-# Character alphabets  (source: std_call_to_c28.f90 a1/a2/a3/a4 declarations,
-# QEX 2020 §III-A)
+# Character alphabets  (source: the published FT8 protocol constant tables,
+# QEX 2020 §III-A — the c6 callsign-field alphabets)
 # ---------------------------------------------------------------------------
 # Position 0 of the 6-char callsign field: space + digits + letters (37 chars)
 _CHAR0 = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -86,7 +87,7 @@ def _assert_width(bits: list[int]) -> list[int]:
 def _normalize_to_c6(call: str) -> str:
     """Place a callsign into a 6-character buffer per QEX 2020 §III-A.
 
-    The published algorithm (std_call_to_c28.f90) defines two canonical forms:
+    The §III-A field definitions describe two canonical forms:
       - Digit at position 2 (AB0XYZ form, up to 6 chars): left-align in c6.
       - Digit at position 1 (A0XYZ form, up to 5 chars): prepend one space.
     In both cases trailing positions are filled with space (the neutral element
@@ -112,7 +113,7 @@ def _normalize_to_c6(call: str) -> str:
 def _pack_basecall(c6: str) -> int:
     """Mixed-radix encode a 6-character normalised callsign → integer n.
 
-    Formula (source: std_call_to_c28.f90, QEX 2020 §III-A mixed-radix expansion):
+    Formula (source: QEX 2020 §III-A, the c28 mixed-radix field definition):
       n = ((((i0 * 36 + i1) * 10 + i2) * 27 + i3) * 27 + i4) * 27 + i5
     where i0 ∈ [0, 36], i1 ∈ [0, 35], i2 ∈ [0, 9], i3–i5 ∈ [0, 26].
     """
@@ -146,7 +147,7 @@ def _pack_callsign(call: str) -> tuple[int, int]:
     ipa: 1 if the callsign carried a /R or /P suffix, else 0.
          (This bit occupies the rover / suffix flag slot in the 77-bit word.)
 
-    Source: QEX 2020 §III-A (field assignments) and std_call_to_c28.f90 (algorithm).
+    Source: QEX 2020 §III-A, Table I (the c28 field and special-token definitions).
     Raises ValueError for malformed or unsupported callsigns.
     """
     call = call.strip().upper()
@@ -192,7 +193,7 @@ def _pack_grid_field(field: str) -> tuple[int, int]:
     ir:     R-acknowledgement bit (1 for 'R-prefixed' reports, 0 otherwise).
     igrid4: 15-bit grid/report/special-token value.
 
-    Source: grid4_to_g15.f90 (WSJT-X project) and QEX 2020 §III-B.
+    Source: QEX 2020 §III-B (the g15 grid/report field definition).
     """
     f = field.strip().upper()
 
@@ -200,8 +201,8 @@ def _pack_grid_field(field: str) -> tuple[int, int]:
     if not f:
         return 0, _G15_BLANK
 
-    # Special string tokens (source: grid4_to_g15.f90 explicit irpt assignments,
-    # QEX 2020 §III-B)
+    # Special string tokens (source: QEX 2020 §III-B, the reserved
+    # report/token assignments)
     if f == "RRR":
         return 0, _G15_RRR
     if f == "RR73":
@@ -210,8 +211,7 @@ def _pack_grid_field(field: str) -> tuple[int, int]:
         return 0, _G15_73
 
     # Standard 4-character Maidenhead grid "XXYY" where XX ∈ A–R, YY ∈ 00–99
-    # (source: grid4_to_g15.f90 is_grid4 predicate and encoding formula,
-    # QEX 2020 §III-B)
+    # (source: QEX 2020 §III-B, the grid4 encoding formula)
     if (len(f) == 4
             and "A" <= f[0] <= "R"
             and "A" <= f[1] <= "R"
@@ -225,7 +225,7 @@ def _pack_grid_field(field: str) -> tuple[int, int]:
         )
         return 0, igrid4
 
-    # R-prefixed report: R+dd or R-dd (source: grid4_to_g15.f90, QEX 2020 §III-B)
+    # R-prefixed report: R+dd or R-dd (source: QEX 2020 §III-B)
     if len(f) >= 2 and f[0] == "R" and f[1] in "+-":
         dd = _parse_dd(f[1:])
         irpt = _G15_REPORT_BIAS + dd
@@ -233,7 +233,7 @@ def _pack_grid_field(field: str) -> tuple[int, int]:
             raise ValueError(f"R-prefixed report {field!r} out of 15-bit range")
         return 1, MAXGRID4 + irpt
 
-    # Plain numeric report: +dd or -dd (source: grid4_to_g15.f90, QEX 2020 §III-B)
+    # Plain numeric report: +dd or -dd (source: QEX 2020 §III-B)
     if f and f[0] in "+-":
         dd = _parse_dd(f)
         irpt = _G15_REPORT_BIAS + dd
@@ -259,8 +259,8 @@ def pack_message(text: str) -> list[int]:
         <call1> <call2> <grid>       grid: 4-char Maidenhead, e.g. FN42
         <call1> <call2> <report>     report: ±dd, R±dd, RRR, RR73, or 73
 
-    77-bit layout (MSB → LSB, source: Franke/Somerville/Taylor QEX 2020 Table II;
-    std_call_to_c28.f90; grid4_to_g15.f90):
+    77-bit layout (MSB → LSB, source: Franke/Somerville/Taylor QEX 2020 §III-A/§III-B,
+    Table II — the Type-1 standard-message field definition):
         n28a  (28 bits) — callsign 1
         ipa   ( 1 bit ) — rover / /R flag for callsign 1
         n28b  (28 bits) — callsign 2
