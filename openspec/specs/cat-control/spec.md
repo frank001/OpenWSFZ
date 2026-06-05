@@ -1,5 +1,7 @@
-## Requirements
+## Purpose
 
+This capability defines OpenWSFZ's CAT (Computer Aided Transceiver) control: the `IRadioConnection` abstraction and its serial (`SerialCatConnection`) and rigctld (`RigctldConnection`) implementations for reading and setting the rig's dial frequency, the polling service and `ICatState` telemetry, the effective dial-frequency resolution, and the WebSocket events and UI indicator that surface live CAT status to the operator.
+## Requirements
 ### Requirement: IRadioConnection abstraction
 
 `OpenWSFZ.Abstractions` SHALL define a public interface `IRadioConnection` with the following members:
@@ -14,7 +16,9 @@ bool IsConnected { get; }
 
 The interface SHALL be the only type that `CatPollingService` and any consumer outside `OpenWSFZ.Rig` depend upon.
 
-`SetDialFrequencyMhzAsync` is a fire-and-forget command: it sends the frequency-set instruction to the rig and returns without reading back confirmation. The next `GetDialFrequencyMhzAsync` poll reflects the new frequency if the rig accepted the command. No mode-set, PTT, or other rig-altering commands are introduced by this interface.
+`SetDialFrequencyMhzAsync` is a fire-and-forget command: it sends the frequency-set instruction to the rig and returns; it does NOT re-read the rig to confirm. The next `GetDialFrequencyMhzAsync` poll will reflect the new frequency if the rig accepted the command.
+
+The earlier p16 restriction prohibiting frequency-set commands is **hereby amended**: frequency-set is now a permitted operation on this interface. No mode-set, PTT, or other rig-altering commands are introduced by this change.
 
 #### Scenario: IRadioConnection is defined in OpenWSFZ.Abstractions
 
@@ -32,11 +36,12 @@ The interface SHALL be the only type that `CatPollingService` and any consumer o
 
 `OpenWSFZ.Rig` SHALL provide a class `SerialCatConnection` that implements `IRadioConnection` using `System.IO.Ports.SerialPort` and the serial CAT command set. The class SHALL be constructable with a port name and baud rate. All serial I/O SHALL use a 500 ms `ReadTimeout`.
 
-CAT commands sent by `SerialCatConnection`:
-- `FA;` (VFO-A frequency **query**, sent by `GetDialFrequencyMhzAsync`)
-- `FA<Hz>;` (VFO-A frequency **set**, sent by `SetDialFrequencyMhzAsync`) — Hz zero-padded to the rig's native digit width (self-calibrated from the first successful query response; 11-digit fallback until then)
+`SerialCatConnection` SHALL support two CAT operations:
 
-No mode-set, PTT, or other rig-altering commands SHALL be sent by this class.
+- **Frequency query**: `GetDialFrequencyMhzAsync` sends `FA;` and parses the VFO-A frequency from the rig's response.
+- **Frequency set**: `SetDialFrequencyMhzAsync` sends `FA<Hz>;` with the Hz value zero-padded to the rig's native digit width (self-calibrated from the first successful query response). No mode-set or PTT commands SHALL be sent by this class.
+
+The rig's native digit width SHALL be discovered automatically: on the first successful `GetDialFrequencyMhzAsync` call, the class SHALL record the digit count of the FA response and use that same width for all subsequent `SetDialFrequencyMhzAsync` calls. Until the first successful query, `SetDialFrequencyMhzAsync` SHALL fall back to an 11-digit format.
 
 #### Scenario: ConnectAsync opens the serial port
 
@@ -88,15 +93,15 @@ No mode-set, PTT, or other rig-altering commands SHALL be sent by this class.
 - **WHEN** a `SerialCatConnection` instance is disposed while the port is open
 - **THEN** the serial port SHALL be closed
 
----
-
 ### Requirement: RigctldConnection implements IRadioConnection
 
-`OpenWSFZ.Rig` SHALL provide a class `RigctldConnection` that implements `IRadioConnection` using a `TcpClient` connected to a running `rigctld` daemon. The class SHALL be constructable with a hostname and port (defaults `"127.0.0.1"` and `4532`). All network I/O SHALL use a 500 ms receive timeout. No transmit, PTT, or rig-altering commands SHALL be sent by this class.
+`OpenWSFZ.Rig` SHALL provide a class `RigctldConnection` that implements `IRadioConnection` using a `TcpClient` connected to a running `rigctld` daemon. The class SHALL be constructable with a hostname and port (defaults `"127.0.0.1"` and `4532`). All network I/O SHALL use a 500 ms receive timeout.
 
 Commands sent by `RigctldConnection`:
 - `\get_freq\n` (frequency **query**, sent by `GetDialFrequencyMhzAsync`)
 - `\set_freq <Hz>\n` (frequency **set**, sent by `SetDialFrequencyMhzAsync`)
+
+No transmit, PTT, or rig-altering commands SHALL be sent by this class.
 
 #### Scenario: ConnectAsync opens a TCP connection to rigctld
 
@@ -115,7 +120,7 @@ Commands sent by `RigctldConnection`:
 
 #### Scenario: GetDialFrequencyMhzAsync throws on rigctld error response
 
-- **WHEN** rigctld returns a response beginning with `RPRT` (rigctld error report) or a value that cannot be parsed as a non-negative integer
+- **WHEN** rigctld returns a response beginning with `RPRT` or a value that cannot be parsed as a non-negative integer
 - **THEN** `GetDialFrequencyMhzAsync` SHALL throw an `InvalidOperationException` with the raw response included in the message
 
 #### Scenario: GetDialFrequencyMhzAsync throws on receive timeout
@@ -138,8 +143,6 @@ Commands sent by `RigctldConnection`:
 
 - **WHEN** a `RigctldConnection` instance is disposed while connected
 - **THEN** the TCP connection SHALL be closed
-
----
 
 ### Requirement: ICatState tracks live CAT telemetry
 
@@ -281,3 +284,4 @@ The main page status bar SHALL display the current effective dial frequency and 
 
 - **WHEN** the `cat_status` payload contains `"status": "Disabled"`
 - **THEN** no CAT indicator SHALL be shown in the status bar (the frequency field still shows the manual fallback value if non-zero)
+
