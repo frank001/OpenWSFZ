@@ -11,8 +11,9 @@ namespace OpenWSFZ.Daemon;
 /// </summary>
 public sealed class FrequencyStore : IFrequencyStore
 {
-    private readonly string                      _path;
-    private readonly ILogger<FrequencyStore>?    _logger;
+    private readonly string                        _path;
+    private readonly ILogger<FrequencyStore>?      _logger;
+    private readonly SemaphoreSlim                 _saveLock = new(1, 1);
     private volatile IReadOnlyList<FrequencyEntry> _entries;
 
     /// <param name="path">Resolved path to <c>frequencies.json</c>.</param>
@@ -40,10 +41,17 @@ public sealed class FrequencyStore : IFrequencyStore
 
         Directory.CreateDirectory(dir);
 
-        var dto = new FrequenciesFile { Entries = [.. entries] };
+        // FR-042: entries are always persisted in ascending FrequencyMHz order so
+        // that the dropdown and the Settings table present a consistent, sorted list
+        // regardless of the order in which rows were added by the operator.
+        var sorted = entries.OrderBy(e => e.FrequencyMHz).ToList();
+        var dto = new FrequenciesFile { Entries = sorted };
 
         // Write to a temp file in the same directory, then rename atomically.
+        // The semaphore serialises concurrent callers so that two simultaneous
+        // saves do not race on the final File.Move to the shared destination path.
         var tmp = Path.Combine(dir, Path.GetRandomFileName());
+        await _saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await using (var stream = new FileStream(
@@ -62,13 +70,17 @@ public sealed class FrequencyStore : IFrequencyStore
             }
 
             File.Move(tmp, _path, overwrite: true);
-            _entries = entries;
+            _entries = sorted;
             _logger?.LogInformation("Frequencies saved to '{Path}'.", _path);
         }
         catch
         {
             try { File.Delete(tmp); } catch { /* best-effort */ }
             throw;
+        }
+        finally
+        {
+            _saveLock.Release();
         }
     }
 
@@ -109,7 +121,9 @@ public sealed class FrequencyStore : IFrequencyStore
                 return;
             }
 
-            _entries = dto.Entries;
+            // Sort in memory so even a pre-existing file written without this
+            // invariant is presented in ascending FrequencyMHz order.
+            _entries = dto.Entries.OrderBy(e => e.FrequencyMHz).ToList();
             _logger?.LogInformation(
                 "Loaded {Count} frequenc{Ies} from '{Path}'.",
                 _entries.Count,

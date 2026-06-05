@@ -250,6 +250,7 @@ public sealed class SerialCatConnectionTests
         port.Received(1).Write("FA007074000;");
     }
 
+
     // ── Buffer-flush guard (F-003) ────────────────────────────────────────────
 
     [Fact(DisplayName = "F-003: GetDialFrequencyMhzAsync discards the receive buffer before writing FA; (prevents stale-response pollution)")]

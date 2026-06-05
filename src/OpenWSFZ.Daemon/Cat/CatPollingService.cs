@@ -159,8 +159,16 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                 ?? throw new InvalidOperationException(
                     "No active rig connection — CAT is not yet connected.");
 
+            _logger.LogInformation(
+                "CAT: dispatching tune command — {FreqMHz:F3} MHz via {ConnType}.",
+                frequencyMHz, conn.GetType().Name);
+
             await conn.SetDialFrequencyMhzAsync(frequencyMHz, cancellationToken)
                       .ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "CAT: tune command sent — {FreqMHz:F3} MHz (rig will confirm on next poll).",
+                frequencyMHz);
 
             // Optimistic update: push the requested frequency to the status bar
             // immediately so the operator sees a response before the next poll
@@ -193,10 +201,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                 var config = _configStore.Current.Cat ?? new CatConfig();
 
                 // ── Detect config change (task 7.4) ───────────────────────────
-                // Compare only connection-relevant fields.  LastPolledFrequencyMHz
-                // is persisted by FR-039 on every frequency update and must not
-                // trigger a reconnect (F-008).
-                if (lastConfig is not null && HasConnectionConfigChanged(lastConfig, config))
+                if (lastConfig is not null && config != lastConfig)
                 {
                     _logger.LogInformation(
                         "CAT config changed — reconnecting with new parameters.");
@@ -360,7 +365,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
     {
         try
         {
-            return RigModelFactory.Create(config, _loggerFactory);
+            return RigModelFactory.Create(config);
         }
         catch (ArgumentException ex)
         {
@@ -407,19 +412,4 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
         if (prev is null || next is null) return true;
         return Math.Abs(prev.Value - next.Value) * 1_000_000.0 >= 1.0; // ≥ 1 Hz
     }
-
-    /// <summary>
-    /// Returns <c>true</c> when a config change requires dropping and re-opening
-    /// the rig connection.  <see cref="CatConfig.LastPolledFrequencyMHz"/> is
-    /// deliberately excluded — it is updated by FR-039 on every frequency poll
-    /// and must not cause a spurious reconnect (F-008).
-    /// </summary>
-    private static bool HasConnectionConfigChanged(CatConfig prev, CatConfig next)
-        => prev.Enabled             != next.Enabled
-        || prev.RigModel            != next.RigModel
-        || prev.SerialPort          != next.SerialPort
-        || prev.BaudRate            != next.BaudRate
-        || prev.RigctldHost         != next.RigctldHost
-        || prev.RigctldPort         != next.RigctldPort
-        || prev.PollIntervalSeconds != next.PollIntervalSeconds;
 }

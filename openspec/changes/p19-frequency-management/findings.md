@@ -500,10 +500,56 @@ select#dial-freq {
 
 ---
 
-## F-007 — Spurious log file created on every CAT frequency persist (Fixed)
+## F-007 — `FrequencyStore` does not sort entries on save (Fixed in this PR)
+
+**Severity:** Low — cosmetic ordering defect; new rows added via the Settings tab appeared at the bottom regardless of frequency value  
+**Status:** Fixed — `SaveAsync` now sorts by `FrequencyMHz` ascending before persisting; `LoadAsync` applies the same sort in-memory so pre-existing unsorted files are presented correctly  
+**Files:** `src/OpenWSFZ.Daemon/FrequencyStore.cs`
+
+### Observed behaviour
+
+Rows added via the Frequencies tab were appended at the end of the table in insertion order rather than being presented in ascending frequency order. After a page reload (which re-fetches from disk), the newly added entries appeared out of order relative to the default entries.
+
+### Root cause
+
+`SaveAsync` persisted the entry list in the order supplied by the caller. No sort was applied either at save or at load time.
+
+### Fix applied
+
+`SaveAsync` calls `entries.OrderBy(e => e.FrequencyMHz)` before constructing the DTO and writing to disk. `LoadAsync` applies the same `.OrderBy` after deserialising so that even pre-existing files written before the sort invariant was introduced are presented in the correct order in memory (without overwriting the file).
+
+---
+
+## F-008 — `SerialCatConnection.SetDialFrequencyMhzAsync` hard-coded 11 Hz digits; Yaesu FT-991A requires 9 (Fixed in this PR)
+
+**Severity:** High — FR-045 (CAT frequency set) was silently non-functional for the FT-991A; every tune command was rejected by the rig with no error visible to the operator  
+**Status:** Fixed — digit count is self-calibrated from the first successful `FA;` GET response; the write-once `volatile int _freqWidth` field (p20 refinement) ensures the calibration is thread-safe and immutable once set  
+**Files:** `src/OpenWSFZ.Rig/SerialCatConnection.cs`
+
+### Observed behaviour
+
+Selecting a frequency from the `#dial-freq` dropdown while connected via serial CAT to a Yaesu FT-991A had no effect. The rig remained on its original frequency. No error was logged.
+
+### Root cause
+
+The original task spec (task 4.2) stated: *"zero-pad to 11 digits, write `FA<11-digit-Hz>;`"*. The Kenwood CAT standard uses 11 Hz digits for the `FA` command. However, the Yaesu FT-991A's implementation of the `FA` command uses **9 Hz digits** — e.g., `FA007074000;` (9 digits) rather than `FA00007074000;` (11 digits).
+
+When the daemon sent `FA00007074000;`, the FT-991A's CAT parser did not recognise the command and silently discarded it. Because `SetDialFrequencyMhzAsync` performed no read-back, the failure was invisible.
+
+### Fix applied
+
+`GetDialFrequencyMhzAsync` measures the digit count from the first successful `FA;` response and records it in `_freqWidth` (written exactly once via `if (_freqWidth == 0) _freqWidth = digitCount`). `SetDialFrequencyMhzAsync` uses `_freqWidth > 0 ? _freqWidth : DefaultFreqWidth` to zero-pad, falling back to 11 digits until the first poll completes. The `volatile` qualifier ensures the poll-loop write is immediately visible to the HTTP-request thread (p20 refinement).
+
+### Regression tests added
+
+`SerialCatConnectionTests` — four tests under the `p20:` prefix verify: 11-digit fallback before first GET; 9-digit width after 9-digit GET; 11-digit width after 11-digit GET; write-once stability across subsequent GETs.
+
+---
+
+## F-009 — Spurious log file created on every CAT frequency persist (Fixed in p20)
 
 **Severity:** Medium  
-**Status:** Fixed — `src/OpenWSFZ.Daemon/Program.cs`  
+**Status:** Fixed — `src/OpenWSFZ.Daemon/Program.cs` (merged via p20, PR #24)  
 **Discovered:** During p20 QA (evidence log analysis)
 
 ### Observation
@@ -520,8 +566,6 @@ openswfz-20260604T184116Z.log      0 bytes  ← created on second tune
 
 `configStore.OnSaved` fired on every `_configStore.SaveAsync` call, including the FR-039 persist of `Cat.LastPolledFrequencyMHz` that `CatPollingService` issues on each poll showing a changed frequency.  The `OnSaved` handler in `Program.cs` called `loggingPipeline.Apply()` unconditionally.  `Apply()` creates a fresh timestamped log file each time it runs, calls `Log.CloseAndFlush()`, and replaces `Log.Logger`.
 
-Files 2 and 3 were empty because MEL `ILogger<T>` instances are bound at startup to the initial Serilog sink (`lb.AddSerilog(Log.Logger, ...)`).  After the `Log.Logger` swap they continued writing to file 1's sink; direct `Log.*` calls were absent in the gap between tunes, so the new files received nothing.
-
 ### Fix
 
 Two locals (`lastLoggingConfig`, `lastLogConsoleLevel`) track the last-applied logging state.  The `Apply()` call in `OnSaved` is now gated behind a value-equality check on `LoggingConfig` (a `sealed record`, so comparison is free):
@@ -536,14 +580,12 @@ if (newLoggingConfig != lastLoggingConfig || newConsoleLevel != lastLogConsoleLe
 }
 ```
 
-`LogRotationService.Rotate()` calls `Apply()` directly on `LoggingPipeline` and is unaffected.
-
 ---
 
-## F-008 — Spurious CAT reconnect on every persisted frequency change (Fixed)
+## F-010 — Spurious CAT reconnect on every persisted frequency change (Fixed in p20)
 
 **Severity:** Medium  
-**Status:** Fixed — `src/OpenWSFZ.Daemon/Cat/CatPollingService.cs`  
+**Status:** Fixed — `src/OpenWSFZ.Daemon/Cat/CatPollingService.cs` (merged via p20, PR #24)  
 **Discovered:** During p20 QA (evidence log lines 107–109, 135–136)
 
 ### Observation
@@ -555,31 +597,10 @@ After each tune the log showed the CAT connection being torn down and rebuilt:
 [INF] CAT connected via SerialCat.
 ```
 
-This happened roughly one poll interval after the tune — not immediately — which pointed to the poll loop rather than the HTTP handler.
-
 ### Root cause
 
-`CatPollingService.RunAsync()` detects config changes with:
-
-```csharp
-if (lastConfig is not null && config != lastConfig)
-```
-
-`CatConfig` is a `sealed record`, so `!=` is full value equality across all fields, including `LastPolledFrequencyMHz`.  The FR-039 save updates that field after every poll showing a frequency change.  On the next iteration, `config != lastConfig` is true because `LastPolledFrequencyMHz` changed — even though the connection parameters (port, baud, rig model) are identical — so the loop disconnects and reconnects unnecessarily.
+`CatPollingService.RunAsync()` used full record equality (`config != lastConfig`) to detect config changes. `CatConfig` includes `LastPolledFrequencyMHz`, which the FR-039 save updates after every poll showing a frequency change — triggering a needless reconnect even when the physical connection parameters were identical.
 
 ### Fix
 
-A new `HasConnectionConfigChanged` private static method compares only the seven fields that govern the physical connection, explicitly excluding `LastPolledFrequencyMHz`:
-
-```csharp
-private static bool HasConnectionConfigChanged(CatConfig prev, CatConfig next)
-    => prev.Enabled             != next.Enabled
-    || prev.RigModel            != next.RigModel
-    || prev.SerialPort          != next.SerialPort
-    || prev.BaudRate            != next.BaudRate
-    || prev.RigctldHost         != next.RigctldHost
-    || prev.RigctldPort         != next.RigctldPort
-    || prev.PollIntervalSeconds != next.PollIntervalSeconds;
-```
-
-The call site comment references F-008.
+A new `HasConnectionConfigChanged` private static method compares only the seven fields that govern the physical connection, explicitly excluding `LastPolledFrequencyMHz`.
