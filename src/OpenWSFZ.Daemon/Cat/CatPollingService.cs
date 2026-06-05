@@ -201,7 +201,10 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                 var config = _configStore.Current.Cat ?? new CatConfig();
 
                 // ── Detect config change (task 7.4) ───────────────────────────
-                if (lastConfig is not null && config != lastConfig)
+                // HasConnectionConfigChanged deliberately excludes LastPolledFrequencyMHz
+                // so that the FR-039 persist of the last-polled frequency does not
+                // trigger a needless reconnect on every poll cycle (F-010).
+                if (lastConfig is not null && HasConnectionConfigChanged(lastConfig, config))
                 {
                     _logger.LogInformation(
                         "CAT config changed — reconnecting with new parameters.");
@@ -405,6 +408,21 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
 
         _catEventBus.Publish(newStatus, newFreq);
     }
+
+    /// <summary>
+    /// Returns <c>true</c> only when a field that governs the physical rig
+    /// connection has changed.  <see cref="CatConfig.LastPolledFrequencyMHz"/>
+    /// is intentionally excluded: it is updated by the FR-039 frequency-persist
+    /// path and must not cause a reconnect (F-010).
+    /// </summary>
+    private static bool HasConnectionConfigChanged(CatConfig prev, CatConfig next)
+        => prev.Enabled             != next.Enabled
+        || prev.RigModel            != next.RigModel
+        || prev.SerialPort          != next.SerialPort
+        || prev.BaudRate            != next.BaudRate
+        || prev.RigctldHost         != next.RigctldHost
+        || prev.RigctldPort         != next.RigctldPort
+        || prev.PollIntervalSeconds != next.PollIntervalSeconds;
 
     private static bool HasFreqChanged(double? prev, double? next)
     {
