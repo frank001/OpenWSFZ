@@ -1,0 +1,294 @@
+# OpenWSFZ ↔ WSJT-X Decoder Measurement System Analysis (Gage R&R)
+
+**Document type:** Study specification & harness blueprint (Architect deliverable)
+**Owner of execution & reporting:** QA
+**Status:** **Ratified** by the Captain 2026-06-05 — §7 tolerances, §10 thresholds, Python analysis, and synthesiser-first build all approved. Harness build underway.
+**Applies to:** OpenWSFZ FT8 receive/decode pipeline, measured against WSJT-X as a co-appraiser
+**Last updated:** 2026-06-05
+
+---
+
+## 0. Decisions ratified by the Product Owner
+
+| # | Decision | Choice |
+|---|---|---|
+| D1 | Primary reference | **Synthesized ground truth** (not WSJT-X, not app-vs-app only) |
+| D2 | Signal synthesis | **Independent clean-room FT8 synthesizer** inside the harness |
+| D3 | %GR&R basis | **Defined tolerance bands** (see §7), reported as %Tolerance |
+| D4 | Next artefact | This full spec + harness blueprint |
+| D5 | Tolerance bands (§7) & acceptance thresholds (§10) | **Ratified as proposed** (2026-06-05) |
+| D6 | Analysis tooling (§9, §11) | **Python (pandas/matplotlib)**; Minitab optional manual cross-check |
+| D7 | First-study platform (§4) | **Windows + VB-CABLE** (installed; see `RUNBOOK.md`) |
+| D8 | Harness build order (§12) | **Synthesiser first**, gated by §5 self-validation, with encode unit tests |
+
+---
+
+## 1. Purpose
+
+Replace the single scalar "recovery rate vs WSJT-X" parity number with a repeatable,
+regression-trackable Measurement System Analysis (MSA) that:
+
+1. Quantifies how **consistently** OpenWSFZ and WSJT-X measure the same received signals
+   (Gage R&R on SNR, DT, audio frequency).
+2. Quantifies how **accurately** each application measures against known truth
+   (Bias & Linearity).
+3. Quantifies decode **classification agreement** — recovery and false positives —
+   against known truth and between applications (Attribute Agreement Analysis / Kappa).
+4. Produces Minitab-style tables and plots committed to the repository, so that
+   improvement or regression after any OpenWSFZ code change is visible at a glance.
+
+The routine is **black-box and fully decoupled** from OpenWSFZ source: it shares no
+assemblies, no P/Invoke, and is not referenced by `OpenWSFZ.slnx`. It interacts only with
+(a) a shared audio device and (b) the two applications' `ALL.TXT` log files.
+
+---
+
+## 2. Why this design (the two corrections that make R&R valid)
+
+### 2.1 Repeatability must be non-zero — inject noise, not files
+A deterministic decoder fed a bit-identical WAV returns a bit-identical answer; repeatability
+variance would be 0 and %GR&R meaningless. Therefore:
+
+> **Each trial is an independent additive-noise realization at the part's nominal signal
+> condition.** The generator renders the same message at the same true SNR/DT/frequency but
+> draws a fresh, seeded noise instance per trial, plays it into the shared device, and **both
+> applications capture that identical realization concurrently.** The next trial draws new noise.
+
+Repeatability then measures each decoder's sensitivity to the random band noise it will face in
+service — a physically meaningful quantity — and the shared-device requirement becomes
+load-bearing (both apps must hear the *same* realization each trial for a properly crossed design).
+
+### 2.2 Anchor to synthesized truth, not to WSJT-X
+Because the harness synthesizes the signals it knows true SNR, DT, audio frequency, and message
+text exactly. WSJT-X is a *co-appraiser*, not the gold standard (it has its own measurement error
+and a quantized, clamped SNR scale). All accuracy metrics reference injected truth.
+
+---
+
+## 3. MSA vocabulary → FT8 domain
+
+| MSA term | This study |
+|---|---|
+| Part | A synthesized signal **condition** with known truth (specific SNR / DT / freq / message). |
+| Appraiser | The **application**: WSJT-X and OpenWSFZ. (The human only selects the device.) |
+| Trial | An independent seeded noise realization of the part, captured by both apps concurrently. |
+| Measurement (continuous) | Reported SNR (dB), DT (s), audio frequency (Hz) of matched decodes. |
+| Measurement (attribute) | Decoded / not-decoded per candidate message; false positive on noise slots. |
+| Gold standard | Injected truth from the generator. |
+
+---
+
+## 4. Test rig
+
+### 4.1 Topology
+```
+ ┌──────────────────────────┐
+ │  Signal generator (harness) │  synthesizes FT8 + seeded noise, aligned to 15 s UTC cycle
+ └────────────┬─────────────┘
+              │ plays PCM (mono, 48 kHz, shared mode)
+              ▼
+   ┌─────────────────────────┐
+   │  Shared audio device     │  VB-CABLE (virtual) — render side = "CABLE Input"
+   │  (operator-selected)     │  capture side = "CABLE Output"
+   └───────┬─────────┬───────┘
+           │         │  both apps open the capture endpoint in WASAPI shared mode
+   ┌───────▼───┐ ┌───▼────────┐
+   │  WSJT-X    │ │ OpenWSFZ   │   FT8 mode, Monitor ON, same nominal dial freq
+   │  ALL.TXT   │ │ ALL.TXT    │
+   └───────┬───┘ └───┬────────┘
+           └────┬────┘
+                ▼
+   ┌─────────────────────────┐
+   │  Matcher + analyser       │  joins truth ↔ WSJT-X ↔ OpenWSFZ; emits CSV + report
+   └─────────────────────────┘
+```
+
+### 4.2 Setup requirements (operator runbook, abridged)
+- Install a virtual audio cable (Windows: **VB-CABLE**; Linux: PulseAudio `module-null-sink` +
+  `loopback`; macOS: **BlackHole**). Both apps select its **capture** endpoint as their input.
+- WSJT-X: mode **FT8**, **Monitor ON**, audio input = shared device, `ALL.TXT` location noted.
+- OpenWSFZ: audio device = shared device, decode started, `decodeLog.enabled = true`.
+- Nominal dial frequency identical in both (e.g. 7.074) so log lines align; the value is cosmetic
+  for the study since matching keys on audio freq + message + cycle.
+- A real **analog loopback** (line-out → line-in) is an optional external-validity variant; the
+  default is the virtual cable because the intended variation is injected in software (§2.1).
+
+> **Concurrency note:** WASAPI shared mode permits multiple capture clients on one endpoint, so
+> both apps capture the same stream simultaneously. Verify once during bring-up.
+
+---
+
+## 5. Independent FT8 signal synthesizer (D2)
+
+A standalone module in the harness, **clean-room from the public FT8 protocol description**
+(Franke/Somerville/Taylor, *"The FT4 and FT8 Communication Protocols"*). It MUST NOT reuse
+OpenWSFZ or ft8_lib code — a shared bug must not be able to mask a decode defect.
+
+Pipeline: standard-message text → 77-bit payload (callsign/grid packing) → 14-bit CRC →
+LDPC(174,91) parity → Gray-coded 8-FSK symbols (58 data + three 7×7 Costas arrays at symbol
+indices 0/36/72 = 79 symbols) → GFSK modulation, tone spacing 6.25 Hz, symbol period 0.16 s,
+total 12.64 s placed within the 15 s slot at the part's DT offset and audio frequency.
+
+Then: scale to target SNR relative to a generated noise floor referenced to a 2500 Hz bandwidth
+(WSJT-X convention), add the seeded noise realization, render PCM.
+
+**Self-validation gate:** before any study run, confirm WSJT-X decodes a clean (+10 dB) rendering
+of every message used. If WSJT-X cannot decode the synthesizer's own output, the vectors are
+invalid and the run aborts. This also independently proves the synthesizer's correctness.
+
+---
+
+## 6. Scenarios (parts design)
+
+Continuous studies use one response variable each (clean separation). All use
+**10 parts × 2 appraisers × 3 trials** unless noted; attribute studies use ≥ 50 instances.
+
+| ID | Drives | Parts (10 unless noted) | Trials | Output |
+|---|---|---|---|---|
+| **S1 SNR ladder** | SNR R&R + Bias/Linearity | true SNR ∈ {−24,−21,−18,−15,−12,−9,−6,−3,0,+3} dB; fixed freq=1500 Hz, DT=0.2 s, one message | 3 | SNR Gage R&R; SNR bias & linearity |
+| **S2 Frequency sweep** | Frequency R&R | audio freq ∈ {300,567,834,…,2700} Hz; fixed SNR=0 dB | 3 | Frequency Gage R&R |
+| **S3 DT offset** | DT R&R | DT ∈ {−2.0,−1.5,…,+2.0} s (10 steps); fixed SNR=0 dB | 3 | DT Gage R&R |
+| **S4 Density / QRM** | Attribute agreement | cycles with N∈{1,5,10,20,30} simultaneous signals at mixed SNRs; ≥ 50 message instances total | 3 | Recovery Kappa (vs truth & between apps) |
+| **S5 Noise / birdies** | False positives | signal-free cycles: white noise, pink noise, steady carriers/birdies | 3 | False-positive rate & agreement |
+| **S6 Off-air corpus** *(optional)* | External validity | replay the committed 40 m fixture recordings through the device | 1 | Cross-check vs live p15 recovery metric |
+
+Replays/trials are seeded: `seed = hash(scenario, part_index, trial_index)` → byte-reproducible.
+
+---
+
+## 7. Tolerance bands (D3)
+
+Proposed for ratification. %Tolerance uses ±halfband as the spec half-width.
+
+| Response | Tolerance (± half-width) | Rationale |
+|---|---|---|
+| SNR | **± 2 dB** | Operationally "the same" report; comfortably inside WSJT-X integer quantization. |
+| Audio frequency | **± 4 Hz** | ≈ ⅔ of the 6.25 Hz FT8 tone bin; both apps report integer Hz. |
+| DT | **± 0.2 s** | One `dt` display tick; within FT8's sync tolerance. |
+
+Attribute target (a message is "decoded" if it appears with correct text and audio freq within ±4 Hz
+in the matched cycle).
+
+---
+
+## 8. Decode matcher
+
+The technical core. Joins three sources per cycle — **truth**, **WSJT-X ALL.TXT**, **OpenWSFZ ALL.TXT** —
+and tolerates the differences between the two writers.
+
+- **Cycle key:** UTC 15 s slot. Normalize both timestamps to the slot start (tolerate ±1 s skew).
+- **Message key:** exact decoded text after whitespace normalization.
+- **Frequency key:** audio offset within ± 4 Hz.
+- A row matches truth when message text matches and audio freq within band; SNR/DT/freq are then
+  paired for continuous analysis.
+- Unmatched truth rows = misses (attribute). Decodes matching no truth row = false positives.
+- Output: a tidy long-format CSV — one row per (scenario, part, trial, appraiser, truth-message)
+  with columns for matched? / reported SNR / DT / freq / true values.
+
+---
+
+## 9. Analysis & outputs (Minitab-style)
+
+Implemented in **Python** (pandas; ANOVA-method Gage R&R; matplotlib) so the report regenerates in
+CI and is replayable. Minitab remains available as an optional manual cross-check.
+
+### 9.1 Continuous Gage R&R (S1–S3)
+- Variance-components table: Repeatability, Reproducibility (+ App×Part interaction), Part-to-Part, Total.
+- `%Contribution`, `%Study Var`, **`%Tolerance`** (§7), and **ndc**.
+- Six-panel report: Components of Variation · R-chart by app · Xbar-chart by app ·
+  Measurement-by-Part · Measurement-by-App · App×Part interaction.
+
+### 9.2 Bias & Linearity (S1)
+- Per-app (measured − true) across the SNR ladder; bias, %linearity, constant-vs-drifting bias.
+- Headline: any systematic OpenWSFZ-vs-WSJT-X SNR offset.
+
+### 9.3 Attribute Agreement (S4–S5)
+- Within-app agreement (decode-decision repeatability across realizations).
+- Between-app agreement; each-app-vs-truth agreement with **Kappa** + CIs.
+- False-positive rate from S5.
+
+---
+
+## 10. Acceptance thresholds (regression gate)
+
+AIAG conventions, for ratification:
+
+| Metric | Acceptable | Marginal | Unacceptable |
+|---|---|---|---|
+| %GR&R (per response) | < 10% | 10–30% | > 30% |
+| ndc | ≥ 5 | — | < 2 |
+| Attribute Kappa (vs truth, between apps) | ≥ 0.90 | 0.70–0.90 | < 0.70 |
+| False-positive rate | ≤ 6% | — | > 6% |
+| SNR bias (OpenWSFZ vs truth) | ≤ ±2 dB | — | > ±2 dB |
+
+Evaluated every run; a regression past these bands raises a defect for the Developer.
+
+---
+
+## 11. Repeatability of the routine itself
+
+- Deterministic seeds → byte-reproducible test vectors and noise realizations.
+- Pin and record the **WSJT-X version** and the **OpenWSFZ git SHA** in every report header.
+- Document audio routing and app settings in the runbook; scripted launch where possible.
+- One command regenerates the full report from raw logs.
+
+---
+
+## 12. Deliverable layout (committed to GitHub)
+
+```
+qa/rr-study/
+  STUDY-SPEC.md          ← this document
+  RUNBOOK.md             ← step-by-step operator setup & run procedure
+  synth/                 ← independent FT8 synthesizer (clean-room)
+  harness/               ← generator driver, log matcher, analysis (Python)
+  scenarios/             ← scenario parameter files (versioned)
+  results/
+    <YYYY-MM-DD>-<sha>/
+      report.md          ← Minitab-style tables + embedded plots
+      *.csv              ← raw matched data + variance components
+      *.png              ← six-panel + bias/linearity + attribute plots
+  trend.csv              ← one row per run: sha, %GR&R_SNR, ndc, bias_SNR,
+                           recovery_Kappa, FP_rate  → improvement/regression chart
+```
+
+`qa/` is **excluded from `OpenWSFZ.slnx`**; the harness has its own toolchain.
+
+---
+
+## 13. Roles & workflow
+
+| Role | Responsibility |
+|---|---|
+| **Architect** | Owns this design and the thresholds (§7, §10). Signs off; does not run the study. |
+| **QA** | **Owns execution, analysis, and the published report.** Runs each cycle, files regressions. |
+| **Developer** | Downstream: receives regressions as defects and remediates; does not own the instrument. |
+
+Run cadence: on demand before/after any change touching the decoder, audio pipeline, or SNR
+calibration; and as a release gate.
+
+---
+
+## 14. Risks & mitigations
+
+| Risk | Mitigation |
+|---|---|
+| Virtual cable is sample-exact → low repeatability | Variation is injected as seeded noise per trial (§2.1), not relied on from the cable. |
+| WSJT-X SNR quantization/clamping shows as discretization | Expected and reported as-is; not a harness bug. Bias study interprets it. |
+| Concurrent capture unsupported on a platform | Verified at bring-up; fall back to two synchronized sequential runs of the identical seeded vector. |
+| Independent synthesizer has an encoding bug | §5 self-validation gate: WSJT-X must decode every clean vector or the run aborts. |
+| "No natural tolerance" for SNR | Defined bands (§7), ratified by Product Owner; %Study Var reported alongside. |
+| Cycle/timestamp skew between the two writers | Matcher normalizes to slot start with ±1 s tolerance (§8). |
+
+---
+
+## 15. Open items for the Captain — RESOLVED 2026-06-05
+
+All four items have been ruled on by the Captain (see §0, D5–D8):
+
+1. ~~Ratify tolerance bands (§7) and acceptance thresholds (§10).~~ → **Ratified as proposed.**
+2. ~~Confirm Python for analysis.~~ → **Python (pandas/matplotlib);** Minitab optional.
+3. ~~Confirm target platform(s).~~ → **Windows + VB-CABLE** (installed; `RUNBOOK.md`).
+4. ~~Approve build of the harness.~~ → **Approved; synthesiser first.**
+
+Build progress is tracked in `qa/rr-study/synth/BUILD-PLAN.md`.

@@ -1,0 +1,6 @@
+# Clean-room synthesiser + analysis toolchain (STUDY-SPEC D6).
+numpy>=2.0
+pytest>=8.0
+# Analysis layer (added when §9 reporting lands):
+# pandas>=2.0
+# matplotlib>=3.8
