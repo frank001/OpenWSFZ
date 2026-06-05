@@ -228,4 +228,38 @@ public sealed class SerialCatConnectionTests
         // ReadTo must never be called — the method is fire-and-forget.
         port.DidNotReceive().ReadTo(Arg.Any<string>());
     }
+
+    // ── Adaptive digit count (F-008) ──────────────────────────────────────────
+
+    [Fact(DisplayName = "F-008: SetDialFrequencyMhzAsync uses 9-digit format after a 9-digit GET response (Yaesu FT-991A / FT-817 family)")]
+    public async Task SetDialFrequencyMhzAsync_AfterNineDigitGet_SendsNineDigitSet()
+    {
+        // Yaesu-style rigs respond to FA; with 9 Hz digits.
+        // ReadTo(";") returns the response WITHOUT the trailing ";" delimiter.
+        var port = Substitute.For<ISerialPort>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA007074000");   // 9-digit GET response: 7.074 MHz
+        var sut = new SerialCatConnection(port);
+
+        // GET first — this is what the poll loop does before any SET is possible.
+        await sut.GetDialFrequencyMhzAsync();
+
+        // SET to a different frequency.  Must use 9 digits, matching the rig's protocol.
+        await sut.SetDialFrequencyMhzAsync(14.074);
+
+        // 14.074 MHz = 14 074 000 Hz → 9-digit zero-padded = "014074000"
+        port.Received(1).Write("FA014074000;");
+    }
+
+    [Fact(DisplayName = "F-008: SetDialFrequencyMhzAsync retains 11-digit default before first GET (Kenwood-compatible default)")]
+    public async Task SetDialFrequencyMhzAsync_BeforeAnyGet_DefaultsToElevenDigits()
+    {
+        // Without a preceding GET the digit count defaults to 11.
+        var port = Substitute.For<ISerialPort>();
+        var sut  = new SerialCatConnection(port);
+
+        await sut.SetDialFrequencyMhzAsync(14.074);
+
+        port.Received(1).Write("FA00014074000;");
+    }
 }

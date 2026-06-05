@@ -156,8 +156,16 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                 ?? throw new InvalidOperationException(
                     "No active rig connection — CAT is not yet connected.");
 
+            _logger.LogInformation(
+                "CAT: dispatching tune command — {FreqMHz:F3} MHz via {ConnType}.",
+                frequencyMHz, conn.GetType().Name);
+
             await conn.SetDialFrequencyMhzAsync(frequencyMHz, cancellationToken)
                       .ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "CAT: tune command sent — {FreqMHz:F3} MHz (rig will confirm on next poll).",
+                frequencyMHz);
 
             // Optimistic update: push the requested frequency to the status bar
             // immediately so the operator sees a response before the next poll

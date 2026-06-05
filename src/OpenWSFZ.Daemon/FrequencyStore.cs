@@ -40,7 +40,11 @@ public sealed class FrequencyStore : IFrequencyStore
 
         Directory.CreateDirectory(dir);
 
-        var dto = new FrequenciesFile { Entries = [.. entries] };
+        // FR-042: entries are always persisted in ascending FrequencyMHz order so
+        // that the dropdown and the Settings table present a consistent, sorted list
+        // regardless of the order in which rows were added by the operator.
+        var sorted = entries.OrderBy(e => e.FrequencyMHz).ToList();
+        var dto = new FrequenciesFile { Entries = sorted };
 
         // Write to a temp file in the same directory, then rename atomically.
         var tmp = Path.Combine(dir, Path.GetRandomFileName());
@@ -62,7 +66,7 @@ public sealed class FrequencyStore : IFrequencyStore
             }
 
             File.Move(tmp, _path, overwrite: true);
-            _entries = entries;
+            _entries = sorted;
             _logger?.LogInformation("Frequencies saved to '{Path}'.", _path);
         }
         catch
@@ -109,7 +113,9 @@ public sealed class FrequencyStore : IFrequencyStore
                 return;
             }
 
-            _entries = dto.Entries;
+            // Sort in memory so even a pre-existing file written without this
+            // invariant is presented in ascending FrequencyMHz order.
+            _entries = dto.Entries.OrderBy(e => e.FrequencyMHz).ToList();
             _logger?.LogInformation(
                 "Loaded {Count} frequenc{Ies} from '{Path}'.",
                 _entries.Count,

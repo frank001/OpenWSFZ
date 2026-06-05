@@ -136,6 +136,67 @@ public sealed class FrequencyStoreTests : IDisposable
         act.Should().NotThrow("the file must always be valid JSON after an atomic write");
     }
 
+    // ── Sort-order invariant (FR-042) ─────────────────────────────────────
+
+    [Fact(DisplayName = "FR-042: SaveAsync persists entries sorted by FrequencyMHz ascending regardless of input order")]
+    public async Task SaveAsync_SortsByFrequencyMHzAscending()
+    {
+        var store = MakeStore();
+        await store.LoadAsync();
+
+        // Supply entries in deliberately descending order.
+        var unordered = new List<FrequencyEntry>
+        {
+            new("FT8", 14.074, "20m"),
+            new("FT8",  1.840, "160m"),
+            new("FT8",  7.074, "40m"),
+        };
+
+        await store.SaveAsync(unordered);
+
+        // In-memory list must be sorted.
+        store.Entries[0].FrequencyMHz.Should().Be(1.840);
+        store.Entries[1].FrequencyMHz.Should().Be(7.074);
+        store.Entries[2].FrequencyMHz.Should().Be(14.074);
+
+        // Round-trip: a fresh store loaded from the persisted file must also be sorted.
+        var store2 = MakeStore();
+        await store2.LoadAsync();
+        store2.Entries[0].FrequencyMHz.Should().Be(1.840);
+        store2.Entries[1].FrequencyMHz.Should().Be(7.074);
+        store2.Entries[2].FrequencyMHz.Should().Be(14.074);
+    }
+
+    [Fact(DisplayName = "FR-042: LoadAsync sorts in-memory entries by FrequencyMHz ascending when the file was written out of order")]
+    public async Task LoadAsync_UnsortedFile_SortsEntriesInMemory()
+    {
+        // Write a pre-existing file whose entries are in descending order
+        // (simulating a file saved before the sort invariant was introduced).
+        var unsortedJson = """
+            {
+              "entries": [
+                { "protocol": "FT8", "frequencyMHz": 14.074, "description": "20m" },
+                { "protocol": "FT8", "frequencyMHz":  1.840, "description": "160m" },
+                { "protocol": "FT8", "frequencyMHz":  7.074, "description": "40m" }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(FilePath(), unsortedJson);
+
+        var store = MakeStore();
+        await store.LoadAsync();
+
+        // The file must NOT be overwritten — sort is in-memory only.
+        var afterContent = await File.ReadAllTextAsync(FilePath());
+        afterContent.Should().Contain("14.074",
+            "the original (unsorted) file must be preserved as-is");
+
+        // But the in-memory list must be sorted.
+        store.Entries[0].FrequencyMHz.Should().Be(1.840);
+        store.Entries[1].FrequencyMHz.Should().Be(7.074);
+        store.Entries[2].FrequencyMHz.Should().Be(14.074);
+    }
+
     // ── Round-trip fidelity ───────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-042: SaveAsync preserves round-trip — loaded entries match saved entries")]

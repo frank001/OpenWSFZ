@@ -29,11 +29,20 @@ namespace OpenWSFZ.Rig;
 /// </summary>
 public sealed class SerialCatConnection : IRadioConnection, IDisposable
 {
-    private const int    ReadTimeoutMs = 500;
-    private const string CatCommand    = "FA;";
-    private const string ResponseDelim = ";";
+    private const int    ReadTimeoutMs   = 500;
+    private const int    DefaultDigits   = 11;
+    private const string CatCommand      = "FA;";
+    private const string ResponseDelim   = ";";
 
     private readonly ISerialPort _port;
+
+    // Digit count observed in the most recent successful GetDialFrequencyMhzAsync
+    // response.  Kenwood rigs (TS-2000, TS-590S …) use 11 digits; Yaesu rigs
+    // (FT-991A, FT-817 …) use 9.  GetDialFrequencyMhzAsync updates this field so
+    // SetDialFrequencyMhzAsync can send the format the rig actually understands.
+    // Defaults to 11 (Kenwood standard) so that the very first SET before any GET
+    // uses a reasonable format.
+    private int _freqDigitCount = DefaultDigits;
 
     // ── Public constructor (production use) ───────────────────────────────────
 
@@ -133,24 +142,33 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
                 $"Serial CAT: cannot parse Hz value from response '{raw}'.");
         }
 
+        // Record the digit count this rig uses so SetDialFrequencyMhzAsync can
+        // send the matching format (9 digits for Yaesu FT-991A / FT-817 family,
+        // 11 digits for Kenwood TS-2000 / TS-590 family).
+        _freqDigitCount = digitCount;
+
         return Task.FromResult(hz / 1_000_000.0);
     }
 
     /// <summary>
-    /// Sends <c>FA&lt;11-digit-Hz&gt;;</c> to command VFO-A to
-    /// <paramref name="frequencyMHz"/> (FR-045).
-    /// The Hz integer is rounded to the nearest integer and zero-padded to 11 digits.
+    /// Sends <c>FA&lt;Hz&gt;;</c> to command VFO-A to <paramref name="frequencyMHz"/>
+    /// (FR-045).  The Hz integer is rounded to the nearest integer and zero-padded
+    /// to match the digit count observed in the most recent
+    /// <see cref="GetDialFrequencyMhzAsync"/> response (9 for Yaesu FT-991A / FT-817
+    /// family, 11 for Kenwood TS-2000 / TS-590 family).  Before the first
+    /// <see cref="GetDialFrequencyMhzAsync"/> call the default of 11 digits is used.
     /// The method returns after the write completes — no read-back is performed.
     /// </summary>
     /// <example>
-    /// <c>14.074 MHz → FA00014074000;</c>
+    /// 9-digit rig (Yaesu):  <c>14.074 MHz → FA014074000;</c><br/>
+    /// 11-digit rig (Kenwood): <c>14.074 MHz → FA00014074000;</c>
     /// </example>
     public Task SetDialFrequencyMhzAsync(
         double            frequencyMHz,
         CancellationToken cancellationToken = default)
     {
         var hz      = (long)Math.Round(frequencyMHz * 1_000_000.0);
-        var command = $"FA{hz:D11};";
+        var command = $"FA{hz.ToString().PadLeft(_freqDigitCount, '0')};";
         _port.Write(command);
         return Task.CompletedTask;
     }
