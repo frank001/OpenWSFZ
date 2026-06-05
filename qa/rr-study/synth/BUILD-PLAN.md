@@ -27,10 +27,10 @@ text ─► 77-bit payload ─► +14-bit CRC ─► LDPC(174,91) ─► 58 data
 | L4 | `modulator.py` | 79 tones → continuous-phase GFSK audio at target freq/DT in a 15 s slot | ✅ tone-count, duration, instantaneous-freq checks | ✅ done |
 | L5 | `channel.py` | Seeded additive noise scaled to a target SNR in the 2500 Hz WSJT-X reference bandwidth | ✅ measured in-band SNR ≈ target | ✅ done |
 | L6 | `wavio.py` | 16-bit mono PCM WAV writer (48 kHz) | ✅ round-trip | ✅ done |
-| L7 | `packing.py` | Standard-message text → 77-bit payload (callsign 28-bit + grid/report 15-bit, i3/n3 type bits) | ✅ vs published worked example once implemented | ⏳ **next** |
-| L8 | `ldpc.py` | 91-bit message → 83 parity bits → 174-bit codeword (FT8 generator matrix) | ✅ parity-check `H·c = 0` | ⏳ **next** |
-| L9 | `encoder.py` | Wire L7→L2→L8→L3 into `encode_message(text) -> 79 tones` | ✅ end-to-end tone vector | 🔶 wired; blocked on L7/L8 |
-| G | **§5 gate** | WSJT-X decodes a clean (+10 dB) render of every study message, else abort | requires WSJT-X | ⛔ pending L7–L9 |
+| L7 | `packing.py` | Standard-message text → 77-bit payload (callsign 28-bit + grid/report 15-bit, i3/n3 type bits) | ✅ bit-exact vs published worked example + full test suite | 🔶 implemented, §5 gate pending |
+| L8 | `ldpc.py` | 91-bit message → 83 parity bits → 174-bit codeword (FT8 generator matrix) | ✅ parity-check `H·c = 0`, 1000-word self-consistency, exhaustive single-bit error detection | 🔶 implemented, §5 gate pending |
+| L9 | `encoder.py` | Wire L7→L2→L8→L3 into `encode_message(text) -> 79 tones` | ✅ end-to-end tone vector; Costas at 0/36/72 verified | ✅ done (unblocked by L7/L8) |
+| G | **§5 gate** | WSJT-X decodes a clean (+10 dB) render of every study message, else abort | requires WSJT-X | ⛔ ready for QA — hand back |
 
 L1–L6 (the channel/DSP spine) and the structural scaffolding are **independently verifiable now**
 and covered by `../tests`. L7 (message packing) and L8 (LDPC parity) are the two table-heavy,
