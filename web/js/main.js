@@ -87,11 +87,15 @@ function handleDecodes(results) {
 const CYCLE_DURATION_S = 15;
 
 /**
- * Window in seconds after the cycle boundary during which a test recording
- * started will still capture enough of the FT8 transmission to be useful.
- * Derived from the decoder's time-domain sweep range.
+ * Window in seconds after the cycle boundary during which audio playback
+ * started will still produce a decodable FT8 cycle.
+ *
+ * An FT8 transmission occupies 12.64 s (79 symbols × 0.16 s/symbol).
+ * Within a 15 s cycle the latest usable start is 15 − 12.64 = 2.36 s.
+ * Empirically, decode quality degrades noticeably beyond ~2 s, so the GO
+ * window is set conservatively at 2 s to keep the indicator honest.
  */
-const GO_WINDOW_S = 8;
+const GO_WINDOW_S = 2;
 
 const cycleTimerEl   = /** @type {HTMLElement} */ (document.getElementById('cycle-timer'));
 const cycleDisplayEl = /** @type {HTMLElement} */ (document.getElementById('cycle-display'));
