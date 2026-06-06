@@ -77,10 +77,6 @@ char* stpcpy(char* dest, const char* src)
  */
 #define K_MAX_DECODED  (K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2)
 
-/* R6 weak-signal SNR post-correction. */
-#define SNR_WEAK_SIGNAL_THRESHOLD    (-10.0f)
-#define SNR_WEAK_SIGNAL_CORRECTION   (8.0f)
-
 /* ── Thread-local per-pass stats (AC-IS-4) ──────────────────────────────── */
 static _Thread_local int tls_pass_counts[K_MAX_PASSES];
 static _Thread_local int tls_num_passes = 0;
@@ -353,8 +349,11 @@ int ft8_decode_all(
                 }
                 signal_db = cnt > 0 ? sum / (float)cnt : noise_floor_db;
             }
+            /* SNR relative to 2500 Hz bandwidth (WSJT-X convention).
+             * Bin width = 6.25 Hz → 10*log10(2500/6.25) = 10*log10(400) ≈ 26 dB.
+             * No post-correction is applied (R6 weak-signal correction removed;
+             * see R&R-001 — correction created a slope defect on synthetic signals). */
             float snr = signal_db - noise_floor_db - 26.0f;
-            if (snr < SNR_WEAK_SIGNAL_THRESHOLD) snr -= SNR_WEAK_SIGNAL_CORRECTION;
 
             FT8Result* r = &results[num_decoded++];
             r->freq_hz = (int)roundf(freq_hz);
