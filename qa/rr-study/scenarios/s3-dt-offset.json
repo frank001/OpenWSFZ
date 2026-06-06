@@ -1,0 +1,34 @@
+{
+  "_comment": "S3 DT Offset — Gage R&R for timing offset (DT) response (STUDY-SPEC §6).",
+  "_format_version": "1",
+
+  "id": "S3",
+  "name": "DT offset",
+  "response": "DT (s)",
+  "description": "9 parts × 2 appraisers × 3 trials. (STUDY-SPEC §6 states 10 steps; the notation −2.0,−1.5,…,+2.0 at 0.5 s resolution yields 9 distinct values.) Drives: DT R&R.",
+
+  "message_ids": ["MSG-01"],
+
+  "fixed": {
+    "snr_db": 0,
+    "base_freq_hz": 1500
+  },
+
+  "harness_note": "Negative DT means the transmitter fires before the nominal slot boundary. The harness must schedule playback DT seconds early relative to the slot start; the synthesiser modulate() offset is clamped to 0 for negative values and the timing must be enforced at the playback layer.",
+
+  "parts": [
+    {"part_index": 0, "dt_s": -2.0},
+    {"part_index": 1, "dt_s": -1.5},
+    {"part_index": 2, "dt_s": -1.0},
+    {"part_index": 3, "dt_s": -0.5},
+    {"part_index": 4, "dt_s":  0.0},
+    {"part_index": 5, "dt_s":  0.5},
+    {"part_index": 6, "dt_s":  1.0},
+    {"part_index": 7, "dt_s":  1.5},
+    {"part_index": 8, "dt_s":  2.0}
+  ],
+
+  "trials": 3,
+
+  "seed_formula": "hash('S3', part_index, trial_index)"
+}

@@ -1,0 +1,33 @@
+{
+  "_comment": "S2 Frequency Sweep — Gage R&R for audio frequency response (STUDY-SPEC §6).",
+  "_format_version": "1",
+
+  "id": "S2",
+  "name": "Frequency sweep",
+  "response": "Audio frequency (Hz)",
+  "description": "10 parts × 2 appraisers × 3 trials. Drives: frequency R&R.",
+
+  "message_ids": ["MSG-01"],
+
+  "fixed": {
+    "snr_db": 0,
+    "dt_s": 0.2
+  },
+
+  "parts": [
+    {"part_index": 0, "base_freq_hz":  300},
+    {"part_index": 1, "base_freq_hz":  567},
+    {"part_index": 2, "base_freq_hz":  834},
+    {"part_index": 3, "base_freq_hz": 1101},
+    {"part_index": 4, "base_freq_hz": 1368},
+    {"part_index": 5, "base_freq_hz": 1635},
+    {"part_index": 6, "base_freq_hz": 1902},
+    {"part_index": 7, "base_freq_hz": 2169},
+    {"part_index": 8, "base_freq_hz": 2436},
+    {"part_index": 9, "base_freq_hz": 2700}
+  ],
+
+  "trials": 3,
+
+  "seed_formula": "hash('S2', part_index, trial_index)"
+}
