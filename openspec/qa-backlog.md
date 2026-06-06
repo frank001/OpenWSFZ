@@ -58,3 +58,26 @@ trace.
 
 **Suggested fix:** `ArrayPool<Ft8NativeResult>.Shared.Rent(MaxResults)` with a corresponding
 `Return()` after the slice is extracted, eliminating the per-cycle heap pressure.
+
+---
+
+## N4 — 11 main specs lack a `## Purpose` section (fail `validate --strict`)
+
+**Severity:** Minor
+**Source:** p19/p20 archive (2026-06-05); logged as F-011
+**Files:** `openspec/specs/{audio-capture, audio-device, build-pipeline, ci-quality-gates, daemon-host, decode-control, decode-log, decoder-ground-truth, dependency-licence-policy, file-logging, requirement-traceability}/spec.md`
+
+OpenSpec's current validation requires every spec to carry both a `## Purpose` and a
+`## Requirements` section. Eleven main specs predate that rule and open directly with
+`## Requirements`, so they fail `openspec validate --all --strict` (8 passed, 11 failed as of
+2026-06-05). This is latent debt, not a regression: the four specs touched by the p19/p20 archive
+(`cat-control`, `configuration`, `web-frontend`, `web-server`) were brought into compliance at
+that time, but the remaining eleven were deliberately left untouched to keep the archive in scope.
+
+Because the rule only bites when a spec is rebuilt during `openspec archive`, any future change
+whose delta touches one of these eleven capabilities will abort mid-archive until the Purpose
+section is added — a latent trip-hazard for the next developer.
+
+**Suggested fix:** Add a concise, content-neutral `## Purpose` paragraph above `## Requirements`
+in each of the eleven specs (one short sentence describing the capability), then confirm
+`openspec validate --all --strict` reports 19/19 passing. Doc-only; no behaviour change.
