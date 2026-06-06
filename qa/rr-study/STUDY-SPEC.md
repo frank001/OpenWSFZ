@@ -359,11 +359,33 @@ All design questions have been ruled on by the Captain.
 | Date | SHA | Overall | %GR&R SNR | ndc SNR | OWSFZ Bias | FP rate | Notes |
 |---|---|---|---|---|---|---|---|
 | 2026-06-06 | `46d7f6a` | ❌ FAIL | 44.8% | 1 | −1.96 dB / slope 0.512 | 0.0% | First live run. S1 fails old ±2 dB tolerance (see §7 revision). R&R-001 raised for SNR slope. S2 freq measurement excellent. S3 DT marginal. |
+| 2026-06-06 | `4c34ef6` | ❌ FAIL | 32.0% | 2 | +1.10 dB / slope 0.036 | 0.0% | R&R-003 confirmed: S3 redesign PASS (3.8%, ndc=7). S1 regression: ANOVA contaminated by threshold misses — R&R-005 raised. S7 informational (OpenWSFZ 47.3% vs WSJT-X 78.5%). |
 
-### S1 redesign recommendation (next run)
-Restrict the S1 SNR ladder to levels ≥ −12 dB (where both apps decode reliably) to eliminate
-selection bias from threshold misses.  Add a companion decode-rate study (attribute) covering
-−24 to −15 dB, cleanly separating measurement variance from decode probability.
+### S1 redesign — R&R-005 — **OPEN** (see `RR-005.md`)
+
+The S1 GR&R failure (%GR&R = 32.0%, ndc = 2) is caused by threshold misses at low SNR
+contaminating the two-way ANOVA, not by genuine measurement noise.  Root cause and full
+change specification are in [`RR-005.md`](./RR-005.md).  Summary:
+
+1. **Threshold misses produce imbalanced cells.** At SNR ∈ {−24, −21, −18, −15} dB neither
+   app decodes reliably.  When apps miss different cells the App×Part interaction is inflated
+   with a capability boundary, not measurement noise.  Repeatability collapses to 0.00 (clamped
+   from negative) and all GR&R variance piles into Reproducibility.
+
+2. **Fix: restrict the ladder to SNR ≥ −12 dB.** Replace the 10 parts with 10 levels in the
+   reliable decode range (prescribed design: {−12, −9, …, +15} dB at 3 dB spacing).  Add a
+   companion attribute scenario `S1b` covering {−24, −21, −18, −15} dB that measures *decode
+   rate*, cleanly separating "does it decode?" from "how accurately does it measure SNR?".
+
+**Changes required** (see `RR-005.md` §3 for full specification):
+
+- **`scenarios/s1-snr-ladder.json`** — replace parts; update description.
+- **`scenarios/s1b-snr-threshold.json`** (new) — 4 parts at threshold SNRs; `analysis: "attribute_decode_rate"`.
+- **`harness/analyse.py`** — add `"S1b"` to `DECODE_RATE_SCENARIOS`; add `DECODE_RATE_CONFIG` dict;
+  generalise `_analyse_decode_rate()` and `_decode_rate_report_lines()` to use a configurable
+  part variable and axis label; update dispatch loop and report rendering to handle multiple
+  decode-rate scenarios.
+- **`run_study.py`** — insert S1b into `SCENARIO_FILES` and `SCENARIO_IDS` after S1.
 
 ### S3 redesign — R&R-003 (GitHub #1) — **IMPLEMENTED 2026-06-06**
 
