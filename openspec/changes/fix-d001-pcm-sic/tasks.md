@@ -62,6 +62,6 @@
 
 ## 11. Final integration
 
-- [ ] 11.1 Run full build and test suite one final time on the implementation branch — 0 errors, 0 warnings, all tests pass
-- [ ] 11.2 Push `fix/d001-pcm-sic` branch to `origin`; open PR against `main`
+- [x] 11.1 Run full build and test suite one final time on the implementation branch — 0 errors, 0 warnings, all tests pass
+- [x] 11.2 Push `fix/d001-pcm-sic` branch to `origin`; open PR against `main`
 - [ ] 11.3 Verify CI passes on all three matrix legs (Windows, Linux, macOS)
