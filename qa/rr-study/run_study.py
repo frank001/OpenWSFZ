@@ -24,9 +24,7 @@ _SCENARIOS = _HERE / "scenarios"
 _RESULTS = _HERE / "results"
 
 WSJT_ALL_TXT    = Path(r"C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT")
-OWSFZ_ALL_TXT   = Path(
-    r"D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Daemon\bin\Debug\net10.0\ALL.TXT"
-)
+OWSFZ_ALL_TXT   = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 
 # Scenario JSON files in play order
 SCENARIO_FILES = [
@@ -68,7 +66,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print("=" * 70)
-    print("OpenWSFZ R&R Study — live run")
+    print("OpenWSFZ R&R Study -- live run")
     print("=" * 70)
     print(f"  WSJT-X ALL.TXT  : {WSJT_ALL_TXT}")
     print(f"  OpenWSFZ ALL.TXT: {OWSFZ_ALL_TXT}")
@@ -89,7 +87,7 @@ def main() -> None:
     print(f"\nRun directory: {run_dir.relative_to(_HERE)}")
 
     # ── Step 3: Collect log files ──────────────────────────────────────────
-    print("\nCollecting decode logs …")
+    print("\nCollecting decode logs ...")
     if not WSJT_ALL_TXT.exists():
         sys.exit(
             f"ERROR: WSJT-X ALL.TXT not found at {WSJT_ALL_TXT}\n"
@@ -105,15 +103,15 @@ def main() -> None:
     owsfz_dest = run_dir / "owsfz-all.txt"
     shutil.copy2(WSJT_ALL_TXT,  wsjt_dest)
     shutil.copy2(OWSFZ_ALL_TXT, owsfz_dest)
-    print(f"  Copied WSJT-X  → {wsjt_dest.name}")
-    print(f"  Copied OpenWSFZ→ {owsfz_dest.name}")
+    print(f"  Copied WSJT-X   -> {wsjt_dest.name}")
+    print(f"  Copied OpenWSFZ -> {owsfz_dest.name}")
 
     # Record WSJT-X version
     ver_path = run_dir / "wsjt-version.txt"
     ver_path.write_text("WSJT-X 2.7.0 (inferred from binary date 2025-02-04)", encoding="utf-8")
 
     # ── Step 4: Run matcher for each scenario ──────────────────────────────
-    print("\nRunning matcher …")
+    print("\nRunning matcher ...")
     for scen_id in SCENARIO_IDS:
         _py(
             "harness/matcher.py",
@@ -125,7 +123,7 @@ def main() -> None:
         print(f"  [OK] {scen_id} matched\n", flush=True)
 
     # ── Step 5: Analyse ────────────────────────────────────────────────────
-    print("\nRunning analyser …")
+    print("\nRunning analyser ...")
     _py("harness/analyse.py", "--run-dir", str(run_dir))
 
     print("\n" + "=" * 70)
