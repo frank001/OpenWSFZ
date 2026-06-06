@@ -1,11 +1,11 @@
 {
-  "_comment": "S3 DT Offset — Gage R&R for timing offset (DT) response (STUDY-SPEC §6).",
+  "_comment": "S3 DT Offset — Gage R&R for timing offset (DT) response (STUDY-SPEC §6). Redesigned 2026-06-06 per R&R-003 (GitHub #1): parts restricted to positive DT only; WSJT-X convention offset corrected.",
   "_format_version": "1",
 
   "id": "S3",
   "name": "DT offset",
   "response": "DT (s)",
-  "description": "9 parts × 2 appraisers × 3 trials. (STUDY-SPEC §6 states 10 steps; the notation −2.0,−1.5,…,+2.0 at 0.5 s resolution yields 9 distinct values.) Drives: DT R&R.",
+  "description": "10 parts × 2 appraisers × 3 trials. Parts restricted to DT ≥ 0.0 s (positive sweep) following R&R-003: OpenWSFZ cannot report negative DT offsets (decoder anchors at 0 for early-starting signals), so including negative parts inflated the App×Part interaction with a capability boundary rather than measurement noise. Both apps decode and accurately report DT in the positive range. Companion negative-DT decode-rate study: see s3b-dt-boundary.json. Drives: DT Gage R&R.",
 
   "message_ids": ["MSG-01"],
 
@@ -14,18 +14,20 @@
     "base_freq_hz": 1500
   },
 
-  "harness_note": "Negative DT means the transmitter fires before the nominal slot boundary. The harness must schedule playback DT seconds early relative to the slot start; the synthesiser modulate() offset is clamped to 0 for negative values and the timing must be enforced at the playback layer.",
+  "wsjt_dt_correction_s": 0.55,
+  "_wsjt_dt_correction_note": "WSJT-X defines DT relative to the nominal FT8 TX start (~0.5–1.0 s into the 15 s slot) rather than the UTC slot boundary (harness convention, DT=0 ↔ signal starts at slot boundary). Run aa053a9 showed a systematic WSJT-X offset of ≈ −0.55 s across the full DT range. The analyser adds this value to the WSJT-X reported DT before computing bias/GR&R so the SS_appraiser term reflects genuine app-to-app measurement disagreement, not a calibration convention mismatch. See STUDY-SPEC §16 and R&R-003.",
 
   "parts": [
-    {"part_index": 0, "dt_s": -2.0},
-    {"part_index": 1, "dt_s": -1.5},
-    {"part_index": 2, "dt_s": -1.0},
-    {"part_index": 3, "dt_s": -0.5},
-    {"part_index": 4, "dt_s":  0.0},
-    {"part_index": 5, "dt_s":  0.5},
-    {"part_index": 6, "dt_s":  1.0},
-    {"part_index": 7, "dt_s":  1.5},
-    {"part_index": 8, "dt_s":  2.0}
+    {"part_index": 0, "dt_s":  0.0},
+    {"part_index": 1, "dt_s":  0.3},
+    {"part_index": 2, "dt_s":  0.6},
+    {"part_index": 3, "dt_s":  0.9},
+    {"part_index": 4, "dt_s":  1.2},
+    {"part_index": 5, "dt_s":  1.5},
+    {"part_index": 6, "dt_s":  1.8},
+    {"part_index": 7, "dt_s":  2.1},
+    {"part_index": 8, "dt_s":  2.4},
+    {"part_index": 9, "dt_s":  2.7}
   ],
 
   "trials": 3,

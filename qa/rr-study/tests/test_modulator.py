@@ -68,3 +68,22 @@ def test_instantaneous_frequency_non_zero_tone():
     crossings = np.sum((mid[:-1] < 0) & (mid[1:] >= 0))
     est_freq = crossings / (len(mid) / fs)
     assert abs(est_freq - expected_freq) < TONE_SPACING_HZ  # within one tone bin
+
+
+def test_negative_dt_is_clamped_to_zero():
+    """Negative dt_s must render identically to dt_s=0 (harness_note contract for S3b).
+
+    NOTE: when D-001 (true negative-DT playback) is implemented, this test must be
+    removed or updated, because the clamping behaviour will intentionally change.
+    At that point D-001 and D-003 are resolved together.
+    """
+    tones = [0] * NUM_SYMBOLS
+    for start in (0, 36, 72):
+        tones[start:start + 7] = [3, 1, 4, 0, 6, 5, 2]
+
+    at_zero = modulator.modulate(tones, base_freq_hz=1500.0, dt_s=0.0)
+    at_neg  = modulator.modulate(tones, base_freq_hz=1500.0, dt_s=-1.5)
+
+    assert np.array_equal(at_zero, at_neg), (
+        "Negative dt_s must be clamped to 0 — S3b harness_note relies on this contract."
+    )
