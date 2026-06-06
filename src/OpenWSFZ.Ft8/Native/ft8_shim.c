@@ -328,6 +328,12 @@ int ft8_decode_all(
             float dt      = (cand->time_offset +
                              (float)cand->time_sub / mon.wf.time_osr) * mon.symbol_period;
 
+            /* Obtain the transmitted tone sequence for this decoded message.
+             * ft8_encode is O(79) and deterministic; calling it here keeps the
+             * SNR block self-contained (D2: independent of suppress_candidate_tiles). */
+            uint8_t tones[FT8_NN];
+            ft8_encode(msg.payload, tones);
+
             float signal_db;
             {
                 float sum = 0.0f; int cnt = 0;
@@ -336,15 +342,14 @@ int ft8_decode_all(
                 int nb = mon.wf.num_bins;
                 int b0 = (int)cand->time_offset; if (b0 < 0) b0 = 0;
                 int b1 = b0 + FT8_NN; if (b1 > mon.wf.num_blocks) b1 = mon.wf.num_blocks;
+                /* fi positions the row pointer at tone 0 of the candidate's
+                 * time/freq sub-block; row[tones[b-b0]] then selects the active
+                 * tone bin (0-7) for that symbol (D3, D4). */
                 int fi = (int)cand->time_sub * pt + (int)cand->freq_sub * nb +
                          (int)cand->freq_offset;
                 for (int b = b0; b < b1; b++) {
                     const WF_ELEM_T* row = mon.wf.mag + b * bs + fi;
-                    float mx = (float)row[0] * 0.5f - 120.0f;
-                    for (int f = 1; f < 8 && (int)cand->freq_offset + f < nb; f++) {
-                        float v = (float)row[f] * 0.5f - 120.0f;
-                        if (v > mx) mx = v;
-                    }
+                    float mx = (float)row[tones[b - b0]] * 0.5f - 120.0f;
                     sum += mx; cnt++;
                 }
                 signal_db = cnt > 0 ? sum / (float)cnt : noise_floor_db;
