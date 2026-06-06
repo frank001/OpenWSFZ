@@ -26,8 +26,10 @@ internal static class Ft8LibInterop
     /// <summary>
     /// The compile-time version constant embedded in the shim (<c>FT8_SHIM_VERSION</c>).
     /// Must match the value returned by <c>ft8_lib_version_check()</c>.
+    /// History: 20240001 (single-pass), 20260001 (p15 iterative subtraction),
+    /// 20260002 (R6 weak-signal correction removed — R&amp;R-001 linearity fix).
     /// </summary>
-    private const int ExpectedShimVersion = 20260001;
+    private const int ExpectedShimVersion = 20260002;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
