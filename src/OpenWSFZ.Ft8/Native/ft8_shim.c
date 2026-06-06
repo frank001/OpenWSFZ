@@ -83,9 +83,6 @@ char* stpcpy(char* dest, const char* src)
 /* FT8 tone spacing in Hz (symbol rate = 6.25 Hz) */
 #define FT8_TONE_SPACING_HZ  6.25
 
-/* FT8 number of tones in the alphabet */
-#define FT8_NUM_TONES        8
-
 #define K_MIN_SCORE       10
 #define K_MAX_CANDIDATES  140
 #define K_LDPC_ITERATIONS 25
@@ -369,10 +366,23 @@ static void synthesise_cp_fsk(
     float           amplitude,
     int             sample_rate)
 {
-    int t_start = (int)roundf(dt_s * (float)sample_rate);
-    if (t_start < 0) t_start = 0;
+    int t_start_raw = (int)roundf(dt_s * (float)sample_rate);
+    int t_start     = (t_start_raw > 0) ? t_start_raw : 0;
 
     double phase = 0.0; /* continuous-phase accumulator (double precision) */
+
+    /* If the frame started before the buffer, advance the phase accumulator
+     * past the skipped pre-buffer samples so the replica at buffer sample 0
+     * has the correct phase.  Using the first symbol's frequency (tones[0])
+     * for the pre-advancement.  fmod keeps the phase in [0, 2π) and avoids
+     * double-precision accumulation error over potentially thousands of
+     * skipped samples. */
+    if (t_start_raw < 0) {
+        int    skipped = -t_start_raw;
+        double f0      = (double)carrier_hz + (double)tones[0] * FT8_TONE_SPACING_HZ;
+        double step0   = 2.0 * M_PI * f0 / (double)sample_rate;
+        phase = fmod(step0 * (double)skipped, 2.0 * M_PI);
+    }
 
     for (int sym = 0; sym < n_symbols; sym++)
     {
@@ -382,7 +392,7 @@ static void synthesise_cp_fsk(
         for (int n = 0; n < FT8_SAMPLES_PER_SYMBOL; n++)
         {
             int idx = t_start + sym * FT8_SAMPLES_PER_SYMBOL + n;
-            if (idx >= 0 && idx < buf_len)
+            if (idx < buf_len) /* t_start >= 0 guarantees idx >= 0 */
                 out_buf[idx] -= amplitude * (float)cos(phase);
 
             phase += phase_step; /* advance phase AFTER sample output */
@@ -462,7 +472,6 @@ int ft8_decode_all(
 
     /* ── 4. Cross-pass dedup state ───────────────────────────────────────── */
     int            num_decoded  = 0;
-    int            pass0_count  = 0; /* results count after pass 0 completes */
     ftx_message_t  decoded_msgs[K_MAX_DECODED];
     ftx_message_t* decoded_ht[K_MAX_DECODED];
     memset(decoded_ht, 0, sizeof(decoded_ht));
@@ -495,6 +504,21 @@ int ft8_decode_all(
 
     for (int pass = 0; pass < K_MAX_PASSES; pass++)
     {
+        /* ── Early-exit: skip everything if result buffer is already full ── */
+        /* Hoisted before PCM subtraction to avoid a wasted 720 KB memcpy +  */
+        /* replica synthesis + waterfall rebuild when the buffer is saturated.*/
+        if (num_decoded >= max_results) {
+            tls_pass_counts[pass] = 0;
+            tls_num_passes        = pass + 1;
+            /* Spectrogram suppression must still run before pass 2 */
+            if (pass == 1) {
+                for (int i = 0; i < n_all_supp; i++)
+                    suppress_candidate_tiles(&mon.wf, &all_supp_cands[i],
+                                             &all_supp_msgs[i], noise_raw);
+            }
+            continue;
+        }
+
         /* ── PCM subtraction: execute before pass 1 ─────────────────────── */
         if (pass == 1)
         {
@@ -545,20 +569,6 @@ int ft8_decode_all(
             }
             /* else: pass 0 decoded nothing; skip PCM subtraction entirely.
              * Pass 1 runs on the same (original) waterfall.               */
-        }
-
-        /* ── Skip pass if result buffer already full ─────────────────────── */
-        if (num_decoded >= max_results) {
-            tls_pass_counts[pass] = 0;
-            tls_num_passes        = pass + 1;
-
-            /* Spectrogram suppression still needed before pass 2 */
-            if (pass == 1) {
-                for (int i = 0; i < n_all_supp; i++)
-                    suppress_candidate_tiles(&mon.wf, &all_supp_cands[i],
-                                             &all_supp_msgs[i], noise_raw);
-            }
-            continue;
         }
 
         int pass_min_score = k_pass_cfg[pass].min_score;
@@ -658,9 +668,6 @@ int ft8_decode_all(
         tls_pass_counts[pass] = new_decodes;
         tls_num_passes        = pass + 1;
 
-        if (pass == 0)
-            pass0_count = num_decoded; /* snapshot: how many came from pass 0 */
-
         /* ── Spectrogram suppression: execute before pass 2 ─────────────── */
         if (pass == 1)
         {
@@ -673,7 +680,6 @@ int ft8_decode_all(
     }
 
     /* ── 6. Cleanup ──────────────────────────────────────────────────────── */
-    (void)pass0_count; /* used implicitly for snapshot only; suppress unused warning */
     tls_hash_table = NULL;
     monitor_free(&mon);
 

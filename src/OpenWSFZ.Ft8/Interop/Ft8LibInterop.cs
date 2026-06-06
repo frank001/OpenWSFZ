@@ -35,11 +35,11 @@ internal static class Ft8LibInterop
     /// <summary>
     /// Maximum number of decoded messages per three-pass decode cycle.
     /// Sized to the three-pass output capacity: K_MAX_CANDIDATES (pass 0, 140)
-    /// + K_MAX_CANDIDATES_PASS2 (pass 1, 200) + K_MAX_CANDIDATES (pass 2, 140) = 480.
+    /// + K_MAX_CANDIDATES_PASS2 (pass 1, 200) + K_MAX_CANDIDATES_PASS2 (pass 2, 200) = 540.
     /// The <c>results[..count]</c> slice in <see cref="DecodeAll"/> returns only the
     /// populated portion.
     /// </summary>
-    private const int MaxResults = 480;  // 140 + 200 + 140 (three-pass capacity)
+    private const int MaxResults = 540;  // 140 + 200 + 200 (three-pass capacity)
 
     /// <summary>
     /// Number of decode passes executed by the native shim per cycle.
