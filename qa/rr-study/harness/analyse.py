@@ -48,7 +48,7 @@ RESPONSE_VAR = {
 
 # Tolerance half-widths (STUDY-SPEC §10)
 TOLERANCE_HALF = {
-    "S1": 2.0,   # ±2 dB
+    "S1": 5.0,   # ±5 dB  (revised 2026-06-06, STUDY-SPEC §7)
     "S2": 4.0,   # ±4 Hz
     "S3": 0.2,   # ±0.2 s
 }
