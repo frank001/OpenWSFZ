@@ -163,12 +163,18 @@ def _match_appraiser(
             true_freq_str = truth["true_freq_hz"]
             # For S4/S5, freq and message matching behaves differently
             if not true_freq_str:
-                # S4 or S5 — just check any message match within the slot
-                if _text_matches(cand.message, truth_msg):
-                    consumed.add((cycle_dt, idx))
-                    output_rows.append(_matched_row(truth, appraiser, scenario_id, cand))
-                    match_found = True
-                    break
+                if truth_msg == "":
+                    # S5: signal-free slot — nothing is expected; no match possible
+                    pass
+                else:
+                    # S4: truth_msg is a "; "-joined pool of individual messages.
+                    # A candidate matches if its decoded text equals any one pool entry.
+                    pool_msgs = [m.strip() for m in truth_msg.split(";")]
+                    if any(_text_matches(cand.message, m) for m in pool_msgs):
+                        consumed.add((cycle_dt, idx))
+                        output_rows.append(_matched_row(truth, appraiser, scenario_id, cand))
+                        match_found = True
+                        break
             else:
                 true_freq = float(true_freq_str)
                 if _text_matches(cand.message, truth_msg) and _freq_matches(cand.freq_hz, true_freq):

@@ -551,21 +551,22 @@ def _compute_kappa(df_matched: pd.DataFrame, scenario_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def _fp_rate(df_matched: pd.DataFrame) -> dict[str, float]:
-    """Compute false-positive rate per appraiser for S5."""
+    """Compute false-positive rate per appraiser for S5.
+
+    Denominator is the number of signal-free cycles (truth rows), not the
+    total row count. FP rows from Pass 2 are the numerator.
+    """
     results: dict[str, float] = {}
-    # Total signal-free cycles = total rows (all are signal-free)
-    total_cycles_df = df_matched[df_matched["false_positive"] == False]
-    # Actually for S5 there are no truth rows with signals — every injected row IS signal-free.
-    # FP = rows where false_positive=True; denominator = all app-log rows (FP + non-FP app rows)
     for appr in APPRAISERS:
         sub = df_matched[df_matched["appraiser"] == appr]
         n_fp = int((sub["false_positive"] == True).sum())
-        n_total = len(sub)
-        if n_total == 0:
-            print(f"WARNING: S5 — zero app-log rows for {appr}; FP rate undefined", file=sys.stderr)
+        n_cycles = int((sub["false_positive"] == False).sum())
+        if n_cycles == 0:
+            print(f"WARNING: S5 — zero signal-free cycles for {appr}; FP rate undefined",
+                  file=sys.stderr)
             results[appr] = float("nan")
         else:
-            results[appr] = 100.0 * n_fp / n_total
+            results[appr] = 100.0 * n_fp / n_cycles
     return results
 
 
@@ -578,7 +579,7 @@ def _collect_verdicts(
     kappa_results: dict[str, dict],
     fp_results: dict[str, float],
     bias_results: dict[str, dict],
-) -> tuple[list[tuple[str, str, float | str, str]], str]:
+) -> tuple[list[tuple[str, str, float | str, str]], str, list[str]]:
     """Collect all metric verdicts and return (rows, overall_verdict)."""
     verdict_rows: list[tuple[str, str, float | str, str]] = []
     # (metric_name, scenario/appraiser, value, verdict)
@@ -940,9 +941,6 @@ def main() -> None:
     _append_trend(_QA_ROOT, run_dir, git_sha, continuous_results,
                   kappa_results, fp_results, bias_results)
     print(f"Trend row appended: {_QA_ROOT / 'trend.csv'}")
-
-    # --- Append trend row ---
-    # (already done above)
 
 
 if __name__ == "__main__":

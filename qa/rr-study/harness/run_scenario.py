@@ -7,15 +7,8 @@ Reads a scenario JSON file, renders each (part × trial) signal via the clean-ro
 FT8 synthesiser, plays the PCM into an audio output device aligned to the FT8
 15-second UTC cycle boundary, and writes injected-truth metadata to truth.csv in
 the versioned run directory.
-
-PYTHONHASHSEED must be '0' for seed reproducibility — this script sets it in
-os.environ before importing any module that calls hash().
 """
 from __future__ import annotations
-
-# Set PYTHONHASHSEED=0 FIRST so that compute_seed() is stable across sessions.
-import os
-os.environ.setdefault("PYTHONHASHSEED", "0")
 
 import argparse
 import csv
@@ -336,10 +329,11 @@ def _run(args: argparse.Namespace) -> None:
                 cycle_utc = _wait_for_cycle(boundary_ts)
             cycle_utc_str = cycle_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+            snr_str = f"SNR={true_snr_db} dB" if true_snr_db != "" else "SNR=N/A"
             status_prefix = (
                 f"[{scenario_id}] Part {part_index + 1}/{len(parts)}  "
                 f"Trial {trial_index + 1}/{n_trials}  "
-                f"SNR={true_snr_db} dB  seed={seed}  cycle={cycle_utc_str}"
+                f"{snr_str}  seed={seed}  cycle={cycle_utc_str}"
             )
             print(f"{status_prefix} …", end=" ", flush=True)
 

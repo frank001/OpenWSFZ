@@ -1,13 +1,14 @@
 """Shared utilities for the R&R study harness.
 
 Provides:
-  - compute_seed()    — deterministic trial seed (PYTHONHASHSEED=0 required)
+  - compute_seed()    — deterministic trial seed
   - normalise_slot()  — floor a datetime to its FT8 15-second cycle boundary
   - make_run_dir()    — resolve / create the versioned results directory
   - parse_all_txt()   — parse an ALL.TXT decode log into records + skipped count
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import subprocess
@@ -22,13 +23,11 @@ from typing import NamedTuple
 def compute_seed(scenario_id: str, part_index: int, trial_index: int) -> int:
     """Return the deterministic seed for a given (scenario, part, trial) triple.
 
-    PYTHONHASHSEED MUST be '0' in the calling process environment before the
-    first call so that Python's built-in hash() is stable across sessions.
-    The caller (run_scenario.py) sets this via os.environ.setdefault() before
-    importing this module.
+    Uses SHA-256 so the result is stable across Python sessions regardless of
+    PYTHONHASHSEED. The 2**31 modulus keeps seeds in numpy's default int32 range.
     """
-    raw = hash(f"{scenario_id},{part_index},{trial_index}")
-    return abs(raw) % (2 ** 31)
+    key = f"{scenario_id},{part_index},{trial_index}".encode("utf-8")
+    return int(hashlib.sha256(key).hexdigest(), 16) % (2 ** 31)
 
 
 # ---------------------------------------------------------------------------
