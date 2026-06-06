@@ -69,25 +69,25 @@ log files. Signals are synthesised by an independent clean-room FT8 encoder (tex
 → PCM) so that truth is exactly known for every trial. Each trial draws a fresh seeded
 noise realisation, giving non-zero repeatability variance.
 
-### Latest published results — run [`4c34ef6`](qa/rr-study/results/2026-06-06-4c34ef6/report.md)
+### Latest published results — run [`6bab388`](qa/rr-study/results/2026-06-06-6bab388/report.md)
 
 | Scenario | Metric | Value | Verdict |
 |---|---|---|---|
-| S1 SNR | %GR&R | 32.0% | ❌ FAIL |
-| S1 SNR | ndc | 2 | ⚠️ MARGINAL |
-| S1 SNR | OpenWSFZ bias | +1.10 dB | ✅ PASS |
+| S1 SNR | %GR&R | 6.5% | ✅ PASS |
+| S1 SNR | ndc | 5 | ✅ PASS |
+| S1 SNR | OpenWSFZ bias | +1.67 dB | ✅ PASS |
+| S1b Low-SNR threshold | Decode rate (both apps) | 0% @ −24/−21 dB, 67% @ −18 dB, 100% @ −15 dB | ℹ️ Informational |
 | S2 Frequency | %GR&R | 0.0% | ✅ PASS |
-| S2 Frequency | ndc | 1 536 | ✅ PASS |
-| S3 DT | %GR&R | 3.8% | ✅ PASS |
+| S2 Frequency | ndc | 1 470 | ✅ PASS |
+| S3 DT | %GR&R | 3.9% | ✅ PASS |
 | S3 DT | ndc | 7 | ✅ PASS |
 | S4/S5 Detection | κ (OpenWSFZ vs truth) | 1.000 | ✅ PASS |
 | S5 False positives | FP rate (OpenWSFZ) | 0.0% | ✅ PASS |
-| S7 Co-channel | Overall recovery | 47.3% vs WSJT-X 78.5% | ℹ️ Informational |
+| S7 Co-channel | Overall recovery | 46.2% vs WSJT-X 77.4% | ℹ️ Informational |
 
-**Overall: FAIL** — S1 %GR&R (32%) exceeds the 10% threshold.  Root cause: ANOVA
-contaminated by threshold-miss imbalance at low SNR levels; the S1 ladder has been
-redesigned to stay above −12 dB (R&R-005).  S7 co-channel gap is noted; no product
-defect raised pending Captain decision.
+**Overall: PASS** — first clean pass of the full suite.  S1 redesign (R&R-005) resolved
+the ANOVA contamination: %GR&R dropped from 32.0% to 6.5%, ndc from 2 to 5.  S7
+co-channel gap is informational; no product defect raised pending Captain decision.
 
 See [`qa/rr-study/STUDY-SPEC.md`](qa/rr-study/STUDY-SPEC.md) for the full study design
 and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedure.
