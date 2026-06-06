@@ -92,14 +92,30 @@ def make_run_dir(results_root: Path) -> Path:
 # ALL.TXT line parser
 # ---------------------------------------------------------------------------
 
-# Format: YYYYMMDD_HHMMSS   UTC  <freq_hz>  <dt_s>  <snr_db>  <mode>  <message>
-# Two or more spaces separate fields; freq_hz is in Hz (integer), dt_s and
-# snr_db are decimals.
-_ALL_TXT_RE = re.compile(
+# Two ALL.TXT line formats are supported:
+#
+# Format A — test-fixture / synthetic (YYYYMMDD 8-digit date, UTC keyword,
+#             audio-freq-Hz first, then dt, then snr):
+#   20260606_123500   UTC  1502  0.2  -12  FT8  CQ Q1ABC FN42
+#
+# Format B — real WSJT-X / OpenWSFZ (YYMMDD 6-digit date, dial-MHz, Rx keyword,
+#             mode, then snr, then dt, then audio-freq-Hz):
+#   260606_102100     7.074 Rx FT8    -20 -0.3 1500 CQ Q1ABC FN42
+#
+# Both formats end with FT8 mode and the decoded message.
+
+# Format A: 8-digit date, "UTC", freqHz int, dt float, snr int, mode, message
+_ALL_TXT_RE_A = re.compile(
     r"^(\d{8}_\d{6})\s{2,}UTC\s{2,}(\d+)\s+([-\d.]+)\s+([-\d]+)\s+(\w+)\s+(.+?)\s*$"
 )
+_TIMESTAMP_FMT_A = "%Y%m%d_%H%M%S"
 
-_TIMESTAMP_FMT = "%Y%m%d_%H%M%S"
+# Format B: 6-digit date, dial-MHz float, "Rx", mode, snr int, dt float,
+#           audioFreqHz int, message
+_ALL_TXT_RE_B = re.compile(
+    r"^(\d{6}_\d{6})\s+([\d.]+)\s+Rx\s+(FT8)\s+([-\d]+)\s+([-\d.]+)\s+(\d+)\s+(.+?)\s*$"
+)
+_TIMESTAMP_FMT_B = "%y%m%d_%H%M%S"
 
 
 class AllTxtRecord(NamedTuple):
@@ -110,11 +126,54 @@ class AllTxtRecord(NamedTuple):
     message: str
 
 
+def _parse_line(line: str) -> "AllTxtRecord | None":
+    """Try to parse one ALL.TXT line in Format A or B.  Returns None on failure."""
+    # --- Format A ---
+    m = _ALL_TXT_RE_A.match(line)
+    if m:
+        ts_str, freq_str, dt_str, snr_str, mode, message = m.groups()
+        if mode.upper() != "FT8":
+            return None
+        try:
+            dt_naive = datetime.strptime(ts_str, _TIMESTAMP_FMT_A)
+            dt_utc = dt_naive.replace(tzinfo=timezone.utc)
+            return AllTxtRecord(
+                utc=normalise_slot(dt_utc),
+                freq_hz=float(freq_str),
+                dt_s=float(dt_str),
+                snr_db=float(snr_str),
+                message=" ".join(message.split()),
+            )
+        except (ValueError, OverflowError):
+            return None
+
+    # --- Format B ---
+    m = _ALL_TXT_RE_B.match(line)
+    if m:
+        ts_str, _dial_mhz, mode, snr_str, dt_str, freq_str, message = m.groups()
+        # mode is always FT8 (captured by the literal in the regex)
+        try:
+            dt_naive = datetime.strptime(ts_str, _TIMESTAMP_FMT_B)
+            dt_utc = dt_naive.replace(tzinfo=timezone.utc)
+            return AllTxtRecord(
+                utc=normalise_slot(dt_utc),
+                freq_hz=float(freq_str),
+                dt_s=float(dt_str),
+                snr_db=float(snr_str),
+                message=" ".join(message.split()),
+            )
+        except (ValueError, OverflowError):
+            return None
+
+    return None
+
+
 def parse_all_txt(path: Path) -> tuple[list[AllTxtRecord], int]:
     """Parse an ALL.TXT decode log, returning (records, skipped_line_count).
 
-    Only FT8 lines are returned. Lines that do not match the expected format
-    or whose mode is not FT8 (case-insensitive) are counted as skipped.
+    Supports both Format A (test-fixture/synthetic, 8-digit YYYYMMDD date with
+    UTC keyword) and Format B (real WSJT-X / OpenWSFZ, 6-digit YYMMDD date with
+    dial-MHz and Rx keyword).  Only FT8 lines are returned.
     """
     records: list[AllTxtRecord] = []
     skipped = 0
@@ -125,27 +184,10 @@ def parse_all_txt(path: Path) -> tuple[list[AllTxtRecord], int]:
             if not line.strip():
                 skipped += 1
                 continue
-            m = _ALL_TXT_RE.match(line)
-            if m is None:
+            rec = _parse_line(line)
+            if rec is None:
                 skipped += 1
-                continue
-            ts_str, freq_str, dt_str, snr_str, mode, message = m.groups()
-            if mode.upper() != "FT8":
-                skipped += 1
-                continue
-            try:
-                dt_naive = datetime.strptime(ts_str, _TIMESTAMP_FMT)
-                dt_utc = dt_naive.replace(tzinfo=timezone.utc)
-                slot = normalise_slot(dt_utc)
-                records.append(AllTxtRecord(
-                    utc=slot,
-                    freq_hz=float(freq_str),
-                    dt_s=float(dt_str),
-                    snr_db=float(snr_str),
-                    message=" ".join(message.split()),  # whitespace-normalise
-                ))
-            except (ValueError, OverflowError):
-                skipped += 1
-                continue
+            else:
+                records.append(rec)
 
     return records, skipped

@@ -553,14 +553,34 @@ def _compute_kappa(df_matched: pd.DataFrame, scenario_id: str) -> dict:
 def _fp_rate(df_matched: pd.DataFrame) -> dict[str, float]:
     """Compute false-positive rate per appraiser for S5.
 
-    Denominator is the number of signal-free cycles (truth rows), not the
-    total row count. FP rows from Pass 2 are the numerator.
+    Because all scenarios share a single ALL.TXT log file, the matcher's
+    Pass-2 step assigns every decode from S1–S4 cycles as a false-positive
+    relative to S5 (since those cycles have no S5 truth row).  To avoid
+    inflating the FP rate we scope the FP count to only those cycles that
+    actually overlap with the S5 injection window — i.e. cycles whose
+    cycle_utc appears in at least one S5 truth row.
+
+    Denominator: number of signal-free S5 truth rows (expected = 0 decodes).
+    Numerator: FP decodes whose cycle_utc falls within the S5 window.
     """
     results: dict[str, float] = {}
+
+    # Identify the set of cycle_utc slots that S5 actually injected into.
+    s5_truth_rows = df_matched[df_matched["false_positive"] == False]
+    s5_cycles: set = set(s5_truth_rows["cycle_utc"].dropna().unique())
+
     for appr in APPRAISERS:
         sub = df_matched[df_matched["appraiser"] == appr]
-        n_fp = int((sub["false_positive"] == True).sum())
-        n_cycles = int((sub["false_positive"] == False).sum())
+        truth_sub = sub[sub["false_positive"] == False]
+        fp_sub = sub[sub["false_positive"] == True]
+
+        n_cycles = int(len(truth_sub))
+        # Count only FPs whose cycle_utc is within the S5 injection window
+        if s5_cycles:
+            n_fp = int(fp_sub["cycle_utc"].isin(s5_cycles).sum())
+        else:
+            n_fp = int(len(fp_sub))
+
         if n_cycles == 0:
             print(f"WARNING: S5 — zero signal-free cycles for {appr}; FP rate undefined",
                   file=sys.stderr)
@@ -933,7 +953,7 @@ def main() -> None:
     print(f"Overall verdict: {overall}")
 
     if fails:
-        print("\n⚠  DEFECT NOTICES:")
+        print("\n[!] DEFECT NOTICES:")
         for f in fails:
             print(f"  FAIL — {f}")
 
