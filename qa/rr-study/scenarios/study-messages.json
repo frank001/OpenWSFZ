@@ -1,0 +1,67 @@
+{
+  "_comment": "Canonical FT8 message set for the OpenWSFZ R&R study (STUDY-SPEC §6).",
+  "_format_version": "1",
+
+  "messages": [
+    {
+      "id": "MSG-01",
+      "text": "CQ Q1ABC FN42",
+      "used_in": ["S1", "S2", "S3", "S4"],
+      "note": "Primary study message — all continuous R&R scenarios."
+    },
+    {
+      "id": "MSG-02",
+      "text": "Q4XYZ Q1ABC -07",
+      "used_in": ["S4"],
+      "note": "S4 density pool — reply with negative report."
+    },
+    {
+      "id": "MSG-03",
+      "text": "Q3PQR Q1ABC RR73",
+      "used_in": ["S4"],
+      "note": "S4 density pool — RR73 special token."
+    },
+    {
+      "id": "MSG-04",
+      "text": "Q1ABC Q4XYZ FN42",
+      "used_in": ["S4"],
+      "note": "S4 density pool — grid reply."
+    },
+    {
+      "id": "MSG-05",
+      "text": "Q5DEF Q1ABC +03",
+      "used_in": ["S4"],
+      "note": "S4 density pool — positive report."
+    },
+    {
+      "id": "MSG-06",
+      "text": "Q1DEF Q1ABC DM79",
+      "used_in": ["S4"],
+      "note": "S4 density pool — European call, DM grid."
+    },
+    {
+      "id": "MSG-07",
+      "text": "Q1ABC Q5DEF 73",
+      "used_in": ["S4"],
+      "note": "S4 density pool — 73 sign-off token."
+    },
+    {
+      "id": "MSG-08",
+      "text": "Q4XYZ Q3PQR -15",
+      "used_in": ["S4"],
+      "note": "S4 density pool — weak report between two non-primary callsigns."
+    },
+    {
+      "id": "MSG-09",
+      "text": "Q1JKL Q1ABC PM85",
+      "used_in": ["S4"],
+      "note": "S4 density pool — Japanese call, PM grid."
+    },
+    {
+      "id": "MSG-10",
+      "text": "Q1ABC Q1DEF -05",
+      "used_in": ["S4"],
+      "note": "S4 density pool — reply to European station."
+    }
+  ]
+}

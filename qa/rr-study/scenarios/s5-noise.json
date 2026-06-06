@@ -1,0 +1,48 @@
+{
+  "_comment": "S5 Noise / Birdies — False-positive rate study (STUDY-SPEC §6).",
+  "_format_version": "1",
+
+  "id": "S5",
+  "name": "Noise / birdies",
+  "response": "False-positive decoded / not-decoded (attribute)",
+  "description": "Signal-free cycles. 3 trials per noise type. Drives: false-positive rate and between-appraiser agreement on false positives.",
+
+  "message_ids": [],
+
+  "harness_note": "No FT8 signal is synthesised. Each part renders a 15 s audio buffer containing only the specified interference. Any decode reported by either appraiser is a false positive.",
+
+  "parts": [
+    {
+      "part_index": 0,
+      "noise_type": "awgn",
+      "level_dbfs": -20,
+      "note": "White (AWGN) noise at a moderate level — channel.py add_noise with no signal."
+    },
+    {
+      "part_index": 1,
+      "noise_type": "awgn",
+      "level_dbfs": -10,
+      "note": "White (AWGN) noise at a higher level (hotter band)."
+    },
+    {
+      "part_index": 2,
+      "noise_type": "steady_carrier",
+      "carrier_freq_hz": 1500,
+      "level_dbfs": -20,
+      "note": "Single steady CW carrier at the FT8 passband centre."
+    },
+    {
+      "part_index": 3,
+      "noise_type": "multi_carrier",
+      "carrier_freqs_hz": [400, 800, 1200, 1600, 2000, 2400],
+      "level_dbfs": -20,
+      "note": "Multiple steady carriers ('birdies') spread across the FT8 passband."
+    }
+  ],
+
+  "trials": 3,
+
+  "seed_formula": "hash('S5', part_index, trial_index)",
+
+  "channel_note": "Pink noise and swept carriers are deferred — channel.py currently implements AWGN only. Extend channel.py before running S5 parts 0–1 vs 2–3 if pink/swept variants are added."
+}
