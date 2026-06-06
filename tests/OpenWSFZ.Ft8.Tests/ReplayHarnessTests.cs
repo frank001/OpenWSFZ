@@ -193,12 +193,30 @@ public sealed class ReplayHarnessTests
         string findings = sb.ToString();
 
         // ── Write findings.md ─────────────────────────────────────────────────
+        // Only write when the data content has changed.  The Date: line is
+        // excluded from the comparison so that a re-run with identical numbers
+        // does not dirty the working tree with a pure timestamp update.
         try
         {
             string? dir = Path.GetDirectoryName(FindingsPath);
             if (dir is not null) Directory.CreateDirectory(dir);
-            File.WriteAllText(FindingsPath, findings, Encoding.UTF8);
-            _out.WriteLine($"\nFindings written to: {FindingsPath}");
+
+            bool shouldWrite = true;
+            if (File.Exists(FindingsPath))
+            {
+                string existing = File.ReadAllText(FindingsPath, Encoding.UTF8);
+                if (StripDateLine(existing) == StripDateLine(findings))
+                {
+                    shouldWrite = false;
+                    _out.WriteLine($"\nFindings unchanged — {FindingsPath} not rewritten.");
+                }
+            }
+
+            if (shouldWrite)
+            {
+                File.WriteAllText(FindingsPath, findings, Encoding.UTF8);
+                _out.WriteLine($"\nFindings written to: {FindingsPath}");
+            }
         }
         catch (Exception ex)
         {
@@ -226,6 +244,17 @@ public sealed class ReplayHarnessTests
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns <paramref name="markdown"/> with the <c>**Date:**</c> line
+    /// removed, so that two findings documents can be compared for data
+    /// equivalence without being sensitive to the run timestamp.
+    /// </summary>
+    private static string StripDateLine(string markdown) =>
+        string.Join('\n', markdown
+            .Replace("\r\n", "\n")
+            .Split('\n')
+            .Where(line => !line.StartsWith("**Date:**", StringComparison.Ordinal)));
 
     /// <summary>
     /// Parses a timestamp like <c>"260528_235745"</c> into a UTC
