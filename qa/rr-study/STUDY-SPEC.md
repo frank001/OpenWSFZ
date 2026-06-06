@@ -145,7 +145,8 @@ Continuous studies use one response variable each (clean separation). All use
 
 | ID | Drives | Parts (10 unless noted) | Trials | Output |
 |---|---|---|---|---|
-| **S1 SNR ladder** | SNR R&R + Bias/Linearity | true SNR ∈ {−24,−21,−18,−15,−12,−9,−6,−3,0,+3} dB; fixed freq=1500 Hz, DT=0.2 s, one message | 3 | SNR Gage R&R; SNR bias & linearity |
+| **S1 SNR ladder** | SNR R&R + Bias/Linearity | true SNR ∈ {−12,−9,−6,−3,0,+3,+6,+9,+12,+15} dB; fixed freq=1500 Hz, DT=0.2 s, one message (redesigned R&R-005, 2026-06-06) | 3 | SNR Gage R&R; SNR bias & linearity |
+| **S1b Low-SNR threshold** | Decode rate | {−24, −21, −18, −15} dB; fixed freq=1500 Hz, DT=0.2 s (4 parts; companion to S1) | 3 | Per-SNR decode rate per appraiser; informational |
 | **S2 Frequency sweep** | Frequency R&R | audio freq ∈ {300,567,834,…,2700} Hz; fixed SNR=0 dB | 3 | Frequency Gage R&R |
 | **S3 DT offset** | DT R&R | DT ∈ {0.0,+0.3,…,+2.7} s (10 steps, positive only — redesigned 2026-06-06 per R&R-003); fixed SNR=0 dB; WSJT-X DT corrected +0.55 s (convention offset) | 3 | DT Gage R&R |
 | **S3b Negative-DT boundary** | Decode rate vs DT < 0 | DT ∈ {0.0,−0.3,…,−2.7} s (10 steps, negative sweep); fixed SNR=0 dB (companion to S3; attribute, not GR&R) | 3 | Per-DT decode rate per appraiser; informational |
@@ -356,36 +357,40 @@ All design questions have been ruled on by the Captain.
 
 ## 16. Study run history
 
-| Date | SHA | Overall | %GR&R SNR | ndc SNR | OWSFZ Bias | FP rate | Notes |
+| Date | SHA | S1 verdict | S1 %GR&R | S1 ndc | S1 bias | S1b | Notes |
 |---|---|---|---|---|---|---|---|
-| 2026-06-06 | `46d7f6a` | ❌ FAIL | 44.8% | 1 | −1.96 dB / slope 0.512 | 0.0% | First live run. S1 fails old ±2 dB tolerance (see §7 revision). R&R-001 raised for SNR slope. S2 freq measurement excellent. S3 DT marginal. |
-| 2026-06-06 | `4c34ef6` | ❌ FAIL | 32.0% | 2 | +1.10 dB / slope 0.036 | 0.0% | R&R-003 confirmed: S3 redesign PASS (3.8%, ndc=7). S1 regression: ANOVA contaminated by threshold misses — R&R-005 raised. S7 informational (OpenWSFZ 47.3% vs WSJT-X 78.5%). |
+| 2026-06-06 | `46d7f6a` | ❌ FAIL | 44.8% | 1 | −1.96 dB / slope 0.512 | — | First live run. S1 fails old ±2 dB tolerance (see §7 revision). R&R-001 raised for SNR slope. S2 freq measurement excellent. S3 DT marginal. |
+| 2026-06-06 | `4c34ef6` | ❌ FAIL | 32.0% | 2 | +1.10 dB / slope 0.036 | — | R&R-005 raised: S1 ANOVA contaminated by threshold misses. S3 redesign confirmed PASS (3.8%, ndc=7). S7 informational — see below. |
 
-### S1 redesign — R&R-005 — **OPEN** (see `RR-005.md`)
+### S1 redesign — R&R-005 — **IMPLEMENTED 2026-06-06** (see `RR-005.md`)
 
-The S1 GR&R failure (%GR&R = 32.0%, ndc = 2) is caused by threshold misses at low SNR
-contaminating the two-way ANOVA, not by genuine measurement noise.  Root cause and full
-change specification are in [`RR-005.md`](./RR-005.md).  Summary:
+The S1 GR&R failure (%GR&R = 32.0%, ndc = 2) in run `4c34ef6` is caused by threshold misses
+at low SNR contaminating the two-way ANOVA, not by genuine measurement noise.  Root cause and
+full change specification are in [`RR-005.md`](./RR-005.md).  Summary:
 
 1. **Threshold misses produce imbalanced cells.** At SNR ∈ {−24, −21, −18, −15} dB neither
    app decodes reliably.  When apps miss different cells the App×Part interaction is inflated
-   with a capability boundary, not measurement noise.  Repeatability collapses to 0.00 (clamped
-   from negative) and all GR&R variance piles into Reproducibility.
+   with a capability boundary, not measurement noise.  Repeatability collapses to **0.00**
+   (clamped from negative) and Reproducibility is inflated **×7.2** (σ² jumps from 3.63 to
+   26.10) — all GR&R variance attributed to the appraiser term, not to genuine measurement
+   disagreement.
 
 2. **Fix: restrict the ladder to SNR ≥ −12 dB.** Replace the 10 parts with 10 levels in the
    reliable decode range (prescribed design: {−12, −9, …, +15} dB at 3 dB spacing).  Add a
    companion attribute scenario `S1b` covering {−24, −21, −18, −15} dB that measures *decode
-   rate*, cleanly separating "does it decode?" from "how accurately does it measure SNR?".
+   rate*, cleanly separating "does it decode at this SNR?" from "how accurately does it measure
+   SNR?".
 
-**Changes required** (see `RR-005.md` §3 for full specification):
+**Changes implemented** (2026-06-06; see `DEV-ACTIONS-rr-005.md`):
 
-- **`scenarios/s1-snr-ladder.json`** — replace parts; update description.
+- **`scenarios/s1-snr-ladder.json`** — parts replaced: SNR ∈ {−12, −9, …, +15} dB (10 levels,
+  3 dB spacing, reliable decode range); description and `_comment` updated.
 - **`scenarios/s1b-snr-threshold.json`** (new) — 4 parts at threshold SNRs; `analysis: "attribute_decode_rate"`.
-- **`harness/analyse.py`** — add `"S1b"` to `DECODE_RATE_SCENARIOS`; add `DECODE_RATE_CONFIG` dict;
-  generalise `_analyse_decode_rate()` and `_decode_rate_report_lines()` to use a configurable
-  part variable and axis label; update dispatch loop and report rendering to handle multiple
-  decode-rate scenarios.
-- **`run_study.py`** — insert S1b into `SCENARIO_FILES` and `SCENARIO_IDS` after S1.
+- **`harness/analyse.py`** — `"S1b"` added to `DECODE_RATE_SCENARIOS`; `DECODE_RATE_CONFIG` dict
+  added; `_analyse_decode_rate()` and `_decode_rate_report_lines()` generalised with configurable
+  `part_var`/`part_label`; dispatch loop and `_write_report()` updated to handle multiple
+  decode-rate scenarios in one pass.
+- **`run_study.py`** — S1b inserted into `SCENARIO_FILES` and `SCENARIO_IDS` after S1.
 
 ### S3 redesign — R&R-003 (GitHub #1) — **IMPLEMENTED 2026-06-06**
 

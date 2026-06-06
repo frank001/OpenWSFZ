@@ -1,0 +1,24 @@
+{
+  "_comment": "S1b Low-SNR Threshold — decode-rate study for SNRs excluded from the redesigned S1 ladder (R&R-005).",
+  "_format_version": "1",
+
+  "id": "S1b",
+  "name": "Low-SNR threshold",
+  "response": "decode_rate",
+  "description": "4 parts × 2 appraisers × 3 trials. Measures decode rate at SNRs excluded from the redesigned S1 ladder (-24 to -15 dB). Companion to S1; separates 'does it decode at this SNR?' from 'how accurately does it measure SNR?'. Raised by R&R-005 (2026-06-06).",
+
+  "message_ids": ["MSG-01"],
+  "fixed": {"base_freq_hz": 1500, "dt_s": 0.2},
+
+  "analysis": "attribute_decode_rate",
+
+  "parts": [
+    {"part_index": 0, "snr_db": -24},
+    {"part_index": 1, "snr_db": -21},
+    {"part_index": 2, "snr_db": -18},
+    {"part_index": 3, "snr_db": -15}
+  ],
+
+  "trials": 3,
+  "seed_formula": "hash('S1b', part_index, trial_index)"
+}
