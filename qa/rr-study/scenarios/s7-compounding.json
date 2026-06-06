@@ -1,0 +1,174 @@
+{
+  "_comment": "S7 Compounding / co-channel overlap — recovery under signals that physically sum in one slot (STUDY-SPEC §6). Each part lists explicit per-signal (msg_id, freq_hz, dt_s, snr_db); the harness sums them into one waveform. Truth is logged one row PER SIGNAL so the existing matcher scores each compounded message independently.",
+  "_format_version": "1",
+
+  "id": "S7",
+  "name": "Compounding / co-channel overlap",
+  "response": "Decoded / not-decoded per compounded message (attribute, per-signal recovery)",
+  "description": "4 overlap families × 3 trials. Drives: per-message recovery and between-app agreement when 2–3 signals occupy the same or near-same audio frequency / time slot — the real-world pileup case that S4 (frequency-spread QRM) never exercises.",
+
+  "message_pool": ["MSG-01", "MSG-02", "MSG-03"],
+
+  "harness_note": "Rendered by _render_compound: each signal is encoded independently (own seeded noise at its snr_db, matching the S4 superposition convention) and summed. One truth row is written per signal, carrying that signal's true freq/dt/snr, so the matcher's text+freq branch scores each message on its own.",
+
+  "parts": [
+    {
+      "part_index": 0,
+      "overlap_type": "co_channel",
+      "label": "2-stack, equal 0 dB",
+      "note": "Two stations exactly co-frequency, equal strength — hardest pure separation case.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0}
+      ]
+    },
+    {
+      "part_index": 1,
+      "overlap_type": "co_channel",
+      "label": "2-stack, equal -5 dB",
+      "note": "Co-frequency pair near the decode floor.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": -5},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 0.0, "snr_db": -5}
+      ]
+    },
+    {
+      "part_index": 2,
+      "overlap_type": "co_channel",
+      "label": "3-stack, equal 0 dB",
+      "note": "Triple co-frequency pileup — three messages in one bin.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-03", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0}
+      ]
+    },
+
+    {
+      "part_index": 3,
+      "overlap_type": "near_collision",
+      "label": "delta 3 Hz",
+      "note": "Sub-bin separation (< one 6.25 Hz tone bin).",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1503, "dt_s": 0.0, "snr_db": 0}
+      ]
+    },
+    {
+      "part_index": 4,
+      "overlap_type": "near_collision",
+      "label": "delta 6 Hz",
+      "note": "~one tone bin apart.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1506, "dt_s": 0.0, "snr_db": 0}
+      ]
+    },
+    {
+      "part_index": 5,
+      "overlap_type": "near_collision",
+      "label": "delta 12 Hz",
+      "note": "~two tone bins apart.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1512, "dt_s": 0.0, "snr_db": 0}
+      ]
+    },
+    {
+      "part_index": 6,
+      "overlap_type": "near_collision",
+      "label": "delta 25 Hz",
+      "note": "Partial spectral overlap (FT8 occupies 50 Hz).",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1525, "dt_s": 0.0, "snr_db": 0}
+      ]
+    },
+    {
+      "part_index": 7,
+      "overlap_type": "near_collision",
+      "label": "delta 50 Hz",
+      "note": "Edge-to-edge — one full FT8 bandwidth apart; expected to separate cleanly.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1550, "dt_s": 0.0, "snr_db": 0}
+      ]
+    },
+
+    {
+      "part_index": 8,
+      "overlap_type": "time_freq",
+      "label": "co-freq, dt 0.0 / 0.5 s",
+      "note": "Same frequency, late replier offset by 0.5 s.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 0.5, "snr_db": 0}
+      ]
+    },
+    {
+      "part_index": 9,
+      "overlap_type": "time_freq",
+      "label": "co-freq, dt 0.0 / 1.0 s",
+      "note": "Same frequency, 1.0 s time stagger.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 1.0, "snr_db": 0}
+      ]
+    },
+    {
+      "part_index": 10,
+      "overlap_type": "time_freq",
+      "label": "co-freq, dt 0.0 / 2.0 s",
+      "note": "Same frequency, 2.0 s time stagger (near sync-window edge).",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 2.0, "snr_db": 0}
+      ]
+    },
+
+    {
+      "part_index": 11,
+      "overlap_type": "capture",
+      "label": "co-freq, 0 / -3 dB",
+      "note": "Capture effect: 3 dB stronger vs weaker, same bin.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 0.0, "snr_db": -3}
+      ]
+    },
+    {
+      "part_index": 12,
+      "overlap_type": "capture",
+      "label": "co-freq, 0 / -6 dB",
+      "note": "6 dB capture margin.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 0.0, "snr_db": -6}
+      ]
+    },
+    {
+      "part_index": 13,
+      "overlap_type": "capture",
+      "label": "co-freq, 0 / -10 dB",
+      "note": "10 dB capture margin — weaker likely suppressed.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 0.0, "snr_db": -10}
+      ]
+    },
+    {
+      "part_index": 14,
+      "overlap_type": "capture",
+      "label": "co-freq, +3 / -10 dB",
+      "note": "Strong dominant signal over a weak one.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 3},
+        {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 0.0, "snr_db": -10}
+      ]
+    }
+  ],
+
+  "trials": 3,
+
+  "seed_formula": "hash('S7', part_index, trial_index)"
+}
