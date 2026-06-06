@@ -2,17 +2,18 @@ ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
 Shim version:     FT8_SHIM_VERSION = 20260002 (R&R-001: R6 weak-signal correction removed)
 sizeof(FT8Result): 48 bytes
-SNR formula:      max-over-8-tones, no post-correction (R6 removed — see R&R-001 / GitHub #30)
+SNR formula:      tone-bin-specific read (R&R-001 fix — see fix-snr-tone-bin-selection)
                   SNR = signal_db - noise_floor_db - 26
                   (26 dB = 10*log10(2500/6.25) bandwidth correction, WSJT-X convention)
-                  signal_db = mean of per-symbol max over 8 tone bins across 79 symbols
+                  signal_db = mean of per-symbol row[tones[b-b0]] across 79 symbols
+                  (tones[] from ft8_encode — reads the ACTIVE tone bin only, not max-of-8)
                   noise_floor_db = histogram-median of all waterfall uint8 magnitudes
 Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_counts, ft8_get_max_passes
 
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-06-06 (R&R-001 rebuild — remove R6 weak-signal SNR post-correction; FT8_SHIM_VERSION=20260002)
+Build date:       2026-06-06 (fix-snr-tone-bin-selection: replace max-of-8 with row[tones[b-b0]])
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
 Sources:          native/ft8_lib @ msvc-compat (d18ed84) + src/OpenWSFZ.Ft8/Native/ft8_shim.c
@@ -22,7 +23,7 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       2026-06-06 (R&R-001 rebuild — remove R6 weak-signal SNR post-correction; FT8_SHIM_VERSION=20260002)
+Build date:       2026-06-06 (fix-snr-tone-bin-selection: replace max-of-8 with row[tones[b-b0]])
 Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
 Sources:          native/ft8_lib @ msvc-compat shallow clone (d18ed84) + ft8_shim.c
 
