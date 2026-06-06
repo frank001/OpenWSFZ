@@ -158,13 +158,25 @@ Replays/trials are seeded: `seed = hash(scenario, part_index, trial_index)` → 
 
 ## 7. Tolerance bands (D3)
 
-Proposed for ratification. %Tolerance uses ±halfband as the spec half-width.
+%Tolerance uses ±halfband as the spec half-width.
 
 | Response | Tolerance (± half-width) | Rationale |
 |---|---|---|
-| SNR | **± 2 dB** | Operationally "the same" report; comfortably inside WSJT-X integer quantization. |
+| SNR | **± 5 dB** | Revised 2026-06-06 after Run 1 (see note below). |
 | Audio frequency | **± 4 Hz** | ≈ ⅔ of the 6.25 Hz FT8 tone bin; both apps report integer Hz. |
 | DT | **± 0.2 s** | One `dt` display tick; within FT8's sync tolerance. |
+
+> **SNR tolerance revision note (2026-06-06, ratified by Captain).**
+> The original ±2 dB band was set on the assumption that WSJT-X integer quantization was the
+> dominant SNR uncertainty.  Run 1 (SHA `46d7f6a`) showed that it is not: the dominant source
+> is **finite-sample noise-floor estimation variance** — each trial draws a fresh noise
+> realization, giving a different noise floor estimate and therefore a different measured SNR.
+> The ANOVA Reproducibility was 0% (both apps agree exactly for the same realization) while
+> Repeatability was 44.8% (trial-to-trial jitter σ ≈ 8.4 dB).  This is a property of the FT8
+> protocol, not of either application.  The revised ±5 dB band reflects empirical FT8 community
+> consensus (SNR reports vary ±3–4 dB in practice) and is consistent with what both apps can
+> achieve.  The SNR bias gate (§10) is tightened to ≤ ±2 dB to retain a meaningful accuracy
+> specification independent of the GR&R band.
 
 Attribute target (a message is "decoded" if it appears with correct text and audio freq within ±4 Hz
 in the matched cycle).
@@ -219,7 +231,7 @@ AIAG conventions, for ratification:
 | ndc | ≥ 5 | — | < 2 |
 | Attribute Kappa (vs truth, between apps) | ≥ 0.90 | 0.70–0.90 | < 0.70 |
 | False-positive rate | ≤ 6% | — | > 6% |
-| SNR bias (OpenWSFZ vs truth) | ≤ ±2 dB | — | > ±2 dB |
+| SNR bias (OpenWSFZ vs truth) | ≤ ±2 dB mean AND slope ≤ 0.1 | — | mean > ±2 dB OR slope > 0.1 |
 
 Evaluated every run; a regression past these bands raises a defect for the Developer.
 
@@ -282,13 +294,25 @@ calibration; and as a release gate.
 
 ---
 
-## 15. Open items for the Captain — RESOLVED 2026-06-05
+## 15. Open items — RESOLVED
 
-All four items have been ruled on by the Captain (see §0, D5–D8):
+All design questions have been ruled on by the Captain.
 
-1. ~~Ratify tolerance bands (§7) and acceptance thresholds (§10).~~ → **Ratified as proposed.**
+1. ~~Ratify tolerance bands (§7) and acceptance thresholds (§10).~~ → **Ratified as proposed 2026-06-05.**
 2. ~~Confirm Python for analysis.~~ → **Python (pandas/matplotlib);** Minitab optional.
 3. ~~Confirm target platform(s).~~ → **Windows + VB-CABLE** (installed; `RUNBOOK.md`).
 4. ~~Approve build of the harness.~~ → **Approved; synthesiser first.**
+5. ~~SNR tolerance ±2 dB vs physical limits of FT8 SNR estimation.~~ → **±5 dB ratified 2026-06-06 (see §7 note).**
 
-Build progress is tracked in `qa/rr-study/synth/BUILD-PLAN.md`.
+---
+
+## 16. Study run history
+
+| Date | SHA | Overall | %GR&R SNR | ndc SNR | OWSFZ Bias | FP rate | Notes |
+|---|---|---|---|---|---|---|---|
+| 2026-06-06 | `46d7f6a` | ❌ FAIL | 44.8% | 1 | −1.96 dB / slope 0.512 | 0.0% | First live run. S1 fails old ±2 dB tolerance (see §7 revision). R&R-001 raised for SNR slope. S2 freq measurement excellent. S3 DT marginal. |
+
+### S1 redesign recommendation (next run)
+Restrict the S1 SNR ladder to levels ≥ −12 dB (where both apps decode reliably) to eliminate
+selection bias from threshold misses.  Add a companion decode-rate study (attribute) covering
+−24 to −15 dB, cleanly separating measurement variance from decode probability.

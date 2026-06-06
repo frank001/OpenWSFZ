@@ -1,0 +1,1 @@
+﻿WSJT-X 2.7.0 (binary date 2025-02-04)
