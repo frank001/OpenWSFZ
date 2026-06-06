@@ -38,20 +38,20 @@ public sealed class Ft8LibInteropTests
     /// <c>ft8_decode_all</c>.
     /// </para>
     /// </summary>
-    [Fact(DisplayName = "p15: GetLastPassCounts returns [0, 0] after DecodeAll on a silent PCM buffer")]
-    public void GetLastPassCounts_AfterDecodeAllOnSilentBuffer_ReturnsTwoZeroCounts()
+    [Fact(DisplayName = "p15/fix-D001: GetLastPassCounts returns [0, 0, 0] after DecodeAll on a silent PCM buffer")]
+    public void GetLastPassCounts_AfterDecodeAllOnSilentBuffer_ReturnsThreeZeroCounts()
     {
         // Arrange — 180 000 zeroed samples (15 s × 12 kHz, all zero amplitude).
         var pcm = new float[180_000]; // default-initialised to 0.0f
 
         // Act — both calls on the same thread (no Task.Run); TLS is thread-scoped.
         _ = Ft8LibInterop.DecodeAll(pcm);
-        int[] counts = Ft8LibInterop.GetLastPassCounts(2);
+        int[] counts = Ft8LibInterop.GetLastPassCounts(3);
 
-        // Assert — K_MAX_PASSES=2 passes execute; no candidates found in either pass.
-        counts.Should().Equal([0, 0],
-            "a silent buffer produces no decodes in either pass, " +
-            "but both passes still execute and record their (zero) counts in TLS");
+        // Assert — K_MAX_PASSES=3 passes execute; no candidates found in any pass.
+        counts.Should().Equal([0, 0, 0],
+            "a silent buffer produces no decodes in any of the three passes, " +
+            "but all three passes still execute and record their (zero) counts in TLS");
     }
 
     /// <summary>
