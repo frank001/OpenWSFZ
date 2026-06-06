@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-results/*/
+# Ignore test-fixture runs; real dated runs are committed
+results/test-*/
 gate_wav/
 *.wav
+# Temp runner scripts
+resume_study.py
