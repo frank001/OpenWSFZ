@@ -246,7 +246,8 @@ CI and is replayable. Minitab remains available as an optional manual cross-chec
 > pooled attribute κ is currently reported as *advisory* and does not drive the
 > overall verdict** (see §10) pending Captain ratification of the pooled method and
 > of restricting the positive population to decodable SNRs (cf. the §16 S1 redesign
-> note) so κ measures agreement rather than decode probability.
+> note) so κ measures agreement rather than decode probability. **Tracked: R&R-002
+> (GitHub #34).**
 
 ---
 
@@ -268,7 +269,7 @@ Evaluated every run; a regression past these bands raises a defect for the Devel
 > pooling correction, the attribute-Kappa row is computed and reported but **does
 > not contribute to the overall PASS/FAIL verdict** until the pooled method (and a
 > decodable-SNR positive population) is ratified. %GR&R, ndc, FP rate, and SNR bias
-> remain hard gates.
+> remain hard gates. **Tracked: R&R-002 (GitHub #34).**
 
 ---
 
