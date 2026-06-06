@@ -29,6 +29,7 @@ OWSFZ_ALL_TXT   = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 # Scenario JSON files in play order
 SCENARIO_FILES = [
     _SCENARIOS / "s1-snr-ladder.json",
+    _SCENARIOS / "s1b-snr-threshold.json",
     _SCENARIOS / "s2-freq-sweep.json",
     _SCENARIOS / "s3-dt-offset.json",
     _SCENARIOS / "s4-density.json",
@@ -37,7 +38,7 @@ SCENARIO_FILES = [
 ]
 
 # Scenario IDs in the same order (for matcher invocation)
-SCENARIO_IDS = ["S1", "S2", "S3", "S4", "S5", "S7"]
+SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7"]
 
 
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:

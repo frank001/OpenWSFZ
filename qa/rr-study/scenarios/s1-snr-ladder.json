@@ -1,11 +1,11 @@
 {
-  "_comment": "S1 SNR Ladder — Gage R&R + Bias/Linearity for SNR response (STUDY-SPEC §6).",
+  "_comment": "S1 SNR Ladder — Gage R&R + Bias/Linearity for SNR response (STUDY-SPEC §6). Redesigned 2026-06-06 per R&R-005: ladder restricted to reliable decode range (SNR >= -12 dB) to eliminate threshold-miss contamination of the two-way ANOVA. Sub-threshold SNRs (-24 to -15 dB) are now measured as decode rate in companion scenario S1b.",
   "_format_version": "1",
 
   "id": "S1",
   "name": "SNR ladder",
   "response": "SNR (dB)",
-  "description": "10 parts × 2 appraisers × 3 trials. Drives: SNR R&R, bias, and linearity.",
+  "description": "10 parts × 2 appraisers × 3 trials. Drives: SNR R&R, bias, and linearity. Redesigned R&R-005 (2026-06-06): parts restricted to {-12 ... +15} dB where both apps decode >= 95% of trials, eliminating threshold-miss contamination of the ANOVA.",
 
   "message_ids": ["MSG-01"],
 
@@ -15,16 +15,16 @@
   },
 
   "parts": [
-    {"part_index": 0, "snr_db": -24},
-    {"part_index": 1, "snr_db": -21},
-    {"part_index": 2, "snr_db": -18},
-    {"part_index": 3, "snr_db": -15},
-    {"part_index": 4, "snr_db": -12},
-    {"part_index": 5, "snr_db":  -9},
-    {"part_index": 6, "snr_db":  -6},
-    {"part_index": 7, "snr_db":  -3},
-    {"part_index": 8, "snr_db":   0},
-    {"part_index": 9, "snr_db":   3}
+    {"part_index": 0, "snr_db": -12},
+    {"part_index": 1, "snr_db":  -9},
+    {"part_index": 2, "snr_db":  -6},
+    {"part_index": 3, "snr_db":  -3},
+    {"part_index": 4, "snr_db":   0},
+    {"part_index": 5, "snr_db":   3},
+    {"part_index": 6, "snr_db":   6},
+    {"part_index": 7, "snr_db":   9},
+    {"part_index": 8, "snr_db":  12},
+    {"part_index": 9, "snr_db":  15}
   ],
 
   "trials": 3,

@@ -38,8 +38,34 @@ if str(_QA_ROOT) not in sys.path:
 
 CONTINUOUS_SCENARIOS = {"S1", "S2", "S3"}
 ATTRIBUTE_SCENARIOS = {"S4", "S5"}
-# S3b is an attribute decode-rate study (not a continuous Gage R&R).
-DECODE_RATE_SCENARIOS = {"S3b"}
+# S3b / S1b are attribute decode-rate studies (not continuous Gage R&R).
+DECODE_RATE_SCENARIOS = {"S3b", "S1b"}
+
+DECODE_RATE_CONFIG: dict[str, dict] = {
+    "S3b": {
+        "part_var":      "true_dt_s",
+        "part_label":    "True DT (s)",
+        "section_title": "Negative-DT decode boundary",
+        "section_intro": (
+            "Decode rate (% of injected messages recovered) as DT sweeps from 0.0 s "
+            "down to −2.7 s.  Companion to S3; separates 'does it decode?' from "
+            "'does it report DT accurately?'.  Informational — no AIAG threshold."
+        ),
+        "chart_ref_line": 0.0,   # vertical line at DT = 0
+    },
+    "S1b": {
+        "part_var":      "true_snr_db",
+        "part_label":    "True SNR (dB)",
+        "section_title": "Low-SNR threshold study",
+        "section_intro": (
+            "Decode rate (% of injected messages recovered) at SNRs excluded from the "
+            "redesigned S1 ladder (−24 to −15 dB).  Companion to S1; separates "
+            "'does it decode at this SNR?' from 'how accurately does it measure SNR?'.  "
+            "Informational — no AIAG threshold."
+        ),
+        "chart_ref_line": None,  # no reference line on SNR axis
+    },
+}
 
 # Response variable per continuous scenario
 RESPONSE_VAR = {
@@ -936,17 +962,20 @@ def _compounding_report_lines(results: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def _analyse_decode_rate(df_matched: pd.DataFrame, scen_id: str,
-                         run_dir: Path) -> dict:
-    """Per-part decode-rate analysis for attribute-style scenarios (e.g. S3b).
+                         run_dir: Path, part_var: str = "true_dt_s",
+                         part_label: str = "True DT (s)") -> dict:
+    """Per-part decode-rate analysis for attribute-style scenarios (e.g. S3b, S1b).
 
     Measures what fraction of injected messages were decoded by each appraiser
-    at each part (DT step).  Returns a dict suitable for report rendering.
+    at each part.  The part variable (x-axis) is configurable via *part_var*
+    (column name in the matched CSV) and *part_label* (axis/header label).
+    Returns a dict suitable for report rendering.
     No Gage R&R is computed — this is a decode-rate (sensitivity) study.
     """
     df = df_matched[df_matched["false_positive"] == False].copy()
     df["matched"] = df["matched"].astype(bool)
     df["part_index"] = pd.to_numeric(df["part_index"], errors="coerce")
-    df["true_dt_s"] = pd.to_numeric(df["true_dt_s"], errors="coerce")
+    df[part_var] = pd.to_numeric(df[part_var], errors="coerce")
 
     parts = sorted(df["part_index"].dropna().unique())
 
@@ -954,8 +983,8 @@ def _analyse_decode_rate(df_matched: pd.DataFrame, scen_id: str,
     per_part: list[dict] = []
     for pi in parts:
         part_sub = df[df["part_index"] == pi]
-        true_dt = part_sub["true_dt_s"].dropna().iloc[0] if not part_sub.empty else float("nan")
-        row: dict = {"part_index": int(pi), "true_dt_s": true_dt}
+        part_val = part_sub[part_var].dropna().iloc[0] if not part_sub.empty else float("nan")
+        row: dict = {"part_index": int(pi), "part_val": part_val}
         for appr in APPRAISERS:
             sub = part_sub[part_sub["appraiser"] == appr]
             n_total = len(sub)
@@ -972,20 +1001,22 @@ def _analyse_decode_rate(df_matched: pd.DataFrame, scen_id: str,
         sub = df[df["appraiser"] == appr]
         overall[appr] = 100.0 * sub["matched"].mean() if len(sub) else float("nan")
 
-    # Chart: decode rate vs DT per appraiser
+    # Chart: decode rate vs part variable per appraiser
     chart_path = None
     if per_part:
         fig, ax = plt.subplots(figsize=(10, 5))
-        dt_vals = [r["true_dt_s"] for r in per_part]
+        x_vals = [r["part_val"] for r in per_part]
         for appr in APPRAISERS:
             rates = [r[f"{appr}_rate"] for r in per_part]
-            ax.plot(dt_vals, rates, marker="o", label=appr)
-        ax.set_xlabel("True DT (s)")
+            ax.plot(x_vals, rates, marker="o", label=appr)
+        ax.set_xlabel(part_label)
         ax.set_ylabel("Decode rate (%)")
         ax.set_ylim(-5, 105)
-        ax.set_title(f"{scen_id} — Decode rate vs DT offset")
+        ax.set_title(f"{scen_id} — Decode rate vs {part_label}")
         ax.legend(fontsize=9)
-        ax.axvline(0.0, color="grey", linestyle=":", lw=0.8, label="DT=0")
+        cfg = DECODE_RATE_CONFIG.get(scen_id, {})
+        if cfg.get("chart_ref_line") is not None:
+            ax.axvline(cfg["chart_ref_line"], color="grey", linestyle=":", lw=0.8)
         ax.grid(axis="y", linestyle=":", lw=0.5)
         plt.tight_layout()
         chart_path = run_dir / f"{scen_id}_decode_rate.png"
@@ -994,6 +1025,8 @@ def _analyse_decode_rate(df_matched: pd.DataFrame, scen_id: str,
 
     return {
         "scenario_id": scen_id,
+        "part_var": part_var,
+        "part_label": part_label,
         "per_part": per_part,
         "overall": overall,
         "chart": chart_path.name if chart_path else None,
@@ -1001,16 +1034,22 @@ def _analyse_decode_rate(df_matched: pd.DataFrame, scen_id: str,
 
 
 def _decode_rate_report_lines(results: dict) -> list[str]:
-    """Render the S3b decode-rate section of report.md."""
+    """Render a decode-rate section of report.md (generic: S3b, S1b, ...)."""
     scen_id = results["scenario_id"]
+    part_label = results.get("part_label", "Part value")
+    cfg = DECODE_RATE_CONFIG.get(scen_id, {})
+    section_title = cfg.get("section_title", f"{scen_id} decode-rate study")
+    section_intro = cfg.get(
+        "section_intro",
+        "Decode rate (% of injected messages recovered) per appraiser. "
+        "Informational — no AIAG threshold.",
+    )
     lines: list[str] = [
-        f"## {scen_id} — Negative-DT decode boundary", "",
-        "_Decode rate (% of injected messages recovered) as DT sweeps from 0.0 s "
-        "down to −2.7 s.  Companion to S3; separates 'does it decode?' from "
-        "'does it report DT accurately?'.  Informational — no AIAG threshold._",
+        f"## {scen_id} — {section_title}", "",
+        f"_{section_intro}_",
         "",
         "### Per-part decode rate", "",
-        "| Part | True DT (s) | WSJT-X decoded | WSJT-X rate | OpenWSFZ decoded | OpenWSFZ rate |",
+        f"| Part | {part_label} | WSJT-X decoded | WSJT-X rate | OpenWSFZ decoded | OpenWSFZ rate |",
         "|---|---|---|---|---|---|",
     ]
     for r in results["per_part"]:
@@ -1021,7 +1060,7 @@ def _decode_rate_report_lines(results: dict) -> list[str]:
         o_tot = r.get("OpenWSFZ_total", "—")
         o_rate = _fmt_num(r.get("OpenWSFZ_rate", float("nan")))
         lines.append(
-            f"| P{r['part_index']} | {_fmt_num(r['true_dt_s'])} "
+            f"| P{r['part_index']} | {_fmt_num(r['part_val'])} "
             f"| {w_dec}/{w_tot} | {w_rate}% "
             f"| {o_dec}/{o_tot} | {o_rate}% |"
         )
@@ -1130,7 +1169,7 @@ def _write_report(
     fails: list[str],
     s7_results: dict | None = None,
     attr_results: dict | None = None,
-    s3b_results: dict | None = None,
+    decode_rate_results: list[dict] | None = None,
 ) -> Path:
     lines: list[str] = []
     run_date = run_dir.name.split("-")[0:3]
@@ -1214,9 +1253,9 @@ def _write_report(
                     "",
                 ]
 
-    # S3b — negative-DT decode-rate companion study
-    if s3b_results:
-        lines += _decode_rate_report_lines(s3b_results)
+    # Decode-rate companion studies (S3b, S1b, ...)
+    for dr in (decode_rate_results or []):
+        lines += _decode_rate_report_lines(dr)
 
     # Attribute scenarios — pooled S4 positives + S5 negatives
     if attr_results:
@@ -1407,14 +1446,21 @@ def main() -> None:
         for appr, info in bias_results.items():
             print(f"  S1 bias ({appr}): {info['mean_bias']:+.2f} dB  slope={info['slope']:.3f}")
 
-    # --- Decode-rate scenarios (currently: S3b) ---
-    s3b_results: dict | None = None
-    if any(sid in matched for sid in DECODE_RATE_SCENARIOS):
-        scen_id = next(sid for sid in DECODE_RATE_SCENARIOS if sid in matched)
-        s3b_results = _analyse_decode_rate(matched[scen_id], scen_id, run_dir)
+    # --- Decode-rate scenarios (S3b, S1b, ...) ---
+    decode_rate_results: list[dict] = []
+    for sid in sorted(DECODE_RATE_SCENARIOS):
+        if sid not in matched:
+            continue
+        cfg = DECODE_RATE_CONFIG[sid]
+        dr = _analyse_decode_rate(
+            matched[sid], sid, run_dir,
+            part_var=cfg["part_var"],
+            part_label=cfg["part_label"],
+        )
+        decode_rate_results.append(dr)
         for appr in APPRAISERS:
-            rate = s3b_results["overall"].get(appr, float("nan"))
-            print(f"  {scen_id} decode rate ({appr}): {_fmt_num(rate)}%  (informational)")
+            rate = dr["overall"].get(appr, float("nan"))
+            print(f"  {sid} decode rate ({appr}): {_fmt_num(rate)}%  (informational)")
 
     # --- Attribute scenarios ---
     # False-positive rate (S5) — gated metric, unchanged.
@@ -1452,7 +1498,7 @@ def main() -> None:
         fp_results, bias_results, verdict_rows, overall, fails,
         s7_results=s7_results,
         attr_results=attr_results,
-        s3b_results=s3b_results,
+        decode_rate_results=decode_rate_results,
     )
     print(f"\nReport written: {report_path}")
     print(f"Overall verdict: {overall}")
