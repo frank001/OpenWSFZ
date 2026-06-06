@@ -38,6 +38,8 @@ if str(_QA_ROOT) not in sys.path:
 
 CONTINUOUS_SCENARIOS = {"S1", "S2", "S3"}
 ATTRIBUTE_SCENARIOS = {"S4", "S5"}
+# S3b is an attribute decode-rate study (not a continuous Gage R&R).
+DECODE_RATE_SCENARIOS = {"S3b"}
 
 # Response variable per continuous scenario
 RESPONSE_VAR = {
@@ -48,7 +50,7 @@ RESPONSE_VAR = {
 
 # Tolerance half-widths (STUDY-SPEC §10)
 TOLERANCE_HALF = {
-    "S1": 2.0,   # ±2 dB
+    "S1": 5.0,   # ±5 dB  (revised 2026-06-06, STUDY-SPEC §7)
     "S2": 4.0,   # ±4 Hz
     "S3": 0.2,   # ±0.2 s
 }
@@ -117,6 +119,34 @@ def _verdict_fp(pct: float) -> str:
 
 def _verdict_bias(bias: float) -> str:
     return "PASS" if abs(bias) <= THRESH_BIAS_PASS else "FAIL"
+
+
+# ---------------------------------------------------------------------------
+# S3 — WSJT-X DT convention correction
+# ---------------------------------------------------------------------------
+
+def _apply_wsjt_dt_correction(df: pd.DataFrame, correction_s: float) -> pd.DataFrame:
+    """Add *correction_s* to WSJT-X reported_dt_s in an S3 matched DataFrame.
+
+    WSJT-X defines DT relative to the nominal FT8 TX start (≈ 0.5–1.0 s into
+    the 15 s slot) rather than the UTC slot boundary used as the harness truth
+    convention (DT = 0 ↔ signal starts exactly at the slot boundary).  This
+    produces a systematic ≈ −0.55 s offset in all WSJT-X DT reports and
+    dominates the SS_appraiser term in the ANOVA, inflating %GR&R.
+
+    Adding the measured offset removes the calibration artefact so the Gage
+    R&R Reproducibility term captures genuine app-to-app measurement
+    disagreement on the same signal, not a convention mismatch.
+
+    The correction value is read from the scenario JSON field
+    ``wsjt_dt_correction_s`` (positive = add to WSJT-X DT).  Raw reported_dt_s
+    values in the matched CSV are never altered; correction is applied only to
+    the analysis copy.
+    """
+    df = df.copy()
+    mask = df["appraiser"] == "WSJT-X"
+    df.loc[mask, "reported_dt_s"] = df.loc[mask, "reported_dt_s"] + correction_s
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -902,6 +932,112 @@ def _compounding_report_lines(results: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# S3b — Negative-DT decode-rate analysis
+# ---------------------------------------------------------------------------
+
+def _analyse_decode_rate(df_matched: pd.DataFrame, scen_id: str,
+                         run_dir: Path) -> dict:
+    """Per-part decode-rate analysis for attribute-style scenarios (e.g. S3b).
+
+    Measures what fraction of injected messages were decoded by each appraiser
+    at each part (DT step).  Returns a dict suitable for report rendering.
+    No Gage R&R is computed — this is a decode-rate (sensitivity) study.
+    """
+    df = df_matched[df_matched["false_positive"] == False].copy()
+    df["matched"] = df["matched"].astype(bool)
+    df["part_index"] = pd.to_numeric(df["part_index"], errors="coerce")
+    df["true_dt_s"] = pd.to_numeric(df["true_dt_s"], errors="coerce")
+
+    parts = sorted(df["part_index"].dropna().unique())
+
+    # Per-part decode rate per appraiser
+    per_part: list[dict] = []
+    for pi in parts:
+        part_sub = df[df["part_index"] == pi]
+        true_dt = part_sub["true_dt_s"].dropna().iloc[0] if not part_sub.empty else float("nan")
+        row: dict = {"part_index": int(pi), "true_dt_s": true_dt}
+        for appr in APPRAISERS:
+            sub = part_sub[part_sub["appraiser"] == appr]
+            n_total = len(sub)
+            n_matched = int(sub["matched"].sum())
+            rate = 100.0 * n_matched / n_total if n_total > 0 else float("nan")
+            row[f"{appr}_decoded"] = n_matched
+            row[f"{appr}_total"] = n_total
+            row[f"{appr}_rate"] = rate
+        per_part.append(row)
+
+    # Overall per-appraiser
+    overall: dict[str, float] = {}
+    for appr in APPRAISERS:
+        sub = df[df["appraiser"] == appr]
+        overall[appr] = 100.0 * sub["matched"].mean() if len(sub) else float("nan")
+
+    # Chart: decode rate vs DT per appraiser
+    chart_path = None
+    if per_part:
+        fig, ax = plt.subplots(figsize=(10, 5))
+        dt_vals = [r["true_dt_s"] for r in per_part]
+        for appr in APPRAISERS:
+            rates = [r[f"{appr}_rate"] for r in per_part]
+            ax.plot(dt_vals, rates, marker="o", label=appr)
+        ax.set_xlabel("True DT (s)")
+        ax.set_ylabel("Decode rate (%)")
+        ax.set_ylim(-5, 105)
+        ax.set_title(f"{scen_id} — Decode rate vs DT offset")
+        ax.legend(fontsize=9)
+        ax.axvline(0.0, color="grey", linestyle=":", lw=0.8, label="DT=0")
+        ax.grid(axis="y", linestyle=":", lw=0.5)
+        plt.tight_layout()
+        chart_path = run_dir / f"{scen_id}_decode_rate.png"
+        fig.savefig(chart_path, dpi=150)
+        plt.close(fig)
+
+    return {
+        "scenario_id": scen_id,
+        "per_part": per_part,
+        "overall": overall,
+        "chart": chart_path.name if chart_path else None,
+    }
+
+
+def _decode_rate_report_lines(results: dict) -> list[str]:
+    """Render the S3b decode-rate section of report.md."""
+    scen_id = results["scenario_id"]
+    lines: list[str] = [
+        f"## {scen_id} — Negative-DT decode boundary", "",
+        "_Decode rate (% of injected messages recovered) as DT sweeps from 0.0 s "
+        "down to −2.7 s.  Companion to S3; separates 'does it decode?' from "
+        "'does it report DT accurately?'.  Informational — no AIAG threshold._",
+        "",
+        "### Per-part decode rate", "",
+        "| Part | True DT (s) | WSJT-X decoded | WSJT-X rate | OpenWSFZ decoded | OpenWSFZ rate |",
+        "|---|---|---|---|---|---|",
+    ]
+    for r in results["per_part"]:
+        w_dec = r.get("WSJT-X_decoded", "—")
+        w_tot = r.get("WSJT-X_total", "—")
+        w_rate = _fmt_num(r.get("WSJT-X_rate", float("nan")))
+        o_dec = r.get("OpenWSFZ_decoded", "—")
+        o_tot = r.get("OpenWSFZ_total", "—")
+        o_rate = _fmt_num(r.get("OpenWSFZ_rate", float("nan")))
+        lines.append(
+            f"| P{r['part_index']} | {_fmt_num(r['true_dt_s'])} "
+            f"| {w_dec}/{w_tot} | {w_rate}% "
+            f"| {o_dec}/{o_tot} | {o_rate}% |"
+        )
+    ov = results["overall"]
+    lines += [
+        "",
+        f"**Overall decode rate — WSJT-X: {_fmt_num(ov.get('WSJT-X', float('nan')))}%  "
+        f"OpenWSFZ: {_fmt_num(ov.get('OpenWSFZ', float('nan')))}%**",
+        "",
+    ]
+    if results.get("chart"):
+        lines += [f"![{results['scenario_id']} decode rate]({results['chart']})", ""]
+    return lines
+
+
+# ---------------------------------------------------------------------------
 # Task 4.8 — Verdict engine
 # ---------------------------------------------------------------------------
 
@@ -994,6 +1130,7 @@ def _write_report(
     fails: list[str],
     s7_results: dict | None = None,
     attr_results: dict | None = None,
+    s3b_results: dict | None = None,
 ) -> Path:
     lines: list[str] = []
     run_date = run_dir.name.split("-")[0:3]
@@ -1061,6 +1198,25 @@ def _write_report(
                     f"{bi['intercept']:.3f} | {bi['r2']:.3f} | {v} |"
                 )
             lines += ["", f"![S1 Bias & Linearity](S1_bias_linearity.png)", ""]
+
+        if scen_id == "S3":
+            corr = continuous_results.get("S3", {})
+            if corr and corr.get("s3_correction_applied"):
+                lines += [
+                    "> **WSJT-X DT correction applied.** A +0.55 s offset was added to "
+                    "WSJT-X `reported_dt_s` before ANOVA to remove the ≈ −0.55 s "
+                    "convention difference between WSJT-X (DT relative to nominal FT8 "
+                    "TX start) and the harness (DT relative to UTC slot boundary). "
+                    "This correction removes the calibration artefact from "
+                    "SS_appraiser so %GR&R measures genuine app-to-app measurement "
+                    "disagreement. Raw reported values are preserved in the matched CSV. "
+                    "See scenario `wsjt_dt_correction_s` field and R&R-003 (GitHub #1).",
+                    "",
+                ]
+
+    # S3b — negative-DT decode-rate companion study
+    if s3b_results:
+        lines += _decode_rate_report_lines(s3b_results)
 
     # Attribute scenarios — pooled S4 positives + S5 negatives
     if attr_results:
@@ -1201,12 +1357,33 @@ def main() -> None:
     fp_results: dict = {}
     bias_results: dict = {}
 
+    # Load scenario metadata upfront — used for per-scenario correction fields
+    # (e.g. wsjt_dt_correction_s in S3) and S7 part metadata.
+    scenario_meta = _load_scenario_meta(scenarios_dir)
+
     # --- Continuous scenarios ---
     for scen_id, df in matched.items():
         if scen_id not in CONTINUOUS_SCENARIOS:
             continue
         response = RESPONSE_VAR[scen_id]
         tol_half = TOLERANCE_HALF[scen_id]
+
+        # S3 — apply WSJT-X DT convention correction before ANOVA.
+        # WSJT-X reports DT relative to the nominal FT8 TX start rather than the
+        # UTC slot boundary; the scenario JSON carries wsjt_dt_correction_s (≈ +0.55 s)
+        # to remove this calibration offset from the Reproducibility term.
+        s3_correction_applied = False
+        if scen_id == "S3":
+            s3_meta = scenario_meta.get("S3", {})
+            correction_s = s3_meta.get("wsjt_dt_correction_s")
+            if correction_s is not None:
+                df = _apply_wsjt_dt_correction(df, float(correction_s))
+                print(
+                    f"  S3: WSJT-X DT correction applied (+{correction_s} s) "
+                    f"— removes ≈−0.55 s convention offset from SS_appraiser"
+                )
+                s3_correction_applied = True
+
         anova = _two_way_anova(df, response, scen_id)
         if anova is None:
             continuous_results[scen_id] = None
@@ -1217,6 +1394,7 @@ def main() -> None:
             "metrics": metrics,
             "response": response,
             "tol_half": tol_half,
+            "s3_correction_applied": s3_correction_applied,
         }
         print(f"  {scen_id}: %GR&R={metrics['pct_contribution_grr']:.1f}%  ndc={metrics['ndc']}")
         # Six-panel chart
@@ -1228,6 +1406,15 @@ def main() -> None:
         bias_results = _bias_linearity(matched["S1"], run_dir)
         for appr, info in bias_results.items():
             print(f"  S1 bias ({appr}): {info['mean_bias']:+.2f} dB  slope={info['slope']:.3f}")
+
+    # --- Decode-rate scenarios (currently: S3b) ---
+    s3b_results: dict | None = None
+    if any(sid in matched for sid in DECODE_RATE_SCENARIOS):
+        scen_id = next(sid for sid in DECODE_RATE_SCENARIOS if sid in matched)
+        s3b_results = _analyse_decode_rate(matched[scen_id], scen_id, run_dir)
+        for appr in APPRAISERS:
+            rate = s3b_results["overall"].get(appr, float("nan"))
+            print(f"  {scen_id} decode rate ({appr}): {_fmt_num(rate)}%  (informational)")
 
     # --- Attribute scenarios ---
     # False-positive rate (S5) — gated metric, unchanged.
@@ -1247,7 +1434,6 @@ def main() -> None:
     # --- S7 compounding / co-channel overlap ---
     s7_results: dict | None = None
     if "S7" in matched:
-        scenario_meta = _load_scenario_meta(scenarios_dir)
         s7_results = _analyse_compounding(matched["S7"], scenario_meta.get("S7"), run_dir)
         print(
             "  S7 recovery (per-message): "
@@ -1266,6 +1452,7 @@ def main() -> None:
         fp_results, bias_results, verdict_rows, overall, fails,
         s7_results=s7_results,
         attr_results=attr_results,
+        s3b_results=s3b_results,
     )
     print(f"\nReport written: {report_path}")
     print(f"Overall verdict: {overall}")

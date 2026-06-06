@@ -147,7 +147,8 @@ Continuous studies use one response variable each (clean separation). All use
 |---|---|---|---|---|
 | **S1 SNR ladder** | SNR R&R + Bias/Linearity | true SNR ∈ {−24,−21,−18,−15,−12,−9,−6,−3,0,+3} dB; fixed freq=1500 Hz, DT=0.2 s, one message | 3 | SNR Gage R&R; SNR bias & linearity |
 | **S2 Frequency sweep** | Frequency R&R | audio freq ∈ {300,567,834,…,2700} Hz; fixed SNR=0 dB | 3 | Frequency Gage R&R |
-| **S3 DT offset** | DT R&R | DT ∈ {−2.0,−1.5,…,+2.0} s (10 steps); fixed SNR=0 dB | 3 | DT Gage R&R |
+| **S3 DT offset** | DT R&R | DT ∈ {0.0,+0.3,…,+2.7} s (10 steps, positive only — redesigned 2026-06-06 per R&R-003); fixed SNR=0 dB; WSJT-X DT corrected +0.55 s (convention offset) | 3 | DT Gage R&R |
+| **S3b Negative-DT boundary** | Decode rate vs DT < 0 | DT ∈ {0.0,−0.3,…,−2.7} s (10 steps, negative sweep); fixed SNR=0 dB (companion to S3; attribute, not GR&R) | 3 | Per-DT decode rate per appraiser; informational |
 | **S4 Density / QRM** | Attribute agreement | cycles with N∈{1,5,10,20,30} simultaneous signals at mixed SNRs; ≥ 50 message instances total | 3 | Recovery Kappa (vs truth & between apps) |
 | **S5 Noise / birdies** | False positives | signal-free cycles: white noise, pink noise, steady carriers/birdies | 3 | False-positive rate & agreement |
 | **S6 Off-air corpus** *(optional, not yet built)* | External validity | replay the committed 40 m fixture recordings through the device | 1 | Cross-check vs live p15 recovery metric |
@@ -161,11 +162,22 @@ S4 stresses *band loading*: N signals spread evenly across 300–2700 Hz, so eve
 50 Hz-wide signals never share a bin (~83 Hz spacing). It therefore never tests the everyday FT8
 pileup where multiple stations transmit on the **same** audio frequency and their waveforms
 physically **compound** into one overlapping signal. S7 fills that gap: each part lists explicit
-per-signal `(msg_id, freq_hz, dt_s, snr_db)`, the harness sums the independently-encoded signals,
-and **one truth row is logged per signal** so the existing matcher scores each compounded message
-independently. This yields genuine per-message recovery (matched / injected) — the metric the S4/S5
-attribute-Kappa path cannot produce, because its truth label has only the single class "injected"
-and Cohen's κ is undefined on one class.
+per-signal `(msg_id, freq_hz, dt_s, snr_db)`. The harness models a **single receiver**: each station
+is rendered clean, scaled by its relative SNR (`amp = 10^(snr_db/20)`, so `snr_db` sets station
+**strength** against the floor), the stations are summed, and **one shared band-noise floor** is added
+once for the whole slot (`channel.mix_to_shared_floor`). This matters for fidelity: an N-stack must
+not carry N independent noise floors, and a capture pair (e.g. `0 / -10 dB`) must actually differ in
+level or the capture-split deliverable measures nothing. **One truth row is logged per signal** (its
+`true_snr_db` is that station's strength vs the shared floor) so the existing matcher scores each
+compounded message independently. This yields genuine per-message recovery (matched / injected) — the
+metric the S4/S5 attribute-Kappa path cannot produce, because its truth label has only the single
+class "injected" and Cohen's κ is undefined on one class.
+
+> **Note (shared-floor convention).** S4 density uses the same single-floor mixer: its `N` stations are
+> spread across 300–2700 Hz, scaled by their per-station SNR, and summed over one floor. Earlier runs
+> used a per-signal-noise convention (each station carried its own floor and all stations were rendered
+> at equal amplitude regardless of `snr_db`); that inflated the floor ∝ N and erased capture ratios, and
+> is superseded by this section. Runs predating the shared-floor mixer are not comparable to later ones.
 
 Co-channel separation has no AIAG tolerance, so S7 is reported as an **informational** recovery
 table (per overlap family, per part, capture strong-vs-weak split, and between-app agreement); it
@@ -352,3 +364,40 @@ All design questions have been ruled on by the Captain.
 Restrict the S1 SNR ladder to levels ≥ −12 dB (where both apps decode reliably) to eliminate
 selection bias from threshold misses.  Add a companion decode-rate study (attribute) covering
 −24 to −15 dB, cleanly separating measurement variance from decode probability.
+
+### S3 redesign — R&R-003 (GitHub #1) — **IMPLEMENTED 2026-06-06**
+
+The S3 GR&R failure (%GR&R = 51.7%, ndc = 1) had two distinct root causes, neither of which
+was fundamental measurement noise:
+
+1. **OpenWSFZ cannot measure negative DT offsets.**  For signals with true DT < 0 s, OpenWSFZ
+   still decodes the message but reports DT ≈ 0 regardless of the true value (at true DT = −2.0 s
+   the bias is +1.97 s).  Including these parts inflated the App × Part interaction with a decoder
+   capability boundary, not measurement noise.
+
+2. **WSJT-X has a ~−0.55 s systematic DT convention offset.**  WSJT-X defines DT relative to
+   the FT8 nominal TX start (≈ 0.5–1.0 s into the slot) while the harness uses the UTC slot
+   boundary (DT = 0).  This produced a ~−0.55 s offset in all WSJT-X DT reports and dominated
+   the SS_appraiser term in the ANOVA, attributing a calibration artefact to Reproducibility error.
+
+**Changes implemented** (branch `fix/rr-003-s3-dt-redesign`, closes GitHub #1):
+
+- **`scenarios/s3-dt-offset.json`** — Parts replaced: DT ∈ {0.0, +0.3, …, +2.7} s (10 positive
+  steps, 0.3 s resolution, covering the reliable decode window of both apps). Added
+  `wsjt_dt_correction_s: 0.55` field; the analyser reads this and adds +0.55 s to WSJT-X
+  `reported_dt_s` before ANOVA so SS_appraiser captures genuine measurement disagreement, not a
+  convention mismatch. Raw matched-CSV values are unaltered.
+
+- **`scenarios/s3b-dt-boundary.json`** (new) — Companion attribute scenario: DT ∈ {0.0, −0.3,
+  …, −2.7} s (10 negative steps). Measures *decode rate* (did it decode?) not DT precision. Cleanly
+  separates "does it decode early-starting signals?" from "does it report DT accurately?".
+  `analysis: "attribute_decode_rate"` — the analyser renders a per-DT decode-rate table and chart.
+
+- **`harness/analyse.py`** — `_apply_wsjt_dt_correction()` helper added; S3 path in `main()`
+  applies the correction when `wsjt_dt_correction_s` is present in the scenario JSON.
+  `_analyse_decode_rate()` and `_decode_rate_report_lines()` added for S3b. S7 path updated to use
+  scenario meta loaded at start of `main()`.
+
+The DT GR&R is expected to improve substantially on the next run; the within-cell repeatability
+(σ ≈ 0.10–0.14 s per appraiser from run aa053a9) is physically meaningful and is the residual
+noise once the two artificial inflation sources are removed.

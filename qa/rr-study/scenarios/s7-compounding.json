@@ -1,5 +1,5 @@
 {
-  "_comment": "S7 Compounding / co-channel overlap — recovery under signals that physically sum in one slot (STUDY-SPEC §6). Each part lists explicit per-signal (msg_id, freq_hz, dt_s, snr_db); the harness sums them into one waveform. Truth is logged one row PER SIGNAL so the existing matcher scores each compounded message independently.",
+  "_comment": "S7 Compounding / co-channel overlap — recovery under signals that physically sum in one slot at a single receiver (STUDY-SPEC §6). Each part lists explicit per-signal (msg_id, freq_hz, dt_s, snr_db). The harness renders each station clean, scales it by its relative snr_db (so snr_db sets station STRENGTH — capture pairs really differ in level), sums them, and adds ONE shared band-noise floor. Truth is logged one row PER SIGNAL so the existing matcher scores each compounded message independently.",
   "_format_version": "1",
 
   "id": "S7",
@@ -9,7 +9,7 @@
 
   "message_pool": ["MSG-01", "MSG-02", "MSG-03"],
 
-  "harness_note": "Rendered by _render_compound: each signal is encoded independently (own seeded noise at its snr_db, matching the S4 superposition convention) and summed. One truth row is written per signal, carrying that signal's true freq/dt/snr, so the matcher's text+freq branch scores each message on its own.",
+  "harness_note": "Rendered by _render_compound via channel.mix_to_shared_floor: each signal is encoded clean, scaled by 10^(snr_db/20) (relative strength vs the shared floor), summed, then a single seeded AWGN floor is added once for the whole slot (NOT one floor per signal). One truth row is written per signal, carrying that signal's true freq/dt/snr (snr = strength vs the shared floor), so the matcher's text+freq branch scores each message on its own.",
 
   "parts": [
     {
