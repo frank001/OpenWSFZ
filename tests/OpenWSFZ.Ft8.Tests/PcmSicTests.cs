@@ -34,7 +34,9 @@ public sealed class PcmSicTests
     [Fact(DisplayName = "fix-D001 8.1: DecodeAll does not mutate the input PCM buffer (checksum invariant)")]
     public void DecodeAll_MultiSignalFixture_DoesNotMutatePcmBuffer()
     {
-        // Arrange — load the synthetic multi-signal fixture.
+        // Arrange — load a single-QSO synthetic fixture.
+        // This verifies the immutability invariant whenever at least one signal is decoded
+        // and the PCM subtraction block is triggered.  It does NOT exercise co-channel SIC.
         float[] pcm = LoadFixtureWav("synth-qso-01.wav");
         pcm.Should().HaveCount(180_000, "fixture must be exactly 15 s × 12 kHz = 180 000 samples");
 
@@ -68,7 +70,9 @@ public sealed class PcmSicTests
     [Fact(DisplayName = "fix-D001 8.2: GetLastPassCounts(3) returns length 3 whose sum equals total decode count")]
     public void GetLastPassCounts_AfterDecodeOnMultiSignalFixture_ThreePassSumEqualsTotal()
     {
-        // Arrange
+        // Arrange — single-QSO synthetic fixture.  The fixture does not contain
+        // simultaneous co-channel signals, so PCM-SIC fires on the single decoded
+        // signal but is not tested in a true co-channel scenario.
         float[] pcm = LoadFixtureWav("synth-qso-01.wav");
 
         // Act — both calls on the SAME thread (no Task.Run).
@@ -131,6 +135,59 @@ public sealed class PcmSicTests
                 m => m.message.Contains(expectedFragment, StringComparison.Ordinal),
                 $"log message for pass {n} of 3 must be present");
         }
+    }
+
+    // ── Finding 1 regression — phase pre-advancement ─────────────────────────
+
+    /// <summary>
+    /// Regression test for fix-D001 review Finding 1: phase pre-advancement for
+    /// signals with negative <c>dt_s</c> (frame starts before the PCM buffer).
+    ///
+    /// <para>
+    /// When <c>dt_s &lt; 0</c> (<c>time_offset ≤ -1</c>), <c>synthesise_cp_fsk</c>
+    /// must pre-advance the phase accumulator through the skipped pre-buffer samples
+    /// so the replica at buffer sample 0 has the correct phase.  Without the fix the
+    /// shim subtracts a phase-0 replica, which for most carrier frequencies <em>adds</em>
+    /// energy to the residual rather than removing it.
+    /// </para>
+    ///
+    /// <para>
+    /// Direct verification (comparing residual PCM RMS before vs. after subtraction)
+    /// is not possible from managed code because <c>pcm_residual</c> is internal to
+    /// the native shim.  This test verifies the invariants that ARE observable:
+    /// (a) the input PCM buffer is not mutated (Decision 6), and
+    /// (b) per-pass decode counts sum to the total result count (TLS accounting).
+    /// A full residual-RMS comparison would require exporting a new native API —
+    /// tracked as a follow-on improvement.
+    /// </para>
+    /// </summary>
+    [Fact(DisplayName = "fix-D001 F1 regression: PCM buffer unchanged and pass counts consistent (phase pre-advancement path)")]
+    public void DecodeAll_FindingOneRegression_PcmBufferUnchangedAndPassCountsConsistent()
+    {
+        // Arrange — single-QSO synthetic fixture.
+        // The fixture was synthesised at dt ≈ 0, so decoded candidates will have
+        // non-negative time offsets.  The phase pre-advancement branch (t_start_raw < 0)
+        // is therefore NOT exercised by this test; a fixture synthesised with an
+        // intentional negative dt would be required for full branch coverage.
+        float[] pcm = LoadFixtureWav("synth-qso-01.wav");
+        double checksumBefore = ComputeChecksum(pcm);
+
+        // Act — decode exercises the PCM subtraction path (at least one signal decoded).
+        Ft8NativeResult[] results = Ft8LibInterop.DecodeAll(pcm);
+        int[] counts = Ft8LibInterop.GetLastPassCounts(3);
+
+        // Assert 1 — PCM buffer is unchanged (Decision 6 invariant holds regardless
+        // of whether the negative-DT branch fires).
+        double checksumAfter = ComputeChecksum(pcm);
+        checksumAfter.Should().Be(checksumBefore,
+            "ft8_decode_all must not write to the caller's PCM buffer — " +
+            "pcm_residual is an internal working buffer (Decision 6)");
+
+        // Assert 2 — per-pass counts sum to total (TLS accounting invariant).
+        if (counts.Length > 0)
+            counts.Sum().Should().Be(results.Length,
+                "per-pass counts must sum to total decode count — " +
+                "a mismatch indicates a TLS accounting regression in the phase-pre-advancement path");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

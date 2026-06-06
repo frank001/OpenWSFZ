@@ -100,6 +100,11 @@ public sealed class Ft8Decoder : IModeDecoder
 
         Ft8NativeResult[] native;
         int[]             passCounts;
+
+        // Both calls must be on the same thread — no await between them — because
+        // ft8_get_last_pass_counts reads from TLS written by ft8_decode_all.
+        // IMPORTANT: do not make this lambda async or split these two calls across
+        // separate Task.Run invocations; doing so would break the TLS guarantee.
         (native, passCounts) = await Task.Run(() =>
         {
             var r = Ft8LibInterop.DecodeAll(pcm);
