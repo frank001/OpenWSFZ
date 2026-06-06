@@ -130,8 +130,8 @@ This tier is the **single most important** part of the suite. It is what proves 
     "source": "ft8_lib test corpus, file 14060_2017-08-09_000130.wav, MIT",
     "cycle_utc": "2017-08-09T00:01:30Z",
     "decodes": [
-      { "audio_offset_hz": 1234, "time_offset_s": 0.2, "snr_db": -12, "text": "CQ K1JT FN42" },
-      { "audio_offset_hz": 1850, "time_offset_s": 0.1, "snr_db": -18, "text": "K1JT Q1AW 73"  }
+      { "audio_offset_hz": 1234, "time_offset_s": 0.2, "snr_db": -12, "text": "CQ Q1JT FN42" },
+      { "audio_offset_hz": 1850, "time_offset_s": 0.1, "snr_db": -18, "text": "Q1JT Q1AW 73"  }
     ]
   }
   ```

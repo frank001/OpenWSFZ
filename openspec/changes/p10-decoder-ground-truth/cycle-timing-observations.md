@@ -98,7 +98,7 @@ GO_WINDOW_S corrected to 2 s before this session.
    started within 0.3 s of the cycle boundary and still produced 16 full decodes. There
    is no penalty for starting early.
 
-4. **dt = 3.1 s in cycle 19:08:45** (Q6LU QX6DA, SNR +9) is not a concern. The
+4. **dt = 3.1 s in cycle 19:08:45** (a high-SNR station, SNR +9) is not a concern. The
    inferred start offset for that cycle is 1.6 s; the 3.1 s dt reflects that particular
    station's natural timing offset in the original recording, not a late start. The
    signal ends at approximately T = 14.1 s — within the window.

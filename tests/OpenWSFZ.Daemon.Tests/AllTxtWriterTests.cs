@@ -40,7 +40,7 @@ public sealed class AllTxtWriterTests : IDisposable
         var cycleUtc = new DateTime(2026, 5, 28, 17, 29, 30, DateTimeKind.Utc);
         var results  = new List<DecodeResult>
         {
-            new("17:29:30", Snr: 3, Dt: 0.2, FreqHz: 2252, Message: "Q4DSA QD1BER JO22"),
+            new("17:29:30", Snr: 3, Dt: 0.2, FreqHz: 2252, Message: "Q1ABC Q9XYZ FN42"),
         };
 
         await writer.AppendAsync(cycleUtc, 7.074, results);
@@ -49,7 +49,7 @@ public sealed class AllTxtWriterTests : IDisposable
         lines.Should().HaveCount(1);
         // Format: "{timestamp}     {dialMhz:F3} Rx FT8 {snr,6} {dt,4:F1} {freq,4} {message}"
         // snr=3  → "     3" (6 chars); dt=0.2 → " 0.2" (4 chars); plus 1-space separator = 2 spaces before "0.2".
-        lines[0].Should().Be("260528_172930     7.074 Rx FT8      3  0.2 2252 Q4DSA QD1BER JO22",
+        lines[0].Should().Be("260528_172930     7.074 Rx FT8      3  0.2 2252 Q1ABC Q9XYZ FN42",
             "the line must exactly match the WSJT-X ALL.TXT column layout");
     }
 
@@ -64,7 +64,7 @@ public sealed class AllTxtWriterTests : IDisposable
 
         var results = new List<DecodeResult>
         {
-            new("17:29:30", Snr: 3, Dt: 0.2, FreqHz: 2252, Message: "Q4DSA QD1BER JO22"),
+            new("17:29:30", Snr: 3, Dt: 0.2, FreqHz: 2252, Message: "Q1ABC Q9XYZ FN42"),
         };
 
         await writer.AppendAsync(DateTime.UtcNow, 7.074, results);
@@ -104,7 +104,7 @@ public sealed class AllTxtWriterTests : IDisposable
 
         var results = new List<DecodeResult>
         {
-            new("17:29:30", Snr: 3, Dt: 0.2, FreqHz: 2252, Message: "Q4DSA QD1BER JO22"),
+            new("17:29:30", Snr: 3, Dt: 0.2, FreqHz: 2252, Message: "Q1ABC Q9XYZ FN42"),
         };
 
         // Must not throw.

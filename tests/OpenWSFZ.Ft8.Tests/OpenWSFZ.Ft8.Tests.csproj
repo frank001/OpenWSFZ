@@ -21,14 +21,16 @@
     <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
   </ItemGroup>
 
-  <!-- Real-signal WAV fixtures and their WSJT-X answer-key subsets (FR-029) -->
+  <!-- Synthetic FT8 WAV fixtures and their answer-key subsets (FR-029).
+       Fictional example callsigns only (Q1AW / Q1ABC / Q9XYZ); no real
+       third-party operators. Regenerate via qa/rr-study/gen_decoder_fixtures.py. -->
   <ItemGroup>
-    <EmbeddedResource Include="Fixtures\260528_235745.wav" />
-    <EmbeddedResource Include="Fixtures\260528_235745.expected.txt" />
-    <EmbeddedResource Include="Fixtures\260529_000030.wav" />
-    <EmbeddedResource Include="Fixtures\260529_000030.expected.txt" />
-    <EmbeddedResource Include="Fixtures\260529_000200.wav" />
-    <EmbeddedResource Include="Fixtures\260529_000200.expected.txt" />
+    <EmbeddedResource Include="Fixtures\synth-qso-01.wav" />
+    <EmbeddedResource Include="Fixtures\synth-qso-01.expected.txt" />
+    <EmbeddedResource Include="Fixtures\synth-qso-02.wav" />
+    <EmbeddedResource Include="Fixtures\synth-qso-02.expected.txt" />
+    <EmbeddedResource Include="Fixtures\synth-qso-03.wav" />
+    <EmbeddedResource Include="Fixtures\synth-qso-03.expected.txt" />
   </ItemGroup>
 
 

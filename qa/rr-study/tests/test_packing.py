@@ -107,13 +107,13 @@ class TestWidth:
 #     a2 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"  (36 chars, pos 1)
 #     a3 = "0123456789"                            (10 chars, pos 2)
 #     a4 = " ABCDEFGHIJKLMNOPQRSTUVWXYZ"           (27 chars, pos 3-5)
-#   i0 = 0 (space in a1), i1 = 20 (K in a2), i2 = 1 (1 in a3)
+#   i0 = 0 (space in a1), i1 = 26 (Q in a2), i2 = 1 (1 in a3)
 #   i3 = 1 (A in a4), i4 = 2 (B), i5 = 3 (C)
-#   n_base = ((((0*36 + 20)*10 + 1)*27 + 1)*27 + 2)*27 + 3 = 3 957 069
+#   n_base = ((((0*36 + 26)*10 + 1)*27 + 1)*27 + 2)*27 + 3 = 5 138 049
 #   Published offsets (QEX 2020 §III-A):
 #     NTOKENS = 2 063 592  (first value above special-token range)
 #     MAX22   = 4 194 304  (2^22, hashed-callsign range size)
-#   n28b = 2 063 592 + 4 194 304 + 3 957 069 = 10 214 965
+#   n28b = 2 063 592 + 4 194 304 + 5 138 049 = 11 395 945
 #   ipb = 0
 #
 # Field 3 — "FN42"
@@ -123,13 +123,13 @@ class TestWidth:
 # i3 = 1 (Type-1 standard message, QEX 2020 Table II)
 #
 # 77-bit word (MSB first): n28a(28) | ipa(1) | n28b(28) | ipb(1) | ir(1) | igrid4(15) | i3(3)
-#   = 2*2^49 + 10_214_965*2^20 + 10_342*2^3 + 1
+#   = 2*2^49 + 11_395_945*2^20 + 10_342*2^3 + 1
 #   = 1 125 899 906 842 624
-#   +    10 711 167 139 840
+#   +    11 949 514 424 320
 #   +                82 736
 #   +                     1
-#   = 1 136 611 074 065 201
-_CQ_Q1ABC_FN42_EXPECTED_INT = 1_136_611_074_065_201
+#   = 1 137 849 421 349 681
+_CQ_Q1ABC_FN42_EXPECTED_INT = 1_137_849_421_349_681
 
 
 class TestBitExact:
@@ -145,8 +145,8 @@ class TestBitExact:
         c6 = _normalize_to_c6("Q1ABC")
         n_base = _pack_basecall(c6)
         assert c6 == " Q1ABC"
-        assert n_base == 3_957_069
-        assert n28b == NTOKENS + MAX22 + 3_957_069 == 10_214_965
+        assert n_base == 5_138_049
+        assert n28b == NTOKENS + MAX22 + 5_138_049 == 11_395_945
         assert ipb == 0
 
         # grid
@@ -176,7 +176,7 @@ class TestDeterminism:
         assert packing.pack_message(msg) == packing.pack_message(msg)
 
     def test_case_insensitive(self):
-        assert packing.pack_message("CQ Q1ABC FN42") == packing.pack_message("cq k1abc fn42")
+        assert packing.pack_message("CQ Q1ABC FN42") == packing.pack_message("cq q1abc fn42")
 
 
 # ---------------------------------------------------------------------------

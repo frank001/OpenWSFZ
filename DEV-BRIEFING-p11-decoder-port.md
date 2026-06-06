@@ -294,7 +294,7 @@ where the DFT is at 6.25 Hz resolution. That is the sole missing piece.
 
 The G6 `RealSignalFixtureTests` are the acceptance criterion. The port is **done** when:
 
-1. `dotnet test -c Release` passes with `Failed: 0` — specifically, all three G6 fixture tests must go **green** (i.e. the decoder recovers `Q8OM Q2ZJ FN13`, `Q6LU Q4MGP JN04`, etc. from the committed WAVs).
+1. `dotnet test -c Release` passes with `Failed: 0` — specifically, all three G6 fixture tests must go **green** (i.e. the decoder recovers the synthetic fixture answer-key messages, e.g. `CQ Q1ABC FN42`, `Q1ABC Q9XYZ -10`, from the committed WAVs).
 2. No existing test regresses.
 3. Build: 0 errors, 0 warnings.
 

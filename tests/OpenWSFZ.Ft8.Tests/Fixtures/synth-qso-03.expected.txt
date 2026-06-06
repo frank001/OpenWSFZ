@@ -1,0 +1,7 @@
+# Answer-key subset for synth-qso-03
+# SYNTHETIC FT8 fixture (qa/rr-study/gen_decoder_fixtures.py).
+# Fictional example callsigns only (Q1AW / Q1ABC / Q9XYZ) — no real
+# third-party operators. Regenerate with the generator, not by hand.
+CQ Q1AW FN31
+Q1AW Q1ABC +05
+Q1ABC Q1AW RR73

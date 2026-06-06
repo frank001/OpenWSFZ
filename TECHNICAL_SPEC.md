@@ -247,7 +247,7 @@ public record Ft8DecodeMessage(
     int AudioOffsetHz,           // e.g. +1234 Hz, displayed per FR-009
     double SnrDb,                // signal-to-noise in dB
     double TimeOffsetSec,        // dt vs. cycle start
-    string DecodedText,          // e.g. "CQ K1JT FN42"
+    string DecodedText,          // e.g. "CQ Q1JT FN42"
     double Confidence);          // 0..1, decoder-internal
 
 public record WaterfallFrame(

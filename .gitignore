@@ -63,13 +63,15 @@ licence-inventory.md
 # Working / scratch notes (not part of the repo)
 resume.txt
 
-# Captain's raw WAV corpus — too large to commit; used locally only
+# Raw off-air WAV corpus — too large to commit AND contains real third-party
+# callsigns (personal data); local only, never commit (NFR-021 / GDPR).
 p10-decoder-ground-truth_items/
 
-# UAT-01 raw WAV corpus for p12-ft8lib-port — local only
+# UAT-01 raw off-air WAV corpus — local only; real third-party callsigns (NFR-021).
 p12-ft8lib-port_UAT-01_items/
 
-# p16 CAT control live capture samples (ALL-*.TXT, *.log) — operator artefacts, local only
+# p16 CAT control live capture samples (ALL-*.TXT, *.log) — operator artefacts,
+# may contain real third-party callsigns; local only (NFR-021 / GDPR).
 p16-cat-control_items/
 
 # Daemon runtime output — generated files
