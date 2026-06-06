@@ -26,7 +26,7 @@ def _gaussian_pulse(samples_per_symbol: int, bt: float) -> np.ndarray:
     t = (np.arange(n) - n / 2 + 0.5) / samples_per_symbol  # in symbol periods
     sigma = np.sqrt(np.log(2)) / (2 * np.pi * bt)
     pulse = np.exp(-(t ** 2) / (2 * sigma ** 2))
-    pulse /= pulse.sum() / samples_per_symbol
+    pulse /= pulse.sum()
     return pulse
 
 

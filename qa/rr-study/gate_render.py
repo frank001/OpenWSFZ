@@ -39,10 +39,16 @@ from synth import encoder, wavio  # noqa: E402  (after sys.path insert)
 # ---------------------------------------------------------------------------
 # Gate conditions (STUDY-SPEC §5)
 # ---------------------------------------------------------------------------
-_GATE_BASE_FREQ_HZ: float = 1500.0
-_GATE_DT_S:         float = 0.2
-_GATE_SNR_DB:       float = 10.0
-_GATE_SEED:         int   = 0
+_GATE_BASE_FREQ_HZ:  float = 1500.0
+_GATE_DT_S:          float = 0.2
+_GATE_SNR_DB:        float = 10.0
+_GATE_SEED:          int   = 0
+# jt9.exe (WSJT-X command-line decoder) processes audio at 12 000 Hz internally
+# and cannot resample a 48 kHz WAV.  The gate therefore renders at 12 kHz so
+# that jt9 can validate the encoded output directly.  The study itself renders
+# at 48 kHz (DEFAULT_SAMPLE_RATE_HZ) for playback through VB-CABLE; WSJT-X's
+# live capture path handles 48 kHz -> 12 kHz resampling internally.
+_GATE_SAMPLE_RATE_HZ: int  = 12000
 
 
 # ---------------------------------------------------------------------------
@@ -84,12 +90,13 @@ def render_gate_wavs(
         print(f"  {msg_id}  '{text}'", end="  … ", flush=True)
         samples = encoder.encode_message(
             text,
-            base_freq_hz = _GATE_BASE_FREQ_HZ,
-            dt_s         = _GATE_DT_S,
-            snr_db       = _GATE_SNR_DB,
-            seed         = _GATE_SEED,
+            base_freq_hz    = _GATE_BASE_FREQ_HZ,
+            dt_s            = _GATE_DT_S,
+            snr_db          = _GATE_SNR_DB,
+            seed            = _GATE_SEED,
+            sample_rate_hz  = _GATE_SAMPLE_RATE_HZ,
         )
-        wavio.write_wav(str(out_path), samples)
+        wavio.write_wav(str(out_path), samples, sample_rate_hz=_GATE_SAMPLE_RATE_HZ)
         results.append((out_path, text))
         print(f"-> {out_path.name}")
 
@@ -124,7 +131,8 @@ def main() -> None:
     print(f"  base_freq = {_GATE_BASE_FREQ_HZ} Hz  |  "
           f"dt = {_GATE_DT_S} s  |  "
           f"SNR = +{_GATE_SNR_DB:.0f} dB  |  "
-          f"seed = {_GATE_SEED}")
+          f"seed = {_GATE_SEED}  |  "
+          f"fs = {_GATE_SAMPLE_RATE_HZ} Hz (jt9 compatible)")
     print(f"  manifest  = {manifest_path}")
     print(f"  output    = {out_dir}")
     print()

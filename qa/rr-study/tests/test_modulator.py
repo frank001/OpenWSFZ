@@ -51,3 +51,20 @@ def test_instantaneous_frequency_near_base_for_tone_zero():
     crossings = np.sum((mid[:-1] < 0) & (mid[1:] >= 0))
     est_freq = crossings / (len(mid) / fs)
     assert abs(est_freq - base) < TONE_SPACING_HZ  # within one tone bin
+
+
+def test_instantaneous_frequency_non_zero_tone():
+    # A constant tone-4 sequence should sit at base_freq + 4 * 6.25 = 1525.0 Hz.
+    # Costas positions are also set to tone=4 — valid for unit-testing the modulator
+    # in isolation (we are not testing the encode pipeline here).
+    fs = 48000
+    base = 1500.0
+    tone = 4
+    expected_freq = base + tone * TONE_SPACING_HZ  # 1525.0 Hz
+    out = modulator.modulate([tone] * NUM_SYMBOLS, base_freq_hz=base, sample_rate_hz=fs)
+    sig = out[out != 0.0]
+    # Estimate dominant frequency via zero-crossings over the active region.
+    mid = sig[len(sig) // 4: 3 * len(sig) // 4]
+    crossings = np.sum((mid[:-1] < 0) & (mid[1:] >= 0))
+    est_freq = crossings / (len(mid) / fs)
+    assert abs(est_freq - expected_freq) < TONE_SPACING_HZ  # within one tone bin
