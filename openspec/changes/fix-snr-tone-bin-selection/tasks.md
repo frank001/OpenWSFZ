@@ -26,5 +26,5 @@
 
 ## 5. Change Closure
 
-- [ ] 5.1 Commit shim source edit and rebuilt binaries with message referencing R&R-001
+- [x] 5.1 Commit shim source edit and rebuilt binaries with message referencing R&R-001
 - [ ] 5.2 Push to main and confirm CI passes on all three matrix legs (win-x64, linux-x64, osx-arm64)
