@@ -8,6 +8,7 @@ between symbols.
 from __future__ import annotations
 
 import numpy as np
+from scipy.signal import fftconvolve
 
 from .constants import (
     DEFAULT_SAMPLE_RATE_HZ,
@@ -52,7 +53,7 @@ def modulate(
     # Per-sample tone index (piecewise constant), then Gaussian-smoothed.
     tone_arr = np.repeat(np.asarray(tones, dtype=np.float64), sps)
     pulse = _gaussian_pulse(sps, GFSK_BT)
-    smoothed = np.convolve(tone_arr, pulse, mode="same")
+    smoothed = fftconvolve(tone_arr, pulse, mode="same")
 
     # Instantaneous frequency (Hz) then integrated phase.
     inst_freq = base_freq_hz + smoothed * TONE_SPACING_HZ
