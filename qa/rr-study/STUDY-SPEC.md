@@ -161,11 +161,22 @@ S4 stresses *band loading*: N signals spread evenly across 300–2700 Hz, so eve
 50 Hz-wide signals never share a bin (~83 Hz spacing). It therefore never tests the everyday FT8
 pileup where multiple stations transmit on the **same** audio frequency and their waveforms
 physically **compound** into one overlapping signal. S7 fills that gap: each part lists explicit
-per-signal `(msg_id, freq_hz, dt_s, snr_db)`, the harness sums the independently-encoded signals,
-and **one truth row is logged per signal** so the existing matcher scores each compounded message
-independently. This yields genuine per-message recovery (matched / injected) — the metric the S4/S5
-attribute-Kappa path cannot produce, because its truth label has only the single class "injected"
-and Cohen's κ is undefined on one class.
+per-signal `(msg_id, freq_hz, dt_s, snr_db)`. The harness models a **single receiver**: each station
+is rendered clean, scaled by its relative SNR (`amp = 10^(snr_db/20)`, so `snr_db` sets station
+**strength** against the floor), the stations are summed, and **one shared band-noise floor** is added
+once for the whole slot (`channel.mix_to_shared_floor`). This matters for fidelity: an N-stack must
+not carry N independent noise floors, and a capture pair (e.g. `0 / -10 dB`) must actually differ in
+level or the capture-split deliverable measures nothing. **One truth row is logged per signal** (its
+`true_snr_db` is that station's strength vs the shared floor) so the existing matcher scores each
+compounded message independently. This yields genuine per-message recovery (matched / injected) — the
+metric the S4/S5 attribute-Kappa path cannot produce, because its truth label has only the single
+class "injected" and Cohen's κ is undefined on one class.
+
+> **Note (shared-floor convention).** S4 density uses the same single-floor mixer: its `N` stations are
+> spread across 300–2700 Hz, scaled by their per-station SNR, and summed over one floor. Earlier runs
+> used a per-signal-noise convention (each station carried its own floor and all stations were rendered
+> at equal amplitude regardless of `snr_db`); that inflated the floor ∝ N and erased capture ratios, and
+> is superseded by this section. Runs predating the shared-floor mixer are not comparable to later ones.
 
 Co-channel separation has no AIAG tolerance, so S7 is reported as an **informational** recovery
 table (per overlap family, per part, capture strong-vs-weak split, and between-app agreement); it

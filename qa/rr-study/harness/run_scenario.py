@@ -156,9 +156,13 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
 
 def _render_multi(scenario: dict, part: dict, trial_index: int,
                   seed: int) -> "numpy.ndarray":
-    """Render a multi-signal density part (S4) as a superposition of FT8 signals."""
-    import numpy as np
-    from synth import encoder
+    """Render a multi-signal density part (S4) over one shared band-noise floor.
+
+    Stations are spread evenly across 300–2700 Hz and scaled by their relative
+    SNR; a single seeded noise floor is added once (see
+    :func:`synth.channel.mix_to_shared_floor`) — not one floor per station.
+    """
+    from synth import channel, encoder
 
     msg_pool = list(scenario["message_texts"].values())
     n_signals = part["n_signals"]
@@ -172,25 +176,21 @@ def _render_multi(scenario: dict, part: dict, trial_index: int,
         freqs = [freq_min + i * (freq_max - freq_min) / (n_signals - 1)
                  for i in range(n_signals)]
 
-    mixed: "numpy.ndarray | None" = None
-    rng = __import__("numpy").random.default_rng(seed)
+    clean_signals = []
+    snr_list = []
     for i in range(n_signals):
         text = msg_pool[i % len(msg_pool)]
-        snr_db = snr_db_set[i % len(snr_db_set)]
-        sig_seed = int(rng.integers(0, 2 ** 31))
-        sig = encoder.encode_message(
+        clean_signals.append(encoder.encode_message(
             text,
             base_freq_hz=freqs[i],
             dt_s=0.0,
-            snr_db=snr_db,
-            seed=sig_seed,
+            snr_db=None,  # clean render; the floor is added once by the mixer
             sample_rate_hz=48000,
-        )
-        mixed = sig if mixed is None else mixed + sig
+        ))
+        snr_list.append(float(snr_db_set[i % len(snr_db_set)]))
 
-    return mixed if mixed is not None else __import__("numpy").zeros(
-        int(48000 * 15), dtype="float32"
-    )
+    return channel.mix_to_shared_floor(clean_signals, snr_list, seed,
+                                       sample_rate_hz=48000)
 
 
 # ---------------------------------------------------------------------------
@@ -199,26 +199,28 @@ def _render_multi(scenario: dict, part: dict, trial_index: int,
 
 def _render_compound(scenario: dict, part: dict,
                      seed: int) -> "tuple[numpy.ndarray, list[dict]]":
-    """Render an S7 compounding part: sum 2–3 signals that overlap in freq/time.
+    """Render an S7 compounding part: 2–3 stations overlapping in freq/time.
 
-    Each signal carries its own (freq_hz, dt_s, snr_db); they are encoded
-    independently (own seeded noise at that SNR, matching the S4 superposition
-    convention) and summed into one waveform — the physical "compounding" of
-    co-channel transmissions.
+    Each station carries its own (freq_hz, dt_s, snr_db). They are rendered
+    *clean*, scaled by their relative SNR, summed, and given ONE shared seeded
+    noise floor (see :func:`synth.channel.mix_to_shared_floor`) — the physical
+    "compounding" of co-channel transmissions arriving at a single receiver.
+    Because snr_db now sets relative *strength*, capture pairs (e.g. 0 / -10 dB)
+    really differ in level, and an N-stack does not inflate the noise floor.
 
     Returns ``(mixed_samples, signals_meta)`` where ``signals_meta`` is a list
     of ``{message_text, freq_hz, dt_s, snr_db}`` dicts, one per signal, used to
     write one truth row PER SIGNAL so the matcher scores each independently.
     """
     import numpy as np
-    from synth import encoder
+    from synth import channel, encoder
 
     signals = part.get("signals", [])
     if not signals:
         raise ValueError(f"S7 part {part.get('part_index')} has no 'signals'")
 
-    rng = np.random.default_rng(seed)
-    mixed: "numpy.ndarray | None" = None
+    clean_signals: list = []
+    snr_list: list[float] = []
     signals_meta: list[dict] = []
 
     for s in signals:
@@ -229,16 +231,14 @@ def _render_compound(scenario: dict, part: dict,
         freq_hz = float(s["freq_hz"])
         dt_s = float(s["dt_s"])
         snr_db = float(s["snr_db"])
-        sig_seed = int(rng.integers(0, 2 ** 31))
-        sig = encoder.encode_message(
+        clean_signals.append(encoder.encode_message(
             text,
             base_freq_hz=freq_hz,
             dt_s=dt_s,
-            snr_db=snr_db,
-            seed=sig_seed,
+            snr_db=None,  # clean render; the floor is added once by the mixer
             sample_rate_hz=48000,
-        )
-        mixed = sig if mixed is None else mixed + sig
+        ))
+        snr_list.append(snr_db)
         signals_meta.append({
             "message_text": text,
             "freq_hz": freq_hz,
@@ -246,8 +246,8 @@ def _render_compound(scenario: dict, part: dict,
             "snr_db": snr_db,
         })
 
-    if mixed is None:
-        mixed = np.zeros(int(48000 * 15), dtype="float32")
+    mixed = channel.mix_to_shared_floor(clean_signals, snr_list, seed,
+                                        sample_rate_hz=48000)
     return mixed, signals_meta
 
 
