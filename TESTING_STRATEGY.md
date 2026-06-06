@@ -325,7 +325,7 @@ Before a release tag is cut, **all PR gates** plus:
 |---|---|
 | R1 | Most recent nightly soak run is green |
 | R2 | Decoder-fixture extended corpus run is green |
-| R3 | Manual ad-hoc smoke session by the Product Owner against their own radio (documented in the release notes) |
+| R3 | A confirmed two-way FT8 QSO completed by the Product Owner on their own station using OpenWSFZ (RX + CAT + TX), confirmed by the operator and documented in the release notes. |
 
 The release tag triggers `release.yml` (TECHNICAL_SPEC &sect;9) to publish AOT binaries per OS.
 

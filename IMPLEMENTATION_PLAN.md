@@ -245,14 +245,14 @@ Each phase below uses the same template:
 **Deliverable artefacts:**
 * Final README pass.
 * Release notes for `v1.0.0`.
-* Product Owner manual smoke test against real radio (release gate R3); evidence captured in the release notes.
+* Product Owner confirmed two-way FT8 QSO on their own station using OpenWSFZ (release gate R3); operator attestation documented in the release notes.
 * `v1.0.0` tag.
 * GitHub release published with binaries attached.
 
 **Requirements covered:** all remaining v1 requirements signed off.
 
 **Exit gate (M6):**
-* Release gate R3 (manual smoke) completed and documented.
+* Release gate R3 (confirmed QSO, operator-attested) completed and documented.
 * Tag and release published.
 * Traceability report from CI shows 100% requirement coverage.
 
