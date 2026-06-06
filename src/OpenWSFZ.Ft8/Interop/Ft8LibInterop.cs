@@ -27,24 +27,28 @@ internal static class Ft8LibInterop
     /// The compile-time version constant embedded in the shim (<c>FT8_SHIM_VERSION</c>).
     /// Must match the value returned by <c>ft8_lib_version_check()</c>.
     /// History: 20240001 (single-pass), 20260001 (p15 iterative subtraction),
-    /// 20260002 (R6 weak-signal correction removed — R&amp;R-001 linearity fix).
+    /// 20260002 (R6 weak-signal correction removed — R&amp;R-001 linearity fix),
+    /// 20260003 (fix-D001: PCM-domain SIC; K_MAX_PASSES = 3).
     /// </summary>
-    private const int ExpectedShimVersion = 20260002;
+    private const int ExpectedShimVersion = 20260003;
 
     /// <summary>
-    /// Maximum number of decoded messages per two-pass decode cycle.
-    /// Sized to the two-pass output capacity: K_MAX_CANDIDATES (pass 1, 140)
-    /// + K_MAX_CANDIDATES_PASS2 (pass 2, 200) = 340.  The <c>results[..count]</c>
-    /// slice in <see cref="DecodeAll"/> returns only the populated portion.
+    /// Maximum number of decoded messages per three-pass decode cycle.
+    /// Sized to the three-pass output capacity: K_MAX_CANDIDATES (pass 0, 140)
+    /// + K_MAX_CANDIDATES_PASS2 (pass 1, 200) + K_MAX_CANDIDATES (pass 2, 140) = 480.
+    /// The <c>results[..count]</c> slice in <see cref="DecodeAll"/> returns only the
+    /// populated portion.
     /// </summary>
-    private const int MaxResults = 340;  // K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2
+    private const int MaxResults = 480;  // 140 + 200 + 140 (three-pass capacity)
 
     /// <summary>
     /// Number of decode passes executed by the native shim per cycle.
     /// Mirrors <c>K_MAX_PASSES</c> in <c>ft8_shim.c</c>; both are owned here
     /// so callers do not need to hard-code the pass count separately.
+    /// Pass 0: full waterfall. Pass 1: PCM-residual waterfall (after SIC).
+    /// Pass 2: spectrogram-suppression on the PCM-cleaned waterfall.
     /// </summary>
-    internal const int MaxDecodePasses = 2;
+    internal const int MaxDecodePasses = 3;
 
     private static readonly object _initLock = new();
     private static volatile bool _initialized;
@@ -105,9 +109,10 @@ internal static class Ft8LibInterop
 
     /// <summary>
     /// Decode all FT8 signals from a 180 000-sample PCM buffer.
-    /// Performs <c>K_MAX_PASSES</c> (currently 2) decode passes internally:
-    /// a first pass on the original waterfall and a second pass on the
-    /// residual after suppressing decoded signal tiles.
+    /// Performs <c>K_MAX_PASSES</c> (currently 3) decode passes internally:
+    /// pass 0 on the original waterfall, pass 1 on the PCM-residual waterfall
+    /// after subtracting decoded signals, and pass 2 on the spectrogram-
+    /// suppressed PCM-residual waterfall.
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1].</param>
     /// <returns>Array of decoded results (may be empty; never null).</returns>
