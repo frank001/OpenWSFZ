@@ -98,10 +98,10 @@ Under this encoding:
 
 | Message | R-prefix SNR formula | val | val > 84? |
 |---|---|---|---|
-| `QW9END QA7W R-11` | `val = 64 + (−11 + 35) = 88` | **88** | ✅ Yes |
-| `QX9YYY QA7W R+08` | `val = 64 + (8 + 35) = 107` | **107** | ✅ Yes |
+| `Q9XYZ Q1ABC R-11` | `val = 64 + (−11 + 35) = 88` | **88** | ✅ Yes |
+| `Q1ABC Q1AW R+08` | `val = 64 + (8 + 35) = 107` | **107** | ✅ Yes |
 
-The G6 fixture `260529_000030.expected.txt` lists `QW9END QA7W R-11` as a mandatory decode. With `val ≤ 84`, the `IsValidExtra15` filter would reject val = 88, causing `TryUnpack` to return `null` for that message even if LDPC and CRC-14 both pass. Setting the ceiling to 84 therefore introduces a correctness regression for R-prefix QSO messages.
+The G6 fixtures list R-prefix reports such as `Q9XYZ Q1ABC R-11` as mandatory decodes. With `val ≤ 84`, the `IsValidExtra15` filter would reject val = 88, causing `TryUnpack` to return `null` for that message even if LDPC and CRC-14 both pass. Setting the ceiling to 84 therefore introduces a correctness regression for R-prefix QSO messages.
 
 **Evidence:** The R-prefix test `TryUnpack_RPrefix_Minus11_ReturnsDecodedString` (val = 88, expected: "R-11") was retained and passes under `val ≤ 127`. Had the ceiling been lowered to 84, that test would fail.
 

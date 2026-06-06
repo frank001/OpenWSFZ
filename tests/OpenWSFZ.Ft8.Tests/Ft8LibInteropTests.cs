@@ -72,13 +72,14 @@ public sealed class Ft8LibInteropTests
     /// <c>ft8_decode_all</c>.
     /// </para>
     /// </summary>
-    [Fact(DisplayName = "p15: GetLastPassCounts sum equals total decode count on a real-signal fixture")]
+    [Fact(DisplayName = "p15: GetLastPassCounts sum equals total decode count on a synthetic multi-signal fixture")]
     public void GetLastPassCounts_AfterDecodeAllOnRealSignal_SumEqualsTotal()
     {
-        // Arrange — load the first committed real-signal fixture WAV (260528_235745).
-        // The fixture is a 12 kHz mono int16 PCM WAV embedded as a resource.
-        // Use WavReader (the int16-aware reader) via a manifest resource stream.
-        float[] pcm = LoadFixtureWav("260528_235745.wav");
+        // Arrange — load the first committed synthetic fixture WAV (synth-qso-01).
+        // The fixture is a 12 kHz mono int16 PCM WAV embedded as a resource, carrying
+        // several FT8 signals using only fictional Q-prefix callsigns (no real
+        // third-party operators). Use WavReader (the int16-aware reader).
+        float[] pcm = LoadFixtureWav("synth-qso-01.wav");
         pcm.Should().HaveCount(180_000,
             "the fixture WAV must be exactly 15 s × 12 kHz = 180 000 samples");
 
@@ -86,10 +87,10 @@ public sealed class Ft8LibInteropTests
         Ft8NativeResult[] results = Ft8LibInterop.DecodeAll(pcm);
         int[] counts = Ft8LibInterop.GetLastPassCounts(Ft8LibInterop.MaxDecodePasses);
 
-        // Assert 1 — pass 1 decoded at least one signal on a real-signal fixture.
-        counts.Should().NotBeEmpty("real-signal fixture must execute at least one pass");
+        // Assert 1 — pass 1 decoded at least one signal on a multi-signal fixture.
+        counts.Should().NotBeEmpty("multi-signal fixture must execute at least one pass");
         counts[0].Should().BeGreaterThan(0,
-            "pass 1 must find at least one signal in a real off-air recording; " +
+            "pass 1 must find at least one signal in the synthetic fixture; " +
             "a value of 0 indicates the waterfall scan or LDPC is broken");
 
         // Assert 2 — sum of per-pass counts equals total returned by DecodeAll.

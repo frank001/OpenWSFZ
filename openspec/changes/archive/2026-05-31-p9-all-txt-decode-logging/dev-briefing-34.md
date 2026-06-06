@@ -54,7 +54,7 @@ string line = $"{timestamp}     {dialMhz:F3} Rx FT8 {result.Snr,6} {result.Dt,4:
 Update the expected string in task 5.2.  The corrected expected line is:
 
 ```
-260528_172930     7.074 Rx FT8      3  0.2 2252 Q4DSA QD1BER JO22
+260528_172930     7.074 Rx FT8      3  0.2 2252 Q1ABC Q9XYZ FN42
 ```
 
 (2 spaces before `0.2`: 1-char field separator + 1-char left-pad of `0.2` in a 4-char field.)

@@ -85,6 +85,11 @@ NFR-020  # Pre-merge traceability debt review — process/checklist requirement;
          # Remove if a lint step is added that validates debt-file coverage
          # as part of the PR pipeline.
 
+NFR-021  # Privacy / GDPR — no real third-party callsign in version control;
+         # use ITU-unallocated Q-prefix calls. Policy requirement enforced by
+         # code review (like NFR-019 brand neutrality). Remove when a grep/lint
+         # gate is added that fails CI on a non-Q real callsign in committed files.
+
 ## Pending — Phase 18 (Settings dirty-state — p18-settings-dirty-state)
 
 FR-040  # Unsaved-changes indicator — JS dirty-state engine; UI-layer only.
