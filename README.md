@@ -49,6 +49,51 @@ is **fully functional** against live audio and recorded fixtures.
 | p19 — Frequency management | Configurable FT8 frequency list; `FrequencyStore`; REST tune endpoint; dial-frequency selector on main page (FR-042–FR-045) | ✅ merged |
 | p20 — FA digit width | Self-calibrating digit-width computation in `SerialCatConnection` FA tune command | ✅ merged |
 
+## Decoder Measurement System Analysis (Gage R&R)
+
+OpenWSFZ runs a continuous **Gage R&R / Measurement System Analysis** against WSJT-X to
+quantify decoder quality across four dimensions:
+
+| Scenario | What is measured | Method |
+|---|---|---|
+| **S1** SNR ladder | How accurately and consistently does each app report signal-to-noise ratio? | Crossed two-way ANOVA; %GR&R and ndc vs defined tolerance |
+| **S1b** Low-SNR threshold | At what SNR does each app stop decoding? | Attribute decode-rate study at −24 to −15 dB |
+| **S2** Frequency sweep | Reported audio frequency accuracy and consistency | %GR&R vs ±50 Hz tolerance |
+| **S3** DT offset | Reported timing accuracy and consistency | %GR&R vs ±1.5 s tolerance; DT convention correction applied |
+| **S4/S5** Density & noise | Decode detection and false-positive rate | Attribute Agreement Analysis; Cohen's κ |
+| **S7** Compounding | Co-channel / pileup recovery | Informational; per-overlap-family recovery rates |
+
+The harness is fully decoupled from OpenWSFZ source: it shares no assemblies and interacts
+only with a shared **VB-CABLE** virtual audio device and the two applications' `ALL.TXT`
+log files. Signals are synthesised by an independent clean-room FT8 encoder (text → tones
+→ PCM) so that truth is exactly known for every trial. Each trial draws a fresh seeded
+noise realisation, giving non-zero repeatability variance.
+
+### Latest published results — run [`4c34ef6`](qa/rr-study/results/2026-06-06-4c34ef6/report.md)
+
+| Scenario | Metric | Value | Verdict |
+|---|---|---|---|
+| S1 SNR | %GR&R | 32.0% | ❌ FAIL |
+| S1 SNR | ndc | 2 | ⚠️ MARGINAL |
+| S1 SNR | OpenWSFZ bias | +1.10 dB | ✅ PASS |
+| S2 Frequency | %GR&R | 0.0% | ✅ PASS |
+| S2 Frequency | ndc | 1 536 | ✅ PASS |
+| S3 DT | %GR&R | 3.8% | ✅ PASS |
+| S3 DT | ndc | 7 | ✅ PASS |
+| S4/S5 Detection | κ (OpenWSFZ vs truth) | 1.000 | ✅ PASS |
+| S5 False positives | FP rate (OpenWSFZ) | 0.0% | ✅ PASS |
+| S7 Co-channel | Overall recovery | 47.3% vs WSJT-X 78.5% | ℹ️ Informational |
+
+**Overall: FAIL** — S1 %GR&R (32%) exceeds the 10% threshold.  Root cause: ANOVA
+contaminated by threshold-miss imbalance at low SNR levels; the S1 ladder has been
+redesigned to stay above −12 dB (R&R-005).  S7 co-channel gap is noted; no product
+defect raised pending Captain decision.
+
+See [`qa/rr-study/STUDY-SPEC.md`](qa/rr-study/STUDY-SPEC.md) for the full study design
+and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedure.
+
+---
+
 ## WSJT-X decode parity
 
 > **Key metric:** how well OpenWSFZ recovers the same signals as WSJT-X on
@@ -175,8 +220,8 @@ The build and test suite has been verified on all three target platforms:
 
 | Platform | Build | Tests | CI |
 |---|---|---|---|
-| Windows x64 | ✅ 0 warnings | ✅ 308 passed | ✅ GitHub Actions |
-| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 308 passed | ✅ GitHub Actions |
+| Windows x64 | ✅ 0 warnings | ✅ 310 passed | ✅ GitHub Actions |
+| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 310 passed | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
 
 All four CI gates pass on every platform:
