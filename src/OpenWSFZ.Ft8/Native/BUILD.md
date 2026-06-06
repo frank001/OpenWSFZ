@@ -37,7 +37,7 @@ The shim (`ft8_shim.c`) implements this pipeline internally and exposes the simp
 |---|---|---|
 | `freq_hz` | `(min_bin + cand.freq_offset + (float)cand.freq_sub / freq_osr) / symbol_period` | Hz, rounded to int |
 | `dt` | `(cand.time_offset + (float)cand.time_sub / time_osr) * symbol_period` | seconds |
-| `snr` | Noise-floor based (R5/R6): `signal_db − noise_floor_db − 26`, optionally post-corrected by −8 dB when SNR < −10 dB (R6 weak-signal fallback). `signal_db` = mean of per-symbol max-over-8-tones in the 79-symbol message window; `noise_floor_db` = histogram-median of all waterfall uint8 magnitudes, converted via `x * 0.5f − 120.0f`. The R6 post-correction compensates for the ~8 dB order-statistic upward bias of max-over-8 noise samples at very weak signals. See `ft8_shim.c` and `r6-snr-weak-signal.md`. | dB, WSJT-X 2500 Hz bandwidth convention |
+| `snr` | `signal_db − noise_floor_db − 26`. `signal_db` = mean of per-symbol max-over-8-tones in the 79-symbol message window; `noise_floor_db` = histogram-median of all waterfall uint8 magnitudes, converted via `x * 0.5f − 120.0f`. Bandwidth correction: 10·log₁₀(2500/6.25) ≈ 26 dB (WSJT-X 2500 Hz reference). **No post-correction applied** — R6 weak-signal fallback (−8 dB when SNR < −10 dB) removed; see R&R-001 / GitHub issue #30. | dB, WSJT-X 2500 Hz bandwidth convention |
 | `message[36]` | `ftx_message_decode()` output | null-terminated, max 35 chars (FTX_MAX_MESSAGE_LENGTH=35) |
 
 `sizeof(FT8Result)` = 4 (freq_hz) + 4 (dt) + 4 (snr) + 36 (message) = **48 bytes**.
