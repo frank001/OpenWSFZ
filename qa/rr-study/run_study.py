@@ -33,10 +33,11 @@ SCENARIO_FILES = [
     _SCENARIOS / "s3-dt-offset.json",
     _SCENARIOS / "s4-density.json",
     _SCENARIOS / "s5-noise.json",
+    _SCENARIOS / "s7-compounding.json",
 ]
 
 # Scenario IDs in the same order (for matcher invocation)
-SCENARIO_IDS = ["S1", "S2", "S3", "S4", "S5"]
+SCENARIO_IDS = ["S1", "S2", "S3", "S4", "S5", "S7"]
 
 
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:

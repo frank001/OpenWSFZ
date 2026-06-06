@@ -474,76 +474,12 @@ def _bias_linearity(df_matched: pd.DataFrame, run_dir: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Task 4.6 — Kappa for attribute scenarios
+# Task 4.6 — Attribute Kappa
 # ---------------------------------------------------------------------------
-
-def _compute_kappa(df_matched: pd.DataFrame, scenario_id: str) -> dict:
-    """Compute Cohen's κ for S4/S5 with 95% CI via bootstrap."""
-    from sklearn.metrics import cohen_kappa_score
-
-    df = df_matched[df_matched["false_positive"] == False].copy()
-
-    # Binary decision: matched (True) or not-matched (False)
-    truth_decisions: dict[tuple, bool] = {}
-    # Group by (part_index, trial_index) to get the "truth" label (always True if injected)
-    for _, row in df.iterrows():
-        key = (row["part_index"], row["trial_index"])
-        # truth: the signal was injected, so the "true label" is always True (decoded expected)
-        truth_decisions[key] = True
-
-    results: dict = {}
-
-    appr_decisions: dict[str, dict[tuple, bool]] = {}
-    for appr in APPRAISERS:
-        sub = df[df["appraiser"] == appr]
-        appr_decisions[appr] = {}
-        for _, row in sub.iterrows():
-            key = (row["part_index"], row["trial_index"])
-            appr_decisions[appr][key] = bool(row["matched"])
-
-    # Each-appraiser-vs-truth Kappa
-    all_keys = sorted(set(truth_decisions.keys()))
-    truth_labels = [truth_decisions.get(k, True) for k in all_keys]
-
-    for appr in APPRAISERS:
-        app_labels = [appr_decisions.get(appr, {}).get(k, False) for k in all_keys]
-        if len(set(truth_labels)) < 2 or len(set(app_labels)) < 2:
-            kappa = float("nan")
-            ci_lo, ci_hi = float("nan"), float("nan")
-        else:
-            kappa = float(cohen_kappa_score(truth_labels, app_labels))
-            # Bootstrap 95% CI
-            rng = np.random.default_rng(seed=42)
-            boot_kappas = []
-            n = len(truth_labels)
-            for _ in range(1000):
-                idx = rng.integers(0, n, size=n)
-                t_boot = [truth_labels[i] for i in idx]
-                a_boot = [app_labels[i] for i in idx]
-                if len(set(t_boot)) < 2 or len(set(a_boot)) < 2:
-                    continue
-                try:
-                    boot_kappas.append(float(cohen_kappa_score(t_boot, a_boot)))
-                except Exception:
-                    pass
-            if boot_kappas:
-                ci_lo = float(np.percentile(boot_kappas, 2.5))
-                ci_hi = float(np.percentile(boot_kappas, 97.5))
-            else:
-                ci_lo = ci_hi = kappa
-
-        results[f"{appr}_vs_truth"] = {"kappa": kappa, "ci_lo": ci_lo, "ci_hi": ci_hi}
-
-    # Between-appraiser Kappa
-    a1_labels = [appr_decisions.get(APPRAISERS[0], {}).get(k, False) for k in all_keys]
-    a2_labels = [appr_decisions.get(APPRAISERS[1], {}).get(k, False) for k in all_keys]
-    if len(set(a1_labels)) < 2 or len(set(a2_labels)) < 2:
-        ba_kappa = float("nan")
-    else:
-        ba_kappa = float(cohen_kappa_score(a1_labels, a2_labels))
-    results["between_appraisers"] = {"kappa": ba_kappa}
-
-    return results
+# Superseded: the old per-scenario `_compute_kappa` always returned NaN because
+# its truth vector had a single class (a signal was always injected in S4, and S5
+# was mislabelled as positive).  Replaced by the pooled `_attribute_agreement`
+# (S4 positives + S5 negatives) defined below in Task 4.6b.
 
 
 # ---------------------------------------------------------------------------
@@ -591,6 +527,381 @@ def _fp_rate(df_matched: pd.DataFrame) -> dict[str, float]:
 
 
 # ---------------------------------------------------------------------------
+# Task 4.6b — Pooled Attribute Agreement Analysis (S4 positives + S5 negatives)
+# ---------------------------------------------------------------------------
+#
+# Why pooled: Cohen's κ vs truth is undefined when the truth vector has a single
+# class.  S4 alone is all-positive (a signal is always injected), so κ vs truth
+# was always NaN.  S5's signal-free slots are the missing *negative* class.
+# Pooling S4 (truth=present) with S5 (truth=absent) yields a proper 2×2 confusion
+# matrix per appraiser, so κ vs truth, between-app κ, and within-app
+# repeatability all become well-defined.
+#
+# Unit of analysis: one decode decision per (scenario, part, trial, cycle, msg)
+# realization, aligned across appraisers by that key.  Positives carry call =
+# "did the app decode this message"; negatives carry call = "did the app emit any
+# false-positive decode in this signal-free slot".
+
+
+def _cohen_kappa_ci(labels_a: list, labels_b: list,
+                    n_boot: int = 1000) -> dict:
+    """Cohen's κ with a bootstrap 95% CI; NaN (gracefully) if a vector is single-class."""
+    from sklearn.metrics import cohen_kappa_score
+
+    if len(labels_a) != len(labels_b) or not labels_a:
+        return {"kappa": float("nan"), "ci_lo": float("nan"), "ci_hi": float("nan")}
+    if len(set(labels_a)) < 2 or len(set(labels_b)) < 2:
+        return {"kappa": float("nan"), "ci_lo": float("nan"), "ci_hi": float("nan")}
+
+    kappa = float(cohen_kappa_score(labels_a, labels_b))
+    rng = np.random.default_rng(seed=42)
+    n = len(labels_a)
+    boot: list[float] = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        a_b = [labels_a[i] for i in idx]
+        b_b = [labels_b[i] for i in idx]
+        if len(set(a_b)) < 2 or len(set(b_b)) < 2:
+            continue
+        try:
+            boot.append(float(cohen_kappa_score(a_b, b_b)))
+        except Exception:
+            pass
+    if boot:
+        return {"kappa": kappa,
+                "ci_lo": float(np.percentile(boot, 2.5)),
+                "ci_hi": float(np.percentile(boot, 97.5))}
+    return {"kappa": kappa, "ci_lo": kappa, "ci_hi": kappa}
+
+
+def _attribute_agreement(matched: dict[str, pd.DataFrame], run_dir: Path) -> dict:
+    """Pooled attribute agreement: S4 positives + S5 negatives.
+
+    Returns a dict with κ (each-app-vs-truth, between-app), within-app
+    repeatability, and the per-appraiser confusion counts.
+    """
+    pos_df = matched.get("S4")
+    neg_df = matched.get("S5")
+
+    # units[appr][unit_key] = (truth_bool, call_bool, group_key)
+    units: dict[str, dict[tuple, tuple]] = {a: {} for a in APPRAISERS}
+
+    # --- Positives (S4): truth present; call = decoded? ---
+    if pos_df is not None:
+        d = pos_df[pos_df["false_positive"] == False]
+        for _, r in d.iterrows():
+            appr = r["appraiser"]
+            if appr not in units:
+                continue
+            key = ("S4", r["part_index"], r["trial_index"], r["cycle_utc"], r["message_text"])
+            group = ("S4", r["part_index"], r["message_text"])
+            units[appr][key] = (True, bool(r["matched"]), group)
+
+    # --- Negatives (S5): truth absent; call = emitted a false positive in slot? ---
+    if neg_df is not None:
+        truth_rows = neg_df[neg_df["false_positive"] == False]
+        s5_cycles = set(truth_rows["cycle_utc"].dropna().unique())
+        for appr in APPRAISERS:
+            sub = neg_df[neg_df["appraiser"] == appr]
+            fp_cycles = set(sub[sub["false_positive"] == True]["cycle_utc"]) & s5_cycles
+            for _, r in sub[sub["false_positive"] == False].iterrows():
+                cyc = r["cycle_utc"]
+                key = ("S5", r["part_index"], r["trial_index"], cyc, "")
+                group = ("S5", r["part_index"], "")
+                units[appr][key] = (False, cyc in fp_cycles, group)
+
+    # --- Confusion counts ---
+    confusion: dict[str, dict] = {}
+    for appr in APPRAISERS:
+        tp = fp = fn = tn = 0
+        for truth, call, _ in units[appr].values():
+            if truth and call:
+                tp += 1
+            elif truth and not call:
+                fn += 1
+            elif (not truth) and call:
+                fp += 1
+            else:
+                tn += 1
+        confusion[appr] = {"TP": tp, "FN": fn, "FP": fp, "TN": tn,
+                           "n_pos": tp + fn, "n_neg": fp + tn}
+
+    # --- κ vs truth (each appraiser) ---
+    kappa: dict[str, dict] = {}
+    for appr in APPRAISERS:
+        keys = sorted(units[appr].keys())
+        truth = [units[appr][k][0] for k in keys]
+        call = [units[appr][k][1] for k in keys]
+        kappa[f"{appr}_vs_truth"] = _cohen_kappa_ci(truth, call)
+
+    # --- between-app κ (aligned on shared units) ---
+    a0, a1 = APPRAISERS[0], APPRAISERS[1]
+    common = sorted(set(units[a0].keys()) & set(units[a1].keys()))
+    c0 = [units[a0][k][1] for k in common]
+    c1 = [units[a1][k][1] for k in common]
+    ba = _cohen_kappa_ci(c0, c1)
+    kappa["between_appraisers"] = {"kappa": ba["kappa"]}
+
+    # --- within-app repeatability (self-consistency across trials per group) ---
+    repeatability: dict[str, float] = {}
+    for appr in APPRAISERS:
+        groups: dict[tuple, list[bool]] = {}
+        for truth, call, grp in units[appr].values():
+            groups.setdefault(grp, []).append(call)
+        if groups:
+            consistent = sum(1 for v in groups.values() if len(set(v)) == 1)
+            repeatability[appr] = 100.0 * consistent / len(groups)
+        else:
+            repeatability[appr] = float("nan")
+
+    return {"kappa": kappa, "repeatability": repeatability, "confusion": confusion}
+
+
+def _attribute_report_lines(attr: dict) -> list[str]:
+    """Render the pooled Attribute Agreement section of report.md."""
+    lines: list[str] = ["## Attribute Agreement Analysis (S4 positives + S5 negatives)", ""]
+    lines += [
+        "_κ is computed over a pooled population: S4 injected messages (truth = "
+        "present) and S5 signal-free slots (truth = absent), so the truth vector "
+        "has both classes. **κ verdicts below are advisory** — the §10 attribute "
+        "gate is pending Captain ratification of this pooled method._",
+        "",
+    ]
+
+    # Confusion matrix
+    lines += ["### Confusion vs truth", ""]
+    lines += ["| Appraiser | TP | FN | FP | TN | Recovery | Specificity |",
+              "|---|---|---|---|---|---|---|"]
+    for appr in APPRAISERS:
+        c = attr["confusion"].get(appr, {})
+        tp, fn, fp, tn = c.get("TP", 0), c.get("FN", 0), c.get("FP", 0), c.get("TN", 0)
+        rec = 100.0 * tp / (tp + fn) if (tp + fn) else float("nan")
+        spec = 100.0 * tn / (tn + fp) if (tn + fp) else float("nan")
+        lines.append(
+            f"| {appr} | {tp} | {fn} | {fp} | {tn} | "
+            f"{_fmt_num(rec)}% | {_fmt_num(spec)}% |"
+        )
+    lines += [""]
+
+    # Kappa
+    lines += ["### Kappa (advisory)", ""]
+    lines += ["| Pair | κ | 95% CI | Verdict (advisory) |", "|---|---|---|---|"]
+    for label, info in sorted(attr["kappa"].items()):
+        k = info.get("kappa", float("nan"))
+        if "ci_lo" in info and not (isinstance(info["ci_lo"], float) and math.isnan(info["ci_lo"])):
+            ci = f"[{_fmt_num(info['ci_lo'])}, {_fmt_num(info['ci_hi'])}]"
+        else:
+            ci = "—"
+        v = _verdict_kappa(k) if not math.isnan(k) else "—"
+        lines.append(f"| {label} | {_fmt_num(k, '.3f')} | {ci} | {v} |")
+    lines += [""]
+
+    # Within-app repeatability
+    lines += ["### Within-app repeatability (decision consistency across trials)", ""]
+    lines += ["| Appraiser | Consistent groups |", "|---|---|"]
+    for appr in APPRAISERS:
+        lines.append(f"| {appr} | {_fmt_num(attr['repeatability'].get(appr, float('nan')))}% |")
+    lines += [""]
+
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# S7 — Compounding / co-channel per-message recovery
+# ---------------------------------------------------------------------------
+
+def _analyse_compounding(df_matched: pd.DataFrame, scen_meta: dict | None,
+                         run_dir: Path) -> dict:
+    """Per-message recovery analysis for the S7 compounding scenario.
+
+    Unlike S4/S5, S7 logs one truth row per compounded signal, so we can measure
+    genuine per-message recovery (matched / injected) instead of the degenerate
+    single-class Kappa.  Reports recovery per appraiser, per overlap family, per
+    part, the capture-effect strong-vs-weak split, and between-app agreement.
+    """
+    df = df_matched[df_matched["false_positive"] == False].copy()
+    df["matched"] = df["matched"].astype(bool)
+    df["part_index"] = pd.to_numeric(df["part_index"], errors="coerce")
+    df["true_snr_db"] = pd.to_numeric(df["true_snr_db"], errors="coerce")
+
+    # Map part_index → metadata from the scenario JSON.
+    part_meta: dict[int, dict] = {}
+    for p in (scen_meta or {}).get("parts", []):
+        part_meta[int(p["part_index"])] = {
+            "overlap_type": p.get("overlap_type", "?"),
+            "label": p.get("label", ""),
+            "n_signals": len(p.get("signals", [])),
+        }
+
+    df["overlap_type"] = df["part_index"].map(
+        lambda i: part_meta.get(int(i), {}).get("overlap_type", "?")
+        if pd.notna(i) else "?"
+    )
+
+    # Overall recovery per appraiser.
+    overall: dict[str, float] = {}
+    for appr in APPRAISERS:
+        sub = df[df["appraiser"] == appr]
+        overall[appr] = 100.0 * sub["matched"].mean() if len(sub) else float("nan")
+
+    # Recovery per overlap family per appraiser.
+    by_type: dict[str, dict[str, float]] = {}
+    for ot in sorted(df["overlap_type"].unique()):
+        by_type[ot] = {}
+        for appr in APPRAISERS:
+            sub = df[(df["overlap_type"] == ot) & (df["appraiser"] == appr)]
+            by_type[ot][appr] = 100.0 * sub["matched"].mean() if len(sub) else float("nan")
+
+    # Recovery per part per appraiser (recovered, total).
+    per_part: list[dict] = []
+    for pi in sorted(df["part_index"].dropna().unique()):
+        meta = part_meta.get(int(pi), {})
+        row: dict = {
+            "part_index": int(pi),
+            "overlap_type": meta.get("overlap_type", "?"),
+            "label": meta.get("label", ""),
+        }
+        for appr in APPRAISERS:
+            sub = df[(df["part_index"] == pi) & (df["appraiser"] == appr)]
+            row[appr] = (int(sub["matched"].sum()), int(len(sub)))
+        per_part.append(row)
+
+    # Capture effect: strong vs weak recovery across capture parts.
+    capture: dict[str, dict[str, float]] = {}
+    df_cap = df[df["overlap_type"] == "capture"].copy()
+    if not df_cap.empty:
+        part_max = df_cap.groupby("part_index")["true_snr_db"].transform("max")
+        df_cap["role"] = np.where(
+            np.isclose(df_cap["true_snr_db"], part_max), "strong", "weak"
+        )
+        for appr in APPRAISERS:
+            capture[appr] = {}
+            for role in ("strong", "weak"):
+                sub = df_cap[(df_cap["appraiser"] == appr) & (df_cap["role"] == role)]
+                capture[appr][role] = (
+                    100.0 * sub["matched"].mean() if len(sub) else float("nan")
+                )
+
+    # Between-app agreement on the per-signal decode decision.
+    keyed: dict[str, dict[tuple, bool]] = {}
+    for appr in APPRAISERS:
+        sub = df[df["appraiser"] == appr]
+        d: dict[tuple, bool] = {}
+        for _, r in sub.iterrows():
+            key = (r["part_index"], r["trial_index"], r["message_text"], r["true_freq_hz"])
+            d[key] = bool(r["matched"])
+        keyed[appr] = d
+    common = set(keyed.get(APPRAISERS[0], {})) & set(keyed.get(APPRAISERS[1], {}))
+    if common:
+        agree = sum(
+            1 for k in common
+            if keyed[APPRAISERS[0]][k] == keyed[APPRAISERS[1]][k]
+        )
+        between_app = 100.0 * agree / len(common)
+    else:
+        between_app = float("nan")
+
+    # Chart: per-message recovery by part, grouped by appraiser.
+    chart_path = None
+    if per_part:
+        fig, ax = plt.subplots(figsize=(13, 5))
+        x = np.arange(len(per_part))
+        width = 0.38
+        for i, appr in enumerate(APPRAISERS):
+            vals = [
+                (100.0 * r[appr][0] / r[appr][1]) if r[appr][1] else 0.0
+                for r in per_part
+            ]
+            ax.bar(x + (i - 0.5) * width, vals, width, label=appr)
+        ax.set_xticks(x)
+        ax.set_xticklabels(
+            [f"P{r['part_index']}\n{r['overlap_type']}\n{r['label']}" for r in per_part],
+            fontsize=6.5,
+        )
+        ax.set_ylabel("Per-message recovery (%)")
+        ax.set_ylim(0, 105)
+        ax.set_title("S7 — Compounding / co-channel per-message recovery")
+        ax.legend(fontsize=8)
+        ax.grid(axis="y", linestyle=":", lw=0.5)
+        plt.tight_layout()
+        chart_path = run_dir / "S7_recovery.png"
+        fig.savefig(chart_path, dpi=150)
+        plt.close(fig)
+
+    return {
+        "overall": overall,
+        "by_type": by_type,
+        "per_part": per_part,
+        "capture": capture,
+        "between_app": between_app,
+        "chart": chart_path.name if chart_path else None,
+    }
+
+
+def _compounding_report_lines(results: dict) -> list[str]:
+    """Render the S7 section of report.md from `_analyse_compounding` output."""
+    lines: list[str] = ["## S7 — Compounding / co-channel overlap", ""]
+    lines += [
+        "_Per-message recovery when 2–3 signals occupy the same or near-same "
+        "audio frequency / time slot (the pileup case S4 does not exercise). "
+        "Informational — no AIAG threshold is defined for co-channel separation._",
+        "",
+    ]
+
+    # Overall + by-family
+    lines += ["### Recovery by overlap family", ""]
+    lines += ["| Overlap family | WSJT-X | OpenWSFZ |", "|---|---|---|"]
+    for ot, d in results["by_type"].items():
+        lines.append(
+            f"| {ot} | {_fmt_num(d.get('WSJT-X', float('nan')))}% "
+            f"| {_fmt_num(d.get('OpenWSFZ', float('nan')))}% |"
+        )
+    ov = results["overall"]
+    lines.append(
+        f"| **all** | **{_fmt_num(ov.get('WSJT-X', float('nan')))}%** "
+        f"| **{_fmt_num(ov.get('OpenWSFZ', float('nan')))}%** |"
+    )
+    lines += [""]
+
+    # Capture effect
+    cap = results.get("capture") or {}
+    if cap:
+        lines += ["### Capture effect (co-channel, unequal SNR)", ""]
+        lines += ["| Signal | WSJT-X | OpenWSFZ |", "|---|---|---|"]
+        for role in ("strong", "weak"):
+            lines.append(
+                f"| {role} | "
+                f"{_fmt_num(cap.get('WSJT-X', {}).get(role, float('nan')))}% | "
+                f"{_fmt_num(cap.get('OpenWSFZ', {}).get(role, float('nan')))}% |"
+            )
+        lines += [""]
+
+    # Between-app agreement
+    lines += [
+        f"**Between-app per-signal agreement:** "
+        f"{_fmt_num(results.get('between_app', float('nan')))}%",
+        "",
+    ]
+
+    # Per-part detail
+    lines += ["### Per-part detail", ""]
+    lines += ["| Part | Family | Condition | WSJT-X | OpenWSFZ |", "|---|---|---|---|---|"]
+    for r in results["per_part"]:
+        w_rec, w_tot = r["WSJT-X"]
+        o_rec, o_tot = r["OpenWSFZ"]
+        lines.append(
+            f"| P{r['part_index']} | {r['overlap_type']} | {r['label']} "
+            f"| {w_rec}/{w_tot} | {o_rec}/{o_tot} |"
+        )
+    lines += [""]
+
+    if results.get("chart"):
+        lines += [f"![S7 recovery]({results['chart']})", ""]
+
+    return lines
+
+
+# ---------------------------------------------------------------------------
 # Task 4.8 — Verdict engine
 # ---------------------------------------------------------------------------
 
@@ -624,12 +935,10 @@ def _collect_verdicts(
         kappa = info.get("kappa", float("nan"))
         if math.isnan(kappa):
             continue
+        # Advisory only — the pooled attribute κ gate is pending §10 ratification,
+        # so it is reported but does NOT drive the overall verdict.
         v = _verdict_kappa(kappa)
-        verdict_rows.append(("Kappa", label, f"{kappa:.3f}", v))
-        if v == "FAIL":
-            fails.append(f"Kappa ({label}) = {kappa:.3f} (threshold: ≥ {THRESH_KAPPA_PASS} Acceptable)")
-        elif v == "MARGINAL":
-            marginals.append(f"Kappa ({label}) = {kappa:.3f}")
+        verdict_rows.append(("Kappa (advisory)", label, f"{kappa:.3f}", v))
 
     for appr, rate in fp_results.items():
         if math.isnan(rate):
@@ -683,6 +992,8 @@ def _write_report(
     verdict_rows: list,
     overall: str,
     fails: list[str],
+    s7_results: dict | None = None,
+    attr_results: dict | None = None,
 ) -> Path:
     lines: list[str] = []
     run_date = run_dir.name.split("-")[0:3]
@@ -751,21 +1062,9 @@ def _write_report(
                 )
             lines += ["", f"![S1 Bias & Linearity](S1_bias_linearity.png)", ""]
 
-    # Attribute scenarios
-    if kappa_results:
-        lines += ["## Attribute Agreement Analysis (S4/S5)", ""]
-        lines += ["### Kappa", ""]
-        lines += ["| Pair | κ | 95% CI | Verdict |",
-                  "|---|---|---|---|"]
-        for label, info in sorted(kappa_results.items()):
-            kappa = info.get("kappa", float("nan"))
-            if "ci_lo" in info:
-                ci = f"[{_fmt_num(info['ci_lo'])}, {_fmt_num(info['ci_hi'])}]"
-            else:
-                ci = "—"
-            v = _verdict_kappa(kappa) if not math.isnan(kappa) else "—"
-            lines.append(f"| {label} | {_fmt_num(kappa, '.3f')} | {ci} | {v} |")
-        lines += [""]
+    # Attribute scenarios — pooled S4 positives + S5 negatives
+    if attr_results:
+        lines += _attribute_report_lines(attr_results)
 
     if fp_results:
         lines += ["### False-positive rate (S5)", ""]
@@ -775,6 +1074,10 @@ def _write_report(
             v = _verdict_fp(rate) if not math.isnan(rate) else "—"
             lines.append(f"| {appr} | {_fmt_num(rate)}% | {v} |")
         lines += [""]
+
+    # S7 — compounding / co-channel overlap
+    if s7_results:
+        lines += _compounding_report_lines(s7_results)
 
     # Summary
     lines += [
@@ -927,17 +1230,30 @@ def main() -> None:
             print(f"  S1 bias ({appr}): {info['mean_bias']:+.2f} dB  slope={info['slope']:.3f}")
 
     # --- Attribute scenarios ---
-    for scen_id, df in matched.items():
-        if scen_id not in ATTRIBUTE_SCENARIOS:
-            continue
-        if scen_id == "S5":
-            fp_results = _fp_rate(df)
-            for appr, rate in fp_results.items():
-                print(f"  S5 FP rate ({appr}): {_fmt_num(rate)}%")
-        kappas = _compute_kappa(df, scen_id)
-        kappa_results.update(kappas)
-        for label, info in kappas.items():
-            print(f"  Kappa {label}: {_fmt_num(info.get('kappa', float('nan')), '.3f')}")
+    # False-positive rate (S5) — gated metric, unchanged.
+    if "S5" in matched:
+        fp_results = _fp_rate(matched["S5"])
+        for appr, rate in fp_results.items():
+            print(f"  S5 FP rate ({appr}): {_fmt_num(rate)}%")
+
+    # Pooled attribute agreement (S4 positives + S5 negatives) — advisory κ.
+    attr_results: dict | None = None
+    if "S4" in matched or "S5" in matched:
+        attr_results = _attribute_agreement(matched, run_dir)
+        kappa_results = attr_results["kappa"]
+        for label, info in kappa_results.items():
+            print(f"  Kappa {label}: {_fmt_num(info.get('kappa', float('nan')), '.3f')} (advisory)")
+
+    # --- S7 compounding / co-channel overlap ---
+    s7_results: dict | None = None
+    if "S7" in matched:
+        scenario_meta = _load_scenario_meta(scenarios_dir)
+        s7_results = _analyse_compounding(matched["S7"], scenario_meta.get("S7"), run_dir)
+        print(
+            "  S7 recovery (per-message): "
+            f"WSJT-X {_fmt_num(s7_results['overall'].get('WSJT-X', float('nan')))}%  "
+            f"OpenWSFZ {_fmt_num(s7_results['overall'].get('OpenWSFZ', float('nan')))}%"
+        )
 
     # --- Verdicts ---
     verdict_rows, overall, fails = _collect_verdicts(
@@ -947,7 +1263,9 @@ def main() -> None:
     # --- Write report ---
     report_path = _write_report(
         run_dir, git_sha, continuous_results, kappa_results,
-        fp_results, bias_results, verdict_rows, overall, fails
+        fp_results, bias_results, verdict_rows, overall, fails,
+        s7_results=s7_results,
+        attr_results=attr_results,
     )
     print(f"\nReport written: {report_path}")
     print(f"Overall verdict: {overall}")

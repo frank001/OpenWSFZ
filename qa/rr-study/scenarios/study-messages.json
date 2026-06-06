@@ -6,20 +6,20 @@
     {
       "id": "MSG-01",
       "text": "CQ Q1ABC FN42",
-      "used_in": ["S1", "S2", "S3", "S4"],
+      "used_in": ["S1", "S2", "S3", "S4", "S7"],
       "note": "Primary study message — all continuous R&R scenarios."
     },
     {
       "id": "MSG-02",
       "text": "Q4XYZ Q1ABC -07",
-      "used_in": ["S4"],
+      "used_in": ["S4", "S7"],
       "note": "S4 density pool — reply with negative report."
     },
     {
       "id": "MSG-03",
       "text": "Q3PQR Q1ABC RR73",
-      "used_in": ["S4"],
-      "note": "S4 density pool — RR73 special token."
+      "used_in": ["S4", "S7"],
+      "note": "S4 density pool — RR73 special token; S7 third co-channel signal."
     },
     {
       "id": "MSG-04",

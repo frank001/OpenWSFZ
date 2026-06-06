@@ -150,9 +150,26 @@ Continuous studies use one response variable each (clean separation). All use
 | **S3 DT offset** | DT R&R | DT ∈ {−2.0,−1.5,…,+2.0} s (10 steps); fixed SNR=0 dB | 3 | DT Gage R&R |
 | **S4 Density / QRM** | Attribute agreement | cycles with N∈{1,5,10,20,30} simultaneous signals at mixed SNRs; ≥ 50 message instances total | 3 | Recovery Kappa (vs truth & between apps) |
 | **S5 Noise / birdies** | False positives | signal-free cycles: white noise, pink noise, steady carriers/birdies | 3 | False-positive rate & agreement |
-| **S6 Off-air corpus** *(optional)* | External validity | replay the committed 40 m fixture recordings through the device | 1 | Cross-check vs live p15 recovery metric |
+| **S6 Off-air corpus** *(optional, not yet built)* | External validity | replay the committed 40 m fixture recordings through the device | 1 | Cross-check vs live p15 recovery metric |
+| **S7 Compounding / co-channel** | Per-message recovery under overlap | 4 overlap families × 3 trials: co-channel stacks; near-collision Δf∈{3,6,12,25,50} Hz; time+freq stagger Δt∈{0.5,1.0,2.0} s; capture-ratio pairs | 3 | Per-message recovery, capture split, between-app agreement |
 
 Replays/trials are seeded: `seed = hash(scenario, part_index, trial_index)` → byte-reproducible.
+
+### 6.1 S7 rationale — compounding / co-channel overlap
+
+S4 stresses *band loading*: N signals spread evenly across 300–2700 Hz, so even at N=30 the
+50 Hz-wide signals never share a bin (~83 Hz spacing). It therefore never tests the everyday FT8
+pileup where multiple stations transmit on the **same** audio frequency and their waveforms
+physically **compound** into one overlapping signal. S7 fills that gap: each part lists explicit
+per-signal `(msg_id, freq_hz, dt_s, snr_db)`, the harness sums the independently-encoded signals,
+and **one truth row is logged per signal** so the existing matcher scores each compounded message
+independently. This yields genuine per-message recovery (matched / injected) — the metric the S4/S5
+attribute-Kappa path cannot produce, because its truth label has only the single class "injected"
+and Cohen's κ is undefined on one class.
+
+Co-channel separation has no AIAG tolerance, so S7 is reported as an **informational** recovery
+table (per overlap family, per part, capture strong-vs-weak split, and between-app agreement); it
+does not contribute a PASS/FAIL verdict to the regression gate.
 
 ---
 
@@ -219,6 +236,18 @@ CI and is replayable. Minitab remains available as an optional manual cross-chec
 - Between-app agreement; each-app-vs-truth agreement with **Kappa** + CIs.
 - False-positive rate from S5.
 
+> **κ pooling correction (2026-06-06).** κ vs truth is undefined on a single-class
+> truth vector, so the original per-scenario implementation returned NaN for every
+> attribute cell (S4 is all-positive; S5 was mislabelled positive). It is replaced
+> by a **pooled** confusion matrix: **S4 injected messages = positives**, **S5
+> signal-free slots = negatives**, scored one decision per realization. This makes
+> κ vs truth, between-app κ, and within-app repeatability well-defined and folds
+> sensitivity (recovery) and specificity (FP rejection) into one measure. **The
+> pooled attribute κ is currently reported as *advisory* and does not drive the
+> overall verdict** (see §10) pending Captain ratification of the pooled method and
+> of restricting the positive population to decodable SNRs (cf. the §16 S1 redesign
+> note) so κ measures agreement rather than decode probability.
+
 ---
 
 ## 10. Acceptance thresholds (regression gate)
@@ -234,6 +263,12 @@ AIAG conventions, for ratification:
 | SNR bias (OpenWSFZ vs truth) | ≤ ±2 dB mean AND slope ≤ 0.1 | — | mean > ±2 dB OR slope > 0.1 |
 
 Evaluated every run; a regression past these bands raises a defect for the Developer.
+
+> **Attribute Kappa gate status (2026-06-06): advisory.** Following the §9.3 κ
+> pooling correction, the attribute-Kappa row is computed and reported but **does
+> not contribute to the overall PASS/FAIL verdict** until the pooled method (and a
+> decodable-SNR positive population) is ratified. %GR&R, ndc, FP rate, and SNR bias
+> remain hard gates.
 
 ---
 

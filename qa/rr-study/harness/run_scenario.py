@@ -194,6 +194,64 @@ def _render_multi(scenario: dict, part: dict, trial_index: int,
 
 
 # ---------------------------------------------------------------------------
+# PCM rendering — S7 (compounding / co-channel overlap)
+# ---------------------------------------------------------------------------
+
+def _render_compound(scenario: dict, part: dict,
+                     seed: int) -> "tuple[numpy.ndarray, list[dict]]":
+    """Render an S7 compounding part: sum 2–3 signals that overlap in freq/time.
+
+    Each signal carries its own (freq_hz, dt_s, snr_db); they are encoded
+    independently (own seeded noise at that SNR, matching the S4 superposition
+    convention) and summed into one waveform — the physical "compounding" of
+    co-channel transmissions.
+
+    Returns ``(mixed_samples, signals_meta)`` where ``signals_meta`` is a list
+    of ``{message_text, freq_hz, dt_s, snr_db}`` dicts, one per signal, used to
+    write one truth row PER SIGNAL so the matcher scores each independently.
+    """
+    import numpy as np
+    from synth import encoder
+
+    signals = part.get("signals", [])
+    if not signals:
+        raise ValueError(f"S7 part {part.get('part_index')} has no 'signals'")
+
+    rng = np.random.default_rng(seed)
+    mixed: "numpy.ndarray | None" = None
+    signals_meta: list[dict] = []
+
+    for s in signals:
+        msg_id = s["msg_id"]
+        if msg_id not in scenario["message_texts"]:
+            sys.exit(f"ERROR: S7 references unknown message id '{msg_id}'")
+        text = scenario["message_texts"][msg_id]
+        freq_hz = float(s["freq_hz"])
+        dt_s = float(s["dt_s"])
+        snr_db = float(s["snr_db"])
+        sig_seed = int(rng.integers(0, 2 ** 31))
+        sig = encoder.encode_message(
+            text,
+            base_freq_hz=freq_hz,
+            dt_s=dt_s,
+            snr_db=snr_db,
+            seed=sig_seed,
+            sample_rate_hz=48000,
+        )
+        mixed = sig if mixed is None else mixed + sig
+        signals_meta.append({
+            "message_text": text,
+            "freq_hz": freq_hz,
+            "dt_s": dt_s,
+            "snr_db": snr_db,
+        })
+
+    if mixed is None:
+        mixed = np.zeros(int(48000 * 15), dtype="float32")
+    return mixed, signals_meta
+
+
+# ---------------------------------------------------------------------------
 # PCM rendering — S5 (noise-only / signal-free)
 # ---------------------------------------------------------------------------
 
@@ -269,6 +327,7 @@ def _run(args: argparse.Namespace) -> None:
     n_trials: int = scenario["trials"]
     is_s5 = (scenario_id == "S5")
     is_s4 = (scenario_id == "S4")
+    is_s7 = (scenario_id == "S7")
 
     # Run directory
     qa_rr_root = Path(__file__).resolve().parent.parent
@@ -291,12 +350,20 @@ def _run(args: argparse.Namespace) -> None:
 
             # Render PCM
             import numpy as np
+            s7_signals_meta = None  # populated only for S7 (one truth row per signal)
             if is_s5:
                 samples = _render_noise(part, seed)
                 true_snr_db = part.get("level_dbfs", "")
                 true_dt_s = 0.0
                 true_freq_hz = ""
                 msg_text = ""
+            elif is_s7:
+                samples, s7_signals_meta = _render_compound(scenario, part, seed)
+                # Per-slot truth fields are unused for S7 (logged per signal below).
+                true_snr_db = ""
+                true_dt_s = ""
+                true_freq_hz = ""
+                msg_text = "; ".join(s["message_text"] for s in s7_signals_meta)
             elif is_s4:
                 samples = _render_multi(scenario, part, trial_index, seed)
                 true_snr_db = ""  # multiple SNRs per part
@@ -353,18 +420,34 @@ def _run(args: argparse.Namespace) -> None:
                     sys.exit(1)
                 print("done")
 
-            # Log truth row
-            _append_truth(run_dir, {
-                "scenario_id": scenario_id,
-                "part_index": part_index,
-                "trial_index": trial_index,
-                "seed": seed,
-                "true_snr_db": true_snr_db,
-                "true_dt_s": true_dt_s,
-                "true_freq_hz": true_freq_hz,
-                "message_text": msg_text,
-                "cycle_utc": cycle_utc_str,
-            })
+            # Log truth row(s).  S7 writes one row per compounded signal so the
+            # matcher scores each message independently; all other scenarios
+            # write a single per-slot row.
+            if is_s7 and s7_signals_meta is not None:
+                for sig in s7_signals_meta:
+                    _append_truth(run_dir, {
+                        "scenario_id": scenario_id,
+                        "part_index": part_index,
+                        "trial_index": trial_index,
+                        "seed": seed,
+                        "true_snr_db": sig["snr_db"],
+                        "true_dt_s": sig["dt_s"],
+                        "true_freq_hz": sig["freq_hz"],
+                        "message_text": sig["message_text"],
+                        "cycle_utc": cycle_utc_str,
+                    })
+            else:
+                _append_truth(run_dir, {
+                    "scenario_id": scenario_id,
+                    "part_index": part_index,
+                    "trial_index": trial_index,
+                    "seed": seed,
+                    "true_snr_db": true_snr_db,
+                    "true_dt_s": true_dt_s,
+                    "true_freq_hz": true_freq_hz,
+                    "message_text": msg_text,
+                    "cycle_utc": cycle_utc_str,
+                })
             played += 1
 
     truth_rel = (run_dir / "truth.csv").relative_to(qa_rr_root)
