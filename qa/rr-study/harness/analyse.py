@@ -1380,7 +1380,7 @@ def main() -> None:
                 df = _apply_wsjt_dt_correction(df, float(correction_s))
                 print(
                     f"  S3: WSJT-X DT correction applied (+{correction_s} s) "
-                    f"— removes ≈−0.55 s convention offset from SS_appraiser"
+                    f"- removes ~-0.55 s convention offset from SS_appraiser"
                 )
                 s3_correction_applied = True
 
