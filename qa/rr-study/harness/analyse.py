@@ -1407,13 +1407,14 @@ def main() -> None:
         for appr, info in bias_results.items():
             print(f"  S1 bias ({appr}): {info['mean_bias']:+.2f} dB  slope={info['slope']:.3f}")
 
-    # --- S3b — Negative-DT decode-rate study (companion to S3) ---
+    # --- Decode-rate scenarios (currently: S3b) ---
     s3b_results: dict | None = None
-    if "S3b" in matched:
-        s3b_results = _analyse_decode_rate(matched["S3b"], "S3b", run_dir)
+    if any(sid in matched for sid in DECODE_RATE_SCENARIOS):
+        scen_id = next(sid for sid in DECODE_RATE_SCENARIOS if sid in matched)
+        s3b_results = _analyse_decode_rate(matched[scen_id], scen_id, run_dir)
         for appr in APPRAISERS:
             rate = s3b_results["overall"].get(appr, float("nan"))
-            print(f"  S3b decode rate ({appr}): {_fmt_num(rate)}%  (informational)")
+            print(f"  {scen_id} decode rate ({appr}): {_fmt_num(rate)}%  (informational)")
 
     # --- Attribute scenarios ---
     # False-positive rate (S5) — gated metric, unchanged.

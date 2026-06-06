@@ -323,6 +323,21 @@ def _run(args: argparse.Namespace) -> None:
     scenario = _load_scenario(scenario_path, messages)
 
     scenario_id: str = scenario["id"]
+
+    # S3b negative-DT playback is not yet implemented.  The synthesiser clamps
+    # negative dt_s to zero, so every part would render as DT=0 and produce
+    # near-100% decode rates — the exact opposite of what the study measures.
+    # Remove this guard once the early-playback timing is wired up (subtract
+    # |dt_s| seconds from _next_cycle_boundary() before arming playback, and
+    # allow the modulator to shift energy into the tail of the previous slot).
+    # See harness_note in scenarios/s3b-dt-boundary.json.
+    if scenario_id == "S3b":
+        sys.exit(
+            "ERROR: S3b negative-DT playback is not yet implemented.\n"
+            "The playback layer must arm |dt_s| seconds early per part.\n"
+            "See harness_note in scenarios/s3b-dt-boundary.json."
+        )
+
     parts: list[dict] = scenario["parts"]
     n_trials: int = scenario["trials"]
     is_s5 = (scenario_id == "S5")
