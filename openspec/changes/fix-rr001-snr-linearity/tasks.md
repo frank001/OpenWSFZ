@@ -31,4 +31,4 @@
 
 - [x] 6.1 Commit all changes with message: `fix(snr): remove R6 weak-signal post-correction (R&R-001 linearity fix)`
 - [x] 6.2 Open PR targeting `main`; reference GitHub issue #30 in the PR body — PR #32
-- [ ] 6.3 After CI green, merge PR and close issue #30
+- [x] 6.3 After CI green, merge PR and close issue #30
