@@ -23,7 +23,12 @@ internal struct Ft8NativeResult
     /// <summary>Time offset from cycle start, in seconds.</summary>
     public float Dt;
 
-    /// <summary>SNR estimate, in dB (approximation: cand.score × 0.5).</summary>
+    /// <summary>
+    /// SNR estimate in dB, referenced to a 2500 Hz noise bandwidth (WSJT-X convention).
+    /// Computed as: average of per-symbol max-over-8-tones waterfall magnitude minus the
+    /// global noise-floor median, minus 26 dB (= 10·log₁₀(2500/6.25)).
+    /// No post-correction is applied (R6 weak-signal correction removed; see R&amp;R-001).
+    /// </summary>
     public int Snr;
 
     /// <summary>
