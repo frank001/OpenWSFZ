@@ -363,3 +363,30 @@ All design questions have been ruled on by the Captain.
 Restrict the S1 SNR ladder to levels ≥ −12 dB (where both apps decode reliably) to eliminate
 selection bias from threshold misses.  Add a companion decode-rate study (attribute) covering
 −24 to −15 dB, cleanly separating measurement variance from decode probability.
+
+### S3 redesign recommendation — R&R-003 (GitHub #1, raised 2026-06-06)
+
+The S3 GR&R failure (%GR&R = 51.7%, ndc = 1) has two distinct root causes, neither of which
+is fundamental measurement noise:
+
+1. **OpenWSFZ cannot measure negative DT offsets.**  For signals with true DT < 0 s, OpenWSFZ
+   still decodes the message but reports DT ≈ 0 regardless of the true value (at true DT = −2.0 s
+   the bias is +1.97 s).  Including these parts in the GR&R inflates the App × Part interaction
+   with a decoder capability boundary, not measurement noise.
+
+2. **WSJT-X has a ~−0.55 s systematic DT convention offset.**  WSJT-X defines DT relative to
+   the FT8 nominal TX start (≈ 0.5–1.0 s into the slot) while the harness uses the UTC slot
+   boundary (DT = 0).  This produces a ~−0.55 s offset in all WSJT-X DT reports and dominates
+   the SS_appraiser term in the ANOVA.
+
+Accepted redesign (pending implementation before next run):
+
+- Restrict S3 parts to DT ∈ {0.0, +0.3, +0.6, +0.9, +1.2, +1.5, +1.8, +2.1, +2.4, +2.7} s
+  (positive offsets only, within the reliable decode window of both apps).
+- Apply or document a WSJT-X DT calibration correction (≈ +0.55 s) in the matcher or Bias
+  section so the convention offset does not count as Reproducibility error.
+- Add a companion negative-DT boundary study (attribute: decode rate vs DT < 0) to capture the
+  OpenWSFZ decoder capability finding separately from the GR&R.
+
+The DT GR&R is expected to improve substantially once these changes are in place; the within-cell
+repeatability (σ ≈ 0.10–0.14 s per appraiser) is the residual noise and is physically meaningful.
