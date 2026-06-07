@@ -44,10 +44,10 @@
 
 ## 7. macOS ARM64 binary
 
-- [ ] 7.1 Push the `revert/fix-d001-pcm-sic` branch to `origin`; wait for CI `macos-latest` leg to complete
-- [ ] 7.2 Download artifact `libft8-dylib-osx-arm64` from the successful CI run; copy to `src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib`
-- [ ] 7.3 Update `libft8.version.txt` macOS entry: replace "CI run: pending" with the actual CI run reference and build date
-- [ ] 7.4 Commit and push the macOS dylib and updated version.txt
+- [x] 7.1 Push the `revert/fix-d001-pcm-sic` branch to `origin`; wait for CI `macos-latest` leg to complete
+- [x] 7.2 Download artifact `libft8-dylib-osx-arm64` from the successful CI run; copy to `src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib`
+- [x] 7.3 Update `libft8.version.txt` macOS entry: replace "CI run: pending" with the actual CI run reference and build date
+- [x] 7.4 Commit and push the macOS dylib and updated version.txt
 
 ## 8. Documentation & spec updates
 
@@ -59,5 +59,5 @@
 
 - [x] 9.1 Run `dotnet build OpenWSFZ.slnx -c Release` — 0 errors, 0 warnings
 - [x] 9.2 Run `dotnet test OpenWSFZ.slnx -c Release` — all tests pass, 0 failures
-- [ ] 9.3 Open PR against `main`; confirm CI green on all three matrix legs (Windows, Linux, macOS)
+- [x] 9.3 Open PR against `main`; confirm CI green on all three matrix legs (Windows, Linux, macOS)
 - [ ] 9.4 QA review and merge
