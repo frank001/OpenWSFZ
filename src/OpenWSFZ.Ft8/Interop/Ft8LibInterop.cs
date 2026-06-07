@@ -28,9 +28,11 @@ internal static class Ft8LibInterop
     /// Must match the value returned by <c>ft8_lib_version_check()</c>.
     /// History: 20240001 (single-pass), 20260001 (p15 iterative subtraction),
     /// 20260002 (R6 weak-signal correction removed — R&amp;R-001 linearity fix;
-    ///           revert-pcm-sic: PCM-domain SIC reverted, two-pass spectrogram suppression restored).
+    ///           revert-pcm-sic: PCM-domain SIC reverted, two-pass spectrogram suppression restored),
+    /// 20260004 (fix-d001-revised Option B: hard-zero tile suppression replaced with soft
+    ///           SNR-scaled linear attenuation; version 20260003 skipped — was the reverted PCM-SIC).
     /// </summary>
-    private const int ExpectedShimVersion = 20260002;
+    private const int ExpectedShimVersion = 20260004;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
