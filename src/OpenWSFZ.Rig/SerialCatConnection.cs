@@ -14,9 +14,11 @@ namespace OpenWSFZ.Rig;
 /// </para>
 ///
 /// <para>
-/// Frequency query (<see cref="GetDialFrequencyMhzAsync"/>): sends <c>FA;</c>,
-/// reads the response up to the <c>;</c> delimiter.  The response must start with
-/// <c>FA</c> followed by 8–11 decimal Hz digits.
+/// Frequency query (<see cref="GetDialFrequencyMhzAsync"/>): sends <c>FA;\r</c>
+/// (semicolon + carriage-return — the CR is required by Yaesu firmware to flush the
+/// command buffer; Kenwood rigs accept and ignore it), reads the response up to the
+/// <c>;</c> delimiter.  The response must start with <c>FA</c> followed by 8–11
+/// decimal Hz digits.
 /// Example: <c>FA00014074000;</c> (11-digit) or <c>FA007074000;</c> (9-digit) → 7.074 MHz.
 /// The receive buffer is flushed via <c>DiscardInBuffer</c> before each query to
 /// clear any transient rig response from a preceding set command.
@@ -36,7 +38,7 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
 {
     private const int    ReadTimeoutMs    = 500;
     private const int    DefaultFreqWidth = 11;
-    private const string CatCommand       = "FA;";
+    private const string CatCommand       = "FA;\r";
     private const string ResponseDelim    = ";";
 
     private readonly ISerialPort _port;
