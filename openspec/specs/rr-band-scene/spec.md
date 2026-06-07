@@ -1,7 +1,8 @@
 # rr-band-scene Specification
 
 ## Purpose
-TBD - created by archiving change s8-realistic-band-scene. Update Purpose after archive.
+Specifies the S8 Realistic Band Scene scenario for the OpenWSFZ R&R study. S8 is a holistic multi-signal benchmark that exercises the full FT8 passband simultaneously — 12 stations across 450–2550 Hz at realistic SNR spreads — including near-collision and capture-ratio pairs. It provides an end-to-end decode-rate comparison between WSJT-X and OpenWSFZ under conditions representative of a busy amateur band. S8 is informational only (no PASS/FAIL gate); its purpose is to complement the controlled single-signal scenarios (S1–S5) with a scene-level sanity check.
+
 ## Requirements
 ### Requirement: S8 band scene scenario definition
 The R&R study SHALL include a scenario file `qa/rr-study/scenarios/s8-band-scene.json` with `id = "S8"` and `name = "Realistic Band Scene"`. The file SHALL define a `signals` array of exactly 12 entries, each carrying `message_text`, `freq_hz`, `snr_db`, and `dt_s` fields. The scenario SHALL specify `trials: 5`. No `parts` array is used; the entire signal list is treated as a single part rendered in every trial.
