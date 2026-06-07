@@ -74,6 +74,10 @@ p12-ft8lib-port_UAT-01_items/
 # may contain real third-party callsigns; local only (NFR-021 / GDPR).
 p16-cat-control_items/
 
+# D001 PCM-SIC development corpus — real off-air WAVs and ALL.TXT logs containing
+# real third-party callsigns; local only (NFR-021 / GDPR).
+D001-pcm-sic_items/
+
 # Daemon runtime output — generated files
 ALL.TXT
 
@@ -84,6 +88,10 @@ native/ft8_lib_build/*.obj
 native/ft8_lib_build/*.exp
 native/ft8_lib_build/*.lib
 native/ft8_lib_build/libft8.dll
+native/ft8_lib_build/libft8.so
+
+# Scratch comparison binaries placed at repo root (not the committed platform binaries)
+baseline_libft8.dll
 
 # Serena MCP tool — logs and runtime artefacts (project config is committed)
 daemon_log.txt
