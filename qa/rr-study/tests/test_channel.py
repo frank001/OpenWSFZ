@@ -3,6 +3,7 @@ import os
 import tempfile
 
 import numpy as np
+from scipy import signal as sp
 
 from synth import channel, modulator, wavio
 from synth.constants import NUM_SYMBOLS
@@ -103,3 +104,124 @@ def test_wav_roundtrip_preserves_shape_and_rate():
     # Peak-normalised waveform should correlate strongly with the original.
     corr = np.corrcoef(back, sig)[0, 1]
     assert corr > 0.99
+
+
+# ── FIR filter quality tests (fix-synth-brickwall-noise-filter) ──────────────
+
+def _pure_bandlimited_noise(cutoff_hz: float, fs: int = 48_000,
+                             duration_s: float = 10.0, seed: int = 42) -> np.ndarray:
+    """Return pure bandlimited noise (signal=zeros) for PSD inspection.
+
+    10 s default gives ~233 Welch segments (nperseg=4096, 50% overlap) which
+    reduces the peak passband deviation from ~1.8 dB (2 s) to well below 1 dB.
+    """
+    n = int(fs * duration_s)
+    return channel.add_awgn(np.zeros(n), sigma=1.0, seed=seed,
+                             noise_cutoff_hz=cutoff_hz, sample_rate_hz=fs)
+
+
+def test_fir_no_gibbs_ridge():
+    """Stopband at 1.2× cutoff must be ≥ 30 dB below passband mean.
+
+    The former brick-wall FFT filter produced a Gibbs-phenomenon ridge near the
+    cutoff; the Kaiser FIR filter has deep stopband attenuation there instead.
+    We check at 1.2× cutoff because that is well into the stopband (the −6 dB
+    transition point of firwin is exactly at cutoff, not 30 dB below it).
+    """
+    fs = 48_000
+    cutoff = 4000.0
+    stopband_check_hz = cutoff * 1.2  # 4800 Hz — stopband for 4 kHz Kaiser FIR
+    noise = _pure_bandlimited_noise(cutoff, fs=fs)
+    freqs, psd = sp.welch(noise, fs=float(fs), nperseg=4096)
+    psd_db = 10.0 * np.log10(np.maximum(psd, 1e-30))
+    passband_mask = (freqs >= 100.0) & (freqs <= cutoff * 0.85)
+    pb_mean_db = float(np.mean(psd_db[passband_mask]))
+    sb_idx = int(np.argmin(np.abs(freqs - stopband_check_hz)))
+    sb_psd_db = float(psd_db[sb_idx])
+    attenuation_db = pb_mean_db - sb_psd_db
+    assert attenuation_db >= 30.0, (
+        f"Insufficient stopband attenuation at {freqs[sb_idx]:.0f} Hz: "
+        f"only {attenuation_db:.1f} dB below passband mean (need ≥ 30 dB)"
+    )
+
+
+def test_fir_passband_flat_4khz():
+    """verify_noise_psd returns True on FIR-filtered noise with a 4 kHz cutoff.
+
+    Uses a 10-second noise vector to keep Welch variance below the ±1 dB tolerance.
+    """
+    fs = 48_000
+    cutoff = 4000.0
+    noise = _pure_bandlimited_noise(cutoff, fs=fs, seed=7)
+    result = channel.verify_noise_psd(noise, cutoff, sample_rate_hz=fs,
+                                      tolerance_db=1.0, assert_ok=True)
+    assert result is True
+
+
+def test_fir_passband_flat_3khz():
+    """verify_noise_psd returns True on FIR-filtered noise with a 3 kHz cutoff.
+
+    Uses a 10-second noise vector to keep Welch variance below the ±1 dB tolerance.
+    """
+    fs = 48_000
+    cutoff = 3000.0
+    noise = _pure_bandlimited_noise(cutoff, fs=fs, seed=13)
+    result = channel.verify_noise_psd(noise, cutoff, sample_rate_hz=fs,
+                                      tolerance_db=1.0, assert_ok=True)
+    assert result is True
+
+
+def test_output_length_preserved():
+    """add_awgn with noise_cutoff_hz must return the exact same number of samples."""
+    sig, fs = _signal()
+    n = len(sig)
+    result = channel.add_awgn(sig, sigma=0.1, seed=42,
+                               noise_cutoff_hz=4000.0, sample_rate_hz=fs)
+    assert len(result) == n, f"length changed: {n} -> {len(result)}"
+
+
+def test_snr_preserved_with_cutoff():
+    """In-band SNR must be within ±0.5 dB of target when noise_cutoff_hz=4000 is set.
+
+    Calls add_noise (not add_awgn) — the high-level API now accepts noise_cutoff_hz
+    so callers do not need to compute sigma manually (F-001 fix).
+    """
+    sig, fs = _signal()
+    target_snr = 0.0
+    noisy = channel.add_noise(sig, target_snr, seed=99,
+                               sample_rate_hz=fs, noise_cutoff_hz=4000.0)
+    measured = channel.measure_inband_snr_db(sig, noisy, sample_rate_hz=fs)
+    assert abs(measured - target_snr) < 0.5, (
+        f"SNR not preserved: target {target_snr:.1f} dB, measured {measured:.3f} dB"
+    )
+
+
+def test_verify_noise_psd_rejects_unfiltered_white_noise():
+    """verify_noise_psd must return False for unfiltered white noise.
+
+    White noise has flat PSD across the full Nyquist band (0–24 kHz at 48 kHz).
+    At 1.2 × cutoff (4800 Hz) the PSD equals the passband mean, giving ~0 dB
+    stopband attenuation — well below the required 30 dB threshold.  This is
+    the correct negative case: white noise represents the state *before* any
+    lowpass filter is applied, and verify_noise_psd must reliably detect it.
+
+    Note on the spec scenario — the original spec called for testing against
+    'brickwall (FFT bin-zeroing) filtered noise'.  That case is physically
+    incorrect as a negative test: FFT bin-zeroing on random Gaussian noise
+    produces flat passband PSD and zero stopband PSD (both criteria pass).
+    The Gibbs-phenomenon ridge is a time-domain artefact visible for
+    deterministic signals, not a steady-state PSD feature of random noise.
+    Unfiltered white noise is therefore the correct and deterministic negative
+    case for the stopband criterion.
+    """
+    fs = 48_000
+    cutoff = 4000.0
+    rng = np.random.default_rng(42)
+    n = int(fs * 10.0)  # 10 s gives a stable Welch estimate
+    white_noise = rng.standard_normal(n)
+    result = channel.verify_noise_psd(white_noise, cutoff, sample_rate_hz=fs,
+                                      assert_ok=False)
+    assert result is False, (
+        "verify_noise_psd should reject unfiltered white noise "
+        "(stopband attenuation ≈ 0 dB at 1.2× cutoff; need ≥ 30 dB)"
+    )
