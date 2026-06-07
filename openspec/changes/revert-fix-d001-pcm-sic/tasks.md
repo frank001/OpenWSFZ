@@ -60,4 +60,4 @@
 - [x] 9.1 Run `dotnet build OpenWSFZ.slnx -c Release` — 0 errors, 0 warnings
 - [x] 9.2 Run `dotnet test OpenWSFZ.slnx -c Release` — all tests pass, 0 failures
 - [x] 9.3 Open PR against `main`; confirm CI green on all three matrix legs (Windows, Linux, macOS)
-- [ ] 9.4 QA review and merge
+- [x] 9.4 QA review and merge — PR #6 merged to main at efc0920 (2026-06-07)
