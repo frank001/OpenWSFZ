@@ -35,7 +35,9 @@ Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84)
 --- macOS ARM64 ---
 Compiler:         Apple clang (macos-latest GitHub Actions runner, ARM64)
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC -target arm64-apple-macos11.0
-Build date:       CI run: pending — push branch revert/fix-d001-pcm-sic and wait for macos-latest leg
+Build date:       2026-06-07 (revert-pcm-sic: PCM-domain SIC removed; two-pass spectrogram suppression;
+                              FT8_SHIM_VERSION=20260002)
+                  CI run: 27096007706 (sha 9d7bcc6) — artifact libft8-dylib-osx-arm64
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
 Sources:          shallow-clone native/ft8_lib @ msvc-compat (d18ed84) + ft8_shim.c
 Note:             encode.c is included in the build (required for ft8_encode in shim)
