@@ -24,42 +24,26 @@
 
 ## 3. Option B Results Gate — Captain Review
 
-- [ ] 3.1 Present Option A audit verdict and Option B R&R S7 result to the Captain
-- [ ] 3.2 **CAPTAIN DECISION — choose one:**
-  - **Proceed to Option C PoC** (if S7 improvement is insufficient and further effort is warranted)
-  - **Proceed to Option D** (downgrade/close D-001 based on A+B results alone)
-  - **Accept current state** (D-001 remains Open; no further action at this time)
+- [x] 3.1 Present Option A audit verdict and Option B R&R S7 result to the Captain — done (2026-06-07; see `QA-FINDINGS-rr-007.md`)
+- [x] 3.2 **CAPTAIN DECISION — ~~Proceed to Option C PoC~~ / ~~Proceed to Option D~~ / **Accept current state** — Option B (+10.8 pp S7) lands in main; D-001 remains Open; Option C not pursued at this time. (2026-06-07)**
 
-## 4. Option C PoC — Python Proof-of-Concept (requires Captain approval from task 3.2)
+## 4. Option C PoC — Python Proof-of-Concept (NOT PURSUED — Captain decision task 3.2)
 
-- [ ] 4.1 Write `qa/rr-study/poc_amplitude_sic.py`: synthesise two equal-SNR co-channel FT8 signals using the existing synthesiser; sum in PCM; implement amplitude-tracked CP-FSK subtraction (per-symbol amplitude from waterfall magnitude + linear frequency trajectory across all 79 symbols); call `libft8.dll` on the residual; report recovery count
-- [ ] 4.2 Run the PoC over ≥ 10 synthetic S7 P0 trial cases (2-stack, equal SNR); record recovery rate for baseline (no subtraction) and PoC (with subtraction)
-- [ ] 4.3 Record PoC results in `qa/rr-study/POC-D001-amplitude-sic.md`
+- [n/a] 4.1 Write `qa/rr-study/poc_amplitude_sic.py`
+- [n/a] 4.2 Run the PoC over ≥ 10 synthetic S7 P0 trial cases
+- [n/a] 4.3 Record PoC results in `qa/rr-study/POC-D001-amplitude-sic.md`
 
-## 5. Option C PoC Results Gate — Captain Review
+## 5. Option C PoC Results Gate — NOT PURSUED
 
-- [ ] 5.1 Present PoC results to the Captain:
-  - If improvement ≥ +5 pp on synthetic S7 → request approval for production implementation
-  - If improvement < +5 pp → recommend abandoning Option C and proceeding to Option D
-- [ ] 5.2 **CAPTAIN DECISION — approve or reject Option C production implementation**
+- [n/a] 5.1 Present PoC results to the Captain
+- [n/a] 5.2 **CAPTAIN DECISION — approve or reject Option C production implementation**
 
-## 6. Option C Production — Amplitude-Tracked PCM-Domain SIC (requires Captain approval from task 5.2)
+## 6. Option C Production — NOT PURSUED
 
-- [ ] 6.1 Implement `estimate_carrier_amplitude_envelope()` in `ft8_shim.c`: extract per-symbol magnitude from the waterfall at the decoded tone bin across all 79 symbols
-- [ ] 6.2 Implement `estimate_carrier_frequency_trajectory()` in `ft8_shim.c`: fit a linear (first-order) frequency drift across all 79 decoded symbol positions using least-squares; return slope and intercept
-- [ ] 6.3 Implement `synthesise_tracked_cp_fsk()` in `ft8_shim.c`: generate replica using per-symbol amplitude and instantaneous frequency from the linear trajectory; use heap-allocated `pcm_residual` (`malloc`/`free`); handle `malloc` failure with graceful fallback to single-pass decode
-- [ ] 6.4 Increment `FT8_SHIM_VERSION` to `20260005`; rebuild all three platform binaries; commit; update `libft8.version.txt` and `ExpectedShimVersion`
-- [ ] 6.5 Update `iterative-subtraction` and `ft8lib-interop` specs; add requirements for amplitude-tracked synthesis and heap allocation (per the spec delta added in this change)
-- [ ] 6.6 Add unit tests: `PcmResidual_HeapAllocated_NoStackOverflow`, `FrequencyTrajectory_LinearFit_Correct`, `AmplitudeEnvelope_MatchesWaterfallMagnitudes`
-- [ ] 6.7 Run full test suite — all tests must pass
-- [ ] 6.8 Run full R&R study (S1–S7) — S1–S6 must remain PASS; S7 must show ≥ +5 pp vs Option B baseline
-- [ ] 6.9 Run 42-cycle ground-truth corpus — must be ≥ 69.1%
+- [n/a] 6.1–6.9 (all Option C production tasks — skipped; Option C not approved)
 
 ## 7. Option D — D-001 Disposition (Captain decision required)
 
-- [ ] 7.1 **CAPTAIN DECISION — choose one:**
-  - **Close D-001** (mark as Won't Fix or Resolved with documented rationale)
-  - **Downgrade D-001 to Informational** (gap acknowledged; not a priority; Option C noted as future research)
-  - **Keep D-001 Open** (further iteration planned)
-- [ ] 7.2 Update `openspec/specs/iterative-subtraction/spec.md` AC-IS-1 status to reflect the final outcome
-- [ ] 7.3 Update GitHub issue frank001/OpenWSFZ#3 with the final verdict and close or relabel as appropriate
+- [x] 7.1 **CAPTAIN DECISION — ~~Close D-001~~ / ~~Downgrade to Informational~~ / **Keep D-001 Open** — improvement is real (+10.8 pp S7) but P0 and P8 cases remain unresolved; D-001 carried forward for future iteration. (2026-06-07)**
+- [x] 7.2 Update `openspec/specs/iterative-subtraction/spec.md` AC-IS-1 status — updated to reflect R&R results and D-001 carried forward
+- [x] 7.3 Update GitHub issue frank001/OpenWSFZ#3 — updated with Option B results; issue remains Open

@@ -185,23 +185,28 @@ the 1 MB thread pool thread stack limit.
 
 ### AC-IS-1 — Recovery rate: co-channel improvement target
 
-**Status: IN PROGRESS — fix-d001-revised Option B deployed; R&R pending.**
+**Status: NOT MET (D-001 Open) — Option B improves overall S7 recovery but P0/P8 remain at 0/6.**
 
 History:
 - **p15 spectrogram-domain hard-zero (baseline, `6bab388`):** 46.2% S7 synthetic co-channel;
   69.1% ground-truth corpus (613/887).
 - **fix-D001 PCM-domain SIC (reverted, `efc0920`):** No improvement; two P1 crashes.
-- **fix-d001-revised Option B (FT8_SHIM_VERSION=20260004):** Soft SNR-scaled attenuation
-  deployed; R&R study result pending (task 2.10). No regression on S1–S6 expected.
+- **fix-d001-revised Option A audit:** kgoba/ft8_lib has one post-v2.0 commit (non-standard
+  callsign support only) — decode pipeline unchanged; no upstream update taken.
+- **fix-d001-revised Option B (`15b220b`, FT8_SHIM_VERSION=20260004):** Soft SNR-scaled
+  tile attenuation deployed. R&R run `2026-06-07-15b220b`: S7 overall **57.0%** (+10.8 pp vs
+  46.2% baseline). Near-collision +13.3 pp, capture +16.7 pp. S1–S6 all PASS. Ground-truth
+  corpus 69.2% (614/887). **P0 (2-stack equal 0 dB) 0/6 — unchanged. P8 (co-freq dt 0.5 s)
+  0/6 — unchanged.**
+- **Option C (PCM-domain amplitude-tracked SIC):** Not pursued at this time (Captain decision
+  2026-06-07). Gate criterion: ≥ +5 pp PoC improvement on synthetic S7 before any production
+  C code. Available as future research path.
 
-Upstream audit (Option A, `option-a-audit.md`): one post-v2.0 commit on kgoba/ft8_lib
-(non-standard callsign support) — no decode pipeline changes; no upstream update taken.
+**The ≥ 1/6 improvement target on P0 and P8 is not yet met.** D-001 remains Open; further
+iteration deferred. Soft attenuation (Option B) is the current production configuration.
 
-**The ≥ 1/6 improvement target on P0 and P8 is the ongoing goal.** D-001 remains Open pending
-R&R results.
-
-**Baseline (p15 hard-zero, `6bab388`):** 69.1% (613/887 matched overall); S7
-co-channel scenarios: P0 (2-stack equal SNR) 0/6, P8 (time-freq co-freq dt 0.5 s) 0/6.
+**Current production baseline (`15b220b`):** 69.2% (614/887 matched overall); S7 overall 57.0%;
+P0 (2-stack equal SNR) 0/6, P8 (time-freq co-freq dt 0.5 s) 0/6.
 
 ### AC-IS-2 — Fixture answer-key: G6 gate
 
