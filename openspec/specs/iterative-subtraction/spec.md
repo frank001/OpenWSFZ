@@ -130,7 +130,7 @@ number, `{max}` is **2**, and `{k}` is the number of new messages decoded in tha
 
 ---
 
-### Requirement: Option C approval gate — PoC prerequisite before PCM-domain SIC implementation
+### Requirement: Option C approval gate — PoC SHALL demonstrate improvement before PCM-domain SIC implementation proceeds
 
 *(Gated on Captain approval — only applicable if Option C is approved in fix-d001-revised task 5.2)*
 
@@ -157,7 +157,7 @@ on even the simplest synthetic test cases.
 
 ---
 
-### Requirement: Any PCM residual buffer uses heap allocation, not stack allocation
+### Requirement: Any PCM residual buffer SHALL use heap allocation, not stack allocation
 
 *(Gated on Captain approval — only applicable if Option C is approved in fix-d001-revised task 5.2)*
 

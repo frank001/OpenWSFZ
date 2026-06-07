@@ -71,7 +71,7 @@ float representing the SNR bounds SHALL appear in the loop-control or attenuatio
 
 ## ADDED Requirements
 
-### Requirement: Option C approval gate — PoC prerequisite before PCM-domain SIC implementation
+### Requirement: Option C approval gate — PoC SHALL demonstrate improvement before PCM-domain SIC implementation proceeds
 
 If a PCM-domain SIC approach (per-symbol amplitude estimation + linear frequency trajectory) is
 considered for implementation, a Python proof-of-concept SHALL demonstrate ≥ +5 percentage-point
@@ -94,7 +94,7 @@ on even the simplest synthetic test cases.
 - **THEN** the Captain SHALL review the PoC results and provide explicit approval before any
   production changes to `ft8_shim.c` are authored
 
-### Requirement: Any PCM residual buffer uses heap allocation, not stack allocation
+### Requirement: Any PCM residual buffer SHALL use heap allocation, not stack allocation
 
 If a PCM-domain residual buffer of size `FT8_EXPECTED_SAMPLES * sizeof(float)` (720 000 bytes)
 is required in `ft8_decode_all`, it SHALL be allocated via `malloc` and freed before function
