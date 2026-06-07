@@ -30,8 +30,13 @@ extern "C" {
  *   20260001 — p15: iterative subtraction; ft8_get_last_pass_counts added
  *   20260002 — R6 weak-signal post-correction removed (R&R-001 linearity fix)
  *              revert-pcm-sic: PCM-domain SIC reverted; back to two-pass
- *              spectrogram-suppression (no net improvement, two P1 crashes) */
-#define FT8_SHIM_VERSION 20260002
+ *              spectrogram-suppression (no net improvement, two P1 crashes)
+ *   20260004 — fix-d001-revised Option B: hard-zero tile suppression replaced
+ *              with soft SNR-scaled linear attenuation (K_SOFT_SUPP_SNR_MIN_DB
+ *              to K_SOFT_SUPP_SNR_MAX_DB range); suppress_candidate_tiles now
+ *              takes snr_db parameter; suppress accumulator stores per-decode
+ *              SNR.  Version 20260003 skipped (was the reverted PCM-SIC). */
+#define FT8_SHIM_VERSION 20260004
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
