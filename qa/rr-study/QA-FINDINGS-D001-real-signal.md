@@ -118,47 +118,55 @@ with PCM-domain subtraction.
 
 ---
 
-## Action items to complete the assessment
+## RS-003 — Baseline comparison result
 
-### Required to close the real-signal baseline gap
+**Run date:** 2026-06-07
+**Method:** `batch_decode.py` with pre-fix DLL (`879ec46`, shim 20260002) over the same
+185 WAV files captured during the live session. One slot (260607_123945) crashed
+in the pre-fix DLL on a specific audio frame (unrelated latent fault in 20260002);
+184 of 185 baseline slots completed. Full comparison report:
+`qa/rr-study/QA-FINDINGS-D001-real-signal-comparison.md`
 
-1. **Extract the pre-fix DLL** from git history:
-   ```
-   git show 879ec46:src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll > baseline_libft8.dll
-   ```
+### Three-way comparison (176 slots common to all three logs)
 
-2. **Run the batch decoder** over the same WAV files using the pre-fix DLL:
-   ```
-   python qa/rr-study/batch_decode.py \
-       --dll      baseline_libft8.dll \
-       --wav-dir  D001-pcm-sic_items/save/ \
-       --out      D001-pcm-sic_items/baseline_all.txt
-   ```
-   This takes seconds (not 46 minutes); no live session required.
+| Metric | Baseline (20260002) | Fix (20260003) | Δ |
+|---|---|---|---|
+| WSJT-X decodes | 5,493 | 5,493 | — |
+| Matched (TP) | 3,010 | 3,006 | −4 |
+| **Recall of WSJT-X** | **54.8%** | **54.7%** | **−0.1 pp** |
+| Fix-only TPs (SIC found, baseline missed, WSJT-X confirms) | — | 106 | — |
+| Decoder-only (not in WSJT-X) | 243 | 186 | −57 |
 
-3. **Generate the comparison report**:
-   ```
-   python qa/rr-study/compare_real_signal.py \
-       --wsjt     "D001-pcm-sic_items/WSJT-X ALL.TXT" \
-       --baseline  D001-pcm-sic_items/baseline_all.txt \
-       --fix      "D001-pcm-sic_items/OpenWSFZ ALL.TXT" \
-       --out       qa/rr-study/QA-FINDINGS-D001-real-signal-comparison.md
-   ```
+### Verdict
 
-4. **Commit the comparison report** to the repository and update GitHub issue #3
-   with the recall Δ figure.
+**−0.1 pp** — within the verdict band "No improvement within measurement noise."
 
-### Verdict criteria (QA position)
+Per the pre-agreed criteria:
 
 | Recall Δ (pp) | QA verdict |
 |---|---|
-| ≥ +5 pp | Genuine improvement — D-001 status can be downgraded to Informational |
-| +1 to +4 pp | Marginal — D-001 remains Open; further iteration warranted |
-| −4 to 0 pp | No improvement within measurement noise — D-001 remains Open |
-| ≤ −5 pp | Regression — fix would need revision before merge consideration |
+| ≥ +5 pp | Genuine improvement — D-001 can be downgraded |
+| +1 to +4 pp | Marginal — D-001 remains Open |
+| **−4 to 0 pp** | **No improvement — D-001 remains Open** ← **this result** |
+| ≤ −5 pp | Regression |
 
-Note: the fix is already merged to `main` at `497996f`. The verdict here applies to
-whether D-001 should be closed, downgraded, or remain open for further work.
+The PCM-SIC fix (shim 20260003, three-pass decode with carrier subtraction) produced
+**no measurable improvement** to real-signal decode rate on 20 m FT8 off-air audio.
+This is consistent with the synthetic S7 finding (46.24% → 46.24%).
+
+The 106 fix-only TPs indicate the extra pass *is* finding some additional signals that
+WSJT-X confirms, but these are offset by an approximately equal number of signals the
+baseline found that the fix did not. The net effect on recall is zero.
+
+The 57-fewer decoder-only decodes (186 vs 243) suggests the fix may slightly reduce
+false positives, but this is a secondary metric and the difference is small.
+
+### D-001 status
+
+**D-001 remains Open.** The PCM-SIC approach as implemented did not close the gap.
+The fundamental limitation is likely that the synthetic carrier estimation in the shim
+is insufficiently precise for coherent subtraction of real-world signals with Doppler
+spread, multipath, and amplitude flutter. See GitHub issue frank001/OpenWSFZ#3.
 
 ---
 
@@ -166,5 +174,6 @@ whether D-001 should be closed, downgraded, or remain open for further work.
 
 | ID | Status | Description |
 |---|---|---|
-| RS-001 | **Pending baseline** | Fix-version real-signal recall 54.7%; baseline unknown |
-| RS-002 | **No net improvement** | Synthetic S7: 46.24% both runs; sub-family noise-level changes |
+| RS-001 | **Complete** | Fix-version recall 54.7% (176 slots) |
+| RS-002 | **No net improvement** | Synthetic S7: 46.24% both runs |
+| RS-003 | **No net improvement** | Real-signal Δ = −0.1 pp; D-001 remains Open |

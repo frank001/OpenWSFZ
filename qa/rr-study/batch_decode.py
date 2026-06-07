@@ -47,9 +47,13 @@ from pathlib import Path
 
 EXPECTED_SAMPLE_RATE   = 12_000
 EXPECTED_SAMPLES       = 180_000  # 15 s × 12 kHz
-MAX_RESULTS_SAFE       = 540      # Upper bound — pre-fix DLL returns ≤340, fix ≤540
-
 WAV_HEADER_BYTES       = 44       # Standard PCM WAV header
+
+# Result-buffer sizes keyed by K_MAX_PASSES as reported by ft8_get_max_passes():
+#   K_MAX_PASSES=2 (shim 20260001/20260002): 140 + 200 = 340
+#   K_MAX_PASSES=3 (shim 20260003+):         140 + 200 + 200 = 540
+_MAX_RESULTS_BY_PASSES = {2: 340, 3: 540}
+_MAX_RESULTS_DEFAULT   = 540  # safe upper bound if ft8_get_max_passes unavailable
 
 
 # ── Native struct ────────────────────────────────────────────────────────────
@@ -112,14 +116,18 @@ def _load_dll(dll_path: Path) -> ctypes.CDLL:
     except AttributeError:
         max_passes = None
 
-    version = lib.ft8_lib_version_check()
-    print(f"  DLL loaded: {dll_path.name}")
+    version    = lib.ft8_lib_version_check()
+    max_result = _MAX_RESULTS_BY_PASSES.get(max_passes, _MAX_RESULTS_DEFAULT)
+
+    print(f"  DLL loaded   : {dll_path.name}")
     print(f"  Shim version : {version}")
     if max_passes is not None:
-        print(f"  K_MAX_PASSES : {max_passes}")
+        print(f"  K_MAX_PASSES : {max_passes}  (MaxResults = {max_result})")
     else:
-        print(f"  K_MAX_PASSES : (ft8_get_max_passes not exported — pre-20260002 shim?)")
+        print(f"  K_MAX_PASSES : (ft8_get_max_passes not exported — using {max_result})")
 
+    # Stash on the lib object so _decode_wav can read it without a global
+    lib._max_results = max_result
     return lib
 
 
@@ -183,11 +191,20 @@ def _read_wav_as_float32(wav_path: Path) -> list[float] | None:
 # ── Decoder ──────────────────────────────────────────────────────────────────
 
 def _decode_wav(lib: ctypes.CDLL, samples: list[float]) -> list[_Ft8NativeResult]:
-    """Call ft8_decode_all and return the list of decoded results."""
-    pcm_arr     = (ctypes.c_float * EXPECTED_SAMPLES)(*samples)
-    results_arr = (_Ft8NativeResult * MAX_RESULTS_SAFE)()
+    """Call ft8_decode_all and return the list of decoded results.
 
-    count = lib.ft8_decode_all(pcm_arr, EXPECTED_SAMPLES, results_arr, MAX_RESULTS_SAFE)
+    Returns an empty list on any native-side error (access violation, etc.) so
+    that processing continues with the remaining WAV files.
+    """
+    max_results = getattr(lib, "_max_results", _MAX_RESULTS_DEFAULT)
+    pcm_arr     = (ctypes.c_float * EXPECTED_SAMPLES)(*samples)
+    results_arr = (_Ft8NativeResult * max_results)()
+
+    try:
+        count = lib.ft8_decode_all(pcm_arr, EXPECTED_SAMPLES, results_arr, max_results)
+    except OSError as exc:
+        print(f"  [DLL ERROR] ft8_decode_all raised: {exc} — slot skipped")
+        return []
 
     if count < 0:
         print(f"  WARNING: ft8_decode_all returned {count} — decode error")
@@ -240,7 +257,7 @@ def main() -> None:
     wav_files = sorted(args.wav_dir.glob("*.wav"))
     if not wav_files:
         sys.exit(f"ERROR: no .wav files found in {args.wav_dir}")
-    print(f"\n  WAV files : {len(wav_files)} ({wav_files[0].stem} → {wav_files[-1].stem})")
+    print(f"\n  WAV files : {len(wav_files)} ({wav_files[0].stem} -> {wav_files[-1].stem})")
     print(f"  Output    : {args.out}")
     print()
 
