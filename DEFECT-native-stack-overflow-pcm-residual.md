@@ -2,8 +2,9 @@
 
 **Severity:** P1 — Fatal crash, process termination  
 **Component:** `src/OpenWSFZ.Ft8/Native/ft8_shim.c` + `Native/win-x64/libft8.dll`  
-**Status:** Fix authored; **DLL not rebuilt — crash persists**  
+**Status:** ✅ Fixed — all three platform binaries rebuilt and committed; PR #5 merged to `main`  
 **Raised by:** QA, 2026-06-07  
+**Resolved:** 2026-06-07 (commit `48e35c1` + `f7c9b3a`)  
 **Crash signature:** `0xC0000005` in `Ft8LibInterop.NativeDecodeAll`
 
 ---

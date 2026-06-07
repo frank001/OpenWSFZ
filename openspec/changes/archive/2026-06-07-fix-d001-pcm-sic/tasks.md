@@ -32,7 +32,8 @@
 
 - [x] 6.1 Rebuild `libft8.dll` for Windows x64 per `BUILD.md` instructions; update `src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll` and `libft8.version.txt` with new SHA, build date, and `FT8_SHIM_VERSION = 20260003`
 - [x] 6.2 Rebuild `libft8.so` for Linux x64 (cross-compile or native CI runner); update `src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so` and version entry
-- [ ] 6.3 Rebuild `libft8.dylib` for macOS ARM64; update `src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib` and version entry
+- [x] 6.3 Rebuild `libft8.dylib` for macOS ARM64; update `src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib` and version entry
+      _(completed on `fix/native-stack-overflow-pcm-residual`, commit `f7c9b3a` — CI run 27094731169)_
 
 ## 7. Managed-layer constant updates
 
@@ -57,11 +58,14 @@
 ## 10. R&R S7 verification
 
 - [x] 10.1 Run the R&R S7 scenario against the new build: `python harness/run_scenario.py scenarios/s7-compounding.json --dry-run` to confirm scenario loads; then run live (requires WSJT-X and OpenWSFZ monitoring VB-CABLE) — dry-run PASS; live run: CAPTAIN task (requires WSJT-X + VB-CABLE)
-- [ ] 10.2 Run `matcher.py` and `analyse.py` on the new S7 run results; confirm improvement on P0 (co_channel 2-stack equal SNR: OpenWSFZ was 0/6, target ≥ 1/6) and P8 (time_freq co-freq dt 0.5 s: was 0/6, target ≥ 1/6) versus `6bab388` baseline
-- [ ] 10.3 Commit results directory to `qa/rr-study/results/<date>-<sha>/`
+- [x] 10.2 Run `matcher.py` and `analyse.py` on the new S7 run results; confirm improvement on P0 and P8 versus `6bab388` baseline
+      _(completed — synthetic S7: 46.24% both runs, no improvement. Real-signal: 54.7% fix vs 54.8% baseline, delta −0.1 pp. AC-IS-1 NOT met. D-001 remains Open. See `qa/rr-study/QA-FINDINGS-D001-real-signal-comparison.md` and `QA-FINDINGS-D001-real-signal.md`.)_
+- [x] 10.3 Commit results directory to `qa/rr-study/results/<date>-<sha>/`
+      _(committed in `a2cf031` and `9b37784` on `fix/native-stack-overflow-pcm-residual`)_
 
 ## 11. Final integration
 
 - [x] 11.1 Run full build and test suite one final time on the implementation branch — 0 errors, 0 warnings, all tests pass
 - [x] 11.2 Push `fix/d001-pcm-sic` branch to `origin`; open PR against `main`
-- [ ] 11.3 Verify CI passes on all three matrix legs (Windows, Linux, macOS)
+- [x] 11.3 Verify CI passes on all three matrix legs (Windows, Linux, macOS)
+      _(green on `fix/native-stack-overflow-pcm-residual` CI runs 27094731169 and 27095053265 — all three legs)_
