@@ -40,7 +40,7 @@ Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC -target arm64-apple-macos11.0
 Build date:       2026-06-07 (fix-D001 rev3: heap-allocated pcm_residual (same as Windows);
                               monitor.c LOG_LEVEL LOG_INFO -> LOG_WARN; CI workflow updated
                               to compile patched monitor.c from repo rather than upstream)
-                  CI run: pending — push this branch and wait for macos-latest leg
+                  CI run: 27094731169 (2026-06-07T14:03 UTC, macos-latest/macos-15-arm64)
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
 Sources:          shallow-clone native/ft8_lib @ msvc-compat (d18ed84) + ft8_shim.c
 Note:             encode.c is included in the build (required for ft8_encode in shim)

@@ -2,7 +2,7 @@
 :: rebuild_monitor_and_shim.bat
 ::
 :: Full rebuild of the two patched C translation units that need MSVC-specific
-:: treatment (monitor.c ??? patched VLAs; ft8_shim.c ??? our shim), then relinks
+:: treatment (monitor.c -- patched VLAs; ft8_shim.c -- our shim), then relinks
 :: libft8.dll using the pre-built .obj files for the remaining ft8_lib sources.
 ::
 :: Run this when:
@@ -10,7 +10,7 @@
 ::   - native/ft8_lib_build/patched/common/monitor.c has changed (LOG_LEVEL, etc.)
 ::
 :: For changes to other ft8_lib sources (decode.c, ldpc.c, etc.) you need a
-:: full rebuild from source ??? see BUILD.md.
+:: full rebuild from source -- see BUILD.md.
 
 call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
 if %ERRORLEVEL% neq 0 ( echo FAILED: vcvars64.bat & exit /b 1 )

@@ -89,6 +89,9 @@ native/ft8_lib_build/*.exp
 native/ft8_lib_build/*.lib
 native/ft8_lib_build/libft8.dll
 
+# R&R study baseline DLL -- extracted from git history for apples-to-apples comparison
+baseline_libft8.dll
+
 # Serena MCP tool — logs and runtime artefacts (project config is committed)
 daemon_log.txt
 
