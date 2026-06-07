@@ -84,6 +84,14 @@ jobs:
           cp libft8.dylib \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib"
 
+      - name: Upload macOS dylib artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: libft8-dylib-osx-arm64
+          path: src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
+          if-no-files-found: error
+
       # -----------------------------------------------------------------
       # Gate G1: Build and test on all three operating systems
       # -----------------------------------------------------------------
