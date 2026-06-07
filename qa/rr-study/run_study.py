@@ -26,8 +26,8 @@ _RESULTS = _HERE / "results"
 WSJT_ALL_TXT    = Path(r"C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT")
 OWSFZ_ALL_TXT   = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 
-# Scenario JSON files in play order
-SCENARIO_FILES = [
+# Controlled scenario JSON files (always run)
+_CONTROLLED_SCENARIO_FILES = [
     _SCENARIOS / "s1-snr-ladder.json",
     _SCENARIOS / "s1b-snr-threshold.json",
     _SCENARIOS / "s2-freq-sweep.json",
@@ -36,9 +36,7 @@ SCENARIO_FILES = [
     _SCENARIOS / "s5-noise.json",
     _SCENARIOS / "s7-compounding.json",
 ]
-
-# Scenario IDs in the same order (for matcher invocation)
-SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7"]
+_CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7"]
 
 
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -65,7 +63,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", default="CABLE Input",
                         help="Audio output device name substring")
+    parser.add_argument("--skip-s8", action="store_true",
+                        help="Skip the S8 realistic band scene (no prompt)")
     args = parser.parse_args()
+
+    # ── Build scenario list — S8 is optional ──────────────────────────────
+    scenario_files = list(_CONTROLLED_SCENARIO_FILES)
+    scenario_ids   = list(_CONTROLLED_SCENARIO_IDS)
+
+    if not args.skip_s8:
+        ans = input("Run S8 realistic band scene first? [Y/n]: ").strip().lower()
+        if ans in ("", "y", "yes"):
+            scenario_files.insert(0, _SCENARIOS / "s8-band-scene.json")
+            scenario_ids.insert(0, "S8")
+            print("  S8 included.\n")
+        else:
+            print("  S8 skipped.\n")
 
     print("=" * 70)
     print("OpenWSFZ R&R Study -- live run")
@@ -73,10 +86,11 @@ def main() -> None:
     print(f"  WSJT-X ALL.TXT  : {WSJT_ALL_TXT}")
     print(f"  OpenWSFZ ALL.TXT: {OWSFZ_ALL_TXT}")
     print(f"  Device          : {args.device}")
+    print(f"  Scenarios       : {', '.join(scenario_ids)}")
     print()
 
     # ── Step 1: Run all scenarios ──────────────────────────────────────────
-    for sf in SCENARIO_FILES:
+    for sf in scenario_files:
         if not sf.exists():
             sys.exit(f"ERROR: scenario file not found: {sf}")
         _py("harness/run_scenario.py", str(sf), "--device", args.device)
@@ -114,7 +128,7 @@ def main() -> None:
 
     # ── Step 4: Run matcher for each scenario ──────────────────────────────
     print("\nRunning matcher ...")
-    for scen_id in SCENARIO_IDS:
+    for scen_id in scenario_ids:
         _py(
             "harness/matcher.py",
             "--run-dir", str(run_dir),

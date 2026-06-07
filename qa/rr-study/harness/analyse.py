@@ -958,6 +958,149 @@ def _compounding_report_lines(results: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# S8 — Realistic Band Scene holistic decode rate
+# ---------------------------------------------------------------------------
+
+def _analyse_band_scene(df_matched: pd.DataFrame,
+                        scen_meta: dict | None,
+                        run_dir: Path) -> dict:
+    """Holistic decode-rate analysis for S8.
+
+    S8 has 12 fixed stations × 5 trials = 60 injected messages.  There are no
+    PASS/FAIL thresholds — this is an informational benchmark only.
+
+    Returns a dict with:
+      - ``overall``: {appraiser: decode_rate_pct}
+      - ``injected``: total truth rows per appraiser
+      - ``decoded``:  total matched rows per appraiser
+      - ``per_station``: list of {station_label, freq_hz, snr_db, WSJT-X: (n,d), OpenWSFZ: (n,d)}
+    """
+    df = df_matched[df_matched["false_positive"] == False].copy()
+    df["matched"] = df["matched"].astype(bool)
+    df["true_freq_hz"] = pd.to_numeric(df["true_freq_hz"], errors="coerce")
+    df["true_snr_db"]  = pd.to_numeric(df["true_snr_db"],  errors="coerce")
+
+    # Build station label map from scenario metadata (freq_hz → station letter)
+    station_map: dict[float, str] = {}
+    for sig in (scen_meta or {}).get("signals", []):
+        try:
+            station_map[float(sig["freq_hz"])] = sig.get("station", "?")
+        except (KeyError, ValueError):
+            pass
+
+    # Overall decode rate per appraiser
+    overall: dict[str, float] = {}
+    injected: dict[str, int]  = {}
+    decoded:  dict[str, int]  = {}
+    for appr in APPRAISERS:
+        sub = df[df["appraiser"] == appr]
+        injected[appr] = len(sub)
+        decoded[appr]  = int(sub["matched"].sum())
+        overall[appr]  = 100.0 * decoded[appr] / injected[appr] if injected[appr] else float("nan")
+
+    # Per-station breakdown (unique freq_hz values)
+    freqs = sorted(df["true_freq_hz"].dropna().unique())
+    per_station: list[dict] = []
+    for freq in freqs:
+        row: dict = {
+            "station":  station_map.get(freq, "?"),
+            "freq_hz":  int(freq),
+            "snr_db":   df[df["true_freq_hz"] == freq]["true_snr_db"].dropna().iloc[0]
+                        if not df[df["true_freq_hz"] == freq]["true_snr_db"].dropna().empty
+                        else float("nan"),
+        }
+        for appr in APPRAISERS:
+            sub = df[(df["true_freq_hz"] == freq) & (df["appraiser"] == appr)]
+            row[appr] = (int(sub["matched"].sum()), len(sub))
+        per_station.append(row)
+
+    # Bar chart: per-station decode rate per appraiser
+    chart_path = None
+    if per_station:
+        labels = [f"{r['station']}\n{r['freq_hz']}Hz\n{_fmt_num(r['snr_db'])}dB"
+                  for r in per_station]
+        x = np.arange(len(per_station))
+        width = 0.38
+        fig, ax = plt.subplots(figsize=(14, 5))
+        for i, appr in enumerate(APPRAISERS):
+            vals = [
+                (100.0 * r[appr][0] / r[appr][1]) if r[appr][1] else 0.0
+                for r in per_station
+            ]
+            ax.bar(x + (i - 0.5) * width, vals, width, label=appr)
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, fontsize=7)
+        ax.set_ylabel("Decode rate (%)")
+        ax.set_ylim(0, 105)
+        ax.set_title("S8 — Realistic Band Scene: per-station decode rate")
+        ax.legend(fontsize=8)
+        ax.grid(axis="y", linestyle=":", lw=0.5)
+        plt.tight_layout()
+        chart_path = run_dir / "S8_band_scene.png"
+        fig.savefig(chart_path, dpi=150)
+        plt.close(fig)
+
+    return {
+        "overall":     overall,
+        "injected":    injected,
+        "decoded":     decoded,
+        "per_station": per_station,
+        "chart":       chart_path.name if chart_path else None,
+    }
+
+
+def _band_scene_report_lines(results: dict) -> list[str]:
+    """Render the S8 section of report.md. No PASS/FAIL verdict is emitted."""
+    lines: list[str] = ["## S8 — Realistic Band Scene", ""]
+    lines += [
+        "_Holistic decode-rate benchmark: 12 simultaneous stations across 450–2550 Hz "
+        "at realistic SNR spread (−15 to +3 dB), including a near-collision pair (E/F, "
+        "12 Hz apart) and a capture pair (G/H, co-frequency, 6 dB ratio). "
+        "**Informational only — no PASS/FAIL gate.**_",
+        "",
+    ]
+
+    # Overall summary table
+    lines += ["### Overall decode rate", ""]
+    lines += ["| Appraiser | Decoded | Injected | Rate |", "|---|---|---|---|"]
+    for appr in APPRAISERS:
+        dec  = results["decoded"].get(appr, 0)
+        inj  = results["injected"].get(appr, 0)
+        rate = results["overall"].get(appr, float("nan"))
+        lines.append(f"| {appr} | {dec} | {inj} | {_fmt_num(rate)}% |")
+
+    # Between-appraiser delta
+    ov = results["overall"]
+    w_rate = ov.get("WSJT-X",    float("nan"))
+    o_rate = ov.get("OpenWSFZ",  float("nan"))
+    if not (math.isnan(w_rate) or math.isnan(o_rate)):
+        delta = o_rate - w_rate
+        lines += ["", f"**Between-appraiser delta (OpenWSFZ − WSJT-X): {delta:+.1f} pp**", ""]
+    else:
+        lines += [""]
+
+    # Per-station breakdown table
+    lines += ["### Per-station breakdown", ""]
+    lines += [
+        "| Stn | Freq (Hz) | SNR (dB) | WSJT-X decoded/total | OpenWSFZ decoded/total |",
+        "|---|---|---|---|---|",
+    ]
+    for r in results["per_station"]:
+        w_dec, w_tot = r.get("WSJT-X",   (0, 0))
+        o_dec, o_tot = r.get("OpenWSFZ", (0, 0))
+        lines.append(
+            f"| {r['station']} | {r['freq_hz']} | {_fmt_num(r['snr_db'])} "
+            f"| {w_dec}/{w_tot} | {o_dec}/{o_tot} |"
+        )
+    lines += [""]
+
+    if results.get("chart"):
+        lines += [f"![S8 band scene]({results['chart']})", ""]
+
+    return lines
+
+
+# ---------------------------------------------------------------------------
 # S3b — Negative-DT decode-rate analysis
 # ---------------------------------------------------------------------------
 
@@ -1168,6 +1311,7 @@ def _write_report(
     overall: str,
     fails: list[str],
     s7_results: dict | None = None,
+    s8_results: dict | None = None,
     attr_results: dict | None = None,
     decode_rate_results: list[dict] | None = None,
 ) -> Path:
@@ -1273,6 +1417,10 @@ def _write_report(
     # S7 — compounding / co-channel overlap
     if s7_results:
         lines += _compounding_report_lines(s7_results)
+
+    # S8 — realistic band scene (informational; no PASS/FAIL verdict)
+    if s8_results:
+        lines += _band_scene_report_lines(s8_results)
 
     # Summary
     lines += [
@@ -1487,6 +1635,17 @@ def main() -> None:
             f"OpenWSFZ {_fmt_num(s7_results['overall'].get('OpenWSFZ', float('nan')))}%"
         )
 
+    # --- S8 realistic band scene (informational, no gate) ---
+    s8_results: dict | None = None
+    if "S8" in matched:
+        s8_results = _analyse_band_scene(matched["S8"], scenario_meta.get("S8"), run_dir)
+        print(
+            "  S8 holistic decode rate: "
+            f"WSJT-X {_fmt_num(s8_results['overall'].get('WSJT-X', float('nan')))}%  "
+            f"OpenWSFZ {_fmt_num(s8_results['overall'].get('OpenWSFZ', float('nan')))}%"
+            "  (informational)"
+        )
+
     # --- Verdicts ---
     verdict_rows, overall, fails = _collect_verdicts(
         continuous_results, kappa_results, fp_results, bias_results
@@ -1497,6 +1656,7 @@ def main() -> None:
         run_dir, git_sha, continuous_results, kappa_results,
         fp_results, bias_results, verdict_rows, overall, fails,
         s7_results=s7_results,
+        s8_results=s8_results,
         attr_results=attr_results,
         decode_rate_results=decode_rate_results,
     )

@@ -1,0 +1,30 @@
+{
+  "_comment": "S8 Realistic Band Scene — a fixed, human-readable 12-station band profile spanning 450–2550 Hz. Unlike S1–S7, there are no 'parts': all 12 stations are rendered simultaneously in every trial, producing a slot that sounds and behaves like a real busy FT8 band. Run before the controlled scenarios as a qualitative cold-listening check and holistic decode-rate benchmark. Informational only — no PASS/FAIL gate.",
+  "_format_version": "1",
+
+  "id": "S8",
+  "name": "Realistic Band Scene",
+  "description": "Fixed 12-station band profile across 450–2550 Hz at realistic SNR spread (−15 to +3 dB). Includes a near-collision pair (E/F, 12 Hz apart) and a capture pair (G/H, co-frequency, 6 dB ratio). 5 trials vary only AWGN seed. Metric: holistic decode rate per appraiser (no gate).",
+
+  "trials": 5,
+
+  "signals": [
+    {"station": "A", "message_text": "CQ Q1ABC FN42",      "freq_hz":  450, "snr_db":  -8, "dt_s": 0.0},
+    {"station": "B", "message_text": "Q1ABC Q9XYZ -10",    "freq_hz":  650, "snr_db":  -3, "dt_s": 0.0},
+    {"station": "C", "message_text": "Q9XYZ Q1ABC R-08",   "freq_hz":  850, "snr_db": -12, "dt_s": 0.0},
+    {"station": "D", "message_text": "CQ Q1AW FN31",       "freq_hz": 1050, "snr_db":   0, "dt_s": 0.0},
+    {"station": "E", "message_text": "Q1AW Q1ABC +05",     "freq_hz": 1150, "snr_db":  -5, "dt_s": 0.0},
+    {"station": "F", "message_text": "Q1ABC Q1AW RR73",    "freq_hz": 1162, "snr_db":  -8, "dt_s": 0.0,
+     "_note": "Near-collision with E: 12 Hz apart (< 2 tone bins)"},
+    {"station": "G", "message_text": "CQ Q9XYZ EN37",      "freq_hz": 1500, "snr_db":   0, "dt_s": 0.0},
+    {"station": "H", "message_text": "Q9XYZ Q1AW 73",      "freq_hz": 1500, "snr_db":  -6, "dt_s": 0.0,
+     "_note": "Capture pair with G: co-frequency, 6 dB weaker"},
+    {"station": "I", "message_text": "Q1AW Q9XYZ RR73",    "freq_hz": 1650, "snr_db":  -3, "dt_s": 0.5,
+     "_note": "0.5 s late start — exercises time-offset separation"},
+    {"station": "J", "message_text": "Q9XYZ Q1ABC +03",    "freq_hz": 1900, "snr_db": -15, "dt_s": 0.0},
+    {"station": "K", "message_text": "CQ Q1AW EN37",       "freq_hz": 2150, "snr_db":  -8, "dt_s": 0.0},
+    {"station": "L", "message_text": "Q1ABC Q9XYZ R-05",   "freq_hz": 2550, "snr_db":   3, "dt_s": 0.0}
+  ],
+
+  "seed_formula": "compute_seed('S8', 0, trial_index)"
+}
