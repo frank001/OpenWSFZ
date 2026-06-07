@@ -123,18 +123,19 @@ static _Thread_local int tls_num_passes = 0;
 
 /* ── PCM residual buffer ─────────────────────────────────────────────────── */
 /*
- * Decision 6: 720 KB working buffer for PCM-domain SIC.
- * Default: stack allocation (safe on Windows ≥1 MB stack, Linux, macOS).
- * Opt-in: define OWSFZ_TLS_RESIDUAL to use thread-local storage instead
- * (required on platforms with stack < 1 MB).
+ * Decision 6 (revised): heap-allocated working buffer for PCM-domain SIC.
+ *
+ * The original implementation used a stack allocation (float[180000] = 720 KB).
+ * That exhausts the usable call stack on .NET thread pool threads, which have a
+ * 1 MB stack of which the CLR reserves ~128 KB for its own use (GC, managed
+ * exception handling).  Adding the managed frames (~36 KB), the ft8_decode_all
+ * frame (~742 KB), and the monitor_process frame (~64 KB) exceeds ~896 KB,
+ * causing a fatal 0xC0000005 access violation.
+ *
+ * Heap allocation eliminates the stack risk entirely.  malloc(720 KB) is
+ * effectively guaranteed to succeed on any system that can load this DLL.
+ * The buffer is freed in step 6 (cleanup) below.
  */
-#ifdef OWSFZ_TLS_RESIDUAL
-    #define DECLARE_PCM_RESIDUAL() static _Thread_local float pcm_residual[FT8_EXPECTED_SAMPLES]
-#else
-    /* static_assert that float[180000] is 720000 bytes (guard for padding surprises) */
-    /* sizeof(float) * FT8_EXPECTED_SAMPLES == 720000 */
-    #define DECLARE_PCM_RESIDUAL() float pcm_residual[FT8_EXPECTED_SAMPLES]
-#endif
 
 /* ── Callsign hash table ─────────────────────────────────────────────────── */
 
@@ -479,10 +480,16 @@ int ft8_decode_all(
     tls_num_passes = 0;
 
     /* ── 4a. PCM residual buffer ─────────────────────────────────────────── */
-    /* 720 KB buffer — see Decision 6.  Content is populated only when pass 0
-     * decodes at least one signal.  The original `pcm` pointer is never
-     * written.  See OWSFZ_TLS_RESIDUAL option in ft8_shim.h comments. */
-    DECLARE_PCM_RESIDUAL();
+    /* 720 KB heap buffer — see Decision 6 (revised comment above).
+     * Content is populated only when pass 0 decodes at least one signal.
+     * The original `pcm` pointer is never written.
+     * free(pcm_residual) is called unconditionally in step 6 below.     */
+    float* pcm_residual = (float*)malloc((size_t)FT8_EXPECTED_SAMPLES * sizeof(float));
+    if (!pcm_residual) {
+        tls_hash_table = NULL;
+        monitor_free(&mon);
+        return -2; /* out of memory; managed caller treats any negative as error */
+    }
 
     /* ── 4b. Cross-pass suppression accumulator ──────────────────────────── */
     /* Holds decoded candidates from passes 0 and 1 for spectrogram
@@ -680,6 +687,7 @@ int ft8_decode_all(
     }
 
     /* ── 6. Cleanup ──────────────────────────────────────────────────────── */
+    free(pcm_residual);
     tls_hash_table = NULL;
     monitor_free(&mon);
 

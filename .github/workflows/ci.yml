@@ -70,8 +70,12 @@ jobs:
             -target arm64-apple-macos11.0 -c \
             ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
             ft8/message.c ft8/text.c \
-            common/monitor.c \
             fft/kiss_fft.c fft/kiss_fftr.c
+          # Use the repo-patched monitor.c (LOG_LEVEL=LOG_WARN, fixed-size arrays).
+          # Needs -I. for ft8/decode.h etc. and -Icommon for monitor.h.
+          clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -Icommon \
+            -target arm64-apple-macos11.0 -c \
+            "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/common/monitor.c"
           clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
             -target arm64-apple-macos11.0 -c \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/ft8_shim.c"

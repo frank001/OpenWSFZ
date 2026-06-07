@@ -74,6 +74,10 @@ p12-ft8lib-port_UAT-01_items/
 # may contain real third-party callsigns; local only (NFR-021 / GDPR).
 p16-cat-control_items/
 
+# D001 live-capture WAV corpus — real off-air samples collected during PCM-SIC
+# testing; contains real third-party callsigns (NFR-021 / GDPR); local only.
+D001-pcm-sic_items/
+
 # Daemon runtime output — generated files
 ALL.TXT
 
