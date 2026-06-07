@@ -15,28 +15,14 @@
  *   A second pass then runs on the modified waterfall using a wider candidate
  *   net (lower min_score, more candidates, more LDPC iterations).
  *
- * fix-D001 — PCM-domain Successive Interference Cancellation (SIC):
+ * revert-pcm-sic — PCM-domain SIC reverted:
  *
- *   Three-pass decode structure (K_MAX_PASSES = 3):
- *
- *   Pass 0: Full-waterfall decode (unchanged from p15 pass 0).
- *
- *   PCM subtraction (between passes 0 and 1):
- *     For each pass-0 decoded signal, estimate the sub-Hz carrier frequency
- *     via DFT parabolic interpolation on the Costas-array column, synthesise
- *     its CP-FSK waveform, and subtract from a working copy (pcm_residual) of
- *     the original PCM buffer.  Then free the monitor and rebuild the waterfall
- *     from pcm_residual.
- *
- *   Pass 1: Decode from the PCM-residual waterfall (wider candidate net).
- *
- *   Spectrogram suppression (between passes 1 and 2):
- *     All signals decoded in passes 0 and 1 have their waterfall tiles zeroed.
- *
- *   Pass 2: Decode from the suppressed PCM-residual waterfall.
- *
- *   The original const float* pcm argument is never written (Decision 6).
- *   The PCM residual buffer is 720 KB; see Decision 6 / OWSFZ_TLS_RESIDUAL.
+ *   The fix-D001 PCM-domain SIC (three-pass: carrier estimation, CP-FSK
+ *   waveform synthesis, PCM subtraction, waterfall rebuild) was reverted after
+ *   the R&R study showed no measurable improvement (-0.1 pp) and two fatal
+ *   0xC0000005 crashes occurred in production.  The two-pass spectrogram-
+ *   suppression structure from p15 is restored.  FT8_SHIM_VERSION returns to
+ *   20260002.  See DEFECT-native-stack-overflow-pcm-residual.md.
  *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
@@ -80,9 +66,6 @@ char* stpcpy(char* dest, const char* src)
 /* Samples per FT8 symbol: 12000 Hz / 6.25 symbols-per-second = 1920 */
 #define FT8_SAMPLES_PER_SYMBOL 1920
 
-/* FT8 tone spacing in Hz (symbol rate = 6.25 Hz) */
-#define FT8_TONE_SPACING_HZ  6.25
-
 #define K_MIN_SCORE       10
 #define K_MAX_CANDIDATES  140
 #define K_LDPC_ITERATIONS 25
@@ -93,48 +76,26 @@ char* stpcpy(char* dest, const char* src)
 /*
  * K_MAX_PASSES — total number of decode passes.
  * Pass 0: full waterfall.
- * Pass 1: PCM-residual waterfall (after PCM-domain SIC).
- * Pass 2: spectrogram-suppression pass on the PCM-cleaned waterfall.
+ * Pass 1: spectrogram-suppression pass on the original waterfall.
  */
-#define K_MAX_PASSES   3
+#define K_MAX_PASSES   2
 
 /*
- * Passes 1 and 2 use a wider candidate net.
+ * Pass 1 uses a wider candidate net.
  */
 #define K_MIN_SCORE_PASS2       1
 #define K_MAX_CANDIDATES_PASS2  200
 #define K_LDPC_ITERATIONS_PASS2 50
 
 /*
- * PCM-domain SIC — SNR gate.  Signals below this threshold use the
- * waterfall bin-centre frequency without parabolic interpolation.
- */
-#define K_PCM_SIC_SNR_GATE_DB  (-10.0f)
-
-/*
  * K_MAX_DECODED — cross-pass dedup hash table entries.
- * Sized to accommodate all three passes.
+ * Sized to accommodate both passes.
  */
-#define K_MAX_DECODED  (K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2 + K_MAX_CANDIDATES_PASS2)
+#define K_MAX_DECODED  (K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2)
 
 /* ── Thread-local per-pass stats ─────────────────────────────────────────── */
 static _Thread_local int tls_pass_counts[K_MAX_PASSES];
 static _Thread_local int tls_num_passes = 0;
-
-/* ── PCM residual buffer ─────────────────────────────────────────────────── */
-/*
- * Decision 6: 720 KB working buffer for PCM-domain SIC.
- * Default: stack allocation (safe on Windows ≥1 MB stack, Linux, macOS).
- * Opt-in: define OWSFZ_TLS_RESIDUAL to use thread-local storage instead
- * (required on platforms with stack < 1 MB).
- */
-#ifdef OWSFZ_TLS_RESIDUAL
-    #define DECLARE_PCM_RESIDUAL() static _Thread_local float pcm_residual[FT8_EXPECTED_SAMPLES]
-#else
-    /* static_assert that float[180000] is 720000 bytes (guard for padding surprises) */
-    /* sizeof(float) * FT8_EXPECTED_SAMPLES == 720000 */
-    #define DECLARE_PCM_RESIDUAL() float pcm_residual[FT8_EXPECTED_SAMPLES]
-#endif
 
 /* ── Callsign hash table ─────────────────────────────────────────────────── */
 
@@ -200,7 +161,7 @@ static ftx_callsign_hash_interface_t s_hash_if = { cb_lookup_hash, cb_save_hash 
  * suppress_candidate_tiles — zero the waterfall tiles occupied by a decoded
  * FT8 signal, using the EXACT tone sequence from ft8_encode.
  *
- * For each of the 79 symbols, the bin actually transmitted plus its ±1
+ * For each of the 79 symbols, the bin actually transmitted plus its +-1
  * nearest neighbours (one FT8 bin = 3.125 Hz at freq_osr=2) are set to
  * noise_raw.  This covers the Hann-window first sidelobe while preserving
  * the 6 remaining tone bins that an adjacent co-channel signal might use.
@@ -237,167 +198,6 @@ static void suppress_candidate_tiles(
                 }
             }
         }
-    }
-}
-
-/* ── Carrier frequency estimation (fix-D001) ────────────────────────────── */
-/*
- * goertzel_magnitude — compute the DFT magnitude at integer bin k of an
- * N-point sequence starting at pcm[start].  Uses Goertzel's algorithm
- * (2 multiplies + 2 adds per sample).
- *
- * Returns: |X[k]| (magnitude, not power).  Returns 0.0 if power < 0
- *          (numerical noise near the noise floor).
- */
-static double goertzel_magnitude(const float* pcm, int start, int N, int k)
-{
-    double coeff = 2.0 * cos(2.0 * M_PI * (double)k / (double)N);
-    double s1 = 0.0, s2 = 0.0;
-    for (int n = 0; n < N; n++) {
-        double s = (double)pcm[start + n] + coeff * s1 - s2;
-        s2 = s1;
-        s1 = s;
-    }
-    double power = s1 * s1 + s2 * s2 - coeff * s1 * s2;
-    return power > 0.0 ? sqrt(power) : 0.0;
-}
-
-/*
- * estimate_carrier_hz_offset — estimate the sub-Hz carrier frequency offset
- * via DFT parabolic interpolation on the FT8 Costas-array column.
- *
- * The first 7 symbols of every FT8 frame are the Costas sequence
- * {3, 1, 4, 0, 6, 5, 2} (tone indices in the 6.25 Hz grid).  For each
- * symbol window of FT8_SAMPLES_PER_SYMBOL (1920) samples, the DFT
- * magnitude is computed at the expected tone bin and its two neighbours
- * using Goertzel's algorithm; parabolic interpolation then estimates the
- * sub-bin offset.  The result is averaged across all 7 symbols.
- *
- * Parameters:
- *   pcm_buf  — original (unmodified) PCM buffer
- *   pcm_len  — buffer length (must be FT8_EXPECTED_SAMPLES)
- *   freq_hz  — waterfall-derived carrier frequency in Hz
- *   dt_s     — time offset in seconds (from waterfall candidate)
- *   snr_db   — SNR estimate; signals below K_PCM_SIC_SNR_GATE_DB return 0.0f
- *
- * Returns: sub-Hz carrier offset in Hz.  Add to freq_hz for refined carrier.
- *          Returns 0.0f if SNR is below gate or estimation fails.
- */
-static float estimate_carrier_hz_offset(
-    const float* pcm_buf, int pcm_len,
-    float freq_hz, float dt_s, float snr_db)
-{
-    /* Gate: below SNR threshold, use bin-centre frequency without interpolation */
-    if (snr_db < K_PCM_SIC_SNR_GATE_DB)
-        return 0.0f;
-
-    /* FT8 Costas sequence (3GPP TS 103 236 / WSJT-X protocol) */
-    static const int costas_seq[7] = {3, 1, 4, 0, 6, 5, 2};
-
-    /* Starting sample of the frame */
-    int t_start = (int)roundf(dt_s * (float)FT8_SAMPLE_RATE);
-    if (t_start < 0) t_start = 0;
-
-    const int N = FT8_SAMPLES_PER_SYMBOL;  /* 1920 */
-    const double bin_width_hz = (double)FT8_SAMPLE_RATE / (double)N; /* 6.25 Hz */
-
-    double sum_delta = 0.0;
-    int    valid     = 0;
-
-    for (int sym = 0; sym < 7; sym++)
-    {
-        int t_sym = t_start + sym * N;
-
-        /* Guard: symbol window must lie within the buffer */
-        if (t_sym < 0 || t_sym + N > pcm_len) continue;
-
-        /* Expected frequency for this Costas tone */
-        double f_sym = (double)freq_hz + (double)costas_seq[sym] * FT8_TONE_SPACING_HZ;
-
-        /* Nearest integer DFT bin */
-        int k = (int)round(f_sym / bin_width_hz);
-        if (k < 1 || k >= N / 2 - 1) continue; /* guard edges */
-
-        /* Goertzel magnitudes at k-1, k, k+1 */
-        double m_minus = goertzel_magnitude(pcm_buf, t_sym, N, k - 1);
-        double m_0     = goertzel_magnitude(pcm_buf, t_sym, N, k    );
-        double m_plus  = goertzel_magnitude(pcm_buf, t_sym, N, k + 1);
-
-        /* Parabolic interpolation: δ = 0.5 × (M+1 − M-1) / (2M0 − M-1 − M+1) */
-        double denom = 2.0 * m_0 - m_minus - m_plus;
-        if (denom <= 0.0) continue; /* peak not at k; skip */
-
-        double delta_bins = 0.5 * (m_plus - m_minus) / denom;
-        double delta_hz   = delta_bins * bin_width_hz;
-
-        sum_delta += delta_hz;
-        valid++;
-    }
-
-    return (valid > 0) ? (float)(sum_delta / (double)valid) : 0.0f;
-}
-
-/* ── CP-FSK waveform synthesis and subtraction (fix-D001) ───────────────── */
-/*
- * synthesise_cp_fsk — synthesise a continuous-phase FSK (CP-FSK) FT8 replica
- * and SUBTRACT it in-place from out_buf.
- *
- * The replica is placed starting at sample max(0, round(dt_s * sample_rate)).
- * A double-precision phase accumulator ensures < 10⁻⁸ rad phase error over
- * the full 79 × 1920 = 151 680 sample waveform.
- *
- * Parameters:
- *   out_buf     — residual PCM buffer; replica is subtracted in-place
- *   buf_len     — size of out_buf
- *   tones       — 79-element tone sequence (from ft8_encode)
- *   n_symbols   — number of symbols (FT8_NN = 79)
- *   carrier_hz  — refined carrier frequency in Hz (base of the 8-tone grid)
- *   dt_s        — frame time offset in seconds
- *   amplitude   — peak amplitude of the replica
- *   sample_rate — PCM sample rate (FT8_SAMPLE_RATE = 12000)
- */
-static void synthesise_cp_fsk(
-    float*          out_buf,
-    int             buf_len,
-    const uint8_t*  tones,
-    int             n_symbols,
-    float           carrier_hz,
-    float           dt_s,
-    float           amplitude,
-    int             sample_rate)
-{
-    int t_start_raw = (int)roundf(dt_s * (float)sample_rate);
-    int t_start     = (t_start_raw > 0) ? t_start_raw : 0;
-
-    double phase = 0.0; /* continuous-phase accumulator (double precision) */
-
-    /* If the frame started before the buffer, advance the phase accumulator
-     * past the skipped pre-buffer samples so the replica at buffer sample 0
-     * has the correct phase.  Using the first symbol's frequency (tones[0])
-     * for the pre-advancement.  fmod keeps the phase in [0, 2π) and avoids
-     * double-precision accumulation error over potentially thousands of
-     * skipped samples. */
-    if (t_start_raw < 0) {
-        int    skipped = -t_start_raw;
-        double f0      = (double)carrier_hz + (double)tones[0] * FT8_TONE_SPACING_HZ;
-        double step0   = 2.0 * M_PI * f0 / (double)sample_rate;
-        phase = fmod(step0 * (double)skipped, 2.0 * M_PI);
-    }
-
-    for (int sym = 0; sym < n_symbols; sym++)
-    {
-        double f_sym       = (double)carrier_hz + (double)tones[sym] * FT8_TONE_SPACING_HZ;
-        double phase_step  = 2.0 * M_PI * f_sym / (double)sample_rate;
-
-        for (int n = 0; n < FT8_SAMPLES_PER_SYMBOL; n++)
-        {
-            int idx = t_start + sym * FT8_SAMPLES_PER_SYMBOL + n;
-            if (idx < buf_len) /* t_start >= 0 guarantees idx >= 0 */
-                out_buf[idx] -= amplitude * (float)cos(phase);
-
-            phase += phase_step; /* advance phase AFTER sample output */
-        }
-        /* Phase carries over across symbol boundaries — continuous phase */
     }
 }
 
@@ -478,97 +278,34 @@ int ft8_decode_all(
     for (int i = 0; i < K_MAX_PASSES; i++) tls_pass_counts[i] = 0;
     tls_num_passes = 0;
 
-    /* ── 4a. PCM residual buffer ─────────────────────────────────────────── */
-    /* 720 KB buffer — see Decision 6.  Content is populated only when pass 0
-     * decodes at least one signal.  The original `pcm` pointer is never
-     * written.  See OWSFZ_TLS_RESIDUAL option in ft8_shim.h comments. */
-    DECLARE_PCM_RESIDUAL();
-
-    /* ── 4b. Cross-pass suppression accumulator ──────────────────────────── */
-    /* Holds decoded candidates from passes 0 and 1 for spectrogram
-     * suppression before pass 2, AND for PCM subtraction after pass 0.
-     * Capacity: pass-0 cap (140) + pass-1 cap (200) = 340.            */
-    ftx_candidate_t all_supp_cands[K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2];
-    ftx_message_t   all_supp_msgs [K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2];
-    float           all_supp_snrs [K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2];
+    /* ── 4a. Cross-pass suppression accumulator ──────────────────────────── */
+    /* Holds decoded candidates from pass 0 for spectrogram suppression
+     * before pass 1.                                                     */
+    ftx_candidate_t all_supp_cands[K_MAX_CANDIDATES];
+    ftx_message_t   all_supp_msgs [K_MAX_CANDIDATES];
     int             n_all_supp    = 0;
 
     /* ── 5. Multi-pass decode loop ───────────────────────────────────────── */
-    /* Per-pass configuration table: min_score, max_candidates, ldpc_iters.
-     * K_MAX_PASSES is 3; add one row here for each additional pass.        */
     static const struct { int min_score; int max_cands; int ldpc; } k_pass_cfg[K_MAX_PASSES] = {
-        { K_MIN_SCORE,       K_MAX_CANDIDATES,       K_LDPC_ITERATIONS       }, /* pass 0: full waterfall */
-        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 1: PCM-residual  */
-        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 2: spectrogram   */
+        { K_MIN_SCORE,       K_MAX_CANDIDATES,       K_LDPC_ITERATIONS       }, /* pass 0: full waterfall         */
+        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 1: spectrogram-suppressed */
     };
 
     for (int pass = 0; pass < K_MAX_PASSES; pass++)
     {
-        /* ── Early-exit: skip everything if result buffer is already full ── */
-        /* Hoisted before PCM subtraction to avoid a wasted 720 KB memcpy +  */
-        /* replica synthesis + waterfall rebuild when the buffer is saturated.*/
+        /* ── Early-exit: skip if result buffer is already full ───────────── */
         if (num_decoded >= max_results) {
             tls_pass_counts[pass] = 0;
             tls_num_passes        = pass + 1;
-            /* Spectrogram suppression must still run before pass 2 */
-            if (pass == 1) {
-                for (int i = 0; i < n_all_supp; i++)
-                    suppress_candidate_tiles(&mon.wf, &all_supp_cands[i],
-                                             &all_supp_msgs[i], noise_raw);
-            }
             continue;
         }
 
-        /* ── PCM subtraction: execute before pass 1 ─────────────────────── */
+        /* ── Spectrogram suppression: execute before pass 1 ─────────────── */
         if (pass == 1)
         {
-            if (num_decoded > 0)
-            {
-                /* Copy original PCM to working residual */
-                memcpy(pcm_residual, pcm, (size_t)pcm_len * sizeof(float));
-
-                /* For each pass-0 decoded signal: synthesise replica and subtract */
-                for (int si = 0; si < n_all_supp; si++)
-                {
-                    /* Tone sequence from the decoded payload */
-                    uint8_t tones[FT8_NN];
-                    ft8_encode(all_supp_msgs[si].payload, tones);
-
-                    /* Carrier and timing from the candidate + monitor */
-                    float freq_hz = (mon.min_bin
-                                     + (float)all_supp_cands[si].freq_offset
-                                     + (float)all_supp_cands[si].freq_sub / (float)mon.wf.freq_osr)
-                                    / mon.symbol_period;
-                    float dt_s    = ((float)all_supp_cands[si].time_offset
-                                     + (float)all_supp_cands[si].time_sub / (float)mon.wf.time_osr)
-                                    * mon.symbol_period;
-
-                    /* Sub-Hz carrier refinement via Costas-column DFT interpolation */
-                    float offset  = estimate_carrier_hz_offset(
-                                        pcm, pcm_len, freq_hz, dt_s, all_supp_snrs[si]);
-                    float carrier = freq_hz + offset;
-
-                    /* Amplitude: A = sqrt(2) × 10^(SNR/20) × noise_rms */
-                    float noise_rms = powf(10.0f, noise_floor_db / 20.0f);
-                    float amplitude = sqrtf(2.0f)
-                                    * powf(10.0f, all_supp_snrs[si] / 20.0f)
-                                    * noise_rms;
-
-                    synthesise_cp_fsk(pcm_residual, pcm_len, tones, FT8_NN,
-                                      carrier, dt_s, amplitude, FT8_SAMPLE_RATE);
-                }
-
-                /* Rebuild waterfall from residual PCM */
-                monitor_free(&mon);
-                monitor_init(&mon, &cfg);
-                for (int pos = 0; pos + mon.block_size <= pcm_len; pos += mon.block_size)
-                    monitor_process(&mon, pcm_residual + pos);
-
-                /* Recompute noise floor from the new waterfall */
-                compute_noise_floor(&mon, &noise_floor_db, &noise_raw);
-            }
-            /* else: pass 0 decoded nothing; skip PCM subtraction entirely.
-             * Pass 1 runs on the same (original) waterfall.               */
+            for (int i = 0; i < n_all_supp; i++)
+                suppress_candidate_tiles(&mon.wf, &all_supp_cands[i],
+                                         &all_supp_msgs[i], noise_raw);
         }
 
         int pass_min_score = k_pass_cfg[pass].min_score;
@@ -653,30 +390,16 @@ int ft8_decode_all(
 
             new_decodes++;
 
-            /* Track for cross-pass suppression accumulator (all passes
-             * up to the final one) so spectrogram suppression before
-             * pass 2 covers passes 0 AND 1.                             */
-            int cap = K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2;
-            if (pass < K_MAX_PASSES - 1 && n_all_supp < cap) {
+            /* Track for spectrogram suppression accumulator (pass 0 only) */
+            if (pass == 0 && n_all_supp < K_MAX_CANDIDATES) {
                 all_supp_cands[n_all_supp] = *cand;
                 all_supp_msgs [n_all_supp] = msg;
-                all_supp_snrs [n_all_supp] = snr;
                 n_all_supp++;
             }
         }
 
         tls_pass_counts[pass] = new_decodes;
         tls_num_passes        = pass + 1;
-
-        /* ── Spectrogram suppression: execute before pass 2 ─────────────── */
-        if (pass == 1)
-        {
-            /* Suppress all decoded signals from passes 0 and 1 on the
-             * PCM-residual waterfall before pass 2.                     */
-            for (int i = 0; i < n_all_supp; i++)
-                suppress_candidate_tiles(&mon.wf, &all_supp_cands[i],
-                                         &all_supp_msgs[i], noise_raw);
-        }
     }
 
     /* ── 6. Cleanup ──────────────────────────────────────────────────────── */
