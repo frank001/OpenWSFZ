@@ -85,4 +85,4 @@ The single post-v2.0 commit improves message text encoding/decoding for non-stan
 ## Task 1.3 Status
 
 - [x] Audit completed: one post-v2.0 commit found, decode pipeline unchanged.
-- [ ] Verdict recorded: **no upstream update; proceed to Option B**.
+- [x] Verdict recorded: **no upstream update; proceed to Option B**.
