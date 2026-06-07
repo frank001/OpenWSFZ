@@ -29,8 +29,9 @@ extern "C" {
  *   20240001 — initial release (single-pass decode)
  *   20260001 — p15: iterative subtraction; ft8_get_last_pass_counts added
  *   20260002 — R6 weak-signal post-correction removed (R&R-001 linearity fix)
- *   20260003 — fix-D001: PCM-domain SIC; K_MAX_PASSES = 3; ABI unchanged */
-#define FT8_SHIM_VERSION 20260003
+ *              revert-pcm-sic: PCM-domain SIC reverted; back to two-pass
+ *              spectrogram-suppression (no net improvement, two P1 crashes) */
+#define FT8_SHIM_VERSION 20260002
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

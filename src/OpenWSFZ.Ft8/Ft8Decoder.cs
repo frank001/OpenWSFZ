@@ -145,13 +145,13 @@ public sealed class Ft8Decoder : IModeDecoder
         }
 
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────
-        // Log once per pass: "Iterative subtraction: pass N of max, K new decodes"
-        for (int passIdx = 0; passIdx < passCounts.Length; passIdx++)
-        {
-            _logger?.LogDebug(
-                "Iterative subtraction: pass {Pass} of {Max}, {K} new decodes.",
-                passIdx + 1, passCounts.Length, passCounts[passIdx]);
-        }
+        // Two explicit lines — one per pass (K_MAX_PASSES = 2).
+        _logger?.LogDebug(
+            "Iterative subtraction: pass {Pass} of {Max}, {K} new decodes.",
+            1, passCounts.Length, passCounts.Length > 0 ? passCounts[0] : 0);
+        _logger?.LogDebug(
+            "Iterative subtraction: pass {Pass} of {Max}, {K} new decodes.",
+            2, passCounts.Length, passCounts.Length > 1 ? passCounts[1] : 0);
 
         // ── Diagnostic log ───────────────────────────────────────────────────
         // Spec requirement: "Cycle {Time}: {Count} decode(s) found, elapsed={Elapsed} ms"
