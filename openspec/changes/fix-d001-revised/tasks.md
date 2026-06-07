@@ -19,7 +19,7 @@
   - `SoftSuppression_MidRangeSnr_TilesHalved` — decode with SNR = +5 dB; assert factor ≈ 0.5
   - Update `Ft8LibInteropTests` ABI version assertion from `20260002` to `20260004`
 - [x] 2.9 Run `dotnet test OpenWSFZ.slnx -c Release` — all 314+ tests must pass (313 passing; 3 new tests added; 0 failures)
-- [ ] 2.10 Run the full R&R study (S1–S7) — S1–S6 must remain PASS; record the S7 result for comparison with the baseline (46.2%)
+- [x] 2.10 Run the full R&R study (S1–S7) — S1–S6 must remain PASS; record the S7 result for comparison with the baseline (46.2%) — RESULT: S7 OpenWSFZ **57.0%** (+10.8 pp vs baseline); S1–S6 all PASS. Run `2026-06-07-15b220b`. See `QA-FINDINGS-rr-007.md`.
 - [x] 2.11 Run the 42-cycle ground-truth corpus — must be ≥ 69.1% (no regression from baseline) — RESULT: 69.2% (614/887) ✓
 
 ## 3. Option B Results Gate — Captain Review
