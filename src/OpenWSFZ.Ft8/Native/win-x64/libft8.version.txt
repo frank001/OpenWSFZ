@@ -32,12 +32,10 @@ Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84)
 --- macOS ARM64 ---
 Compiler:         Apple clang (macos-latest GitHub Actions runner, ARM64)
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC -target arm64-apple-macos11.0
-Build date:       rebuilt by CI on each macOS run (see .github/workflows/ci.yml);
-                  committed binary last updated: 2026-05-31 (p15 — FT8_SHIM_VERSION=20260001)
-                  NOTE: committed .dylib is stale; CI always rebuilds from current ft8_shim.c
-                        so CI tests always use the correct version. Update committed binary by
-                        downloading the dylib artifact from the next successful CI macOS run.
-                        After fix-D001 merge CI will rebuild with FT8_SHIM_VERSION=20260003.
+Build date:       2026-06-07 (fix-D001 rev2: review findings — phase pre-advancement for
+                              negative dt_s, buffer-full guard hoisted before PCM subtraction,
+                              dead pass0_count removed, MaxResults corrected to 540)
+                  CI run: 27090323814 (sha e9b7529) — artifact libft8-dylib-osx-arm64
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
 Sources:          shallow-clone native/ft8_lib @ msvc-compat (d18ed84) + ft8_shim.c
 Note:             encode.c is included in the build (required for ft8_encode in shim)
