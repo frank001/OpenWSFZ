@@ -25,7 +25,7 @@ public sealed class Ft8LibInteropTests
     /// buffer, <c>GetLastPassCounts(2)</c> returns exactly <c>[0, 0]</c>.
     ///
     /// <para>
-    /// The native shim always executes <c>K_MAX_PASSES</c> (= 2) full passes even when
+    /// The native shim always executes <c>K_MAX_PASSES</c> (= 3) full passes even when
     /// no candidates are found; the per-pass new-decode counts are stored in TLS and
     /// must both be 0 for a silent input.  This test protects the TLS mechanic from
     /// future regressions that could cause stale counts to be returned or the pass-count
