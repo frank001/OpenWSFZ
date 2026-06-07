@@ -66,10 +66,18 @@ def add_noise(
     seed: int,
     sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
     bandwidth_hz: float = REFERENCE_BANDWIDTH_HZ,
+    noise_cutoff_hz: "float | None" = None,
 ) -> np.ndarray:
-    """Return signal + seeded AWGN at the requested in-band SNR."""
+    """Return signal + seeded AWGN at the requested in-band SNR.
+
+    If ``noise_cutoff_hz`` is given, the noise is lowpass-filtered to that
+    frequency before being added (see module docstring and :func:`add_awgn`).
+    The in-band SNR (2500 Hz reference) is unaffected by bandlimiting.
+    """
     sigma = noise_sigma_for_snr(signal, snr_db, sample_rate_hz, bandwidth_hz)
-    return add_awgn(signal, sigma, seed)
+    return add_awgn(signal, sigma, seed,
+                    noise_cutoff_hz=noise_cutoff_hz,
+                    sample_rate_hz=sample_rate_hz)
 
 
 def _lowpass_fir(

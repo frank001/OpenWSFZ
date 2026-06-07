@@ -181,13 +181,47 @@ def test_output_length_preserved():
 
 
 def test_snr_preserved_with_cutoff():
-    """In-band SNR must be within ±0.5 dB of target when noise_cutoff_hz=4000 is set."""
+    """In-band SNR must be within ±0.5 dB of target when noise_cutoff_hz=4000 is set.
+
+    Calls add_noise (not add_awgn) — the high-level API now accepts noise_cutoff_hz
+    so callers do not need to compute sigma manually (F-001 fix).
+    """
     sig, fs = _signal()
     target_snr = 0.0
-    sigma = channel.noise_sigma_for_snr(sig, target_snr, sample_rate_hz=fs)
-    noisy = channel.add_awgn(sig, sigma, seed=99,
-                              noise_cutoff_hz=4000.0, sample_rate_hz=fs)
+    noisy = channel.add_noise(sig, target_snr, seed=99,
+                               sample_rate_hz=fs, noise_cutoff_hz=4000.0)
     measured = channel.measure_inband_snr_db(sig, noisy, sample_rate_hz=fs)
     assert abs(measured - target_snr) < 0.5, (
         f"SNR not preserved: target {target_snr:.1f} dB, measured {measured:.3f} dB"
+    )
+
+
+def test_verify_noise_psd_rejects_unfiltered_white_noise():
+    """verify_noise_psd must return False for unfiltered white noise.
+
+    White noise has flat PSD across the full Nyquist band (0–24 kHz at 48 kHz).
+    At 1.2 × cutoff (4800 Hz) the PSD equals the passband mean, giving ~0 dB
+    stopband attenuation — well below the required 30 dB threshold.  This is
+    the correct negative case: white noise represents the state *before* any
+    lowpass filter is applied, and verify_noise_psd must reliably detect it.
+
+    Note on the spec scenario — the original spec called for testing against
+    'brickwall (FFT bin-zeroing) filtered noise'.  That case is physically
+    incorrect as a negative test: FFT bin-zeroing on random Gaussian noise
+    produces flat passband PSD and zero stopband PSD (both criteria pass).
+    The Gibbs-phenomenon ridge is a time-domain artefact visible for
+    deterministic signals, not a steady-state PSD feature of random noise.
+    Unfiltered white noise is therefore the correct and deterministic negative
+    case for the stopband criterion.
+    """
+    fs = 48_000
+    cutoff = 4000.0
+    rng = np.random.default_rng(42)
+    n = int(fs * 10.0)  # 10 s gives a stable Welch estimate
+    white_noise = rng.standard_normal(n)
+    result = channel.verify_noise_psd(white_noise, cutoff, sample_rate_hz=fs,
+                                      assert_ok=False)
+    assert result is False, (
+        "verify_noise_psd should reject unfiltered white noise "
+        "(stopband attenuation ≈ 0 dB at 1.2× cutoff; need ≥ 30 dB)"
     )
