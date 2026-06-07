@@ -16,6 +16,14 @@ namespace OpenWSFZ.Ft8;
 /// </para>
 ///
 /// <para>
+/// Native shim version history (tracked via <c>FT8_SHIM_VERSION</c> / <c>ExpectedShimVersion</c>):
+/// 20240001 — single-pass decode.
+/// 20260001 — p15 iterative subtraction (spectrogram-domain, 2 passes).
+/// 20260002 — R6 weak-signal post-correction removed (R&amp;R-001 linearity fix).
+/// 20260003 — fix-D001: PCM-domain SIC; K_MAX_PASSES = 3; carrier estimation + CP-FSK synthesis.
+/// </para>
+///
+/// <para>
 /// The <see cref="IModeDecoder"/> contract is unchanged: callers pass a 15-second
 /// 12 kHz mono float[] and receive a list of <see cref="DecodeResult"/> records.
 /// Everything else — <see cref="CycleFramer"/>, <see cref="DecodeResult"/>, ALL.TXT
@@ -92,6 +100,11 @@ public sealed class Ft8Decoder : IModeDecoder
 
         Ft8NativeResult[] native;
         int[]             passCounts;
+
+        // Both calls must be on the same thread — no await between them — because
+        // ft8_get_last_pass_counts reads from TLS written by ft8_decode_all.
+        // IMPORTANT: do not make this lambda async or split these two calls across
+        // separate Task.Run invocations; doing so would break the TLS guarantee.
         (native, passCounts) = await Task.Run(() =>
         {
             var r = Ft8LibInterop.DecodeAll(pcm);
