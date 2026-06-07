@@ -54,9 +54,12 @@ def _load_scenario(path: Path, messages: dict[str, str]) -> dict:
     except json.JSONDecodeError as exc:
         sys.exit(f"ERROR: cannot parse scenario file: {path} — {exc}")
 
-    for field in ("id", "parts", "trials"):
+    for field in ("id", "trials"):
         if field not in scenario:
             sys.exit(f"ERROR: scenario file missing required field '{field}': {path}")
+    # S8 uses a top-level 'signals' array instead of 'parts'; all others require 'parts'.
+    if scenario.get("id") != "S8" and "parts" not in scenario:
+        sys.exit(f"ERROR: scenario file missing required field 'parts': {path}")
 
     # Resolve message texts
     msg_ids = scenario.get("message_ids") or []
@@ -190,7 +193,63 @@ def _render_multi(scenario: dict, part: dict, trial_index: int,
         snr_list.append(float(snr_db_set[i % len(snr_db_set)]))
 
     return channel.mix_to_shared_floor(clean_signals, snr_list, seed,
-                                       sample_rate_hz=48000)
+                                       sample_rate_hz=48000,
+                                       noise_cutoff_hz=4000)
+
+
+# ---------------------------------------------------------------------------
+# PCM rendering — S8 (realistic band scene)
+# ---------------------------------------------------------------------------
+
+def _render_band_scene(scenario: dict,
+                       seed: int) -> "tuple[numpy.ndarray, list[dict]]":
+    """Render the S8 fixed band-scene: all 12 stations mixed into one slot.
+
+    Each entry in ``scenario["signals"]`` carries ``message_text``, ``freq_hz``,
+    ``snr_db``, and ``dt_s``.  Stations are encoded clean, scaled by their
+    relative ``snr_db``, summed, and given ONE shared seeded AWGN floor via
+    :func:`synth.channel.mix_to_shared_floor` — the same model used by S7.
+
+    Returns ``(mixed_samples, signals_meta)`` where ``signals_meta`` is a list
+    of ``{message_text, freq_hz, dt_s, snr_db, station}`` dicts, one per signal,
+    used to write one truth row PER SIGNAL so the matcher scores each independently.
+    """
+    from synth import channel, encoder
+
+    signals = scenario.get("signals", [])
+    if not signals:
+        raise ValueError("S8 scenario has no 'signals' array")
+
+    clean_signals: list = []
+    snr_list: list[float] = []
+    signals_meta: list[dict] = []
+
+    for s in signals:
+        text     = s["message_text"]
+        freq_hz  = float(s["freq_hz"])
+        dt_s     = float(s["dt_s"])
+        snr_db   = float(s["snr_db"])
+        station  = s.get("station", "?")
+        clean_signals.append(encoder.encode_message(
+            text,
+            base_freq_hz=freq_hz,
+            dt_s=dt_s,
+            snr_db=None,  # clean render; the floor is added once by the mixer
+            sample_rate_hz=48000,
+        ))
+        snr_list.append(snr_db)
+        signals_meta.append({
+            "message_text": text,
+            "freq_hz":      freq_hz,
+            "dt_s":         dt_s,
+            "snr_db":       snr_db,
+            "station":      station,
+        })
+
+    mixed = channel.mix_to_shared_floor(clean_signals, snr_list, seed,
+                                        sample_rate_hz=48000,
+                                        noise_cutoff_hz=4000)
+    return mixed, signals_meta
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +306,8 @@ def _render_compound(scenario: dict, part: dict,
         })
 
     mixed = channel.mix_to_shared_floor(clean_signals, snr_list, seed,
-                                        sample_rate_hz=48000)
+                                        sample_rate_hz=48000,
+                                        noise_cutoff_hz=4000)
     return mixed, signals_meta
 
 
@@ -338,11 +398,13 @@ def _run(args: argparse.Namespace) -> None:
             "See harness_note in scenarios/s3b-dt-boundary.json."
         )
 
-    parts: list[dict] = scenario["parts"]
+    # S8 has no 'parts' array — a single implicit part covers all trials.
+    parts: list[dict] = scenario.get("parts", [{"part_index": 0}])
     n_trials: int = scenario["trials"]
     is_s5 = (scenario_id == "S5")
     is_s4 = (scenario_id == "S4")
     is_s7 = (scenario_id == "S7")
+    is_s8 = (scenario_id == "S8")
 
     # Run directory
     qa_rr_root = Path(__file__).resolve().parent.parent
@@ -365,8 +427,16 @@ def _run(args: argparse.Namespace) -> None:
 
             # Render PCM
             import numpy as np
-            s7_signals_meta = None  # populated only for S7 (one truth row per signal)
-            if is_s5:
+            s7_signals_meta = None  # populated only for S7/S8 (one truth row per signal)
+            s8_signals_meta = None
+            if is_s8:
+                samples, s8_signals_meta = _render_band_scene(scenario, seed)
+                # Per-slot truth fields unused for S8 (logged per signal below).
+                true_snr_db  = ""
+                true_dt_s    = ""
+                true_freq_hz = ""
+                msg_text = "; ".join(s["message_text"] for s in s8_signals_meta)
+            elif is_s5:
                 samples = _render_noise(part, seed)
                 true_snr_db = part.get("level_dbfs", "")
                 true_dt_s = 0.0
@@ -399,6 +469,18 @@ def _run(args: argparse.Namespace) -> None:
                 samples = _render_single(scenario, part, trial_index, seed)
 
             samples = samples.astype("float32")
+
+            # Normalise to ±1.0 peak before playback.  The noise sigma is
+            # calibrated for a 2 500 Hz reference bandwidth (FT8 SNR convention)
+            # at 48 kHz, so raw samples typically peak at 10–14 — far beyond the
+            # ±1.0 range PortAudio expects for float32.  Without normalisation
+            # ~70 % of samples are hard-clipped to ±1.0, producing audible
+            # square-wave distortion.  Uniform scaling preserves SNR (signal and
+            # noise both divided by the same constant), so decode rates and S1
+            # SNR-linearity measurements are unaffected.
+            _peak = float(np.max(np.abs(samples)))
+            if _peak > 0.0:
+                samples = (samples * (0.9 / _peak)).astype("float32")
 
             # Cycle boundary alignment (skipped in dry-run mode)
             if args.dry_run:
@@ -435,10 +517,23 @@ def _run(args: argparse.Namespace) -> None:
                     sys.exit(1)
                 print("done")
 
-            # Log truth row(s).  S7 writes one row per compounded signal so the
+            # Log truth row(s).  S7 and S8 write one row per signal so the
             # matcher scores each message independently; all other scenarios
             # write a single per-slot row.
-            if is_s7 and s7_signals_meta is not None:
+            if is_s8 and s8_signals_meta is not None:
+                for sig in s8_signals_meta:
+                    _append_truth(run_dir, {
+                        "scenario_id":  scenario_id,
+                        "part_index":   part_index,
+                        "trial_index":  trial_index,
+                        "seed":         seed,
+                        "true_snr_db":  sig["snr_db"],
+                        "true_dt_s":    sig["dt_s"],
+                        "true_freq_hz": sig["freq_hz"],
+                        "message_text": sig["message_text"],
+                        "cycle_utc":    cycle_utc_str,
+                    })
+            elif is_s7 and s7_signals_meta is not None:
                 for sig in s7_signals_meta:
                     _append_truth(run_dir, {
                         "scenario_id": scenario_id,

@@ -17,6 +17,21 @@ For multi-signal slots (S4 density, S7 compounding) use :func:`mix_to_shared_flo
 which models a single receiver: stations are scaled by their relative SNR and summed
 over ONE shared noise floor, rather than each carrying its own (which would stack N
 floors and erase capture-ratio differences).
+
+Noise bandwidth (noise_cutoff_hz)
+----------------------------------
+The sigma is calibrated against the 2500 Hz *reference* band; white noise fills
+the full Nyquist band (fs/2).  At 48 kHz this is 24 kHz — nearly 10× the FT8
+passband.  When audio is played back at 48 kHz the ear hears all 24 kHz of hiss,
+burying signals that a decoder (which filters to ≤ 6 kHz) can decode without
+difficulty.
+
+Supply ``noise_cutoff_hz`` to restrict the generated noise to a band that matches
+a real SSB receiver's audio bandwidth (~3–4 kHz).  A brick-wall FFT lowpass is
+used so that the noise PSD *within the passband* is unchanged — the in-band SNR
+(2500 Hz reference) is therefore preserved exactly.  Only the out-of-band noise
+energy is removed.  The total noise sigma drops from ~2.0 to ~0.8 (48 kHz,
+4 kHz cutoff), making signals near 0 dB SNR perceptibly audible to the human ear.
 """
 from __future__ import annotations
 
@@ -52,16 +67,49 @@ def add_noise(
     return add_awgn(signal, sigma, seed)
 
 
-def add_awgn(signal: np.ndarray, sigma: float, seed: int) -> np.ndarray:
+def _lowpass_fft(
+    x: np.ndarray,
+    cutoff_hz: float,
+    sample_rate_hz: int,
+) -> np.ndarray:
+    """Brick-wall lowpass filter via FFT (real signal, returns real signal).
+
+    Zeroes every rfft bin whose centre frequency exceeds ``cutoff_hz``.  The
+    noise PSD within the passband is *unchanged* (same sigma²/Hz), so the
+    in-band SNR is preserved exactly.  Only out-of-band energy is removed.
+    irfft is called with ``n=len(x)`` to guarantee the output length matches
+    the input regardless of even/odd N.
+    """
+    N = len(x)
+    f = np.fft.rfft(x)
+    freqs = np.fft.rfftfreq(N, d=1.0 / sample_rate_hz)
+    f[freqs > cutoff_hz] = 0.0
+    return np.fft.irfft(f, n=N)
+
+
+def add_awgn(
+    signal: np.ndarray,
+    sigma: float,
+    seed: int,
+    noise_cutoff_hz: "float | None" = None,
+    sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
+) -> np.ndarray:
     """Return signal + seeded AWGN of the given sample std-dev ``sigma``.
 
     Low-level primitive: unlike :func:`add_noise`, ``sigma`` is supplied
     directly rather than derived from the signal's own power. This is what the
     shared-floor mixer needs, because a multi-signal sum must NOT have its noise
     rescaled to the *summed* power — the floor is fixed once, for the slot.
+
+    If ``noise_cutoff_hz`` is given, the generated noise is lowpass-filtered to
+    that frequency before being added (see module docstring for rationale).  The
+    ``sigma`` is still calibrated for the *in-band* (2500 Hz) SNR; bandlimiting
+    does not alter the in-band noise PSD, so the in-band SNR is unchanged.
     """
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal(len(signal)) * sigma
+    if noise_cutoff_hz is not None:
+        noise = _lowpass_fft(noise, float(noise_cutoff_hz), int(sample_rate_hz))
     return signal + noise
 
 
@@ -71,6 +119,7 @@ def mix_to_shared_floor(
     seed: int,
     sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
     bandwidth_hz: float = REFERENCE_BANDWIDTH_HZ,
+    noise_cutoff_hz: "float | None" = None,
 ) -> np.ndarray:
     """Mix several stations into one slot over a single shared band-noise floor.
 
@@ -90,6 +139,10 @@ def mix_to_shared_floor(
         of stack size).
       * ``snr_db`` now changes a station's *strength*, so capture pairs
         (e.g. 0 / -10 dB) actually differ in level.
+
+    ``noise_cutoff_hz`` — if supplied, the noise floor is lowpass-filtered to
+    that frequency, simulating a real SSB receiver's audio bandwidth (see module
+    docstring).  The in-band SNR (2500 Hz reference) is unaffected.
     """
     if not clean_signals:
         raise ValueError("mix_to_shared_floor requires at least one signal")
@@ -108,7 +161,9 @@ def mix_to_shared_floor(
     # 0 dB in-band SNR. Referenced to a single unit station, so it does not grow
     # with the number of stations in the stack.
     sigma = noise_sigma_for_snr(clean_signals[0], 0.0, sample_rate_hz, bandwidth_hz)
-    return add_awgn(mixed, sigma, seed)
+    return add_awgn(mixed, sigma, seed,
+                    noise_cutoff_hz=noise_cutoff_hz,
+                    sample_rate_hz=sample_rate_hz)
 
 
 def measure_inband_snr_db(

@@ -60,6 +60,21 @@ def modulate(
     phase = 2.0 * np.pi * np.cumsum(inst_freq) / fs
     signal = amplitude * np.sin(phase)
 
+    # Apply a short raised-cosine fade-in and fade-out to eliminate the audible
+    # click that would otherwise occur where the signal abruptly starts and stops
+    # against silence.  Without this, the signal ends at an arbitrary phase
+    # (e.g. amplitude = −0.74 followed immediately by 0.0 silence), producing a
+    # 0.74-amplitude step — clearly audible as a click.  Real FT8 transmitters
+    # use a similar RF ramp (typically 5–20 ms).  A 10 ms Hann ramp is
+    # inaudible as a ramp but removes the click completely.  The fade is applied
+    # to the signal BEFORE placement so that the slot boundaries stay at zero.
+    _FADE_S = 0.010  # 10 ms
+    n_fade = int(round(_FADE_S * fs))
+    n_fade = min(n_fade, len(signal) // 2)          # guard for very short signals
+    fade = 0.5 * (1.0 - np.cos(np.pi * np.arange(n_fade) / n_fade))
+    signal[:n_fade]  *= fade
+    signal[-n_fade:] *= fade[::-1]
+
     # Place into the full slot at the DT offset.
     slot = np.zeros(int(round(slot_length_s * fs)), dtype=np.float64)
     start = int(round(dt_s * fs))
