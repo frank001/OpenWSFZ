@@ -57,7 +57,7 @@ public sealed class SerialCatConnectionTests
         var freq = await sut.GetDialFrequencyMhzAsync();
 
         freq.Should().BeApproximately(14.074, precision: 1e-9);
-        port.Received(1).Write("FA;");
+        port.Received(1).Write("FA;\r");
     }
 
     [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync parses FA007074000; (9-digit) → 7.074 MHz")]
@@ -75,11 +75,15 @@ public sealed class SerialCatConnectionTests
         freq.Should().BeApproximately(7.074, precision: 1e-9);
     }
 
-    [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync sends FA; without carriage return")]
-    public async Task GetDialFrequencyMhzAsync_SendsCommandWithoutCarriageReturn()
+    [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync sends FA; with carriage-return terminator (required by Yaesu firmware)")]
+    public async Task GetDialFrequencyMhzAsync_SendsCommandWithCarriageReturn()
     {
-        // Regression: "FA;\r" causes Kenwood-compatible rigs to reply with a second
-        // ?; error response (to the bare \r), which is then read on the next poll cycle.
+        // Regression guard: the \r terminator is required by Yaesu FT-991A (and other
+        // Yaesu rigs) to flush and execute the command.  Without it the rig buffers
+        // the bytes and never responds, causing a 500 ms TimeoutException.
+        // Kenwood rigs send a spurious ?; in response to the bare \r, but that is
+        // cleared by the DiscardInBuffer() call at the start of the next poll (F-003).
+        // Do NOT remove the \r — doing so regresses the FT-991A (observed 2026-06-07).
         var port = Substitute.For<ISerialPort>();
         port.IsOpen.Returns(true);
         port.ReadTo(";").Returns("FA00014074000");
@@ -87,8 +91,7 @@ public sealed class SerialCatConnectionTests
 
         await sut.GetDialFrequencyMhzAsync();
 
-        port.Received(1).Write("FA;");
-        port.DidNotReceive().Write(Arg.Is<string>(s => s.Contains('\r')));
+        port.Received(1).Write("FA;\r");
     }
 
     [Fact(DisplayName = "FR-032: GetDialFrequencyMhzAsync throws InvalidOperationException when rig returns ? (command error)")]
