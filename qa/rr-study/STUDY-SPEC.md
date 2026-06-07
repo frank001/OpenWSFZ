@@ -361,6 +361,7 @@ All design questions have been ruled on by the Captain.
 |---|---|---|---|---|---|---|---|
 | 2026-06-06 | `46d7f6a` | ❌ FAIL | 44.8% | 1 | −1.96 dB / slope 0.512 | — | First live run. S1 fails old ±2 dB tolerance (see §7 revision). R&R-001 raised for SNR slope. S2 freq measurement excellent. S3 DT marginal. |
 | 2026-06-06 | `4c34ef6` | ❌ FAIL | 32.0% | 2 | +1.10 dB / slope 0.036 | — | R&R-005 raised: S1 ANOVA contaminated by threshold misses. S3 redesign confirmed PASS (3.8%, ndc=7). S7 informational — see below. |
+| 2026-06-07 | `15b220b` | ✅ PASS | 6.5% | 5 | WSJT-X −1.60 dB / slope −0.008; OpenWSFZ +1.70 dB / slope 0.090 | WSJT-X 50%, OpenWSFZ 42% | fix-d001-revised Option B (soft SNR-scaled attenuation, FT8_SHIM_VERSION=20260004). S1–S6 all PASS. S7: OpenWSFZ 57.0% (+10.8 pp vs 46.2% baseline). Near-collision +13.3 pp, capture +16.7 pp. P0/P8 unchanged. See `QA-FINDINGS-rr-007.md`. |
 
 ### S1 redesign — R&R-005 — **IMPLEMENTED 2026-06-06** (see `RR-005.md`)
 

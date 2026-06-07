@@ -24,6 +24,17 @@
  *   suppression structure from p15 is restored.  FT8_SHIM_VERSION returns to
  *   20260002.  See DEFECT-native-stack-overflow-pcm-residual.md.
  *
+ * fix-d001-revised — Option B: soft SNR-scaled tile attenuation:
+ *
+ *   The hard-zero tile suppression (noise_raw assignment) is replaced by a
+ *   linear SNR-scaled attenuation factor.  At SNR ≤ K_SOFT_SUPP_SNR_MIN_DB
+ *   the tile is left unchanged (factor = 1.0); at SNR ≥ K_SOFT_SUPP_SNR_MAX_DB
+ *   the tile is fully suppressed (factor = 0.0).  Between those bounds the
+ *   factor varies linearly.  This reduces collateral damage on adjacent
+ *   weaker signals when the decoded signal is borderline (low SNR).
+ *   FT8_SHIM_VERSION incremented to 20260004 (skipping 20260003, which
+ *   was the reverted PCM-SIC version, to avoid any confusion).
+ *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
 
@@ -79,6 +90,21 @@ char* stpcpy(char* dest, const char* src)
  * Pass 1: spectrogram-suppression pass on the original waterfall.
  */
 #define K_MAX_PASSES   2
+
+/* ── Soft SNR-scaled tile suppression constants ───────────────────────────── */
+/*
+ * Attenuation factor is a linear ramp between these SNR bounds:
+ *   SNR ≤ K_SOFT_SUPP_SNR_MIN_DB  → factor = 1.0  (no suppression)
+ *   SNR ≥ K_SOFT_SUPP_SNR_MAX_DB  → factor = 0.0  (full suppression)
+ *   Between the two bounds         → factor = 1 − (snr − min) / (max − min)
+ *
+ * Rationale: a borderline decode (SNR near the decoder floor) has a higher
+ * probability of tile overlap with an adjacent co-channel signal.  Scaling
+ * the suppression by SNR reduces collateral damage in proportion to the
+ * confidence in the decoded signal's tile locations.
+ */
+#define K_SOFT_SUPP_SNR_MIN_DB  (-5.0f)   /* below this: no suppression    */
+#define K_SOFT_SUPP_SNR_MAX_DB  (15.0f)   /* above this: full suppression   */
 
 /*
  * Pass 1 uses a wider candidate net.
@@ -158,20 +184,38 @@ static ftx_callsign_hash_interface_t s_hash_if = { cb_lookup_hash, cb_save_hash 
 
 /* ── Spectrogram-domain tile suppression ─────────────────────────────────── */
 /*
- * suppress_candidate_tiles — zero the waterfall tiles occupied by a decoded
- * FT8 signal, using the EXACT tone sequence from ft8_encode.
+ * suppress_candidate_tiles — attenuate the waterfall tiles occupied by a
+ * decoded FT8 signal, using the EXACT tone sequence from ft8_encode and a
+ * soft SNR-scaled attenuation factor.
  *
- * For each of the 79 symbols, the bin actually transmitted plus its +-1
- * nearest neighbours (one FT8 bin = 3.125 Hz at freq_osr=2) are set to
- * noise_raw.  This covers the Hann-window first sidelobe while preserving
- * the 6 remaining tone bins that an adjacent co-channel signal might use.
+ * For each of the 79 symbols, the bin actually transmitted plus its ±1
+ * nearest neighbours (one FT8 bin = 3.125 Hz at freq_osr=2) are multiplied
+ * by an attenuation factor derived from the decoded signal's SNR:
+ *
+ *   SNR ≤ K_SOFT_SUPP_SNR_MIN_DB  → factor = 1.0  (tile unchanged)
+ *   SNR ≥ K_SOFT_SUPP_SNR_MAX_DB  → factor = 0.0  (tile zeroed to noise_raw)
+ *   In between                     → factor = 1 − (snr − min) / (max − min)
+ *
+ * At factor = 0.0 the tile is assigned noise_raw (matching the previous
+ * hard-zero behaviour for strong signals).  At intermediate factors the tile
+ * value is linearly interpolated between its current value and noise_raw.
+ * This preserves the Hann-window first-sidelobe cancellation for strong
+ * signals while reducing collateral damage on adjacent weaker signals when
+ * the decoded signal is borderline (SNR near the decoder floor).
  */
 static void suppress_candidate_tiles(
     ftx_waterfall_t*       wf,
     const ftx_candidate_t* cand,
     const ftx_message_t*   msg,
-    WF_ELEM_T              noise_raw)
+    WF_ELEM_T              noise_raw,
+    float                  snr_db)
 {
+    /* Compute soft attenuation factor from SNR */
+    float norm   = (snr_db - K_SOFT_SUPP_SNR_MIN_DB)
+                 / (K_SOFT_SUPP_SNR_MAX_DB - K_SOFT_SUPP_SNR_MIN_DB);
+    float factor = 1.0f - fmaxf(0.0f, fminf(1.0f, norm));
+    /* factor: 1.0 at SNR ≤ −5 dB (no change), 0.0 at SNR ≥ +15 dB (full suppress) */
+
     uint8_t tones[FT8_NN];
     ft8_encode(msg->payload, tones);
 
@@ -194,7 +238,15 @@ static void suppress_candidate_tiles(
                 {
                     int f = tone_bin + d;
                     if (f >= 0 && f < wf->num_bins)
-                        row[f] = noise_raw;
+                    {
+                        /* Interpolate between current value and noise_raw
+                         * by the attenuation factor:
+                         *   factor = 0 → noise_raw  (full suppression)
+                         *   factor = 1 → row[f]     (no change)            */
+                        float attenuated = (float)noise_raw
+                                         + factor * ((float)row[f] - (float)noise_raw);
+                        row[f] = (WF_ELEM_T)(attenuated + 0.5f);
+                    }
                 }
             }
         }
@@ -280,9 +332,11 @@ int ft8_decode_all(
 
     /* ── 4a. Cross-pass suppression accumulator ──────────────────────────── */
     /* Holds decoded candidates from pass 0 for spectrogram suppression
-     * before pass 1.                                                     */
+     * before pass 1.  snr_db stored per entry so suppress_candidate_tiles
+     * can apply the soft SNR-scaled attenuation factor.                  */
     ftx_candidate_t all_supp_cands[K_MAX_CANDIDATES];
     ftx_message_t   all_supp_msgs [K_MAX_CANDIDATES];
+    float           all_supp_snrs [K_MAX_CANDIDATES];
     int             n_all_supp    = 0;
 
     /* ── 5. Multi-pass decode loop ───────────────────────────────────────── */
@@ -305,7 +359,8 @@ int ft8_decode_all(
         {
             for (int i = 0; i < n_all_supp; i++)
                 suppress_candidate_tiles(&mon.wf, &all_supp_cands[i],
-                                         &all_supp_msgs[i], noise_raw);
+                                         &all_supp_msgs[i], noise_raw,
+                                         all_supp_snrs[i]);
         }
 
         int pass_min_score = k_pass_cfg[pass].min_score;
@@ -394,6 +449,7 @@ int ft8_decode_all(
             if (pass == 0 && n_all_supp < K_MAX_CANDIDATES) {
                 all_supp_cands[n_all_supp] = *cand;
                 all_supp_msgs [n_all_supp] = msg;
+                all_supp_snrs [n_all_supp] = snr;
                 n_all_supp++;
             }
         }
