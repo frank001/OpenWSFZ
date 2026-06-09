@@ -19,6 +19,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Windows consoles default to cp1252 which cannot encode Unicode characters
+# used in defect notices (≤, —, ❌).  Reconfigure stdout/stderr to UTF-8 so
+# the process does not crash on the final summary print.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import numpy as np
 import pandas as pd
 
