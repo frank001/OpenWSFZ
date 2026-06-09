@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Master R&R study runner.
 
-Runs all five scenarios in sequence (live playback into VB-CABLE), then
-collects the WSJT-X and OpenWSFZ ALL.TXT logs, runs the matcher for every
-scenario, and runs the analyser.
+Runs scenarios in sequence (live playback into VB-CABLE), then collects
+the WSJT-X and OpenWSFZ ALL.TXT logs, runs the matcher for every scenario,
+and runs the analyser.
 
 Run from qa/rr-study/:
-    python run_study.py [--device "CABLE Input"]
+    python run_study.py                          # full run (prompts for S8)
+    python run_study.py --skip-s8                # full run, S8 excluded
+    python run_study.py --scenarios S1,S1b       # targeted run
 """
 from __future__ import annotations
 
@@ -26,16 +28,20 @@ _RESULTS = _HERE / "results"
 WSJT_ALL_TXT    = Path(r"C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT")
 OWSFZ_ALL_TXT   = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 
-# Controlled scenario JSON files (always run)
-_CONTROLLED_SCENARIO_FILES = [
-    _SCENARIOS / "s1-snr-ladder.json",
-    _SCENARIOS / "s1b-snr-threshold.json",
-    _SCENARIOS / "s2-freq-sweep.json",
-    _SCENARIOS / "s3-dt-offset.json",
-    _SCENARIOS / "s4-density.json",
-    _SCENARIOS / "s5-noise.json",
-    _SCENARIOS / "s7-compounding.json",
-]
+# Full registry — used for --scenarios filtering and validation.
+# Insertion order defines the default run order (S8 is prepended when selected).
+_SCENARIO_REGISTRY: dict[str, Path] = {
+    "S1":  _SCENARIOS / "s1-snr-ladder.json",
+    "S1b": _SCENARIOS / "s1b-snr-threshold.json",
+    "S2":  _SCENARIOS / "s2-freq-sweep.json",
+    "S3":  _SCENARIOS / "s3-dt-offset.json",
+    "S4":  _SCENARIOS / "s4-density.json",
+    "S5":  _SCENARIOS / "s5-noise.json",
+    "S7":  _SCENARIOS / "s7-compounding.json",
+    "S8":  _SCENARIOS / "s8-band-scene.json",
+}
+
+# Controlled scenarios run by default (S8 handled separately via prompt / --skip-s8)
 _CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7"]
 
 
@@ -64,21 +70,39 @@ def main() -> None:
     parser.add_argument("--device", default="CABLE Input",
                         help="Audio output device name substring")
     parser.add_argument("--skip-s8", action="store_true",
-                        help="Skip the S8 realistic band scene (no prompt)")
+                        help="Skip the S8 realistic band scene (no prompt). "
+                             "Ignored when --scenarios is given.")
+    parser.add_argument("--scenarios", default=None,
+                        metavar="ID[,ID...]",
+                        help="Comma-separated list of scenario IDs to run "
+                             "(e.g. S1,S1b). Bypasses the S8 prompt. "
+                             f"Valid IDs: {', '.join(_SCENARIO_REGISTRY)}")
     args = parser.parse_args()
 
-    # ── Build scenario list — S8 is optional ──────────────────────────────
-    scenario_files = list(_CONTROLLED_SCENARIO_FILES)
-    scenario_ids   = list(_CONTROLLED_SCENARIO_IDS)
+    # ── Build scenario list ────────────────────────────────────────────────
+    if args.scenarios:
+        requested = [s.strip() for s in args.scenarios.split(",")]
+        unknown   = [s for s in requested if s not in _SCENARIO_REGISTRY]
+        if unknown:
+            sys.exit(
+                f"ERROR: unknown scenario ID(s): {', '.join(unknown)}\n"
+                f"       Valid IDs: {', '.join(_SCENARIO_REGISTRY)}"
+            )
+        scenario_ids   = requested
+        scenario_files = [_SCENARIO_REGISTRY[s] for s in requested]
+        print(f"  Targeted run: {', '.join(scenario_ids)}\n")
+    else:
+        scenario_ids   = list(_CONTROLLED_SCENARIO_IDS)
+        scenario_files = [_SCENARIO_REGISTRY[s] for s in scenario_ids]
 
-    if not args.skip_s8:
-        ans = input("Run S8 realistic band scene first? [Y/n]: ").strip().lower()
-        if ans in ("", "y", "yes"):
-            scenario_files.insert(0, _SCENARIOS / "s8-band-scene.json")
-            scenario_ids.insert(0, "S8")
-            print("  S8 included.\n")
-        else:
-            print("  S8 skipped.\n")
+        if not args.skip_s8:
+            ans = input("Run S8 realistic band scene first? [Y/n]: ").strip().lower()
+            if ans in ("", "y", "yes"):
+                scenario_files.insert(0, _SCENARIO_REGISTRY["S8"])
+                scenario_ids.insert(0, "S8")
+                print("  S8 included.\n")
+            else:
+                print("  S8 skipped.\n")
 
     print("=" * 70)
     print("OpenWSFZ R&R Study -- live run")
