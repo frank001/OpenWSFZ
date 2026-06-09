@@ -27,15 +27,16 @@ burying signals that a decoder (which filters to ≤ 6 kHz) can decode without
 difficulty.
 
 Supply ``noise_cutoff_hz`` to restrict the generated noise to a band that matches
-a real SSB receiver's audio bandwidth (~3–4 kHz).  A windowed FIR lowpass filter
+a real SSB receiver's audio bandwidth (~3 kHz).  A windowed FIR lowpass filter
 (Kaiser window, numtaps=255, beta=6.0) is applied via linear convolution
 (``mode='same'``).  The Kaiser beta=6.0 yields ~60 dB stopband attenuation and a
-transition band of roughly ±500 Hz at 48 kHz, eliminating the Gibbs-phenomenon
-spectral ridge that the former brick-wall FFT zero-out produced.  The in-band noise
-PSD (100 Hz to 85 % of the cutoff) is flat to within ±1 dB.  The in-band SNR
-(2500 Hz reference) is preserved exactly.  The total noise sigma drops from ~2.0
-to ~0.8 (48 kHz, 4 kHz cutoff), making signals near 0 dB SNR perceptibly audible
-to the human ear.
+transition band of approximately 720 Hz at 48 kHz (Kaiser design formula:
+Δf = (A−8)·fs / (2.285·2π·M) with M=254, A≈63 dB), eliminating the
+Gibbs-phenomenon spectral ridge that the former brick-wall FFT zero-out produced.
+The in-band noise PSD (100 Hz to 85 % of the cutoff) is flat to within ±1 dB.
+The in-band SNR (2500 Hz reference) is preserved exactly.  The total noise sigma
+drops from ~2.0 to ~0.7 (48 kHz, 3 kHz cutoff), making signals near 0 dB SNR
+perceptibly audible to the human ear.
 """
 from __future__ import annotations
 
@@ -89,7 +90,7 @@ def _lowpass_fir(
 
     Replaces the former brick-wall FFT zero-out.  ``scipy.signal.firwin``
     places the −6 dB point at ``cutoff_hz``; the Kaiser beta=6.0 gives ~60 dB
-    stopband attenuation and a transition band of ~94 Hz at 48 kHz.  Convolution
+    stopband attenuation and a transition band of ~720 Hz at 48 kHz.  Convolution
     is performed with ``scipy.signal.fftconvolve(..., mode='same')`` so the
     output length is identical to the input length and no boundary transients
     are introduced.

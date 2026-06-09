@@ -29,7 +29,7 @@ A brickwall FFT lowpass has two well-known physical defects:
 
 **Chosen:** `scipy.signal.firwin(numtaps, cutoff, window=('kaiser', beta), fs=sample_rate_hz)`.
 
-**Why Kaiser over Hann/Hamming:** The Kaiser window's `beta` parameter allows the transition width and stopband attenuation to be traded off independently — ideal here because we want a fixed ±500 Hz transition band without caring too much about stopband depth. A beta of 6.0 gives ~60 dB stopband attenuation and a well-controlled transition band with minimal passband ripple.
+**Why Kaiser over Hann/Hamming:** The Kaiser window's `beta` parameter allows the transition width and stopband attenuation to be traded off independently — ideal here because we want a well-controlled transition band without caring too much about stopband depth. A beta of 6.0 gives ~60 dB stopband attenuation and a transition band of ~720 Hz at 48 kHz with minimal passband ripple.
 
 **Why not numpy-only FIR:** The `firwin` function in scipy is a single well-tested line and handles edge cases (even/odd tap count, normalisation). Reimplementing it in pure numpy would be correct but adds maintenance burden for zero gain.
 
@@ -38,7 +38,7 @@ A brickwall FFT lowpass has two well-known physical defects:
 **Why not just use `np.fft.rfft` with a Hann-windowed transition:** The brickwall zero-out was the problem; applying a smooth taper to the FFT bins is effectively a windowed filter but computed inefficiently and without the precision of `firwin`'s optimal tap calculation.
 
 **Filter parameters:**
-- `numtaps = 255` — gives a transition band of ~94 Hz at 48 kHz, more than adequate; odd count ensures linear phase. (At 48 kHz a 15 ms FT8 symbol is 720 samples; 255 taps is a small fraction of the ~720,000-sample slot.)
+- `numtaps = 255` — gives a transition band of ~720 Hz at 48 kHz (Kaiser design formula: Δf = (A−8)·fs / (2.285·2π·M) with M=254, A≈63 dB; confirmed 2026-06-09 — the "~94 Hz" figure in the original design was a calculation error); odd count ensures linear phase. (At 48 kHz a 15 ms FT8 symbol is 720 samples; 255 taps is a small fraction of the ~720,000-sample slot.)
 - `cutoff = noise_cutoff_hz` — `firwin` places the −6 dB point here; passband is flat to within ±0.5 dB well inside the cutoff.
 - `window = ('kaiser', 6.0)` — beta=6.0 → ~60 dB stopband attenuation.
 - `fs = sample_rate_hz` — passed explicitly so `firwin` works in Hz directly.
