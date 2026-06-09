@@ -335,3 +335,27 @@ else:
 | N-6  | `render_ft8` inner handler loses `signal[{idx}]` context     | ⬜ Acknowledged |
 | N-7  | Move `ft8` `duration_s` check to pre-validation loop         | ⬜ Acknowledged |
 | N-8  | Add `math.isnan` guard to `write_outputs` normalisation      | ⬜ Acknowledged |
+
+---
+
+---
+
+# Re-Review — Round 3 (Final)
+
+**Reviewer:** QA  
+**Date:** 2026-06-10  
+**Verdict:** ✅ APPROVED — cleared for merge to `main`
+
+All five required changes (RC-1 through RC-5) have been confirmed present and correctly implemented against the actual source of `qa/rr-study/siggen.py`:
+
+| ID   | Description                                                        | Verification                                              |
+|------|--------------------------------------------------------------------|-----------------------------------------------------------|
+| RC-1 | Per-signal seed via Knuth hash (`base_seed ^ (idx * 2654435761)`) | Line 334 — exact formula matches requirement              |
+| RC-2 | `TypeError` added to `render_scene` exception handler             | Line 464 — `except (KeyError, ValueError, TypeError)`     |
+| RC-3 | `render_chirp` raises `ValueError` for unknown `method`           | Lines 290–293 — `raise ValueError(...)`, not `sys.exit`  |
+| RC-4 | Bandlimited noise renormalised to target RMS after `_lowpass_fir` | Lines 344–346 — `np.std` guard with `amp / actual_rms`    |
+| RC-5 | `--duration` forwarded to `cli_overrides` in batch mode           | Lines 715–716 — conditional assignment confirmed          |
+
+Informational notes N-1 through N-8 remain acknowledged for future consideration; none are merge blockers.
+
+No further review required.
