@@ -131,26 +131,36 @@ def _wait_for_cycle(boundary_ts: float) -> datetime:
 
 def _render_single(scenario: dict, part: dict, trial_index: int,
                    seed: int) -> "numpy.ndarray":
-    """Render a single-message part (S1, S2, S3) using the clean-room synthesiser."""
-    from synth import encoder
+    """Render a single-message part (S1, S1b, S2, S3) using the clean-room synthesiser.
+
+    The signal is encoded clean (no noise), then bandlimited AWGN is added via
+    :func:`synth.channel.add_noise` with ``noise_cutoff_hz=3000`` — matching the
+    multi-signal path (:func:`synth.channel.mix_to_shared_floor`) so that all
+    scenarios present the same 3 kHz SSB-receiver noise model to both appraisers.
+    """
+    from synth import channel, encoder
 
     fixed = scenario.get("fixed", {})
     msg_ids = list(scenario["message_texts"].keys())
-    # S1/S2/S3 use only the first message_id
+    # S1/S1b/S2/S3 use only the first message_id
     text = scenario["message_texts"][msg_ids[0]]
 
     base_freq_hz = part.get("base_freq_hz", fixed.get("base_freq_hz", 1500.0))
     dt_s = part.get("dt_s", fixed.get("dt_s", 0.0))
     snr_db = part.get("snr_db", fixed.get("snr_db", 0.0))
 
-    return encoder.encode_message(
+    # Encode clean, then add bandlimited noise — decoupled so noise_cutoff_hz can
+    # be passed to channel.add_noise without threading it through the encoder API.
+    clean = encoder.encode_message(
         text,
         base_freq_hz=float(base_freq_hz),
         dt_s=float(dt_s),
-        snr_db=float(snr_db),
-        seed=seed,
+        snr_db=None,          # clean render; noise added below with cutoff
         sample_rate_hz=48000,
     )
+    return channel.add_noise(clean, float(snr_db), seed,
+                             sample_rate_hz=48000,
+                             noise_cutoff_hz=3000)
 
 
 # ---------------------------------------------------------------------------
@@ -459,7 +469,7 @@ def _run(args: argparse.Namespace) -> None:
                 n_sig = part["n_signals"]
                 msg_text = "; ".join(pool[i % len(pool)] for i in range(n_sig))
             else:
-                # S1, S2, S3 — single signal
+                # S1, S1b, S2, S3 — single signal
                 fixed = scenario.get("fixed", {})
                 true_snr_db = part.get("snr_db", fixed.get("snr_db", 0.0))
                 true_dt_s = part.get("dt_s", fixed.get("dt_s", 0.0))
