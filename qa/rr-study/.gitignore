@@ -6,5 +6,3 @@ __pycache__/
 results/test-*/
 gate_wav/
 *.wav
-# Temp runner scripts
-resume_study.py
