@@ -55,4 +55,4 @@
 
 ## 5. Commit
 
-- [ ] 5.1 Commit all three file changes with a clear message and open a PR
+- [x] 5.1 Commit all three file changes with a clear message and open a PR
