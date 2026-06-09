@@ -20,6 +20,12 @@ and drives the R&R study. It has four entry points:
 | `resume_study.py` | Resume an interrupted run from a given scenario |
 | `gen_decoder_fixtures.py` | Regenerate the C# unit-test WAV fixtures |
 | `synth_wav.py` | **One-shot WAV synthesis** — any message, any parameters |
+| `siggen.py` | **General-purpose signal generator** — arbitrary signal types, JSONL scenes |
+
+See the dedicated **[siggen.py reference guide](siggen-reference.md)** for full
+documentation of the general-purpose signal generator (`siggen.py`), including the
+JSONL scene file format, all signal types (sine, square, sawtooth, triangle, chirp,
+noise, ft8), batch mode, and R&R scenario improvement recipes.
 
 The synthesiser is completely isolated from the .NET solution. Nothing here can
 affect the product build or test suite unless you explicitly re-run
