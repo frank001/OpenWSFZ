@@ -25,11 +25,13 @@ away deliberately to remove third-party PII.
 
 Usage (from qa/rr-study/):
     .venv/Scripts/python gen_decoder_fixtures.py
+    .venv/Scripts/python gen_decoder_fixtures.py --snr-db 6.0 --output-dir /tmp/fx
 
 Re-run after changing the message sets below, then rebuild the test project.
 """
 from __future__ import annotations
 
+import argparse
 import pathlib
 import sys
 
@@ -40,14 +42,6 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from synth import channel, encoder, wavio  # noqa: E402
-
-# ── Fixture render parameters ────────────────────────────────────────────────
-# 12 kHz so jt9/ft8_lib can decode directly (see gate_render.py rationale).
-_SAMPLE_RATE_HZ = 12_000
-_DT_S = 0.2
-# Generous composite SNR — these are a regression gate, not a weak-signal study.
-_SNR_DB = 15.0
-_SEED = 20260606
 
 # Each fixture is a co-channel slot: several fictional QSO fragments at distinct
 # audio frequencies, summed and then immersed in one AWGN realisation.
@@ -69,35 +63,78 @@ _FIXTURES: dict[str, list[tuple[str, float]]] = {
     ],
 }
 
-_FIXTURES_DIR = (
+# Default output directory — same path the hardcoded version used.
+_DEFAULT_FIXTURES_DIR = str(
     _HERE.parent.parent / "tests" / "OpenWSFZ.Ft8.Tests" / "Fixtures"
 )
 
 
-def _render_fixture(messages: list[tuple[str, float]], seed: int) -> np.ndarray:
+def _render_fixture(
+    messages: list[tuple[str, float]],
+    seed: int,
+    snr_db: float,
+    dt_s: float,
+    sample_rate_hz: int,
+) -> np.ndarray:
     """Sum clean GFSK renders of each message, then add one AWGN realisation."""
     composite: np.ndarray | None = None
     for text, base_hz in messages:
         clean = encoder.encode_message(
             text,
             base_freq_hz=base_hz,
-            dt_s=_DT_S,
+            dt_s=dt_s,
             snr_db=None,  # add noise once, over the composite
-            sample_rate_hz=_SAMPLE_RATE_HZ,
+            sample_rate_hz=sample_rate_hz,
         )
         composite = clean if composite is None else composite + clean
     assert composite is not None
-    return channel.add_noise(composite, _SNR_DB, seed, _SAMPLE_RATE_HZ)
+    return channel.add_noise(composite, snr_db, seed, sample_rate_hz)
 
 
 def main() -> None:
-    _FIXTURES_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"Writing fixtures to {_FIXTURES_DIR}")
+    parser = argparse.ArgumentParser(
+        description="Generate synthetic FT8 WAV fixtures for RealSignalFixtureTests"
+    )
+    parser.add_argument(
+        "--snr-db", type=float, default=15.0,
+        help="In-band SNR for the composite fixture (dB). Default: 15.0",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=20260606,
+        help="Base RNG seed; each fixture uses seed+i. Default: 20260606",
+    )
+    parser.add_argument(
+        "--dt", type=float, default=0.2,
+        help="Time offset applied to each signal render (s). Default: 0.2",
+    )
+    parser.add_argument(
+        "--sample-rate", type=int, default=12000,
+        help="Sample rate (Hz). Default: 12000 (required by ft8_lib / WavReader)",
+    )
+    parser.add_argument(
+        "--output-dir", default=_DEFAULT_FIXTURES_DIR,
+        help=(
+            "Directory to write WAV and .expected.txt files. "
+            f"Default: {_DEFAULT_FIXTURES_DIR}"
+        ),
+    )
+    args = parser.parse_args()
+
+    output_dir = pathlib.Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Writing fixtures to {output_dir}")
+
     for i, (fixture_id, messages) in enumerate(_FIXTURES.items()):
-        samples = _render_fixture(messages, _SEED + i)
-        wav_path = _FIXTURES_DIR / f"{fixture_id}.wav"
-        exp_path = _FIXTURES_DIR / f"{fixture_id}.expected.txt"
-        wavio.write_wav(str(wav_path), samples, sample_rate_hz=_SAMPLE_RATE_HZ)
+        samples = _render_fixture(
+            messages,
+            seed=args.seed + i,
+            snr_db=args.snr_db,
+            dt_s=args.dt,
+            sample_rate_hz=args.sample_rate,
+        )
+        wav_path = output_dir / f"{fixture_id}.wav"
+        exp_path = output_dir / f"{fixture_id}.expected.txt"
+        wavio.write_wav(str(wav_path), samples, sample_rate_hz=args.sample_rate)
 
         lines = [
             f"# Answer-key subset for {fixture_id}",
