@@ -194,7 +194,7 @@ def _render_multi(scenario: dict, part: dict, trial_index: int,
 
     return channel.mix_to_shared_floor(clean_signals, snr_list, seed,
                                        sample_rate_hz=48000,
-                                       noise_cutoff_hz=4000)
+                                       noise_cutoff_hz=3000)
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +248,7 @@ def _render_band_scene(scenario: dict,
 
     mixed = channel.mix_to_shared_floor(clean_signals, snr_list, seed,
                                         sample_rate_hz=48000,
-                                        noise_cutoff_hz=4000)
+                                        noise_cutoff_hz=3000)
     return mixed, signals_meta
 
 
@@ -307,7 +307,7 @@ def _render_compound(scenario: dict, part: dict,
 
     mixed = channel.mix_to_shared_floor(clean_signals, snr_list, seed,
                                         sample_rate_hz=48000,
-                                        noise_cutoff_hz=4000)
+                                        noise_cutoff_hz=3000)
     return mixed, signals_meta
 
 

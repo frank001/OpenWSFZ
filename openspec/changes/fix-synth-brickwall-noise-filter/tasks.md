@@ -34,4 +34,4 @@
 ## 6. Verification
 
 - [x] 6.1 Run full synthesiser test suite: `pytest qa/rr-study/synth/tests/ -v` — all tests must pass
-- [ ] 6.2 Visually confirm WSJT-X waterfall no longer shows a spectral ridge at 4 kHz by running a short S7 trial and screenshotting the result
+- [x] 6.2 Visually confirm WSJT-X waterfall no longer shows a spectral ridge at 4 kHz by running a short S7 trial and screenshotting the result — **PASS** (see `verification-notes.md`). No ridge observed. Post-verification correction: `noise_cutoff_hz` lowered 4000 → 3000 Hz; docstring transition-band figure corrected 94 Hz → 720 Hz.
