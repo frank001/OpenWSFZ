@@ -337,6 +337,13 @@ def render_noise(
     noise = rng.standard_normal(n_sig) * amp
     if cutoff_hz is not None:
         noise = _lowpass_fir(noise, float(cutoff_hz), int(sample_rate))
+        # Renormalise: _lowpass_fir removes out-of-band energy, reducing RMS
+        # below the requested amplitude.  Restore the target RMS so that
+        # ``amplitude`` / ``level_dbfs`` always describes the delivered RMS
+        # regardless of whether a cutoff is applied.
+        actual_rms = float(np.std(noise))
+        if actual_rms > 0.0:
+            noise = noise * (amp / actual_rms)
     return _place_signal(noise, start_s, n_samples, sample_rate)
 
 
@@ -705,6 +712,8 @@ def main() -> None:
             cli_overrides["device"] = args.device
         if args.rate is not None:
             cli_overrides["sample_rate"] = args.rate
+        if args.duration is not None:              # RC-5: was silently ignored
+            cli_overrides["duration_s"] = args.duration
         ok = run_batch(args.batch, cli_overrides)
         sys.exit(0 if ok else 1)
 

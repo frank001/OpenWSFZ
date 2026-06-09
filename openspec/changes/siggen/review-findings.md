@@ -163,7 +163,7 @@ semantics and reduce peak allocation to one buffer regardless of signal count.
 
 ---
 
-## Resolution Checklist
+## Resolution Checklist — Round 1
 
 | ID  | Description                              | Status |
 |-----|------------------------------------------|--------|
@@ -175,3 +175,163 @@ semantics and reduce peak allocation to one buffer regardless of signal count.
 | N-3  | `sd.play` blocking mode — noted            | ✅ Acknowledged (future change) |
 | N-4  | `_select_device` duplication — noted       | ✅ Acknowledged (R-004 candidate) |
 | N-5  | `_place_signal` buffer allocation — noted  | ✅ Acknowledged (future change) |
+
+---
+
+---
+
+# Re-Review — Round 2
+
+**Reviewer:** QA  
+**Date:** 2026-06-10  
+**Verdict:** RETURN FOR CHANGES — 2 required fixes before merge
+
+**Implementer:** Developer  
+**Resolved:** 2026-06-10  
+**Resolution verdict:** RC-4 and RC-5 applied; informational notes N-6–N-8 acknowledged
+
+**Context:** Round 1 fixes (RC-1, RC-2, RC-3) are correctly implemented and confirmed.
+This round surfaces new findings from a full re-examination of the submitted implementation.
+
+---
+
+## Required Changes
+
+These must be resolved and re-reviewed before the branch may merge to `main`.
+
+---
+
+### RC-4 — Bandlimited noise RMS is ~40% of the specified amplitude (High)
+
+**File:** `qa/rr-study/siggen.py`, approximately line 337  
+**Status:** ✅ Fixed
+
+`render_noise` generates `rng.standard_normal(n_sig) * amp` (RMS ≈ `amp`), then
+applies `_lowpass_fir`. The FIR lowpass removes all energy above `cutoff_hz`, reducing
+the delivered RMS to approximately `amp × √(cutoff_hz / nyquist)`. At `cutoff_hz=4000`
+and `sample_rate=48000` this is ≈ 0.41 × `amp` — a **~7.7 dB shortfall**.
+
+The docstring states that `amplitude` is "interpreted as RMS / std-dev", which is only
+true for the wideband case. Any operator who sets `cutoff_hz` and expects the delivered
+RMS to equal `amplitude` will observe a significant SNR calibration error. This directly
+affects D-002 investigation: any R&R run that uses `siggen.py` bandlimited noise to
+characterise the SNR bias will have a ~8 dB miscalibration baked in.
+
+**Fix:** Renormalise the filtered noise to the target RMS after `_lowpass_fir`:
+
+```python
+amp = _parse_amplitude(d)   # RMS / std-dev for noise
+# … generate and filter …
+noise = rng.standard_normal(n_sig) * amp
+if cutoff_hz is not None:
+    noise = _lowpass_fir(noise, float(cutoff_hz), int(sample_rate))
+    # Renormalise: _lowpass_fir removes out-of-band energy, reducing RMS
+    # below the requested amplitude.  Restore the target RMS.
+    actual_rms = float(np.std(noise))
+    if actual_rms > 0.0:
+        noise = noise * (amp / actual_rms)
+```
+
+---
+
+### RC-5 — `--duration` CLI flag is silently ignored in batch mode (Medium)
+
+**File:** `qa/rr-study/siggen.py`, approximately line 701  
+**Status:** ✅ Fixed
+
+In the `if args.batch:` branch of `main()`, `cli_overrides` is populated with `out`,
+`device`, and `sample_rate` — but `args.duration` is **never forwarded** as
+`duration_s`. Running `python siggen.py --batch jobs.json --duration 30` has no effect
+on any batch item; each item auto-computes its own duration from signal extents. No
+warning or error is printed.
+
+**Fix:** Add one line to the `cli_overrides` block:
+
+```python
+if args.out is not None:
+    cli_overrides["out"] = args.out
+if args.device is not None:
+    cli_overrides["device"] = args.device
+if args.rate is not None:
+    cli_overrides["sample_rate"] = args.rate
+if args.duration is not None:              # ← add this
+    cli_overrides["duration_s"] = args.duration
+```
+
+---
+
+## Informational Notes — Round 2
+
+No code change required for any of these before merge.
+
+---
+
+### N-6 — `render_ft8` inner `except Exception` loses `signal[{idx}]` context for null fields (Low)
+
+**File:** `qa/rr-study/siggen.py`, approximately line 392
+
+RC-3 fixed `render_chirp` so that validation errors surface through `render_scene`'s
+`except (KeyError, ValueError, TypeError)` handler, which attaches `signal[{idx}]`
+context. The same fix was not applied to `render_ft8`'s inner `except Exception → sys.exit()`
+block. If `"message"` is JSON `null`, `text = None` is assigned without error, then
+`_encoder.encode_message(None, …)` raises a `TypeError` that is caught by the inner
+handler and converted to `sys.exit()`. `SystemExit` bypasses the outer context-adding
+handler. The error message is descriptive but lacks the `signal[{idx}]` prefix.
+
+Consider replacing the inner `except Exception` with a narrower catch, or restructuring
+so that field-validation errors raise `ValueError` before reaching the encoder call.
+
+---
+
+### N-7 — FT8 `duration_s` rejection fires at render time, not parse time (Low)
+
+**File:** `qa/rr-study/siggen.py`, approximately line 365
+
+The spec states that a `duration_s` field on an `ft8` descriptor is "an immediate parse
+error." The check exists inside `render_ft8`, which is only called from `render_scene`'s
+signal loop. If the offending ft8 signal is at position N, signals 0 through N−1 are
+fully rendered (potentially several FT8 encodes) before the error surfaces and discards
+all output. Moving the check to the pre-validation loop in `main()` (alongside the
+existing `_parse_amplitude` validation) would honour the "parse error" guarantee and
+give faster feedback:
+
+```python
+# in main(), before calling render_scene:
+for i, sig in enumerate(signals):
+    if sig.get("type") == "ft8" and "duration_s" in sig:
+        sys.exit(
+            f"ERROR: signal[{i}] ('ft8'): 'duration_s' must not be specified — "
+            f"FT8 slot duration is fixed at 15.0 s (SLOT_LENGTH_S)."
+        )
+```
+
+---
+
+### N-8 — NaN buffer bypasses peak normalisation guard in `write_outputs` (Low)
+
+**File:** `qa/rr-study/siggen.py`, approximately line 527
+
+`_peak = float(np.max(np.abs(buffer)))` returns `NaN` if any sample is NaN.
+`NaN > 0.0` is `False`, so the `else` branch executes and `buffer.astype(np.float32)`
+(containing NaN) is passed to `sounddevice.play()`. PortAudio behaviour on NaN input
+is platform-defined. No current renderer produces NaN under well-formed inputs, so this
+is not reachable today. A one-line guard eliminates the exposure at negligible cost:
+
+```python
+if _peak > 0.0 and not math.isnan(_peak):
+    playback = (buffer * (0.9 / _peak)).astype(np.float32)
+else:
+    playback = buffer.astype(np.float32)
+```
+
+---
+
+## Resolution Checklist — Round 2
+
+| ID   | Description                                                  | Status      |
+|------|--------------------------------------------------------------|-------------|
+| RC-4 | Renormalise bandlimited noise to target RMS after `_lowpass_fir` | ✅ Fixed |
+| RC-5 | Forward `--duration` to `cli_overrides` in batch mode        | ✅ Fixed    |
+| N-6  | `render_ft8` inner handler loses `signal[{idx}]` context     | ⬜ Acknowledged |
+| N-7  | Move `ft8` `duration_s` check to pre-validation loop         | ⬜ Acknowledged |
+| N-8  | Add `math.isnan` guard to `write_outputs` normalisation      | ⬜ Acknowledged |
