@@ -288,9 +288,8 @@ def render_chirp(d: dict, n_samples: int, sample_rate: int) -> np.ndarray:
     duration_s = float(d["duration_s"])
     method = d.get("method", "linear")
     if method not in ("linear", "logarithmic"):
-        sys.exit(
-            f"ERROR: chirp 'method' must be 'linear' or 'logarithmic', "
-            f"got '{method}'"
+        raise ValueError(
+            f"'method' must be 'linear' or 'logarithmic', got {method!r}"
         )
     n_sig = int(math.ceil(duration_s * sample_rate))
     t = np.arange(n_sig, dtype=np.float64) / sample_rate
@@ -303,6 +302,7 @@ def render_noise(
     n_samples: int,
     sample_rate: int,
     scene_config: dict,
+    idx: int = 0,
 ) -> np.ndarray:
     """Render a burst of AWGN (white or bandlimited).
 
@@ -310,7 +310,14 @@ def render_noise(
     Optional: ``amplitude`` / ``level_dbfs`` (default 1.0 — interpreted as RMS /
               std-dev, not peak, for noise signals),
               ``cutoff_hz`` (Kaiser FIR lowpass via ``synth.channel._lowpass_fir``),
-              ``seed`` (overrides scene global ``seed``, default 0).
+              ``seed`` (overrides the derived seed; see below).
+
+    **Seed derivation (RC-1 fix):** when ``seed`` is *not* explicitly set in the
+    descriptor, each noise signal gets a distinct-but-deterministic seed derived
+    from the global scene seed XOR'd with a Knuth multiplicative hash of ``idx``
+    (the signal's position in the scene list).  This prevents two ``noise``
+    descriptors that both omit ``seed`` from drawing identical sample sequences
+    and producing a perfectly-correlated mixed noise floor.
 
     The ``amplitude`` / ``level_dbfs`` value is used as the noise sample
     standard deviation (RMS), consistent with
@@ -320,7 +327,11 @@ def render_noise(
     start_s = float(d["start_s"])
     duration_s = float(d["duration_s"])
     cutoff_hz = d.get("cutoff_hz")
-    seed = int(d.get("seed", scene_config.get("seed", 0)))
+    # Per-signal seed: XOR the global base seed with a Knuth multiplicative hash
+    # of the signal index so each noise descriptor gets an independent RNG stream
+    # without the operator having to set per-descriptor ``seed`` fields manually.
+    base_seed = int(scene_config.get("seed", 0))
+    seed = int(d.get("seed", base_seed ^ (idx * 2654435761)))
     n_sig = int(math.ceil(duration_s * sample_rate))
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal(n_sig) * amp
@@ -435,7 +446,7 @@ def render_scene(signals: list[dict], config: dict) -> np.ndarray:
             if sig_type == "ft8":
                 contrib = render_ft8(d, n_samples, sample_rate, config)
             elif sig_type == "noise":
-                contrib = render_noise(d, n_samples, sample_rate, config)
+                contrib = render_noise(d, n_samples, sample_rate, config, idx)
             elif sig_type in _PRIMITIVE_RENDERERS:
                 contrib = _PRIMITIVE_RENDERERS[sig_type](d, n_samples, sample_rate)
             else:
@@ -443,7 +454,7 @@ def render_scene(signals: list[dict], config: dict) -> np.ndarray:
                     f"ERROR: signal[{idx}]: unknown type '{sig_type}'. "
                     f"Supported types: {', '.join(_ALL_SIGNAL_TYPES)}"
                 )
-        except (KeyError, ValueError) as exc:
+        except (KeyError, ValueError, TypeError) as exc:
             sys.exit(f"ERROR: signal[{idx}] ({sig_type!r}): {exc}")
 
         buf += contrib
