@@ -86,15 +86,54 @@ overridden by any CLI flags that are explicitly provided.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `sample_rate` | int (Hz) | `48000` | PCM sample rate for the entire scene. Applied to all signals. |
-| `duration_s` | float (s) | auto | Total scene length. When absent, computed as the latest `start_s + duration_s` (or `start_s + 15 s` for `ft8`) across all signal descriptors. |
+| `duration_s` | float (s) | auto | Total scene length. When absent, computed as the latest `start_s + duration_s` (or `start_s + 15 s` for `ft8`) across all signal descriptors. Required when `loop` is enabled. |
 | `seed` | int | `0` | Base seed used for noise seed derivation (see §5.6). Does not affect non-noise signals. |
 | `out` | string | — | Output WAV file path. Parent directories are created automatically. |
 | `device` | string | — | Audio output device name substring (case-insensitive match). |
+| `loop` | bool | `false` | When `true`, tile the signal list to fill `duration_s` (see §3.1). |
+| `loop_period_s` | float (s) | auto | Repeat boundary in seconds. When absent, auto-derived as the latest signal end time. See §3.1 for beat-perfect looping. |
 
 **Example:**
 
 ```jsonl
 {"type":"scene","sample_rate":44100,"seed":12345,"out":"render.wav","duration_s":30.0}
+```
+
+### 3.1 Loop mode
+
+When `"loop": true` is set, the renderer tiles the signal list to fill `duration_s`
+without silence gaps.  Think of it as copy-pasting the bar pattern as many times as
+needed to reach the end of the scene.
+
+**How the period is determined:**
+
+| Scenario | Period used |
+|---|---|
+| `loop_period_s` set explicitly | That value — exact musical boundary |
+| `loop_period_s` absent | Auto-derived: latest `start_s + duration_s` across all signals |
+
+**Important — beat-perfect loops:**  
+The auto-derived period ends at the last *note event*, which is often earlier than
+the musical bar boundary.  For example, a six-bar drum pattern at 80 BPM has bar
+boundaries every 3.0 s (bar 6 ends at 18.0 s), but the last hi-hat event might end
+at 17.645 s — the auto period would start bar 7 at 17.645 s instead of 18.0 s,
+creating a 355 ms timing glitch.  Always set `loop_period_s` to the bar/phrase
+length when precise tempo alignment matters.
+
+**Noise in looped scenes:**  
+Each copy of a `noise` signal receives an independent seed (derived from its position
+in the expanded list), so the noise does not repeat audibly across loop iterations.
+To force identical noise every time, set an explicit `seed` field on the descriptor.
+
+**Requirements:**
+- `duration_s` must be set (in the scene line or via `--duration`).
+- All signals must have `start_s` defined (implied zero is fine).
+
+```jsonl
+# Six-bar backing loop — play for 5 minutes without writing out 300 s of events
+{"type":"scene","sample_rate":48000,"duration_s":300.0,"loop":true,"loop_period_s":18.0,"out":"backing_loop.wav"}
+{"type":"sawtooth","freq_hz":65.41,"amplitude":0.18,"start_s":0.00,"duration_s":0.35}
+# … (remaining 6-bar content) …
 ```
 
 ---
@@ -361,6 +400,8 @@ python siggen.py --batch BATCH_FILE [options]
 | `--device NAME` | Audio output device name substring, case-insensitive (overrides scene `device` field) |
 | `--rate HZ` | Sample rate in Hz (overrides scene `sample_rate`; default 48000) |
 | `--duration S` | Total scene duration in seconds (overrides scene `duration_s`) |
+| `--loop` | Tile signals to fill the scene duration (overrides scene `loop`; requires `duration_s`) |
+| `--loop-period S` | Loop repeat boundary in seconds (overrides scene `loop_period_s`; see §3.1) |
 | `--batch FILE` | Batch mode: process a JSON array of scene objects (mutually exclusive with `SCENE_FILE`) |
 
 **CLI flags always take precedence** over scene-line values.  This is intentional:
@@ -610,7 +651,45 @@ a passable ambient backing track for guitar practice.
 
 ---
 
-### 10.5 FT8 signal in noise — for decoder testing
+### 10.5 Looping a backing track pattern (C–G–D–A–E–E at 80 BPM)
+
+A six-bar progression at 80 BPM.  Each bar is 3.0 s; the full pattern is 18.0 s.
+Only bars 1–6 need to be written out; `"loop": true` with `"loop_period_s": 18.0`
+tiles them to fill the full 300-second scene.
+
+```jsonl
+# 80 BPM C-G-D-A-E-E backing track — 5-minute loop from a single 18-second pattern
+{"type":"scene","sample_rate":48000,"duration_s":300.0,"loop":true,"loop_period_s":18.0,"out":"bass_drums_80bpm.wav"}
+
+# Bar 1 - C (C2 = 65.41 Hz)
+{"type":"sawtooth","freq_hz":65.41,"amplitude":0.18,"start_s":0.00,"duration_s":0.35}
+{"type":"sawtooth","freq_hz":65.41,"amplitude":0.18,"start_s":0.75,"duration_s":0.35}
+{"type":"sawtooth","freq_hz":65.41,"amplitude":0.18,"start_s":1.50,"duration_s":0.35}
+{"type":"sawtooth","freq_hz":65.41,"amplitude":0.18,"start_s":2.25,"duration_s":0.35}
+# … (remaining bar 1 events) …
+# Bar 6 - E (last bar — ends at 18.0 s boundary)
+{"type":"sawtooth","freq_hz":82.41,"amplitude":0.18,"start_s":15.00,"duration_s":0.35}
+{"type":"sawtooth","freq_hz":82.41,"amplitude":0.18,"start_s":15.75,"duration_s":0.35}
+{"type":"sawtooth","freq_hz":82.41,"amplitude":0.18,"start_s":16.50,"duration_s":0.35}
+{"type":"sawtooth","freq_hz":82.41,"amplitude":0.18,"start_s":17.25,"duration_s":0.35}
+```
+
+Or equivalently from the CLI without modifying the scene file:
+
+```bash
+# The original scene file stays unchanged; loop is applied at render time
+python siggen.py backing_pattern.jsonl --loop --loop-period 18.0 --duration 300 --out loop_300s.wav
+```
+
+**Why `loop_period_s` matters here:**  
+The last note event in bar 6 ends at `17.625 + 0.02 = 17.645 s`.  Without
+`loop_period_s`, the auto-derived period would be 17.645 s — bar 7 would start
+355 ms early, making the loop feel rushed.  Setting `loop_period_s: 18.0` snaps
+every repeat to the exact down-beat.
+
+---
+
+### 10.6 FT8 signal in noise — for decoder testing
 
 ```jsonl
 {"type":"scene","out":"ft8_minus6db.wav","seed":100}
@@ -650,7 +729,7 @@ in a music fork:
 | **ADSR envelope** | Per-signal attack/decay/sustain/release ramp, applied to the amplitude over time.  Without this, notes have instant-on / instant-off behaviour (click-suppressed by the modulator's 10 ms Hann fade, but no musical shape). |
 | **Note names** | Express `freq_hz` as MIDI note numbers or note names (`"A4"`, `"E2"`) rather than raw Hz.  Conversion: `freq = 440 × 2 ** ((midi - 69) / 12)`. |
 | **Stereo** | Panning field (`pan: -1.0` to `1.0`) and stereo WAV output.  Currently mono only. |
-| **Repeat / loop** | Repeat a signal or a group of signals N times or for a given duration.  Currently each note must be written out explicitly. |
+| **Repeat / loop** | ✅ **Implemented** — `"loop": true` + optional `"loop_period_s"` in the scene config, or `--loop` / `--loop-period` on the CLI.  See §3.1. |
 | **Velocity** | Map a MIDI-style velocity (0–127) to `level_dbfs` automatically. |
 
 A minimal music fork could be implemented without touching the synth layer at all —

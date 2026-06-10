@@ -133,6 +133,10 @@ def resolve_config(scene_config: dict, args: argparse.Namespace) -> dict:
         config["sample_rate"] = args.rate
     if getattr(args, "duration", None) is not None:
         config["duration_s"] = args.duration
+    if getattr(args, "loop", False):
+        config["loop"] = True
+    if getattr(args, "loop_period", None) is not None:
+        config["loop_period_s"] = args.loop_period
 
     # Defaults
     config.setdefault("sample_rate", DEFAULT_SAMPLE_RATE_HZ)
@@ -154,6 +158,9 @@ def resolve_config(scene_config: dict, args: argparse.Namespace) -> dict:
 # ---------------------------------------------------------------------------
 # Auto-duration computation (design D-7)
 # ---------------------------------------------------------------------------
+# NOTE: design D-8 (loop expansion) is implemented in _expand_looping_signals
+# below.  It is entirely optional — existing scenes that do not set "loop"
+# are unaffected.  The R&R harness does not use this feature.
 
 # Populated lazily the first time an ``ft8`` signal is encountered.
 _FT8_SLOT_LENGTH_S: float | None = None
@@ -174,6 +181,15 @@ def _signal_end_s(d: dict) -> float:
     if d.get("type") == "ft8":
         return start + _get_ft8_slot_length()
     return start + float(d.get("duration_s", 0.0))
+
+
+# ---------------------------------------------------------------------------
+# Loop expansion (design D-8) — optional, zero effect when "loop" is absent
+#
+# Implementation: render the content ONCE into a short period buffer, then
+# use np.tile to fill the full scene duration.  This is O(period) in memory
+# rather than O(total_duration × n_signals) — critical for long scenes.
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -448,6 +464,58 @@ def render_scene(signals: list[dict], config: dict) -> np.ndarray:
 
     buf = np.zeros(n_samples, dtype=np.float64)
 
+    # Loop mode (design D-8) — no-op unless config["loop"] is truthy.
+    # Strategy: render all signals into a SHORT period buffer, then np.tile
+    # to fill the full scene.  Avoids the O(total_s × n_signals) allocation
+    # cost of the naive signal-expansion approach.
+    if config.get("loop"):
+        if "duration_s" not in config:
+            sys.exit(
+                "ERROR: 'loop' requires 'duration_s' to be set — the renderer "
+                "must know when to stop repeating.  Add 'duration_s' to the "
+                "scene config line or pass --duration on the CLI."
+            )
+        content_end_s = max(_signal_end_s(d) for d in signals) if signals else 0.0
+        loop_period_s = float(config.get("loop_period_s", content_end_s))
+        if loop_period_s <= 0.0:
+            sys.exit(
+                f"ERROR: loop_period_s must be positive, got {loop_period_s:.6g}"
+            )
+        if loop_period_s < content_end_s:
+            print(
+                f"  WARNING: loop_period_s ({loop_period_s:.3f} s) is shorter "
+                f"than the content end ({content_end_s:.3f} s) — signals will "
+                f"overlap across loop boundaries.",
+                file=sys.stderr,
+            )
+        period_samples = int(math.ceil(loop_period_s * sample_rate))
+        period_buf = np.zeros(period_samples, dtype=np.float64)
+        for idx, d in enumerate(signals):
+            sig_type = d.get("type", "")
+            try:
+                if sig_type == "ft8":
+                    contrib = render_ft8(d, period_samples, sample_rate, config)
+                elif sig_type == "noise":
+                    contrib = render_noise(d, period_samples, sample_rate, config, idx)
+                elif sig_type in _PRIMITIVE_RENDERERS:
+                    contrib = _PRIMITIVE_RENDERERS[sig_type](d, period_samples, sample_rate)
+                else:
+                    sys.exit(
+                        f"ERROR: signal[{idx}]: unknown type '{sig_type}'. "
+                        f"Supported types: {', '.join(_ALL_SIGNAL_TYPES)}"
+                    )
+            except (KeyError, ValueError, TypeError) as exc:
+                sys.exit(f"ERROR: signal[{idx}] ({sig_type!r}): {exc}")
+            period_buf += contrib
+        n_repeats = math.ceil(n_samples / period_samples)
+        buf[:] = np.tile(period_buf, n_repeats)[:n_samples]
+        n_iters = math.ceil(total_s / loop_period_s)
+        print(
+            f"  Loop: ~{n_iters} iteration(s), "
+            f"period {loop_period_s:.3f} s, total {total_s:.3f} s"
+        )
+        return buf
+
     for idx, d in enumerate(signals):
         sig_type = d.get("type", "")
         try:
@@ -688,6 +756,31 @@ def main() -> None:
         ),
     )
 
+    # Loop options (design D-8)
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        default=False,
+        help=(
+            "Tile signals to fill the scene duration.  "
+            "Requires --duration or a 'duration_s' field in the scene.  "
+            "Use --loop-period to set an exact musical repeat boundary."
+        ),
+    )
+    parser.add_argument(
+        "--loop-period",
+        type=float,
+        metavar="S",
+        default=None,
+        dest="loop_period",
+        help=(
+            "Loop period in seconds (overrides scene 'loop_period_s').  "
+            "When absent, the period is auto-derived as the latest signal end "
+            "time.  Set this explicitly for beat-perfect loops "
+            "(e.g. --loop-period 18.0 for a six-bar pattern at 80 BPM)."
+        ),
+    )
+
     # Batch mode
     parser.add_argument(
         "--batch",
@@ -715,6 +808,10 @@ def main() -> None:
             cli_overrides["sample_rate"] = args.rate
         if args.duration is not None:              # RC-5: was silently ignored
             cli_overrides["duration_s"] = args.duration
+        if args.loop:
+            cli_overrides["loop"] = True
+        if args.loop_period is not None:
+            cli_overrides["loop_period_s"] = args.loop_period
         ok = run_batch(args.batch, cli_overrides)
         sys.exit(0 if ok else 1)
 
