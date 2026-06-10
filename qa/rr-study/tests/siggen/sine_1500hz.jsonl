@@ -1,0 +1,2 @@
+{"type":"scene","sample_rate":48000}
+{"type":"sine","freq_hz":1500,"start_s":0.0,"duration_s":5.0}

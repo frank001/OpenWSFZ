@@ -24,10 +24,38 @@ if str(_QA_ROOT) not in sys.path:
     sys.path.insert(0, str(_QA_ROOT))
 
 from harness.common import compute_seed, make_run_dir, normalise_slot, SLOT_SECONDS
+from synth.constants import DEFAULT_SAMPLE_RATE_HZ
+
+# ── Playback constants ────────────────────────────────────────────────────────
+_PLAYBACK_PEAK_LEVEL: float = 0.9   # target peak amplitude after normalisation;
+                                     # keeps headroom below PortAudio's ±1.0 clip limit
+_CYCLE_PREWARM_S: float = 0.5       # seconds before cycle boundary to wake and arm playback
+
+# Half-cosine fade-out applied to the last _FADEOUT_DURATION_S seconds of every
+# rendered slot.  The FT8 signal is fully transmitted by ~12.64 s (79 symbols ×
+# 0.160 s/symbol); the fade window (14.8–15.0 s) falls entirely within the
+# noise tail and cannot affect any symbol amplitude or decoder SNR estimate.
+# Its purpose is to eliminate the step discontinuity when playback stops at the
+# cycle boundary, which otherwise creates a brief broadband click in the
+# VB-CABLE stream.
+_FADEOUT_DURATION_S: float = 0.2    # seconds; half-cosine taper at end of slot
+
+# ── S4 multi-signal frequency spread ─────────────────────────────────────────
+_MULTI_SIGNAL_FREQ_MIN_HZ: float = 300.0   # lower bound of S4 station spread (Hz)
+_MULTI_SIGNAL_FREQ_MAX_HZ: float = 2700.0  # upper bound of S4 station spread (Hz)
 
 # ---------------------------------------------------------------------------
 # Scenario loading
 # ---------------------------------------------------------------------------
+
+# Noise bandwidth for all rendered scenarios (Hz).
+# Restricts the AWGN floor to a band matching a real SSB receiver's audio
+# path, so 48 kHz playback is perceptually realistic and WSJT-X's noise
+# floor estimator sees a representative spectrum.
+# Constraints: must be > 2700 Hz (FT8 audio ceiling); must not be a harmonic
+# of the 1500 Hz nominal centre frequency (harmonics: 3000, 4500, 6000 Hz…).
+_NOISE_CUTOFF_HZ: float = 4700.0
+
 
 def _load_messages(scenarios_dir: Path) -> dict[str, str]:
     """Load study-messages.json and return {msg_id: text}."""
@@ -117,7 +145,7 @@ def _next_cycle_boundary() -> float:
 
 def _wait_for_cycle(boundary_ts: float) -> datetime:
     """Sleep until 500 ms before *boundary_ts*, then return the cycle UTC datetime."""
-    target = boundary_ts - 0.5
+    target = boundary_ts - _CYCLE_PREWARM_S
     remaining = target - time.time()
     if remaining > 0:
         time.sleep(remaining)
@@ -134,9 +162,9 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
     """Render a single-message part (S1, S1b, S2, S3) using the clean-room synthesiser.
 
     The signal is encoded clean (no noise), then bandlimited AWGN is added via
-    :func:`synth.channel.add_noise` with ``noise_cutoff_hz=3000`` — matching the
-    multi-signal path (:func:`synth.channel.mix_to_shared_floor`) so that all
-    scenarios present the same 3 kHz SSB-receiver noise model to both appraisers.
+    :func:`synth.channel.add_noise` with ``noise_cutoff_hz=_NOISE_CUTOFF_HZ`` —
+    matching the multi-signal path (:func:`synth.channel.mix_to_shared_floor`) so
+    that all scenarios present the same bandlimited noise model to both appraisers.
     """
     from synth import channel, encoder
 
@@ -156,11 +184,11 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
         base_freq_hz=float(base_freq_hz),
         dt_s=float(dt_s),
         snr_db=None,          # clean render; noise added below with cutoff
-        sample_rate_hz=48000,
+        sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
     )
     return channel.add_noise(clean, float(snr_db), seed,
-                             sample_rate_hz=48000,
-                             noise_cutoff_hz=3000)
+                             sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+                             noise_cutoff_hz=_NOISE_CUTOFF_HZ)
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +210,7 @@ def _render_multi(scenario: dict, part: dict, trial_index: int,
     snr_db_set = part["snr_db_set"]
 
     # Spread frequencies evenly across 300–2700 Hz
-    freq_min, freq_max = 300.0, 2700.0
+    freq_min, freq_max = _MULTI_SIGNAL_FREQ_MIN_HZ, _MULTI_SIGNAL_FREQ_MAX_HZ
     if n_signals == 1:
         freqs = [1500.0]
     else:
@@ -198,13 +226,13 @@ def _render_multi(scenario: dict, part: dict, trial_index: int,
             base_freq_hz=freqs[i],
             dt_s=0.0,
             snr_db=None,  # clean render; the floor is added once by the mixer
-            sample_rate_hz=48000,
+            sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
         ))
         snr_list.append(float(snr_db_set[i % len(snr_db_set)]))
 
     return channel.mix_to_shared_floor(clean_signals, snr_list, seed,
-                                       sample_rate_hz=48000,
-                                       noise_cutoff_hz=3000)
+                                       sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+                                       noise_cutoff_hz=_NOISE_CUTOFF_HZ)
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +273,7 @@ def _render_band_scene(scenario: dict,
             base_freq_hz=freq_hz,
             dt_s=dt_s,
             snr_db=None,  # clean render; the floor is added once by the mixer
-            sample_rate_hz=48000,
+            sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
         ))
         snr_list.append(snr_db)
         signals_meta.append({
@@ -257,8 +285,8 @@ def _render_band_scene(scenario: dict,
         })
 
     mixed = channel.mix_to_shared_floor(clean_signals, snr_list, seed,
-                                        sample_rate_hz=48000,
-                                        noise_cutoff_hz=3000)
+                                        sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+                                        noise_cutoff_hz=_NOISE_CUTOFF_HZ)
     return mixed, signals_meta
 
 
@@ -305,7 +333,7 @@ def _render_compound(scenario: dict, part: dict,
             base_freq_hz=freq_hz,
             dt_s=dt_s,
             snr_db=None,  # clean render; the floor is added once by the mixer
-            sample_rate_hz=48000,
+            sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
         ))
         snr_list.append(snr_db)
         signals_meta.append({
@@ -316,8 +344,8 @@ def _render_compound(scenario: dict, part: dict,
         })
 
     mixed = channel.mix_to_shared_floor(clean_signals, snr_list, seed,
-                                        sample_rate_hz=48000,
-                                        noise_cutoff_hz=3000)
+                                        sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+                                        noise_cutoff_hz=_NOISE_CUTOFF_HZ)
     return mixed, signals_meta
 
 
@@ -329,8 +357,8 @@ def _render_noise(part: dict, seed: int) -> "numpy.ndarray":
     """Render a signal-free noise buffer for S5 false-positive tests."""
     import numpy as np
 
-    sample_rate = 48000
-    n_samples = int(sample_rate * 15)
+    sample_rate = DEFAULT_SAMPLE_RATE_HZ
+    n_samples = int(sample_rate * SLOT_SECONDS)
     rng = np.random.default_rng(seed)
     noise_type = part.get("noise_type", "awgn")
     level_dbfs = part.get("level_dbfs", -20)
@@ -490,7 +518,15 @@ def _run(args: argparse.Namespace) -> None:
             # SNR-linearity measurements are unaffected.
             _peak = float(np.max(np.abs(samples)))
             if _peak > 0.0:
-                samples = (samples * (0.9 / _peak)).astype("float32")
+                samples = (samples * (_PLAYBACK_PEAK_LEVEL / _peak)).astype("float32")
+
+            # Half-cosine fade-out — applied after normalisation so the taper
+            # envelope is not distorted by any subsequent scaling.
+            _n_fade = int(_FADEOUT_DURATION_S * DEFAULT_SAMPLE_RATE_HZ)
+            if 0 < _n_fade <= len(samples):
+                _t = np.linspace(0.0, 1.0, _n_fade, endpoint=True)
+                _fade_env = (0.5 * (1.0 + np.cos(np.pi * _t))).astype("float32")
+                samples[-_n_fade:] *= _fade_env
 
             # Cycle boundary alignment (skipped in dry-run mode)
             if args.dry_run:
@@ -516,7 +552,7 @@ def _run(args: argparse.Namespace) -> None:
             else:
                 import sounddevice as sd
                 try:
-                    sd.play(samples, samplerate=48000, device=device_idx, blocking=False)
+                    sd.play(samples, samplerate=DEFAULT_SAMPLE_RATE_HZ, device=device_idx, blocking=False)
                     sd.wait()
                 except sd.PortAudioError as exc:
                     print(f"\nERROR: PortAudio playback failed: {exc}")

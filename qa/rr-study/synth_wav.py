@@ -22,7 +22,8 @@ _HERE = pathlib.Path(__file__).parent.resolve()
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from synth import channel, encoder, wavio  # noqa: E402
+from synth import channel, encoder, wavio          # noqa: E402
+from synth.constants import DEFAULT_SAMPLE_RATE_HZ  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -91,9 +92,9 @@ def main() -> None:
         help="RNG seed for the noise realisation. Default: 0",
     )
     parser.add_argument(
-        "--rate", type=int, default=48000,
+        "--rate", type=int, default=DEFAULT_SAMPLE_RATE_HZ,
         metavar="HZ",
-        help="Sample rate (Hz). Default: 48000",
+        help=f"Sample rate (Hz). Default: {DEFAULT_SAMPLE_RATE_HZ}",
     )
     parser.add_argument(
         "--cutoff", type=float, default=None,

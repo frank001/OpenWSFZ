@@ -1,0 +1,14 @@
+{"type":"scene","sample_rate":48000}
+{"type":"sine","freq_hz":1500,"amplitude":0.5,"start_s":0.0,"duration_s":15.0}
+{"type":"sine","freq_hz":1500,"amplitude":0.5,"start_s":15.0,"duration_s":15.0}
+{"type":"noise","amplitude":0.08,"cutoff_hz":4000,"start_s":15.0,"duration_s":15.0}
+{"type":"sine","freq_hz":1500,"amplitude":0.5,"start_s":30.0,"duration_s":15.0}
+{"type":"noise","amplitude":0.08,"cutoff_hz":3000,"start_s":30.0,"duration_s":15.0}
+{"type":"sine","freq_hz":1200,"amplitude":0.35,"start_s":45.0,"duration_s":15.0}
+{"type":"sine","freq_hz":1657,"amplitude":0.35,"start_s":45.0,"duration_s":15.0}
+{"type":"sine","freq_hz":1200,"amplitude":0.35,"start_s":60.0,"duration_s":15.0}
+{"type":"sine","freq_hz":1657,"amplitude":0.35,"start_s":60.0,"duration_s":15.0}
+{"type":"noise","amplitude":0.08,"cutoff_hz":4000,"start_s":60.0,"duration_s":15.0}
+{"type":"sine","freq_hz":1200,"amplitude":0.35,"start_s":75.0,"duration_s":15.0}
+{"type":"sine","freq_hz":1657,"amplitude":0.35,"start_s":75.0,"duration_s":15.0}
+{"type":"noise","amplitude":0.08,"cutoff_hz":3000,"start_s":75.0,"duration_s":15.0}

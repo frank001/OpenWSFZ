@@ -40,8 +40,9 @@ if str(_HERE) not in sys.path:
 # NOTE: ``synth.encoder`` is NOT imported here (design D-5 — lazy import).
 #       It is imported inside ``render_ft8()`` only.  Scenes with no ``ft8``
 #       signals will never trigger the FT8 encode chain.
-from synth.channel import _lowpass_fir   # noqa: E402
-from synth import wavio                  # noqa: E402
+from synth.channel import _lowpass_fir          # noqa: E402
+from synth.constants import DEFAULT_SAMPLE_RATE_HZ  # noqa: E402
+from synth import wavio                             # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +135,7 @@ def resolve_config(scene_config: dict, args: argparse.Namespace) -> dict:
         config["duration_s"] = args.duration
 
     # Defaults
-    config.setdefault("sample_rate", 48000)
+    config.setdefault("sample_rate", DEFAULT_SAMPLE_RATE_HZ)
     config.setdefault("seed", 0)
 
     # Validate output sinks
@@ -427,7 +428,7 @@ def render_scene(signals: list[dict], config: dict) -> np.ndarray:
     Mixing is a plain element-wise sum — no normalisation is applied here.
     Normalisation is performed downstream in :func:`write_outputs`.
     """
-    sample_rate = int(config.get("sample_rate", 48000))
+    sample_rate = int(config.get("sample_rate", DEFAULT_SAMPLE_RATE_HZ))
 
     # Determine total scene duration
     if "duration_s" in config:
@@ -511,7 +512,7 @@ def write_outputs(buffer: np.ndarray, config: dict) -> None:
     When both sinks are declared, the WAV file is written first, then playback
     begins.
     """
-    sample_rate = int(config.get("sample_rate", 48000))
+    sample_rate = int(config.get("sample_rate", DEFAULT_SAMPLE_RATE_HZ))
     out_path = config.get("out")
     device_name = config.get("device")
 
@@ -589,7 +590,7 @@ def run_batch(batch_path: str, cli_overrides: dict) -> bool:
             # Merge CLI overrides over item fields
             merged: dict = dict(item)
             merged.update({k: v for k, v in cli_overrides.items() if v is not None})
-            merged.setdefault("sample_rate", 48000)
+            merged.setdefault("sample_rate", DEFAULT_SAMPLE_RATE_HZ)
             merged.setdefault("seed", 0)
 
             signals: list[dict] = merged.pop("signals", [])
@@ -674,7 +675,7 @@ def main() -> None:
         type=int,
         metavar="HZ",
         default=None,
-        help="Sample rate in Hz (default: 48000, or scene 'sample_rate')",
+        help=f"Sample rate in Hz (default: {DEFAULT_SAMPLE_RATE_HZ}, or scene 'sample_rate')",
     )
     parser.add_argument(
         "--duration",

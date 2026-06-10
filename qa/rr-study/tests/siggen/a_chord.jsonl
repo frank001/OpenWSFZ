@@ -1,0 +1,13 @@
+{"type":"scene","sample_rate":48000}
+{"type":"sine","freq_hz":110.00,"amplitude":0.15,"start_s":0.0,"duration_s":5.0}
+{"type":"sine","freq_hz":164.81,"amplitude":0.15,"start_s":0.0,"duration_s":5.0}
+{"type":"sine","freq_hz":220.00,"amplitude":0.15,"start_s":0.0,"duration_s":5.0}
+{"type":"sine","freq_hz":277.18,"amplitude":0.15,"start_s":0.0,"duration_s":5.0}
+{"type":"sine","freq_hz":329.63,"amplitude":0.15,"start_s":0.0,"duration_s":5.0}
+{"type":"sine","freq_hz":440.00,"amplitude":0.15,"start_s":0.0,"duration_s":5.0}
+{"type":"sawtooth","freq_hz":110.00,"amplitude":0.15,"start_s":5.0,"duration_s":5.0}
+{"type":"sawtooth","freq_hz":164.81,"amplitude":0.15,"start_s":5.0,"duration_s":5.0}
+{"type":"sawtooth","freq_hz":220.00,"amplitude":0.15,"start_s":5.0,"duration_s":5.0}
+{"type":"sawtooth","freq_hz":277.18,"amplitude":0.15,"start_s":5.0,"duration_s":5.0}
+{"type":"sawtooth","freq_hz":329.63,"amplitude":0.15,"start_s":5.0,"duration_s":5.0}
+{"type":"sawtooth","freq_hz":440.00,"amplitude":0.15,"start_s":5.0,"duration_s":5.0}

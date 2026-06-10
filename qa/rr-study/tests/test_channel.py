@@ -6,6 +6,12 @@ import numpy as np
 from scipy import signal as sp
 
 from synth import channel, modulator, wavio
+from synth.channel import (
+    _LOG_FLOOR,
+    _PASSBAND_LOWER_HZ,
+    _PASSBAND_UPPER_FRACTION,
+    _WELCH_NPERSEG,
+)
 from synth.constants import NUM_SYMBOLS
 
 
@@ -132,9 +138,9 @@ def test_fir_no_gibbs_ridge():
     cutoff = 4000.0
     stopband_check_hz = cutoff * 1.2  # 4800 Hz — stopband for 4 kHz Kaiser FIR
     noise = _pure_bandlimited_noise(cutoff, fs=fs)
-    freqs, psd = sp.welch(noise, fs=float(fs), nperseg=4096)
-    psd_db = 10.0 * np.log10(np.maximum(psd, 1e-30))
-    passband_mask = (freqs >= 100.0) & (freqs <= cutoff * 0.85)
+    freqs, psd = sp.welch(noise, fs=float(fs), nperseg=_WELCH_NPERSEG)
+    psd_db = 10.0 * np.log10(np.maximum(psd, _LOG_FLOOR))
+    passband_mask = (freqs >= _PASSBAND_LOWER_HZ) & (freqs <= cutoff * _PASSBAND_UPPER_FRACTION)
     pb_mean_db = float(np.mean(psd_db[passband_mask]))
     sb_idx = int(np.argmin(np.abs(freqs - stopband_check_hz)))
     sb_psd_db = float(psd_db[sb_idx])

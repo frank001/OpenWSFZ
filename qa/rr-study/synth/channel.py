@@ -45,6 +45,22 @@ from scipy import signal as _signal
 
 from .constants import DEFAULT_SAMPLE_RATE_HZ, REFERENCE_BANDWIDTH_HZ
 
+# ── FIR lowpass filter design parameters ─────────────────────────────────────
+_FIR_NUMTAPS: int = 255          # filter order + 1 (odd → symmetric, linear-phase)
+_KAISER_BETA: float = 6.0        # Kaiser window shape (~60 dB stopband attenuation)
+
+# ── Welch PSD estimation parameters ──────────────────────────────────────────
+_WELCH_NPERSEG: int = 4096       # Welch segment length; controls freq resolution
+_WELCH_MIN_NPERSEG: int = 16     # minimum segment length for short buffers
+_WELCH_BUFFER_FRACTION: int = 4  # nperseg <= len(x) // _WELCH_BUFFER_FRACTION
+_LOG_FLOOR: float = 1e-30        # floor before log10 to avoid -inf
+
+# ── verify_noise_psd acceptance thresholds ────────────────────────────────────
+_PASSBAND_LOWER_HZ: float = 100.0       # exclude DC / very low-freq noise artefacts
+_PASSBAND_UPPER_FRACTION: float = 0.85  # passband upper bound = cutoff * this fraction
+_STOPBAND_CHECK_FACTOR: float = 1.2     # check attenuation at cutoff * this factor
+_MIN_STOPBAND_ATTENUATION_DB: float = 30.0  # minimum required stopband attenuation
+
 
 def noise_sigma_for_snr(
     signal: np.ndarray,
@@ -96,9 +112,9 @@ def _lowpass_fir(
     are introduced.
     """
     taps = _signal.firwin(
-        numtaps=255,
+        numtaps=_FIR_NUMTAPS,
         cutoff=cutoff_hz,
-        window=("kaiser", 6.0),
+        window=("kaiser", _KAISER_BETA),
         fs=float(sample_rate_hz),
     )
     return _signal.fftconvolve(x, taps, mode="same")
@@ -199,12 +215,13 @@ def measure_inband_snr_db(
     """
     noise = noisy - signal
     p_sig = float(np.mean(signal ** 2))
-    nperseg = min(4096, max(16, len(noise) // 4))
+    nperseg = min(_WELCH_NPERSEG, max(_WELCH_MIN_NPERSEG,
+                                      len(noise) // _WELCH_BUFFER_FRACTION))
     freqs, psd = _signal.welch(noise, fs=float(sample_rate_hz), nperseg=nperseg)
     inband_mask = freqs <= bandwidth_hz
     df = float(freqs[1] - freqs[0]) if len(freqs) > 1 else 1.0
     p_noise_inband = float(np.sum(psd[inband_mask]) * df)
-    return 10.0 * np.log10(p_sig / max(p_noise_inband, 1e-30))
+    return 10.0 * np.log10(p_sig / max(p_noise_inband, _LOG_FLOOR))
 
 
 def verify_noise_psd(
@@ -247,15 +264,16 @@ def verify_noise_psd(
         ``True`` if both criteria pass, ``False`` otherwise (only when
         ``assert_ok=False``).
     """
-    freqs, psd = _signal.welch(noise, fs=float(sample_rate_hz), nperseg=4096)
-    psd_db = 10.0 * np.log10(np.maximum(psd, 1e-30))
+    freqs, psd = _signal.welch(noise, fs=float(sample_rate_hz), nperseg=_WELCH_NPERSEG)
+    psd_db = 10.0 * np.log10(np.maximum(psd, _LOG_FLOOR))
 
     # ── 1. Passband flatness ─────────────────────────────────────────────────
-    passband_mask = (freqs >= 100.0) & (freqs <= cutoff_hz * 0.85)
+    passband_mask = (freqs >= _PASSBAND_LOWER_HZ) & (freqs <= cutoff_hz * _PASSBAND_UPPER_FRACTION)
     if not np.any(passband_mask):
         msg = (
             f"verify_noise_psd: no PSD bins in the passband "
-            f"(100 Hz – {cutoff_hz * 0.85:.0f} Hz) at sample_rate={sample_rate_hz}"
+            f"({_PASSBAND_LOWER_HZ:.0f} Hz – {cutoff_hz * _PASSBAND_UPPER_FRACTION:.0f} Hz)"
+            f" at sample_rate={sample_rate_hz}"
         )
         if assert_ok:
             raise AssertionError(msg)
@@ -270,7 +288,7 @@ def verify_noise_psd(
             f"verify_noise_psd: passband not flat — "
             f"peak deviation {pb_deviation_db:.2f} dB exceeds tolerance "
             f"{tolerance_db:.1f} dB "
-            f"(passband 100 Hz – {cutoff_hz * 0.85:.0f} Hz)"
+            f"(passband {_PASSBAND_LOWER_HZ:.0f} Hz – {cutoff_hz * _PASSBAND_UPPER_FRACTION:.0f} Hz)"
         )
         if assert_ok:
             raise AssertionError(msg)
@@ -281,17 +299,18 @@ def verify_noise_psd(
     # Kaiser FIR (transition band is ±~300 Hz at 48 kHz / 255 taps).  The
     # former brick-wall FFT filter produced a Gibbs ridge at the cutoff; the
     # FIR filter should have deep (≥ 30 dB) attenuation here.
-    stopband_hz = cutoff_hz * 1.2
+    stopband_hz = cutoff_hz * _STOPBAND_CHECK_FACTOR
     stopband_idx = int(np.argmin(np.abs(freqs - stopband_hz)))
     stopband_psd_db = float(psd_db[stopband_idx])
     stopband_attenuation_db = pb_mean_db - stopband_psd_db  # positive → suppressed
 
-    if stopband_attenuation_db < 30.0:
+    if stopband_attenuation_db < _MIN_STOPBAND_ATTENUATION_DB:
         msg = (
             f"verify_noise_psd: insufficient stopband attenuation — "
             f"PSD at {freqs[stopband_idx]:.0f} Hz (1.2× cutoff) is only "
             f"{stopband_attenuation_db:.1f} dB below passband mean "
-            f"(required ≥ 30 dB; possible Gibbs ridge or brickwall artefact)"
+            f"(required >= {_MIN_STOPBAND_ATTENUATION_DB:.0f} dB;"
+            f" possible Gibbs ridge or brickwall artefact)"
         )
         if assert_ok:
             raise AssertionError(msg)

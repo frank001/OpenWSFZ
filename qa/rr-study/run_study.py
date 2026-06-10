@@ -19,6 +19,11 @@ import sys
 import time
 from pathlib import Path
 
+# ── Timing ─────────────────────────────────────────────────────────────────
+# Pause after each scenario to let the final cycle's decodes propagate into
+# ALL.TXT before the log-collection step reads it.
+_POST_SCENARIO_SETTLE_S: int = 5
+
 # ── Paths ──────────────────────────────────────────────────────────────────
 _HERE = Path(__file__).resolve().parent
 _VENV_PYTHON = _HERE / ".venv" / "Scripts" / "python.exe"
@@ -72,6 +77,9 @@ def main() -> None:
     parser.add_argument("--skip-s8", action="store_true",
                         help="Skip the S8 realistic band scene (no prompt). "
                              "Ignored when --scenarios is given.")
+    parser.add_argument("--skip-warmup", action="store_true",
+                        help="Skip the pre-flight warm-up check (not recommended). "
+                             "Use only when both apps are already confirmed active.")
     parser.add_argument("--scenarios", default=None,
                         metavar="ID[,ID...]",
                         help="Comma-separated list of scenario IDs to run "
@@ -113,14 +121,24 @@ def main() -> None:
     print(f"  Scenarios       : {', '.join(scenario_ids)}")
     print()
 
+    # ── Step 0: Pre-flight warm-up check ──────────────────────────────────
+    # Play one FT8 cycle at +6 dB SNR and ask the operator to confirm both
+    # WSJT-X and OpenWSFZ decoded it.  This catches routing failures before
+    # any study data is recorded.  The cycle is NOT written to truth.csv.
+    if args.skip_warmup:
+        print("  WARNING: pre-flight warm-up check skipped (--skip-warmup).")
+        print("  Ensure both apps are in Monitor/decode mode before proceeding.")
+        print()
+    else:
+        _py("harness/warmup.py", "--device", args.device)
+
     # ── Step 1: Run all scenarios ──────────────────────────────────────────
     for sf in scenario_files:
         if not sf.exists():
             sys.exit(f"ERROR: scenario file not found: {sf}")
         _py("harness/run_scenario.py", str(sf), "--device", args.device)
         print(f"  [OK] {sf.name} complete\n", flush=True)
-        # Small pause to let the last cycle's decodes propagate into ALL.TXT
-        time.sleep(5)
+        time.sleep(_POST_SCENARIO_SETTLE_S)
 
     # ── Step 2: Locate run directory ───────────────────────────────────────
     run_dir = _find_run_dir()
