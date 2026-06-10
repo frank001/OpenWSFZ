@@ -106,7 +106,7 @@ cl /I. /std:c11 /O2 /W3 /c ^
    ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
 
 :: Link into DLL
-link /DLL /OUT:libft8.dll /EXPORT:ft8_lib_version_check /EXPORT:ft8_decode_all /EXPORT:ft8_get_last_pass_counts /EXPORT:ft8_get_max_passes ^
+link /DLL /OUT:libft8.dll /EXPORT:ft8_lib_version_check /EXPORT:ft8_decode_all /EXPORT:ft8_get_last_pass_counts /EXPORT:ft8_get_max_passes /EXPORT:ft8_get_last_noise_floor_db ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
    monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj
 
@@ -133,13 +133,15 @@ gcc -shared -o libft8.so \
     constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
     monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o \
     -lm
+
+# Note: ft8_get_last_noise_floor_db is exported automatically (no explicit -Wl,--export-dynamic needed)
 ```
 
 > **Note:** `-D_GNU_SOURCE` is required. `ft8_lib/ft8/message.c` calls `stpcpy`, which is
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
-Verify exports (all three symbols must appear):
+Verify exports (all five symbols must appear):
 
 ```bash
 nm -D libft8.so | grep "ft8_"
@@ -189,7 +191,7 @@ clang -dynamiclib -target arm64-apple-macos11.0 \
 > **Note:** `-D_GNU_SOURCE` is required for `stpcpy` on macOS as well (same reason as
 > Linux — see note in the Linux section above).
 
-Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all three symbols must appear):
+Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all five symbols must appear):
 
 ```bash
 nm -gU libft8.dylib | grep "ft8_"

@@ -119,9 +119,10 @@ char* stpcpy(char* dest, const char* src)
  */
 #define K_MAX_DECODED  (K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2)
 
-/* ── Thread-local per-pass stats ─────────────────────────────────────────── */
-static _Thread_local int tls_pass_counts[K_MAX_PASSES];
-static _Thread_local int tls_num_passes = 0;
+/* ── Thread-local per-pass stats and noise floor ─────────────────────────── */
+static _Thread_local int   tls_pass_counts[K_MAX_PASSES];
+static _Thread_local int   tls_num_passes       = 0;
+static _Thread_local float tls_last_noise_floor_db = 0.0f;
 
 /* ── Callsign hash table ─────────────────────────────────────────────────── */
 
@@ -283,6 +284,9 @@ int ft8_lib_version_check(void) { return FT8_SHIM_VERSION; }
 /* ── Pass count query ────────────────────────────────────────────────────── */
 int ft8_get_max_passes(void) { return K_MAX_PASSES; }
 
+/* ── Noise floor query ───────────────────────────────────────────────────── */
+float ft8_get_last_noise_floor_db(void) { return tls_last_noise_floor_db; }
+
 /* ── Per-pass stats query ────────────────────────────────────────────────── */
 int ft8_get_last_pass_counts(int* out_counts, int capacity)
 {
@@ -321,6 +325,7 @@ int ft8_decode_all(
     float     noise_floor_db;
     WF_ELEM_T noise_raw;
     compute_noise_floor(&mon, &noise_floor_db, &noise_raw);
+    tls_last_noise_floor_db = noise_floor_db; /* expose to managed diagnostic layer */
 
     /* ── 4. Cross-pass dedup state ───────────────────────────────────────── */
     int            num_decoded  = 0;

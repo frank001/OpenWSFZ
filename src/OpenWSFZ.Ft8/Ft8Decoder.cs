@@ -100,16 +100,18 @@ public sealed class Ft8Decoder : IModeDecoder
 
         Ft8NativeResult[] native;
         int[]             passCounts;
+        float             noiseFloorDb;
 
-        // Both calls must be on the same thread — no await between them — because
-        // ft8_get_last_pass_counts reads from TLS written by ft8_decode_all.
-        // IMPORTANT: do not make this lambda async or split these two calls across
-        // separate Task.Run invocations; doing so would break the TLS guarantee.
-        (native, passCounts) = await Task.Run(() =>
+        // All three calls must be on the same thread — no await between them — because
+        // ft8_get_last_pass_counts and ft8_get_last_noise_floor_db both read TLS written
+        // by ft8_decode_all.  IMPORTANT: do not make this lambda async or split these
+        // calls across separate Task.Run invocations; doing so would break the TLS guarantee.
+        (native, passCounts, noiseFloorDb) = await Task.Run(() =>
         {
             var r = Ft8LibInterop.DecodeAll(pcm);
             var p = Ft8LibInterop.GetLastPassCounts(Ft8LibInterop.MaxDecodePasses);
-            return (r, p);
+            var n = Ft8LibInterop.GetLastNoiseFloorDb();
+            return (r, p, n);
         }, ct);
 
         sw.Stop();
@@ -158,6 +160,15 @@ public sealed class Ft8Decoder : IModeDecoder
         _logger?.LogInformation(
             "Cycle {Time}: {Count} decode(s) found, elapsed={Elapsed} ms.",
             timeStr, results.Count, sw.ElapsedMilliseconds);
+
+        // ── D-003 noise-floor diagnostic ─────────────────────────────────────
+        // Log the histogram-median noise floor returned by ft8_get_last_noise_floor_db.
+        // If D-003 (intermittent ~15 dB SNR under-report) is caused by a noise-floor
+        // estimator anomaly, affected cycles will show this value ~15 dB above its
+        // neighbours.  Logged at Information so it appears without adjusting log levels.
+        _logger?.LogInformation(
+            "Cycle {Time}: noise_floor={NoiseFloor:F1} dB (waterfall histogram median).",
+            timeStr, noiseFloorDb);
 
         return results;
     }

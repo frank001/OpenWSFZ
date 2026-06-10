@@ -30,9 +30,10 @@ internal static class Ft8LibInterop
     /// 20260002 (R6 weak-signal correction removed — R&amp;R-001 linearity fix;
     ///           revert-pcm-sic: PCM-domain SIC reverted, two-pass spectrogram suppression restored),
     /// 20260004 (fix-d001-revised Option B: hard-zero tile suppression replaced with soft
-    ///           SNR-scaled linear attenuation; version 20260003 skipped — was the reverted PCM-SIC).
+    ///           SNR-scaled linear attenuation; version 20260003 skipped — was the reverted PCM-SIC),
+    /// 20260005 (D-003 diagnostics: add ft8_get_last_noise_floor_db TLS getter; no decode change).
     /// </summary>
-    private const int ExpectedShimVersion = 20260004;
+    private const int ExpectedShimVersion = 20260005;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -106,6 +107,16 @@ internal static class Ft8LibInterop
     [DllImport("libft8.dll", EntryPoint = "ft8_get_max_passes", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeGetMaxPasses();
 
+    /// <summary>
+    /// Return the histogram-median waterfall noise floor (dB) from the most recent
+    /// <see cref="NativeDecodeAll"/> call on this thread.
+    /// Value is <c>median_uint8 * 0.5f − 120.0f</c>, matching the noise_floor_db
+    /// used in the SNR formula: <c>SNR = signal_db − noise_floor_db − 26</c>.
+    /// Returns 0.0f if <see cref="NativeDecodeAll"/> has not yet been called on this thread.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_noise_floor_db", CallingConvention = CallingConvention.Cdecl)]
+    private static extern float NativeGetLastNoiseFloorDb();
+
     // ── Public API ───────────────────────────────────────────────────────
 
     /// <summary>
@@ -164,6 +175,25 @@ internal static class Ft8LibInterop
         int numPasses = NativeGetLastPassCounts(counts, maxPasses);
         if (numPasses <= 0) return [];
         return counts[..numPasses];
+    }
+
+    /// <summary>
+    /// Return the histogram-median waterfall noise floor (dB) from the most recent
+    /// <see cref="DecodeAll"/> call on this thread.
+    /// <para>
+    /// Value is <c>median_uint8 * 0.5f − 120.0f</c>, matching the <c>noise_floor_db</c>
+    /// used in the native SNR formula: <c>SNR = signal_db − noise_floor_db − 26</c>.
+    /// Logging this value per cycle allows D-003 (intermittent ~15 dB SNR under-report)
+    /// to be diagnosed: if D-003 is caused by a noise-floor estimator anomaly, affected
+    /// cycles will show this value elevated by ~15 dB relative to neighbouring cycles.
+    /// </para>
+    /// Must be called on the same thread that called <see cref="DecodeAll"/>.
+    /// Returns 0.0f if <see cref="DecodeAll"/> has not yet been called on this thread.
+    /// </summary>
+    public static float GetLastNoiseFloorDb()
+    {
+        EnsureInitialized();
+        return NativeGetLastNoiseFloorDb();
     }
 
     // ── Lazy initialisation ──────────────────────────────────────────────

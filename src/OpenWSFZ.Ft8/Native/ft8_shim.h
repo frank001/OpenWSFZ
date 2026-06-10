@@ -35,8 +35,12 @@ extern "C" {
  *              with soft SNR-scaled linear attenuation (K_SOFT_SUPP_SNR_MIN_DB
  *              to K_SOFT_SUPP_SNR_MAX_DB range); suppress_candidate_tiles now
  *              takes snr_db parameter; suppress accumulator stores per-decode
- *              SNR.  Version 20260003 skipped (was the reverted PCM-SIC). */
-#define FT8_SHIM_VERSION 20260004
+ *              SNR.  Version 20260003 skipped (was the reverted PCM-SIC).
+ *   20260005 — D-003 diagnostics: add ft8_get_last_noise_floor_db() TLS getter
+ *              exposing the histogram-median noise floor computed by
+ *              compute_noise_floor() within the most recent ft8_decode_all call.
+ *              No change to decode logic or struct layout. */
+#define FT8_SHIM_VERSION 20260005
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -99,6 +103,19 @@ int ft8_get_last_pass_counts(int* out_counts, int capacity);
  * before any decode call is attempted.
  */
 int ft8_get_max_passes(void);
+
+/*
+ * ft8_get_last_noise_floor_db — return the histogram-median waterfall noise
+ * floor (dB) computed during the most recent ft8_decode_all call on this thread.
+ *
+ * Value is (median_uint8 * 0.5) − 120.0, matching the noise_floor_db used in
+ * the SNR formula: SNR = signal_db − noise_floor_db − 26.
+ *
+ * Thread-safe: stored in thread-local storage; must be called on the same
+ * thread that called ft8_decode_all (same constraint as ft8_get_last_pass_counts).
+ * Returns 0.0f if ft8_decode_all has not yet been called on this thread.
+ */
+float ft8_get_last_noise_floor_db(void);
 
 #ifdef __cplusplus
 }
