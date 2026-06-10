@@ -161,10 +161,19 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
                    seed: int) -> "numpy.ndarray":
     """Render a single-message part (S1, S1b, S2, S3) using the clean-room synthesiser.
 
-    The signal is encoded clean (no noise), then bandlimited AWGN is added via
-    :func:`synth.channel.add_noise` with ``noise_cutoff_hz=_NOISE_CUTOFF_HZ`` —
-    matching the multi-signal path (:func:`synth.channel.mix_to_shared_floor`) so
-    that all scenarios present the same bandlimited noise model to both appraisers.
+    The signal is encoded clean (no noise), then **wideband** AWGN is added
+    (no ``noise_cutoff_hz``).  Single-signal scenarios intentionally use wideband
+    noise for the following reason: libft8's noise floor estimator does not handle
+    bandlimited noise reliably.  When noise is hard-rolled off by the Kaiser FIR
+    (as it is in the multi-signal path), the estimator occasionally returns a
+    wildly incorrect noise floor — producing SNR readings ~15 dB below the true
+    value in roughly one in four trials (D-003).  Wideband noise presents a flat
+    spectrum that the estimator handles correctly, yielding zero outliers and
+    excellent GR&R repeatability (σ² ≈ 0.15, ndc = 11 in the 4b3a4ca baseline).
+
+    The noise cutoff (``_NOISE_CUTOFF_HZ``) is preserved for multi-signal scenarios
+    (S4, S7, S8) where perceptual realism matters and the shared-floor mixer is
+    used; it is not applied here.
     """
     from synth import channel, encoder
 
@@ -177,18 +186,16 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
     dt_s = part.get("dt_s", fixed.get("dt_s", 0.0))
     snr_db = part.get("snr_db", fixed.get("snr_db", 0.0))
 
-    # Encode clean, then add bandlimited noise — decoupled so noise_cutoff_hz can
-    # be passed to channel.add_noise without threading it through the encoder API.
     clean = encoder.encode_message(
         text,
         base_freq_hz=float(base_freq_hz),
         dt_s=float(dt_s),
-        snr_db=None,          # clean render; noise added below with cutoff
+        snr_db=None,
         sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
     )
+    # Wideband noise — no noise_cutoff_hz.  See docstring.
     return channel.add_noise(clean, float(snr_db), seed,
-                             sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
-                             noise_cutoff_hz=_NOISE_CUTOFF_HZ)
+                             sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ)
 
 
 # ---------------------------------------------------------------------------

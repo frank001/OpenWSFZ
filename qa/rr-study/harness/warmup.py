@@ -20,12 +20,10 @@ _QA_ROOT = Path(__file__).resolve().parent.parent
 if str(_QA_ROOT) not in sys.path:
     sys.path.insert(0, str(_QA_ROOT))
 
-# Import audio parameters from run_scenario so the warm-up cycle is
-# acoustically identical to study audio.  The coupling is deliberate:
-# a warm-up decoded successfully gives confidence that study audio will
-# also route and decode correctly.
+# Import shared utilities from run_scenario.  Peak level is imported so the
+# warm-up normalisation matches the study exactly.  No noise cutoff is imported:
+# the warm-up (like S1) uses wideband noise — see _render_warmup_cycle docstring.
 from harness.run_scenario import (       # noqa: E402 (sys.path edit above)
-    _NOISE_CUTOFF_HZ   as _WARMUP_NOISE_CUTOFF_HZ,
     _PLAYBACK_PEAK_LEVEL as _WARMUP_PEAK_LEVEL,
     _select_device,
     _next_cycle_boundary,
@@ -51,7 +49,12 @@ _MAX_RETRIES: int = 5             # abort if operator cannot confirm after this 
 
 
 def _render_warmup_cycle() -> "numpy.ndarray":
-    """Render one warm-up FT8 slot: clean encode → bandlimited AWGN → normalise."""
+    """Render one warm-up FT8 slot: clean encode → wideband AWGN → normalise.
+
+    Uses wideband noise (no cutoff) to match the S1 single-signal noise model.
+    Bandlimited noise causes libft8's estimator to fail intermittently (D-003);
+    the warm-up must use the same noise model as the scenario it validates.
+    """
     import numpy as np
     from synth import channel, encoder
 
@@ -62,10 +65,10 @@ def _render_warmup_cycle() -> "numpy.ndarray":
         snr_db=None,
         sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
     )
+    # Wideband noise — no noise_cutoff_hz; matches _render_single in run_scenario.py.
     noisy = channel.add_noise(
         clean, _WARMUP_SNR_DB, _WARMUP_SEED,
         sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
-        noise_cutoff_hz=_WARMUP_NOISE_CUTOFF_HZ,
     )
     samples = noisy.astype("float32")
     peak = float(np.max(np.abs(samples)))
