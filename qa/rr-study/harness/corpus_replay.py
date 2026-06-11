@@ -44,7 +44,7 @@ from harness.run_scenario import (                                        # noqa
 # ── Paths ──────────────────────────────────────────────────────────────────────
 _HERE           = _QA_ROOT
 _RESULTS        = _HERE / "results"
-_DEFAULT_CORPUS = _HERE.parent.parent / "p10-decoder-ground-truth_items"
+_DEFAULT_CORPUS = _HERE.parent.parent / "p10-decoder-ground-truth_items" / "save"
 
 WSJT_ALL_TXT  = Path(r"C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT")
 OWSFZ_ALL_TXT = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
@@ -206,51 +206,77 @@ def _make_corpus_run_dir() -> Path:
 # ── Warmup ────────────────────────────────────────────────────────────────────
 
 def _warmup(device_idx: int) -> None:
-    """Play one silent cycle and ask operator to confirm both apps are decoding."""
-    import numpy as np
-    import sounddevice as sd
+    """Play one FT8 warm-up cycle and confirm both apps decoded the message.
 
-    silence = np.zeros(int(_PLAYBACK_FS * SLOT_SECONDS), dtype=np.float32)
+    Renders CQ Q1ABC FN42 at +6 dB SNR — identical to the harness warmup.py
+    so the operator can confirm audio routing AND active decode mode before
+    any corpus WAV is played.  A silent cycle confirms nothing.
+    """
+    import sounddevice as sd
+    from harness.warmup import _render_warmup_cycle
+
+    _WARMUP_MESSAGE  = "CQ Q1ABC FN42"
+    _SETTLE_S        = 5.0
 
     print()
     print("=" * 70)
     print("S6 CORPUS REPLAY  --  PRE-FLIGHT WARM-UP CHECK")
     print("=" * 70)
-    print("  Playing one silent 15-second cycle.")
-    print("  After it ends, confirm BOTH apps are in active decode mode.")
-    print("  (No decode expected — audio is silence.)")
+    print(f"  Warm-up message : {_WARMUP_MESSAGE!r}  (+6 dB SNR)")
+    print("  Rendering warm-up audio … ", end="", flush=True)
+    samples = _render_warmup_cycle()
+    print("done")
+    print()
+    print("  The harness will play one 15-second FT8 cycle.")
+    print("  After it ends, confirm BOTH apps decoded the message:")
+    print()
+    print(f'    WSJT-X   — Band Activity panel should show: "{_WARMUP_MESSAGE}"')
+    print(f'    OpenWSFZ — Decode log should show:           "{_WARMUP_MESSAGE}"')
     print()
 
-    boundary_ts = _next_cycle_boundary()
-    cycle_utc   = _wait_for_cycle(boundary_ts)
-    print(f"  Playing silent cycle at {cycle_utc.strftime('%H:%M:%S')} UTC … ",
-          end="", flush=True)
-    sd.play(silence, samplerate=_PLAYBACK_FS, device=device_idx, blocking=False)
-    sd.wait()
-    print("done")
+    attempt = 0
+    while attempt < 5:
+        attempt += 1
+        boundary_ts = _next_cycle_boundary()
+        cycle_utc   = _wait_for_cycle(boundary_ts)
+        print(
+            f"  [Attempt {attempt}/5] Playing at {cycle_utc.strftime('%H:%M:%S')} UTC … ",
+            end="", flush=True,
+        )
+        sd.play(samples, samplerate=_PLAYBACK_FS, device=device_idx, blocking=False)
+        sd.wait()
+        print("done")
+        print(f"  Waiting {_SETTLE_S:.0f} s for decoders … ", end="", flush=True)
+        time.sleep(_SETTLE_S)
+        print("ready")
+        print()
 
-    time.sleep(3.0)  # brief settle
+        while True:
+            try:
+                ans = input(
+                    "  Both apps decoded?  "
+                    "[y = yes, proceed / r = replay cycle / n = abort]: "
+                ).strip().lower()
+            except EOFError:
+                ans = "n"
 
-    while True:
-        try:
-            ans = input(
-                "  Both apps in decode/monitor mode? "
-                "[y = yes, proceed / n = abort]: "
-            ).strip().lower()
-        except EOFError:
-            ans = "n"
+            if ans in ("y", "yes"):
+                print()
+                print("  Warm-up confirmed. Starting corpus replay ...")
+                print("=" * 70)
+                print()
+                return
+            elif ans in ("r", "replay"):
+                print()
+                break
+            elif ans in ("n", "no"):
+                print("\n  Warm-up check FAILED. Study aborted.")
+                sys.exit(1)
+            else:
+                print("  Please enter y, r, or n.")
 
-        if ans in ("y", "yes"):
-            print()
-            print("  Warm-up confirmed. Starting corpus replay ...")
-            print("=" * 70)
-            print()
-            return
-        elif ans in ("n", "no"):
-            print("\n  Warm-up check FAILED. Study aborted.")
-            sys.exit(1)
-        else:
-            print("  Please enter y or n.")
+    print("\nERROR: warm-up not confirmed after 5 attempts. Study aborted.")
+    sys.exit(1)
 
 
 # ── Main replay loop ───────────────────────────────────────────────────────────
