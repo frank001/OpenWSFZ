@@ -545,40 +545,55 @@ def _write_report(
 
     lines: list[str] = []
 
-    # ── Header & study context ─────────────────────────────────────────────────
+    # ── §1 Study hypothesis (NFR-023 §1) ──────────────────────────────────────
     lines += [
         "# S6 Corpus Replay — Analysis Report\n\n",
-        "## Study Context\n\n",
-        "**Purpose:** S6 is an attribute and SNR measurement study conducted on a real "
-        "off-air corpus rather than synthetic signals. It has two objectives:\n\n",
-        "1. **Attribute agreement** — do OpenWSFZ and WSJT-X agree on which signals are "
-        "present? (Cohen's κ)\n",
-        "2. **SNR accuracy field validation** — does the D-002 bias correction (shim "
-        "constant −26.5 dB, FT8_SHIM_VERSION 20260006) hold under real-world multi-signal "
-        "conditions?\n\n",
-        "**Corpus:** 42 off-air WAVs (~35 minutes of live 20 m FT8 activity recorded "
-        "2026-05-28/29). Each WAV is one 15-second FT8 slot. The corpus is git-ignored "
-        "per NFR-021; only the analysis artefacts are committed.\n\n",
-        "**Acceptance thresholds:**\n\n",
+        "## 1. Study Hypothesis\n\n",
+        "**What this study tests:** S6 validates two hypotheses using a real off-air corpus "
+        "rather than synthesised signals:\n\n",
+        "- **H1 (attribute agreement):** OpenWSFZ and WSJT-X agree on which FT8 signals are "
+        "present in a representative live band scene at a level of substantial agreement "
+        "(Cohen's κ ≥ 0.70). The null hypothesis is that agreement is no better than chance.\n",
+        "- **H2 (SNR field validity):** The D-002 SNR bias correction (shim constant −26.5 dB, "
+        "FT8_SHIM_VERSION 20260006) that passed the synthetic S1 bench test also holds under "
+        "real-world multi-signal conditions — i.e. mean SNR delta (OpenWSFZ − WSJT-X) remains "
+        f"within ±{SNR_BIAS_THRESHOLD:.1f} dB with spread σ ≤ {SNR_SIGMA_THRESHOLD:.1f} dB.\n\n",
+        "**Conditions:** 42 off-air 20 m FT8 WAV recordings (~35 minutes of live band activity, "
+        "2026-05-28/29), each replayed K=3 times in independently randomised order through a "
+        "shared virtual audio device. Both appraisers captured simultaneously (crossed design). "
+        "No synthetic signals; no injected noise. The corpus is git-ignored per NFR-021.\n\n",
+        "**Defects under validation:** D-002 (SNR bias — shim constant fix). "
+        "D-001 (decode gap) is monitored informally; no acceptance threshold is set pending a fix.\n",
+    ]
+
+    # ── §2 Data summary (NFR-023 §2) ──────────────────────────────────────────
+    lines += [
+        "\n## 2. Data Summary\n\n",
+        "| Field | Value |\n|---|---|\n",
+        f"| Run date | {run_date} |\n",
+        f"| OpenWSFZ SHA | `{sha_short}` |\n",
+        f"| WSJT-X version | WSJT-X 2.7.0 |\n",
+        f"| Corpus | 42 off-air 15-second WAV files (20 m FT8, 2026-05-28/29) |\n",
+        f"| Runs (K) | {n_runs} (independently randomised presentation order per run) |\n",
+        f"| Signal universe | Union of all signals decoded by either appraiser in any run |\n",
+        f"| Total (WAV, signal, run) observations | {kappa.get('n', '?')} |\n",
+        f"| Variables measured | Decode decision (binary); SNR (dB, matched pairs only) |\n",
+        "\n**Acceptance thresholds (STUDY-SPEC §10 / NFR-023):**\n\n",
         f"| Metric | Threshold | Source |\n",
         f"|---|---|---|\n",
         f"| Between-appraiser κ | ≥ 0.90 (PASS) / ≥ 0.70 (conditional) | AIAG attribute study |\n",
         f"| Within-appraiser consistency | ≥ {CONSISTENCY_THRESHOLD:.0f}% | AIAG attribute study |\n",
         f"| SNR bias (mean delta) | ±{SNR_BIAS_THRESHOLD:.1f} dB | spec §SNR accuracy / D-002 |\n",
         f"| SNR spread (σ of delta) | ≤ {SNR_SIGMA_THRESHOLD:.1f} dB | D-004 acceptance criterion |\n",
-        "\n",
-        "| Field | Value |\n|---|---|\n",
-        f"| Run date | {run_date} |\n",
-        f"| OpenWSFZ SHA | `{sha_short}` |\n",
-        f"| WSJT-X version | WSJT-X 2.7.0 |\n",
-        f"| WAV files | {n_wavs} |\n",
-        f"| Runs (K) | {n_runs} |\n",
-        f"| Total observations | {kappa.get('n', '?')} |\n",
+        f"| OpenWSFZ decode rate vs WSJT-X | — | Informational (D-001 pending fix) |\n",
     ]
 
-    # ── 1. Within-appraiser consistency ───────────────────────────────────────
+    # ── §3 Results (NFR-023 §3) ───────────────────────────────────────────────
+    lines += ["\n## 3. Results\n\n"]
+
+    # ── §3.1 Within-appraiser consistency ─────────────────────────────────────
     lines += [
-        "\n## 1. Within-Appraiser Consistency\n\n",
+        "### 3.1 Within-Appraiser Consistency\n\n",
         "_A (WAV, signal) pair is consistent if the decode decision is identical "
         "across all K runs for that appraiser. Measures measurement system stability, "
         "not agreement between appraisers._\n\n",
@@ -594,9 +609,9 @@ def _write_report(
         )
     lines.append("\n![Within-appraiser consistency](consistency.png)\n")
 
-    # ── 2. Between-appraiser agreement ────────────────────────────────────────
+    # ── §3.2 Between-appraiser agreement ──────────────────────────────────────
     lines += [
-        "\n## 2. Between-Appraiser Agreement (Cohen's κ)\n\n",
+        "\n### 3.2 Between-Appraiser Agreement (Cohen's κ)\n\n",
         "_Measures how much more often the two appraisers agree than would be expected "
         "by chance alone. Landis-Koch (1977) scale: < 0.20 Slight, 0.20–0.40 Fair, "
         "0.40–0.60 Moderate, 0.60–0.80 Substantial, ≥ 0.80 Almost perfect._\n\n",
@@ -612,9 +627,9 @@ def _write_report(
         "\n![Between-appraiser agreement](kappa.png)\n",
     ]
 
-    # ── 3. Decode gap ─────────────────────────────────────────────────────────
+    # ── §3.3 Decode gap ───────────────────────────────────────────────────────
     lines += [
-        "\n## 3. Decode Gap — D-001 Field Evidence\n\n",
+        "\n### 3.3 Decode Gap — D-001 Field Evidence\n\n",
         "_Informational — no pass threshold is set pending a D-001 fix. "
         "Establishes the real-world decode gap baseline._\n\n",
         f"OpenWSFZ decoded **{tp:,}** of the **{total_wsjt:,}** signals found by WSJT-X "
@@ -645,8 +660,8 @@ def _write_report(
             )
     lines.append("\n![Per-WAV decode gap](decode_gap.png)\n")
 
-    # ── 4. SNR reporting accuracy ──────────────────────────────────────────────
-    lines += ["\n## 4. SNR Reporting Accuracy — D-004 Field Validation\n\n"]
+    # ── §3.4 SNR reporting accuracy ───────────────────────────────────────────
+    lines += ["\n### 3.4 SNR Reporting Accuracy — D-004 Field Validation\n\n"]
     if snr["n"] > 0:
         lines += [
             f"Mean SNR delta (OpenWSFZ − WSJT-X) = **{snr['mean']:+.3f} dB** "
@@ -663,8 +678,8 @@ def _write_report(
         lines.append("_No matched decodes found._\n")
     lines.append("\n![SNR scatter — OpenWSFZ vs WSJT-X](snr_delta.png)\n")
 
-    # ── 5. Order-effect test ───────────────────────────────────────────────────
-    lines += ["\n## 5. Order-Effect Test\n\n",
+    # ── §3.5 Order-effect test ────────────────────────────────────────────────
+    lines += ["\n### 3.5 Order-Effect Test\n\n",
               "_Spearman ρ between WAV presentation slot rank and per-WAV decode count. "
               "A significant result (p < 0.05) would indicate session-state carryover "
               "(e.g. decoder warm-up artefacts, ALL.TXT accumulation). "
@@ -685,7 +700,7 @@ def _write_report(
                 f"Spearman ρ = {o['rho']}, p = {o['p_value']}.\n\n"
             )
 
-    # ── Summary verdict ────────────────────────────────────────────────────────
+    # ── §4 Summary verdict (NFR-023 §4) ──────────────────────────────────────
     snr_mean = snr.get("mean")
     snr_std  = snr.get("std")
     overall  = "PASS" if all([
@@ -696,7 +711,7 @@ def _write_report(
     ]) else "FAIL"
 
     lines += [
-        "\n## Summary\n\n",
+        "\n## 4. Summary\n\n",
         "| Metric | Value | Threshold | Verdict |\n",
         "|---|---|---|---|\n",
         f"| Within-appraiser consistency (WSJT-X) | "
@@ -736,6 +751,48 @@ def _write_report(
                 f"- ❌ FAIL — SNR σ = {snr_std:.3f} dB "
                 f"(threshold ≤{SNR_SIGMA_THRESHOLD:.1f} dB). See D-003/D-004.\n"
             )
+
+    # ── §5 Recommendations (NFR-023 §5) ──────────────────────────────────────
+    lines += ["\n## 5. Recommendations\n\n"]
+
+    recs: list[str] = []
+
+    if kappa_val is not None and kappa_val < KAPPA_THRESHOLD_ACCEPT:
+        recs.append(
+            f"- **D-001 (High) — Decode gap:** OpenWSFZ recovered {owsfz_rate:.1f}% of "
+            f"WSJT-X decodes ({fn:,} signals missed). Root cause: single `ft8_decode_all` "
+            "call; WSJT-X is believed to use PCM-domain iterative SIC. "
+            "Recommended next step: implement sub-Hz carrier re-estimation and PCM waveform "
+            "subtraction (p15 second-pass infrastructure is the natural extension point). "
+            "Re-run S6 corpus replay after any fix; target κ ≥ 0.70 and decode rate ≥ 85%.\n"
+        )
+
+    if snr_mean is not None and abs(snr_mean) > SNR_BIAS_THRESHOLD:
+        recs.append(
+            f"- **D-004 (Medium) — SNR field bias:** Mean delta = {snr_mean:+.3f} dB "
+            f"(threshold ±{SNR_BIAS_THRESHOLD:.1f} dB). The shim constant fix (D-002, −26.5 dB) "
+            "passed the synthetic S1 bench but does not generalise to real off-air signals. "
+            "Hypotheses: (a) waterfall congestion inflating `noise_floor_db`; "
+            "(b) D-003 intermittent `signal_db` collapse contaminating the distribution; "
+            "(c) SNR constant mismatch at real-world signal density. "
+            "Recommended next step: log `signal_db` and `noise_floor_db` per decode on a "
+            "live session to distinguish hypotheses (a) and (b). GitHub issue #12.\n"
+        )
+
+    if snr_std is not None and snr_std > SNR_SIGMA_THRESHOLD:
+        recs.append(
+            f"- **D-003 / D-004 (Medium) — SNR spread:** σ = {snr_std:.3f} dB "
+            f"(threshold ≤ {SNR_SIGMA_THRESHOLD:.1f} dB). The wide spread is consistent with "
+            "intermittent D-003 events (`signal_db` collapse ~15 dB) embedded within the "
+            "1,831 matched pairs. Recommended next step: mine the raw run_manifest.json for "
+            "outlier pairs (|delta| > 10 dB) to quantify D-003 event rate in the field corpus. "
+            "GitHub issues #11 (D-003) and #12 (D-004).\n"
+        )
+
+    if not recs:
+        lines.append("No further investigation required — all metrics PASS.\n")
+    else:
+        lines += recs
 
     lines.append(
         "\n---\n\n_Callsigns scrubbed per NFR-021. "

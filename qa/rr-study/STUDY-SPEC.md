@@ -284,6 +284,25 @@ and tolerates the differences between the two writers.
 Implemented in **Python** (pandas; ANOVA-method Gage R&R; matplotlib) so the report regenerates in
 CI and is replayable. Minitab remains available as an optional manual cross-check.
 
+### 9.0 Required report structure (NFR-023)
+
+Every `report.md` — whether produced by the synthetic harness (`harness/analyse.py`) or the
+corpus replay analyser (`harness/analyse_corpus.py`) — SHALL contain the following five sections
+**in this fixed order**. Additional scenario-detail sections may be inserted between §3 and §4.
+
+| # | Section | Required content |
+|---|---|---|
+| 1 | **Study hypothesis** | Plain-language statement of what the study is designed to demonstrate or falsify; the conditions under which it was conducted; and which specific defects or improvement claims it is validating (referenced by defect ID where applicable). |
+| 2 | **Data summary** | OpenWSFZ git SHA; WSJT-X version; corpus type (synthetic or off-air); number of WAVs / parts / trials / total observations; variables measured (SNR, frequency, DT, decode decision — as applicable). |
+| 3 | **Results with graphs** | Per-metric result sections. Every chart produced by the analysis script SHALL be embedded with a Markdown image reference (`![caption](filename.png)`) in the section where its metric is discussed. A chart saved to disk but absent from the report is a QA deliverable defect (NFR-023). |
+| 4 | **Summary verdict table** | Consolidated table: metric name, measured value, acceptance threshold (§10), verdict (PASS / MARGINAL / FAIL). Overall verdict on the final line. |
+| 5 | **Recommendations** | For each FAIL or MARGINAL finding: the further investigations warranted and the defect ID(s) under which they are tracked. If all metrics PASS and no investigation is warranted, state: *"No further investigation required."* |
+
+Absence of any of these five sections in a committed `report.md` is a quality defect in the QA
+deliverable and SHALL be raised as a finding before the run results are considered reviewed.
+
+---
+
 ### 9.1 Continuous Gage R&R (S1–S3)
 - Variance-components table: Repeatability, Reproducibility (+ App×Part interaction), Part-to-Part, Total.
 - `%Contribution`, `%Study Var`, **`%Tolerance`** (§7), and **ndc**.

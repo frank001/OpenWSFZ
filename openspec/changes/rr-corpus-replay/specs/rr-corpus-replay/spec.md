@@ -90,6 +90,52 @@ The analysis script SHALL test whether decode results for a given WAV correlate 
 
 ---
 
+### Requirement: Corpus replay report SHALL follow the NFR-023 five-section structure
+
+The analysis script (`qa/rr-study/harness/analyse_corpus.py`) SHALL produce a `report.md` that
+follows the mandatory five-section structure defined by NFR-023 and STUDY-SPEC §9.0:
+
+1. **Study hypothesis** — stating that the corpus replay validates whether OpenWSFZ and WSJT-X
+   agree on decode decisions across a representative real off-air band scene, and whether the D-002
+   SNR bias correction (or any subsequent calibration) holds under field conditions.
+2. **Data summary** — OpenWSFZ git SHA (stored in `run_manifest.json` as `owsfz_sha`), WSJT-X
+   version, number of WAV files, number of runs (K), total observations, and variables measured
+   (decode decision and SNR delta for matched pairs).
+3. **Results with graphs** — per-metric sections for within-appraiser consistency, between-appraiser
+   κ, decode gap, SNR reporting accuracy, and order-effect test. Every chart produced
+   (`consistency.png`, `kappa.png`, `decode_gap.png`, `snr_delta.png`) SHALL be embedded with a
+   Markdown image reference in the section where its metric is discussed.
+4. **Summary verdict table** — all metrics with measured values, thresholds, and
+   PASS / MARGINAL / FAIL verdicts; overall verdict on the final line.
+5. **Recommendations** — for each FAIL or MARGINAL finding, the further investigations required
+   and the defect ID(s) under which they are tracked.
+
+#### Scenario: All five sections present in committed report
+
+- **WHEN** `analyse_corpus.py` writes `report.md` to the committed results directory
+- **THEN** the file SHALL contain all five sections with the headings "Study hypothesis",
+  "Data summary" (or equivalent), "Results", "Summary", and "Recommendations"
+
+#### Scenario: Every generated chart is embedded in the report
+
+- **WHEN** `analyse_corpus.py` generates `consistency.png`, `kappa.png`, `decode_gap.png`,
+  and `snr_delta.png`
+- **THEN** each of these four filenames SHALL appear as a Markdown image reference
+  (`![...](filename.png)`) in the corresponding results section of `report.md`
+
+#### Scenario: Recommendations section present when findings exist
+
+- **WHEN** any metric in the summary verdict table carries a FAIL or MARGINAL verdict
+- **THEN** the Recommendations section SHALL reference the corresponding defect ID(s) and
+  describe the next diagnostic or remediation step
+
+#### Scenario: Recommendations section acknowledges clean result
+
+- **WHEN** all metrics in the summary verdict table carry a PASS verdict
+- **THEN** the Recommendations section SHALL state "No further investigation required"
+
+---
+
 ### Requirement: Committed report artifacts contain no real callsigns (NFR-021)
 
 Before any analysis artifact is written to the committable results directory, the analysis script SHALL apply a callsign scrub pass that replaces any string matching the ITU callsign pattern (1–2 letter prefix + digits + 1–3 letter suffix) with the placeholder `[CALL]`. If the scrub pass detects a pattern it cannot confidently classify, the commit step SHALL abort and print a warning for manual review. Aggregate statistics (counts, percentages, κ, SNR delta values) SHALL be emitted without modification as they contain no personal data.

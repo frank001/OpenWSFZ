@@ -1,15 +1,30 @@
 # S6 Corpus Replay — Analysis Report
 
-## Study Context
+## 1. Study Hypothesis
 
-**Purpose:** S6 is an attribute and SNR measurement study conducted on a real off-air corpus rather than synthetic signals. It has two objectives:
+**What this study tests:** S6 validates two hypotheses using a real off-air corpus rather than synthesised signals:
 
-1. **Attribute agreement** — do OpenWSFZ and WSJT-X agree on which signals are present? (Cohen's κ)
-2. **SNR accuracy field validation** — does the D-002 bias correction (shim constant −26.5 dB, FT8_SHIM_VERSION 20260006) hold under real-world multi-signal conditions?
+- **H1 (attribute agreement):** OpenWSFZ and WSJT-X agree on which FT8 signals are present in a representative live band scene at a level of substantial agreement (Cohen's κ ≥ 0.70). The null hypothesis is that agreement is no better than chance.
+- **H2 (SNR field validity):** The D-002 SNR bias correction (shim constant −26.5 dB, FT8_SHIM_VERSION 20260006) that passed the synthetic S1 bench test also holds under real-world multi-signal conditions — i.e. mean SNR delta (OpenWSFZ − WSJT-X) remains within ±2.0 dB with spread σ ≤ 4.0 dB.
 
-**Corpus:** 42 off-air WAVs (~35 minutes of live 20 m FT8 activity recorded 2026-05-28/29). Each WAV is one 15-second FT8 slot. The corpus is git-ignored per NFR-021; only the analysis artefacts are committed.
+**Conditions:** 42 off-air 20 m FT8 WAV recordings (~35 minutes of live band activity, 2026-05-28/29), each replayed K=3 times in independently randomised order through a shared virtual audio device. Both appraisers captured simultaneously (crossed design). No synthetic signals; no injected noise. The corpus is git-ignored per NFR-021.
 
-**Acceptance thresholds:**
+**Defects under validation:** D-002 (SNR bias — shim constant fix). D-001 (decode gap) is monitored informally; no acceptance threshold is set pending a fix.
+
+## 2. Data Summary
+
+| Field | Value |
+|---|---|
+| Run date | 2026-06-11 |
+| OpenWSFZ SHA | `unknown` |
+| WSJT-X version | WSJT-X 2.7.0 |
+| Corpus | 42 off-air 15-second WAV files (20 m FT8, 2026-05-28/29) |
+| Runs (K) | 3 (independently randomised presentation order per run) |
+| Signal universe | Union of all signals decoded by either appraiser in any run |
+| Total (WAV, signal, run) observations | 2799 |
+| Variables measured | Decode decision (binary); SNR (dB, matched pairs only) |
+
+**Acceptance thresholds (STUDY-SPEC §10 / NFR-023):**
 
 | Metric | Threshold | Source |
 |---|---|---|
@@ -17,17 +32,11 @@
 | Within-appraiser consistency | ≥ 90% | AIAG attribute study |
 | SNR bias (mean delta) | ±2.0 dB | spec §SNR accuracy / D-002 |
 | SNR spread (σ of delta) | ≤ 4.0 dB | D-004 acceptance criterion |
+| OpenWSFZ decode rate vs WSJT-X | — | Informational (D-001 pending fix) |
 
-| Field | Value |
-|---|---|
-| Run date | 2026-06-11 |
-| OpenWSFZ SHA | `unknown` |
-| WSJT-X version | WSJT-X 2.7.0 |
-| WAV files | 42 |
-| Runs (K) | 3 |
-| Total observations | 2799 |
+## 3. Results
 
-## 1. Within-Appraiser Consistency
+### 3.1 Within-Appraiser Consistency
 
 _A (WAV, signal) pair is consistent if the decode decision is identical across all K runs for that appraiser. Measures measurement system stability, not agreement between appraisers._
 
@@ -38,7 +47,7 @@ _A (WAV, signal) pair is consistent if the decode decision is identical across a
 
 ![Within-appraiser consistency](consistency.png)
 
-## 2. Between-Appraiser Agreement (Cohen's κ)
+### 3.2 Between-Appraiser Agreement (Cohen's κ)
 
 _Measures how much more often the two appraisers agree than would be expected by chance alone. Landis-Koch (1977) scale: < 0.20 Slight, 0.20–0.40 Fair, 0.40–0.60 Moderate, 0.60–0.80 Substantial, ≥ 0.80 Almost perfect._
 
@@ -53,7 +62,7 @@ _AIAG thresholds: κ ≥ 0.90 = acceptable; κ ≥ 0.70 = conditionally acceptab
 
 ![Between-appraiser agreement](kappa.png)
 
-## 3. Decode Gap — D-001 Field Evidence
+### 3.3 Decode Gap — D-001 Field Evidence
 
 _Informational — no pass threshold is set pending a D-001 fix. Establishes the real-world decode gap baseline._
 
@@ -76,7 +85,7 @@ OpenWSFZ decoded **1,831** of the **2,626** signals found by WSJT-X (**69.7%**).
 
 ![Per-WAV decode gap](decode_gap.png)
 
-## 4. SNR Reporting Accuracy — D-004 Field Validation
+### 3.4 SNR Reporting Accuracy — D-004 Field Validation
 
 Mean SNR delta (OpenWSFZ − WSJT-X) = **-3.091 dB** (threshold ±2.0 dB)  **[FAIL]**
 
@@ -88,7 +97,7 @@ _Positive delta = OpenWSFZ reports higher SNR than WSJT-X. The synthetic S1 base
 
 ![SNR scatter — OpenWSFZ vs WSJT-X](snr_delta.png)
 
-## 5. Order-Effect Test
+### 3.5 Order-Effect Test
 
 _Spearman ρ between WAV presentation slot rank and per-WAV decode count. A significant result (p < 0.05) would indicate session-state carryover (e.g. decoder warm-up artefacts, ALL.TXT accumulation). No effect expected in a correctly executed corpus replay._
 
@@ -97,7 +106,7 @@ _Spearman ρ between WAV presentation slot rank and per-WAV decode count. A sign
 **OpenWSFZ:** No order effect detected — Spearman ρ = 0.033, p = 0.7136.
 
 
-## Summary
+## 4. Summary
 
 | Metric | Value | Threshold | Verdict |
 |---|---|---|---|
@@ -115,6 +124,12 @@ _Spearman ρ between WAV presentation slot rank and per-WAV decode count. A sign
 - ❌ FAIL — Between-appraiser κ = 0.0839 (threshold ≥ 0.70). Root cause: D-001 decode gap (795 missed decodes, 30.3% miss rate).
 - ❌ FAIL — SNR bias = -3.091 dB (threshold ±2.0 dB). See D-004.
 - ❌ FAIL — SNR σ = 7.970 dB (threshold ≤4.0 dB). See D-003/D-004.
+
+## 5. Recommendations
+
+- **D-001 (High) — Decode gap:** OpenWSFZ recovered 69.7% of WSJT-X decodes (795 signals missed). Root cause: single `ft8_decode_all` call; WSJT-X is believed to use PCM-domain iterative SIC. Recommended next step: implement sub-Hz carrier re-estimation and PCM waveform subtraction (p15 second-pass infrastructure is the natural extension point). Re-run S6 corpus replay after any fix; target κ ≥ 0.70 and decode rate ≥ 85%.
+- **D-004 (Medium) — SNR field bias:** Mean delta = -3.091 dB (threshold ±2.0 dB). The shim constant fix (D-002, −26.5 dB) passed the synthetic S1 bench but does not generalise to real off-air signals. Hypotheses: (a) waterfall congestion inflating `noise_floor_db`; (b) D-003 intermittent `signal_db` collapse contaminating the distribution; (c) SNR constant mismatch at real-world signal density. Recommended next step: log `signal_db` and `noise_floor_db` per decode on a live session to distinguish hypotheses (a) and (b). GitHub issue #12.
+- **D-003 / D-004 (Medium) — SNR spread:** σ = 7.970 dB (threshold ≤ 4.0 dB). The wide spread is consistent with intermittent D-003 events (`signal_db` collapse ~15 dB) embedded within the 1,831 matched pairs. Recommended next step: mine the raw run_manifest.json for outlier pairs (|delta| > 10 dB) to quantify D-003 event rate in the field corpus. GitHub issues #11 (D-003) and #12 (D-004).
 
 ---
 
