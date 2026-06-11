@@ -106,10 +106,13 @@ public sealed class Ft8Decoder : IModeDecoder
 
         // ── D-002 PCM normalisation ──────────────────────────────────────────
         // Normalise a copy of the PCM buffer to a fixed target RMS before passing
-        // to the native decoder.  When PCM amplitude is low, waterfall bins quantise
-        // toward 0, biasing the histogram-median noise floor downward and inflating
-        // reported SNR.  Bringing all buffers to a known RMS level keeps the
-        // histogram in a well-calibrated range regardless of the source audio level.
+        // to the native decoder.  This is a defensive pre-conditioning step for
+        // pathologically low-amplitude inputs; it does not affect SNR accuracy on
+        // typical captures.  Investigation (R&R runs 6ce38a3 and 4ab061a) confirmed
+        // that the normalisation is invariant to the libft8 SNR formula: both
+        // signal_db and noise_floor_db are waterfall-derived, so uniform amplitude
+        // scaling cancels identically in both terms.  The D-002 bias fix was the
+        // shim bandwidth constant (−26.0 → −26.5 dB, commit 3771986).
         // Operates on a copy — the caller's buffer is never mutated.
         float[] normalisedPcm = NormalisePcm(pcm, PcmNormalisationTargetRms);
 
