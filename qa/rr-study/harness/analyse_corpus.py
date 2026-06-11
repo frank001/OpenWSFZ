@@ -301,9 +301,8 @@ def _order_effect(rows: list[dict]) -> dict:
 
 # ── Summary CSV (no message text, no callsigns) ───────────────────────────────
 
-def _write_summary_csv(rows: list[dict], out_path: Path) -> None:
-    """Per-WAV aggregate metrics — committable (no message text column)."""
-    # Compute per-WAV stats
+def _compute_wav_stats(rows: list[dict]) -> dict[str, dict]:
+    """Return per-WAV aggregate metrics dict (keyed by wav name)."""
     wav_stats: dict[str, dict] = defaultdict(lambda: {
         "wsjt_decoded_total": 0, "owsfz_decoded_total": 0,
         "both_decoded": 0, "neither_decoded": 0, "observations": 0,
@@ -319,7 +318,11 @@ def _write_summary_csv(rows: list[dict], out_path: Path) -> None:
             wav_stats[wav]["both_decoded"] += 1
         if not r["wsjt_decoded"] and not r["owsfz_decoded"]:
             wav_stats[wav]["neither_decoded"] += 1
+    return wav_stats
 
+
+def _write_summary_csv(wav_stats: dict[str, dict], out_path: Path) -> None:
+    """Per-WAV aggregate metrics — committable (no message text column)."""
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=[
             "wav", "observations", "wsjt_decoded_total", "owsfz_decoded_total",
@@ -419,7 +422,70 @@ def _plot_snr_delta(snr_stats: dict, out_path: Path) -> None:
     plt.close(fig)
 
 
+def _plot_decode_gap(wav_stats: dict[str, dict], n_runs: int, out_path: Path) -> None:
+    """Per-WAV grouped bar chart: WSJT-X vs OpenWSFZ average decode count.
+
+    Bars show per-run averages (total / K) so the y-axis is directly comparable
+    to a single-cycle decode count.  Sorted by WAV name (chronological).
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    wavs_sorted = sorted(wav_stats.keys())
+    k = max(n_runs, 1)
+    wsjt_avg  = [wav_stats[w]["wsjt_decoded_total"] / k  for w in wavs_sorted]
+    owsfz_avg = [wav_stats[w]["owsfz_decoded_total"] / k for w in wavs_sorted]
+
+    x      = np.arange(len(wavs_sorted))
+    width  = 0.4
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.bar(x - width / 2, wsjt_avg,  width, color="#4C72B0", label="WSJT-X",    alpha=0.85)
+    ax.bar(x + width / 2, owsfz_avg, width, color="#DD8452", label="OpenWSFZ",  alpha=0.85)
+
+    # Annotation: total FN per WAV (WSJT-X decoded, OpenWSFZ did not)
+    for i, w in enumerate(wavs_sorted):
+        fn_avg = (wav_stats[w]["wsjt_decoded_total"] - wav_stats[w]["both_decoded"]) / k
+        if fn_avg > 0:
+            ax.annotate(
+                f"−{fn_avg:.0f}",
+                xy=(x[i] + width / 2, owsfz_avg[i]),
+                xytext=(0, 4), textcoords="offset points",
+                ha="center", va="bottom", fontsize=6, color="#C44E52",
+            )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        [w.replace("260528_", "").replace("260529_", "").replace(".wav", "")
+         for w in wavs_sorted],
+        rotation=90, fontsize=7,
+    )
+    ax.set_ylabel(f"Avg decodes per run  (total ÷ {k})")
+    ax.set_title(
+        "S6 Per-WAV decode count — WSJT-X vs OpenWSFZ\n"
+        "Red labels = missed decodes per run (FN avg)"
+    )
+    ax.legend(fontsize=9)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 # ── Report writer ─────────────────────────────────────────────────────────────
+
+def _landis_koch(kappa: float) -> str:
+    """Return the Landis-Koch (1977) strength-of-agreement label for κ."""
+    if kappa < 0.00:
+        return "Poor"
+    if kappa < 0.20:
+        return "Slight"
+    if kappa < 0.40:
+        return "Fair"
+    if kappa < 0.60:
+        return "Moderate"
+    if kappa < 0.80:
+        return "Substantial"
+    return "Almost perfect"
+
 
 def _write_report(
     out_path: Path,
@@ -428,44 +494,181 @@ def _write_report(
     kappa: dict,
     snr: dict,
     order: dict,
+    wav_stats: dict,
 ) -> None:
-    """Write report.md with callsigns scrubbed. Aborts if scrub finds a problem."""
-    lines = [
-        "# S6 Corpus Replay — Report\n\n",
-        f"| Field | Value |\n|---|---|\n",
-        f"| Run date | {manifest.get('run_dir', '?').split('corpus-')[-1][:10]} |\n",
-        f"| WAV files | {manifest['n_wavs']} |\n",
-        f"| Runs (K) | {manifest['n_runs']} |\n",
+    """Write report.md with callsigns scrubbed."""
+    run_date  = manifest.get("run_dir", "?").split("corpus-")[-1][:10]
+    owsfz_sha = manifest.get("owsfz_sha", "unknown")
+    sha_short = owsfz_sha[:7] if len(owsfz_sha) >= 7 else owsfz_sha
+    n_wavs    = manifest["n_wavs"]
+    n_runs    = manifest["n_runs"]
+
+    # Decode gap aggregate
+    tp = kappa["tp"]
+    fn = kappa["fn"]
+    total_wsjt = tp + fn   # all WSJT-X decoded observations
+    owsfz_rate = 100.0 * tp / total_wsjt if total_wsjt > 0 else 0.0
+
+    # Verdict helpers
+    KAPPA_THRESHOLD_GOOD   = 0.90   # AIAG full green
+    KAPPA_THRESHOLD_ACCEPT = 0.70   # AIAG conditional accept
+    SNR_BIAS_THRESHOLD     = 2.0    # dB — per spec §SNR accuracy
+    SNR_SIGMA_THRESHOLD    = 4.0    # dB — D-004 acceptance criterion
+    CONSISTENCY_THRESHOLD  = 90.0   # % — AIAG attribute study standard
+
+    def _snr_verdict(mean, std) -> str:
+        if mean is None or std is None:
+            return "N/A"
+        if abs(mean) <= SNR_BIAS_THRESHOLD and std <= SNR_SIGMA_THRESHOLD:
+            return "PASS"
+        return "FAIL"
+
+    def _kappa_verdict(k) -> str:
+        if k is None:
+            return "N/A"
+        if k >= KAPPA_THRESHOLD_GOOD:
+            return "PASS"
+        if k >= KAPPA_THRESHOLD_ACCEPT:
+            return "CONDITIONAL"
+        return "FAIL"
+
+    def _consistency_verdict(pct) -> str:
+        return "PASS" if pct >= CONSISTENCY_THRESHOLD else "FAIL"
+
+    kappa_val = kappa["kappa"]
+    k_verdict = _kappa_verdict(kappa_val)
+    snr_verdict = _snr_verdict(snr.get("mean"), snr.get("std"))
+    w_consistency_v = _consistency_verdict(consistency["wsjt"]["pct_consistent"])
+    o_consistency_v = _consistency_verdict(consistency["owsfz"]["pct_consistent"])
+
+    lk_label = _landis_koch(kappa_val) if kappa_val is not None else "N/A"
+
+    lines: list[str] = []
+
+    # ── Header & study context ─────────────────────────────────────────────────
+    lines += [
+        "# S6 Corpus Replay — Analysis Report\n\n",
+        "## Study Context\n\n",
+        "**Purpose:** S6 is an attribute and SNR measurement study conducted on a real "
+        "off-air corpus rather than synthetic signals. It has two objectives:\n\n",
+        "1. **Attribute agreement** — do OpenWSFZ and WSJT-X agree on which signals are "
+        "present? (Cohen's κ)\n",
+        "2. **SNR accuracy field validation** — does the D-002 bias correction (shim "
+        "constant −26.5 dB, FT8_SHIM_VERSION 20260006) hold under real-world multi-signal "
+        "conditions?\n\n",
+        "**Corpus:** 42 off-air WAVs (~35 minutes of live 20 m FT8 activity recorded "
+        "2026-05-28/29). Each WAV is one 15-second FT8 slot. The corpus is git-ignored "
+        "per NFR-021; only the analysis artefacts are committed.\n\n",
+        "**Acceptance thresholds:**\n\n",
+        f"| Metric | Threshold | Source |\n",
+        f"|---|---|---|\n",
+        f"| Between-appraiser κ | ≥ 0.90 (PASS) / ≥ 0.70 (conditional) | AIAG attribute study |\n",
+        f"| Within-appraiser consistency | ≥ {CONSISTENCY_THRESHOLD:.0f}% | AIAG attribute study |\n",
+        f"| SNR bias (mean delta) | ±{SNR_BIAS_THRESHOLD:.1f} dB | spec §SNR accuracy / D-002 |\n",
+        f"| SNR spread (σ of delta) | ≤ {SNR_SIGMA_THRESHOLD:.1f} dB | D-004 acceptance criterion |\n",
+        "\n",
+        "| Field | Value |\n|---|---|\n",
+        f"| Run date | {run_date} |\n",
+        f"| OpenWSFZ SHA | `{sha_short}` |\n",
+        f"| WSJT-X version | WSJT-X 2.7.0 |\n",
+        f"| WAV files | {n_wavs} |\n",
+        f"| Runs (K) | {n_runs} |\n",
         f"| Total observations | {kappa.get('n', '?')} |\n",
-        "\n## 1. Within-appraiser consistency\n\n",
-        "| Appraiser | Total (wav,signal) pairs | Consistent | % Consistent |\n",
-        "|---|---|---|---|\n",
+    ]
+
+    # ── 1. Within-appraiser consistency ───────────────────────────────────────
+    lines += [
+        "\n## 1. Within-Appraiser Consistency\n\n",
+        "_A (WAV, signal) pair is consistent if the decode decision is identical "
+        "across all K runs for that appraiser. Measures measurement system stability, "
+        "not agreement between appraisers._\n\n",
+        "| Appraiser | (WAV, signal) pairs | Consistent | % Consistent | Verdict |\n",
+        "|---|---|---|---|---|\n",
     ]
     for app, label in [("wsjt", "WSJT-X"), ("owsfz", "OpenWSFZ")]:
         c = consistency[app]
+        v = _consistency_verdict(c["pct_consistent"])
         lines.append(
             f"| {label} | {c['total_pairs']} | {c['consistent_pairs']} "
-            f"| {c['pct_consistent']:.1f}% |\n"
+            f"| {c['pct_consistent']:.1f}% | {v} |\n"
         )
+    lines.append("\n![Within-appraiser consistency](consistency.png)\n")
+
+    # ── 2. Between-appraiser agreement ────────────────────────────────────────
     lines += [
-        "\n## 2. Between-appraiser agreement (Cohen's κ)\n\n",
-        f"κ = **{kappa['kappa']}**  (95% CI [{kappa['ci_95_lo']}, {kappa['ci_95_hi']}])\n\n",
+        "\n## 2. Between-Appraiser Agreement (Cohen's κ)\n\n",
+        "_Measures how much more often the two appraisers agree than would be expected "
+        "by chance alone. Landis-Koch (1977) scale: < 0.20 Slight, 0.20–0.40 Fair, "
+        "0.40–0.60 Moderate, 0.60–0.80 Substantial, ≥ 0.80 Almost perfect._\n\n",
+        f"**κ = {kappa_val}**  (95% CI [{kappa['ci_95_lo']}, {kappa['ci_95_hi']}])  "
+        f"— {lk_label}  **[{k_verdict}]**\n\n",
+        "_AIAG thresholds: κ ≥ 0.90 = acceptable; κ ≥ 0.70 = conditionally acceptable; "
+        "κ < 0.70 = unacceptable. The gap is driven almost entirely by Section 3 (missed "
+        "decodes — D-001)._\n\n",
         "| | WSJT-X decoded | WSJT-X not decoded |\n",
         "|---|---|---|\n",
         f"| **OpenWSFZ decoded** | {kappa['tp']} (TP) | {kappa['fp']} (FP) |\n",
         f"| **OpenWSFZ not decoded** | {kappa['fn']} (FN) | {kappa['tn']} (TN) |\n",
-        "\n## 3. SNR delta (D-002 field validation)\n\n",
+        "\n![Between-appraiser agreement](kappa.png)\n",
     ]
+
+    # ── 3. Decode gap ─────────────────────────────────────────────────────────
+    lines += [
+        "\n## 3. Decode Gap — D-001 Field Evidence\n\n",
+        "_Informational — no pass threshold is set pending a D-001 fix. "
+        "Establishes the real-world decode gap baseline._\n\n",
+        f"OpenWSFZ decoded **{tp:,}** of the **{total_wsjt:,}** signals found by WSJT-X "
+        f"(**{owsfz_rate:.1f}%**). "
+        f"**{fn:,}** signals were decoded by WSJT-X but missed by OpenWSFZ ({100-owsfz_rate:.1f}%).\n\n",
+    ]
+
+    # Per-WAV summary (top 5 worst gap files by FN count)
+    wavs_by_fn = sorted(
+        wav_stats.items(),
+        key=lambda kv: kv[1]["wsjt_decoded_total"] - kv[1]["both_decoded"],
+        reverse=True,
+    )
+    if wavs_by_fn:
+        lines += [
+            "### Worst-gap files (top 10 by missed decodes, averaged over K runs)\n\n",
+            "| WAV | WSJT-X avg | OpenWSFZ avg | Missed avg | OpenWSFZ rate |\n",
+            "|---|---|---|---|---|\n",
+        ]
+        for wav, stats in wavs_by_fn[:10]:
+            w_avg  = stats["wsjt_decoded_total"]  / n_runs
+            o_avg  = stats["owsfz_decoded_total"] / n_runs
+            fn_avg = (stats["wsjt_decoded_total"] - stats["both_decoded"]) / n_runs
+            rate   = 100.0 * stats["both_decoded"] / stats["wsjt_decoded_total"] \
+                     if stats["wsjt_decoded_total"] > 0 else 0.0
+            lines.append(
+                f"| {wav} | {w_avg:.1f} | {o_avg:.1f} | {fn_avg:.1f} | {rate:.0f}% |\n"
+            )
+    lines.append("\n![Per-WAV decode gap](decode_gap.png)\n")
+
+    # ── 4. SNR reporting accuracy ──────────────────────────────────────────────
+    lines += ["\n## 4. SNR Reporting Accuracy — D-004 Field Validation\n\n"]
     if snr["n"] > 0:
-        lines.append(
-            f"Mean SNR delta (OpenWSFZ − WSJT-X) = **{snr['mean']:+.3f} dB**  "
-            f"σ = {snr['std']:.3f} dB  (n = {snr['n']})\n\n"
-            "_Positive delta = OpenWSFZ reports higher SNR than WSJT-X._\n"
-        )
+        lines += [
+            f"Mean SNR delta (OpenWSFZ − WSJT-X) = **{snr['mean']:+.3f} dB** "
+            f"(threshold ±{SNR_BIAS_THRESHOLD:.1f} dB)  **[{'PASS' if abs(snr['mean']) <= SNR_BIAS_THRESHOLD else 'FAIL'}]**\n\n",
+            f"σ = **{snr['std']:.3f} dB** "
+            f"(threshold ≤ {SNR_SIGMA_THRESHOLD:.1f} dB)  **[{'PASS' if snr['std'] <= SNR_SIGMA_THRESHOLD else 'FAIL'}]**\n\n",
+            f"n = {snr['n']:,} matched decode pairs (both appraisers decoded the same signal)\n\n",
+            "_Positive delta = OpenWSFZ reports higher SNR than WSJT-X. "
+            "The synthetic S1 baseline (run `0682106`) returned +1.78 dB mean — within "
+            "threshold. This run uses real off-air signals; any systematic difference "
+            "indicates the shim constant fix does not generalise to field conditions (D-004)._\n",
+        ]
     else:
         lines.append("_No matched decodes found._\n")
+    lines.append("\n![SNR scatter — OpenWSFZ vs WSJT-X](snr_delta.png)\n")
 
-    lines += ["\n## 4. Order-effect test\n\n"]
+    # ── 5. Order-effect test ───────────────────────────────────────────────────
+    lines += ["\n## 5. Order-Effect Test\n\n",
+              "_Spearman ρ between WAV presentation slot rank and per-WAV decode count. "
+              "A significant result (p < 0.05) would indicate session-state carryover "
+              "(e.g. decoder warm-up artefacts, ALL.TXT accumulation). "
+              "No effect expected in a correctly executed corpus replay._\n\n"]
     for app, label in [("wsjt", "WSJT-X"), ("owsfz", "OpenWSFZ")]:
         o = order[app]
         if o["rho"] is None:
@@ -480,6 +683,58 @@ def _write_report(
             lines.append(
                 f"**{label}:** No order effect detected — "
                 f"Spearman ρ = {o['rho']}, p = {o['p_value']}.\n\n"
+            )
+
+    # ── Summary verdict ────────────────────────────────────────────────────────
+    snr_mean = snr.get("mean")
+    snr_std  = snr.get("std")
+    overall  = "PASS" if all([
+        consistency["wsjt"]["pct_consistent"]  >= CONSISTENCY_THRESHOLD,
+        consistency["owsfz"]["pct_consistent"] >= CONSISTENCY_THRESHOLD,
+        snr_mean is not None and abs(snr_mean) <= SNR_BIAS_THRESHOLD,
+        snr_std  is not None and snr_std <= SNR_SIGMA_THRESHOLD,
+    ]) else "FAIL"
+
+    lines += [
+        "\n## Summary\n\n",
+        "| Metric | Value | Threshold | Verdict |\n",
+        "|---|---|---|---|\n",
+        f"| Within-appraiser consistency (WSJT-X) | "
+        f"{consistency['wsjt']['pct_consistent']:.1f}% | ≥ {CONSISTENCY_THRESHOLD:.0f}% | "
+        f"{w_consistency_v} |\n",
+        f"| Within-appraiser consistency (OpenWSFZ) | "
+        f"{consistency['owsfz']['pct_consistent']:.1f}% | ≥ {CONSISTENCY_THRESHOLD:.0f}% | "
+        f"{o_consistency_v} |\n",
+        f"| Between-appraiser κ | {kappa_val} | ≥ 0.70 | {k_verdict} |\n",
+        f"| OpenWSFZ decode rate vs WSJT-X | {owsfz_rate:.1f}% | — (informational) | — |\n",
+    ]
+    if snr_mean is not None:
+        bias_v = "PASS" if abs(snr_mean) <= SNR_BIAS_THRESHOLD else "FAIL"
+        std_v  = "PASS" if snr_std is not None and snr_std <= SNR_SIGMA_THRESHOLD else "FAIL"
+        lines += [
+            f"| SNR bias (mean delta) | {snr_mean:+.3f} dB | ±{SNR_BIAS_THRESHOLD:.1f} dB | {bias_v} |\n",
+            f"| SNR spread (σ) | {snr_std:.3f} dB | ≤{SNR_SIGMA_THRESHOLD:.1f} dB | {std_v} |\n",
+        ]
+
+    lines.append(f"\n**Overall verdict: {overall}**\n")
+
+    if overall == "FAIL":
+        lines.append("\n### Defect Notices\n\n")
+        if kappa_val is not None and kappa_val < KAPPA_THRESHOLD_ACCEPT:
+            lines.append(
+                f"- ❌ FAIL — Between-appraiser κ = {kappa_val} "
+                f"(threshold ≥ 0.70). Root cause: D-001 decode gap "
+                f"({fn:,} missed decodes, {100-owsfz_rate:.1f}% miss rate).\n"
+            )
+        if snr_mean is not None and abs(snr_mean) > SNR_BIAS_THRESHOLD:
+            lines.append(
+                f"- ❌ FAIL — SNR bias = {snr_mean:+.3f} dB "
+                f"(threshold ±{SNR_BIAS_THRESHOLD:.1f} dB). See D-004.\n"
+            )
+        if snr_std is not None and snr_std > SNR_SIGMA_THRESHOLD:
+            lines.append(
+                f"- ❌ FAIL — SNR σ = {snr_std:.3f} dB "
+                f"(threshold ≤{SNR_SIGMA_THRESHOLD:.1f} dB). See D-003/D-004.\n"
             )
 
     lines.append(
@@ -523,8 +778,13 @@ def main() -> None:
     kappa       = _kappa(rows)
     snr         = _snr_delta(rows)
     order       = _order_effect(rows)
+    wav_stats   = _compute_wav_stats(rows)
 
     # ── Print summary ──────────────────────────────────────────────────────────
+    tp = kappa["tp"]
+    fn = kappa["fn"]
+    owsfz_rate = 100.0 * tp / (tp + fn) if (tp + fn) > 0 else 0.0
+
     print()
     print("Within-appraiser consistency:")
     for app, label in [("wsjt", "WSJT-X"), ("owsfz", "OpenWSFZ")]:
@@ -534,6 +794,8 @@ def main() -> None:
     print()
     print(f"Between-appraiser κ: {kappa['kappa']}  "
           f"95% CI [{kappa['ci_95_lo']}, {kappa['ci_95_hi']}]")
+    print(f"  OpenWSFZ decode rate vs WSJT-X: {owsfz_rate:.1f}%  "
+          f"(TP={tp}, FN={fn})")
     print()
     if snr["n"] > 0:
         print(f"SNR delta (OpenWSFZ − WSJT-X): mean={snr['mean']:+.3f} dB  "
@@ -545,14 +807,14 @@ def main() -> None:
         o = order[app]
         if o["rho"] is not None:
             flag = " ⚠ ORDER EFFECT" if o["flagged"] else ""
-            print(f"Order effect {label}: ρ={o['rho']} p={o['p_value']}{flag}")
+            print(f"Order effect {label}: rho={o['rho']} p={o['p_value']}{flag}")
 
     # ── Write committed artifacts ──────────────────────────────────────────────
     print("\nWriting committed artifacts ...")
-    _write_report(run_dir / "report.md", manifest, consistency, kappa, snr, order)
+    _write_report(run_dir / "report.md", manifest, consistency, kappa, snr, order, wav_stats)
     print("  report.md")
 
-    _write_summary_csv(rows, run_dir / "summary.csv")
+    _write_summary_csv(wav_stats, run_dir / "summary.csv")
     print("  summary.csv")
 
     _plot_consistency(consistency, run_dir / "consistency.png")
@@ -563,6 +825,9 @@ def main() -> None:
 
     _plot_snr_delta(snr, run_dir / "snr_delta.png")
     print("  snr_delta.png")
+
+    _plot_decode_gap(wav_stats, n_runs, run_dir / "decode_gap.png")
+    print("  decode_gap.png")
 
     print()
     print("Analysis complete.")

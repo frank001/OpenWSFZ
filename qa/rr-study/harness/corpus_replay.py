@@ -291,11 +291,22 @@ def _replay(
     import random
     import sounddevice as sd
 
+    # Capture OpenWSFZ SHA for report provenance
+    import subprocess
+    try:
+        owsfz_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except Exception:
+        owsfz_sha = "unknown"
+
     manifest: dict = {
         "scenario":   _SCENARIO_ID,
         "run_dir":    str(run_dir),
         "n_runs":     n_runs,
         "n_wavs":     len(wavs),
+        "owsfz_sha":  owsfz_sha,
         "runs":       [],
     }
 
