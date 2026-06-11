@@ -549,8 +549,11 @@ def _write_report(
     lines += [
         "# S6 Corpus Replay — Analysis Report\n\n",
         "## 1. Study Hypothesis\n\n",
-        "**What this study tests:** S6 validates two hypotheses using a real off-air corpus "
-        "rather than synthesised signals:\n\n",
+        "**What this study tests:** S6 validates two hypotheses by replaying a corpus of "
+        "off-air WAV recordings through a shared virtual audio device. Unlike S1–S5 which use "
+        "GFSK-synthesised signals, the corpus source material contains real FT8 traffic captured "
+        "from the 20 m band; the test apparatus is nonetheless synthetic throughout (VB-CABLE "
+        "replay — neither decoder receives live RF during the study).\n\n",
         "- **H1 (attribute agreement):** OpenWSFZ and WSJT-X agree on which FT8 signals are "
         "present in a representative live band scene at a level of substantial agreement "
         "(Cohen's κ ≥ 0.70). The null hypothesis is that agreement is no better than chance.\n",
@@ -558,10 +561,11 @@ def _write_report(
         "FT8_SHIM_VERSION 20260006) that passed the synthetic S1 bench test also holds under "
         "real-world multi-signal conditions — i.e. mean SNR delta (OpenWSFZ − WSJT-X) remains "
         f"within ±{SNR_BIAS_THRESHOLD:.1f} dB with spread σ ≤ {SNR_SIGMA_THRESHOLD:.1f} dB.\n\n",
-        "**Conditions:** 42 off-air 20 m FT8 WAV recordings (~35 minutes of live band activity, "
-        "2026-05-28/29), each replayed K=3 times in independently randomised order through a "
-        "shared virtual audio device. Both appraisers captured simultaneously (crossed design). "
-        "No synthetic signals; no injected noise. The corpus is git-ignored per NFR-021.\n\n",
+        "**Conditions:** 42 off-air 20 m FT8 WAV recordings (~10 minutes of live 20 m activity, "
+        "2026-05-28/29), each replayed K=3 times in independently randomised order through "
+        "VB-CABLE. Both appraisers captured simultaneously (crossed design). No injected noise; "
+        "no GFSK-synthesised signals. Source WAVs contain real callsigns and are git-ignored "
+        "per NFR-021.\n\n",
         "**Defects under validation:** D-002 (SNR bias — shim constant fix). "
         "D-001 (decode gap) is monitored informally; no acceptance threshold is set pending a fix.\n",
     ]
@@ -670,9 +674,11 @@ def _write_report(
             f"(threshold ≤ {SNR_SIGMA_THRESHOLD:.1f} dB)  **[{'PASS' if snr['std'] <= SNR_SIGMA_THRESHOLD else 'FAIL'}]**\n\n",
             f"n = {snr['n']:,} matched decode pairs (both appraisers decoded the same signal)\n\n",
             "_Positive delta = OpenWSFZ reports higher SNR than WSJT-X. "
-            "The synthetic S1 baseline (run `0682106`) returned +1.78 dB mean — within "
-            "threshold. This run uses real off-air signals; any systematic difference "
-            "indicates the shim constant fix does not generalise to field conditions (D-004)._\n",
+            "The synthetic single-signal S1 baseline (run `0682106`) returned +1.78 dB mean — "
+            "within threshold. This corpus replay uses off-air WAV recordings replayed through "
+            "VB-CABLE; the sign reversal and wider spread relative to S1 may reflect "
+            "multi-signal waterfall congestion, D-003 intermittent events, or a density-dependent "
+            "bias in the shim constant (D-004)._\n",
         ]
     else:
         lines.append("_No matched decodes found._\n")
