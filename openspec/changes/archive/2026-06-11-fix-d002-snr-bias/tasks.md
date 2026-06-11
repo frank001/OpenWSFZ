@@ -33,6 +33,6 @@
 
 ## 6. Close-out
 
-- [ ] 6.1 Close GitHub issue #8 (D-002) once R&R run confirms bias ≤ ±2.0 dB
-- [ ] 6.2 Update MEMORY.md: D-002 resolved; R&R overall verdict updated; D-002 removed from open defects table
-- [ ] 6.3 Archive this OpenSpec change (`openspec archive fix-d002-snr-bias`)
+- [x] 6.1 Close GitHub issue #8 (D-002) once R&R run confirms bias ≤ ±2.0 dB
+- [x] 6.2 Update MEMORY.md: D-002 resolved; R&R overall verdict updated; D-002 removed from open defects table
+- [x] 6.3 Archive this OpenSpec change (`openspec archive fix-d002-snr-bias`)
