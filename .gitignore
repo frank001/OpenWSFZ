@@ -101,3 +101,8 @@ logs/
 
 # Claude Code runtime lock file — local only, not source
 .claude/scheduled_tasks.lock
+
+# S6 corpus replay — raw ALL.TXT snapshots contain real third-party callsigns (NFR-021).
+# Committed artifacts (report.md, summary.csv, *.png) are scrubbed by analyse_corpus.py.
+qa/rr-study/results/corpus-*/raw/
+qa/rr-study/results/corpus-*/run_manifest.json

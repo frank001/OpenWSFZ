@@ -152,12 +152,62 @@ Continuous studies use one response variable each (clean separation). All use
 | **S3b Negative-DT boundary** | Decode rate vs DT < 0 | DT ∈ {0.0,−0.3,…,−2.7} s (10 steps, negative sweep); fixed SNR=0 dB (companion to S3; attribute, not GR&R) | 3 | Per-DT decode rate per appraiser; informational |
 | **S4 Density / QRM** | Attribute agreement | cycles with N∈{1,5,10,20,30} simultaneous signals at mixed SNRs; ≥ 50 message instances total | 3 | Recovery Kappa (vs truth & between apps) |
 | **S5 Noise / birdies** | False positives | signal-free cycles: white noise, pink noise, steady carriers/birdies | 3 | False-positive rate & agreement |
-| **S6 Off-air corpus** *(optional, not yet built)* | External validity | replay the committed 40 m fixture recordings through the device | 1 | Cross-check vs live p15 recovery metric |
+| **S6 Off-air corpus** | External validity + appraiser consistency | 42 real off-air WAV files from local p10 corpus; K=3 runs; independently randomised order per run; both appraisers hear each WAV simultaneously | 3 | Within-appraiser consistency; between-appraiser Cohen's κ; SNR delta (D-002 field validation); order-effect test |
 | **S7 Compounding / co-channel** | Per-message recovery under overlap | 4 overlap families × 3 trials: co-channel stacks; near-collision Δf∈{3,6,12,25,50} Hz; time+freq stagger Δt∈{0.5,1.0,2.0} s; capture-ratio pairs | 3 | Per-message recovery, capture split, between-app agreement |
 
 Replays/trials are seeded: `seed = hash(scenario, part_index, trial_index)` → byte-reproducible.
 
-### 6.1 S7 rationale — compounding / co-channel overlap
+### 6.1 S6 rationale — real-world corpus replay
+
+S1–S5, S7, S8 are synthetic: ground truth is injected and known. S6 complements them with
+**external validity**: 42 real off-air 15-second WAV recordings from the local p10 corpus
+(7.074 MHz, 12 kHz mono int16; git-ignored per NFR-021). This corpus was previously used for a
+single-pass recovery-rate check. S6 runs it as a rigorous **attribute agreement study** with no
+ground truth assumption.
+
+**Study type:** Pure agreement and consistency study. There is no injected truth; the measurands
+are repeatability (does the same decoder give the same decode list to the same WAV across runs?)
+and reproducibility (do the two decoders agree on what is in a given WAV?).
+
+**Parts:** Each of the 42 WAV files is one part. The "band scene" it contains is treated as a
+fixed stimulus.
+
+**Runs (trials):** K=3 independent runs. Within each run the 42 WAVs are presented in a
+freshly-seeded random order (`seed = hash("S6", run_index)`). Both appraisers hear each WAV
+simultaneously via VB-CABLE (crossed design). Raw ALL.TXT snapshots are captured locally after
+each WAV cycle.
+
+**Measurements:**
+
+1. **Within-appraiser consistency** — for each (WAV, signal) pair, is the decode decision
+   (decoded / not-decoded) identical across all K runs? Reported as % consistent per appraiser.
+   Expected: ~100% for both (both decoders are deterministic in monitor mode). Any deviation is
+   a finding warranting investigation.
+
+2. **Between-appraiser Cohen's κ** — per-signal decode agreement between WSJT-X and OpenWSFZ
+   across all (WAV × run × signal) instances, where the signal universe per WAV is the union of
+   all signals decoded by either appraiser in any run of that WAV. Reported with 95% CI.
+
+3. **SNR delta (D-002 field validation)** — for every (WAV, run, signal) matched by both
+   appraisers, `SNR_delta = SNR(OpenWSFZ) − SNR(WSJT-X)`. The mean delta across all matched
+   pairs is the field equivalent of the S1 bias measurement, validating the D-002 shim
+   calibration (−26.5 dB constant) on real-world audio.
+
+4. **Order-effect test** — Spearman ρ between WAV presentation rank and per-WAV decode count,
+   per appraiser, across all K runs. A p-value < 0.05 flags potential session-state carryover.
+
+**Verdict:** Informational only. No PASS/FAIL gate. Findings feed into D-001 (co-channel gap)
+characterisation and field validation of D-002.
+
+**GDPR (NFR-021):** Source WAVs and raw ALL.TXT snapshots contain real callsigns → local only,
+never committed. Committed artifacts (`report.md`, `summary.csv`, PNG plots) contain only
+aggregate statistics; any example decode text is Q-prefix-scrubbed by `analyse_corpus.py`
+before writing to the committable path.
+
+**Harness:** `harness/corpus_replay.py` (playback) + `harness/analyse_corpus.py` (analysis).
+Run via `python harness/corpus_replay.py` from `qa/rr-study/`. See RUNBOOK §8.
+
+### 6.2 S7 rationale — compounding / co-channel overlap
 
 S4 stresses *band loading*: N signals spread evenly across 300–2700 Hz, so even at N=30 the
 50 Hz-wide signals never share a bin (~83 Hz spacing). It therefore never tests the everyday FT8

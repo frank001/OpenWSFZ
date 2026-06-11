@@ -118,7 +118,75 @@ Planned procedure (subject to harness implementation):
 
 ---
 
-## 4. Troubleshooting
+---
+
+## 4. Running the S6 corpus replay study
+
+S6 plays the local off-air WAV corpus through VB-CABLE K=3 times in randomised order and
+measures within-appraiser consistency, between-appraiser agreement, SNR delta, and order effects.
+See `STUDY-SPEC.md` §6.1 for full specification.
+
+### 4.1 Pre-run checklist
+
+- [ ] VB-CABLE configured per §1 and §2 of this runbook
+- [ ] WSJT-X: FT8 mode, Monitor ON, audio input = CABLE Output
+- [ ] OpenWSFZ: audio device = CABLE Output, decoding active, `decodeLog.enabled = true`
+- [ ] Local corpus present at `p10-decoder-ground-truth_items/` (sibling of `qa/`) and contains 42 WAV files
+- [ ] Python venv active (`qa/rr-study/.venv`) with `sounddevice`, `scipy`, `matplotlib`, `pandas` installed
+- [ ] Both apps' ALL.TXT files cleared from any previous session (or note the last timestamp so the collector can filter)
+
+### 4.2 Run command
+
+From `qa/rr-study/`:
+
+```
+python harness/corpus_replay.py [--device "CABLE Input"] [--corpus ../p10-decoder-ground-truth_items] [--runs 3]
+```
+
+The harness will:
+1. Play one silent warm-up cycle and prompt confirmation that both apps are decoding
+2. Execute K=3 runs; within each run play 42 WAVs in randomised order, aligned to the UTC 15-second cycle boundary
+3. After each WAV cycle wait 5 s for both decoders to settle, then snapshot the relevant ALL.TXT lines
+4. Write raw snapshots to `results/corpus-<date>/raw/` (local only, git-ignored)
+5. Write `results/corpus-<date>/run_manifest.json` recording WAV order, seeds, and timing
+
+**Expected duration:** 42 WAVs × 3 runs × ~30 s per cycle ≈ **63 minutes** total. Each cycle costs ~30 s because the 5 s post-cycle settle pushes past the immediately following 15 s boundary, so the next available slot is always ~30 s after playback began.
+
+### 4.3 Analysis
+
+```
+python harness/analyse_corpus.py --run-dir results/corpus-<date>
+```
+
+Produces in `results/corpus-<date>/`:
+
+| File | Content | Committable? |
+|---|---|---|
+| `raw/` | ALL.TXT snapshots per WAV per run | **No** — real callsigns |
+| `report.md` | Aggregate statistics, scrubbed | **Yes** |
+| `summary.csv` | Per-WAV metrics, no message text | **Yes** |
+| `consistency.png` | Within-appraiser consistency bar chart | **Yes** |
+| `kappa.png` | Cohen's κ with 95% CI | **Yes** |
+| `snr_delta.png` | SNR delta scatter (OpenWSFZ vs WSJT-X) | **Yes** |
+
+### 4.4 Post-run scrub-and-commit step
+
+The analysis script applies a callsign scrub pass before writing committed artifacts. Verify before committing:
+
+```
+# Confirm no real callsigns in committed artifacts
+grep -rE "\b[A-Z]{1,2}[0-9][A-Z]{1,3}\b" results/corpus-<date>/report.md results/corpus-<date>/summary.csv
+# Should return nothing (all callsigns replaced with [CALL])
+
+git add qa/rr-study/results/corpus-<date>/report.md \
+        qa/rr-study/results/corpus-<date>/summary.csv \
+        qa/rr-study/results/corpus-<date>/*.png
+git commit -m "qa(rr-study): record S6 corpus replay results — <date>"
+```
+
+---
+
+## 5. Troubleshooting
 
 | Symptom | Likely cause | Remedy |
 |---|---|---|
