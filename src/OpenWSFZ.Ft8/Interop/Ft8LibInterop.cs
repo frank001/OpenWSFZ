@@ -31,9 +31,10 @@ internal static class Ft8LibInterop
     ///           revert-pcm-sic: PCM-domain SIC reverted, two-pass spectrogram suppression restored),
     /// 20260004 (fix-d001-revised Option B: hard-zero tile suppression replaced with soft
     ///           SNR-scaled linear attenuation; version 20260003 skipped — was the reverted PCM-SIC),
-    /// 20260005 (D-003 diagnostics: add ft8_get_last_noise_floor_db TLS getter; no decode change).
+    /// 20260005 (D-003 diagnostics: add ft8_get_last_noise_floor_db TLS getter; no decode change),
+    /// 20260006 (D-002 fix: SNR bandwidth constant -26.0 → -26.5 dB; bias calibration).
     /// </summary>
-    private const int ExpectedShimVersion = 20260005;
+    private const int ExpectedShimVersion = 20260006;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -182,7 +183,7 @@ internal static class Ft8LibInterop
     /// <see cref="DecodeAll"/> call on this thread.
     /// <para>
     /// Value is <c>median_uint8 * 0.5f − 120.0f</c>, matching the <c>noise_floor_db</c>
-    /// used in the native SNR formula: <c>SNR = signal_db − noise_floor_db − 26</c>.
+    /// used in the native SNR formula: <c>SNR = signal_db − noise_floor_db − 26.5</c>.
     /// Logging this value per cycle allows D-003 (intermittent ~15 dB SNR under-report)
     /// to be diagnosed: if D-003 is caused by a noise-floor estimator anomaly, affected
     /// cycles will show this value elevated by ~15 dB relative to neighbouring cycles.

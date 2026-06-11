@@ -19,8 +19,13 @@ namespace OpenWSFZ.Ft8;
 /// Native shim version history (tracked via <c>FT8_SHIM_VERSION</c> / <c>ExpectedShimVersion</c>):
 /// 20240001 — single-pass decode.
 /// 20260001 — p15 iterative subtraction (spectrogram-domain, 2 passes).
-/// 20260002 — R6 weak-signal post-correction removed (R&amp;R-001 linearity fix).
+/// 20260002 — R6 weak-signal post-correction removed (R&amp;R-001 linearity fix);
+///            revert-pcm-sic: PCM-domain SIC reverted, two-pass spectrogram suppression restored.
 /// 20260003 — fix-D001: PCM-domain SIC; K_MAX_PASSES = 3; carrier estimation + CP-FSK synthesis.
+///            (Version skipped — was the reverted PCM-SIC; never shipped.)
+/// 20260004 — fix-d001-revised: Option B soft SNR-scaled tile attenuation.
+/// 20260005 — diag(D-003): ft8_get_last_noise_floor_db() TLS getter added.
+/// 20260006 — fix(D-002): SNR bandwidth constant -26.0 → -26.5 dB (bias calibration).
 /// </para>
 ///
 /// <para>

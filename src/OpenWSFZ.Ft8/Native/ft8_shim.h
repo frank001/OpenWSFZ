@@ -39,8 +39,10 @@ extern "C" {
  *   20260005 — D-003 diagnostics: add ft8_get_last_noise_floor_db() TLS getter
  *              exposing the histogram-median noise floor computed by
  *              compute_noise_floor() within the most recent ft8_decode_all call.
- *              No change to decode logic or struct layout. */
-#define FT8_SHIM_VERSION 20260005
+ *              No change to decode logic or struct layout.
+ *   20260006 — D-002 fix: SNR calibration; bandwidth constant -26.0 → -26.5 dB
+ *              to bring OpenWSFZ SNR bias within ±2.0 dB (R&R S1 gate). */
+#define FT8_SHIM_VERSION 20260006
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -109,7 +111,7 @@ int ft8_get_max_passes(void);
  * floor (dB) computed during the most recent ft8_decode_all call on this thread.
  *
  * Value is (median_uint8 * 0.5) − 120.0, matching the noise_floor_db used in
- * the SNR formula: SNR = signal_db − noise_floor_db − 26.
+ * the SNR formula: SNR = signal_db − noise_floor_db − 26.5.
  *
  * Thread-safe: stored in thread-local storage; must be called on the same
  * thread that called ft8_decode_all (same constraint as ft8_get_last_pass_counts).
