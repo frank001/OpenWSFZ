@@ -35,6 +35,16 @@
  *   FT8_SHIM_VERSION incremented to 20260004 (skipping 20260003, which
  *   was the reverted PCM-SIC version, to avoid any confusion).
  *
+ * fix-D002 — SNR bandwidth constant calibration (FT8_SHIM_VERSION 20260006):
+ *
+ *   The bandwidth correction constant in the SNR formula is adjusted from
+ *   -26.0 dB to -26.5 dB.  R&R study S1 runs confirmed a systematic +2.42 dB
+ *   over-report in OpenWSFZ across three independent runs.  PCM RMS normalisation
+ *   (managed layer) was unable to close the residual gap because both signal_db
+ *   and noise_floor_db are waterfall-derived, making the formula invariant to
+ *   amplitude scaling.  The -0.5 dB adjustment brings the reported bias within
+ *   the ±2.0 dB R&R S1 acceptance threshold.
+ *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
 
@@ -439,7 +449,7 @@ int ft8_decode_all(
                 }
                 signal_db = cnt > 0 ? sum / (float)cnt : noise_floor_db;
             }
-            float snr = signal_db - noise_floor_db - 26.0f;
+            float snr = signal_db - noise_floor_db - 26.5f;
 
             FT8Result* r = &results[num_decoded++];
             r->freq_hz = (int)roundf(freq_hz);

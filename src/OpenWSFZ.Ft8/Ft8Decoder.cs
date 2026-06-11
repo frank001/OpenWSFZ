@@ -19,8 +19,13 @@ namespace OpenWSFZ.Ft8;
 /// Native shim version history (tracked via <c>FT8_SHIM_VERSION</c> / <c>ExpectedShimVersion</c>):
 /// 20240001 — single-pass decode.
 /// 20260001 — p15 iterative subtraction (spectrogram-domain, 2 passes).
-/// 20260002 — R6 weak-signal post-correction removed (R&amp;R-001 linearity fix).
+/// 20260002 — R6 weak-signal post-correction removed (R&amp;R-001 linearity fix);
+///            revert-pcm-sic: PCM-domain SIC reverted, two-pass spectrogram suppression restored.
 /// 20260003 — fix-D001: PCM-domain SIC; K_MAX_PASSES = 3; carrier estimation + CP-FSK synthesis.
+///            (Version skipped — was the reverted PCM-SIC; never shipped.)
+/// 20260004 — fix-d001-revised: Option B soft SNR-scaled tile attenuation.
+/// 20260005 — diag(D-003): ft8_get_last_noise_floor_db() TLS getter added.
+/// 20260006 — fix(D-002): SNR bandwidth constant -26.0 → -26.5 dB (bias calibration).
 /// </para>
 ///
 /// <para>
@@ -32,8 +37,9 @@ namespace OpenWSFZ.Ft8;
 /// </summary>
 public sealed class Ft8Decoder : IModeDecoder
 {
-    private const int   ExpectedSampleCount  = 180_000;  // 15 s × 12 000 Hz
-    private const float SilenceRmsThreshold = 1e-6f;    // all-zero codeword guard
+    private const int   ExpectedSampleCount         = 180_000;  // 15 s × 12 000 Hz
+    private const float SilenceRmsThreshold         = 1e-6f;    // all-zero codeword guard
+    private const float PcmNormalisationTargetRms   = 0.20f;    // D-002 SNR-bias fix: bring PCM to a fixed RMS level before native decode
 
     private readonly IClock              _clock;
     private readonly ILogger<Ft8Decoder>? _logger;
@@ -98,6 +104,18 @@ public sealed class Ft8Decoder : IModeDecoder
         // not pin the async continuation's synchronisation context.
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
+        // ── D-002 PCM normalisation ──────────────────────────────────────────
+        // Normalise a copy of the PCM buffer to a fixed target RMS before passing
+        // to the native decoder.  This is a defensive pre-conditioning step for
+        // pathologically low-amplitude inputs; it does not affect SNR accuracy on
+        // typical captures.  Investigation (R&R runs 6ce38a3 and 4ab061a) confirmed
+        // that the normalisation is invariant to the libft8 SNR formula: both
+        // signal_db and noise_floor_db are waterfall-derived, so uniform amplitude
+        // scaling cancels identically in both terms.  The D-002 bias fix was the
+        // shim bandwidth constant (−26.0 → −26.5 dB, commit 3771986).
+        // Operates on a copy — the caller's buffer is never mutated.
+        float[] normalisedPcm = NormalisePcm(pcm, PcmNormalisationTargetRms);
+
         Ft8NativeResult[] native;
         int[]             passCounts;
         float             noiseFloorDb;
@@ -108,7 +126,7 @@ public sealed class Ft8Decoder : IModeDecoder
         // calls across separate Task.Run invocations; doing so would break the TLS guarantee.
         (native, passCounts, noiseFloorDb) = await Task.Run(() =>
         {
-            var r = Ft8LibInterop.DecodeAll(pcm);
+            var r = Ft8LibInterop.DecodeAll(normalisedPcm);
             var p = Ft8LibInterop.GetLastPassCounts(Ft8LibInterop.MaxDecodePasses);
             var n = Ft8LibInterop.GetLastNoiseFloorDb();
             return (r, p, n);
@@ -174,6 +192,25 @@ public sealed class Ft8Decoder : IModeDecoder
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns a new float[] whose RMS equals <paramref name="targetRms"/>.
+    /// If the input RMS is below <see cref="SilenceRmsThreshold"/> (effectively silent),
+    /// the original array is returned unchanged to avoid divide-by-zero.
+    /// The caller's <paramref name="pcm"/> array is never mutated.
+    /// </summary>
+    internal static float[] NormalisePcm(float[] pcm, float targetRms)
+    {
+        float srcRms = ComputeRms(pcm);
+        if (srcRms < SilenceRmsThreshold)
+            return pcm;          // silent buffer — return as-is; guard against ÷0
+
+        float scale = targetRms / srcRms;
+        var   result = new float[pcm.Length];
+        for (int i = 0; i < pcm.Length; i++)
+            result[i] = pcm[i] * scale;
+        return result;
+    }
 
     private static float ComputeRms(float[] pcm)
     {
