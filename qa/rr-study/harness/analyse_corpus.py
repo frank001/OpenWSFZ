@@ -525,20 +525,20 @@ def main() -> None:
         print(f"  {label}: {c['pct_consistent']:.1f}%  "
               f"({c['consistent_pairs']}/{c['total_pairs']} pairs)")
     print()
-    print(f"Between-appraiser κ: {kappa['kappa']}  "
+    print(f"Between-appraiser kappa: {kappa['kappa']}  "
           f"95% CI [{kappa['ci_95_lo']}, {kappa['ci_95_hi']}]")
     print()
     if snr["n"] > 0:
-        print(f"SNR delta (OpenWSFZ − WSJT-X): mean={snr['mean']:+.3f} dB  "
-              f"σ={snr['std']:.3f}  n={snr['n']}")
+        print(f"SNR delta (OpenWSFZ - WSJT-X): mean={snr['mean']:+.3f} dB  "
+              f"sigma={snr['std']:.3f}  n={snr['n']}")
     else:
         print("SNR delta: no matched decodes.")
     print()
     for app, label in [("wsjt", "WSJT-X"), ("owsfz", "OpenWSFZ")]:
         o = order[app]
         if o["rho"] is not None:
-            flag = " ⚠ ORDER EFFECT" if o["flagged"] else ""
-            print(f"Order effect {label}: ρ={o['rho']} p={o['p_value']}{flag}")
+            flag = " (!) ORDER EFFECT" if o["flagged"] else ""
+            print(f"Order effect {label}: rho={o['rho']} p={o['p_value']}{flag}")
 
     # ── Write committed artifacts ──────────────────────────────────────────────
     print("\nWriting committed artifacts ...")
