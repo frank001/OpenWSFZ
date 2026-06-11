@@ -12,9 +12,19 @@ import hashlib
 import os
 import re
 import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import NamedTuple
+
+# ── Windows terminal encoding (NFR-022) ───────────────────────────────────────
+# Windows consoles default to cp1252, which cannot encode Greek letters, Unicode
+# minus signs, or other non-ASCII characters used in study output.  Reconfigure
+# stdout to UTF-8 with replacement so a missing glyph shows as '?' rather than
+# raising UnicodeEncodeError and aborting a running study.  This executes
+# automatically for every harness script that imports from harness.common.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 # ---------------------------------------------------------------------------
 # Seed computation
