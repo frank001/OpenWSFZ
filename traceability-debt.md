@@ -115,3 +115,21 @@ NFR-016  # Decoder-correctness gate G6 — real-signal fixture integration test 
          # explicitly prefixes its display name "NFR-016: ..." per the TraceabilityCheck
          # convention (currently only FR-029 appears in the prefix; NFR-016 appears in
          # the suffix as "(G6 gate — NFR-016)"). Remove when that prefix test is added.
+
+## Pending — QA harness process requirements (NFR-022, NFR-023)
+
+NFR-022  # QA harness — Windows terminal encoding. This requirement governs Python scripts
+         # in qa/rr-study/harness/, which are outside the .NET solution and have no
+         # corresponding xUnit/NUnit test assembly. Compliance is verified by: (a) code
+         # review confirming sys.stdout.reconfigure() is present in harness/common.py and
+         # in any script that does not import common; (b) no UnicodeEncodeError raised
+         # during any study run on a Windows cp1252 console. Remove when a pytest suite
+         # for the QA harness is introduced that can assert the reconfigure call.
+
+NFR-023  # QA study report structure. This requirement governs the content and section
+         # order of report.md files produced by Python analysis scripts in qa/rr-study/.
+         # No xUnit/NUnit test can assert Markdown document structure. Compliance is
+         # verified by: (a) QA review of every committed report.md confirming the five
+         # mandatory sections are present; (b) code review of _write_report() in
+         # analyse.py and analyse_corpus.py confirming each section is emitted.
+         # Remove when a pytest suite for the harness asserts report structure programmatically.
