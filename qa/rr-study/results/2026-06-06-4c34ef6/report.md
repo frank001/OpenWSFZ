@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Run date | 2026-06-06 |
-| OpenWSFZ SHA | `4c34ef625e35598a20b0f06c9f4f7cf4c7a39540` |
+| OpenWSFZ SHA | `1d90e1afea60ad851800ea41b0103d74f35ab02d` |
 | WSJT-X version | WSJT-X 2.7.0 (inferred from binary date 2025-02-04) |
 
 ## S1 — reported_snr_db
