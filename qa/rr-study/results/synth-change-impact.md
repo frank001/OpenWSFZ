@@ -123,4 +123,4 @@ The synthesiser fixes materially changed the study results in the expected direc
 
 4. **D-002 is confirmed as real** — not an artefact of the synthesiser fix. The pre-fix numbers were distorted; the post-fix measurement is the first reliable measurement of OpenWSFZ's true SNR reporting offset.
 
-**The post-fix R&R run (`4b3a4ca`) is the authoritative baseline.**
+**The post-fix R&R run (`e4a3982`) is the authoritative baseline.**

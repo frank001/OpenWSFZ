@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Run date | 2026-06-07 |
-| OpenWSFZ SHA | `4b3a4ca460889010f9104ce0989f62485d28ff77` |
+| OpenWSFZ SHA | `e4a398256f28408d1f0282e2c9e9cd261b5aca16` |
 | WSJT-X version | WSJT-X 2.7.0 (inferred from binary date 2025-02-04) |
 
 > **⚠️ Study integrity note — hardware interruption during S7**

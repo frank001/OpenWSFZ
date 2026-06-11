@@ -17,7 +17,7 @@ SNR over-bias). This is not a full R&R suite execution; it re-runs scenario S1 o
 determine whether the combined fix brings OpenWSFZ mean SNR bias within the ±2.0 dB acceptance
 threshold.
 
-**Background:** The 2026-06-07 baseline run (`4b3a4ca`) recorded OpenWSFZ SNR bias of +2.43 dB
+**Background:** The 2026-06-07 baseline run (`e4a3982`) recorded OpenWSFZ SNR bias of +2.43 dB
 — 0.43 dB above the ±2.0 dB threshold, constituting a FAIL. Investigation established that
 the bias is driven by the shim's SNR constant (−26.0 dB), which under-estimates noise in the
 reference bandwidth. PCM amplitude normalisation was explored as a supplementary measure but
@@ -25,7 +25,7 @@ found to be invariant: both `signal_db` and `noise_floor_db` are waterfall-deriv
 the SNR formula independent of PCM amplitude scaling. The root cause was therefore the shim
 constant, not PCM amplitude.
 
-**Two interventions applied to this SHA (`0682106`):**
+**Two interventions applied to this SHA (`0a0f8a5`):**
 
 1. `ft8_shim.c` SNR constant adjusted −26.0 → −26.5 dB (FT8_SHIM_VERSION 20260006).
 2. `Ft8Decoder.cs` PCM normalisation to 0.20 RMS target (`PcmNormalisationTargetRms`);
@@ -55,12 +55,12 @@ diagnostic run. PortAudio peak normalisation to 0.9 applied by `run_scenario.py`
 | Field | Value |
 |---|---|
 | Run date | 2026-06-11 |
-| OpenWSFZ SHA | `068210692666c3865a994c378f86718a9e1ca908` |
+| OpenWSFZ SHA | `0a0f8a5e8de8e5ff38e07dcd4fb9d01baaf8af18` |
 | WSJT-X version | WSJT-X 2.7.0 (inferred from binary date 2025-02-04) |
 | FT8_SHIM_VERSION | 20260006 |
 | PCM normalisation | 0.20 RMS target (`PcmNormalisationTargetRms`) |
 | Noise filter | Kaiser FIR, 4 700 Hz cutoff, β=6.0, N=255 |
-| Scenarios run | S1 only (S2–S8 unchanged from `4b3a4ca` baseline) |
+| Scenarios run | S1 only (S2–S8 unchanged from `e4a3982` baseline) |
 | Signal source | Synthetic (GFSK encoder, Q-prefix calls per NFR-021) |
 
 **S1 measurement dimensions:**
@@ -76,18 +76,18 @@ diagnostic run. PortAudio peak normalisation to 0.9 applied by `run_scenario.py`
 
 | ID | Severity | Status at run time | Description |
 |---|---|---|---|
-| D-002 | Medium | Under validation — this run is the resolution gate | SNR bias +2.43 dB (from `4b3a4ca`); threshold ±2.0 dB |
+| D-002 | Medium | Under validation — this run is the resolution gate | SNR bias +2.43 dB (from `e4a3982`); threshold ±2.0 dB |
 | D-003 | Medium | Open — monitoring only | Intermittent ~15 dB SNR under-report; opened 2026-06-10, GitHub #11. Did not manifest in `91f68dd` (30/30 clean). |
 
 **Bias correction history (S1 OpenWSFZ, synthetic):**
 
 | Run | SHA | Shim ver | Bias | Verdict |
 |---|---|---|---|---|
-| 2026-06-07 | `4b3a4ca` | 20260004 | +2.43 dB | FAIL |
+| 2026-06-07 | `e4a3982` | 20260004 | +2.43 dB | FAIL |
 | 2026-06-10 | `91f68dd` | 20260005 | +2.42 dB | FAIL |
 | 2026-06-11 | `6ce38a3` | 20260005 | +2.28 dB | FAIL (PCM norm target=0.08; invariant) |
 | 2026-06-11 | `4ab061a` | 20260005 | +2.28 dB | FAIL (PCM norm target=0.20; invariant) |
-| **2026-06-11** | **`0682106`** | **20260006** | **+1.78 dB** | **PASS** |
+| **2026-06-11** | **`0a0f8a5`** | **20260006** | **+1.78 dB** | **PASS** |
 
 **Acceptance threshold:**
 
@@ -144,14 +144,14 @@ diagnostic run. PortAudio peak normalisation to 0.9 applied by `run_scenario.py`
 **Overall verdict: PASS**
 
 **D-002 resolution confirmed.** OpenWSFZ mean SNR bias = +1.78 dB ≤ ±2.0 dB threshold.
-Prior bias of +2.43 dB (run `4b3a4ca`, 2026-06-07) reduced by 0.65 dB through shim constant
+Prior bias of +2.43 dB (run `e4a3982`, 2026-06-07) reduced by 0.65 dB through shim constant
 adjustment (−26.0 → −26.5 dB, FT8_SHIM_VERSION 20260006). D-003 did not manifest (0 events
 in this run). GitHub issue #8 closed.
 
 ### Note
 
 S2–S8 were not re-run; this run was scoped to D-002 validation only. The reference results
-for all other scenarios remain those of the `4b3a4ca` (2026-06-07) baseline. S6 corpus replay
+for all other scenarios remain those of the `e4a3982` (2026-06-07) baseline. S6 corpus replay
 (`corpus-2026-06-11/`) had not been conducted at the time of this run; that study subsequently
 revealed that the synthetic-test S1 PASS does not fully generalise to real off-air signals
 (D-004, GitHub #12).

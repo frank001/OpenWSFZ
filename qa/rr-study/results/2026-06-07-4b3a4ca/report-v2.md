@@ -58,7 +58,7 @@ comparisons where both appraisers receive identical audio.
 | Field | Value |
 |---|---|
 | Run date | 2026-06-07 |
-| OpenWSFZ SHA | `4b3a4ca460889010f9104ce0989f62485d28ff77` |
+| OpenWSFZ SHA | `e4a398256f28408d1f0282e2c9e9cd261b5aca16` |
 | WSJT-X version | WSJT-X 2.7.0 (inferred from binary date 2025-02-04) |
 | FT8_SHIM_VERSION | 20260004 |
 | PCM normalisation | None (not yet implemented) |
@@ -85,7 +85,7 @@ comparisons where both appraisers receive identical audio.
 
 | Finding | Description | Subsequent action |
 |---|---|---|
-| SNR bias +2.43 dB | OpenWSFZ SNR over-reads by 2.43 dB; exceeds ±2.0 dB threshold | Formally raised as D-002; resolved in `fix/d002-snr-bias` (SHA `0682106`, 2026-06-11) |
+| SNR bias +2.43 dB | OpenWSFZ SNR over-reads by 2.43 dB; exceeds ±2.0 dB threshold | Formally raised as D-002; resolved in `fix/d002-snr-bias` (SHA `0a0f8a5`, 2026-06-11) |
 | Co-channel gap | OpenWSFZ 0/6 on equal-SNR 2-stacks; 0/6 on 0.5 s time-offset | D-001; open |
 
 **Acceptance thresholds:**
@@ -361,6 +361,6 @@ spread (−15 to +3 dB), including a near-collision pair (E/F, 12 Hz apart) and 
 >
 > For remediation actions taken subsequent to this run, refer to:
 > - **D-002 (SNR bias — closed):** `openspec/changes/fix-d002-snr-bias/` — OpenSpec change
->   archive. Resolution confirmed at SHA `0682106` (2026-06-11); GitHub issue #8 closed.
+>   archive. Resolution confirmed at SHA `0a0f8a5` (2026-06-11); GitHub issue #8 closed.
 > - **D-001 (co-channel gap — open):** GitHub #3. No fix branch exists at the time this
 >   report was written; see the open defect register.
