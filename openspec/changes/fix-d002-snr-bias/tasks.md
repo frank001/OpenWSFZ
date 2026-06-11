@@ -26,10 +26,10 @@
 
 ## 5. R&R validation
 
-- [ ] 5.1 Run `python run_study.py --scenarios S1` with the normalisation change deployed
-- [ ] 5.2 Confirm OpenWSFZ S1 bias is within ±2.0 dB — if not, adjust `PcmNormalisationTargetRms` and repeat
-- [ ] 5.3 Confirm S1 %GR&R ≤ 10% and ndc ≥ 5 are unaffected by the change
-- [ ] 5.4 Record results in `qa/rr-study/results/<date>-<sha>/` and commit
+- [x] 5.1 Run `python run_study.py --scenarios S1` with the normalisation change deployed
+- [x] 5.2 Confirm OpenWSFZ S1 bias is within ±2.0 dB — three runs required; PCM normalisation alone insufficient (bias plateau at +2.28 dB regardless of target); shim constant −26.0→−26.5 dB brought bias to +1.78 dB (PASS, margin 0.22 dB). See qa-analysis.md in `results/2026-06-11-0682106/`.
+- [x] 5.3 Confirm S1 %GR&R ≤ 10% and ndc ≥ 5 are unaffected by the change — %GR&R = 0.5%, ndc = 19 (both improved vs baseline)
+- [x] 5.4 Record results in `qa/rr-study/results/<date>-<sha>/` and commit
 
 ## 6. Close-out
 

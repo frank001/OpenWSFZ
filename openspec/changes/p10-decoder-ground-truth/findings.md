@@ -1,6 +1,6 @@
 ﻿# p10 Recovery-Rate Findings
 
-**Date:** 2026-06-07 16:17:14 UTC
+**Date:** 2026-06-11 16:24:09 UTC
 **Corpus:** 42 × 15-second WAVs, 12 kHz mono int16, 7.074 MHz
 **WSJT-X answer keys:** 887 total decodes across 42 cycles
 
@@ -34,9 +34,9 @@
 | `260529_000330` | 16 | 13 | 12 | 4 | 1 |
 | `260529_000345` | 25 | 14 | 14 | 11 | 0 |
 | `260529_000400` | 20 | 13 | 12 | 8 | 1 |
-| `260529_000415` | 22 | 14 | 13 | 9 | 1 |
-| `260529_000430` | 24 | 17 | 16 | 8 | 1 |
-| `260529_000445` | 23 | 17 | 16 | 7 | 1 |
+| `260529_000415` | 22 | 13 | 12 | 10 | 1 |
+| `260529_000430` | 24 | 16 | 15 | 9 | 1 |
+| `260529_000445` | 23 | 18 | 17 | 6 | 1 |
 | `260529_000500` | 20 | 17 | 16 | 4 | 1 |
 | `260529_000515` | 21 | 19 | 17 | 4 | 2 |
 | `260529_000530` | 24 | 15 | 14 | 10 | 1 |
@@ -45,9 +45,9 @@
 | `260529_000615` | 21 | 15 | 15 | 6 | 0 |
 | `260529_000630` | 23 | 17 | 16 | 7 | 1 |
 | `260529_000645` | 24 | 18 | 18 | 6 | 0 |
-| `260529_000700` | 25 | 17 | 16 | 9 | 1 |
+| `260529_000700` | 25 | 18 | 17 | 8 | 1 |
 | `260529_000715` | 25 | 16 | 16 | 9 | 0 |
-| `260529_000730` | 18 | 16 | 15 | 3 | 1 |
+| `260529_000730` | 18 | 15 | 14 | 4 | 1 |
 | `260529_000745` | 25 | 18 | 18 | 7 | 0 |
 | `260529_000800` | 26 | 18 | 18 | 8 | 0 |
 
@@ -57,12 +57,12 @@
 |---|---|
 | WAV files decoded | 42 |
 | WSJT-X total decodes | 887 |
-| Our matched decodes | 614 |
+| Our matched decodes | 613 |
 | Our false positives | 24 |
-| **Recovery rate** | **69.2%** |
+| **Recovery rate** | **69.1%** |
 
 ## Decision-gate outcome
 
-Recovery rate is **69.2%** — within normal operating range.
+Recovery rate is **69.1%** — within normal operating range.
 
 **Status: nominal.** The miss rate relative to WSJT-X is a known, accepted limitation of the ft8_lib single-pass decoder. OpenWSFZ wraps it with a 2-pass iterative-subtraction loop, which recovers additional signals on each second pass, but WSJT-X employs a deeper multi-pass strategy that the current implementation does not replicate. Closing this gap is deferred to a future change. No action required.
