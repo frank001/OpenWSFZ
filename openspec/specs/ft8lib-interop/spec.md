@@ -48,12 +48,17 @@ The load path SHALL be `AppContext.BaseDirectory`. A `NativeLibrary.SetDllImport
 
 ### Requirement: ABI self-test on first load
 
-On the first call that triggers `NativeLibrary.Load`, `Ft8LibInterop` SHALL invoke a sentinel function (`ft8_lib_version_check`) that returns a known integer constant embedded at compile time in the shim. The expected constant SHALL be **`20260004`** (fix-d001-revised Option B: soft SNR-scaled tile attenuation; version 20260003 skipped — was the reverted PCM-SIC). If the returned value does not match the expected constant, `Ft8LibInterop` SHALL throw `InvalidOperationException` with a message that names the library path and the mismatched version values. This requirement applies on all three reference platforms.
+On the first call that triggers `NativeLibrary.Load`, `Ft8LibInterop` SHALL invoke a sentinel function (`ft8_lib_version_check`) that returns a known integer constant embedded at compile time in the shim. The expected constant SHALL be **`20260005`** (D-003 diagnostics: added `ft8_get_last_noise_floor_db()` TLS getter for noise-floor investigation; version 20260004 was fix-d001-revised Option B soft SNR-scaled tile attenuation; version 20260003 skipped — was the reverted PCM-SIC). If the returned value does not match the expected constant, `Ft8LibInterop` SHALL throw `InvalidOperationException` with a message that names the library path and the mismatched version values. This requirement applies on all three reference platforms.
 
 #### Scenario: Correct library passes the ABI self-test
 
-- **WHEN** `Ft8LibInterop` loads the platform-appropriate `libft8` binary compiled from the committed shim source at `FT8_SHIM_VERSION = 20260004`
+- **WHEN** `Ft8LibInterop` loads the platform-appropriate `libft8` binary compiled from the committed shim source at `FT8_SHIM_VERSION = 20260005`
 - **THEN** the version check SHALL pass silently and decode calls SHALL proceed normally
+
+#### Scenario: Previous library (20260004) fails fast with a clear error
+
+- **WHEN** `Ft8LibInterop` loads a `libft8` binary compiled at version `20260004` (fix-d001-revised Option B, pre-D003-diagnostics)
+- **THEN** `Ft8LibInterop` SHALL throw `InvalidOperationException` before any decode call is attempted, with a message identifying the library path and the version mismatch
 
 #### Scenario: Previous library (20260002) fails fast with a clear error
 
@@ -99,7 +104,7 @@ Pre-compiled native library binaries, built from the committed `ft8_shim.c` + `k
 | Linux x64 | `src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so` | `<Content CopyToOutputDirectory="Always" Link="libft8.so" />` |
 | macOS ARM64 | `src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib` | `<Content CopyToOutputDirectory="Always" Link="libft8.dylib" />` |
 
-A companion `libft8.version.txt` SHALL record, for each platform binary: source commit SHA, compiler toolchain and version, build date, SNR formula, and the pass count (**2**). `BUILD.md` SHALL document the exact compiler commands required to reproduce each binary. The binaries SHALL be built from the **`FT8_SHIM_VERSION = 20260004`** shim that implements two-pass spectrogram-domain suppression with soft SNR-scaled tile attenuation (fix-d001-revised Option B).
+A companion `libft8.version.txt` SHALL record, for each platform binary: source commit SHA, compiler toolchain and version, build date, SNR formula, and the pass count (**2**). `BUILD.md` SHALL document the exact compiler commands required to reproduce each binary. The binaries SHALL be built from the **`FT8_SHIM_VERSION = 20260005`** shim that adds the `ft8_get_last_noise_floor_db()` TLS getter for D-003 diagnostics (builds on fix-d001-revised Option B, version 20260004).
 
 #### Scenario: All three binaries are present in the test output directory after build
 

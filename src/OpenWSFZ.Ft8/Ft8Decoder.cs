@@ -32,8 +32,9 @@ namespace OpenWSFZ.Ft8;
 /// </summary>
 public sealed class Ft8Decoder : IModeDecoder
 {
-    private const int   ExpectedSampleCount  = 180_000;  // 15 s × 12 000 Hz
-    private const float SilenceRmsThreshold = 1e-6f;    // all-zero codeword guard
+    private const int   ExpectedSampleCount         = 180_000;  // 15 s × 12 000 Hz
+    private const float SilenceRmsThreshold         = 1e-6f;    // all-zero codeword guard
+    private const float PcmNormalisationTargetRms   = 0.08f;    // D-002 SNR-bias fix: bring PCM to a fixed RMS level before native decode
 
     private readonly IClock              _clock;
     private readonly ILogger<Ft8Decoder>? _logger;
@@ -98,6 +99,15 @@ public sealed class Ft8Decoder : IModeDecoder
         // not pin the async continuation's synchronisation context.
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
+        // ── D-002 PCM normalisation ──────────────────────────────────────────
+        // Normalise a copy of the PCM buffer to a fixed target RMS before passing
+        // to the native decoder.  When PCM amplitude is low, waterfall bins quantise
+        // toward 0, biasing the histogram-median noise floor downward and inflating
+        // reported SNR.  Bringing all buffers to a known RMS level keeps the
+        // histogram in a well-calibrated range regardless of the source audio level.
+        // Operates on a copy — the caller's buffer is never mutated.
+        float[] normalisedPcm = NormalisePcm(pcm, PcmNormalisationTargetRms);
+
         Ft8NativeResult[] native;
         int[]             passCounts;
         float             noiseFloorDb;
@@ -108,7 +118,7 @@ public sealed class Ft8Decoder : IModeDecoder
         // calls across separate Task.Run invocations; doing so would break the TLS guarantee.
         (native, passCounts, noiseFloorDb) = await Task.Run(() =>
         {
-            var r = Ft8LibInterop.DecodeAll(pcm);
+            var r = Ft8LibInterop.DecodeAll(normalisedPcm);
             var p = Ft8LibInterop.GetLastPassCounts(Ft8LibInterop.MaxDecodePasses);
             var n = Ft8LibInterop.GetLastNoiseFloorDb();
             return (r, p, n);
@@ -174,6 +184,25 @@ public sealed class Ft8Decoder : IModeDecoder
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns a new float[] whose RMS equals <paramref name="targetRms"/>.
+    /// If the input RMS is below <see cref="SilenceRmsThreshold"/> (effectively silent),
+    /// the original array is returned unchanged to avoid divide-by-zero.
+    /// The caller's <paramref name="pcm"/> array is never mutated.
+    /// </summary>
+    internal static float[] NormalisePcm(float[] pcm, float targetRms)
+    {
+        float srcRms = ComputeRms(pcm);
+        if (srcRms < SilenceRmsThreshold)
+            return pcm;          // silent buffer — return as-is; guard against ÷0
+
+        float scale = targetRms / srcRms;
+        var   result = new float[pcm.Length];
+        for (int i = 0; i < pcm.Length; i++)
+            result[i] = pcm[i] * scale;
+        return result;
+    }
 
     private static float ComputeRms(float[] pcm)
     {
