@@ -44,7 +44,7 @@ from harness.run_scenario import (                                        # noqa
 # ── Paths ──────────────────────────────────────────────────────────────────────
 _HERE           = _QA_ROOT
 _RESULTS        = _HERE / "results"
-_DEFAULT_CORPUS = _HERE.parent / "p10-decoder-ground-truth_items"
+_DEFAULT_CORPUS = _HERE.parent.parent / "p10-decoder-ground-truth_items"
 
 WSJT_ALL_TXT  = Path(r"C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT")
 OWSFZ_ALL_TXT = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
