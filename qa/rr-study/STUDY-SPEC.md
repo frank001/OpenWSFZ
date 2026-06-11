@@ -429,3 +429,46 @@ was fundamental measurement noise:
 The DT GR&R is expected to improve substantially on the next run; the within-cell repeatability
 (σ ≈ 0.10–0.14 s per appraiser from run aa053a9) is physically meaningful and is the residual
 noise once the two artificial inflation sources are removed.
+
+---
+
+## 17. Future scenarios — deferred
+
+### S10 QSO Context-Awareness Study *(deferred — requires OpenWSFZ full TX/RX cycle)*
+
+**Idea (captured 2026-06-11):** Test whether either decoder benefits from QSO context — i.e.,
+whether having decoded a prior message from a callsign improves decode of subsequent messages
+from the same callsign in the same session.
+
+**Stimulus design:** A complete synthesised 5-cycle FT8 QSO exchange:
+
+| Cycle | Sender | Message example | Role |
+|---|---|---|---|
+| 1 | Q1ABC | `CQ Q1ABC FN42` | CQ (caller) |
+| 2 | Q1XYZ | `Q1ABC Q1XYZ -12` | Signal report (listener) |
+| 3 | Q1ABC | `Q1XYZ Q1ABC R-09` | Signal report back (caller) |
+| 4 | Q1XYZ | `Q1ABC Q1XYZ RR73` | RR73 (listener confirms) |
+| 5 | Q1ABC | `Q1XYZ Q1ABC 73` | 73 (caller signs off) |
+
+**Break matrix:** Run the full sequence, then break the chain at various points (skip
+cycle 1, skip cycle 3, isolate cycle 2 alone, isolate cycle 4 alone) to test whether
+the presence or absence of prior cycles affects decode rate of subsequent cycles.
+
+**Hypothesis:** WSJT-X may activate deep-search / context-aware candidate biasing when
+it has previously decoded a callsign in the session. OpenWSFZ (which calls `ft8_decode_all`
+with no callsign state) should show zero context effect. If confirmed, the delta between
+the two appraisers on broken-chain vs full-chain configurations would quantify the
+capability gap.
+
+**Why deferred:** WSJT-X's context-aware decoding is an *active* feature — it requires an
+operator to click a callsign and commit to a QSO sequence. In passive monitor mode the
+effect may not activate, making any null result uninterpretable. Automating the active mode
+without human intervention is not currently feasible. Additionally, running real QSOs
+requires the operator's licensed callsign (GDPR: NFR-021), manual re-sequencing when the
+exchange stalls, and introduces uncontrolled human variability — all disqualifying for R&R.
+
+**When to revisit:** Once OpenWSFZ supports a full TX/RX cycle (auto-sequencing CQ,
+responding to reports, sending RR73/73), the harness can drive a synthetic QSO entirely
+in software — no operator clicks, no licensed callsign on-air, fully automatable.
+At that point S10 becomes a first-class scenario and will expose whether OpenWSFZ's
+own context tracking (if implemented) closes the gap with WSJT-X.
