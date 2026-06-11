@@ -34,7 +34,7 @@ public sealed class Ft8Decoder : IModeDecoder
 {
     private const int   ExpectedSampleCount         = 180_000;  // 15 s × 12 000 Hz
     private const float SilenceRmsThreshold         = 1e-6f;    // all-zero codeword guard
-    private const float PcmNormalisationTargetRms   = 0.08f;    // D-002 SNR-bias fix: bring PCM to a fixed RMS level before native decode
+    private const float PcmNormalisationTargetRms   = 0.20f;    // D-002 SNR-bias fix: bring PCM to a fixed RMS level before native decode
 
     private readonly IClock              _clock;
     private readonly ILogger<Ft8Decoder>? _logger;
