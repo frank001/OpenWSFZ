@@ -125,8 +125,12 @@ char* stpcpy(char* dest, const char* src)
 /* ── Iterative subtraction parameters ───────────────────────────────────── */
 /*
  * K_MAX_PASSES — total number of decode passes.
- * Pass 0: full waterfall.
- * Pass 1: spectrogram-suppression pass on the original waterfall.
+ * Pass 0: full waterfall (unchanged input PCM).
+ * Pass 1: PCM-residual waterfall — each pass-0 decoded signal is synthesised
+ *         (CP-FSK, phase zero, heap-allocated synth_buf) and subtracted from
+ *         a heap-allocated copy of the input PCM; the waterfall is rebuilt
+ *         from the residual via a second monitor_t before pass 1 runs.
+ *         Falls back to the original waterfall if heap allocation fails.
  */
 #define K_MAX_PASSES   2
 

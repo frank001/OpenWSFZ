@@ -25,6 +25,11 @@ The bandlimited noise PSD SHALL be flat (≤ ±1 dB peak deviation from the band
 ### Requirement: `add_noise` accepts `noise_cutoff_hz`
 The high-level `add_noise(signal, snr_db, seed, …, noise_cutoff_hz=None)` function SHALL accept an optional `noise_cutoff_hz` parameter and forward it to `add_awgn`. Callers SHALL NOT be required to drop down to `add_awgn` and compute `sigma` manually in order to request bandlimited noise.
 
+#### Scenario: add_noise forwards noise_cutoff_hz to produce bandlimited output
+
+- **WHEN** `add_noise` is called with `noise_cutoff_hz=4000` on a signal at 48 kHz sample rate
+- **THEN** the returned array has bandlimited noise whose PSD passes `verify_noise_psd` with `cutoff_hz=4000` (equivalent to calling `add_awgn` directly with the same parameter)
+
 ### Requirement: In-band SNR is preserved after bandlimiting
 Applying `noise_cutoff_hz` SHALL NOT alter the in-band SNR (2500 Hz reference bandwidth). The realised SNR measured by `measure_inband_snr_db` SHALL be within ±0.5 dB of the requested `snr_db` regardless of whether `noise_cutoff_hz` is set.
 

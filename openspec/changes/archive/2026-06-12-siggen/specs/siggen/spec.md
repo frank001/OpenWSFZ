@@ -59,8 +59,9 @@ descriptive error message and a non-zero exit code.
 
 ### Requirement: scene-configuration line declares output sinks and global parameters
 
-A JSON object with `"type":"scene"` MAY appear anywhere in the JSONL file (conventionally
-the first line). If multiple `"type":"scene"` lines are present the last one SHALL win.
+The JSONL file SHALL support a scene-configuration line: a JSON object with `"type":"scene"`
+that may appear anywhere in the file (conventionally the first line). If multiple
+`"type":"scene"` lines are present the last one SHALL win.
 The recognised fields are:
 
 | Field | Type | Default | Description |

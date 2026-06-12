@@ -43,11 +43,11 @@ rebuilds the waterfall from the PCM residual, and bumps the shim version.
 
 This task is triggered by NS-001 condition (a): H3 fix merged → re-run S7 and S8.
 
-- [ ] 3.1 Confirm the build under test is at `FT8_SHIM_VERSION = 20260008` before starting the study run.
-- [ ] 3.2 Run the S7 R&R harness (K=3, all 14 parts P0–P14) against shim `20260008` and WSJT-X 2.7.0 as the reference appraiser.
-- [ ] 3.3 Evaluate H3 gate: (a) primary — any measurable improvement on P0 or P1 vs baseline 0/6 (K=3); (b) secondary — ≥ +5 pp overall improvement vs the 2-pass baseline (54.84%). Both gates must be met for H3 to be accepted.
-- [ ] 3.4 Generate all supporting artefacts (CSV, PNGs) and write an NFR-023-compliant `report.md` in `qa/rr-study/results/<date>-<sha>/`. The five mandatory sections must be present: hypothesis, data summary, results with graphs, summary verdict table, recommendations.
-- [ ] 3.5 Update `openspec/specs/iterative-subtraction/spec.md` AC-IS-1 history section with the H3 result (PASS or FAIL) and the S7 overall percentage.
-- [ ] 3.6 Update `MEMORY.md` with the H3 result and the new NS-001 trigger state.
-- [ ] 3.7 **If H3 ACCEPTED:** Close or annotate GitHub issue #3 with evidence. Evaluate H3b (phase estimation) and PCM-SIC + residual-spectrogram combination as follow-on improvements. Update D-001 severity if the gap to WSJT-X has materially closed.
-- [ ] 3.8 **If H3 REJECTED:** Record H3 findings in issue #3. Evaluate H3b (phase estimation via dot-product correlation sweep) as the next hypothesis. Update MEMORY.md deferred-next-steps accordingly.
+- [x] 3.1 Confirm the build under test is at `FT8_SHIM_VERSION = 20260008` before starting the study run.
+- [x] 3.2 Run the S7 R&R harness (K=3, all 14 parts P0–P14) against shim `20260008` and WSJT-X 2.7.0 as the reference appraiser.
+- [x] 3.3 Evaluate H3 gate: (a) primary — any measurable improvement on P0 or P1 vs baseline 0/6 (K=3); (b) secondary — ≥ +5 pp overall improvement vs the 2-pass baseline (54.84%). Both gates must be met for H3 to be accepted.
+- [x] 3.4 Generate all supporting artefacts (CSV, PNGs) and write an NFR-023-compliant `report.md` in `qa/rr-study/results/<date>-<sha>/`. The five mandatory sections must be present: hypothesis, data summary, results with graphs, summary verdict table, recommendations.
+- [x] 3.5 Update `openspec/specs/iterative-subtraction/spec.md` AC-IS-1 history section with the H3 result (PASS or FAIL) and the S7 overall percentage.
+- [x] 3.6 Update `MEMORY.md` with the H3 result and the new NS-001 trigger state.
+- [x] 3.7 **If H3 ACCEPTED:** Close or annotate GitHub issue #3 with evidence. Evaluate H3b (phase estimation) and PCM-SIC + residual-spectrogram combination as follow-on improvements. Update D-001 severity if the gap to WSJT-X has materially closed. *(N/A — H3 REJECTED; this path never fires. See task 3.8 and qa/rr-study/results/2026-06-12-da133f4/report.md.)*
+- [x] 3.8 **If H3 REJECTED:** Record H3 findings in issue #3. Evaluate H3b (phase estimation via dot-product correlation sweep) as the next hypothesis. Update MEMORY.md deferred-next-steps accordingly.
