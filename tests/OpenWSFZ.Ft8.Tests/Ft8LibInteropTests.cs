@@ -22,7 +22,7 @@ public sealed class Ft8LibInteropTests
 {
     /// <summary>
     /// p15 regression: verifies that after a decode call on a silent (all-zero) PCM
-    /// buffer, <c>GetLastPassCounts(3)</c> returns exactly <c>[0, 0, 0]</c>.
+    /// buffer, <c>GetLastPassCounts(2)</c> returns exactly <c>[0, 0]</c>.
     ///
     /// <para>
     /// The native shim always executes <c>K_MAX_PASSES</c> (= 2) full passes even when
