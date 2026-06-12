@@ -50,8 +50,16 @@ extern "C" {
  *              REVERTED (revert-diag-d001): S7 R&R result −4.30 pp vs 2-pass
  *              baseline (50.54% vs 54.84%).  H2 rejected — no co-channel
  *              improvement; marginal capture regression.  See results/
- *              2026-06-12-3ecf8ae/report-v2.md. */
-#define FT8_SHIM_VERSION 20260006
+ *              2026-06-12-3ecf8ae/report-v2.md.
+ *   20260008 — diag-d001-pcm-sic: PCM-domain SIC replaces spectrogram suppression
+ *              in the inter-pass stage.  For each signal decoded in pass 0, a
+ *              CP-FSK waveform is synthesised (heap-allocated synth_buf, phase zero,
+ *              no Gaussian shaping), scaled via least-squares projection amplitude,
+ *              and subtracted from a heap-allocated copy of the input PCM
+ *              (residual_pcm).  Pass 1 operates on a waterfall rebuilt from
+ *              residual_pcm using a second monitor_t (mon2).  Version 20260007 slot
+ *              skipped (was the reverted three-pass SIC) to avoid confusion. */
+#define FT8_SHIM_VERSION 20260008
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

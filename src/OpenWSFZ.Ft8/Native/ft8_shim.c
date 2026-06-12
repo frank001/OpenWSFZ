@@ -55,6 +55,21 @@
  *   separation.  FT8_SHIM_VERSION returned to 20260006.
  *   Full findings: qa/rr-study/results/2026-06-12-3ecf8ae/report-v2.md.
  *
+ * diag-d001-pcm-sic (FT8_SHIM_VERSION 20260008):
+ *
+ *   PCM-domain SIC replaces spectrogram suppression in the inter-pass stage
+ *   (H3 diagnostic for D-001, High severity co-channel decode gap).  For each
+ *   signal decoded in pass 0, a CP-FSK waveform is synthesised from the decoded
+ *   tone sequence (via ft8_encode), using a heap-allocated synth_buf (720 KB),
+ *   phase initialised to zero, no Gaussian shaping.  A least-squares projection
+ *   amplitude is computed and the scaled waveform is subtracted from a
+ *   heap-allocated PCM residual (residual_pcm, 720 KB).  After all pass-0
+ *   signals have been subtracted, a second monitor_t (mon2) is initialised with
+ *   the same configuration and the residual PCM is processed through it.  Pass 1
+ *   operates on mon2.wf (the rebuilt residual waterfall).  Both heap buffers are
+ *   freed before monitor_free; mon2 is freed before mon (Task 2.8).
+ *   FT8_SHIM_VERSION 20260007 slot skipped (was the reverted three-pass SIC).
+ *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
 
@@ -439,19 +454,23 @@ int ft8_decode_all(
     for (int i = 0; i < K_MAX_PASSES; i++) tls_pass_counts[i] = 0;
     tls_num_passes = 0;
 
-    /* ── 4a. Cross-pass suppression accumulator ──────────────────────────── */
-    /* Holds decoded candidates from pass 0 for spectrogram suppression
-     * before pass 1.  snr_db stored per entry so suppress_candidate_tiles
-     * can apply the soft SNR-scaled attenuation factor.                  */
+    /* ── 4a. Cross-pass SIC accumulator ─────────────────────────────────── */
+    /* Holds decoded candidates from pass 0 for PCM-domain SIC before pass 1.
+     * snr_db retained per entry for parity with the previous spectrogram-
+     * suppression structure; not consumed by the PCM-domain SIC path.    */
     ftx_candidate_t all_supp_cands[K_MAX_CANDIDATES];
     ftx_message_t   all_supp_msgs [K_MAX_CANDIDATES];
     float           all_supp_snrs [K_MAX_CANDIDATES];
     int             n_all_supp    = 0;
 
+    /* ── 4b. Second monitor for PCM-residual waterfall rebuild (T2) ─────── */
+    monitor_t mon2;
+    bool      mon2_initialized = false;
+
     /* ── 5. Multi-pass decode loop ───────────────────────────────────────── */
     static const struct { int min_score; int max_cands; int ldpc; } k_pass_cfg[K_MAX_PASSES] = {
-        { K_MIN_SCORE,       K_MAX_CANDIDATES,       K_LDPC_ITERATIONS       }, /* pass 0: full waterfall         */
-        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 1: spectrogram-suppressed */
+        { K_MIN_SCORE,       K_MAX_CANDIDATES,       K_LDPC_ITERATIONS       }, /* pass 0: full waterfall           */
+        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 1: PCM-residual waterfall   */
     };
 
     for (int pass = 0; pass < K_MAX_PASSES; pass++)
@@ -463,22 +482,81 @@ int ft8_decode_all(
             continue;
         }
 
-        /* ── Spectrogram suppression: execute before pass 1 ────────────────── */
+        /* ── PCM-domain SIC: replaces spectrogram suppression before pass 1 ─ */
         if (pass == 1)
         {
-            for (int i = 0; i < n_all_supp; i++)
-                suppress_candidate_tiles(&mon.wf, &all_supp_cands[i],
-                                         &all_supp_msgs[i], noise_raw,
-                                         all_supp_snrs[i]);
+            /* Tasks 2.2–2.6: heap-allocate buffers; if either fails, fall back
+             * to pass-0-only results (free(NULL) is a no-op per C11 §7.22.3.3) */
+            float* residual_pcm = malloc(FT8_EXPECTED_SAMPLES * sizeof(float));
+            float* synth_buf    = malloc(FT8_EXPECTED_SAMPLES * sizeof(float));
+            if (residual_pcm && synth_buf)
+            {
+                /* Task 2.3: initialise residual with full input PCM */
+                memcpy(residual_pcm, pcm, FT8_EXPECTED_SAMPLES * sizeof(float));
+
+                /* Task 2.4: subtract each pass-0 decoded signal from the residual */
+                for (int i = 0; i < n_all_supp; i++)
+                {
+                    memset(synth_buf, 0, FT8_EXPECTED_SAMPLES * sizeof(float));
+
+                    int start_sample = (int)all_supp_cands[i].time_offset * mon.block_size;
+                    if (start_sample < 0) start_sample = 0;
+                    if (start_sample >= FT8_EXPECTED_SAMPLES) continue;
+
+                    float freq_hz_i = (mon.min_bin
+                                      + all_supp_cands[i].freq_offset
+                                      + (float)all_supp_cands[i].freq_sub / mon.wf.freq_osr)
+                                     / mon.symbol_period;
+
+                    uint8_t tones_tmp[FT8_NN]; /* 79 bytes — well within 100-byte stack limit */
+                    ft8_encode(all_supp_msgs[i].payload, tones_tmp);
+                    synth_ft8_cpsfc(tones_tmp, freq_hz_i, start_sample,
+                                    synth_buf, FT8_EXPECTED_SAMPLES);
+
+                    int win_start = start_sample;
+                    int win_end   = start_sample + FT8_NN * FT8_SAMPLES_PER_SYMBOL;
+                    if (win_end > FT8_EXPECTED_SAMPLES) win_end = FT8_EXPECTED_SAMPLES;
+
+                    float a = compute_projection_amplitude(residual_pcm, synth_buf,
+                                                           win_start, win_end);
+                    for (int j = win_start; j < win_end; j++)
+                        residual_pcm[j] -= a * synth_buf[j];
+                }
+
+                /* Task 2.5: synth_buf no longer needed */
+                free(synth_buf);
+                synth_buf = NULL;
+
+                /* Task 2.6: rebuild waterfall from PCM residual into mon2 */
+                monitor_init(&mon2, &cfg);
+                mon2_initialized = true;
+                for (int pos = 0; pos + mon2.block_size <= FT8_EXPECTED_SAMPLES;
+                     pos += mon2.block_size)
+                    monitor_process(&mon2, residual_pcm + pos);
+                free(residual_pcm);
+                residual_pcm = NULL;
+            }
+            else
+            {
+                /* Allocation failure: free any non-NULL buffer, skip PCM-domain SIC.
+                 * Pass 1 falls back to the original mon.wf (mon2 stays uninitialised). */
+                free(residual_pcm);
+                free(synth_buf);
+            }
         }
 
         int pass_min_score = k_pass_cfg[pass].min_score;
         int pass_max_cands = k_pass_cfg[pass].max_cands;
         int pass_ldpc      = k_pass_cfg[pass].ldpc;
 
+        /* Task 2.7: select the waterfall for this pass.
+         * Pass 0:   always mon.wf  (full-PCM waterfall).
+         * Pass 1:   mon2.wf if PCM-domain SIC succeeded; mon.wf as fallback. */
+        const monitor_t* mon_cur = (pass == 1 && mon2_initialized) ? &mon2 : &mon;
+
         /* Size the local candidate array to the maximum across all passes */
         ftx_candidate_t candidates[K_MAX_CANDIDATES_PASS2]; /* largest per-pass max */
-        int ncands = ftx_find_candidates(&mon.wf, pass_max_cands,
+        int ncands = ftx_find_candidates(&mon_cur->wf, pass_max_cands,
                                           candidates, pass_min_score);
 
         int new_decodes = 0;
@@ -489,7 +567,7 @@ int ft8_decode_all(
 
             ftx_message_t       msg;
             ftx_decode_status_t status;
-            if (!ftx_decode_candidate(&mon.wf, cand, pass_ldpc, &msg, &status))
+            if (!ftx_decode_candidate(&mon_cur->wf, cand, pass_ldpc, &msg, &status))
                 continue;
 
             /* Cross-pass dedup */
@@ -517,11 +595,13 @@ int ft8_decode_all(
             memcpy(&decoded_msgs[walk], &msg, sizeof(msg));
             decoded_ht[walk] = &decoded_msgs[walk];
 
-            /* Frequency, time offset, and SNR */
-            float freq_hz = (mon.min_bin + cand->freq_offset +
-                             (float)cand->freq_sub / mon.wf.freq_osr) / mon.symbol_period;
+            /* Frequency, time offset, and SNR — use mon_cur for consistency */
+            float freq_hz = (mon_cur->min_bin + cand->freq_offset +
+                             (float)cand->freq_sub / mon_cur->wf.freq_osr)
+                           / mon_cur->symbol_period;
             float dt      = (cand->time_offset +
-                             (float)cand->time_sub / mon.wf.time_osr) * mon.symbol_period;
+                             (float)cand->time_sub / mon_cur->wf.time_osr)
+                           * mon_cur->symbol_period;
 
             uint8_t tones[FT8_NN];
             ft8_encode(msg.payload, tones);
@@ -529,15 +609,16 @@ int ft8_decode_all(
             float signal_db;
             {
                 float sum = 0.0f; int cnt = 0;
-                int bs = mon.wf.block_stride;
-                int pt = mon.wf.freq_osr * mon.wf.num_bins;
-                int nb = mon.wf.num_bins;
+                int bs = mon_cur->wf.block_stride;
+                int pt = mon_cur->wf.freq_osr * mon_cur->wf.num_bins;
+                int nb = mon_cur->wf.num_bins;
                 int b0 = (int)cand->time_offset; if (b0 < 0) b0 = 0;
-                int b1 = b0 + FT8_NN; if (b1 > mon.wf.num_blocks) b1 = mon.wf.num_blocks;
+                int b1 = b0 + FT8_NN;
+                if (b1 > mon_cur->wf.num_blocks) b1 = mon_cur->wf.num_blocks;
                 int fi = (int)cand->time_sub * pt + (int)cand->freq_sub * nb +
                          (int)cand->freq_offset;
                 for (int b = b0; b < b1; b++) {
-                    const WF_ELEM_T* row = mon.wf.mag + b * bs + fi;
+                    const WF_ELEM_T* row = mon_cur->wf.mag + b * bs + fi;
                     float mx = (float)row[tones[b - b0]] * 0.5f - 120.0f;
                     sum += mx; cnt++;
                 }
@@ -554,9 +635,9 @@ int ft8_decode_all(
 
             new_decodes++;
 
-            /* Track for spectrogram suppression accumulator (pass 0 only).
-             * Pass 0 signals are suppressed before pass 1.  Excess beyond
-             * K_MAX_CANDIDATES is silently discarded.                        */
+            /* Track for PCM-domain SIC accumulator (pass 0 only).
+             * Pass-0 decoded signals are synthesised and subtracted before pass 1.
+             * Excess beyond K_MAX_CANDIDATES is silently discarded.             */
             if (pass == 0 && n_all_supp < K_MAX_CANDIDATES) {
                 all_supp_cands[n_all_supp] = *cand;
                 all_supp_msgs [n_all_supp] = msg;
@@ -571,6 +652,7 @@ int ft8_decode_all(
 
     /* ── 6. Cleanup ──────────────────────────────────────────────────────── */
     tls_hash_table = NULL;
+    if (mon2_initialized) monitor_free(&mon2); /* Task 2.8 — PCM-residual waterfall */
     monitor_free(&mon);
 
     return num_decoded;

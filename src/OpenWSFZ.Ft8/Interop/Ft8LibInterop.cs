@@ -35,8 +35,14 @@ internal static class Ft8LibInterop
     /// 20260006 (D-002 fix: SNR bandwidth constant -26.0 → -26.5 dB; bias calibration).
     /// Note: 20260007 (diag-D001-three-pass-sic, K_MAX_PASSES 2→3) was tried and reverted —
     ///   S7 R&amp;R result −4.30 pp regression; H2 rejected. See results/2026-06-12-3ecf8ae/report-v2.md.
+    /// 20260008 (diag-d001-pcm-sic, H3 diagnostic): PCM-domain SIC replaces spectrogram suppression
+    ///   in the inter-pass stage.  For each pass-0 decoded signal a CP-FSK waveform is synthesised
+    ///   (heap-allocated synth_buf, phase zero, no Gaussian shaping), scaled via least-squares
+    ///   projection, and subtracted from a heap-allocated PCM residual.  Pass 1 operates on a
+    ///   waterfall rebuilt from the residual via a second monitor_t.  No change to K_MAX_PASSES,
+    ///   MaxDecodePasses, or MaxResults.  Version 20260007 slot skipped (was the reverted 3-pass SIC).
     /// </summary>
-    private const int ExpectedShimVersion = 20260006;
+    private const int ExpectedShimVersion = 20260008;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -51,7 +57,11 @@ internal static class Ft8LibInterop
     /// Number of decode passes executed by the native shim per cycle.
     /// Mirrors <c>K_MAX_PASSES</c> in <c>ft8_shim.c</c>; both are owned here
     /// so callers do not need to hard-code the pass count separately.
-    /// Pass 0: full waterfall. Pass 1: spectrogram-suppression (pass-0 signals suppressed).
+    /// Pass 0: full waterfall (unchanged).
+    /// Pass 1: PCM-residual waterfall — each pass-0 decoded signal is synthesised
+    ///   (CP-FSK, phase zero, heap-allocated buffers) and subtracted from the input
+    ///   PCM; the waterfall is rebuilt from the residual before pass 1 runs.
+    ///   If the heap allocation fails, pass 1 falls back to the original waterfall.
     /// </summary>
     internal const int MaxDecodePasses = 2;
 
@@ -125,8 +135,10 @@ internal static class Ft8LibInterop
     /// <summary>
     /// Decode all FT8 signals from a 180 000-sample PCM buffer.
     /// Performs <c>K_MAX_PASSES</c> (currently 2) decode passes internally:
-    /// pass 0 on the full waterfall, pass 1 on the spectrogram-suppressed
-    /// waterfall (pass-0 signals suppressed).
+    /// pass 0 on the full waterfall; pass 1 on a waterfall rebuilt from the
+    /// PCM residual after PCM-domain SIC (each pass-0 signal synthesised
+    /// via CP-FSK and subtracted from the input PCM, then the waterfall is
+    /// rebuilt from the residual — shim version 20260008, H3 diagnostic).
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1].</param>
     /// <returns>Array of decoded results (may be empty; never null).</returns>
