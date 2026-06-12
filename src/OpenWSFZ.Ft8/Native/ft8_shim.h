@@ -58,8 +58,16 @@ extern "C" {
  *              and subtracted from a heap-allocated copy of the input PCM
  *              (residual_pcm).  Pass 1 operates on a waterfall rebuilt from
  *              residual_pcm using a second monitor_t (mon2).  Version 20260007 slot
- *              skipped (was the reverted three-pass SIC) to avoid confusion. */
-#define FT8_SHIM_VERSION 20260008
+ *              skipped (was the reverted three-pass SIC) to avoid confusion.
+ *              SUPERSEDED by 20260009 (H3b GFSK quadrature SIC — see below).
+ *   20260009 — diag-d001-h3b-gfsk-sic: GFSK quadrature synthesiser replaces CP-FSK
+ *              scalar synthesiser; analytic quadrature amplitude estimator replaces
+ *              scalar projection; two additional heap buffers (synth_buf_q,
+ *              gfsk_kernel) plus GFSK kernel prefix sum (gfsk_prefix) allocated in
+ *              the pass-1 SIC block; total PCM-domain SIC heap ≈ 2.21 MB.
+ *              H3 root-cause: CP-FSK vs GFSK modulation mismatch + phase-zero
+ *              assumption drove cancellation amplitude to near-zero. */
+#define FT8_SHIM_VERSION 20260009
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

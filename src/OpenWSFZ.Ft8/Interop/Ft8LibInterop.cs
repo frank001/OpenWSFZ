@@ -41,8 +41,16 @@ internal static class Ft8LibInterop
     ///   projection, and subtracted from a heap-allocated PCM residual.  Pass 1 operates on a
     ///   waterfall rebuilt from the residual via a second monitor_t.  No change to K_MAX_PASSES,
     ///   MaxDecodePasses, or MaxResults.  Version 20260007 slot skipped (was the reverted 3-pass SIC).
+    ///   SUPERSEDED by 20260009 (H3b GFSK quadrature SIC).
+    /// 20260009 (diag-d001-h3b-gfsk-sic, H3b diagnostic): GFSK quadrature SIC replaces CP-FSK
+    ///   scalar SIC.  <c>synth_ft8_gfsk_quad</c> produces I (sin) and Q (cos) quadrature components
+    ///   using a normalised Gaussian pulse (BT=2.0, 3-symbol span, matching the QA Python synthesiser).
+    ///   <c>compute_quadrature_amplitude</c> estimates amplitude and phase analytically (O(N), exact
+    ///   for any carrier phase).  Three additional heap buffers in the pass-1 SIC stage:
+    ///   synth_buf_q, gfsk_kernel, gfsk_prefix; total PCM-domain SIC heap increases from
+    ///   ~1.44 MB to ~2.21 MB.  No change to K_MAX_PASSES, MaxDecodePasses, or MaxResults.
     /// </summary>
-    private const int ExpectedShimVersion = 20260008;
+    private const int ExpectedShimVersion = 20260009;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -59,9 +67,10 @@ internal static class Ft8LibInterop
     /// so callers do not need to hard-code the pass count separately.
     /// Pass 0: full waterfall (unchanged).
     /// Pass 1: PCM-residual waterfall — each pass-0 decoded signal is synthesised
-    ///   (CP-FSK, phase zero, heap-allocated buffers) and subtracted from the input
-    ///   PCM; the waterfall is rebuilt from the residual before pass 1 runs.
-    ///   If the heap allocation fails, pass 1 falls back to the original waterfall.
+    ///   using the GFSK quadrature synthesiser (BT=2.0, 3-symbol Gaussian; H3b) and
+    ///   subtracted from a heap-allocated PCM copy using the analytic quadrature
+    ///   amplitude estimator; the waterfall is rebuilt from the residual before pass 1.
+    ///   If any heap allocation fails, pass 1 falls back to the original waterfall.
     /// </summary>
     internal const int MaxDecodePasses = 2;
 

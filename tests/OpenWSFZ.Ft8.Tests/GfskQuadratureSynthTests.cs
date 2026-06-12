@@ -38,8 +38,7 @@ namespace OpenWSFZ.Ft8.Tests;
 /// </summary>
 public sealed class GfskQuadratureSynthTests
 {
-    [Fact(Skip = "Wired in T2",
-          DisplayName = "H3b/T2 gate: Ft8Decoder.DecodeAsync with synth-qso-01 returns expected results (shim 20260009 GFSK quadrature SIC)")]
+    [Fact(DisplayName = "H3b/T2 gate: Ft8Decoder.DecodeAsync with synth-qso-01 returns expected results (shim 20260009 GFSK quadrature SIC)")]
     public async Task DecodeAsync_SynthQso01_ReturnsExpectedResults_GfskQuadratureSic()
     {
         // Arrange — load the synth-qso-01 fixture (same WAV used by PcmSicSmokeTests)

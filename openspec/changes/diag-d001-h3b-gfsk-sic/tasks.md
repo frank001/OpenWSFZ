@@ -103,11 +103,11 @@ This task replaces the two H3 synthesis/estimation functions with their H3b coun
 Depends on T1 being merged. This task wires the T1 functions into `ft8_decode_all`, replaces
 the H3 scalar SIC path with the H3b quadrature path, and bumps the shim version.
 
-- [ ] 2.1 In the `/* ── 4a. Cross-pass SIC accumulator ─── */` section of `ft8_decode_all`,
+- [x] 2.1 In the `/* ── 4a. Cross-pass SIC accumulator ─── */` section of `ft8_decode_all`,
       confirm the existing `all_supp_cands`, `all_supp_msgs`, `all_supp_snrs` arrays and
       `n_all_supp` counter are unchanged. No modification needed in this section.
 
-- [ ] 2.2 In the `/* ── 4b. Second monitor ─── */` section, add declarations for the two new
+- [x] 2.2 In the `/* ── 4b. Second monitor ─── */` section, add declarations for the two new
       heap buffer pointers alongside the existing `mon2` / `mon2_initialized` declarations:
       ```c
       float* gfsk_kernel = NULL;
@@ -117,7 +117,7 @@ the H3 scalar SIC path with the H3b quadrature path, and bumps the shim version.
       These are declared alongside the existing `monitor_t mon2; bool mon2_initialized = false;`
       so that all SIC-related state is visible in one location.
 
-- [ ] 2.3 In the `if (pass == 1)` SIC block, after the existing `synth_buf` heap allocation
+- [x] 2.3 In the `if (pass == 1)` SIC block, after the existing `synth_buf` heap allocation
       and NULL-check, add two further allocations:
       ```c
       gfsk_kernel = malloc((GFSK_KERNEL_LEN)     * sizeof(float));
@@ -130,10 +130,10 @@ the H3 scalar SIC path with the H3b quadrature path, and bumps the shim version.
       waterfall rebuild (same fallback pattern as H3: `mon2_initialized` stays `false`,
       pass 1 falls back to `mon.wf`).
 
-- [ ] 2.4 On successful allocation, call `build_gfsk_kernel(gfsk_kernel, gfsk_prefix)`
+- [x] 2.4 On successful allocation, call `build_gfsk_kernel(gfsk_kernel, gfsk_prefix)`
       immediately after the NULL-check, before the signal subtraction loop.
 
-- [ ] 2.5 In the signal subtraction loop (the `for (int i = 0; i < n_all_supp; i++)` block),
+- [x] 2.5 In the signal subtraction loop (the `for (int i = 0; i < n_all_supp; i++)` block),
       replace the existing synthesis and amplitude computation:
 
       **Remove:**
@@ -159,7 +159,7 @@ the H3 scalar SIC path with the H3b quadrature path, and bumps the shim version.
           residual_pcm[j] -= a_i * synth_buf[j] + a_q * synth_buf_q[j];
       ```
 
-- [ ] 2.6 After the subtraction loop and before `monitor_init(&mon2, &cfg)`, free the three
+- [x] 2.6 After the subtraction loop and before `monitor_init(&mon2, &cfg)`, free the three
       synthesis-only buffers that are no longer needed:
       ```c
       free(synth_buf);    synth_buf    = NULL;
@@ -170,7 +170,7 @@ the H3 scalar SIC path with the H3b quadrature path, and bumps the shim version.
       `residual_pcm` is still needed for the waterfall rebuild and is freed after
       `monitor_process` calls complete (same as H3 task 2.5/2.6).
 
-- [ ] 2.7 Bump `FT8_SHIM_VERSION` from `20260008` to `20260009` in `ft8_shim.c`. Add the
+- [x] 2.7 Bump `FT8_SHIM_VERSION` from `20260008` to `20260009` in `ft8_shim.c`. Add the
       version history entry in the top-of-file block comment:
       ```
       20260009 — diag-d001-h3b-gfsk-sic: GFSK quadrature synthesiser replaces CP-FSK
@@ -182,7 +182,7 @@ the H3 scalar SIC path with the H3b quadrature path, and bumps the shim version.
       Also update the `/* diag-d001-pcm-sic (FT8_SHIM_VERSION 20260008) */` block comment
       with a short note that H3b supersedes it at version 20260009.
 
-- [ ] 2.8 Update `ExpectedShimVersion` in `src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs` from
+- [x] 2.8 Update `ExpectedShimVersion` in `src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs` from
       `20260008` to `20260009`. Add the corresponding entry in the `ExpectedShimVersion` XML
       doc comment history section:
       ```
@@ -190,21 +190,21 @@ the H3 scalar SIC path with the H3b quadrature path, and bumps the shim version.
                  heap increased from 1.44 MB to ~2.21 MB for PCM-domain SIC stage.
       ```
 
-- [ ] 2.9 Remove the `[Fact(Skip = "Wired in T2")]` attribute from the smoke-test added in
+- [x] 2.9 Remove the `[Fact(Skip = "Wired in T2")]` attribute from the smoke-test added in
       T1 task 1.3. Confirm the test asserts the expected decode for `synth-qso-01` and passes.
 
-- [ ] 2.10 Rebuild the Windows x64 `libft8.dll` from the updated `ft8_shim.c` (see
+- [x] 2.10 Rebuild the Windows x64 `libft8.dll` from the updated `ft8_shim.c` (see
       `BUILD.md` for exact compiler command). Update `libft8.version.txt` with new SHA,
       build date, and `FT8_SHIM_VERSION = 20260009` for the Windows entry.
 
-- [ ] 2.11 Rebuild the Linux x64 `libft8.so`. Update `libft8.version.txt` for Linux.
+- [x] 2.11 Rebuild the Linux x64 `libft8.so`. Update `libft8.version.txt` for Linux.
 
-- [ ] 2.12 Rebuild the macOS ARM64 `libft8.dylib` (Captain responsibility — cross-compilation
+- [x] 2.12 Rebuild the macOS ARM64 `libft8.dylib` (Captain responsibility — cross-compilation
       from Windows is not supported). Update `libft8.version.txt` for macOS.
 
-- [ ] 2.13 `dotnet build OpenWSFZ.slnx -c Release` → 0 errors, 0 warnings.
+- [x] 2.13 `dotnet build OpenWSFZ.slnx -c Release` → 0 errors, 0 warnings.
 
-- [ ] 2.14 `dotnet test OpenWSFZ.slnx -c Release` → all tests pass (smoke-test from T1 now
+- [x] 2.14 `dotnet test OpenWSFZ.slnx -c Release` → all tests pass (smoke-test from T1 now
       runs and passes; no other regressions). Confirm the ABI self-test passes (version check
       in `Ft8LibInterop` must see `20260009` and not throw).
 

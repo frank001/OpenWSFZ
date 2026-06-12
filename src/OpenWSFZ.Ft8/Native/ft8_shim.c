@@ -69,6 +69,22 @@
  *   operates on mon2.wf (the rebuilt residual waterfall).  Both heap buffers are
  *   freed before monitor_free; mon2 is freed before mon (Task 2.8).
  *   FT8_SHIM_VERSION 20260007 slot skipped (was the reverted three-pass SIC).
+ *   diag-d001-pcm-sic (H3, FT8_SHIM_VERSION 20260008) is SUPERSEDED by H3b below.
+ *
+ * diag-d001-h3b-gfsk-sic (FT8_SHIM_VERSION 20260009):
+ *
+ *   GFSK quadrature SIC replaces the CP-FSK scalar SIC from 20260008 (H3b diagnostic
+ *   for D-001).  H3 post-mortem: two compounding model errors drove cancellation
+ *   amplitude to near-zero — (a) CP-FSK vs GFSK modulation mismatch at symbol
+ *   boundaries; (b) cosine-only phase-zero assumption invalid for any real carrier
+ *   phase φ.  H3b corrects both: `synth_ft8_gfsk_quad` synthesises the I (sin) and
+ *   Q (cos) quadrature components using a normalised Gaussian pulse (BT=2.0, 3-symbol
+ *   span, matching the QA Python synthesiser in modulator.py); `compute_quadrature_
+ *   amplitude` estimates optimal amplitude a and phase φ analytically from two dot
+ *   products — O(N), exact for any φ.  Three additional heap buffers allocated in the
+ *   pass-1 SIC block: synth_buf_q (720 KB), gfsk_kernel (23 040 B), gfsk_prefix
+ *   (23 044 B).  Total PCM-domain SIC heap ≈ 2.21 MB.  FT8_SHIM_VERSION 20260008 slot
+ *   remains in the history above for auditability; the H3 binary is obsolete.
  *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
