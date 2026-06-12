@@ -53,7 +53,15 @@ _Per-message recovery when 2–3 signals occupy the same or near-same audio freq
 
 ## Summary
 
+> **⚠ This file is the raw harness output and is NOT NFR-023 compliant.**
+> The authoritative study report for this run is **`report-v2.md`** in this directory.
+> The verdict and recommendations in `report-v2.md` supersede everything below.
+
 | Metric | Scope | Value | Verdict |
 |---|---|---|---|
+| Overall recovery vs 2-pass baseline | S7 all | 50.54% vs 54.84% (−4.30 pp) | FAIL |
+| Co-channel improvement (P0/P1/P2) | S7 co_channel | 0/6 on all parts | FAIL |
+| H2 hypothesis | diag-D001-three-pass-sic | Rejected | FAIL |
 
-**Overall verdict: PASS**
+**Overall verdict: FAIL — H2 rejected. Change reverted to 2-pass baseline (shim 20260006).
+See `report-v2.md` for full findings, root cause analysis, and next diagnostic step.**
