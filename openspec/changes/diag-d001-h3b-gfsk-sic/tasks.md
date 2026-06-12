@@ -215,35 +215,31 @@ the H3 scalar SIC path with the H3b quadrature path, and bumps the shim version.
 This task is triggered by NS-001 condition (a): H3b fix merged → re-run S7.
 Same gate criteria as H3. Both gates must be met for H3b to be accepted.
 
-- [ ] 3.1 Confirm the build under test is at `FT8_SHIM_VERSION = 20260009` before starting.
+- [x] 3.1 Confirm the build under test is at `FT8_SHIM_VERSION = 20260009` before starting.
 
-- [ ] 3.2 Run the S7 R&R harness (K=3, all parts P0–P14) against shim `20260009` and
+- [x] 3.2 Run the S7 R&R harness (K=3, all parts P0–P14) against shim `20260009` and
       WSJT-X 2.7.0 as the reference appraiser.
 
-- [ ] 3.3 Evaluate H3b gate:
+- [x] 3.3 Evaluate H3b gate:
       - **Gate (a) — primary (co-channel):** any measurable improvement on P0 or P1 vs
         baseline 0/6 (K=3). Baseline from `da133f4` H3 run: 0/6 for both.
       - **Gate (b) — secondary (overall):** overall decode rate ≥ +5 pp vs the 2-pass
         spectrogram-suppression baseline of 54.84% (i.e., ≥ 59.84%).
-        Recall: H3 scored 40.86% (−13.98 pp) — a regression; any result above 54.84% + 5 pp
-        constitutes progress. Both gates must be met.
+        **Result: Gate (a) FAIL — P0: 0/6, P1: 0/6. Gate (b) FAIL — 37.63% (−17.21 pp).**
 
-- [ ] 3.4 Generate all supporting artefacts (CSV, PNGs) and write an NFR-023-compliant
-      `report.md` in `qa/rr-study/results/<date>-<sha>/`. All five mandatory sections must
-      be present: hypothesis, data summary, results with graphs, summary verdict table,
-      recommendations.
+- [x] 3.4 Generate all supporting artefacts (CSV, PNGs) and write an NFR-023-compliant
+      `report.md` in `qa/rr-study/results/2026-06-12-30972ba/`. All five mandatory sections
+      present. NFR-023 compliant. **H3b verdict: REJECTED.**
 
-- [ ] 3.5 Update `openspec/specs/iterative-subtraction/spec.md` AC-IS-1 history section
-      with the H3b result (ACCEPTED or REJECTED) and the S7 overall percentage.
+- [x] 3.5 Update `openspec/specs/iterative-subtraction/spec.md` AC-IS-1 history section
+      with the H3b result (REJECTED) and the S7 overall percentage (37.63%).
 
-- [ ] 3.6 Update `MEMORY.md` with the H3b result and the new NS-001 trigger state.
+- [x] 3.6 Update `MEMORY.md` with the H3b result and the new NS-001 trigger state.
 
-- [ ] 3.7 **If H3b ACCEPTED:** Close or annotate GitHub issue #3 with evidence. Evaluate
-      whether combining PCM-domain SIC with residual spectrogram suppression offers further
-      improvement (H3c). Update D-001 severity if the gap to WSJT-X has materially closed.
+- ~~3.7~~ **Not applicable — H3b REJECTED.**
 
-- [ ] 3.8 **If H3b REJECTED:** Record H3b findings in issue #3. Analyse root cause: if
-      amplitude is still near-zero, the synthesiser is still mismatched (check kernel formula
-      vs Python); if amplitude is non-zero but P0/P1 remain at 0/6, the cancellation is
-      insufficient at 0 dB SNR (evaluate H3c: amplitude scaling + residual spectrogram
-      suppression, or defer D-001). Update MEMORY.md deferred-next-steps accordingly.
+- [x] 3.8 **H3b REJECTED:** Findings recorded in GitHub issue #3 (comment added 2026-06-13).
+      Root cause: GFSK model accuracy is correct but PCM-domain subtraction alone cannot
+      decode both equal-power co-channel signals — amplitude estimation is approximate under
+      interference, and removing spectrogram suppression without an effective replacement
+      produces net regression. See report R1–R5 for next steps. MEMORY.md updated.

@@ -211,14 +211,32 @@ History:
   to borderline pass-1 decodes, introducing collateral damage with no co-channel benefit.
   Change reverted to 2-pass baseline (FT8_SHIM_VERSION 20260006). Full findings:
   `qa/rr-study/results/2026-06-12-3ecf8ae/report-v2.md`.
+- **diag-d001-pcm-sic (SHA `da133f4`, 2026-06-12 — H3 REJECTED):** PCM-domain SIC with
+  CP-FSK/cosine synthesiser (heap-allocated, phase zero). Result: S7 overall **40.86%**
+  (−13.98 pp vs 54.84% baseline). P0: 0/6, P1: 0/6. Root cause: CP-FSK vs GFSK modulation
+  mismatch + cosine phase assumption → dot product ≈ 0 → cancellation amplitude a ≈ 0.
+  Spectrogram suppression removed with no effective replacement. Full findings:
+  `qa/rr-study/results/2026-06-12-da133f4/report.md`.
+- **diag-d001-h3b-gfsk-sic (SHA `49ea303`, 2026-06-13 — H3b REJECTED):** PCM-domain SIC
+  with GFSK quadrature synthesiser (BT=2.0, 3-symbol Gaussian) and analytic quadrature
+  amplitude estimator. Corrects both H3 model mismatches. Result: S7 overall **37.63%**
+  (−17.21 pp vs 54.84% baseline). P0: 0/6, P1: 0/6 — no co-channel improvement. H3b is
+  3.23 pp worse than H3. Root cause: amplitude estimation is correct but cancellation of
+  equal-power co-channel signals is structurally insufficient — residual still contains the
+  second signal at full amplitude. Spectrogram suppression absent; regression across
+  near-collision and time-offset families. Full findings:
+  `qa/rr-study/results/2026-06-12-30972ba/report.md`.
 
-**The ≥ 1/6 improvement target on P0 and P8 is not yet met.** D-001 remains Open; further
-iteration deferred. Soft attenuation (Option B) is the current production configuration.
-H2 (pass-count increase) definitively rejected. PCM-domain SIC (H3, heap-allocated) is
-the only remaining spectrogram-independent candidate — requires Captain approval.
+**The ≥ 1/6 improvement target on P0 and P8 is not yet met.** D-001 remains Open.
+H3b definitively shows that PCM-domain SIC alone (without spectrogram suppression) produces
+net regression. Recommended next step: reinstate spectrogram-domain soft-SNR tile attenuation
+as the pass-1 mechanism (H3b report R1). H3c (PCM + spectrogram combined) is the remaining
+open investigation path.
 
-**Current production baseline (`15b220b`):** 69.2% (614/887 matched overall); S7 overall 57.0%;
-P0 (2-stack equal SNR) 0/6, P8 (time-freq co-freq dt 0.5 s) 0/6.
+**Current deployed shim (`49ea303`, FT8_SHIM_VERSION 20260009):** PCM-domain GFSK quadrature
+SIC (H3b diagnostic, REJECTED). S7 overall 37.63%; P0 0/6, P8 0/6.
+**Prior production baseline (`15b220b`, FT8_SHIM_VERSION 20260006):** Spectrogram soft-SNR
+suppression. S7 overall 57.0%; P0 0/6, P8 0/6.
 
 ### AC-IS-2 — Fixture answer-key: G6 gate
 
