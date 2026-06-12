@@ -14,7 +14,7 @@ namespace OpenWSFZ.Ft8.Tests;
 /// These tests exercise the native shim directly, bypassing the silence guard in
 /// <see cref="Ft8Decoder.DecodeAsync"/> that short-circuits before any P/Invoke call
 /// on all-zero input.  Calling <see cref="Ft8LibInterop.DecodeAll"/> directly ensures
-/// that the two-pass decode loop and the thread-local storage (TLS) per-pass stats
+/// that the three-pass decode loop and the thread-local storage (TLS) per-pass stats
 /// mechanism are both exercised and queryable via <see cref="Ft8LibInterop.GetLastPassCounts"/>.
 /// </para>
 /// </summary>
@@ -22,14 +22,14 @@ public sealed class Ft8LibInteropTests
 {
     /// <summary>
     /// p15 regression: verifies that after a decode call on a silent (all-zero) PCM
-    /// buffer, <c>GetLastPassCounts(2)</c> returns exactly <c>[0, 0]</c>.
+    /// buffer, <c>GetLastPassCounts(3)</c> returns exactly <c>[0, 0, 0]</c>.
     ///
     /// <para>
-    /// The native shim always executes <c>K_MAX_PASSES</c> (= 2) full passes even when
+    /// The native shim always executes <c>K_MAX_PASSES</c> (= 3) full passes even when
     /// no candidates are found; the per-pass new-decode counts are stored in TLS and
-    /// must both be 0 for a silent input.  This test protects the TLS mechanic from
+    /// must all be 0 for a silent input.  This test protects the TLS mechanic from
     /// future regressions that could cause stale counts to be returned or the pass-count
-    /// array to be shorter than expected.
+    /// array to be shorter or longer than expected.
     /// </para>
     ///
     /// <para>
@@ -38,7 +38,7 @@ public sealed class Ft8LibInteropTests
     /// <c>ft8_decode_all</c>.
     /// </para>
     /// </summary>
-    [Fact(DisplayName = "p15: GetLastPassCounts returns [0, 0] after DecodeAll on a silent PCM buffer")]
+    [Fact(DisplayName = "p15: GetLastPassCounts returns [0, 0, 0] after DecodeAll on a silent PCM buffer")]
     public void GetLastPassCounts_AfterDecodeAllOnSilentBuffer_ReturnsTwoZeroCounts()
     {
         // Arrange — 180 000 zeroed samples (15 s × 12 kHz, all zero amplitude).
@@ -48,10 +48,10 @@ public sealed class Ft8LibInteropTests
         _ = Ft8LibInterop.DecodeAll(pcm);
         int[] counts = Ft8LibInterop.GetLastPassCounts(Ft8LibInterop.MaxDecodePasses);
 
-        // Assert — K_MAX_PASSES=2 passes execute; no candidates found in any pass.
-        counts.Should().Equal([0, 0],
-            "a silent buffer produces no decodes in either pass, " +
-            "but both passes still execute and record their (zero) counts in TLS");
+        // Assert — K_MAX_PASSES=3 passes execute; no candidates found in any pass.
+        counts.Should().Equal([0, 0, 0],
+            "a silent buffer produces no decodes in any pass, " +
+            "but all three passes still execute and record their (zero) counts in TLS");
     }
 
     /// <summary>
