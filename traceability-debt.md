@@ -133,3 +133,14 @@ NFR-023  # QA study report structure. This requirement governs the content and s
          # mandatory sections are present; (b) code review of _write_report() in
          # analyse.py and analyse_corpus.py confirming each section is emitted.
          # Remove when a pytest suite for the harness asserts report structure programmatically.
+
+NFR-024  # QA harness — compliant report generation. This requirement mandates that
+         # analyse.py and analyse_corpus.py produce a fully NFR-023-compliant report.md
+         # without any manual post-processing step. No xUnit/NUnit test can enforce
+         # Python script output format. Compliance is verified by: (a) QA review of every
+         # committed report.md against the NFR-023 five-section checklist before merge;
+         # (b) code review of _write_report() in both analysis scripts confirming all five
+         # sections are populated with correct content (not placeholder text or empty tables).
+         # A non-compliant report.md in a merge commit is a blocking defect per NFR-024.
+         # Remove when a pytest suite for the harness validates report.md structure and
+         # verdict correctness programmatically (at which point NFR-023 entry can also be removed).
