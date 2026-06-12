@@ -97,6 +97,10 @@ char* stpcpy(char* dest, const char* src)
 /* Samples per FT8 symbol: 12000 Hz / 6.25 symbols-per-second = 1920 */
 #define FT8_SAMPLES_PER_SYMBOL 1920
 
+/* Float-typed equivalents — avoid integer-division errors in synthesis math */
+#define TONE_SPACING_HZ   6.25f    /* Hz per FT8 tone step (6.25 Hz / tone)        */
+#define FT8_SAMPLE_RATE_F 12000.0f /* Nominal sample rate used by all synthesis math */
+
 #define K_MIN_SCORE       10
 #define K_MAX_CANDIDATES  140
 #define K_LDPC_ITERATIONS 25
@@ -296,6 +300,86 @@ static void compute_noise_floor(
     }
     *noise_floor_db = (float)med * 0.5f - 120.0f;
     *noise_raw      = (WF_ELEM_T)med;
+}
+
+/* ── T2 pre-condition: monitor_t isolation gate (task 1.1) ───────────────── */
+/*
+ * monitor.c isolation check (verified 2026-06-12 against native/ft8_lib_build/patched/common/monitor.c):
+ *
+ * monitor_init() allocates all internal state (window, last_frame, fft_work,
+ * fft_cfg, and wf.mag) via malloc/calloc and stores each pointer exclusively in
+ * fields of the monitor_t struct passed by pointer.  No static or TLS variables
+ * are read or written by monitor_init or monitor_free.  monitor_free() only frees
+ * those same heap pointers.  The kiss_fftr_alloc work area is likewise stored in
+ * me->fft_work / me->fft_cfg — no library-level global state.
+ *
+ * VERDICT: Two monitor_t instances can be independently initialised and freed
+ * within the same ft8_decode_all call stack without any interference.
+ * GO — waterfall rebuild via a second monitor_t (T2 Decision 4) is safe.
+ */
+
+/* ── CP-FSK synthesis helpers (T1 — present but not yet wired into decode) ── */
+
+/*
+ * synth_ft8_cpsfc — synthesise a CP-FSK FT8 waveform into a caller-provided buffer.
+ *
+ * Parameters:
+ *   tones       — FT8_NN (79) tone indices in [0..7], from ft8_encode
+ *   freq_hz     — carrier frequency of tone 0 in Hz
+ *   start_sample— first sample index in out_buf at which to write the waveform
+ *   out_buf     — caller-provided output buffer; must be at least buf_len floats
+ *   buf_len     — length of out_buf in samples
+ *
+ * Phase accumulates continuously across all 79 symbols (no phase discontinuity
+ * at symbol boundaries).  Initialised to 0.0 (phase-zero assumption).
+ * Writes cosf(phase) for each in-bounds sample; indices outside [0, buf_len)
+ * are silently skipped (bounds guard — not an assert, not UB).
+ * No heap or stack buffer allocation; no global or TLS state modified.
+ */
+static void synth_ft8_cpsfc(
+    const uint8_t* tones,
+    float          freq_hz,
+    int            start_sample,
+    float*         out_buf,
+    int            buf_len)
+{
+    float phase = 0.0f;
+    for (int sym = 0; sym < FT8_NN; sym++)
+    {
+        float f_tone    = freq_hz + (float)tones[sym] * TONE_SPACING_HZ;
+        float phase_step = 2.0f * (float)M_PI * f_tone / FT8_SAMPLE_RATE_F;
+        for (int s = 0; s < FT8_SAMPLES_PER_SYMBOL; s++)
+        {
+            int idx = start_sample + sym * FT8_SAMPLES_PER_SYMBOL + s;
+            if (idx >= 0 && idx < buf_len)
+                out_buf[idx] = cosf(phase);
+            phase += phase_step;
+        }
+    }
+}
+
+/*
+ * compute_projection_amplitude — least-squares projection of pcm onto synth.
+ *
+ * Returns dot(pcm[start..end], synth[start..end]) / dot(synth[start..end], synth[start..end]).
+ * Returns 0.0f if denominator is zero (all-zero synth window) or if start >= end.
+ * No heap allocation.
+ */
+static float compute_projection_amplitude(
+    const float* pcm,
+    const float* synth,
+    int          start,
+    int          end)
+{
+    if (start >= end) return 0.0f;
+    float dot_ps = 0.0f;
+    float dot_ss = 0.0f;
+    for (int i = start; i < end; i++)
+    {
+        dot_ps += pcm[i]   * synth[i];
+        dot_ss += synth[i] * synth[i];
+    }
+    return (dot_ss == 0.0f) ? 0.0f : dot_ps / dot_ss;
 }
 
 /* ── ABI sentinel ────────────────────────────────────────────────────────── */
