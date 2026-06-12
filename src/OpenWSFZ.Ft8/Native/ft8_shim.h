@@ -46,8 +46,12 @@ extern "C" {
  *              controlled diagnostic experiment to quantify pass-count contribution
  *              to co-channel recovery (D-001, High). Pass 2 reuses pass-1 params.
  *              K_MAX_DECODED raised to 140+200+200=540. Suppression accumulator
- *              guard extended to cover pass 0 and pass 1. No algorithm change. */
-#define FT8_SHIM_VERSION 20260007
+ *              guard extended to cover pass 0 and pass 1. No algorithm change.
+ *              REVERTED (revert-diag-d001): S7 R&R result −4.30 pp vs 2-pass
+ *              baseline (50.54% vs 54.84%).  H2 rejected — no co-channel
+ *              improvement; marginal capture regression.  See results/
+ *              2026-06-12-3ecf8ae/report-v2.md. */
+#define FT8_SHIM_VERSION 20260006
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

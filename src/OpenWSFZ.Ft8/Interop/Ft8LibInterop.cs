@@ -32,29 +32,28 @@ internal static class Ft8LibInterop
     /// 20260004 (fix-d001-revised Option B: hard-zero tile suppression replaced with soft
     ///           SNR-scaled linear attenuation; version 20260003 skipped — was the reverted PCM-SIC),
     /// 20260005 (D-003 diagnostics: add ft8_get_last_noise_floor_db TLS getter; no decode change),
-    /// 20260006 (D-002 fix: SNR bandwidth constant -26.0 → -26.5 dB; bias calibration),
-    /// 20260007 (diag-D001-three-pass-sic: K_MAX_PASSES increased 2→3 as controlled diagnostic
-    ///           experiment for co-channel recovery; K_MAX_DECODED raised to 540; no algorithm change).
+    /// 20260006 (D-002 fix: SNR bandwidth constant -26.0 → -26.5 dB; bias calibration).
+    /// Note: 20260007 (diag-D001-three-pass-sic, K_MAX_PASSES 2→3) was tried and reverted —
+    ///   S7 R&amp;R result −4.30 pp regression; H2 rejected. See results/2026-06-12-3ecf8ae/report-v2.md.
     /// </summary>
-    private const int ExpectedShimVersion = 20260007;
+    private const int ExpectedShimVersion = 20260006;
 
     /// <summary>
-    /// Maximum number of decoded messages per three-pass decode cycle.
-    /// Sized to the three-pass output capacity: K_MAX_CANDIDATES (pass 0, 140)
-    /// + K_MAX_CANDIDATES_PASS2 (pass 1, 200) + K_MAX_CANDIDATES_PASS2 (pass 2, 200) = 540.
+    /// Maximum number of decoded messages per two-pass decode cycle.
+    /// Sized to the two-pass output capacity: K_MAX_CANDIDATES (pass 0, 140)
+    /// + K_MAX_CANDIDATES_PASS2 (pass 1, 200) = 340.
     /// The <c>results[..count]</c> slice in <see cref="DecodeAll"/> returns only the
     /// populated portion.
     /// </summary>
-    private const int MaxResults = 540;  // 140 + 200 + 200 (three-pass capacity)
+    private const int MaxResults = 340;  // 140 + 200 (two-pass capacity)
 
     /// <summary>
     /// Number of decode passes executed by the native shim per cycle.
     /// Mirrors <c>K_MAX_PASSES</c> in <c>ft8_shim.c</c>; both are owned here
     /// so callers do not need to hard-code the pass count separately.
     /// Pass 0: full waterfall. Pass 1: spectrogram-suppression (pass-0 signals suppressed).
-    /// Pass 2: doubly-suppressed (pass-0 + pass-1 signals suppressed).
     /// </summary>
-    internal const int MaxDecodePasses = 3;
+    internal const int MaxDecodePasses = 2;
 
     private static readonly object _initLock = new();
     private static volatile bool _initialized;
@@ -125,10 +124,9 @@ internal static class Ft8LibInterop
 
     /// <summary>
     /// Decode all FT8 signals from a 180 000-sample PCM buffer.
-    /// Performs <c>K_MAX_PASSES</c> (currently 3) decode passes internally:
+    /// Performs <c>K_MAX_PASSES</c> (currently 2) decode passes internally:
     /// pass 0 on the full waterfall, pass 1 on the spectrogram-suppressed
-    /// waterfall (pass-0 signals suppressed), pass 2 on the doubly-suppressed
-    /// waterfall (pass-0 + pass-1 signals suppressed).
+    /// waterfall (pass-0 signals suppressed).
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1].</param>
     /// <returns>Array of decoded results (may be empty; never null).</returns>

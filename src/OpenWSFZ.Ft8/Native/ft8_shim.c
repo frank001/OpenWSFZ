@@ -45,16 +45,15 @@
  *   amplitude scaling.  The -0.5 dB adjustment brings the reported bias within
  *   the ±2.0 dB R&R S1 acceptance threshold.
  *
- * diag-D001-three-pass-sic (FT8_SHIM_VERSION 20260007):
+ * diag-D001-three-pass-sic (FT8_SHIM_VERSION 20260007) — TRIED AND REVERTED:
  *
- *   K_MAX_PASSES increased from 2 to 3 as a controlled diagnostic experiment
- *   to quantify the isolated contribution of pass count on co-channel recovery
- *   (D-001, High).  Pass 2 reuses the same candidate/LDPC parameters as pass 1
- *   (K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2) —
- *   no new algorithm, no new constants.  K_MAX_DECODED raised to
- *   140 + 200 + 200 = 540 to cover three-pass capacity.  The suppression
- *   accumulator guard is extended to cover pass 1 as well as pass 0.
- *   R&R study S7 re-run required post-merge to evaluate hypothesis H2.
+ *   K_MAX_PASSES was increased from 2 to 3 as a controlled diagnostic experiment.
+ *   S7 R&R result: 50.54% overall vs 54.84% 2-pass baseline (−4.30 pp).
+ *   H2 rejected: no improvement on any co-channel part (P0/P1/P2/P8 still 0/6);
+ *   marginal capture regression (P11: 5→3/6, P12: 5→4/6).  The third pass
+ *   provides no benefit over spectrogram-domain SIC for exact co-channel
+ *   separation.  FT8_SHIM_VERSION returned to 20260006.
+ *   Full findings: qa/rr-study/results/2026-06-12-3ecf8ae/report-v2.md.
  *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
@@ -108,10 +107,9 @@ char* stpcpy(char* dest, const char* src)
 /*
  * K_MAX_PASSES — total number of decode passes.
  * Pass 0: full waterfall.
- * Pass 1: spectrogram-suppression pass on the modified waterfall (pass-0 signals suppressed).
- * Pass 2: spectrogram-suppression pass on the doubly-modified waterfall (pass-0 + pass-1 signals suppressed).
+ * Pass 1: spectrogram-suppression pass on the original waterfall.
  */
-#define K_MAX_PASSES   3
+#define K_MAX_PASSES   2
 
 /* ── Soft SNR-scaled tile suppression constants ───────────────────────────── */
 /*
@@ -137,9 +135,9 @@ char* stpcpy(char* dest, const char* src)
 
 /*
  * K_MAX_DECODED — cross-pass dedup hash table entries.
- * Sized to accommodate all three passes: 140 + 200 + 200 = 540.
+ * Sized to accommodate all two passes: 140 + 200 = 340.
  */
-#define K_MAX_DECODED  (K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2 + K_MAX_CANDIDATES_PASS2)
+#define K_MAX_DECODED  (K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2)
 
 /* ── Thread-local per-pass stats and noise floor ─────────────────────────── */
 static _Thread_local int   tls_pass_counts[K_MAX_PASSES];
@@ -368,9 +366,8 @@ int ft8_decode_all(
 
     /* ── 5. Multi-pass decode loop ───────────────────────────────────────── */
     static const struct { int min_score; int max_cands; int ldpc; } k_pass_cfg[K_MAX_PASSES] = {
-        { K_MIN_SCORE,       K_MAX_CANDIDATES,       K_LDPC_ITERATIONS       }, /* pass 0: full waterfall              */
-        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 1: spectrogram-suppressed      */
-        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 2: doubly-suppressed (diag)    */
+        { K_MIN_SCORE,       K_MAX_CANDIDATES,       K_LDPC_ITERATIONS       }, /* pass 0: full waterfall         */
+        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 1: spectrogram-suppressed */
     };
 
     for (int pass = 0; pass < K_MAX_PASSES; pass++)
@@ -382,8 +379,8 @@ int ft8_decode_all(
             continue;
         }
 
-        /* ── Spectrogram suppression: execute before pass 1 and pass 2 ─────── */
-        if (pass >= 1)
+        /* ── Spectrogram suppression: execute before pass 1 ────────────────── */
+        if (pass == 1)
         {
             for (int i = 0; i < n_all_supp; i++)
                 suppress_candidate_tiles(&mon.wf, &all_supp_cands[i],
@@ -473,11 +470,10 @@ int ft8_decode_all(
 
             new_decodes++;
 
-            /* Track for spectrogram suppression accumulator (pass 0 and pass 1).
-             * Pass 0 signals are suppressed before pass 1; pass 0+1 signals are
-             * suppressed before pass 2.  Excess beyond K_MAX_CANDIDATES is silently
-             * discarded — conservative (not destructive) for the diagnostic. */
-            if ((pass == 0 || pass == 1) && n_all_supp < K_MAX_CANDIDATES) {
+            /* Track for spectrogram suppression accumulator (pass 0 only).
+             * Pass 0 signals are suppressed before pass 1.  Excess beyond
+             * K_MAX_CANDIDATES is silently discarded.                        */
+            if (pass == 0 && n_all_supp < K_MAX_CANDIDATES) {
                 all_supp_cands[n_all_supp] = *cand;
                 all_supp_msgs [n_all_supp] = msg;
                 all_supp_snrs [n_all_supp] = snr;
