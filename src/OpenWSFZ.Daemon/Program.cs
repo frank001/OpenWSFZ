@@ -48,13 +48,24 @@ var loggingPipeline = new LoggingPipeline();
 loggingPipeline.Apply(configStore.Current.Logging ?? new LoggingConfig(), consoleLevel: logLevel);
 
 // Standalone logger factory delegates to Log.Logger (set above).
+// Pass null so the factory resolves Log.Logger dynamically at each emit, rather than
+// capturing the instance at construction time.  This allows loggingPipeline.Apply()
+// to replace Log.Logger at runtime (e.g. when the operator enables file logging via
+// the settings page) and have all ILogger<T> consumers immediately route to the new
+// pipeline — without a daemon restart.
 using var loggerFactory = new Serilog.Extensions.Logging.SerilogLoggerFactory(
-    Log.Logger, dispose: false);
+    null, dispose: false);
 
 void ConfigureLogging(ILoggingBuilder lb)
 {
     lb.ClearProviders();
-    lb.AddSerilog(Log.Logger, dispose: false);
+    // Pass no logger so the Serilog MEL provider resolves Log.Logger dynamically
+    // at each emit.  This mirrors the standalone loggerFactory above and ensures
+    // loggingPipeline.Apply() replacements are visible to all ILogger<T> consumers
+    // without a restart.  Note: SetMinimumLevel is still fixed at startup, so
+    // console log-level changes still require a restart; file-sink enable/disable
+    // and file log level take effect immediately.
+    lb.AddSerilog(dispose: false);
     lb.SetMinimumLevel(logLevel);
     lb.AddFilter("Microsoft", frameworkLevel);
     lb.AddFilter("System",    frameworkLevel);
@@ -326,12 +337,12 @@ configStore.OnSaved += newConfig =>
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
     // create a spurious new log file and reset the active sink.
     //
-    // NOTE: the MEL ILoggerFactory was wired to the Serilog instance captured
-    // at startup (lb.AddSerilog(Log.Logger, ...)) and the MEL minimum level was
-    // fixed via lb.SetMinimumLevel(). Neither updates dynamically, so console-
-    // level and file-level changes do NOT take effect until the next restart.
-    // TODO: replace with a SerilogLoggingLevelSwitch wired to both the Serilog
-    //       pipeline and the MEL factory to achieve true live log-level updates.
+    // File-sink enable/disable and file log level take effect immediately: the
+    // loggerFactory and ASP.NET host both resolve Log.Logger dynamically (null
+    // passed to SerilogLoggerFactory / AddSerilog), so Apply()'s replacement of
+    // Log.Logger is visible to all ILogger<T> consumers without a restart.
+    // Console log level still requires a restart (SetMinimumLevel is fixed at
+    // host-build time and has no runtime equivalent without a full LevelSwitch).
     var newConsoleLevel  = Enum.TryParse<LogLevel>(newConfig.LogLevel,
         ignoreCase: true, out var nl) ? nl : LogLevel.Information;
     var newLoggingConfig = newConfig.Logging ?? new LoggingConfig();

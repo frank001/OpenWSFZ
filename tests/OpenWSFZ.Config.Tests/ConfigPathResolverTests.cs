@@ -68,6 +68,60 @@ public sealed class ConfigPathResolverTests
         }
     }
 
+    // ── Environment-variable expansion ───────────────────────────────────────
+
+    [Fact(DisplayName = "ConfigPathResolver expands OS env-var placeholders in the OPENWSFZ_CONFIG value")]
+    public void Resolve_ExpandsPlaceholders_InEnvVarPath()
+    {
+        // %TEMP% exists on Windows; $TMPDIR or /tmp on macOS/Linux.
+        // Environment.ExpandEnvironmentVariables handles both conventions.
+        var original = Environment.GetEnvironmentVariable(EnvVar);
+        try
+        {
+            var rawPath  = Path.Combine("%TEMP%", "owsfz-test", "config.json");
+            var expected = Path.Combine(
+                Environment.ExpandEnvironmentVariables("%TEMP%"), "owsfz-test", "config.json");
+
+            Environment.SetEnvironmentVariable(EnvVar, rawPath);
+
+            var (resolvedPath, source) = ConfigPathResolver.Resolve(null);
+
+            resolvedPath.Should().Be(expected,
+                "the resolver must expand OS environment-variable placeholders in OPENWSFZ_CONFIG " +
+                "so that values such as %APPDATA%\\OpenWSFZ\\config.json in launchSettings.json " +
+                "are resolved to real paths at runtime");
+            source.Should().Contain(EnvVar);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(EnvVar, original);
+        }
+    }
+
+    [Fact(DisplayName = "ConfigPathResolver expands OS env-var placeholders in the --config CLI override")]
+    public void Resolve_ExpandsPlaceholders_InCliOverride()
+    {
+        var rawPath  = Path.Combine("%TEMP%", "owsfz-cli", "config.json");
+        var expected = Path.Combine(
+            Environment.ExpandEnvironmentVariables("%TEMP%"), "owsfz-cli", "config.json");
+
+        var (resolvedPath, source) = ConfigPathResolver.Resolve(rawPath);
+
+        resolvedPath.Should().Be(expected,
+            "the resolver must expand OS environment-variable placeholders in the --config flag value");
+        source.Should().Be("--config flag");
+    }
+
+    [Fact(DisplayName = "ConfigPathResolver leaves plain paths unchanged (no placeholders)")]
+    public void Resolve_LeavesPlainPaths_Unchanged()
+    {
+        var (resolvedPath, source) = ConfigPathResolver.Resolve("/plain/path/config.json");
+
+        resolvedPath.Should().Be("/plain/path/config.json",
+            "a path without placeholders must pass through unmodified");
+        source.Should().Be("--config flag");
+    }
+
     // ── Task 8.7 ─────────────────────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-006: Default config contains expected fields")]

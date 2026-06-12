@@ -1,0 +1,32 @@
+{
+  "audioDeviceId": null,
+  "audioDeviceFriendlyName": null,
+  "port": 8080,
+  "showCycleCountdown": false,
+  "decodingEnabled": false,
+  "logLevel": "Information",
+  "logging": {
+    "fileEnabled": false,
+    "directory": "logs",
+    "fileLogLevel": "Information",
+    "rotationSchedule": "daily",
+    "rotationTime": "00:00",
+    "rotationDayOfWeek": "Monday",
+    "maxFiles": 7
+  },
+  "decodeLog": {
+    "enabled": false,
+    "path": "ALL.TXT",
+    "dialFrequencyMHz": 0
+  },
+  "cat": {
+    "enabled": false,
+    "rigModel": "SerialCat",
+    "serialPort": "COM6",
+    "baudRate": 9600,
+    "rigctldHost": "127.0.0.1",
+    "rigctldPort": 4532,
+    "pollIntervalSeconds": 1,
+    "lastPolledFrequencyMHz": null
+  }
+}

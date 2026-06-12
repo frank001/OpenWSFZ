@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "OpenWSFZ.Daemon": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "OPENWSFZ_CONFIG": "%APPDATA%\\OpenWSFZ\\config.json"
+      }
+    }
+  }
+}
