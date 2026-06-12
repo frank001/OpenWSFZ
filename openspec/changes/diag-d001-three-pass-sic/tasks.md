@@ -11,7 +11,7 @@
 
 - [x] 2.1 Rebuild `libft8.dll` (Windows x64) from the updated `ft8_shim.c` and commit to `src/OpenWSFZ.Ft8/Native/win-x64/`
 - [x] 2.2 Rebuild `libft8.so` (Linux x64) and commit to `src/OpenWSFZ.Ft8/Native/linux-x64/`
-- [ ] 2.3 Rebuild `libft8.dylib` (macOS ARM64) and commit to `src/OpenWSFZ.Ft8/Native/osx-arm64/`
+- [x] 2.3 Rebuild `libft8.dylib` (macOS ARM64) and commit to `src/OpenWSFZ.Ft8/Native/osx-arm64/`
 - [x] 2.4 Update `libft8.version.txt` for all three platforms: increment version to `20260007`, update pass count to `3`, record build date and compiler version
 
 ## 3. Managed interop layer — Ft8LibInterop.cs
