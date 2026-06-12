@@ -1,6 +1,6 @@
 ﻿# p10 Recovery-Rate Findings
 
-**Date:** 2026-06-12 17:53:38 UTC
+**Date:** 2026-06-12 21:12:26 UTC
 **Corpus:** 42 × 15-second WAVs, 12 kHz mono int16, 7.074 MHz
 **WSJT-X answer keys:** 887 total decodes across 42 cycles
 
@@ -29,7 +29,7 @@
 | `260529_000215` | 18 | 8 | 8 | 10 | 0 |
 | `260529_000230` | 17 | 13 | 12 | 5 | 1 |
 | `260529_000245` | 21 | 13 | 13 | 8 | 0 |
-| `260529_000300` | 19 | 15 | 14 | 5 | 1 |
+| `260529_000300` | 19 | 14 | 13 | 6 | 1 |
 | `260529_000315` | 25 | 17 | 17 | 8 | 0 |
 | `260529_000330` | 16 | 13 | 12 | 4 | 1 |
 | `260529_000345` | 25 | 14 | 14 | 11 | 0 |
@@ -57,12 +57,12 @@
 |---|---|
 | WAV files decoded | 42 |
 | WSJT-X total decodes | 887 |
-| Our matched decodes | 594 |
+| Our matched decodes | 593 |
 | Our false positives | 24 |
-| **Recovery rate** | **67.0%** |
+| **Recovery rate** | **66.9%** |
 
 ## Decision-gate outcome
 
-Recovery rate is **67.0%** — within normal operating range.
+Recovery rate is **66.9%** — within normal operating range.
 
 **Status: nominal.** The miss rate relative to WSJT-X is a known, accepted limitation of the ft8_lib single-pass decoder. OpenWSFZ wraps it with a 2-pass iterative-subtraction loop, which recovers additional signals on each second pass, but WSJT-X employs a deeper multi-pass strategy that the current implementation does not replicate. Closing this gap is deferred to a future change. No action required.

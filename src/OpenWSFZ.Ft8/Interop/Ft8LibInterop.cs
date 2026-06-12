@@ -145,9 +145,13 @@ internal static class Ft8LibInterop
     /// Decode all FT8 signals from a 180 000-sample PCM buffer.
     /// Performs <c>K_MAX_PASSES</c> (currently 2) decode passes internally:
     /// pass 0 on the full waterfall; pass 1 on a waterfall rebuilt from the
-    /// PCM residual after PCM-domain SIC (each pass-0 signal synthesised
-    /// via CP-FSK and subtracted from the input PCM, then the waterfall is
-    /// rebuilt from the residual — shim version 20260008, H3 diagnostic).
+    /// PCM residual after GFSK quadrature PCM-domain SIC — each pass-0 signal
+    /// is synthesised via <c>synth_ft8_gfsk_quad</c> (BT=2.0, 3-symbol Gaussian
+    /// pulse, I/Q quadrature components) and subtracted from a heap-allocated
+    /// PCM copy using the analytic quadrature amplitude estimator
+    /// (<c>compute_quadrature_amplitude</c>, O(N), phase-agnostic); the waterfall
+    /// is rebuilt from the residual before pass 1 runs
+    /// (shim version 20260009, H3b diagnostic).
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1].</param>
     /// <returns>Array of decoded results (may be empty; never null).</returns>

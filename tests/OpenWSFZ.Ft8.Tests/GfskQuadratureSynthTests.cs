@@ -16,21 +16,20 @@ namespace OpenWSFZ.Ft8.Tests;
 ///
 /// <para>
 /// Verifies that <see cref="Ft8Decoder.DecodeAsync"/> successfully produces a non-empty
-/// result from the committed <c>synth-qso-01</c> fixture WAV after the GFSK quadrature
-/// synthesiser replaces the CP-FSK scalar synthesiser in the inter-pass SIC stage.
+/// result from the committed <c>synth-qso-01</c> fixture WAV and that every message in
+/// the answer key is decoded, after the GFSK quadrature synthesiser replaces the CP-FSK
+/// scalar synthesiser in the inter-pass SIC stage.
 /// </para>
 ///
 /// <para>
-/// This test is marked <c>[Fact(Skip = "Wired in T2")]</c> for T1: the C source has been
-/// updated but the native binary has not yet been rebuilt at shim version 20260009.
-/// The <c>Skip</c> attribute is removed in T2 (diag-d001-h3b-gfsk-sic task 2.9), after
-/// the binary is rebuilt and <see cref="Ft8LibInterop"/> <c>ExpectedShimVersion</c> is
-/// updated to <c>20260009</c>.
+/// This test is the T2 gate for the H3b diagnostic (task 2.9): it runs against the
+/// rebuilt native binary at shim version 20260009, with
+/// <c>Ft8LibInterop.ExpectedShimVersion</c> set to <c>20260009</c>.
 /// </para>
 ///
 /// <para>
-/// If this test fails after the shim rebuild, the root cause is either a regression in
-/// the GFSK quadrature SIC implementation (see <c>ft8_shim.c synth_ft8_gfsk_quad</c> /
+/// If this test fails, the root cause is either a regression in the GFSK quadrature SIC
+/// implementation (see <c>ft8_shim.c synth_ft8_gfsk_quad</c> /
 /// <c>compute_quadrature_amplitude</c>) or a stale native binary — run the rebuild script
 /// (Windows: <c>rebuild_shim_new.bat</c>; Linux: <c>build_linux.sh</c>) then
 /// <c>dotnet build</c>.
