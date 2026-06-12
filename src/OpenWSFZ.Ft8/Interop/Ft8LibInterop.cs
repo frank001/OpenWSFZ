@@ -33,6 +33,8 @@ internal static class Ft8LibInterop
     ///           SNR-scaled linear attenuation; version 20260003 skipped — was the reverted PCM-SIC),
     /// 20260005 (D-003 diagnostics: add ft8_get_last_noise_floor_db TLS getter; no decode change),
     /// 20260006 (D-002 fix: SNR bandwidth constant -26.0 → -26.5 dB; bias calibration).
+    /// Note: 20260007 (diag-D001-three-pass-sic, K_MAX_PASSES 2→3) was tried and reverted —
+    ///   S7 R&amp;R result −4.30 pp regression; H2 rejected. See results/2026-06-12-3ecf8ae/report-v2.md.
     /// </summary>
     private const int ExpectedShimVersion = 20260006;
 
@@ -49,7 +51,7 @@ internal static class Ft8LibInterop
     /// Number of decode passes executed by the native shim per cycle.
     /// Mirrors <c>K_MAX_PASSES</c> in <c>ft8_shim.c</c>; both are owned here
     /// so callers do not need to hard-code the pass count separately.
-    /// Pass 0: full waterfall. Pass 1: spectrogram-suppression on the same waterfall.
+    /// Pass 0: full waterfall. Pass 1: spectrogram-suppression (pass-0 signals suppressed).
     /// </summary>
     internal const int MaxDecodePasses = 2;
 
@@ -124,7 +126,7 @@ internal static class Ft8LibInterop
     /// Decode all FT8 signals from a 180 000-sample PCM buffer.
     /// Performs <c>K_MAX_PASSES</c> (currently 2) decode passes internally:
     /// pass 0 on the full waterfall, pass 1 on the spectrogram-suppressed
-    /// waterfall (tiles from pass-0 decoded signals zeroed).
+    /// waterfall (pass-0 signals suppressed).
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1].</param>
     /// <returns>Array of decoded results (may be empty; never null).</returns>

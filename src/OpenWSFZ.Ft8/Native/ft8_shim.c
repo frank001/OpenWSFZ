@@ -45,6 +45,16 @@
  *   amplitude scaling.  The -0.5 dB adjustment brings the reported bias within
  *   the ±2.0 dB R&R S1 acceptance threshold.
  *
+ * diag-D001-three-pass-sic (FT8_SHIM_VERSION 20260007) — TRIED AND REVERTED:
+ *
+ *   K_MAX_PASSES was increased from 2 to 3 as a controlled diagnostic experiment.
+ *   S7 R&R result: 50.54% overall vs 54.84% 2-pass baseline (−4.30 pp).
+ *   H2 rejected: no improvement on any co-channel part (P0/P1/P2/P8 still 0/6);
+ *   marginal capture regression (P11: 5→3/6, P12: 5→4/6).  The third pass
+ *   provides no benefit over spectrogram-domain SIC for exact co-channel
+ *   separation.  FT8_SHIM_VERSION returned to 20260006.
+ *   Full findings: qa/rr-study/results/2026-06-12-3ecf8ae/report-v2.md.
+ *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
 
@@ -125,7 +135,7 @@ char* stpcpy(char* dest, const char* src)
 
 /*
  * K_MAX_DECODED — cross-pass dedup hash table entries.
- * Sized to accommodate both passes.
+ * Sized to accommodate all two passes: 140 + 200 = 340.
  */
 #define K_MAX_DECODED  (K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2)
 
@@ -369,7 +379,7 @@ int ft8_decode_all(
             continue;
         }
 
-        /* ── Spectrogram suppression: execute before pass 1 ─────────────── */
+        /* ── Spectrogram suppression: execute before pass 1 ────────────────── */
         if (pass == 1)
         {
             for (int i = 0; i < n_all_supp; i++)
@@ -460,7 +470,9 @@ int ft8_decode_all(
 
             new_decodes++;
 
-            /* Track for spectrogram suppression accumulator (pass 0 only) */
+            /* Track for spectrogram suppression accumulator (pass 0 only).
+             * Pass 0 signals are suppressed before pass 1.  Excess beyond
+             * K_MAX_CANDIDATES is silently discarded.                        */
             if (pass == 0 && n_all_supp < K_MAX_CANDIDATES) {
                 all_supp_cands[n_all_supp] = *cand;
                 all_supp_msgs [n_all_supp] = msg;

@@ -27,9 +27,9 @@ public sealed class Ft8LibInteropTests
     /// <para>
     /// The native shim always executes <c>K_MAX_PASSES</c> (= 2) full passes even when
     /// no candidates are found; the per-pass new-decode counts are stored in TLS and
-    /// must both be 0 for a silent input.  This test protects the TLS mechanic from
+    /// must all be 0 for a silent input.  This test protects the TLS mechanic from
     /// future regressions that could cause stale counts to be returned or the pass-count
-    /// array to be shorter than expected.
+    /// array to be shorter or longer than expected.
     /// </para>
     ///
     /// <para>
@@ -50,7 +50,7 @@ public sealed class Ft8LibInteropTests
 
         // Assert — K_MAX_PASSES=2 passes execute; no candidates found in any pass.
         counts.Should().Equal([0, 0],
-            "a silent buffer produces no decodes in either pass, " +
+            "a silent buffer produces no decodes in any pass, " +
             "but both passes still execute and record their (zero) counts in TLS");
     }
 

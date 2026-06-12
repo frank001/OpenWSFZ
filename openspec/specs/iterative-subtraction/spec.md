@@ -201,9 +201,21 @@ History:
 - **Option C (PCM-domain amplitude-tracked SIC):** Not pursued at this time (Captain decision
   2026-06-07). Gate criterion: ≥ +5 pp PoC improvement on synthetic S7 before any production
   C code. Available as future research path.
+- **diag-D001-three-pass-sic (SHA `3ecf8ae`, 2026-06-12 — REVERTED):** Controlled diagnostic
+  experiment: K_MAX_PASSES increased 2→3 to quantify pass-count contribution to co-channel
+  recovery (H2). Result: S7 overall **50.54%** (−4.30 pp vs 54.84% 2-pass baseline). No
+  improvement on any co-channel part (P0/P1/P2 still 0/6). Marginal capture regression
+  (P11: 5→3/6, P12: 5→4/6). **H2 rejected.** Root cause confirmed: spectrogram-domain SIC
+  cannot separate exact co-channel signals regardless of pass count — information is destroyed
+  by superposition before the waterfall is built. The third pass applies double-suppression
+  to borderline pass-1 decodes, introducing collateral damage with no co-channel benefit.
+  Change reverted to 2-pass baseline (FT8_SHIM_VERSION 20260006). Full findings:
+  `qa/rr-study/results/2026-06-12-3ecf8ae/report-v2.md`.
 
 **The ≥ 1/6 improvement target on P0 and P8 is not yet met.** D-001 remains Open; further
 iteration deferred. Soft attenuation (Option B) is the current production configuration.
+H2 (pass-count increase) definitively rejected. PCM-domain SIC (H3, heap-allocated) is
+the only remaining spectrogram-independent candidate — requires Captain approval.
 
 **Current production baseline (`15b220b`):** 69.2% (614/887 matched overall); S7 overall 57.0%;
 P0 (2-stack equal SNR) 0/6, P8 (time-freq co-freq dt 0.5 s) 0/6.
