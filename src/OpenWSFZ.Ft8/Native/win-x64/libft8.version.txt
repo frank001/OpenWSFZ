@@ -1,7 +1,13 @@
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20260006 (D-002 fix: SNR bandwidth constant -26.0 → -26.5 dB;
-                  bias calibration to bring OpenWSFZ SNR within ±2.0 dB R&R S1 threshold)
+Shim version:     FT8_SHIM_VERSION = 20260009 (diag-d001-h3b-gfsk-sic: GFSK quadrature SIC replaces
+                  CP-FSK scalar SIC from 20260008 (H3b diagnostic). synth_ft8_gfsk_quad produces
+                  I/Q quadrature GFSK waveforms (BT=2.0, 3-symbol Gaussian, sin/cos) matching the
+                  QA Python synthesiser. compute_quadrature_amplitude estimates amplitude and phase
+                  analytically O(N). Three additional heap buffers: synth_buf_q (720 KB),
+                  gfsk_kernel (23 KB), gfsk_prefix (23 KB); total PCM-domain SIC heap ~2.21 MB.
+                  Version 20260008 was H3 CP-FSK scalar SIC (rejected: -13.98 pp regression;
+                  root cause: modulation mismatch + phase-zero assumption → a≈0).)
 sizeof(FT8Result): 48 bytes
 SNR formula:      tone-bin-specific read (R&R-001 fix — see fix-snr-tone-bin-selection)
                   SNR = signal_db - noise_floor_db - 26.5
@@ -15,8 +21,8 @@ Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_count
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-06-11 (D-002 fix: SNR constant -26.0 → -26.5 dB;
-                              FT8_SHIM_VERSION=20260006; shim compiled from Native/ft8_shim.c
+Build date:       2026-06-12 (diag-d001-h3b-gfsk-sic: GFSK quadrature SIC H3b diagnostic;
+                              FT8_SHIM_VERSION=20260009; shim compiled from Native/ft8_shim.c
                               using rebuild_shim_new.bat)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
@@ -27,16 +33,17 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       2026-06-11 (D-002 fix: SNR constant -26.0 → -26.5 dB;
-                              FT8_SHIM_VERSION=20260006; built via native/ft8_lib_build/build_linux.sh)
+Build date:       2026-06-12 (diag-d001-h3b-gfsk-sic: GFSK quadrature SIC H3b diagnostic;
+                              FT8_SHIM_VERSION=20260009; built via native/ft8_lib_build/build_linux.sh)
 Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
 Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84) + ft8_shim.c
 
 --- macOS ARM64 ---
-Compiler:         Apple clang (macos-15-arm64 GitHub Actions runner, ARM64)
+Compiler:         Apple clang (macos-latest GitHub Actions runner, ARM64) — rebuilt by CI on every push
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -target arm64-apple-macos11.0
-Build date:       2026-06-11 (D-002 fix: SNR constant -26.0 → -26.5 dB;
-                              FT8_SHIM_VERSION=20260006; CI run 27362017515, sha 2dbb0e3)
+Build date:       CI-rebuilt — the committed binary (below) is the prior version 20260006 and serves
+                  only as a local-dev placeholder; CI always builds from the current ft8_shim.c.
+                  See .github/workflows/ci.yml step "Build native macOS dylib (ARM64, Clang)".
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
 Sources:          shallow-clone native/ft8_lib @ msvc-compat (d18ed84) + ft8_shim.c
 Note:             encode.c is included in the build (required for ft8_encode in shim)

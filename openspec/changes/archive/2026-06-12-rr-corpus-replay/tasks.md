@@ -31,8 +31,8 @@
 
 ## 5. Validation
 
-- [ ] 5.1 Dry-run `corpus_replay.py` with K=1 and 3 WAVs from the corpus; confirm timing alignment, simultaneous capture, and local snapshot output
-- [ ] 5.2 Dry-run `analyse_corpus.py` on the K=1 dry-run output; confirm consistency, κ, SNR delta, and order-effect outputs are well-formed
-- [ ] 5.3 Confirm callsign scrub pass: seed the raw output with a known real callsign pattern; confirm it is replaced by `[CALL]` in the committed artifact
-- [ ] 5.4 Run the full study (K=3, all 42 WAVs); commit the scrubbed report and summary to `qa/rr-study/results/corpus-<date>/`
-- [ ] 5.5 Verify no real callsigns appear in the committed artifacts: `git diff HEAD --name-only` + manual inspection of `report.md` and `summary.csv`
+- [x] 5.1 Dry-run `corpus_replay.py` with K=1 and 3 WAVs from the corpus; confirm timing alignment, simultaneous capture, and local snapshot output
+- [x] 5.2 Dry-run `analyse_corpus.py` on the K=1 dry-run output; confirm consistency, κ, SNR delta, and order-effect outputs are well-formed
+- [x] 5.3 Confirm callsign scrub pass: seed the raw output with a known real callsign pattern; confirm it is replaced by `[CALL]` in the committed artifact
+- [x] 5.4 Run the full study (K=3, all 42 WAVs); commit the scrubbed report and summary to `qa/rr-study/results/corpus-<date>/`
+- [x] 5.5 Verify no real callsigns appear in the committed artifacts: `git diff HEAD --name-only` + manual inspection of `report.md` and `summary.csv`
