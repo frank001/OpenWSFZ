@@ -127,10 +127,11 @@ char* stpcpy(char* dest, const char* src)
  * K_MAX_PASSES — total number of decode passes.
  * Pass 0: full waterfall (unchanged input PCM).
  * Pass 1: PCM-residual waterfall — each pass-0 decoded signal is synthesised
- *         (CP-FSK, phase zero, heap-allocated synth_buf) and subtracted from
- *         a heap-allocated copy of the input PCM; the waterfall is rebuilt
+ *         using the GFSK quadrature synthesiser (H3b; BT=2.0, 3-symbol Gaussian,
+ *         sin/cos components) and subtracted from a heap-allocated PCM copy using
+ *         the analytic quadrature amplitude estimator; the waterfall is rebuilt
  *         from the residual via a second monitor_t before pass 1 runs.
- *         Falls back to the original waterfall if heap allocation fails.
+ *         Falls back to the original waterfall if any heap allocation fails.
  */
 #define K_MAX_PASSES   2
 
@@ -337,68 +338,167 @@ static void compute_noise_floor(
  * GO — waterfall rebuild via a second monitor_t (T2 Decision 4) is safe.
  */
 
-/* ── CP-FSK synthesis helpers (T1 — present but not yet wired into decode) ── */
+/* ── GFSK quadrature synthesis helpers (H3b) ── */
+
+/* GFSK pulse parameters (BT=2.0, 3-symbol span — matches QA Python synthesiser) */
+#define GFSK_BT         2.0f
+#define GFSK_SPAN_SYMS  3
+#define GFSK_KERNEL_LEN (GFSK_SPAN_SYMS * FT8_SAMPLES_PER_SYMBOL)   /* 5760 */
 
 /*
- * synth_ft8_cpsfc — synthesise a CP-FSK FT8 waveform into a caller-provided buffer.
+ * build_gfsk_kernel — compute the normalised Gaussian pulse kernel and its
+ * prefix sum.  Both arrays are caller-allocated heap buffers.
+ *
+ * kernel[GFSK_KERNEL_LEN] receives the normalised Gaussian pulse.
+ * prefix[GFSK_KERNEL_LEN + 1] receives the prefix sum (prefix[0] = 0.0f).
+ *
+ * Formula matches the QA Python synthesiser (modulator.py):
+ *   sigma = sqrt(ln(2)) / (2 * pi * BT)   [in symbol periods, ≈ 0.06622]
+ *   t_j   = (j - GFSK_KERNEL_LEN/2 + 0.5) / FT8_SAMPLES_PER_SYMBOL
+ *   kernel[j] = exp(-t_j^2 / (2 * sigma^2)), normalised to unit sum
+ *
+ * No heap or stack arrays > 100 bytes allocated internally.
+ * Caller is responsible for allocating and freeing both buffers.
+ */
+static void build_gfsk_kernel(float* kernel, float* prefix)
+{
+    float sigma = sqrtf(logf(2.0f)) / (2.0f * (float)M_PI * GFSK_BT);
+    float sum   = 0.0f;
+    for (int j = 0; j < GFSK_KERNEL_LEN; j++)
+    {
+        float t_j  = ((float)j - (float)(GFSK_KERNEL_LEN / 2) + 0.5f)
+                    / (float)FT8_SAMPLES_PER_SYMBOL;
+        float k_j  = expf(-t_j * t_j / (2.0f * sigma * sigma));
+        kernel[j]  = k_j;
+        sum        += k_j;
+    }
+    /* Normalise to unit sum */
+    for (int j = 0; j < GFSK_KERNEL_LEN; j++)
+        kernel[j] /= sum;
+    /* Prefix sum: prefix[0] = 0, prefix[j+1] = prefix[j] + kernel[j] */
+    prefix[0] = 0.0f;
+    for (int j = 0; j < GFSK_KERNEL_LEN; j++)
+        prefix[j + 1] = prefix[j] + kernel[j];
+}
+
+/*
+ * synth_ft8_gfsk_quad — synthesise a GFSK FT8 waveform into two quadrature
+ * buffers (I = sin component, Q = cos component).
  *
  * Parameters:
- *   tones       — FT8_NN (79) tone indices in [0..7], from ft8_encode
- *   freq_hz     — carrier frequency of tone 0 in Hz
- *   start_sample— first sample index in out_buf at which to write the waveform
- *   out_buf     — caller-provided output buffer; must be at least buf_len floats
- *   buf_len     — length of out_buf in samples
+ *   tones        — FT8_NN (79) tone indices in [0..7], from ft8_encode
+ *   freq_hz      — carrier frequency of tone 0 in Hz
+ *   start_sample — first sample index in buf_sin/buf_cos at which to write
+ *   prefix       — precomputed prefix sum from build_gfsk_kernel; must be
+ *                  GFSK_KERNEL_LEN+1 floats; the function MUST NOT call
+ *                  build_gfsk_kernel internally
+ *   buf_sin      — caller-provided output buffer for the I (sin) component
+ *   buf_cos      — caller-provided output buffer for the Q (cos) component
+ *   buf_len      — length of both output buffers in samples
  *
- * Phase accumulates continuously across all 79 symbols (no phase discontinuity
- * at symbol boundaries).  Initialised to 0.0 (phase-zero assumption).
- * Writes cosf(phase) for each in-bounds sample; indices outside [0, buf_len)
- * are silently skipped (bounds guard — not an assert, not UB).
- * No heap or stack buffer allocation; no global or TLS state modified.
+ * Uses the prefix-sum convolution optimisation: for each output sample the
+ * GFSK-smoothed tone index is computed from the kernel weights covering at
+ * most 4 symbol intervals (BT=2.0 narrow kernel).  Phase accumulates from
+ * 0.0f continuously across all 79 symbols.  Writes sinf(phase) to buf_sin[i]
+ * and cosf(phase) to buf_cos[i] for i = start_sample..start_sample+FT8_NN*SPS-1;
+ * samples outside [0, buf_len) are silently skipped.
+ * No heap or stack buffer > 100 bytes.  No global or TLS state modified.
  */
-static void synth_ft8_cpsfc(
+static void synth_ft8_gfsk_quad(
     const uint8_t* tones,
     float          freq_hz,
     int            start_sample,
-    float*         out_buf,
+    const float*   prefix,
+    float*         buf_sin,
+    float*         buf_cos,
     int            buf_len)
 {
-    float phase = 0.0f;
-    for (int sym = 0; sym < FT8_NN; sym++)
+    int   half      = GFSK_KERNEL_LEN / 2;              /* = 2880 samples */
+    float phase     = 0.0f;
+    int   n_samples = FT8_NN * FT8_SAMPLES_PER_SYMBOL;  /* = 151 680 */
+
+    for (int i = 0; i < n_samples; i++)
     {
-        float f_tone    = freq_hz + (float)tones[sym] * TONE_SPACING_HZ;
-        float phase_step = 2.0f * (float)M_PI * f_tone / FT8_SAMPLE_RATE_F;
-        for (int s = 0; s < FT8_SAMPLES_PER_SYMBOL; s++)
+        /* Compute GFSK-smoothed tone index using prefix sums.
+         * The kernel window centred at local sample i covers input indices
+         * [i - half, i - half + GFSK_KERNEL_LEN).  For each symbol sym whose
+         * samples [sym*SPS, (sym+1)*SPS) overlap that window, accumulate the
+         * kernel weight falling in the intersection via the prefix sum.
+         * At most ~4 symbols contribute per sample for BT=2.0.             */
+        float smoothed = 0.0f;
+        int   kern_start = i - half;
+        int   sym_lo     = kern_start / FT8_SAMPLES_PER_SYMBOL;
+        int   sym_hi     = (kern_start + GFSK_KERNEL_LEN - 1) / FT8_SAMPLES_PER_SYMBOL;
+
+        for (int sym = sym_lo; sym <= sym_hi; sym++)
         {
-            int idx = start_sample + sym * FT8_SAMPLES_PER_SYMBOL + s;
-            if (idx >= 0 && idx < buf_len)
-                out_buf[idx] = cosf(phase);
-            phase += phase_step;
+            if (sym < 0 || sym >= FT8_NN) continue;
+
+            int k_lo = sym * FT8_SAMPLES_PER_SYMBOL - kern_start;
+            int k_hi = k_lo + FT8_SAMPLES_PER_SYMBOL;
+            if (k_lo < 0)               k_lo = 0;
+            if (k_hi > GFSK_KERNEL_LEN) k_hi = GFSK_KERNEL_LEN;
+            if (k_lo >= k_hi)           continue;
+
+            smoothed += (float)tones[sym] * (prefix[k_hi] - prefix[k_lo]);
+        }
+
+        float inst_freq = freq_hz + smoothed * TONE_SPACING_HZ;
+        phase += 2.0f * (float)M_PI * inst_freq / FT8_SAMPLE_RATE_F;
+
+        int idx = start_sample + i;
+        if (idx >= 0 && idx < buf_len)
+        {
+            buf_sin[idx] = sinf(phase);
+            buf_cos[idx] = cosf(phase);
         }
     }
 }
 
 /*
- * compute_projection_amplitude — least-squares projection of pcm onto synth.
+ * compute_quadrature_amplitude — analytic quadrature amplitude/phase estimator.
  *
- * Returns dot(pcm[start..end], synth[start..end]) / dot(synth[start..end], synth[start..end]).
- * Returns 0.0f if denominator is zero (all-zero synth window) or if start >= end.
- * No heap allocation.
+ * Computes the optimal subtraction coefficients *out_a_i and *out_a_q for the
+ * two quadrature synthesis components (synth_sin and synth_cos) projected onto
+ * pcm in the window [start, end).
+ *
+ * Formulae:
+ *   dot_I  = dot(pcm[start..end], synth_sin[start..end])
+ *   dot_Q  = dot(pcm[start..end], synth_cos[start..end])
+ *   energy = dot(synth_sin[start..end], synth_sin[start..end])
+ *   if energy == 0 or start >= end: *out_a_i = *out_a_q = 0.0f; return
+ *   a        = sqrtf(dot_I^2 + dot_Q^2) / energy
+ *   phi      = atan2f(dot_Q, dot_I)
+ *   *out_a_i = a * cosf(phi)   // coefficient for sin component
+ *   *out_a_q = a * sinf(phi)   // coefficient for cos component
+ *
+ * Valid for any carrier phase; exact for a single sinusoidal signal in the
+ * absence of noise.  No heap allocation.  No global or TLS state modified.
  */
-static float compute_projection_amplitude(
+static void compute_quadrature_amplitude(
     const float* pcm,
-    const float* synth,
+    const float* synth_sin,
+    const float* synth_cos,
     int          start,
-    int          end)
+    int          end,
+    float*       out_a_i,
+    float*       out_a_q)
 {
-    if (start >= end) return 0.0f;
-    float dot_ps = 0.0f;
-    float dot_ss = 0.0f;
+    if (start >= end) { *out_a_i = 0.0f; *out_a_q = 0.0f; return; }
+    float dot_I  = 0.0f;
+    float dot_Q  = 0.0f;
+    float energy = 0.0f;
     for (int i = start; i < end; i++)
     {
-        dot_ps += pcm[i]   * synth[i];
-        dot_ss += synth[i] * synth[i];
+        dot_I  += pcm[i]       * synth_sin[i];
+        dot_Q  += pcm[i]       * synth_cos[i];
+        energy += synth_sin[i] * synth_sin[i];
     }
-    return (dot_ss == 0.0f) ? 0.0f : dot_ps / dot_ss;
+    if (energy == 0.0f) { *out_a_i = 0.0f; *out_a_q = 0.0f; return; }
+    float a   = sqrtf(dot_I * dot_I + dot_Q * dot_Q) / energy;
+    float phi = atan2f(dot_Q, dot_I);
+    *out_a_i  = a * cosf(phi);
+    *out_a_q  = a * sinf(phi);
 }
 
 /* ── ABI sentinel ────────────────────────────────────────────────────────── */
@@ -467,9 +567,12 @@ int ft8_decode_all(
     float           all_supp_snrs [K_MAX_CANDIDATES];
     int             n_all_supp    = 0;
 
-    /* ── 4b. Second monitor for PCM-residual waterfall rebuild (T2) ─────── */
+    /* ── 4b. Second monitor for PCM-residual waterfall rebuild ─────────── */
     monitor_t mon2;
     bool      mon2_initialized = false;
+    float*    gfsk_kernel      = NULL;   /* Gaussian pulse kernel (H3b; reused across signals) */
+    float*    gfsk_prefix      = NULL;   /* Prefix sum of gfsk_kernel (H3b)                    */
+    float*    synth_buf_q      = NULL;   /* GFSK Q (cos) component buffer (H3b)                */
 
     /* ── 5. Multi-pass decode loop ───────────────────────────────────────── */
     static const struct { int min_score; int max_cands; int ldpc; } k_pass_cfg[K_MAX_PASSES] = {
@@ -486,22 +589,30 @@ int ft8_decode_all(
             continue;
         }
 
-        /* ── PCM-domain SIC: replaces spectrogram suppression before pass 1 ─ */
+        /* ── PCM-domain SIC: GFSK quadrature synthesiser (H3b) before pass 1 ─ */
         if (pass == 1)
         {
-            /* Tasks 2.2–2.6: heap-allocate buffers; if either fails, fall back
-             * to pass-0-only results (free(NULL) is a no-op per C11 §7.22.3.3) */
+            /* Heap-allocate all five SIC buffers.  If any malloc returns NULL, free
+             * all non-NULL allocations and fall back to pass-0-only results.
+             * free(NULL) is a no-op per C11 §7.22.3.3.                            */
             float* residual_pcm = malloc(FT8_EXPECTED_SAMPLES * sizeof(float));
             float* synth_buf    = malloc(FT8_EXPECTED_SAMPLES * sizeof(float));
-            if (residual_pcm && synth_buf)
+            gfsk_kernel = malloc(GFSK_KERNEL_LEN       * sizeof(float));
+            gfsk_prefix = malloc((GFSK_KERNEL_LEN + 1) * sizeof(float));
+            synth_buf_q = malloc(FT8_EXPECTED_SAMPLES   * sizeof(float));
+            if (residual_pcm && synth_buf && gfsk_kernel && gfsk_prefix && synth_buf_q)
             {
-                /* Task 2.3: initialise residual with full input PCM */
+                /* Initialise residual with full input PCM */
                 memcpy(residual_pcm, pcm, FT8_EXPECTED_SAMPLES * sizeof(float));
 
-                /* Task 2.4: subtract each pass-0 decoded signal from the residual */
+                /* Build Gaussian kernel and prefix sum once — reused for all signals */
+                build_gfsk_kernel(gfsk_kernel, gfsk_prefix);
+
+                /* Subtract each pass-0 decoded signal from the residual */
                 for (int i = 0; i < n_all_supp; i++)
                 {
-                    memset(synth_buf, 0, FT8_EXPECTED_SAMPLES * sizeof(float));
+                    memset(synth_buf,   0, FT8_EXPECTED_SAMPLES * sizeof(float));
+                    memset(synth_buf_q, 0, FT8_EXPECTED_SAMPLES * sizeof(float));
 
                     int start_sample = (int)all_supp_cands[i].time_offset * mon.block_size;
                     if (start_sample < 0) start_sample = 0;
@@ -514,24 +625,28 @@ int ft8_decode_all(
 
                     uint8_t tones_tmp[FT8_NN]; /* 79 bytes — well within 100-byte stack limit */
                     ft8_encode(all_supp_msgs[i].payload, tones_tmp);
-                    synth_ft8_cpsfc(tones_tmp, freq_hz_i, start_sample,
-                                    synth_buf, FT8_EXPECTED_SAMPLES);
+                    synth_ft8_gfsk_quad(tones_tmp, freq_hz_i, start_sample,
+                                        gfsk_prefix, synth_buf, synth_buf_q,
+                                        FT8_EXPECTED_SAMPLES);
 
                     int win_start = start_sample;
                     int win_end   = start_sample + FT8_NN * FT8_SAMPLES_PER_SYMBOL;
                     if (win_end > FT8_EXPECTED_SAMPLES) win_end = FT8_EXPECTED_SAMPLES;
 
-                    float a = compute_projection_amplitude(residual_pcm, synth_buf,
-                                                           win_start, win_end);
+                    float a_i, a_q;
+                    compute_quadrature_amplitude(residual_pcm, synth_buf, synth_buf_q,
+                                                 win_start, win_end, &a_i, &a_q);
                     for (int j = win_start; j < win_end; j++)
-                        residual_pcm[j] -= a * synth_buf[j];
+                        residual_pcm[j] -= a_i * synth_buf[j] + a_q * synth_buf_q[j];
                 }
 
-                /* Task 2.5: synth_buf no longer needed */
-                free(synth_buf);
-                synth_buf = NULL;
+                /* Free synthesis buffers — residual_pcm still needed for waterfall rebuild */
+                free(synth_buf);    synth_buf    = NULL;
+                free(synth_buf_q);  synth_buf_q  = NULL;
+                free(gfsk_kernel);  gfsk_kernel  = NULL;
+                free(gfsk_prefix);  gfsk_prefix  = NULL;
 
-                /* Task 2.6: rebuild waterfall from PCM residual into mon2 */
+                /* Rebuild waterfall from PCM residual into mon2 */
                 monitor_init(&mon2, &cfg);
                 mon2_initialized = true;
                 for (int pos = 0; pos + mon2.block_size <= FT8_EXPECTED_SAMPLES;
@@ -542,10 +657,13 @@ int ft8_decode_all(
             }
             else
             {
-                /* Allocation failure: free any non-NULL buffer, skip PCM-domain SIC.
+                /* Allocation failure: free any non-NULL buffers, skip PCM-domain SIC.
                  * Pass 1 falls back to the original mon.wf (mon2 stays uninitialised). */
                 free(residual_pcm);
                 free(synth_buf);
+                free(synth_buf_q);  synth_buf_q = NULL;
+                free(gfsk_kernel);  gfsk_kernel = NULL;
+                free(gfsk_prefix);  gfsk_prefix = NULL;
             }
         }
 
@@ -553,9 +671,9 @@ int ft8_decode_all(
         int pass_max_cands = k_pass_cfg[pass].max_cands;
         int pass_ldpc      = k_pass_cfg[pass].ldpc;
 
-        /* Task 2.7: select the waterfall for this pass.
-         * Pass 0:   always mon.wf  (full-PCM waterfall).
-         * Pass 1:   mon2.wf if PCM-domain SIC succeeded; mon.wf as fallback. */
+        /* Select the waterfall for this pass.
+         * Pass 0: always mon.wf (full-PCM waterfall).
+         * Pass 1: mon2.wf if GFSK-quadrature PCM-domain SIC succeeded; mon.wf as fallback. */
         const monitor_t* mon_cur = (pass == 1 && mon2_initialized) ? &mon2 : &mon;
 
         /* Size the local candidate array to the maximum across all passes */
@@ -656,7 +774,7 @@ int ft8_decode_all(
 
     /* ── 6. Cleanup ──────────────────────────────────────────────────────── */
     tls_hash_table = NULL;
-    if (mon2_initialized) monitor_free(&mon2); /* Task 2.8 — PCM-residual waterfall */
+    if (mon2_initialized) monitor_free(&mon2); /* PCM-residual waterfall (H3b) */
     monitor_free(&mon);
 
     return num_decoded;

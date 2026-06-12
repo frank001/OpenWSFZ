@@ -4,13 +4,13 @@ This task replaces the two H3 synthesis/estimation functions with their H3b coun
 `FT8_SHIM_VERSION` stays at `20260008`. The new functions are present but not reachable from
 `ft8_decode_all`. Zero regression risk; T1 is independently CI-green and reviewable.
 
-- [ ] 1.1 Remove the `synth_ft8_cpsfc` function definition from `ft8_shim.c` and its section
+- [x] 1.1 Remove the `synth_ft8_cpsfc` function definition from `ft8_shim.c` and its section
       comment. Remove the `compute_projection_amplitude` function definition. Remove the
       `/* ── CP-FSK synthesis helpers (T1 — present but not yet wired into decode) ── */`
       header comment block. Confirm that no call sites yet exist (the functions are referenced
       only in the pass==1 block which will be updated in T2 — do not touch that block in T1).
 
-- [ ] 1.2 Add a new section `/* ── GFSK quadrature synthesis helpers (H3b) ── */` in
+- [x] 1.2 Add a new section `/* ── GFSK quadrature synthesis helpers (H3b) ── */` in
       `ft8_shim.c` after the `suppress_candidate_tiles` function. Within that section:
 
       **1.2a** Add constants if not already present (check for duplicates before adding):
@@ -67,7 +67,7 @@ This task replaces the two H3 synthesis/estimation functions with their H3b coun
         *out_a_i = a * cosf(phi); *out_a_q = a * sinf(phi);`
       - No heap allocation. No global or TLS state modified.
 
-- [ ] 1.3 Add a unit test in `OpenWSFZ.Ft8.Tests` — new test class `GfskQuadratureSynthTests`.
+- [x] 1.3 Add a unit test in `OpenWSFZ.Ft8.Tests` — new test class `GfskQuadratureSynthTests`.
       The test class MUST be `internal` and placed in the `OpenWSFZ.Ft8.Tests` namespace.
       It requires `[InternalsVisibleTo]` or test of exported behaviour (see note below).
 
@@ -88,12 +88,12 @@ This task replaces the two H3 synthesis/estimation functions with their H3b coun
       existing test framework without significant scaffolding, the integration smoke-test
       above is sufficient for T1. QA will confirm correct GFSK output via S7 R&R in T3.
 
-- [ ] 1.4 Verify `FT8_SHIM_VERSION` remains `20260008` (grep the shim; it must not be bumped
+- [x] 1.4 Verify `FT8_SHIM_VERSION` remains `20260008` (grep the shim; it must not be bumped
       in T1).
 
-- [ ] 1.5 `dotnet build OpenWSFZ.slnx -c Release` → 0 errors, 0 warnings.
+- [x] 1.5 `dotnet build OpenWSFZ.slnx -c Release` → 0 errors, 0 warnings.
 
-- [ ] 1.6 `dotnet test OpenWSFZ.slnx -c Release` → all existing tests pass; the new skipped
+- [x] 1.6 `dotnet test OpenWSFZ.slnx -c Release` → all existing tests pass; the new skipped
       test appears in output as `Skipped`; no failures.
 
 ---
