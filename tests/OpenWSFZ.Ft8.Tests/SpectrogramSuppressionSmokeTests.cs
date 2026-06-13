@@ -12,19 +12,19 @@ namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
 /// Integration smoke-test for the two-pass spectrogram-domain soft-SNR tile suppression
-/// path (H4 recovery, diag-d001-h4-spectrogram-reinstate, shim 20260010).
+/// path (H5 constant tuning, diag-d001-h5-suppression-tuning, shim 20260011).
 ///
 /// <para>
 /// Verifies that <see cref="Ft8Decoder.DecodeAsync"/> successfully produces a non-empty
 /// result from the committed <c>synth-qso-01</c> fixture WAV and that every message in
-/// the answer key is decoded, after spectrogram-domain tile suppression is reinstated
-/// as the sole inter-pass mechanism in <c>ft8_decode_all</c>.
+/// the answer key is decoded, with the suppression ramp shifted to [−15, +5] dB
+/// (75% suppression at 0 dB SNR vs 25% in H4).
 /// </para>
 ///
 /// <para>
-/// This test is the H4 smoke-gate: it runs against the rebuilt native binary at shim
-/// version 20260010, with <c>Ft8LibInterop.ExpectedShimVersion</c> set to
-/// <c>20260010</c>.
+/// This test is the H5 smoke-gate: it runs against the rebuilt native binary at shim
+/// version 20260011, with <c>Ft8LibInterop.ExpectedShimVersion</c> set to
+/// <c>20260011</c>.
 /// </para>
 ///
 /// <para>
@@ -37,7 +37,7 @@ namespace OpenWSFZ.Ft8.Tests;
 /// </summary>
 public sealed class SpectrogramSuppressionSmokeTests
 {
-    [Fact(DisplayName = "H4 smoke: Ft8Decoder.DecodeAsync with synth-qso-01 returns expected results (shim 20260010 spectrogram suppression)")]
+    [Fact(DisplayName = "H5 smoke: Ft8Decoder.DecodeAsync with synth-qso-01 returns expected results (shim 20260011 suppression ramp [−15, +5])")]
     public async Task DecodeAsync_SynthQso01_ReturnsExpectedResults_SpectrogramSuppression()
     {
         // Arrange — load the synth-qso-01 fixture (same WAV used by PcmSicSmokeTests)
@@ -54,7 +54,7 @@ public sealed class SpectrogramSuppressionSmokeTests
 
         // Assert 1: non-empty
         results.Should().NotBeEmpty(
-            "the spectrogram suppression path (shim 20260010) must produce at least one decoded " +
+            "the spectrogram suppression path (shim 20260011, ramp [−15, +5]) must produce at least one decoded " +
             "message from the synth-qso-01 fixture — a crash, hang, or suppression failure " +
             "that silences all signals would produce an empty result and indicate a regression");
 

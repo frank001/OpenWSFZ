@@ -86,6 +86,19 @@
  *   (23 044 B).  Total PCM-domain SIC heap ≈ 2.21 MB.  FT8_SHIM_VERSION 20260008 slot
  *   remains in the history above for auditability; the H3 binary is obsolete.
  *
+ * diag-d001-h5-suppression-tuning (FT8_SHIM_VERSION 20260011):
+ *
+ *   The soft SNR-scaled suppression ramp window is shifted 10 dB toward lower SNRs
+ *   (single-variable diagnostic, H5).  K_SOFT_SUPP_SNR_MIN_DB: −5.0 → −15.0 dB;
+ *   K_SOFT_SUPP_SNR_MAX_DB: +15.0 → +5.0 dB.  Ramp width (20 dB) is preserved;
+ *   only the operating window shifts.  At the S7 test SNR of 0 dB suppression
+ *   increases from 25% (H4, 20260010) to 75% (H5, 20260011).  Target: reduce the
+ *   time_freq co-channel gap (P8/P9/P10: 10/18 in H4) by clearing more residual
+ *   energy from pass-0 decoded signals before pass-1 candidate search.  No other
+ *   shim logic, pass configuration, managed-layer logic, or struct layout changed.
+ *   H4 (FT8_SHIM_VERSION 20260010) is the direct predecessor; version 20260010
+ *   slot carries the H4 spectrogram reinstatement history.
+ *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
 
@@ -162,8 +175,8 @@ char* stpcpy(char* dest, const char* src)
  * the suppression by SNR reduces collateral damage in proportion to the
  * confidence in the decoded signal's tile locations.
  */
-#define K_SOFT_SUPP_SNR_MIN_DB  (-5.0f)   /* below this: no suppression    */
-#define K_SOFT_SUPP_SNR_MAX_DB  (15.0f)   /* above this: full suppression   */
+#define K_SOFT_SUPP_SNR_MIN_DB  (-15.0f)  /* below this: no suppression    */
+#define K_SOFT_SUPP_SNR_MAX_DB  (5.0f)    /* above this: full suppression   */
 
 /*
  * Pass 1 uses a wider candidate net.
@@ -274,7 +287,7 @@ static void suppress_candidate_tiles(
     float norm   = (snr_db - K_SOFT_SUPP_SNR_MIN_DB)
                  / (K_SOFT_SUPP_SNR_MAX_DB - K_SOFT_SUPP_SNR_MIN_DB);
     float factor = 1.0f - fmaxf(0.0f, fminf(1.0f, norm));
-    /* factor: 1.0 at SNR ≤ −5 dB (no change), 0.0 at SNR ≥ +15 dB (full suppress) */
+    /* factor: 1.0 at SNR ≤ −15 dB (no change), 0.0 at SNR ≥ +5 dB (full suppress) */
 
     uint8_t tones[FT8_NN];
     ft8_encode(msg->payload, tones);
