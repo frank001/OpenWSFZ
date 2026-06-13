@@ -24,7 +24,8 @@ public sealed class CatPollingServiceFreqPersistTests
         // Arrange
         var initialConfig = new AppConfig() with
         {
-            Cat = new CatConfig
+            AudioDeviceId = "test-audio-device",
+            Cat           = new CatConfig
             {
                 Enabled                = true,
                 RigModel               = "SerialCat",
@@ -64,7 +65,8 @@ public sealed class CatPollingServiceFreqPersistTests
 
         var initialConfig = new AppConfig() with
         {
-            Cat = new CatConfig
+            AudioDeviceId = "test-audio-device",
+            Cat           = new CatConfig
             {
                 Enabled                = true,
                 RigModel               = "SerialCat",
@@ -97,7 +99,8 @@ public sealed class CatPollingServiceFreqPersistTests
         // Arrange
         var initialConfig = new AppConfig() with
         {
-            Cat = new CatConfig
+            AudioDeviceId = "test-audio-device",
+            Cat           = new CatConfig
             {
                 Enabled                = true,
                 RigModel               = "SerialCat",

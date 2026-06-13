@@ -16,17 +16,51 @@ public sealed class SerialCatConnectionTests
 {
     // ── ConnectAsync ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-032: ConnectAsync opens the serial port and IsConnected becomes true")]
-    public async Task ConnectAsync_OpensPort_IsConnectedTrue()
+    [Fact(DisplayName = "FR-032: ConnectAsync opens the port, sends FA; probe, and IsConnected becomes true")]
+    public async Task ConnectAsync_RadioResponds_IsConnectedTrue()
     {
-        var port   = Substitute.For<ISerialPort>();
+        var port = Substitute.For<ISerialPort>();
         port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA00014074000");
         var sut = new SerialCatConnection(port);
 
         await sut.ConnectAsync();
 
         port.Received(1).Open();
+        port.Received(1).Write("FA;\r");   // probe was issued
         sut.IsConnected.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "FR-032: ConnectAsync closes the port and throws TimeoutException when rig does not respond to probe")]
+    public async Task ConnectAsync_RadioNotResponding_ClosesPortAndThrows()
+    {
+        var port = Substitute.For<ISerialPort>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(Arg.Any<string>()).Throws<TimeoutException>();
+        var sut = new SerialCatConnection(port);
+
+        var act = () => sut.ConnectAsync();
+
+        await act.Should().ThrowAsync<TimeoutException>()
+            .WithMessage("*no response to FA;*");
+        port.Received(1).Close();   // port must be closed on probe timeout
+    }
+
+    [Fact(DisplayName = "FR-032: ConnectAsync primes digit width from probe response so SetDialFrequencyMhzAsync needs no prior GET")]
+    public async Task ConnectAsync_ValidProbeResponse_PrimesFreqWidth()
+    {
+        // A 9-digit probe response should prime _freqWidth to 9 so that
+        // the first SetDialFrequencyMhzAsync uses the correct width without
+        // requiring a prior GetDialFrequencyMhzAsync call.
+        var port = Substitute.For<ISerialPort>();
+        port.IsOpen.Returns(true);
+        port.ReadTo(";").Returns("FA007074000");   // 9-digit probe: 7.074 MHz
+        var sut = new SerialCatConnection(port);
+
+        await sut.ConnectAsync();
+        await sut.SetDialFrequencyMhzAsync(7.074);
+
+        port.Received(1).Write("FA007074000;");   // 9-digit format, not 11-digit fallback
     }
 
     [Fact(DisplayName = "FR-032: ConnectAsync propagates UnauthorizedAccessException when port is in use")]

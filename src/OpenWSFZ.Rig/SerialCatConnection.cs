@@ -79,17 +79,83 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
     public bool IsConnected => _port.IsOpen;
 
     /// <summary>
-    /// Opens the serial port (8N1, 500 ms read timeout).
+    /// Opens the serial port (8N1, 500 ms read timeout) and probes the rig with
+    /// an <c>FA;</c> command to confirm it is present and responsive.
     /// </summary>
+    /// <remarks>
+    /// Opening a serial port succeeds even when the radio is powered off — the
+    /// USB-Serial adapter answers for the OS.  The probe distinguishes "port open"
+    /// from "radio connected": if the rig does not reply within 500 ms the port is
+    /// closed immediately and a <see cref="TimeoutException"/> is thrown so the
+    /// caller sees an unambiguous connection failure rather than an open-but-deaf port.
+    ///
+    /// A non-timeout response (including a malformed one) is treated as evidence that
+    /// the radio IS present; the port is left open and the poll loop will handle any
+    /// dialect mismatch on the first <see cref="GetDialFrequencyMhzAsync"/> call.
+    ///
+    /// A well-formed probe response also primes <c>_freqWidth</c> so
+    /// <see cref="SetDialFrequencyMhzAsync"/> uses the correct digit width from the
+    /// very first call, without waiting for the first poll cycle.
+    /// </remarks>
     /// <exception cref="UnauthorizedAccessException">
     /// The port is already open by another application.
     /// </exception>
     /// <exception cref="System.IO.IOException">
     /// The port does not exist or cannot be opened.
     /// </exception>
+    /// <exception cref="TimeoutException">
+    /// The port opened but the rig did not respond to the <c>FA;</c> probe within
+    /// 500 ms — there is no radio on this port.
+    /// </exception>
     public Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         _port.Open();
+
+        // Probe: send FA; and expect a response within the read timeout.
+        // Any TimeoutException (or the equivalent IOException some drivers surface)
+        // means the radio is absent or powered off — close the port so IsConnected
+        // stays false and throw so the caller sees a clean failure.
+        try
+        {
+            _port.DiscardInBuffer();
+            _port.Write(CatCommand);
+
+            string raw;
+            try
+            {
+                raw = _port.ReadTo(ResponseDelim);
+            }
+            catch (TimeoutException)
+            {
+                throw new TimeoutException(
+                    $"Serial CAT: no response to FA; within {ReadTimeoutMs} ms.");
+            }
+            catch (System.IO.IOException ex) when (
+                ex.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new TimeoutException(
+                    $"Serial CAT: no response to FA; within {ReadTimeoutMs} ms.", ex);
+            }
+
+            _logger?.LogDebug("Serial CAT PROBE: raw response '{Raw}'", raw);
+
+            // Prime _freqWidth from the probe response (written once; idempotent thereafter).
+            var full       = raw + ";";
+            var digitCount = full.Length - 3; // strip "FA" prefix and ";" suffix
+            if (full.StartsWith("FA", StringComparison.Ordinal)
+                && digitCount is >= 8 and <= 11
+                && _freqWidth == 0)
+            {
+                _freqWidth = digitCount;
+            }
+        }
+        catch (TimeoutException)
+        {
+            // Radio not present — close the port so IsConnected returns false.
+            try { _port.Close(); } catch { /* best-effort */ }
+            throw;
+        }
+
         return Task.CompletedTask;
     }
 

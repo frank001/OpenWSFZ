@@ -14,13 +14,15 @@ namespace OpenWSFZ.Daemon.Cat;
 /// Lifecycle:
 /// <list type="bullet">
 ///   <item>If <c>Cat.Enabled = false</c>, sets status to <see cref="CatConnectionStatus.Disabled"/>
-///         and exits without opening any port.</item>
+///         and waits without opening any port.</item>
 ///   <item>Otherwise, creates a connection via <see cref="RigModelFactory"/>, connects,
 ///         and enters the poll loop.</item>
-///   <item>Any connection or poll failure is logged at Warning, status set to Error,
-///         and the loop retries after a 2-second back-off.</item>
-///   <item>Config changes (port, baud, rigModel, enabled toggle) take effect
-///         within two poll intervals without a daemon restart.</item>
+///   <item>Any connection or poll failure is logged at Warning and status set to
+///         Error; polling is then <em>suspended</em> — no further attempts are made
+///         until a CAT config field changes (port, baud, rigModel, enabled toggle).
+///         This ensures the daemon does not hammer an unresponsive radio.</item>
+///   <item>Config changes (port, baud, rigModel, enabled toggle) clear the
+///         suspension and take effect without a daemon restart.</item>
 /// </list>
 /// </para>
 ///
@@ -191,8 +193,13 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
 
     private async Task RunAsync(CancellationToken ct)
     {
-        IRadioConnection? connection = null;
-        CatConfig?        lastConfig = null;
+        IRadioConnection? connection            = null;
+        CatConfig?        lastConfig            = null;
+        // Set to true after any connect or poll failure; cleared only when a CAT
+        // config field changes or the disabled path is entered.  While set, the
+        // loop idles without attempting further connections so the daemon does not
+        // hammer an unresponsive radio.
+        bool              suspendedAfterFailure = false;
 
         try
         {
@@ -208,6 +215,7 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                 {
                     _logger.LogInformation(
                         "CAT config changed — reconnecting with new parameters.");
+                    suspendedAfterFailure = false;   // operator changed config — allow retry
                     if (connection is not null)
                     {
                         _activeConnection = null;
@@ -218,11 +226,34 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                 lastConfig = config;
 
                 // ── Disabled path ─────────────────────────────────────────────
+                // CAT and audio decoding are independent subsystems: an operator may
+                // legitimately run CAT without an audio device (frequency display,
+                // PTT control, etc.).  The disabled path is entered only when the
+                // operator has explicitly set Enabled = false in config.
+                // An existing connection is closed when the operator disables CAT.
                 if (!config.Enabled)
                 {
+                    if (connection is not null)
+                    {
+                        _activeConnection = null;
+                        await SafeDisconnectAsync(connection).ConfigureAwait(false);
+                        connection = null;
+                    }
+                    suspendedAfterFailure = false;   // entering disabled resets failure state
                     _catState.Update(null, CatConnectionStatus.Disabled);
                     EmitIfChanged(null, CatConnectionStatus.Disabled);
                     await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                // ── Suspended after failure — idle until config changes ───────
+                // A prior connect or poll failure has been logged.  Do not hammer
+                // the radio: wait here until HasConnectionConfigChanged clears the
+                // flag (see config-change block above).  200 ms keeps the config-change
+                // response time short while avoiding a busy-loop.
+                if (suspendedAfterFailure)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(200), ct).ConfigureAwait(false);
                     continue;
                 }
 
@@ -266,15 +297,30 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex,
-                            "CAT: failed to connect via {RigModel} — {Message}. Retrying in {Delay} s.",
-                            config.RigModel, ex.Message, RetryDelay.TotalSeconds);
+                        // TimeoutException means the port opened but the radio is off or
+                        // the CAT cable is disconnected — a normal operator condition, not a
+                        // software fault.  Log at Information without the exception object
+                        // (no stack trace) and guide the operator toward the real remedy.
+                        // All other exceptions (port in use, port not found, …) indicate a
+                        // configuration problem and are logged at Warning.
+                        if (ex is TimeoutException)
+                            _logger.LogInformation(
+                                "CAT: no response from radio via {RigModel} — radio may be off " +
+                                "or CAT cable disconnected. Polling suspended; turn on the radio " +
+                                "to reconnect.",
+                                config.RigModel);
+                        else
+                            _logger.LogWarning(
+                                "CAT: could not connect via {RigModel} — {Message}. " +
+                                "Polling suspended; check the CAT port settings to retry.",
+                                config.RigModel, ex.Message);
+
                         _catState.Update(null, CatConnectionStatus.Error);
                         _activeConnection = null;
                         EmitIfChanged(null, CatConnectionStatus.Error);
                         await SafeDisconnectAsync(connection).ConfigureAwait(false);
-                        connection = null;
-                        await Task.Delay(RetryDelay, ct).ConfigureAwait(false);
+                        connection            = null;
+                        suspendedAfterFailure = true;
                         continue;
                     }
                 }
@@ -330,15 +376,20 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex,
-                        "CAT: frequency poll failed via {RigModel} — {Message}. Retrying in {Delay} s.",
-                        config.RigModel, ex.Message, RetryDelay.TotalSeconds);
+                    // Radio became unreachable mid-session — an operator condition,
+                    // not a software fault.  Log at Warning (unexpected during a live
+                    // session) but without the exception object so no stack trace is
+                    // emitted; the message already contains the relevant description.
+                    _logger.LogWarning(
+                        "CAT: radio connection lost via {RigModel} — {Message}. " +
+                        "Polling suspended; check the radio and CAT cable.",
+                        config.RigModel, ex.Message);
                     _catState.Update(null, CatConnectionStatus.Error);
                     _activeConnection = null;
                     EmitIfChanged(null, CatConnectionStatus.Error);
                     await SafeDisconnectAsync(connection).ConfigureAwait(false);
-                    connection = null;
-                    await Task.Delay(RetryDelay, ct).ConfigureAwait(false);
+                    connection            = null;
+                    suspendedAfterFailure = true;
                     continue;
                 }
 
