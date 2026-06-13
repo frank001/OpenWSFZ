@@ -8,4 +8,18 @@
     <AssemblyName>TraceabilityCheck</AssemblyName>
     <RootNamespace>TraceabilityCheck</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The scanner loads test DLLs (e.g. OpenWSFZ.Web.Tests) that reference
+      Microsoft.AspNetCore.App framework assemblies (e.g. IWebHostBuilder from
+      Microsoft.AspNetCore.Hosting.Abstractions).  When TestAssemblyLoadContext.Load()
+      returns null for a framework assembly it is not resolving from the deps.json,
+      the runtime falls back to the tool's own default context.  Without this
+      FrameworkReference the default context has no ASP.NET Core assemblies, so
+      GetTypes() throws ReflectionTypeLoadException for every type that directly
+      references those assemblies, silently dropping tests from the scan.
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 </Project>
