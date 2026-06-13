@@ -88,8 +88,17 @@ extern "C" {
  *              baseline).  Over-suppression confirmed — 75% attenuation at 0 dB
  *              SNR removes shared tile energy in time_freq scenarios and the weak
  *              signal's contribution in capture scenarios.
- *              FT8_SHIM_VERSION reverted to 20260010 (H4 baseline restored). */
-#define FT8_SHIM_VERSION 20260010
+ *              FT8_SHIM_VERSION reverted to 20260010 (H4 baseline restored).
+ *   20260012 — fix-d004-local-noise-floor: per-signal local noise floor replaces
+ *              the global histogram-median in the SNR formula.
+ *              `compute_local_noise_floor_db` samples waterfall bins in a K=32-bin
+ *              sideband window on each side of the decoded signal's 8-tone span
+ *              (200 Hz per sideband at 6.25 Hz/bin).  Makes SNR invariant to
+ *              audio-chain frequency response.  Global noise floor retained for
+ *              per-cycle diagnostic logging.  Resolves D-003 and D-004.
+ *              Version 20260011 slot used for H5 suppression-tuning diagnostic
+ *              (REJECTED; reverted).  20260012 is the D-003/D-004 fix. */
+#define FT8_SHIM_VERSION 20260012
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

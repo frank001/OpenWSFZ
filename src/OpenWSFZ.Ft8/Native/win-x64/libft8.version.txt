@@ -1,31 +1,30 @@
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20260010 (diag-d001-h4-spectrogram-reinstate: H4 accepted
-                  baseline restored.  H5 (shim 20260011, ramp [−15, +5]) was REJECTED:
-                  S7 overall 43/93 = 46.24% (−10.75 pp vs H4 56.99% baseline).
-                  Over-suppression confirmed — 75% attenuation at 0 dB SNR removes shared
-                  tile energy in time_freq scenarios and the weak signal's contribution in
-                  capture scenarios.  Suppression ramp restored to H4 values:
-                  K_SOFT_SUPP_SNR_MIN_DB = −5.0 dB; K_SOFT_SUPP_SNR_MAX_DB = +15.0 dB.
-                  At 0 dB SNR suppression = 25% (H4).
-                  Supersedes 20260011 (H5 REJECTED: S7 46.24%, −10.75 pp).)
+Shim version:     FT8_SHIM_VERSION = 20260012 (fix-d004-local-noise-floor: per-signal local noise
+                  floor replaces global histogram-median in SNR formula.
+                  compute_local_noise_floor_db samples K=32 waterfall bins on each side of the
+                  decoded signal's 8-tone span (200 Hz per sideband at 6.25 Hz/bin); takes the
+                  histogram median across all time blocks and all time/freq sub-samples.
+                  Global noise floor retained for per-cycle diagnostic log.
+                  Resolves D-003 (extreme tail: SNR ≤ −30 dB at 2600–3000 Hz) and D-004
+                  (frequency-dependent SNR bias: up to −22 dB at 2800–3000 Hz due to audio-chain
+                  rolloff).  Version 20260011 slot used for H5 diagnostic (REJECTED; reverted).
+                  Pass count: 2.  No change to FT8Result struct layout (48 bytes).)
 sizeof(FT8Result): 48 bytes
-SNR formula:      tone-bin-specific read (R&R-001 fix — see fix-snr-tone-bin-selection)
-                  SNR = signal_db - noise_floor_db - 26.5
+SNR formula:      local_noise_floor (K=32) − 26.5 dB
                   (26.5 dB = calibrated bandwidth correction; WSJT-X uses 26.0 dB = 10*log10(2500/6.25))
                   signal_db = mean of per-symbol row[tones[b-b0]] across 79 symbols
                   (tones[] from ft8_encode — reads the ACTIVE tone bin only, not max-of-8)
-                  noise_floor_db = histogram-median of all waterfall uint8 magnitudes
+                  local_noise_db = histogram-median of sideband waterfall bins (K=32 each side)
+                  global noise_floor_db = histogram-median of ALL waterfall bins (retained for diag log)
 Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_counts, ft8_get_max_passes,
                   ft8_get_last_noise_floor_db
 
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-06-13 (revert-diag-d001-h5: H5 REJECTED; shim restored to H4 (20260010);
-                              K_SOFT_SUPP_SNR_MIN_DB −15.0 → −5.0 dB;
-                              K_SOFT_SUPP_SNR_MAX_DB +5.0 → +15.0 dB;
-                              FT8_SHIM_VERSION=20260010; shim compiled from Native/ft8_shim.c
+Build date:       2026-06-14 (fix-d004-local-noise-floor: local noise floor (K=32);
+                              FT8_SHIM_VERSION=20260012; shim compiled from Native/ft8_shim.c
                               using rebuild_shim_new.bat)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
@@ -36,10 +35,8 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       2026-06-13 (revert-diag-d001-h5: H5 REJECTED; shim restored to H4 (20260010);
-                              K_SOFT_SUPP_SNR_MIN_DB −15.0 → −5.0 dB;
-                              K_SOFT_SUPP_SNR_MAX_DB +5.0 → +15.0 dB;
-                              FT8_SHIM_VERSION=20260010; built via native/ft8_lib_build/build_linux.sh)
+Build date:       2026-06-14 (fix-d004-local-noise-floor: local noise floor (K=32);
+                              FT8_SHIM_VERSION=20260012; built via native/ft8_lib_build/build_linux.sh)
 Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
 Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84) + ft8_shim.c
 
@@ -47,7 +44,7 @@ Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84)
 Compiler:         Apple clang (macos-latest GitHub Actions runner, ARM64) — rebuilt by CI on every push
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -target arm64-apple-macos11.0
 Build date:       CI-rebuilt — the committed binary is a prior-version placeholder;
-                  CI always builds from the current ft8_shim.c (FT8_SHIM_VERSION=20260010).
+                  CI always builds from the current ft8_shim.c (FT8_SHIM_VERSION=20260012).
                   See .github/workflows/ci.yml step "Build native macOS dylib (ARM64, Clang)".
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
 Sources:          shallow-clone native/ft8_lib @ msvc-compat (d18ed84) + ft8_shim.c

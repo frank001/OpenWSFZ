@@ -67,8 +67,21 @@ internal static class Ft8LibInterop
     ///   for D-001 co-channel decode gap.
     ///   REJECTED: S7 overall 43/93 = 46.24% (−10.75 pp vs H4 baseline).
     ///   Over-suppression confirmed.  FT8_SHIM_VERSION reverted to 20260010.
+    /// 20260012 (fix-d004-local-noise-floor): per-signal local noise floor replaces the global
+    ///   histogram-median in the SNR formula.  <c>compute_local_noise_floor_db</c> samples
+    ///   waterfall bins in a K=32-bin sideband window on each side of the decoded signal's
+    ///   8-tone span (200 Hz per sideband at 6.25 Hz/bin), taking the histogram median of
+    ///   those samples across all time blocks and all time/freq sub-samples.  The global noise
+    ///   floor is retained for per-cycle diagnostic logging (<c>ft8_get_last_noise_floor_db</c>)
+    ///   but is no longer used in the per-signal SNR formula.  <c>FT8Result</c> struct layout
+    ///   is unchanged (48 bytes); this is not an ABI break.  Resolves D-003 and D-004: the
+    ///   audio-chain rolloff (up to −22 dB at 2800–3000 Hz) drove the global-noise-floor-based
+    ///   SNR to be systematically under-reported at high frequencies; local noise tracks the
+    ///   same rolloff and eliminates this frequency-dependent bias.
+    ///   Version 20260011 slot used for H5 suppression diagnostic (REJECTED; reverted);
+    ///   20260012 is the D-003/D-004 fix, not a D-001 hypothesis.
     /// </summary>
-    private const int ExpectedShimVersion = 20260010;
+    private const int ExpectedShimVersion = 20260012;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.

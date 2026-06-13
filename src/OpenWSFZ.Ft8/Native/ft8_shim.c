@@ -103,6 +103,28 @@
  *   energy in time_freq scenarios and the weak signal's contribution in capture
  *   scenarios.  FT8_SHIM_VERSION reverted to 20260010 (H4 baseline restored).
  *
+ * fix-d004-local-noise-floor (FT8_SHIM_VERSION 20260012):
+ *
+ *   Per-signal local noise floor replaces the global histogram-median in the SNR
+ *   formula.  `compute_local_noise_floor_db` samples waterfall bins in a K=32-bin
+ *   sideband window on each side of the decoded signal's 8-tone span:
+ *     left  sideband: [max(0, freq_offset − 32), freq_offset)
+ *     right sideband: [freq_offset + 8, min(num_bins, freq_offset + 40))
+ *   across ALL time blocks and ALL time/freq sub-samples; takes the histogram
+ *   median of those samples (same estimator as compute_noise_floor).  Falls back
+ *   to tls_last_noise_floor_db if no sideband bins are available (safety guard,
+ *   never expected in practice).
+ *   The global noise floor (noise_floor_db) is still computed and stored in
+ *   tls_last_noise_floor_db for the per-cycle diagnostic log; it is no longer
+ *   used in the per-signal SNR formula.
+ *   Root cause (D-003/D-004): the audio chain (transceiver SSB output + USB Audio
+ *   CODEC) has significant frequency rolloff: signal_db falls from −39.7 dB at
+ *   800–1000 Hz to −67.5 dB at 2800–3000 Hz, while the global noise_floor_db
+ *   stays at −66.7 dB.  Local noise tracks the same rolloff, making the SNR
+ *   formula invariant to audio-chain frequency response.
+ *   Version 20260011 slot used for H5 suppression-tuning diagnostic (REJECTED;
+ *   reverted).  20260012 is the D-003/D-004 fix, not a D-001 hypothesis.
+ *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
 
@@ -194,6 +216,14 @@ char* stpcpy(char* dest, const char* src)
  * Sized to accommodate all two passes: 140 + 200 = 340.
  */
 #define K_MAX_DECODED  (K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2)
+
+/* ── Local noise floor estimation ─────────────────────────────────────────── */
+/*
+ * K_LOCAL_NOISE_WINDOW — number of waterfall bins sampled on each side of the
+ * decoded signal's 8-tone span.  With freq_osr=2 and 6.25 Hz/bin, 32 bins =
+ * 200 Hz of audio bandwidth per sideband.
+ */
+#define K_LOCAL_NOISE_WINDOW 32
 
 /* ── Thread-local per-pass stats and noise floor ─────────────────────────── */
 static _Thread_local int   tls_pass_counts[K_MAX_PASSES];
@@ -545,6 +575,60 @@ FT8_UNUSED_STATIC void compute_quadrature_amplitude(
     *out_a_q  = a * sinf(phi);
 }
 
+/* ── Local noise floor for per-signal SNR computation ────────────────────── */
+/*
+ * compute_local_noise_floor_db — histogram-median noise floor estimated from
+ * waterfall bins adjacent to the decoded signal's frequency.
+ *
+ * Samples bins in [max(0, freq_offset − K_LOCAL_NOISE_WINDOW), freq_offset)
+ * and [freq_offset + 8, min(num_bins, freq_offset + 8 + K_LOCAL_NOISE_WINDOW))
+ * across ALL time blocks and ALL time/freq sub-samples.
+ *
+ * Falls back to tls_last_noise_floor_db if no bins are available (safety guard —
+ * only reachable if num_bins ≤ 8, far below any real configuration).
+ *
+ * This makes the SNR formula invariant to audio-chain frequency response:
+ * both signal and noise are measured in the same spectral neighbourhood.
+ */
+static float compute_local_noise_floor_db(
+    const ftx_waterfall_t* wf,
+    int                    freq_offset)
+{
+    uint32_t hist[256];
+    memset(hist, 0, sizeof(hist));
+    int total = 0;
+
+    int lo_start = freq_offset - K_LOCAL_NOISE_WINDOW;
+    if (lo_start < 0) lo_start = 0;
+    int lo_end   = freq_offset;                         /* exclusive; signal tones start here  */
+
+    int hi_start = freq_offset + 8;                     /* skip 8-tone signal span              */
+    int hi_end   = freq_offset + 8 + K_LOCAL_NOISE_WINDOW;
+    if (hi_end > wf->num_bins) hi_end = wf->num_bins;
+
+    int pt = wf->freq_osr * wf->num_bins;               /* per-time_sub stride in a block       */
+
+    for (int b = 0; b < wf->num_blocks; b++) {
+        const WF_ELEM_T* block = wf->mag + b * wf->block_stride;
+        for (int ts = 0; ts < wf->time_osr; ts++) {
+            for (int fs = 0; fs < wf->freq_osr; fs++) {
+                const WF_ELEM_T* row = block + ts * pt + fs * wf->num_bins;
+                for (int f = lo_start; f < lo_end; f++) { hist[row[f]]++; total++; }
+                for (int f = hi_start; f < hi_end; f++) { hist[row[f]]++; total++; }
+            }
+        }
+    }
+
+    if (total == 0) return tls_last_noise_floor_db;     /* safety fallback — never expected     */
+
+    uint32_t cum = 0; int med = 0;
+    for (int v = 0; v < 256; v++) {
+        cum += hist[v];
+        if (cum * 2 >= (uint32_t)total) { med = v; break; }
+    }
+    return (float)med * 0.5f - 120.0f;
+}
+
 /* ── ABI sentinel ────────────────────────────────────────────────────────── */
 int ft8_lib_version_check(void) { return FT8_SHIM_VERSION; }
 
@@ -704,7 +788,8 @@ int ft8_decode_all(
                 }
                 signal_db = cnt > 0 ? sum / (float)cnt : noise_floor_db;
             }
-            float snr = signal_db - noise_floor_db - 26.5f;
+            float local_noise_db = compute_local_noise_floor_db(&mon.wf, (int)cand->freq_offset);
+            float snr = signal_db - local_noise_db - 26.5f;
 
             FT8Result* r = &results[num_decoded++];
             r->freq_hz = (int)roundf(freq_hz);
