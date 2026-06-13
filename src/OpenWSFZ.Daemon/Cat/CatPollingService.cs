@@ -36,6 +36,37 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
 {
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// Time to pause after a successful <see cref="IRadioConnection.ConnectAsync"/>
+    /// before issuing the first <see cref="IRadioConnection.GetDialFrequencyMhzAsync"/>
+    /// poll.
+    ///
+    /// <para>
+    /// Rationale: the probe command sent during <c>ConnectAsync</c> is <c>FA;\r</c>.
+    /// The radio answers <c>FA&lt;hz&gt;;</c> (consumed by <c>ReadTo(";")</c>), but
+    /// some Kenwood and Yaesu firmware then process the <c>\r</c> separately and emit
+    /// a trailing acknowledgement byte (<c>;</c> or <c>?;</c>) a few milliseconds
+    /// later.  If the very first poll's <c>DiscardInBuffer()</c> executes before that
+    /// byte has reached the OS receive buffer, it escapes the flush.  <c>ReadTo(";")</c>
+    /// then reads it immediately and returns <c>raw=''</c>, which fails the <c>FA</c>
+    /// prefix check and raises a spurious "connection lost" event — permanently
+    /// suspending polling until a config change.
+    /// </para>
+    ///
+    /// <para>
+    /// Waiting here gives the trailing byte time to land in the OS buffer so that the
+    /// first poll's <c>DiscardInBuffer()</c> can flush it before the exchange begins.
+    /// 150 ms is sufficient for any realistic radio response time over a USB-Serial
+    /// adapter at common baud rates (4 800 – 57 600).
+    /// </para>
+    ///
+    /// <para>
+    /// Override to <see cref="TimeSpan.Zero"/> in test subclasses to eliminate
+    /// the latency from the unit-test run.
+    /// </para>
+    /// </summary>
+    protected virtual TimeSpan PostConnectSettleDelay => TimeSpan.FromMilliseconds(150);
+
     private readonly CatState                   _catState;
     private readonly IConfigStore               _configStore;
     private readonly CatEventBus                _catEventBus;
@@ -290,6 +321,12 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                         _activeConnection = connection; // expose to SetDialFrequencyAsync
                         _logger.LogInformation(
                             "CAT connected via {RigModel}.", config.RigModel);
+
+                        // Settle delay — see PostConnectSettleDelay for full rationale.
+                        // Must run inside the connected try-block so that an
+                        // OperationCanceledException during the delay is handled by
+                        // the existing OCE catch rather than the generic Exception catch.
+                        await Task.Delay(PostConnectSettleDelay, ct).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (ct.IsCancellationRequested)
                     {

@@ -169,6 +169,10 @@ public sealed class CatPollingServiceFreqPersistTests
             _injected = injectedConnection;
         }
 
+        // Eliminate the post-connect settle delay so unit tests run without
+        // artificial latency and timing assertions remain deterministic.
+        protected override TimeSpan PostConnectSettleDelay => TimeSpan.Zero;
+
         protected override IRadioConnection? CreateConnection(CatConfig config)
             => _injected;
     }
