@@ -33,8 +33,8 @@
 
 ## 6. QA — S7 validation run
 
-- [ ] 6.1 Run the S7 scenario at K=3 (93 total observations) against the rebuilt shim
-- [ ] 6.2 Record per-part results in a table matching the format of `qa/rr-study/results/2026-06-12-30972ba/report.md` section 3.1
-- [ ] 6.3 Confirm Gate (a): overall result ≥ 54.84% (≥ 51/93)
-- [ ] 6.4 Confirm Gate (b): no per-part regression vs the `e4a3982` baseline (each part ≥ its baseline count from the H3b report table)
-- [ ] 6.5 Write an NFR-023-compliant `report.md` in `qa/rr-study/results/<date>-<sha>/` and commit it
+- [x] 6.1 Run the S7 scenario at K=3 (93 total observations) against the rebuilt shim
+- [x] 6.2 Record per-part results in a table matching the format of `qa/rr-study/results/2026-06-12-30972ba/report.md` section 3.1
+- [x] 6.3 Confirm Gate (a): overall result ≥ 54.84% (≥ 51/93) — **FAIL**: 40/93 = 43.01% (−11.83 pp)
+- [x] 6.4 Confirm Gate (b): no per-part regression vs the `e4a3982` baseline — **FAIL**: P4 −3, P9 −4, P10 −3, P12 −1
+- [x] 6.5 Write an NFR-023-compliant `report-v2.md` in `qa/rr-study/results/2026-06-13-dc99567/` — **H4 REJECTED**
