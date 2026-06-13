@@ -66,8 +66,19 @@ extern "C" {
  *              gfsk_kernel) plus GFSK kernel prefix sum (gfsk_prefix) allocated in
  *              the pass-1 SIC block; total PCM-domain SIC heap ≈ 2.21 MB.
  *              H3 root-cause: CP-FSK vs GFSK modulation mismatch + phase-zero
- *              assumption drove cancellation amplitude to near-zero. */
-#define FT8_SHIM_VERSION 20260009
+ *              assumption drove cancellation amplitude to near-zero.
+ *              REJECTED (H3b): S7 overall 37.63% vs 54.84% baseline (−17.21 pp);
+ *              P0/P1 both 0/6.  PCM-domain SIC alone cannot match spectrogram
+ *              suppression baseline.  SUPERSEDED by 20260010.
+ *   20260010 — diag-d001-h4-spectrogram-reinstate: H3b PCM-domain GFSK quadrature
+ *              SIC call site removed from ft8_decode_all; spectrogram-domain
+ *              soft-SNR tile suppression reinstated as the sole inter-pass mechanism
+ *              (suppress_candidate_tiles loop, as in 20260006).  GFSK helpers
+ *              (build_gfsk_kernel, synth_ft8_gfsk_quad, compute_quadrature_amplitude)
+ *              retained in source but not called; D-003 TLS diagnostic
+ *              (tls_last_noise_floor_db, ft8_get_last_noise_floor_db) retained.
+ *              Single-variable recovery experiment (H4) for D-001 co-channel gap. */
+#define FT8_SHIM_VERSION 20260010
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
