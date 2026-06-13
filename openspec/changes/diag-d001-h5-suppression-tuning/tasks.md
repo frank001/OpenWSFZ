@@ -23,12 +23,14 @@
 
 ## 5. S7 R&R validation run
 
-- [ ] 5.1 Run the S7 synthetic co-channel R&R harness against the rebuilt binary (K=3, fresh seeds)
-- [ ] 5.2 Evaluate gate (a): S7 overall ≥ 56.99% (≥ 53/93)
-- [ ] 5.3 Evaluate gate (b): no per-part regression vs H4 R1 baseline (each part count ≥ H4 R1 count)
-- [ ] 5.4 Write NFR-023-compliant `report-v2.md` in the run results directory and commit
+- [x] 5.1 Run the S7 synthetic co-channel R&R harness against the rebuilt binary (K=3, fresh seeds)
+- [x] 5.2 Evaluate gate (a): S7 overall ≥ 56.99% (≥ 53/93)
+- [x] 5.3 Evaluate gate (b): no per-part regression vs H4 R1 baseline (each part count ≥ H4 R1 count)
+- [x] 5.4 Write NFR-023-compliant `report-v2.md` in the run results directory and commit
 
 ## 6. Verdict and documentation
 
 - [ ] 6.1 **If both gates PASS:** record H5 ACCEPTED in MEMORY.md; update S7 baseline to the new overall %; post acceptance comment to GitHub issue #3
-- [ ] 6.2 **If either gate FAILS:** record H5 REJECTED in MEMORY.md; revert constants to `(-5.0f)` / `(15.0f)`, bump to 20260012 (do not return binary to 20260010 without a rebuild); post rejection findings to GitHub issue #3 with next-step hypothesis
+- [x] 6.2 **If either gate FAILS:** record H5 REJECTED in MEMORY.md; revert constants to `(-5.0f)` / `(15.0f)`, bump to 20260012 (do not return binary to 20260010 without a rebuild); post rejection findings to GitHub issue #3 with next-step hypothesis
+  - Result: 43/93 = 46.24% — gate (a) FAIL (−10 decodes); gate (b) FAIL (P4 −1, P5 −2, P9 −5, P10 −1, P11 −1, P12 −2). H5 REJECTED.
+  - Shim revert (20260012) deferred to H5b — follows H3b→H4 precedent; bad constants sit in main until next hypothesis implements the fix.
