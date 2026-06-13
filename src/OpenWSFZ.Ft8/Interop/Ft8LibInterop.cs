@@ -49,8 +49,16 @@ internal static class Ft8LibInterop
     ///   for any carrier phase).  Three additional heap buffers in the pass-1 SIC stage:
     ///   synth_buf_q, gfsk_kernel, gfsk_prefix; total PCM-domain SIC heap increases from
     ///   ~1.44 MB to ~2.21 MB.  No change to K_MAX_PASSES, MaxDecodePasses, or MaxResults.
+    ///   REJECTED (H3b): S7 overall 37.63% vs 54.84% baseline (−17.21 pp); P0/P1 both 0/6.
+    ///   PCM-domain SIC alone cannot match spectrogram suppression baseline.
+    ///   SUPERSEDED by 20260010.
+    /// 20260010 (diag-d001-h4-spectrogram-reinstate, H4): H3b PCM-domain GFSK quadrature SIC
+    ///   call site removed; spectrogram-domain soft-SNR tile suppression reinstated as the sole
+    ///   inter-pass mechanism (<c>suppress_candidate_tiles</c> loop, as in 20260006).  GFSK
+    ///   helpers retained in shim source but not called.  D-003 TLS diagnostic retained.
+    ///   Single-variable recovery experiment (H4) for D-001 co-channel decode gap.
     /// </summary>
-    private const int ExpectedShimVersion = 20260009;
+    private const int ExpectedShimVersion = 20260010;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -66,11 +74,10 @@ internal static class Ft8LibInterop
     /// Mirrors <c>K_MAX_PASSES</c> in <c>ft8_shim.c</c>; both are owned here
     /// so callers do not need to hard-code the pass count separately.
     /// Pass 0: full waterfall (unchanged).
-    /// Pass 1: PCM-residual waterfall — each pass-0 decoded signal is synthesised
-    ///   using the GFSK quadrature synthesiser (BT=2.0, 3-symbol Gaussian; H3b) and
-    ///   subtracted from a heap-allocated PCM copy using the analytic quadrature
-    ///   amplitude estimator; the waterfall is rebuilt from the residual before pass 1.
-    ///   If any heap allocation fails, pass 1 falls back to the original waterfall.
+    /// Pass 1: spectrogram-suppressed — for each pass-0 decoded signal the shim
+    ///   attenuates that signal's energy in the waterfall using soft SNR-scaled tile
+    ///   suppression (<c>suppress_candidate_tiles</c>) before re-running candidate
+    ///   search and decode (shim 20260010, H4 spectrogram reinstate; H3b SIC removed).
     /// </summary>
     internal const int MaxDecodePasses = 2;
 
@@ -144,14 +151,11 @@ internal static class Ft8LibInterop
     /// <summary>
     /// Decode all FT8 signals from a 180 000-sample PCM buffer.
     /// Performs <c>K_MAX_PASSES</c> (currently 2) decode passes internally:
-    /// pass 0 on the full waterfall; pass 1 on a waterfall rebuilt from the
-    /// PCM residual after GFSK quadrature PCM-domain SIC — each pass-0 signal
-    /// is synthesised via <c>synth_ft8_gfsk_quad</c> (BT=2.0, 3-symbol Gaussian
-    /// pulse, I/Q quadrature components) and subtracted from a heap-allocated
-    /// PCM copy using the analytic quadrature amplitude estimator
-    /// (<c>compute_quadrature_amplitude</c>, O(N), phase-agnostic); the waterfall
-    /// is rebuilt from the residual before pass 1 runs
-    /// (shim version 20260009, H3b diagnostic).
+    /// pass 0 on the full waterfall; pass 1 on a waterfall with spectrogram-domain
+    /// soft-SNR tile suppression applied — each pass-0 decoded signal's tile energy
+    /// is attenuated in the waterfall via <c>suppress_candidate_tiles</c> before
+    /// pass 1 candidate search begins
+    /// (shim version 20260010, H4 spectrogram reinstate; H3b PCM-domain SIC removed).
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1].</param>
     /// <returns>Array of decoded results (may be empty; never null).</returns>
