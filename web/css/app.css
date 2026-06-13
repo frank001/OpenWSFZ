@@ -497,6 +497,26 @@ label {
   white-space: nowrap;
 }
 
+/* ── CAT status badge (FR-031) ─────────────────────────────────────────── */
+.cat-status-badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius);
+  cursor: default;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+  background: transparent;
+}
+
+.cat-connected  { background: var(--color-success); border-color: var(--color-success); color: #0d1117; }
+.cat-connecting { background: var(--color-accent);  border-color: var(--color-accent);  color: #0d1117; }
+.cat-error      { background: var(--color-danger);  border-color: var(--color-danger);  color: #fff; }
+.cat-disabled   { /* inherits the transparent default above */ }
+
 /* ── Frequencies table (FR-043) ─────────────────────────────────────────── */
 .freq-table {
   width: 100%;

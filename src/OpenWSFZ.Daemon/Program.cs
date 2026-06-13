@@ -261,6 +261,7 @@ var app = WebApp.Create(
         // so the ASP.NET Core host starts and stops it automatically.
         services.AddSingleton<CatPollingService>();
         services.AddSingleton<ICatTuner>(sp => sp.GetRequiredService<CatPollingService>());
+        services.AddSingleton<ICatController>(sp => sp.GetRequiredService<CatPollingService>());
         services.AddHostedService(sp => sp.GetRequiredService<CatPollingService>());
     });
 

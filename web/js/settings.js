@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies } from './api.js';
+import { getConfig, getDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry } from './api.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const portInput             = /** @type {HTMLInputElement}  */ (document.getElementById('port-input'));
@@ -37,6 +37,7 @@ const catPollInterval    = /** @type {HTMLInputElement}  */ (document.getElement
 const catSerialFields    = /** @type {HTMLElement}       */ (document.getElementById('cat-serial-fields'));
 const catRigctldFields   = /** @type {HTMLElement}       */ (document.getElementById('cat-rigctld-fields'));
 const catStatusValue     = /** @type {HTMLElement}       */ (document.getElementById('cat-status-value'));
+const catRetryBtn        = /** @type {HTMLButtonElement} */ (document.getElementById('cat-retry-btn'));
 
 // Logging controls
 const loggingFileEnabled    = /** @type {HTMLInputElement}  */ (document.getElementById('logging-file-enabled'));
@@ -455,14 +456,51 @@ function updateCatVisibility() {
 }
 
 /**
- * Update the read-only CAT status badge.
+ * Update the read-only CAT status badge and retry button visibility.
  * @param {string|null} status  'Connected', 'Connecting', 'Error', 'Disabled', or null
  */
 function updateCatStatusBadge(status) {
   const s = (status ?? 'Disabled').toLowerCase();
   catStatusValue.textContent = status ?? 'Disabled';
   catStatusValue.className   = `cat-status-badge cat-${s}`;
+
+  // Retry button is only useful when polling has been suspended after a failure.
+  // The backend sets status to 'Error' exactly in that state.
+  catRetryBtn.hidden = (status !== 'Error');
 }
+
+// ── CAT retry (FR-034) ───────────────────────────────────────────────────
+
+catRetryBtn.addEventListener('click', async () => {
+  catRetryBtn.disabled    = true;
+  catRetryBtn.textContent = '↻ Retrying…';
+  clearFeedback();
+
+  try {
+    await postCatRetry();
+
+    // Give the backend time to complete the settle delay and first poll:
+    // suspend-loop tick (≤200 ms) + settle delay (150 ms) + serial I/O (≤500 ms).
+    await new Promise(r => setTimeout(r, 1500));
+
+    // Re-fetch live status and refresh the badge.
+    const status       = await getStatus();
+    const newCatStatus = status?.catConnectionStatus ?? null;
+    updateCatStatusBadge(newCatStatus);
+
+    if (newCatStatus === 'Connected') {
+      showFeedback('CAT connected ✓', 'success');
+    } else {
+      showFeedback('CAT still unavailable — verify radio and CAT cable.', 'error');
+    }
+  } catch (err) {
+    showFeedback(`Retry failed — ${err.message}`, 'error');
+    catRetryBtn.hidden = false;   // restore button so the operator can try again
+  } finally {
+    catRetryBtn.textContent = '↺ Retry';
+    catRetryBtn.disabled    = false;
+  }
+});
 
 // ── Visibility helpers (p9) ──────────────────────────────────────────────
 

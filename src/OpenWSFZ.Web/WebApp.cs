@@ -317,6 +317,9 @@ public static class WebApp
         // mistakenly treating a nullable interface as a JSON-bound body parameter.
         var catTuner = app.Services.GetService<ICatTuner>();
 
+        // Capture ICatController (lifecycle control — retry on demand).
+        var catController = app.Services.GetService<ICatController>();
+
         app.MapPost("/api/v1/tune", async (
             HttpRequest       request,
             IConfigStore      store,
@@ -379,6 +382,19 @@ public static class WebApp
             }
 
             return TypedResults.Ok(new TuneResponse(freq));
+        });
+
+        // ── CAT retry endpoint (FR-034) ───────────────────────────────────────
+
+        app.MapPost("/api/v1/cat/retry", () =>
+        {
+            if (catController is null)
+                return Results.Problem(
+                    statusCode: StatusCodes.Status503ServiceUnavailable,
+                    detail: "CAT polling service is not available.");
+
+            catController.TriggerRetry();
+            return Results.NoContent();
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────

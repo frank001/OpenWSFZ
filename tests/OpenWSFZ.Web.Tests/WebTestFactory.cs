@@ -7,6 +7,22 @@ using OpenWSFZ.Abstractions;
 namespace OpenWSFZ.Web.Tests;
 
 /// <summary>
+/// In-memory <see cref="ICatController"/> used by <see cref="WebTestFactory"/>.
+/// Records <see cref="TriggerRetry"/> calls so endpoint tests can assert
+/// that the service was invoked.
+/// </summary>
+internal sealed class TestCatController : ICatController
+{
+    private int _retryCount;
+
+    /// <summary>Number of times <see cref="TriggerRetry"/> has been called.</summary>
+    public int RetryCount => _retryCount;
+
+    /// <inheritdoc/>
+    public void TriggerRetry() => Interlocked.Increment(ref _retryCount);
+}
+
+/// <summary>
 /// Integration-test factory for HTTP-only tests.  Uses <c>TestServer</c> (in-process,
 /// no real socket) which is fast and sufficient for REST endpoint tests.
 /// WebSocket upgrade tests use <see cref="RealServerFixture"/> instead.
@@ -28,6 +44,13 @@ namespace OpenWSFZ.Web.Tests;
 /// </remarks>
 public sealed class WebTestFactory : WebApplicationFactory<Program>
 {
+    /// <summary>
+    /// Shared test double for <see cref="ICatController"/>.
+    /// Exposed (internal — test assembly only) so endpoint tests can assert
+    /// <see cref="TestCatController.RetryCount"/>.
+    /// </summary>
+    internal TestCatController CatController { get; } = new TestCatController();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
@@ -42,6 +65,12 @@ public sealed class WebTestFactory : WebApplicationFactory<Program>
             // not overwrite %APPDATA%\OpenWSFZ\frequencies.json.
             services.RemoveAll<IFrequencyStore>();
             services.AddSingleton<IFrequencyStore>(new TestFrequencyStore());
+
+            // Replace the production ICatController (backed by CatPollingService)
+            // with a test double so POST /api/v1/cat/retry returns 204 and tests
+            // can assert TriggerRetry() was called.
+            services.RemoveAll<ICatController>();
+            services.AddSingleton<ICatController>(CatController);
         });
     }
 }

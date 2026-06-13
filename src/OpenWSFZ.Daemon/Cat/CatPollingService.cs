@@ -32,7 +32,7 @@ namespace OpenWSFZ.Daemon.Cat;
 /// <see cref="CatState"/> optimistically.
 /// </para>
 /// </summary>
-public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
+public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner, ICatController
 {
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
 
@@ -84,6 +84,13 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
     // SetDialFrequencyMhzAsync (HTTP request) on the same IRadioConnection
     // to prevent interleaved command / response sequences (F-006 Root B).
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
+
+    // Set to true by TriggerRetry() (ICatController) when the operator requests
+    // an immediate reconnect via POST /api/v1/cat/retry.  The poll loop consumes
+    // the flag (clears it and drops suspendedAfterFailure) on its next tick.
+    // Volatile ensures the flag is immediately visible to the poll-loop thread
+    // without a lock.
+    private volatile bool _retryRequested = false;
 
     // Last values broadcast to clients via _catEventBus.  Promoted from
     // RunAsync-local variables to class fields so SetDialFrequencyAsync can
@@ -220,6 +227,20 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
         }
     }
 
+    // ── ICatController ───────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Thread-safe: the volatile write to <c>_retryRequested</c> is immediately
+    /// visible to the poll-loop thread on its next read.  The flag is consumed
+    /// (read, cleared, and acted upon) inside the suspension block of
+    /// <see cref="RunAsync"/> on the next 200 ms tick.
+    /// </remarks>
+    public void TriggerRetry()
+    {
+        _retryRequested = true;
+    }
+
     // ── Core poll loop ────────────────────────────────────────────────────────
 
     private async Task RunAsync(CancellationToken ct)
@@ -277,15 +298,29 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner
                     continue;
                 }
 
-                // ── Suspended after failure — idle until config changes ───────
+                // ── Suspended after failure — idle until config changes or retry requested ─
                 // A prior connect or poll failure has been logged.  Do not hammer
                 // the radio: wait here until HasConnectionConfigChanged clears the
-                // flag (see config-change block above).  200 ms keeps the config-change
-                // response time short while avoiding a busy-loop.
+                // flag (see config-change block above) or the operator explicitly
+                // requests a retry via ICatController.TriggerRetry().
+                // 200 ms keeps the config-change and retry response times short
+                // while avoiding a busy-loop.
                 if (suspendedAfterFailure)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(200), ct).ConfigureAwait(false);
-                    continue;
+                    if (_retryRequested)
+                    {
+                        _retryRequested       = false;
+                        suspendedAfterFailure = false;
+                        _logger.LogInformation(
+                            "CAT: manual retry requested — attempting to reconnect via {RigModel}.",
+                            config.RigModel);
+                        // Fall through to the connection block below.
+                    }
+                    else
+                    {
+                        await Task.Delay(TimeSpan.FromMilliseconds(200), ct).ConfigureAwait(false);
+                        continue;
+                    }
                 }
 
                 // ── Validate poll interval ────────────────────────────────────

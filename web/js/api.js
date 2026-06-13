@@ -98,3 +98,17 @@ export function postTune(frequencyMHz) {
     body:    JSON.stringify({ frequencyMHz }),
   });
 }
+
+/**
+ * POST /api/v1/cat/retry
+ * Signals the CAT polling service to clear its failure suspension and attempt
+ * an immediate reconnect.  Returns void — the server responds with 204 No Content.
+ * @returns {Promise<void>}
+ */
+export async function postCatRetry() {
+  const res = await fetch('/api/v1/cat/retry', { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/cat/retry`);
+  }
+  // 204 No Content — no body to parse.
+}

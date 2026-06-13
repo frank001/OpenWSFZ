@@ -175,6 +175,53 @@ public sealed class CatPollingServiceTests
             "after the config change clears the suspension the service should connect");
     }
 
+    // ── Manual retry ─────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-034: TriggerRetry clears the failure suspension and triggers an immediate reconnect")]
+    public async Task TriggerRetry_WhenSuspended_AttemptsReconnect()
+    {
+        // Arrange — connection fails initially, then succeeds after TriggerRetry().
+        var cat   = new CatConfig { Enabled = true, RigModel = "SerialCat", SerialPort = "COM6" };
+        var store = new StubConfigStore(new AppConfig() with
+        {
+            AudioDeviceId = "test-audio-device",
+            Cat           = cat,
+        });
+
+        var connection = Substitute.For<IRadioConnection>();
+        connection.IsConnected.Returns(false);
+
+        var callCount = 0;
+        connection.ConnectAsync(Arg.Any<CancellationToken>())
+                  .Returns(_ =>
+                  {
+                      if (++callCount == 1)
+                          throw new TimeoutException("Serial CAT: no response to FA; within 500 ms.");
+                      return Task.CompletedTask;
+                  });
+        connection.GetDialFrequencyMhzAsync(Arg.Any<CancellationToken>()).Returns(14.074);
+
+        var state = new CatState();
+        var bus   = new CatEventBus(Guid.NewGuid());
+        var svc   = new TestableCatPollingService(
+                        state, store, bus,
+                        NullLogger<CatPollingService>.Instance,
+                        NullLoggerFactory.Instance,
+                        connection);
+
+        await svc.StartAsync(CancellationToken.None);
+        await Task.Delay(150);   // first attempt fails → suspended
+
+        // Signal a manual retry (ICatController) — no config change required.
+        svc.TriggerRetry();
+
+        await Task.Delay(300);   // second attempt should now succeed
+        await svc.StopAsync(CancellationToken.None);
+
+        state.Status.Should().Be(CatConnectionStatus.Connected,
+            "TriggerRetry must clear the failure suspension so the poll loop reconnects");
+    }
+
     // ── Stub IConfigStore ─────────────────────────────────────────────────────
 
     private sealed class StubConfigStore : IConfigStore

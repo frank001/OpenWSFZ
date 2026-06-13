@@ -128,4 +128,28 @@ public sealed class CatConfigApiTests : IClassFixture<WebTestFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    // ── POST /api/v1/cat/retry ────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-034: POST /api/v1/cat/retry returns 204 No Content")]
+    public async Task PostCatRetry_Returns204()
+    {
+        var client   = _factory.CreateClient();
+        var response = await client.PostAsync("/api/v1/cat/retry", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent,
+            "retry endpoint must acknowledge the request with 204 No Content");
+    }
+
+    [Fact(DisplayName = "FR-034: POST /api/v1/cat/retry invokes TriggerRetry on ICatController")]
+    public async Task PostCatRetry_InvokesTriggerRetry()
+    {
+        var client = _factory.CreateClient();
+        var before = _factory.CatController.RetryCount;
+
+        await client.PostAsync("/api/v1/cat/retry", null);
+
+        _factory.CatController.RetryCount.Should().Be(before + 1,
+            "the endpoint must delegate to ICatController.TriggerRetry()");
+    }
 }
