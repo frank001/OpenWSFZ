@@ -83,8 +83,13 @@ extern "C" {
  *              K_SOFT_SUPP_SNR_MAX_DB +15.0 → +5.0 dB.  At 0 dB SNR (S7 test
  *              condition) suppression increases from 25% (H4) to 75% (H5).
  *              No other shim logic, pass configuration, or struct layout changed.
- *              Single-variable diagnostic experiment (H5) for D-001. */
-#define FT8_SHIM_VERSION 20260011
+ *              Single-variable diagnostic experiment (H5) for D-001.
+ *              REJECTED: S7 overall 43/93 = 46.24% (−10.75 pp vs H4 56.99%
+ *              baseline).  Over-suppression confirmed — 75% attenuation at 0 dB
+ *              SNR removes shared tile energy in time_freq scenarios and the weak
+ *              signal's contribution in capture scenarios.
+ *              FT8_SHIM_VERSION reverted to 20260010 (H4 baseline restored). */
+#define FT8_SHIM_VERSION 20260010
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

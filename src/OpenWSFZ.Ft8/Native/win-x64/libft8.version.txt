@@ -1,14 +1,14 @@
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20260011 (diag-d001-h5-suppression-tuning: soft
-                  SNR-scaled suppression ramp shifted 10 dB toward lower SNRs.
-                  K_SOFT_SUPP_SNR_MIN_DB: −5.0 → −15.0 dB;
-                  K_SOFT_SUPP_SNR_MAX_DB: +15.0 → +5.0 dB.
-                  At 0 dB SNR suppression increases from 25% (H4) to 75% (H5).
-                  Ramp width (20 dB) preserved; only operating window shifted.
-                  No other shim logic, pass configuration, or struct layout changed.
-                  Single-variable diagnostic experiment (H5) for D-001 co-channel gap.
-                  Supersedes 20260010 (H4 ACCEPTED: S7 56.99% vs 54.84% baseline).)
+Shim version:     FT8_SHIM_VERSION = 20260010 (diag-d001-h4-spectrogram-reinstate: H4 accepted
+                  baseline restored.  H5 (shim 20260011, ramp [−15, +5]) was REJECTED:
+                  S7 overall 43/93 = 46.24% (−10.75 pp vs H4 56.99% baseline).
+                  Over-suppression confirmed — 75% attenuation at 0 dB SNR removes shared
+                  tile energy in time_freq scenarios and the weak signal's contribution in
+                  capture scenarios.  Suppression ramp restored to H4 values:
+                  K_SOFT_SUPP_SNR_MIN_DB = −5.0 dB; K_SOFT_SUPP_SNR_MAX_DB = +15.0 dB.
+                  At 0 dB SNR suppression = 25% (H4).
+                  Supersedes 20260011 (H5 REJECTED: S7 46.24%, −10.75 pp).)
 sizeof(FT8Result): 48 bytes
 SNR formula:      tone-bin-specific read (R&R-001 fix — see fix-snr-tone-bin-selection)
                   SNR = signal_db - noise_floor_db - 26.5
@@ -22,9 +22,10 @@ Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_count
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-06-13 (diag-d001-h5-suppression-tuning: suppression ramp shifted to
-                              [−15, +5]; 75% suppression at 0 dB SNR;
-                              FT8_SHIM_VERSION=20260011; shim compiled from Native/ft8_shim.c
+Build date:       2026-06-13 (revert-diag-d001-h5: H5 REJECTED; shim restored to H4 (20260010);
+                              K_SOFT_SUPP_SNR_MIN_DB −15.0 → −5.0 dB;
+                              K_SOFT_SUPP_SNR_MAX_DB +5.0 → +15.0 dB;
+                              FT8_SHIM_VERSION=20260010; shim compiled from Native/ft8_shim.c
                               using rebuild_shim_new.bat)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
@@ -35,9 +36,10 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       2026-06-13 (diag-d001-h5-suppression-tuning: suppression ramp shifted to
-                              [−15, +5]; 75% suppression at 0 dB SNR;
-                              FT8_SHIM_VERSION=20260011; built via native/ft8_lib_build/build_linux.sh)
+Build date:       2026-06-13 (revert-diag-d001-h5: H5 REJECTED; shim restored to H4 (20260010);
+                              K_SOFT_SUPP_SNR_MIN_DB −15.0 → −5.0 dB;
+                              K_SOFT_SUPP_SNR_MAX_DB +5.0 → +15.0 dB;
+                              FT8_SHIM_VERSION=20260010; built via native/ft8_lib_build/build_linux.sh)
 Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
 Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84) + ft8_shim.c
 
@@ -45,7 +47,7 @@ Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84)
 Compiler:         Apple clang (macos-latest GitHub Actions runner, ARM64) — rebuilt by CI on every push
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -target arm64-apple-macos11.0
 Build date:       CI-rebuilt — the committed binary is a prior-version placeholder;
-                  CI always builds from the current ft8_shim.c (FT8_SHIM_VERSION=20260011).
+                  CI always builds from the current ft8_shim.c (FT8_SHIM_VERSION=20260010).
                   See .github/workflows/ci.yml step "Build native macOS dylib (ARM64, Clang)".
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
 Sources:          shallow-clone native/ft8_lib @ msvc-compat (d18ed84) + ft8_shim.c

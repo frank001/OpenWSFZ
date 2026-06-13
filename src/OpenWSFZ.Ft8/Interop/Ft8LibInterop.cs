@@ -57,15 +57,18 @@ internal static class Ft8LibInterop
     ///   inter-pass mechanism (<c>suppress_candidate_tiles</c> loop, as in 20260006).  GFSK
     ///   helpers retained in shim source but not called.  D-003 TLS diagnostic retained.
     ///   Single-variable recovery experiment (H4) for D-001 co-channel decode gap.
-    ///   SUPERSEDED by 20260011.
+    ///   ACCEPTED: S7 56.99% (53/93), +2.15 pp vs 54.84% pre-H4 baseline.
+    ///   Active S7 baseline. FT8_SHIM_VERSION reverted to 20260010 after H5 rejection.
     /// 20260011 (diag-d001-h5-suppression-tuning, H5): suppression ramp shifted 10 dB toward
     ///   lower SNRs: <c>K_SOFT_SUPP_SNR_MIN_DB</c> −5.0 → −15.0 dB,
     ///   <c>K_SOFT_SUPP_SNR_MAX_DB</c> +15.0 → +5.0 dB.  At 0 dB SNR (S7 test condition)
     ///   suppression increases from 25% (H4) to 75% (H5).  No other shim logic, pass
     ///   configuration, or struct layout changed.  Single-variable diagnostic experiment (H5)
     ///   for D-001 co-channel decode gap.
+    ///   REJECTED: S7 overall 43/93 = 46.24% (−10.75 pp vs H4 baseline).
+    ///   Over-suppression confirmed.  FT8_SHIM_VERSION reverted to 20260010.
     /// </summary>
-    private const int ExpectedShimVersion = 20260011;
+    private const int ExpectedShimVersion = 20260010;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -84,7 +87,7 @@ internal static class Ft8LibInterop
     /// Pass 1: spectrogram-suppressed — for each pass-0 decoded signal the shim
     ///   attenuates that signal's energy in the waterfall using soft SNR-scaled tile
     ///   suppression (<c>suppress_candidate_tiles</c>) before re-running candidate
-    ///   search and decode (shim 20260011, H5: ramp [−15, +5]; 75% suppression at 0 dB).
+    ///   search and decode (shim 20260010, H4: ramp [−5, +15]; 25% suppression at 0 dB).
     /// </summary>
     internal const int MaxDecodePasses = 2;
 
@@ -162,7 +165,7 @@ internal static class Ft8LibInterop
     /// soft-SNR tile suppression applied — each pass-0 decoded signal's tile energy
     /// is attenuated in the waterfall via <c>suppress_candidate_tiles</c> before
     /// pass 1 candidate search begins
-    /// (shim version 20260011, H5 suppression ramp [−15, +5]; 75% suppression at 0 dB SNR).
+    /// (shim version 20260010, H4 suppression ramp [−5, +15]; 25% suppression at 0 dB SNR).
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1].</param>
     /// <returns>Array of decoded results (may be empty; never null).</returns>
