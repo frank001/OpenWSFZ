@@ -58,6 +58,7 @@ coverage*/
 
 # CI artefact files — generated locally; do not commit (CI uploads them as artefacts)
 traceability.md
+traceability-local.md
 licence-inventory.md
 
 # Working / scratch notes (not part of the repo)
