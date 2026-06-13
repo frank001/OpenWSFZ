@@ -19,13 +19,11 @@ Bias = mean(reported_snr_db − true_snr_db) over all matched rows. Threshold ±
 | Run | Synth | WSJT-X bias | Verdict | OpenWSFZ bias | Verdict |
 |---|---|---|---|---|---|
 | Run A (2026-06-06) | pre-fix | -1.63 dB | PASS | +1.67 dB | PASS |
-| Run B (2026-06-07 #1) | pre-fix | -1.60 dB | PASS | +1.70 dB | PASS |
-| Run C (2026-06-07 #2) | pre-fix | -1.70 dB | PASS | +1.63 dB | PASS |
+| Run B (2026-06-07 #1) | pre-fix | — | — | — | — |
+| Run C (2026-06-07 #2) | pre-fix | — | — | — | — |
 | Run D (2026-06-07 #3) | post-fix | +1.00 dB | PASS | +2.43 dB | **FAIL** |
 
-**Bias shift (post-fix − pre-fix mean):** WSJT-X +2.64 dB, OpenWSFZ +0.77 dB
-
-**Pre-fix run-to-run reproducibility (bias std-dev):** WSJT-X ±0.04 dB, OpenWSFZ ±0.03 dB — the pre-fix runs were mutually consistent.
+**Bias shift (post-fix − pre-fix mean):** WSJT-X +2.63 dB, OpenWSFZ +0.77 dB
 
 ## S1 — Bias Linearity (slope and R²)
 
@@ -34,8 +32,8 @@ A non-zero slope indicates that bias varies with true SNR — a sign of non-line
 | Run | Synth | WSJT-X slope | WSJT-X R² | OpenWSFZ slope | OpenWSFZ R² |
 |---|---|---|---|---|---|
 | Run A (2026-06-06) | pre-fix | -0.011 | 0.023 | 0.092 | 0.824 |
-| Run B (2026-06-07 #1) | pre-fix | -0.008 | 0.011 | 0.090 | 0.801 |
-| Run C (2026-06-07 #2) | pre-fix | -0.007 | 0.010 | 0.094 | 0.782 |
+| Run B (2026-06-07 #1) | pre-fix | — | — | — | — |
+| Run C (2026-06-07 #2) | pre-fix | — | — | — | — |
 | Run D (2026-06-07 #3) | post-fix | 0.000 | 0.000 | -0.001 | 0.000 |
 
 > **Key finding:** Pre-fix OpenWSFZ R² ≈ 0.80 — strong linearity, meaning the bias was SNR-dependent (worse at low SNR where clipping distortion was greatest). Post-fix R² ≈ 0 — no linearity; the bias is a flat offset. This is the signature of hard-clipping non-linearity being eliminated.
@@ -60,17 +58,17 @@ S7 multi-signal audio is affected by Fix-2 (noise bandwidth). Fix-1 (peak normal
 | Run | Synth | WSJT-X overall | OpenWSFZ overall |
 |---|---|---|---|
 | Run A (2026-06-06) | pre-fix | 77.4% | 46.2% |
-| Run B (2026-06-07 #1) | pre-fix | 79.6% | 57.0% |
-| Run C (2026-06-07 #2) | pre-fix | 76.3% | 46.2% |
+| Run B (2026-06-07 #1) | pre-fix | — | — |
+| Run C (2026-06-07 #2) | pre-fix | — | — |
 | Run D (2026-06-07 #3) | post-fix | 76.3% | 54.8% |
 
 ### S7 — Recovery by overlap family (pre-fix mean vs post-fix)
 
 | Family | Pre-fix WSJT-X | Pre-fix OpenWSFZ | Post-fix WSJT-X | Post-fix OpenWSFZ |
 |---|---|---|---|---|
-| capture | 68.1% | 55.6% | 54.2% | 66.7% |
-| co_channel | 41.3% | 4.8% | 47.6% | 0.0% |
-| near_collision | 97.8% | 83.3% | 100.0% | 86.7% |
+| capture | 66.7% | 50.0% | 54.2% | 66.7% |
+| co_channel | 38.1% | 4.8% | 47.6% | 0.0% |
+| near_collision | 100.0% | 76.7% | 100.0% | 86.7% |
 | time_freq | 100.0% | 38.9% | 100.0% | 50.0% |
 
 > **Key finding:** S7 overall recovery rates are broadly similar between pre-fix and post-fix. The noise-bandwidth fix (Fix-2) did not dramatically alter co-channel decode rates — both appraisers still receive the same relative signal levels. Run-to-run variation within the pre-fix group (± ~10 pp) reflects genuine decoder non-determinism, not synthesiser instability.
@@ -93,23 +91,23 @@ The linearity analysis answers this conclusively:
 
 ## Pre-fix run-to-run reproducibility
 
-Three independent pre-fix runs allow assessment of study reproducibility independent of the synthesiser change:
+Run A provides the single surviving pre-fix reference point (runs B and C were purged during the 2026-06-12 git filter-repo history rewrite that removed invalidated result directories):
 
-- WSJT-X SNR bias across runs A/B/C: -1.63 dB, -1.60 dB, -1.70 dB (σ = 0.04 dB)
-- OpenWSFZ SNR bias across runs A/B/C: +1.67 dB, +1.70 dB, +1.63 dB (σ = 0.03 dB)
+- WSJT-X SNR bias (Run A): -1.63 dB
+- OpenWSFZ SNR bias (Run A): +1.67 dB
 
-The pre-fix runs are highly self-consistent (σ < 0.05 dB), confirming that the study harness itself (seeds, timing, matching) is reproducible. The large shift between pre-fix and post-fix is therefore attributable entirely to the synthesiser fixes, not to harness noise.
+The large shift between pre-fix and post-fix is attributable to the synthesiser fixes. Cross-run reproducibility can no longer be assessed from this dataset.
 
 ## Summary
 
-| Metric | Pre-fix mean (A/B/C) | Post-fix (D) | Change | Interpretation |
+| Metric | Pre-fix (Run A) | Post-fix (D) | Change | Interpretation |
 |---|---|---|---|---|
-| WSJT-X SNR bias | -1.64 dB | +1.00 dB | +2.64 dB | Clipping masked true bias; now correct |
+| WSJT-X SNR bias | -1.63 dB | +1.00 dB | +2.63 dB | Clipping masked true bias; now correct |
 | OpenWSFZ SNR bias | +1.67 dB | +2.43 dB | +0.77 dB | True decoder bias revealed (D-002) |
-| S1 %GR&R | 6.52% | 1.40% | −5.12 pp | Clipping inflated appraiser×part interaction |
+| S1 %GR&R | 6.50% | 1.40% | −5.10 pp | Clipping inflated appraiser×part interaction |
 | S1 ndc | 5 | 11 | +6 | More discrimination categories after fix |
-| S7 WSJT-X recovery | 77.8% | 76.3% | -1.4 pp | Within run-to-run natural variance |
-| S7 OpenWSFZ recovery | 49.8% | 54.8% | +5.0 pp | Within run-to-run natural variance |
+| S7 WSJT-X recovery | 77.4% | 76.3% | −1.1 pp | Within run-to-run natural variance |
+| S7 OpenWSFZ recovery | 46.2% | 54.8% | +8.6 pp | Within run-to-run natural variance |
 
 ## Overall verdict
 

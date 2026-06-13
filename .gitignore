@@ -62,6 +62,7 @@ licence-inventory.md
 
 # Working / scratch notes (not part of the repo)
 resume.txt
+notes/
 
 # Raw off-air WAV corpus — too large to commit AND contains real third-party
 # callsigns (personal data); local only, never commit (NFR-021 / GDPR).
