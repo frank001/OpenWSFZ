@@ -26,6 +26,10 @@ namespace OpenWSFZ.Ft8;
 /// 20260004 — fix-d001-revised: Option B soft SNR-scaled tile attenuation.
 /// 20260005 — diag(D-003): ft8_get_last_noise_floor_db() TLS getter added.
 /// 20260006 — fix(D-002): SNR bandwidth constant -26.0 → -26.5 dB (bias calibration).
+/// 20260007 — diag-d001-three-pass-sic (H2): K_MAX_PASSES 2→3 diagnostic. REVERTED (S7 50.54%, −4.30 pp).
+/// 20260008 — diag-d001-pcm-sic (H3): CP-FSK/cosine PCM-domain SIC. REJECTED (S7 40.86%, −13.98 pp).
+/// 20260009 — diag-d001-h3b-gfsk-sic (H3b): GFSK quadrature PCM SIC; analytic amplitude estimator. REJECTED (S7 37.63%, −17.21 pp).
+/// 20260010 — diag-d001-h4-spectrogram-reinstate (H4): spectrogram suppression reinstated; H3b call site removed; GFSK helpers retained.
 /// </para>
 ///
 /// <para>

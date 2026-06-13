@@ -11,34 +11,34 @@ using Xunit;
 namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
-/// Integration smoke-test for the GFSK quadrature PCM-domain SIC (H3b diagnostic,
-/// diag-d001-h3b-gfsk-sic, shim 20260009).
+/// Integration smoke-test for the two-pass spectrogram-domain soft-SNR tile suppression
+/// path (H4 recovery, diag-d001-h4-spectrogram-reinstate, shim 20260010).
 ///
 /// <para>
 /// Verifies that <see cref="Ft8Decoder.DecodeAsync"/> successfully produces a non-empty
 /// result from the committed <c>synth-qso-01</c> fixture WAV and that every message in
-/// the answer key is decoded, after the GFSK quadrature synthesiser replaces the CP-FSK
-/// scalar synthesiser in the inter-pass SIC stage.
+/// the answer key is decoded, after spectrogram-domain tile suppression is reinstated
+/// as the sole inter-pass mechanism in <c>ft8_decode_all</c>.
 /// </para>
 ///
 /// <para>
-/// This test is the T2 gate for the H3b diagnostic (task 2.9): it runs against the
-/// rebuilt native binary at shim version 20260009, with
-/// <c>Ft8LibInterop.ExpectedShimVersion</c> set to <c>20260009</c>.
+/// This test is the H4 smoke-gate: it runs against the rebuilt native binary at shim
+/// version 20260010, with <c>Ft8LibInterop.ExpectedShimVersion</c> set to
+/// <c>20260010</c>.
 /// </para>
 ///
 /// <para>
-/// If this test fails, the root cause is either a regression in the GFSK quadrature SIC
-/// implementation (see <c>ft8_shim.c synth_ft8_gfsk_quad</c> /
-/// <c>compute_quadrature_amplitude</c>) or a stale native binary — run the rebuild script
+/// If this test fails, the root cause is either a regression in the spectrogram
+/// suppression path (see <c>ft8_shim.c suppress_candidate_tiles</c>) or a stale
+/// native binary — run the rebuild script
 /// (Windows: <c>rebuild_shim_new.bat</c>; Linux: <c>build_linux.sh</c>) then
 /// <c>dotnet build</c>.
 /// </para>
 /// </summary>
-public sealed class GfskQuadratureSynthTests
+public sealed class SpectrogramSuppressionSmokeTests
 {
-    [Fact(DisplayName = "H3b/T2 gate: Ft8Decoder.DecodeAsync with synth-qso-01 returns expected results (shim 20260009 GFSK quadrature SIC)")]
-    public async Task DecodeAsync_SynthQso01_ReturnsExpectedResults_GfskQuadratureSic()
+    [Fact(DisplayName = "H4 smoke: Ft8Decoder.DecodeAsync with synth-qso-01 returns expected results (shim 20260010 spectrogram suppression)")]
+    public async Task DecodeAsync_SynthQso01_ReturnsExpectedResults_SpectrogramSuppression()
     {
         // Arrange — load the synth-qso-01 fixture (same WAV used by PcmSicSmokeTests)
         float[] pcm = LoadEmbeddedWav("Fixtures/synth-qso-01.wav");
@@ -54,8 +54,8 @@ public sealed class GfskQuadratureSynthTests
 
         // Assert 1: non-empty
         results.Should().NotBeEmpty(
-            "the GFSK quadrature SIC path (shim 20260009) must produce at least one decoded " +
-            "message from the synth-qso-01 fixture — a crash, hang, or amplitude near-zero " +
+            "the spectrogram suppression path (shim 20260010) must produce at least one decoded " +
+            "message from the synth-qso-01 fixture — a crash, hang, or suppression failure " +
             "that silences all signals would produce an empty result and indicate a regression");
 
         // Assert 2: all answer-key messages decoded
@@ -64,7 +64,7 @@ public sealed class GfskQuadratureSynthTests
         {
             decodedMessages.Should().Contain(expected,
                 because: $"synth-qso-01 answer-key expects '{expected}'; " +
-                         $"the GFSK quadrature SIC must not suppress pass-0 signals to the " +
+                         $"spectrogram suppression must not attenuate pass-0 signals to the " +
                          $"point they are completely lost from the combined result set. " +
                          $"Currently decoded: [{string.Join(", ", decodedMessages)}]");
         }
@@ -91,7 +91,7 @@ public sealed class GfskQuadratureSynthTests
 
     private static Stream OpenEmbeddedResource(string resourceSuffix)
     {
-        Assembly asm     = typeof(GfskQuadratureSynthTests).Assembly;
+        Assembly asm     = typeof(SpectrogramSuppressionSmokeTests).Assembly;
         string   asmName = asm.GetName().Name!;
         string   resName = $"{asmName}.{resourceSuffix.Replace('/', '.')}";
 
