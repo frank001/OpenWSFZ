@@ -77,8 +77,14 @@ extern "C" {
  *              (build_gfsk_kernel, synth_ft8_gfsk_quad, compute_quadrature_amplitude)
  *              retained in source but not called; D-003 TLS diagnostic
  *              (tls_last_noise_floor_db, ft8_get_last_noise_floor_db) retained.
- *              Single-variable recovery experiment (H4) for D-001 co-channel gap. */
-#define FT8_SHIM_VERSION 20260010
+ *              Single-variable recovery experiment (H4) for D-001 co-channel gap.
+ *   20260011 — diag-d001-h5-suppression-tuning: suppression ramp shifted 10 dB
+ *              toward lower SNRs: K_SOFT_SUPP_SNR_MIN_DB −5.0 → −15.0 dB,
+ *              K_SOFT_SUPP_SNR_MAX_DB +15.0 → +5.0 dB.  At 0 dB SNR (S7 test
+ *              condition) suppression increases from 25% (H4) to 75% (H5).
+ *              No other shim logic, pass configuration, or struct layout changed.
+ *              Single-variable diagnostic experiment (H5) for D-001. */
+#define FT8_SHIM_VERSION 20260011
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
