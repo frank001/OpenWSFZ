@@ -7,9 +7,10 @@
  * @module settings
  */
 
-import { getConfig, getDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry } from './api.js';
+import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry } from './api.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
+const outputDeviceSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('output-device-select'));
 const portInput             = /** @type {HTMLInputElement}  */ (document.getElementById('port-input'));
 const cycleCountdownToggle  = /** @type {HTMLInputElement}  */ (document.getElementById('cycle-countdown-toggle'));
 const logLevelSelect        = /** @type {HTMLSelectElement} */ (document.getElementById('log-level-select'));
@@ -174,6 +175,7 @@ let _cleanSnapshot = '';
 function snapshotForm() {
   return JSON.stringify({
     audioDeviceId:        deviceSelect.value.trim() || null,
+    audioOutputDeviceId:  outputDeviceSelect.value.trim() || null,
     port:                 portInput.value,
     showCycleCountdown:   cycleCountdownToggle.checked,
     logLevel:             logLevelSelect.value,
@@ -339,8 +341,8 @@ addFreqBtn.addEventListener('click', () => {
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    const [config, devices, status, frequencies] = await Promise.all([
-      getConfig(), getDevices(), getStatus(), getFrequencies(),
+    const [config, devices, outputDevices, status, frequencies] = await Promise.all([
+      getConfig(), getDevices(), getOutputDevices(), getStatus(), getFrequencies(),
     ]);
 
     // Populate device selector.
@@ -366,6 +368,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Pre-select the configured device (p7: use audioDeviceId, not audioDeviceName).
     deviceSelect.value = config.audioDeviceId ?? '';
+
+    // Populate output device selector.
+    outputDeviceSelect.innerHTML = '';
+    const noOutputOpt = document.createElement('option');
+    noOutputOpt.value       = '';
+    noOutputOpt.textContent = '— No device —';
+    outputDeviceSelect.appendChild(noOutputOpt);
+
+    for (const dev of outputDevices) {
+      const opt = document.createElement('option');
+      opt.value       = dev.id;
+      opt.textContent = dev.name;
+      outputDeviceSelect.appendChild(opt);
+    }
+
+    // Pre-select configured output device; fall back to placeholder if null or not found.
+    outputDeviceSelect.value = config.audioOutputDeviceId ?? '';
+    if (outputDeviceSelect.value !== (config.audioOutputDeviceId ?? '')) {
+      // Device no longer present — select the placeholder.
+      outputDeviceSelect.value = '';
+    }
 
     // Pre-fill port.
     portInput.value = String(config.port);
@@ -552,6 +575,13 @@ saveBtn.addEventListener('click', async () => {
       ? (selectedOption?.textContent?.trim() || null)
       : null;
 
+  // Audio output device (TX pipeline routing).
+  const audioOutputDeviceId       = outputDeviceSelect.value.trim() || null;
+  const selectedOutputOption      = outputDeviceSelect.options[outputDeviceSelect.selectedIndex];
+  const audioOutputFriendlyName   = audioOutputDeviceId
+      ? (selectedOutputOption?.textContent?.trim() || null)
+      : null;
+
   const port               = parseInt(portInput.value, 10);
   const showCycleCountdown = cycleCountdownToggle.checked;
   const logLevel           = logLevelSelect.value;
@@ -601,6 +631,8 @@ saveBtn.addEventListener('click', async () => {
       postConfig({
         audioDeviceId,
         audioDeviceFriendlyName,
+        audioOutputDeviceId,
+        audioOutputFriendlyName,
         port,
         showCycleCountdown,
         logLevel,

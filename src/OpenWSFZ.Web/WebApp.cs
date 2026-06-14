@@ -38,18 +38,20 @@ public static class WebApp
     /// </param>
     public static WebApplication Create(
         int port,
-        IBindPolicy?                                  bindPolicy           = null,
-        IConfigStore?                                 configStore          = null,
-        IFrequencyStore?                              frequencyStore       = null,
-        IAudioDeviceProvider?                         audioProvider        = null,
-        Func<IServiceProvider, IAudioDeviceProvider>? audioProviderFactory = null,
-        CaptureManager?                               captureManager       = null,
-        AudioActivityMonitor?                         audioMonitor         = null,
-        DataFlowMonitor?                              dataFlowMonitor      = null,
-        ICatState?                                    catState             = null,
-        Action<ILoggingBuilder>?                      configureLogging     = null,
-        Func<Task>?                                   restartPipeline      = null,
-        Action<IServiceCollection>?                   configureServices    = null)
+        IBindPolicy?                                        bindPolicy                  = null,
+        IConfigStore?                                       configStore                 = null,
+        IFrequencyStore?                                    frequencyStore              = null,
+        IAudioDeviceProvider?                               audioProvider               = null,
+        Func<IServiceProvider, IAudioDeviceProvider>?       audioProviderFactory        = null,
+        IAudioOutputDeviceProvider?                         audioOutputProvider         = null,
+        Func<IServiceProvider, IAudioOutputDeviceProvider>? audioOutputProviderFactory  = null,
+        CaptureManager?                                     captureManager              = null,
+        AudioActivityMonitor?                               audioMonitor                = null,
+        DataFlowMonitor?                                    dataFlowMonitor             = null,
+        ICatState?                                          catState                    = null,
+        Action<ILoggingBuilder>?                            configureLogging            = null,
+        Func<Task>?                                         restartPipeline             = null,
+        Action<IServiceCollection>?                         configureServices           = null)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
         // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(appScope)
@@ -87,6 +89,12 @@ public static class WebApp
         else
             builder.Services.AddSingleton<IAudioDeviceProvider>(
                 audioProvider ?? new InMemoryAudioDeviceProvider());
+
+        if (audioOutputProviderFactory is not null)
+            builder.Services.AddSingleton<IAudioOutputDeviceProvider>(audioOutputProviderFactory);
+        else
+            builder.Services.AddSingleton<IAudioOutputDeviceProvider>(
+                audioOutputProvider ?? new InMemoryAudioOutputDeviceProvider());
 
         // Caller-supplied DI registrations (e.g. LoggingPipeline, LogRotationService).
         configureServices?.Invoke(builder.Services);
@@ -166,6 +174,14 @@ public static class WebApp
             CancellationToken ct) =>
         {
             var devices = new List<AudioDeviceInfo>(await provider.GetDevicesAsync(ct));
+            return TypedResults.Ok(devices);
+        });
+
+        app.MapGet("/api/v1/audio/output-devices", async (
+            IAudioOutputDeviceProvider outputProvider,
+            CancellationToken ct) =>
+        {
+            var devices = new List<AudioDeviceInfo>(await outputProvider.GetDevicesAsync(ct));
             return TypedResults.Ok(devices);
         });
 
@@ -512,6 +528,21 @@ internal sealed class InMemoryAudioDeviceProvider : IAudioDeviceProvider
     private readonly IReadOnlyList<AudioDeviceInfo> _devices;
 
     public InMemoryAudioDeviceProvider(IReadOnlyList<AudioDeviceInfo>? devices = null)
+        => _devices = devices ?? [];
+
+    public Task<IReadOnlyList<AudioDeviceInfo>> GetDevicesAsync(CancellationToken ct = default)
+        => Task.FromResult(_devices);
+}
+
+/// <summary>
+/// In-memory <see cref="IAudioOutputDeviceProvider"/> that always returns an empty list.
+/// Used as the default in tests.
+/// </summary>
+internal sealed class InMemoryAudioOutputDeviceProvider : IAudioOutputDeviceProvider
+{
+    private readonly IReadOnlyList<AudioDeviceInfo> _devices;
+
+    public InMemoryAudioOutputDeviceProvider(IReadOnlyList<AudioDeviceInfo>? devices = null)
         => _devices = devices ?? [];
 
     public Task<IReadOnlyList<AudioDeviceInfo>> GetDevicesAsync(CancellationToken ct = default)

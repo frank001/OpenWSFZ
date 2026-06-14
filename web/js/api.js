@@ -37,6 +37,14 @@ export function getDevices() {
 }
 
 /**
+ * GET /api/v1/audio/output-devices
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export function getOutputDevices() {
+  return fetchJson('/api/v1/audio/output-devices');
+}
+
+/**
  * GET /api/v1/config
  * @returns {Promise<{audioDeviceName: string|null, port: number}>}
  */
