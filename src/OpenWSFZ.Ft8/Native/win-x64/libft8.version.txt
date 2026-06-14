@@ -1,33 +1,29 @@
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20260012 (fix-d004-local-noise-floor: per-signal local noise
-                  floor replaces global histogram-median in SNR formula.
-                  compute_local_noise_floor_db samples K=32 waterfall bins on each side of the
-                  decoded signal's 8-tone span (200 Hz per sideband at 6.25 Hz/bin); takes the
-                  histogram median across all time blocks and all time/freq sub-samples.
-                  Global noise floor retained for per-cycle diagnostic log.
-                  Resolves D-003 (extreme tail: SNR ≤ −30 dB at 2600–3000 Hz) and D-004
-                  (frequency-dependent SNR bias: up to −22 dB at 2800–3000 Hz due to audio-chain
-                  rolloff).  Version 20260011 slot used for H5 diagnostic (REJECTED; reverted).
-                  Pass count: 2.  No change to FT8Result struct layout (48 bytes).)
+Shim version:     FT8_SHIM_VERSION = 20260013 (fix-seh-av-containment:
+                  __try/__except(EXCEPTION_EXECUTE_HANDLER) wrapper added around the body of
+                  ft8_decode_all (MSVC / Windows only).  On any access violation (0xC0000005)
+                  the shim now returns -2 instead of crashing the process.  Managed layer
+                  translates -2 into NativeAccessViolationException, caught by Ft8Decoder,
+                  logged at WARNING, and converted to an empty-result cycle skip.
+                  #include <excpt.h> added for EXCEPTION_EXECUTE_HANDLER declaration.
+                  No change to FT8Result struct layout (48 bytes).  Return-code -2 is new
+                  semantic — hence version bump from 20260012.  Non-MSVC builds unaffected.
+                  Root cause (D-006) still unknown; SEH is containment only.
+                  Also: IFt8NativeInterop seam + NativeAccessViolationException + 3 unit tests.)
 sizeof(FT8Result): 48 bytes
-SNR formula:      local_noise_floor (K=32) − 26.5 dB
-                  (26.5 dB = calibrated bandwidth correction; WSJT-X uses 26.0 dB = 10*log10(2500/6.25))
-                  signal_db = mean of per-symbol row[tones[b-b0]] across 79 symbols
-                  (tones[] from ft8_encode — reads the ACTIVE tone bin only, not max-of-8)
-                  local_noise_db = histogram-median of sideband waterfall bins (K=32 each side)
-                  global noise_floor_db = histogram-median of ALL waterfall bins (retained for diag log)
+SNR formula:      local_noise_floor (K=32) − 26.5 dB (unchanged from 20260012)
 Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_counts, ft8_get_max_passes,
                   ft8_get_last_noise_floor_db
 
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-06-14 (fix-d004-local-noise-floor: local noise floor (K=32);
-                              FT8_SHIM_VERSION=20260012; shim compiled from Native/ft8_shim.c
-                              using rebuild_shim_new.bat)
+Build date:       2026-06-14 (fix-seh-av-containment: SEH wrapper; FT8_SHIM_VERSION=20260013;
+                              shim compiled from Native/ft8_shim.c using rebuild_shim_new.bat)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
+                  excpt.h included explicitly for EXCEPTION_EXECUTE_HANDLER
 Sources:          native/ft8_lib @ msvc-compat (d18ed84) + src/OpenWSFZ.Ft8/Native/ft8_shim.c
 
 --- Linux x64 ---
@@ -35,8 +31,9 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       2026-06-14 (fix-d004-local-noise-floor: local noise floor (K=32);
-                              FT8_SHIM_VERSION=20260012; built via native/ft8_lib_build/build_linux.sh)
+Build date:       2026-06-14 (fix-seh-av-containment: SEH wrapper is #ifdef _MSC_VER — no
+                              functional change to the Linux .so; rebuilt for version consistency;
+                              FT8_SHIM_VERSION=20260013; built via native/ft8_lib_build/build_linux.sh)
 Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
 Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84) + ft8_shim.c
 

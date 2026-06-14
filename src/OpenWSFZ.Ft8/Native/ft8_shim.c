@@ -151,6 +151,13 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+/* EXCEPTION_EXECUTE_HANDLER is declared in <excpt.h> on MSVC.
+ * Include explicitly so the __try/__except wrapper in ft8_decode_all compiles
+ * cleanly even when <windows.h> is not transitively pulled in.               */
+#ifdef _MSC_VER
+#  include <excpt.h>
+#endif
+
 #ifdef _MSC_VER
 char* stpcpy(char* dest, const char* src)
 {

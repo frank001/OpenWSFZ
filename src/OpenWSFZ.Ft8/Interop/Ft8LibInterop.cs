@@ -80,8 +80,18 @@ internal static class Ft8LibInterop
     ///   same rolloff and eliminates this frequency-dependent bias.
     ///   Version 20260011 slot used for H5 suppression diagnostic (REJECTED; reverted);
     ///   20260012 is the D-003/D-004 fix, not a D-001 hypothesis.
+    /// 20260013 (fix-seh-av-containment): <c>__try/__except(EXCEPTION_EXECUTE_HANDLER)</c>
+    ///   wrapper added around the body of <c>ft8_decode_all</c> (MSVC / Windows builds only).
+    ///   On any access violation (0xC0000005) the shim now returns -2 instead of crashing
+    ///   the process; the managed layer (<see cref="DecodeAll"/>) translates -2 into a
+    ///   <see cref="NativeAccessViolationException"/>, which <see cref="Ft8Decoder"/> catches,
+    ///   logs at WARNING, and converts to an empty-result skip.
+    ///   Struct layout unchanged (48 bytes).  Return-code -2 is a semantic addition
+    ///   (new contract term), hence the version bump.  Non-MSVC builds are unaffected
+    ///   (no SEH; SIGSEGV behaviour unchanged on Linux/macOS).
+    ///   Root cause of the AV (D-006) remains under investigation.
     /// </summary>
-    private const int ExpectedShimVersion = 20260012;
+    private const int ExpectedShimVersion = 20260013;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -131,7 +141,9 @@ internal static class Ft8LibInterop
     /// <returns>
     /// Number of unique messages written (0..maxResults), or -1 if
     /// <paramref name="pcmLen"/> ≠ 180 000, or -2 if an access violation
-    /// was caught by the SEH wrapper (MSVC / Windows only).
+    /// was caught by the native SEH wrapper (MSVC / Windows only).
+    /// The public <see cref="DecodeAll"/> method translates -2 into
+    /// <see cref="NativeAccessViolationException"/>.
     /// </returns>
     [DllImport("libft8.dll", EntryPoint = "ft8_decode_all", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeDecodeAll(
@@ -186,15 +198,14 @@ internal static class Ft8LibInterop
     /// <exception cref="ArgumentException">
     /// Thrown when <paramref name="pcm"/> does not contain exactly 180 000 samples.
     /// </exception>
+    /// <exception cref="NativeAccessViolationException">
+    /// Thrown when the native shim catches an access violation (-2 return code,
+    /// Windows only).  Callers should catch this, log at WARNING, and skip the cycle.
+    /// </exception>
     /// <exception cref="InvalidOperationException">
     /// Thrown if the native DLL cannot be loaded, the ABI version check fails,
     /// or the native shim returns an unexpected negative code other than -2.
     /// </exception>
-    /// <remarks>
-    /// A native return code of -2 (access violation caught by the shim's SEH
-    /// wrapper, Windows only) causes this method to return an empty array rather
-    /// than throwing — the decode cycle is skipped and the process continues.
-    /// </remarks>
     public static Ft8NativeResult[] DecodeAll(float[] pcm)
     {
         if (pcm.Length != 180_000)
@@ -208,9 +219,12 @@ internal static class Ft8LibInterop
         int count = NativeDecodeAll(pcm, pcm.Length, results, MaxResults);
 
         // -2 = access violation caught by the SEH wrapper in ft8_decode_all
-        //      (MSVC / Windows only). Skip this cycle gracefully.
+        //      (MSVC / Windows only).  Throw NativeAccessViolationException so
+        //      the caller (Ft8Decoder) can log a WARNING and skip the cycle.
+        //      DO NOT call GetLastPassCounts / GetLastNoiseFloorDb after this —
+        //      TLS state is unreliable after an AV (R-1 guard).
         if (count == -2)
-            return [];
+            throw new NativeAccessViolationException();
 
         if (count < 0)
             throw new InvalidOperationException(

@@ -46,13 +46,28 @@ public sealed class Ft8Decoder : IModeDecoder
     private const float SilenceRmsThreshold         = 1e-6f;    // all-zero codeword guard
     private const float PcmNormalisationTargetRms   = 0.20f;    // D-002 SNR-bias fix: bring PCM to a fixed RMS level before native decode
 
-    private readonly IClock              _clock;
-    private readonly ILogger<Ft8Decoder>? _logger;
+    // Singleton default — stateless adapter; safe to share across instances.
+    private static readonly IFt8NativeInterop DefaultInterop = new Ft8NativeInteropAdapter();
 
+    private readonly IClock               _clock;
+    private readonly ILogger<Ft8Decoder>? _logger;
+    private readonly IFt8NativeInterop    _interop;
+
+    /// <param name="clock">Wall-clock provider for aligning cycle timestamps.</param>
+    /// <param name="logger">Optional structured logger; pass null to suppress all log output.</param>
     public Ft8Decoder(IClock clock, ILogger<Ft8Decoder>? logger = null)
+        : this(clock, logger, DefaultInterop) { }
+
+    /// <summary>
+    /// Internal constructor for unit testing — allows a fake <see cref="IFt8NativeInterop"/>
+    /// to be injected without loading the native DLL (accessible via
+    /// <c>[assembly: InternalsVisibleTo("OpenWSFZ.Ft8.Tests")]</c>).
+    /// </summary>
+    internal Ft8Decoder(IClock clock, ILogger<Ft8Decoder>? logger, IFt8NativeInterop interop)
     {
-        _clock  = clock;
-        _logger = logger;
+        _clock   = clock;
+        _logger  = logger;
+        _interop = interop;
     }
 
     // ── IModeDecoder — backward-compatible overload ───────────────────────────
@@ -129,13 +144,33 @@ public sealed class Ft8Decoder : IModeDecoder
         // ft8_get_last_pass_counts and ft8_get_last_noise_floor_db both read TLS written
         // by ft8_decode_all.  IMPORTANT: do not make this lambda async or split these
         // calls across separate Task.Run invocations; doing so would break the TLS guarantee.
-        (native, passCounts, noiseFloorDb) = await Task.Run(() =>
+        //
+        // NativeAccessViolationException (D-006 / SEH containment): if DecodeAll throws,
+        // the lambda exits immediately — GetLastPassCounts and GetLastNoiseFloorDb are never
+        // reached, which is correct because TLS state is unreliable after an AV (R-1 guard).
+        // The exception propagates through Task.Run → await and is caught below.
+        try
         {
-            var r = Ft8LibInterop.DecodeAll(normalisedPcm);
-            var p = Ft8LibInterop.GetLastPassCounts(Ft8LibInterop.MaxDecodePasses);
-            var n = Ft8LibInterop.GetLastNoiseFloorDb();
-            return (r, p, n);
-        }, ct);
+            (native, passCounts, noiseFloorDb) = await Task.Run(() =>
+            {
+                var r = _interop.DecodeAll(normalisedPcm);
+                var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
+                var n = _interop.GetLastNoiseFloorDb();
+                return (r, p, n);
+            }, ct);
+        }
+        catch (NativeAccessViolationException)
+        {
+            // Access violation caught by the native SEH wrapper (Windows only, D-006).
+            // Log at WARNING so every occurrence is visible for root-cause investigation,
+            // then return empty results — the cycle is skipped; the process continues.
+            _logger?.LogWarning(
+                "Cycle {Time}: native decode access violation (AV) caught by SEH wrapper — " +
+                "cycle skipped. If this recurs, configure WER LocalDumps or attach ProcDump " +
+                "before the next live run to capture a crash dump for D-006 root-cause analysis.",
+                timeStr);
+            return [];
+        }
 
         sw.Stop();
 

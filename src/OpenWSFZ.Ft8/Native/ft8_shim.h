@@ -97,8 +97,18 @@ extern "C" {
  *              audio-chain frequency response.  Global noise floor retained for
  *              per-cycle diagnostic logging.  Resolves D-003 and D-004.
  *              Version 20260011 slot used for H5 suppression-tuning diagnostic
- *              (REJECTED; reverted).  20260012 is the D-003/D-004 fix. */
-#define FT8_SHIM_VERSION 20260012
+ *              (REJECTED; reverted).  20260012 is the D-003/D-004 fix.
+ *   20260013 — fix-seh-av-containment: __try/__except(EXCEPTION_EXECUTE_HANDLER)
+ *              wrapper added around the body of ft8_decode_all (MSVC / Windows
+ *              only).  On any access violation (0xC0000005) the shim now returns
+ *              -2 instead of crashing the process.  The managed layer translates
+ *              -2 into NativeAccessViolationException, which Ft8Decoder catches,
+ *              logs at WARNING, and converts to an empty-result skip.
+ *              Struct layout unchanged (48 bytes).  Return code -2 is a new
+ *              semantic term in the contract, hence the version bump.
+ *              Non-MSVC builds (Linux / macOS) are unaffected — no SEH;
+ *              SIGSEGV behaviour unchanged.  Root cause (D-006) still unknown. */
+#define FT8_SHIM_VERSION 20260013
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
