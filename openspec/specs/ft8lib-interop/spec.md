@@ -48,16 +48,16 @@ The load path SHALL be `AppContext.BaseDirectory`. A `NativeLibrary.SetDllImport
 
 ### Requirement: ABI self-test on first load
 
-On the first call that triggers `NativeLibrary.Load`, `Ft8LibInterop` SHALL invoke a sentinel function (`ft8_lib_version_check`) that returns a known integer constant embedded at compile time in the shim. The expected constant SHALL be **`20260009`** (diag-d001-h3b-gfsk-sic: GFSK quadrature SIC replaces CP-FSK scalar SIC; analytic quadrature amplitude estimator; three additional heap buffers; total PCM-domain SIC heap ≈ 2.21 MB; version 20260008 was H3 CP-FSK scalar SIC, rejected; version 20260007 skipped — was reverted three-pass SIC; version 20260006 was D-002 SNR calibration). If the returned value does not match the expected constant, `Ft8LibInterop` SHALL throw `InvalidOperationException` with a message that names the library path and the mismatched version values. This requirement applies on all three reference platforms.
+On the first call that triggers `NativeLibrary.Load`, `Ft8LibInterop` SHALL invoke a sentinel function (`ft8_lib_version_check`) that returns a known integer constant embedded at compile time in the shim. The expected constant SHALL be **`20260016`** (fix-d006-cleanup + fix-rq2-signal-db-oob: removed MiniDumpWriteDump diagnostic infrastructure, reverted SEH containment to simple `EXCEPTION_EXECUTE_HANDLER`, fixed RQ-2 `signal_db` loop guard for signals ≥ 2956 Hz; version history: 20260015 = D-006 binary patch fixing 32-bit pointer truncation, 20260012 = D-003/D-004 local noise floor fix, 20260010 = H4 D-001 diagnostic baseline). If the returned value does not match the expected constant, `Ft8LibInterop` SHALL throw `InvalidOperationException` with a message that names the library path and the mismatched version values. This requirement applies on all three reference platforms.
 
 #### Scenario: Correct library passes the ABI self-test
 
-- **WHEN** `Ft8LibInterop` loads the platform-appropriate `libft8` binary compiled from the committed shim source at `FT8_SHIM_VERSION = 20260009`
+- **WHEN** `Ft8LibInterop` loads the platform-appropriate `libft8` binary compiled from the committed shim source at `FT8_SHIM_VERSION = 20260016`
 - **THEN** the version check SHALL pass silently and decode calls SHALL proceed normally
 
-#### Scenario: Previous library (20260008) fails fast with a clear error
+#### Scenario: Previous library (20260012) fails fast with a clear error
 
-- **WHEN** `Ft8LibInterop` loads a `libft8` binary compiled at version `20260008` (H3 CP-FSK scalar SIC, rejected)
+- **WHEN** `Ft8LibInterop` loads a `libft8` binary compiled at version `20260012` (fix-d004-local-noise-floor: per-signal local noise floor)
 - **THEN** `Ft8LibInterop` SHALL throw `InvalidOperationException` before any decode call is attempted, with a message identifying the library path and the version mismatch
 
 #### Scenario: Previous library (20260006) fails fast with a clear error
@@ -109,7 +109,7 @@ Pre-compiled native library binaries, built from the committed `ft8_shim.c` + `k
 | Linux x64 | `src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so` | `<Content CopyToOutputDirectory="Always" Link="libft8.so" />` |
 | macOS ARM64 | `src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib` | `<Content CopyToOutputDirectory="Always" Link="libft8.dylib" />` |
 
-A companion `libft8.version.txt` SHALL record, for each platform binary: source commit SHA, compiler toolchain and version, build date, SNR formula, and the pass count (**2**). `BUILD.md` SHALL document the exact compiler commands required to reproduce each binary. The binaries SHALL be built from the **`FT8_SHIM_VERSION = 20260009`** shim (diag-d001-h3b-gfsk-sic: GFSK quadrature SIC, analytic quadrature amplitude estimator; builds on 20260006 D-002 SNR calibration).
+A companion `libft8.version.txt` SHALL record, for each platform binary: source commit SHA, compiler toolchain and version, build date, SNR formula, and the pass count (**2**). `BUILD.md` SHALL document the exact compiler commands required to reproduce each binary. The binaries SHALL be built from the **`FT8_SHIM_VERSION = 20260016`** shim (fix-d006-cleanup + fix-rq2-signal-db-oob: SEH containment cleanup, RQ-2 `signal_db` OOB guard for signals ≥ 2956 Hz; resolves D-006).
 
 #### Scenario: All three binaries are present in the test output directory after build
 

@@ -30,19 +30,19 @@
 
 ## 6. Post-Fix Validation — S1 R&R
 
-- [ ] 6.1 Run the S1 R&R synthetic scenario (`python run_study.py --scenario S1`) against the updated build
-- [ ] 6.2 Run `python analyse.py` to generate `report.md` in the new results directory
-- [ ] 6.3 Complete `report.md` Section 1 (hypothesis: validating that local noise floor preserves ±2.0 dB bias gate; null hypothesis: S1 bias does not exceed ±2.0 dB; defects D-003/D-004 under observation)
-- [ ] 6.4 Complete `report.md` Section 5 (recommendations based on result: if PASS, note calibration constant retained; if FAIL, state required adjustment to −26.5 dB constant and trigger a recalibration run)
-- [ ] 6.5 If S1 bias exceeds ±2.0 dB, adjust the −26.5 dB constant in `ft8_shim.c`, rebuild binaries, re-run S1, and repeat until within threshold
-- [ ] 6.6 Commit the S1 result directory (with complete NFR-023 report)
+- [x] 6.1 Run the S1 R&R synthetic scenario (`python run_study.py --scenario S1`) against the updated build
+- [x] 6.2 Run `python analyse.py` to generate `report.md` in the new results directory
+- [x] 6.3 Complete `report.md` Section 1 (hypothesis: validating that local noise floor preserves ±2.0 dB bias gate; null hypothesis: S1 bias does not exceed ±2.0 dB; defects D-003/D-004 under observation)
+- [x] 6.4 Complete `report.md` Section 5 (recommendations based on result: if PASS, note calibration constant retained; if FAIL, state required adjustment to −26.5 dB constant and trigger a recalibration run)
+- [x] 6.5 If S1 bias exceeds ±2.0 dB, adjust the −26.5 dB constant in `ft8_shim.c`, rebuild binaries, re-run S1, and repeat until within threshold — N/A: S1 PASSED (+1.78 dB bias, within ±2.0 dB window)
+- [x] 6.6 Commit the S1 result directory (with complete NFR-023 report) — committed at `595d6ea` (2026-06-13), result directory `2026-06-13-595d6ea/`
 
 ## 7. Issue Housekeeping
 
-- [ ] 7.1 Close GitHub issue #11 (D-003) as a duplicate of #12 — comment: root cause confirmed as frequency-dependent SNR bias (D-004); D-003 is the extreme tail (high-frequency signals at 2600–3000 Hz falling below −30 dB); no separate mechanism; resolved by local noise floor fix (this change)
-- [ ] 7.2 Update GitHub issue #12 (D-004) with confirmed root cause (global vs local noise floor; audio-chain rolloff of up to −22 dB at 2800–3000 Hz); reference the endurance run data (2026-06-13, 235 matched-pair D-003 events, −6.32 dB overall bias); link this change; update status once S1 validates
+- [x] 7.1 Close GitHub issue #11 (D-003) as a duplicate of #12 — comment: root cause confirmed as frequency-dependent SNR bias (D-004); D-003 is the extreme tail (high-frequency signals at 2600–3000 Hz falling below −30 dB); no separate mechanism; resolved by local noise floor fix (this change)
+- [x] 7.2 Update GitHub issue #12 (D-004) with confirmed root cause (global vs local noise floor; audio-chain rolloff of up to −22 dB at 2800–3000 Hz); reference the endurance run data (2026-06-13, 235 matched-pair D-003 events, −6.32 dB overall bias); link this change; update status once S1 validates
 
 ## 8. MEMORY.md Update
 
-- [ ] 8.1 Update the D-003 and D-004 entries in `MEMORY.md` to record: root cause confirmed (local vs global noise floor), fix merged (shim 20260012), S1 re-run result, GitHub issue status
-- [ ] 8.2 Add shim 20260012 to the D-001 diagnostic run history table in `MEMORY.md` as a note that this slot is used for the D-003/D-004 fix (not a D-001 hypothesis)
+- [x] 8.1 Update the D-003 and D-004 entries in `MEMORY.md` to record: root cause confirmed (local vs global noise floor), fix merged (shim 20260012), S1 re-run result, GitHub issue status
+- [x] 8.2 Add shim 20260012 to the D-001 diagnostic run history table in `MEMORY.md` as a note that this slot is used for the D-003/D-004 fix (not a D-001 hypothesis)
