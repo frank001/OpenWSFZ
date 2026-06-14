@@ -6,7 +6,7 @@ using OpenWSFZ.Abstractions;
 namespace OpenWSFZ.Daemon;
 
 /// <summary>
-/// Appends completed QSO records to an ADIF log file (FR-048).
+/// Appends completed QSO records to an ADIF log file (FR-051).
 ///
 /// <para>
 /// The output file is placed in the same directory as the ALL.TXT decode log
@@ -65,7 +65,7 @@ public sealed class AdifLogWriter
             await writer.WriteLineAsync(adif);
 
             _logger.LogInformation(
-                "FR-048: ADIF QSO logged — partner: {Partner}, band: {Band}, path: {Path}",
+                "FR-051: ADIF QSO logged — partner: {Partner}, band: {Band}, path: {Path}",
                 record.PartnerCallsign,
                 DeriveBand(record.DialFrequencyMHz) ?? "unknown",
                 path);
@@ -73,19 +73,19 @@ public sealed class AdifLogWriter
         catch (IOException ex)
         {
             _logger.LogWarning(ex,
-                "FR-048: Failed to write ADIF log to '{Path}' — QSO state is unaffected.",
+                "FR-051: Failed to write ADIF log to '{Path}' — QSO state is unaffected.",
                 path);
         }
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex,
-                "FR-048: Access denied writing ADIF log to '{Path}' — QSO state is unaffected.",
+                "FR-051: Access denied writing ADIF log to '{Path}' — QSO state is unaffected.",
                 path);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "FR-048: Cannot write ADIF log to '{Path}' — QSO state is unaffected.",
+                "FR-051: Cannot write ADIF log to '{Path}' — QSO state is unaffected.",
                 path);
         }
     }

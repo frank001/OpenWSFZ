@@ -99,7 +99,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
     // ── Task 6.2: initial state ───────────────────────────────────────────────
 
-    [Fact(DisplayName = "6.2: Service starts in Idle state with null partner")]
+    [Fact(DisplayName = "FR-050: QsoAnswererService starts in Idle state with null partner")]
     public void InitialState_IsIdleWithNullPartner()
     {
         _sut!.State.Should().Be(QsoState.Idle);

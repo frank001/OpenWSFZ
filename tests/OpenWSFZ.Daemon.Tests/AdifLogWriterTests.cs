@@ -94,7 +94,7 @@ public sealed class AdifLogWriterTests : IDisposable
 
     // ── Task 7.3: ADIF field format ───────────────────────────────────────────
 
-    [Fact(DisplayName = "7.3: BuildAdifRecord uses <FIELD:len>value format for all fields")]
+    [Fact(DisplayName = "FR-051: BuildAdifRecord uses <FIELD:len>value format for all fields")]
     public void BuildAdifRecord_FieldFormat_IsCorrect()
     {
         var record = MakeRecord();

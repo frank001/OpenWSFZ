@@ -8,7 +8,7 @@ using OpenWSFZ.Web;
 namespace OpenWSFZ.Daemon;
 
 /// <summary>
-/// Background service that drives the FT8 QSO answerer state machine (FR-047).
+/// Background service that drives the FT8 QSO answerer state machine (FR-050).
 ///
 /// <para>
 /// On each decode cycle the service reads a batch of <see cref="DecodeResult"/> items from
@@ -229,7 +229,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         TxConfig                    tx,
         CancellationToken           stoppingToken)
     {
-        // Scan for the first CQ in the batch (FR-047: auto-answer first decoded CQ).
+        // Scan for the first CQ in the batch (FR-050: auto-answer first decoded CQ).
         DecodeResult? cqResult = null;
         string        partner  = string.Empty;
 

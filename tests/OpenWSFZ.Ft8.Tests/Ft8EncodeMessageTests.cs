@@ -17,7 +17,7 @@ public sealed class Ft8EncodeMessageTests
 
     // ── Happy-path ────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "EncodeMessage: valid message encodes to exactly 79 tones all in [0,7]")]
+    [Fact(DisplayName = "FR-049: EncodeMessage valid message encodes to exactly 79 tones all in [0,7]")]
     public void EncodeMessage_ValidMessage_Produces79TonesInRange()
     {
         // Arrange
