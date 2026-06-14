@@ -210,16 +210,21 @@ public sealed class CatPollingServiceTests
                         connection);
 
         await svc.StartAsync(CancellationToken.None);
-        await Task.Delay(150);   // first attempt fails → suspended
+        await Task.Delay(250);   // first attempt fails → suspended (increased for slow CI runners)
 
         // Signal a manual retry (ICatController) — no config change required.
         svc.TriggerRetry();
 
-        await Task.Delay(300);   // second attempt should now succeed
-        await svc.StopAsync(CancellationToken.None);
+        // 600 ms: worst case is ~200 ms remaining in the suspended-idle sleep, plus retry overhead.
+        // Assert BEFORE StopAsync — StopAsync cancels the poll loop, which can race with the
+        // final Connected status update (Task.Delay(0, cancelledCt) throws OCE mid-connect,
+        // leaving status as Connecting rather than Connected).
+        await Task.Delay(600);
 
         state.Status.Should().Be(CatConnectionStatus.Connected,
             "TriggerRetry must clear the failure suspension so the poll loop reconnects");
+
+        await svc.StopAsync(CancellationToken.None);
     }
 
     // ── Stub IConfigStore ─────────────────────────────────────────────────────

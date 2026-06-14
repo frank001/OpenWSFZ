@@ -1,16 +1,12 @@
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20260013 (fix-seh-av-containment:
-                  __try/__except(EXCEPTION_EXECUTE_HANDLER) wrapper added around the body of
-                  ft8_decode_all (MSVC / Windows only).  On any access violation (0xC0000005)
-                  the shim now returns -2 instead of crashing the process.  Managed layer
-                  translates -2 into NativeAccessViolationException, caught by Ft8Decoder,
-                  logged at WARNING, and converted to an empty-result cycle skip.
-                  #include <excpt.h> added for EXCEPTION_EXECUTE_HANDLER declaration.
-                  No change to FT8Result struct layout (48 bytes).  Return-code -2 is new
-                  semantic — hence version bump from 20260012.  Non-MSVC builds unaffected.
-                  Root cause (D-006) still unknown; SEH is containment only.
-                  Also: IFt8NativeInterop seam + NativeAccessViolationException + 3 unit tests.)
+Shim version:     FT8_SHIM_VERSION = 20260016 (fix-d006-cleanup + fix-rq2-signal-db-oob):
+                  (a) D-006 root cause (32-bit pointer truncation) fixed in message.obj by
+                  rebuilding from patched ft8_shim.c (MOVSXD → MOV RBX, RAX for stpcpy return).
+                  Diagnostic MiniDump infrastructure removed; __try/__except containment and
+                  -2 return code retained as production safety net.
+                  (b) OOB guard added to signal_db computation for signals near f_max (≥ 2956 Hz).
+                  FT8Result struct layout unchanged (48 bytes).
 sizeof(FT8Result): 48 bytes
 SNR formula:      local_noise_floor (K=32) − 26.5 dB (unchanged from 20260012)
 Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_counts, ft8_get_max_passes,
@@ -19,7 +15,8 @@ Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_count
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-06-14 (fix-seh-av-containment: SEH wrapper; FT8_SHIM_VERSION=20260013;
+Build date:       2026-06-14 (fix-d006-cleanup: FT8_SHIM_VERSION=20260016; full MSVC rebuild
+                              incorporating D-006 ptr-truncation fix and diagnostic cleanup;
                               shim compiled from Native/ft8_shim.c using rebuild_shim_new.bat)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
@@ -31,9 +28,9 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       2026-06-14 (fix-seh-av-containment: SEH wrapper is #ifdef _MSC_VER — no
-                              functional change to the Linux .so; rebuilt for version consistency;
-                              FT8_SHIM_VERSION=20260013; built via native/ft8_lib_build/build_linux.sh)
+Build date:       2026-06-14 (fix-d006-cleanup: FT8_SHIM_VERSION=20260016; only ft8_shim.o
+                              recompiled (ft8_lib sources unchanged); re-linked from existing
+                              linux_obj/*.o; built via native/ft8_lib_build/build_linux.sh)
 Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
 Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84) + ft8_shim.c
 
@@ -41,7 +38,7 @@ Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84)
 Compiler:         Apple clang (macos-latest GitHub Actions runner, ARM64) — rebuilt by CI on every push
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -target arm64-apple-macos11.0
 Build date:       CI-rebuilt — the committed binary is a prior-version placeholder;
-                  CI always builds from the current ft8_shim.c (FT8_SHIM_VERSION=20260012).
+                  CI always builds from the current ft8_shim.c (FT8_SHIM_VERSION=20260016).
                   See .github/workflows/ci.yml step "Build native macOS dylib (ARM64, Clang)".
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
 Sources:          shallow-clone native/ft8_lib @ msvc-compat (d18ed84) + ft8_shim.c
