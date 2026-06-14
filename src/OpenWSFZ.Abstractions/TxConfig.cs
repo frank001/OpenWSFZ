@@ -1,12 +1,20 @@
 namespace OpenWSFZ.Abstractions;
 
 /// <summary>
-/// TX (transmit) configuration for the FT8 QSO answerer (FR-046).
+/// TX (transmit) configuration for the FT8 QSO answerer (FR-050).
 /// Null at the AppConfig level is treated as the default <c>new TxConfig()</c>
 /// (TX subsystem present but not enabled / using all defaults).
 /// </summary>
 public sealed record TxConfig
 {
+    /// <summary>
+    /// Master enable for the QSO auto-answerer.
+    /// When <c>false</c> (the default) the state machine remains in <c>Idle</c>
+    /// regardless of decoded CQ calls; no transmission occurs.
+    /// The operator must set this to <c>true</c> (via Settings) to activate TX.
+    /// </summary>
+    public bool   AutoAnswer      { get; init; } = false;
+
     /// <summary>
     /// Operator callsign used in outgoing FT8 messages.
     /// Must be a valid FT8 callsign (≤ 11 characters).

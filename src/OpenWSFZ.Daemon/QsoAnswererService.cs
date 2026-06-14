@@ -229,6 +229,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         TxConfig                    tx,
         CancellationToken           stoppingToken)
     {
+        // Guard: auto-answer disabled → stay Idle regardless of decoded CQs.
+        if (!tx.AutoAnswer)
+            return;
+
         // Scan for the first CQ in the batch (FR-050: auto-answer first decoded CQ).
         DecodeResult? cqResult = null;
         string        partner  = string.Empty;

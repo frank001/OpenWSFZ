@@ -48,6 +48,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         {
             Tx = new TxConfig
             {
+                AutoAnswer      = true,          // enabled for all TX-exercising tests
                 Callsign        = OurCallsign,
                 Grid            = OurGrid,
                 RetryCount      = 2,
@@ -104,6 +105,50 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     {
         _sut!.State.Should().Be(QsoState.Idle);
         _sut!.Partner.Should().BeNull();
+    }
+
+    // ── AutoAnswer guard ─────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-050: CQ is ignored and no TX occurs when AutoAnswer is false")]
+    public async Task Idle_AutoAnswerDisabled_CqIgnored()
+    {
+        // Build a separate service instance with AutoAnswer = false.
+        var disabledStore = Substitute.For<IConfigStore>();
+        disabledStore.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = false,          // ← the point of this test
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        });
+
+        var pttDisabled  = Substitute.For<IPttController>();
+        pttDisabled.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        pttDisabled.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel  = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var adifLog  = new AdifLogWriter(disabledStore, NullLogger<AdifLogWriter>.Instance);
+        var sut      = new QsoAnswererService(channel.Reader, disabledStore, pttDisabled,
+                           new TxEventBus(), adifLog, NullLogger<QsoAnswererService>.Instance);
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Send a CQ — must be completely ignored.
+        channel.Writer.TryWrite([Make($"CQ {PartnerCall} {PartnerGrid}")]);
+        await Task.Delay(300);
+
+        sut.State.Should().Be(QsoState.Idle,
+            "AutoAnswer=false must suppress all CQ responses");
+        await pttDisabled.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await pttDisabled.DisposeAsync();
     }
 
     // ── Task 6.4: CQ detection ────────────────────────────────────────────────

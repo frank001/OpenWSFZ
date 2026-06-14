@@ -50,15 +50,44 @@ public sealed class TxConfigTests
 
     // ── Scenario: Default values ──────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-046: TxConfig defaults: callsign=Q1OFZ, grid=JO33, retryCount=3, watchdogMinutes=4")]
+    [Fact(DisplayName = "FR-046: TxConfig defaults: callsign=Q1OFZ, grid=JO33, retryCount=3, watchdogMinutes=4, autoAnswer=false")]
     public void Defaults_AreCorrect()
     {
         var tx = new TxConfig();
 
+        tx.AutoAnswer.Should().BeFalse("auto-answer must default to off for safety");
         tx.Callsign.Should().Be("Q1OFZ");
         tx.Grid.Should().Be("JO33");
         tx.RetryCount.Should().Be(3);
         tx.WatchdogMinutes.Should().Be(4);
+    }
+
+    [Fact(DisplayName = "FR-050: TxConfig.AutoAnswer default is false — transmit disabled unless operator enables")]
+    public void AutoAnswer_DefaultIsFalse()
+    {
+        new TxConfig().AutoAnswer.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "FR-050: TxConfig.AutoAnswer round-trips through JSON serialisation")]
+    public void AutoAnswer_RoundTrips()
+    {
+        var original = new AppConfig() with { Tx = new TxConfig { AutoAnswer = true } };
+        var json   = JsonSerializer.Serialize(original, ConfigJsonContext.Default.AppConfig);
+        var loaded = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        loaded.Tx!.AutoAnswer.Should().BeTrue("autoAnswer=true must survive a JSON round-trip");
+
+        json.Should().Contain("\"autoAnswer\"", "camelCase key name must be used in JSON");
+    }
+
+    [Fact(DisplayName = "FR-050: AppConfig without autoAnswer key deserialises with AutoAnswer=false")]
+    public void Load_MissingAutoAnswerKey_DefaultsFalse()
+    {
+        const string json = """{"tx":{"callsign":"Q1OFZ","grid":"JO33","retryCount":3,"watchdogMinutes":4}}""";
+        var config = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        (config.Tx ?? new TxConfig()).AutoAnswer.Should().BeFalse(
+            "absent autoAnswer key must default to false so existing configs remain safe");
     }
 
     // ── Scenario: Round-trip ─────────────────────────────────────────────────

@@ -40,6 +40,9 @@ const catRigctldFields   = /** @type {HTMLElement}       */ (document.getElement
 const catStatusValue     = /** @type {HTMLElement}       */ (document.getElementById('cat-status-value'));
 const catRetryBtn        = /** @type {HTMLButtonElement} */ (document.getElementById('cat-retry-btn'));
 
+// TX auto-answer controls
+const txAutoAnswer = /** @type {HTMLInputElement} */ (document.getElementById('tx-auto-answer'));
+
 // Logging controls
 const loggingFileEnabled    = /** @type {HTMLInputElement}  */ (document.getElementById('logging-file-enabled'));
 const loggingDirectory      = /** @type {HTMLInputElement}  */ (document.getElementById('logging-directory'));
@@ -459,6 +462,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadSerialPorts();
     }
 
+    // TX auto-answer (ft8-qso-answerer-v1).
+    const tx = config.tx ?? {};
+    txAutoAnswer.checked = tx.autoAnswer ?? false;
+
     // FR-043: populate the frequencies table.
     renderFreqTable(Array.isArray(frequencies) ? frequencies : []);
 
@@ -622,6 +629,11 @@ saveBtn.addEventListener('click', async () => {
     maxFiles:          parseInt(loggingMaxFiles.value, 10) || 7,
   };
 
+  // TX auto-answer config (ft8-qso-answerer-v1).
+  const tx = {
+    autoAnswer: txAutoAnswer.checked,
+  };
+
   // FR-043: collect current frequency table entries for parallel POST.
   const freqEntries = collectFrequencies();
 
@@ -639,6 +651,7 @@ saveBtn.addEventListener('click', async () => {
         decodeLog,
         logging,
         cat,
+        tx,
       }),
       postFrequencies(freqEntries),
     ]);
