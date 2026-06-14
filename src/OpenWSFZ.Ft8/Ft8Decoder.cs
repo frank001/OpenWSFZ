@@ -180,19 +180,27 @@ public sealed class Ft8Decoder : IModeDecoder
 
         foreach (ref readonly Ft8NativeResult nr in native.AsSpan())
         {
+            // D-005 fix: ft8_lib pads FT8Result.message to 36 bytes with trailing spaces
+            // before the null terminator.  A Type 4 hash message such as "<HASH> CALLSIGN"
+            // arrives as "<HASH> CALLSIGN \0" and marshals to "<HASH> CALLSIGN " (trailing
+            // space).  Without trimming, IsPlausibleMessage sees two spaces, enters the
+            // 3-token branch, extracts an empty last token, and incorrectly filters the
+            // message.  TrimEnd() removes the padding before any downstream processing.
+            string msg = nr.Message.TrimEnd();
+
             // De-duplicate by message text (ft8_lib can produce the same message
             // from multiple candidates; the caller expects unique messages only).
-            if (!seen.Add(nr.Message)) continue;
+            if (!seen.Add(msg)) continue;
 
             // ── R4: Plausibility filter ──────────────────────────────────────
             // Reject Standard QSO messages whose 15-bit grid/report field has an
             // impossible value that slipped through CRC-14 by chance (≈ 1/16 384
             // per candidate; non-trivial over a 24-hour session on a busy band).
-            if (!IsPlausibleMessage(nr.Message))
+            if (!IsPlausibleMessage(msg))
             {
                 _logger?.LogDebug(
                     "Cycle {Time}: filtered implausible message '{Message}' (false-positive guard).",
-                    timeStr, nr.Message);
+                    timeStr, msg);
                 continue;
             }
 
@@ -201,7 +209,7 @@ public sealed class Ft8Decoder : IModeDecoder
                 Snr:     nr.Snr,
                 Dt:      Math.Round(nr.Dt, 1),
                 FreqHz:  nr.FreqHz,
-                Message: nr.Message));
+                Message: msg));
         }
 
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────

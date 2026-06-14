@@ -91,4 +91,25 @@ public sealed class Ft8DecoderPlausibilityTests
     public void IsPlausibleMessage_UnrecognisableField_ReturnsFalse(string text, string reason)
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
                $"'{text}' has an unrecognisable last field ({reason})");
+
+    // ── D-005 trailing-space contract ─────────────────────────────────────────
+    // IsPlausibleMessage does NOT trim its input; callers are responsible for
+    // trimming (Ft8Decoder.DecodeAsync does so via msg = nr.Message.TrimEnd()).
+    // These tests document that contract: a trailing space turns a valid 2-field
+    // message into an apparent 3-token message with an empty last field, which
+    // IsPlausibleMessage correctly rejects — the fix belongs in the caller, not here.
+
+    [Theory(DisplayName = "R4/D-005: IsPlausibleMessage rejects trailing-space messages (caller must trim)")]
+    [InlineData("<Q1ABC> Q2DEF ",  "Type 4 hash message padded by ft8_lib — trailing space creates empty 3rd token")]
+    [InlineData("Q1ABC Q2DEF ",    "2-field QSO padded by ft8_lib — trailing space creates empty 3rd token")]
+    public void IsPlausibleMessage_TrailingSpace_ReturnsFalse(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+               $"'{text}' must be rejected untrimmed — caller (DecodeAsync) is responsible for TrimEnd() ({reason})");
+
+    [Theory(DisplayName = "R4/D-005: IsPlausibleMessage accepts the trimmed form of those same messages")]
+    [InlineData("<Q1ABC> Q2DEF",   "trimmed Type 4 hash message — 2 tokens, accepted unconditionally")]
+    [InlineData("Q1ABC Q2DEF",     "trimmed 2-field QSO — 2 tokens, accepted unconditionally")]
+    public void IsPlausibleMessage_TrimmedForm_ReturnsTrue(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+               $"'{text}' is a valid 2-token message that must pass the filter ({reason})");
 }
