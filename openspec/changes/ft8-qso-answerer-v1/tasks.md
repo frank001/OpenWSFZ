@@ -59,14 +59,14 @@
 
 ## 7. ADIF Log Writer
 
-- [ ] 7.1 Create `AdifLogWriter` class in `OpenWSFZ.Daemon`
-- [ ] 7.2 Implement path resolution: resolve directory from `decodeLog.path`; append `ADIF.log`
-- [ ] 7.3 Implement `AppendQsoAsync(QsoRecord record)`: open append, write ADIF fields in tagged format `<FIELD:len>value`, write `<EOR>\r\n`, close
-- [ ] 7.4 Implement `QsoRecord` value type capturing: partner callsign, partner grid, RST sent/received, QSO start/end UTC, operator callsign and grid, dial frequency
-- [ ] 7.5 Implement BAND derivation from `dialFrequencyMHz` (ITU band names); omit BAND and FREQ when frequency is 0.0
-- [ ] 7.6 Wire `AdifLogWriter` into `QsoAnswererService`: call `AppendQsoAsync` on `QsoComplete`
-- [ ] 7.7 Handle write failure gracefully: log Warning, do not throw, do not change QSO state
-- [ ] 7.8 Add unit tests: correct ADIF field format, EOR terminator, BAND derivation, FREQ omission when 0.0, no write on abort
+- [x] 7.1 Create `AdifLogWriter` class in `OpenWSFZ.Daemon`
+- [x] 7.2 Implement path resolution: resolve directory from `decodeLog.path`; append `ADIF.log`
+- [x] 7.3 Implement `AppendQsoAsync(QsoRecord record)`: open append, write ADIF fields in tagged format `<FIELD:len>value`, write `<EOR>\r\n`, close
+- [x] 7.4 Implement `QsoRecord` value type capturing: partner callsign, partner grid, RST sent/received, QSO start/end UTC, operator callsign and grid, dial frequency
+- [x] 7.5 Implement BAND derivation from `dialFrequencyMHz` (ITU band names); omit BAND and FREQ when frequency is 0.0
+- [x] 7.6 Wire `AdifLogWriter` into `QsoAnswererService`: call `AppendQsoAsync` on `QsoComplete`
+- [x] 7.7 Handle write failure gracefully: log Warning, do not throw, do not change QSO state
+- [x] 7.8 Add unit tests: correct ADIF field format, EOR terminator, BAND derivation, FREQ omission when 0.0, no write on abort
 
 ## 8. Integration & Validation
 

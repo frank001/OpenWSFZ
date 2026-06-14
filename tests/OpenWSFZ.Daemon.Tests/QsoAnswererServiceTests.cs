@@ -55,8 +55,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             }
         });
 
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         _sut    = new QsoAnswererService(_channel.Reader, store, _ptt, new TxEventBus(),
-                      NullLogger<QsoAnswererService>.Instance);
+                      adifLog, NullLogger<QsoAnswererService>.Instance);
         _stopCts = new CancellationTokenSource();
 
         // Start the service background loop.

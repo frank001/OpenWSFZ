@@ -288,11 +288,12 @@ var app = WebApp.Create(
 #endif
 #pragma warning restore CA1416
 
-        // QSO answerer state machine (tasks 6.1–6.15).
+        // QSO answerer state machine (tasks 6.1–6.15) and ADIF log writer (task 7.1).
         // The channel reader is created before WebApp.Create so it must be registered
         // as a concrete singleton instance rather than resolved from DI.
         services.AddSingleton(qsoAnswererChannel.Reader);
         services.AddSingleton<TxEventBus>();
+        services.AddSingleton<AdifLogWriter>();
         services.AddSingleton<QsoAnswererService>();
         services.AddSingleton<IQsoAnswerer>(sp => sp.GetRequiredService<QsoAnswererService>());
         services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());

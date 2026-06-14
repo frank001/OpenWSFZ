@@ -48,16 +48,18 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     private readonly TxEventBus                                 _txEventBus;
     private readonly ILogger<QsoAnswererService>                _logger;
     private readonly Ft8AudioSynthesiser                        _synthesiser = new();
+    private readonly AdifLogWriter                               _adifLog;
 
     // Volatile: readable from the HTTP handler thread without a lock.
     private volatile QsoState _state   = QsoState.Idle;
     private volatile string?  _partner = null;
 
     // Per-session TX state.
-    private string _lastTxMessage = string.Empty;
-    private int    _lastTxFreqHz  = 0;
-    private string _rstRcvd       = "+00"; // signal report received from partner
-    private int    _retryCount    = 0;
+    private string   _lastTxMessage = string.Empty;
+    private int      _lastTxFreqHz  = 0;
+    private string   _rstRcvd       = "+00"; // signal report received from partner
+    private int      _retryCount    = 0;
+    private DateTime _qsoStartUtc   = DateTime.MinValue;
 
     // Cancellation for the active TX session; cancelled on watchdog expiry or operator abort.
     // Volatile reference so AbortAsync (HTTP thread) can safely read and cancel the current CTS.
@@ -72,12 +74,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         IConfigStore                               configStore,
         IPttController                             pttController,
         TxEventBus                                 txEventBus,
+        AdifLogWriter                              adifLog,
         ILogger<QsoAnswererService>                logger)
     {
         _decodeChannel = decodeChannel;
         _configStore   = configStore;
         _pttController = pttController;
         _txEventBus    = txEventBus;
+        _adifLog       = adifLog;
         _logger        = logger;
     }
 
@@ -250,6 +254,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         _retryCount   = 0;
         _rstRcvd      = "+00";
         _lastTxFreqHz = cqResult.FreqHz;
+        _qsoStartUtc  = DateTime.UtcNow;
 
         // Start watchdog (fires after tx.WatchdogMinutes if no state advance).
         StartWatchdog(tx);
@@ -388,7 +393,20 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         _logger.LogInformation(
             "QsoAnswererService: QSO with {Partner} complete!", partner);
 
-        // TODO (task 7.6): await _adifLogWriter.AppendQsoAsync(BuildQsoRecord());
+        // Write ADIF log entry (task 7.6 — failures are logged as Warning; never throw).
+        var record = new QsoRecord
+        {
+            PartnerCallsign  = partner,
+            PartnerGrid      = null,               // grid not tracked at this layer
+            RstSent          = "R+00",
+            RstRcvd          = _rstRcvd,
+            QsoStartUtc      = _qsoStartUtc,
+            QsoEndUtc        = DateTime.UtcNow,
+            OperatorCallsign = tx.Callsign,
+            OperatorGrid     = tx.Grid,
+            DialFrequencyMHz = _configStore.Current.DecodeLog.DialFrequencyMHz,
+        };
+        await _adifLog.AppendQsoAsync(record).ConfigureAwait(false);
 
         // Return to Idle.
         await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
