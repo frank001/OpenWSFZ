@@ -84,7 +84,12 @@ D001-pcm-sic_items/
 ALL.TXT
 
 # Native build artifacts — obj files and intermediate DLL (patched sources are committed)
-native/ft8_lib_build/obj/
+# Exception: message.obj has been binary-patched (D-006, shim 20260015) and must be tracked
+# so that DLL rebuilds use the corrected object.  All other obj files are untracked build
+# intermediates regenerable from the patched sources in native/ft8_lib_build/patched/.
+# Note: directory-level ignores block file-level negations, hence the wildcard form.
+native/ft8_lib_build/obj/*
+!native/ft8_lib_build/obj/message.obj
 native/ft8_lib_build/linux_obj/
 native/ft8_lib_build/*.obj
 native/ft8_lib_build/*.exp

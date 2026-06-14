@@ -125,6 +125,89 @@
  *   Version 20260011 slot used for H5 suppression-tuning diagnostic (REJECTED;
  *   reverted).  20260012 is the D-003/D-004 fix, not a D-001 hypothesis.
  *
+ * fix-seh-av-containment (FT8_SHIM_VERSION 20260013):
+ *
+ *   __try/__except(EXCEPTION_EXECUTE_HANDLER) wrapper added around the body
+ *   of ft8_decode_all (MSVC / Windows only).  On any access violation
+ *   (0xC0000005) the shim returns -2, allowing the managed layer to log the
+ *   event and skip the decode cycle instead of the process dying.
+ *   monitor_free intentionally NOT called in the except handler — the heap
+ *   may be partially corrupted; a second AV inside the handler is worse than
+ *   a per-cycle waterfall memory leak.  tls_hash_table is cleared in both
+ *   paths to prevent a dangling pointer.
+ *
+ * diag-d006-minidump (FT8_SHIM_VERSION 20260014):
+ *
+ *   Crash dump capture moved from the __except body into a dedicated
+ *   ft8_av_exception_filter() function called in the filter-expression
+ *   position.  Root cause: GetExceptionInformation() returns a pointer into
+ *   the OS exception-dispatch frame, which is freed when Windows unwinds the
+ *   stack on entry to the __except body.  Calling MiniDumpWriteDump there
+ *   with the stale EXCEPTION_POINTERS produced a 185 MB full-memory dump
+ *   with no ExceptionStream (crash address unknown, confirmed by dump analysis
+ *   2026-06-14).  The filter function runs before unwind; the EXCEPTION_POINTERS
+ *   passed as its argument are valid for the duration of the filter call,
+ *   including the MiniDumpWriteDump call within it.  The resulting dump will
+ *   contain a valid ExceptionStream with ExceptionAddress and CONTEXT.
+ *
+ * fix-d006-ptr-truncation (FT8_SHIM_VERSION 20260015):
+ *
+ *   Binary patch to native/ft8_lib_build/obj/message.obj fixing a 32-bit
+ *   pointer truncation in ftx_message_decode() (ft8/message.c, kgoba/ft8_lib
+ *   v2.0 MSVC-compat branch, commit d18ed84).
+ *
+ *   Root cause (confirmed by dump analysis of ft8_av_20260614_133145_28356.dmp,
+ *   shim 20260014, ExceptionAddress RVA 0x3D06 in libft8.dll):
+ *
+ *   ftx_message_decode() handles FT8 messages with the "R " reply prefix
+ *   (messages where the i3/n3 type field has bit 0x20 set — FT8 Type 2
+ *   "RRR/RR73/73" or standard 73 reply format).  It calls an internal stpcpy()
+ *   to copy the "R " prefix into the loc_grid output buffer, then continues
+ *   writing the 4-character Maidenhead grid locator into the same buffer
+ *   using the returned end-pointer.
+ *
+ *   MSVC generated `MOVSXD RBX, EAX` (opcode 48 63 D8) at message.obj offset
+ *   0x01B26 to capture stpcpy's char* return.  MOVSXD sign-extends a 32-bit
+ *   register to 64-bit; it truncates the upper 32 bits of the 64-bit pointer
+ *   in RAX.  When the thread stack (and therefore the caller-supplied loc_grid
+ *   buffer) resides above the 4 GB VA boundary — as occurs when the OS places
+ *   a thread's stack in the range 0x0000001700000000..0x0000001800000000 —
+ *   the upper 32 bits (0x00000017) are silently dropped.  The subsequent write
+ *   to the truncated address causes a fatal 0xC0000005 access violation.
+ *
+ *   Dump evidence:
+ *     RCX = 0x0000001737E3B0B6  (correct 64-bit stpcpy return — still in RCX
+ *                                 from the calling convention)
+ *     RBX = 0x0000000037E3B0B6  (truncated — upper 0x17 dropped)
+ *     Write target [RBX+4] = 0x37E3B0BA → ACCESS VIOLATION
+ *
+ *   Fix: change the single opcode byte at message.obj offset 0x01B27 from
+ *   0x63 (MOVSXD) to 0x8B (MOV r64,r/m64), producing `MOV RBX, RAX`
+ *   (48 8B D8) — a full 64-bit register move that preserves all pointer bits.
+ *   DLL rebuilt from patched .obj.  No change to exported ABI, struct layout,
+ *   or return codes.
+ *
+ *
+ * fix-d006-cleanup + fix-rq2-signal-db-oob (FT8_SHIM_VERSION 20260016):
+ *
+ *   Two independent changes bundled in one version step:
+ *
+ *   (a) Removed ft8_av_exception_filter() and its Windows-only diagnostic
+ *   infrastructure (MiniDumpWriteDump, CreateFileA, dbghelp.h, hardcoded
+ *   C:\Dumps\ path).  The shim 20260014 filter was a one-shot diagnostic
+ *   instrument; it served its purpose (produced the dump that diagnosed D-006)
+ *   and has no place in production code.  The __try/__except containment and
+ *   the -2 return code are retained unchanged — they remain a genuine
+ *   production safety net.  The __except clause reverts to the simple
+ *   EXCEPTION_EXECUTE_HANDLER form from 20260013.
+ *
+ *   (b) OOB guard in signal_db computation (RQ-2).  For signals near f_max
+ *   (≥ 2956 Hz, freq_offset ≥ 473) an active tone index tones[b-b0] ∈ [0,7]
+ *   can push freq_offset + tone_col past num_bins, reading one waterfall row
+ *   into the next.  Fix: skip the sample when freq_offset + tone_col >= nb
+ *   rather than reading out of bounds.  Signals at the band edge may have
+ *   slightly fewer samples contributing to signal_db; this is acceptable.
+ *
  * Build: see BUILD.md.  encode.c must be compiled and linked.
  */
 
@@ -141,6 +224,7 @@
 #include <ft8/message.h>
 #include <common/monitor.h>
 
+#include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -814,7 +898,12 @@ int ft8_decode_all(
                          (int)cand->freq_offset;
                 for (int b = b0; b < b1; b++) {
                     const WF_ELEM_T* row = mon.wf.mag + b * bs + fi;
-                    float mx = (float)row[tones[b - b0]] * 0.5f - 120.0f;
+                    int tone_col = (int)tones[b - b0];
+                    /* RQ-2 guard: tones[x] ∈ [0,7]; for signals near f_max the
+                     * active tone bin may overflow num_bins — skip those samples
+                     * rather than read past the waterfall row boundary.        */
+                    if ((int)cand->freq_offset + tone_col >= nb) continue;
+                    float mx = (float)row[tone_col] * 0.5f - 120.0f;
                     sum += mx; cnt++;
                 }
                 signal_db = cnt > 0 ? sum / (float)cnt : noise_floor_db;
@@ -855,15 +944,13 @@ int ft8_decode_all(
 #ifdef _MSC_VER
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
-        /*
-         * Access violation (0xC0000005) or other SEH fault in the decode
+        /* Access violation (0xC0000005) or other SEH fault in the decode
          * pipeline.  Clear the callsign-table TLS pointer (a dangling
          * pointer is worse than a leak) and return -2.  monitor_free is
          * intentionally skipped: the waterfall heap may be partially
          * corrupted; a second AV inside the handler would be fatal.
-         * The managed layer receives -2, logs the event, and skips the
-         * decode cycle.
-         */
+         * The managed layer receives -2, logs at WARNING, and skips the
+         * decode cycle.                                                   */
         tls_hash_table = NULL;
         return -2;
     }

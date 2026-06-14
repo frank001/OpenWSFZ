@@ -90,8 +90,37 @@ internal static class Ft8LibInterop
     ///   (new contract term), hence the version bump.  Non-MSVC builds are unaffected
     ///   (no SEH; SIGSEGV behaviour unchanged on Linux/macOS).
     ///   Root cause of the AV (D-006) remains under investigation.
+    /// 20260014 (diag-d006-minidump): MiniDumpWriteDump capture moved from the
+    ///   <c>__except</c> body into a dedicated <c>ft8_av_exception_filter()</c> function
+    ///   called in the filter-expression position.  <c>GetExceptionInformation()</c> is
+    ///   valid only during filter evaluation (before stack unwind); the v20260013 approach
+    ///   called MiniDumpWriteDump in the handler body after unwind, leaving
+    ///   <c>EXCEPTION_POINTERS</c> stale and producing a dump with no ExceptionStream
+    ///   (crash address unknown).  The filter writes <c>MiniDumpWithFullMemory</c> to
+    ///   <c>C:\Dumps\</c> with valid <c>EXCEPTION_POINTERS</c> before returning
+    ///   <c>EXCEPTION_EXECUTE_HANDLER</c>.  No ABI change; struct layout unchanged.
+    /// 20260015 (fix-d006-ptr-truncation): Binary patch to message.obj fixing a 32-bit
+    ///   pointer truncation in <c>ftx_message_decode()</c> (ft8/message.c, kgoba/ft8_lib
+    ///   v2.0).  Crash-dump analysis of ft8_av_20260614_133145_28356.dmp (shim 20260014,
+    ///   ExceptionAddress RVA 0x3D06) revealed: MSVC generated <c>MOVSXD RBX, EAX</c>
+    ///   (sign-extend 32-bit) instead of <c>MOV RBX, RAX</c> (full 64-bit move) to
+    ///   capture the <c>char*</c> return from an internal stpcpy() call.  When the thread
+    ///   stack or caller-supplied buffer resides above the 4 GB VA boundary the upper 32
+    ///   bits of the pointer are silently dropped, producing an invalid write address
+    ///   (WRITE AV to 0x37E3B0BA; correct address 0x1737E3B0B6).  Only triggered by FT8
+    ///   messages with the "R " reply-prefix (i3/n3 bit 0x20 set).  Fix: opcode byte at
+    ///   message.obj offset 0x01B27 changed 0x63 (MOVSXD) to 0x8B (MOV); DLL rebuilt.
+    ///   No ABI change; struct layout and return codes unchanged.  D-006 RESOLVED.
+    /// 20260016 (fix-d006-cleanup + fix-rq2-signal-db-oob): Removed
+    ///   <c>ft8_av_exception_filter()</c> and MiniDumpWriteDump infrastructure —
+    ///   hardcoded <c>C:\Dumps\</c> path and WinAPI diagnostic code removed; the
+    ///   <c>__try/__except</c> containment reverts to simple
+    ///   <c>EXCEPTION_EXECUTE_HANDLER</c> (shim 20260013 form).  Also fixes RQ-2:
+    ///   signal_db loop now guards <c>freq_offset + tone_col >= num_bins</c> for
+    ///   signals ≥ 2956 Hz, skipping out-of-range samples rather than reading past
+    ///   the waterfall row boundary.  No ABI change.
     /// </summary>
-    private const int ExpectedShimVersion = 20260013;
+    private const int ExpectedShimVersion = 20260016;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.

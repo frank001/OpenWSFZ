@@ -107,8 +107,43 @@ extern "C" {
  *              Struct layout unchanged (48 bytes).  Return code -2 is a new
  *              semantic term in the contract, hence the version bump.
  *              Non-MSVC builds (Linux / macOS) are unaffected — no SEH;
- *              SIGSEGV behaviour unchanged.  Root cause (D-006) still unknown. */
-#define FT8_SHIM_VERSION 20260013
+ *              SIGSEGV behaviour unchanged.  Root cause (D-006) still unknown.
+ *   20260014 — diag-d006-minidump: MiniDumpWriteDump capture moved from
+ *              __except body into a dedicated ft8_av_exception_filter() function
+ *              called in the filter-expression position.  GetExceptionInformation()
+ *              is only valid during filter evaluation (before stack unwind); the
+ *              v20260013 approach called MiniDumpWriteDump in the handler body
+ *              after stack unwind, leaving s_av_ep stale and producing a dump
+ *              with no ExceptionStream (crash address unknown).  The filter now
+ *              writes MiniDumpWithFullMemory to C:\Dumps\ with valid
+ *              EXCEPTION_POINTERS before returning EXCEPTION_EXECUTE_HANDLER.
+ *              No ABI change; struct layout and return codes unchanged.
+ *   20260016 — fix-d006-cleanup: ft8_av_exception_filter() and MiniDumpWriteDump
+ *              infrastructure removed (diagnostic, one-shot; served its purpose).
+ *              __except reverts to simple EXCEPTION_EXECUTE_HANDLER.  Also fixes
+ *              RQ-2: signal_db computation now guards against out-of-bounds
+ *              waterfall access for signals ≥ 2956 Hz (freq_offset + tone_col
+ *              >= num_bins skips the sample rather than reading past row end).
+ *              No ABI change; struct layout and return codes unchanged.
+ *   20260015 — fix-d006-ptr-truncation: binary patch to message.obj fixing a
+ *              32-bit pointer truncation in ftx_message_decode() (ft8/message.c).
+ *              The function called an internal stpcpy() and captured its char*
+ *              return via MSVC-generated `movsxd rbx, eax` (sign-extend 32-bit)
+ *              instead of `mov rbx, rax` (full 64-bit move).  When the caller-
+ *              provided buffers reside above the 4 GB VA boundary — as they do
+ *              when the .NET managed heap or the thread stack is allocated above
+ *              0x100000000 — the upper 32 bits of the returned pointer are
+ *              silently dropped, producing an invalid write address and an
+ *              access violation (0xC0000005).  The crash manifested only for
+ *              FT8 messages with the "R " reply-prefix (bit 0x20 of the i3/n3
+ *              type field set), which triggers the stpcpy code path.  Confirmed
+ *              by crash dump analysis: ExceptionAddress 0x7FFA1A613D06 (RVA
+ *              0x3D06 in libft8.dll), WRITE to 0x37E3B0BA; RCX=0x1737E3B0B6
+ *              (correct 64-bit), RBX=0x37E3B0B6 (truncated).  Fix: change the
+ *              single opcode byte at message.obj offset 0x01B27 from 0x63
+ *              (MOVSXD) to 0x8B (MOV), then rebuild DLL.  Struct layout and
+ *              return codes unchanged. */
+#define FT8_SHIM_VERSION 20260016
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

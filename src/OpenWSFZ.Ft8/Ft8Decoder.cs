@@ -31,6 +31,11 @@ namespace OpenWSFZ.Ft8;
 /// 20260009 — diag-d001-h3b-gfsk-sic (H3b): GFSK quadrature PCM SIC; analytic amplitude estimator. REJECTED (S7 37.63%, −17.21 pp).
 /// 20260010 — diag-d001-h4-spectrogram-reinstate (H4): spectrogram suppression reinstated; H3b call site removed; GFSK helpers retained. ACCEPTED (S7 56.99%). Active baseline; restored after H5 rejection.
 /// 20260011 — diag-d001-h5-suppression-tuning (H5): suppression ramp shifted [−5,+15]→[−15,+5]. REJECTED (S7 46.24%, −10.75 pp). Over-suppression confirmed. Reverted to 20260010.
+/// 20260012 — fix-d004-local-noise-floor: per-signal local noise floor replaces global histogram-median in SNR formula. Resolves D-003 (SNR under-report) and D-004 (frequency-dependent bias).
+/// 20260013 — fix-seh-av-containment: __try/__except wrapper in ft8_decode_all returns -2 on AV instead of crashing. D-006 root cause still unknown.
+/// 20260014 — diag-d006-minidump: MiniDumpWriteDump moved to filter-expression function so ExceptionAddress is captured before stack unwind.
+/// 20260015 — fix-d006-ptr-truncation: binary patch to message.obj — MOVSXD RBX,EAX at ftx_message_decode stpcpy call site replaced with MOV RBX,RAX. Fixes 32-bit pointer truncation crash for "R " prefix messages when thread stack is above 4 GB VA boundary. D-006 RESOLVED.
+/// 20260016 — fix-d006-cleanup + fix-rq2-signal-db-oob: removed ft8_av_exception_filter and MiniDumpWriteDump infrastructure; __except reverts to EXCEPTION_EXECUTE_HANDLER. Also guards signal_db loop against out-of-bounds waterfall access for signals >= 2956 Hz.
 /// </para>
 ///
 /// <para>
