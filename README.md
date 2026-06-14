@@ -69,25 +69,26 @@ log files. Signals are synthesised by an independent clean-room FT8 encoder (tex
 → PCM) so that truth is exactly known for every trial. Each trial draws a fresh seeded
 noise realisation, giving non-zero repeatability variance.
 
-### Latest published results — run [`6bab388`](qa/rr-study/results/2026-06-06-6bab388/report.md)
+### Latest validated results — S1: [`0a0f8a5`](qa/rr-study/results/2026-06-11-0682106/report-v2.md) (2026-06-11) · S2–S8: [`e4a3982`](qa/rr-study/results/2026-06-07-4b3a4ca/report-v2.md) (2026-06-07)
 
 | Scenario | Metric | Value | Verdict |
 |---|---|---|---|
-| S1 SNR | %GR&R | 6.5% | ✅ PASS |
-| S1 SNR | ndc | 5 | ✅ PASS |
-| S1 SNR | OpenWSFZ bias | +1.67 dB | ✅ PASS |
-| S1b Low-SNR threshold | Decode rate (both apps) | 0% @ −24/−21 dB, 67% @ −18 dB, 100% @ −15 dB | ℹ️ Informational |
+| S1 SNR | %GR&R | 0.5% | ✅ PASS |
+| S1 SNR | ndc | 19 | ✅ PASS |
+| S1 SNR | OpenWSFZ bias | +1.78 dB | ✅ PASS |
+| S1b Low-SNR threshold | Decode rate (both apps) | 0% @ −24/−21 dB, 100% @ −18/−15 dB | ℹ️ Informational |
 | S2 Frequency | %GR&R | 0.0% | ✅ PASS |
-| S2 Frequency | ndc | 1 470 | ✅ PASS |
-| S3 DT | %GR&R | 3.9% | ✅ PASS |
+| S2 Frequency | ndc | 1 536 | ✅ PASS |
+| S3 DT | %GR&R | 3.4% | ✅ PASS |
 | S3 DT | ndc | 7 | ✅ PASS |
 | S4/S5 Detection | κ (OpenWSFZ vs truth) | 1.000 | ✅ PASS |
 | S5 False positives | FP rate (OpenWSFZ) | 0.0% | ✅ PASS |
-| S7 Co-channel | Overall recovery | 46.2% vs WSJT-X 77.4% | ℹ️ Informational |
+| S7 Co-channel | Overall recovery | 56.99% vs WSJT-X 76.3% | ℹ️ Informational |
 
-**Overall: PASS** — first clean pass of the full suite.  S1 redesign (R&R-005) resolved
-the ANOVA contamination: %GR&R dropped from 32.0% to 6.5%, ndc from 2 to 5.  S7
-co-channel gap is informational; no product defect raised pending Captain decision.
+**Overall: PASS.**  S1 re-validated at `0a0f8a5` (2026-06-11): %GR&R 0.5%, ndc 19,
+bias +1.78 dB within the ±2.0 dB threshold.  S7 co-channel gap remains informational;
+the active D-001 investigation baseline is 56.99% at shim 20260010
+(run [`cd9f06b`](qa/rr-study/results/2026-06-13-cd9f06b/report-v2.md), 2026-06-13).
 
 See [`qa/rr-study/STUDY-SPEC.md`](qa/rr-study/STUDY-SPEC.md) for the full study design
 and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedure.
@@ -220,16 +221,17 @@ The build and test suite has been verified on all three target platforms:
 
 | Platform | Build | Tests | CI |
 |---|---|---|---|
-| Windows x64 | ✅ 0 warnings | ✅ 310 passed | ✅ GitHub Actions |
-| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 310 passed | ✅ GitHub Actions |
+| Windows x64 | ✅ 0 warnings | ✅ 341 passed | ✅ GitHub Actions |
+| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 341 passed | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
 
-All four CI gates pass on every platform:
+All five CI gates pass on every platform:
 
 - **G1** — `dotnet build` with zero warnings
 - **G3** — Requirement traceability (every FR/NFR ID mapped to a test)
 - **G5** — Dependency licence inventory (MIT / Apache-2.0 / BSD only)
 - **G6** — Real off-air signal recovery: three committed 40 m band fixture WAVs decoded against WSJT-X answer keys on Windows x64, Linux x64, and macOS ARM64
+- **G7** — Secrets scan (gitleaks over full commit history; any credential finding fails the build)
 
 ## Architecture
 
