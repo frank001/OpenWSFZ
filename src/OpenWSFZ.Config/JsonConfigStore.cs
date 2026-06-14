@@ -112,6 +112,31 @@ public sealed class JsonConfigStore : IConfigStore
             // Null is the correct default (CAT disabled); no guard needed — consumers use
             // (config.Cat ?? new CatConfig()) to get a non-null value.
 
+            // "tx" key is intentionally nullable: absent in config files written before
+            // ft8-qso-answerer-v1.  Null is the correct default (TX subsystem uses defaults);
+            // consumers use (config.Tx ?? new TxConfig()).  When the key is present we clamp
+            // out-of-range values and warn the operator.
+            if (config.Tx is { } tx)
+            {
+                bool clamped = false;
+                if (tx.RetryCount < 1)
+                {
+                    Console.Error.WriteLine(
+                        $"[OpenWSFZ] WARNING: tx.retryCount = {tx.RetryCount} is below minimum (1); clamped to 1.");
+                    tx      = tx with { RetryCount = 1 };
+                    clamped = true;
+                }
+                if (tx.WatchdogMinutes < 1)
+                {
+                    Console.Error.WriteLine(
+                        $"[OpenWSFZ] WARNING: tx.watchdogMinutes = {tx.WatchdogMinutes} is below minimum (1); clamped to 1.");
+                    tx      = tx with { WatchdogMinutes = 1 };
+                    clamped = true;
+                }
+                if (clamped)
+                    config = config with { Tx = tx };
+            }
+
             return config;
         }
         catch (Exception ex)
@@ -132,10 +157,11 @@ public sealed class JsonConfigStore : IConfigStore
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        // Include cat section with enabled=false so the operator can see the
-        // available settings without having to look up the documentation (FR-031).
+        // Include cat section with enabled=false and tx section with all defaults so the
+        // operator can see the available settings without having to look up the
+        // documentation (FR-031, FR-046).
         var json = JsonSerializer.Serialize(
-            new AppConfig() with { Cat = new CatConfig() },
+            new AppConfig() with { Cat = new CatConfig(), Tx = new TxConfig() },
             ConfigJsonContext.Default.AppConfig);
 
         File.WriteAllText(path, json);

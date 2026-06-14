@@ -39,6 +39,13 @@
     <ProjectReference Include="..\OpenWSFZ.Web\OpenWSFZ.Web.csproj" />
   </ItemGroup>
 
+  <!-- Define WASAPI_SUPPORTED only when building on Windows so that
+       AudioOnlyPttController.cs (which references NAudio WasapiOut) is excluded
+       from compilation on Linux and macOS. -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <DefineConstants>$(DefineConstants);WASAPI_SUPPORTED</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.File" />

@@ -12,6 +12,9 @@ using OpenWSFZ.Ft8;
 using OpenWSFZ.Ft8.Dsp;
 using OpenWSFZ.Web;
 using Serilog;
+#if WASAPI_SUPPORTED
+using System.Runtime.Versioning;
+#endif
 
 // Parse CLI options before building the host.
 var options = LaunchOptions.Parse(args);
@@ -265,6 +268,17 @@ var app = WebApp.Create(
         services.AddSingleton<ICatTuner>(sp => sp.GetRequiredService<CatPollingService>());
         services.AddSingleton<ICatController>(sp => sp.GetRequiredService<CatPollingService>());
         services.AddHostedService(sp => sp.GetRequiredService<CatPollingService>());
+
+        // PTT controller (task 4.5): AudioOnlyPttController on Windows; NullPttController elsewhere.
+        // CA1416: suppressed — code is only compiled when WASAPI_SUPPORTED is defined,
+        //         which is set exclusively on Windows targets (see .csproj).
+#pragma warning disable CA1416
+#if WASAPI_SUPPORTED
+        services.AddSingleton<IPttController, AudioOnlyPttController>();
+#else
+        services.AddSingleton<IPttController, NullPttController>();
+#endif
+#pragma warning restore CA1416
     });
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────

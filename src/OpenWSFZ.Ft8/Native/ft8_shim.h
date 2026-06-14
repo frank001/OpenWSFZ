@@ -19,6 +19,8 @@
 #ifndef FT8_SHIM_H
 #define FT8_SHIM_H
 
+#include <stdint.h>  /* uint8_t */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -142,8 +144,16 @@ extern "C" {
  *              (correct 64-bit), RBX=0x37E3B0B6 (truncated).  Fix: change the
  *              single opcode byte at message.obj offset 0x01B27 from 0x63
  *              (MOVSXD) to 0x8B (MOV), then rebuild DLL.  Struct layout and
- *              return codes unchanged. */
-#define FT8_SHIM_VERSION 20260016
+ *              return codes unchanged.
+ *   20260017 — ft8-qso-answerer-v1: add ft8_encode_message() entry point.
+ *              Exposes the TX encode path (text → ftx_message_t payload →
+ *              79 tone indices) so the managed layer can synthesise GFSK audio
+ *              for QSO answerer transmissions.  Uses ftx_message_encode() from
+ *              ft8/message.h and ft8_encode() from ft8/encode.h — both already
+ *              linked.  Returns FT8_NN (79) on success; negative error code on
+ *              failure.  No ABI change to existing entry points; struct layout
+ *              and existing return codes unchanged. */
+#define FT8_SHIM_VERSION 20260017
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -224,6 +234,26 @@ int ft8_get_max_passes(void);
  * Returns 0.0f if ft8_decode_all has not yet been called on this thread.
  */
 float ft8_get_last_noise_floor_db(void);
+
+/*
+ * ft8_encode_message — encode an FT8 text message to 79 tone indices.
+ *
+ * Parameters:
+ *   message        — null-terminated FT8 message text (e.g. "Q1OFZ Q1TST JO33")
+ *   tones_out      — caller-allocated output array; receives 79 tone indices
+ *                    in the range [0, 7]
+ *   tones_capacity — size of tones_out; must be >= FT8_NN (79)
+ *
+ * Returns:
+ *   FT8_NN (79) on success.
+ *   -1 if tones_capacity < FT8_NN.
+ *   -2 if the message text cannot be packed (invalid format, too long, etc.);
+ *      the native error code (ftx_message_rc_t) is NOT returned separately —
+ *      the managed wrapper should throw InvalidOperationException.
+ *
+ * Thread-safe: uses a local callsign table on the stack; no TLS state modified.
+ */
+int ft8_encode_message(const char* message, uint8_t* tones_out, int tones_capacity);
 
 #ifdef __cplusplus
 }
