@@ -128,6 +128,11 @@ int ft8_lib_version_check(void);
  *
  * Returns: number of unique messages written to results (0..max_results).
  *          Returns -1 if pcm_len != 180 000.
+ *          Returns -2 if an access violation or other SEH fault occurs
+ *          inside the decode pipeline (MSVC / Windows builds only).  The
+ *          managed layer should treat -2 as a recoverable skip: log the
+ *          event and return empty results for that cycle.  Non-MSVC builds
+ *          (Linux / macOS) do not trap SEH faults and will SIGSEGV instead.
  */
 int ft8_decode_all(
     const float* pcm,

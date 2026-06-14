@@ -130,7 +130,8 @@ internal static class Ft8LibInterop
     /// <param name="maxResults">Size of the <paramref name="results"/> buffer.</param>
     /// <returns>
     /// Number of unique messages written (0..maxResults), or -1 if
-    /// <paramref name="pcmLen"/> ≠ 180 000.
+    /// <paramref name="pcmLen"/> ≠ 180 000, or -2 if an access violation
+    /// was caught by the SEH wrapper (MSVC / Windows only).
     /// </returns>
     [DllImport("libft8.dll", EntryPoint = "ft8_decode_all", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeDecodeAll(
@@ -186,8 +187,14 @@ internal static class Ft8LibInterop
     /// Thrown when <paramref name="pcm"/> does not contain exactly 180 000 samples.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Thrown if the native DLL cannot be loaded or the ABI version check fails.
+    /// Thrown if the native DLL cannot be loaded, the ABI version check fails,
+    /// or the native shim returns an unexpected negative code other than -2.
     /// </exception>
+    /// <remarks>
+    /// A native return code of -2 (access violation caught by the shim's SEH
+    /// wrapper, Windows only) causes this method to return an empty array rather
+    /// than throwing — the decode cycle is skipped and the process continues.
+    /// </remarks>
     public static Ft8NativeResult[] DecodeAll(float[] pcm)
     {
         if (pcm.Length != 180_000)
@@ -199,6 +206,11 @@ internal static class Ft8LibInterop
 
         var results = new Ft8NativeResult[MaxResults];
         int count = NativeDecodeAll(pcm, pcm.Length, results, MaxResults);
+
+        // -2 = access violation caught by the SEH wrapper in ft8_decode_all
+        //      (MSVC / Windows only). Skip this cycle gracefully.
+        if (count == -2)
+            return [];
 
         if (count < 0)
             throw new InvalidOperationException(

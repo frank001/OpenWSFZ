@@ -655,8 +655,32 @@ int ft8_decode_all(
 {
     if (pcm_len != FT8_EXPECTED_SAMPLES) return -1;
 
+    /*
+     * SEH containment (MSVC / Windows builds only):
+     *
+     * Two crashes (0xC0000005 AV) were observed in production during the
+     * PCM-SIC experiments.  This __try/__except wrapper catches any access
+     * violation inside the ft8_lib waterfall or decode pipeline and returns
+     * -2, allowing the managed layer to log the event and skip the cycle
+     * instead of the process dying.
+     *
+     * monitor_t mon is declared before __try so the __except handler can
+     * reference it if ever needed.  monitor_free is intentionally NOT called
+     * in the __except handler — the heap may be partially corrupted after an
+     * AV, and a second fault inside the handler is worse than the per-cycle
+     * waterfall memory leak (~few hundred KB).  tls_hash_table is cleared in
+     * both normal and exception paths to prevent a dangling pointer.
+     *
+     * Non-MSVC builds (Linux / macOS gcc/clang) have no SEH; a SIGSEGV on
+     * those platforms terminates the process as before — no change.
+     */
+    monitor_t mon;   /* declared before __try — in scope for __except handler */
+
+#ifdef _MSC_VER
+    __try {
+#endif
+
     /* ── 1. Build waterfall from PCM ─────────────────────────────────────── */
-    monitor_t mon;
     monitor_config_t cfg = {
         .f_min = 200.0f, .f_max = 3000.0f,
         .sample_rate = FT8_SAMPLE_RATE,
@@ -820,4 +844,21 @@ int ft8_decode_all(
     monitor_free(&mon);
 
     return num_decoded;
+
+#ifdef _MSC_VER
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        /*
+         * Access violation (0xC0000005) or other SEH fault in the decode
+         * pipeline.  Clear the callsign-table TLS pointer (a dangling
+         * pointer is worse than a leak) and return -2.  monitor_free is
+         * intentionally skipped: the waterfall heap may be partially
+         * corrupted; a second AV inside the handler would be fatal.
+         * The managed layer receives -2, logs the event, and skips the
+         * decode cycle.
+         */
+        tls_hash_table = NULL;
+        return -2;
+    }
+#endif
 }
