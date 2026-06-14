@@ -9,11 +9,10 @@
 
 ## Pre-archive to-do list
 
-The following items must be resolved before archiving this change. Neither is a
-blocking defect — the branch has been cleared for merge — but both represent
-open debt that would otherwise be lost when the change artifact is archived.
+**Status: ALL ITEMS RESOLVED — 2026-06-14**
+350 tests | 0 failed | traceability gate 34/34.
 
-### TODO-1 — Add "zero render devices" unit test for WasapiAudioOutputDeviceProvider
+### TODO-1 — Add "zero render devices" unit test for WasapiAudioOutputDeviceProvider ✅ DONE
 
 **Spec scenario (specs/audio-output-device/spec.md):**
 > WHEN GetDevicesAsync() is called on a host with no audio render devices
@@ -44,7 +43,7 @@ public async Task GetDevicesAsync_ReturnsEmptyList_WhenEnumerateOverrideReturnsE
 
 ---
 
-### TODO-2 — Assign formal FR numbers and update FR-NEW test tags
+### TODO-2 — Assign formal FR numbers and update FR-NEW test tags ✅ DONE
 
 All 8 new tests use the prefix `"FR-NEW:"` in their display names. The
 `TestAssemblyScanner` regex requires `(FR|NFR)-\d{3}` (three decimal digits).
@@ -74,7 +73,7 @@ update `openspec/specs/configuration/spec.md` and
 
 ---
 
-### TODO-3 (Optional) — Rename WasapiAudioOutputDeviceProviderTests.cs
+### TODO-3 (Optional) — Rename WasapiAudioOutputDeviceProviderTests.cs ✅ DONE
 
 The `SubprocessAudioOutputDeviceProviderTests` class lives in
 `WasapiAudioOutputDeviceProviderTests.cs`. The file name implies WASAPI content

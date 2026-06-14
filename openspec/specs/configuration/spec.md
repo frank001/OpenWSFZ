@@ -4,7 +4,7 @@ This capability defines how OpenWSFZ persists and exposes application configurat
 ## Requirements
 ### Requirement: Configuration file persistence
 
-The application SHALL persist operator settings to a JSON configuration file. The file SHALL be read at startup and written atomically (write-to-temp then rename) on Save to prevent corruption. The configuration schema SHALL contain `audioDeviceId` (nullable string), `audioDeviceFriendlyName` (nullable string), `port` (integer), and `logging` (object) at minimum.
+The application SHALL persist operator settings to a JSON configuration file. The file SHALL be read at startup and written atomically (write-to-temp then rename) on Save to prevent corruption. The configuration schema SHALL contain `audioDeviceId` (nullable string), `audioDeviceFriendlyName` (nullable string), `audioOutputDeviceId` (nullable string), `audioOutputFriendlyName` (nullable string), `port` (integer), and `logging` (object) at minimum.
 
 #### Scenario: Config file loaded at startup
 
@@ -35,7 +35,7 @@ If no config file exists at the resolved path on startup, the daemon SHALL creat
 #### Scenario: Default config values are valid
 
 - **WHEN** the default config file is created
-- **THEN** it SHALL contain `audioDeviceId: null`, `audioDeviceFriendlyName: null`, `port: 8080`, a `logging` object with `fileEnabled: false`, `directory: "logs"`, `fileLogLevel: "Information"`, `rotationSchedule: "daily"`, `rotationTime: "00:00"`, `rotationDayOfWeek: "Monday"`, and `maxFiles: 7`; **and** a `decodeLog` object with `enabled: false`, `path: "ALL.TXT"`, and `dialFrequencyMHz: 0.0`; and the daemon SHALL start successfully using those values
+- **THEN** it SHALL contain `audioDeviceId: null`, `audioDeviceFriendlyName: null`, `audioOutputDeviceId: null`, `audioOutputFriendlyName: null`, `port: 8080`, a `logging` object with `fileEnabled: false`, `directory: "logs"`, `fileLogLevel: "Information"`, `rotationSchedule: "daily"`, `rotationTime: "00:00"`, `rotationDayOfWeek: "Monday"`, and `maxFiles: 7`; **and** a `decodeLog` object with `enabled: false`, `path: "ALL.TXT"`, and `dialFrequencyMHz: 0.0`; and the daemon SHALL start successfully using those values
 
 ---
 
@@ -77,12 +77,22 @@ The web server SHALL expose `GET /api/v1/config` and `POST /api/v1/config` endpo
 #### Scenario: GET returns current config
 
 - **WHEN** a client sends `GET /api/v1/config`
-- **THEN** the server SHALL respond with HTTP 200, `Content-Type: application/json`, and the current in-memory configuration serialised as JSON, including `audioDeviceId` and `audioDeviceFriendlyName` fields
+- **THEN** the server SHALL respond with HTTP 200, `Content-Type: application/json`, and the current in-memory configuration serialised as JSON, including `audioDeviceId`, `audioDeviceFriendlyName`, `audioOutputDeviceId`, and `audioOutputFriendlyName` fields
 
 #### Scenario: POST writes and persists config
 
-- **WHEN** a client sends `POST /api/v1/config` with a valid JSON body containing `audioDeviceId` and `audioDeviceFriendlyName`
+- **WHEN** a client sends `POST /api/v1/config` with a valid JSON body containing `audioDeviceId`, `audioDeviceFriendlyName`, `audioOutputDeviceId`, and `audioOutputFriendlyName`
 - **THEN** the server SHALL update the in-memory configuration, call `IConfigStore.SaveAsync()`, and respond with HTTP 200 and the updated configuration as JSON
+
+#### Scenario: POST clearing output device selection persists null values
+
+- **WHEN** a client sends `POST /api/v1/config` with `audioOutputDeviceId: null` and `audioOutputFriendlyName: null`
+- **THEN** the server SHALL persist both fields as `null` and respond with HTTP 200
+
+#### Scenario: Config file without audioOutputDeviceId deserialises without error
+
+- **WHEN** the daemon starts and the config file contains no `audioOutputDeviceId` or `audioOutputFriendlyName` keys (i.e. an existing pre-FR-048 config file)
+- **THEN** the daemon SHALL deserialise successfully, treating both fields as `null`, and SHALL start normally
 
 #### Scenario: POST with malformed JSON returns 400
 

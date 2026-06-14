@@ -110,17 +110,67 @@ The frequency list used to populate the `<select>` SHALL be fetched once from `G
 
 ### Requirement: Settings page
 
-The Settings page (`settings.html`) SHALL allow the operator to view and change the audio device selection and port number, then save those changes to the backend. The page SHALL be navigable from the main page and SHALL provide navigation back.
+The Settings page (`settings.html`) SHALL allow the operator to view and change the
+audio capture device selection, audio output device selection, and port number, then
+save those changes to the backend. The Radio hardware tab SHALL contain both an
+**Audio capture device** selector and an **Audio output device** selector, with the
+output device selector rendered immediately below the capture device selector and
+above the CAT rig connection fieldset. The page SHALL be navigable from the main page
+and SHALL provide navigation back.
 
 #### Scenario: Settings page loads audio device list
 
 - **WHEN** a browser loads `GET /settings.html`
-- **THEN** the page JavaScript SHALL call `GET /api/v1/audio/devices` and populate a `<select>` element with one `<option>` per returned device; if the list is empty a single disabled option reading "No devices found" SHALL be shown
+- **THEN** the page JavaScript SHALL call `GET /api/v1/audio/devices` and populate a
+  `<select id="device-select">` element with one `<option>` per returned device; if
+  the list is empty a single disabled option reading "No devices found" SHALL be shown
+
+#### Scenario: Settings page loads audio output device list
+
+- **WHEN** a browser loads `GET /settings.html`
+- **THEN** the page JavaScript SHALL call `GET /api/v1/audio/output-devices` and
+  populate a `<select id="output-device-select">` element with one `<option>` per
+  returned device; the first option SHALL always be a "— No device —" option whose
+  value is the empty string; if the device list is empty only this placeholder option
+  SHALL be shown
 
 #### Scenario: Settings page pre-selects configured device
 
 - **WHEN** the device list has loaded and the current config has a non-null `audioDeviceId`
-- **THEN** the `<select>` SHALL have the option whose `value` matches `config.audioDeviceId` selected
+- **THEN** the `<select id="device-select">` SHALL have the option whose `value` matches `config.audioDeviceId` selected
+
+#### Scenario: Settings page pre-selects configured output device
+
+- **WHEN** the output device list has loaded and the current config has a non-null `audioOutputDeviceId`
+- **THEN** the `<select id="output-device-select">` SHALL have the option whose `value`
+  matches `config.audioOutputDeviceId` selected; if no match is found (device no longer
+  present) the "— No device —" placeholder SHALL be selected
+
+#### Scenario: Settings page shows no output device selected when config value is null
+
+- **WHEN** the output device list has loaded and `config.audioOutputDeviceId` is null
+- **THEN** the `<select id="output-device-select">` SHALL have the "— No device —"
+  placeholder option selected
+
+#### Scenario: Save action posts audioOutputDeviceId and audioOutputFriendlyName
+
+- **WHEN** the operator selects an output device and clicks Save
+- **THEN** the page SHALL `POST /api/v1/config` with a JSON body containing
+  `audioOutputDeviceId` (the `value` attribute of the selected output `<option>` or
+  `null` if the placeholder is selected) and `audioOutputFriendlyName` (the visible
+  text of the selected output `<option>`, or `null` if the placeholder is selected),
+  alongside all other config fields
+
+#### Scenario: Save with no output device selected posts null for output device fields
+
+- **WHEN** the operator clicks Save with the output "— No device —" placeholder selected
+- **THEN** the POST body SHALL contain `audioOutputDeviceId: null` and `audioOutputFriendlyName: null`
+
+#### Scenario: Output device selector participates in dirty-state tracking
+
+- **WHEN** the operator changes the output device selection
+- **THEN** the unsaved-changes indicator SHALL become visible, consistent with the
+  behaviour for all other settings controls
 
 #### Scenario: Settings page pre-fills port field
 

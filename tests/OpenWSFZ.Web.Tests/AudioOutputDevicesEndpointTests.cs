@@ -115,7 +115,7 @@ public sealed class AudioOutputDevicesEndpointTests : IClassFixture<AudioOutputD
 
     // ── Task 8.4 — one device ────────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-NEW: GET /api/v1/audio/output-devices returns 200 with JSON array of render devices")]
+    [Fact(DisplayName = "FR-047: GET /api/v1/audio/output-devices returns 200 with JSON array of render devices")]
     public async Task GetOutputDevices_Returns200WithDeviceArray()
     {
         var response = await _client.GetAsync("/api/v1/audio/output-devices");
@@ -149,7 +149,7 @@ public sealed class AudioOutputDevicesEmptyEndpointTests : IClassFixture<AudioOu
 
     // ── Task 8.4 — empty list ────────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-NEW: GET /api/v1/audio/output-devices returns 200 with empty array when no render devices")]
+    [Fact(DisplayName = "FR-047: GET /api/v1/audio/output-devices returns 200 with empty array when no render devices")]
     public async Task GetOutputDevices_Returns200WithEmptyArray_WhenNoDevices()
     {
         var response = await _client.GetAsync("/api/v1/audio/output-devices");

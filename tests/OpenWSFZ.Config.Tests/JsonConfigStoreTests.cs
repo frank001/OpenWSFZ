@@ -244,7 +244,7 @@ public sealed class JsonConfigStoreTests
 
     // ── Task 8.3: audioOutputDeviceId / audioOutputFriendlyName round-trip ───────
 
-    [Fact(DisplayName = "FR-NEW: AppConfig.AudioOutputDeviceId and AudioOutputFriendlyName default to null")]
+    [Fact(DisplayName = "FR-048: AppConfig.AudioOutputDeviceId and AudioOutputFriendlyName default to null")]
     public void AppConfig_AudioOutputFields_DefaultToNull()
     {
         var config = new AppConfig();
@@ -255,7 +255,7 @@ public sealed class JsonConfigStoreTests
             "AudioOutputFriendlyName must default to null so existing config files load without error");
     }
 
-    [Fact(DisplayName = "FR-NEW: Config without audioOutputDeviceId deserialises to null (backward compat)")]
+    [Fact(DisplayName = "FR-048: Config without audioOutputDeviceId deserialises to null (backward compat)")]
     public void Load_Deserialises_AudioOutputDeviceId_AsNull_WhenFieldAbsentFromFile()
     {
         using var dir = new TempDirectory();
@@ -272,7 +272,7 @@ public sealed class JsonConfigStoreTests
             "a config file written before audio output device support must load with AudioOutputFriendlyName: null");
     }
 
-    [Fact(DisplayName = "FR-NEW: AudioOutputDeviceId and AudioOutputFriendlyName round-trip via config file")]
+    [Fact(DisplayName = "FR-048: AudioOutputDeviceId and AudioOutputFriendlyName round-trip via config file")]
     public async Task AudioOutputDevice_RoundTrips()
     {
         using var dir = new TempDirectory();

@@ -7,11 +7,11 @@ using Xunit;
 
 namespace OpenWSFZ.Audio.Tests;
 
-// ── Task 8.2 — SubprocessAudioOutputDeviceProvider stub ──────────────────────
+// ── SubprocessAudioOutputDeviceProvider (FR-046) ─────────────────────────────
 
 public sealed class SubprocessAudioOutputDeviceProviderTests
 {
-    [Fact(DisplayName = "FR-NEW: SubprocessAudioOutputDeviceProvider returns empty list without throwing")]
+    [Fact(DisplayName = "FR-046: SubprocessAudioOutputDeviceProvider returns empty list without throwing")]
     public async Task GetDevicesAsync_ReturnsEmptyList_WithoutThrowing()
     {
         // Arrange
@@ -29,12 +29,12 @@ public sealed class SubprocessAudioOutputDeviceProviderTests
 
 #if WASAPI_SUPPORTED
 
-// ── Task 8.1 — WasapiAudioOutputDeviceProvider ───────────────────────────────
+// ── WasapiAudioOutputDeviceProvider (FR-046) ─────────────────────────────────
 
 [SupportedOSPlatform("windows")]
 public sealed class WasapiAudioOutputDeviceProviderTests
 {
-    [Fact(DisplayName = "FR-NEW: WasapiAudioOutputDeviceProvider returns device list via enumerate override")]
+    [Fact(DisplayName = "FR-046: WasapiAudioOutputDeviceProvider returns device list via enumerate override")]
     public async Task GetDevicesAsync_ReturnsDevices_WhenEnumerateOverrideSucceeds()
     {
         // Arrange: inject the test seam with a known list of render devices.
@@ -59,7 +59,23 @@ public sealed class WasapiAudioOutputDeviceProviderTests
         devices[1].Name.Should().Be("Headphones (USB Audio)");
     }
 
-    [Fact(DisplayName = "FR-NEW: WasapiAudioOutputDeviceProvider returns empty list and does not throw when enumerate override throws")]
+    [Fact(DisplayName = "FR-046: WasapiAudioOutputDeviceProvider returns empty list when no render devices are present")]
+    public async Task GetDevicesAsync_ReturnsEmptyList_WhenEnumerateOverrideReturnsEmpty()
+    {
+        // Arrange: seam returns an empty collection to simulate a host with no render devices.
+        var provider = new WasapiAudioOutputDeviceProvider(
+            NullLogger<WasapiAudioOutputDeviceProvider>.Instance,
+            () => Array.Empty<AudioDeviceInfo>());
+
+        // Act
+        var devices = await provider.GetDevicesAsync();
+
+        // Assert
+        devices.Should().BeEmpty(
+            "zero render devices must produce an empty list, not an error");
+    }
+
+    [Fact(DisplayName = "FR-046: WasapiAudioOutputDeviceProvider returns empty list and does not throw when enumerate override throws")]
     public async Task GetDevicesAsync_ReturnsEmptyList_WhenEnumerateOverrideThrows()
     {
         // Arrange: seam throws to simulate COM / Windows Audio service failure.
