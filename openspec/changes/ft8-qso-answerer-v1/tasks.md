@@ -41,21 +41,21 @@
 
 ## 6. QSO Answerer State Machine
 
-- [ ] 6.1 Create `QsoAnswererService` class in `OpenWSFZ.Daemon` implementing `IHostedService`
-- [ ] 6.2 Define `QsoState` enum: `Idle`, `TxAnswer`, `WaitReport`, `TxReport`, `WaitRr73`, `Tx73`, `QsoComplete`
-- [ ] 6.3 Subscribe to decode pipeline output via `Channel<IReadOnlyList<DecodeResult>>` (wire into existing decode event publication point)
-- [ ] 6.4 Implement CQ detection in `Idle`: match pattern `CQ <callsign> <grid>`, select first result
-- [ ] 6.5 Implement `TxAnswer` → `WaitReport` transition: encode + synthesise + `KeyDownAsync`, await playback, advance state
-- [ ] 6.6 Implement `WaitReport` handler: match `<ours> <partner> <report>`; on match → `TxReport`; on partner-works-other → abort; on no-match → retry or abort
-- [ ] 6.7 Implement `TxReport` → `WaitRr73` transition: encode `<partner> <ours> R+00`, synthesise, transmit
-- [ ] 6.8 Implement `WaitRr73` handler: match RR73 or RRR addressed to us; on match → `Tx73`; on no-match → retry or abort
-- [ ] 6.9 Implement `Tx73` → `QsoComplete`: encode `<partner> <ours> 73`, transmit, signal completion
-- [ ] 6.10 Implement watchdog timer: start on leaving `Idle`; reset on each state transition; abort on expiry
-- [ ] 6.11 Implement retry counter: increment per no-response cycle; reset on state advance; abort at `tx.retryCount`
-- [ ] 6.12 Implement `POST /api/v1/tx/abort` handler: set cancellation flag, call `KeyUpAsync`, abort to `Idle`
-- [ ] 6.13 Implement `GET /api/v1/tx/status` endpoint returning current state and partner
-- [ ] 6.14 Push `txState` WebSocket events on every state transition
-- [ ] 6.15 Add unit tests for all state transitions using mock `IPttController` and injected decode batches
+- [x] 6.1 Create `QsoAnswererService` class in `OpenWSFZ.Daemon` implementing `IHostedService`
+- [x] 6.2 Define `QsoState` enum: `Idle`, `TxAnswer`, `WaitReport`, `TxReport`, `WaitRr73`, `Tx73`, `QsoComplete`
+- [x] 6.3 Subscribe to decode pipeline output via `Channel<IReadOnlyList<DecodeResult>>` (wire into existing decode event publication point)
+- [x] 6.4 Implement CQ detection in `Idle`: match pattern `CQ <callsign> <grid>`, select first result
+- [x] 6.5 Implement `TxAnswer` → `WaitReport` transition: encode + synthesise + `KeyDownAsync`, await playback, advance state
+- [x] 6.6 Implement `WaitReport` handler: match `<ours> <partner> <report>`; on match → `TxReport`; on partner-works-other → abort; on no-match → retry or abort
+- [x] 6.7 Implement `TxReport` → `WaitRr73` transition: encode `<partner> <ours> R+00`, synthesise, transmit
+- [x] 6.8 Implement `WaitRr73` handler: match RR73 or RRR addressed to us; on match → `Tx73`; on no-match → retry or abort
+- [x] 6.9 Implement `Tx73` → `QsoComplete`: encode `<partner> <ours> 73`, transmit, signal completion
+- [x] 6.10 Implement watchdog timer: start on leaving `Idle`; reset on each state transition; abort on expiry
+- [x] 6.11 Implement retry counter: increment per no-response cycle; reset on state advance; abort at `tx.retryCount`
+- [x] 6.12 Implement `POST /api/v1/tx/abort` handler: set cancellation flag, call `KeyUpAsync`, abort to `Idle`
+- [x] 6.13 Implement `GET /api/v1/tx/status` endpoint returning current state and partner
+- [x] 6.14 Push `txState` WebSocket events on every state transition
+- [x] 6.15 Add unit tests for all state transitions using mock `IPttController` and injected decode batches
 
 ## 7. ADIF Log Writer
 

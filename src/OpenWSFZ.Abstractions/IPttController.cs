@@ -22,12 +22,21 @@ namespace OpenWSFZ.Abstractions;
 public interface IPttController : IAsyncDisposable
 {
     /// <summary>
+    /// Loads the TX audio buffer that will be played by the next <see cref="KeyDownAsync"/>
+    /// call.  Must be called before <see cref="KeyDownAsync"/>.
+    /// </summary>
+    /// <param name="samples">
+    /// Mono float32 PCM at 48 000 Hz, amplitude in [−0.5, +0.5].
+    /// </param>
+    void LoadAudio(float[] samples);
+
+    /// <summary>
     /// Begins transmission. For <c>AudioOnlyPttController</c>, starts WASAPI playback
     /// of the pre-loaded audio buffer.
     /// </summary>
     /// <param name="ct">Cancellation token; cancellation stops the transmission.</param>
     /// <exception cref="InvalidOperationException">
-    /// Thrown by <c>AudioOnlyPttController</c> if <c>LoadAudio</c> has not been called.
+    /// Thrown if <see cref="LoadAudio"/> has not been called before this method.
     /// </exception>
     Task KeyDownAsync(CancellationToken ct = default);
 

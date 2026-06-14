@@ -336,6 +336,9 @@ public static class WebApp
         // Capture ICatController (lifecycle control — retry on demand).
         var catController = app.Services.GetService<ICatController>();
 
+        // Capture IQsoAnswerer (may be null in tests or when the TX subsystem is not wired).
+        var qsoAnswerer = app.Services.GetService<IQsoAnswerer>();
+
         app.MapPost("/api/v1/tune", async (
             HttpRequest       request,
             IConfigStore      store,
@@ -411,6 +414,22 @@ public static class WebApp
 
             catController.TriggerRetry();
             return Results.NoContent();
+        });
+
+        // ── TX / QSO answerer endpoints (FR-047) ─────────────────────────────
+
+        app.MapGet("/api/v1/tx/status", () =>
+        {
+            var state   = qsoAnswerer?.State   ?? QsoState.Idle;
+            var partner = qsoAnswerer?.Partner;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner));
+        });
+
+        app.MapPost("/api/v1/tx/abort", async (CancellationToken ct) =>
+        {
+            if (qsoAnswerer is not null)
+                await qsoAnswerer.AbortAsync(ct);
+            return Results.Ok();
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────
