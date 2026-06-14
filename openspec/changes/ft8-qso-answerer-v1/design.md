@@ -25,7 +25,7 @@ Test fixture: VoiceMeeter software audio loopback. No radio hardware. PTT = audi
 - Caller role (originating CQ) — deferred
 - Manual CQ selection — deferred (TX-D01)
 - Configurable TX frequency offset — deferred (TX-D02)
-- Real callsign/grid in settings UI — deferred (TX-D03)
+- Real callsign/grid in settings UI — ~~deferred (TX-D03)~~ **implemented** (live-run fix, post-8.2)
 - SNR-derived signal reports — deferred (TX-D04)
 - Serial/CAT/VOX PTT — deferred
 - General Settings page — deferred (TX-D07)

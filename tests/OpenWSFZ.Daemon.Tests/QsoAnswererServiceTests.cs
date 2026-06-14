@@ -151,6 +151,48 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await pttDisabled.DisposeAsync();
     }
 
+    [Fact(DisplayName = "FR-050: CQ is ignored when AutoAnswer=true but callsign/grid are empty (crash guard)")]
+    public async Task Idle_EmptyCallsignOrGrid_CqIgnored()
+    {
+        // Reproduces the live crash: AutoAnswer enabled but callsign/grid not configured.
+        var unconfiguredStore = Substitute.For<IConfigStore>();
+        unconfiguredStore.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = "",          // ← unconfigured (would produce malformed FT8 message)
+                Grid            = "",          // ← unconfigured
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        });
+
+        var pttEmpty = Substitute.For<IPttController>();
+        pttEmpty.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        pttEmpty.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var adifLog = new AdifLogWriter(unconfiguredStore, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, unconfiguredStore, pttEmpty,
+                          new TxEventBus(), adifLog, NullLogger<QsoAnswererService>.Instance);
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // A CQ arrives — must be suppressed because callsign/grid are empty.
+        channel.Writer.TryWrite([Make($"CQ {PartnerCall} {PartnerGrid}")]);
+        await Task.Delay(300);
+
+        sut.State.Should().Be(QsoState.Idle,
+            "empty callsign/grid must suppress TX even when auto-answer is enabled");
+        await pttEmpty.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await pttEmpty.DisposeAsync();
+    }
+
     // ── Task 6.4: CQ detection ────────────────────────────────────────────────
 
     [Fact(DisplayName = "6.4: CQ in Idle triggers TxAnswer then WaitReport")]

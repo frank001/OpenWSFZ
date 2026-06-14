@@ -71,9 +71,10 @@
 ## 8. Integration & Validation
 
 - [x] 8.1 Build solution; confirm 0 errors, 0 warnings
-- [x] 8.2 Run full test suite; confirm all existing 341 tests pass plus new tests green
+- [x] 8.2 Run full test suite; confirm all existing tests pass plus new tests green (435 total as of task 8.8)
 - [ ] 8.3 Run loopback validation: WSJT-X sends CQ via VoiceMeeter → OpenWSFZ auto-answers → full 6-message exchange completes → ADIF.log entry written → WSJT-X logs the contact
 - [ ] 8.4 Verify WSJT-X reports DT within ±0.5 s for OpenWSFZ transmissions
 - [ ] 8.5 Verify operator abort (`POST /api/v1/tx/abort`) stops TX mid-QSO and returns to Idle
 - [ ] 8.6 Verify watchdog abort: configure `tx.watchdogMinutes = 1`, allow WSJT-X to go silent mid-QSO; confirm abort logged and no ADIF entry written
 - [x] 8.7 Update G3 traceability gate to include new spec IDs
+- [x] 8.8 Live-run crash fix: guard against empty callsign/grid in `HandleIdleAsync`; add callsign + grid input fields to Settings UI; update `settings.js` to load/save/snapshot both fields (TX-D03 implemented; regression test added)

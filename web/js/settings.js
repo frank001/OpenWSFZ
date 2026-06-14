@@ -41,6 +41,8 @@ const catStatusValue     = /** @type {HTMLElement}       */ (document.getElement
 const catRetryBtn        = /** @type {HTMLButtonElement} */ (document.getElementById('cat-retry-btn'));
 
 // TX auto-answer controls
+const txCallsign   = /** @type {HTMLInputElement} */ (document.getElementById('tx-callsign'));
+const txGrid       = /** @type {HTMLInputElement} */ (document.getElementById('tx-grid'));
 const txAutoAnswer = /** @type {HTMLInputElement} */ (document.getElementById('tx-auto-answer'));
 
 // Logging controls
@@ -204,6 +206,11 @@ function snapshotForm() {
       rigctldHost:        catRigctldHost.value.trim(),
       rigctldPort:        catRigctldPort.value,
       pollIntervalSeconds: catPollInterval.value,
+    },
+    tx: {
+      autoAnswer: txAutoAnswer.checked,
+      callsign:   txCallsign.value.trim(),
+      grid:       txGrid.value.trim().toUpperCase(),
     },
     // FR-043: include frequency table in dirty-state comparison (FR-040).
     _frequencies:         snapshotFrequencies(),
@@ -464,6 +471,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // TX auto-answer (ft8-qso-answerer-v1).
     const tx = config.tx ?? {};
+    txCallsign.value     = tx.callsign   ?? 'Q1OFZ';
+    txGrid.value         = tx.grid       ?? 'JO33';
     txAutoAnswer.checked = tx.autoAnswer ?? false;
 
     // FR-043: populate the frequencies table.
@@ -630,7 +639,11 @@ saveBtn.addEventListener('click', async () => {
   };
 
   // TX auto-answer config (ft8-qso-answerer-v1).
+  // callsign and grid are normalised to upper-case; fall back to placeholder
+  // defaults so the server never receives null/empty strings.
   const tx = {
+    callsign:   txCallsign.value.trim().toUpperCase()   || 'Q1OFZ',
+    grid:       txGrid.value.trim().toUpperCase()        || 'JO33',
     autoAnswer: txAutoAnswer.checked,
   };
 

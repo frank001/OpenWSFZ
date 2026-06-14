@@ -233,6 +233,18 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         if (!tx.AutoAnswer)
             return;
 
+        // Guard: callsign and grid must be configured before transmitting (FR-050).
+        // An empty/whitespace callsign would produce a malformed FT8 message that
+        // ft8_lib rejects at encode time.  Log a clear warning and stay Idle so
+        // the operator knows why TX is suppressed.
+        if (string.IsNullOrWhiteSpace(tx.Callsign) || string.IsNullOrWhiteSpace(tx.Grid))
+        {
+            _logger.LogWarning(
+                "QsoAnswererService: TX suppressed — callsign or grid is not configured. " +
+                "Set both in Settings → FT8 auto-answer (TX) before enabling auto-answer.");
+            return;
+        }
+
         // Scan for the first CQ in the batch (FR-050: auto-answer first decoded CQ).
         DecodeResult? cqResult = null;
         string        partner  = string.Empty;
