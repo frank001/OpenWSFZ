@@ -242,6 +242,52 @@ public sealed class JsonConfigStoreTests
         reloaded.Current.AudioDeviceFriendlyName.Should().Be("Test Microphone");
     }
 
+    // ── Task 8.3: audioOutputDeviceId / audioOutputFriendlyName round-trip ───────
+
+    [Fact(DisplayName = "FR-NEW: AppConfig.AudioOutputDeviceId and AudioOutputFriendlyName default to null")]
+    public void AppConfig_AudioOutputFields_DefaultToNull()
+    {
+        var config = new AppConfig();
+
+        config.AudioOutputDeviceId.Should().BeNull(
+            "AudioOutputDeviceId must default to null so existing config files load without error");
+        config.AudioOutputFriendlyName.Should().BeNull(
+            "AudioOutputFriendlyName must default to null so existing config files load without error");
+    }
+
+    [Fact(DisplayName = "FR-NEW: Config without audioOutputDeviceId deserialises to null (backward compat)")]
+    public void Load_Deserialises_AudioOutputDeviceId_AsNull_WhenFieldAbsentFromFile()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+
+        // Write a config that has no audioOutputDeviceId or audioOutputFriendlyName field.
+        File.WriteAllText(configPath, """{"audioDeviceId":"mic","port":8080}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.AudioOutputDeviceId.Should().BeNull(
+            "a config file written before audio output device support must load with AudioOutputDeviceId: null");
+        store.Current.AudioOutputFriendlyName.Should().BeNull(
+            "a config file written before audio output device support must load with AudioOutputFriendlyName: null");
+    }
+
+    [Fact(DisplayName = "FR-NEW: AudioOutputDeviceId and AudioOutputFriendlyName round-trip via config file")]
+    public async Task AudioOutputDevice_RoundTrips()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        await store.SaveAsync(new AppConfig(
+            AudioOutputDeviceId:     "{0.0.0.00000000}.{render-test-guid}",
+            AudioOutputFriendlyName: "Speakers (USB Headset)"));
+
+        var reloaded = new JsonConfigStore(configPath);
+        reloaded.Current.AudioOutputDeviceId.Should().Be("{0.0.0.00000000}.{render-test-guid}");
+        reloaded.Current.AudioOutputFriendlyName.Should().Be("Speakers (USB Headset)");
+    }
+
     // ── p6: LoggingConfig defaults and round-trip ─────────────────────────────────
 
     [Fact(DisplayName = "FR-022: AppConfig.Logging defaults to file logging disabled")]

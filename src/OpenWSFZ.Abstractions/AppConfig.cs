@@ -5,10 +5,14 @@ namespace OpenWSFZ.Abstractions;
 /// </summary>
 public sealed record AppConfig(
     /// <summary>OS-internal device identifier (WASAPI GUID, ALSA hw: string, etc.).</summary>
-    string? AudioDeviceId           = null,
+    string? AudioDeviceId             = null,
     /// <summary>Human-readable device label shown in the UI and logs.</summary>
-    string? AudioDeviceFriendlyName = null,
-    int     Port                    = 8080,
+    string? AudioDeviceFriendlyName   = null,
+    /// <summary>OS-internal render (output) device identifier for the TX audio pipeline.</summary>
+    string? AudioOutputDeviceId       = null,
+    /// <summary>Human-readable render device label shown in the UI.</summary>
+    string? AudioOutputFriendlyName   = null,
+    int     Port                      = 8080,
     bool    ShowCycleCountdown      = false,
     /// <summary>
     /// Whether the FT8 decode pipeline is enabled (FR-017).

@@ -230,10 +230,12 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
 // Create and configure the web application.
 var app = WebApp.Create(
     port,
-    configStore:          configStore,
-    frequencyStore:       frequencyStore,
-    audioProviderFactory: sp => new PlatformAudioDeviceProvider(
-                                    sp.GetRequiredService<ILoggerFactory>()),
+    configStore:                configStore,
+    frequencyStore:             frequencyStore,
+    audioProviderFactory:       sp => new PlatformAudioDeviceProvider(
+                                          sp.GetRequiredService<ILoggerFactory>()),
+    audioOutputProviderFactory: sp => new PlatformAudioOutputDeviceProvider(
+                                          sp.GetRequiredService<ILoggerFactory>()),
     captureManager:       captureManager,
     audioMonitor:         audioMonitor,
     dataFlowMonitor:      dataFlowMonitor,
