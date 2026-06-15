@@ -681,8 +681,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     public async Task Watchdog_FiresBeforeRetryExhaustion_WhenPartnerSilent()
     {
         // Arrange: very short watchdog so the test does not wait 60 s.
-        // RetryCount=10 means the retry path would take 10+ cycles (>5 minutes) to exhaust.
-        // If D-008 is fixed the watchdog fires after ~300 ms; if broken, retries keep resetting it.
+        // RetryCount=100 — if D-008 is present, retries reset the watchdog on every cycle
+        // and Idle is never reached as long as the channel keeps being fed.
+        // If D-008 is fixed, the watchdog fires independently at ~300 ms.
         var watchdogDuration = TimeSpan.FromMilliseconds(300);
 
         var ptt = Substitute.For<IPttController>();
@@ -697,15 +698,14 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
                 AutoAnswer      = true,
                 Callsign        = OurCallsign,
                 Grid            = OurGrid,
-                RetryCount      = 10,    // large — watchdog must fire first
-                WatchdogMinutes = 4,     // value is overridden by watchdogDuration below
+                RetryCount      = 100,   // enormous — watchdog must fire long before this
+                WatchdogMinutes = 4,     // overridden by watchdogDuration below
             }
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
 
-        // Use the internal test constructor that accepts a watchdog duration override.
         var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
                       adifLog, NullLogger<QsoAnswererService>.Instance,
                       watchdogDurationOverride: watchdogDuration);
@@ -714,31 +714,37 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StartAsync(stopCts.Token);
 
         // Trigger CQ answer → WaitReport.
-        channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]);
+        channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
+            $"CQ {PartnerCall} {PartnerGrid}")]);
         await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
 
-        // Send silence cycles — partner is not responding.
-        // Feed enough cycles that the retry path would reset the watchdog (if the bug is present).
-        for (var i = 0; i < 5; i++)
+        // Feed noise continuously so retries keep cycling without pause.
+        // With the D-008 fix:  watchdog fires ~300 ms after WaitReport → Idle by ~400 ms.
+        // With the D-008 bug:  every retry resets the watchdog to 300 ms; the channel never
+        //                      empties; Idle is never reached → WaitForStateAsync times out.
+        using var feedCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var feedTask = Task.Run(async () =>
         {
-            channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "CQ Q2NOISE IO91")]);
-            await Task.Delay(50);
-        }
+            while (!feedCts.IsCancellationRequested)
+            {
+                channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
+                    "CQ Q2NOISE IO91")]);
+                try   { await Task.Delay(10, feedCts.Token); }
+                catch (OperationCanceledException) { break; }
+            }
+        });
 
-        // Assert: watchdog fires and aborts to Idle well before retry exhaustion.
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
-        sut.State.Should().Be(QsoState.Idle,
-            "watchdog must abort the session independently of the retry counter");
+        // Tight deadline distinguishes the two paths.
+        // Fixed:  watchdog fires → Idle reached within ~300 ms → WaitForStateAsync returns normally.
+        // Buggy:  every retry resets the watchdog; Idle is never reached → TimeoutException at 600 ms.
+        // WaitForStateAsync throws on timeout, so reaching the next line is the assertion.
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromMilliseconds(600));
 
-        // Retry counter did not reach 10 — watchdog fired first.
-        // ReceivedCalls() counts all calls; KeyDown count must be well below RetryCount=10.
-        var keyDownCalls = ptt.ReceivedCalls()
-                              .Count(c => c.GetMethodInfo().Name == nameof(IPttController.KeyDownAsync));
-        // D-008: with the fix, only TxAnswer (1) + at most 2 retry TXs before the channel
-        // empties = 3 total. A bound of 4 is tight enough to catch the regression (without the
-        // fix and with continuous feeding the count can reach 10) while tolerating scheduler jitter.
-        keyDownCalls.Should().BeLessThan(4,
-            "watchdog must abort the QSO with no more than one retry TX cycle (TxAnswer + 1 retry)");
+        // Cancel the feeder AFTER confirming Idle. No state assertion here: the continuous feeder
+        // may have already queued another CQ that the service will answer, transitioning back to
+        // TxAnswer before sut.State can be read — a spurious race, not a D-008 regression.
+        feedCts.Cancel();
+        await feedTask;
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
