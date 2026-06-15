@@ -734,11 +734,13 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             }
         });
 
-        // Tight deadline distinguishes the two paths.
-        // Fixed:  watchdog fires → Idle reached within ~300 ms → WaitForStateAsync returns normally.
-        // Buggy:  every retry resets the watchdog; Idle is never reached → TimeoutException at 600 ms.
+        // Deadline distinguishes the two paths (1 500 ms < 2 000 ms feeder window).
+        // Fixed:  watchdog fires → Idle reached within ~300–500 ms even on a slow CI runner →
+        //         WaitForStateAsync returns normally.
+        // Buggy:  every retry resets the watchdog; Idle is never reached while feeder runs (2 s) →
+        //         TimeoutException at 1 500 ms (safely below the 2 000 ms feeder window).
         // WaitForStateAsync throws on timeout, so reaching the next line is the assertion.
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromMilliseconds(600));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromMilliseconds(1500));
 
         // Cancel the feeder AFTER confirming Idle. No state assertion here: the continuous feeder
         // may have already queued another CQ that the service will answer, transitioning back to
