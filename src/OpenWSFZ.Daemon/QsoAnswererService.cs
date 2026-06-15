@@ -58,6 +58,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     private string   _lastTxMessage = string.Empty;
     private int      _lastTxFreqHz  = 0;
     private string   _rstRcvd       = "+00"; // signal report received from partner
+    private string?  _partnerGrid   = null;  // grid extracted from the CQ; written to ADIF
     private int      _retryCount    = 0;
     private DateTime _qsoStartUtc   = DateTime.MinValue;
 
@@ -249,12 +250,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         DecodeResult? cqResult = null;
         string        partner  = string.Empty;
 
+        string? cqGrid = null;
         foreach (var r in batch)
         {
-            if (TryParseCq(r.Message, out var callsign, out _))
+            if (TryParseCq(r.Message, out var callsign, out var grid))
             {
                 cqResult = r;
                 partner  = callsign;
+                cqGrid   = grid;
                 break;
             }
         }
@@ -267,6 +270,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
 
         // Record session state.
         _partner      = partner;
+        _partnerGrid  = cqGrid;
         _retryCount   = 0;
         _rstRcvd      = "+00";
         _lastTxFreqHz = cqResult.FreqHz;
@@ -413,7 +417,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         var record = new QsoRecord
         {
             PartnerCallsign  = partner,
-            PartnerGrid      = null,               // grid not tracked at this layer
+            PartnerGrid      = _partnerGrid,       // captured from the CQ decode
             RstSent          = "R+00",
             RstRcvd          = _rstRcvd,
             QsoStartUtc      = _qsoStartUtc,
@@ -498,10 +502,20 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     private async Task SafeAbortToIdleAsync(CancellationToken stoppingToken)
     {
         var wasPartner = _partner;
-        _partner = null;
+        _partner     = null;
+        _partnerGrid = null;
 
         // Replace the TX CTS with a fresh no-timeout CTS so the next session starts clean.
         // Do NOT dispose the old CTS here — AbortAsync may be holding a reference to it.
+        //
+        // RACE NOTE: AbortAsync (HTTP thread) reads _txCts and _state without a lock.
+        // Between this CTS replacement and the subsequent _state = QsoState.Idle write,
+        // an AbortAsync call could read the new CTS and cancel it, wrongly aborting the
+        // next session before it starts.  The service loop self-heals: ReadNextBatchAsync
+        // observes the cancelled token, re-enters SafeAbortToIdleAsync, and produces a
+        // third fresh CTS.  The operator sees one spurious abort log line.  Accepted risk:
+        // the window spans one KeyUpAsync call and requires a concurrent HTTP abort at
+        // precisely that moment during an already-aborting session.
         _txCts = new CancellationTokenSource();
 
         // Stop any active TX output.

@@ -251,7 +251,9 @@ float ft8_get_last_noise_floor_db(void);
  *      the native error code (ftx_message_rc_t) is NOT returned separately —
  *      the managed wrapper should throw InvalidOperationException.
  *
- * Thread-safe: uses a local callsign table on the stack; no TLS state modified.
+ * Thread-safe (per-thread): saves and restores the TLS hash-table pointer for the
+ * duration of the call; each OS thread has its own TLS slot so concurrent calls
+ * on separate threads do not interfere with each other.
  */
 int ft8_encode_message(const char* message, uint8_t* tones_out, int tones_capacity);
 

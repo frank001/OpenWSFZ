@@ -71,7 +71,7 @@
 ## 8. Integration & Validation
 
 - [x] 8.1 Build solution; confirm 0 errors, 0 warnings
-- [x] 8.2 Run full test suite; confirm all existing tests pass plus new tests green (435 total as of task 8.8)
+- [x] 8.2 Run full test suite; confirm all existing tests pass plus new tests green (377 total as of task 8.8)
 - [ ] 8.3 Run loopback validation: WSJT-X sends CQ via VoiceMeeter → OpenWSFZ auto-answers → full 6-message exchange completes → ADIF.log entry written → WSJT-X logs the contact
 - [ ] 8.4 Verify WSJT-X reports DT within ±0.5 s for OpenWSFZ transmissions
 - [ ] 8.5 Verify operator abort (`POST /api/v1/tx/abort`) stops TX mid-QSO and returns to Idle

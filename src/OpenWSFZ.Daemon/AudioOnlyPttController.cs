@@ -199,9 +199,17 @@ public sealed class AudioOnlyPttController : IPttController
         }
 
         // Wait outside the lock so KeyUpAsync can acquire it to stop playback.
+        // Register callback is synchronous — await is not available, so KeyUpAsync is
+        // fire-and-forget.  Observe the task to prevent an unhandled exception on the
+        // finaliser thread; StopAndReleasePlayer already catches and logs internally so
+        // a fault here indicates a genuinely unexpected failure.
         using var reg = ct.Register(() =>
         {
-            _ = KeyUpAsync(CancellationToken.None);
+            KeyUpAsync(CancellationToken.None).ContinueWith(
+                t => _logger.LogWarning(t.Exception, "KeyUpAsync threw during cancellation — ignoring."),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
             tcs.TrySetCanceled();
         });
 
