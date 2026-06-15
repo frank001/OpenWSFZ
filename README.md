@@ -17,14 +17,16 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.20**. v0.x scope: FT8 receive and transmit,
+> The current release is **v0.21**. v0.x scope: FT8 receive and transmit,
 > CAT rig control, loopback-only web UI, single operator.
 > v1.0 is reached when the software can complete a confirmed two-way contact
-> end-to-end (RX + CAT rig control + TX). LAN/remote operation and the wider
-> mode menu are deferred to v1.0+.
+> end-to-end over RF (RX + CAT rig control + TX on-air). LAN/remote operation
+> and the wider mode menu are deferred to v1.0+.
 
-All twenty development phases to date are merged and archived. FT8 decoding
-is **fully functional** against live audio and recorded fixtures.
+All development phases to date are merged and archived. FT8 decoding
+**and transmitting** are fully functional against live audio and recorded fixtures.
+A complete automated six-message FT8 QSO exchange has been validated via
+VoiceMeeter software loopback.
 
 | Phase | Deliverable | State |
 |---|---|---|
@@ -48,6 +50,7 @@ is **fully functional** against live audio and recorded fixtures.
 | p18 — Settings dirty state | "Unsaved changes" badge and breadcrumb/browser navigation guard (FR-040, FR-041) | ✅ merged |
 | p19 — Frequency management | Configurable FT8 frequency list; `FrequencyStore`; REST tune endpoint; dial-frequency selector on main page (FR-042–FR-045) | ✅ merged |
 | p20 — FA digit width | Self-calibrating digit-width computation in `SerialCatConnection` FA tune command | ✅ merged |
+| ft8-qso-answerer-v1 — FT8 TX & QSO answerer | FT8 TX pipeline (native encode, GFSK synthesis, WASAPI playback); `IPttController` abstraction; QSO answerer state machine (auto-answer CQ, 6-message exchange, retry, watchdog, operator abort); ADIF 3.x log writer; `tx` config section; Settings TX fields | ✅ merged |
 
 ## Decoder Measurement System Analysis (Gage R&R)
 
@@ -69,26 +72,25 @@ log files. Signals are synthesised by an independent clean-room FT8 encoder (tex
 → PCM) so that truth is exactly known for every trial. Each trial draws a fresh seeded
 noise realisation, giving non-zero repeatability variance.
 
-### Latest validated results — S1: [`0a0f8a5`](qa/rr-study/results/2026-06-11-0682106/report-v2.md) (2026-06-11) · S2–S8: [`e4a3982`](qa/rr-study/results/2026-06-07-4b3a4ca/report-v2.md) (2026-06-07)
+### Latest validated results — S1–S8: [`815b652`](qa/rr-study/results/2026-06-14-815b652/report.md) (2026-06-14, shim 20260016)
 
 | Scenario | Metric | Value | Verdict |
 |---|---|---|---|
-| S1 SNR | %GR&R | 0.5% | ✅ PASS |
-| S1 SNR | ndc | 19 | ✅ PASS |
-| S1 SNR | OpenWSFZ bias | +1.78 dB | ✅ PASS |
-| S1b Low-SNR threshold | Decode rate (both apps) | 0% @ −24/−21 dB, 100% @ −18/−15 dB | ℹ️ Informational |
+| S1 SNR | %GR&R | 0.3% | ✅ PASS |
+| S1 SNR | ndc | 27 | ✅ PASS |
+| S1 SNR | OpenWSFZ bias | +1.42 dB | ✅ PASS |
+| S1b Low-SNR threshold | Decode rate (both apps) | 0% @ −21 dB | ℹ️ Informational |
 | S2 Frequency | %GR&R | 0.0% | ✅ PASS |
 | S2 Frequency | ndc | 1 536 | ✅ PASS |
-| S3 DT | %GR&R | 3.4% | ✅ PASS |
+| S3 DT | %GR&R | 3.0% | ✅ PASS |
 | S3 DT | ndc | 7 | ✅ PASS |
 | S4/S5 Detection | κ (OpenWSFZ vs truth) | 1.000 | ✅ PASS |
 | S5 False positives | FP rate (OpenWSFZ) | 0.0% | ✅ PASS |
-| S7 Co-channel | Overall recovery | 56.99% vs WSJT-X 76.3% | ℹ️ Informational |
+| S7 Co-channel | Overall recovery | 50.54% vs WSJT-X 77.42% | ℹ️ Informational |
 
-**Overall: PASS.**  S1 re-validated at `0a0f8a5` (2026-06-11): %GR&R 0.5%, ndc 19,
-bias +1.78 dB within the ±2.0 dB threshold.  S7 co-channel gap remains informational;
-the active D-001 investigation baseline is 56.99% at shim 20260010
-(run [`cd9f06b`](qa/rr-study/results/2026-06-13-cd9f06b/report-v2.md), 2026-06-13).
+**Overall: PASS.**  Full S1–S8 regression gate run at `815b652` (2026-06-14, shim 20260016):
+all metric gates pass.  S7 co-channel gap remains informational (D-001, open);
+five shim-level hypotheses exhausted; current H4 variability band 43–57%.
 
 See [`qa/rr-study/STUDY-SPEC.md`](qa/rr-study/STUDY-SPEC.md) for the full study design
 and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedure.
@@ -119,6 +121,21 @@ subtraction, planned for a future change.
   `http://127.0.0.1:8080` (port is configurable).
 - **FT8 decoding** is fully operational: the daemon decodes received signals
   each 15-second cycle and logs messages in WSJT-X all.txt format.
+- **FT8 transmit** — the daemon can encode and transmit FT8 messages via
+  any WASAPI output device. Audio is synthesised in managed C# from native
+  FT8 tone sequences (continuous-phase GFSK, 48 kHz, ±0.5 peak amplitude).
+- **QSO answerer** — an automated state machine listens for decoded CQs and
+  conducts the full six-message FT8 exchange (answer → signal report →
+  roger report → RR73/RRR → 73). Configurable retry count (default 3) and
+  watchdog timer (default 4 minutes). Operator abort is available via
+  `POST /api/v1/tx/abort`. State is exposed via `GET /api/v1/tx/status` and
+  pushed in real time over WebSocket. Auto-answer is off by default and
+  must be enabled explicitly in Settings. Validated via VoiceMeeter
+  software loopback against WSJT-X (three complete QSOs logged).
+- **ADIF logging** — a completed QSO appends one ADIF 3.x record to
+  `ADIF.log` (beside `ALL.TXT`), with correct `TIME_ON`/`TIME_OFF` in
+  `HHMMSS` format, ITU band derivation from dial frequency, and graceful
+  handling of write failures.
 - **Audio device enumeration** returns real devices on Windows (WASAPI),
   Linux (ALSA via `arecord`), and macOS (sox).
 - **PCM audio capture** streams 32-bit float mono at 12 000 Hz from the
@@ -130,7 +147,8 @@ subtraction, planned for a future change.
   changes are persisted to a JSON config file. Available serial ports are
   enumerated automatically and presented as a dropdown. An "Unsaved changes"
   badge appears when the form is dirty, and a navigation guard prevents
-  accidental loss of edits.
+  accidental loss of edits. TX fields (callsign, grid, auto-answer toggle,
+  watchdog minutes, retry count) are pre-populated from the loaded config.
 - **CAT rig control** — live dial frequency readout via two selectable
   transports: `SerialCatConnection` (direct serial, `FA;` command) and
   `RigctldConnection` (TCP client to a running `rigctld` daemon). CAT status
@@ -144,8 +162,8 @@ subtraction, planned for a future change.
   config directly.
 - **File logging** — per-session log files are written to a configurable
   directory with automatic retention enforcement.
-- **WebSocket** pushes live status events (including `audioActive` and
-  `catStatus` state) to connected browser tabs.
+- **WebSocket** pushes live status events (including `audioActive`,
+  `catStatus`, and `txState`) to connected browser tabs.
 - **Dark-theme UI** with a real-time waterfall displaying live spectrogram
   data from the active audio device (visual polish is ongoing).
 - **Cross-platform native decoder**: pre-built `libft8` binaries are bundled
@@ -221,8 +239,8 @@ The build and test suite has been verified on all three target platforms:
 
 | Platform | Build | Tests | CI |
 |---|---|---|---|
-| Windows x64 | ✅ 0 warnings | ✅ 341 passed | ✅ GitHub Actions |
-| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 341 passed | ✅ GitHub Actions |
+| Windows x64 | ✅ 0 warnings | ✅ 442 passed | ✅ GitHub Actions |
+| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 442 passed | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
 
 All five CI gates pass on every platform:
@@ -235,14 +253,19 @@ All five CI gates pass on every platform:
 
 ## Architecture
 
-OpenWSFZ v0.x is a single native executable with three concurrent roles:
+OpenWSFZ v0.x is a single native executable with four concurrent roles:
 
 1. **Audio capture & decode pipeline** — captures PCM from a USB audio device,
    frames it for FT8's 15-second cycle, decodes once per cycle via the bundled
    `ft8_lib` native library, and publishes decoded messages.
-2. **Embedded web server** — serves the browser UI over loopback (Kestrel),
-   REST for config, WebSocket for live events.
-3. **Configuration manager** — reads and writes a JSON config file; propagates
+2. **FT8 TX pipeline** — encodes FT8 messages via the native shim, synthesises
+   GFSK audio at 48 kHz, and plays it through the configured WASAPI output device.
+   The `QsoAnswererService` drives a six-state FSM (Idle → TxAnswer → WaitReport
+   → TxReport → WaitRr73 → Tx73 → QsoComplete) and writes ADIF records on
+   completion.
+3. **Embedded web server** — serves the browser UI over loopback (Kestrel),
+   REST for config and TX control, WebSocket for live events.
+4. **Configuration manager** — reads and writes a JSON config file; propagates
    changes to the running daemon without a restart.
 
 The FT8 decode engine is [kgoba/ft8_lib](https://github.com/kgoba/ft8_lib),
