@@ -68,6 +68,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     // Never Disposed to avoid ObjectDisposedException race in AbortAsync; let GC handle old instances.
     private volatile CancellationTokenSource _txCts = new();
 
+    // Non-null only in unit tests; overrides the watchdog duration so tests don't wait 60+ seconds.
+    private readonly TimeSpan? _watchdogDurationOverride;
+
     // ── Constructors ──────────────────────────────────────────────────────────
 
     /// <summary>Production constructor — all dependencies from DI.</summary>
@@ -85,6 +88,22 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         _txEventBus    = txEventBus;
         _adifLog       = adifLog;
         _logger        = logger;
+    }
+
+    /// <summary>
+    /// Test constructor — allows watchdog duration override to avoid 1-minute waits in unit tests.
+    /// </summary>
+    internal QsoAnswererService(
+        ChannelReader<IReadOnlyList<DecodeResult>> decodeChannel,
+        IConfigStore                               configStore,
+        IPttController                             pttController,
+        TxEventBus                                 txEventBus,
+        AdifLogWriter                              adifLog,
+        ILogger<QsoAnswererService>                logger,
+        TimeSpan                                   watchdogDurationOverride)
+        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, logger)
+    {
+        _watchdogDurationOverride = watchdogDurationOverride;
     }
 
     // ── IQsoAnswerer ──────────────────────────────────────────────────────────
@@ -467,7 +486,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         // Retransmit the last TX message.
         await TransmitAsync(_lastTxMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
         _skipNextRetry = true; // A-01: retry TX window also needs its silence cycle skipped
-        ResetWatchdog(tx);
+        // D-008: watchdog is NOT reset here — retries are not state transitions.
+        // The timer runs uninterrupted across retry cycles; genuine forward transitions
+        // (HandleIdleAsync, HandleWaitReportAsync, ExecuteTx73Async) still call ResetWatchdog.
         // Stay in current state (WaitReport or WaitRr73).
     }
 
@@ -492,6 +513,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         // Link stoppingToken + _txCts so both watchdog and operator abort interrupt TX.
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _txCts.Token);
         await _pttController.KeyDownAsync(linked.Token).ConfigureAwait(false);
+        // D-007: KeyDownAsync may return normally even when cancelled (audio stops but no exception).
+        // Throw here so the abort propagates up through the state machine instead of advancing state.
+        linked.Token.ThrowIfCancellationRequested();
 
         _logger.LogDebug("QsoAnswererService: TX complete for \"{Message}\".", message);
     }
@@ -565,7 +589,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         // Clamp defensively: WatchdogMinutes < 1 would cause CancelAfter(TimeSpan.Zero)
         // which cancels the CTS immediately, aborting TX before it starts.
         var minutes = Math.Max(1, tx.WatchdogMinutes);
-        var timeout = TimeSpan.FromMinutes(minutes);
+        // _watchdogDurationOverride is non-null only in unit tests; avoids 60-second waits.
+        var timeout = _watchdogDurationOverride ?? TimeSpan.FromMinutes(minutes);
         _txCts.CancelAfter(timeout);
         _logger.LogDebug("QsoAnswererService: watchdog armed for {Minutes} minutes.", minutes);
     }
@@ -578,7 +603,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     {
         // Clamp defensively — same rationale as StartWatchdog.
         var minutes = Math.Max(1, tx.WatchdogMinutes);
-        var timeout = TimeSpan.FromMinutes(minutes);
+        // _watchdogDurationOverride is non-null only in unit tests; avoids 60-second waits.
+        var timeout = _watchdogDurationOverride ?? TimeSpan.FromMinutes(minutes);
         // Create a fresh CTS with the new timeout; the old one is dropped (GC will collect it).
         _txCts = new CancellationTokenSource(timeout);
         _logger.LogDebug("QsoAnswererService: watchdog reset for {Minutes} minutes.", minutes);
