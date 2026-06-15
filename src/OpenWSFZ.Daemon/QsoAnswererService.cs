@@ -432,19 +432,21 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
 
     private async Task RetryOrAbortAsync(TxConfig tx, CancellationToken stoppingToken)
     {
+        // Clamp defensively: RetryCount < 1 would cause abort on the very first no-response cycle.
+        var maxRetries = Math.Max(1, tx.RetryCount);
         _retryCount++;
-        if (_retryCount > tx.RetryCount)
+        if (_retryCount > maxRetries)
         {
             _logger.LogInformation(
                 "QsoAnswererService: retry count {Count} exceeded {Max} — aborting QSO with {Partner}.",
-                _retryCount - 1, tx.RetryCount, _partner);
+                _retryCount - 1, maxRetries, _partner);
             await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
             return;
         }
 
         _logger.LogInformation(
             "QsoAnswererService: no response from {Partner} (retry {Retry}/{Max}) — retransmitting.",
-            _partner, _retryCount, tx.RetryCount);
+            _partner, _retryCount, maxRetries);
 
         // Retransmit the last TX message.
         await TransmitAsync(_lastTxMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
@@ -532,9 +534,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     /// </summary>
     private void StartWatchdog(TxConfig tx)
     {
-        var timeout = TimeSpan.FromMinutes(tx.WatchdogMinutes);
+        // Clamp defensively: WatchdogMinutes < 1 would cause CancelAfter(TimeSpan.Zero)
+        // which cancels the CTS immediately, aborting TX before it starts.
+        var minutes = Math.Max(1, tx.WatchdogMinutes);
+        var timeout = TimeSpan.FromMinutes(minutes);
         _txCts.CancelAfter(timeout);
-        _logger.LogDebug("QsoAnswererService: watchdog armed for {Minutes} minutes.", tx.WatchdogMinutes);
+        _logger.LogDebug("QsoAnswererService: watchdog armed for {Minutes} minutes.", minutes);
     }
 
     /// <summary>
@@ -543,10 +548,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     /// </summary>
     private void ResetWatchdog(TxConfig tx)
     {
-        var timeout = TimeSpan.FromMinutes(tx.WatchdogMinutes);
+        // Clamp defensively — same rationale as StartWatchdog.
+        var minutes = Math.Max(1, tx.WatchdogMinutes);
+        var timeout = TimeSpan.FromMinutes(minutes);
         // Create a fresh CTS with the new timeout; the old one is dropped (GC will collect it).
         _txCts = new CancellationTokenSource(timeout);
-        _logger.LogDebug("QsoAnswererService: watchdog reset for {Minutes} minutes.", tx.WatchdogMinutes);
+        _logger.LogDebug("QsoAnswererService: watchdog reset for {Minutes} minutes.", minutes);
     }
 
     // ── Message parsers ───────────────────────────────────────────────────────

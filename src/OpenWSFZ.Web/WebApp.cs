@@ -253,6 +253,32 @@ public static class WebApp
                     config = config with { Cat = sanitisedCat };
             }
 
+            // ── TX config validation (ft8-qso-answerer-v1) ─────────────────────
+            if (config.Tx is { } txIn)
+            {
+                var sanitisedTx = txIn;
+
+                // WatchdogMinutes < 1 → CancelAfter(TimeSpan.Zero) = immediate cancellation.
+                if (txIn.WatchdogMinutes < 1)
+                {
+                    configApiLogger.LogWarning(
+                        "TX: watchdogMinutes {Original} below minimum (1) — clamped to 1.",
+                        txIn.WatchdogMinutes);
+                    sanitisedTx = sanitisedTx with { WatchdogMinutes = 1 };
+                }
+
+                if (txIn.RetryCount < 1)
+                {
+                    configApiLogger.LogWarning(
+                        "TX: retryCount {Original} below minimum (1) — clamped to 1.",
+                        txIn.RetryCount);
+                    sanitisedTx = sanitisedTx with { RetryCount = 1 };
+                }
+
+                if (!ReferenceEquals(sanitisedTx, txIn))
+                    config = config with { Tx = sanitisedTx };
+            }
+
             await store.SaveAsync(config, ct);
             return TypedResults.Ok(store.Current);
         });
