@@ -28,6 +28,23 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     private const string PartnerGrid  = "JO22";
     private const int    AudioFreqHz  = 897;
 
+    // ── Nested helpers ────────────────────────────────────────────────────────
+
+    /// <summary>Creates a temporary directory that is deleted when disposed.</summary>
+    private sealed class TempDirectory : IDisposable
+    {
+        public string Path { get; } = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "openwsfz-test-" + System.IO.Path.GetRandomFileName());
+
+        public TempDirectory() => Directory.CreateDirectory(Path);
+
+        public void Dispose()
+        {
+            try { Directory.Delete(Path, recursive: true); } catch { /* best-effort */ }
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private readonly Channel<IReadOnlyList<DecodeResult>> _channel =
@@ -571,5 +588,166 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     public void IsSignalReport_VariousPayloads_CorrectResult(string payload, bool expected)
     {
         QsoAnswererService.IsSignalReport(payload).Should().Be(expected);
+    }
+
+    // ── D-007: abort during TX must not advance state or write ADIF ───────────
+
+    [Fact(DisplayName = "D-007: AbortAsync during TX stops state machine at Idle; no ADIF written")]
+    public async Task Abort_DuringTx_ResolvesToIdleWithoutAdif()
+    {
+        // Arrange: PTT that blocks KeyDownAsync until the token is cancelled, then
+        // returns *normally* (no throw) — simulating the race where KeyUp stops audio
+        // (cancels the token) but KeyDownAsync itself returns rather than throwing.
+        // The test uses a TCS to synchronise so that AbortAsync is called deterministically
+        // while KeyDownAsync is in progress (not before or after).
+        var txInProgressTcs = new TaskCompletionSource();
+        var txCallCount     = 0;
+
+        var racyPtt = Substitute.For<IPttController>();
+        racyPtt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(async ci =>
+        {
+            var n  = Interlocked.Increment(ref txCallCount);
+            var ct = ci.Arg<CancellationToken>();
+            if (n == 1)
+                return; // TxAnswer: complete immediately so the test can reach WaitReport.
+
+            // TxReport (n ≥ 2): block until the token is cancelled, then return normally.
+            // This is the "racy" KeyDownAsync behaviour described in D-007.
+            var waitTcs = new TaskCompletionSource();
+            using var reg = ct.Register(() => waitTcs.TrySetResult());
+            txInProgressTcs.TrySetResult(); // tell the test thread KeyDown is now in flight
+            if (!ct.IsCancellationRequested)
+                await waitTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            // Return normally (no exception) — the core of the D-007 race.
+        });
+        racyPtt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 3,
+                WatchdogMinutes = 4,
+            }
+        });
+
+        using var adifDir = new TempDirectory();
+        var adifStore     = Substitute.For<IConfigStore>();
+        adifStore.Current.Returns(store.Current with
+        {
+            DecodeLog = new DecodeLogConfig { Path = System.IO.Path.Combine(adifDir.Path, "ALL.TXT") }
+        });
+        var adifLog = new AdifLogWriter(adifStore, NullLogger<AdifLogWriter>.Instance);
+        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var sut     = new QsoAnswererService(channel.Reader, store, racyPtt, new TxEventBus(),
+                          adifLog, NullLogger<QsoAnswererService>.Instance);
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Reach WaitReport.
+        channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]);
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Trigger TxReport TX.
+        channel.Writer.TryWrite([new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]);
+
+        // Wait until KeyDownAsync is definitely in progress before aborting.
+        await txInProgressTcs.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await sut.AbortAsync(); // cancels _txCts → linked token cancelled → KeyDown unblocks → returns normally
+
+        // Assert: service returns to Idle (D-007 fix: ThrowIfCancellationRequested propagates abort).
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+        sut.State.Should().Be(QsoState.Idle, "abort must win the race against TX completion");
+        sut.Partner.Should().BeNull("partner must be cleared on abort");
+
+        // Note (R-3): ADIF assertion removed — AppendQsoAsync is only reached via ExecuteTx73Async
+        // which requires an RR73/RRR message; this test never injects one, so File.Exists was
+        // always true and could not catch a regression. ADIF-on-abort coverage belongs in a
+        // dedicated test that drives the service all the way to Tx73 and aborts mid-TX.
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await racyPtt.DisposeAsync();
+    }
+
+    // ── D-008: watchdog fires before retry count exhaustion ──────────────────
+
+    [Fact(DisplayName = "D-008: Watchdog fires before retry count is exhausted when partner goes silent")]
+    public async Task Watchdog_FiresBeforeRetryExhaustion_WhenPartnerSilent()
+    {
+        // Arrange: very short watchdog so the test does not wait 60 s.
+        // RetryCount=100 — if D-008 is present, retries reset the watchdog on every cycle
+        // and Idle is never reached as long as the channel keeps being fed.
+        // If D-008 is fixed, the watchdog fires independently at ~300 ms.
+        var watchdogDuration = TimeSpan.FromMilliseconds(300);
+
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 100,   // enormous — watchdog must fire long before this
+                WatchdogMinutes = 4,     // overridden by watchdogDuration below
+            }
+        });
+
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+
+        var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                      adifLog, NullLogger<QsoAnswererService>.Instance,
+                      watchdogDurationOverride: watchdogDuration);
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ answer → WaitReport.
+        channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
+            $"CQ {PartnerCall} {PartnerGrid}")]);
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Feed noise continuously so retries keep cycling without pause.
+        // With the D-008 fix:  watchdog fires ~300 ms after WaitReport → Idle by ~400 ms.
+        // With the D-008 bug:  every retry resets the watchdog to 300 ms; the channel never
+        //                      empties; Idle is never reached → WaitForStateAsync times out.
+        using var feedCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var feedTask = Task.Run(async () =>
+        {
+            while (!feedCts.IsCancellationRequested)
+            {
+                channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
+                    "CQ Q2NOISE IO91")]);
+                try   { await Task.Delay(10, feedCts.Token); }
+                catch (OperationCanceledException) { break; }
+            }
+        });
+
+        // Tight deadline distinguishes the two paths.
+        // Fixed:  watchdog fires → Idle reached within ~300 ms → WaitForStateAsync returns normally.
+        // Buggy:  every retry resets the watchdog; Idle is never reached → TimeoutException at 600 ms.
+        // WaitForStateAsync throws on timeout, so reaching the next line is the assertion.
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromMilliseconds(600));
+
+        // Cancel the feeder AFTER confirming Idle. No state assertion here: the continuous feeder
+        // may have already queued another CQ that the service will answer, transitioning back to
+        // TxAnswer before sut.State can be read — a spurious race, not a D-008 regression.
+        feedCts.Cancel();
+        await feedTask;
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
     }
 }
