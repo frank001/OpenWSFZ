@@ -3,8 +3,7 @@
     "OpenWSFZ.Daemon": {
       "commandName": "Project",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "OPENWSFZ_CONFIG": "%APPDATA%\\OpenWSFZ\\config.json"
+        "ASPNETCORE_ENVIRONMENT": "Development"
       }
     }
   }

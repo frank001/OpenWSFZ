@@ -19,9 +19,11 @@ public static class ConfigPathResolver
     /// Resolves the config file path and returns both the resolved path and its source
     /// (for logging at startup).
     /// Windows environment-variable placeholders (e.g. <c>%APPDATA%</c>) in the CLI
-    /// override and the <c>OPENWSFZ_CONFIG</c> environment variable are expanded so that
-    /// values from <c>launchSettings.json</c> work correctly in both IDE and
-    /// <c>dotnet run</c> contexts.
+    /// override and the <c>OPENWSFZ_CONFIG</c> environment variable are expanded, so
+    /// that operators may supply Windows-style paths on the command line or in the
+    /// environment without needing shell pre-expansion.
+    /// The platform-default path is resolved directly via
+    /// <see cref="Environment.GetFolderPath"/> and is never subject to string expansion.
     /// </summary>
     public static (string ResolvedPath, string Source) Resolve(string? cliOverride = null)
     {
