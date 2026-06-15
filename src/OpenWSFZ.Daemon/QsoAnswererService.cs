@@ -60,6 +60,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     private string   _rstRcvd       = "+00"; // signal report received from partner
     private string?  _partnerGrid   = null;  // grid extracted from the CQ; written to ADIF
     private int      _retryCount    = 0;
+    private bool     _skipNextRetry = false; // A-01: true after entering WaitReport/WaitRr73 — skip the first empty cycle (our own TX window)
     private DateTime _qsoStartUtc   = DateTime.MinValue;
 
     // Cancellation for the active TX session; cancelled on watchdog expiry or operator abort.
@@ -288,6 +289,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
 
         // Transmission completed — advance to WaitReport.
         ResetWatchdog(tx);
+        _skipNextRetry = true; // A-01: next cycle is our own TX window; do not count as missed response
         SetStateAndNotify(QsoState.WaitReport);
     }
 
@@ -319,6 +321,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
                     _logger.LogInformation(
                         "QsoAnswererService: early {Payload} from {Partner} — skipping to Tx73.",
                         payload, partner);
+                    _skipNextRetry = false; // A-01: matching decode — clear skip guard
                     await ExecuteTx73Async(tx, stoppingToken).ConfigureAwait(false);
                     return;
                 }
@@ -326,8 +329,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
                 // ── Signal report ──
                 if (IsSignalReport(payload))
                 {
-                    _rstRcvd    = payload;
-                    _retryCount = 0;
+                    _rstRcvd       = payload;
+                    _retryCount    = 0;
+                    _skipNextRetry = false; // A-01: matching decode — clear skip guard
                     _logger.LogInformation(
                         "QsoAnswererService: received report {Report} from {Partner}.",
                         payload, partner);
@@ -341,6 +345,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
                     await TransmitAsync(reportMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
 
                     ResetWatchdog(tx);
+                    _skipNextRetry = true; // A-01: next cycle is our own TX window in WaitRr73
                     SetStateAndNotify(QsoState.WaitRr73);
                     return;
                 }
@@ -358,6 +363,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         }
 
         // No matching message — retry or abort.
+        // A-01: The first empty cycle after entering WaitReport coincides with our own TX window;
+        //       the silence guard fires because we were transmitting, not because the partner was
+        //       silent.  Skip that cycle and give the partner time to respond.
+        if (_skipNextRetry) { _skipNextRetry = false; return; }
         await RetryOrAbortAsync(tx, stoppingToken).ConfigureAwait(false);
     }
 
@@ -385,12 +394,15 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
             {
                 _logger.LogInformation(
                     "QsoAnswererService: {Payload} from {Partner} received.", payload, partner);
+                _skipNextRetry = false; // A-01: matching decode — clear skip guard
                 await ExecuteTx73Async(tx, stoppingToken).ConfigureAwait(false);
                 return;
             }
         }
 
         // No RR73/RRR — retry or abort.
+        // A-01: Same first-cycle guard as WaitReport — skip the cycle that covers our TX window.
+        if (_skipNextRetry) { _skipNextRetry = false; return; }
         await RetryOrAbortAsync(tx, stoppingToken).ConfigureAwait(false);
     }
 
@@ -502,8 +514,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     private async Task SafeAbortToIdleAsync(CancellationToken stoppingToken)
     {
         var wasPartner = _partner;
-        _partner     = null;
-        _partnerGrid = null;
+        _partner        = null;
+        _partnerGrid    = null;
+        _skipNextRetry  = false; // A-01: clear skip guard on every return to Idle
 
         // Replace the TX CTS with a fresh no-timeout CTS so the next session starts clean.
         // Do NOT dispose the old CTS here — AbortAsync may be holding a reference to it.

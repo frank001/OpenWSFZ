@@ -273,7 +273,7 @@ public sealed class AudioOnlyPttController : IPttController
             int available = _samples.Length - _position;
             int toCopy    = Math.Min(available, count);
             if (toCopy <= 0) return 0;
-            Array.Copy(_samples, _position, buffer, offset, toCopy);
+            Buffer.BlockCopy(_samples, _position * sizeof(float), buffer, offset * sizeof(float), toCopy * sizeof(float));
             _position += toCopy;
             return toCopy;
         }

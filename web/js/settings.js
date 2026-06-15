@@ -41,9 +41,11 @@ const catStatusValue     = /** @type {HTMLElement}       */ (document.getElement
 const catRetryBtn        = /** @type {HTMLButtonElement} */ (document.getElementById('cat-retry-btn'));
 
 // TX auto-answer controls
-const txCallsign   = /** @type {HTMLInputElement} */ (document.getElementById('tx-callsign'));
-const txGrid       = /** @type {HTMLInputElement} */ (document.getElementById('tx-grid'));
-const txAutoAnswer = /** @type {HTMLInputElement} */ (document.getElementById('tx-auto-answer'));
+const txCallsign        = /** @type {HTMLInputElement} */ (document.getElementById('tx-callsign'));
+const txGrid            = /** @type {HTMLInputElement} */ (document.getElementById('tx-grid'));
+const txAutoAnswer      = /** @type {HTMLInputElement} */ (document.getElementById('tx-auto-answer'));
+const txWatchdogMinutes = /** @type {HTMLInputElement} */ (document.getElementById('tx-watchdog-minutes'));
+const txRetryCount      = /** @type {HTMLInputElement} */ (document.getElementById('tx-retry-count'));
 
 // Logging controls
 const loggingFileEnabled    = /** @type {HTMLInputElement}  */ (document.getElementById('logging-file-enabled'));
@@ -208,9 +210,11 @@ function snapshotForm() {
       pollIntervalSeconds: catPollInterval.value,
     },
     tx: {
-      autoAnswer: txAutoAnswer.checked,
-      callsign:   txCallsign.value.trim(),
-      grid:       txGrid.value.trim().toUpperCase(),
+      autoAnswer:      txAutoAnswer.checked,
+      callsign:        txCallsign.value.trim(),
+      grid:            txGrid.value.trim().toUpperCase(),
+      watchdogMinutes: txWatchdogMinutes.value,
+      retryCount:      txRetryCount.value,
     },
     // FR-043: include frequency table in dirty-state comparison (FR-040).
     _frequencies:         snapshotFrequencies(),
@@ -471,9 +475,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // TX auto-answer (ft8-qso-answerer-v1).
     const tx = config.tx ?? {};
-    txCallsign.value     = tx.callsign   ?? 'Q1OFZ';
-    txGrid.value         = tx.grid       ?? 'JO33';
-    txAutoAnswer.checked = tx.autoAnswer ?? false;
+    txCallsign.value          = tx.callsign        ?? 'Q1OFZ';
+    txGrid.value              = tx.grid            ?? 'JO33';
+    txAutoAnswer.checked      = tx.autoAnswer      ?? false;
+    // A-02: pre-populate numeric TX fields so Save does not submit browser default (0).
+    txWatchdogMinutes.value   = String(tx.watchdogMinutes ?? 4);
+    txRetryCount.value        = String(tx.retryCount      ?? 3);
 
     // FR-043: populate the frequencies table.
     renderFreqTable(Array.isArray(frequencies) ? frequencies : []);
@@ -641,10 +648,14 @@ saveBtn.addEventListener('click', async () => {
   // TX auto-answer config (ft8-qso-answerer-v1).
   // callsign and grid are normalised to upper-case; fall back to placeholder
   // defaults so the server never receives null/empty strings.
+  // A-02: watchdogMinutes and retryCount are pre-populated on load; fall back
+  //       to defaults so the server never receives 0 and triggers a WRN clamp.
   const tx = {
-    callsign:   txCallsign.value.trim().toUpperCase()   || 'Q1OFZ',
-    grid:       txGrid.value.trim().toUpperCase()        || 'JO33',
-    autoAnswer: txAutoAnswer.checked,
+    callsign:        txCallsign.value.trim().toUpperCase()     || 'Q1OFZ',
+    grid:            txGrid.value.trim().toUpperCase()          || 'JO33',
+    autoAnswer:      txAutoAnswer.checked,
+    watchdogMinutes: parseInt(txWatchdogMinutes.value, 10)     || 4,
+    retryCount:      parseInt(txRetryCount.value, 10)          || 3,
   };
 
   // FR-043: collect current frequency table entries for parallel POST.
