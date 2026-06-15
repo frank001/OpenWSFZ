@@ -125,9 +125,9 @@ public sealed class AdifLogWriter
 
         // QSO timing (UTC)
         Append(sb, "QSO_DATE",     record.QsoStartUtc.ToString("yyyyMMdd", CultureInfo.InvariantCulture));
-        Append(sb, "TIME_ON",      record.QsoStartUtc.ToString("HHmm",     CultureInfo.InvariantCulture));
+        Append(sb, "TIME_ON",      record.QsoStartUtc.ToString("HHmmss",   CultureInfo.InvariantCulture));
         Append(sb, "QSO_DATE_OFF", record.QsoEndUtc.ToString("yyyyMMdd",   CultureInfo.InvariantCulture));
-        Append(sb, "TIME_OFF",     record.QsoEndUtc.ToString("HHmm",       CultureInfo.InvariantCulture));
+        Append(sb, "TIME_OFF",     record.QsoEndUtc.ToString("HHmmss",     CultureInfo.InvariantCulture));
 
         // Operator
         Append(sb, "OPERATOR",       record.OperatorCallsign);

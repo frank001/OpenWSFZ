@@ -43,9 +43,9 @@ Each ADIF record written by `AdifLogWriter` SHALL contain the following fields w
 | `FREQ` | `decodeLog.dialFrequencyMHz` formatted to 6 decimal places; omitted if 0.0 |
 | `RST_SENT` | `+00` (fixed for v1) |
 | `RST_RCVD` | Signed integer string of the SNR from the partner's report message (e.g. `+05`, `-12`) |
-| `QSO_DATE` | UTC date of cycle start of the received CQ, formatted `YYYYMMDD` |
-| `TIME_ON` | UTC time of cycle start of the received CQ, formatted `HHMMSS` |
-| `TIME_OFF` | UTC time when TX_73 playback completed, formatted `HHMMSS` |
+| `QSO_DATE` | UTC date of cycle start of the received CQ, formatted `YYYYMMDD` (8 chars) |
+| `TIME_ON` | UTC time of cycle start of the received CQ, formatted `HHMMSS` (6 chars, seconds precision) |
+| `TIME_OFF` | UTC time when TX_73 playback completed, formatted `HHMMSS` (6 chars, seconds precision) |
 | `OPERATOR` | `tx.callsign` |
 | `MY_GRIDSQUARE` | `tx.grid` |
 

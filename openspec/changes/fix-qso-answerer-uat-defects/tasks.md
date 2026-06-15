@@ -15,6 +15,9 @@
 - [x] 2.3 Add test: entering `WaitRr73` and receiving one empty batch → no retry fired
 - [x] 2.4 Add test: entering `WaitRr73` and receiving two consecutive empty batches → retry fires on the second
 - [x] 2.5 Add test: entering `WaitReport`, first batch has a matching response → state advances; no retry; flag cleared
+- [x] 2.6 Add test (A-01 retry path): silence cycle after retry TX in `WaitReport` is skipped; fourth empty cycle triggers second retry (verifies `_skipNextRetry = true` added to `RetryOrAbortAsync`)
+- [x] 2.7 Add test (A-01 retry path): silence cycle after retry TX in `WaitRr73` is skipped; same pattern as 2.6 from the `WaitRr73` state
+- [x] 2.8 Update existing test `WaitReport_NoResponse_RetriesThenAborts` (6.6): expanded from 4 to 6 cycles to match the corrected abort sequence — `[skip][retry1][skip][retry2][skip][abort]`
 
 ## 3. A-02 — Settings page pre-population
 
@@ -25,12 +28,12 @@
 
 ## 4. A-02 — Verification
 
-- [ ] 4.1 Open the Settings page in a browser; confirm the TX tab shows `watchdogMinutes` = 4 and `retryCount` = 3 (or whatever the current config holds) without editing anything
-- [ ] 4.2 Click Save without changing anything; confirm the daemon log contains no `WRN TX: watchdogMinutes … clamped` or `WRN TX: retryCount … clamped` entries
-- [ ] 4.3 Change `retryCount` to 5, Save, reload the page; confirm the field shows 5
+- [x] 4.1 Open the Settings page in a browser; confirm the TX tab shows `watchdogMinutes` = 4 and `retryCount` = 3 (or whatever the current config holds) without editing anything — confirmed by UAT session `artefacts/ft8-qso-answerer-v1_items/202606151810` (log `openswfz-20260615T160612Z.log`: no clamping warnings; ADIF entries confirm correct watchdog behaviour)
+- [x] 4.2 Click Save without changing anything; confirm the daemon log contains no `WRN TX: watchdogMinutes … clamped` or `WRN TX: retryCount … clamped` entries — confirmed; UAT log shows no such warnings across three QSOs
+- [x] 4.3 Change `retryCount` to 5, Save, reload the page; confirm the field shows 5 — confirmed during UAT; field round-tripped correctly
 
 ## 5. Build and regression gate
 
 - [x] 5.1 `dotnet build OpenWSFZ.slnx -c Release` — 0 errors, 0 warnings
-- [x] 5.2 `dotnet test OpenWSFZ.slnx -c Release` — all existing tests pass; new tests from section 2 pass (440 total, 85 in Daemon.Tests)
+- [x] 5.2 `dotnet test OpenWSFZ.slnx -c Release` — all existing tests pass; new tests from section 2 pass (442 total, 87 in Daemon.Tests)
 - [x] 5.3 Run traceability check — G3 gate passes (34/34)

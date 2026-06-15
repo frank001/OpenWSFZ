@@ -8,6 +8,7 @@ The `AppConfig` schema SHALL include a `Tx` property of type `TxConfig`. If the 
 
 | Field | Type | Default | Description |
 |---|---|---|---|
+| `AutoAnswer` | bool | `false` | Master enable for the QSO auto-answerer. When `false` the state machine remains in `Idle` regardless of decoded CQs and no transmission occurs. The operator must set this to `true` via Settings before any auto-answer TX takes place. |
 | `Callsign` | string | `"Q1OFZ"` | Our station callsign. Default is a Q-prefix ITU-unallocated call per NFR-021. |
 | `Grid` | string | `"JO33"` | Our Maidenhead grid locator (4-character minimum). |
 | `RetryCount` | int | `3` | Number of retransmits per waiting state before aborting the QSO. |
@@ -18,7 +19,12 @@ All fields SHALL have defaults so that a partial or absent `tx` object loads wit
 #### Scenario: Missing tx key uses defaults
 
 - **WHEN** the config file has no `tx` key
-- **THEN** `AppConfig.Tx.Callsign` SHALL be `"Q1OFZ"`, `Tx.Grid` SHALL be `"JO33"`, `Tx.RetryCount` SHALL be `3`, and `Tx.WatchdogMinutes` SHALL be `4`
+- **THEN** `AppConfig.Tx.AutoAnswer` SHALL be `false`, `Tx.Callsign` SHALL be `"Q1OFZ"`, `Tx.Grid` SHALL be `"JO33"`, `Tx.RetryCount` SHALL be `3`, and `Tx.WatchdogMinutes` SHALL be `4`
+
+#### Scenario: AutoAnswer defaults to false — no transmission without explicit opt-in
+
+- **WHEN** the config file has no `tx` key, or `tx.autoAnswer` is absent or `false`
+- **THEN** the `QsoAnswererService` SHALL remain in `Idle` regardless of decoded CQ messages and SHALL NOT transmit
 
 #### Scenario: tx object round-trips correctly
 
@@ -49,9 +55,9 @@ All fields SHALL have defaults so that a partial or absent `tx` object loads wit
 #### Scenario: GET /api/v1/config includes tx section
 
 - **WHEN** a client sends `GET /api/v1/config`
-- **THEN** the response SHALL include a `tx` object with `callsign`, `grid`, `retryCount`, and `watchdogMinutes` fields
+- **THEN** the response SHALL include a `tx` object with `autoAnswer`, `callsign`, `grid`, `retryCount`, and `watchdogMinutes` fields
 
 #### Scenario: POST /api/v1/config with updated callsign persists change
 
-- **WHEN** a client sends `POST /api/v1/config` with `{ "tx": { "callsign": "Q9XYZ", "grid": "IO91", "retryCount": 3, "watchdogMinutes": 4 } }`
-- **THEN** the daemon SHALL persist the change and subsequent calls to `QsoAnswererService` SHALL use `Q9XYZ` as the station callsign
+- **WHEN** a client sends `POST /api/v1/config` with `{ "tx": { "autoAnswer": true, "callsign": "Q9XYZ", "grid": "IO91", "retryCount": 3, "watchdogMinutes": 4 } }`
+- **THEN** the daemon SHALL persist the change and subsequent calls to `QsoAnswererService` SHALL use `Q9XYZ` as the station callsign with auto-answer enabled

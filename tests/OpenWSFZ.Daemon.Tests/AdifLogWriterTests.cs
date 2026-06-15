@@ -109,10 +109,10 @@ public sealed class AdifLogWriterTests : IDisposable
         adif.Should().Contain("<OPERATOR:5>Q1OFZ",    "OPERATOR must be length-prefixed");
         adif.Should().Contain("<MY_GRIDSQUARE:4>JO33","MY_GRIDSQUARE must be length-prefixed");
         adif.Should().Contain("<MODE:3>FT8",           "MODE must always be FT8");
-        adif.Should().Contain("<QSO_DATE:8>20260614",  "QSO_DATE in yyyyMMdd format");
-        adif.Should().Contain("<TIME_ON:4>1200",       "TIME_ON in HHmm format");
+        adif.Should().Contain("<QSO_DATE:8>20260614",    "QSO_DATE in yyyyMMdd format");
+        adif.Should().Contain("<TIME_ON:6>120000",     "TIME_ON in HHmmss format per ADIF 3.x");
         adif.Should().Contain("<QSO_DATE_OFF:8>20260614");
-        adif.Should().Contain("<TIME_OFF:4>1201");
+        adif.Should().Contain("<TIME_OFF:6>120130",    "TIME_OFF in HHmmss format per ADIF 3.x");
     }
 
     [Fact(DisplayName = "7.3: BuildAdifRecord ends with <EOR>")]

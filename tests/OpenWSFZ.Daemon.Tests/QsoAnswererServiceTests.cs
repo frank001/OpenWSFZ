@@ -295,15 +295,20 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
         await WaitForStateAsync(_sut!, QsoState.WaitReport);
 
-        // A-01: 4 silent cycles needed — cycle 1 is skipped (our own TX window);
-        //       cycles 2 and 3 fire retries 1 and 2; cycle 4 exhausts the counter → abort.
-        Send(Make("CQ Q2NOISE IO91")); // cycle 1: skip (A-01 guard)
+        // A-01: _skipNextRetry is re-armed after every TX (including retries), so each
+        // retry TX is followed by one skipped cycle before the next retry can fire.
+        // Pattern: [skip] [retry1] [skip] [retry2] [skip] [abort]  — 6 cycles total.
+        Send(Make("CQ Q2NOISE IO91")); // cycle 1: skip — initial TX window
         await Task.Delay(150);
         Send(Make("CQ Q2NOISE IO91")); // cycle 2: retry 1 TX
-        await Task.Delay(150);         // let retry 1 TX complete
-        Send(Make("CQ Q2NOISE IO91")); // cycle 3: retry 2 TX
-        await Task.Delay(150);         // let retry 2 TX complete
-        Send(Make("CQ Q2NOISE IO91")); // cycle 4: retry count exhausted → abort
+        await Task.Delay(150);
+        Send(Make("CQ Q2NOISE IO91")); // cycle 3: skip — retry 1 TX window
+        await Task.Delay(150);
+        Send(Make("CQ Q2NOISE IO91")); // cycle 4: retry 2 TX
+        await Task.Delay(150);
+        Send(Make("CQ Q2NOISE IO91")); // cycle 5: skip — retry 2 TX window
+        await Task.Delay(150);
+        Send(Make("CQ Q2NOISE IO91")); // cycle 6: retry count exhausted → abort
         await WaitForStateAsync(_sut!, QsoState.Idle,
             timeout: TimeSpan.FromSeconds(5));
     }
@@ -388,6 +393,70 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // TxAnswer (1) + TxReport (1) + retry TX (1) = 3 total.
         await _ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>());
         _sut!.State.Should().Be(QsoState.WaitRr73, "one retry should not exhaust the retry budget");
+    }
+
+    [Fact(DisplayName = "A-01 2.6: WaitReport — silence cycle after retry TX is skipped; fourth cycle triggers second retry")]
+    public async Task WaitReport_SilenceAfterRetry_IsSkipped()
+    {
+        // Reach WaitReport.
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(_sut!, QsoState.WaitReport);
+
+        // Cycle 1: skipped by A-01 guard (our initial TX window).
+        Send(Make("CQ Q2NOISE IO91"));
+        await Task.Delay(150);
+
+        // Cycle 2: retry TX fires (2 KeyDownAsync total so far).
+        Send(Make("CQ Q2NOISE IO91"));
+        await Task.Delay(300); // allow retry TX to complete
+
+        // Cycle 3: our retry TX window — must be SKIPPED, not another retry.
+        Send(Make("CQ Q2NOISE IO91"));
+        await Task.Delay(200);
+
+        // Still only 2 KeyDownAsync (TxAnswer + first retry); no second retry yet.
+        await _ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>());
+        _sut!.State.Should().Be(QsoState.WaitReport,
+            "the silence cycle immediately after a retry TX must be skipped, not counted as a miss");
+
+        // Cycle 4: second retry must now fire.
+        Send(Make("CQ Q2NOISE IO91"));
+        await Task.Delay(300);
+
+        await _ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "A-01 2.7: WaitRr73 — silence cycle after retry TX is skipped; fourth cycle triggers second retry")]
+    public async Task WaitRr73_SilenceAfterRetry_IsSkipped()
+    {
+        // Full path to WaitRr73.
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(_sut!, QsoState.WaitReport);
+
+        Send(Make($"{OurCallsign} {PartnerCall} +05"));
+        await WaitForStateAsync(_sut!, QsoState.WaitRr73);
+
+        // Cycle 1: skipped by A-01 guard (our TxReport window).
+        Send(Make("CQ Q2NOISE IO91"));
+        await Task.Delay(150);
+
+        // Cycle 2: retry TX fires (3 KeyDownAsync: TxAnswer + TxReport + retry).
+        Send(Make("CQ Q2NOISE IO91"));
+        await Task.Delay(300);
+
+        // Cycle 3: our retry TX window — must be SKIPPED.
+        Send(Make("CQ Q2NOISE IO91"));
+        await Task.Delay(200);
+
+        await _ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>());
+        _sut!.State.Should().Be(QsoState.WaitRr73,
+            "the silence cycle immediately after a retry TX in WaitRr73 must be skipped");
+
+        // Cycle 4: second retry fires.
+        Send(Make("CQ Q2NOISE IO91"));
+        await Task.Delay(300);
+
+        await _ptt.Received(4).KeyDownAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact(DisplayName = "A-01 2.5: WaitReport — matching response in first cycle advances state; no retry; flag cleared")]

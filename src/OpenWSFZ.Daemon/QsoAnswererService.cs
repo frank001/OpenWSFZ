@@ -466,6 +466,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
 
         // Retransmit the last TX message.
         await TransmitAsync(_lastTxMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
+        _skipNextRetry = true; // A-01: retry TX window also needs its silence cycle skipped
         ResetWatchdog(tx);
         // Stay in current state (WaitReport or WaitRr73).
     }
