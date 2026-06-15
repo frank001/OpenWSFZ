@@ -253,6 +253,32 @@ public static class WebApp
                     config = config with { Cat = sanitisedCat };
             }
 
+            // ── TX config validation (ft8-qso-answerer-v1) ─────────────────────
+            if (config.Tx is { } txIn)
+            {
+                var sanitisedTx = txIn;
+
+                // WatchdogMinutes < 1 → CancelAfter(TimeSpan.Zero) = immediate cancellation.
+                if (txIn.WatchdogMinutes < 1)
+                {
+                    configApiLogger.LogWarning(
+                        "TX: watchdogMinutes {Original} below minimum (1) — clamped to 1.",
+                        txIn.WatchdogMinutes);
+                    sanitisedTx = sanitisedTx with { WatchdogMinutes = 1 };
+                }
+
+                if (txIn.RetryCount < 1)
+                {
+                    configApiLogger.LogWarning(
+                        "TX: retryCount {Original} below minimum (1) — clamped to 1.",
+                        txIn.RetryCount);
+                    sanitisedTx = sanitisedTx with { RetryCount = 1 };
+                }
+
+                if (!ReferenceEquals(sanitisedTx, txIn))
+                    config = config with { Tx = sanitisedTx };
+            }
+
             await store.SaveAsync(config, ct);
             return TypedResults.Ok(store.Current);
         });
@@ -336,6 +362,9 @@ public static class WebApp
         // Capture ICatController (lifecycle control — retry on demand).
         var catController = app.Services.GetService<ICatController>();
 
+        // Capture IQsoAnswerer (may be null in tests or when the TX subsystem is not wired).
+        var qsoAnswerer = app.Services.GetService<IQsoAnswerer>();
+
         app.MapPost("/api/v1/tune", async (
             HttpRequest       request,
             IConfigStore      store,
@@ -411,6 +440,22 @@ public static class WebApp
 
             catController.TriggerRetry();
             return Results.NoContent();
+        });
+
+        // ── TX / QSO answerer endpoints (FR-047) ─────────────────────────────
+
+        app.MapGet("/api/v1/tx/status", () =>
+        {
+            var state   = qsoAnswerer?.State   ?? QsoState.Idle;
+            var partner = qsoAnswerer?.Partner;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner));
+        });
+
+        app.MapPost("/api/v1/tx/abort", async (CancellationToken ct) =>
+        {
+            if (qsoAnswerer is not null)
+                await qsoAnswerer.AbortAsync(ct);
+            return Results.Ok();
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────

@@ -295,6 +295,24 @@ internal static class WebSocketHub
         }
     }
 
+    /// <summary>
+    /// Broadcasts a <c>txState</c> event to all currently connected WebSocket clients (FR-047).
+    /// Mirrors the <see cref="BroadcastDecodes"/> pattern: no scope guard since TX state
+    /// is daemon-global (there is only one QSO answerer per process).
+    /// </summary>
+    internal static void BroadcastTxState(QsoState state, string? partner)
+    {
+        if (ActiveSockets.IsEmpty) return;
+
+        var msg     = new WsTxStateMessage(Type: "txState", State: state.ToString(), Partner: partner);
+        var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsTxStateMessage);
+        var bytes   = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        foreach (var (ws, _) in ActiveSockets)
+            _ = SendWithTimeoutAsync(ws, segment);
+    }
+
     private static async Task SendWithTimeoutAsync(WebSocket ws, ArraySegment<byte> data)
     {
         if (ws.State != WebSocketState.Open) return;

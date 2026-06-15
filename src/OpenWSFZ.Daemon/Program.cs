@@ -12,6 +12,9 @@ using OpenWSFZ.Ft8;
 using OpenWSFZ.Ft8.Dsp;
 using OpenWSFZ.Web;
 using Serilog;
+#if WASAPI_SUPPORTED
+using System.Runtime.Versioning;
+#endif
 
 // Parse CLI options before building the host.
 var options = LaunchOptions.Parse(args);
@@ -151,6 +154,14 @@ var allTxtWriter = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllT
 // time. The decode pump compares the snapshot against the current live frequency; if they differ
 // the cycle audio spans two bands and the window is discarded (defect: dial-freq-snapshot).
 // Channel 2: decode pump → DecodeEventBus (direct call, no channel needed)
+// Channel 3: decode pump → QsoAnswererService (bounded, DropOldest — answerer must never block decode)
+var qsoAnswererChannel = Channel.CreateBounded<IReadOnlyList<DecodeResult>>(new BoundedChannelOptions(2)
+{
+    FullMode     = BoundedChannelFullMode.DropOldest,
+    SingleWriter = true,
+    SingleReader = true,
+});
+
 var framerOutput = Channel.CreateBounded<(float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz)>(new BoundedChannelOptions(2)
 {
     FullMode     = BoundedChannelFullMode.DropOldest,
@@ -265,6 +276,27 @@ var app = WebApp.Create(
         services.AddSingleton<ICatTuner>(sp => sp.GetRequiredService<CatPollingService>());
         services.AddSingleton<ICatController>(sp => sp.GetRequiredService<CatPollingService>());
         services.AddHostedService(sp => sp.GetRequiredService<CatPollingService>());
+
+        // PTT controller (task 4.5): AudioOnlyPttController on Windows; NullPttController elsewhere.
+        // CA1416: suppressed — code is only compiled when WASAPI_SUPPORTED is defined,
+        //         which is set exclusively on Windows targets (see .csproj).
+#pragma warning disable CA1416
+#if WASAPI_SUPPORTED
+        services.AddSingleton<IPttController, AudioOnlyPttController>();
+#else
+        services.AddSingleton<IPttController, NullPttController>();
+#endif
+#pragma warning restore CA1416
+
+        // QSO answerer state machine (tasks 6.1–6.15) and ADIF log writer (task 7.1).
+        // The channel reader is created before WebApp.Create so it must be registered
+        // as a concrete singleton instance rather than resolved from DI.
+        services.AddSingleton(qsoAnswererChannel.Reader);
+        services.AddSingleton<TxEventBus>();
+        services.AddSingleton<AdifLogWriter>();
+        services.AddSingleton<QsoAnswererService>();
+        services.AddSingleton<IQsoAnswerer>(sp => sp.GetRequiredService<QsoAnswererService>());
+        services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());
     });
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────
@@ -313,6 +345,10 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 var results  = await ft8Decoder.DecodeAsync(pcmWindow, cycleStart);
                 decodeEventBus.Publish(results);
                 await allTxtWriter.AppendAsync(cycleStart, dialFreq, results);
+
+                // Feed the QSO answerer channel (non-blocking; DropOldest if the
+                // answerer is busy transmitting and the channel is full).
+                qsoAnswererChannel.Writer.TryWrite(results);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

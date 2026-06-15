@@ -119,8 +119,11 @@ internal static class Ft8LibInterop
     ///   signal_db loop now guards <c>freq_offset + tone_col >= num_bins</c> for
     ///   signals ≥ 2956 Hz, skipping out-of-range samples rather than reading past
     ///   the waterfall row boundary.  No ABI change.
+    /// 20260017 (ft8-qso-answerer-v1): Adds <c>ft8_encode_message</c> — the TX encode
+    ///   entry point. Uses <c>ftx_message_encode()</c> + <c>ft8_encode()</c> to convert
+    ///   text → 79 tone indices.  No change to existing entry points or struct layout.
     /// </summary>
-    private const int ExpectedShimVersion = 20260016;
+    private const int ExpectedShimVersion = 20260017;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -142,6 +145,12 @@ internal static class Ft8LibInterop
     ///   search and decode (shim 20260010, H4: ramp [−5, +15]; 25% suppression at 0 dB).
     /// </summary>
     internal const int MaxDecodePasses = 2;
+
+    /// <summary>
+    /// Number of tone indices produced by <see cref="EncodeMessage"/> / the native
+    /// <c>ft8_encode_message</c> function (fixed by the FT8 specification: 79 symbols).
+    /// </summary>
+    public const int EncodedToneCount = 79;
 
     private static readonly object _initLock = new();
     private static volatile bool _initialized;
@@ -210,6 +219,21 @@ internal static class Ft8LibInterop
     /// </summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_get_last_noise_floor_db", CallingConvention = CallingConvention.Cdecl)]
     private static extern float NativeGetLastNoiseFloorDb();
+
+    /// <summary>
+    /// Encode a text message to 79 tone indices via <c>ft8_encode_message</c> in the native shim.
+    /// </summary>
+    /// <param name="message">FT8 message text string.</param>
+    /// <param name="tonesOut">Caller-allocated output buffer; must have length ≥ 79.</param>
+    /// <param name="tonesCapacity">Length of <paramref name="tonesOut"/>; must be ≥ 79.</param>
+    /// <returns>
+    /// 79 on success; -1 if capacity &lt; 79; -2 if the message text could not be packed.
+    /// </returns>
+    [DllImport("libft8.dll", EntryPoint = "ft8_encode_message", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeEncodeMessage(
+        [MarshalAs(UnmanagedType.LPStr)] string message,
+        [Out] byte[] tonesOut,
+        int          tonesCapacity);
 
     // ── Public API ───────────────────────────────────────────────────────
 
@@ -304,6 +328,42 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         return NativeGetLastNoiseFloorDb();
+    }
+
+    /// <summary>
+    /// Encodes an FT8 message string to exactly <see cref="EncodedToneCount"/> (79) tone indices.
+    /// </summary>
+    /// <param name="message">FT8 message text, e.g. <c>"Q1OFZ Q1TST JO33"</c>.</param>
+    /// <param name="tonesOut">
+    /// Caller-allocated byte array; must have <see cref="Array.Length"/> ≥ 79.
+    /// On success the first 79 elements are filled with tone indices in [0, 7].
+    /// </param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="tonesOut"/> has fewer than 79 elements.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the native encoder rejects <paramref name="message"/> (invalid format,
+    /// too long, unpackable callsign, etc.).
+    /// </exception>
+    public static void EncodeMessage(string message, byte[] tonesOut)
+    {
+        if (tonesOut.Length < EncodedToneCount)
+            throw new ArgumentException(
+                $"tonesOut must have at least {EncodedToneCount} elements; got {tonesOut.Length}.",
+                nameof(tonesOut));
+
+        EnsureInitialized();
+
+        int rc = NativeEncodeMessage(message, tonesOut, tonesOut.Length);
+
+        if (rc == -2)
+            throw new InvalidOperationException(
+                $"ft8_encode_message could not pack message '{message}'. " +
+                "Check message format (max 35 chars, valid FT8 syntax).");
+
+        if (rc != EncodedToneCount)
+            throw new InvalidOperationException(
+                $"ft8_encode_message returned unexpected code {rc} for message '{message}'.");
     }
 
     // ── Lazy initialisation ──────────────────────────────────────────────

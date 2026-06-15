@@ -21,6 +21,8 @@ link /DLL ^
   /EXPORT:ft8_decode_all ^
   /EXPORT:ft8_get_last_pass_counts ^
   /EXPORT:ft8_get_max_passes ^
+  /EXPORT:ft8_get_last_noise_floor_db ^
+  /EXPORT:ft8_encode_message ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\constants.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\crc.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\decode.obj" ^

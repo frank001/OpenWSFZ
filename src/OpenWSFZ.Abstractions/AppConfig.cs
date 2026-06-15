@@ -43,4 +43,12 @@ public sealed record AppConfig(
     /// Consumers SHALL treat a <c>null</c> value as <c>new CatConfig()</c> (disabled).
     /// </summary>
     public CatConfig?       Cat       { get; init; } = null;
+
+    /// <summary>
+    /// TX / QSO answerer configuration (FR-046).
+    /// Defaults to <c>null</c> so that existing config files without a <c>tx</c> key
+    /// deserialise without error.
+    /// Consumers SHALL treat a <c>null</c> value as <c>new TxConfig()</c> (all defaults).
+    /// </summary>
+    public TxConfig?        Tx        { get; init; } = null;
 }

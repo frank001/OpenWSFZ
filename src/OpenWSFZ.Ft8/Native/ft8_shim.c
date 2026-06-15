@@ -188,6 +188,17 @@
  *   or return codes.
  *
  *
+ * ft8-qso-answerer-v1 (FT8_SHIM_VERSION 20260017):
+ *
+ *   Adds ft8_encode_message() — the TX encode entry point required by the
+ *   QSO answerer (ft8-qso-answerer-v1 change).  Uses ftx_message_encode()
+ *   (ft8/message.h) to pack a text string into the 77-bit ftx_message_t
+ *   payload, then ft8_encode() (ft8/encode.h) to convert the payload to
+ *   79 GFSK tone indices.  A local callsign table is set in TLS for the
+ *   duration of the call so the global hash callbacks operate on it.
+ *   No change to existing entry points, struct layout, or return codes.
+ *   Exported via /EXPORT:ft8_encode_message in the link step.
+ *
  * fix-d006-cleanup + fix-rq2-signal-db-oob (FT8_SHIM_VERSION 20260016):
  *
  *   Two independent changes bundled in one version step:
@@ -728,6 +739,47 @@ int ft8_get_max_passes(void) { return K_MAX_PASSES; }
 
 /* ── Noise floor query ───────────────────────────────────────────────────── */
 float ft8_get_last_noise_floor_db(void) { return tls_last_noise_floor_db; }
+
+/* ── Encode entry point ──────────────────────────────────────────────────── */
+/*
+ * ft8_encode_message — encode an FT8 text message to 79 tone indices.
+ *
+ * Uses ftx_message_encode() from ft8/message.h to pack the text into the
+ * 77-bit ftx_message_t payload, then ft8_encode() from ft8/encode.h to
+ * convert the payload to 79 GFSK tone indices.
+ *
+ * A local callsign table is used so Type-4 compressed callsigns can be
+ * stored and looked up within the same encode call.  This is safe for
+ * all standard QSO message formats (Type 1 / Type 2 / Type 0.0).
+ *
+ * Returns FT8_NN (79) on success; -1 if tones_capacity < FT8_NN;
+ * -2 if ftx_message_encode() rejects the text.
+ */
+int ft8_encode_message(const char* message, uint8_t* tones_out, int tones_capacity)
+{
+    if (tones_capacity < FT8_NN) return -1;
+
+    /* Local callsign table for hash callbacks during encode. */
+    callsign_table_t htbl;
+    hash_table_init(&htbl);
+
+    /* Set TLS pointer so the global callbacks (cb_lookup_hash / cb_save_hash)
+     * operate on this local table for the duration of the encode call.
+     * Save and restore the previous pointer so nested calls (if ever made)
+     * are not disrupted. */
+    callsign_table_t* prev = tls_hash_table;
+    tls_hash_table = &htbl;
+
+    ftx_message_t msg;
+    ftx_message_rc_t rc = ftx_message_encode(&msg, &s_hash_if, message);
+
+    tls_hash_table = prev;
+
+    if (rc != FTX_MESSAGE_RC_OK) return -2;
+
+    ft8_encode(msg.payload, tones_out);
+    return FT8_NN;
+}
 
 /* ── Per-pass stats query ────────────────────────────────────────────────── */
 int ft8_get_last_pass_counts(int* out_counts, int capacity)

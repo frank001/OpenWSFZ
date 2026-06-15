@@ -32,6 +32,9 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(List<FrequencyEntry>))]
 [JsonSerializable(typeof(TuneRequest))]
 [JsonSerializable(typeof(TuneResponse))]
+[JsonSerializable(typeof(WsTxStateMessage))]
+[JsonSerializable(typeof(TxStatusResponse))]
+[JsonSerializable(typeof(QsoState))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -66,3 +69,15 @@ internal sealed record TuneRequest(double? FrequencyMHz);
 
 /// <summary>Response body for <c>POST /api/v1/tune</c> (FR-045).</summary>
 internal sealed record TuneResponse(double EffectiveFrequencyMHz);
+
+/// <summary>
+/// Envelope for <c>txState</c> WebSocket text frames (FR-047).
+/// Wire format: <c>{"type":"txState","state":"TxAnswer","partner":"Q1TST"}</c>
+/// </summary>
+internal sealed record WsTxStateMessage(string Type, string State, string? Partner);
+
+/// <summary>
+/// Response body for <c>GET /api/v1/tx/status</c> (FR-047).
+/// Wire format: <c>{"state":"Idle","partner":null}</c>
+/// </summary>
+public sealed record TxStatusResponse(string State, string? Partner);
