@@ -93,6 +93,42 @@ jobs:
           if-no-files-found: error
 
       # -----------------------------------------------------------------
+      # Linux: rebuild libft8.so from source before dotnet build.
+      # Mirrors the macOS step above — the committed .so is updated on
+      # every run so an ABI bump in ft8_shim.c is never stranded behind
+      # a forgotten binary commit.
+      # -----------------------------------------------------------------
+      - name: Build native Linux .so (x64, GCC)
+        if: runner.os == 'Linux'
+        run: |
+          git clone --depth 1 --branch msvc-compat \
+            https://github.com/frank001/ft8_lib.git /tmp/ft8_lib
+          cd /tmp/ft8_lib
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
+            ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
+            ft8/message.c ft8/text.c \
+            common/monitor.c \
+            fft/kiss_fft.c fft/kiss_fftr.c
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
+            "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/ft8_shim.c"
+          gcc -shared -o libft8.so \
+            constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o \
+            -lm
+          echo "=== Linux .so exports ==="
+          nm -D libft8.so | grep "ft8_"
+          cp libft8.so \
+            "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so"
+
+      - name: Upload Linux .so artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: libft8-so-linux-x64
+          path: src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so
+          if-no-files-found: error
+
+      # -----------------------------------------------------------------
       # Gate G1: Build and test on all three operating systems
       # -----------------------------------------------------------------
       - name: Restore

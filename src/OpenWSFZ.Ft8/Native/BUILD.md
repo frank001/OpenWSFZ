@@ -116,6 +116,12 @@ copy libft8.dll ..\..\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
 
 ## Build Procedure (Linux x64, GCC)
 
+> **Note:** Since CI now rebuilds `libft8.so` from source on every Ubuntu run (see
+> `"Build native Linux .so"` step in `.github/workflows/ci.yml`), a manual rebuild
+> is only needed when developing locally on Linux or WSL2. The CI step clones
+> `frank001/ft8_lib` (branch `msvc-compat`) and compiles against the current
+> `ft8_shim.c`, so the committed binary is always superseded on the Ubuntu leg.
+
 Prerequisites: GCC ≥ 10, `build-essential`. WSL2 running Debian is acceptable.
 
 Run from `native/ft8_lib/` inside the repository root:
