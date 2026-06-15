@@ -53,13 +53,19 @@ jobs:
           restore-keys: obj-${{ runner.os }}-
 
       # -----------------------------------------------------------------
-      # macOS: rebuild libft8.dylib from source before dotnet build.
-      # The native/ft8_lib submodule was removed in 5ebcd09 (F-101) to
-      # prevent it from serving as a crib for the clean-room synthesiser.
-      # CI therefore shallow-clones the pinned ft8_lib sources directly
-      # from the fork so the dylib is always built against the current
-      # ft8_shim.c without re-introducing the submodule to the tree.
+      # macOS: verify committed dylib is current, then rebuild from source.
+      # The staleness check runs BEFORE the rebuild so that a developer who
+      # bumps FT8_SHIM_VERSION without refreshing the committed binary gets
+      # a hard CI failure — not a silent pass against a freshly-rebuilt copy.
       # -----------------------------------------------------------------
+      - name: Check committed macOS dylib is current
+        if: runner.os == 'macOS'
+        run: |
+          EXPECTED=$(python3 -c "import re; src=open('src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs').read(); m=re.search(r'ExpectedShimVersion\s*=\s*(\d+)',src); print(m.group(1))")
+          echo "C# ExpectedShimVersion = $EXPECTED"
+          python3 tools/check_native_version.py \
+            src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib "$EXPECTED"
+
       - name: Build native macOS dylib (ARM64, Clang)
         if: runner.os == 'macOS'
         run: |
@@ -93,11 +99,17 @@ jobs:
           if-no-files-found: error
 
       # -----------------------------------------------------------------
-      # Linux: rebuild libft8.so from source before dotnet build.
-      # Mirrors the macOS step above — the committed .so is updated on
-      # every run so an ABI bump in ft8_shim.c is never stranded behind
-      # a forgotten binary commit.
+      # Linux: verify committed .so is current, then rebuild from source.
+      # Mirrors the macOS staleness check above.
       # -----------------------------------------------------------------
+      - name: Check committed Linux .so is current
+        if: runner.os == 'Linux'
+        run: |
+          EXPECTED=$(python3 -c "import re; src=open('src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs').read(); m=re.search(r'ExpectedShimVersion\s*=\s*(\d+)',src); print(m.group(1))")
+          echo "C# ExpectedShimVersion = $EXPECTED"
+          python3 tools/check_native_version.py \
+            src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so "$EXPECTED"
+
       - name: Build native Linux .so (x64, GCC)
         if: runner.os == 'Linux'
         run: |
