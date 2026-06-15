@@ -359,7 +359,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
                     var reportMessage = $"{partner} {ours} R+00";
                     _lastTxMessage = reportMessage;
 
-                    ResetWatchdog(tx);
+                    // D-007: ResetWatchdog moved to AFTER TransmitAsync so AbortAsync cannot
+                    // cancel a pre-swap CTS that TransmitAsync never sees.
                     SetStateAndNotify(QsoState.TxReport);
                     await TransmitAsync(reportMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
 
@@ -435,9 +436,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         var msg73 = $"{partner} {ours} 73";
         _lastTxMessage = msg73;
 
-        ResetWatchdog(tx);
+        // D-007: ResetWatchdog moved to AFTER TransmitAsync for the same reason as
+        // HandleWaitReportAsync — prevent AbortAsync from cancelling a stale CTS that
+        // TransmitAsync never sees, which would silently write a spurious ADIF record.
         SetStateAndNotify(QsoState.Tx73);
         await TransmitAsync(msg73, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
+        ResetWatchdog(tx);
 
         // QSO complete.
         SetStateAndNotify(QsoState.QsoComplete);

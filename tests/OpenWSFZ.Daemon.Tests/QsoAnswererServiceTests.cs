@@ -665,10 +665,10 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         sut.State.Should().Be(QsoState.Idle, "abort must win the race against TX completion");
         sut.Partner.Should().BeNull("partner must be cleared on abort");
 
-        // Assert: no ADIF record written.
-        var adifPath = System.IO.Path.Combine(adifDir.Path, "ADIF.log");
-        System.IO.File.Exists(adifPath).Should().BeFalse(
-            "no ADIF record shall be written when a QSO is aborted (adif-log spec §3)");
+        // Note (R-3): ADIF assertion removed — AppendQsoAsync is only reached via ExecuteTx73Async
+        // which requires an RR73/RRR message; this test never injects one, so File.Exists was
+        // always true and could not catch a regression. ADIF-on-abort coverage belongs in a
+        // dedicated test that drives the service all the way to Tx73 and aborts mid-TX.
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -734,7 +734,11 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // ReceivedCalls() counts all calls; KeyDown count must be well below RetryCount=10.
         var keyDownCalls = ptt.ReceivedCalls()
                               .Count(c => c.GetMethodInfo().Name == nameof(IPttController.KeyDownAsync));
-        keyDownCalls.Should().BeLessThan(10, "watchdog must fire before retry count reaches 10");
+        // D-008: with the fix, only TxAnswer (1) + at most 2 retry TXs before the channel
+        // empties = 3 total. A bound of 4 is tight enough to catch the regression (without the
+        // fix and with continuous feeding the count can reach 10) while tolerating scheduler jitter.
+        keyDownCalls.Should().BeLessThan(4,
+            "watchdog must abort the QSO with no more than one retry TX cycle (TxAnswer + 1 retry)");
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
