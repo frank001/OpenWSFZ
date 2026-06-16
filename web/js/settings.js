@@ -40,12 +40,14 @@ const catRigctldFields   = /** @type {HTMLElement}       */ (document.getElement
 const catStatusValue     = /** @type {HTMLElement}       */ (document.getElementById('cat-status-value'));
 const catRetryBtn        = /** @type {HTMLButtonElement} */ (document.getElementById('cat-retry-btn'));
 
-// TX auto-answer controls
-const txCallsign        = /** @type {HTMLInputElement} */ (document.getElementById('tx-callsign'));
-const txGrid            = /** @type {HTMLInputElement} */ (document.getElementById('tx-grid'));
+// General tab controls (callsign, grid, watchdog, retry moved from TX fieldset)
+const txCallsign        = /** @type {HTMLInputElement} */ (document.getElementById('general-callsign'));
+const txGrid            = /** @type {HTMLInputElement} */ (document.getElementById('general-grid'));
+const txWatchdogMinutes = /** @type {HTMLInputElement} */ (document.getElementById('general-watchdog-minutes'));
+const txRetryCount      = /** @type {HTMLInputElement} */ (document.getElementById('general-retry-count'));
+
+// TX auto-answer control (remains on Radio tab)
 const txAutoAnswer      = /** @type {HTMLInputElement} */ (document.getElementById('tx-auto-answer'));
-const txWatchdogMinutes = /** @type {HTMLInputElement} */ (document.getElementById('tx-watchdog-minutes'));
-const txRetryCount      = /** @type {HTMLInputElement} */ (document.getElementById('tx-retry-count'));
 
 // Logging controls
 const loggingFileEnabled    = /** @type {HTMLInputElement}  */ (document.getElementById('logging-file-enabled'));
