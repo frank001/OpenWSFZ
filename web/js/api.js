@@ -120,3 +120,19 @@ export async function postCatRetry() {
   }
   // 204 No Content — no body to parse.
 }
+
+/**
+ * POST /api/v1/audio-offset
+ * Updates the RX/TX audio frequency cursor positions and Hold TX Freq state.
+ * @param {number}  rxHz        RX cursor frequency in Hz (0–3000).
+ * @param {number}  txHz        TX cursor frequency in Hz (0–3000).
+ * @param {boolean} holdTxFreq  Whether the answerer should lock TX to txHz.
+ * @returns {Promise<{rxHz: number, txHz: number, holdTxFreq: boolean}>}
+ */
+export function postAudioOffset(rxHz, txHz, holdTxFreq) {
+  return fetchJson('/api/v1/audio-offset', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ rxHz, txHz, holdTxFreq }),
+  });
+}

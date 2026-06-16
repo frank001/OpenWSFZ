@@ -134,6 +134,7 @@ internal static class WebSocketHub
             // with the heartbeat: audioActive is true whenever WASAPI is delivering buffers,
             // not when amplitude exceeds an arbitrary threshold.
             var effectiveFreq = WebApp.ResolveEffectiveFrequency(catState, configStore.Current);
+            var txCfg     = configStore.Current.Tx ?? new TxConfig();
             var status    = new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
@@ -142,7 +143,10 @@ internal static class WebSocketHub
                 AudioActive:         captureManager?.IsCapturing ?? false,
                 DecodingEnabled:     configStore.Current.DecodingEnabled,
                 DialFrequencyMHz:    effectiveFreq,
-                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled");
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
+                RxAudioOffsetHz:     txCfg.RxAudioOffsetHz,
+                TxAudioOffsetHz:     txCfg.TxAudioOffsetHz,
+                HoldTxFreq:          txCfg.HoldTxFreq);
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);
@@ -306,6 +310,26 @@ internal static class WebSocketHub
 
         var msg     = new WsTxStateMessage(Type: "txState", State: state.ToString(), Partner: partner);
         var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsTxStateMessage);
+        var bytes   = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        foreach (var (ws, _) in ActiveSockets)
+            _ = SendWithTimeoutAsync(ws, segment);
+    }
+
+    /// <summary>
+    /// Broadcasts an <c>audioOffset</c> event to all currently connected WebSocket clients.
+    /// Called when the operator updates the RX/TX cursor positions (via the waterfall or
+    /// the <c>POST /api/v1/audio-offset</c> endpoint) or when the QSO answerer
+    /// auto-updates the TX cursor (Hold TX = OFF, CQ answered).
+    /// </summary>
+    internal static void BroadcastAudioOffset(int rxHz, int txHz, bool holdTxFreq)
+    {
+        if (ActiveSockets.IsEmpty) return;
+
+        var payload = new AudioOffsetPayload(rxHz, txHz, holdTxFreq);
+        var msg     = new WsAudioOffsetMessage(Type: "audioOffset", Payload: payload);
+        var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsAudioOffsetMessage);
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);
 

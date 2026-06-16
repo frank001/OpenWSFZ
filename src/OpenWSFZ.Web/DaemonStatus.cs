@@ -27,4 +27,18 @@ public sealed record DaemonStatus(
     /// Current CAT connection state as a string (FR-033): <c>"Disabled"</c>, <c>"Connecting"</c>,
     /// <c>"Connected"</c>, or <c>"Error"</c>.  Defaults to <c>"Disabled"</c> when CAT is not wired up.
     /// </summary>
-    string  CatConnectionStatus = "Disabled");
+    string  CatConnectionStatus = "Disabled",
+    /// <summary>
+    /// Current RX audio frequency cursor position in Hz (0–3000).
+    /// Included in the initial <c>status</c> WebSocket event so newly-connected clients
+    /// can initialise their waterfall cursor without waiting for an <c>audioOffset</c> event.
+    /// </summary>
+    int     RxAudioOffsetHz = 1500,
+    /// <summary>
+    /// Current TX audio frequency cursor position in Hz (0–3000).
+    /// </summary>
+    int     TxAudioOffsetHz = 1500,
+    /// <summary>
+    /// Whether the QSO answerer is locked to the operator-set TX frequency.
+    /// </summary>
+    bool    HoldTxFreq = false);

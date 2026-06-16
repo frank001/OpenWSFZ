@@ -47,6 +47,19 @@
       <canvas id="waterfall"></canvas>
     </section>
 
+    <!-- Waterfall cursor controls (Tasks 7.1, 7.2) -->
+    <div id="waterfall-controls">
+      <span class="freq-readout-label">RX</span>
+      <span id="rx-freq-display" class="freq-readout">1500 Hz</span>
+      <span class="freq-readout-label">TX</span>
+      <span id="tx-freq-display" class="freq-readout">1500 Hz</span>
+      <label class="checkbox-label waterfall-hold-label">
+        <input type="checkbox" id="hold-tx-freq">
+        Hold TX Freq
+      </label>
+      <span class="freq-readout-hint">Left-click: RX &middot; Right-click: TX &middot; Shift+click: both</span>
+    </div>
+
     <!-- Decoded messages panel -->
     <section id="decodes-panel" aria-label="Decoded FT8 messages">
       <table id="decodes-table">

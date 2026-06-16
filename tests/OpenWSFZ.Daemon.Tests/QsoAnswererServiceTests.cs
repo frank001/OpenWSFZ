@@ -58,7 +58,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         _sut    = new QsoAnswererService(_channel.Reader, store, _ptt, new TxEventBus(),
-                      adifLog, NullLogger<QsoAnswererService>.Instance);
+                      adifLog, new AudioOffsetEventBus(), NullLogger<QsoAnswererService>.Instance);
         _stopCts = new CancellationTokenSource();
 
         // Start the service background loop.
@@ -133,7 +133,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var channel  = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
         var adifLog  = new AdifLogWriter(disabledStore, NullLogger<AdifLogWriter>.Instance);
         var sut      = new QsoAnswererService(channel.Reader, disabledStore, pttDisabled,
-                           new TxEventBus(), adifLog, NullLogger<QsoAnswererService>.Instance);
+                           new TxEventBus(), adifLog, new AudioOffsetEventBus(),
+                           NullLogger<QsoAnswererService>.Instance);
 
         using var stopCts = new CancellationTokenSource();
         await sut.StartAsync(stopCts.Token);
@@ -175,7 +176,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
         var adifLog = new AdifLogWriter(unconfiguredStore, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(channel.Reader, unconfiguredStore, pttEmpty,
-                          new TxEventBus(), adifLog, NullLogger<QsoAnswererService>.Instance);
+                          new TxEventBus(), adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
 
         using var stopCts = new CancellationTokenSource();
         await sut.StartAsync(stopCts.Token);
@@ -525,6 +527,125 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await _ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>());
     }
 
+    // ── Task 8.5 / 4.1: HoldTxFreq=false → TX at caller's freq; TxAudioOffsetHz updated ──
+
+    [Fact(DisplayName = "Task 8.5: QsoAnswererService with holdTxFreq=false answers CQ at caller's freqHz and updates TxAudioOffsetHz")]
+    public async Task Idle_HoldTxFreqFalse_UpdatesTxAudioOffsetHz()
+    {
+        const int cqFreqHz = 1234;
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+                HoldTxFreq      = false,   // ← the default; answerer must auto-update cursor
+                TxAudioOffsetHz = 1500,
+                RxAudioOffsetHz = 1500,
+            }
+        });
+
+        // SaveAsync must return Task.CompletedTask so the async service path doesn't throw.
+        store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>())
+             .Returns(Task.CompletedTask);
+
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(
+            channel.Reader, store, ptt, new TxEventBus(),
+            adifLog, new AudioOffsetEventBus(),
+            NullLogger<QsoAnswererService>.Instance);
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // CQ from partner at cqFreqHz.
+        channel.Writer.TryWrite(
+            [new DecodeResult("12:00:00", -5, 0.1, cqFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]);
+
+        // Wait until the service has answered and entered WaitReport.
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+
+        // Assert: SaveAsync was called with TxAudioOffsetHz equal to the caller's freqHz.
+        await store.Received(1).SaveAsync(
+            Arg.Is<AppConfig>(c => c.Tx != null && c.Tx.TxAudioOffsetHz == cqFreqHz),
+            Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── Task 8.6 / 4.2: HoldTxFreq=true → TX at operator freq; config not modified ──
+
+    [Fact(DisplayName = "Task 8.6: QsoAnswererService with holdTxFreq=true uses TxAudioOffsetHz from config and does not modify it")]
+    public async Task Idle_HoldTxFreqTrue_UsesTxAudioOffsetHzFromConfig()
+    {
+        const int cqFreqHz      = 897;
+        const int operatorFreqHz = 1500;
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+                HoldTxFreq      = true,             // ← locked to operator-set frequency
+                TxAudioOffsetHz = operatorFreqHz,   // operator set 1500 Hz
+                RxAudioOffsetHz = 1500,
+            }
+        });
+
+        store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>())
+             .Returns(Task.CompletedTask);
+
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(
+            channel.Reader, store, ptt, new TxEventBus(),
+            adifLog, new AudioOffsetEventBus(),
+            NullLogger<QsoAnswererService>.Instance);
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // CQ from partner at cqFreqHz (which differs from operatorFreqHz).
+        channel.Writer.TryWrite(
+            [new DecodeResult("12:00:00", -5, 0.1, cqFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]);
+
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+
+        // Assert: SaveAsync was NOT called with a modified TxAudioOffsetHz.
+        // When HoldTxFreq=true the cursor must stay at the operator-set position.
+        await store.DidNotReceive().SaveAsync(
+            Arg.Is<AppConfig>(c => c.Tx != null && c.Tx.TxAudioOffsetHz != operatorFreqHz),
+            Arg.Any<CancellationToken>());
+
+        // Also confirm PTT was used (the service did transmit — at the operator freq).
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── Task 6.12: AbortAsync ─────────────────────────────────────────────────
 
     [Fact(DisplayName = "6.12: AbortAsync in Idle is a no-op")]
@@ -621,7 +742,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
         var sut     = new QsoAnswererService(channel.Reader, store, racyPtt, new TxEventBus(),
-                          adifLog, NullLogger<QsoAnswererService>.Instance);
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
 
         using var stopCts = new CancellationTokenSource();
         await sut.StartAsync(stopCts.Token);
@@ -684,7 +806,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
 
         var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
-                      adifLog, NullLogger<QsoAnswererService>.Instance,
+                      adifLog, new AudioOffsetEventBus(),
+                      NullLogger<QsoAnswererService>.Instance,
                       watchdogDurationOverride: watchdogDuration);
 
         using var stopCts = new CancellationTokenSource();

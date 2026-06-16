@@ -46,6 +46,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     private readonly IConfigStore                               _configStore;
     private readonly IPttController                             _pttController;
     private readonly TxEventBus                                 _txEventBus;
+    private readonly AudioOffsetEventBus                        _audioOffsetEventBus;
     private readonly ILogger<QsoAnswererService>                _logger;
     private readonly Ft8AudioSynthesiser                        _synthesiser = new();
     private readonly AdifLogWriter                               _adifLog;
@@ -80,14 +81,16 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         IPttController                             pttController,
         TxEventBus                                 txEventBus,
         AdifLogWriter                              adifLog,
+        AudioOffsetEventBus                        audioOffsetEventBus,
         ILogger<QsoAnswererService>                logger)
     {
-        _decodeChannel = decodeChannel;
-        _configStore   = configStore;
-        _pttController = pttController;
-        _txEventBus    = txEventBus;
-        _adifLog       = adifLog;
-        _logger        = logger;
+        _decodeChannel       = decodeChannel;
+        _configStore         = configStore;
+        _pttController       = pttController;
+        _txEventBus          = txEventBus;
+        _audioOffsetEventBus = audioOffsetEventBus;
+        _adifLog             = adifLog;
+        _logger              = logger;
     }
 
     /// <summary>
@@ -99,9 +102,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         IPttController                             pttController,
         TxEventBus                                 txEventBus,
         AdifLogWriter                              adifLog,
+        AudioOffsetEventBus                        audioOffsetEventBus,
         ILogger<QsoAnswererService>                logger,
         TimeSpan                                   watchdogDurationOverride)
-        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, logger)
+        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
     }
@@ -289,12 +293,42 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
             partner, cqResult.FreqHz);
 
         // Record session state.
-        _partner      = partner;
-        _partnerGrid  = cqGrid;
-        _retryCount   = 0;
-        _rstRcvd      = "+00";
-        _lastTxFreqHz = cqResult.FreqHz;
-        _qsoStartUtc  = DateTime.UtcNow;
+        _partner     = partner;
+        _partnerGrid = cqGrid;
+        _retryCount  = 0;
+        _rstRcvd     = "+00";
+        _qsoStartUtc = DateTime.UtcNow;
+
+        // Task 4.1 / 4.2 — Determine TX frequency.
+        // HoldTxFreq=false (default): use the caller's decoded frequency; auto-update
+        //   TxAudioOffsetHz in config so the waterfall cursor reflects the actual TX position,
+        //   and push an audioOffset WS event.
+        // HoldTxFreq=true: use the operator-configured TxAudioOffsetHz; do not modify
+        //   config or push an event so the cursor stays where the operator set it.
+        int txFreqHz;
+        if (tx.HoldTxFreq)
+        {
+            txFreqHz = tx.TxAudioOffsetHz;
+            _logger.LogDebug(
+                "QsoAnswererService: HoldTxFreq=true — transmitting at operator-set {Freq} Hz.",
+                txFreqHz);
+        }
+        else
+        {
+            txFreqHz      = cqResult.FreqHz;
+            var currentTx = _configStore.Current.Tx ?? new TxConfig();
+            await _configStore.SaveAsync(
+                _configStore.Current with
+                {
+                    Tx = currentTx with { TxAudioOffsetHz = txFreqHz }
+                },
+                stoppingToken).ConfigureAwait(false);
+            _audioOffsetEventBus.Publish(currentTx.RxAudioOffsetHz, txFreqHz, holdTxFreq: false);
+        }
+
+        // Task 4.3: store the session TX frequency; used consistently for all
+        // subsequent transmissions (answer, report, Tx73, retries).
+        _lastTxFreqHz = txFreqHz;
 
         // Start watchdog (fires after tx.WatchdogMinutes if no state advance).
         StartWatchdog(tx);

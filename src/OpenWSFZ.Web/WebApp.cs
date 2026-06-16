@@ -365,6 +365,9 @@ public static class WebApp
         // Capture IQsoAnswerer (may be null in tests or when the TX subsystem is not wired).
         var qsoAnswerer = app.Services.GetService<IQsoAnswerer>();
 
+        // Capture AudioOffsetEventBus (may be null in tests that don't register it).
+        var audioOffsetEventBus = app.Services.GetService<AudioOffsetEventBus>();
+
         app.MapPost("/api/v1/tune", async (
             HttpRequest       request,
             IConfigStore      store,
@@ -440,6 +443,49 @@ public static class WebApp
 
             catController.TriggerRetry();
             return Results.NoContent();
+        });
+
+        // ── Audio offset endpoint ─────────────────────────────────────────────
+
+        app.MapPost("/api/v1/audio-offset", async (
+            HttpRequest   request,
+            IConfigStore  store,
+            CancellationToken ct) =>
+        {
+            AudioOffsetRequest? body;
+            try
+            {
+                body = await request.ReadFromJsonAsync(AppJsonContext.Default.AudioOffsetRequest, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON.");
+            }
+
+            if (body is null)
+                return Results.BadRequest("Missing or empty request body.");
+
+            if (body.RxHz < 0 || body.RxHz > 3000)
+                return Results.BadRequest($"rxHz {body.RxHz} is out of range [0, 3000].");
+
+            if (body.TxHz < 0 || body.TxHz > 3000)
+                return Results.BadRequest($"txHz {body.TxHz} is out of range [0, 3000].");
+
+            var currentTx = store.Current.Tx ?? new TxConfig();
+            var updated   = store.Current with
+            {
+                Tx = currentTx with
+                {
+                    RxAudioOffsetHz = body.RxHz,
+                    TxAudioOffsetHz = body.TxHz,
+                    HoldTxFreq      = body.HoldTxFreq,
+                }
+            };
+            await store.SaveAsync(updated, ct);
+
+            audioOffsetEventBus?.Publish(body.RxHz, body.TxHz, body.HoldTxFreq);
+
+            return TypedResults.Ok(new AudioOffsetRequest(body.RxHz, body.TxHz, body.HoldTxFreq));
         });
 
         // ── TX / QSO answerer endpoints (FR-047) ─────────────────────────────

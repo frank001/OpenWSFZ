@@ -42,5 +42,29 @@ public sealed record TxConfig
     /// Minimum effective value is 1 (clamped at load time).
     /// Default: 4.
     /// </summary>
-    public int    WatchdogMinutes { get; init; } = 4;
+    public int    WatchdogMinutes    { get; init; } = 4;
+
+    /// <summary>
+    /// RX audio frequency cursor position in Hz (0–3000).
+    /// Indicates the operator-selected receive offset within the 0–3 kHz audio passband.
+    /// Default: 1500.
+    /// </summary>
+    public int    RxAudioOffsetHz    { get; init; } = 1500;
+
+    /// <summary>
+    /// TX audio frequency cursor position in Hz (0–3000).
+    /// Used as the transmit offset when <see cref="HoldTxFreq"/> is <c>true</c>;
+    /// auto-updated to the caller's <c>freqHz</c> when <see cref="HoldTxFreq"/> is <c>false</c>.
+    /// Default: 1500.
+    /// </summary>
+    public int    TxAudioOffsetHz    { get; init; } = 1500;
+
+    /// <summary>
+    /// When <c>true</c>, the QSO answerer transmits at <see cref="TxAudioOffsetHz"/>
+    /// regardless of the caller's audio frequency.
+    /// When <c>false</c> (the default), the answerer uses the caller's decoded
+    /// <c>freqHz</c> and auto-updates <see cref="TxAudioOffsetHz"/> so the waterfall
+    /// cursor always reflects the actual TX position.
+    /// </summary>
+    public bool   HoldTxFreq         { get; init; } = false;
 }

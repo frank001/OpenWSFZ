@@ -293,6 +293,7 @@ var app = WebApp.Create(
         // as a concrete singleton instance rather than resolved from DI.
         services.AddSingleton(qsoAnswererChannel.Reader);
         services.AddSingleton<TxEventBus>();
+        services.AddSingleton<AudioOffsetEventBus>();
         services.AddSingleton<AdifLogWriter>();
         services.AddSingleton<QsoAnswererService>();
         services.AddSingleton<IQsoAnswerer>(sp => sp.GetRequiredService<QsoAnswererService>());
