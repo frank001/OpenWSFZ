@@ -44,6 +44,12 @@ While in `Idle` with `tx.autoAnswer = true`, the service SHALL inspect each deco
 
 If multiple CQs are decoded in the same cycle, the first in the decoded list SHALL be selected. If `tx.callsign` or `tx.grid` is empty or whitespace-only, the CQ SHALL be ignored and a Warning logged.
 
+**TX frequency selection:** When the service answers a CQ and `tx.holdTxFreq` is `false`, the TX frequency SHALL be the caller's decoded `freqHz` (existing behaviour). The service SHALL additionally update `tx.txAudioOffsetHz` in `IConfigStore` to match and push an `audioOffset` WebSocket event so the waterfall cursor reflects the actual transmission frequency.
+
+When `tx.holdTxFreq` is `true`, the TX frequency SHALL be `tx.txAudioOffsetHz` from the current config. The service SHALL NOT modify `txAudioOffsetHz` or push an `audioOffset` event in this case.
+
+This TX frequency selection logic applies to all transmitted messages in a session (answer, report, Tx73, retries). The TX frequency is fixed at the start of each CQ answer and does not change mid-session regardless of `holdTxFreq`.
+
 #### Scenario: CQ triggers auto-answer
 
 - **WHEN** the service is in `Idle`, `tx.autoAnswer` is `true`, and a decode batch contains `CQ Q1TST JO22`
@@ -63,6 +69,20 @@ If multiple CQs are decoded in the same cycle, the first in the decoded list SHA
 
 - **WHEN** `tx.callsign` is empty and a CQ is decoded
 - **THEN** the service SHALL ignore the CQ, log a Warning, and remain in `Idle`
+
+#### Scenario: Hold TX Freq false — TX at caller's frequency, cursor updated
+
+- **WHEN** the service answers a CQ from `Q1TST` at 1234 Hz and `tx.holdTxFreq` is `false`
+- **THEN** the service SHALL transmit at 1234 Hz
+- **AND** `IConfigStore.Current.Tx.TxAudioOffsetHz` SHALL be updated to 1234
+- **AND** an `audioOffset` WebSocket event SHALL be pushed with `txHz = 1234`
+
+#### Scenario: Hold TX Freq true — TX at operator-set frequency, cursor unchanged
+
+- **WHEN** the service answers a CQ from `Q1TST` at 1234 Hz and `tx.holdTxFreq` is `true` and `tx.txAudioOffsetHz` is 1500
+- **THEN** the service SHALL transmit at 1500 Hz
+- **AND** `IConfigStore.Current.Tx.TxAudioOffsetHz` SHALL remain 1500
+- **AND** no `audioOffset` WebSocket event SHALL be pushed by the answerer
 
 ---
 

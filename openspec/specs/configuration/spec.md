@@ -248,6 +248,9 @@ The `AppConfig` schema SHALL include a `Tx` property of type `TxConfig`. If the 
 | `Grid` | string | `"JO33"` | Our Maidenhead grid locator (4-character minimum). |
 | `RetryCount` | int | `3` | Number of retransmits per waiting state before aborting the QSO. Clamped to minimum 1. |
 | `WatchdogMinutes` | int | `4` | Watchdog timer duration in minutes. Matching WSJT-X default. Clamped to minimum 1. |
+| `RxAudioOffsetHz` | int | `1500` | RX frequency cursor position in Hz (0–3000). Persisted so the waterfall cursor survives a restart. |
+| `TxAudioOffsetHz` | int | `1500` | TX frequency cursor position in Hz (0–3000). Auto-updated by the QSO answerer when `HoldTxFreq` is false. |
+| `HoldTxFreq` | bool | `false` | When `true`, the answerer transmits at `TxAudioOffsetHz` regardless of the caller's frequency; when `false`, it follows the caller's audio frequency and updates `TxAudioOffsetHz` automatically. |
 
 All fields SHALL have defaults so that a partial or absent `tx` object loads without error.
 
@@ -280,6 +283,22 @@ All fields SHALL have defaults so that a partial or absent `tx` object loads wit
 
 - **WHEN** `tx.watchdogMinutes` is set to `0` or a negative value
 - **THEN** the daemon SHALL clamp it to `1`, log a Warning, and use the clamped value
+
+#### Scenario: TxConfig with new audio offset fields round-trips through JSON
+
+- **WHEN** a `TxConfig` with `rxAudioOffsetHz = 900`, `txAudioOffsetHz = 1800`, and `holdTxFreq = true` is serialised to JSON and deserialised again
+- **THEN** all three fields SHALL have their original values
+
+#### Scenario: Existing app.json without audio offset fields deserialises with defaults
+
+- **WHEN** `app.json` contains a `tx` object without `rxAudioOffsetHz`, `txAudioOffsetHz`, or `holdTxFreq`
+- **THEN** the deserialised `TxConfig` SHALL have `RxAudioOffsetHz = 1500`, `TxAudioOffsetHz = 1500`, and `HoldTxFreq = false`
+- **AND** the daemon SHALL start without error
+
+#### Scenario: Audio offset fields appear in app.json after first save
+
+- **WHEN** the daemon receives a `POST /api/v1/audio-offset` request and saves config
+- **THEN** `app.json` SHALL contain `"rxAudioOffsetHz"`, `"txAudioOffsetHz"`, and `"holdTxFreq"` in the `tx` object
 
 ---
 
