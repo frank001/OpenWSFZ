@@ -17,7 +17,7 @@
 
 - [x] 3.1 Create `Ft8AudioSynthesiser` class in `OpenWSFZ.Ft8`
 - [x] 3.2 Implement `Synthesise(byte[] tones, double baseFrequencyHz) → float[]` using continuous-phase rectangular-pulse FM at 48 000 Hz
-- [x] 3.3 Verify output length is exactly 607 680 samples (79 × 7680)
+- [x] 3.3 Verify output length is exactly 606 720 samples (79 × 7680)
 - [x] 3.4 Verify amplitude bound ±0.5 and phase continuity across symbol boundaries
 - [x] 3.5 Add unit tests: output length, amplitude bounds, phase continuity at symbol boundary
 
