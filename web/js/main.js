@@ -6,9 +6,9 @@
  * @module main
  */
 
-import { connect }                       from './ws.js';
-import { getConfig, getFrequencies, postTune } from './api.js';
-import { WaterfallRenderer }             from './spectrum.js';
+import { connect }                                    from './ws.js';
+import { getConfig, getFrequencies, postTune, postAudioOffset } from './api.js';
+import { WaterfallRenderer }                          from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
 
@@ -356,6 +356,91 @@ document.addEventListener('DOMContentLoaded', () => {
   const observer = new ResizeObserver(() => renderer.resize());
   observer.observe(canvas.parentElement ?? canvas);
 
+  // ── Audio offset / cursor state ───────────────────────────────────────────
+
+  const rxFreqDisplayEl = /** @type {HTMLElement} */ (document.getElementById('rx-freq-display'));
+  const txFreqDisplayEl = /** @type {HTMLElement} */ (document.getElementById('tx-freq-display'));
+  const holdTxFreqEl    = /** @type {HTMLInputElement} */ (/** @type {unknown} */ (document.getElementById('hold-tx-freq')));
+
+  /** Current RX cursor position in Hz. Mirrored locally to avoid DOM reads on every click. */
+  let currentRxHz = 1500;
+  /** Current TX cursor position in Hz. */
+  let currentTxHz = 1500;
+
+  /**
+   * Apply an audio offset update to all local UI elements.
+   * Called on WS events and after local cursor interactions.
+   * @param {number}  rxHz
+   * @param {number}  txHz
+   * @param {boolean} holdTxFreq
+   */
+  function applyAudioOffset(rxHz, txHz, holdTxFreq) {
+    currentRxHz = rxHz;
+    currentTxHz = txHz;
+    renderer.setRxHz(rxHz);
+    renderer.setTxHz(txHz);
+    if (rxFreqDisplayEl) rxFreqDisplayEl.textContent = rxHz + ' Hz';
+    if (txFreqDisplayEl) txFreqDisplayEl.textContent = txHz + ' Hz';
+    if (holdTxFreqEl)    holdTxFreqEl.checked = holdTxFreq;
+  }
+
+  /**
+   * Fire-and-forget POST /api/v1/audio-offset.
+   * Logs errors to console; never throws so cursor updates always succeed locally.
+   * @param {number}  rxHz
+   * @param {number}  txHz
+   * @param {boolean} holdTxFreq
+   */
+  async function postAudioOffsetSilently(rxHz, txHz, holdTxFreq) {
+    try {
+      await postAudioOffset(rxHz, txHz, holdTxFreq);
+    } catch (err) {
+      console.error('POST /api/v1/audio-offset failed:', err);
+    }
+  }
+
+  /**
+   * Task 6.1 / D5 — Map a canvas mouse event to an audio frequency in Hz.
+   * Uses offsetX (CSS pixels, DPR-independent) divided by the CSS width of the
+   * canvas element, then scaled to MAX_FREQ_HZ (3000 Hz).
+   * @param {MouseEvent} e
+   * @returns {number}  Hz, clamped to [0, 3000].
+   */
+  function freqFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    const hz   = Math.round((e.offsetX / rect.width) * 3000);
+    return Math.max(0, Math.min(3000, hz));
+  }
+
+  // Task 6.1 — Left-click: set RX (or both when Shift held).
+  canvas.addEventListener('click', (e) => {
+    const hz = freqFromEvent(e);
+    if (e.shiftKey) {
+      // Shift+left-click: set both RX and TX to the same frequency.
+      applyAudioOffset(hz, hz, holdTxFreqEl?.checked ?? false);
+      postAudioOffsetSilently(hz, hz, holdTxFreqEl?.checked ?? false);
+    } else {
+      // Plain left-click: set RX only; TX stays unchanged.
+      applyAudioOffset(hz, currentTxHz, holdTxFreqEl?.checked ?? false);
+      postAudioOffsetSilently(hz, currentTxHz, holdTxFreqEl?.checked ?? false);
+    }
+  });
+
+  // Task 6.2 — Right-click: set TX; suppress browser context menu.
+  canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const hz = freqFromEvent(e);
+    applyAudioOffset(currentRxHz, hz, holdTxFreqEl?.checked ?? false);
+    postAudioOffsetSilently(currentRxHz, hz, holdTxFreqEl?.checked ?? false);
+  });
+
+  // Task 7.3 — Hold TX Freq checkbox change handler.
+  if (holdTxFreqEl) {
+    holdTxFreqEl.addEventListener('change', () => {
+      postAudioOffsetSilently(currentRxHz, currentTxHz, holdTxFreqEl.checked);
+    });
+  }
+
   // W2: requestAnimationFrame throttle state for spectrum rendering.
   // Coalesces rapid onmessage deliveries into at most one putImageData call per
   // browser frame, preventing the JS main thread from being starved by putImageData.
@@ -404,6 +489,12 @@ document.addEventListener('DOMContentLoaded', () => {
       // FR-032 / FR-044: status event carries effective dial frequency and CAT status.
       updateDialFreq(event.payload.catConnectionStatus, event.payload.dialFrequencyMHz);
       setCatStatus(event.payload.catConnectionStatus);
+      // Task 7.4 — initialise cursor state from the status event so newly-connected
+      // tabs immediately show the correct cursor positions without waiting for a change.
+      applyAudioOffset(
+        event.payload.rxAudioOffsetHz ?? 1500,
+        event.payload.txAudioOffsetHz ?? 1500,
+        event.payload.holdTxFreq      ?? false);
       return;
     }
 
@@ -435,6 +526,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.type === 'cat_status' && event.payload) {
       updateDialFreq(event.payload.status, event.payload.dialFrequencyMHz);
       setCatStatus(event.payload.status);
+      return;
+    }
+
+    // Task 6.4 — audioOffset event: update cursors, readouts, and checkbox.
+    // Pushed by the daemon when the operator changes settings from another tab
+    // or when the QSO answerer auto-updates the TX cursor (Hold TX = OFF).
+    if (event.type === 'audioOffset' && event.payload) {
+      applyAudioOffset(
+        event.payload.rxHz,
+        event.payload.txHz,
+        event.payload.holdTxFreq);
       return;
     }
 

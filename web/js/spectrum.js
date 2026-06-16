@@ -54,7 +54,30 @@ export class WaterfallRenderer {
     this._canvas    = canvas;
     this._ctx       = canvas.getContext('2d');
     this._imageData = null;
+    // Task 5.1 — RX and TX cursor positions in Hz; initialised to 1500 each.
+    this._rxHz = 1500;
+    this._txHz = 1500;
     this._resize();
+  }
+
+  // ── Public cursor API (Tasks 5.2) ────────────────────────────────────────
+
+  /**
+   * Set the RX audio frequency cursor position and redraw immediately.
+   * @param {number} hz  Target frequency in Hz (0–3000).
+   */
+  setRxHz(hz) {
+    this._rxHz = hz;
+    this._drawCursors();
+  }
+
+  /**
+   * Set the TX audio frequency cursor position and redraw immediately.
+   * @param {number} hz  Target frequency in Hz (0–3000).
+   */
+  setTxHz(hz) {
+    this._txHz = hz;
+    this._drawCursors();
   }
 
   /**
@@ -99,6 +122,8 @@ export class WaterfallRenderer {
 
     this._ctx.putImageData(this._imageData, 0, 0);
     this._drawFrequencyAxis();
+    // Task 5.4 — draw cursor lines on top of the waterfall and axis ticks.
+    this._drawCursors();
   }
 
   // ── Private ──────────────────────────────────────────────────────────────
@@ -118,6 +143,57 @@ export class WaterfallRenderer {
     const data = this._imageData.data;
     for (let i = 3; i < data.length; i += 4)
       data[i] = 255;
+
+    // Task 5.5 — redraw cursors immediately after resize so they appear on the
+    // now-blank canvas before the next spectrum render() call arrives.
+    this._drawCursors();
+  }
+
+  /**
+   * Task 5.3 — Draw RX and TX cursor lines on top of the waterfall.
+   *
+   * Visual encoding:
+   *   - RX ≠ TX → green line at RX position, red line at TX position
+   *   - RX = TX → single yellow line at that position
+   *
+   * Lines span the full canvas height, are 1.5 px wide at 80% opacity so the
+   * underlying waterfall remains readable through them.
+   */
+  _drawCursors() {
+    const ctx = this._ctx;
+    const w   = this._canvas.width;
+    const h   = this._canvas.height;
+
+    ctx.save();
+    ctx.lineWidth = 1.5;
+
+    if (this._rxHz === this._txHz) {
+      // Single yellow line when RX and TX are at the same frequency.
+      const x = Math.round(this._rxHz / MAX_FREQ_HZ * w);
+      ctx.strokeStyle = 'rgba(255, 220, 0, 0.8)';
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, h);
+      ctx.stroke();
+    } else {
+      // Green line for RX.
+      const xRx = Math.round(this._rxHz / MAX_FREQ_HZ * w);
+      ctx.strokeStyle = 'rgba(0, 210, 80, 0.8)';
+      ctx.beginPath();
+      ctx.moveTo(xRx + 0.5, 0);
+      ctx.lineTo(xRx + 0.5, h);
+      ctx.stroke();
+
+      // Red line for TX.
+      const xTx = Math.round(this._txHz / MAX_FREQ_HZ * w);
+      ctx.strokeStyle = 'rgba(240, 60, 60, 0.8)';
+      ctx.beginPath();
+      ctx.moveTo(xTx + 0.5, 0);
+      ctx.lineTo(xTx + 0.5, h);
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 
   _drawFrequencyAxis() {

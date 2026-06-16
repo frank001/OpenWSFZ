@@ -233,4 +233,52 @@ public sealed class TxConfigTests
         config.Tx!.Callsign.Should().Be("Q1TST",
             "the explicitly-provided callsign field must be correct");
     }
+
+    // ── Task 8.1 / 1.2 — Existing app.json without audio offset fields uses defaults ───
+
+    [Fact(DisplayName = "Task 8.1: TxConfig without rxAudioOffsetHz/txAudioOffsetHz/holdTxFreq deserialises with defaults")]
+    public void Load_MissingAudioOffsetFields_UsesDefaults()
+    {
+        // Existing config JSON that predates the audio-offset feature.
+        const string json = """
+            {"tx":{"callsign":"Q1OFZ","grid":"JO33","retryCount":3,"watchdogMinutes":4,"autoAnswer":false}}
+            """;
+        var config = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        config.Tx.Should().NotBeNull();
+        config.Tx!.RxAudioOffsetHz.Should().Be(1500,
+            "missing rxAudioOffsetHz must default to 1500");
+        config.Tx!.TxAudioOffsetHz.Should().Be(1500,
+            "missing txAudioOffsetHz must default to 1500");
+        config.Tx!.HoldTxFreq.Should().BeFalse(
+            "missing holdTxFreq must default to false");
+    }
+
+    // ── Task 8.2 / 1.3 — New audio offset fields round-trip through JSON ────────────
+
+    [Fact(DisplayName = "Task 8.2: TxConfig with audio offset fields round-trips through JSON serialisation")]
+    public void RoundTrip_AudioOffsetFields_PreservesValues()
+    {
+        var original = new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                RxAudioOffsetHz = 900,
+                TxAudioOffsetHz = 1800,
+                HoldTxFreq      = true,
+            }
+        };
+
+        var json   = JsonSerializer.Serialize(original, ConfigJsonContext.Default.AppConfig);
+        var loaded = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        loaded.Tx.Should().NotBeNull();
+        loaded.Tx!.RxAudioOffsetHz.Should().Be(900,  "rxAudioOffsetHz must survive a JSON round-trip");
+        loaded.Tx!.TxAudioOffsetHz.Should().Be(1800, "txAudioOffsetHz must survive a JSON round-trip");
+        loaded.Tx!.HoldTxFreq.Should().BeTrue(       "holdTxFreq must survive a JSON round-trip");
+
+        json.Should().Contain("\"rxAudioOffsetHz\"", "camelCase key name must be used");
+        json.Should().Contain("\"txAudioOffsetHz\"", "camelCase key name must be used");
+        json.Should().Contain("\"holdTxFreq\"",      "camelCase key name must be used");
+    }
 }

@@ -35,6 +35,9 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(WsTxStateMessage))]
 [JsonSerializable(typeof(TxStatusResponse))]
 [JsonSerializable(typeof(QsoState))]
+[JsonSerializable(typeof(AudioOffsetPayload))]
+[JsonSerializable(typeof(WsAudioOffsetMessage))]
+[JsonSerializable(typeof(AudioOffsetRequest))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -81,3 +84,22 @@ internal sealed record WsTxStateMessage(string Type, string State, string? Partn
 /// Wire format: <c>{"state":"Idle","partner":null}</c>
 /// </summary>
 public sealed record TxStatusResponse(string State, string? Partner);
+
+/// <summary>
+/// Payload for <c>audioOffset</c> WebSocket push events.
+/// Wire format: <c>{"rxHz":900,"txHz":1500,"holdTxFreq":false}</c>
+/// </summary>
+internal sealed record AudioOffsetPayload(int RxHz, int TxHz, bool HoldTxFreq);
+
+/// <summary>
+/// Envelope for <c>audioOffset</c> WebSocket text frames.
+/// Pushed when audio offset state changes via <c>POST /api/v1/audio-offset</c> or
+/// when the QSO answerer auto-updates the TX cursor (Hold TX = OFF, CQ answered).
+/// </summary>
+internal sealed record WsAudioOffsetMessage(string Type, AudioOffsetPayload Payload);
+
+/// <summary>
+/// Request body for <c>POST /api/v1/audio-offset</c>.
+/// Wire format: <c>{"rxHz":900,"txHz":1500,"holdTxFreq":false}</c>
+/// </summary>
+internal sealed record AudioOffsetRequest(int RxHz, int TxHz, bool HoldTxFreq);
