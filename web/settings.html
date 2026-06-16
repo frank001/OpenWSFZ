@@ -27,15 +27,19 @@
       <!-- ── Tab navigation ──────────────────────────────────────────────── -->
       <div class="settings-tabs" role="tablist" aria-label="Settings sections">
         <button type="button" class="settings-tab-btn active"
-                role="tab" aria-selected="true"  aria-controls="tab-radio"   id="tab-btn-radio">
+                role="tab" aria-selected="true"  aria-controls="tab-general"     id="tab-btn-general">
+          General
+        </button>
+        <button type="button" class="settings-tab-btn"
+                role="tab" aria-selected="false" aria-controls="tab-radio"       id="tab-btn-radio">
           Radio hardware
         </button>
         <button type="button" class="settings-tab-btn"
-                role="tab" aria-selected="false" aria-controls="tab-logging" id="tab-btn-logging">
+                role="tab" aria-selected="false" aria-controls="tab-logging"     id="tab-btn-logging">
           Logging
         </button>
         <button type="button" class="settings-tab-btn"
-                role="tab" aria-selected="false" aria-controls="tab-advanced" id="tab-btn-advanced">
+                role="tab" aria-selected="false" aria-controls="tab-advanced"    id="tab-btn-advanced">
           Advanced
         </button>
         <button type="button" class="settings-tab-btn"
@@ -44,8 +48,49 @@
         </button>
       </div>
 
+      <!-- ── Tab 0: General ────────────────────────────────────────────────── -->
+      <div id="tab-general" class="settings-tab-panel active" role="tabpanel" aria-labelledby="tab-btn-general">
+
+        <div class="field-group">
+          <label for="general-callsign">Your callsign</label>
+          <input type="text" id="general-callsign" placeholder="Q1OFZ" maxlength="11"
+                 autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+          <p class="field-hint">
+            Your amateur callsign as it will appear in outgoing FT8 messages (max 11 characters).
+          </p>
+        </div>
+
+        <div class="field-group">
+          <label for="general-grid">Your Maidenhead grid</label>
+          <input type="text" id="general-grid" placeholder="JO33" maxlength="4"
+                 autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+          <p class="field-hint">
+            4-character Maidenhead grid locator (e.g. JO33, IO91). Required for FT8 TX.
+          </p>
+        </div>
+
+        <div class="field-group">
+          <label for="general-watchdog-minutes">Watchdog timer (minutes)</label>
+          <input type="number" id="general-watchdog-minutes" min="1" placeholder="4" />
+          <p class="field-hint">
+            Maximum time before an unresolved QSO is automatically aborted and the state
+            machine returns to Idle. Resets on each successful state transition.
+          </p>
+        </div>
+
+        <div class="field-group">
+          <label for="general-retry-count">Retry count</label>
+          <input type="number" id="general-retry-count" min="1" placeholder="3" />
+          <p class="field-hint">
+            Number of times to retransmit the last message before giving up on a
+            non-responding partner and returning to Idle.
+          </p>
+        </div>
+
+      </div><!-- /tab-general -->
+
       <!-- ── Tab 1: Radio hardware ───────────────────────────────────────── -->
-      <div id="tab-radio" class="settings-tab-panel active" role="tabpanel" aria-labelledby="tab-btn-radio">
+      <div id="tab-radio" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-radio">
 
         <div class="field-group">
           <label for="device-select">Audio capture device</label>
@@ -140,25 +185,7 @@
         </fieldset>
 
         <fieldset id="tx-settings">
-          <legend>FT8 auto-answer (TX)</legend>
-
-          <div class="field-group">
-            <label for="tx-callsign">Your callsign</label>
-            <input type="text" id="tx-callsign" placeholder="Q1OFZ" maxlength="11"
-                   autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
-            <p class="field-hint">
-              Your amateur callsign as it will appear in outgoing FT8 messages (max 11 characters).
-            </p>
-          </div>
-
-          <div class="field-group">
-            <label for="tx-grid">Your Maidenhead grid</label>
-            <input type="text" id="tx-grid" placeholder="JO33" maxlength="4"
-                   autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
-            <p class="field-hint">
-              4-character Maidenhead grid locator (e.g. JO33, IO91). Required for FT8 TX.
-            </p>
-          </div>
+          <legend>FT8 TX</legend>
 
           <div class="field-group">
             <label class="checkbox-label">
@@ -168,25 +195,6 @@
             <p class="field-hint">
               When enabled, OpenWSFZ will automatically answer the first decoded CQ call
               and drive a full FT8 QSO exchange.
-              <strong>Callsign and grid must be set above before enabling.</strong>
-            </p>
-          </div>
-
-          <div class="field-group">
-            <label for="tx-watchdog-minutes">Watchdog timer (minutes)</label>
-            <input type="number" id="tx-watchdog-minutes" min="1" placeholder="4" />
-            <p class="field-hint">
-              Maximum time before an unresolved QSO is automatically aborted and the state
-              machine returns to Idle. Resets on each successful state transition.
-            </p>
-          </div>
-
-          <div class="field-group">
-            <label for="tx-retry-count">Retry count</label>
-            <input type="number" id="tx-retry-count" min="1" placeholder="3" />
-            <p class="field-hint">
-              Number of times to retransmit the last message before giving up on a
-              non-responding partner and returning to Idle.
             </p>
           </div>
 
