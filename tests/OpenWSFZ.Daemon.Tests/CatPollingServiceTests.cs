@@ -168,7 +168,11 @@ public sealed class CatPollingServiceTests
                 Cat = store.Current.Cat! with { SerialPort = "COM7" }
             });
 
-        await Task.Delay(300);   // second attempt should now succeed
+        // Poll for Connected — avoids a hard-coded delay that can fail on slow CI runners.
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1000);
+        while (DateTime.UtcNow < deadline && state.Status != CatConnectionStatus.Connected)
+            await Task.Delay(20);
+
         await svc.StopAsync(CancellationToken.None);
 
         state.Status.Should().Be(CatConnectionStatus.Connected,

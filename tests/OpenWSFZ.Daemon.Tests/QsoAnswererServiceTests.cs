@@ -718,33 +718,36 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             $"CQ {PartnerCall} {PartnerGrid}")]);
         await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
 
-        // Feed noise continuously so retries keep cycling without pause.
-        // With the D-008 fix:  watchdog fires ~300 ms after WaitReport → Idle by ~400 ms.
-        // With the D-008 bug:  every retry resets the watchdog to 300 ms; the channel never
-        //                      empties; Idle is never reached → WaitForStateAsync times out.
+        // Feed non-CQ noise continuously so retries keep cycling without pause.
+        // IMPORTANT: must NOT be a CQ — when the watchdog fires and the service returns to
+        // Idle, a queued CQ would cause HandleIdleAsync to immediately answer it and re-enter
+        // TxAnswer, making Idle invisible to the 10 ms polling loop regardless of wait timeout.
+        // "Q2NOISE Q3NOISE -10" is an FT8 exchange message: TryParseCq returns false → Idle
+        // is stable; TryParseMessage returns a non-partner/non-us decode → retry fires. ✓
+        //
+        // With the D-008 fix:  watchdog fires at ~300 ms → service reaches Idle and stays there.
+        // With the D-008 bug:  every retry resets the watchdog; Idle is never reached while the
+        //                      feeder runs → WaitForStateAsync times out.
         using var feedCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var feedTask = Task.Run(async () =>
         {
             while (!feedCts.IsCancellationRequested)
             {
                 channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
-                    "CQ Q2NOISE IO91")]);
+                    "Q2NOISE Q3NOISE -10")]);
                 try   { await Task.Delay(10, feedCts.Token); }
                 catch (OperationCanceledException) { break; }
             }
         });
 
         // Deadline distinguishes the two paths (1 500 ms < 2 000 ms feeder window).
-        // Fixed:  watchdog fires → Idle reached within ~300–500 ms even on a slow CI runner →
-        //         WaitForStateAsync returns normally.
+        // Fixed:  watchdog fires → Idle reached and stays Idle (non-CQ noise) → poll catches it.
         // Buggy:  every retry resets the watchdog; Idle is never reached while feeder runs (2 s) →
         //         TimeoutException at 1 500 ms (safely below the 2 000 ms feeder window).
         // WaitForStateAsync throws on timeout, so reaching the next line is the assertion.
         await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromMilliseconds(1500));
 
-        // Cancel the feeder AFTER confirming Idle. No state assertion here: the continuous feeder
-        // may have already queued another CQ that the service will answer, transitioning back to
-        // TxAnswer before sut.State can be read — a spurious race, not a D-008 regression.
+        // Cancel the feeder after confirming Idle.
         feedCts.Cancel();
         await feedTask;
 
