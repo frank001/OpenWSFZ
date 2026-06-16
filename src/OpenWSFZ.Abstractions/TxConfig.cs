@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace OpenWSFZ.Abstractions;
 
 /// <summary>
@@ -7,6 +9,46 @@ namespace OpenWSFZ.Abstractions;
 /// </summary>
 public sealed record TxConfig
 {
+    // ── Deserialization note (D-WFC-001) ─────────────────────────────────────
+    //
+    // STJ source-generation initialises all value-type fields from JSON using
+    // CLR defaults (int → 0, bool → false) rather than C# property-initialiser
+    // defaults.  Fields absent from the JSON file therefore silently receive 0
+    // instead of 1500 for RxAudioOffsetHz / TxAudioOffsetHz.
+    //
+    // Fix: expose a [JsonConstructor] that carries the correct default values as
+    // parameter defaults.  When the source-generated deserialiser calls this
+    // constructor, absent JSON parameters use their declared defaults (1500),
+    // so older config files (pre-waterfall-cursors) load correctly.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Deserialization constructor used by the STJ source-generated context.
+    /// Parameter defaults ensure that fields absent from older config files
+    /// (written before the waterfall-cursor feature) load with correct values
+    /// rather than CLR zero-defaults (D-WFC-001).
+    /// </summary>
+    [JsonConstructor]
+    public TxConfig(
+        bool   autoAnswer      = false,
+        string callsign        = "Q1OFZ",
+        string grid            = "JO33",
+        int    retryCount      = 3,
+        int    watchdogMinutes = 4,
+        int    rxAudioOffsetHz = 1500,
+        int    txAudioOffsetHz = 1500,
+        bool   holdTxFreq      = false)
+    {
+        AutoAnswer      = autoAnswer;
+        Callsign        = callsign;
+        Grid            = grid;
+        RetryCount      = retryCount;
+        WatchdogMinutes = watchdogMinutes;
+        RxAudioOffsetHz = rxAudioOffsetHz;
+        TxAudioOffsetHz = txAudioOffsetHz;
+        HoldTxFreq      = holdTxFreq;
+    }
+
     /// <summary>
     /// Master enable for the QSO auto-answerer.
     /// When <c>false</c> (the default) the state machine remains in <c>Idle</c>
