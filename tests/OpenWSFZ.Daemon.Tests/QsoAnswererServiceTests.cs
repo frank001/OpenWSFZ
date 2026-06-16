@@ -28,23 +28,6 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     private const string PartnerGrid  = "JO22";
     private const int    AudioFreqHz  = 897;
 
-    // ── Nested helpers ────────────────────────────────────────────────────────
-
-    /// <summary>Creates a temporary directory that is deleted when disposed.</summary>
-    private sealed class TempDirectory : IDisposable
-    {
-        public string Path { get; } = System.IO.Path.Combine(
-            System.IO.Path.GetTempPath(),
-            "openwsfz-test-" + System.IO.Path.GetRandomFileName());
-
-        public TempDirectory() => Directory.CreateDirectory(Path);
-
-        public void Dispose()
-        {
-            try { Directory.Delete(Path, recursive: true); } catch { /* best-effort */ }
-        }
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private readonly Channel<IReadOnlyList<DecodeResult>> _channel =
@@ -635,13 +618,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             }
         });
 
-        using var adifDir = new TempDirectory();
-        var adifStore     = Substitute.For<IConfigStore>();
-        adifStore.Current.Returns(store.Current with
-        {
-            DecodeLog = new DecodeLogConfig { Path = System.IO.Path.Combine(adifDir.Path, "ALL.TXT") }
-        });
-        var adifLog = new AdifLogWriter(adifStore, NullLogger<AdifLogWriter>.Instance);
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
         var sut     = new QsoAnswererService(channel.Reader, store, racyPtt, new TxEventBus(),
                           adifLog, NullLogger<QsoAnswererService>.Instance);

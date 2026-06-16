@@ -439,9 +439,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         // D-007: ResetWatchdog moved to AFTER TransmitAsync for the same reason as
         // HandleWaitReportAsync — prevent AbortAsync from cancelling a stale CTS that
         // TransmitAsync never sees, which would silently write a spurious ADIF record.
+        // Note: no ResetWatchdog call here — SafeAbortToIdleAsync (below) unconditionally
+        // replaces _txCts with a fresh CTS, so any timeout-armed CTS would be immediately
+        // discarded. Resetting the watchdog at QSO completion serves no purpose.
         SetStateAndNotify(QsoState.Tx73);
         await TransmitAsync(msg73, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
-        ResetWatchdog(tx);
 
         // QSO complete.
         SetStateAndNotify(QsoState.QsoComplete);
