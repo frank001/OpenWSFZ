@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S7 R&amp;R Study Report — H3 Diagnostic (diag-d001-pcm-sic, shim 20260008)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="s7-rr-study-report-h3-diagnostic-diag-d001-pcm-sic-shim-20260008">S7 R&amp;R Study Report — H3 Diagnostic (diag-d001-pcm-sic, shim 20260008)</h1>
+<h2 id="1-study-hypothesis">1. Study Hypothesis</h2>
+<p><strong>Primary hypothesis (H3):</strong> PCM-domain successive interference cancellation (SIC), using
+CP-FSK waveform synthesis at phase zero, produces measurable improvement on exact co-channel
+parts P0 and P1 of the S7 scenario — parts that spectrogram-domain SIC (H1/H2) provably
+cannot address because information is destroyed before the waterfall is built.</p>
+<p><strong>Null hypothesis H₀:</strong> H3 produces no improvement on P0 or P1 over the 20260006 baseline
+(0/6 for both parts at K=3).</p>
+<p><strong>Secondary hypothesis:</strong> H3 produces an overall improvement of ≥ +5 pp vs the 54.84%
+2-pass spectrogram-suppression baseline (run e4a3982, 2026-06-07).</p>
+<p><strong>Defect under validation:</strong> D-001 (co-channel / weak-signal decode gap, High severity,
+GitHub issue #3). This is the third diagnostic experiment:
+- H1 (reverted, stack overflow): PCM-domain SIC with 720 KB stack buffer — crashed.
+- H2 (reverted, −4.30 pp regression): Three-pass spectrogram SIC — confirmed structural
+  limitation of spectrogram-domain approaches.
+- <strong>H3 (this run):</strong> PCM-domain SIC with heap-allocated buffers, CP-FSK synthesis, phase zero.</p>
+<p><strong>Context:</strong> Between pass 0 and pass 1, shim 20260008 synthesises a CP-FSK waveform
+(cosine, no Gaussian shaping, phase = 0) for each pass-0 decoded signal and subtracts it
+from a heap-allocated copy of the input PCM. Pass 1 operates on a waterfall rebuilt from
+the residual PCM via a second <code>monitor_t</code>. This replaces the spectrogram-domain soft-SNR
+tile attenuation used in shim 20260006.</p>
+<hr />
+<h2 id="2-data-summary">2. Data Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-06-12</td>
+</tr>
+<tr>
+<td>OpenWSFZ commit SHA</td>
+<td><code>da133f41450b013cb9791fa4aa6fef71ce30ca3c</code></td>
+</tr>
+<tr>
+<td>Shim version</td>
+<td>FT8_SHIM_VERSION = 20260008 (diag-d001-pcm-sic)</td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0 (binary date 2025-02-04)</td>
+</tr>
+<tr>
+<td>Scenario</td>
+<td>S7 — Compounding / co-channel overlap (15 parts, P0–P14)</td>
+</tr>
+<tr>
+<td>Trials (K)</td>
+<td>3</td>
+</tr>
+<tr>
+<td>Total truth observations</td>
+<td>93 (15 parts × K=3; P2 contributes 3 signals × 3 trials = 9)</td>
+</tr>
+<tr>
+<td>Baseline reference</td>
+<td>run e4a3982 (2026-06-07), shim 20260006, 51/93 = 54.84%</td>
+</tr>
+<tr>
+<td>Audio path</td>
+<td>VB-CABLE (synthetic replay, no live RF)</td>
+</tr>
+<tr>
+<td>Synthesiser modulation</td>
+<td>GFSK, BT=2.0, sin(phase) — per <code>qa/rr-study/synth/modulator.py</code></td>
+</tr>
+<tr>
+<td>Shim cancellation waveform</td>
+<td>CP-FSK, cos(phase), no Gaussian shaping — <strong>MISMATCH vs synthesiser</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Acceptance thresholds (H3 gate — both must be met for H3 to be accepted):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Criterion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gate (a) — primary</td>
+<td>Any improvement on P0 or P1 vs baseline 0/6 (at least 1 decode in 6 trials)</td>
+</tr>
+<tr>
+<td>Gate (b) — secondary</td>
+<td>Overall improvement ≥ +5 pp vs 54.84% baseline (≥ 59.84%)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-results">3. Results</h2>
+<h3 id="31-per-part-recovery">3.1 Per-part recovery</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Family</th>
+<th>Condition</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ (H3)</th>
+<th>OpenWSFZ (baseline)</th>
+<th>Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>co_channel</td>
+<td>2-stack, equal 0 dB</td>
+<td>6/6</td>
+<td><strong>0/6</strong></td>
+<td>0/6</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>co_channel</td>
+<td>2-stack, equal −5 dB</td>
+<td>4/6</td>
+<td><strong>0/6</strong></td>
+<td>0/6</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>co_channel</td>
+<td>3-stack, equal 0 dB</td>
+<td>0/9</td>
+<td>0/9</td>
+<td>0/9</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>near_collision</td>
+<td>delta 3 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>near_collision</td>
+<td>delta 6 Hz</td>
+<td>6/6</td>
+<td>2/6</td>
+<td>3/6</td>
+<td>−1</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>near_collision</td>
+<td>delta 12 Hz</td>
+<td>6/6</td>
+<td>3/6</td>
+<td>6/6</td>
+<td><strong>−3</strong></td>
+</tr>
+<tr>
+<td>P6</td>
+<td>near_collision</td>
+<td>delta 25 Hz</td>
+<td>6/6</td>
+<td>3/6</td>
+<td>5/6</td>
+<td>−2</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>near_collision</td>
+<td>delta 50 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P8</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0/0.5 s</td>
+<td>6/6</td>
+<td>0/6</td>
+<td>0/6</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P9</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0/1.0 s</td>
+<td>6/6</td>
+<td>2/6</td>
+<td>4/6</td>
+<td>−2</td>
+</tr>
+<tr>
+<td>P10</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0/2.0 s</td>
+<td>6/6</td>
+<td>4/6</td>
+<td>5/6</td>
+<td>−1</td>
+</tr>
+<tr>
+<td>P11</td>
+<td>capture</td>
+<td>co-freq, 0/−3 dB</td>
+<td>6/6</td>
+<td>3/6</td>
+<td>5/6</td>
+<td>−2</td>
+</tr>
+<tr>
+<td>P12</td>
+<td>capture</td>
+<td>co-freq, 0/−6 dB</td>
+<td>4/6</td>
+<td>3/6</td>
+<td>5/6</td>
+<td>−2</td>
+</tr>
+<tr>
+<td>P13</td>
+<td>capture</td>
+<td>co-freq, 0/−10 dB</td>
+<td>4/6</td>
+<td>3/6</td>
+<td>3/6</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P14</td>
+<td>capture</td>
+<td>co-freq, +3/−10 dB</td>
+<td>3/6</td>
+<td>3/6</td>
+<td>3/6</td>
+<td>0</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td></td>
+<td><strong>75/93 (80.65%)</strong></td>
+<td><strong>38/93 (40.86%)</strong></td>
+<td><strong>51/93 (54.84%)</strong></td>
+<td><strong>−13</strong></td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S7 recovery" src="S7_recovery.png" /></p>
+<h3 id="32-recovery-by-overlap-family">3.2 Recovery by overlap family</h3>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ H3</th>
+<th>OpenWSFZ baseline</th>
+<th>Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>co_channel</td>
+<td>47.62%</td>
+<td>0.00%</td>
+<td>0.00%</td>
+<td>0</td>
+</tr>
+<tr>
+<td>near_collision</td>
+<td>100.00%</td>
+<td>66.67%</td>
+<td>91.67%</td>
+<td>−25 pp</td>
+</tr>
+<tr>
+<td>time_freq</td>
+<td>100.00%</td>
+<td>33.33%</td>
+<td>50.00%</td>
+<td>−17 pp</td>
+</tr>
+<tr>
+<td>capture</td>
+<td>70.83%</td>
+<td>50.00%</td>
+<td>60.42%</td>
+<td>−10 pp</td>
+</tr>
+<tr>
+<td><strong>all</strong></td>
+<td><strong>80.65%</strong></td>
+<td><strong>40.86%</strong></td>
+<td><strong>54.84%</strong></td>
+<td><strong>−13.98 pp</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-regression-analysis">3.3 Regression analysis</h3>
+<p>The regression of −13.98 pp relative to the 20260006 baseline is attributable to a single
+root cause: the PCM-domain SIC achieves near-zero cancellation amplitude, which eliminates
+the spectrogram-domain suppression that was working in 20260006 without providing any
+replacement benefit.</p>
+<p>The CP-FSK synthesis in the shim uses <code>cosf(phase)</code>, while the Python synthesiser produces
+GFSK signals using <code>sin(phase)</code>. The least-squares projection amplitude is:</p>
+<div class="highlight"><pre><span></span><code>a = dot(PCM_GFSK_sin, synth_CPFSK_cos) / dot(synth_CPFSK_cos, synth_CPFSK_cos)
+</code></pre></div>
+
+<p>For continuous-phase waveforms, <code>dot(sin(φ(t)), cos(φ(t)))</code> ≈ ½ ∫ sin(2φ(t)) dt, which
+averages to near zero over many symbol periods of a pseudo-random FT8 message. Measured
+consequence: <code>a</code> is very small (estimated |a| &lt; 0.1), so the subtraction removes less than
+10% of the signal amplitude — insufficient for meaningful cancellation.</p>
+<p>The small but non-zero <code>a</code> introduces minor phase distortion in the residual PCM. This
+distortion, combined with the loss of the spectrogram suppression that was previously
+helping pass 1 (by attenuating strong-signal tiles before the second candidate search),
+degrades pass-1 decode rates across near-collision, time-offset, and capture families.</p>
+<p>Parts unaffected by this regression are those that were either impossible before (P0, P1,
+P2, P8 — structural co-channel separation limit) or already at their natural detection
+floor (P13, P14 — weak signal capture limited by LDPC, not inter-signal interference).</p>
+<hr />
+<h2 id="4-summary-verdict">4. Summary Verdict</h2>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Criterion</th>
+<th>Result</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gate (a) primary</td>
+<td>P0 or P1 improvement from 0/6</td>
+<td>P0: 0/6, P1: 0/6 — no change</td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>Gate (b) secondary</td>
+<td>Overall ≥ +5 pp vs 54.84% baseline</td>
+<td>40.86% — <strong>−13.98 pp regression</strong></td>
+<td><strong>FAIL</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>H3 verdict: REJECTED.</strong> Both acceptance gates fail. The H3 implementation (CP-FSK/cos
+synthesis, phase zero) produces zero improvement on the co-channel gate parts and a
+significant regression (−13.98 pp overall) relative to the spectrogram-domain SIC baseline
+it replaced. The regression is larger than H2 (−4.30 pp).</p>
+<p><strong>Overall result:</strong> FAIL</p>
+<hr />
+<h2 id="5-recommendations">5. Recommendations</h2>
+<h3 id="r1-proceed-to-h3b-gfsk-synthesis-with-sinphase">R1 — Proceed to H3b: GFSK synthesis with sin(phase)</h3>
+<p>The identified root cause is a two-part model mismatch between the shim's synthesis
+waveform and the actual FT8 signal:</p>
+<ol>
+<li><strong>Modulation:</strong> Shim uses CP-FSK (no Gaussian shaping); FT8 uses GFSK (BT=2.0).</li>
+<li><strong>Phase:</strong> Shim uses <code>cosf(phase)</code> initialised at 0; synthesiser uses <code>sin(phase)</code>
+   initialised at 0.</li>
+</ol>
+<p>H3b should replace the CP-FSK/cos synthesiser in <code>synth_ft8_cpsfc</code> with a GFSK/sin
+synthesiser using the same Gaussian filter parameters as the Python synthesiser
+(3-symbol span, BT=2.0). This eliminates both mismatches simultaneously. For the
+synthetic S7 study (signals generated by a Python GFSK/sin synthesiser), the projection
+amplitude <code>a</code> should be close to 1.0, producing near-complete cancellation.</p>
+<p><strong>H3b gate:</strong> Same as H3 — any measurable improvement on P0 or P1 (currently 0/6), AND
+overall ≥ +5 pp vs 54.84% baseline.</p>
+<h3 id="r2-restore-spectrogram-suppression-as-fallback">R2 — Restore spectrogram suppression as fallback</h3>
+<p>Should H3b also fail (i.e., should GFSK synthesis still produce insufficient cancellation),
+the <code>suppress_candidate_tiles</code> function remains in the shim source and can be reinstated
+as the inter-pass mechanism. Reversion would require a shim rebuild and version bump.</p>
+<h3 id="r3-phase-estimation-h3c-if-h3b-shows-partial-improvement">R3 — Phase estimation (H3c, if H3b shows partial improvement)</h3>
+<p>If H3b shows improvement on P0/P1 in the synthetic study but limited improvement in
+real-world conditions (unknown carrier phase), phase estimation should be introduced.
+The simplest approach: sweep four phase offsets (0, π/2, π, 3π/2) per decoded signal,
+select the one that maximises |a|, and subtract using that phase. This handles the
+sin/cos ambiguity without a full correlation sweep.</p>
+<h3 id="r4-re-run-s7-after-h3b-implementation">R4 — Re-run S7 after H3b implementation</h3>
+<p>Per NS-001 trigger condition (a), S7 must be re-run whenever a pipeline change is merged.
+H3b constitutes such a change. The S7 re-run is the acceptance gate for H3b.</p>
+<h3 id="r5-update-d-001-status">R5 — Update D-001 status</h3>
+<p>D-001 remains open at High severity. H3 provides useful evidence: the regression confirms
+that near-zero cancellation amplitude is the dominant factor, not Gaussian shaping alone.
+GitHub issue #3 should be annotated with H3 findings and H3b plan.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

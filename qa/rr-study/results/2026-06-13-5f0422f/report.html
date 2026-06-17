@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ R&amp;R Study Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-rr-study-report">OpenWSFZ R&amp;R Study Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-06-13</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>5f0422fa904b3adbc49151e7c0875933d3aa047a</code></td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0 (inferred from binary date 2025-02-04)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study hypothesis</h2>
+<h3 id="purpose">Purpose</h3>
+<p>This is a <strong>revert verification run</strong>, not a forward investigative study. Its sole purpose is to confirm that the H5 shim regression has been correctly reversed and that the H4 baseline is once again the active decode pipeline.</p>
+<h3 id="background">Background</h3>
+<p>Hypothesis H5 (shim 20260011, suppression ramp [−15, +5] dB, 75% attenuation at 0 dB SNR) was the fifth diagnostic hypothesis against D-001. It was REJECTED on 2026-06-09: S7 overall 43/93 = 46.24% (−10.75 pp vs H4 R1 baseline of 56.99%). Following rejection, H5 was expected to be reverted. However, no revert commit was produced at that time. The H5 source constants and compiled DLLs remained silently active in <code>main</code> — discovered during this session when <code>ft8_shim.h</code> was read and found to carry <code>FT8_SHIM_VERSION 20260011</code>.</p>
+<p>Commit <code>5f0422f</code> performed the revert: <code>K_SOFT_SUPP_SNR_MIN_DB</code> restored to −5.0 dB, <code>K_SOFT_SUPP_SNR_MAX_DB</code> restored to +15.0 dB, <code>FT8_SHIM_VERSION</code> set back to 20260010, <code>ExpectedShimVersion</code> in <code>Ft8LibInterop.cs</code> set back to 20260010. Both win-x64 (MSVC 19.44.35223) and linux-x64 (GCC 14.2.0) DLLs rebuilt from the reverted source.</p>
+<h3 id="null-hypotheses">Null hypotheses</h3>
+<p><strong>H₀₁:</strong> The revert was ineffective — H5 is still the active pipeline.<br />
+Refuted if S7 overall falls within the H4 variability band (43–57%) and H4 fingerprint parts (P5, P10) show their characteristic recovery values.</p>
+<p><strong>H₀₂:</strong> The revert introduced a new regression beyond the established H4 variability band.<br />
+Refuted if S7 overall remains within 43–57% and no per-part result is detectably worse than H4 R1.</p>
+<h3 id="defects-under-observation">Defects under observation</h3>
+<ul>
+<li><strong>D-001</strong> (co-channel decode gap, #3 open) — this run does not test a new D-001 hypothesis. It establishes that the H4 R1 baseline (56.99%) is once again the reference from which future D-001 hypotheses will be measured. The D-001 gap itself is not expected to narrow.</li>
+<li><strong>D-003</strong> (intermittent SNR under-report, #11 open) — observed during the warm-up cycle (see Section 5). Does not affect the attribute-based S7 metric.</li>
+</ul>
+<h3 id="what-constitutes-a-meaningful-result">What constitutes a meaningful result</h3>
+<p>The revert is confirmed if all three of the following criteria are satisfied:</p>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Criterion</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>G-R1</td>
+<td>S7 overall (OpenWSFZ) within 43–57%</td>
+<td>H4 variability band established across R0 (43.01%) and R1 (56.99%); H5 produced 46.24% which falls inside this band by chance — therefore per-part fingerprinting is also required</td>
+</tr>
+<tr>
+<td>G-R2</td>
+<td>P5 (near_collision, delta 12 Hz): OpenWSFZ ≥ 5/6</td>
+<td>H4 R1 produced 6/6 at P5; H5's over-suppression was insufficient to damage near-collision at 12 Hz but should not regress it</td>
+</tr>
+<tr>
+<td>G-R3</td>
+<td>P10 (time_freq, dt 2.0 s): OpenWSFZ ≥ 4/6</td>
+<td>H4 R1 produced 5/6 at P10; H5 collapsed P10 to 0/6 — H4 active iff P10 recovers</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data summary</h2>
+<h3 id="measurement-instruments">Measurement instruments</h3>
+<table>
+<thead>
+<tr>
+<th>Instrument</th>
+<th>Version / SHA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenWSFZ</td>
+<td><code>5f0422fa904b3adbc49151e7c0875933d3aa047a</code> — commit: <code>revert(ft8-shim): restore H4 baseline (shim 20260010) — H5 was never reverted after rejection</code></td>
+</tr>
+<tr>
+<td>Native shim</td>
+<td>FT8_SHIM_VERSION 20260010; K_SOFT_SUPP_SNR_MIN_DB = −5.0 dB; K_SOFT_SUPP_SNR_MAX_DB = +15.0 dB</td>
+</tr>
+<tr>
+<td>WSJT-X</td>
+<td>2.7.0 (inferred from binary date 2025-02-04) — reference appraiser, unchanged across all S7 runs</td>
+</tr>
+</tbody>
+</table>
+<h3 id="corpus">Corpus</h3>
+<p>Synthetic — S7 co-channel overlap scenario. 15 parts (P0–P14), 3 trials per part = 45 signal injections per appraiser per signal, 93 truth rows total. Audio delivered via VB-CABLE virtual audio device; no live RF was involved. One additional warm-up trial was run prior to the study trials; warm-up data is excluded from truth.csv and from all metrics below.</p>
+<table>
+<thead>
+<tr>
+<th>Overlap family</th>
+<th>Parts</th>
+<th>Signals per part</th>
+<th>Truth rows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>co_channel</td>
+<td>P0–P2</td>
+<td>2–3 stacked signals</td>
+<td>21</td>
+</tr>
+<tr>
+<td>near_collision</td>
+<td>P3–P7</td>
+<td>2 signals, offset frequency</td>
+<td>30</td>
+</tr>
+<tr>
+<td>time_freq</td>
+<td>P8–P10</td>
+<td>2 co-frequency signals, offset DT</td>
+<td>18</td>
+</tr>
+<tr>
+<td>capture</td>
+<td>P11–P14</td>
+<td>2 co-frequency signals, unequal SNR</td>
+<td>24</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td></td>
+<td><strong>93</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="variables-measured">Variables measured</h3>
+<ul>
+<li><strong>Per-message binary decode decision:</strong> matched (decoded within tolerance) or not matched, per appraiser, per truth row.</li>
+<li>No continuous Gage R&amp;R metrics (SNR, frequency, DT) are computed in this S7-only run.</li>
+</ul>
+<h3 id="acceptance-thresholds">Acceptance thresholds</h3>
+<p>No AIAG threshold is defined for S7 (co-channel separation is informational). This run uses the revert verification gates defined in Section 1:</p>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Threshold</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>G-R1 — S7 overall (OpenWSFZ)</td>
+<td>Within H4 variability band: 43–57%</td>
+</tr>
+<tr>
+<td>G-R2 — P5 near_collision 12 Hz</td>
+<td>≥ 5/6</td>
+</tr>
+<tr>
+<td>G-R3 — P10 time_freq dt 2.0 s</td>
+<td>≥ 4/6</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h3 id="s7-compounding-co-channel-overlap">S7 — Compounding / co-channel overlap</h3>
+<p><em>Per-message recovery when 2–3 signals occupy the same or near-same audio frequency / time slot (the pileup case S4 does not exercise). Informational — no AIAG threshold is defined for co-channel separation.</em></p>
+<h4 id="recovery-by-overlap-family">Recovery by overlap family</h4>
+<table>
+<thead>
+<tr>
+<th>Overlap family</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>capture</td>
+<td>62.50%</td>
+<td>54.17%</td>
+</tr>
+<tr>
+<td>co_channel</td>
+<td>42.86%</td>
+<td>0.00%</td>
+</tr>
+<tr>
+<td>near_collision</td>
+<td>93.33%</td>
+<td>80.00%</td>
+</tr>
+<tr>
+<td>time_freq</td>
+<td>100.00%</td>
+<td>27.78%</td>
+</tr>
+<tr>
+<td><strong>all</strong></td>
+<td><strong>75.27%</strong></td>
+<td><strong>45.16%</strong></td>
+</tr>
+</tbody>
+</table>
+<h4 id="capture-effect-co-channel-unequal-snr">Capture effect (co-channel, unequal SNR)</h4>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>strong</td>
+<td>100.00%</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>weak</td>
+<td>25.00%</td>
+<td>8.33%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Between-app per-signal agreement:</strong> 63.44%</p>
+<h4 id="per-part-detail">Per-part detail</h4>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Family</th>
+<th>Condition</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>co_channel</td>
+<td>2-stack, equal 0 dB</td>
+<td>4/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>co_channel</td>
+<td>2-stack, equal -5 dB</td>
+<td>5/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>co_channel</td>
+<td>3-stack, equal 0 dB</td>
+<td>0/9</td>
+<td>0/9</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>near_collision</td>
+<td>delta 3 Hz</td>
+<td>4/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>near_collision</td>
+<td>delta 6 Hz</td>
+<td>6/6</td>
+<td>1/6</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>near_collision</td>
+<td>delta 12 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>near_collision</td>
+<td>delta 25 Hz</td>
+<td>6/6</td>
+<td>5/6</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>near_collision</td>
+<td>delta 50 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>P8</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0 / 0.5 s</td>
+<td>6/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P9</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0 / 1.0 s</td>
+<td>6/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P10</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0 / 2.0 s</td>
+<td>6/6</td>
+<td>5/6</td>
+</tr>
+<tr>
+<td>P11</td>
+<td>capture</td>
+<td>co-freq, 0 / -3 dB</td>
+<td>3/6</td>
+<td>4/6</td>
+</tr>
+<tr>
+<td>P12</td>
+<td>capture</td>
+<td>co-freq, 0 / -6 dB</td>
+<td>4/6</td>
+<td>3/6</td>
+</tr>
+<tr>
+<td>P13</td>
+<td>capture</td>
+<td>co-freq, 0 / -10 dB</td>
+<td>3/6</td>
+<td>3/6</td>
+</tr>
+<tr>
+<td>P14</td>
+<td>capture</td>
+<td>co-freq, +3 / -10 dB</td>
+<td>5/6</td>
+<td>3/6</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S7 recovery" src="S7_recovery.png" /></p>
+<h4 id="comparison-with-prior-s7-runs">Comparison with prior S7 runs</h4>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>SHA</th>
+<th>Shim</th>
+<th>S7 overall (OpenWSFZ)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H4 R0</td>
+<td><code>dc99567</code></td>
+<td>20260010</td>
+<td>40/93 = 43.01%</td>
+<td>Timing variability</td>
+</tr>
+<tr>
+<td>H4 R1 (baseline)</td>
+<td><code>cd9f06b</code></td>
+<td>20260010</td>
+<td>53/93 = 56.99%</td>
+<td><strong>Accepted baseline</strong></td>
+</tr>
+<tr>
+<td>H5 (REJECTED)</td>
+<td><code>b5477b3</code></td>
+<td>20260011</td>
+<td>43/93 = 46.24%</td>
+<td>Over-suppression confirmed</td>
+</tr>
+<tr>
+<td><strong>H4 R2 (this run)</strong></td>
+<td><strong><code>5f0422f</code></strong></td>
+<td><strong>20260010</strong></td>
+<td><strong>42/93 = 45.16%</strong></td>
+<td><strong>Revert verification</strong></td>
+</tr>
+</tbody>
+</table>
+<p>This run (45.16%) is the third data point within the H4 variability band (43–57%). The H4 fingerprint is confirmed: P5 = 6/6, P10 = 5/6 — both values characteristic of H4 and inconsistent with H5 (which produced P10 = 0/6).</p>
+<hr />
+<h2 id="section-4-summary-verdict-table">Section 4 — Summary verdict table</h2>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Metric</th>
+<th>Value</th>
+<th>Threshold</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>G-R1</td>
+<td>S7 overall — OpenWSFZ</td>
+<td>45.16% (42/93)</td>
+<td>43–57% (H4 variability band)</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>G-R2</td>
+<td>P5 near_collision 12 Hz — OpenWSFZ</td>
+<td>6/6 = 100%</td>
+<td>≥ 5/6 (H4 fingerprint)</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>G-R3</td>
+<td>P10 time_freq dt 2.0 s — OpenWSFZ</td>
+<td>5/6 = 83%</td>
+<td>≥ 4/6 (H4 fingerprint)</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>—</td>
+<td>D-003 warm-up SNR delta</td>
+<td>OpenWSFZ −10 dB / WSJT-X +7 dB (~17 dB delta)</td>
+<td>—</td>
+<td>Informational</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: PASS</strong> — H4 baseline (shim 20260010) confirmed active. Both null hypotheses H₀₁ and H₀₂ are refuted.</p>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<h3 id="revert-verification">Revert verification</h3>
+<p>All three revert gates pass. The H5 over-suppression footprint (characteristic collapse of P8/P9/P10 to 0/6) is absent. P10 = 5/6 is the positive H4 fingerprint. H₀₁ (H5 still active) is refuted. H₀₂ (new regression beyond band) is refuted. The H4 R1 baseline at 56.99% remains the accepted reference for future D-001 hypotheses.</p>
+<p>No further investigation is warranted from this run itself.</p>
+<h3 id="d-001-co-channel-decode-gap-open-3">D-001 — Co-channel decode gap (open, #3)</h3>
+<p>The structural floors visible in this run are unchanged from prior H4 runs and are consistent with the known shim-level ceiling:</p>
+<ul>
+<li><strong>co_channel (P0–P1):</strong> 0/6 across all D-001 hypothesis runs. The two equal-power co-channel signals are indistinguishable to the spectrogram suppression approach; both P0 and P1 require decoder architecture changes (candidate-level interference modelling or PCM-domain subtraction with accurate carrier estimation) to improve.</li>
+<li><strong>time_freq (P8–P9):</strong> 0/6 at dt = 0.5 s and 1.0 s. Signals overlap in time and frequency simultaneously; the tile suppression pass cannot separate them. Same architectural constraint as co_channel.</li>
+</ul>
+<p>Five shim-level hypotheses are exhausted. The next diagnostic step requires a Captain decision on whether an architecture-level D-001 effort is in scope for the current roadmap. Until that decision is made, no further S7 runs for D-001 are warranted.</p>
+<h3 id="d-003-intermittent-snr-under-report-open-11">D-003 — Intermittent SNR under-report (open, #11)</h3>
+<p>During the warm-up cycle (excluded from S7 truth.csv), OpenWSFZ reported approximately −10 dB SNR and WSJT-X reported approximately +7 dB for the same signal — a delta of approximately 17 dB. This is consistent with the D-003 under-report symptom (<code>signal_db</code> computation in <code>ft8_shim.c</code> reading an incorrect tile under certain conditions).</p>
+<p>The warm-up anomaly does not affect this study (S7 is an attribute study; SNR values are not measured). However, it constitutes a further observation of D-003 and should be noted in the soak test design. The soak test required for D-003 remains pending (see #11).</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

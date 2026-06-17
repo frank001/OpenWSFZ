@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ R&amp;R Study Report — S7 H5 Suppression Constant Tuning</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-rr-study-report-s7-h5-suppression-constant-tuning">OpenWSFZ R&amp;R Study Report — S7 H5 Suppression Constant Tuning</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-06-13</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>b5477b37f156ef48a0a0aeaa1810f95e8d4fca5c</code></td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0 (inferred from binary date 2025-02-04)</td>
+</tr>
+<tr>
+<td>Report version</td>
+<td>v2 (NFR-023 compliant)</td>
+</tr>
+<tr>
+<td>Change</td>
+<td><code>diag-d001-h5-suppression-tuning</code></td>
+</tr>
+<tr>
+<td>Run type</td>
+<td>Single run — H5 validation</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Note:</strong> The harness-generated <code>report.md</code> in this directory shows "Overall verdict: PASS".
+That verdict is the harness default and does not evaluate the H5 acceptance gates. This
+NFR-023-compliant <code>report-v2.md</code> is the authoritative document. The correct verdict is
+<strong>H5 REJECTED</strong> — see §4 below.</p>
+</blockquote>
+<hr />
+<h2 id="1-study-hypothesis">1. Study Hypothesis</h2>
+<h3 id="what-this-study-tests">What this study tests</h3>
+<p><strong>H5</strong> (<code>diag-d001-h5-suppression-tuning</code>, shim 20260011): the soft SNR-scaled suppression
+ramp window is shifted 10 dB toward lower SNRs relative to H4:</p>
+<table>
+<thead>
+<tr>
+<th>Constant</th>
+<th>H4 (20260010)</th>
+<th>H5 (20260011)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>K_SOFT_SUPP_SNR_MIN_DB</code></td>
+<td>−5.0 dB</td>
+<td>−15.0 dB</td>
+</tr>
+<tr>
+<td><code>K_SOFT_SUPP_SNR_MAX_DB</code></td>
+<td>+15.0 dB</td>
+<td>+5.0 dB</td>
+</tr>
+<tr>
+<td>Suppression at 0 dB SNR</td>
+<td>25%</td>
+<td>75%</td>
+</tr>
+</tbody>
+</table>
+<p>The ramp width (20 dB) is preserved; only the operating window shifts. The hypothesis is that
+75% suppression at the S7 test SNR of 0 dB will more completely clear the first decoded
+signal's waterfall contribution before pass 1, allowing pass 1 to recover the second signal
+in the time_freq family (P9/P10).</p>
+<p><strong>Null hypothesis H5₀:</strong> Shifting the ramp to [−15, +5] does not improve S7 recovery; the
+result fails gate (a) or gate (b) relative to the H4 baseline.</p>
+<p><strong>Alternative hypothesis H5₁:</strong> The shift improves time_freq recovery sufficiently that
+S7 overall ≥ 56.99% with no per-part regressions.</p>
+<h3 id="defects-under-validation">Defects under validation</h3>
+<table>
+<thead>
+<tr>
+<th>Defect</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D-001 (High)</td>
+<td>Co-channel / weak-signal decode gap vs WSJT-X</td>
+</tr>
+</tbody>
+</table>
+<h3 id="acceptance-gates">Acceptance gates</h3>
+<ul>
+<li><strong>Gate (a):</strong> S7 overall recovery ≥ 56.99% (≥ 53/93) — must not regress H4 R1 baseline</li>
+<li><strong>Gate (b):</strong> No per-part regression vs H4 R1 baseline (each part count ≥ its H4 R1 count)</li>
+<li>Both gates PASS → H5₀ rejected; H5 ACCEPTED; shim 20260011 becomes new S7 baseline</li>
+<li>Either gate FAIL → H5₀ not rejected; H5 REJECTED; revert to H4 baseline (shim 20260010)</li>
+</ul>
+<hr />
+<h2 id="2-data-summary">2. Data Summary</h2>
+<h3 id="test-apparatus">Test apparatus</h3>
+<p>Synthetic — signals generated by <code>qa/rr-study/synth/</code> (clean-room Python FT8 encoder,
+Q-prefix callsigns only per NFR-021). Fresh AWGN seeds drawn for this run.
+Seed values recorded in <code>S7_matched.csv</code>.</p>
+<h3 id="openwsfz-configuration">OpenWSFZ configuration</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FT8_SHIM_VERSION</td>
+<td>20260011</td>
+</tr>
+<tr>
+<td>K_MAX_PASSES</td>
+<td>2</td>
+</tr>
+<tr>
+<td>K_SOFT_SUPP_SNR_MIN_DB</td>
+<td><strong>−15.0 dB</strong> (H5: was −5.0 dB in H4)</td>
+</tr>
+<tr>
+<td>K_SOFT_SUPP_SNR_MAX_DB</td>
+<td><strong>+5.0 dB</strong> (H5: was +15.0 dB in H4)</td>
+</tr>
+<tr>
+<td>K_MIN_SCORE_PASS2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>K_MAX_CANDIDATES_PASS2</td>
+<td>200</td>
+</tr>
+<tr>
+<td>K_LDPC_ITERATIONS_PASS2</td>
+<td>50</td>
+</tr>
+<tr>
+<td>SNR constant</td>
+<td>−26.5 dB</td>
+</tr>
+<tr>
+<td>Inter-pass mechanism</td>
+<td>spectrogram-domain soft-SNR tile suppression</td>
+</tr>
+</tbody>
+</table>
+<h3 id="variables">Variables</h3>
+<ul>
+<li><strong>Response variable:</strong> decoded / not-decoded (binary) per signal per repetition</li>
+<li><strong>Appraisers:</strong> WSJT-X 2.7.0 (reference), OpenWSFZ SHA <code>b5477b3</code> (subject)</li>
+<li>K = 3 repetitions. N = 93 signal observations per appraiser.</li>
+</ul>
+<h3 id="run-history-for-d-001">Run history for D-001</h3>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>SHA</th>
+<th>Shim</th>
+<th>OW overall</th>
+<th>Outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Baseline</td>
+<td><code>e4a3982</code></td>
+<td>20260006</td>
+<td>51/93 = 54.84%</td>
+<td>reference</td>
+</tr>
+<tr>
+<td>H2 (3-pass)</td>
+<td><code>3ecf8ae</code></td>
+<td>20260007</td>
+<td>47/93 = 50.54%</td>
+<td>REJECTED −4.30 pp</td>
+</tr>
+<tr>
+<td>H3 (PCM CP-FSK SIC)</td>
+<td><code>da133f4</code></td>
+<td>20260008</td>
+<td>38/93 = 40.86%</td>
+<td>REJECTED −13.98 pp</td>
+</tr>
+<tr>
+<td>H3b (PCM GFSK SIC)</td>
+<td><code>30972ba</code></td>
+<td>20260009</td>
+<td>35/93 = 37.63%</td>
+<td>REJECTED −17.21 pp</td>
+</tr>
+<tr>
+<td>H4 R0</td>
+<td><code>dc99567</code></td>
+<td>20260010</td>
+<td>40/93 = 43.01%</td>
+<td>Rejected — seed variability</td>
+</tr>
+<tr>
+<td><strong>H4 R1 (active baseline)</strong></td>
+<td><strong><code>cd9f06b</code></strong></td>
+<td><strong>20260010</strong></td>
+<td><strong>53/93 = 56.99%</strong></td>
+<td><strong>ACCEPTED</strong></td>
+</tr>
+<tr>
+<td><strong>H5 (this run)</strong></td>
+<td><strong><code>b5477b3</code></strong></td>
+<td><strong>20260011</strong></td>
+<td><strong>43/93 = 46.24%</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-results">3. Results</h2>
+<h3 id="31-recovery-by-overlap-family">3.1 Recovery by overlap family</h3>
+<table>
+<thead>
+<tr>
+<th>Overlap family</th>
+<th>WX baseline</th>
+<th>WX H5</th>
+<th>OW H4 R1</th>
+<th>OW H5</th>
+<th>OW delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>co_channel</td>
+<td>10/21 = 47.62%</td>
+<td>10/21 = 47.62%</td>
+<td>0/21 = 0.00%</td>
+<td>1/21 = 4.76%</td>
+<td><strong>+4.76 pp</strong></td>
+</tr>
+<tr>
+<td>near_collision</td>
+<td>30/30 = 100.00%</td>
+<td>28/30 = 93.33%</td>
+<td>27/30 = 90.00%</td>
+<td>25/30 = 83.33%</td>
+<td><strong>−6.67 pp</strong></td>
+</tr>
+<tr>
+<td>time_freq</td>
+<td>18/18 = 100.00%</td>
+<td>18/18 = 100.00%</td>
+<td>10/18 = 55.56%</td>
+<td>4/18 = 22.22%</td>
+<td><strong>−33.33 pp</strong></td>
+</tr>
+<tr>
+<td>capture</td>
+<td>13/24 = 54.17%</td>
+<td>13/24 = 54.17%</td>
+<td>16/24 = 66.67%</td>
+<td>13/24 = 54.17%</td>
+<td><strong>−12.50 pp</strong></td>
+</tr>
+<tr>
+<td><strong>all</strong></td>
+<td><strong>71/93 = 76.34%</strong></td>
+<td><strong>69/93 = 74.19%</strong></td>
+<td><strong>53/93 = 56.99%</strong></td>
+<td><strong>43/93 = 46.24%</strong></td>
+<td><strong>−10.75 pp</strong></td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S7 recovery" src="S7_recovery.png" /></p>
+<h3 id="32-per-part-detail">3.2 Per-part detail</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Family</th>
+<th>Condition</th>
+<th>WX H4 R1</th>
+<th>WX H5</th>
+<th>OW H4 R1</th>
+<th>OW H5</th>
+<th>OW delta</th>
+<th>Gate (b)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>co_channel</td>
+<td>2-stack, equal 0 dB</td>
+<td>4/6</td>
+<td>5/6</td>
+<td>0/6</td>
+<td>0/6</td>
+<td>0</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>co_channel</td>
+<td>2-stack, equal −5 dB</td>
+<td>5/6</td>
+<td>5/6</td>
+<td>0/6</td>
+<td>1/6</td>
+<td><strong>+1</strong></td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>co_channel</td>
+<td>3-stack, equal 0 dB</td>
+<td>0/9</td>
+<td>0/9</td>
+<td>0/9</td>
+<td>0/9</td>
+<td>0</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>near_collision</td>
+<td>delta 3 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>0</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>near_collision</td>
+<td>delta 6 Hz</td>
+<td>6/6</td>
+<td>4/6</td>
+<td>4/6</td>
+<td>3/6</td>
+<td><strong>−1</strong></td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>P5</td>
+<td>near_collision</td>
+<td>delta 12 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>4/6</td>
+<td><strong>−2</strong></td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>P6</td>
+<td>near_collision</td>
+<td>delta 25 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>5/6</td>
+<td>6/6</td>
+<td><strong>+1</strong></td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>near_collision</td>
+<td>delta 50 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>0</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>P8</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0/0.5 s</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>0/6</td>
+<td>0/6</td>
+<td>0</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>P9</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0/1.0 s</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>5/6</td>
+<td>0/6</td>
+<td><strong>−5</strong></td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>P10</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0/2.0 s</td>
+<td>6/6</td>
+<td>6/6</td>
+<td>5/6</td>
+<td>4/6</td>
+<td><strong>−1</strong></td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>P11</td>
+<td>capture</td>
+<td>co-freq, 0/−3 dB</td>
+<td>5/6</td>
+<td>5/6</td>
+<td>5/6</td>
+<td>4/6</td>
+<td><strong>−1</strong></td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>P12</td>
+<td>capture</td>
+<td>co-freq, 0/−6 dB</td>
+<td>4/6</td>
+<td>4/6</td>
+<td>5/6</td>
+<td>3/6</td>
+<td><strong>−2</strong></td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>P13</td>
+<td>capture</td>
+<td>co-freq, 0/−10 dB</td>
+<td>3/6</td>
+<td>5/6</td>
+<td>3/6</td>
+<td>3/6</td>
+<td>0</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>P14</td>
+<td>capture</td>
+<td>+3/−10 dB</td>
+<td>4/6</td>
+<td>4/6</td>
+<td>3/6</td>
+<td>3/6</td>
+<td>0</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-seed-variability-assessment">3.3 Seed-variability assessment</h3>
+<p>The repeat-run criterion specified in the H5 design (§ Risks) requires gate (a) to fail by
+≤ 2 decodes <strong>and</strong> all regressing parts to be marginal performers (3–5/6 at baseline). Neither
+condition is met:</p>
+<ul>
+<li>Gate (a) fails by <strong>10 decodes</strong> (43 vs 53 threshold) — criterion was ≤ 2.</li>
+<li>P9 collapsed from 5/6 to <strong>0/6 across all three independent trials</strong>. A seed-driven
+  collapse is possible in a single trial; a uniform collapse across all three seeds on the
+  same binary is a systematic effect, not seed variability.</li>
+</ul>
+<p>No repeat run is warranted. The H5 rejection is a genuine regression.</p>
+<h3 id="34-over-suppression-root-cause">3.4 Over-suppression root cause</h3>
+<p>The regression pattern is fully consistent with over-suppression from the new ramp [−15, +5]:</p>
+<p><strong>time_freq regression (P9 −5, P10 −1):</strong> The two signals in P9 (dt = 1.0 s) share
+approximately 47 of their 79 waterfall symbols. Pass 0 decodes the first signal (0 dB SNR);
+its tiles receive 75% suppression. The second signal's energy in the shared symbols is also
+reduced by 75%, pushing it below the pass-1 decode threshold (0/6 across all seeds). P10
+(dt = 2.0 s, less overlap) shows a smaller regression (−1).</p>
+<p><strong>capture regression (P11 −1, P12 −2):</strong> In capture scenarios the strong signal (0 dB) is
+decoded in pass 0 and suppressed; pass 1 seeks the weak signal. The strong and weak signals
+occupy the same frequency bin — their tile energy is superimposed. With 75% suppression of
+the combined tile energy, the weak signal's contribution is also reduced. The weak signal at
+−6 dB (P12) now receives the equivalent of ~45% suppression of its own energy, reducing
+pass-1 recovery compared to H4 (where the weak signal's tile energy was essentially
+unaffected by the ramp).</p>
+<p>Additionally, the H5 ramp now extends suppression down to −15 dB, where H4 applied none
+(protected floor was −5 dB). Any signal decoded with reported SNR between −15 and −5 dB
+now receives partial tile attenuation, exposing more signals to collateral suppression.</p>
+<p><strong>near_collision regression (P5 −2, P4 −1):</strong> P4 (6 Hz separation) has been consistently
+marginal (3/6 baseline, 4/6 H4 R1). P5 (12 Hz separation) regressed from 6/6 to 4/6.
+At 12 Hz the signals are ~4 bins apart at freq_osr=2; the ±1-bin suppression zone does not
+directly clip P5's second signal. The P5 regression may contain a seed-variability component
+but is not inconsistent with increased spectral leakage from the more aggressive suppression
+at adjacent frequency bins. Reclassification as seed variability does not change the overall
+verdict — gate (a) and gate (b) fail on the structural regressions alone.</p>
+<hr />
+<h2 id="4-summary-verdict-table">4. Summary Verdict Table</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+<th>Threshold</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gate (a) — overall recovery</td>
+<td>43/93 = 46.24%</td>
+<td>≥ 53/93 = 56.99%</td>
+<td><strong>FAIL (−10 decodes)</strong></td>
+</tr>
+<tr>
+<td>Gate (b) — P4</td>
+<td>−1/6 vs H4 R1</td>
+<td>≥ 0</td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>Gate (b) — P5</td>
+<td>−2/6 vs H4 R1</td>
+<td>≥ 0</td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>Gate (b) — P9</td>
+<td>−5/6 vs H4 R1</td>
+<td>≥ 0</td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>Gate (b) — P10</td>
+<td>−1/6 vs H4 R1</td>
+<td>≥ 0</td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>Gate (b) — P11</td>
+<td>−1/6 vs H4 R1</td>
+<td>≥ 0</td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>Gate (b) — P12</td>
+<td>−2/6 vs H4 R1</td>
+<td>≥ 0</td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>Repeat-run criterion</td>
+<td>Gate (a) fails by 10 (criterion: ≤ 2); P9 collapses uniformly</td>
+<td>—</td>
+<td>Not met — no repeat</td>
+</tr>
+<tr>
+<td><strong>H5 hypothesis</strong></td>
+<td><strong>Rejected</strong></td>
+<td>—</td>
+<td><strong>FAIL</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: FAIL — H5 REJECTED.</strong> Shifting the ramp to [−15, +5] (75% suppression
+at 0 dB SNR) causes severe regressions in the time_freq and capture families. The protected
+zone below −5 dB is critical: moving it to −15 dB introduces collateral suppression of
+borderline signals and of weak co-channel signals in capture scenarios. The H4 baseline
+(shim 20260010, 56.99%) remains the active S7 baseline.</p>
+<hr />
+<h2 id="5-recommendations">5. Recommendations</h2>
+<h3 id="d-001-co-channel-decode-gap-high-github-3">D-001 — Co-channel decode gap (High, GitHub #3)</h3>
+<p><strong>H5 rejected.</strong> Root cause: the ramp shift to [−15, +5] is too aggressive. The 75%
+suppression at 0 dB SNR over-suppresses shared tile energy in the time_freq family and the
+weak signal's tile contribution in the capture family.</p>
+<p><strong>Key constraint confirmed by H5:</strong> The minimum suppression threshold (<code>K_SOFT_SUPP_SNR_MIN_DB</code>)
+must not move below −5 dB. Moving it to −15 dB introduces partial suppression of signals
+in the −15 to −5 dB band that previously received no attenuation — these signals include
+the weak co-channel signal in capture scenarios and contribute to time_freq collateral loss.</p>
+<p><strong>Recommended next step — H5b: asymmetric ramp tuning.</strong> A narrower experiment adjusting
+only <code>K_SOFT_SUPP_SNR_MAX_DB</code> (lowering from +15 dB to +8–10 dB) while leaving
+<code>K_SOFT_SUPP_SNR_MIN_DB</code> fixed at −5 dB:</p>
+<table>
+<thead>
+<tr>
+<th>Candidate</th>
+<th><code>K_MIN</code></th>
+<th><code>K_MAX</code></th>
+<th>Suppression at 0 dB</th>
+<th>Protected below</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H4 baseline</td>
+<td>−5.0 dB</td>
+<td>+15.0 dB</td>
+<td>25%</td>
+<td>−5 dB</td>
+</tr>
+<tr>
+<td><strong>H5b-A (recommended)</strong></td>
+<td><strong>−5.0 dB</strong></td>
+<td><strong>+10.0 dB</strong></td>
+<td><strong>33%</strong></td>
+<td><strong>−5 dB</strong></td>
+</tr>
+<tr>
+<td>H5b-B (more aggressive)</td>
+<td>−5.0 dB</td>
+<td>+8.0 dB</td>
+<td>38%</td>
+<td>−5 dB</td>
+</tr>
+</tbody>
+</table>
+<p>At [−5, +10]: 33% suppression at 0 dB; full suppression at +10 dB (not +15 dB). This
+increases tile clearance for well-decoded signals while preserving the −5 dB protection
+floor that H5 confirmed is critical.</p>
+<p>The improvement from H4 to H5b-A may be modest (25% → 33% at the critical 0 dB point),
+but the risk of regression is substantially lower than H5's 75%.</p>
+<p><strong>Requires Captain approval</strong> before H5b is designed and authorised.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
