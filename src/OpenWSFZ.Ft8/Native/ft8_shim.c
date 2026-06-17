@@ -199,6 +199,20 @@
  *   No change to existing entry points, struct layout, or return codes.
  *   Exported via /EXPORT:ft8_encode_message in the link step.
  *
+ * diag-d001-candidate-counts (FT8_SHIM_VERSION 20260018):
+ *
+ *   Adds ft8_get_last_candidate_counts() — a TLS getter exposing the per-pass
+ *   count of candidates returned by ftx_find_candidates() before any LDPC decode
+ *   attempt.  A new TLS array tls_candidate_counts[K_MAX_PASSES] is initialised
+ *   to zero at the start of ft8_decode_all and populated immediately after each
+ *   ftx_find_candidates() call.  Together with ft8_get_last_pass_counts() (which
+ *   counts successful decodes after LDPC) this lets the managed diagnostic layer
+ *   distinguish candidate-generation failure (tls_candidate_counts[i] is low)
+ *   from LDPC convergence failure (tls_candidate_counts[i] is high but
+ *   tls_pass_counts[i] is zero) in D-001 co-channel scenarios.
+ *   No change to decode logic, struct layout, or existing entry points.
+ *   Exported via /EXPORT:ft8_get_last_candidate_counts in the link step.
+ *
  * fix-d006-cleanup + fix-rq2-signal-db-oob (FT8_SHIM_VERSION 20260016):
  *
  *   Two independent changes bundled in one version step:
@@ -329,6 +343,7 @@ char* stpcpy(char* dest, const char* src)
 
 /* ── Thread-local per-pass stats and noise floor ─────────────────────────── */
 static _Thread_local int   tls_pass_counts[K_MAX_PASSES];
+static _Thread_local int   tls_candidate_counts[K_MAX_PASSES];
 static _Thread_local int   tls_num_passes       = 0;
 static _Thread_local float tls_last_noise_floor_db = 0.0f;
 
@@ -789,6 +804,14 @@ int ft8_get_last_pass_counts(int* out_counts, int capacity)
     return n;
 }
 
+/* ── Per-pass candidate count query ─────────────────────────────────────── */
+int ft8_get_last_candidate_counts(int* out_counts, int capacity)
+{
+    int n = (tls_num_passes < capacity) ? tls_num_passes : capacity;
+    for (int i = 0; i < n; i++) out_counts[i] = tls_candidate_counts[i];
+    return n;
+}
+
 /* ── Main decode entry point ─────────────────────────────────────────────── */
 int ft8_decode_all(
     const float* pcm,
@@ -851,6 +874,7 @@ int ft8_decode_all(
     ftx_message_t* decoded_ht[K_MAX_DECODED];
     memset(decoded_ht, 0, sizeof(decoded_ht));
     for (int i = 0; i < K_MAX_PASSES; i++) tls_pass_counts[i] = 0;
+    for (int i = 0; i < K_MAX_PASSES; i++) tls_candidate_counts[i] = 0;
     tls_num_passes = 0;
 
     /* ── 4a. Cross-pass suppression accumulator ─────────────────────────── */
@@ -889,6 +913,7 @@ int ft8_decode_all(
         ftx_candidate_t candidates[K_MAX_CANDIDATES_PASS2]; /* largest per-pass max */
         int ncands = ftx_find_candidates(&mon.wf, pass_max_cands,
                                           candidates, pass_min_score);
+        tls_candidate_counts[pass] = ncands;
 
         int new_decodes = 0;
 

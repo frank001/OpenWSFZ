@@ -152,8 +152,16 @@ extern "C" {
  *              ft8/message.h and ft8_encode() from ft8/encode.h — both already
  *              linked.  Returns FT8_NN (79) on success; negative error code on
  *              failure.  No ABI change to existing entry points; struct layout
- *              and existing return codes unchanged. */
-#define FT8_SHIM_VERSION 20260017
+ *              and existing return codes unchanged.
+ *   20260018 — diag-d001-candidate-counts: add ft8_get_last_candidate_counts()
+ *              TLS getter exposing the per-pass count of candidates returned by
+ *              ftx_find_candidates() (before LDPC decode attempt).  Together with
+ *              ft8_get_last_pass_counts() (which counts successful decodes) this
+ *              lets the managed diagnostic layer distinguish candidate-generation
+ *              failure from LDPC convergence failure in D-001 co-channel scenarios.
+ *              No change to decode logic, struct layout, or existing entry points.
+ */
+#define FT8_SHIM_VERSION 20260018
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -234,6 +242,19 @@ int ft8_get_max_passes(void);
  * Returns 0.0f if ft8_decode_all has not yet been called on this thread.
  */
 float ft8_get_last_noise_floor_db(void);
+
+/*
+ * ft8_get_last_candidate_counts — return per-pass candidate counts from the
+ * most recent ft8_decode_all call on this thread.
+ *
+ * out_counts[i] = number of candidates returned by ftx_find_candidates() in
+ * pass i, BEFORE any LDPC decode attempt.  Compare with ft8_get_last_pass_counts
+ * (which counts successful decodes) to distinguish candidate-generation failure
+ * from LDPC convergence failure.
+ *
+ * Parameters and threading contract identical to ft8_get_last_pass_counts.
+ */
+int ft8_get_last_candidate_counts(int* out_counts, int capacity);
 
 /*
  * ft8_encode_message — encode an FT8 text message to 79 tone indices.

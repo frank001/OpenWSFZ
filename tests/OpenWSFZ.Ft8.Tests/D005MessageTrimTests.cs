@@ -42,8 +42,9 @@ public sealed class D005MessageTrimTests
 
         public Ft8NativeResult[] DecodeAll(float[] pcm) => results;
 
-        public int[]  GetLastPassCounts(int maxPasses)  => [results.Length, 0];
-        public float  GetLastNoiseFloorDb()              => -70.0f;
+        public int[]  GetLastPassCounts(int maxPasses)      => [results.Length, 0];
+        public int[]  GetLastCandidateCounts(int maxPasses) => [results.Length, 0];
+        public float  GetLastNoiseFloorDb()                  => -70.0f;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

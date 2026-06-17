@@ -24,6 +24,9 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
     public int[] GetLastPassCounts(int maxPasses)
         => Ft8LibInterop.GetLastPassCounts(maxPasses);
 
+    public int[] GetLastCandidateCounts(int maxPasses)
+        => Ft8LibInterop.GetLastCandidateCounts(maxPasses);
+
     public float GetLastNoiseFloorDb()
         => Ft8LibInterop.GetLastNoiseFloorDb();
 }

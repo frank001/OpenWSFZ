@@ -122,8 +122,14 @@ internal static class Ft8LibInterop
     /// 20260017 (ft8-qso-answerer-v1): Adds <c>ft8_encode_message</c> — the TX encode
     ///   entry point. Uses <c>ftx_message_encode()</c> + <c>ft8_encode()</c> to convert
     ///   text → 79 tone indices.  No change to existing entry points or struct layout.
+    /// 20260018 (diag-d001-candidate-counts): Adds <c>ft8_get_last_candidate_counts</c> —
+    ///   a TLS getter exposing the per-pass count of candidates returned by
+    ///   <c>ftx_find_candidates()</c> before any LDPC decode attempt.  Compare with
+    ///   <see cref="GetLastPassCounts"/> to distinguish candidate-generation failure
+    ///   (result[i] is low) from LDPC convergence failure (result[i] is high but
+    ///   GetLastPassCounts[i] is zero).  No change to decode logic or struct layout.
     /// </summary>
-    private const int ExpectedShimVersion = 20260017;
+    private const int ExpectedShimVersion = 20260018;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -199,6 +205,18 @@ internal static class Ft8LibInterop
     /// <returns>Number of passes actually executed (≤ <paramref name="capacity"/>).</returns>
     [DllImport("libft8.dll", EntryPoint = "ft8_get_last_pass_counts", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeGetLastPassCounts(
+        [Out] int[] counts,
+        int         capacity);
+
+    /// <summary>
+    /// Return per-pass candidate counts from the most recent
+    /// <see cref="NativeDecodeAll"/> call on this thread.
+    /// </summary>
+    /// <param name="counts">Caller-allocated output array.</param>
+    /// <param name="capacity">Size of <paramref name="counts"/>.</param>
+    /// <returns>Number of passes actually executed (≤ <paramref name="capacity"/>).</returns>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_candidate_counts", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastCandidateCounts(
         [Out] int[] counts,
         int         capacity);
 
@@ -307,6 +325,28 @@ internal static class Ft8LibInterop
 
         var counts = new int[maxPasses];
         int numPasses = NativeGetLastPassCounts(counts, maxPasses);
+        if (numPasses <= 0) return [];
+        return counts[..numPasses];
+    }
+
+    /// <summary>
+    /// Return per-pass candidate counts from the most recent
+    /// <see cref="DecodeAll"/> call on this thread.
+    /// <para>
+    /// <c>result[i]</c> is the number of candidates returned by
+    /// <c>ftx_find_candidates</c> in pass <c>i</c>, before any LDPC decode
+    /// attempt.  Compare with <see cref="GetLastPassCounts"/> to distinguish
+    /// candidate-generation failure (result[i] is low) from LDPC convergence
+    /// failure (result[i] is high but GetLastPassCounts[i] is zero).
+    /// </para>
+    /// Must be called on the same thread that called <see cref="DecodeAll"/>.
+    /// </summary>
+    public static int[] GetLastCandidateCounts(int maxPasses)
+    {
+        EnsureInitialized();
+
+        var counts = new int[maxPasses];
+        int numPasses = NativeGetLastCandidateCounts(counts, maxPasses);
         if (numPasses <= 0) return [];
         return counts[..numPasses];
     }
