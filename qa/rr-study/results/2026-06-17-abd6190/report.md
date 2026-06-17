@@ -239,19 +239,18 @@ Lowering `K_MIN_SCORE_PASS1` would not improve outcomes.
 
 | Priority | Action |
 |---|---|
-| **1 (diagnose LLRs)** | Instrument the LDPC input path in `ft8_lib` to log mean `|LLR|` per candidate for a co_channel failure cycle. If the mean magnitude is ≲ 0.5 nats across the 174 code bits, the near-zero LLR hypothesis is confirmed and no iteration increase will help. This requires a new shim function exposing pre-LDPC soft values. |
-| **2 (try — LDPC iterations)** | Regardless of LLR diagnosis, increase pass 1 LDPC iteration count from 25 toward 50–100 for co_channel candidate bins. If LLRs are degraded-but-non-zero, more iterations may converge. Measure P0/P1/P2/P8 recovery delta in a new S7 R&R run. |
-| **3 (architecture)** | If LLRs are genuinely near-zero, no iteration budget resolves the failure. The correct path is soft-decision enhancement: compute LLRs jointly for both interfering signals (MMSE or successive interference cancellation at the demodulation stage, before LDPC) rather than treating the co-channel signal as AWGN. This is a significant architectural change to `ft8_lib`'s demodulation path. |
-| **4 (do NOT pursue)** | Lowering `K_MIN_SCORE_PASS1` — confirmed unnecessary; candidates ARE found at the current threshold. Further PCM-domain SIC (H6) is unlikely to help because LLR corruption occurs at demodulation, not at the PCM residual level. H2–H3b already established that PCM-domain SIC is net-negative. |
+| **1 (diagnose LLRs)** | Instrument the LDPC input path in `ft8_lib` to log mean `abs(LLR)` per candidate for a co_channel failure cycle. If the mean magnitude is ≲ 0.5 nats across the 174 code bits, the near-zero LLR hypothesis is confirmed and additional iterations alone will not help. This requires a new shim function exposing pre-LDPC soft values. |
+| **2 (H6 — directed AP decode)** | Implement `ft8_decode_directed(pcm, targetFreqHz, mycall, hiscall, ...)` in the shim — equivalent to WSJT-X's `nfqso` + AP mechanism in `ft8b.f90`. During an active QSO the decoder knows `mycall`, `hiscall`, and the partner's audio frequency; these ~28 known message bits (~36% of the 77-bit payload) act as hard constraints that anchor LDPC belief-propagation even when soft LLRs are near-zero. WSJT-X documents ~+4 dB effective sensitivity from this mechanism. Scope: QSO-mode only — requires the QSO answerer state machine to expose callsign and frequency to the decode pipeline. |
+| **3 (try — LDPC iterations)** | Increase pass 1 LDPC iteration count from 25 toward 50–100. If LLRs are degraded-but-not-zero, more iterations may converge without requiring a demodulator change. Measure P0/P1/P2/P8 recovery delta in a new S7 R&R run. Lower priority than H6 for QSO-mode failures; higher priority for non-QSO co_channel cases where AP is unavailable. |
+| **4 (architecture — if H6 insufficient)** | If AP decode (H6) and iteration increase are insufficient — i.e. LLRs are genuinely near-zero and no a-priori bit anchor exists — the correct path is joint soft-decision demodulation (MMSE) at the ft8_lib demodulator stage: compute LLRs for both co-channel signals simultaneously rather than treating the interferer as AWGN. Significant architectural change to `ft8_lib`'s demodulation path. |
+| **5 (do NOT pursue)** | Lowering `K_MIN_SCORE_PASS1` — confirmed unnecessary; candidates ARE found at the current threshold. PCM-domain SIC (H2–H3b) — already tested and rejected; net-negative. These do not address LDPC convergence. |
 
 ### Diagnostic Branch Merge Decision
 
-The `diag/d001-candidate-counts` branch is approved for merge to `main` on the basis
-that:
+The `diag/d001-candidate-counts` branch was merged to `main` at `6735393` on
+2026-06-17 on the basis that:
 1. No decode regression is introduced (H₀ retained).
 2. The new `ft8_get_last_candidate_counts()` function and its C# wiring are correct,
-   tested (4 tests), and permanently useful for future diagnostic runs.
-3. The debug-level logging is in place for the next run with file logging enabled.
-
-The failure to capture debug logs this run is an operator procedure gap, not a code
-defect. Next-step 1 above closes that gap.
+   tested (4 new tests), and permanently useful for future diagnostic runs.
+3. The debug-level logging captured the per-pass candidate counts for this run,
+   confirming LDPC convergence failure as the D-001 root cause.
