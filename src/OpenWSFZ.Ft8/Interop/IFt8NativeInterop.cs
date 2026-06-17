@@ -37,6 +37,13 @@ internal interface IFt8NativeInterop
     int[] GetLastPassCounts(int maxPasses);
 
     /// <summary>
+    /// Return per-pass candidate counts (raw <c>ftx_find_candidates</c> output)
+    /// from the most recent <see cref="DecodeAll"/> call on this thread.
+    /// MUST be called on the same thread as <see cref="DecodeAll"/>.
+    /// </summary>
+    int[] GetLastCandidateCounts(int maxPasses);
+
+    /// <summary>
     /// Return the histogram-median waterfall noise floor (dB) from the most
     /// recent <see cref="DecodeAll"/> call on this thread.
     /// MUST be called on the same thread as <see cref="DecodeAll"/>.

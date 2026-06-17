@@ -38,9 +38,10 @@ public sealed class AvContainmentTests
     /// </summary>
     private sealed class ThrowingNativeInterop : IFt8NativeInterop
     {
-        public int  MaxDecodePasses           => 2;
-        public bool GetLastPassCountsCalled   { get; private set; }
-        public bool GetLastNoiseFloorDbCalled { get; private set; }
+        public int  MaxDecodePasses                { get; } = 2;
+        public bool GetLastPassCountsCalled        { get; private set; }
+        public bool GetLastCandidateCountsCalled   { get; private set; }
+        public bool GetLastNoiseFloorDbCalled      { get; private set; }
 
         public Ft8NativeResult[] DecodeAll(float[] pcm)
             => throw new NativeAccessViolationException();
@@ -48,6 +49,12 @@ public sealed class AvContainmentTests
         public int[] GetLastPassCounts(int maxPasses)
         {
             GetLastPassCountsCalled = true;
+            return [];
+        }
+
+        public int[] GetLastCandidateCounts(int maxPasses)
+        {
+            GetLastCandidateCountsCalled = true;
             return [];
         }
 
@@ -145,6 +152,9 @@ public sealed class AvContainmentTests
         interop.GetLastPassCountsCalled.Should().BeFalse(
             "TLS state (pass counts) is unreliable after an AV; " +
             "calling GetLastPassCounts on the AV path would log stale data");
+        interop.GetLastCandidateCountsCalled.Should().BeFalse(
+            "TLS state (candidate counts) is unreliable after an AV; " +
+            "calling GetLastCandidateCounts on the AV path would log stale data");
         interop.GetLastNoiseFloorDbCalled.Should().BeFalse(
             "TLS state (noise floor) is unreliable after an AV; " +
             "calling GetLastNoiseFloorDb on the AV path would log stale data");

@@ -102,6 +102,59 @@ public sealed class Ft8LibInteropTests
             "a regression in the TLS accounting or the result-buffer capacity (R4-1)");
     }
 
+    /// <summary>
+    /// diag-D001: verifies that after a decode call on a silent (all-zero) PCM
+    /// buffer, <c>GetLastCandidateCounts(2)</c> returns exactly <c>[0, 0]</c>.
+    /// </summary>
+    [Fact(DisplayName = "diag-D001: GetLastCandidateCounts returns [0, 0] after DecodeAll on a silent PCM buffer")]
+    public void GetLastCandidateCounts_AfterDecodeAllOnSilentBuffer_ReturnsTwoZeroCounts()
+    {
+        // Arrange
+        var pcm = new float[180_000];
+
+        // Act — same thread; TLS is thread-scoped
+        _ = Ft8LibInterop.DecodeAll(pcm);
+        int[] counts = Ft8LibInterop.GetLastCandidateCounts(Ft8LibInterop.MaxDecodePasses);
+
+        // Assert — even a silent buffer runs both passes; each finds 0 candidates
+        counts.Should().Equal([0, 0],
+            "a silent buffer produces no waterfall energy; ftx_find_candidates " +
+            "returns 0 candidates in every pass");
+    }
+
+    /// <summary>
+    /// diag-D001: verifies that on a real-signal fixture, per-pass candidate counts
+    /// are always >= per-pass decode counts (cannot decode more than we found).
+    /// </summary>
+    [Fact(DisplayName = "diag-D001: GetLastCandidateCounts on real fixture — per-pass candidates >= per-pass decodes")]
+    public void GetLastCandidateCounts_AfterDecodeAllOnRealSignal_CandidatesAtLeastDecodes()
+    {
+        // Arrange
+        float[] pcm = LoadFixtureWav("synth-qso-01.wav");
+        pcm.Should().HaveCount(180_000);
+
+        // Act — same thread
+        Ft8NativeResult[] results = Ft8LibInterop.DecodeAll(pcm);
+        int[] decodeCounts    = Ft8LibInterop.GetLastPassCounts(Ft8LibInterop.MaxDecodePasses);
+        int[] candidateCounts = Ft8LibInterop.GetLastCandidateCounts(Ft8LibInterop.MaxDecodePasses);
+
+        // Assert 1 — same number of passes reported
+        candidateCounts.Should().HaveSameCount(decodeCounts,
+            "both TLS arrays are populated for the same number of passes");
+
+        // Assert 2 — candidates >= decodes in every pass (you can't decode more
+        // messages than there were candidates to decode from)
+        for (int p = 0; p < candidateCounts.Length; p++)
+        {
+            candidateCounts[p].Should().BeGreaterThanOrEqualTo(decodeCounts[p],
+                $"pass {p + 1}: cannot decode more messages than candidates found");
+        }
+
+        // Assert 3 — pass 0 found at least one candidate on a signal-bearing fixture
+        candidateCounts[0].Should().BeGreaterThan(0,
+            "pass 0 must find at least one candidate in the synthetic signal fixture");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>
