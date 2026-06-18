@@ -133,8 +133,18 @@ internal static class Ft8LibInterop
     ///   function <c>ftx_compute_candidate_llr_mean_abs</c> added to decode.c
     ///   (non-static); replicates likelihood extraction + normalisation without
     ///   calling bp_decode.  No change to existing entry points or struct layout.
+    /// 20260020 (diag-d001-h6-ap-probe): Two changes:
+    ///   (A) Adds <c>ft8_set_ap_bits</c> — directed AP decode setter for H6.
+    ///   Supplies known mycall/hiscall bits as hard LLR constraints (±40.0) to
+    ///   the pass-0 LDPC input path via <c>ftx_decode_candidate_ap</c> in decode.c.
+    ///   C# caller NOT yet wired (interop seam only; <see cref="SetApBits"/> exists
+    ///   but <see cref="Ft8Decoder"/> does not call it yet).
+    ///   (B) Redesigns <c>ft8_get_last_llr_stats</c>: adds a third output array for
+    ///   pre-normalisation variance.  <c>ftx_compute_candidate_llr_mean_abs</c> renamed
+    ///   to <c>ftx_compute_candidate_llr_stats</c> with updated signature.  <c>isfinite</c>
+    ///   guard added to skip degenerate (NaN) candidates before accumulation.
     /// </summary>
-    private const int ExpectedShimVersion = 20260019;
+    private const int ExpectedShimVersion = 20260020;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -226,15 +236,29 @@ internal static class Ft8LibInterop
         int         capacity);
 
     /// <summary>
-    /// Return per-pass mean abs(LLR) statistics for LDPC-failing candidates
-    /// from the most recent <see cref="NativeDecodeAll"/> call on this thread.
+    /// Return per-pass LLR statistics (redesigned at shim 20260020):
+    /// mean abs(LLR), pre-normalisation variance, and fail count for
+    /// LDPC-failing candidates from the most recent <see cref="NativeDecodeAll"/>
+    /// call on this thread.
     /// </summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_get_last_llr_stats",
                CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeGetLastLlrStats(
         [Out] float[] outMeanAbs,
+        [Out] float[] outPrenormVariance,
         [Out] int[]   outFailCount,
         int           capacity);
+
+    /// <summary>
+    /// Supply known AP bit constraints for the next decode cycle
+    /// (H6 directed AP decode, shim 20260020).
+    /// Bits are packed MSB-first; pass <paramref name="numMycallBits"/>==0 to disable.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_ap_bits",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetApBits(
+        [In] byte[] mycallBits,   int numMycallBits,
+        [In] byte[] hiscallBits,  int numHiscallBits);
 
     /// <summary>
     /// Return the compile-time <c>K_MAX_PASSES</c> constant from the native shim.
@@ -368,33 +392,72 @@ internal static class Ft8LibInterop
     }
 
     /// <summary>
-    /// Return per-pass mean abs(LLR) statistics from the most recent
-    /// <see cref="DecodeAll"/> call on this thread.
+    /// Return per-pass LLR statistics from the most recent <see cref="DecodeAll"/>
+    /// call on this thread (redesigned at shim 20260020).
     /// <para>
-    /// <c>meanAbs[i]</c> is the mean absolute LLR across all LDPC-failing
-    /// candidates in pass <c>i</c>, after variance-normalisation.
-    /// A value below ~0.5 indicates near-zero bit confidence (the D-001
-    /// co-channel failure hypothesis); above ~1.5 indicates healthy soft-
-    /// decision input.  Returns 0.0f for passes with no failing candidates.
+    /// <c>MeanAbs[i]</c> — post-normalisation mean absolute LLR across LDPC-failing
+    /// candidates in pass <c>i</c>.  Returns 0.0f for passes with no failing candidates.
     /// </para>
     /// <para>
-    /// <c>failCount[i]</c> is the number of LDPC-failing candidates in pass
-    /// <c>i</c>; allows distinguishing zero-failure from zero-candidate cases.
+    /// <c>PrenormVariance[i]</c> — pre-normalisation variance of the raw log174 array,
+    /// averaged across failing candidates in pass <c>i</c>.  A small value (≪1) confirms
+    /// the D-001 root cause: near-zero LLRs due to equal-SNR mutual interference that
+    /// cannot be rescued by normalisation (hypothesis H_LLR, inconclusive at post-norm
+    /// mean; pre-norm variance is the correct discriminant).
+    /// </para>
+    /// <para>
+    /// <c>FailCount[i]</c> — number of LDPC-failing candidates in pass <c>i</c>.
     /// </para>
     /// Must be called on the same thread that called <see cref="DecodeAll"/>.
     /// </summary>
-    public static (float[] MeanAbs, int[] FailCount) GetLastLlrStats(int maxPasses)
+    public static (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
     {
         EnsureInitialized();
 
-        var meanAbs   = new float[maxPasses];
-        var failCount = new int[maxPasses];
-        int numPasses = NativeGetLastLlrStats(meanAbs, failCount, maxPasses);
+        var meanAbs         = new float[maxPasses];
+        var prenormVariance = new float[maxPasses];
+        var failCount       = new int[maxPasses];
+        int numPasses       = NativeGetLastLlrStats(meanAbs, prenormVariance, failCount, maxPasses);
 
         if (numPasses <= 0)
-            return ([], []);
+            return ([], [], []);
 
-        return (meanAbs[..numPasses], failCount[..numPasses]);
+        return (meanAbs[..numPasses], prenormVariance[..numPasses], failCount[..numPasses]);
+    }
+
+    /// <summary>
+    /// Supply known AP bit constraints for the next decode cycle (H6 directed AP decode,
+    /// shim 20260020).
+    /// <para>
+    /// Bits are 28-bit packed callsign fields, MSB-first.  Pass an empty array for either
+    /// parameter to disable that constraint.  Pass both empty to disable AP entirely
+    /// (the default state; behaves identically to shim 20260019).
+    /// </para>
+    /// <para>
+    /// The constraints are applied only during pass 0 (the primary decode pass).
+    /// Pass 1 (spectrogram-suppressed) always uses waterfall-derived LLRs unchanged.
+    /// </para>
+    /// <para>
+    /// <b>Note:</b> the <see cref="Ft8Decoder"/> caller integration is deferred to a
+    /// follow-on change.  This method exposes the interop seam; calling it with non-empty
+    /// arrays enables the native AP path.
+    /// </para>
+    /// </summary>
+    /// <param name="mycallBits">28-bit packed mycall bits, MSB-first (4 bytes); empty to disable.</param>
+    /// <param name="hiscallBits">28-bit packed hiscall bits, MSB-first (4 bytes); empty to disable.</param>
+    public static void SetApBits(byte[] mycallBits, byte[] hiscallBits)
+    {
+        EnsureInitialized();
+
+        int numMycall  = Math.Min(mycallBits.Length  * 8, 28);
+        int numHiscall = Math.Min(hiscallBits.Length * 8, 28);
+
+        // Ensure the arrays are at least 1 byte so the P/Invoke pointer is non-null.
+        // If the caller passes an empty array we pass 0 for the bit count (AP disabled).
+        byte[] mc = mycallBits.Length  > 0 ? mycallBits  : [0];
+        byte[] hc = hiscallBits.Length > 0 ? hiscallBits : [0];
+
+        NativeSetApBits(mc, numMycall, hc, numHiscall);
     }
 
     /// <summary>

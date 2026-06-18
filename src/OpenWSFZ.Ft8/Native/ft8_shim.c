@@ -271,10 +271,22 @@
 #include <stdbool.h>
 #include <math.h>
 
-/* Forward declaration — defined in patched/ft8/decode.c */
-float ftx_compute_candidate_llr_mean_abs(
+/* Forward declarations — defined in patched/ft8/decode.c */
+
+/* Task B (shim 20260020): renamed and redesigned LLR probe */
+float ftx_compute_candidate_llr_stats(
     const ftx_waterfall_t* wf,
-    const ftx_candidate_t* cand);
+    const ftx_candidate_t* cand,
+    float*                 out_prenorm_variance);
+
+/* Task A (shim 20260020): AP-constrained decode */
+bool ftx_decode_candidate_ap(
+    const ftx_waterfall_t*  wf,
+    const ftx_candidate_t*  cand,
+    int                     max_iterations,
+    const float*            ap_overrides,
+    ftx_message_t*          message,
+    ftx_decode_status_t*    status);
 
 /* Fallback definition of M_PI in case the platform still does not provide it */
 #ifndef M_PI
@@ -366,9 +378,27 @@ char* stpcpy(char* dest, const char* src)
 static _Thread_local int   tls_pass_counts[K_MAX_PASSES];
 static _Thread_local int   tls_candidate_counts[K_MAX_PASSES];
 static _Thread_local float tls_llr_mean_abs_sum[K_MAX_PASSES];
+static _Thread_local float tls_llr_prenorm_var_sum[K_MAX_PASSES]; /* Task B, shim 20260020 */
 static _Thread_local int   tls_llr_fail_count[K_MAX_PASSES];
 static _Thread_local int   tls_num_passes       = 0;
 static _Thread_local float tls_last_noise_floor_db = 0.0f;
+
+/* ── Thread-local AP decode state (Task A, shim 20260020) ────────────────── */
+/*
+ * AP bit constraints supplied by ft8_set_ap_bits().  Copied into an override
+ * array before each pass-0 decode loop.  num_mycall_bits=0 disables AP entirely.
+ *
+ * FTX_LDPC_N is defined in ft8/decode.h (== 174).  We use a fixed-size array
+ * matching that constant.  The 174-float array is zeroed by default; non-zero
+ * entries are the ±LLR_HARD overrides applied to log174 before normalisation.
+ */
+#define FT8_AP_LLR_HARD    40.0f   /* hard prior magnitude for AP-constrained bits */
+#define FT8_AP_PAYLOAD_N   174     /* FTX_LDPC_N — max bit positions               */
+
+static _Thread_local uint8_t tls_ap_mycall_bits[4];   /* up to 28 bits packed MSB-first */
+static _Thread_local int     tls_ap_num_mycall_bits  = 0;
+static _Thread_local uint8_t tls_ap_hiscall_bits[4];  /* up to 28 bits packed MSB-first */
+static _Thread_local int     tls_ap_num_hiscall_bits = 0;
 
 /* ── Callsign hash table ─────────────────────────────────────────────────── */
 
@@ -835,35 +865,77 @@ int ft8_get_last_candidate_counts(int* out_counts, int capacity)
     return n;
 }
 
-/* ── Per-pass mean abs(LLR) query for failing candidates ────────────────── */
+/* ── Per-pass LLR stats query (redesigned at shim 20260020) ─────────────── */
 /*
- * ft8_get_last_llr_stats — return per-pass mean abs(LLR) across all
+ * ft8_get_last_llr_stats — return per-pass LLR statistics across all
  * LDPC-failing candidates from the most recent ft8_decode_all call on
  * this thread.
  *
- * out_mean_abs[i] receives the mean abs(LLR) for pass i, averaged across
- * all candidates that failed ftx_decode_candidate in that pass.
- * Returns 0.0f for passes where no candidates failed (i.e. all decoded
- * successfully, or no candidates were found).
- *
- * out_fail_count[i] receives the count of LDPC-failing candidates in
- * pass i.  This allows the caller to distinguish "no failures" (count=0,
- * mean=0) from "high mean — decode succeeded on all" (count=0, mean=0).
+ * out_mean_abs[i]        — post-normalisation mean abs(LLR) for pass i.
+ * out_prenorm_variance[i]— pre-normalisation variance of raw log174, averaged
+ *                          across failing candidates in pass i.  0.0f if none.
+ * out_fail_count[i]      — count of LDPC-failing candidates in pass i.
+ * capacity               — size of all three output arrays.
  *
  * Parameters and threading contract identical to ft8_get_last_pass_counts.
  */
-int ft8_get_last_llr_stats(float* out_mean_abs, int* out_fail_count, int capacity)
+int ft8_get_last_llr_stats(
+    float* out_mean_abs,
+    float* out_prenorm_variance,
+    int*   out_fail_count,
+    int    capacity)
 {
     int n = (tls_num_passes < capacity) ? tls_num_passes : capacity;
     for (int i = 0; i < n; i++)
     {
         if (tls_llr_fail_count[i] > 0)
-            out_mean_abs[i] = tls_llr_mean_abs_sum[i] / (float)tls_llr_fail_count[i];
+        {
+            out_mean_abs[i]         = tls_llr_mean_abs_sum[i]    / (float)tls_llr_fail_count[i];
+            out_prenorm_variance[i] = tls_llr_prenorm_var_sum[i] / (float)tls_llr_fail_count[i];
+        }
         else
-            out_mean_abs[i] = 0.0f;
+        {
+            out_mean_abs[i]         = 0.0f;
+            out_prenorm_variance[i] = 0.0f;
+        }
         out_fail_count[i] = tls_llr_fail_count[i];
     }
     return n;
+}
+
+/* ── AP decode setter (Task A, shim 20260020) ────────────────────────────── */
+/*
+ * ft8_set_ap_bits — supply known AP bit constraints for the next decode cycle.
+ *
+ * Copies the caller-supplied packed bit arrays into TLS storage.  ft8_decode_all
+ * reads these TLS values before the pass-0 decode loop and applies them as hard
+ * LLR overrides via ftx_decode_candidate_ap.  Pass num_mycall_bits=0 to disable
+ * AP constraints entirely (the default; decode behaves as in shim 20260019).
+ */
+void ft8_set_ap_bits(
+    const uint8_t* mycall_bits,  int num_mycall_bits,
+    const uint8_t* hiscall_bits, int num_hiscall_bits)
+{
+    /* Clamp to valid range (0..28 bits = 0..4 bytes) */
+    if (num_mycall_bits < 0) num_mycall_bits = 0;
+    if (num_mycall_bits > 28) num_mycall_bits = 28;
+    if (num_hiscall_bits < 0) num_hiscall_bits = 0;
+    if (num_hiscall_bits > 28) num_hiscall_bits = 28;
+
+    tls_ap_num_mycall_bits  = num_mycall_bits;
+    tls_ap_num_hiscall_bits = num_hiscall_bits;
+
+    /* Copy only the bytes actually needed (ceil(num_bits / 8)) */
+    int mycall_bytes  = (num_mycall_bits  + 7) / 8;
+    int hiscall_bytes = (num_hiscall_bits + 7) / 8;
+
+    memset(tls_ap_mycall_bits,  0, sizeof(tls_ap_mycall_bits));
+    memset(tls_ap_hiscall_bits, 0, sizeof(tls_ap_hiscall_bits));
+
+    if (mycall_bits && mycall_bytes > 0)
+        memcpy(tls_ap_mycall_bits,  mycall_bits,  mycall_bytes);
+    if (hiscall_bits && hiscall_bytes > 0)
+        memcpy(tls_ap_hiscall_bits, hiscall_bits, hiscall_bytes);
 }
 
 /* ── Main decode entry point ─────────────────────────────────────────────── */
@@ -929,8 +1001,9 @@ int ft8_decode_all(
     memset(decoded_ht, 0, sizeof(decoded_ht));
     for (int i = 0; i < K_MAX_PASSES; i++) tls_pass_counts[i] = 0;
     for (int i = 0; i < K_MAX_PASSES; i++) tls_candidate_counts[i] = 0;
-    for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_mean_abs_sum[i] = 0.0f;
-    for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_fail_count[i]   = 0;
+    for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_mean_abs_sum[i]    = 0.0f;
+    for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_prenorm_var_sum[i] = 0.0f; /* Task B */
+    for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_fail_count[i]      = 0;
     tls_num_passes = 0;
 
     /* ── 4a. Cross-pass suppression accumulator ─────────────────────────── */
@@ -941,6 +1014,45 @@ int ft8_decode_all(
     ftx_message_t   all_supp_msgs [K_MAX_CANDIDATES];
     float           all_supp_snrs [K_MAX_CANDIDATES];
     int             n_all_supp    = 0;
+
+    /* ── 4b. Build AP override array for pass 0 (Task A, shim 20260020) ───── */
+    /*
+     * If AP bits have been set via ft8_set_ap_bits(), unpack the packed bit
+     * arrays into a 174-float override array for the pass-0 LDPC input path.
+     * Entries are set to ±FT8_AP_LLR_HARD; remaining entries are 0.0f (no override).
+     *
+     * FT8 bit layout in log174 (systematic LDPC(174,87) code):
+     *   log174[0..27]   — mycall (28 bits)
+     *   log174[28..55]  — hiscall (28 bits)
+     *   log174[56..76]  — report/grid (21 bits)
+     *   log174[77..86]  — CRC (10 bits)
+     *   log174[87..173] — parity
+     *
+     * Bits are packed MSB-first: bit 0 of mycall is in the MSB of mycall_bits[0].
+     * Sign convention: bit value 1 → +LLR_HARD; bit value 0 → −LLR_HARD.
+     */
+    float ap_log174[FT8_AP_PAYLOAD_N];
+    memset(ap_log174, 0, sizeof(ap_log174));
+    bool ap_active = (tls_ap_num_mycall_bits > 0 || tls_ap_num_hiscall_bits > 0);
+    if (ap_active)
+    {
+        /* mycall bits → log174[0..27] */
+        for (int i = 0; i < tls_ap_num_mycall_bits && i < 28; i++)
+        {
+            int byte_idx = i / 8;
+            int bit_shift = 7 - (i % 8);
+            int bit_val = (tls_ap_mycall_bits[byte_idx] >> bit_shift) & 1;
+            ap_log174[i] = FT8_AP_LLR_HARD * (bit_val ? +1.0f : -1.0f);
+        }
+        /* hiscall bits → log174[28..55] */
+        for (int i = 0; i < tls_ap_num_hiscall_bits && i < 28; i++)
+        {
+            int byte_idx = i / 8;
+            int bit_shift = 7 - (i % 8);
+            int bit_val = (tls_ap_hiscall_bits[byte_idx] >> bit_shift) & 1;
+            ap_log174[28 + i] = FT8_AP_LLR_HARD * (bit_val ? +1.0f : -1.0f);
+        }
+    }
 
     /* ── 5. Multi-pass decode loop ───────────────────────────────────────── */
     static const struct { int min_score; int max_cands; int ldpc; } k_pass_cfg[K_MAX_PASSES] = {
@@ -979,12 +1091,30 @@ int ft8_decode_all(
 
             ftx_message_t       msg;
             ftx_decode_status_t status;
-            if (!ftx_decode_candidate(&mon.wf, cand, pass_ldpc, &msg, &status))
+
+            /* Task A (shim 20260020): use AP-constrained decode for pass 0 when AP
+             * bits are active; fall back to standard decode for pass 1 or when AP
+             * is disabled (ac_active == false, ap_log174 is all-zero).            */
+            bool decoded;
+            if (pass == 0 && ap_active)
+                decoded = ftx_decode_candidate_ap(&mon.wf, cand, pass_ldpc,
+                                                  ap_log174, &msg, &status);
+            else
+                decoded = ftx_decode_candidate(&mon.wf, cand, pass_ldpc, &msg, &status);
+
+            if (!decoded)
             {
-                /* D-001 diagnostic: accumulate mean|LLR| for failing candidates */
-                tls_llr_mean_abs_sum[pass] +=
-                    ftx_compute_candidate_llr_mean_abs(&mon.wf, cand);
-                tls_llr_fail_count[pass]++;
+                /* Task B (shim 20260020): accumulate pre-normalisation variance and
+                 * mean|LLR| for failing candidates; skip NaN/degenerate candidates. */
+                float prenorm_var = 0.0f;
+                float mean_abs = ftx_compute_candidate_llr_stats(&mon.wf, cand, &prenorm_var);
+                if (isfinite(mean_abs))
+                {
+                    tls_llr_mean_abs_sum[pass]    += mean_abs;
+                    tls_llr_prenorm_var_sum[pass] += prenorm_var;
+                    tls_llr_fail_count[pass]++;
+                }
+                /* Degenerate (NaN) candidates: skip — do not contaminate the sum */
                 continue;
             }
 

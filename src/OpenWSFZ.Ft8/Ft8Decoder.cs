@@ -145,7 +145,7 @@ public sealed class Ft8Decoder : IModeDecoder
         int[]             passCounts;
         int[]             candidateCounts;
         float             noiseFloorDb;
-        (float[] LlrMeanAbs, int[] LlrFailCount) llrStats;
+        (float[] LlrMeanAbs, float[] LlrPrenormVariance, int[] LlrFailCount) llrStats;
 
         // All five calls must be on the same thread — no await between them — because
         // ft8_get_last_pass_counts, ft8_get_last_candidate_counts,
@@ -239,12 +239,17 @@ public sealed class Ft8Decoder : IModeDecoder
         // Logged at Debug so it is only captured when file logging is enabled at
         // Debug level (Lesson 8: pre-configure Logging.FileEnabled = true and
         // Logging.FileLogLevel = "Debug" before any diagnostic run).
+        // prenormVar (shim 20260020): pre-normalisation variance of raw log174.
+        // R&R run on shim 20260020 REFUTED the near-zero LLR hypothesis —
+        // co_channel fail cands show prenormVar 37–60 (not small). Revised
+        // failure model: high-confidence wrong-sign LLRs under equal-SNR
+        // co-channel. Probe retained for longitudinal monitoring.
         for (int p = 0; p < llrStats.LlrMeanAbs.Length; p++)
         {
             _logger?.LogDebug(
                 "Iterative subtraction: pass {Pass} LDPC fail stats — " +
-                "failCands={FailCount} meanAbsLLR={MeanAbs:F3}",
-                p + 1, llrStats.LlrFailCount[p], llrStats.LlrMeanAbs[p]);
+                "failCands={FailCount} meanAbsLLR={MeanAbs:F3} prenormVar={PrenormVar:F4}",
+                p + 1, llrStats.LlrFailCount[p], llrStats.LlrMeanAbs[p], llrStats.LlrPrenormVariance[p]);
         }
 
         // ── Diagnostic log ───────────────────────────────────────────────────

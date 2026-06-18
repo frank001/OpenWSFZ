@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ R&amp;R Study Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-rr-study-report">OpenWSFZ R&amp;R Study Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-06-18</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>3c2ad02a42e1912433c080e901569a1bb73df48a</code></td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0 (inferred from binary date 2025-02-04)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<h3 id="purpose">Purpose</h3>
+<p>This is a <strong>targeted S7-only diagnostic run</strong> on branch <code>diag/d001-h6-ap-probe</code>
+(shim 20260020). No AIAG-gated metrics (S1–S6, S8) are exercised; this run is not a
+regression gate. The branch delivers three tasks:</p>
+<ul>
+<li>
+<p><strong>Task A — H6 directed AP decode interop seam:</strong> <code>ft8_set_ap_bits()</code> is added to the
+  native shim. When called, it stores packed mycall/hiscall bits in TLS and injects them
+  as ±40.0 LLR hard constraints into <code>log174</code> after waterfall extraction and before
+  normalisation, using the new <code>ftx_decode_candidate_ap()</code> path in <code>decode.c</code>. This is
+  applied during pass 0 only; pass 1 always uses unmodified waterfall LLRs.
+  <strong>The C# caller integration is explicitly deferred</strong> — the interop seam
+  (<code>IFt8NativeInterop.SetApBits</code>, <code>Ft8LibInterop.SetApBits</code>,
+  <code>Ft8NativeInteropAdapter.SetApBits</code>) is exposed but no production code calls it.</p>
+</li>
+<li>
+<p><strong>Task B — Pre-normalisation variance probe (H_LLR_VAR):</strong> The shim 20260019 LLR
+  probe (<code>ftx_compute_candidate_llr_mean_abs</code>) established that post-normalisation
+  mean|LLR| is a tautological constant (≈3.91) due to <code>ftx_normalize_logl</code>. The redesign
+  (<code>ftx_compute_candidate_llr_stats</code>) additionally captures the <strong>pre-normalisation
+  variance</strong> of the raw <code>log174</code> array. The H_LLR_VAR hypothesis is: co_channel
+  interference produces <em>low</em> pre-norm variance (LLRs near zero → ambiguous bit
+  decisions), while clean single-signal decodes produce <em>high</em> pre-norm variance (one
+  dominant large LLR per bit).</p>
+</li>
+<li>
+<p><strong>Task C — NaN guard:</strong> <code>isfinite()</code> check prevents degenerate candidates
+  (all-zero <code>log174</code>, variance == 0) from contaminating the accumulation sums.</p>
+</li>
+</ul>
+<h3 id="defects-under-observation">Defects Under Observation</h3>
+<table>
+<thead>
+<tr>
+<th>Defect</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>D-001</strong></td>
+<td>Co-channel decode gap: OpenWSFZ S7 ≈ 50% vs WSJT-X ≈ 77%. LDPC convergence failure confirmed at shim 20260018. H_LLR (post-norm mean</td>
+</tr>
+</tbody>
+</table>
+<h3 id="null-hypotheses">Null Hypotheses</h3>
+<table>
+<thead>
+<tr>
+<th>Label</th>
+<th>Hypothesis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>H₀_AP</strong></td>
+<td>The AP decode seam produces no observable S7 improvement in this run. Expected — C# caller integration is deliberately deferred; <code>tls_ap_num_mycall_bits</code> is always 0; <code>ap_active</code> is always false; <code>ftx_decode_candidate_ap</code> is never invoked. co_channel recovery remains 0.00%.</td>
+</tr>
+<tr>
+<td><strong>H₀_VAR</strong></td>
+<td>Pre-normalisation variance is NOT significantly lower for co_channel LDPC-failing candidates compared to other failure types. If H_LLR_VAR is correct, co_channel fail cands should show prenormVar ≪ than near_collision/capture fail cands.</td>
+</tr>
+<tr>
+<td><strong>H₀_neutral</strong></td>
+<td>Shim changes do not alter overall S7 rate. Score falls within the H4 variability band (40–53 out of 93; 43–57%).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-constitutes-a-meaningful-result">What Constitutes a Meaningful Result</h3>
+<ul>
+<li><strong>H₀_AP:</strong> Automatically retained — C# wiring is absent by design.
+  co_channel = 0.00% is the expected result.</li>
+<li><strong>H₀_VAR confirmed:</strong> prenormVar is significantly lower for co_channel fail cands
+  than other families → H_LLR_VAR supported; next step is to wire AP decode and
+  re-run in a QSO context.</li>
+<li><strong>H₀_VAR refuted:</strong> prenormVar distributions overlap across families →
+  H_LLR_VAR is incorrect; low pre-norm variance is NOT the discriminating signal;
+  revise the co_channel failure model.</li>
+<li><strong>H₀_neutral:</strong> Score within 40–53/93 → no regression from shim changes.</li>
+</ul>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<h3 id="build-under-test">Build Under Test</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SHA</td>
+<td><code>3c2ad02a42e1912433c080e901569a1bb73df48a</code></td>
+</tr>
+<tr>
+<td>Branch</td>
+<td><code>diag/d001-h6-ap-probe</code></td>
+</tr>
+<tr>
+<td>Shim version</td>
+<td>20260020 — adds <code>ft8_set_ap_bits()</code>, redesigns <code>ft8_get_last_llr_stats()</code> with prenormVar, NaN guard</td>
+</tr>
+<tr>
+<td>WSJT-X reference</td>
+<td>2.7.0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="corpus">Corpus</h3>
+<p>Synthetic fixtures only (NFR-021 compliant; no real callsigns).
+<strong>S7 only</strong> — 15 co-channel/near-collision/time-freq/capture parts (P0–P14).
+K = 3 trials per appraiser (P2: K = 3 × 3 signals = 9 observations).
+Total observations: 93 per appraiser.</p>
+<h3 id="acceptance-thresholds">Acceptance Thresholds</h3>
+<p>S7 is <strong>informational only</strong> — no AIAG threshold is defined for co-channel separation
+(STUDY-SPEC §10). The formal gate for this run is H₀_neutral: S7 score within the
+H4 variability band (40–53 out of 93, i.e., 43–57%).</p>
+<p>Application log captured at <code>openswfz-20260618T162719Z.log</code> (committed with this result
+directory). File logging was enabled (<code>Logging.FileEnabled = true</code>,
+<code>Logging.FileLogLevel = "Debug"</code>) prior to the run per Lesson Learned #8.</p>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h2 id="s7-compounding-co-channel-overlap">S7 — Compounding / co-channel overlap</h2>
+<p><em>Per-message recovery when 2–3 signals occupy the same or near-same audio frequency / time slot (the pileup case S4 does not exercise). Informational — no AIAG threshold is defined for co-channel separation.</em></p>
+<h3 id="recovery-by-overlap-family">Recovery by overlap family</h3>
+<table>
+<thead>
+<tr>
+<th>Overlap family</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>capture</td>
+<td>58.33%</td>
+<td>54.17%</td>
+</tr>
+<tr>
+<td>co_channel</td>
+<td>38.10%</td>
+<td>0.00%</td>
+</tr>
+<tr>
+<td>near_collision</td>
+<td>100.00%</td>
+<td>80.00%</td>
+</tr>
+<tr>
+<td>time_freq</td>
+<td>100.00%</td>
+<td>50.00%</td>
+</tr>
+<tr>
+<td><strong>all</strong></td>
+<td><strong>75.27%</strong></td>
+<td><strong>49.46%</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="capture-effect-co-channel-unequal-snr">Capture effect (co-channel, unequal SNR)</h3>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>strong</td>
+<td>100.00%</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>weak</td>
+<td>16.67%</td>
+<td>8.33%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Between-app per-signal agreement:</strong> 72.04%</p>
+<h3 id="per-part-detail">Per-part detail</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Family</th>
+<th>Condition</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>co_channel</td>
+<td>2-stack, equal 0 dB</td>
+<td>4/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>co_channel</td>
+<td>2-stack, equal -5 dB</td>
+<td>4/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>co_channel</td>
+<td>3-stack, equal 0 dB</td>
+<td>0/9</td>
+<td>0/9</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>near_collision</td>
+<td>delta 3 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>near_collision</td>
+<td>delta 6 Hz</td>
+<td>6/6</td>
+<td>2/6</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>near_collision</td>
+<td>delta 12 Hz</td>
+<td>6/6</td>
+<td>5/6</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>near_collision</td>
+<td>delta 25 Hz</td>
+<td>6/6</td>
+<td>5/6</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>near_collision</td>
+<td>delta 50 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>P8</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0 / 0.5 s</td>
+<td>6/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P9</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0 / 1.0 s</td>
+<td>6/6</td>
+<td>4/6</td>
+</tr>
+<tr>
+<td>P10</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0 / 2.0 s</td>
+<td>6/6</td>
+<td>5/6</td>
+</tr>
+<tr>
+<td>P11</td>
+<td>capture</td>
+<td>co-freq, 0 / -3 dB</td>
+<td>4/6</td>
+<td>3/6</td>
+</tr>
+<tr>
+<td>P12</td>
+<td>capture</td>
+<td>co-freq, 0 / -6 dB</td>
+<td>4/6</td>
+<td>4/6</td>
+</tr>
+<tr>
+<td>P13</td>
+<td>capture</td>
+<td>co-freq, 0 / -10 dB</td>
+<td>3/6</td>
+<td>3/6</td>
+</tr>
+<tr>
+<td>P14</td>
+<td>capture</td>
+<td>co-freq, +3 / -10 dB</td>
+<td>3/6</td>
+<td>3/6</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S7 recovery" src="S7_recovery.png" /></p>
+<h3 id="pre-normalisation-variance-probe-task-b-shim-20260020">Pre-normalisation Variance Probe (Task B, shim 20260020)</h3>
+<p>Per-cycle <code>prenormVar</code> values extracted from the application log for pass 1 LDPC-failing
+candidates. Average prenormVar is computed as <code>tls_llr_prenorm_var_sum / tls_llr_fail_count</code>
+per cycle. Only cycles with at least one failing candidate are shown.</p>
+<p><strong>co_channel cycles (P0–P2, equal SNR, 1500 Hz, 9 active trials):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Cycle UTC</th>
+<th>Part</th>
+<th>Pass</th>
+<th>failCands</th>
+<th>meanAbsLLR</th>
+<th>prenormVar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16:30:00</td>
+<td>P0</td>
+<td>1</td>
+<td>24</td>
+<td>3.836</td>
+<td>42.94</td>
+</tr>
+<tr>
+<td>16:30:15</td>
+<td>P0</td>
+<td>1</td>
+<td>27</td>
+<td>3.778</td>
+<td>38.03</td>
+</tr>
+<tr>
+<td>16:30:30</td>
+<td>P1</td>
+<td>1</td>
+<td>20</td>
+<td>3.792</td>
+<td>46.80</td>
+</tr>
+<tr>
+<td>16:30:45</td>
+<td>P1</td>
+<td>1</td>
+<td>18</td>
+<td>3.784</td>
+<td>36.92</td>
+</tr>
+<tr>
+<td>16:31:15</td>
+<td>P1</td>
+<td>1</td>
+<td>19</td>
+<td>3.791</td>
+<td>47.63</td>
+</tr>
+<tr>
+<td>16:31:30</td>
+<td>P2</td>
+<td>1</td>
+<td>20</td>
+<td>3.831</td>
+<td>52.52</td>
+</tr>
+<tr>
+<td>16:31:45</td>
+<td>P2</td>
+<td>1</td>
+<td>26</td>
+<td>3.701</td>
+<td>47.47</td>
+</tr>
+<tr>
+<td>16:32:15</td>
+<td>P2</td>
+<td>1</td>
+<td>21</td>
+<td>3.777</td>
+<td>53.82</td>
+</tr>
+<tr>
+<td>16:32:30</td>
+<td>P2</td>
+<td>1</td>
+<td>21</td>
+<td>3.801</td>
+<td>60.06</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Representative non-co_channel cycles for comparison:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Cycle UTC</th>
+<th>Part / Family</th>
+<th>Pass</th>
+<th>failCands</th>
+<th>prenormVar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16:32:45</td>
+<td>P3 near_collision</td>
+<td>1</td>
+<td>21</td>
+<td>60.06</td>
+</tr>
+<tr>
+<td>16:33:45</td>
+<td>P4 near_collision</td>
+<td>1</td>
+<td>16</td>
+<td>45.05</td>
+</tr>
+<tr>
+<td>16:35:45</td>
+<td>P6 near_collision</td>
+<td>1</td>
+<td>21</td>
+<td>71.34</td>
+</tr>
+<tr>
+<td>16:36:30</td>
+<td>P7 near_collision</td>
+<td>1</td>
+<td>19</td>
+<td>64.63</td>
+</tr>
+<tr>
+<td>16:36:45</td>
+<td>P7 near_collision</td>
+<td>1</td>
+<td>22</td>
+<td>91.25</td>
+</tr>
+<tr>
+<td>16:37:30</td>
+<td>P8 time_freq</td>
+<td>1</td>
+<td>22</td>
+<td>79.44</td>
+</tr>
+<tr>
+<td>16:38:00</td>
+<td>P8 time_freq</td>
+<td>1</td>
+<td>34</td>
+<td>44.39</td>
+</tr>
+<tr>
+<td>16:40:15</td>
+<td>P11 capture</td>
+<td>1</td>
+<td>25</td>
+<td>40.73</td>
+</tr>
+<tr>
+<td>16:41:30</td>
+<td>P12 capture</td>
+<td>1</td>
+<td>27</td>
+<td>44.72</td>
+</tr>
+<tr>
+<td>16:42:00</td>
+<td>P13 capture</td>
+<td>1</td>
+<td>15</td>
+<td>78.14</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-4-summary-verdict-table">Section 4 — Summary Verdict Table</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Scope</th>
+<th>Value</th>
+<th>Threshold</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S7 score (OpenWSFZ)</td>
+<td>S7 all parts</td>
+<td>46/93 = 49.46%</td>
+<td>H4 band: 40–53/93</td>
+<td>WITHIN BAND</td>
+</tr>
+<tr>
+<td>H₀_neutral</td>
+<td>S7</td>
+<td>49.46%</td>
+<td>43–57%</td>
+<td>RETAINED</td>
+</tr>
+<tr>
+<td>H₀_AP</td>
+<td>co_channel</td>
+<td>0/21 = 0.00%</td>
+<td>N/A — seam-only, C# deferred</td>
+<td>NOT TESTABLE (expected)</td>
+</tr>
+<tr>
+<td>H₀_VAR</td>
+<td>prenormVar co_channel vs all</td>
+<td>co_channel: 37–60; all families: 29–91</td>
+<td>co_channel ≪ others required</td>
+<td>REFUTED — distributions overlap</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: PASS</strong> <em>(No AIAG formal gates apply to S7. H₀_neutral retained;
+shim changes are decode-neutral. H₀_VAR refuted — pre-norm variance does not
+discriminate co_channel failures. H6 AP decode untestable via R&amp;R harness; see
+Section 5.)</em></p>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<h3 id="h0_neutral-retained-no-decode-regression">H₀_neutral — Retained; No Decode Regression</h3>
+<p>S7 score: <strong>46/93 = 49.46%</strong>. Previous runs: 50.54% (shim 20260016), 59.14% (shim
+20260018), 52.69% (shim 20260019). This run is within the H4 variability band
+(43–57%). The shim changes (AP seam + prenormVar probe) are decode-neutral as
+expected — <code>ap_active</code> is always false because no caller sets the TLS bits.</p>
+<h3 id="h0_ap-not-testable-c-integration-required">H₀_AP — Not Testable; C# Integration Required</h3>
+<p><strong>H6 AP decode was not exercised in this run, and CANNOT be exercised via the R&amp;R
+harness as currently constructed.</strong> Two compounding reasons:</p>
+<ol>
+<li>
+<p><strong>C# caller integration is deferred.</strong> <code>ft8_set_ap_bits()</code> exists in the native shim
+   and the interop adapters expose it, but no production C# code calls it. Confirmed by
+   inspection: <code>SetApBits</code> appears only in test files and the interop definitions.
+   <code>tls_ap_num_mycall_bits</code> remains 0 throughout; <code>ap_active = false</code>; every decode
+   cycle uses <code>ftx_decode_candidate</code>, never <code>ftx_decode_candidate_ap</code>.</p>
+</li>
+<li>
+<p><strong>R&amp;R harness has no QSO context.</strong> Even if the C# wiring were complete,
+   <code>SetApBits</code> requires mycall/hiscall to derive the hard-constraint bit arrays. The
+   harness feeds raw audio with no running QSO; the <code>QsoAnswererService</code> has no active
+   peer to constrain. The R&amp;R study can confirm decode-neutrality of the seam addition
+   (done) but cannot assess H6 efficacy.</p>
+</li>
+</ol>
+<p><strong>Recommended next steps for H6:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1 (wire C#)</strong></td>
+<td>In <code>Ft8Decoder.cs</code>, add an <code>ApBits</code> property or constructor injection. Wire <code>QsoAnswererService</code> to call <code>SetApBits(mycallBits, hiscallBits)</code> before each <code>DecodeAsync</code> invocation when a QSO is in progress. This is the single most actionable step.</td>
+</tr>
+<tr>
+<td><strong>2 (integration test)</strong></td>
+<td>Write a dedicated integration test that synthesises a co_channel WAV (two equal-SNR FT8 signals at 1500 Hz), calls <code>SetApBits</code> with the correct mycall/hiscall packed bits before decode, and asserts that at least one of the two signals is recovered. This tests H6 efficacy without requiring a live QSO or R&amp;R harness modification.</td>
+</tr>
+<tr>
+<td><strong>3 (live QSO validation)</strong></td>
+<td>Once C# wiring is in place, conduct a targeted S7 sub-run (P0/P1/P2 only) with the harness patched to call <code>SetApBits</code> before each decode. This will be the authoritative assessment of whether AP decode breaks the co_channel 0% floor.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="h0_var-refuted-revise-co-channel-failure-model">H₀_VAR — Refuted; Revise Co-channel Failure Model</h3>
+<p><strong>Pre-normalisation variance is NOT a useful discriminating metric for co_channel LDPC
+failures.</strong> The data from the application log is decisive:</p>
+<ul>
+<li><strong>co_channel fail cands (P0–P2):</strong> prenormVar = <strong>37–60</strong> (pass 1)</li>
+<li><strong>near_collision fail cands (P4–P7):</strong> prenormVar = <strong>29–91</strong> (pass 1)</li>
+<li><strong>time_freq fail cands (P8):</strong> prenormVar = <strong>44–79</strong> (pass 1)</li>
+<li><strong>capture fail cands (P11–P14):</strong> prenormVar = <strong>26–78</strong> (pass 1)</li>
+</ul>
+<p>The distributions overlap completely. Co_channel failing candidates do NOT have low
+pre-norm variance. On the contrary, their variance (37–60) is HIGHER than the
+normalisation target (24), meaning the raw LLRs are large in magnitude — not near-zero.</p>
+<p><strong>Revised co_channel failure model:</strong></p>
+<p>The H_LLR_VAR hypothesis was derived from the assumption that equal-SNR co_channel
+signals drive LLRs towards zero (maximum bit ambiguity). The prenormVar data refutes
+this: the LLRs are energetic (large magnitude) but have <strong>incorrect signs</strong> for a
+substantial fraction of bits. When two equal-SNR FT8 signals overlap, each symbol's
+dominant tone power alternates between the two signals' contributions. The
+soft-decision demodulator produces confident but wrong LLRs — high prenormVar, wrong
+sign — rather than uncertain near-zero LLRs. The LDPC then fails not from lack of
+bit confidence but from a near-random mixture of correct and incorrect hard decisions.</p>
+<p><strong>Implications:</strong></p>
+<ul>
+<li>The near-zero LLR magnitude hypothesis (H_LLR, shim 20260019) and the low
+  pre-norm variance hypothesis (H_LLR_VAR, shim 20260020) are both refuted. Retire
+  both diagnostic probes after this run.</li>
+<li>H6 AP decode is now MORE strongly motivated: it clamps the 28 mycall bits and 28
+  hiscall bits to their correct sign (±40.0 LLR), overriding the wrong-sign waterfall
+  LLRs with correct hard constraints. LDPC then propagates from 56 correctly-anchored
+  bit positions even when the remaining 118 bits have sign errors.</li>
+<li>MMSE joint demodulation remains the architectural backstop if H6 proves insufficient
+  (e.g., when mycall/hiscall are not known).</li>
+</ul>
+<h3 id="d-001-status-update-post-shim-20260020">D-001 Status Update (post-shim 20260020)</h3>
+<table>
+<thead>
+<tr>
+<th>Hypothesis</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H2 — 3-pass SIC</td>
+<td>REJECTED (shim 20260007)</td>
+</tr>
+<tr>
+<td>H3/H3b — PCM SIC</td>
+<td>REJECTED (shims 20260008/09)</td>
+</tr>
+<tr>
+<td>H4 — spectrogram suppression</td>
+<td>ACCEPTED as current baseline</td>
+</tr>
+<tr>
+<td>H5 — ramp suppression</td>
+<td>REJECTED (shim 20260011)</td>
+</tr>
+<tr>
+<td>H_LLR — near-zero post-norm mean|LLR|</td>
+<td>REFUTED — tautological constant (shim 20260019)</td>
+</tr>
+<tr>
+<td>H_LLR_VAR — low pre-norm variance</td>
+<td>REFUTED — distributions overlap (this run)</td>
+</tr>
+<tr>
+<td><strong>H6 — directed AP decode</strong></td>
+<td><strong>SEAM DEPLOYED, not wired — efficacy TBD</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Recommended priority order for D-001 next steps:</strong>
+1. Wire <code>SetApBits</code> in C# and create the integration test (H6 validation)
+2. Run targeted S7 (P0/P1/P2) with AP bits populated — authoritative H6 efficacy test
+3. If H6 insufficient: MMSE joint demodulation (architectural change to ft8_lib)
+4. Accept co_channel as structural gap under current architecture</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

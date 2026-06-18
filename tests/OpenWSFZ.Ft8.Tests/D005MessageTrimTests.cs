@@ -45,8 +45,10 @@ public sealed class D005MessageTrimTests
         public int[]  GetLastPassCounts(int maxPasses)      => [results.Length, 0];
         public int[]  GetLastCandidateCounts(int maxPasses) => [results.Length, 0];
         public float  GetLastNoiseFloorDb()                  => -70.0f;
-        public (float[] MeanAbs, int[] FailCount) GetLastLlrStats(int maxPasses)
-            => (new float[maxPasses], new int[maxPasses]);
+        public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
+            => (new float[maxPasses], new float[maxPasses], new int[maxPasses]);
+
+        public void SetApBits(byte[] mycallBits, byte[] hiscallBits) { /* no-op */ }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

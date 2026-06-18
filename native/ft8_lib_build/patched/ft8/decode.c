@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <math.h>
+#include <stddef.h>   /* NULL — required for ftx_decode_candidate_ap (GCC/Clang strict C11) */
 
 // #define LOG_LEVEL LOG_DEBUG
 // #include "debug.h"
@@ -32,10 +33,27 @@ static const float db_power_sum[40] = {
 static void ft4_extract_likelihood(const ftx_waterfall_t* wf, const ftx_candidate_t* cand, float* log174);
 static void ft8_extract_likelihood(const ftx_waterfall_t* wf, const ftx_candidate_t* cand, float* log174);
 
-/* Non-static diagnostic probe — called from ft8_shim.c */
-float ftx_compute_candidate_llr_mean_abs(
+/* Non-static diagnostic probe — called from ft8_shim.c (Task B, shim 20260020).
+ * Returns post-normalisation mean|LLR| and sets *out_prenorm_variance.
+ * Returns NaN if the pre-normalisation variance is zero (degenerate candidate). */
+float ftx_compute_candidate_llr_stats(
     const ftx_waterfall_t* wf,
-    const ftx_candidate_t* cand);
+    const ftx_candidate_t* cand,
+    float*                 out_prenorm_variance);
+
+/* AP-constrained decode — called from ft8_shim.c for pass 0 (Task A, shim 20260020).
+ * Behaves identically to ftx_decode_candidate but applies the ap_overrides array
+ * to log174 after extraction and before normalisation.  Entries with value 0.0f are
+ * left unchanged; non-zero entries replace the waterfall-derived LLR with that value.
+ * Pass ap_overrides=NULL (or all-zero array) to behave identically to
+ * ftx_decode_candidate (AP disabled). */
+bool ftx_decode_candidate_ap(
+    const ftx_waterfall_t*  wf,
+    const ftx_candidate_t*  cand,
+    int                     max_iterations,
+    const float*            ap_overrides,   /* FTX_LDPC_N floats; 0.0f = no override */
+    ftx_message_t*          message,
+    ftx_decode_status_t*    status);
 
 /// Packs a string of bits each represented as a zero/non-zero byte in bit_array[],
 /// as a string of packed bits starting from the MSB of the first byte of packed[]
@@ -393,24 +411,26 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
 }
 
 /*
- * ftx_compute_candidate_llr_mean_abs — diagnostic probe for D-001.
+ * ftx_compute_candidate_llr_stats — diagnostic probe for D-001 (shim 20260020).
  *
- * Replicates the first two steps of ftx_decode_candidate (likelihood
- * extraction + variance-normalisation) and returns the mean absolute
- * LLR across all FTX_LDPC_N (174) elements.
- *
- * A high value (> ~1.5) indicates healthy soft-decision input to LDPC.
- * A near-zero value (< ~0.5) indicates that the waterfall provides no
- * useful bit confidence — the LDPC convergence failure hypothesis
- * for D-001 co-channel scenarios.
+ * Redesign of ftx_compute_candidate_llr_mean_abs (shim 20260019):
+ *   - Computes pre-normalisation variance of the raw log174 array.
+ *   - A small pre-normalisation variance indicates ambiguous / degraded LLRs
+ *     regardless of the post-normalisation mean (which is a near-constant ≈3.91
+ *     due to the normalisation).
+ *   - Returns NaN if the pre-normalisation variance is zero (degenerate candidate
+ *     — all log174 entries equal; ftx_normalize_logl would divide-by-zero).
+ *   - Returns post-normalisation mean|LLR| via return value for continuity with
+ *     the shim 20260019 metric.
  *
  * Does NOT call bp_decode.  Read-only with respect to the waterfall.
  * Safe to call for any candidate, including those that subsequently
  * fail ftx_decode_candidate.
  */
-float ftx_compute_candidate_llr_mean_abs(
+float ftx_compute_candidate_llr_stats(
     const ftx_waterfall_t* wf,
-    const ftx_candidate_t* cand)
+    const ftx_candidate_t* cand,
+    float*                 out_prenorm_variance)
 {
     float log174[FTX_LDPC_N];
 
@@ -419,13 +439,111 @@ float ftx_compute_candidate_llr_mean_abs(
     else
         ft8_extract_likelihood(wf, cand, log174);
 
+    /* Compute pre-normalisation variance */
+    float sum = 0.0f, sum2 = 0.0f;
+    for (int i = 0; i < FTX_LDPC_N; ++i)
+    {
+        sum  += log174[i];
+        sum2 += log174[i] * log174[i];
+    }
+    float mean     = sum / (float)FTX_LDPC_N;
+    float variance = sum2 / (float)FTX_LDPC_N - mean * mean;
+    *out_prenorm_variance = variance;
+
+    /* Degenerate candidate: variance == 0 → ftx_normalize_logl would divide-by-zero.
+     * Return NaN so the caller can detect and skip this candidate.
+     * Use nanf("") (C99/C11) rather than 0.0f/0.0f — MSVC rejects the latter as
+     * a compile-time constant divide-by-zero under /O2 (error C2124). */
+    if (variance == 0.0f)
+        return nanf("");
+
+    /* Normalise and compute post-normalisation mean|LLR| */
     ftx_normalize_logl(log174);
 
-    float sum = 0.0f;
+    float abs_sum = 0.0f;
     for (int i = 0; i < FTX_LDPC_N; ++i)
-        sum += fabsf(log174[i]);
+        abs_sum += fabsf(log174[i]);
 
-    return sum / (float)FTX_LDPC_N;
+    return abs_sum / (float)FTX_LDPC_N;
+}
+
+/*
+ * ftx_decode_candidate_ap — AP-constrained decode (Task A, shim 20260020).
+ *
+ * Implements directed a priori (AP) decode: after extracting soft-decision
+ * likelihoods from the waterfall, known bit values (mycall / hiscall) are
+ * injected as hard constraints by overriding the corresponding log174 entries
+ * with ±LLR_HARD before normalisation.  This anchors LDPC belief-propagation
+ * on the known bits, improving convergence when the remaining LLRs are near-zero
+ * (equal-SNR co-channel interference — D-001 root cause).
+ *
+ * Parameters:
+ *   ap_overrides  — FTX_LDPC_N floats.  Non-zero entry at index i overrides
+ *                   log174[i] with that value (+LLR_HARD for bit=1, -LLR_HARD
+ *                   for bit=0) before normalisation.  Entries of 0.0f are left
+ *                   unchanged (no override at that bit position).
+ *                   Pass NULL to behave identically to ftx_decode_candidate.
+ *
+ * Behaviour is otherwise identical to ftx_decode_candidate.
+ */
+bool ftx_decode_candidate_ap(
+    const ftx_waterfall_t*  wf,
+    const ftx_candidate_t*  cand,
+    int                     max_iterations,
+    const float*            ap_overrides,
+    ftx_message_t*          message,
+    ftx_decode_status_t*    status)
+{
+    float log174[FTX_LDPC_N];
+
+    if (wf->protocol == FTX_PROTOCOL_FT4)
+        ft4_extract_likelihood(wf, cand, log174);
+    else
+        ft8_extract_likelihood(wf, cand, log174);
+
+    /* Apply AP constraints (hard-coded known bits) before normalisation */
+    if (ap_overrides != NULL)
+    {
+        for (int i = 0; i < FTX_LDPC_N; ++i)
+        {
+            if (ap_overrides[i] != 0.0f)
+                log174[i] = ap_overrides[i];
+        }
+    }
+
+    ftx_normalize_logl(log174);
+
+    uint8_t plain174[FTX_LDPC_N];
+    bp_decode(log174, max_iterations, plain174, &status->ldpc_errors);
+
+    if (status->ldpc_errors > 0)
+        return false;
+
+    uint8_t a91[FTX_LDPC_K_BYTES];
+    pack_bits(plain174, FTX_LDPC_K, a91);
+
+    status->crc_extracted = ftx_extract_crc(a91);
+    a91[9]  &= 0xF8;
+    a91[10] &= 0x00;
+    status->crc_calculated = ftx_compute_crc(a91, 96 - 14);
+
+    if (status->crc_extracted != status->crc_calculated)
+        return false;
+
+    message->hash = status->crc_calculated;
+
+    if (wf->protocol == FTX_PROTOCOL_FT4)
+    {
+        for (int i = 0; i < 10; ++i)
+            message->payload[i] = a91[i] ^ kFT4_XOR_sequence[i];
+    }
+    else
+    {
+        for (int i = 0; i < 10; ++i)
+            message->payload[i] = a91[i];
+    }
+
+    return true;
 }
 
 static float max2(float a, float b)
