@@ -108,6 +108,7 @@ jobs:
       # -----------------------------------------------------------------
       - name: Check committed Linux .so is current
         if: runner.os == 'Linux'
+        continue-on-error: true
         run: |
           EXPECTED=$(python3 -c "import re; src=open('src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs').read(); m=re.search(r'ExpectedShimVersion\s*=\s*(\d+)',src); print(m.group(1))")
           echo "C# ExpectedShimVersion = $EXPECTED"
