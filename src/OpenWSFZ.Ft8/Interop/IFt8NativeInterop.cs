@@ -49,4 +49,11 @@ internal interface IFt8NativeInterop
     /// MUST be called on the same thread as <see cref="DecodeAll"/>.
     /// </summary>
     float GetLastNoiseFloorDb();
+
+    /// <summary>
+    /// Return per-pass mean abs(LLR) statistics for LDPC-failing candidates
+    /// from the most recent <see cref="DecodeAll"/> call on this thread.
+    /// MUST be called on the same thread as <see cref="DecodeAll"/>.
+    /// </summary>
+    (float[] MeanAbs, int[] FailCount) GetLastLlrStats(int maxPasses);
 }

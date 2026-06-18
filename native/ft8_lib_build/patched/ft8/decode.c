@@ -32,6 +32,11 @@ static const float db_power_sum[40] = {
 static void ft4_extract_likelihood(const ftx_waterfall_t* wf, const ftx_candidate_t* cand, float* log174);
 static void ft8_extract_likelihood(const ftx_waterfall_t* wf, const ftx_candidate_t* cand, float* log174);
 
+/* Non-static diagnostic probe — called from ft8_shim.c */
+float ftx_compute_candidate_llr_mean_abs(
+    const ftx_waterfall_t* wf,
+    const ftx_candidate_t* cand);
+
 /// Packs a string of bits each represented as a zero/non-zero byte in bit_array[],
 /// as a string of packed bits starting from the MSB of the first byte of packed[]
 /// @param[in] plain Array of bits (0 and nonzero values) with num_bits entires
@@ -385,6 +390,42 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
 
     // LOG(LOG_DEBUG, "Decoded message (CRC %04x), trying to unpack...\n", status->crc_extracted);
     return true;
+}
+
+/*
+ * ftx_compute_candidate_llr_mean_abs — diagnostic probe for D-001.
+ *
+ * Replicates the first two steps of ftx_decode_candidate (likelihood
+ * extraction + variance-normalisation) and returns the mean absolute
+ * LLR across all FTX_LDPC_N (174) elements.
+ *
+ * A high value (> ~1.5) indicates healthy soft-decision input to LDPC.
+ * A near-zero value (< ~0.5) indicates that the waterfall provides no
+ * useful bit confidence — the LDPC convergence failure hypothesis
+ * for D-001 co-channel scenarios.
+ *
+ * Does NOT call bp_decode.  Read-only with respect to the waterfall.
+ * Safe to call for any candidate, including those that subsequently
+ * fail ftx_decode_candidate.
+ */
+float ftx_compute_candidate_llr_mean_abs(
+    const ftx_waterfall_t* wf,
+    const ftx_candidate_t* cand)
+{
+    float log174[FTX_LDPC_N];
+
+    if (wf->protocol == FTX_PROTOCOL_FT4)
+        ft4_extract_likelihood(wf, cand, log174);
+    else
+        ft8_extract_likelihood(wf, cand, log174);
+
+    ftx_normalize_logl(log174);
+
+    float sum = 0.0f;
+    for (int i = 0; i < FTX_LDPC_N; ++i)
+        sum += fabsf(log174[i]);
+
+    return sum / (float)FTX_LDPC_N;
 }
 
 static float max2(float a, float b)

@@ -160,8 +160,13 @@ extern "C" {
  *              lets the managed diagnostic layer distinguish candidate-generation
  *              failure from LDPC convergence failure in D-001 co-channel scenarios.
  *              No change to decode logic, struct layout, or existing entry points.
+ *   20260019 — diag-d001-llr-mean-abs: add ft8_get_last_llr_stats() exposing
+ *              per-pass mean abs(LLR) across LDPC-failing candidates.
+ *              ftx_compute_candidate_llr_mean_abs() added to decode.c (non-static)
+ *              computes likelihood + normalisation without calling bp_decode.
+ *              No change to existing entry points, struct layout, or return codes.
  */
-#define FT8_SHIM_VERSION 20260018
+#define FT8_SHIM_VERSION 20260019
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -255,6 +260,20 @@ float ft8_get_last_noise_floor_db(void);
  * Parameters and threading contract identical to ft8_get_last_pass_counts.
  */
 int ft8_get_last_candidate_counts(int* out_counts, int capacity);
+
+/*
+ * ft8_get_last_llr_stats — return per-pass mean abs(LLR) statistics from
+ * the most recent ft8_decode_all call on this thread.
+ *
+ * out_mean_abs[i]   — mean abs(LLR) across all LDPC-failing candidates in pass i.
+ *                     0.0f if no candidates failed in that pass.
+ * out_fail_count[i] — count of LDPC-failing candidates in pass i.
+ * capacity          — size of both output arrays; ≥ K_MAX_PASSES for full data.
+ *
+ * Returns: number of passes actually executed (≤ capacity).
+ * Threading contract: identical to ft8_get_last_pass_counts.
+ */
+int ft8_get_last_llr_stats(float* out_mean_abs, int* out_fail_count, int capacity);
 
 /*
  * ft8_encode_message — encode an FT8 text message to 79 tone indices.

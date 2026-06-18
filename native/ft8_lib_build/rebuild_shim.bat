@@ -4,6 +4,17 @@ call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build
 echo ERRORLEVEL after vcvars64: %ERRORLEVEL%
 if %ERRORLEVEL% neq 0 goto :err_env
 
+echo === Compiling patched decode.c ===
+cl ^
+  /I "C:\Temp\ft8_lib_headers\ft8" ^
+  /I "C:\Temp\ft8_lib_headers" ^
+  /I "D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\decode.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\patched\ft8\decode.c"
+echo ERRORLEVEL after cl (decode.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
 echo === Compiling ft8_shim.c ===
 cl ^
   /I "C:\Temp\ft8_lib_headers" ^
@@ -24,6 +35,7 @@ link /DLL ^
   /EXPORT:ft8_get_last_noise_floor_db ^
   /EXPORT:ft8_encode_message ^
   /EXPORT:ft8_get_last_candidate_counts ^
+  /EXPORT:ft8_get_last_llr_stats ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\constants.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\crc.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\decode.obj" ^
