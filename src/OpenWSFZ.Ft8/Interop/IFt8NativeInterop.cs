@@ -51,9 +51,22 @@ internal interface IFt8NativeInterop
     float GetLastNoiseFloorDb();
 
     /// <summary>
-    /// Return per-pass mean abs(LLR) statistics for LDPC-failing candidates
-    /// from the most recent <see cref="DecodeAll"/> call on this thread.
+    /// Return per-pass LLR statistics for LDPC-failing candidates from the most
+    /// recent <see cref="DecodeAll"/> call on this thread (redesigned at shim 20260020).
+    /// <para>
+    /// <c>MeanAbs[i]</c> — post-normalisation mean abs(LLR) for pass <c>i</c>.
+    /// <c>PrenormVariance[i]</c> — pre-normalisation variance of raw log174 for pass <c>i</c>;
+    /// confirms D-001 root cause when small.
+    /// <c>FailCount[i]</c> — LDPC-failing candidate count for pass <c>i</c>.
+    /// </para>
     /// MUST be called on the same thread as <see cref="DecodeAll"/>.
     /// </summary>
-    (float[] MeanAbs, int[] FailCount) GetLastLlrStats(int maxPasses);
+    (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses);
+
+    /// <summary>
+    /// Supply known AP bit constraints for the next decode cycle (H6 directed AP decode,
+    /// shim 20260020).  Pass empty arrays to disable.
+    /// MUST be called on the same thread as <see cref="DecodeAll"/> or before it.
+    /// </summary>
+    void SetApBits(byte[] mycallBits, byte[] hiscallBits);
 }

@@ -165,8 +165,26 @@ extern "C" {
  *              ftx_compute_candidate_llr_mean_abs() added to decode.c (non-static)
  *              computes likelihood + normalisation without calling bp_decode.
  *              No change to existing entry points, struct layout, or return codes.
+ *   20260020 — diag-d001-h6-ap-probe: two changes in one shim bump:
+ *              (A) ft8_set_ap_bits() — directed AP decode setter.  Supplies known
+ *              mycall/hiscall bit constraints to the pass-0 LDPC input path.
+ *              Known bits are injected as ±LLR_HARD (40.0) into the log174 array
+ *              after waterfall likelihood extraction and before normalisation.
+ *              This anchors LDPC belief-propagation on ~36% of the payload bits,
+ *              improving convergence when the remaining LLRs are near-zero due to
+ *              equal-SNR co-channel interference (D-001 root cause, H6 hypothesis).
+ *              Applied only during pass 0; disabled for pass 1.
+ *              C# caller NOT yet wired — interop seam only for this shim.
+ *              (B) ft8_get_last_llr_stats() redesigned: adds a third output array
+ *              out_prenorm_variance for per-pass pre-normalisation variance of
+ *              the raw log174 array.  ftx_compute_candidate_llr_mean_abs renamed
+ *              to ftx_compute_candidate_llr_stats with new signature.  isfinite()
+ *              guard added before accumulation to skip degenerate (NaN) candidates.
+ *              Pre-normalisation variance distinguishes degraded LLRs from healthy
+ *              ones; post-normalisation mean|LLR| is a near-constant ~3.91 for any
+ *              non-degenerate distribution (H_LLR hypothesis inconclusive, shim 20260019).
  */
-#define FT8_SHIM_VERSION 20260019
+#define FT8_SHIM_VERSION 20260020
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -262,18 +280,55 @@ float ft8_get_last_noise_floor_db(void);
 int ft8_get_last_candidate_counts(int* out_counts, int capacity);
 
 /*
- * ft8_get_last_llr_stats — return per-pass mean abs(LLR) statistics from
- * the most recent ft8_decode_all call on this thread.
+ * ft8_get_last_llr_stats — return per-pass LLR statistics from the most recent
+ * ft8_decode_all call on this thread (redesigned at shim 20260020).
  *
- * out_mean_abs[i]   — mean abs(LLR) across all LDPC-failing candidates in pass i.
- *                     0.0f if no candidates failed in that pass.
- * out_fail_count[i] — count of LDPC-failing candidates in pass i.
- * capacity          — size of both output arrays; ≥ K_MAX_PASSES for full data.
+ * out_mean_abs[i]        — post-normalisation mean abs(LLR) across all
+ *                          LDPC-failing candidates in pass i.  0.0f if none.
+ * out_prenorm_variance[i]— pre-normalisation variance of the raw log174 array,
+ *                          averaged across LDPC-failing candidates in pass i.
+ *                          A small value (near 0) indicates near-zero bit confidence
+ *                          and cannot be rescued by normalisation — the confirmed
+ *                          root cause of D-001 equal-SNR co-channel failures.
+ *                          0.0f if no candidates failed in that pass.
+ * out_fail_count[i]      — count of LDPC-failing candidates in pass i.
+ * capacity               — size of all three output arrays; ≥ K_MAX_PASSES.
  *
  * Returns: number of passes actually executed (≤ capacity).
  * Threading contract: identical to ft8_get_last_pass_counts.
  */
-int ft8_get_last_llr_stats(float* out_mean_abs, int* out_fail_count, int capacity);
+int ft8_get_last_llr_stats(
+    float* out_mean_abs,
+    float* out_prenorm_variance,
+    int*   out_fail_count,
+    int    capacity);
+
+/*
+ * ft8_set_ap_bits — supply known AP bit constraints for the next decode cycle
+ * (H6 directed AP decode, shim 20260020).
+ *
+ * Call before ft8_decode_all.  The AP bits are applied only during pass 0
+ * (the primary pass); pass 1 (spectrogram-suppressed) always uses the
+ * waterfall-derived LLRs unchanged.
+ *
+ * Parameters:
+ *   mycall_bits      — 28-bit packed mycall (MSB first, one bit per bit position
+ *                      in the FT8 77-bit payload).  log174[0..27] are overridden.
+ *   num_mycall_bits  — number of valid bits in mycall_bits (0..28).
+ *                      Pass 0 to disable AP constraints entirely (default state).
+ *   hiscall_bits     — 28-bit packed hiscall.  log174[28..55] are overridden.
+ *   num_hiscall_bits — number of valid bits in hiscall_bits (0..28).
+ *
+ * Bits are packed MSB-first in each byte: bit 0 is the MSB of mycall_bits[0],
+ * bit 7 is the LSB of mycall_bits[0], bit 8 is the MSB of mycall_bits[1], etc.
+ * This matches the pack_callsign() convention in ft8_lib/ft8/message.c.
+ *
+ * Thread-safe when called from the same thread that calls ft8_decode_all
+ * (the C# caller serialises these calls — no mutex needed).
+ */
+void ft8_set_ap_bits(
+    const uint8_t* mycall_bits,  int num_mycall_bits,
+    const uint8_t* hiscall_bits, int num_hiscall_bits);
 
 /*
  * ft8_encode_message — encode an FT8 text message to 79 tone indices.

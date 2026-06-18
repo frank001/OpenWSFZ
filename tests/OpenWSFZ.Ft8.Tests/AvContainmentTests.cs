@@ -43,6 +43,7 @@ public sealed class AvContainmentTests
         public bool GetLastCandidateCountsCalled   { get; private set; }
         public bool GetLastNoiseFloorDbCalled      { get; private set; }
         public bool GetLastLlrStatsCalled          { get; private set; }
+        public bool SetApBitsCalled                { get; private set; }
 
         public Ft8NativeResult[] DecodeAll(float[] pcm)
             => throw new NativeAccessViolationException();
@@ -65,10 +66,15 @@ public sealed class AvContainmentTests
             return 0f;
         }
 
-        public (float[] MeanAbs, int[] FailCount) GetLastLlrStats(int maxPasses)
+        public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
         {
             GetLastLlrStatsCalled = true;
-            return ([], []);
+            return ([], [], []);
+        }
+
+        public void SetApBits(byte[] mycallBits, byte[] hiscallBits)
+        {
+            SetApBitsCalled = true;
         }
     }
 
@@ -168,6 +174,10 @@ public sealed class AvContainmentTests
         interop.GetLastLlrStatsCalled.Should().BeFalse(
             "TLS state (LLR stats) is unreliable after an AV; " +
             "calling GetLastLlrStats on the AV path would log stale data");
+        interop.SetApBitsCalled.Should().BeFalse(
+            "SetApBits is a pre-decode setter, not a TLS query; it should not be " +
+            "called by DecodeAsync — it is the caller's responsibility to invoke it " +
+            "before DecodeAll when AP decode is desired");
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────

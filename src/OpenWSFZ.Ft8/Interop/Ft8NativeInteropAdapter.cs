@@ -30,6 +30,9 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
     public float GetLastNoiseFloorDb()
         => Ft8LibInterop.GetLastNoiseFloorDb();
 
-    public (float[] MeanAbs, int[] FailCount) GetLastLlrStats(int maxPasses)
+    public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
         => Ft8LibInterop.GetLastLlrStats(maxPasses);
+
+    public void SetApBits(byte[] mycallBits, byte[] hiscallBits)
+        => Ft8LibInterop.SetApBits(mycallBits, hiscallBits);
 }
