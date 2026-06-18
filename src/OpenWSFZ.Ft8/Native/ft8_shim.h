@@ -183,8 +183,18 @@ extern "C" {
  *              Pre-normalisation variance distinguishes degraded LLRs from healthy
  *              ones; post-normalisation mean|LLR| is a near-constant ~3.91 for any
  *              non-degenerate distribution (H_LLR hypothesis inconclusive, shim 20260019).
+ *   20260021 — fix-d001-h6-ap-hiscall-offset: correct hiscall AP injection position.
+ *              In shim 20260020 the hiscall bits were injected at log174[28..55]
+ *              (off by one — position 28 is the mycall /P or /R suffix flag ipa,
+ *              not the first hiscall bit).  The correct positions for hiscall N28
+ *              bits 27..0 in a standard FT8 i3=1 message are log174[29..56].
+ *              Fixed by changing loop base from 28 to 29.  No change to mycall
+ *              injection (log174[0..27]) or any other decode path.
+ *              C# Ft8CallsignPacker.Pack28 also corrected (wrong character-set
+ *              ordering for positions 0 and 1, wrong offset 2 064 592 instead of
+ *              NTOKENS+MAX22 = 6 257 896); C# AP wiring now complete (H6).
  */
-#define FT8_SHIM_VERSION 20260020
+#define FT8_SHIM_VERSION 20260021
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

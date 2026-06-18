@@ -295,6 +295,11 @@ var app = WebApp.Create(
         services.AddSingleton<TxEventBus>();
         services.AddSingleton<AudioOffsetEventBus>();
         services.AddSingleton<AdifLogWriter>();
+
+        // H6 AP decode (D-001): register the ft8Decoder instance as IApConstraintSink so
+        // QsoAnswererService can arm/disarm AP constraints during active QSO sessions.
+        services.AddSingleton<IApConstraintSink>(ft8Decoder);
+
         services.AddSingleton<QsoAnswererService>();
         services.AddSingleton<IQsoAnswerer>(sp => sp.GetRequiredService<QsoAnswererService>());
         services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());

@@ -1044,13 +1044,29 @@ int ft8_decode_all(
             int bit_val = (tls_ap_mycall_bits[byte_idx] >> bit_shift) & 1;
             ap_log174[i] = FT8_AP_LLR_HARD * (bit_val ? +1.0f : -1.0f);
         }
-        /* hiscall bits → log174[28..55] */
+        /* hiscall bits → log174[29..56] (fix-d001-h6-ap-hiscall-offset, shim 20260021)
+         *
+         * In a standard FT8 i3=1 message the 29-bit n29a field (mycall N28 <<1 | ipa)
+         * occupies payload bits 0..28 MSB-first:
+         *   bits 0..27 = N28(mycall) bits 27..0   ← constrained above (mycall)
+         *   bit  28    = ipa (mycall /P or /R flag; 0 for normal callsigns)
+         *
+         * The 29-bit n29b field (hiscall N28 <<1 | ipb) follows immediately:
+         *   bits 29..56 = N28(hiscall) bits 27..0  ← constrained here (hiscall)
+         *   bit  57     = ipb (hiscall /P or /R flag; 0 for normal callsigns)
+         *
+         * The previous shim (20260020) erroneously used base 28 (log174[28..55]),
+         * which placed hiscall bit 27 at the ipa position and shifted all subsequent
+         * hiscall bits one step too early — causing wrong-sign LLR injections that
+         * prevented LDPC convergence (the ipa and ipb bits are not injected here;
+         * the waterfall provides their LLRs, which are strong and correct for the
+         * normal no-suffix case). */
         for (int i = 0; i < tls_ap_num_hiscall_bits && i < 28; i++)
         {
             int byte_idx = i / 8;
             int bit_shift = 7 - (i % 8);
             int bit_val = (tls_ap_hiscall_bits[byte_idx] >> bit_shift) & 1;
-            ap_log174[28 + i] = FT8_AP_LLR_HARD * (bit_val ? +1.0f : -1.0f);
+            ap_log174[29 + i] = FT8_AP_LLR_HARD * (bit_val ? +1.0f : -1.0f);
         }
     }
 

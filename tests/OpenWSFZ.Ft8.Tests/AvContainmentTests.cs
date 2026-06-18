@@ -174,10 +174,11 @@ public sealed class AvContainmentTests
         interop.GetLastLlrStatsCalled.Should().BeFalse(
             "TLS state (LLR stats) is unreliable after an AV; " +
             "calling GetLastLlrStats on the AV path would log stale data");
-        interop.SetApBitsCalled.Should().BeFalse(
-            "SetApBits is a pre-decode setter, not a TLS query; it should not be " +
-            "called by DecodeAsync — it is the caller's responsibility to invoke it " +
-            "before DecodeAll when AP decode is desired");
+        interop.SetApBitsCalled.Should().BeTrue(
+            "Ft8Decoder now calls SetApBits unconditionally inside the Task.Run " +
+            "lambda before DecodeAll — with no AP constraints active it calls " +
+            "SetApBits([], []) to clear any TLS residue from a prior cycle; " +
+            "this happens BEFORE DecodeAll throws the AV, so SetApBitsCalled is true");
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────

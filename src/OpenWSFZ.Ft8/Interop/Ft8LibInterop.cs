@@ -143,8 +143,14 @@ internal static class Ft8LibInterop
     ///   pre-normalisation variance.  <c>ftx_compute_candidate_llr_mean_abs</c> renamed
     ///   to <c>ftx_compute_candidate_llr_stats</c> with updated signature.  <c>isfinite</c>
     ///   guard added to skip degenerate (NaN) candidates before accumulation.
+    /// 20260021 (fix-d001-h6-ap-hiscall-offset): Corrects hiscall AP injection position.
+    ///   Shim 20260020 injected hiscall bits at log174[28..55]; the correct positions
+    ///   in a standard FT8 i3=1 message are log174[29..56] (bit 28 is the mycall ipa
+    ///   suffix flag, not the first hiscall bit).  C# <see cref="Ft8CallsignPacker"/>
+    ///   also corrected (wrong character-set ordering for positions 0 and 1, wrong
+    ///   N28 offset).  C# AP wiring is now complete for H6.
     /// </summary>
-    private const int ExpectedShimVersion = 20260020;
+    private const int ExpectedShimVersion = 20260021;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.

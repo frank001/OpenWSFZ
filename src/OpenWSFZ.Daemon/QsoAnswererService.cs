@@ -50,6 +50,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     private readonly ILogger<QsoAnswererService>                _logger;
     private readonly Ft8AudioSynthesiser                        _synthesiser = new();
     private readonly AdifLogWriter                               _adifLog;
+    // H6 AP decode (D-001): null means AP disabled (default before any QSO is active).
+    private readonly IApConstraintSink?                         _decoder;
 
     // Volatile: readable from the HTTP handler thread without a lock.
     private volatile QsoState _state   = QsoState.Idle;
@@ -75,6 +77,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
     // ── Constructors ──────────────────────────────────────────────────────────
 
     /// <summary>Production constructor — all dependencies from DI.</summary>
+    /// <param name="decoder">
+    /// AP constraint sink for H6 directed AP decode (D-001).  Pass <see langword="null"/>
+    /// (or omit) to leave AP decode disabled — the decoder behaves as pre-20260020.
+    /// </param>
     public QsoAnswererService(
         ChannelReader<IReadOnlyList<DecodeResult>> decodeChannel,
         IConfigStore                               configStore,
@@ -82,7 +88,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         TxEventBus                                 txEventBus,
         AdifLogWriter                              adifLog,
         AudioOffsetEventBus                        audioOffsetEventBus,
-        ILogger<QsoAnswererService>                logger)
+        ILogger<QsoAnswererService>                logger,
+        IApConstraintSink?                         decoder = null)
     {
         _decodeChannel       = decodeChannel;
         _configStore         = configStore;
@@ -91,6 +98,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         _audioOffsetEventBus = audioOffsetEventBus;
         _adifLog             = adifLog;
         _logger              = logger;
+        _decoder             = decoder;
     }
 
     /// <summary>
@@ -343,6 +351,13 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         // Transmission completed — advance to WaitReport.
         ResetWatchdog(tx);
         _skipNextRetry = true; // A-01: next cycle is our own TX window; do not count as missed response
+
+        // H6 AP decode (D-001): arm directed AP decode for the active QSO pair now that
+        // we have both mycall and hiscall confirmed.  This allows the native shim to inject
+        // ±40.0 LLR hard constraints for the 56 known callsign bits in subsequent decode
+        // cycles, helping LDPC converge for co-channel messages from/to this partner.
+        ApplyApConstraints(tx.Callsign, partner);
+
         SetStateAndNotify(QsoState.WaitReport);
     }
 
@@ -583,6 +598,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         _partnerGrid    = null;
         _skipNextRetry  = false; // A-01: clear skip guard on every return to Idle
 
+        // H6 AP decode (D-001): clear AP constraints on return to Idle so the next
+        // session starts without stale callsign constraints from the previous partner.
+        _decoder?.SetApConstraints(null);
+
         // Replace the TX CTS with a fresh no-timeout CTS so the next session starts clean.
         // Do NOT dispose the old CTS here — AbortAsync may be holding a reference to it.
         //
@@ -616,6 +635,38 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         _state      = QsoState.Idle;
         _retryCount = 0;
         _txEventBus.Publish(QsoState.Idle, null);
+    }
+
+    // ── H6 AP decode helper ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Packs <paramref name="mycall"/> and <paramref name="hiscall"/> and arms the
+    /// AP constraint sink for directed AP decode (H6, D-001).  If either callsign
+    /// fails packing (non-standard format) a warning is logged and AP is disabled.
+    /// </summary>
+    private void ApplyApConstraints(string mycall, string hiscall)
+    {
+        if (_decoder is null) return;
+
+        byte[] mc = Ft8CallsignPacker.Pack28(mycall);
+        byte[] hc = Ft8CallsignPacker.Pack28(hiscall);
+
+        if (mc.Length == 0 || hc.Length == 0)
+        {
+            _logger.LogWarning(
+                "QsoAnswererService H6: callsign packing failed — AP decode disabled " +
+                "(mycall='{Mycall}' {McOk}, hiscall='{Hiscall}' {HcOk}). " +
+                "Non-standard callsigns are not supported by the AP packer.",
+                mycall, mc.Length > 0 ? "OK" : "FAILED",
+                hiscall, hc.Length > 0 ? "OK" : "FAILED");
+            _decoder.SetApConstraints(null);
+            return;
+        }
+
+        _decoder.SetApConstraints(new Ft8ApConstraints(mc, hc));
+        _logger.LogDebug(
+            "QsoAnswererService H6: AP constraints armed (mycall={Mycall}, hiscall={Hiscall}).",
+            mycall, hiscall);
     }
 
     // ── Watchdog ──────────────────────────────────────────────────────────────

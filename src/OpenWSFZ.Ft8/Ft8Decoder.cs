@@ -45,7 +45,7 @@ namespace OpenWSFZ.Ft8;
 /// logging — is unaffected.
 /// </para>
 /// </summary>
-public sealed class Ft8Decoder : IModeDecoder
+public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
 {
     private const int   ExpectedSampleCount         = 180_000;  // 15 s × 12 000 Hz
     private const float SilenceRmsThreshold         = 1e-6f;    // all-zero codeword guard
@@ -57,6 +57,16 @@ public sealed class Ft8Decoder : IModeDecoder
     private readonly IClock               _clock;
     private readonly ILogger<Ft8Decoder>? _logger;
     private readonly IFt8NativeInterop    _interop;
+
+    // H6 AP decode (D-001): snapshot is taken inside Task.Run (same thread as DecodeAll).
+    // volatile guarantees a fresh read without a lock; the reference itself is atomically
+    // replaced by SetApConstraints, which is safe because writes and reads are both one
+    // machine-word pointer operations on all supported platforms.
+    private volatile Ft8ApConstraints? _apConstraints;
+
+    /// <inheritdoc/>
+    public void SetApConstraints(Ft8ApConstraints? constraints)
+        => _apConstraints = constraints;
 
     /// <param name="clock">Wall-clock provider for aligning cycle timestamps.</param>
     /// <param name="logger">Optional structured logger; pass null to suppress all log output.</param>
@@ -163,6 +173,14 @@ public sealed class Ft8Decoder : IModeDecoder
         {
             (native, passCounts, candidateCounts, noiseFloorDb, llrStats) = await Task.Run(() =>
             {
+                // AP decode constraints (H6, D-001): must be set on the same thread as DecodeAll.
+                // Snapshot to avoid tearing — _apConstraints is volatile but is a reference type.
+                var ap = _apConstraints;
+                if (ap is not null)
+                    _interop.SetApBits(ap.MycallBits, ap.HiscallBits);
+                else
+                    _interop.SetApBits([], []);  // explicitly clear any TLS residue from a prior cycle
+
                 var r = _interop.DecodeAll(normalisedPcm);
                 var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
                 var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
