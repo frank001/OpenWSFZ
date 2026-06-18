@@ -254,19 +254,26 @@ internal static class WebSocketHub
     /// and removed silently.  Concurrent calls from the decode pump are safe: each socket
     /// has its own send semaphore that serialises overlapping sends.
     /// </summary>
-    public static void BroadcastDecodes(IReadOnlyList<DecodeResult> results)
+    /// <returns>
+    /// A <see cref="Task"/> that completes when all per-socket sends have finished (or been
+    /// dropped due to timeout).  Production callers may discard the task for fire-and-forget
+    /// behaviour; test callers should await it to avoid the race between the send completing
+    /// and the assertion reading the frame.
+    /// </returns>
+    public static Task BroadcastDecodes(IReadOnlyList<DecodeResult> results)
     {
-        if (ActiveSockets.IsEmpty) return;
+        if (ActiveSockets.IsEmpty) return Task.CompletedTask;
 
         var msg   = new WsDecodeMessage(Type: "decode", Payload: [.. results]);
         var json  = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsDecodeMessage);
         var bytes = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);
 
+        var tasks = new List<Task>(ActiveSockets.Count);
         foreach (var (ws, _) in ActiveSockets)
-        {
-            _ = SendWithTimeoutAsync(ws, segment);
-        }
+            tasks.Add(SendWithTimeoutAsync(ws, segment));
+
+        return Task.WhenAll(tasks);
     }
 
     /// <summary>
