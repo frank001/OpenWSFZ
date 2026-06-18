@@ -150,10 +150,12 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
 
         // Inject a decode result via the public DecodeEventBus.
+        // Await Publish so the send completes before we call ReadFrameAsync — without this,
+        // the fire-and-forget send races against the receive timeout and fails on loaded CI runners.
         var bus = new DecodeEventBus();
-        bus.Publish([new OpenWSFZ.Abstractions.DecodeResult("15:30:00", -12, 0.3, 1234, "Q1AW Q1TTT EN43")]);
+        await bus.Publish([new OpenWSFZ.Abstractions.DecodeResult("15:30:00", -12, 0.3, 1234, "Q1AW Q1TTT EN43")]);
 
-        // The decode event should arrive promptly.
+        // The decode event must now be in the socket's receive buffer.
         var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
         frame.Should().NotBeNull("decode event should be received");
 

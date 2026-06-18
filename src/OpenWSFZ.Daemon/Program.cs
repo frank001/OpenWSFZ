@@ -344,7 +344,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 // dialFreq falls back to the configured value when CAT is absent.
                 var dialFreq = windowDialFreq ?? configStore.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
                 var results  = await ft8Decoder.DecodeAsync(pcmWindow, cycleStart);
-                decodeEventBus.Publish(results);
+                _ = decodeEventBus.Publish(results); // fire-and-forget: do not await WebSocket delivery
                 await allTxtWriter.AppendAsync(cycleStart, dialFreq, results);
 
                 // Feed the QSO answerer channel (non-blocking; DropOldest if the

@@ -13,6 +13,10 @@ public sealed class DecodeEventBus
     /// Broadcasts a <c>decode</c> event carrying <paramref name="results"/> to every
     /// currently connected WebSocket client.
     /// </summary>
-    public void Publish(IReadOnlyList<DecodeResult> results)
+    /// <returns>
+    /// A <see cref="Task"/> that completes when all per-socket sends have finished.
+    /// Production callers may discard this for fire-and-forget; test callers should await it.
+    /// </returns>
+    public Task Publish(IReadOnlyList<DecodeResult> results)
         => WebSocketHub.BroadcastDecodes(results);
 }
