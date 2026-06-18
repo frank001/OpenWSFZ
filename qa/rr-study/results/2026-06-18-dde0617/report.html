@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ R&amp;R Study Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-rr-study-report">OpenWSFZ R&amp;R Study Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-06-18</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>dde0617d1dfd6c8f3af969ad0dcd28a6ba02703d</code></td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0 (inferred from binary date 2025-02-04)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<h3 id="purpose">Purpose</h3>
+<p>Shim 20260019 adds a purely diagnostic probe — <code>ft8_get_last_llr_stats</code> / <code>ftx_compute_candidate_llr_mean_abs</code> — that measures the mean absolute Log-Likelihood Ratio (mean|LLR|) across the 174 code bits for every LDPC-failing candidate. The probe is designed to test the D-001 working hypothesis established from the shim 20260018 diagnostic run.</p>
+<h3 id="defect-under-observation">Defect under observation</h3>
+<p><strong>D-001</strong> — Co-channel decode gap. The shim 20260018 diagnostic log confirmed that pass 1 finds 15–28 candidates per co-channel decode cycle yet LDPC decodes 0 of them. The proposed root cause (MEMORY.md, 2026-06-17) is: <strong>equal-SNR mutual interference drives soft-decision LLRs towards zero (maximum bit ambiguity), preventing LDPC convergence regardless of candidate count or iteration budget.</strong></p>
+<h3 id="null-hypotheses">Null hypotheses</h3>
+<ul>
+<li><strong>H₀ (decode-neutral):</strong> Shim 20260019 introduces no decode logic change; S7 overall recovery rate remains within the established H4 variability band (43–57%, equivalent to 40–53/93 messages).</li>
+<li><strong>H_LLR (near-zero LLR):</strong> For LDPC-failing candidates in co-channel cycles, mean|LLR| &lt; 0.5 — indicating that the LDPC soft-decision inputs are at or near the minimum-information state, explaining convergence failure.</li>
+</ul>
+<h3 id="what-constitutes-a-meaningful-result">What constitutes a meaningful result</h3>
+<ul>
+<li><strong>H₀ retained</strong> if S7 overall ∈ [40/93, 53/93] (43–57%).</li>
+<li><strong>H_LLR confirmed</strong> if mean|LLR| for pass-1 failing candidates is consistently &lt; 0.5 across co-channel cycles. Implication: LDPC iteration increases alone cannot recover; proceed directly to H6 directed AP decode.</li>
+<li><strong>H_LLR refuted</strong> if mean|LLR| is substantially above 0.5. Implication: root cause is not LLR magnitude; failure mode requires re-characterisation.</li>
+</ul>
+<h3 id="scenarios-run">Scenarios run</h3>
+<p>S7 only (co-channel overlap, 15 parts, K=3). This is a targeted diagnostic run, not a full S1–S8 regression gate.</p>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Study type</td>
+<td>Targeted diagnostic — S7 co-channel scenario only</td>
+</tr>
+<tr>
+<td>Corpus</td>
+<td>Synthetic (OpenWSFZ Kaiser FIR synthesiser; no real callsigns)</td>
+</tr>
+<tr>
+<td>Scenarios</td>
+<td>S7 (P0–P14, 15 parts)</td>
+</tr>
+<tr>
+<td>Trials per part</td>
+<td>K = 3</td>
+</tr>
+<tr>
+<td>Total signal observations</td>
+<td>93 (= 3 × 31; P2 is a 3-stack contributing 9 observations)</td>
+</tr>
+<tr>
+<td>Acceptance thresholds</td>
+<td>S7 is informational only — no AIAG %GR&amp;R threshold applies. Gate criterion: S7 overall within H4 variability band (43–57%) to confirm decode-neutral shim.</td>
+</tr>
+<tr>
+<td>Additional diagnostic output</td>
+<td>Per-cycle mean|LLR| for LDPC-failing candidates, via <code>ft8_get_last_llr_stats</code>, logged at DEBUG level. Log file: <code>logs/openswfz-20260618T152530Z.log</code>.</td>
+</tr>
+<tr>
+<td>Log level during run</td>
+<td>Trace (captures all Debug and above)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>H4 variability band reference:</strong> Established across shims 20260010 (H4 R1, 56.99%) and 20260016 (regression gate, 50.54%). Band: 43–57% (40–53/93 messages). The shim 20260018 diagnostic run (55/93 = 59.14%) was marginally above band with no decode logic change; within expected run-to-run stochastic variance.</p>
+<hr />
+<h2 id="section-3-s7-results-compounding-co-channel-overlap">Section 3 — S7 Results: Compounding / co-channel overlap</h2>
+<p><em>Per-message recovery when 2–3 signals occupy the same or near-same audio frequency / time slot (the pileup case S4 does not exercise). Informational — no AIAG threshold is defined for co-channel separation.</em></p>
+<h3 id="recovery-by-overlap-family">Recovery by overlap family</h3>
+<table>
+<thead>
+<tr>
+<th>Overlap family</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>capture</td>
+<td>75.00%</td>
+<td>62.50%</td>
+</tr>
+<tr>
+<td>co_channel</td>
+<td>38.10%</td>
+<td>0.00%</td>
+</tr>
+<tr>
+<td>near_collision</td>
+<td>100.00%</td>
+<td>93.33%</td>
+</tr>
+<tr>
+<td>time_freq</td>
+<td>100.00%</td>
+<td>33.33%</td>
+</tr>
+<tr>
+<td><strong>all</strong></td>
+<td><strong>79.57%</strong></td>
+<td><strong>52.69%</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="capture-effect-co-channel-unequal-snr">Capture effect (co-channel, unequal SNR)</h3>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>strong</td>
+<td>100.00%</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>weak</td>
+<td>50.00%</td>
+<td>25.00%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Between-app per-signal agreement:</strong> 68.82%</p>
+<h3 id="per-part-detail">Per-part detail</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Family</th>
+<th>Condition</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>co_channel</td>
+<td>2-stack, equal 0 dB</td>
+<td>3/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>co_channel</td>
+<td>2-stack, equal -5 dB</td>
+<td>5/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>co_channel</td>
+<td>3-stack, equal 0 dB</td>
+<td>0/9</td>
+<td>0/9</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>near_collision</td>
+<td>delta 3 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>near_collision</td>
+<td>delta 6 Hz</td>
+<td>6/6</td>
+<td>5/6</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>near_collision</td>
+<td>delta 12 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>near_collision</td>
+<td>delta 25 Hz</td>
+<td>6/6</td>
+<td>5/6</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>near_collision</td>
+<td>delta 50 Hz</td>
+<td>6/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>P8</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0 / 0.5 s</td>
+<td>6/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P9</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0 / 1.0 s</td>
+<td>6/6</td>
+<td>0/6</td>
+</tr>
+<tr>
+<td>P10</td>
+<td>time_freq</td>
+<td>co-freq, dt 0.0 / 2.0 s</td>
+<td>6/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>P11</td>
+<td>capture</td>
+<td>co-freq, 0 / -3 dB</td>
+<td>3/6</td>
+<td>5/6</td>
+</tr>
+<tr>
+<td>P12</td>
+<td>capture</td>
+<td>co-freq, 0 / -6 dB</td>
+<td>5/6</td>
+<td>4/6</td>
+</tr>
+<tr>
+<td>P13</td>
+<td>capture</td>
+<td>co-freq, 0 / -10 dB</td>
+<td>4/6</td>
+<td>3/6</td>
+</tr>
+<tr>
+<td>P14</td>
+<td>capture</td>
+<td>co-freq, +3 / -10 dB</td>
+<td>6/6</td>
+<td>3/6</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S7 recovery" src="S7_recovery.png" /></p>
+<h3 id="llr-diagnostic-data-from-application-debug-log">LLR diagnostic data (from application debug log)</h3>
+<table>
+<thead>
+<tr>
+<th>Pass</th>
+<th>Cycles measured</th>
+<th>mean|LLR| range</th>
+<th>mean|LLR| mean</th>
+<th>NaN cycles</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pass 1</td>
+<td>47 (with failures)</td>
+<td>3.644 – 4.028</td>
+<td>3.841</td>
+<td>0</td>
+<td>Primary measurement</td>
+</tr>
+<tr>
+<td>Pass 2</td>
+<td>47 (non-NaN)</td>
+<td>3.849 – 3.974</td>
+<td>3.903</td>
+<td>14</td>
+<td>See §5.3</td>
+</tr>
+<tr>
+<td>Theoretical E[|X|] after <code>ftx_normalize_logl</code></td>
+<td>—</td>
+<td>—</td>
+<td>3.909</td>
+<td>—</td>
+<td>√(48/π) for N(0, 24)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-4-summary-verdict">Section 4 — Summary Verdict</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Scope</th>
+<th>Value</th>
+<th>Threshold</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S7 overall recovery</td>
+<td>Co-channel (informational)</td>
+<td>52.69% (49/93)</td>
+<td>Within H4 band 43–57%</td>
+<td><strong>PASS</strong> — decode-neutral confirmed</td>
+</tr>
+<tr>
+<td>H_LLR — pass 1 mean|LLR|</td>
+<td>LDPC-failing candidates</td>
+<td>3.841 (range 3.644–4.028, n=47 cycles)</td>
+<td>&lt; 0.5 for hypothesis confirmation</td>
+<td><strong>INCONCLUSIVE</strong> — probe measures tautological constant; see §5.2</td>
+</tr>
+<tr>
+<td>H_LLR — pass 2 mean|LLR|</td>
+<td>LDPC-failing candidates</td>
+<td>3.903 (range 3.849–3.974, n=47 cycles)</td>
+<td>—</td>
+<td><strong>INCONCLUSIVE</strong> — same issue</td>
+</tr>
+<tr>
+<td>Pass-2 NaN contamination</td>
+<td>Degenerate candidate edge case</td>
+<td>14/61 cycles produce NaN</td>
+<td>None (secondary finding)</td>
+<td>Noted — see §5.3</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: PASS</strong> (shim is decode-neutral; H_LLR hypothesis is inconclusive — probe redesign required before hypothesis can be tested)</p>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<h3 id="51-s7-overall-rate-no-action-required">5.1 — S7 overall rate: no action required</h3>
+<p>49/93 = 52.69% is firmly within the H4 variability band (43–57%). Shim 20260019 introduces no decode regression. H₀ is retained. The result is consistent with prior runs at shims 20260016 (47/93 = 50.54%) and 20260018 (55/93 = 59.14%).</p>
+<h3 id="52-h_llr-hypothesis-inconclusive-probe-redesign-required-d-001">5.2 — H_LLR hypothesis: INCONCLUSIVE — probe redesign required (D-001)</h3>
+<p><strong>The probe does not measure what was intended.</strong></p>
+<p><code>ftx_compute_candidate_llr_mean_abs</code> calls <code>ftx_normalize_logl</code> before computing the mean absolute value. <code>ftx_normalize_logl</code> scales all input distributions to a fixed variance of 24, regardless of the pre-normalisation signal quality. For any approximately zero-mean, non-degenerate distribution, the expected mean absolute value after this normalisation is:</p>
+<blockquote>
+<p>E[|X|] = √(48/π) ≈ <strong>3.909</strong></p>
+</blockquote>
+<p>The measured values — pass 1: <strong>3.841</strong> (mean), pass 2: <strong>3.903</strong> (mean) — are indistinguishable from this theoretical constant. The probe is measuring a tautology. A healthy single-signal candidate and a co-channel-degraded candidate will both produce mean|LLR| ≈ 3.9 after normalisation.</p>
+<p><strong>Why the hypothesis was physically reasonable but untestable with this probe:</strong></p>
+<p>H_LLR was framed in terms of pre-normalisation LLR magnitudes — i.e., the raw log-likelihood ratios from <code>ft8_extract_likelihood</code> before <code>ftx_normalize_logl</code> is applied. In the equal-SNR co-channel scenario, competing FSK tones produce near-uniform soft-decision outputs, meaning pre-normalisation LLR values have low variance. <code>ftx_normalize_logl</code> amplifies these values with a large scale factor (√(24 / low_variance)) to force variance = 24. Post-normalisation the values appear large and healthy, but their bit-direction assignments remain random. The probe measures post-normalisation magnitude, which conceals this entirely.</p>
+<p>The NaN cases on pass 2 (§5.3) are actually the limit case of this phenomenon: when pre-normalisation variance is exactly zero (all 174 values equal), the scale factor → ∞ and 0 × ∞ = NaN. These NaN returns are the only signal the probe can emit that is indicative of degraded LLR quality — and they only appear in out-of-bounds edge candidates, not in the co-channel candidates of interest.</p>
+<p><strong>What the probe should measure instead:</strong></p>
+<p>The discriminating quantity is <strong>pre-normalisation variance</strong> (equivalently, the normalisation scale factor √(24/variance)). A strong single signal produces high pre-normalisation variance, yielding a small scale factor (≈ 1). An equal-SNR co-channel signal produces low pre-normalisation variance, yielding a large scale factor (&gt;&gt; 1). Logging this scale factor from within <code>ftx_compute_candidate_llr_mean_abs</code> would directly test H_LLR without requiring any changes to the decode pipeline.</p>
+<p><strong>Recommended action — HK-000 handoff to developer (D-001, probe redesign):</strong></p>
+<p>Modify <code>ftx_compute_candidate_llr_mean_abs</code> (or add a companion function) to also return the pre-normalisation variance of the 174-element log174 array. This value should be logged alongside mean|LLR| using the same DEBUG log format. No decode logic is touched; the change is purely diagnostic. A consistently small pre-normalisation variance (&lt; some threshold TBD) for co-channel failing candidates would confirm H_LLR and justify MMSE or other architectural intervention.</p>
+<h3 id="53-pass-2-nan-contamination-secondary-probe-defect-d-001-minor">5.3 — Pass-2 NaN contamination: secondary probe defect (D-001, minor)</h3>
+<p>14 of 61 decode cycles (23%) show <code>meanAbsLLR=NaN</code> for pass 2. Root cause: <code>ftx_compute_candidate_llr_mean_abs</code> returns NaN when <code>ftx_normalize_logl</code> receives a zero-variance input (all 174 log174 values equal). Pass-2 candidates at the edge of the waterfall have most or all symbol indices out of bounds; <code>ft8_extract_likelihood</code> sets out-of-bounds contributions to 0, producing an all-zero (zero-variance) log174 array. The single NaN return then contaminates the pass-2 running sum <code>tls_llr_mean_abs_sum[1]</code> for the entire cycle via the IEEE 754 property NaN + x = NaN.</p>
+<p>The 14 NaN cycles correspond exactly to the 14 cycles where pass 1 reports <code>failCands=0</code>. Pass-1 data is unaffected and is the primary diagnostic source. No findings are invalidated.</p>
+<p><strong>Fix (include in the probe-redesign handoff):</strong> In <code>ft8_decode_all</code>, guard the accumulation:</p>
+<div class="highlight"><pre><span></span><code><span class="kt">float</span><span class="w"> </span><span class="n">llr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ftx_compute_candidate_llr_mean_abs</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mon</span><span class="p">.</span><span class="n">wf</span><span class="p">,</span><span class="w"> </span><span class="n">cand</span><span class="p">);</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">isfinite</span><span class="p">(</span><span class="n">llr</span><span class="p">))</span>
+<span class="w">    </span><span class="n">tls_llr_mean_abs_sum</span><span class="p">[</span><span class="n">pass</span><span class="p">]</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">llr</span><span class="p">;</span>
+<span class="cm">/* else: skip degenerate out-of-bounds candidate */</span>
+</code></pre></div>
+
+<p>Separately, <code>ftx_compute_candidate_llr_mean_abs</code> (or its companion) should early-return 0.0f when pre-normalisation variance is zero, rather than producing NaN.</p>
+<h3 id="54-priority-order-for-d-001-next-steps-revised-2026-06-18">5.4 — Priority order for D-001 next steps (revised 2026-06-18)</h3>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Action</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>H6 directed AP decode</strong> (HK-000 handoff)</td>
+<td>Primary next step per MEMORY.md; structurally different attack on LDPC convergence; independent of H_LLR outcome</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Probe redesign</strong> — pre-normalisation variance (HK-000 handoff, combine with H6)</td>
+<td>Required to finally confirm or refute H_LLR before committing to MMSE or joint demodulation</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>NaN guard fix</strong> in <code>ft8_decode_all</code> accumulator</td>
+<td>Minor housekeeping; combine with probe redesign handoff</td>
+</tr>
+<tr>
+<td>4</td>
+<td>LDPC iteration increase</td>
+<td>Low priority — if LLRs are confident-but-wrong in direction, more belief-propagation iterations will not converge</td>
+</tr>
+<tr>
+<td>5</td>
+<td>MMSE joint demodulation</td>
+<td>Deferred; requires significant architectural changes; cannot prioritise without H_LLR resolution</td>
+</tr>
+</tbody>
+</table>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
