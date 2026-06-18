@@ -54,6 +54,10 @@ export class WaterfallRenderer {
     this._canvas    = canvas;
     this._ctx       = canvas.getContext('2d');
     this._imageData = null;
+    // Back buffer — all compositing happens here; visible canvas receives one
+    // atomic drawImage() per logical frame, eliminating intermediate states.
+    this._offscreen = null;
+    this._offCtx    = null;
     // Task 5.1 — RX and TX cursor positions in Hz; initialised to 1500 each.
     this._rxHz = 1500;
     this._txHz = 1500;
@@ -68,7 +72,8 @@ export class WaterfallRenderer {
    */
   setRxHz(hz) {
     this._rxHz = hz;
-    this._drawCursors();
+    // Re-composite from the clean pixel buffer so no ghost lines accumulate.
+    this._flushToCanvas();
   }
 
   /**
@@ -77,7 +82,8 @@ export class WaterfallRenderer {
    */
   setTxHz(hz) {
     this._txHz = hz;
-    this._drawCursors();
+    // Re-composite from the clean pixel buffer so no ghost lines accumulate.
+    this._flushToCanvas();
   }
 
   /**
@@ -98,7 +104,6 @@ export class WaterfallRenderer {
     if (!this._imageData) return;
 
     const w    = this._canvas.width;
-    const h    = this._canvas.height;
     const data = this._imageData.data;
 
     // Scroll existing content down by one pixel.
@@ -120,10 +125,8 @@ export class WaterfallRenderer {
       // Alpha channel (data[px + 3]) is pre-set to 255 in _resize().
     }
 
-    this._ctx.putImageData(this._imageData, 0, 0);
-    this._drawFrequencyAxis();
-    // Task 5.4 — draw cursor lines on top of the waterfall and axis ticks.
-    this._drawCursors();
+    // Composite onto back buffer then blit — single write to the visible canvas.
+    this._flushToCanvas();
   }
 
   // ── Private ──────────────────────────────────────────────────────────────
@@ -144,13 +147,40 @@ export class WaterfallRenderer {
     for (let i = 3; i < data.length; i += 4)
       data[i] = 255;
 
-    // Task 5.5 — redraw cursors immediately after resize so they appear on the
-    // now-blank canvas before the next spectrum render() call arrives.
-    this._drawCursors();
+    // Back buffer — always matches visible canvas dimensions.
+    this._offscreen = new OffscreenCanvas(w, h);
+    this._offCtx    = this._offscreen.getContext('2d');
+
+    // Task 5.5 — flush the blank canvas (with cursors) immediately after resize
+    // so the correct state appears before the next spectrum render() call arrives.
+    this._flushToCanvas();
   }
 
   /**
-   * Task 5.3 — Draw RX and TX cursor lines on top of the waterfall.
+   * Composite waterfall pixels, frequency axis, and cursor lines onto the
+   * off-screen back buffer, then blit to the visible canvas in a single
+   * drawImage() call.  This is the only place that writes to this._ctx,
+   * ensuring the visible canvas never shows a partially-composited frame.
+   */
+  _flushToCanvas() {
+    if (!this._offCtx) return;
+
+    // 1. Waterfall pixels → back buffer.
+    this._offCtx.putImageData(this._imageData, 0, 0);
+
+    // 2. Frequency axis → back buffer.
+    this._drawFrequencyAxis(this._offCtx);
+
+    // 3. Cursor lines → back buffer.
+    // Task 5.4 — drawn on top of waterfall and axis ticks.
+    this._drawCursors(this._offCtx);
+
+    // 4. Single atomic blit to the visible canvas — no intermediate states.
+    this._ctx.drawImage(this._offscreen, 0, 0);
+  }
+
+  /**
+   * Task 5.3 — Draw RX and TX cursor lines onto the supplied rendering context.
    *
    * Visual encoding:
    *   - RX ≠ TX → green line at RX position, red line at TX position
@@ -158,11 +188,12 @@ export class WaterfallRenderer {
    *
    * Lines span the full canvas height, are 1.5 px wide at 80% opacity so the
    * underlying waterfall remains readable through them.
+   *
+   * @param {CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D} ctx
    */
-  _drawCursors() {
-    const ctx = this._ctx;
-    const w   = this._canvas.width;
-    const h   = this._canvas.height;
+  _drawCursors(ctx) {
+    const w = this._canvas.width;
+    const h = this._canvas.height;
 
     ctx.save();
     ctx.lineWidth = 1.5;
@@ -196,8 +227,10 @@ export class WaterfallRenderer {
     ctx.restore();
   }
 
-  _drawFrequencyAxis() {
-    const ctx = this._ctx;
+  /**
+   * @param {CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D} ctx
+   */
+  _drawFrequencyAxis(ctx) {
     const w   = this._canvas.width;
     const h   = this._canvas.height;
     const dpr = devicePixelRatio;
