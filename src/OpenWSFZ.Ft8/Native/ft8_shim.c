@@ -213,6 +213,22 @@
  *   No change to decode logic, struct layout, or existing entry points.
  *   Exported via /EXPORT:ft8_get_last_candidate_counts in the link step.
  *
+ * diag-d001-llr-mean-abs (FT8_SHIM_VERSION 20260019):
+ *
+ *   Adds ft8_get_last_llr_stats() — a TLS getter exposing, per pass, the
+ *   mean absolute LLR across all LDPC-failing candidates from the most
+ *   recent ft8_decode_all call.  For each candidate where
+ *   ftx_decode_candidate() returns false, ftx_compute_candidate_llr_mean_abs()
+ *   is called (defined in patched/ft8/decode.c); it replicates the likelihood-
+ *   extraction + variance-normalisation steps and returns mean(|log174[i]|)
+ *   over all 174 elements without calling bp_decode.  Two new TLS arrays
+ *   (tls_llr_mean_abs_sum, tls_llr_fail_count) accumulate per-pass totals;
+ *   the getter computes the per-pass mean and returns alongside the fail count.
+ *   Diagnostic goal: confirm the near-zero LLR hypothesis for D-001 co-channel
+ *   failure cycles (expected: mean|LLR| < 0.5 for P0/P1/P2 failures vs > 1.5
+ *   for successful co-channel captures).  No change to decode logic, candidate
+ *   search, pass configuration, or struct layout.
+ *
  * fix-d006-cleanup + fix-rq2-signal-db-oob (FT8_SHIM_VERSION 20260016):
  *
  *   Two independent changes bundled in one version step:
@@ -233,7 +249,7 @@
  *   rather than reading out of bounds.  Signals at the band edge may have
  *   slightly fewer samples contributing to signal_db; this is acceptable.
  *
- * Build: see BUILD.md.  encode.c must be compiled and linked.
+ * Build: see BUILD.md.  encode.c and patched/ft8/decode.c must be compiled and linked.
  */
 
 #include "ft8_shim.h"
@@ -254,6 +270,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
+
+/* Forward declaration — defined in patched/ft8/decode.c */
+float ftx_compute_candidate_llr_mean_abs(
+    const ftx_waterfall_t* wf,
+    const ftx_candidate_t* cand);
 
 /* Fallback definition of M_PI in case the platform still does not provide it */
 #ifndef M_PI
@@ -344,6 +365,8 @@ char* stpcpy(char* dest, const char* src)
 /* ── Thread-local per-pass stats and noise floor ─────────────────────────── */
 static _Thread_local int   tls_pass_counts[K_MAX_PASSES];
 static _Thread_local int   tls_candidate_counts[K_MAX_PASSES];
+static _Thread_local float tls_llr_mean_abs_sum[K_MAX_PASSES];
+static _Thread_local int   tls_llr_fail_count[K_MAX_PASSES];
 static _Thread_local int   tls_num_passes       = 0;
 static _Thread_local float tls_last_noise_floor_db = 0.0f;
 
@@ -812,6 +835,37 @@ int ft8_get_last_candidate_counts(int* out_counts, int capacity)
     return n;
 }
 
+/* ── Per-pass mean abs(LLR) query for failing candidates ────────────────── */
+/*
+ * ft8_get_last_llr_stats — return per-pass mean abs(LLR) across all
+ * LDPC-failing candidates from the most recent ft8_decode_all call on
+ * this thread.
+ *
+ * out_mean_abs[i] receives the mean abs(LLR) for pass i, averaged across
+ * all candidates that failed ftx_decode_candidate in that pass.
+ * Returns 0.0f for passes where no candidates failed (i.e. all decoded
+ * successfully, or no candidates were found).
+ *
+ * out_fail_count[i] receives the count of LDPC-failing candidates in
+ * pass i.  This allows the caller to distinguish "no failures" (count=0,
+ * mean=0) from "high mean — decode succeeded on all" (count=0, mean=0).
+ *
+ * Parameters and threading contract identical to ft8_get_last_pass_counts.
+ */
+int ft8_get_last_llr_stats(float* out_mean_abs, int* out_fail_count, int capacity)
+{
+    int n = (tls_num_passes < capacity) ? tls_num_passes : capacity;
+    for (int i = 0; i < n; i++)
+    {
+        if (tls_llr_fail_count[i] > 0)
+            out_mean_abs[i] = tls_llr_mean_abs_sum[i] / (float)tls_llr_fail_count[i];
+        else
+            out_mean_abs[i] = 0.0f;
+        out_fail_count[i] = tls_llr_fail_count[i];
+    }
+    return n;
+}
+
 /* ── Main decode entry point ─────────────────────────────────────────────── */
 int ft8_decode_all(
     const float* pcm,
@@ -875,6 +929,8 @@ int ft8_decode_all(
     memset(decoded_ht, 0, sizeof(decoded_ht));
     for (int i = 0; i < K_MAX_PASSES; i++) tls_pass_counts[i] = 0;
     for (int i = 0; i < K_MAX_PASSES; i++) tls_candidate_counts[i] = 0;
+    for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_mean_abs_sum[i] = 0.0f;
+    for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_fail_count[i]   = 0;
     tls_num_passes = 0;
 
     /* ── 4a. Cross-pass suppression accumulator ─────────────────────────── */
@@ -924,7 +980,13 @@ int ft8_decode_all(
             ftx_message_t       msg;
             ftx_decode_status_t status;
             if (!ftx_decode_candidate(&mon.wf, cand, pass_ldpc, &msg, &status))
+            {
+                /* D-001 diagnostic: accumulate mean|LLR| for failing candidates */
+                tls_llr_mean_abs_sum[pass] +=
+                    ftx_compute_candidate_llr_mean_abs(&mon.wf, cand);
+                tls_llr_fail_count[pass]++;
                 continue;
+            }
 
             /* Cross-pass dedup */
             int  slot = (int)(msg.hash % K_MAX_DECODED);

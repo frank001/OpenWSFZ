@@ -128,8 +128,13 @@ internal static class Ft8LibInterop
     ///   <see cref="GetLastPassCounts"/> to distinguish candidate-generation failure
     ///   (result[i] is low) from LDPC convergence failure (result[i] is high but
     ///   GetLastPassCounts[i] is zero).  No change to decode logic or struct layout.
+    /// 20260019 (diag-d001-llr-mean-abs): Adds <c>ft8_get_last_llr_stats</c> —
+    ///   per-pass mean abs(LLR) across LDPC-failing candidates. Counterpart
+    ///   function <c>ftx_compute_candidate_llr_mean_abs</c> added to decode.c
+    ///   (non-static); replicates likelihood extraction + normalisation without
+    ///   calling bp_decode.  No change to existing entry points or struct layout.
     /// </summary>
-    private const int ExpectedShimVersion = 20260018;
+    private const int ExpectedShimVersion = 20260019;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -219,6 +224,17 @@ internal static class Ft8LibInterop
     private static extern int NativeGetLastCandidateCounts(
         [Out] int[] counts,
         int         capacity);
+
+    /// <summary>
+    /// Return per-pass mean abs(LLR) statistics for LDPC-failing candidates
+    /// from the most recent <see cref="NativeDecodeAll"/> call on this thread.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_llr_stats",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastLlrStats(
+        [Out] float[] outMeanAbs,
+        [Out] int[]   outFailCount,
+        int           capacity);
 
     /// <summary>
     /// Return the compile-time <c>K_MAX_PASSES</c> constant from the native shim.
@@ -349,6 +365,36 @@ internal static class Ft8LibInterop
         int numPasses = NativeGetLastCandidateCounts(counts, maxPasses);
         if (numPasses <= 0) return [];
         return counts[..numPasses];
+    }
+
+    /// <summary>
+    /// Return per-pass mean abs(LLR) statistics from the most recent
+    /// <see cref="DecodeAll"/> call on this thread.
+    /// <para>
+    /// <c>meanAbs[i]</c> is the mean absolute LLR across all LDPC-failing
+    /// candidates in pass <c>i</c>, after variance-normalisation.
+    /// A value below ~0.5 indicates near-zero bit confidence (the D-001
+    /// co-channel failure hypothesis); above ~1.5 indicates healthy soft-
+    /// decision input.  Returns 0.0f for passes with no failing candidates.
+    /// </para>
+    /// <para>
+    /// <c>failCount[i]</c> is the number of LDPC-failing candidates in pass
+    /// <c>i</c>; allows distinguishing zero-failure from zero-candidate cases.
+    /// </para>
+    /// Must be called on the same thread that called <see cref="DecodeAll"/>.
+    /// </summary>
+    public static (float[] MeanAbs, int[] FailCount) GetLastLlrStats(int maxPasses)
+    {
+        EnsureInitialized();
+
+        var meanAbs   = new float[maxPasses];
+        var failCount = new int[maxPasses];
+        int numPasses = NativeGetLastLlrStats(meanAbs, failCount, maxPasses);
+
+        if (numPasses <= 0)
+            return ([], []);
+
+        return (meanAbs[..numPasses], failCount[..numPasses]);
     }
 
     /// <summary>

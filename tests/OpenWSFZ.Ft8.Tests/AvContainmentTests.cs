@@ -42,6 +42,7 @@ public sealed class AvContainmentTests
         public bool GetLastPassCountsCalled        { get; private set; }
         public bool GetLastCandidateCountsCalled   { get; private set; }
         public bool GetLastNoiseFloorDbCalled      { get; private set; }
+        public bool GetLastLlrStatsCalled          { get; private set; }
 
         public Ft8NativeResult[] DecodeAll(float[] pcm)
             => throw new NativeAccessViolationException();
@@ -62,6 +63,12 @@ public sealed class AvContainmentTests
         {
             GetLastNoiseFloorDbCalled = true;
             return 0f;
+        }
+
+        public (float[] MeanAbs, int[] FailCount) GetLastLlrStats(int maxPasses)
+        {
+            GetLastLlrStatsCalled = true;
+            return ([], []);
         }
     }
 
@@ -134,12 +141,12 @@ public sealed class AvContainmentTests
     }
 
     /// <summary>
-    /// R-1: The TLS-query methods (<c>GetLastPassCounts</c>, <c>GetLastNoiseFloorDb</c>)
-    /// must NOT be called when an AV fires, because TLS state is unreliable after
-    /// an access violation.  The exception-propagation mechanism must short-circuit
-    /// the lambda before those calls are reached.
+    /// R-1: The TLS-query methods (<c>GetLastPassCounts</c>, <c>GetLastNoiseFloorDb</c>,
+    /// <c>GetLastLlrStats</c>) must NOT be called when an AV fires, because TLS state
+    /// is unreliable after an access violation.  The exception-propagation mechanism
+    /// must short-circuit the lambda before those calls are reached.
     /// </summary>
-    [Fact(DisplayName = "R-1: GetLastPassCounts and GetLastNoiseFloorDb are NOT called after native AV")]
+    [Fact(DisplayName = "R-1: TLS query methods are NOT called after native AV")]
     public async Task DecodeAsync_NativeAv_DoesNotCallTlsQueriesAfterAv()
     {
         var clock   = new FakeClock(new DateTime(2026, 6, 14, 15, 30, 0, DateTimeKind.Utc));
@@ -158,6 +165,9 @@ public sealed class AvContainmentTests
         interop.GetLastNoiseFloorDbCalled.Should().BeFalse(
             "TLS state (noise floor) is unreliable after an AV; " +
             "calling GetLastNoiseFloorDb on the AV path would log stale data");
+        interop.GetLastLlrStatsCalled.Should().BeFalse(
+            "TLS state (LLR stats) is unreliable after an AV; " +
+            "calling GetLastLlrStats on the AV path would log stale data");
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────

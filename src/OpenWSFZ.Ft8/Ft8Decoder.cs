@@ -145,27 +145,30 @@ public sealed class Ft8Decoder : IModeDecoder
         int[]             passCounts;
         int[]             candidateCounts;
         float             noiseFloorDb;
+        (float[] LlrMeanAbs, int[] LlrFailCount) llrStats;
 
-        // All four calls must be on the same thread — no await between them — because
-        // ft8_get_last_pass_counts, ft8_get_last_candidate_counts, and
-        // ft8_get_last_noise_floor_db all read TLS written by ft8_decode_all.
+        // All five calls must be on the same thread — no await between them — because
+        // ft8_get_last_pass_counts, ft8_get_last_candidate_counts,
+        // ft8_get_last_noise_floor_db, and ft8_get_last_llr_stats all read TLS written
+        // by ft8_decode_all.
         // IMPORTANT: do not make this lambda async or split these calls across separate
         // Task.Run invocations; doing so would break the TLS guarantee.
         //
         // NativeAccessViolationException (D-006 / SEH containment): if DecodeAll throws,
-        // the lambda exits immediately — GetLastPassCounts, GetLastCandidateCounts, and
-        // GetLastNoiseFloorDb are never reached, which is correct because TLS state is
-        // unreliable after an AV (R-1 guard).
+        // the lambda exits immediately — GetLastPassCounts, GetLastCandidateCounts,
+        // GetLastNoiseFloorDb, and GetLastLlrStats are never reached, which is correct
+        // because TLS state is unreliable after an AV (R-1 guard).
         // The exception propagates through Task.Run → await and is caught below.
         try
         {
-            (native, passCounts, candidateCounts, noiseFloorDb) = await Task.Run(() =>
+            (native, passCounts, candidateCounts, noiseFloorDb, llrStats) = await Task.Run(() =>
             {
                 var r = _interop.DecodeAll(normalisedPcm);
                 var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
                 var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
                 var n = _interop.GetLastNoiseFloorDb();
-                return (r, p, c, n);
+                var l = _interop.GetLastLlrStats(_interop.MaxDecodePasses);
+                return (r, p, c, n, l);
             }, ct);
         }
         catch (NativeAccessViolationException)
@@ -230,6 +233,18 @@ public sealed class Ft8Decoder : IModeDecoder
             _logger?.LogDebug(
                 "Iterative subtraction: pass {Pass} of {Max}, {Candidates} candidates found, {K} decoded.",
                 p + 1, passCounts.Length, candidates, passCounts[p]);
+        }
+
+        // ── D-001 LLR diagnostic log ─────────────────────────────────────────
+        // Logged at Debug so it is only captured when file logging is enabled at
+        // Debug level (Lesson 8: pre-configure Logging.FileEnabled = true and
+        // Logging.FileLogLevel = "Debug" before any diagnostic run).
+        for (int p = 0; p < llrStats.LlrMeanAbs.Length; p++)
+        {
+            _logger?.LogDebug(
+                "Iterative subtraction: pass {Pass} LDPC fail stats — " +
+                "failCands={FailCount} meanAbsLLR={MeanAbs:F3}",
+                p + 1, llrStats.LlrFailCount[p], llrStats.LlrMeanAbs[p]);
         }
 
         // ── Diagnostic log ───────────────────────────────────────────────────

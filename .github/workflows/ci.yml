@@ -73,6 +73,9 @@ jobs:
           git clone --depth 1 --branch msvc-compat \
             https://github.com/frank001/ft8_lib.git /tmp/ft8_lib
           cd /tmp/ft8_lib
+          # Overlay the repo's patched decode.c (adds ftx_compute_candidate_llr_mean_abs
+          # and any future non-static diagnostic probes) before compiling.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/ft8/decode.c" ft8/decode.c
           clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
             -target arm64-apple-macos11.0 -c \
             ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
@@ -117,6 +120,9 @@ jobs:
           git clone --depth 1 --branch msvc-compat \
             https://github.com/frank001/ft8_lib.git /tmp/ft8_lib
           cd /tmp/ft8_lib
+          # Overlay the repo's patched decode.c (adds ftx_compute_candidate_llr_mean_abs
+          # and any future non-static diagnostic probes) before compiling.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/ft8/decode.c" ft8/decode.c
           gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
             ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
             ft8/message.c ft8/text.c \
