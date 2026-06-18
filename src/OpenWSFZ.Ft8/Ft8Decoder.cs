@@ -239,9 +239,11 @@ public sealed class Ft8Decoder : IModeDecoder
         // Logged at Debug so it is only captured when file logging is enabled at
         // Debug level (Lesson 8: pre-configure Logging.FileEnabled = true and
         // Logging.FileLogLevel = "Debug" before any diagnostic run).
-        // prenormVar (shim 20260020): pre-normalisation variance of raw log174 —
-        // a small value (≪1) confirms D-001 root cause (near-zero LLRs from
-        // equal-SNR co-channel interference).
+        // prenormVar (shim 20260020): pre-normalisation variance of raw log174.
+        // R&R run on shim 20260020 REFUTED the near-zero LLR hypothesis —
+        // co_channel fail cands show prenormVar 37–60 (not small). Revised
+        // failure model: high-confidence wrong-sign LLRs under equal-SNR
+        // co-channel. Probe retained for longitudinal monitoring.
         for (int p = 0; p < llrStats.LlrMeanAbs.Length; p++)
         {
             _logger?.LogDebug(
