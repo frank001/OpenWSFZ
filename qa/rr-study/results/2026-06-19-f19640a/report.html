@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ R&amp;R Study Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-rr-study-report">OpenWSFZ R&amp;R Study Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-06-19</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>f19640ad209dfeeceb8d5bc4718afdf82618ae17</code></td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0 (inferred from binary date 2025-02-04)</td>
+</tr>
+<tr>
+<td>Scenario revision</td>
+<td>S7 R2 — co_channel, time_freq and capture offsets varied (Δ7–Δ14 Hz); near_collision unchanged</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<h3 id="purpose">Purpose</h3>
+<p>This is a targeted diagnostic run of the S7 co_channel family only (parts 0, 1, 2, selected via <code>--parts 0,1,2</code>). It immediately follows the R1 full-run (SHA <code>2f4db45</code>, same date) in which a uniform Δ10 Hz inter-signal offset was applied across all co_channel, time_freq and capture parts. The uniformity of Δ10 Hz was identified as a concern: a single repeated round-number offset is no more representative of real-world waterfall-click dispersion than the Δ0 Hz it replaced. R2 introduces varied, irregular offsets (Δ7–Δ14 Hz, non-multiples of 10) to each part independently.</p>
+<h3 id="null-hypotheses">Null hypotheses</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Statement</th>
+<th>What would refute it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>H₀_VAR</strong></td>
+<td>Introducing offset variation within the realistic 7–13 Hz range does not degrade co_channel decode rates relative to the uniform Δ10 Hz R1 baseline</td>
+<td>Any co_channel rate materially below R1's rates (P0/P1: 100%; P2: 23.3%)</td>
+</tr>
+<tr>
+<td><strong>H₀_P2_ASYM</strong></td>
+<td>The asymmetric 3-stack geometry (Δ8/Δ11 Hz, 1492/1500/1511 Hz) produces comparable results to the symmetric R1 geometry (Δ10/Δ10 Hz, 1490/1500/1510 Hz)</td>
+<td>P2 decode rate lower than R1's 7/30 = 23.3%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="defect-relevance">Defect relevance</h3>
+<p>D-001 (co-channel decode gap). This run probes whether the R1 co_channel decode rates (particularly P0/P1 at 100%) are robust to offset variation, or whether R1 was systematically optimistic due to the specific choice of Δ10 Hz.</p>
+<h3 id="operator-note">Operator note</h3>
+<p>The application's configured RX frequency was 1500 Hz throughout the run — identical to the R1 run. This is noted because all co_channel parts include one signal at exactly 1500 Hz (MSG-02 in P0 and P1; MSG-02 in P2), and the R1 per-signal analysis showed the 1500 Hz signal is the hardest to decode in near-collision scenarios.</p>
+<h3 id="what-constitutes-a-meaningful-result">What constitutes a meaningful result</h3>
+<ul>
+<li>Co_channel rates materially below R1 (P0/P1: 100%; P2: 23.3%) would refute H₀_VAR and confirm that R1's uniform Δ10 Hz was a relatively favourable special case.</li>
+<li>P2 at 0/30 (worse than R1's 7/30) would refute H₀_P2_ASYM and indicate the asymmetric 3-stack geometry concentrates interference more severely.</li>
+<li>Per-signal decode asymmetry (1500 Hz signal harder than its partner) would corroborate the R1 near-collision finding and strengthen the case for H6 AP decode in QSO contexts.</li>
+</ul>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Corpus type</td>
+<td>Synthetic — clean-room FT8 encoder (STUDY-SPEC §4)</td>
+</tr>
+<tr>
+<td>Scenario</td>
+<td>S7 — Compounding / co-channel overlap (R2, commit <code>f19640a</code>)</td>
+</tr>
+<tr>
+<td>Parts run</td>
+<td>3 of 15 (co_channel family only: P0, P1, P2) via <code>--parts 0,1,2</code></td>
+</tr>
+<tr>
+<td>Trials (K)</td>
+<td>10</td>
+</tr>
+<tr>
+<td>Total truth observations</td>
+<td>70 (P0: 2×10=20; P1: 2×10=20; P2: 3×10=30)</td>
+</tr>
+<tr>
+<td>Appraiser 1</td>
+<td>WSJT-X 2.7.0</td>
+</tr>
+<tr>
+<td>Appraiser 2</td>
+<td>OpenWSFZ shim 20260021</td>
+</tr>
+<tr>
+<td>RX centre frequency</td>
+<td>1500 Hz (fixed throughout run; same as R1)</td>
+</tr>
+<tr>
+<td>Noise type</td>
+<td>Bandlimited AWGN (Kaiser FIR lowpass, cutoff 4700 Hz)</td>
+</tr>
+<tr>
+<td>Acceptance thresholds</td>
+<td>Informational only — no AIAG threshold is defined for co-channel separation</td>
+</tr>
+<tr>
+<td>Comparability</td>
+<td>Co_channel family is directly comparable to R1 (SHA <code>2f4db45</code>, same day). Near_collision, time_freq and capture not run in this session — R1 results for those families remain the current reference under the R2 scenario only for near_collision (offsets unchanged); time_freq and capture were also revised in R2 and require a fresh run.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h3 id="s7-compounding-co-channel-overlap">S7 — Compounding / co-channel overlap</h3>
+<p><em>Per-message recovery when 2–3 signals occupy the same or near-same audio frequency / time slot (the pileup case S4 does not exercise). Informational — no AIAG threshold is defined for co-channel separation.</em></p>
+<h3 id="recovery-by-overlap-family">Recovery by overlap family</h3>
+<table>
+<thead>
+<tr>
+<th>Overlap family</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>co_channel</td>
+<td>100.00%</td>
+<td>38.57%</td>
+</tr>
+<tr>
+<td><strong>all</strong></td>
+<td><strong>100.00%</strong></td>
+<td><strong>38.57%</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Between-app per-signal agreement:</strong> 38.57%</p>
+<h3 id="per-part-detail">Per-part detail</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Family</th>
+<th>Condition</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>co_channel</td>
+<td>2-stack, equal 0 dB, Δ7 Hz</td>
+<td>20/20</td>
+<td>13/20</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>co_channel</td>
+<td>2-stack, equal -5 dB, Δ13 Hz</td>
+<td>20/20</td>
+<td>14/20</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>co_channel</td>
+<td>3-stack, equal 0 dB, Δ8 / Δ11 Hz asymmetric</td>
+<td>30/30</td>
+<td>0/30</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S7 recovery" src="S7_recovery.png" /></p>
+<h3 id="comparison-with-r1-uniform-10-hz-sha-2f4db45">Comparison with R1 (uniform Δ10 Hz, SHA <code>2f4db45</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>R1 condition</th>
+<th>R1 OpenWSFZ</th>
+<th>R2 condition</th>
+<th>R2 OpenWSFZ</th>
+<th>Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>2-stack 0 dB, Δ10 Hz (1500/1510)</td>
+<td>20/20 (100%)</td>
+<td>2-stack 0 dB, Δ7 Hz (1500/1507)</td>
+<td>13/20 (65%)</td>
+<td>−35 pp</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>2-stack −5 dB, Δ10 Hz (1500/1510)</td>
+<td>20/20 (100%)</td>
+<td>2-stack −5 dB, Δ13 Hz (1500/1513)</td>
+<td>14/20 (70%)</td>
+<td>−30 pp</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>3-stack 0 dB, sym Δ10/Δ10 (1490/1500/1510)</td>
+<td>7/30 (23.3%)</td>
+<td>3-stack 0 dB, asym Δ8/Δ11 (1492/1500/1511)</td>
+<td>0/30 (0%)</td>
+<td>−23.3 pp</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-4-verdict-table">Section 4 — Verdict Table</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Scope</th>
+<th>Value</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H₀_VAR</td>
+<td>R2 co_channel rates vs R1 baseline</td>
+<td>P0: 65% (↓ from 100%); P1: 70% (↓ from 100%); P2: 0% (↓ from 23.3%)</td>
+<td><strong>REFUTED</strong> — varied offsets are harder for OpenWSFZ than uniform Δ10 Hz</td>
+</tr>
+<tr>
+<td>H₀_P2_ASYM</td>
+<td>R2 3-stack rate vs R1 3-stack (7/30)</td>
+<td>0/30 (0%) vs 7/30 (23.3%)</td>
+<td><strong>REFUTED</strong> — asymmetric geometry is materially harder</td>
+</tr>
+<tr>
+<td>co_channel 2-stack (P0)</td>
+<td>Δ7 Hz, 0 dB SNR</td>
+<td>13/20 (65%) vs 20/20 (100%)</td>
+<td><strong>GAP — 35 pp below WSJT-X</strong></td>
+</tr>
+<tr>
+<td>co_channel 2-stack (P1)</td>
+<td>Δ13 Hz, −5 dB SNR</td>
+<td>14/20 (70%) vs 20/20 (100%)</td>
+<td><strong>GAP — 30 pp below WSJT-X</strong></td>
+</tr>
+<tr>
+<td>co_channel 3-stack (P2)</td>
+<td>Δ8/Δ11 Hz asymmetric, 0 dB SNR</td>
+<td>0/30 (0%) vs 30/30 (100%)</td>
+<td><strong>COMPLETE FAILURE — 100 pp below WSJT-X</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: PASS (no formal AIAG threshold applies to S7 — informational only). However, all three co_channel parts show material regression vs R1, and P2 is a complete failure. See Section 5.</strong></p>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<h3 id="finding-1-h0_var-refuted-r1s-100-on-p0p1-was-a-favourable-special-case-d-001">Finding 1 — H₀_VAR refuted: R1's 100% on P0/P1 was a favourable special case (D-001)</h3>
+<p>The R1 uniform Δ10 Hz result (P0/P1 both 100%) was not representative. Reducing the offset to Δ7 Hz (P0) drops the decode rate to 65%; at Δ13 Hz (P1) and −5 dB SNR, it drops to 70%. The physical explanation is straightforward: smaller frequency separation means more spectral overlap between the two GFSK signals, creating stronger inter-carrier interference. Δ10 Hz happened to sit in a relatively favourable zone; Δ7 Hz does not.</p>
+<p><strong>D-001 status update required:</strong> The conclusion from R1 that "2-signal co_channel is fully resolved at Δ10 Hz" overstated the case. 2-signal co_channel performance is offset-dependent, ranging from approximately 65% at Δ7 Hz to 100% at Δ10 Hz. The operationally representative range spans both values.</p>
+<p><strong>Next step:</strong> Run a sweep of P0 at Δ5, Δ7, Δ10, Δ15 Hz to characterise the sensitivity curve before drawing conclusions about on-air performance. This can be done with four custom scenario JSON files or a single scenario with additional parts — targeted runs with <code>--parts</code> make this economical.</p>
+<h3 id="finding-2-p2-complete-failure-d-001-residual-worse-than-r1">Finding 2 — P2 complete failure (D-001 residual, worse than R1)</h3>
+<p>The asymmetric 3-stack (1492/1500/1511 Hz) yields 0/30, a regression from R1's symmetric 3-stack (1490/1500/1510 Hz) at 7/30. The asymmetric geometry places the three signals at irregular inter-signal distances (Δ8 Hz and Δ11 Hz), which likely creates a more complex interference pattern than the symmetric Δ10/Δ10 case. The R1 per-signal analysis showed that in the symmetric 3-stack, the centre signal (1500 Hz) already decoded 0/10 while outer signals decoded intermittently. In R2, all three signals appear to fail.</p>
+<p><strong>However, the RX frequency confound cannot be excluded yet</strong> — see Finding 3 below.</p>
+<p><strong>Next step:</strong> Re-run P2 with all signal frequencies shifted away from 1500 Hz (e.g., 1552/1560/1571 Hz, preserving the Δ8/Δ11 Hz geometry) to determine whether the 0/30 failure is geometric (3-stack interference) or positional (signal at RX frequency). This is a single targeted part run and takes approximately 2.5 minutes.</p>
+<h3 id="finding-3-rx-frequency-at-1500-hz-is-an-unresolved-confound-across-all-co_channel-parts">Finding 3 — RX frequency at 1500 Hz is an unresolved confound across all co_channel parts</h3>
+<p>Every co_channel part in both R1 and R2 includes a signal at exactly 1500 Hz (MSG-02 in P0 and P1; MSG-02 in P2). The R1 per-signal analysis confirmed that the 1500 Hz signal is the hardest to decode under near-collision interference, decoding 0/10 in the symmetric 3-stack while outer signals decoded intermittently. The same confound is present in every R2 co_channel part.</p>
+<p>It is not yet clear whether this is:
+- <strong>Decoder behaviour</strong> — the candidate search disfavours the 1500 Hz frequency zone under multi-signal interference for a structural reason; or
+- <strong>Application behaviour</strong> — the configured RX frequency (1500 Hz) triggers some path that suppresses candidates near that frequency (e.g., waterfall cursor interaction, AP mode state); or
+- <strong>Coincidence</strong> — the 1500 Hz signal loses to the interferer for independent reasons unrelated to the RX frequency setting.</p>
+<p><strong>Next step:</strong> Repeat the full co_channel run (parts 0, 1, 2) with the RX dial frequency set to 1450 Hz and all signal frequencies unchanged. If decode rates are identical, the confound is excluded. If the 1500 Hz signal suddenly improves (now 50 Hz from the RX), it confirms an application-level interaction at the RX frequency. This is a direct test and should be done before drawing firm conclusions about the 0/30 P2 failure.</p>
+<h3 id="finding-4-full-r2-baseline-is-incomplete">Finding 4 — Full R2 baseline is incomplete</h3>
+<p>This run covered only co_channel parts (P0–P2). The time_freq and capture parts were revised in R2 (new varied offsets) but have not yet been run. The R1 baseline for those families used Δ10 Hz and is no longer directly applicable to the R2 scenario file.</p>
+<p><strong>Next step:</strong> Complete the full S7 run under R2 to establish the overall baseline:</p>
+<div class="highlight"><pre><span></span><code>python run_study.py --scenarios S7
+</code></pre></div>
+
+<p>This run should be conducted after the RX frequency confound is resolved (Finding 3), so the baseline is clean. Until then, the R1 full-run (SHA <code>2f4db45</code>) remains the current S7 reference for near_collision, time_freq and capture families.</p>
+<h3 id="summary-of-required-actions">Summary of required actions</h3>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Action</th>
+<th>Estimated time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Re-run P2 with signals shifted off 1500 Hz (confound exclusion)</td>
+<td>~2.5 min</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Re-run co_channel (P0–P2) with RX dial at 1450 Hz</td>
+<td>~7.5 min</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Full S7 R2 run once confound is resolved</td>
+<td>~37 min</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Offset sensitivity sweep for P0 (Δ5/Δ7/Δ10/Δ15 Hz)</td>
+<td>~10 min</td>
+</tr>
+</tbody>
+</table>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
