@@ -50,7 +50,7 @@ WSJT-X control rate at Δ7 Hz is expected to be ≈ 40% (same blind conditions).
       --device "CABLE Input" \\
       --trials 20 \\
       --offset-hz 7 \\
-      --owsfz-url http://localhost:5000 \\
+      --owsfz-url http://localhost:8080 \\
       --owsfz-all-txt "C:/path/to/owsfz/ALL.TXT" \\
       --wsjt-all-txt  "C:/path/to/wsjtx/ALL.TXT"
 
@@ -557,8 +557,8 @@ def main() -> None:
                         help="Grid for the arming CQ. (default: FN42)")
 
     # Application endpoints and log paths
-    parser.add_argument("--owsfz-url", default="http://localhost:5000",
-                        help="OpenWSFZ base URL for abort API (default: http://localhost:5000)")
+    parser.add_argument("--owsfz-url", default="http://localhost:8080",
+                        help="OpenWSFZ base URL for abort API (default: http://localhost:8080)")
     parser.add_argument("--owsfz-all-txt", default=None,
                         metavar="PATH",
                         help="Path to OpenWSFZ ALL.TXT for post-run analysis")
