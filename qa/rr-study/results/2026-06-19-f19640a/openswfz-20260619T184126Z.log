@@ -1,0 +1,579 @@
+2026-06-19 20:41:26.261 +02:00 [INF] Config: platform default → C:\Users\Frank\AppData\Roaming\OpenWSFZ\config.json
+2026-06-19 20:41:26.270 +02:00 [INF] Log level: "Information"
+2026-06-19 20:41:26.347 +02:00 [DBG] Hosting starting
+2026-06-19 20:41:26.351 +02:00 [INF] QsoAnswererService started; initial state: "Idle".
+2026-06-19 20:41:26.357 +02:00 [DBG] Middleware configuration started with options: {AllowedHosts = *, AllowEmptyHosts = True, IncludeFailureMessage = True}
+2026-06-19 20:41:26.358 +02:00 [DBG] Wildcard detected, all requests with hosts will be allowed.
+2026-06-19 20:41:26.366 +02:00 [INF] Now listening on: http://127.0.0.1:8080
+2026-06-19 20:41:26.367 +02:00 [DBG] Loaded hosting startup assembly OpenWSFZ.Daemon
+2026-06-19 20:41:26.367 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-06-19 20:41:26.367 +02:00 [INF] Hosting environment: Development
+2026-06-19 20:41:26.368 +02:00 [INF] Content root path: D:\Projects\claude\OpenWSFZ
+2026-06-19 20:41:26.368 +02:00 [INF] OpenWSFZ started on port 8080.
+2026-06-19 20:41:26.369 +02:00 [INF] Starting FT8 pipeline for device '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 20:41:26.370 +02:00 [INF] Starting audio capture on device '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 20:41:26.371 +02:00 [DBG] Hosting started
+2026-06-19 20:41:26.373 +02:00 [INF] CycleFramer started; leading silence = 136464 samples (11.372 s), cycle start = 18:41:15.
+2026-06-19 20:41:26.417 +02:00 [INF] WASAPI device opened: '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}' ('CABLE Output (VB-Audio Virtual Cable)') — WaveFormat=48000 Hz, 32-bit, 2 ch, Encoding="IeeeFloat"
+2026-06-19 20:41:26.419 +02:00 [INF] Resampling pipeline ready on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}': channelMode=stereo→mono(left), inputRate=48000 Hz → 12000 Hz
+2026-06-19 20:41:26.420 +02:00 [DBG] Starting capture on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 20:41:26.430 +02:00 [DBG] Capture started on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 20:41:30.113 +02:00 [DBG] Window emitted (180000 samples, cycle 18:41:15).
+2026-06-19 20:41:30.116 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:41:45.104 +02:00 [DBG] Window emitted (180000 samples, cycle 18:41:30).
+2026-06-19 20:41:45.105 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:42:00.083 +02:00 [DBG] Window emitted (180000 samples, cycle 18:41:45).
+2026-06-19 20:42:00.084 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:42:15.074 +02:00 [DBG] Window emitted (180000 samples, cycle 18:42:00).
+2026-06-19 20:42:15.074 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:42:30.115 +02:00 [DBG] Window emitted (180000 samples, cycle 18:42:15).
+2026-06-19 20:42:30.115 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:42:45.108 +02:00 [DBG] Window emitted (180000 samples, cycle 18:42:30).
+2026-06-19 20:42:45.108 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:43:00.102 +02:00 [DBG] Window emitted (180000 samples, cycle 18:42:45).
+2026-06-19 20:43:00.103 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:43:15.080 +02:00 [DBG] Window emitted (180000 samples, cycle 18:43:00).
+2026-06-19 20:43:15.081 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:43:30.073 +02:00 [DBG] Window emitted (180000 samples, cycle 18:43:15).
+2026-06-19 20:43:30.074 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:43:45.114 +02:00 [DBG] Window emitted (180000 samples, cycle 18:43:30).
+2026-06-19 20:43:45.115 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:44:00.103 +02:00 [DBG] Window emitted (180000 samples, cycle 18:43:45).
+2026-06-19 20:44:00.104 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:44:15.082 +02:00 [DBG] Window emitted (180000 samples, cycle 18:44:00).
+2026-06-19 20:44:15.082 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:44:30.061 +02:00 [DBG] Window emitted (180000 samples, cycle 18:44:15).
+2026-06-19 20:44:30.061 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:44:45.103 +02:00 [DBG] Window emitted (180000 samples, cycle 18:44:30).
+2026-06-19 20:44:45.103 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:45:00.091 +02:00 [DBG] Window emitted (180000 samples, cycle 18:44:45).
+2026-06-19 20:45:00.091 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:45:15.064 +02:00 [DBG] Window emitted (180000 samples, cycle 18:45:00).
+2026-06-19 20:45:15.064 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:45:16.837 +02:00 [DBG] Connection id "0HNME6BJV6NS6" accepted.
+2026-06-19 20:45:16.837 +02:00 [DBG] Connection id "0HNME6BJV6NS6" started.
+2026-06-19 20:45:16.852 +02:00 [INF] Request starting HTTP/1.1 GET http://127.0.0.1:8080/ - null null
+2026-06-19 20:45:16.855 +02:00 [VRB] All hosts are allowed.
+2026-06-19 20:45:16.886 +02:00 [DBG] No candidates found for the request path '/'
+2026-06-19 20:45:16.887 +02:00 [DBG] Request did not match any endpoints
+2026-06-19 20:45:16.889 +02:00 [VRB] Range header's value is empty.
+2026-06-19 20:45:16.889 +02:00 [INF] The file /index.html was not modified
+2026-06-19 20:45:16.892 +02:00 [DBG] Handled. Status code: 304 File: /index.html
+2026-06-19 20:45:16.893 +02:00 [DBG] Connection id "0HNME6BJV6NS6" completed keep alive response.
+2026-06-19 20:45:16.894 +02:00 [INF] Request finished HTTP/1.1 GET http://127.0.0.1:8080/index.html - 304 null text/html 42.3594ms
+2026-06-19 20:45:16.922 +02:00 [DBG] Connection id "0HNME6BJV6NS7" accepted.
+2026-06-19 20:45:16.922 +02:00 [DBG] Connection id "0HNME6BJV6NS7" started.
+2026-06-19 20:45:16.923 +02:00 [DBG] Connection id "0HNME6BJV6NS8" accepted.
+2026-06-19 20:45:16.923 +02:00 [DBG] Connection id "0HNME6BJV6NS8" started.
+2026-06-19 20:45:16.922 +02:00 [INF] Request starting HTTP/1.1 GET http://127.0.0.1:8080/api/v1/config - null null
+2026-06-19 20:45:16.923 +02:00 [VRB] All hosts are allowed.
+2026-06-19 20:45:16.922 +02:00 [INF] Request starting HTTP/1.1 GET http://127.0.0.1:8080/api/v1/frequencies - null null
+2026-06-19 20:45:16.924 +02:00 [VRB] All hosts are allowed.
+2026-06-19 20:45:16.925 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/config'
+2026-06-19 20:45:16.925 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/frequencies'
+2026-06-19 20:45:16.925 +02:00 [DBG] Request matched endpoint 'HTTP: GET /api/v1/config'
+2026-06-19 20:45:16.925 +02:00 [DBG] Request matched endpoint 'HTTP: GET /api/v1/frequencies'
+2026-06-19 20:45:16.926 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 20:45:16.926 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 20:45:16.926 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 20:45:16.926 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 20:45:16.923 +02:00 [INF] Request starting HTTP/1.1 GET http://127.0.0.1:8080/api/v1/ws - null null
+2026-06-19 20:45:16.926 +02:00 [VRB] All hosts are allowed.
+2026-06-19 20:45:16.926 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/ws'
+2026-06-19 20:45:16.926 +02:00 [DBG] Request matched endpoint 'HTTP: GET /api/v1/ws'
+2026-06-19 20:45:16.926 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 20:45:16.926 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 20:45:16.927 +02:00 [INF] Executing endpoint 'HTTP: GET /api/v1/config'
+2026-06-19 20:45:16.927 +02:00 [INF] Executing endpoint 'HTTP: GET /api/v1/ws'
+2026-06-19 20:45:16.927 +02:00 [INF] Executing endpoint 'HTTP: GET /api/v1/frequencies'
+2026-06-19 20:45:16.931 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 20:45:16.931 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 20:45:16.934 +02:00 [INF] Writing value of type 'List`1' as Json.
+2026-06-19 20:45:16.935 +02:00 [INF] WebSocket connection accepted.
+2026-06-19 20:45:16.937 +02:00 [INF] Executed endpoint 'HTTP: GET /api/v1/frequencies'
+2026-06-19 20:45:16.937 +02:00 [DBG] Connection id "0HNME6BJV6NS7" completed keep alive response.
+2026-06-19 20:45:16.938 +02:00 [INF] Request finished HTTP/1.1 GET http://127.0.0.1:8080/api/v1/frequencies - 200 null application/json; charset=utf-8 15.6465ms
+2026-06-19 20:45:16.942 +02:00 [INF] Writing value of type 'AppConfig' as Json.
+2026-06-19 20:45:16.945 +02:00 [INF] Executed endpoint 'HTTP: GET /api/v1/config'
+2026-06-19 20:45:16.945 +02:00 [DBG] Connection id "0HNME6BJV6NS6" completed keep alive response.
+2026-06-19 20:45:16.945 +02:00 [INF] Request finished HTTP/1.1 GET http://127.0.0.1:8080/api/v1/config - 200 null application/json; charset=utf-8 23.735ms
+2026-06-19 20:45:21.943 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:45:26.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:45:30.060 +02:00 [DBG] Window emitted (180000 samples, cycle 18:45:15).
+2026-06-19 20:45:30.060 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:45:31.956 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:45:36.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:45:41.943 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:45:45.115 +02:00 [DBG] Window emitted (180000 samples, cycle 18:45:30).
+2026-06-19 20:45:45.115 +02:00 [DBG] Starting decode for cycle 18:45:30; pcm = 180000 samples, RMS = 1.672E-002.
+2026-06-19 20:45:45.148 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:45:45.148 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 51 candidates found, 0 decoded.
+2026-06-19 20:45:45.148 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:45:45.148 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=1 meanAbsLLR=0.372 prenormVar=0.0014
+2026-06-19 20:45:45.148 +02:00 [INF] Cycle 18:45:30: 0 decode(s) found, elapsed=32 ms.
+2026-06-19 20:45:45.149 +02:00 [INF] Cycle 18:45:30: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:45:46.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:45:51.944 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:45:56.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:00.098 +02:00 [DBG] Window emitted (180000 samples, cycle 18:45:45).
+2026-06-19 20:46:00.098 +02:00 [DBG] Starting decode for cycle 18:45:45; pcm = 180000 samples, RMS = 1.179E-001.
+2026-06-19 20:46:00.142 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 18 candidates found, 1 decoded.
+2026-06-19 20:46:00.142 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:46:00.142 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=14 meanAbsLLR=3.796 prenormVar=42.6111
+2026-06-19 20:46:00.142 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.920 prenormVar=30.4618
+2026-06-19 20:46:00.142 +02:00 [INF] Cycle 18:45:45: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 20:46:00.142 +02:00 [INF] Cycle 18:45:45: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 20:46:01.943 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:06.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:11.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:15.072 +02:00 [DBG] Window emitted (180000 samples, cycle 18:46:00).
+2026-06-19 20:46:15.072 +02:00 [DBG] Starting decode for cycle 18:46:00; pcm = 180000 samples, RMS = 2.481E-002.
+2026-06-19 20:46:15.082 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:46:15.082 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 87 candidates found, 0 decoded.
+2026-06-19 20:46:15.082 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:46:15.082 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:46:15.082 +02:00 [INF] Cycle 18:46:00: 0 decode(s) found, elapsed=10 ms.
+2026-06-19 20:46:15.083 +02:00 [INF] Cycle 18:46:00: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:46:16.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:21.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:26.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:30.105 +02:00 [DBG] Window emitted (180000 samples, cycle 18:46:15).
+2026-06-19 20:46:30.105 +02:00 [DBG] Starting decode for cycle 18:46:15; pcm = 180000 samples, RMS = 1.878E-001.
+2026-06-19 20:46:30.151 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 1 decoded.
+2026-06-19 20:46:30.151 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:46:30.151 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.821 prenormVar=47.5269
+2026-06-19 20:46:30.151 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.879 prenormVar=22.7317
+2026-06-19 20:46:30.151 +02:00 [INF] Cycle 18:46:15: 1 decode(s) found, elapsed=45 ms.
+2026-06-19 20:46:30.152 +02:00 [INF] Cycle 18:46:15: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:46:31.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:36.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:41.957 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:45.085 +02:00 [DBG] Window emitted (180000 samples, cycle 18:46:30).
+2026-06-19 20:46:45.086 +02:00 [DBG] Starting decode for cycle 18:46:30; pcm = 180000 samples, RMS = 1.813E-001.
+2026-06-19 20:46:45.131 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 23 candidates found, 1 decoded.
+2026-06-19 20:46:45.131 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 20:46:45.131 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=22 meanAbsLLR=3.908 prenormVar=57.1562
+2026-06-19 20:46:45.131 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.903 prenormVar=16.7063
+2026-06-19 20:46:45.131 +02:00 [INF] Cycle 18:46:30: 2 decode(s) found, elapsed=45 ms.
+2026-06-19 20:46:45.132 +02:00 [INF] Cycle 18:46:30: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:46:46.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:51.952 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:46:56.955 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:00.083 +02:00 [DBG] Window emitted (180000 samples, cycle 18:46:45).
+2026-06-19 20:47:00.083 +02:00 [DBG] Starting decode for cycle 18:46:45; pcm = 180000 samples, RMS = 1.795E-001.
+2026-06-19 20:47:00.128 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 1 decoded.
+2026-06-19 20:47:00.128 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:47:00.128 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.813 prenormVar=39.6773
+2026-06-19 20:47:00.128 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.882 prenormVar=14.9016
+2026-06-19 20:47:00.128 +02:00 [INF] Cycle 18:46:45: 1 decode(s) found, elapsed=45 ms.
+2026-06-19 20:47:00.129 +02:00 [INF] Cycle 18:46:45: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:47:01.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:06.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:11.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:12.346 +02:00 [DBG] Connection id "0HNME6BJV6NS6" received FIN.
+2026-06-19 20:47:12.346 +02:00 [DBG] Connection id "0HNME6BJV6NS7" received FIN.
+2026-06-19 20:47:12.348 +02:00 [DBG] Connection id "0HNME6BJV6NS6" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 20:47:12.348 +02:00 [DBG] Connection id "0HNME6BJV6NS7" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 20:47:12.349 +02:00 [DBG] Connection id "0HNME6BJV6NS7" disconnecting.
+2026-06-19 20:47:12.349 +02:00 [DBG] Connection id "0HNME6BJV6NS6" disconnecting.
+2026-06-19 20:47:12.349 +02:00 [DBG] Connection id "0HNME6BJV6NS7" stopped.
+2026-06-19 20:47:12.349 +02:00 [DBG] Connection id "0HNME6BJV6NS6" stopped.
+2026-06-19 20:47:15.069 +02:00 [DBG] Window emitted (180000 samples, cycle 18:47:00).
+2026-06-19 20:47:15.070 +02:00 [DBG] Starting decode for cycle 18:47:00; pcm = 180000 samples, RMS = 1.974E-001.
+2026-06-19 20:47:15.114 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 14 candidates found, 1 decoded.
+2026-06-19 20:47:15.114 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:47:15.114 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=13 meanAbsLLR=3.769 prenormVar=46.2643
+2026-06-19 20:47:15.114 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.888 prenormVar=14.7395
+2026-06-19 20:47:15.114 +02:00 [INF] Cycle 18:47:00: 1 decode(s) found, elapsed=44 ms.
+2026-06-19 20:47:15.115 +02:00 [INF] Cycle 18:47:00: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:47:16.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:21.955 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:26.952 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:30.109 +02:00 [DBG] Window emitted (180000 samples, cycle 18:47:15).
+2026-06-19 20:47:30.109 +02:00 [DBG] Starting decode for cycle 18:47:15; pcm = 180000 samples, RMS = 2.329E-002.
+2026-06-19 20:47:30.120 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:47:30.120 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 78 candidates found, 0 decoded.
+2026-06-19 20:47:30.120 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:47:30.120 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=6 meanAbsLLR=0.492 prenormVar=0.0033
+2026-06-19 20:47:30.120 +02:00 [INF] Cycle 18:47:15: 0 decode(s) found, elapsed=10 ms.
+2026-06-19 20:47:30.121 +02:00 [INF] Cycle 18:47:15: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:47:31.956 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:36.955 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:41.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:45.077 +02:00 [DBG] Window emitted (180000 samples, cycle 18:47:30).
+2026-06-19 20:47:45.078 +02:00 [DBG] Starting decode for cycle 18:47:30; pcm = 180000 samples, RMS = 1.758E-001.
+2026-06-19 20:47:45.122 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 27 candidates found, 1 decoded.
+2026-06-19 20:47:45.122 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:47:45.122 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=26 meanAbsLLR=3.849 prenormVar=48.6319
+2026-06-19 20:47:45.122 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.895 prenormVar=23.6794
+2026-06-19 20:47:45.122 +02:00 [INF] Cycle 18:47:30: 1 decode(s) found, elapsed=44 ms.
+2026-06-19 20:47:45.122 +02:00 [INF] Cycle 18:47:30: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:47:46.952 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:51.945 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:47:56.947 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:00.105 +02:00 [DBG] Window emitted (180000 samples, cycle 18:47:45).
+2026-06-19 20:48:00.106 +02:00 [DBG] Starting decode for cycle 18:47:45; pcm = 180000 samples, RMS = 1.919E-001.
+2026-06-19 20:48:00.149 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 18 candidates found, 1 decoded.
+2026-06-19 20:48:00.149 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 20:48:00.149 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=17 meanAbsLLR=3.930 prenormVar=61.5312
+2026-06-19 20:48:00.149 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.906 prenormVar=16.9218
+2026-06-19 20:48:00.149 +02:00 [INF] Cycle 18:47:45: 2 decode(s) found, elapsed=43 ms.
+2026-06-19 20:48:00.150 +02:00 [INF] Cycle 18:47:45: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:48:01.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:06.944 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:11.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:15.100 +02:00 [DBG] Window emitted (180000 samples, cycle 18:48:00).
+2026-06-19 20:48:15.101 +02:00 [DBG] Starting decode for cycle 18:48:00; pcm = 180000 samples, RMS = 2.005E-001.
+2026-06-19 20:48:15.143 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 21 candidates found, 1 decoded.
+2026-06-19 20:48:15.143 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:48:15.143 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=20 meanAbsLLR=3.808 prenormVar=43.2339
+2026-06-19 20:48:15.143 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.916 prenormVar=15.1495
+2026-06-19 20:48:15.143 +02:00 [INF] Cycle 18:48:00: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 20:48:15.144 +02:00 [INF] Cycle 18:48:00: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:48:16.952 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:21.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:26.945 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:30.067 +02:00 [DBG] Window emitted (180000 samples, cycle 18:48:15).
+2026-06-19 20:48:30.068 +02:00 [DBG] Starting decode for cycle 18:48:15; pcm = 180000 samples, RMS = 1.952E-001.
+2026-06-19 20:48:30.111 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 1 decoded.
+2026-06-19 20:48:30.111 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:48:30.111 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.801 prenormVar=38.8939
+2026-06-19 20:48:30.111 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.914 prenormVar=15.3759
+2026-06-19 20:48:30.111 +02:00 [INF] Cycle 18:48:15: 1 decode(s) found, elapsed=43 ms.
+2026-06-19 20:48:30.112 +02:00 [INF] Cycle 18:48:15: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:48:31.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:36.948 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:41.948 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:45.100 +02:00 [DBG] Window emitted (180000 samples, cycle 18:48:30).
+2026-06-19 20:48:45.100 +02:00 [DBG] Starting decode for cycle 18:48:30; pcm = 180000 samples, RMS = 2.689E-002.
+2026-06-19 20:48:45.111 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:48:45.111 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 39 candidates found, 0 decoded.
+2026-06-19 20:48:45.111 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:48:45.111 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=7 meanAbsLLR=0.626 prenormVar=0.0209
+2026-06-19 20:48:45.111 +02:00 [INF] Cycle 18:48:30: 0 decode(s) found, elapsed=11 ms.
+2026-06-19 20:48:45.112 +02:00 [INF] Cycle 18:48:30: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:48:46.944 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:51.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:48:56.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:00.070 +02:00 [DBG] Window emitted (180000 samples, cycle 18:48:45).
+2026-06-19 20:49:00.071 +02:00 [DBG] Starting decode for cycle 18:48:45; pcm = 180000 samples, RMS = 1.933E-001.
+2026-06-19 20:49:00.115 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 22 candidates found, 1 decoded.
+2026-06-19 20:49:00.115 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:49:00.115 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=21 meanAbsLLR=3.814 prenormVar=54.2282
+2026-06-19 20:49:00.115 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.865 prenormVar=26.3511
+2026-06-19 20:49:00.115 +02:00 [INF] Cycle 18:48:45: 1 decode(s) found, elapsed=44 ms.
+2026-06-19 20:49:00.116 +02:00 [INF] Cycle 18:48:45: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:49:01.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:06.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:11.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:15.112 +02:00 [DBG] Window emitted (180000 samples, cycle 18:49:00).
+2026-06-19 20:49:15.113 +02:00 [DBG] Starting decode for cycle 18:49:00; pcm = 180000 samples, RMS = 1.761E-001.
+2026-06-19 20:49:15.157 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 24 candidates found, 1 decoded.
+2026-06-19 20:49:15.157 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 20:49:15.157 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=23 meanAbsLLR=3.868 prenormVar=35.0835
+2026-06-19 20:49:15.157 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.959 prenormVar=18.6902
+2026-06-19 20:49:15.157 +02:00 [INF] Cycle 18:49:00: 2 decode(s) found, elapsed=44 ms.
+2026-06-19 20:49:15.158 +02:00 [INF] Cycle 18:49:00: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 20:49:16.948 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:21.955 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:26.942 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:30.094 +02:00 [DBG] Window emitted (180000 samples, cycle 18:49:15).
+2026-06-19 20:49:30.095 +02:00 [DBG] Starting decode for cycle 18:49:15; pcm = 180000 samples, RMS = 1.640E-001.
+2026-06-19 20:49:30.141 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 21 candidates found, 1 decoded.
+2026-06-19 20:49:30.141 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 20:49:30.141 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=20 meanAbsLLR=3.839 prenormVar=32.1984
+2026-06-19 20:49:30.141 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.925 prenormVar=20.0439
+2026-06-19 20:49:30.141 +02:00 [INF] Cycle 18:49:15: 2 decode(s) found, elapsed=45 ms.
+2026-06-19 20:49:30.142 +02:00 [INF] Cycle 18:49:15: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:49:31.956 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:36.956 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:41.946 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:45.068 +02:00 [DBG] Window emitted (180000 samples, cycle 18:49:30).
+2026-06-19 20:49:45.069 +02:00 [DBG] Starting decode for cycle 18:49:30; pcm = 180000 samples, RMS = 1.572E-001.
+2026-06-19 20:49:45.113 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 14 candidates found, 1 decoded.
+2026-06-19 20:49:45.113 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:49:45.113 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=12 meanAbsLLR=3.800 prenormVar=35.1414
+2026-06-19 20:49:45.113 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.889 prenormVar=18.6406
+2026-06-19 20:49:45.113 +02:00 [INF] Cycle 18:49:30: 1 decode(s) found, elapsed=44 ms.
+2026-06-19 20:49:45.114 +02:00 [INF] Cycle 18:49:30: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:49:46.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:51.952 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:49:56.943 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:00.104 +02:00 [DBG] Window emitted (180000 samples, cycle 18:49:45).
+2026-06-19 20:50:00.104 +02:00 [DBG] Starting decode for cycle 18:49:45; pcm = 180000 samples, RMS = 2.409E-002.
+2026-06-19 20:50:00.118 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:50:00.118 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 54 candidates found, 0 decoded.
+2026-06-19 20:50:00.118 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:50:00.118 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=37 meanAbsLLR=0.592 prenormVar=0.0077
+2026-06-19 20:50:00.118 +02:00 [INF] Cycle 18:49:45: 0 decode(s) found, elapsed=13 ms.
+2026-06-19 20:50:00.119 +02:00 [INF] Cycle 18:49:45: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:50:01.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:06.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:11.948 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:15.095 +02:00 [DBG] Window emitted (180000 samples, cycle 18:50:00).
+2026-06-19 20:50:15.095 +02:00 [DBG] Starting decode for cycle 18:50:00; pcm = 180000 samples, RMS = 1.656E-001.
+2026-06-19 20:50:15.143 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 28 candidates found, 1 decoded.
+2026-06-19 20:50:15.143 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:50:15.143 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=27 meanAbsLLR=3.873 prenormVar=39.5569
+2026-06-19 20:50:15.143 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.889 prenormVar=22.0027
+2026-06-19 20:50:15.143 +02:00 [INF] Cycle 18:50:00: 1 decode(s) found, elapsed=47 ms.
+2026-06-19 20:50:15.143 +02:00 [INF] Cycle 18:50:00: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:50:16.957 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:21.948 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:26.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:30.083 +02:00 [DBG] Window emitted (180000 samples, cycle 18:50:15).
+2026-06-19 20:50:30.083 +02:00 [DBG] Starting decode for cycle 18:50:15; pcm = 180000 samples, RMS = 1.598E-001.
+2026-06-19 20:50:30.128 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 1 decoded.
+2026-06-19 20:50:30.128 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 20:50:30.128 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=17 meanAbsLLR=3.844 prenormVar=51.3995
+2026-06-19 20:50:30.128 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=198 meanAbsLLR=3.895 prenormVar=21.8518
+2026-06-19 20:50:30.128 +02:00 [INF] Cycle 18:50:15: 2 decode(s) found, elapsed=44 ms.
+2026-06-19 20:50:30.129 +02:00 [INF] Cycle 18:50:15: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:50:31.945 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:36.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:41.946 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:45.118 +02:00 [DBG] Window emitted (180000 samples, cycle 18:50:30).
+2026-06-19 20:50:45.119 +02:00 [DBG] Starting decode for cycle 18:50:30; pcm = 180000 samples, RMS = 1.718E-001.
+2026-06-19 20:50:45.163 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 18 candidates found, 1 decoded.
+2026-06-19 20:50:45.163 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:50:45.163 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.870 prenormVar=37.5445
+2026-06-19 20:50:45.163 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.910 prenormVar=20.6495
+2026-06-19 20:50:45.163 +02:00 [INF] Cycle 18:50:30: 1 decode(s) found, elapsed=44 ms.
+2026-06-19 20:50:45.164 +02:00 [INF] Cycle 18:50:30: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:50:46.952 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:51.948 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:50:56.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:00.103 +02:00 [DBG] Window emitted (180000 samples, cycle 18:50:45).
+2026-06-19 20:51:00.104 +02:00 [DBG] Starting decode for cycle 18:50:45; pcm = 180000 samples, RMS = 1.555E-001.
+2026-06-19 20:51:00.147 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 1 decoded.
+2026-06-19 20:51:00.147 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:51:00.147 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=15 meanAbsLLR=3.857 prenormVar=34.8934
+2026-06-19 20:51:00.147 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.886 prenormVar=19.1154
+2026-06-19 20:51:00.147 +02:00 [INF] Cycle 18:50:45: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 20:51:00.148 +02:00 [INF] Cycle 18:50:45: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:51:01.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:06.943 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:11.957 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:15.083 +02:00 [DBG] Window emitted (180000 samples, cycle 18:51:00).
+2026-06-19 20:51:15.083 +02:00 [DBG] Starting decode for cycle 18:51:00; pcm = 180000 samples, RMS = 2.369E-002.
+2026-06-19 20:51:15.093 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:51:15.093 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 54 candidates found, 0 decoded.
+2026-06-19 20:51:15.093 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:51:15.093 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:51:15.093 +02:00 [INF] Cycle 18:51:00: 0 decode(s) found, elapsed=9 ms.
+2026-06-19 20:51:15.094 +02:00 [INF] Cycle 18:51:00: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:51:16.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:21.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:26.942 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:30.067 +02:00 [DBG] Window emitted (180000 samples, cycle 18:51:15).
+2026-06-19 20:51:30.067 +02:00 [DBG] Starting decode for cycle 18:51:15; pcm = 180000 samples, RMS = 1.718E-001.
+2026-06-19 20:51:30.112 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 23 candidates found, 1 decoded.
+2026-06-19 20:51:30.112 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:51:30.112 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=22 meanAbsLLR=3.854 prenormVar=50.8462
+2026-06-19 20:51:30.112 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.911 prenormVar=23.7217
+2026-06-19 20:51:30.112 +02:00 [INF] Cycle 18:51:15: 1 decode(s) found, elapsed=45 ms.
+2026-06-19 20:51:30.113 +02:00 [INF] Cycle 18:51:15: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:51:31.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:36.952 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:41.957 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:45.107 +02:00 [DBG] Window emitted (180000 samples, cycle 18:51:30).
+2026-06-19 20:51:45.108 +02:00 [DBG] Starting decode for cycle 18:51:30; pcm = 180000 samples, RMS = 1.715E-001.
+2026-06-19 20:51:45.151 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 18 candidates found, 1 decoded.
+2026-06-19 20:51:45.151 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:51:45.151 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=17 meanAbsLLR=3.880 prenormVar=49.4117
+2026-06-19 20:51:45.151 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.909 prenormVar=22.0689
+2026-06-19 20:51:45.151 +02:00 [INF] Cycle 18:51:30: 1 decode(s) found, elapsed=43 ms.
+2026-06-19 20:51:45.152 +02:00 [INF] Cycle 18:51:30: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:51:46.957 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:51.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:51:56.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:00.094 +02:00 [DBG] Window emitted (180000 samples, cycle 18:51:45).
+2026-06-19 20:52:00.095 +02:00 [DBG] Starting decode for cycle 18:51:45; pcm = 180000 samples, RMS = 1.722E-001.
+2026-06-19 20:52:00.137 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 24 candidates found, 1 decoded.
+2026-06-19 20:52:00.137 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 20:52:00.137 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=22 meanAbsLLR=3.888 prenormVar=31.4107
+2026-06-19 20:52:00.137 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=198 meanAbsLLR=3.903 prenormVar=18.1981
+2026-06-19 20:52:00.137 +02:00 [INF] Cycle 18:51:45: 2 decode(s) found, elapsed=41 ms.
+2026-06-19 20:52:00.138 +02:00 [INF] Cycle 18:51:45: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:52:01.944 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:06.945 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:11.955 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:15.076 +02:00 [DBG] Window emitted (180000 samples, cycle 18:52:00).
+2026-06-19 20:52:15.076 +02:00 [DBG] Starting decode for cycle 18:52:00; pcm = 180000 samples, RMS = 1.826E-001.
+2026-06-19 20:52:15.119 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 21 candidates found, 1 decoded.
+2026-06-19 20:52:15.119 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 20:52:15.119 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=20 meanAbsLLR=3.896 prenormVar=39.3088
+2026-06-19 20:52:15.119 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.902 prenormVar=19.8770
+2026-06-19 20:52:15.119 +02:00 [INF] Cycle 18:52:00: 2 decode(s) found, elapsed=42 ms.
+2026-06-19 20:52:15.120 +02:00 [INF] Cycle 18:52:00: noise_floor=-49.5 dB (waterfall histogram median).
+2026-06-19 20:52:16.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:21.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:26.943 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:30.114 +02:00 [DBG] Window emitted (180000 samples, cycle 18:52:15).
+2026-06-19 20:52:30.115 +02:00 [DBG] Starting decode for cycle 18:52:15; pcm = 180000 samples, RMS = 2.882E-002.
+2026-06-19 20:52:30.124 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:52:30.124 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 53 candidates found, 0 decoded.
+2026-06-19 20:52:30.124 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:52:30.124 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=6 meanAbsLLR=0.545 prenormVar=0.0033
+2026-06-19 20:52:30.124 +02:00 [INF] Cycle 18:52:15: 0 decode(s) found, elapsed=9 ms.
+2026-06-19 20:52:30.125 +02:00 [INF] Cycle 18:52:15: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:52:31.945 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:36.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:41.944 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:45.085 +02:00 [DBG] Window emitted (180000 samples, cycle 18:52:30).
+2026-06-19 20:52:45.085 +02:00 [DBG] Starting decode for cycle 18:52:30; pcm = 180000 samples, RMS = 2.010E-001.
+2026-06-19 20:52:45.129 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 0 decoded.
+2026-06-19 20:52:45.129 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:52:45.129 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=17 meanAbsLLR=3.779 prenormVar=33.8764
+2026-06-19 20:52:45.129 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.848 prenormVar=19.7215
+2026-06-19 20:52:45.129 +02:00 [INF] Cycle 18:52:30: 0 decode(s) found, elapsed=44 ms.
+2026-06-19 20:52:45.130 +02:00 [INF] Cycle 18:52:30: noise_floor=-53.0 dB (waterfall histogram median).
+2026-06-19 20:52:46.946 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:51.957 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:52:56.957 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:00.118 +02:00 [DBG] Window emitted (180000 samples, cycle 18:52:45).
+2026-06-19 20:53:00.118 +02:00 [DBG] Starting decode for cycle 18:52:45; pcm = 180000 samples, RMS = 1.869E-001.
+2026-06-19 20:53:00.166 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 22 candidates found, 0 decoded.
+2026-06-19 20:53:00.166 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:53:00.166 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=22 meanAbsLLR=3.877 prenormVar=51.3569
+2026-06-19 20:53:00.166 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.869 prenormVar=23.2185
+2026-06-19 20:53:00.166 +02:00 [INF] Cycle 18:52:45: 0 decode(s) found, elapsed=47 ms.
+2026-06-19 20:53:00.167 +02:00 [INF] Cycle 18:52:45: noise_floor=-52.5 dB (waterfall histogram median).
+2026-06-19 20:53:01.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:06.945 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:11.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:15.098 +02:00 [DBG] Window emitted (180000 samples, cycle 18:53:00).
+2026-06-19 20:53:15.098 +02:00 [DBG] Starting decode for cycle 18:53:00; pcm = 180000 samples, RMS = 1.943E-001.
+2026-06-19 20:53:15.141 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 15 candidates found, 0 decoded.
+2026-06-19 20:53:15.141 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:53:15.141 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=15 meanAbsLLR=3.657 prenormVar=45.3502
+2026-06-19 20:53:15.141 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.853 prenormVar=19.2171
+2026-06-19 20:53:15.141 +02:00 [INF] Cycle 18:53:00: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 20:53:15.142 +02:00 [INF] Cycle 18:53:00: noise_floor=-53.0 dB (waterfall histogram median).
+2026-06-19 20:53:16.946 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:21.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:26.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:30.076 +02:00 [DBG] Window emitted (180000 samples, cycle 18:53:15).
+2026-06-19 20:53:30.076 +02:00 [DBG] Starting decode for cycle 18:53:15; pcm = 180000 samples, RMS = 2.775E-002.
+2026-06-19 20:53:30.087 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:53:30.087 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 48 candidates found, 0 decoded.
+2026-06-19 20:53:30.087 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:53:30.087 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=8 meanAbsLLR=0.481 prenormVar=0.0025
+2026-06-19 20:53:30.087 +02:00 [INF] Cycle 18:53:15: 0 decode(s) found, elapsed=10 ms.
+2026-06-19 20:53:30.088 +02:00 [INF] Cycle 18:53:15: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:53:31.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:36.947 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:41.955 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:45.066 +02:00 [DBG] Window emitted (180000 samples, cycle 18:53:30).
+2026-06-19 20:53:45.066 +02:00 [DBG] Starting decode for cycle 18:53:30; pcm = 180000 samples, RMS = 1.949E-001.
+2026-06-19 20:53:45.109 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 0 decoded.
+2026-06-19 20:53:45.109 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:53:45.109 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.768 prenormVar=28.6898
+2026-06-19 20:53:45.109 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.846 prenormVar=20.3364
+2026-06-19 20:53:45.109 +02:00 [INF] Cycle 18:53:30: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 20:53:45.110 +02:00 [INF] Cycle 18:53:30: noise_floor=-53.0 dB (waterfall histogram median).
+2026-06-19 20:53:46.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:51.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:53:56.952 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:00.062 +02:00 [DBG] Window emitted (180000 samples, cycle 18:53:45).
+2026-06-19 20:54:00.063 +02:00 [DBG] Starting decode for cycle 18:53:45; pcm = 180000 samples, RMS = 2.029E-001.
+2026-06-19 20:54:00.106 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 0 decoded.
+2026-06-19 20:54:00.106 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:54:00.106 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=20 meanAbsLLR=3.744 prenormVar=37.5760
+2026-06-19 20:54:00.106 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.865 prenormVar=22.5312
+2026-06-19 20:54:00.106 +02:00 [INF] Cycle 18:53:45: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 20:54:00.106 +02:00 [INF] Cycle 18:53:45: noise_floor=-52.5 dB (waterfall histogram median).
+2026-06-19 20:54:01.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:06.957 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:11.957 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:15.112 +02:00 [DBG] Window emitted (180000 samples, cycle 18:54:00).
+2026-06-19 20:54:15.113 +02:00 [DBG] Starting decode for cycle 18:54:00; pcm = 180000 samples, RMS = 1.983E-001.
+2026-06-19 20:54:15.156 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 18 candidates found, 0 decoded.
+2026-06-19 20:54:15.156 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:54:15.156 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=18 meanAbsLLR=3.652 prenormVar=33.4446
+2026-06-19 20:54:15.156 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.864 prenormVar=19.0635
+2026-06-19 20:54:15.156 +02:00 [INF] Cycle 18:54:00: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 20:54:15.157 +02:00 [INF] Cycle 18:54:00: noise_floor=-53.0 dB (waterfall histogram median).
+2026-06-19 20:54:16.947 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:21.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:26.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:30.105 +02:00 [DBG] Window emitted (180000 samples, cycle 18:54:15).
+2026-06-19 20:54:30.106 +02:00 [DBG] Starting decode for cycle 18:54:15; pcm = 180000 samples, RMS = 2.615E-002.
+2026-06-19 20:54:30.116 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:54:30.116 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 35 candidates found, 0 decoded.
+2026-06-19 20:54:30.116 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:54:30.116 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=8 meanAbsLLR=0.519 prenormVar=0.0028
+2026-06-19 20:54:30.116 +02:00 [INF] Cycle 18:54:15: 0 decode(s) found, elapsed=10 ms.
+2026-06-19 20:54:30.117 +02:00 [INF] Cycle 18:54:15: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:54:31.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:36.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:41.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:45.076 +02:00 [DBG] Window emitted (180000 samples, cycle 18:54:30).
+2026-06-19 20:54:45.076 +02:00 [DBG] Starting decode for cycle 18:54:30; pcm = 180000 samples, RMS = 1.930E-001.
+2026-06-19 20:54:45.119 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 16 candidates found, 0 decoded.
+2026-06-19 20:54:45.119 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:54:45.119 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.876 prenormVar=55.5002
+2026-06-19 20:54:45.119 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.837 prenormVar=20.5336
+2026-06-19 20:54:45.119 +02:00 [INF] Cycle 18:54:30: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 20:54:45.120 +02:00 [INF] Cycle 18:54:30: noise_floor=-53.0 dB (waterfall histogram median).
+2026-06-19 20:54:46.954 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:51.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:54:56.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:00.105 +02:00 [DBG] Window emitted (180000 samples, cycle 18:54:45).
+2026-06-19 20:55:00.106 +02:00 [DBG] Starting decode for cycle 18:54:45; pcm = 180000 samples, RMS = 1.973E-001.
+2026-06-19 20:55:00.150 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 0 decoded.
+2026-06-19 20:55:00.150 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:55:00.150 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.751 prenormVar=42.1257
+2026-06-19 20:55:00.150 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.876 prenormVar=22.6872
+2026-06-19 20:55:00.150 +02:00 [INF] Cycle 18:54:45: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 20:55:00.151 +02:00 [INF] Cycle 18:54:45: noise_floor=-52.5 dB (waterfall histogram median).
+2026-06-19 20:55:01.956 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:06.956 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:11.945 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:15.087 +02:00 [DBG] Window emitted (180000 samples, cycle 18:55:00).
+2026-06-19 20:55:15.087 +02:00 [DBG] Starting decode for cycle 18:55:00; pcm = 180000 samples, RMS = 1.886E-001.
+2026-06-19 20:55:15.134 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 15 candidates found, 0 decoded.
+2026-06-19 20:55:15.134 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:55:15.134 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=15 meanAbsLLR=3.628 prenormVar=37.3157
+2026-06-19 20:55:15.134 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.874 prenormVar=21.4087
+2026-06-19 20:55:15.134 +02:00 [INF] Cycle 18:55:00: 0 decode(s) found, elapsed=46 ms.
+2026-06-19 20:55:15.135 +02:00 [INF] Cycle 18:55:00: noise_floor=-53.0 dB (waterfall histogram median).
+2026-06-19 20:55:16.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:21.946 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:26.950 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:30.080 +02:00 [DBG] Window emitted (180000 samples, cycle 18:55:15).
+2026-06-19 20:55:30.080 +02:00 [DBG] Starting decode for cycle 18:55:15; pcm = 180000 samples, RMS = 2.339E-002.
+2026-06-19 20:55:30.092 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 20:55:30.092 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 80 candidates found, 0 decoded.
+2026-06-19 20:55:30.092 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 20:55:30.092 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=4 meanAbsLLR=0.372 prenormVar=0.0014
+2026-06-19 20:55:30.092 +02:00 [INF] Cycle 18:55:15: 0 decode(s) found, elapsed=11 ms.
+2026-06-19 20:55:30.092 +02:00 [INF] Cycle 18:55:15: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 20:55:31.946 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:36.952 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:41.951 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:45.119 +02:00 [DBG] Window emitted (180000 samples, cycle 18:55:30).
+2026-06-19 20:55:45.120 +02:00 [DBG] Starting decode for cycle 18:55:30; pcm = 180000 samples, RMS = 1.734E-001.
+2026-06-19 20:55:45.163 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 0 decoded.
+2026-06-19 20:55:45.163 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 20:55:45.163 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=20 meanAbsLLR=3.841 prenormVar=37.5994
+2026-06-19 20:55:45.163 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.886 prenormVar=22.2041
+2026-06-19 20:55:45.163 +02:00 [INF] Cycle 18:55:30: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 20:55:45.164 +02:00 [INF] Cycle 18:55:30: noise_floor=-52.5 dB (waterfall histogram median).
+2026-06-19 20:55:46.946 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:51.953 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:55:56.958 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:56:00.102 +02:00 [DBG] Window emitted (180000 samples, cycle 18:55:45).
+2026-06-19 20:56:00.102 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 20:56:01.949 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:56:06.943 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 20:56:08.500 +02:00 [INF] Application is shutting down...
+2026-06-19 20:56:08.500 +02:00 [DBG] Hosting stopping
+2026-06-19 20:56:08.500 +02:00 [INF] Application stopping — aborting WebSocket connections and shutting down capture pipeline.
+2026-06-19 20:56:08.501 +02:00 [DBG] CycleFramer cancelled (device restart or shutdown).
+2026-06-19 20:56:08.501 +02:00 [INF] Capture session unblocked on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}' (ct=true, staCts=true).
+2026-06-19 20:56:08.502 +02:00 [INF] Audio capture cleanup starting on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 20:56:08.502 +02:00 [INF] Stopping capture on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 20:56:08.557 +02:00 [INF] RecordingStopped (graceful) on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 20:56:08.559 +02:00 [INF] Audio capture cleanup complete on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 20:56:08.559 +02:00 [INF] Capture stopped on device '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}' (operator-stopped). Chunks received: 14189.

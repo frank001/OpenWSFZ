@@ -1,0 +1,1908 @@
+2026-06-19 23:38:19.690 +02:00 [INF] Config: platform default → C:\Users\Frank\AppData\Roaming\OpenWSFZ\config.json
+2026-06-19 23:38:19.700 +02:00 [INF] Log level: "Information"
+2026-06-19 23:38:19.777 +02:00 [DBG] Hosting starting
+2026-06-19 23:38:19.781 +02:00 [INF] QsoAnswererService started; initial state: "Idle".
+2026-06-19 23:38:19.787 +02:00 [DBG] Middleware configuration started with options: {AllowedHosts = *, AllowEmptyHosts = True, IncludeFailureMessage = True}
+2026-06-19 23:38:19.789 +02:00 [DBG] Wildcard detected, all requests with hosts will be allowed.
+2026-06-19 23:38:19.797 +02:00 [INF] Now listening on: http://127.0.0.1:8080
+2026-06-19 23:38:19.797 +02:00 [DBG] Loaded hosting startup assembly OpenWSFZ.Daemon
+2026-06-19 23:38:19.797 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-06-19 23:38:19.797 +02:00 [INF] Hosting environment: Development
+2026-06-19 23:38:19.798 +02:00 [INF] Content root path: D:\Projects\claude\OpenWSFZ
+2026-06-19 23:38:19.798 +02:00 [INF] OpenWSFZ started on port 8080.
+2026-06-19 23:38:19.799 +02:00 [INF] Starting FT8 pipeline for device '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 23:38:19.801 +02:00 [INF] Starting audio capture on device '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 23:38:19.801 +02:00 [DBG] Hosting started
+2026-06-19 23:38:19.803 +02:00 [INF] CycleFramer started; leading silence = 57624 samples (4.802 s), cycle start = 21:38:15.
+2026-06-19 23:38:19.848 +02:00 [INF] WASAPI device opened: '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}' ('CABLE Output (VB-Audio Virtual Cable)') — WaveFormat=48000 Hz, 32-bit, 2 ch, Encoding="IeeeFloat"
+2026-06-19 23:38:19.851 +02:00 [INF] Resampling pipeline ready on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}': channelMode=stereo→mono(left), inputRate=48000 Hz → 12000 Hz
+2026-06-19 23:38:19.852 +02:00 [DBG] Starting capture on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 23:38:19.862 +02:00 [DBG] Capture started on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-19 23:38:25.374 +02:00 [DBG] Connection id "0HNME9CC00NKS" accepted.
+2026-06-19 23:38:25.374 +02:00 [DBG] Connection id "0HNME9CC00NKS" started.
+2026-06-19 23:38:25.391 +02:00 [INF] Request starting HTTP/1.1 GET http://127.0.0.1:8080/ - null null
+2026-06-19 23:38:25.393 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:38:25.428 +02:00 [DBG] No candidates found for the request path '/'
+2026-06-19 23:38:25.428 +02:00 [DBG] Request did not match any endpoints
+2026-06-19 23:38:25.430 +02:00 [VRB] Range header's value is empty.
+2026-06-19 23:38:25.431 +02:00 [INF] The file /index.html was not modified
+2026-06-19 23:38:25.433 +02:00 [DBG] Handled. Status code: 304 File: /index.html
+2026-06-19 23:38:25.435 +02:00 [DBG] Connection id "0HNME9CC00NKS" completed keep alive response.
+2026-06-19 23:38:25.435 +02:00 [INF] Request finished HTTP/1.1 GET http://127.0.0.1:8080/index.html - 304 null text/html 45.4071ms
+2026-06-19 23:38:25.466 +02:00 [DBG] Connection id "0HNME9CC00NKT" accepted.
+2026-06-19 23:38:25.466 +02:00 [DBG] Connection id "0HNME9CC00NKT" started.
+2026-06-19 23:38:25.466 +02:00 [INF] Request starting HTTP/1.1 GET http://127.0.0.1:8080/api/v1/config - null null
+2026-06-19 23:38:25.467 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:38:25.466 +02:00 [INF] Request starting HTTP/1.1 GET http://127.0.0.1:8080/api/v1/frequencies - null null
+2026-06-19 23:38:25.468 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:38:25.469 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/frequencies'
+2026-06-19 23:38:25.469 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/config'
+2026-06-19 23:38:25.469 +02:00 [DBG] Request matched endpoint 'HTTP: GET /api/v1/frequencies'
+2026-06-19 23:38:25.469 +02:00 [DBG] Request matched endpoint 'HTTP: GET /api/v1/config'
+2026-06-19 23:38:25.470 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:38:25.470 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:38:25.470 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:38:25.470 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:38:25.472 +02:00 [INF] Executing endpoint 'HTTP: GET /api/v1/config'
+2026-06-19 23:38:25.472 +02:00 [INF] Executing endpoint 'HTTP: GET /api/v1/frequencies'
+2026-06-19 23:38:25.476 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:38:25.476 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:38:25.479 +02:00 [INF] Writing value of type 'List`1' as Json.
+2026-06-19 23:38:25.481 +02:00 [INF] Executed endpoint 'HTTP: GET /api/v1/frequencies'
+2026-06-19 23:38:25.482 +02:00 [DBG] Connection id "0HNME9CC00NKT" completed keep alive response.
+2026-06-19 23:38:25.483 +02:00 [INF] Request finished HTTP/1.1 GET http://127.0.0.1:8080/api/v1/frequencies - 200 null application/json; charset=utf-8 16.6695ms
+2026-06-19 23:38:25.489 +02:00 [INF] Writing value of type 'AppConfig' as Json.
+2026-06-19 23:38:25.491 +02:00 [INF] Executed endpoint 'HTTP: GET /api/v1/config'
+2026-06-19 23:38:25.492 +02:00 [DBG] Connection id "0HNME9CC00NKS" completed keep alive response.
+2026-06-19 23:38:25.492 +02:00 [INF] Request finished HTTP/1.1 GET http://127.0.0.1:8080/api/v1/config - 200 null application/json; charset=utf-8 26.3594ms
+2026-06-19 23:38:30.117 +02:00 [DBG] Window emitted (180000 samples, cycle 21:38:15).
+2026-06-19 23:38:30.120 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 23:38:35.115 +02:00 [DBG] Connection id "0HNME9CC00NKU" accepted.
+2026-06-19 23:38:35.115 +02:00 [DBG] Connection id "0HNME9CC00NKU" started.
+2026-06-19 23:38:35.115 +02:00 [INF] Request starting HTTP/1.1 GET http://127.0.0.1:8080/api/v1/ws - null null
+2026-06-19 23:38:35.116 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:38:35.117 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/ws'
+2026-06-19 23:38:35.117 +02:00 [DBG] Request matched endpoint 'HTTP: GET /api/v1/ws'
+2026-06-19 23:38:35.118 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:38:35.118 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:38:35.118 +02:00 [INF] Executing endpoint 'HTTP: GET /api/v1/ws'
+2026-06-19 23:38:35.124 +02:00 [INF] WebSocket connection accepted.
+2026-06-19 23:38:40.129 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:38:45.106 +02:00 [DBG] Window emitted (180000 samples, cycle 21:38:30).
+2026-06-19 23:38:45.106 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 23:38:45.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:38:50.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:38:55.131 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:00.086 +02:00 [DBG] Window emitted (180000 samples, cycle 21:38:45).
+2026-06-19 23:39:00.086 +02:00 [INF] Cycle skipped — RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+2026-06-19 23:39:00.133 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:05.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:10.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:15.126 +02:00 [DBG] Window emitted (180000 samples, cycle 21:39:00).
+2026-06-19 23:39:15.126 +02:00 [DBG] Starting decode for cycle 21:39:00; pcm = 180000 samples, RMS = 3.233E-002.
+2026-06-19 23:39:15.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:15.157 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:39:15.157 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 47 candidates found, 0 decoded.
+2026-06-19 23:39:15.157 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:39:15.157 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=3 meanAbsLLR=0.372 prenormVar=0.0014
+2026-06-19 23:39:15.158 +02:00 [INF] Cycle 21:39:00: 0 decode(s) found, elapsed=30 ms.
+2026-06-19 23:39:15.158 +02:00 [INF] Cycle 21:39:00: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:39:20.132 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:25.130 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:30.101 +02:00 [DBG] Window emitted (180000 samples, cycle 21:39:15).
+2026-06-19 23:39:30.101 +02:00 [DBG] Starting decode for cycle 21:39:15; pcm = 180000 samples, RMS = 2.279E-001.
+2026-06-19 23:39:30.132 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:30.146 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 1 decoded.
+2026-06-19 23:39:30.146 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:39:30.146 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=13 meanAbsLLR=3.908 prenormVar=75.2451
+2026-06-19 23:39:30.146 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.932 prenormVar=36.0725
+2026-06-19 23:39:30.146 +02:00 [INF] Cycle 21:39:15: 1 decode(s) found, elapsed=43 ms.
+2026-06-19 23:39:30.146 +02:00 [INF] Cycle 21:39:15: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:39:30.149 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:39:30.155 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:39:30.155 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:39:30.157 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:39:30.163 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:39:30.164 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:39:30.165 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:39:35.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:40.133 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:42.808 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:39:42.808 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:39:42.808 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:39:42.809 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:39:42.809 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:39:45.093 +02:00 [DBG] Window emitted (180000 samples, cycle 21:39:30).
+2026-06-19 23:39:45.094 +02:00 [DBG] Starting decode for cycle 21:39:30; pcm = 180000 samples, RMS = 7.443E-002.
+2026-06-19 23:39:45.136 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 7 candidates found, 0 decoded.
+2026-06-19 23:39:45.136 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:39:45.136 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=7 meanAbsLLR=3.783 prenormVar=12.8107
+2026-06-19 23:39:45.136 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.882 prenormVar=12.7715
+2026-06-19 23:39:45.136 +02:00 [INF] Cycle 21:39:30: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 23:39:45.137 +02:00 [INF] Cycle 21:39:30: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-19 23:39:45.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:50.131 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:39:55.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:00.086 +02:00 [DBG] Window emitted (180000 samples, cycle 21:39:45).
+2026-06-19 23:40:00.086 +02:00 [DBG] Starting decode for cycle 21:39:45; pcm = 180000 samples, RMS = 1.751E-001.
+2026-06-19 23:40:00.129 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 21 candidates found, 1 decoded.
+2026-06-19 23:40:00.129 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:40:00.129 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=20 meanAbsLLR=3.836 prenormVar=55.5917
+2026-06-19 23:40:00.129 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=198 meanAbsLLR=3.908 prenormVar=19.2362
+2026-06-19 23:40:00.129 +02:00 [INF] Cycle 21:39:45: 2 decode(s) found, elapsed=42 ms.
+2026-06-19 23:40:00.130 +02:00 [INF] Cycle 21:39:45: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:40:00.131 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:00.132 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:40:00.132 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:40:00.132 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:40:00.138 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:40:00.138 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:40:00.138 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:40:04.755 +02:00 [DBG] Connection id "0HNME9CC00NKV" accepted.
+2026-06-19 23:40:04.755 +02:00 [DBG] Connection id "0HNME9CC00NKV" started.
+2026-06-19 23:40:04.756 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:40:04.757 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:40:04.757 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:40:04.757 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:40:04.757 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:40:04.757 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:40:04.757 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:40:04.759 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:40:04.760 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:40:04.765 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:40:04.765 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:40:04.766 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:40:04.767 +02:00 [DBG] Connection id "0HNME9CC00NKV" received FIN.
+2026-06-19 23:40:04.766 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 10.1855ms
+2026-06-19 23:40:04.768 +02:00 [DBG] Connection id "0HNME9CC00NKV" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:40:04.768 +02:00 [DBG] Connection id "0HNME9CC00NKV" disconnecting.
+2026-06-19 23:40:04.770 +02:00 [DBG] Connection id "0HNME9CC00NKV" stopped.
+2026-06-19 23:40:04.770 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:40:04.771 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:40:04.772 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:40:04.772 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:40:05.130 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:10.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:15.111 +02:00 [DBG] Window emitted (180000 samples, cycle 21:40:00).
+2026-06-19 23:40:15.112 +02:00 [DBG] Starting decode for cycle 21:40:00; pcm = 180000 samples, RMS = 6.897E-002.
+2026-06-19 23:40:15.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:15.154 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 0 decoded.
+2026-06-19 23:40:15.154 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:40:15.154 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=17 meanAbsLLR=3.889 prenormVar=13.0988
+2026-06-19 23:40:15.154 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.888 prenormVar=13.0455
+2026-06-19 23:40:15.154 +02:00 [INF] Cycle 21:40:00: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 23:40:15.155 +02:00 [INF] Cycle 21:40:00: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:40:20.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:21.253 +02:00 [DBG] Connection id "0HNME9CC00NKS" received FIN.
+2026-06-19 23:40:21.253 +02:00 [DBG] Connection id "0HNME9CC00NKT" received FIN.
+2026-06-19 23:40:21.253 +02:00 [DBG] Connection id "0HNME9CC00NKS" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:40:21.253 +02:00 [DBG] Connection id "0HNME9CC00NKT" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:40:21.253 +02:00 [DBG] Connection id "0HNME9CC00NKT" disconnecting.
+2026-06-19 23:40:21.253 +02:00 [DBG] Connection id "0HNME9CC00NKS" disconnecting.
+2026-06-19 23:40:21.254 +02:00 [DBG] Connection id "0HNME9CC00NKT" stopped.
+2026-06-19 23:40:21.254 +02:00 [DBG] Connection id "0HNME9CC00NKS" stopped.
+2026-06-19 23:40:25.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:30.090 +02:00 [DBG] Window emitted (180000 samples, cycle 21:40:15).
+2026-06-19 23:40:30.090 +02:00 [DBG] Starting decode for cycle 21:40:15; pcm = 180000 samples, RMS = 2.283E-001.
+2026-06-19 23:40:30.133 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 1 decoded.
+2026-06-19 23:40:30.133 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:40:30.133 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=13 meanAbsLLR=3.868 prenormVar=40.4142
+2026-06-19 23:40:30.133 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.913 prenormVar=22.3244
+2026-06-19 23:40:30.133 +02:00 [INF] Cycle 21:40:15: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:40:30.134 +02:00 [INF] Cycle 21:40:15: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:40:30.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:30.135 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:40:30.137 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:40:30.137 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:40:30.137 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:40:30.142 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:40:30.142 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:40:30.142 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:40:35.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:40.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:42.808 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:40:42.808 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:40:42.808 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:40:42.808 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:40:42.808 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:40:45.116 +02:00 [DBG] Window emitted (180000 samples, cycle 21:40:30).
+2026-06-19 23:40:45.117 +02:00 [DBG] Starting decode for cycle 21:40:30; pcm = 180000 samples, RMS = 7.354E-002.
+2026-06-19 23:40:45.131 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:45.160 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 11 candidates found, 0 decoded.
+2026-06-19 23:40:45.160 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:40:45.160 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=11 meanAbsLLR=3.842 prenormVar=12.1925
+2026-06-19 23:40:45.160 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.857 prenormVar=12.6254
+2026-06-19 23:40:45.160 +02:00 [INF] Cycle 21:40:30: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 23:40:45.161 +02:00 [INF] Cycle 21:40:30: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:40:50.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:40:55.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:00.093 +02:00 [DBG] Window emitted (180000 samples, cycle 21:40:45).
+2026-06-19 23:41:00.094 +02:00 [DBG] Starting decode for cycle 21:40:45; pcm = 180000 samples, RMS = 1.967E-001.
+2026-06-19 23:41:00.137 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 23 candidates found, 1 decoded.
+2026-06-19 23:41:00.137 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:41:00.137 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=22 meanAbsLLR=3.773 prenormVar=35.3922
+2026-06-19 23:41:00.137 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.878 prenormVar=17.3015
+2026-06-19 23:41:00.137 +02:00 [INF] Cycle 21:40:45: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:41:00.138 +02:00 [INF] Cycle 21:40:45: noise_floor=-52.0 dB (waterfall histogram median).
+2026-06-19 23:41:00.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:00.139 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:41:00.140 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:41:00.140 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:41:00.144 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:41:00.144 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:41:00.145 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:41:05.146 +02:00 [DBG] Connection id "0HNME9CC00NL0" accepted.
+2026-06-19 23:41:05.146 +02:00 [DBG] Connection id "0HNME9CC00NL0" started.
+2026-06-19 23:41:05.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:05.146 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:41:05.147 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:41:05.148 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:41:05.148 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:41:05.148 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:41:05.148 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:41:05.148 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:41:05.149 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:41:05.149 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:41:05.161 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:41:05.161 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:41:05.162 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:41:05.163 +02:00 [DBG] Connection id "0HNME9CC00NL0" received FIN.
+2026-06-19 23:41:05.163 +02:00 [DBG] Connection id "0HNME9CC00NL0" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:41:05.163 +02:00 [DBG] Connection id "0HNME9CC00NL0" disconnecting.
+2026-06-19 23:41:05.163 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 16.3486ms
+2026-06-19 23:41:05.164 +02:00 [DBG] Connection id "0HNME9CC00NL0" stopped.
+2026-06-19 23:41:05.177 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:41:05.177 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:41:05.178 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:41:05.178 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:41:10.133 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:15.128 +02:00 [DBG] Window emitted (180000 samples, cycle 21:41:00).
+2026-06-19 23:41:15.129 +02:00 [DBG] Starting decode for cycle 21:41:00; pcm = 180000 samples, RMS = 7.390E-002.
+2026-06-19 23:41:15.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:15.171 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 8 candidates found, 0 decoded.
+2026-06-19 23:41:15.171 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:41:15.171 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=8 meanAbsLLR=3.798 prenormVar=12.6290
+2026-06-19 23:41:15.171 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.864 prenormVar=12.8861
+2026-06-19 23:41:15.171 +02:00 [INF] Cycle 21:41:00: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:41:15.172 +02:00 [INF] Cycle 21:41:00: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:41:20.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:25.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:30.121 +02:00 [DBG] Window emitted (180000 samples, cycle 21:41:15).
+2026-06-19 23:41:30.122 +02:00 [DBG] Starting decode for cycle 21:41:15; pcm = 180000 samples, RMS = 3.540E-002.
+2026-06-19 23:41:30.133 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:41:30.133 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:41:30.133 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:41:30.133 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=16 meanAbsLLR=0.509 prenormVar=0.0970
+2026-06-19 23:41:30.133 +02:00 [INF] Cycle 21:41:15: 0 decode(s) found, elapsed=11 ms.
+2026-06-19 23:41:30.134 +02:00 [INF] Cycle 21:41:15: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:41:30.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:35.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:40.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:45.110 +02:00 [DBG] Window emitted (180000 samples, cycle 21:41:30).
+2026-06-19 23:41:45.111 +02:00 [DBG] Starting decode for cycle 21:41:30; pcm = 180000 samples, RMS = 2.372E-001.
+2026-06-19 23:41:45.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:45.153 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 22 candidates found, 1 decoded.
+2026-06-19 23:41:45.153 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:41:45.153 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=18 meanAbsLLR=3.986 prenormVar=66.5588
+2026-06-19 23:41:45.153 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.919 prenormVar=28.8441
+2026-06-19 23:41:45.153 +02:00 [INF] Cycle 21:41:30: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:41:45.154 +02:00 [INF] Cycle 21:41:30: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:41:45.155 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:41:45.156 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:41:45.156 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:41:45.156 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:41:45.161 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:41:45.161 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:41:45.162 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:41:50.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:55.132 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:41:57.811 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:41:57.811 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:41:57.811 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:41:57.811 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:41:57.811 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:42:00.095 +02:00 [DBG] Window emitted (180000 samples, cycle 21:41:45).
+2026-06-19 23:42:00.095 +02:00 [DBG] Starting decode for cycle 21:41:45; pcm = 180000 samples, RMS = 6.432E-002.
+2026-06-19 23:42:00.137 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 10 candidates found, 0 decoded.
+2026-06-19 23:42:00.137 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:42:00.137 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=10 meanAbsLLR=3.917 prenormVar=13.2455
+2026-06-19 23:42:00.137 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.884 prenormVar=12.4939
+2026-06-19 23:42:00.137 +02:00 [INF] Cycle 21:41:45: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:42:00.138 +02:00 [INF] Cycle 21:41:45: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-19 23:42:00.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:05.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:10.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:15.083 +02:00 [DBG] Window emitted (180000 samples, cycle 21:42:00).
+2026-06-19 23:42:15.084 +02:00 [DBG] Starting decode for cycle 21:42:00; pcm = 180000 samples, RMS = 1.893E-001.
+2026-06-19 23:42:15.127 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 22 candidates found, 1 decoded.
+2026-06-19 23:42:15.127 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:42:15.127 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=21 meanAbsLLR=3.887 prenormVar=59.1238
+2026-06-19 23:42:15.127 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.914 prenormVar=17.6246
+2026-06-19 23:42:15.127 +02:00 [INF] Cycle 21:42:00: 2 decode(s) found, elapsed=42 ms.
+2026-06-19 23:42:15.127 +02:00 [INF] Cycle 21:42:00: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:42:15.128 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:42:15.129 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:42:15.129 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:42:15.134 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:42:15.134 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:42:15.135 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:42:15.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:19.742 +02:00 [DBG] Connection id "0HNME9CC00NL1" accepted.
+2026-06-19 23:42:19.742 +02:00 [DBG] Connection id "0HNME9CC00NL1" started.
+2026-06-19 23:42:19.742 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:42:19.743 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:42:19.743 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:42:19.743 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:42:19.743 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:42:19.743 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:42:19.743 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:42:19.744 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:42:19.744 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:42:19.751 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:42:19.752 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:42:19.752 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:42:19.753 +02:00 [DBG] Connection id "0HNME9CC00NL1" received FIN.
+2026-06-19 23:42:19.753 +02:00 [DBG] Connection id "0HNME9CC00NL1" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:42:19.753 +02:00 [DBG] Connection id "0HNME9CC00NL1" disconnecting.
+2026-06-19 23:42:19.753 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 10.7863ms
+2026-06-19 23:42:19.754 +02:00 [DBG] Connection id "0HNME9CC00NL1" stopped.
+2026-06-19 23:42:19.757 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:42:19.757 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:42:19.758 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:42:19.758 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:42:20.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:25.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:30.129 +02:00 [DBG] Window emitted (180000 samples, cycle 21:42:15).
+2026-06-19 23:42:30.129 +02:00 [DBG] Starting decode for cycle 21:42:15; pcm = 180000 samples, RMS = 7.381E-002.
+2026-06-19 23:42:30.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:30.173 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 12 candidates found, 0 decoded.
+2026-06-19 23:42:30.173 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:42:30.173 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=12 meanAbsLLR=3.848 prenormVar=12.3855
+2026-06-19 23:42:30.173 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.875 prenormVar=12.7329
+2026-06-19 23:42:30.173 +02:00 [INF] Cycle 21:42:15: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 23:42:30.174 +02:00 [INF] Cycle 21:42:15: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:42:35.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:40.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:45.102 +02:00 [DBG] Window emitted (180000 samples, cycle 21:42:30).
+2026-06-19 23:42:45.103 +02:00 [DBG] Starting decode for cycle 21:42:30; pcm = 180000 samples, RMS = 2.296E-001.
+2026-06-19 23:42:45.133 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:45.146 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 15 candidates found, 1 decoded.
+2026-06-19 23:42:45.146 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:42:45.146 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=11 meanAbsLLR=3.848 prenormVar=62.3975
+2026-06-19 23:42:45.146 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.908 prenormVar=23.0472
+2026-06-19 23:42:45.146 +02:00 [INF] Cycle 21:42:30: 1 decode(s) found, elapsed=43 ms.
+2026-06-19 23:42:45.147 +02:00 [INF] Cycle 21:42:30: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:42:45.148 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:42:45.149 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:42:45.149 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:42:45.149 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:42:45.154 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:42:45.154 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:42:45.155 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:42:50.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:55.133 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:42:57.814 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:42:57.814 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:42:57.814 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:42:57.814 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:42:57.814 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:43:00.095 +02:00 [DBG] Window emitted (180000 samples, cycle 21:42:45).
+2026-06-19 23:43:00.096 +02:00 [DBG] Starting decode for cycle 21:42:45; pcm = 180000 samples, RMS = 6.994E-002.
+2026-06-19 23:43:00.141 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 16 candidates found, 0 decoded.
+2026-06-19 23:43:00.141 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:43:00.141 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.861 prenormVar=12.7784
+2026-06-19 23:43:00.141 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.879 prenormVar=12.9269
+2026-06-19 23:43:00.141 +02:00 [INF] Cycle 21:42:45: 0 decode(s) found, elapsed=44 ms.
+2026-06-19 23:43:00.142 +02:00 [INF] Cycle 21:42:45: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:43:00.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:05.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:10.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:15.075 +02:00 [DBG] Window emitted (180000 samples, cycle 21:43:00).
+2026-06-19 23:43:15.075 +02:00 [DBG] Starting decode for cycle 21:43:00; pcm = 180000 samples, RMS = 1.876E-001.
+2026-06-19 23:43:15.119 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 24 candidates found, 1 decoded.
+2026-06-19 23:43:15.119 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:43:15.119 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=23 meanAbsLLR=3.890 prenormVar=54.5121
+2026-06-19 23:43:15.119 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.910 prenormVar=18.0577
+2026-06-19 23:43:15.119 +02:00 [INF] Cycle 21:43:00: 2 decode(s) found, elapsed=43 ms.
+2026-06-19 23:43:15.120 +02:00 [INF] Cycle 21:43:00: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:43:15.121 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:43:15.122 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:43:15.122 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:43:15.127 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:43:15.127 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:43:15.128 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:43:15.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:20.135 +02:00 [DBG] Connection id "0HNME9CC00NL2" accepted.
+2026-06-19 23:43:20.135 +02:00 [DBG] Connection id "0HNME9CC00NL2" started.
+2026-06-19 23:43:20.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:20.135 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:43:20.137 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:43:20.137 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:43:20.137 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:43:20.137 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:43:20.137 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:43:20.137 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:43:20.137 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:43:20.138 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:43:20.144 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:43:20.144 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:43:20.145 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:43:20.145 +02:00 [DBG] Connection id "0HNME9CC00NL2" received FIN.
+2026-06-19 23:43:20.145 +02:00 [DBG] Connection id "0HNME9CC00NL2" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:43:20.145 +02:00 [DBG] Connection id "0HNME9CC00NL2" disconnecting.
+2026-06-19 23:43:20.145 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 9.9205ms
+2026-06-19 23:43:20.147 +02:00 [DBG] Connection id "0HNME9CC00NL2" stopped.
+2026-06-19 23:43:20.150 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:43:20.150 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:43:20.151 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:43:20.151 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:43:25.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:30.107 +02:00 [DBG] Window emitted (180000 samples, cycle 21:43:15).
+2026-06-19 23:43:30.107 +02:00 [DBG] Starting decode for cycle 21:43:15; pcm = 180000 samples, RMS = 6.906E-002.
+2026-06-19 23:43:30.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:30.151 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 15 candidates found, 0 decoded.
+2026-06-19 23:43:30.151 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:43:30.151 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=15 meanAbsLLR=3.849 prenormVar=11.8473
+2026-06-19 23:43:30.151 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.878 prenormVar=12.7556
+2026-06-19 23:43:30.151 +02:00 [INF] Cycle 21:43:15: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 23:43:30.152 +02:00 [INF] Cycle 21:43:15: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:43:35.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:40.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:45.101 +02:00 [DBG] Window emitted (180000 samples, cycle 21:43:30).
+2026-06-19 23:43:45.102 +02:00 [DBG] Starting decode for cycle 21:43:30; pcm = 180000 samples, RMS = 2.901E-002.
+2026-06-19 23:43:45.114 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:43:45.114 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:43:45.114 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:43:45.114 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=19 meanAbsLLR=0.526 prenormVar=0.0978
+2026-06-19 23:43:45.114 +02:00 [INF] Cycle 21:43:30: 0 decode(s) found, elapsed=11 ms.
+2026-06-19 23:43:45.115 +02:00 [INF] Cycle 21:43:30: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:43:45.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:50.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:43:55.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:00.127 +02:00 [DBG] Window emitted (180000 samples, cycle 21:43:45).
+2026-06-19 23:44:00.128 +02:00 [DBG] Starting decode for cycle 21:43:45; pcm = 180000 samples, RMS = 1.965E-001.
+2026-06-19 23:44:00.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:00.174 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 24 candidates found, 1 decoded.
+2026-06-19 23:44:00.174 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:44:00.174 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=20 meanAbsLLR=3.930 prenormVar=59.3222
+2026-06-19 23:44:00.174 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.909 prenormVar=30.0482
+2026-06-19 23:44:00.174 +02:00 [INF] Cycle 21:43:45: 1 decode(s) found, elapsed=46 ms.
+2026-06-19 23:44:00.174 +02:00 [INF] Cycle 21:43:45: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:44:00.176 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:44:00.178 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:44:00.178 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:44:00.178 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:44:00.183 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:44:00.183 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:44:00.184 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:44:05.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:10.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:12.836 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:44:12.837 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:44:12.837 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:44:12.837 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:44:12.837 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:44:15.108 +02:00 [DBG] Window emitted (180000 samples, cycle 21:44:00).
+2026-06-19 23:44:15.109 +02:00 [DBG] Starting decode for cycle 21:44:00; pcm = 180000 samples, RMS = 7.026E-002.
+2026-06-19 23:44:15.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:15.151 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 12 candidates found, 0 decoded.
+2026-06-19 23:44:15.151 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:44:15.151 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=12 meanAbsLLR=3.881 prenormVar=13.6402
+2026-06-19 23:44:15.151 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.875 prenormVar=12.5934
+2026-06-19 23:44:15.151 +02:00 [INF] Cycle 21:44:00: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 23:44:15.152 +02:00 [INF] Cycle 21:44:00: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-19 23:44:20.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:25.133 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:30.090 +02:00 [DBG] Window emitted (180000 samples, cycle 21:44:15).
+2026-06-19 23:44:30.091 +02:00 [DBG] Starting decode for cycle 21:44:15; pcm = 180000 samples, RMS = 1.921E-001.
+2026-06-19 23:44:30.133 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 16 candidates found, 1 decoded.
+2026-06-19 23:44:30.133 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:44:30.133 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=15 meanAbsLLR=3.858 prenormVar=62.8218
+2026-06-19 23:44:30.133 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.910 prenormVar=16.3705
+2026-06-19 23:44:30.133 +02:00 [INF] Cycle 21:44:15: 2 decode(s) found, elapsed=41 ms.
+2026-06-19 23:44:30.134 +02:00 [INF] Cycle 21:44:15: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:44:30.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:30.135 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:44:30.135 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:44:30.135 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:44:30.140 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:44:30.140 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:44:30.141 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:44:34.711 +02:00 [DBG] Connection id "0HNME9CC00NL3" accepted.
+2026-06-19 23:44:34.711 +02:00 [DBG] Connection id "0HNME9CC00NL3" started.
+2026-06-19 23:44:34.711 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:44:34.713 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:44:34.713 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:44:34.713 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:44:34.713 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:44:34.713 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:44:34.713 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:44:34.713 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:44:34.714 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:44:34.717 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:44:34.717 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:44:34.718 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:44:34.718 +02:00 [DBG] Connection id "0HNME9CC00NL3" received FIN.
+2026-06-19 23:44:34.718 +02:00 [DBG] Connection id "0HNME9CC00NL3" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:44:34.718 +02:00 [DBG] Connection id "0HNME9CC00NL3" disconnecting.
+2026-06-19 23:44:34.718 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 6.6969ms
+2026-06-19 23:44:34.719 +02:00 [DBG] Connection id "0HNME9CC00NL3" stopped.
+2026-06-19 23:44:34.726 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:44:34.726 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:44:34.727 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:44:34.727 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:44:35.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:40.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:45.130 +02:00 [DBG] Window emitted (180000 samples, cycle 21:44:30).
+2026-06-19 23:44:45.131 +02:00 [DBG] Starting decode for cycle 21:44:30; pcm = 180000 samples, RMS = 6.223E-002.
+2026-06-19 23:44:45.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:45.175 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 0 decoded.
+2026-06-19 23:44:45.175 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:44:45.175 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=20 meanAbsLLR=3.841 prenormVar=12.5513
+2026-06-19 23:44:45.175 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.878 prenormVar=12.9370
+2026-06-19 23:44:45.175 +02:00 [INF] Cycle 21:44:30: 0 decode(s) found, elapsed=44 ms.
+2026-06-19 23:44:45.176 +02:00 [INF] Cycle 21:44:30: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:44:50.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:44:55.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:00.124 +02:00 [DBG] Window emitted (180000 samples, cycle 21:44:45).
+2026-06-19 23:45:00.124 +02:00 [DBG] Starting decode for cycle 21:44:45; pcm = 180000 samples, RMS = 2.351E-001.
+2026-06-19 23:45:00.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:00.169 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 13 candidates found, 1 decoded.
+2026-06-19 23:45:00.169 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:45:00.169 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=9 meanAbsLLR=3.928 prenormVar=67.1652
+2026-06-19 23:45:00.169 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.924 prenormVar=26.5660
+2026-06-19 23:45:00.169 +02:00 [INF] Cycle 21:44:45: 1 decode(s) found, elapsed=44 ms.
+2026-06-19 23:45:00.170 +02:00 [INF] Cycle 21:44:45: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:45:00.171 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:45:00.172 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:45:00.172 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:45:00.172 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:45:00.177 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:45:00.177 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:45:00.177 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:45:05.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:10.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:12.841 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:45:12.841 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:45:12.841 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:45:12.841 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:45:12.841 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:45:15.098 +02:00 [DBG] Window emitted (180000 samples, cycle 21:45:00).
+2026-06-19 23:45:15.098 +02:00 [DBG] Starting decode for cycle 21:45:00; pcm = 180000 samples, RMS = 7.234E-002.
+2026-06-19 23:45:15.141 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 8 candidates found, 0 decoded.
+2026-06-19 23:45:15.141 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:45:15.141 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=8 meanAbsLLR=3.797 prenormVar=13.6619
+2026-06-19 23:45:15.141 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.864 prenormVar=12.5258
+2026-06-19 23:45:15.141 +02:00 [INF] Cycle 21:45:00: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 23:45:15.141 +02:00 [INF] Cycle 21:45:00: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:45:15.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:20.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:25.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:30.089 +02:00 [DBG] Window emitted (180000 samples, cycle 21:45:15).
+2026-06-19 23:45:30.089 +02:00 [DBG] Starting decode for cycle 21:45:15; pcm = 180000 samples, RMS = 1.792E-001.
+2026-06-19 23:45:30.132 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 1 decoded.
+2026-06-19 23:45:30.132 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:45:30.132 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.989 prenormVar=70.6286
+2026-06-19 23:45:30.132 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.895 prenormVar=18.1001
+2026-06-19 23:45:30.132 +02:00 [INF] Cycle 21:45:15: 2 decode(s) found, elapsed=42 ms.
+2026-06-19 23:45:30.132 +02:00 [INF] Cycle 21:45:15: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:45:30.133 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:45:30.134 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:45:30.134 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:45:30.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:30.138 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:45:30.138 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:45:30.139 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:45:35.140 +02:00 [DBG] Connection id "0HNME9CC00NL4" accepted.
+2026-06-19 23:45:35.140 +02:00 [DBG] Connection id "0HNME9CC00NL4" started.
+2026-06-19 23:45:35.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:35.140 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:45:35.141 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:45:35.141 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:45:35.141 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:45:35.141 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:45:35.141 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:45:35.141 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:45:35.141 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:45:35.142 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:45:35.145 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:45:35.145 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:45:35.145 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:45:35.146 +02:00 [DBG] Connection id "0HNME9CC00NL4" received FIN.
+2026-06-19 23:45:35.146 +02:00 [DBG] Connection id "0HNME9CC00NL4" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:45:35.146 +02:00 [DBG] Connection id "0HNME9CC00NL4" disconnecting.
+2026-06-19 23:45:35.146 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 5.9095ms
+2026-06-19 23:45:35.147 +02:00 [DBG] Connection id "0HNME9CC00NL4" stopped.
+2026-06-19 23:45:35.155 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:45:35.155 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:45:35.155 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:45:35.156 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:45:40.133 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:45.078 +02:00 [DBG] Window emitted (180000 samples, cycle 21:45:30).
+2026-06-19 23:45:45.079 +02:00 [DBG] Starting decode for cycle 21:45:30; pcm = 180000 samples, RMS = 6.697E-002.
+2026-06-19 23:45:45.123 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 12 candidates found, 0 decoded.
+2026-06-19 23:45:45.123 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:45:45.123 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=12 meanAbsLLR=3.814 prenormVar=12.6594
+2026-06-19 23:45:45.123 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.885 prenormVar=12.8062
+2026-06-19 23:45:45.123 +02:00 [INF] Cycle 21:45:30: 0 decode(s) found, elapsed=44 ms.
+2026-06-19 23:45:45.124 +02:00 [INF] Cycle 21:45:30: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:45:45.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:50.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:45:55.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:00.123 +02:00 [DBG] Window emitted (180000 samples, cycle 21:45:45).
+2026-06-19 23:46:00.124 +02:00 [DBG] Starting decode for cycle 21:45:45; pcm = 180000 samples, RMS = 3.324E-002.
+2026-06-19 23:46:00.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:00.141 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:46:00.141 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:46:00.141 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:46:00.141 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=84 meanAbsLLR=0.591 prenormVar=0.0294
+2026-06-19 23:46:00.141 +02:00 [INF] Cycle 21:45:45: 0 decode(s) found, elapsed=16 ms.
+2026-06-19 23:46:00.141 +02:00 [INF] Cycle 21:45:45: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:46:05.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:10.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:15.119 +02:00 [DBG] Window emitted (180000 samples, cycle 21:46:00).
+2026-06-19 23:46:15.120 +02:00 [DBG] Starting decode for cycle 21:46:00; pcm = 180000 samples, RMS = 2.293E-001.
+2026-06-19 23:46:15.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:15.161 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 1 decoded.
+2026-06-19 23:46:15.161 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:46:15.161 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=13 meanAbsLLR=4.005 prenormVar=63.6181
+2026-06-19 23:46:15.161 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.925 prenormVar=25.7647
+2026-06-19 23:46:15.161 +02:00 [INF] Cycle 21:46:00: 1 decode(s) found, elapsed=41 ms.
+2026-06-19 23:46:15.162 +02:00 [INF] Cycle 21:46:00: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:46:15.163 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:46:15.164 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:46:15.164 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:46:15.164 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:46:15.169 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:46:15.169 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:46:15.170 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:46:20.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:25.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:27.817 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:46:27.818 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:46:27.818 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:46:27.818 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:46:27.818 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:46:30.120 +02:00 [DBG] Window emitted (180000 samples, cycle 21:46:15).
+2026-06-19 23:46:30.121 +02:00 [DBG] Starting decode for cycle 21:46:15; pcm = 180000 samples, RMS = 7.193E-002.
+2026-06-19 23:46:30.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:30.163 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 6 candidates found, 0 decoded.
+2026-06-19 23:46:30.163 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:46:30.163 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=6 meanAbsLLR=3.950 prenormVar=13.2080
+2026-06-19 23:46:30.163 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.869 prenormVar=12.8514
+2026-06-19 23:46:30.163 +02:00 [INF] Cycle 21:46:15: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:46:30.164 +02:00 [INF] Cycle 21:46:15: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-19 23:46:35.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:40.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:45.100 +02:00 [DBG] Window emitted (180000 samples, cycle 21:46:30).
+2026-06-19 23:46:45.100 +02:00 [DBG] Starting decode for cycle 21:46:30; pcm = 180000 samples, RMS = 1.602E-001.
+2026-06-19 23:46:45.144 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 24 candidates found, 1 decoded.
+2026-06-19 23:46:45.144 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:46:45.144 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=23 meanAbsLLR=3.887 prenormVar=48.5074
+2026-06-19 23:46:45.144 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=198 meanAbsLLR=3.926 prenormVar=18.2525
+2026-06-19 23:46:45.144 +02:00 [INF] Cycle 21:46:30: 2 decode(s) found, elapsed=43 ms.
+2026-06-19 23:46:45.145 +02:00 [INF] Cycle 21:46:30: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:46:45.146 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:46:45.146 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:46:45.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:45.146 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:46:45.152 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:46:45.152 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:46:45.153 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:46:49.726 +02:00 [DBG] Connection id "0HNME9CC00NL5" accepted.
+2026-06-19 23:46:49.726 +02:00 [DBG] Connection id "0HNME9CC00NL5" started.
+2026-06-19 23:46:49.726 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:46:49.727 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:46:49.727 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:46:49.727 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:46:49.727 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:46:49.727 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:46:49.727 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:46:49.728 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:46:49.728 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:46:49.739 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:46:49.739 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:46:49.740 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:46:49.740 +02:00 [DBG] Connection id "0HNME9CC00NL5" received FIN.
+2026-06-19 23:46:49.740 +02:00 [DBG] Connection id "0HNME9CC00NL5" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:46:49.740 +02:00 [DBG] Connection id "0HNME9CC00NL5" disconnecting.
+2026-06-19 23:46:49.740 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 13.7813ms
+2026-06-19 23:46:49.741 +02:00 [DBG] Connection id "0HNME9CC00NL5" stopped.
+2026-06-19 23:46:49.741 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:46:49.742 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:46:49.742 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:46:49.742 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:46:50.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:46:55.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:00.092 +02:00 [DBG] Window emitted (180000 samples, cycle 21:46:45).
+2026-06-19 23:47:00.093 +02:00 [DBG] Starting decode for cycle 21:46:45; pcm = 180000 samples, RMS = 6.591E-002.
+2026-06-19 23:47:00.135 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 7 candidates found, 0 decoded.
+2026-06-19 23:47:00.135 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:47:00.135 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=7 meanAbsLLR=3.893 prenormVar=13.0927
+2026-06-19 23:47:00.135 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.882 prenormVar=12.7270
+2026-06-19 23:47:00.135 +02:00 [INF] Cycle 21:46:45: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 23:47:00.136 +02:00 [INF] Cycle 21:46:45: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:47:00.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:05.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:10.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:15.137 +02:00 [DBG] Window emitted (180000 samples, cycle 21:47:00).
+2026-06-19 23:47:15.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:15.137 +02:00 [DBG] Starting decode for cycle 21:47:00; pcm = 180000 samples, RMS = 2.290E-001.
+2026-06-19 23:47:15.180 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 15 candidates found, 1 decoded.
+2026-06-19 23:47:15.180 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:47:15.180 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=11 meanAbsLLR=4.013 prenormVar=92.3453
+2026-06-19 23:47:15.180 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.892 prenormVar=24.9108
+2026-06-19 23:47:15.180 +02:00 [INF] Cycle 21:47:00: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:47:15.181 +02:00 [INF] Cycle 21:47:00: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:47:15.182 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:47:15.183 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:47:15.183 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:47:15.183 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:47:15.188 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:47:15.188 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:47:15.189 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:47:20.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:25.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:27.857 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:47:27.857 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:47:27.857 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:47:27.858 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:47:27.858 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:47:30.114 +02:00 [DBG] Window emitted (180000 samples, cycle 21:47:15).
+2026-06-19 23:47:30.114 +02:00 [DBG] Starting decode for cycle 21:47:15; pcm = 180000 samples, RMS = 6.873E-002.
+2026-06-19 23:47:30.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:30.157 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 11 candidates found, 0 decoded.
+2026-06-19 23:47:30.157 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:47:30.157 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=11 meanAbsLLR=3.796 prenormVar=12.3526
+2026-06-19 23:47:30.157 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.889 prenormVar=12.8290
+2026-06-19 23:47:30.157 +02:00 [INF] Cycle 21:47:15: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 23:47:30.157 +02:00 [INF] Cycle 21:47:15: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:47:35.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:40.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:45.093 +02:00 [DBG] Window emitted (180000 samples, cycle 21:47:30).
+2026-06-19 23:47:45.094 +02:00 [DBG] Starting decode for cycle 21:47:30; pcm = 180000 samples, RMS = 1.875E-001.
+2026-06-19 23:47:45.137 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 24 candidates found, 1 decoded.
+2026-06-19 23:47:45.137 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:47:45.137 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=23 meanAbsLLR=3.921 prenormVar=54.6489
+2026-06-19 23:47:45.137 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.897 prenormVar=17.3475
+2026-06-19 23:47:45.137 +02:00 [INF] Cycle 21:47:30: 2 decode(s) found, elapsed=43 ms.
+2026-06-19 23:47:45.138 +02:00 [INF] Cycle 21:47:30: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:47:45.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:45.139 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:47:45.139 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:47:45.139 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:47:45.144 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:47:45.144 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:47:45.145 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:47:50.135 +02:00 [DBG] Connection id "0HNME9CC00NL6" accepted.
+2026-06-19 23:47:50.135 +02:00 [DBG] Connection id "0HNME9CC00NL6" started.
+2026-06-19 23:47:50.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:47:50.135 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:47:50.136 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:47:50.136 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:47:50.136 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:47:50.136 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:47:50.136 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:47:50.136 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:47:50.136 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:47:50.137 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:47:50.141 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:47:50.141 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:47:50.141 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:47:50.142 +02:00 [DBG] Connection id "0HNME9CC00NL6" received FIN.
+2026-06-19 23:47:50.142 +02:00 [DBG] Connection id "0HNME9CC00NL6" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:47:50.142 +02:00 [DBG] Connection id "0HNME9CC00NL6" disconnecting.
+2026-06-19 23:47:50.142 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 6.9659ms
+2026-06-19 23:47:50.143 +02:00 [DBG] Connection id "0HNME9CC00NL6" stopped.
+2026-06-19 23:47:50.149 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:47:50.150 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:47:50.150 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:47:50.150 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:47:55.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:00.119 +02:00 [DBG] Window emitted (180000 samples, cycle 21:47:45).
+2026-06-19 23:48:00.119 +02:00 [DBG] Starting decode for cycle 21:47:45; pcm = 180000 samples, RMS = 7.035E-002.
+2026-06-19 23:48:00.134 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:00.164 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 12 candidates found, 0 decoded.
+2026-06-19 23:48:00.164 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:48:00.164 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=12 meanAbsLLR=3.818 prenormVar=11.3988
+2026-06-19 23:48:00.164 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.862 prenormVar=12.7919
+2026-06-19 23:48:00.164 +02:00 [INF] Cycle 21:47:45: 0 decode(s) found, elapsed=44 ms.
+2026-06-19 23:48:00.165 +02:00 [INF] Cycle 21:47:45: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:48:05.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:10.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:15.110 +02:00 [DBG] Window emitted (180000 samples, cycle 21:48:00).
+2026-06-19 23:48:15.111 +02:00 [DBG] Starting decode for cycle 21:48:00; pcm = 180000 samples, RMS = 3.282E-002.
+2026-06-19 23:48:15.141 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:48:15.141 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:48:15.141 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:48:15.141 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=183 meanAbsLLR=0.793 prenormVar=0.0134
+2026-06-19 23:48:15.141 +02:00 [INF] Cycle 21:48:00: 0 decode(s) found, elapsed=29 ms.
+2026-06-19 23:48:15.141 +02:00 [INF] Cycle 21:48:00: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:48:15.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:20.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:25.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:30.089 +02:00 [DBG] Window emitted (180000 samples, cycle 21:48:15).
+2026-06-19 23:48:30.090 +02:00 [DBG] Starting decode for cycle 21:48:15; pcm = 180000 samples, RMS = 2.246E-001.
+2026-06-19 23:48:30.136 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 1 decoded.
+2026-06-19 23:48:30.136 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:48:30.136 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.908 prenormVar=58.5825
+2026-06-19 23:48:30.136 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.912 prenormVar=30.5824
+2026-06-19 23:48:30.136 +02:00 [INF] Cycle 21:48:15: 1 decode(s) found, elapsed=45 ms.
+2026-06-19 23:48:30.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:30.137 +02:00 [INF] Cycle 21:48:15: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:48:30.138 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:48:30.139 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:48:30.139 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:48:30.139 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:48:30.144 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:48:30.144 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:48:30.145 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:48:35.149 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:40.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:42.786 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:48:42.787 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:48:42.787 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:48:42.787 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:48:42.787 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:48:45.130 +02:00 [DBG] Window emitted (180000 samples, cycle 21:48:30).
+2026-06-19 23:48:45.131 +02:00 [DBG] Starting decode for cycle 21:48:30; pcm = 180000 samples, RMS = 7.260E-002.
+2026-06-19 23:48:45.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:45.176 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 10 candidates found, 0 decoded.
+2026-06-19 23:48:45.176 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:48:45.176 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=10 meanAbsLLR=3.912 prenormVar=14.2934
+2026-06-19 23:48:45.176 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.884 prenormVar=13.0800
+2026-06-19 23:48:45.176 +02:00 [INF] Cycle 21:48:30: 0 decode(s) found, elapsed=45 ms.
+2026-06-19 23:48:45.176 +02:00 [INF] Cycle 21:48:30: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-19 23:48:50.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:48:55.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:00.106 +02:00 [DBG] Window emitted (180000 samples, cycle 21:48:45).
+2026-06-19 23:49:00.106 +02:00 [DBG] Starting decode for cycle 21:48:45; pcm = 180000 samples, RMS = 1.954E-001.
+2026-06-19 23:49:00.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:00.149 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 1 decoded.
+2026-06-19 23:49:00.149 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:49:00.149 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=18 meanAbsLLR=3.869 prenormVar=58.9905
+2026-06-19 23:49:00.149 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=198 meanAbsLLR=3.890 prenormVar=15.8594
+2026-06-19 23:49:00.149 +02:00 [INF] Cycle 21:48:45: 2 decode(s) found, elapsed=43 ms.
+2026-06-19 23:49:00.150 +02:00 [INF] Cycle 21:48:45: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:49:00.151 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:49:00.152 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:49:00.152 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:49:00.157 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:49:00.157 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:49:00.157 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:49:04.732 +02:00 [DBG] Connection id "0HNME9CC00NL7" accepted.
+2026-06-19 23:49:04.732 +02:00 [DBG] Connection id "0HNME9CC00NL7" started.
+2026-06-19 23:49:04.732 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:49:04.733 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:49:04.733 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:49:04.733 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:49:04.733 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:49:04.733 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:49:04.733 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:49:04.734 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:49:04.734 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:49:04.743 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:49:04.744 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:49:04.744 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:49:04.745 +02:00 [DBG] Connection id "0HNME9CC00NL7" received FIN.
+2026-06-19 23:49:04.745 +02:00 [DBG] Connection id "0HNME9CC00NL7" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:49:04.745 +02:00 [DBG] Connection id "0HNME9CC00NL7" disconnecting.
+2026-06-19 23:49:04.745 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 12.4996ms
+2026-06-19 23:49:04.746 +02:00 [DBG] Connection id "0HNME9CC00NL7" stopped.
+2026-06-19 23:49:04.747 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:49:04.748 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:49:04.748 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:49:04.749 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:49:05.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:10.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:15.088 +02:00 [DBG] Window emitted (180000 samples, cycle 21:49:00).
+2026-06-19 23:49:15.089 +02:00 [DBG] Starting decode for cycle 21:49:00; pcm = 180000 samples, RMS = 6.974E-002.
+2026-06-19 23:49:15.130 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 9 candidates found, 0 decoded.
+2026-06-19 23:49:15.130 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:49:15.130 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=9 meanAbsLLR=3.926 prenormVar=11.8878
+2026-06-19 23:49:15.130 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.888 prenormVar=12.6620
+2026-06-19 23:49:15.130 +02:00 [INF] Cycle 21:49:00: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:49:15.131 +02:00 [INF] Cycle 21:49:00: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:49:15.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:20.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:25.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:30.139 +02:00 [DBG] Window emitted (180000 samples, cycle 21:49:15).
+2026-06-19 23:49:30.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:30.139 +02:00 [DBG] Starting decode for cycle 21:49:15; pcm = 180000 samples, RMS = 2.434E-001.
+2026-06-19 23:49:30.182 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 1 decoded.
+2026-06-19 23:49:30.182 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:49:30.182 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.893 prenormVar=34.3007
+2026-06-19 23:49:30.182 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=198 meanAbsLLR=3.906 prenormVar=29.5185
+2026-06-19 23:49:30.182 +02:00 [INF] Cycle 21:49:15: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:49:30.183 +02:00 [INF] Cycle 21:49:15: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:49:30.184 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:49:30.185 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:49:30.185 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:49:30.185 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:49:30.191 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:49:30.191 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:49:30.192 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:49:35.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:40.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:42.852 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:49:42.852 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:49:42.852 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:49:42.852 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:49:42.852 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:49:45.106 +02:00 [DBG] Window emitted (180000 samples, cycle 21:49:30).
+2026-06-19 23:49:45.106 +02:00 [DBG] Starting decode for cycle 21:49:30; pcm = 180000 samples, RMS = 6.653E-002.
+2026-06-19 23:49:45.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:45.149 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 11 candidates found, 0 decoded.
+2026-06-19 23:49:45.149 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:49:45.149 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=11 meanAbsLLR=3.854 prenormVar=12.8611
+2026-06-19 23:49:45.149 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.872 prenormVar=12.7336
+2026-06-19 23:49:45.149 +02:00 [INF] Cycle 21:49:30: 0 decode(s) found, elapsed=42 ms.
+2026-06-19 23:49:45.149 +02:00 [INF] Cycle 21:49:30: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:49:50.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:49:55.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:00.076 +02:00 [DBG] Window emitted (180000 samples, cycle 21:49:45).
+2026-06-19 23:50:00.077 +02:00 [DBG] Starting decode for cycle 21:49:45; pcm = 180000 samples, RMS = 1.972E-001.
+2026-06-19 23:50:00.122 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 1 decoded.
+2026-06-19 23:50:00.122 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:50:00.122 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=18 meanAbsLLR=3.937 prenormVar=59.0200
+2026-06-19 23:50:00.122 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.896 prenormVar=16.3309
+2026-06-19 23:50:00.122 +02:00 [INF] Cycle 21:49:45: 2 decode(s) found, elapsed=45 ms.
+2026-06-19 23:50:00.123 +02:00 [INF] Cycle 21:49:45: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:50:00.124 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:50:00.124 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:50:00.124 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:50:00.129 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:50:00.129 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:50:00.130 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:50:00.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:05.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:05.151 +02:00 [DBG] Connection id "0HNME9CC00NL8" accepted.
+2026-06-19 23:50:05.151 +02:00 [DBG] Connection id "0HNME9CC00NL8" started.
+2026-06-19 23:50:05.152 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:50:05.153 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:50:05.153 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:50:05.153 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:50:05.153 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:50:05.153 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:50:05.153 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:50:05.153 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:50:05.153 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:50:05.156 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:50:05.156 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:50:05.157 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:50:05.157 +02:00 [DBG] Connection id "0HNME9CC00NL8" received FIN.
+2026-06-19 23:50:05.157 +02:00 [DBG] Connection id "0HNME9CC00NL8" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:50:05.157 +02:00 [DBG] Connection id "0HNME9CC00NL8" disconnecting.
+2026-06-19 23:50:05.157 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 5.5067ms
+2026-06-19 23:50:05.158 +02:00 [DBG] Connection id "0HNME9CC00NL8" stopped.
+2026-06-19 23:50:05.166 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:50:05.167 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:50:05.168 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:50:05.168 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:50:10.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:15.079 +02:00 [DBG] Window emitted (180000 samples, cycle 21:50:00).
+2026-06-19 23:50:15.079 +02:00 [DBG] Starting decode for cycle 21:50:00; pcm = 180000 samples, RMS = 7.154E-002.
+2026-06-19 23:50:15.123 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 16 candidates found, 0 decoded.
+2026-06-19 23:50:15.123 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:50:15.123 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.889 prenormVar=12.7100
+2026-06-19 23:50:15.123 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.887 prenormVar=12.6340
+2026-06-19 23:50:15.123 +02:00 [INF] Cycle 21:50:00: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 23:50:15.123 +02:00 [INF] Cycle 21:50:00: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:50:15.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:20.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:25.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:30.128 +02:00 [DBG] Window emitted (180000 samples, cycle 21:50:15).
+2026-06-19 23:50:30.128 +02:00 [DBG] Starting decode for cycle 21:50:15; pcm = 180000 samples, RMS = 3.378E-002.
+2026-06-19 23:50:30.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:30.153 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:50:30.153 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:50:30.153 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:50:30.153 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=179 meanAbsLLR=0.754 prenormVar=0.0349
+2026-06-19 23:50:30.153 +02:00 [INF] Cycle 21:50:15: 0 decode(s) found, elapsed=25 ms.
+2026-06-19 23:50:30.154 +02:00 [INF] Cycle 21:50:15: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:50:35.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:40.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:45.101 +02:00 [DBG] Window emitted (180000 samples, cycle 21:50:30).
+2026-06-19 23:50:45.102 +02:00 [DBG] Starting decode for cycle 21:50:30; pcm = 180000 samples, RMS = 2.257E-001.
+2026-06-19 23:50:45.146 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 15 candidates found, 1 decoded.
+2026-06-19 23:50:45.146 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:50:45.146 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=11 meanAbsLLR=4.169 prenormVar=83.6159
+2026-06-19 23:50:45.146 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.932 prenormVar=28.4973
+2026-06-19 23:50:45.146 +02:00 [INF] Cycle 21:50:30: 1 decode(s) found, elapsed=44 ms.
+2026-06-19 23:50:45.147 +02:00 [INF] Cycle 21:50:30: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:50:45.148 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:50:45.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:45.150 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:50:45.150 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:50:45.150 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:50:45.155 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:50:45.155 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:50:45.156 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:50:50.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:55.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:50:57.803 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:50:57.803 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:50:57.803 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:50:57.803 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:50:57.803 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:51:00.090 +02:00 [DBG] Window emitted (180000 samples, cycle 21:50:45).
+2026-06-19 23:51:00.090 +02:00 [DBG] Starting decode for cycle 21:50:45; pcm = 180000 samples, RMS = 7.258E-002.
+2026-06-19 23:51:00.134 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 12 candidates found, 0 decoded.
+2026-06-19 23:51:00.134 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:51:00.134 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=12 meanAbsLLR=3.948 prenormVar=12.1821
+2026-06-19 23:51:00.134 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.884 prenormVar=12.8833
+2026-06-19 23:51:00.134 +02:00 [INF] Cycle 21:50:45: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 23:51:00.135 +02:00 [INF] Cycle 21:50:45: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-19 23:51:00.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:05.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:10.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:15.067 +02:00 [DBG] Window emitted (180000 samples, cycle 21:51:00).
+2026-06-19 23:51:15.068 +02:00 [DBG] Starting decode for cycle 21:51:00; pcm = 180000 samples, RMS = 1.900E-001.
+2026-06-19 23:51:15.111 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 1 decoded.
+2026-06-19 23:51:15.111 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:51:15.111 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=18 meanAbsLLR=3.811 prenormVar=49.9046
+2026-06-19 23:51:15.111 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=198 meanAbsLLR=3.910 prenormVar=16.9156
+2026-06-19 23:51:15.111 +02:00 [INF] Cycle 21:51:00: 2 decode(s) found, elapsed=43 ms.
+2026-06-19 23:51:15.112 +02:00 [INF] Cycle 21:51:00: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:51:15.113 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:51:15.114 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:51:15.114 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:51:15.119 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:51:15.119 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:51:15.120 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:51:15.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:19.737 +02:00 [DBG] Connection id "0HNME9CC00NL9" accepted.
+2026-06-19 23:51:19.738 +02:00 [DBG] Connection id "0HNME9CC00NL9" started.
+2026-06-19 23:51:19.753 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:51:19.754 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:51:19.754 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:51:19.754 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:51:19.754 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:51:19.754 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:51:19.754 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:51:19.755 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:51:19.755 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:51:19.765 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:51:19.766 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:51:19.766 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:51:19.767 +02:00 [DBG] Connection id "0HNME9CC00NL9" received FIN.
+2026-06-19 23:51:19.767 +02:00 [DBG] Connection id "0HNME9CC00NL9" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:51:19.767 +02:00 [DBG] Connection id "0HNME9CC00NL9" disconnecting.
+2026-06-19 23:51:19.766 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 13.1534ms
+2026-06-19 23:51:19.768 +02:00 [DBG] Connection id "0HNME9CC00NL9" stopped.
+2026-06-19 23:51:19.769 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:51:19.769 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:51:19.770 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:51:19.770 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:51:20.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:25.149 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:30.118 +02:00 [DBG] Window emitted (180000 samples, cycle 21:51:15).
+2026-06-19 23:51:30.119 +02:00 [DBG] Starting decode for cycle 21:51:15; pcm = 180000 samples, RMS = 7.103E-002.
+2026-06-19 23:51:30.149 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:30.160 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 7 candidates found, 0 decoded.
+2026-06-19 23:51:30.160 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:51:30.160 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=7 meanAbsLLR=3.799 prenormVar=11.9152
+2026-06-19 23:51:30.160 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.866 prenormVar=12.5779
+2026-06-19 23:51:30.160 +02:00 [INF] Cycle 21:51:15: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:51:30.161 +02:00 [INF] Cycle 21:51:15: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:51:35.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:40.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:45.106 +02:00 [DBG] Window emitted (180000 samples, cycle 21:51:30).
+2026-06-19 23:51:45.106 +02:00 [DBG] Starting decode for cycle 21:51:30; pcm = 180000 samples, RMS = 2.305E-001.
+2026-06-19 23:51:45.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:45.149 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 1 decoded.
+2026-06-19 23:51:45.149 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:51:45.149 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=13 meanAbsLLR=3.836 prenormVar=48.2133
+2026-06-19 23:51:45.149 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.914 prenormVar=25.4151
+2026-06-19 23:51:45.149 +02:00 [INF] Cycle 21:51:30: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:51:45.150 +02:00 [INF] Cycle 21:51:30: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:51:45.150 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:51:45.152 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:51:45.152 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:51:45.152 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:51:45.157 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:51:45.157 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:51:45.158 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:51:50.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:55.150 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:51:57.837 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:51:57.837 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:51:57.837 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:51:57.837 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:51:57.837 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:52:00.093 +02:00 [DBG] Window emitted (180000 samples, cycle 21:51:45).
+2026-06-19 23:52:00.094 +02:00 [DBG] Starting decode for cycle 21:51:45; pcm = 180000 samples, RMS = 6.704E-002.
+2026-06-19 23:52:00.138 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 8 candidates found, 0 decoded.
+2026-06-19 23:52:00.138 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:52:00.138 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=8 meanAbsLLR=3.878 prenormVar=12.7775
+2026-06-19 23:52:00.138 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.872 prenormVar=12.7202
+2026-06-19 23:52:00.138 +02:00 [INF] Cycle 21:51:45: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 23:52:00.139 +02:00 [INF] Cycle 21:51:45: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:52:00.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:05.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:10.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:15.079 +02:00 [DBG] Window emitted (180000 samples, cycle 21:52:00).
+2026-06-19 23:52:15.079 +02:00 [DBG] Starting decode for cycle 21:52:00; pcm = 180000 samples, RMS = 1.826E-001.
+2026-06-19 23:52:15.122 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 21 candidates found, 1 decoded.
+2026-06-19 23:52:15.122 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:52:15.122 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=20 meanAbsLLR=3.806 prenormVar=37.5478
+2026-06-19 23:52:15.122 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.905 prenormVar=20.5280
+2026-06-19 23:52:15.122 +02:00 [INF] Cycle 21:52:00: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:52:15.123 +02:00 [INF] Cycle 21:52:00: noise_floor=-52.0 dB (waterfall histogram median).
+2026-06-19 23:52:15.123 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:52:15.124 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:52:15.124 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:52:15.129 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:52:15.129 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:52:15.130 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:52:15.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:20.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:20.187 +02:00 [DBG] Connection id "0HNME9CC00NLA" accepted.
+2026-06-19 23:52:20.187 +02:00 [DBG] Connection id "0HNME9CC00NLA" started.
+2026-06-19 23:52:20.187 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:52:20.188 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:52:20.188 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:52:20.188 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:52:20.188 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:52:20.188 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:52:20.188 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:52:20.189 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:52:20.189 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:52:20.196 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:52:20.196 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:52:20.197 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:52:20.197 +02:00 [DBG] Connection id "0HNME9CC00NLA" received FIN.
+2026-06-19 23:52:20.197 +02:00 [DBG] Connection id "0HNME9CC00NLA" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:52:20.197 +02:00 [DBG] Connection id "0HNME9CC00NLA" disconnecting.
+2026-06-19 23:52:20.197 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 10.0036ms
+2026-06-19 23:52:20.198 +02:00 [DBG] Connection id "0HNME9CC00NLA" stopped.
+2026-06-19 23:52:20.202 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:52:20.203 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:52:20.203 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:52:20.204 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:52:25.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:30.123 +02:00 [DBG] Window emitted (180000 samples, cycle 21:52:15).
+2026-06-19 23:52:30.123 +02:00 [DBG] Starting decode for cycle 21:52:15; pcm = 180000 samples, RMS = 6.873E-002.
+2026-06-19 23:52:30.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:30.164 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 9 candidates found, 0 decoded.
+2026-06-19 23:52:30.164 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:52:30.164 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=9 meanAbsLLR=3.891 prenormVar=12.5737
+2026-06-19 23:52:30.164 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.887 prenormVar=12.7234
+2026-06-19 23:52:30.164 +02:00 [INF] Cycle 21:52:15: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:52:30.165 +02:00 [INF] Cycle 21:52:15: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:52:35.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:40.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:45.103 +02:00 [DBG] Window emitted (180000 samples, cycle 21:52:30).
+2026-06-19 23:52:45.103 +02:00 [DBG] Starting decode for cycle 21:52:30; pcm = 180000 samples, RMS = 3.397E-002.
+2026-06-19 23:52:45.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:45.140 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:52:45.140 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:52:45.140 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:52:45.140 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=197 meanAbsLLR=0.825 prenormVar=0.0349
+2026-06-19 23:52:45.140 +02:00 [INF] Cycle 21:52:30: 0 decode(s) found, elapsed=37 ms.
+2026-06-19 23:52:45.141 +02:00 [INF] Cycle 21:52:30: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:52:50.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:52:55.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:00.095 +02:00 [DBG] Window emitted (180000 samples, cycle 21:52:45).
+2026-06-19 23:53:00.096 +02:00 [DBG] Starting decode for cycle 21:52:45; pcm = 180000 samples, RMS = 2.304E-001.
+2026-06-19 23:53:00.140 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 23 candidates found, 1 decoded.
+2026-06-19 23:53:00.140 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:53:00.140 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.842 prenormVar=45.1944
+2026-06-19 23:53:00.140 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.882 prenormVar=28.4950
+2026-06-19 23:53:00.140 +02:00 [INF] Cycle 21:52:45: 1 decode(s) found, elapsed=44 ms.
+2026-06-19 23:53:00.141 +02:00 [INF] Cycle 21:52:45: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:53:00.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:00.142 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:53:00.143 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:53:00.143 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:53:00.143 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:53:00.148 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:53:00.148 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:53:00.149 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:53:05.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:10.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:12.800 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:53:12.800 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:53:12.800 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:53:12.800 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:53:12.800 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:53:15.072 +02:00 [DBG] Window emitted (180000 samples, cycle 21:53:00).
+2026-06-19 23:53:15.072 +02:00 [DBG] Starting decode for cycle 21:53:00; pcm = 180000 samples, RMS = 7.647E-002.
+2026-06-19 23:53:15.114 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 0 decoded.
+2026-06-19 23:53:15.114 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:53:15.114 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.869 prenormVar=12.8959
+2026-06-19 23:53:15.114 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.884 prenormVar=12.5958
+2026-06-19 23:53:15.114 +02:00 [INF] Cycle 21:53:00: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:53:15.115 +02:00 [INF] Cycle 21:53:00: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-19 23:53:15.149 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:20.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:25.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:30.109 +02:00 [DBG] Window emitted (180000 samples, cycle 21:53:15).
+2026-06-19 23:53:30.110 +02:00 [DBG] Starting decode for cycle 21:53:15; pcm = 180000 samples, RMS = 1.879E-001.
+2026-06-19 23:53:30.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:30.153 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 1 decoded.
+2026-06-19 23:53:30.153 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:53:30.153 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.879 prenormVar=52.3653
+2026-06-19 23:53:30.153 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.921 prenormVar=18.2223
+2026-06-19 23:53:30.153 +02:00 [INF] Cycle 21:53:15: 2 decode(s) found, elapsed=43 ms.
+2026-06-19 23:53:30.154 +02:00 [INF] Cycle 21:53:15: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:53:30.155 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:53:30.156 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:53:30.156 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:53:30.161 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:53:30.161 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:53:30.161 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:53:34.729 +02:00 [DBG] Connection id "0HNME9CC00NLB" accepted.
+2026-06-19 23:53:34.729 +02:00 [DBG] Connection id "0HNME9CC00NLB" started.
+2026-06-19 23:53:34.744 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:53:34.746 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:53:34.746 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:53:34.746 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:53:34.746 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:53:34.746 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:53:34.746 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:53:34.746 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:53:34.747 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:53:34.757 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:53:34.757 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:53:34.758 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:53:34.759 +02:00 [DBG] Connection id "0HNME9CC00NLB" received FIN.
+2026-06-19 23:53:34.759 +02:00 [DBG] Connection id "0HNME9CC00NLB" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:53:34.759 +02:00 [DBG] Connection id "0HNME9CC00NLB" disconnecting.
+2026-06-19 23:53:34.758 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 14.057ms
+2026-06-19 23:53:34.760 +02:00 [DBG] Connection id "0HNME9CC00NLB" stopped.
+2026-06-19 23:53:34.760 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:53:34.761 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:53:34.761 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:53:34.761 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:53:35.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:40.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:45.099 +02:00 [DBG] Window emitted (180000 samples, cycle 21:53:30).
+2026-06-19 23:53:45.100 +02:00 [DBG] Starting decode for cycle 21:53:30; pcm = 180000 samples, RMS = 7.136E-002.
+2026-06-19 23:53:45.142 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 18 candidates found, 0 decoded.
+2026-06-19 23:53:45.142 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:53:45.142 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=18 meanAbsLLR=3.893 prenormVar=12.9117
+2026-06-19 23:53:45.142 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.890 prenormVar=12.7845
+2026-06-19 23:53:45.142 +02:00 [INF] Cycle 21:53:30: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:53:45.142 +02:00 [INF] Cycle 21:53:30: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:53:45.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:50.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:53:55.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:00.108 +02:00 [DBG] Window emitted (180000 samples, cycle 21:53:45).
+2026-06-19 23:54:00.109 +02:00 [DBG] Starting decode for cycle 21:53:45; pcm = 180000 samples, RMS = 2.331E-001.
+2026-06-19 23:54:00.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:00.155 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 15 candidates found, 1 decoded.
+2026-06-19 23:54:00.155 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:54:00.155 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=11 meanAbsLLR=3.919 prenormVar=58.4890
+2026-06-19 23:54:00.155 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.904 prenormVar=25.5612
+2026-06-19 23:54:00.155 +02:00 [INF] Cycle 21:53:45: 1 decode(s) found, elapsed=46 ms.
+2026-06-19 23:54:00.156 +02:00 [INF] Cycle 21:53:45: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:54:00.157 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:54:00.158 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:54:00.158 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:54:00.158 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:54:00.163 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:54:00.163 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:54:00.164 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:54:05.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:10.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:12.821 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:54:12.822 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:54:12.822 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:54:12.822 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:54:12.822 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:54:15.086 +02:00 [DBG] Window emitted (180000 samples, cycle 21:54:00).
+2026-06-19 23:54:15.087 +02:00 [DBG] Starting decode for cycle 21:54:00; pcm = 180000 samples, RMS = 6.801E-002.
+2026-06-19 23:54:15.132 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 7 candidates found, 0 decoded.
+2026-06-19 23:54:15.132 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:54:15.132 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=7 meanAbsLLR=3.918 prenormVar=11.9599
+2026-06-19 23:54:15.132 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.866 prenormVar=12.9770
+2026-06-19 23:54:15.132 +02:00 [INF] Cycle 21:54:00: 0 decode(s) found, elapsed=44 ms.
+2026-06-19 23:54:15.132 +02:00 [INF] Cycle 21:54:00: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:54:15.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:20.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:25.149 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:30.132 +02:00 [DBG] Window emitted (180000 samples, cycle 21:54:15).
+2026-06-19 23:54:30.133 +02:00 [DBG] Starting decode for cycle 21:54:15; pcm = 180000 samples, RMS = 1.829E-001.
+2026-06-19 23:54:30.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:30.178 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 26 candidates found, 1 decoded.
+2026-06-19 23:54:30.178 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:54:30.178 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=25 meanAbsLLR=3.879 prenormVar=50.4317
+2026-06-19 23:54:30.178 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.889 prenormVar=17.1163
+2026-06-19 23:54:30.178 +02:00 [INF] Cycle 21:54:15: 2 decode(s) found, elapsed=44 ms.
+2026-06-19 23:54:30.179 +02:00 [INF] Cycle 21:54:15: noise_floor=-52.0 dB (waterfall histogram median).
+2026-06-19 23:54:30.180 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:54:30.180 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:54:30.180 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:54:30.185 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:54:30.185 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:54:30.185 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:54:35.145 +02:00 [DBG] Connection id "0HNME9CC00NLC" accepted.
+2026-06-19 23:54:35.145 +02:00 [DBG] Connection id "0HNME9CC00NLC" started.
+2026-06-19 23:54:35.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:35.145 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:54:35.146 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:54:35.146 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:54:35.146 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:54:35.146 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:54:35.146 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:54:35.146 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:54:35.147 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:54:35.147 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:54:35.152 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:54:35.152 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:54:35.152 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:54:35.153 +02:00 [DBG] Connection id "0HNME9CC00NLC" received FIN.
+2026-06-19 23:54:35.153 +02:00 [DBG] Connection id "0HNME9CC00NLC" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:54:35.153 +02:00 [DBG] Connection id "0HNME9CC00NLC" disconnecting.
+2026-06-19 23:54:35.153 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 7.8924ms
+2026-06-19 23:54:35.154 +02:00 [DBG] Connection id "0HNME9CC00NLC" stopped.
+2026-06-19 23:54:35.159 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:54:35.160 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:54:35.160 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:54:35.160 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:54:40.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:45.107 +02:00 [DBG] Window emitted (180000 samples, cycle 21:54:30).
+2026-06-19 23:54:45.107 +02:00 [DBG] Starting decode for cycle 21:54:30; pcm = 180000 samples, RMS = 6.955E-002.
+2026-06-19 23:54:45.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:45.152 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 14 candidates found, 0 decoded.
+2026-06-19 23:54:45.152 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:54:45.152 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=14 meanAbsLLR=3.874 prenormVar=12.8658
+2026-06-19 23:54:45.152 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.876 prenormVar=12.7218
+2026-06-19 23:54:45.152 +02:00 [INF] Cycle 21:54:30: 0 decode(s) found, elapsed=44 ms.
+2026-06-19 23:54:45.152 +02:00 [INF] Cycle 21:54:30: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:54:50.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:54:55.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:00.084 +02:00 [DBG] Window emitted (180000 samples, cycle 21:54:45).
+2026-06-19 23:55:00.085 +02:00 [DBG] Starting decode for cycle 21:54:45; pcm = 180000 samples, RMS = 3.420E-002.
+2026-06-19 23:55:00.112 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:55:00.112 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:55:00.112 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:55:00.112 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=162 meanAbsLLR=0.685 prenormVar=0.0122
+2026-06-19 23:55:00.112 +02:00 [INF] Cycle 21:54:45: 0 decode(s) found, elapsed=27 ms.
+2026-06-19 23:55:00.113 +02:00 [INF] Cycle 21:54:45: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:55:00.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:05.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:10.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:15.112 +02:00 [DBG] Window emitted (180000 samples, cycle 21:55:00).
+2026-06-19 23:55:15.112 +02:00 [DBG] Starting decode for cycle 21:55:00; pcm = 180000 samples, RMS = 2.305E-001.
+2026-06-19 23:55:15.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:15.155 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 25 candidates found, 1 decoded.
+2026-06-19 23:55:15.155 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:55:15.155 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=21 meanAbsLLR=3.865 prenormVar=48.2107
+2026-06-19 23:55:15.155 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.956 prenormVar=34.2051
+2026-06-19 23:55:15.155 +02:00 [INF] Cycle 21:55:00: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:55:15.155 +02:00 [INF] Cycle 21:55:00: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:55:15.156 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:55:15.157 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:55:15.157 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:55:15.157 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:55:15.163 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:55:15.163 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:55:15.164 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:55:20.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:25.141 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:27.804 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:55:27.804 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:55:27.804 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:55:27.804 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:55:27.804 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:55:30.106 +02:00 [DBG] Window emitted (180000 samples, cycle 21:55:15).
+2026-06-19 23:55:30.106 +02:00 [DBG] Starting decode for cycle 21:55:15; pcm = 180000 samples, RMS = 7.458E-002.
+2026-06-19 23:55:30.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:30.148 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 9 candidates found, 0 decoded.
+2026-06-19 23:55:30.148 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:55:30.148 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=9 meanAbsLLR=3.844 prenormVar=11.9836
+2026-06-19 23:55:30.148 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.876 prenormVar=12.8289
+2026-06-19 23:55:30.148 +02:00 [INF] Cycle 21:55:15: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:55:30.148 +02:00 [INF] Cycle 21:55:15: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-19 23:55:35.136 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:40.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:45.098 +02:00 [DBG] Window emitted (180000 samples, cycle 21:55:30).
+2026-06-19 23:55:45.099 +02:00 [DBG] Starting decode for cycle 21:55:30; pcm = 180000 samples, RMS = 1.761E-001.
+2026-06-19 23:55:45.142 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 28 candidates found, 1 decoded.
+2026-06-19 23:55:45.142 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:55:45.142 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=27 meanAbsLLR=3.829 prenormVar=46.0969
+2026-06-19 23:55:45.142 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.920 prenormVar=18.4530
+2026-06-19 23:55:45.142 +02:00 [INF] Cycle 21:55:30: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:55:45.142 +02:00 [INF] Cycle 21:55:30: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:55:45.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:45.143 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:55:45.144 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:55:45.144 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:55:45.149 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:55:45.149 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:55:45.150 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:55:49.717 +02:00 [DBG] Connection id "0HNME9CC00NLD" accepted.
+2026-06-19 23:55:49.717 +02:00 [DBG] Connection id "0HNME9CC00NLD" started.
+2026-06-19 23:55:49.717 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:55:49.718 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:55:49.718 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:55:49.718 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:55:49.718 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:55:49.719 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:55:49.719 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:55:49.719 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:55:49.719 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:55:49.726 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:55:49.726 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:55:49.726 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:55:49.727 +02:00 [DBG] Connection id "0HNME9CC00NLD" received FIN.
+2026-06-19 23:55:49.727 +02:00 [DBG] Connection id "0HNME9CC00NLD" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:55:49.727 +02:00 [DBG] Connection id "0HNME9CC00NLD" disconnecting.
+2026-06-19 23:55:49.727 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 9.5141ms
+2026-06-19 23:55:49.728 +02:00 [DBG] Connection id "0HNME9CC00NLD" stopped.
+2026-06-19 23:55:49.732 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:55:49.733 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:55:49.733 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:55:49.734 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:55:50.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:55:55.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:00.092 +02:00 [DBG] Window emitted (180000 samples, cycle 21:55:45).
+2026-06-19 23:56:00.093 +02:00 [DBG] Starting decode for cycle 21:55:45; pcm = 180000 samples, RMS = 7.127E-002.
+2026-06-19 23:56:00.138 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 16 candidates found, 0 decoded.
+2026-06-19 23:56:00.138 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:56:00.138 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.904 prenormVar=11.9643
+2026-06-19 23:56:00.138 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.891 prenormVar=12.6998
+2026-06-19 23:56:00.138 +02:00 [INF] Cycle 21:55:45: 0 decode(s) found, elapsed=44 ms.
+2026-06-19 23:56:00.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:00.139 +02:00 [INF] Cycle 21:55:45: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:56:05.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:10.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:15.131 +02:00 [DBG] Window emitted (180000 samples, cycle 21:56:00).
+2026-06-19 23:56:15.131 +02:00 [DBG] Starting decode for cycle 21:56:00; pcm = 180000 samples, RMS = 2.165E-001.
+2026-06-19 23:56:15.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:15.173 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 1 decoded.
+2026-06-19 23:56:15.173 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:56:15.173 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=14 meanAbsLLR=3.925 prenormVar=73.2050
+2026-06-19 23:56:15.173 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.933 prenormVar=26.1390
+2026-06-19 23:56:15.173 +02:00 [INF] Cycle 21:56:00: 1 decode(s) found, elapsed=41 ms.
+2026-06-19 23:56:15.174 +02:00 [INF] Cycle 21:56:00: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:56:15.175 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:56:15.176 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:56:15.176 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:56:15.176 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:56:15.181 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:56:15.181 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:56:15.182 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:56:20.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:25.150 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:27.838 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:56:27.838 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:56:27.838 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:56:27.838 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:56:27.838 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:56:30.124 +02:00 [DBG] Window emitted (180000 samples, cycle 21:56:15).
+2026-06-19 23:56:30.125 +02:00 [DBG] Starting decode for cycle 21:56:15; pcm = 180000 samples, RMS = 6.834E-002.
+2026-06-19 23:56:30.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:30.169 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 11 candidates found, 0 decoded.
+2026-06-19 23:56:30.169 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:56:30.169 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=11 meanAbsLLR=3.824 prenormVar=13.0305
+2026-06-19 23:56:30.169 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.864 prenormVar=12.6700
+2026-06-19 23:56:30.169 +02:00 [INF] Cycle 21:56:15: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 23:56:30.170 +02:00 [INF] Cycle 21:56:15: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:56:35.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:40.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:45.098 +02:00 [DBG] Window emitted (180000 samples, cycle 21:56:30).
+2026-06-19 23:56:45.099 +02:00 [DBG] Starting decode for cycle 21:56:30; pcm = 180000 samples, RMS = 1.975E-001.
+2026-06-19 23:56:45.141 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 14 candidates found, 1 decoded.
+2026-06-19 23:56:45.141 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:56:45.141 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=13 meanAbsLLR=3.795 prenormVar=70.3020
+2026-06-19 23:56:45.141 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.898 prenormVar=16.2552
+2026-06-19 23:56:45.141 +02:00 [INF] Cycle 21:56:30: 1 decode(s) found, elapsed=41 ms.
+2026-06-19 23:56:45.141 +02:00 [INF] Cycle 21:56:30: noise_floor=-52.0 dB (waterfall histogram median).
+2026-06-19 23:56:45.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:45.142 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:56:45.143 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:56:45.143 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:56:45.148 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:56:45.148 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:56:45.149 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:56:50.139 +02:00 [DBG] Connection id "0HNME9CC00NLE" accepted.
+2026-06-19 23:56:50.139 +02:00 [DBG] Connection id "0HNME9CC00NLE" started.
+2026-06-19 23:56:50.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:56:50.139 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:56:50.141 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:56:50.141 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:56:50.141 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:56:50.141 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:56:50.141 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:56:50.141 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:56:50.141 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:56:50.142 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:56:50.144 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:56:50.145 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:56:50.145 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:56:50.146 +02:00 [DBG] Connection id "0HNME9CC00NLE" received FIN.
+2026-06-19 23:56:50.146 +02:00 [DBG] Connection id "0HNME9CC00NLE" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:56:50.146 +02:00 [DBG] Connection id "0HNME9CC00NLE" disconnecting.
+2026-06-19 23:56:50.146 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 6.694ms
+2026-06-19 23:56:50.147 +02:00 [DBG] Connection id "0HNME9CC00NLE" stopped.
+2026-06-19 23:56:50.154 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:56:50.154 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:56:50.155 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:56:50.155 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:56:55.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:00.092 +02:00 [DBG] Window emitted (180000 samples, cycle 21:56:45).
+2026-06-19 23:57:00.093 +02:00 [DBG] Starting decode for cycle 21:56:45; pcm = 180000 samples, RMS = 7.286E-002.
+2026-06-19 23:57:00.138 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 0 decoded.
+2026-06-19 23:57:00.138 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:57:00.138 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.888 prenormVar=12.4000
+2026-06-19 23:57:00.138 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.870 prenormVar=12.7285
+2026-06-19 23:57:00.138 +02:00 [INF] Cycle 21:56:45: 0 decode(s) found, elapsed=45 ms.
+2026-06-19 23:57:00.139 +02:00 [INF] Cycle 21:56:45: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:57:00.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:05.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:10.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:15.128 +02:00 [DBG] Window emitted (180000 samples, cycle 21:57:00).
+2026-06-19 23:57:15.129 +02:00 [DBG] Starting decode for cycle 21:57:00; pcm = 180000 samples, RMS = 3.235E-002.
+2026-06-19 23:57:15.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:15.155 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:57:15.155 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:57:15.155 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:57:15.155 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=177 meanAbsLLR=0.710 prenormVar=0.0259
+2026-06-19 23:57:15.155 +02:00 [INF] Cycle 21:57:00: 0 decode(s) found, elapsed=26 ms.
+2026-06-19 23:57:15.156 +02:00 [INF] Cycle 21:57:00: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:57:20.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:25.150 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:30.112 +02:00 [DBG] Window emitted (180000 samples, cycle 21:57:15).
+2026-06-19 23:57:30.113 +02:00 [DBG] Starting decode for cycle 21:57:15; pcm = 180000 samples, RMS = 2.187E-001.
+2026-06-19 23:57:30.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:30.156 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 22 candidates found, 1 decoded.
+2026-06-19 23:57:30.156 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:57:30.156 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=18 meanAbsLLR=3.894 prenormVar=43.0015
+2026-06-19 23:57:30.156 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.919 prenormVar=28.2241
+2026-06-19 23:57:30.156 +02:00 [INF] Cycle 21:57:15: 1 decode(s) found, elapsed=43 ms.
+2026-06-19 23:57:30.157 +02:00 [INF] Cycle 21:57:15: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:57:30.158 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:57:30.159 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:57:30.159 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:57:30.159 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:57:30.164 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:57:30.164 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:57:30.165 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:57:35.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:40.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:42.806 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:57:42.806 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:57:42.806 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:57:42.806 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:57:42.806 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:57:45.086 +02:00 [DBG] Window emitted (180000 samples, cycle 21:57:30).
+2026-06-19 23:57:45.086 +02:00 [DBG] Starting decode for cycle 21:57:30; pcm = 180000 samples, RMS = 7.106E-002.
+2026-06-19 23:57:45.128 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 13 candidates found, 0 decoded.
+2026-06-19 23:57:45.128 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:57:45.128 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=13 meanAbsLLR=3.857 prenormVar=13.1056
+2026-06-19 23:57:45.128 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.871 prenormVar=12.9565
+2026-06-19 23:57:45.128 +02:00 [INF] Cycle 21:57:30: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:57:45.128 +02:00 [INF] Cycle 21:57:30: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-19 23:57:45.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:50.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:57:55.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:00.117 +02:00 [DBG] Window emitted (180000 samples, cycle 21:57:45).
+2026-06-19 23:58:00.117 +02:00 [DBG] Starting decode for cycle 21:57:45; pcm = 180000 samples, RMS = 1.777E-001.
+2026-06-19 23:58:00.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:00.160 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 23 candidates found, 1 decoded.
+2026-06-19 23:58:00.160 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:58:00.160 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=22 meanAbsLLR=3.795 prenormVar=50.7060
+2026-06-19 23:58:00.160 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.939 prenormVar=20.0271
+2026-06-19 23:58:00.160 +02:00 [INF] Cycle 21:57:45: 1 decode(s) found, elapsed=42 ms.
+2026-06-19 23:58:00.161 +02:00 [INF] Cycle 21:57:45: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:58:00.161 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:58:00.162 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:58:00.162 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:58:00.167 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:58:00.167 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:58:00.168 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:58:04.719 +02:00 [DBG] Connection id "0HNME9CC00NLF" accepted.
+2026-06-19 23:58:04.719 +02:00 [DBG] Connection id "0HNME9CC00NLF" started.
+2026-06-19 23:58:04.719 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:58:04.721 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:58:04.721 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:58:04.721 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:58:04.721 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:58:04.721 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:58:04.721 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:58:04.721 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:58:04.721 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:58:04.724 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:58:04.724 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:58:04.724 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:58:04.725 +02:00 [DBG] Connection id "0HNME9CC00NLF" received FIN.
+2026-06-19 23:58:04.725 +02:00 [DBG] Connection id "0HNME9CC00NLF" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:58:04.725 +02:00 [DBG] Connection id "0HNME9CC00NLF" disconnecting.
+2026-06-19 23:58:04.725 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 5.486ms
+2026-06-19 23:58:04.726 +02:00 [DBG] Connection id "0HNME9CC00NLF" stopped.
+2026-06-19 23:58:04.734 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:58:04.735 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:58:04.735 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:58:04.736 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:58:05.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:10.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:15.109 +02:00 [DBG] Window emitted (180000 samples, cycle 21:58:00).
+2026-06-19 23:58:15.110 +02:00 [DBG] Starting decode for cycle 21:58:00; pcm = 180000 samples, RMS = 7.087E-002.
+2026-06-19 23:58:15.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:15.153 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 10 candidates found, 0 decoded.
+2026-06-19 23:58:15.153 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:58:15.153 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=10 meanAbsLLR=3.891 prenormVar=13.5338
+2026-06-19 23:58:15.153 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.885 prenormVar=12.8563
+2026-06-19 23:58:15.153 +02:00 [INF] Cycle 21:58:00: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 23:58:15.154 +02:00 [INF] Cycle 21:58:00: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:58:20.150 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:25.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:30.115 +02:00 [DBG] Window emitted (180000 samples, cycle 21:58:15).
+2026-06-19 23:58:30.116 +02:00 [DBG] Starting decode for cycle 21:58:15; pcm = 180000 samples, RMS = 2.374E-001.
+2026-06-19 23:58:30.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:30.157 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 1 decoded.
+2026-06-19 23:58:30.157 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:58:30.157 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=15 meanAbsLLR=3.835 prenormVar=51.8139
+2026-06-19 23:58:30.157 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=198 meanAbsLLR=3.919 prenormVar=29.6683
+2026-06-19 23:58:30.157 +02:00 [INF] Cycle 21:58:15: 1 decode(s) found, elapsed=41 ms.
+2026-06-19 23:58:30.158 +02:00 [INF] Cycle 21:58:15: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:58:30.159 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:58:30.161 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:58:30.161 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:58:30.161 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:58:30.166 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:58:30.166 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:58:30.167 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:58:35.137 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:40.149 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:42.825 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:58:42.825 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:58:42.825 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:58:42.825 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:58:42.825 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-19 23:58:45.109 +02:00 [DBG] Window emitted (180000 samples, cycle 21:58:30).
+2026-06-19 23:58:45.110 +02:00 [DBG] Starting decode for cycle 21:58:30; pcm = 180000 samples, RMS = 6.638E-002.
+2026-06-19 23:58:45.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:45.151 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 6 candidates found, 0 decoded.
+2026-06-19 23:58:45.151 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:58:45.151 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=6 meanAbsLLR=3.792 prenormVar=13.8325
+2026-06-19 23:58:45.151 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.882 prenormVar=12.8895
+2026-06-19 23:58:45.151 +02:00 [INF] Cycle 21:58:30: 0 decode(s) found, elapsed=41 ms.
+2026-06-19 23:58:45.152 +02:00 [INF] Cycle 21:58:30: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:58:50.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:58:55.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:00.097 +02:00 [DBG] Window emitted (180000 samples, cycle 21:58:45).
+2026-06-19 23:59:00.097 +02:00 [DBG] Starting decode for cycle 21:58:45; pcm = 180000 samples, RMS = 1.978E-001.
+2026-06-19 23:59:00.144 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 18 candidates found, 1 decoded.
+2026-06-19 23:59:00.144 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-19 23:59:00.144 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=17 meanAbsLLR=3.933 prenormVar=57.2461
+2026-06-19 23:59:00.144 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.890 prenormVar=15.8123
+2026-06-19 23:59:00.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:00.144 +02:00 [INF] Cycle 21:58:45: 2 decode(s) found, elapsed=46 ms.
+2026-06-19 23:59:00.146 +02:00 [INF] Cycle 21:58:45: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-19 23:59:00.146 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-19 23:59:00.147 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-19 23:59:00.147 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-19 23:59:00.152 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:59:00.152 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:59:00.153 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:59:05.130 +02:00 [DBG] Connection id "0HNME9CC00NLG" accepted.
+2026-06-19 23:59:05.130 +02:00 [DBG] Connection id "0HNME9CC00NLG" started.
+2026-06-19 23:59:05.130 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-19 23:59:05.131 +02:00 [VRB] All hosts are allowed.
+2026-06-19 23:59:05.131 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-19 23:59:05.131 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:59:05.131 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-19 23:59:05.131 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-19 23:59:05.131 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:59:05.132 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-19 23:59:05.132 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:59:05.138 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:59:05.138 +02:00 [INF] Setting HTTP status code 200.
+2026-06-19 23:59:05.138 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-19 23:59:05.139 +02:00 [DBG] Connection id "0HNME9CC00NLG" received FIN.
+2026-06-19 23:59:05.139 +02:00 [DBG] Connection id "0HNME9CC00NLG" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-19 23:59:05.139 +02:00 [DBG] Connection id "0HNME9CC00NLG" disconnecting.
+2026-06-19 23:59:05.139 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 8.8872ms
+2026-06-19 23:59:05.140 +02:00 [DBG] Connection id "0HNME9CC00NLG" stopped.
+2026-06-19 23:59:05.145 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:59:05.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:05.145 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-19 23:59:05.146 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-19 23:59:05.147 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-19 23:59:10.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:15.069 +02:00 [DBG] Window emitted (180000 samples, cycle 21:59:00).
+2026-06-19 23:59:15.070 +02:00 [DBG] Starting decode for cycle 21:59:00; pcm = 180000 samples, RMS = 7.138E-002.
+2026-06-19 23:59:15.113 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 7 candidates found, 0 decoded.
+2026-06-19 23:59:15.113 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:59:15.113 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=7 meanAbsLLR=3.877 prenormVar=12.0038
+2026-06-19 23:59:15.113 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.872 prenormVar=12.7301
+2026-06-19 23:59:15.113 +02:00 [INF] Cycle 21:59:00: 0 decode(s) found, elapsed=43 ms.
+2026-06-19 23:59:15.114 +02:00 [INF] Cycle 21:59:00: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-19 23:59:15.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:20.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:25.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:30.118 +02:00 [DBG] Window emitted (180000 samples, cycle 21:59:15).
+2026-06-19 23:59:30.119 +02:00 [DBG] Starting decode for cycle 21:59:15; pcm = 180000 samples, RMS = 3.306E-002.
+2026-06-19 23:59:30.147 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 0 candidates found, 0 decoded.
+2026-06-19 23:59:30.147 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:59:30.147 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=0 meanAbsLLR=0.000 prenormVar=0.0000
+2026-06-19 23:59:30.147 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=186 meanAbsLLR=0.900 prenormVar=0.0438
+2026-06-19 23:59:30.147 +02:00 [INF] Cycle 21:59:15: 0 decode(s) found, elapsed=27 ms.
+2026-06-19 23:59:30.148 +02:00 [INF] Cycle 21:59:15: noise_floor=-120.0 dB (waterfall histogram median).
+2026-06-19 23:59:30.149 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:35.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:40.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:45.099 +02:00 [DBG] Window emitted (180000 samples, cycle 21:59:30).
+2026-06-19 23:59:45.100 +02:00 [DBG] Starting decode for cycle 21:59:30; pcm = 180000 samples, RMS = 2.279E-001.
+2026-06-19 23:59:45.145 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 1 decoded.
+2026-06-19 23:59:45.145 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-19 23:59:45.145 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=16 meanAbsLLR=3.904 prenormVar=66.0414
+2026-06-19 23:59:45.145 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=196 meanAbsLLR=3.927 prenormVar=30.4989
+2026-06-19 23:59:45.145 +02:00 [INF] Cycle 21:59:30: 1 decode(s) found, elapsed=45 ms.
+2026-06-19 23:59:45.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:45.147 +02:00 [INF] Cycle 21:59:30: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-19 23:59:45.148 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-19 23:59:45.149 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-19 23:59:45.149 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-19 23:59:45.149 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-19 23:59:45.154 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-19 23:59:45.154 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-19 23:59:45.155 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-19 23:59:50.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:55.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-19 23:59:57.799 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-19 23:59:57.799 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-19 23:59:57.799 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-19 23:59:57.799 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-19 23:59:57.799 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-20 00:00:00.110 +02:00 [DBG] Window emitted (180000 samples, cycle 21:59:45).
+2026-06-20 00:00:00.110 +02:00 [DBG] Starting decode for cycle 21:59:45; pcm = 180000 samples, RMS = 7.132E-002.
+2026-06-20 00:00:00.140 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:00.155 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 0 decoded.
+2026-06-20 00:00:00.155 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-20 00:00:00.155 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=17 meanAbsLLR=3.841 prenormVar=13.0616
+2026-06-20 00:00:00.155 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.855 prenormVar=13.0782
+2026-06-20 00:00:00.155 +02:00 [INF] Cycle 21:59:45: 0 decode(s) found, elapsed=44 ms.
+2026-06-20 00:00:00.156 +02:00 [INF] Cycle 21:59:45: noise_floor=-48.5 dB (waterfall histogram median).
+2026-06-20 00:00:05.147 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:10.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:15.100 +02:00 [DBG] Window emitted (180000 samples, cycle 22:00:00).
+2026-06-20 00:00:15.101 +02:00 [DBG] Starting decode for cycle 22:00:00; pcm = 180000 samples, RMS = 1.978E-001.
+2026-06-20 00:00:15.144 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 19 candidates found, 1 decoded.
+2026-06-20 00:00:15.144 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-20 00:00:15.144 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=18 meanAbsLLR=3.809 prenormVar=51.1949
+2026-06-20 00:00:15.144 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.941 prenormVar=18.2404
+2026-06-20 00:00:15.144 +02:00 [INF] Cycle 22:00:00: 1 decode(s) found, elapsed=43 ms.
+2026-06-20 00:00:15.145 +02:00 [INF] Cycle 22:00:00: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-20 00:00:15.146 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:15.146 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-20 00:00:15.147 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-20 00:00:15.148 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-20 00:00:15.152 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-20 00:00:15.152 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-20 00:00:15.153 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-20 00:00:19.725 +02:00 [DBG] Connection id "0HNME9CC00NLH" accepted.
+2026-06-20 00:00:19.725 +02:00 [DBG] Connection id "0HNME9CC00NLH" started.
+2026-06-20 00:00:19.725 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-20 00:00:19.726 +02:00 [VRB] All hosts are allowed.
+2026-06-20 00:00:19.726 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-20 00:00:19.726 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-20 00:00:19.726 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-20 00:00:19.726 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-20 00:00:19.726 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-20 00:00:19.727 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-20 00:00:19.728 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-20 00:00:19.730 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-20 00:00:19.730 +02:00 [INF] Setting HTTP status code 200.
+2026-06-20 00:00:19.731 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-20 00:00:19.731 +02:00 [DBG] Connection id "0HNME9CC00NLH" received FIN.
+2026-06-20 00:00:19.732 +02:00 [DBG] Connection id "0HNME9CC00NLH" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-20 00:00:19.732 +02:00 [DBG] Connection id "0HNME9CC00NLH" disconnecting.
+2026-06-20 00:00:19.731 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 6.3001ms
+2026-06-20 00:00:19.733 +02:00 [DBG] Connection id "0HNME9CC00NLH" stopped.
+2026-06-20 00:00:19.740 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-20 00:00:19.740 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-20 00:00:19.741 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-20 00:00:19.741 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-20 00:00:20.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:25.150 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:30.096 +02:00 [DBG] Window emitted (180000 samples, cycle 22:00:15).
+2026-06-20 00:00:30.096 +02:00 [DBG] Starting decode for cycle 22:00:15; pcm = 180000 samples, RMS = 7.035E-002.
+2026-06-20 00:00:30.141 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 0 decoded.
+2026-06-20 00:00:30.141 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-20 00:00:30.141 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=17 meanAbsLLR=3.872 prenormVar=12.6536
+2026-06-20 00:00:30.141 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.874 prenormVar=12.7087
+2026-06-20 00:00:30.141 +02:00 [INF] Cycle 22:00:15: 0 decode(s) found, elapsed=44 ms.
+2026-06-20 00:00:30.142 +02:00 [INF] Cycle 22:00:15: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-20 00:00:30.143 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:35.145 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:40.150 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:45.138 +02:00 [DBG] Window emitted (180000 samples, cycle 22:00:30).
+2026-06-20 00:00:45.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:45.139 +02:00 [DBG] Starting decode for cycle 22:00:30; pcm = 180000 samples, RMS = 2.300E-001.
+2026-06-20 00:00:45.182 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 23 candidates found, 1 decoded.
+2026-06-20 00:00:45.182 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-20 00:00:45.182 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.947 prenormVar=76.5568
+2026-06-20 00:00:45.182 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=199 meanAbsLLR=3.925 prenormVar=28.7824
+2026-06-20 00:00:45.182 +02:00 [INF] Cycle 22:00:30: 1 decode(s) found, elapsed=43 ms.
+2026-06-20 00:00:45.183 +02:00 [INF] Cycle 22:00:30: noise_floor=-53.5 dB (waterfall histogram median).
+2026-06-20 00:00:45.184 +02:00 [INF] QsoAnswererService: CQ detected from Q1ABC at 1500 Hz — answering.
+2026-06-20 00:00:45.186 +02:00 [DBG] QsoAnswererService: watchdog armed for 1 minutes.
+2026-06-20 00:00:45.186 +02:00 [DBG] QsoAnswererService: state → "TxAnswer" (partner: Q1ABC).
+2026-06-20 00:00:45.186 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ JO33" at 1500 Hz.
+2026-06-20 00:00:45.191 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-20 00:00:45.191 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-20 00:00:45.191 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-20 00:00:50.144 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:55.139 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:00:57.852 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-20 00:00:57.853 +02:00 [DBG] QsoAnswererService: TX complete for "Q1ABC Q4XYZ JO33".
+2026-06-20 00:00:57.853 +02:00 [DBG] QsoAnswererService: watchdog reset for 1 minutes.
+2026-06-20 00:00:57.853 +02:00 [DBG] QsoAnswererService H6: AP constraints armed (mycall=Q4XYZ, hiscall=Q1ABC).
+2026-06-20 00:00:57.853 +02:00 [DBG] QsoAnswererService: state → "WaitReport" (partner: Q1ABC).
+2026-06-20 00:01:00.120 +02:00 [DBG] Window emitted (180000 samples, cycle 22:00:45).
+2026-06-20 00:01:00.120 +02:00 [DBG] Starting decode for cycle 22:00:45; pcm = 180000 samples, RMS = 7.064E-002.
+2026-06-20 00:01:00.135 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:01:00.164 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 11 candidates found, 0 decoded.
+2026-06-20 00:01:00.164 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-20 00:01:00.164 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=11 meanAbsLLR=3.849 prenormVar=13.1819
+2026-06-20 00:01:00.164 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.870 prenormVar=12.7226
+2026-06-20 00:01:00.164 +02:00 [INF] Cycle 22:00:45: 0 decode(s) found, elapsed=43 ms.
+2026-06-20 00:01:00.165 +02:00 [INF] Cycle 22:00:45: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-20 00:01:05.148 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:01:10.150 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:01:15.104 +02:00 [DBG] Window emitted (180000 samples, cycle 22:01:00).
+2026-06-20 00:01:15.105 +02:00 [DBG] Starting decode for cycle 22:01:00; pcm = 180000 samples, RMS = 2.001E-001.
+2026-06-20 00:01:15.148 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 20 candidates found, 1 decoded.
+2026-06-20 00:01:15.148 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 1 decoded.
+2026-06-20 00:01:15.148 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=19 meanAbsLLR=3.848 prenormVar=55.5044
+2026-06-20 00:01:15.148 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=198 meanAbsLLR=3.874 prenormVar=16.1989
+2026-06-20 00:01:15.148 +02:00 [INF] Cycle 22:01:00: 2 decode(s) found, elapsed=43 ms.
+2026-06-20 00:01:15.149 +02:00 [INF] Cycle 22:01:00: noise_floor=-51.5 dB (waterfall histogram median).
+2026-06-20 00:01:15.150 +02:00 [INF] QsoAnswererService: received report -07 from Q1ABC.
+2026-06-20 00:01:15.151 +02:00 [DBG] QsoAnswererService: state → "TxReport" (partner: Q1ABC).
+2026-06-20 00:01:15.151 +02:00 [INF] QsoAnswererService: TX → "Q1ABC Q4XYZ R+00" at 1500 Hz.
+2026-06-20 00:01:15.151 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:01:15.155 +02:00 [DBG] TX audio loaded: 606720 samples (12640 ms).
+2026-06-20 00:01:15.155 +02:00 [INF] TX KeyDown — starting playback on device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}' (606720 samples).
+2026-06-20 00:01:15.156 +02:00 [DBG] TX: opened output device '{0.0.0.00000000}.{aa9afa03-b727-4a4a-bc0e-2ff8651f15ff}'.
+2026-06-20 00:01:20.138 +02:00 [DBG] Connection id "0HNME9CC00NLI" accepted.
+2026-06-20 00:01:20.138 +02:00 [DBG] Connection id "0HNME9CC00NLI" started.
+2026-06-20 00:01:20.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:01:20.153 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - application/x-www-form-urlencoded 0
+2026-06-20 00:01:20.155 +02:00 [VRB] All hosts are allowed.
+2026-06-20 00:01:20.155 +02:00 [DBG] 1 candidate(s) found for the request path '/api/v1/tx/abort'
+2026-06-20 00:01:20.155 +02:00 [DBG] Request matched endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-20 00:01:20.155 +02:00 [VRB] The endpoint does not specify the IRequestSizeLimitMetadata.
+2026-06-20 00:01:20.155 +02:00 [DBG] Static files was skipped as the request already matched an endpoint.
+2026-06-20 00:01:20.155 +02:00 [INF] Executing endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-20 00:01:20.155 +02:00 [INF] TX abort requested (HTTP) — cancelling active session (partner: Q1ABC, state: "TxReport").
+2026-06-20 00:01:20.156 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-20 00:01:20.163 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-20 00:01:20.163 +02:00 [INF] Setting HTTP status code 200.
+2026-06-20 00:01:20.163 +02:00 [INF] Executed endpoint 'HTTP: POST /api/v1/tx/abort'
+2026-06-20 00:01:20.164 +02:00 [DBG] Connection id "0HNME9CC00NLI" received FIN.
+2026-06-20 00:01:20.164 +02:00 [DBG] Connection id "0HNME9CC00NLI" sending FIN because: "The Socket transport's send loop completed gracefully."
+2026-06-20 00:01:20.164 +02:00 [DBG] Connection id "0HNME9CC00NLI" disconnecting.
+2026-06-20 00:01:20.164 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:8080/api/v1/tx/abort - 200 0 null 10.5532ms
+2026-06-20 00:01:20.166 +02:00 [DBG] Connection id "0HNME9CC00NLI" stopped.
+2026-06-20 00:01:20.169 +02:00 [INF] TX KeyDown — playback completed.
+2026-06-20 00:01:20.169 +02:00 [INF] QsoAnswererService: TX session cancelled during TX (state: "TxReport").
+2026-06-20 00:01:20.170 +02:00 [INF] TX KeyUp — stopping playback.
+2026-06-20 00:01:20.170 +02:00 [INF] QsoAnswererService: aborted to Idle (was: "TxReport", partner: Q1ABC).
+2026-06-20 00:01:25.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:01:30.080 +02:00 [DBG] Window emitted (180000 samples, cycle 22:01:15).
+2026-06-20 00:01:30.080 +02:00 [DBG] Starting decode for cycle 22:01:15; pcm = 180000 samples, RMS = 6.367E-002.
+2026-06-20 00:01:30.123 +02:00 [DBG] Iterative subtraction: pass 1 of 2, 17 candidates found, 0 decoded.
+2026-06-20 00:01:30.123 +02:00 [DBG] Iterative subtraction: pass 2 of 2, 200 candidates found, 0 decoded.
+2026-06-20 00:01:30.123 +02:00 [DBG] Iterative subtraction: pass 1 LDPC fail stats — failCands=17 meanAbsLLR=3.873 prenormVar=13.2147
+2026-06-20 00:01:30.123 +02:00 [DBG] Iterative subtraction: pass 2 LDPC fail stats — failCands=200 meanAbsLLR=3.868 prenormVar=12.6501
+2026-06-20 00:01:30.123 +02:00 [INF] Cycle 22:01:15: 0 decode(s) found, elapsed=43 ms.
+2026-06-20 00:01:30.124 +02:00 [INF] Cycle 22:01:15: noise_floor=-48.0 dB (waterfall histogram median).
+2026-06-20 00:01:30.142 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:01:35.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:01:40.138 +02:00 [INF] Heartbeat: captureActive=true, audioActive=true, dataFlowing=true
+2026-06-20 00:01:41.705 +02:00 [INF] Application is shutting down...
+2026-06-20 00:01:41.705 +02:00 [DBG] Hosting stopping
+2026-06-20 00:01:41.705 +02:00 [INF] Application stopping — aborting WebSocket connections and shutting down capture pipeline.
+2026-06-20 00:01:41.706 +02:00 [DBG] CycleFramer cancelled (device restart or shutdown).
+2026-06-20 00:01:41.706 +02:00 [INF] Capture session unblocked on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}' (ct=true, staCts=true).
+2026-06-20 00:01:41.707 +02:00 [INF] Audio capture cleanup starting on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-20 00:01:41.707 +02:00 [INF] Stopping capture on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-20 00:01:41.709 +02:00 [INF] RecordingStopped (graceful) on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-20 00:01:41.711 +02:00 [INF] Audio capture cleanup complete on '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}'.
+2026-06-20 00:01:41.711 +02:00 [INF] Capture stopped on device '{0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00}' (operator-stopped). Chunks received: 22547.
