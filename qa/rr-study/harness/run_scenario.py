@@ -451,6 +451,40 @@ def _run(args: argparse.Namespace) -> None:
     is_s7 = (scenario_id == "S7")
     is_s8 = (scenario_id == "S8")
 
+    # ── Part filter ────────────────────────────────────────────────────────────
+    # --parts 0,2,5  selects specific parts by part_index.
+    # Not applicable to S8, which uses a single implicit slot rather than a parts
+    # array.  Silently ignored for S8 so that the caller does not need special-case
+    # logic when forwarding flags from run_study.py.
+    _requested_parts = getattr(args, "parts", None)
+    if _requested_parts is not None and not is_s8:
+        requested_indices: set[int] = set()
+        for _tok in _requested_parts.split(","):
+            _tok = _tok.strip()
+            if not _tok.isdigit():
+                sys.exit(
+                    f"ERROR: invalid part index '{_tok}' in --parts — "
+                    "must be a non-negative integer"
+                )
+            requested_indices.add(int(_tok))
+        available_indices = {p["part_index"] for p in parts}
+        unknown_indices   = requested_indices - available_indices
+        if unknown_indices:
+            sys.exit(
+                f"ERROR: unknown part index(es) in --parts: "
+                f"{', '.join(str(i) for i in sorted(unknown_indices))}\n"
+                f"       Valid indices for {scenario_id}: "
+                f"{', '.join(str(i) for i in sorted(available_indices))}"
+            )
+        n_total = len(parts)
+        parts   = [p for p in parts if p["part_index"] in requested_indices]
+        # Preserve the JSON order rather than the order the user typed the indices.
+        print(
+            f"  Part filter   : indices "
+            f"{', '.join(str(p['part_index']) for p in parts)} "
+            f"({len(parts)} of {n_total} parts)\n"
+        )
+
     # Run directory
     qa_rr_root = Path(__file__).resolve().parent.parent
     results_root = qa_rr_root / "results"
@@ -634,6 +668,16 @@ def main() -> None:
         "--dry-run",
         action="store_true",
         help="Render audio and write truth.csv but skip actual playback",
+    )
+    parser.add_argument(
+        "--parts",
+        default=None,
+        metavar="IDX[,IDX...]",
+        help=(
+            "Comma-separated list of part indices to run (0-based). "
+            "If omitted, all parts are run. "
+            "Not applicable to S8 (no parts array — silently ignored)."
+        ),
     )
     args = parser.parse_args()
     _run(args)

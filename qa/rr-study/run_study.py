@@ -85,6 +85,13 @@ def main() -> None:
                         help="Comma-separated list of scenario IDs to run "
                              "(e.g. S1,S1b). Bypasses the S8 prompt. "
                              f"Valid IDs: {', '.join(_SCENARIO_REGISTRY)}")
+    parser.add_argument("--parts", default=None,
+                        metavar="IDX[,IDX...]",
+                        help="Comma-separated list of part indices (0-based) to run "
+                             "within each selected scenario. Useful for targeted runs "
+                             "of a single scenario (e.g. --scenarios S7 --parts 0,1,2). "
+                             "Applied to every scenario when multiple are selected — use "
+                             "with care. Not applicable to S8 (silently ignored).")
     args = parser.parse_args()
 
     # ── Build scenario list ────────────────────────────────────────────────
@@ -112,6 +119,16 @@ def main() -> None:
             else:
                 print("  S8 skipped.\n")
 
+    # Warn when --parts is combined with multiple scenarios — it is applied to
+    # all of them, which is rarely the intent.
+    if args.parts and len(scenario_ids) > 1:
+        print(
+            f"  WARNING: --parts '{args.parts}' will be applied to every selected "
+            f"scenario ({', '.join(scenario_ids)}).  Part indices must be valid for "
+            f"all of them, or you will get an error mid-run.  "
+            f"Prefer --scenarios <single-id> --parts <indices> for targeted work.\n"
+        )
+
     print("=" * 70)
     print("OpenWSFZ R&R Study -- live run")
     print("=" * 70)
@@ -119,6 +136,8 @@ def main() -> None:
     print(f"  OpenWSFZ ALL.TXT: {OWSFZ_ALL_TXT}")
     print(f"  Device          : {args.device}")
     print(f"  Scenarios       : {', '.join(scenario_ids)}")
+    if args.parts:
+        print(f"  Parts filter    : {args.parts}")
     print()
 
     # ── Step 0: Pre-flight warm-up check ──────────────────────────────────
@@ -136,7 +155,10 @@ def main() -> None:
     for sf in scenario_files:
         if not sf.exists():
             sys.exit(f"ERROR: scenario file not found: {sf}")
-        _py("harness/run_scenario.py", str(sf), "--device", args.device)
+        run_args = ["harness/run_scenario.py", str(sf), "--device", args.device]
+        if args.parts:
+            run_args += ["--parts", args.parts]
+        _py(*run_args)
         print(f"  [OK] {sf.name} complete\n", flush=True)
         time.sleep(_POST_SCENARIO_SETTLE_S)
 
