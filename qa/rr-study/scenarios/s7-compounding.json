@@ -206,6 +206,26 @@
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
         {"msg_id": "MSG-02", "freq_hz": 1515, "dt_s": 0.0, "snr_db": 0}
       ]
+    },
+    {
+      "part_index": 19,
+      "overlap_type": "co_channel_sweep",
+      "label": "offset-sweep: 2-stack, equal 0 dB, Δ8 Hz",
+      "note": "Threshold-narrowing sweep point. 2-stack equal-SNR at 8 Hz separation — between confirmed gap (Δ7 Hz, OpenWSFZ 70%) and confirmed parity (Δ10 Hz, 100%). Added 2026-06-19 to locate the performance cliff. Run with --parts 19,20.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1508, "dt_s": 0.0, "snr_db": 0}
+      ]
+    },
+    {
+      "part_index": 20,
+      "overlap_type": "co_channel_sweep",
+      "label": "offset-sweep: 2-stack, equal 0 dB, Δ9 Hz",
+      "note": "Threshold-narrowing sweep point. 2-stack equal-SNR at 9 Hz separation — between confirmed gap (Δ7 Hz, OpenWSFZ 70%) and confirmed parity (Δ10 Hz, 100%). Added 2026-06-19 to locate the performance cliff. Run with --parts 19,20.",
+      "signals": [
+        {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-02", "freq_hz": 1509, "dt_s": 0.0, "snr_db": 0}
+      ]
     }
   ],
 
