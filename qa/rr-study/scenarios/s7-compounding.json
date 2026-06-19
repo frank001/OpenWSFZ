@@ -1,11 +1,11 @@
 {
-  "_comment": "S7 Compounding / co-channel overlap — recovery under signals that physically sum in one slot at a single receiver (STUDY-SPEC §6). Each part lists explicit per-signal (msg_id, freq_hz, dt_s, snr_db). The harness renders each station clean, scales it by its relative snr_db (so snr_db sets station STRENGTH — capture pairs really differ in level), sums them, and adds ONE shared band-noise floor. Truth is logged one row PER SIGNAL so the existing matcher scores each compounded message independently. 2026-06-19: All exactly-co-frequency (Δ0 Hz) parts revised to use realistic ~10 Hz frequency offsets — in practice two operators independently targeting the same waterfall channel differ by several Hz due to display resolution and click precision. Exact co-frequency (Δ0 Hz) is a theoretical bound not representative of on-air conditions. Historical S7 results prior to this revision used Δ0 Hz co_channel parts and are not directly comparable to runs using this scenario.",
+  "_comment": "S7 Compounding / co-channel overlap — recovery under signals that physically sum in one slot at a single receiver (STUDY-SPEC §6). Each part lists explicit per-signal (msg_id, freq_hz, dt_s, snr_db). The harness renders each station clean, scales it by its relative snr_db (so snr_db sets station STRENGTH — capture pairs really differ in level), sums them, and adds ONE shared band-noise floor. Truth is logged one row PER SIGNAL so the existing matcher scores each compounded message independently. 2026-06-19 (R1): All exactly-co-frequency (Δ0 Hz) parts revised to use realistic ~10 Hz frequency offsets. 2026-06-19 (R2): Uniform Δ10 Hz across co_channel, time_freq and capture families replaced with varied offsets (Δ7–Δ14 Hz, non-multiples of 10) — a uniform round-number offset is no more representative of real-world click dispersion than Δ0 Hz. The near_collision family (parts 3–7) retains its specific separation probe points (3, 6, 12, 25, 50 Hz) unchanged. Results from R1 runs (uniform Δ10 Hz) are not directly comparable to R2 runs.",
   "_format_version": "1",
 
   "id": "S7",
   "name": "Compounding / co-channel overlap",
   "response": "Decoded / not-decoded per compounded message (attribute, per-signal recovery)",
-  "description": "4 overlap families × 3 trials. Drives: per-message recovery and between-app agreement when 2–3 signals occupy the same or near-same audio frequency / time slot — the real-world pileup case that S4 (frequency-spread QRM) never exercises. Revised 2026-06-19: co_channel, time_freq and capture families now use realistic ~10 Hz inter-signal frequency offsets rather than exact co-frequency (Δ0 Hz), which does not occur in practice.",
+  "description": "4 overlap families × 10 trials. Drives: per-message recovery and between-app agreement when 2–3 signals occupy the same or near-same audio frequency / time slot — the real-world pileup case that S4 (frequency-spread QRM) never exercises. Revised 2026-06-19 R2: co_channel, time_freq and capture families now use varied, irregular inter-signal frequency offsets (Δ7–Δ14 Hz) rather than a uniform Δ10 Hz repeated across all parts. The near_collision family retains its specific separation probe points.",
 
   "message_pool": ["MSG-01", "MSG-02", "MSG-03"],
 
@@ -15,32 +15,32 @@
     {
       "part_index": 0,
       "overlap_type": "co_channel",
-      "label": "2-stack, equal 0 dB, Δ10 Hz",
-      "note": "Two stations targeting the same channel with realistic ~10 Hz tuning offset — representative of real-world co-channel pileup where operators independently click approximately the same waterfall spot. Revised from Δ0 Hz (2026-06-19).",
+      "label": "2-stack, equal 0 dB, Δ7 Hz",
+      "note": "Two stations targeting the same channel with a 7 Hz tuning offset — a small but realistic miss when operators independently click the same waterfall spot. Revised from Δ10 Hz (2026-06-19 R2).",
       "signals": [
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
-        {"msg_id": "MSG-02", "freq_hz": 1510, "dt_s": 0.0, "snr_db": 0}
+        {"msg_id": "MSG-02", "freq_hz": 1507, "dt_s": 0.0, "snr_db": 0}
       ]
     },
     {
       "part_index": 1,
       "overlap_type": "co_channel",
-      "label": "2-stack, equal -5 dB, Δ10 Hz",
-      "note": "Co-channel pair with realistic frequency offset near the decode floor. Revised from Δ0 Hz (2026-06-19).",
+      "label": "2-stack, equal -5 dB, Δ13 Hz",
+      "note": "Co-channel pair near the decode floor with a 13 Hz tuning offset — a slightly wider click miss, still well within the FT8 50 Hz channel bandwidth. Revised from Δ10 Hz (2026-06-19 R2).",
       "signals": [
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": -5},
-        {"msg_id": "MSG-02", "freq_hz": 1510, "dt_s": 0.0, "snr_db": -5}
+        {"msg_id": "MSG-02", "freq_hz": 1513, "dt_s": 0.0, "snr_db": -5}
       ]
     },
     {
       "part_index": 2,
       "overlap_type": "co_channel",
-      "label": "3-stack, equal 0 dB, Δ10 Hz spread",
-      "note": "Triple co-channel pileup with realistic per-station frequency offsets — three operators independently targeting ~1500 Hz with natural waterfall tuning spread. Revised from Δ0 Hz (2026-06-19).",
+      "label": "3-stack, equal 0 dB, Δ8 / Δ11 Hz asymmetric",
+      "note": "Triple co-channel pileup with asymmetric per-station offsets — three operators independently clicking ~1500 Hz, landing 8 Hz below, on-frequency, and 11 Hz above. Asymmetry is intentional: three independent operators will not produce a symmetric spread. Revised from symmetric Δ10 Hz (2026-06-19 R2).",
       "signals": [
-        {"msg_id": "MSG-01", "freq_hz": 1490, "dt_s": 0.0, "snr_db": 0},
+        {"msg_id": "MSG-01", "freq_hz": 1492, "dt_s": 0.0, "snr_db": 0},
         {"msg_id": "MSG-02", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
-        {"msg_id": "MSG-03", "freq_hz": 1510, "dt_s": 0.0, "snr_db": 0}
+        {"msg_id": "MSG-03", "freq_hz": 1511, "dt_s": 0.0, "snr_db": 0}
       ]
     },
 
@@ -98,78 +98,78 @@
     {
       "part_index": 8,
       "overlap_type": "time_freq",
-      "label": "near-co-freq Δ10 Hz, dt 0.0 / 0.5 s",
-      "note": "Near-co-frequency pair with realistic 10 Hz offset, late replier offset by 0.5 s. Revised from Δ0 Hz (2026-06-19).",
+      "label": "near-co-freq Δ8 Hz, dt 0.0 / 0.5 s",
+      "note": "Near-co-frequency pair with 8 Hz offset, late replier offset by 0.5 s. Revised from Δ10 Hz (2026-06-19 R2).",
       "signals": [
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
-        {"msg_id": "MSG-02", "freq_hz": 1510, "dt_s": 0.5, "snr_db": 0}
+        {"msg_id": "MSG-02", "freq_hz": 1508, "dt_s": 0.5, "snr_db": 0}
       ]
     },
     {
       "part_index": 9,
       "overlap_type": "time_freq",
-      "label": "near-co-freq Δ10 Hz, dt 0.0 / 1.0 s",
-      "note": "Near-co-frequency pair with realistic 10 Hz offset, 1.0 s time stagger. Revised from Δ0 Hz (2026-06-19).",
+      "label": "near-co-freq Δ11 Hz, dt 0.0 / 1.0 s",
+      "note": "Near-co-frequency pair with 11 Hz offset, 1.0 s time stagger. Revised from Δ10 Hz (2026-06-19 R2).",
       "signals": [
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
-        {"msg_id": "MSG-02", "freq_hz": 1510, "dt_s": 1.0, "snr_db": 0}
+        {"msg_id": "MSG-02", "freq_hz": 1511, "dt_s": 1.0, "snr_db": 0}
       ]
     },
     {
       "part_index": 10,
       "overlap_type": "time_freq",
-      "label": "near-co-freq Δ10 Hz, dt 0.0 / 2.0 s",
-      "note": "Near-co-frequency pair with realistic 10 Hz offset, 2.0 s time stagger (near sync-window edge). Revised from Δ0 Hz (2026-06-19).",
+      "label": "near-co-freq Δ9 Hz, dt 0.0 / 2.0 s",
+      "note": "Near-co-frequency pair with 9 Hz offset, 2.0 s time stagger (near sync-window edge). Revised from Δ10 Hz (2026-06-19 R2).",
       "signals": [
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
-        {"msg_id": "MSG-02", "freq_hz": 1510, "dt_s": 2.0, "snr_db": 0}
+        {"msg_id": "MSG-02", "freq_hz": 1509, "dt_s": 2.0, "snr_db": 0}
       ]
     },
 
     {
       "part_index": 11,
       "overlap_type": "capture",
-      "label": "near-co-freq Δ10 Hz, 0 / -3 dB",
-      "note": "Capture effect: 3 dB stronger vs weaker, near-co-frequency with realistic 10 Hz offset. Revised from Δ0 Hz (2026-06-19).",
+      "label": "near-co-freq Δ14 Hz, 0 / -3 dB",
+      "note": "Capture effect: 3 dB stronger vs weaker, 14 Hz frequency offset. Revised from Δ10 Hz (2026-06-19 R2).",
       "signals": [
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
-        {"msg_id": "MSG-02", "freq_hz": 1510, "dt_s": 0.0, "snr_db": -3}
+        {"msg_id": "MSG-02", "freq_hz": 1514, "dt_s": 0.0, "snr_db": -3}
       ]
     },
     {
       "part_index": 12,
       "overlap_type": "capture",
-      "label": "near-co-freq Δ10 Hz, 0 / -6 dB",
-      "note": "6 dB capture margin with realistic 10 Hz frequency offset. Revised from Δ0 Hz (2026-06-19).",
+      "label": "near-co-freq Δ9 Hz, 0 / -6 dB",
+      "note": "6 dB capture margin with 9 Hz frequency offset. Revised from Δ10 Hz (2026-06-19 R2).",
       "signals": [
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
-        {"msg_id": "MSG-02", "freq_hz": 1510, "dt_s": 0.0, "snr_db": -6}
+        {"msg_id": "MSG-02", "freq_hz": 1509, "dt_s": 0.0, "snr_db": -6}
       ]
     },
     {
       "part_index": 13,
       "overlap_type": "capture",
-      "label": "near-co-freq Δ10 Hz, 0 / -10 dB",
-      "note": "10 dB capture margin — weaker likely suppressed; realistic 10 Hz frequency offset. Revised from Δ0 Hz (2026-06-19).",
+      "label": "near-co-freq Δ7 Hz, 0 / -10 dB",
+      "note": "10 dB capture margin — weaker likely suppressed; 7 Hz frequency offset. Revised from Δ10 Hz (2026-06-19 R2).",
       "signals": [
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 0},
-        {"msg_id": "MSG-02", "freq_hz": 1510, "dt_s": 0.0, "snr_db": -10}
+        {"msg_id": "MSG-02", "freq_hz": 1507, "dt_s": 0.0, "snr_db": -10}
       ]
     },
     {
       "part_index": 14,
       "overlap_type": "capture",
-      "label": "near-co-freq Δ10 Hz, +3 / -10 dB",
-      "note": "Strong dominant signal over a weak one; realistic 10 Hz frequency offset. Revised from Δ0 Hz (2026-06-19).",
+      "label": "near-co-freq Δ11 Hz, +3 / -10 dB",
+      "note": "Strong dominant signal over a weak one; 11 Hz frequency offset. Revised from Δ10 Hz (2026-06-19 R2).",
       "signals": [
         {"msg_id": "MSG-01", "freq_hz": 1500, "dt_s": 0.0, "snr_db": 3},
-        {"msg_id": "MSG-02", "freq_hz": 1510, "dt_s": 0.0, "snr_db": -10}
+        {"msg_id": "MSG-02", "freq_hz": 1511, "dt_s": 0.0, "snr_db": -10}
       ]
     }
   ],
 
   "trials": 10,
-  "trials_note": "Increased from 3 to 10 on 2026-06-19 to improve statistical resolution for the revised co_channel parts (Δ10 Hz). At K=10 the co_channel family yields ~70 binary observations, giving a minimum detectable improvement of ~9% at α=0.05 and per-part resolution of ±15%. May be reduced back to 3 for routine regression gates once a stable baseline has been established under the revised scenario.",
+  "trials_note": "K=10 per part. At 10 trials the co_channel family yields ~60 binary observations, giving a minimum detectable improvement of ~10% at α=0.05 and per-part resolution of ±16%. May be reduced back to 3 for routine regression gates once a stable baseline has been established under the varied-offset scenario.",
 
   "seed_formula": "hash('S7', part_index, trial_index)"
 }
