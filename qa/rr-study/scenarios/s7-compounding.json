@@ -229,8 +229,8 @@
     }
   ],
 
-  "trials": 10,
-  "trials_note": "K=10 per part. At 10 trials the co_channel family yields ~60 binary observations, giving a minimum detectable improvement of ~10% at α=0.05 and per-part resolution of ±16%. May be reduced back to 3 for routine regression gates once a stable baseline has been established under the varied-offset scenario.",
+  "trials": 5,
+  "trials_note": "K=5 per part (reduced from K=10 at 2026-06-20 once OSD baseline established). At 5 trials the scenario yields ~210 binary observations overall and ~30 per co_channel_sweep family, giving adequate power to detect a ≥15 pp overall regression at α=0.05. Per-part CIs are ±22% — sufficient for gate purposes but not for fine-grained characterisation. Restore to K=10 for any active hypothesis investigation (H7 MMSE, SIC changes, etc.).",
 
   "seed_formula": "hash('S7', part_index, trial_index)"
 }
