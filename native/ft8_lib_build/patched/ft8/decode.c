@@ -654,7 +654,7 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
                 if (plain174[i] != (uint8_t)hd) ++nhard;    /* codeword vs channel   */
             }
 #ifdef NHARD_DIAG
-            fprintf(stderr, "OSD_NHARD_SITE1 %d corr %.3f norm %.3f\n", nhard, osd_corr, osd_norm);
+            fprintf(stderr, "OSD_NHARD_SITE1 %d corr %.3f norm %.3f sync %d\n", nhard, osd_corr, osd_norm, cand->score);
 #endif
             if (nhard > OSD_NHARD_MAX)
                 return false;
@@ -833,7 +833,7 @@ bool ftx_decode_candidate_ap(
                 if (plain174[i] != (uint8_t)hd) ++nhard;    /* codeword vs channel   */
             }
 #ifdef NHARD_DIAG
-            fprintf(stderr, "OSD_NHARD_SITE2 %d corr %.3f norm %.3f\n", nhard, osd_corr, osd_norm);
+            fprintf(stderr, "OSD_NHARD_SITE2 %d corr %.3f norm %.3f sync %d\n", nhard, osd_corr, osd_norm, cand->score);
 #endif
             if (nhard > OSD_NHARD_MAX)
                 return false;
