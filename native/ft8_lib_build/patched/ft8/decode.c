@@ -11,19 +11,46 @@
 // #define LOG_LEVEL LOG_DEBUG
 // #include "debug.h"
 
-/* OSD confidence gate threshold (shim 20260027, D-009 R3).
- * Normalised correlation score below which an OSD-found codeword is rejected as
- * a CRC-14 false alarm.  Range [-1, +1].
+/* OSD two-feature gate (shim 20260028, D-009 R5).
+ *
+ * The single-knob corr/norm approach (R4) proved ceilinged: achieving 0 FP on S5
+ * required OSD_CORR_THRESHOLD >= 0.40, which conflicts with S7 co-channel decode
+ * (requires <= 0.35).  The fix is a second, orthogonal discriminant: nhard, the
+ * hard-decision Hamming distance between the OSD codeword and the channel hard
+ * decisions.  This is the metric WSJT-X uses (nharderrors, osd174_91.f90).
+ *
+ * Feature 1 — corr/norm (shim 20260026):
+ *   Normalised inner-product: corr = Σ hard_pm1[i] * LLR[i]; norm = Σ |LLR[i]|.
+ *   Reject if norm > 0 and corr/norm < OSD_CORR_THRESHOLD.
+ *   With nhard carrying noise rejection, this threshold stays low (0.10).
+ *
+ * Feature 2 — nhard (shim 20260028, R5):
+ *   Channel hard decision: hd[i] = (LLR[i] > 0) ? 0 : 1.
+ *   nhard = number of positions where plain174[i] != hd[i].
+ *   Reject if nhard > OSD_NHARD_MAX.
+ *
+ *   Genuine decodes: OSD codeword is Hamming-close to channel hard decisions
+ *   regardless of SNR.  CRC-14 noise coincidences: bits are uncorrelated with
+ *   the noise LLRs → nhard clusters near 87 (= 174/2).
+ *
+ * Calibration:
+ *   OSD_CORR_THRESHOLD: 0.10 (reverted from R4 ceiling; nhard now carries noise rejection).
+ *   OSD_NHARD_MAX: calibrated against S5 noise and S7 genuine histograms.
+ *     Expect S5 noise near ~87; S7 genuine clustered low.
+ *     For histogram collection: rebuild with -DNHARD_DIAG; nhard values printed to stderr
+ *     for every OSD hit (accepted and rejected).  Remove -DNHARD_DIAG before commit.
  *
  * Calibration history:
- *   0.10 (shim 20260026): initial value — S5 FP rate 75.0% (9 events / 12 slots).
- *   0.15 (shim 20260027): first calibration step — target S5 FP rate <= 6.0%.
- *
- * Increase if S5 FP rate remains elevated; decrease if S7 co-channel decode rate
- * regresses below the 8eea3c4 baseline.
- * Calibration protocol: step in increments of 0.05; run S5 + S7 P0-P2 after each step.
+ *   OSD_CORR_THRESHOLD:
+ *     0.10 (shim 20260026): initial — S5 FP rate 75.0% (9 events / 12 slots).
+ *     0.15 (shim 20260027): S5 still > 0% (see R3 result).
+ *     0.20–0.40 (shim 20260028, R4): ceilinged — 0 FP needs >= 0.40; S7 needs <= 0.35.
+ *     0.10 (shim 20260028, R5): reverted; nhard gate replaces threshold escalation.
+ *   OSD_NHARD_MAX:
+ *     60 (shim 20260028, R5): initial calibration target — verified by S5/S7 gate runs.
  */
-#define OSD_CORR_THRESHOLD 0.15f
+#define OSD_CORR_THRESHOLD 0.10f
+#define OSD_NHARD_MAX      60
 
 // Lookup table for y = 10*log10(1 + 10^(x/10)), where
 //   y - increase in signal level dB when adding a weaker independent signal
@@ -609,25 +636,28 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
         if (!osd_decode(llr_for_osd, 2, plain174))
             return false;
 
-        /* OSD confidence gate (shim 20260026, D-009):
-         * Reject candidates where the decoded codeword has low correlation with the
-         * input LLRs.  For a genuine signal the decoded bits are predominantly aligned
-         * with the LLR signs (score >> 0).  For a CRC-14 coincidence from pure noise
-         * the bits are uncorrelated with the noise LLRs (score ~= 0).
-         *
-         * corr = sum hard_pm1[i] * llr[i]   (positive = decoded bit agrees with LLR sign)
-         * norm = sum |llr[i]|
-         * score = corr / norm in [-1, +1]
-         * Threshold OSD_CORR_THRESHOLD: calibrated at 0.10; tune if S7 false-negatives appear.
+        /* OSD two-feature gate (shim 20260028, D-009 R5):
+         * Feature 1 (corr/norm): reject if normalised correlation < OSD_CORR_THRESHOLD.
+         * Feature 2 (nhard):     reject if Hamming distance to channel hard decisions
+         *                        exceeds OSD_NHARD_MAX.
+         * See calibration history in the #define block above.
          */
         {
             float osd_corr = 0.0f;
             float osd_norm = 0.0f;
+            int   nhard    = 0;
             for (int i = 0; i < FTX_LDPC_N; ++i) {
                 float hard_pm1 = (plain174[i] == 0) ? 1.0f : -1.0f;
                 osd_corr += hard_pm1 * llr_for_osd[i];
                 osd_norm += fabsf(llr_for_osd[i]);
+                int hd = (llr_for_osd[i] > 0.0f) ? 0 : 1;  /* channel hard decision */
+                if (plain174[i] != (uint8_t)hd) ++nhard;    /* codeword vs channel   */
             }
+#ifdef NHARD_DIAG
+            fprintf(stderr, "OSD_NHARD_SITE1 %d corr %.3f norm %.3f\n", nhard, osd_corr, osd_norm);
+#endif
+            if (nhard > OSD_NHARD_MAX)
+                return false;
             if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
                 return false;
         }
@@ -790,15 +820,23 @@ bool ftx_decode_candidate_ap(
         if (!osd_decode(llr_for_osd, 2, plain174))
             return false;
 
-        /* OSD confidence gate (shim 20260026, D-009) — same as ftx_decode_candidate. */
+        /* OSD two-feature gate (shim 20260028, D-009 R5) — same as ftx_decode_candidate. */
         {
             float osd_corr = 0.0f;
             float osd_norm = 0.0f;
+            int   nhard    = 0;
             for (int i = 0; i < FTX_LDPC_N; ++i) {
                 float hard_pm1 = (plain174[i] == 0) ? 1.0f : -1.0f;
                 osd_corr += hard_pm1 * llr_for_osd[i];
                 osd_norm += fabsf(llr_for_osd[i]);
+                int hd = (llr_for_osd[i] > 0.0f) ? 0 : 1;  /* channel hard decision */
+                if (plain174[i] != (uint8_t)hd) ++nhard;    /* codeword vs channel   */
             }
+#ifdef NHARD_DIAG
+            fprintf(stderr, "OSD_NHARD_SITE2 %d corr %.3f norm %.3f\n", nhard, osd_corr, osd_norm);
+#endif
+            if (nhard > OSD_NHARD_MAX)
+                return false;
             if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
                 return false;
         }

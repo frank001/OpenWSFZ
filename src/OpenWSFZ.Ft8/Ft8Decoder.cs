@@ -373,6 +373,13 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         // longest valid unspaced callsign token (10 chars including /suffix).
         if (text.Length >= 16 && !text.Contains(' ') && IsAllUpperHex(text)) return false;
 
+        // ── R5 Rule A: Single-token ───────────────────────────────────────────────
+        // No valid FT8 decode is ever a single token.  This gate is ordered after D9-R2
+        // so long hex-dump strings hit that rule first (behaviour unchanged); shorter
+        // single-token garbage (e.g. a callsign-sized OSD hit with no spaces) is caught
+        // here.
+        if (!text.Contains(' ')) return false;
+
         // ── D9-R3: Oversized callsign token ──────────────────────────────────────
         // Applied to 2-token CQ/DE/QRZ messages (callsign is token 1) and 3-token
         // Standard QSO messages (tokens 0 and 1 are callsigns).
@@ -391,6 +398,13 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 string token0 = text[..firstSpace];
                 string token1 = text[(firstSpace + 1)..];
                 if (IsCallsignOversized(token0) || IsCallsignOversized(token1))
+                    return false;
+
+                // R5 Rule C — CQ <hash>: "CQ <...>" is not a valid 2-token FT8 form.
+                // In FT8, CQ messages always carry a real callsign (and optionally a grid);
+                // a 2-token "CQ <hash>" is an OSD CRC-14 coincidence (D-009 Category C FP).
+                if (token0.Equals("CQ", StringComparison.Ordinal) &&
+                    token1.Length > 0 && token1[0] == '<')
                     return false;
             }
             else if (firstSpace > 0 && secondSpace > firstSpace
@@ -420,6 +434,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         // Quick count: only Standard QSO has exactly 3 space-separated tokens.
         int spaces = 0;
         foreach (char c in text) if (c == ' ') spaces++;
+
+        // R5 Rule B — 5+ tokens: no valid FT8 message type has 5 or more tokens.
+        // Valid forms top out at 4 tokens (CQ <modifier> <callsign> <grid>), already gated
+        // above.  An OSD hit with ≥ 4 spaces is a CRC-14 false positive.
+        if (spaces >= 4) return false;
+
         if (spaces != 2) return true; // Not 3-token — accept unconditionally.
 
         int    lastSpace = text.LastIndexOf(' ');

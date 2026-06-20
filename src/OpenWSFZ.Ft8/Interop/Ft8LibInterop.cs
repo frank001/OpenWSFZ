@@ -174,8 +174,21 @@ internal static class Ft8LibInterop
     ///   Category B residual (3-token structurally-valid FPs) and Category C (CQ &lt;...&gt;)
     ///   are not addressable by text filtering; gate calibration is the only lever.
     ///   Text-layer: 4-token non-CQ messages now rejected by IsPlausibleMessage (no shim change).
+    /// 20260028 (fix-d009-r5): OSD two-feature gate — nhard Hamming-distance check added
+    ///   alongside the existing corr/norm check (D-009 R5).  The R4 single-knob calibration
+    ///   loop proved ceilinged: 0 FP on S5 required OSD_CORR_THRESHOLD &gt;= 0.40, which
+    ///   conflicts with S7 co-channel decode (needs &lt;= 0.35).  The nhard discriminant is
+    ///   orthogonal to corr/norm (magnitude-independent) and mirrors WSJT-X's nharderrors
+    ///   metric (osd174_91.f90).  Genuine decodes are Hamming-close to the channel hard
+    ///   decisions regardless of SNR; noise CRC-14 coincidences cluster near 87 (= 174/2).
+    ///   OSD_CORR_THRESHOLD reverted to 0.10 (nhard carries noise rejection).
+    ///   OSD_NHARD_MAX = 60 (calibrated against S5 noise and S7 genuine histograms).
+    ///   Text-layer Rules A/B/C added to IsPlausibleMessage: single-token reject (Rule A);
+    ///   5+-token reject (Rule B); &quot;CQ &lt;hash&gt;&quot; 2-token reject (Rule C).
+    ///   NFR-021: real callsigns replaced with Q-prefix in D009FpFilterTests.cs.
+    ///   No ABI change; struct layout unchanged (48 bytes).
     /// </summary>
-    private const int ExpectedShimVersion = 20260027;
+    private const int ExpectedShimVersion = 20260028;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.

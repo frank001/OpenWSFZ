@@ -135,7 +135,6 @@ public sealed class D009FpFilterTests
 
     [Theory(DisplayName = "D009 Gap A (R2): IsPlausibleMessage accepts valid 2-token messages")]
     [InlineData("CQ Q1ABC",      "CQ callsign without grid — valid 2-token form")]
-    [InlineData("CQ <...>",      "CQ to hashed callsign")]
     [InlineData("<...> Q1ABC",   "hash sender, valid callsign addressee")]
     [InlineData("Q1ABC <...>",   "valid callsign sender, hash addressee")]
     [InlineData("<...> RR73",    "Type 4 shorthand terminal")]
@@ -160,14 +159,52 @@ public sealed class D009FpFilterTests
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
                $"'{text}' is a valid CQ message and must not be rejected by Gap C ({reason})");
 
+    // ── Unit tests: R5 Rule A — single-token reject ──────────────────────────
+
+    [Theory(DisplayName = "D009 R5 Rule A: IsPlausibleMessage rejects single-token messages")]
+    [InlineData("Q1ABC",    "callsign-length single token — no valid FT8 decode is single-token")]
+    [InlineData("BEACON",   "6-char single token")]
+    [InlineData("73",       "terminal without context")]
+    [InlineData("RR73",     "shorthand without sender/addressee")]
+    public void IsPlausibleMessage_RuleA_SingleToken_ReturnsFalse(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+               $"'{text}' is a single-token string and must be rejected by R5 Rule A ({reason})");
+
+    // ── Unit tests: R5 Rule B — 5+ token reject ──────────────────────────────
+
+    [Theory(DisplayName = "D009 R5 Rule B: IsPlausibleMessage rejects messages with 5 or more tokens")]
+    [InlineData("Q1ABC Q9XYZ R -10 73",        "5 tokens — not a valid FT8 message form")]
+    [InlineData("CQ DX Q1ABC FN42 73",         "5 tokens — trailing extra token")]
+    [InlineData("Q1ABC Q9XYZ -10 73 RR73",     "5 tokens — OSD CRC-14 noise coincidence")]
+    public void IsPlausibleMessage_RuleB_FivePlusTokens_ReturnsFalse(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+               $"'{text}' has 5+ tokens and must be rejected by R5 Rule B ({reason})");
+
+    // ── Unit tests: R5 Rule C — CQ <hash> 2-token reject ─────────────────────
+
+    [Theory(DisplayName = "D009 R5 Rule C: IsPlausibleMessage rejects 2-token 'CQ <hash>' messages")]
+    [InlineData("CQ <...>",     "CQ followed by hash — not a valid 2-token FT8 form (D-009 Category C FP)")]
+    [InlineData("CQ <Q1ABC>",   "CQ followed by bracketed callsign hash")]
+    public void IsPlausibleMessage_RuleC_CqHash_ReturnsFalse(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+               $"'{text}' is a 'CQ <hash>' 2-token message and must be rejected by R5 Rule C ({reason})");
+
+    [Theory(DisplayName = "D009 R5 Rule C: IsPlausibleMessage accepts hash-first 2-token messages")]
+    [InlineData("<...> Q1ABC",  "hash SENDER with valid callsign addressee — valid Type 4 form")]
+    [InlineData("<...> RR73",   "hash sender with terminal — valid Type 4 shorthand")]
+    [InlineData("Q1ABC <...>",  "callsign sender, hash addressee — valid Type 4 QSO")]
+    public void IsPlausibleMessage_RuleC_HashFirst_ReturnsTrue(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+               $"'{text}' is a hash-first (not CQ-first) 2-token message and must not be rejected by Rule C ({reason})");
+
     // ── Unit tests: D9-R3 R3 — 4-token non-CQ reject ────────────────────────
 
     [Theory(DisplayName = "D009 R3: IsPlausibleMessage rejects 4-token messages where token0 is not CQ")]
-    [InlineData("JT6KU EH2AOE/R R OH76",    "CALLSIGN CALLSIGN R GRID — not a valid Type 1 message")]
-    [InlineData("WH8EYF/P LC8WMR R EQ48",   "portable sender; still not a valid 4-token form")]
-    [InlineData("K60IFO/R 9O5GEL/R R CH00", "two portable callsigns; R GRID is not a Type 1 closing")]
-    [InlineData("IU7WEX/P 6N8XOX R EO10",   "same CALLSIGN CALLSIGN R GRID pattern")]
-    [InlineData("KR9NHK/P MR1I O/P QG94",   "O/P as third token is not a valid FT8 field")]
+    [InlineData("Q1AAA Q2BBB/R R OH76",     "CALLSIGN CALLSIGN R GRID — not a valid Type 1 message")]
+    [InlineData("Q3CCC/P Q4DDD R EQ48",     "portable sender; still not a valid 4-token form")]
+    [InlineData("Q5EEE/R Q6FFF/R R CH00",   "two portable callsigns; R GRID is not a Type 1 closing")]
+    [InlineData("Q7GGG/P Q8HHH R EO10",     "same CALLSIGN CALLSIGN R GRID pattern")]
+    [InlineData("Q9III/P Q1JJJ O/P QG94",   "O/P as third token is not a valid FT8 field")]
     public void IsPlausibleMessage_FourTokenNonCq_ReturnsFalse(string text, string reason)
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
                $"'{text}' is a non-CQ 4-token message and must be rejected by the R3 4-token rule ({reason})");
@@ -236,8 +273,18 @@ public sealed class D009FpFilterTests
             new Ft8NativeResult { FreqHz = 1950, Dt = 0.2f, Snr = -27, Message = "CQ /UX 6PY23BM"  },
 
             // ── D009 R3: 4-token non-CQ patterns (must be filtered) ──────────
-            new Ft8NativeResult { FreqHz = 2000, Dt = 0.1f, Snr = -27, Message = "JT6KU EH2AOE/R R OH76"  },
-            new Ft8NativeResult { FreqHz = 2050, Dt = 0.2f, Snr = -27, Message = "KR9NHK/P MR1I O/P QG94" }
+            new Ft8NativeResult { FreqHz = 2000, Dt = 0.1f, Snr = -27, Message = "Q1AAA Q2BBB/R R OH76"   },
+            new Ft8NativeResult { FreqHz = 2050, Dt = 0.2f, Snr = -27, Message = "Q9III/P Q1JJJ O/P QG94" },
+
+            // ── R5 Rule A: single-token (must be filtered) ────────────────────
+            new Ft8NativeResult { FreqHz = 2100, Dt = 0.1f, Snr = -28, Message = "Q1ABC"                  },
+            new Ft8NativeResult { FreqHz = 2150, Dt = 0.2f, Snr = -29, Message = "RR73"                   },
+
+            // ── R5 Rule B: 5+ tokens (must be filtered) ──────────────────────
+            new Ft8NativeResult { FreqHz = 2200, Dt = 0.1f, Snr = -27, Message = "Q1ABC Q9XYZ R -10 73"   },
+
+            // ── R5 Rule C: CQ <hash> 2-token (must be filtered) ──────────────
+            new Ft8NativeResult { FreqHz = 2300, Dt = 0.1f, Snr = -26, Message = "CQ <...>"               }
         );
 
         var decoder = BuildDecoder(interop);
@@ -246,7 +293,8 @@ public sealed class D009FpFilterTests
         results.Should().HaveCount(3,
             "only the three valid messages must survive the D-009 filter; " +
             "blanks, hex dumps, oversized-callsign garbage, Gap A 2-token patterns, Gap C CQ garbage, " +
-            "and R3 4-token non-CQ patterns must all be rejected");
+            "R3 4-token non-CQ patterns, R5 Rule A single-token, R5 Rule B 5+-token, and R5 Rule C CQ-hash " +
+            "patterns must all be rejected");
 
         results.Select(r => r.Message).Should().BeEquivalentTo(
             ["Q1ABC Q9XYZ -10", "CQ Q1AW EN37", "<...> Q9XYZ RR73"],

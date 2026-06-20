@@ -231,8 +231,19 @@ extern "C" {
  *              cannot be addressed by text filtering; only the gate threshold can
  *              suppress them.  Text-layer: 4-token non-CQ messages now rejected by
  *              IsPlausibleMessage (C# only, no additional native change).
+ *   20260028 — fix-d009-r5: OSD two-feature gate — nhard Hamming-distance check
+ *              added alongside the existing corr/norm check at both OSD sites in
+ *              patched/ft8/decode.c (ftx_decode_candidate and
+ *              ftx_decode_candidate_ap).  The R4 single-knob loop proved ceilinged
+ *              (0 FP on S5 required threshold >= 0.40; S7 co-channel needs <= 0.35).
+ *              nhard = Σ(plain174[i] != (LLR[i] > 0 ? 0 : 1)) for i in 0..173.
+ *              Genuine decodes are Hamming-close to the channel hard decisions
+ *              regardless of SNR; noise CRC-14 coincidences cluster near 87.
+ *              OSD_CORR_THRESHOLD reverted to 0.10 (nhard carries noise rejection);
+ *              OSD_NHARD_MAX = 60 (calibrated against S5/S7 histograms).
+ *              No ABI change; struct layout unchanged (48 bytes).
  */
-#define FT8_SHIM_VERSION 20260027
+#define FT8_SHIM_VERSION 20260028
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
