@@ -164,8 +164,13 @@ internal static class Ft8LibInterop
     ///   count, established in H_ITER diagnostic; retired slots 20260022–20260024).
     ///   No ABI change; struct layout and all existing entry points unchanged.
     ///   Target: close D-001 blind co-channel decode gap to ≥80% MSG-01 at Δ7 Hz.
+    /// 20260026 (fix-d009-r2): OSD correlation gate in decode.c (native, both call sites).
+    ///   Rejects OSD candidates whose normalised correlation score (corr/norm) is below
+    ///   OSD_CORR_THRESHOLD = 0.10.  Closes the text-level ceiling identified in D-009 R1
+    ///   verification (d40b4cd, 2026-06-20).  Text-level D9-R3 Gap A and Gap C extensions
+    ///   applied in Ft8Decoder.IsPlausibleMessage.
     /// </summary>
-    private const int ExpectedShimVersion = 20260025;
+    private const int ExpectedShimVersion = 20260026;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.

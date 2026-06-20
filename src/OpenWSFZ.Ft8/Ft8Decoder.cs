@@ -384,9 +384,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
             if (firstSpace > 0 && secondSpace < 0)
             {
                 // 2-token message: "TOKEN0 TOKEN1"
+                // Check both tokens — the CQ/DE/QRZ restriction on token0 was too narrow;
+                // patterns like "<...> M5E5B91HFHL" and "9ULLPTCDZH <...>" slipped through.
+                // IsCallsignOversized already exempts hash references (<...) and short keywords.
                 string token0 = text[..firstSpace];
                 string token1 = text[(firstSpace + 1)..];
-                if (token0 is "CQ" or "DE" or "QRZ" && IsCallsignOversized(token1))
+                if (IsCallsignOversized(token0) || IsCallsignOversized(token1))
                     return false;
             }
             else if (firstSpace > 0 && secondSpace > firstSpace
@@ -408,9 +411,6 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
 
         int    lastSpace = text.LastIndexOf(' ');
         string last      = text[(lastSpace + 1)..];
-
-        // CQ messages (first token "CQ") are always valid.
-        if (text.StartsWith("CQ ", StringComparison.Ordinal)) return true;
 
         // Terminal tokens (Standard QSO closing phase).
         if (last is "RRR" or "73" or "RR73") return true;

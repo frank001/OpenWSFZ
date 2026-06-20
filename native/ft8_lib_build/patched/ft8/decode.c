@@ -11,6 +11,13 @@
 // #define LOG_LEVEL LOG_DEBUG
 // #include "debug.h"
 
+/* OSD confidence gate threshold (shim 20260026, D-009).
+ * Normalised correlation score below which an OSD-found codeword is rejected as
+ * a CRC-14 false alarm.  Range [-1, +1]; initial value 0.10 (calibrated from
+ * S5 FP analysis 2026-06-20).  Increase if S5 FP rate remains elevated; decrease
+ * if S7 co-channel decode rate regresses. */
+#define OSD_CORR_THRESHOLD 0.10f
+
 // Lookup table for y = 10*log10(1 + 10^(x/10)), where
 //   y - increase in signal level dB when adding a weaker independent signal
 //   x - specific relative strength of the weaker signal in dB
@@ -594,6 +601,29 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
          * ndeep=2 matches WSJT-X's default maxosd=2 at ndepth=3. */
         if (!osd_decode(llr_for_osd, 2, plain174))
             return false;
+
+        /* OSD confidence gate (shim 20260026, D-009):
+         * Reject candidates where the decoded codeword has low correlation with the
+         * input LLRs.  For a genuine signal the decoded bits are predominantly aligned
+         * with the LLR signs (score >> 0).  For a CRC-14 coincidence from pure noise
+         * the bits are uncorrelated with the noise LLRs (score ~= 0).
+         *
+         * corr = sum hard_pm1[i] * llr[i]   (positive = decoded bit agrees with LLR sign)
+         * norm = sum |llr[i]|
+         * score = corr / norm in [-1, +1]
+         * Threshold OSD_CORR_THRESHOLD: calibrated at 0.10; tune if S7 false-negatives appear.
+         */
+        {
+            float osd_corr = 0.0f;
+            float osd_norm = 0.0f;
+            for (int i = 0; i < FTX_LDPC_N; ++i) {
+                float hard_pm1 = (plain174[i] == 0) ? 1.0f : -1.0f;
+                osd_corr += hard_pm1 * llr_for_osd[i];
+                osd_norm += fabsf(llr_for_osd[i]);
+            }
+            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
+                return false;
+        }
         status->ldpc_errors = 0;
     }
 
@@ -752,6 +782,19 @@ bool ftx_decode_candidate_ap(
         /* BP failed; try OSD fallback with pre-BP normalised LLRs. */
         if (!osd_decode(llr_for_osd, 2, plain174))
             return false;
+
+        /* OSD confidence gate (shim 20260026, D-009) — same as ftx_decode_candidate. */
+        {
+            float osd_corr = 0.0f;
+            float osd_norm = 0.0f;
+            for (int i = 0; i < FTX_LDPC_N; ++i) {
+                float hard_pm1 = (plain174[i] == 0) ? 1.0f : -1.0f;
+                osd_corr += hard_pm1 * llr_for_osd[i];
+                osd_norm += fabsf(llr_for_osd[i]);
+            }
+            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
+                return false;
+        }
         status->ldpc_errors = 0;
     }
 

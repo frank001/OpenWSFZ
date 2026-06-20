@@ -221,7 +221,7 @@ extern "C" {
  *              Target: close D-001 blind co-channel decode gap (≈40%→≥80% MSG-01
  *              at Δ7 Hz, S7 P16).
  */
-#define FT8_SHIM_VERSION 20260025
+#define FT8_SHIM_VERSION 20260026
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

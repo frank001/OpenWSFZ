@@ -122,6 +122,44 @@ public sealed class D009FpFilterTests
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
                $"'{text}' has an oversized addressee callsign and must be rejected by D9-R3 ({reason})");
 
+    // ── Unit tests: D9-R3 Gap A — 2-token messages: both tokens now checked ──────
+
+    [Theory(DisplayName = "D009 Gap A (R2): IsPlausibleMessage rejects 2-token messages with oversized token")]
+    [InlineData("<...> M5E5B91HFHL", "11-char token1; was not caught before Gap A fix")]
+    [InlineData("<...> 7P8R9J2R3BG", "11-char token1")]
+    [InlineData("<...> UF5NDNNJD2P", "11-char token1")]
+    [InlineData("9ULLPTCDZH <...>",  "10-char token0 (base 10 > 6); hash in token1")]
+    public void IsPlausibleMessage_GapA_TwoTokenOversized_ReturnsFalse(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+               $"'{text}' has an oversized token in a 2-token message and must be rejected by Gap A ({reason})");
+
+    [Theory(DisplayName = "D009 Gap A (R2): IsPlausibleMessage accepts valid 2-token messages")]
+    [InlineData("CQ Q1ABC",      "CQ callsign without grid — valid 2-token form")]
+    [InlineData("CQ <...>",      "CQ to hashed callsign")]
+    [InlineData("<...> Q1ABC",   "hash sender, valid callsign addressee")]
+    [InlineData("Q1ABC <...>",   "valid callsign sender, hash addressee")]
+    [InlineData("<...> RR73",    "Type 4 shorthand terminal")]
+    public void IsPlausibleMessage_GapA_ValidTwoToken_ReturnsTrue(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+               $"'{text}' is a valid 2-token message and must not be rejected by Gap A ({reason})");
+
+    // ── Unit tests: D9-R3 Gap C — CQ 3-token garbage third token ─────────────
+
+    [Theory(DisplayName = "D009 Gap C (R2): IsPlausibleMessage rejects CQ 3-token messages with garbage grid field")]
+    [InlineData("CQ 3QQF EXLJSR",  "6-char third token; not a valid Maidenhead grid")]
+    [InlineData("CQ /UX 6PY23BM",  "7-char third token; not a valid Maidenhead grid")]
+    public void IsPlausibleMessage_GapC_CqGarbageThirdToken_ReturnsFalse(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+               $"'{text}' has a garbage third token and must be rejected now that the CQ early-return is removed ({reason})");
+
+    [Theory(DisplayName = "D009 Gap C (R2): IsPlausibleMessage accepts valid CQ 3-token messages")]
+    [InlineData("CQ Q1ABC FN42",  "standard CQ with grid — must still be accepted")]
+    [InlineData("CQ 3DA0MN KH51", "6-char DX call with grid")]
+    [InlineData("CQ VK9AA OC12",  "5-char DX call with grid")]
+    public void IsPlausibleMessage_GapC_ValidCqMessage_ReturnsTrue(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+               $"'{text}' is a valid CQ message and must not be rejected by Gap C ({reason})");
+
     // ── Unit tests: must NOT reject — valid messages ──────────────────────────
 
     [Theory(DisplayName = "D009: IsPlausibleMessage accepts valid FT8 messages (must not reject)")]
@@ -165,9 +203,17 @@ public sealed class D009FpFilterTests
             new Ft8NativeResult { FreqHz = 1450, Dt = 0.2f, Snr = -28, Message = "1DA5713612BD5A3C22" },
 
             // ── D9-R3: oversized callsign (must be filtered) ─────────────────
-            new Ft8NativeResult { FreqHz = 1500, Dt = 0.1f, Snr = -23, Message = "CQ ETRHB0I3RYO"      },
+            new Ft8NativeResult { FreqHz = 1500, Dt = 0.1f, Snr = -23, Message = "CQ ETRHB0I3RYO"         },
             new Ft8NativeResult { FreqHz = 1600, Dt = 0.2f, Snr = -24, Message = "DDK4NYWXBIU Q9XYZ RR73" },
-            new Ft8NativeResult { FreqHz = 1700, Dt = 0.3f, Snr = -25, Message = "Q1ABC 1RY8RU98FJ9 73"   }
+            new Ft8NativeResult { FreqHz = 1700, Dt = 0.3f, Snr = -25, Message = "Q1ABC 1RY8RU98FJ9 73"   },
+
+            // ── D9-R3 Gap A: 2-token both-token check (must be filtered) ─────
+            new Ft8NativeResult { FreqHz = 1800, Dt = 0.1f, Snr = -27, Message = "<...> M5E5B91HFHL" },
+            new Ft8NativeResult { FreqHz = 1850, Dt = 0.2f, Snr = -28, Message = "9ULLPTCDZH <...>"  },
+
+            // ── D9-R3 Gap C: CQ with garbage grid field (must be filtered) ───
+            new Ft8NativeResult { FreqHz = 1900, Dt = 0.1f, Snr = -26, Message = "CQ 3QQF EXLJSR"  },
+            new Ft8NativeResult { FreqHz = 1950, Dt = 0.2f, Snr = -27, Message = "CQ /UX 6PY23BM"  }
         );
 
         var decoder = BuildDecoder(interop);
@@ -175,7 +221,7 @@ public sealed class D009FpFilterTests
 
         results.Should().HaveCount(3,
             "only the three valid messages must survive the D-009 filter; " +
-            "blanks, hex dumps, and oversized-callsign garbage must all be rejected");
+            "blanks, hex dumps, oversized-callsign garbage, Gap A 2-token patterns, and Gap C CQ garbage must all be rejected");
 
         results.Select(r => r.Message).Should().BeEquivalentTo(
             ["Q1ABC Q9XYZ -10", "CQ Q1AW EN37", "<...> Q9XYZ RR73"],
