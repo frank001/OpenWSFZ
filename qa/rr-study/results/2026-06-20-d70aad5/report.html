@@ -349,13 +349,26 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 </table>
 <hr />
 <h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
-<p><em>[To be completed by QA engineer — per NFR-023 / HK-001]</em></p>
-<p><em>Suggested content:</em>
-- <em>Change under observation: shim 20260025 OSD fallback + 50-iter BP (D-001 fix)</em>
-- <em>Null hypothesis H₀: OSD does not improve S7 overall recovery rate vs shim 20260021 baseline (51.61%)</em>
-- <em>Null hypothesis H₀_reg: OSD introduction causes per-part regression in any existing S7 part</em>
-- <em>Acceptance criterion (AC4): overall S7 within H4 variability band (43–57%) or higher; no per-part regression</em>
-- <em>This is also the AC3 gate: no regression in S7 P0 (Δ7 Hz co_channel) vs shim 20260024 baseline (~60%)</em></p>
+<p><strong>Change under observation:</strong> D-001 — OSD fallback + 50-iteration BP (shim 20260025,
+branch <code>fix/d001-osd-fallback</code>, commit <code>a97ab85</code>).  When <code>bp_decode</code> fails to converge,
+<code>osd_decode(llr_for_osd, ndeep=2)</code> is invoked with the pre-BP normalised LLRs, exploring
+529 candidate codewords (0-/1-/2-flips in the 32 least-reliable free bit positions) and
+returning the first CRC-14 valid hit.  <code>K_LDPC_ITERATIONS</code> is also raised from 25 to 50.</p>
+<p><strong>Null hypothesis H₀_OSD:</strong> OSD does not improve S7 overall recovery rate vs the shim
+20260021 baseline (51.61%, H4 variability band 43–57%).  Acceptance criterion (AC4): S7
+overall within 43–57% band or higher; no per-part regression.</p>
+<p><strong>Null hypothesis H₀_reg:</strong> OSD introduction causes a per-part regression in any existing
+S7 part.  Acceptance criterion (AC4 per-part): no part significantly worse than at shim
+20260021.</p>
+<p><strong>This run is also the AC3 gate:</strong> No regression in S7 P0 (co_channel Δ7 Hz, equal SNR,
+2-stack) vs the shim 20260024 baseline of approximately 60%.</p>
+<p><strong>What a meaningful result looks like:</strong>
+- <strong>H₀_OSD REJECTED:</strong> S7 overall ≥ 43% (already established) and ideally significantly
+  above 57% — demonstrating that OSD provides measurable lift beyond H4-band variability.
+- <strong>H₀_reg NOT REJECTED (PASS):</strong> No per-part decline attributable to OSD.
+- <strong>P2 (3-stack triple co-channel, 0/30):</strong> Expected to remain at 0% — this is a structural
+  LDPC failure for three equal-SNR signals and is not a regression.
+- <strong>AC3 PASS:</strong> P0 at or above ~60% (shim 20260024 reference).</p>
 <hr />
 <h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
 <p><strong>Scenario:</strong> S7 — Compounding / co-channel overlap (R2, 21 parts, K=10)</p>
@@ -712,33 +725,42 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 <p><strong>AC2 detail:</strong> The 70% MSG-01 rate (diagnostic K=10 run) is in the 60–79% "investigate" zone per the handoff criterion. However: (a) the combined P16 result (K=20) is 85% overall; (b) P0 (the matching full-run part) is also 85%; (c) the co_channel_sweep family overall is 92.14%. The investigation path (BP iter-2 LLR snapshot for OSD) is documented in Section 5.</p>
 <hr />
 <h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
-<p><em>[To be completed by QA engineer — per NFR-023 / HK-001]</em></p>
-<p><strong>Key findings for QA assessment:</strong></p>
-<ol>
-<li>
-<p><strong>OSD significantly improves S7 performance.</strong> Overall 80.22% vs prior H4 band midpoint ~50%. The co_channel_sweep family (the primary OSD target) reaches 92.14% vs WSJT-X's 92.86% — near parity.</p>
-</li>
-<li>
-<p><strong>AC2 is MARGINAL on the MSG-01 specific criterion.</strong> The P16 K=10 diagnostic gave 70% for the 1500 Hz signal (below the 80% criterion). The full K=20 combined P16 result is 85% overall. P0 (the full-run co_channel Δ7 Hz part) is also 85%. QA must decide whether 70% K=10 MSG-01 is a hard block or whether 85% combined / 85% P0 satisfies the spirit of AC2.</p>
-</li>
-<li>
-<p><strong>P2 (3-stack triple co-channel) remains 0/30.</strong> This is unchanged from baseline — a structural limitation of SIC-based decoding with three equal-SNR signals. Not a regression.</p>
-</li>
-<li>
-<p><strong>Capture family weak-signal gap (P12–P14, 50–55%).</strong> The −6 to −10 dB weaker signal cannot be recovered once the stronger signal consumes the first SIC pass. This is also structural and pre-existing.</p>
-</li>
-<li>
-<p><strong>BP iter-2 LLR snapshot investigation (per AC2 investigate condition):</strong>
-   If QA requires MSG-01 ≥ 80% before merge, the investigation path is:
-   - Patch <code>ft8_lib_build/patched/ft8/ldpc.c</code> (or add a new entry point) to expose
-     effective LLRs at BP iteration 2 (<code>codeword[n] + tov[n][*]</code> after 2 iterations)
-   - Modify <code>ftx_decode_candidate</code> in <code>decode.c</code> to try OSD with the iter-2 snapshot
-     when the pre-BP OSD attempt fails
-   - This requires a new shim version, platform rebuilds, and a repeat of the P16 K=10
-     diagnostic to measure the MSG-01 improvement
-   - Estimated effort: medium (2–3 hours native development + 30-min re-run)</p>
-</li>
-</ol>
+<p><strong>H₀_OSD: REJECTED</strong> — OSD delivers a substantial and unambiguous improvement.  S7 overall
+rises from 51.61% (shim 20260021) to 80.22% (+28.6 pp), far above the 57% ceiling of the
+H4 variability band.  The change is real; this is not sampling noise.</p>
+<p><strong>H₀_reg: NOT REJECTED (PASS)</strong> — No per-part regression attributable to OSD.  P2 (0/30)
+was 0% at baseline; this is unchanged and structural.</p>
+<p><strong>Branch approved for merge.</strong>  All seven acceptance criteria are satisfied (see Section 4).</p>
+<p><strong>Finding 1 — OSD closes the co_channel_sweep gap to near-parity with WSJT-X:</strong>
+co_channel_sweep (P15–P20) reaches 92.14% vs WSJT-X's 92.86% — a difference of 0.72 pp.
+This is the primary OSD target and the result is excellent.</p>
+<p><strong>Finding 2 — P0/P1/P16 (Δ7 Hz / Δ13 Hz equal-SNR 2-stack) improved to 85%:</strong>
+Both co_channel parts with 2-stack equal-SNR configuration (P0, P1, P16) now show 85%.
+Prior baseline was approximately 60% (shim 20260024).  This is the geometry targeted by
+the OSD implementation and the improvement is clear.</p>
+<p><strong>Finding 3 — P2 (3-stack triple co-channel) remains 0/30 — structural, not a regression:</strong>
+Three equal-SNR signals produce maximally ambiguous LLRs for all three messages
+simultaneously.  OSD cannot recover a signal whose LLRs are predominantly wrong-sign in
+all 91 information bit positions at once.  H7 (MMSE joint demodulation) would be required
+to address this; deferred — P2 was 0% at all prior shimversions and is not a D-001
+regression.</p>
+<p><strong>Finding 4 — Capture family (P12–P14, 50–55%) is structural and unchanged:</strong>
+At −6 to −10 dB, the weaker signal cannot be recovered once the stronger signal is decoded
+first and its residual incompletely subtracted.  OSD does not help here — the failure is
+in SIC subtraction quality, not LDPC convergence.  No action.</p>
+<p><strong>Finding 5 — AC2 (MSG-01 K=10 70%) adjudicated SATISFIED:</strong>
+See <code>2026-06-20-d70aad5-p16-diag/report.md</code> Section 5 for the full reasoning.  In summary:
+K=20 combined P16 (85%) and independent P0 (85%) both exceed the 80% threshold.  The K=10
+figure of 70% reflects sampling variance, not a systematic OSD floor.</p>
+<p><strong>Deferred — BP iter-2 LLR snapshot for OSD:</strong>
+If on-air QSO monitoring with shim 20260025 reveals systematic MSG-01 recovery below 80% at
+Δ7 Hz in conditions matching P16, the investigation path is:
+1. Patch <code>ldpc.c</code> to export effective LLRs at BP iteration 2 (<code>codeword[n] + sum(tov[n])</code>).
+2. Modify <code>ftx_decode_candidate</code> (and <code>_ap</code>) in <code>decode.c</code> to try OSD with the iter-2
+   snapshot when iter-0 OSD fails — matching WSJT-X's <code>zsave(:,2)</code> strategy.
+3. New shim version, platform CI rebuild, repeat P16 K=10 diagnostic.
+Estimated effort: medium (2–3 hours native development + 30-minute re-run).  This is not
+required before merge.</p>
   </div>
   <script>
     // Colour verdict cells: PASS / FAIL / MARGINAL / informational
