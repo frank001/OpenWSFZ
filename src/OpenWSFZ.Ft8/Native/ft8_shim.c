@@ -249,6 +249,32 @@
  *   rather than reading out of bounds.  Signals at the band edge may have
  *   slightly fewer samples contributing to signal_db; this is acceptable.
  *
+ * fix-d001-osd (FT8_SHIM_VERSION 20260025):
+ *
+ *   Ordered Statistics Decoding (OSD) fallback added to ftx_decode_candidate
+ *   and ftx_decode_candidate_ap in patched/ft8/decode.c.  When bp_decode()
+ *   fails to converge under wrong-sign LLR conditions (D-001 root cause:
+ *   equal-SNR co-channel interference), osd_decode() algebraically explores
+ *   the most likely error patterns in the 32 least-reliable free bit positions
+ *   and performs a CRC-14 check on each candidate (529 trials per failing
+ *   candidate at ndeep=2, matching WSJT-X's default maxosd=2 at ndepth=3).
+ *
+ *   Algorithm (osd_decode + osd_try_codeword, both static C11 in decode.c):
+ *     (1) Sort 174 bits by |LLR| descending (insertion sort, O(N^2)).
+ *     (2) Permuted H_perm[83][174] built on stack (~14 KB).
+ *     (3) GF(2) Gaussian elimination → reduced row echelon form; 83 pivots.
+ *     (4) Free cols carry information bits; base = hard decisions on LLRs.
+ *     (5) Enumerate 0-/1-/2-flip trials in 32 least-reliable free positions.
+ *     (6) Per trial: compute pivot bits from parity eqs, un-permute, CRC-14.
+ *
+ *   OSD input: normalised LLRs BEFORE bp_decode (saved by memcpy of log174
+ *   after ftx_normalize_logl, matching WSJT-X zsave(:,1) at BP iteration 0).
+ *
+ *   Also raises K_LDPC_ITERATIONS from 25 → 50 (optimal flooding BP count as
+ *   established by H_ITER diagnostic on diag/d001-ldpc-iter-hypothesis branch;
+ *   version slots 20260022–20260024 were used only on that unmerged branch and
+ *   are permanently retired here to avoid version-number ambiguity).
+ *
  * Build: see BUILD.md.  encode.c and patched/ft8/decode.c must be compiled and linked.
  */
 
@@ -322,7 +348,7 @@ char* stpcpy(char* dest, const char* src)
 
 #define K_MIN_SCORE       10
 #define K_MAX_CANDIDATES  140
-#define K_LDPC_ITERATIONS 25
+#define K_LDPC_ITERATIONS 50   /* raised 25→50 (shim 20260025): optimal flooding BP count per H_ITER diagnostic */
 #define K_FREQ_OSR        2
 #define K_TIME_OSR        2
 
