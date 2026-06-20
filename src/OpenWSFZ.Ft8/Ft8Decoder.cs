@@ -328,22 +328,78 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
 
     /// <summary>
     /// Returns <c>false</c> when <paramref name="text"/> looks like a false LDPC convergence —
-    /// a Standard QSO message whose 15-bit grid/report field has an impossible bit value
+    /// a blank/whitespace message, a raw hex dump (unrecognised message type), a message
+    /// containing an oversized callsign token (D-009 OSD false-positive guard), or a
+    /// Standard QSO message whose 15-bit grid/report field has an impossible bit value
     /// that slipped through CRC-14 by chance (≈ 1/16 384 per candidate; ~0.006% per cycle
     /// at 140 candidates).
     /// </summary>
     /// <remarks>
-    /// Only applied to exactly 3-token messages (the Standard QSO pattern).  All other
-    /// message forms — CQ messages, contest serials, free text, Type 4 hash notation —
-    /// are accepted unconditionally to avoid false negatives on valid traffic.
-    ///
-    /// The filter catches the most common false-positive category: Maidenhead grid fields
-    /// whose leading letter pair encodes values outside [0, 17] (letters beyond 'R').
-    /// dB report fields and terminal tokens are validated against their known-valid forms.
+    /// <para>
+    /// D9-R1 — blank/whitespace: empty or whitespace-only strings are rejected.  LDPC can
+    /// converge to a valid codeword that maps to no printable message type; this guard
+    /// prevents empty strings from reaching ALL.TXT and the UI.
+    /// </para>
+    /// <para>
+    /// D9-R2 — hex dump: <c>ft8_lib</c> renders unrecognised message types as a raw
+    /// uppercase hex string with no spaces.  Any single-token string ≥ 16 chars whose
+    /// every character is an uppercase hex digit is rejected.
+    /// </para>
+    /// <para>
+    /// D9-R3 — oversized callsign: a Type 1 callsign packs into 28 bits; the largest
+    /// valid rendered form is a 6-char base call with a 3-char portable suffix
+    /// (e.g. <c>VK9ABC/QRP</c>, 10 chars total).  Any callsign-position token whose base
+    /// exceeds 6 chars, or whose total exceeds 10 chars, was not produced by valid
+    /// callsign packing and is therefore a false-positive OSD candidate.
+    /// </para>
+    /// <para>
+    /// D9-R4 (existing) — Maidenhead grid / report validation on 3-token Standard QSO
+    /// messages: grid letters must be in [A–R]; dB reports must match known-valid forms.
+    /// All other message forms are accepted unconditionally.
+    /// </para>
     /// </remarks>
     internal static bool IsPlausibleMessage(string? text)
     {
         if (text is null) return false;
+
+        // ── D9-R1: Blank / whitespace ────────────────────────────────────────────
+        // LDPC can converge to a codeword that produces no printable message type;
+        // the resulting empty / whitespace-only string is always a false positive.
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        // ── D9-R2: Hex dump (unrecognised message type) ──────────────────────────
+        // ft8_lib renders unrecognised message types as a raw uppercase hex string
+        // with no spaces.  Threshold of 16 chars gives generous headroom above the
+        // longest valid unspaced callsign token (10 chars including /suffix).
+        if (text.Length >= 16 && !text.Contains(' ') && IsAllUpperHex(text)) return false;
+
+        // ── D9-R3: Oversized callsign token ──────────────────────────────────────
+        // Applied to 2-token CQ/DE/QRZ messages (callsign is token 1) and 3-token
+        // Standard QSO messages (tokens 0 and 1 are callsigns).
+        // IndexOf avoids a second pass over the string after the spaces count below.
+        {
+            int firstSpace  = text.IndexOf(' ');
+            int secondSpace = firstSpace >= 0 ? text.IndexOf(' ', firstSpace + 1) : -1;
+
+            if (firstSpace > 0 && secondSpace < 0)
+            {
+                // 2-token message: "TOKEN0 TOKEN1"
+                string token0 = text[..firstSpace];
+                string token1 = text[(firstSpace + 1)..];
+                if (token0 is "CQ" or "DE" or "QRZ" && IsCallsignOversized(token1))
+                    return false;
+            }
+            else if (firstSpace > 0 && secondSpace > firstSpace
+                     && text.IndexOf(' ', secondSpace + 1) < 0)
+            {
+                // Exactly 3-token message: "TOKEN0 TOKEN1 TOKEN2"
+                string token0 = text[..firstSpace];
+                string token1 = text[(firstSpace + 1)..secondSpace];
+                if (IsCallsignOversized(token0) || IsCallsignOversized(token1))
+                    return false;
+            }
+            // 4+ token messages (CQ DX, contest, free-text): not validated here.
+        }
 
         // Quick count: only Standard QSO has exactly 3 space-separated tokens.
         int spaces = 0;
@@ -399,5 +455,46 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                && (t[0] == '+' || t[0] == '-')
                && char.IsAsciiDigit(t[1])
                && char.IsAsciiDigit(t[2]);
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when every character in <paramref name="s"/> is an uppercase
+    /// hexadecimal digit (0–9, A–F).  Used by the D9-R2 hex-dump guard.
+    /// </summary>
+    private static bool IsAllUpperHex(string s)
+    {
+        foreach (char c in s)
+            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')))
+                return false;
+        return true;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when <paramref name="token"/> is a callsign-position token
+    /// that exceeds the limits of valid Type 1 callsign packing (D9-R3 guard).
+    /// </summary>
+    /// <remarks>
+    /// Exempt cases (always returns <c>false</c>):
+    /// <list type="bullet">
+    ///   <item>Hash-reference tokens beginning with <c>&lt;</c> (e.g. <c>&lt;...&gt;</c>).</item>
+    ///   <item>Short pseudo-callsigns with ≤ 3 characters (CQ, DE, QRZ).</item>
+    /// </list>
+    /// A valid Type 1 base callsign has at most 6 characters; with a portable suffix
+    /// (<c>/P</c>, <c>/M</c>, <c>/R</c>, <c>/MM</c>, <c>/QRP</c>) the rendered token
+    /// reaches at most 10 characters.  Anything beyond these limits was not produced
+    /// by valid callsign packing.
+    /// </remarks>
+    private static bool IsCallsignOversized(string token)
+    {
+        if (token.StartsWith('<')) return false;   // hash reference — never oversized
+        if (token.Length <= 3)    return false;    // CQ / DE / QRZ / very short call — exempt
+
+        // Split on '/' to isolate the base callsign from any portable suffix.
+        int    slashPos  = token.IndexOf('/');
+        string baseCall  = slashPos >= 0 ? token[..slashPos] : token;
+
+        // Base callsign from standard Type 1 packing: maximum 6 characters.
+        // Rendered token with /suffix: maximum 10 characters.
+        return baseCall.Length > 6 || token.Length > 10;
     }
 }
