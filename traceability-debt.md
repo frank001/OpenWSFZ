@@ -144,3 +144,12 @@ NFR-024  # QA harness — compliant report generation. This requirement mandates
          # A non-compliant report.md in a merge commit is a blocking defect per NFR-024.
          # Remove when a pytest suite for the harness validates report.md structure and
          # verdict correctness programmatically (at which point NFR-023 entry can also be removed).
+
+## Pending — D-001 OSD test coverage gaps (fix/d001-osd-fallback)
+
+# AP+OSD combined path: ftx_decode_candidate_ap with OSD fallback is not covered
+# by an integration test. Rationale and risk assessment in D001H6ApDecodeTests.cs
+# class-level <remarks>. Not a requirement ID; tracked here for completeness.
+# Remove when a deterministic fixture for the AP+OSD combined path is engineered
+# (requires either a weaker SetApConstraints API or a new fixture geometry).
+D001-AP-OSD-GAP
