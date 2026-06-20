@@ -379,7 +379,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         // IndexOf avoids a second pass over the string after the spaces count below.
         {
             int firstSpace  = text.IndexOf(' ');
-            int secondSpace = firstSpace >= 0 ? text.IndexOf(' ', firstSpace + 1) : -1;
+            int secondSpace = firstSpace  >= 0 ? text.IndexOf(' ', firstSpace  + 1) : -1;
+            int thirdSpace  = secondSpace >= 0 ? text.IndexOf(' ', secondSpace + 1) : -1;
 
             if (firstSpace > 0 && secondSpace < 0)
             {
@@ -393,7 +394,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                     return false;
             }
             else if (firstSpace > 0 && secondSpace > firstSpace
-                     && text.IndexOf(' ', secondSpace + 1) < 0)
+                     && thirdSpace < 0)
             {
                 // Exactly 3-token message: "TOKEN0 TOKEN1 TOKEN2"
                 string token0 = text[..firstSpace];
@@ -401,7 +402,19 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 if (IsCallsignOversized(token0) || IsCallsignOversized(token1))
                     return false;
             }
-            // 4+ token messages (CQ DX, contest, free-text): not validated here.
+            else if (firstSpace > 0 && secondSpace > firstSpace && thirdSpace > secondSpace
+                     && text.IndexOf(' ', thirdSpace + 1) < 0)
+            {
+                // Exactly 4-token message: "TOKEN0 TOKEN1 TOKEN2 TOKEN3"
+                // The only valid 4-token FT8 forms are "CQ <modifier> <callsign> <grid>"
+                // (e.g. "CQ DX Q1ABC FN42", "CQ NA Q9XYZ EN37").
+                // Patterns like "CALLSIGN CALLSIGN R GRID" are OSD CRC-14 false alarms
+                // (D-009 R2 verification, Category A) — they are not Type 1 FT8 messages.
+                string token0 = text[..firstSpace];
+                if (!token0.Equals("CQ", StringComparison.Ordinal))
+                    return false;
+            }
+            // 5+ token messages: not validated here.
         }
 
         // Quick count: only Standard QSO has exactly 3 space-separated tokens.

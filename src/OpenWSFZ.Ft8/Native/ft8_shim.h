@@ -220,8 +220,19 @@ extern "C" {
  *              No change to ABI, struct layout, or any existing entry points.
  *              Target: close D-001 blind co-channel decode gap (≈40%→≥80% MSG-01
  *              at Δ7 Hz, S7 P16).
+ *   20260026 — fix-d009-r2: OSD correlation gate at both osd_decode call sites in
+ *              patched/ft8/decode.c.  Rejects OSD candidates whose normalised
+ *              inner-product score (corr/norm) is below OSD_CORR_THRESHOLD = 0.10.
+ *              Text-layer D9-R3 Gap A and Gap C extensions in IsPlausibleMessage
+ *              (C# only, no native change).  S5 R2 verification showed 75.0% FP
+ *              rate at threshold 0.10 — insufficient; raised in 20260027.
+ *   20260027 — fix-d009-r3: OSD_CORR_THRESHOLD raised 0.10 → 0.15 in decode.c.
+ *              Category B (structurally-valid 3-token FPs) and Category C (CQ <...>)
+ *              cannot be addressed by text filtering; only the gate threshold can
+ *              suppress them.  Text-layer: 4-token non-CQ messages now rejected by
+ *              IsPlausibleMessage (C# only, no additional native change).
  */
-#define FT8_SHIM_VERSION 20260026
+#define FT8_SHIM_VERSION 20260027
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

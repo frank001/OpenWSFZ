@@ -160,6 +160,26 @@ public sealed class D009FpFilterTests
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
                $"'{text}' is a valid CQ message and must not be rejected by Gap C ({reason})");
 
+    // ── Unit tests: D9-R3 R3 — 4-token non-CQ reject ────────────────────────
+
+    [Theory(DisplayName = "D009 R3: IsPlausibleMessage rejects 4-token messages where token0 is not CQ")]
+    [InlineData("JT6KU EH2AOE/R R OH76",    "CALLSIGN CALLSIGN R GRID — not a valid Type 1 message")]
+    [InlineData("WH8EYF/P LC8WMR R EQ48",   "portable sender; still not a valid 4-token form")]
+    [InlineData("K60IFO/R 9O5GEL/R R CH00", "two portable callsigns; R GRID is not a Type 1 closing")]
+    [InlineData("IU7WEX/P 6N8XOX R EO10",   "same CALLSIGN CALLSIGN R GRID pattern")]
+    [InlineData("KR9NHK/P MR1I O/P QG94",   "O/P as third token is not a valid FT8 field")]
+    public void IsPlausibleMessage_FourTokenNonCq_ReturnsFalse(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+               $"'{text}' is a non-CQ 4-token message and must be rejected by the R3 4-token rule ({reason})");
+
+    [Theory(DisplayName = "D009 R3: IsPlausibleMessage accepts valid CQ 4-token messages")]
+    [InlineData("CQ DX Q1ABC FN42", "standard CQ DX with grid")]
+    [InlineData("CQ NA Q9XYZ EN37", "CQ North America")]
+    [InlineData("CQ EU Q1AW JO54",  "CQ Europe")]
+    public void IsPlausibleMessage_FourTokenCq_ReturnsTrue(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+               $"'{text}' is a valid CQ 4-token message and must not be rejected by the R3 4-token rule ({reason})");
+
     // ── Unit tests: must NOT reject — valid messages ──────────────────────────
 
     [Theory(DisplayName = "D009: IsPlausibleMessage accepts valid FT8 messages (must not reject)")]
@@ -213,7 +233,11 @@ public sealed class D009FpFilterTests
 
             // ── D9-R3 Gap C: CQ with garbage grid field (must be filtered) ───
             new Ft8NativeResult { FreqHz = 1900, Dt = 0.1f, Snr = -26, Message = "CQ 3QQF EXLJSR"  },
-            new Ft8NativeResult { FreqHz = 1950, Dt = 0.2f, Snr = -27, Message = "CQ /UX 6PY23BM"  }
+            new Ft8NativeResult { FreqHz = 1950, Dt = 0.2f, Snr = -27, Message = "CQ /UX 6PY23BM"  },
+
+            // ── D009 R3: 4-token non-CQ patterns (must be filtered) ──────────
+            new Ft8NativeResult { FreqHz = 2000, Dt = 0.1f, Snr = -27, Message = "JT6KU EH2AOE/R R OH76"  },
+            new Ft8NativeResult { FreqHz = 2050, Dt = 0.2f, Snr = -27, Message = "KR9NHK/P MR1I O/P QG94" }
         );
 
         var decoder = BuildDecoder(interop);
@@ -221,7 +245,8 @@ public sealed class D009FpFilterTests
 
         results.Should().HaveCount(3,
             "only the three valid messages must survive the D-009 filter; " +
-            "blanks, hex dumps, oversized-callsign garbage, Gap A 2-token patterns, and Gap C CQ garbage must all be rejected");
+            "blanks, hex dumps, oversized-callsign garbage, Gap A 2-token patterns, Gap C CQ garbage, " +
+            "and R3 4-token non-CQ patterns must all be rejected");
 
         results.Select(r => r.Message).Should().BeEquivalentTo(
             ["Q1ABC Q9XYZ -10", "CQ Q1AW EN37", "<...> Q9XYZ RR73"],

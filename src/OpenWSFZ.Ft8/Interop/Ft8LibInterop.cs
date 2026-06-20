@@ -169,8 +169,13 @@ internal static class Ft8LibInterop
     ///   OSD_CORR_THRESHOLD = 0.10.  Closes the text-level ceiling identified in D-009 R1
     ///   verification (d40b4cd, 2026-06-20).  Text-level D9-R3 Gap A and Gap C extensions
     ///   applied in Ft8Decoder.IsPlausibleMessage.
+    /// 20260027 (fix-d009-r3): OSD_CORR_THRESHOLD raised 0.10 → 0.15 in decode.c.
+    ///   S5 R2 verification (8eea3c4, 2026-06-20): 75.0% FP rate at 0.10 (9 events / 12 slots).
+    ///   Category B residual (3-token structurally-valid FPs) and Category C (CQ &lt;...&gt;)
+    ///   are not addressable by text filtering; gate calibration is the only lever.
+    ///   Text-layer: 4-token non-CQ messages now rejected by IsPlausibleMessage (no shim change).
     /// </summary>
-    private const int ExpectedShimVersion = 20260026;
+    private const int ExpectedShimVersion = 20260027;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.

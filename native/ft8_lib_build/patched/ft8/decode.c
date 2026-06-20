@@ -11,12 +11,19 @@
 // #define LOG_LEVEL LOG_DEBUG
 // #include "debug.h"
 
-/* OSD confidence gate threshold (shim 20260026, D-009).
+/* OSD confidence gate threshold (shim 20260027, D-009 R3).
  * Normalised correlation score below which an OSD-found codeword is rejected as
- * a CRC-14 false alarm.  Range [-1, +1]; initial value 0.10 (calibrated from
- * S5 FP analysis 2026-06-20).  Increase if S5 FP rate remains elevated; decrease
- * if S7 co-channel decode rate regresses. */
-#define OSD_CORR_THRESHOLD 0.10f
+ * a CRC-14 false alarm.  Range [-1, +1].
+ *
+ * Calibration history:
+ *   0.10 (shim 20260026): initial value — S5 FP rate 75.0% (9 events / 12 slots).
+ *   0.15 (shim 20260027): first calibration step — target S5 FP rate <= 6.0%.
+ *
+ * Increase if S5 FP rate remains elevated; decrease if S7 co-channel decode rate
+ * regresses below the 8eea3c4 baseline.
+ * Calibration protocol: step in increments of 0.05; run S5 + S7 P0-P2 after each step.
+ */
+#define OSD_CORR_THRESHOLD 0.15f
 
 // Lookup table for y = 10*log10(1 + 10^(x/10)), where
 //   y - increase in signal level dB when adding a weaker independent signal
