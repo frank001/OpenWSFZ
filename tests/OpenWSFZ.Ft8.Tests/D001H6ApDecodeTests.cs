@@ -30,6 +30,30 @@ namespace OpenWSFZ.Ft8.Tests;
 /// Both tests MUST pass for the branch to be merged (handoff acceptance criterion).
 /// </para>
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Coverage limitation (shim 20260025):</b>
+/// <c>osd_decode</c> was also wired into <c>ftx_decode_candidate_ap</c> in
+/// shim 20260025.  The combined AP+OSD path — where AP constraints are provided,
+/// BP still fails despite them, and OSD recovers the message — is not exercised
+/// by any test in this class.
+/// </para>
+/// <para>
+/// Engineering a deterministic fixture for this path is not currently feasible:
+/// with ±40.0 hard constraints on 56 bits (the H6 standard constraint strength),
+/// BP reliably converges and OSD never fires.  A scenario where AP constraints are
+/// provided but insufficient for BP convergence would require either a weaker
+/// constraint strength (not supported by the current C# API) or a more destructive
+/// interference geometry (e.g., 3-stack equal-SNR, which defeats both BP and OSD).
+/// </para>
+/// <para>
+/// Risk assessment: LOW.  <c>osd_decode</c> is validated by
+/// <c>D001OsdDecodeTests</c>.  The OSD wiring in <c>ftx_decode_candidate_ap</c>
+/// is an exact structural copy of the wiring in <c>ftx_decode_candidate</c>; any
+/// defect in the copy would be a trivially detectable compile or logic error.
+/// This gap is recorded in <c>traceability-debt.md</c>.
+/// </para>
+/// </remarks>
 [Trait("Category", "Integration")]
 public sealed class D001H6ApDecodeTests
 {
@@ -82,16 +106,36 @@ public sealed class D001H6ApDecodeTests
             because: $"at least one decoded message must mention {Mycall} or {Hiscall}");
     }
 
+    /// <summary>
+    /// Guards the baseline: without AP bits, the Δ0 Hz co-channel fixture must produce
+    /// no decoded messages and must not recover either target callsign.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// At Δ0 Hz, the two signals produce <b>near-zero LLRs across all 174 bits</b>
+    /// (equal energy at competing tones for every symbol).  Belief-propagation (BP)
+    /// fails because neither message achieves LDPC convergence from coin-flip soft
+    /// decisions.
+    /// </para>
+    /// <para>
+    /// With OSD active (shim 20260025+), <c>osd_decode</c> runs 529 CRC trials per
+    /// candidate using coin-flip hard decisions.  The probability of OSD accidentally
+    /// reconstructing a CRC-valid codeword that encodes Q1OFZ or Q9XYZ is negligible
+    /// (≈ 1/2^63 per trial), so the <c>NotContain</c> assertion remains valid and
+    /// the test is not flaky.
+    /// </para>
+    /// <para>
+    /// OSD <em>may</em> produce occasional spurious decoded messages that encode neither
+    /// callsign (a random CRC collision on near-zero-LLR bit patterns).  The secondary
+    /// <c>BeEmpty</c> assertion catches this: any non-empty result from this fixture
+    /// would indicate a spurious CRC false-positive and is a product defect worth
+    /// investigating.  If <c>BeEmpty</c> proves flaky in CI, report to QA before
+    /// relaxing it back to <c>NotContain</c>.
+    /// </para>
+    /// </remarks>
     [Fact(DisplayName = "D-001 H6: blind decode fails on co-channel fixture (baseline regression guard)")]
     public async Task BlindDecode_WithoutApBits_FailsOnCoChannel()
     {
-        // This test guards the baseline: without AP bits, the co-channel fixture
-        // should not decode any messages (or at most decode messages that do NOT
-        // belong to the target pair Q1OFZ/Q9XYZ).
-        //
-        // Two equal-amplitude signals at the same audio frequency produce ambiguous
-        // LLRs — approximately equal energy at two competing tone frequencies per
-        // symbol → LDPC cannot converge on either message → 0 decoded messages.
         var clock   = new FakeClock(new DateTime(2026, 6, 18, 12, 0, 0, DateTimeKind.Utc));
         var decoder = new Ft8Decoder(clock);
 
@@ -102,15 +146,22 @@ public sealed class D001H6ApDecodeTests
 
         var results = await decoder.DecodeAsync(pcm, CancellationToken.None);
 
-        // Assert: the target callsign pair must NOT appear in blind decode results.
-        // (There may be 0 results, OR there may be some false-convergence on other
-        // messages, but neither Q1OFZ nor Q9XYZ should be recovered blind.)
+        // Primary gate: no target callsign may be decoded blind.
         results.Should().NotContain(
             r => r.Message.Contains(Mycall,  StringComparison.OrdinalIgnoreCase) ||
                  r.Message.Contains(Hiscall, StringComparison.OrdinalIgnoreCase),
-            because: "blind decode of a co-channel fixture must not recover the " +
-                     "target callsign pair — if it does, AP decode adds no value " +
-                     "and the test fixture is not a meaningful co-channel scenario");
+            because: "blind decode of a Δ0 Hz co-channel fixture must not recover " +
+                     "the target callsign pair — coin-flip LLRs make OSD's chances of " +
+                     "hitting Q1OFZ or Q9XYZ negligible (≈1/2^63 per trial)");
+
+        // Secondary gate: the result set must be empty.
+        // At Δ0 Hz, OSD is exploring random bit patterns; any non-empty result would
+        // indicate a spurious CRC false-positive from the decoder. A genuine false
+        // positive at this fixture would be a product defect worth investigating.
+        results.Should().BeEmpty(
+            because: "blind decode of a Δ0 Hz co-channel fixture should produce zero " +
+                     "decoded messages — near-zero LLRs should cause both BP and OSD " +
+                     "to fail for every candidate");
     }
 
     // ── Fixture builder ───────────────────────────────────────────────────────
