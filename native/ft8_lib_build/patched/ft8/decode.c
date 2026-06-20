@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include <stddef.h>   /* NULL — required for ftx_decode_candidate_ap (GCC/Clang strict C11) */
+#include <string.h>   /* memcpy, memset — required for osd_decode (shim 20260025)           */
 
 // #define LOG_LEVEL LOG_DEBUG
 // #include "debug.h"
@@ -347,6 +348,223 @@ static void ftx_normalize_logl(float* log174)
     }
 }
 
+/* ── Ordered Statistics Decoding (OSD) — shim 20260025 ─────────────────────
+ *
+ * Called when bp_decode() fails to find a zero-parity codeword under wrong-sign
+ * LLR conditions (D-001 root cause: equal-SNR co-channel interference).
+ *
+ * WSJT-X uses OSD (osd174_91.f90) with maxosd=2 (at ndepth=3), saving LLR
+ * snapshots from BP iterations 0–2.  We use the pre-BP normalised LLRs, which
+ * corresponds to WSJT-X's zsave(:,1) (iteration-0 snapshot).
+ *
+ * Algorithm:
+ *   1. Sort the 174 bits by reliability (descending |LLR|).
+ *   2. Form the permuted parity-check matrix H_perm.
+ *   3. GF(2) Gaussian elimination → systematic form; identify free columns.
+ *   4. Enumerate bit-flip patterns in the least-reliable free positions.
+ *   5. For each trial, compute pivot bits from parity equations, un-permute,
+ *      and perform a CRC check.  Return the first CRC-valid codeword found.
+ *
+ * With ndeep=2 and search_k=32: 1 + 32 + 496 = 529 CRC trials per candidate.
+ * Gaussian elimination (one-time per candidate): O(M^2 * N) ≈ 1.2M GF(2) ops.
+ * Stack frame for osd_decode: ~18 KB (H[83][174]=14 KB dominant).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * osd_try_codeword — derive a codeword from given free-bit values and CRC-check it.
+ *
+ * Computes pivot bits using parity equations from the post-elimination H matrix,
+ * un-permutes the resulting codeword to the original bit domain, and runs the
+ * FT8 CRC-14 check.  Writes the codeword to plain[] and returns 1 on CRC hit;
+ * returns 0 otherwise.
+ *
+ * Parameters:
+ *   free_vals   — n_free trial free-bit values (0/1).
+ *   n_free      — number of free (non-pivot) columns.
+ *   free_cols   — sorted indices of the free columns in the permuted domain.
+ *   num_pivots  — number of rows that found a pivot (= rank of H_perm, normally 83).
+ *   pivot_col   — pivot_col[m] = the permuted column index that row m pivoted on.
+ *   H           — post-elimination parity-check matrix [FTX_LDPC_M][FTX_LDPC_N].
+ *   perm        — perm[i] = original bit index of the i-th sorted (most-reliable) bit.
+ *   plain       — output: FTX_LDPC_N bits (0/1) when CRC passes.
+ *
+ * Returns 1 if CRC passes, 0 otherwise.
+ */
+static int osd_try_codeword(
+    const uint8_t  free_vals[],
+    int            n_free,
+    const int      free_cols[],
+    int            num_pivots,
+    const int      pivot_col[],
+    uint8_t        H[][FTX_LDPC_N],   /* [FTX_LDPC_M][FTX_LDPC_N], post-elimination */
+    const int      perm[],
+    uint8_t        plain[])
+{
+    uint8_t cw_perm[FTX_LDPC_N];
+
+    /* Assign free bits */
+    for (int i = 0; i < n_free; ++i)
+        cw_perm[free_cols[i]] = free_vals[i];
+
+    /* Compute pivot bits: cw_perm[pivot_col[m]] = H[m] · free_vals  (GF2 dot) */
+    for (int m = 0; m < num_pivots; ++m) {
+        uint8_t s = 0;
+        for (int i = 0; i < n_free; ++i)
+            s ^= (uint8_t)(H[m][free_cols[i]] & free_vals[i]);
+        cw_perm[pivot_col[m]] = s;
+    }
+
+    /* Un-permute: cw_orig[perm[i]] = cw_perm[i] */
+    uint8_t cw_orig[FTX_LDPC_N];
+    for (int i = 0; i < FTX_LDPC_N; ++i)
+        cw_orig[perm[i]] = cw_perm[i];
+
+    /* CRC-14 check on the first FTX_LDPC_K (91) information bits */
+    uint8_t a91[FTX_LDPC_K_BYTES];
+    pack_bits(cw_orig, FTX_LDPC_K, a91);
+    uint16_t crc_ext  = ftx_extract_crc(a91);
+    a91[9]  &= 0xF8;
+    a91[10] &= 0x00;
+    uint16_t crc_calc = ftx_compute_crc(a91, 96 - 14);
+
+    if (crc_ext == crc_calc) {
+        memcpy(plain, cw_orig, FTX_LDPC_N);
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * osd_decode — Ordered Statistics Decoding fallback for LDPC(174,91).
+ *
+ * llr[]   — 174 channel LLRs (normalised, pre-BP); positive = bit 0, negative = bit 1.
+ * ndeep   — maximum flip order: 1 = single flips, 2 = double flips (WSJT-X default).
+ * plain[] — output: 174 bits (0/1) if a CRC-valid codeword is found.
+ *
+ * Returns 1 if a CRC-valid codeword was found and written to plain[], 0 otherwise.
+ */
+static int osd_decode(const float llr[], int ndeep, uint8_t plain[])
+{
+    /* Step 1: sort bits by reliability (descending |LLR|) using insertion sort (N=174). */
+    int perm[FTX_LDPC_N];
+    for (int i = 0; i < FTX_LDPC_N; ++i) perm[i] = i;
+    for (int i = 1; i < FTX_LDPC_N; ++i) {
+        int   key     = perm[i];
+        float key_rel = fabsf(llr[key]);
+        int   j       = i - 1;
+        while (j >= 0 && fabsf(llr[perm[j]]) < key_rel) {
+            perm[j + 1] = perm[j];
+            j--;
+        }
+        perm[j + 1] = key;
+    }
+
+    /* inv_perm[perm[i]] = i (inverse permutation) */
+    int inv_perm[FTX_LDPC_N];
+    for (int i = 0; i < FTX_LDPC_N; ++i) inv_perm[perm[i]] = i;
+
+    /* Step 2: hard decisions on sorted positions. */
+    uint8_t hard[FTX_LDPC_N];
+    for (int i = 0; i < FTX_LDPC_N; ++i)
+        hard[i] = (llr[perm[i]] < 0.0f) ? 1 : 0;
+
+    /* Step 3: build permuted parity-check matrix.
+     * H[m][j] = 1 iff check m involves permuted column j = inv_perm[orig_n].
+     * Stack: 83 * 174 = 14,442 bytes — acceptable per handoff spec. */
+    uint8_t H[FTX_LDPC_M][FTX_LDPC_N];
+    memset(H, 0, sizeof(H));
+    for (int m = 0; m < FTX_LDPC_M; ++m) {
+        for (int j = 0; j < (int)kFTX_LDPC_Num_rows[m]; ++j) {
+            int orig_n = (int)kFTX_LDPC_Nm[m][j] - 1;   /* 1-indexed → 0-indexed */
+            H[m][inv_perm[orig_n]] = 1;
+        }
+    }
+
+    /* Step 4: GF(2) Gaussian elimination — put H into reduced row echelon form. */
+    int     pivot_col[FTX_LDPC_M];
+    uint8_t pivoted[FTX_LDPC_N];
+    memset(pivoted, 0, sizeof(pivoted));
+    int num_pivots = 0;
+
+    for (int col = 0; col < FTX_LDPC_N && num_pivots < FTX_LDPC_M; ++col) {
+        /* Find first row ≥ num_pivots with a 1 in this column. */
+        int pr = -1;
+        for (int r = num_pivots; r < FTX_LDPC_M; ++r) {
+            if (H[r][col]) { pr = r; break; }
+        }
+        if (pr < 0) continue;   /* no pivot in this column */
+
+        /* Swap rows pr ↔ num_pivots. */
+        if (pr != num_pivots) {
+            uint8_t tmp[FTX_LDPC_N];
+            memcpy(tmp,             H[num_pivots], FTX_LDPC_N);
+            memcpy(H[num_pivots],   H[pr],         FTX_LDPC_N);
+            memcpy(H[pr],           tmp,            FTX_LDPC_N);
+        }
+
+        /* Eliminate this column from every other row. */
+        for (int r = 0; r < FTX_LDPC_M; ++r) {
+            if (r != num_pivots && H[r][col]) {
+                for (int c = 0; c < FTX_LDPC_N; ++c)
+                    H[r][c] ^= H[num_pivots][c];
+            }
+        }
+
+        pivot_col[num_pivots] = col;
+        pivoted[col]          = 1;
+        num_pivots++;
+    }
+
+    /* Step 5: identify free (non-pivot) columns — these are the information bits. */
+    int free_cols[FTX_LDPC_N];
+    int n_free = 0;
+    for (int col = 0; col < FTX_LDPC_N; ++col) {
+        if (!pivoted[col]) free_cols[n_free++] = col;
+    }
+    /* n_free == FTX_LDPC_N - num_pivots; for a full-rank code == 91. */
+
+    /* Step 6: base free values from hard decisions. */
+    uint8_t base_free[FTX_LDPC_N];   /* only first n_free entries used */
+    for (int i = 0; i < n_free; ++i)
+        base_free[i] = hard[free_cols[i]];
+
+    /* Trial buffer for flip enumeration. */
+    uint8_t trial_free[FTX_LDPC_N];
+
+    /* 0-flip base trial. */
+    if (osd_try_codeword(base_free, n_free, free_cols, num_pivots, pivot_col, H, perm, plain))
+        return 1;
+
+    /* Search the search_k least-reliable free positions (highest free_col index,
+     * since perm[] is sorted most-reliable-first and free_cols[] is ascending). */
+    int search_k = (n_free < 32) ? n_free : 32;
+
+    if (ndeep >= 1) {
+        /* Single flips */
+        for (int a = n_free - 1; a >= n_free - search_k; --a) {
+            memcpy(trial_free, base_free, (size_t)n_free);
+            trial_free[a] ^= 1;
+            if (osd_try_codeword(trial_free, n_free, free_cols, num_pivots, pivot_col, H, perm, plain))
+                return 1;
+        }
+    }
+
+    if (ndeep >= 2) {
+        /* Double flips */
+        for (int a = n_free - 1; a >= n_free - search_k; --a) {
+            for (int b = a - 1; b >= n_free - search_k; --b) {
+                memcpy(trial_free, base_free, (size_t)n_free);
+                trial_free[a] ^= 1;
+                trial_free[b] ^= 1;
+                if (osd_try_codeword(trial_free, n_free, free_cols, num_pivots, pivot_col, H, perm, plain))
+                    return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand, int max_iterations, ftx_message_t* message, ftx_decode_status_t* status)
 {
     float log174[FTX_LDPC_N]; // message bits encoded as likelihood
@@ -361,13 +579,22 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
 
     ftx_normalize_logl(log174);
 
+    /* Save normalised LLRs before bp_decode potentially modifies them in place.
+     * osd_decode uses these pre-BP soft decisions if BP fails to converge. */
+    float llr_for_osd[FTX_LDPC_N];
+    memcpy(llr_for_osd, log174, sizeof(log174));
+
     uint8_t plain174[FTX_LDPC_N]; // message bits (0/1)
     bp_decode(log174, max_iterations, plain174, &status->ldpc_errors);
     // ldpc_decode(log174, max_iterations, plain174, &status->ldpc_errors);
 
     if (status->ldpc_errors > 0)
     {
-        return false;
+        /* BP failed to converge; try OSD fallback (shim 20260025).
+         * ndeep=2 matches WSJT-X's default maxosd=2 at ndepth=3. */
+        if (!osd_decode(llr_for_osd, 2, plain174))
+            return false;
+        status->ldpc_errors = 0;
     }
 
     // Extract payload + CRC (first FTX_LDPC_K bits) packed into a byte array
@@ -513,11 +740,20 @@ bool ftx_decode_candidate_ap(
 
     ftx_normalize_logl(log174);
 
+    /* Save normalised LLRs before bp_decode for OSD fallback (shim 20260025). */
+    float llr_for_osd[FTX_LDPC_N];
+    memcpy(llr_for_osd, log174, sizeof(log174));
+
     uint8_t plain174[FTX_LDPC_N];
     bp_decode(log174, max_iterations, plain174, &status->ldpc_errors);
 
     if (status->ldpc_errors > 0)
-        return false;
+    {
+        /* BP failed; try OSD fallback with pre-BP normalised LLRs. */
+        if (!osd_decode(llr_for_osd, 2, plain174))
+            return false;
+        status->ldpc_errors = 0;
+    }
 
     uint8_t a91[FTX_LDPC_K_BYTES];
     pack_bits(plain174, FTX_LDPC_K, a91);

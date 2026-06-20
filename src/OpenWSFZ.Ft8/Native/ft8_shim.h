@@ -193,8 +193,35 @@ extern "C" {
  *              C# Ft8CallsignPacker.Pack28 also corrected (wrong character-set
  *              ordering for positions 0 and 1, wrong offset 2 064 592 instead of
  *              NTOKENS+MAX22 = 6 257 896); C# AP wiring now complete (H6).
+ *   20260025 — fix-d001-osd: Ordered Statistics Decoding (OSD) fallback added to
+ *              ftx_decode_candidate and ftx_decode_candidate_ap in
+ *              patched/ft8/decode.c.  When bp_decode() fails to converge
+ *              (ldpc_errors > 0), osd_decode(llr_for_osd, ndeep=2, plain174) is
+ *              called with the pre-BP normalised LLRs, matching WSJT-X's default
+ *              maxosd=2 at ndepth=3 (osd174_91.f90, zsave(:,1) snapshot).
+ *
+ *              Algorithm (static osd_decode + osd_try_codeword in decode.c, C11):
+ *              (1) Sort 174 bits by |LLR| descending (insertion sort, O(N^2)).
+ *              (2) Build permuted parity-check matrix H_perm[83][174] on stack.
+ *              (3) GF(2) Gaussian elimination → reduced row echelon form;
+ *                  track pivot column per row (normally 83 pivots for rank-83 H).
+ *              (4) Free columns (≈91) carry information bits; base values from
+ *                  hard decisions (sign of sorted LLRs).
+ *              (5) Enumerate flip trials in the 32 least-reliable free positions:
+ *                  0-flip (1), single-flip (32), double-flip (496) = 529 trials.
+ *              (6) For each trial: compute pivot bits from parity equations,
+ *                  un-permute to original domain, run CRC-14 check.
+ *
+ *              Stack per osd_decode call: ≈18 KB (H[83][174]=14 KB dominant).
+ *              Also raises K_LDPC_ITERATIONS from 25 → 50 (optimal flooding BP
+ *              count established by H_ITER diagnostic on diag/d001-ldpc-iter-
+ *              hypothesis; versions 20260022–24 were on that unmerged branch;
+ *              those version slots are permanently retired here).
+ *              No change to ABI, struct layout, or any existing entry points.
+ *              Target: close D-001 blind co-channel decode gap (≈40%→≥80% MSG-01
+ *              at Δ7 Hz, S7 P16).
  */
-#define FT8_SHIM_VERSION 20260021
+#define FT8_SHIM_VERSION 20260025
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

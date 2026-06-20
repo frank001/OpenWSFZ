@@ -149,8 +149,23 @@ internal static class Ft8LibInterop
     ///   suffix flag, not the first hiscall bit).  C# <see cref="Ft8CallsignPacker"/>
     ///   also corrected (wrong character-set ordering for positions 0 and 1, wrong
     ///   N28 offset).  C# AP wiring is now complete for H6.
+    /// Note: versions 20260022–20260024 were used only on the unmerged diagnostic
+    ///   branch diag/d001-ldpc-iter-hypothesis (H_ITER / H_ITER2 experiments).
+    ///   Those version slots are permanently retired and are absent from main.
+    /// 20260025 (fix-d001-osd): Ordered Statistics Decoding (OSD) fallback wired
+    ///   into <c>ftx_decode_candidate</c> and <c>ftx_decode_candidate_ap</c> in
+    ///   patched/ft8/decode.c.  When BP fails to converge (ldpc_errors > 0),
+    ///   <c>osd_decode(llr_for_osd, ndeep=2, plain174)</c> is called with the
+    ///   pre-BP normalised LLRs, matching WSJT-X's default maxosd=2 at ndepth=3
+    ///   (osd174_91.f90, zsave(:,1) LLR snapshot).  Explores up to 529 trial
+    ///   codewords (0-/1-/2-flips in the 32 least-reliable free bit positions) and
+    ///   returns the first CRC-14 valid hit.  Stack per call: ≈18 KB.
+    ///   Also raises <c>K_LDPC_ITERATIONS</c> from 25 → 50 (optimal flooding BP
+    ///   count, established in H_ITER diagnostic; retired slots 20260022–20260024).
+    ///   No ABI change; struct layout and all existing entry points unchanged.
+    ///   Target: close D-001 blind co-channel decode gap to ≥80% MSG-01 at Δ7 Hz.
     /// </summary>
-    private const int ExpectedShimVersion = 20260021;
+    private const int ExpectedShimVersion = 20260025;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
