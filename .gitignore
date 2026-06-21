@@ -117,3 +117,9 @@ logs/
 # Committed artifacts (report.md, summary.csv, *.png) are scrubbed by analyse_corpus.py.
 qa/rr-study/results/corpus-*/raw/
 qa/rr-study/results/corpus-*/run_manifest.json
+
+# D-009 / OSD false-positive evidence — S5 AWGN decode files ALWAYS contain OSD CRC-14
+# coincidences (ITU-assignable callsign patterns) → NFR-021 violation if committed.
+# These files must remain local only. S7 owsfz-all.txt files must be scrubbed before commit.
+owsfz-s5-all.txt
+openswfz-*.log
