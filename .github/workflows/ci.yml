@@ -5,6 +5,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   build-test:
     name: Build & Test (${{ matrix.os }})
@@ -298,3 +301,81 @@ jobs:
           # This step becomes a real gate in a later phase.
           # See UI visibility rule in MEMORY.md: controls only appear once backend is testable.
           echo "UI-visibility gate: no ui-visibility tests present — gate passes vacuously."
+
+  # -----------------------------------------------------------------
+  # Commit-back: after the matrix builds fresh Linux and macOS
+  # binaries, commit them to the triggering branch so the repo never
+  # carries stale binaries.
+  #
+  # Only runs on direct-push events (not PRs from forks, where write
+  # access is unavailable). Skipped when the push was itself made by
+  # the GitHub Actions bot (loop guard). The commit message carries
+  # [skip ci] so GitHub does not re-trigger the workflow.
+  # -----------------------------------------------------------------
+  commit-native-binaries:
+    name: Commit rebuilt native binaries
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: |
+      github.event_name == 'push' &&
+      github.actor != 'github-actions[bot]'
+
+    steps:
+      - name: Checkout (full depth, with write access)
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Linux .so artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: libft8-so-linux-x64
+          path: src/OpenWSFZ.Ft8/Native/linux-x64/
+
+      - name: Download macOS dylib artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: libft8-dylib-osx-arm64
+          path: src/OpenWSFZ.Ft8/Native/osx-arm64/
+
+      - name: Check whether binaries changed
+        id: diff_check
+        run: |
+          git diff --exit-code \
+            src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so \
+            src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib \
+          && echo "changed=false" >> "$GITHUB_OUTPUT" \
+          || echo "changed=true"  >> "$GITHUB_OUTPUT"
+
+      - name: Verify rebuilt binary versions
+        if: steps.diff_check.outputs.changed == 'true'
+        run: |
+          EXPECTED=$(python3 -c "
+          import re
+          src = open('src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs').read()
+          m = re.search(r'ExpectedShimVersion\s*=\s*(\d+)', src)
+          print(m.group(1))
+          ")
+          echo "Expected shim version: $EXPECTED"
+          python3 tools/check_native_version.py \
+            src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so "$EXPECTED"
+          python3 tools/check_native_version.py \
+            src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib "$EXPECTED"
+
+      - name: Commit and push updated binaries
+        if: steps.diff_check.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so \
+            src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
+          SHIM=$(python3 -c "
+          import re
+          src = open('src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs').read()
+          m = re.search(r'ExpectedShimVersion\s*=\s*(\d+)', src)
+          print(m.group(1))
+          ")
+          git commit -m "chore(native): rebuild Linux and macOS binaries to shim ${SHIM} [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
