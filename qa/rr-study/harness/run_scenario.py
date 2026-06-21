@@ -488,7 +488,15 @@ def _run(args: argparse.Namespace) -> None:
     # Run directory
     qa_rr_root = Path(__file__).resolve().parent.parent
     results_root = qa_rr_root / "results"
-    run_dir = make_run_dir(results_root)
+    if args.run_dir is not None:
+        # Resolve relative paths from CWD (same convention as analyse.py),
+        # not from results_root — avoids double-nesting results/results/…
+        run_dir = Path(args.run_dir)
+        if not run_dir.is_absolute():
+            run_dir = Path.cwd() / run_dir
+        run_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        run_dir = make_run_dir(results_root)
     print(f"Run directory: {run_dir.relative_to(qa_rr_root)}")
 
     # Device selection (skip in dry-run)
@@ -677,6 +685,16 @@ def main() -> None:
             "Comma-separated list of part indices to run (0-based). "
             "If omitted, all parts are run. "
             "Not applicable to S8 (no parts array — silently ignored)."
+        ),
+    )
+    parser.add_argument(
+        "--run-dir",
+        default=None,
+        metavar="DIR",
+        help=(
+            "Override the auto-generated results/<date>-<sha7> directory. "
+            "Use to keep calibration-step runs in separate directories (Lesson 14). "
+            "Relative paths are resolved from qa/rr-study/results/."
         ),
     )
     args = parser.parse_args()

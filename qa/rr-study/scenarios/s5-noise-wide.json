@@ -1,0 +1,30 @@
+{
+  "_comment": "S5-WIDE — Widened noise-only false-positive RATE study (D-009 / R5 AC5). Companion to s5-noise.json (which remains the carrier/birdie COVERAGE scenario). This file is the statistically-powered FP-rate estimator: many independent AWGN realisations, enough slots to bound P(false positive) by the rule of three.",
+  "_format_version": "1",
+
+  "id": "S5",
+  "name": "Noise / false-positive rate (widened)",
+  "response": "False-positive decoded / not-decoded (attribute)",
+  "description": "Signal-free wideband-AWGN cycles, one independent noise realisation per trial. Drives the OSD false-positive RATE with a rule-of-three 95% upper confidence bound. 1 part x 120 trials = 120 independent slots (UB ~= 2.5% at 0 observed FPs).",
+
+  "message_ids": [],
+
+  "harness_note": "No FT8 signal is synthesised. Each slot renders 15 s of wideband AWGN seeded by compute_seed('S5', part_index, trial_index); every trial therefore yields a statistically independent noise buffer. Any decode reported by either appraiser on any slot is a false positive.",
+
+  "parts": [
+    {
+      "part_index": 0,
+      "noise_type": "awgn",
+      "level_dbfs": -20,
+      "note": "Wideband AWGN. NOTE: level_dbfs is statistically INERT for pure AWGN in S5 — run_scenario.py peak-normalises every buffer to 0.9 before playback, and for signal-free AWGN the amplitude cancels (samples * 0.9 / peak is independent of level_dbfs). Independent samples come ONLY from the per-trial seed, not from varying the level. Do NOT add extra AWGN levels expecting added statistical power; add trials instead."
+    }
+  ],
+
+  "trials": 120,
+
+  "seed_formula": "hash('S5', part_index, trial_index)",
+
+  "runtime_note": "Playback is real-time, ~15 s per slot aligned to the FT8 cycle boundary. 120 slots ~= 30-45 min wall clock (comparable to S7 K=5). To tighten the confidence bound, raise 'trials': rule-of-three 95% upper bound on per-slot FP probability at 0 observed FPs is ~= 3 / trials (120 -> 2.5%, 300 -> 1.0%).",
+
+  "channel_note": "Wideband AWGN only (no noise_cutoff_hz), matching s5-noise.json and the single-signal path. Carrier/birdie coverage lives in s5-noise.json and is deterministic (seed-independent); it is NOT repeated here because repeated carrier trials are identical buffers and add zero independent samples."
+}

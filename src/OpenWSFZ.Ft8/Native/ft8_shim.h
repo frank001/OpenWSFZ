@@ -220,8 +220,37 @@ extern "C" {
  *              No change to ABI, struct layout, or any existing entry points.
  *              Target: close D-001 blind co-channel decode gap (≈40%→≥80% MSG-01
  *              at Δ7 Hz, S7 P16).
+ *   20260026 — fix-d009-r2: OSD correlation gate at both osd_decode call sites in
+ *              patched/ft8/decode.c.  Rejects OSD candidates whose normalised
+ *              inner-product score (corr/norm) is below OSD_CORR_THRESHOLD = 0.10.
+ *              Text-layer D9-R3 Gap A and Gap C extensions in IsPlausibleMessage
+ *              (C# only, no native change).  S5 R2 verification showed 75.0% FP
+ *              rate at threshold 0.10 — insufficient; raised in 20260027.
+ *   20260027 — fix-d009-r3: OSD_CORR_THRESHOLD raised 0.10 → 0.15 in decode.c.
+ *              Category B (structurally-valid 3-token FPs) and Category C (CQ <...>)
+ *              cannot be addressed by text filtering; only the gate threshold can
+ *              suppress them.  Text-layer: 4-token non-CQ messages now rejected by
+ *              IsPlausibleMessage (C# only, no additional native change).
+ *   20260028 — fix-d009-r5: OSD two-feature gate — nhard Hamming-distance check
+ *              added alongside the existing corr/norm check at both OSD sites in
+ *              patched/ft8/decode.c (ftx_decode_candidate and
+ *              ftx_decode_candidate_ap).  The R4 single-knob loop proved ceilinged
+ *              (0 FP on S5 required threshold >= 0.40; S7 co-channel needs <= 0.35).
+ *              nhard = Σ(plain174[i] != (LLR[i] > 0 ? 0 : 1)) for i in 0..173.
+ *              Genuine decodes are Hamming-close to the channel hard decisions
+ *              regardless of SNR; noise CRC-14 coincidences cluster near 87.
+ *              OSD_CORR_THRESHOLD reverted to 0.10 (nhard carries noise rejection);
+ *              OSD_NHARD_MAX = 60 (calibrated against S5/S7 histograms).
+ *              No ABI change; struct layout unchanged (48 bytes).
+ *   20260029 — fix-d009-k10: K_MIN_SCORE_PASS2 raised 1 → 10 (D-009 production
+ *              fix).  Pass-1 sweep (diag-pass1-sweep-2026-06-21) showed K=10
+ *              cuts S5 FP rate by 94% (0.675 → 0.042 FP/slot) while improving
+ *              S7 co-channel recovery over the K=1 baseline (+8.5 pp on hard
+ *              P0–P2 subset).  All other shim-20260028 gate values unchanged:
+ *              OSD_NHARD_MAX=60, OSD_CORR_THRESHOLD=0.10, text Rules A/B/C.
+ *              No ABI change; struct layout unchanged (48 bytes).
  */
-#define FT8_SHIM_VERSION 20260025
+#define FT8_SHIM_VERSION 20260029
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

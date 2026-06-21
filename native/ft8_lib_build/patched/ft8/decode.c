@@ -7,9 +7,53 @@
 #include <math.h>
 #include <stddef.h>   /* NULL — required for ftx_decode_candidate_ap (GCC/Clang strict C11) */
 #include <string.h>   /* memcpy, memset — required for osd_decode (shim 20260025)           */
+#ifdef NHARD_DIAG
+#include <stdio.h>    /* FILE, fopen, fprintf, fclose — diagnostic file output only          */
+#endif
 
 // #define LOG_LEVEL LOG_DEBUG
 // #include "debug.h"
+
+/* OSD two-feature gate (shim 20260028, D-009 R5).
+ *
+ * The single-knob corr/norm approach (R4) proved ceilinged: achieving 0 FP on S5
+ * required OSD_CORR_THRESHOLD >= 0.40, which conflicts with S7 co-channel decode
+ * (requires <= 0.35).  The fix is a second, orthogonal discriminant: nhard, the
+ * hard-decision Hamming distance between the OSD codeword and the channel hard
+ * decisions.  This is the metric WSJT-X uses (nharderrors, osd174_91.f90).
+ *
+ * Feature 1 — corr/norm (shim 20260026):
+ *   Normalised inner-product: corr = Σ hard_pm1[i] * LLR[i]; norm = Σ |LLR[i]|.
+ *   Reject if norm > 0 and corr/norm < OSD_CORR_THRESHOLD.
+ *   With nhard carrying noise rejection, this threshold stays low (0.10).
+ *
+ * Feature 2 — nhard (shim 20260028, R5):
+ *   Channel hard decision: hd[i] = (LLR[i] > 0) ? 0 : 1.
+ *   nhard = number of positions where plain174[i] != hd[i].
+ *   Reject if nhard > OSD_NHARD_MAX.
+ *
+ *   Genuine decodes: OSD codeword is Hamming-close to channel hard decisions
+ *   regardless of SNR.  CRC-14 noise coincidences: bits are uncorrelated with
+ *   the noise LLRs → nhard clusters near 87 (= 174/2).
+ *
+ * Calibration:
+ *   OSD_CORR_THRESHOLD: 0.10 (reverted from R4 ceiling; nhard now carries noise rejection).
+ *   OSD_NHARD_MAX: calibrated against S5 noise and S7 genuine histograms.
+ *     Expect S5 noise near ~87; S7 genuine clustered low.
+ *     For histogram collection: rebuild with -DNHARD_DIAG; nhard values printed to stderr
+ *     for every OSD hit (accepted and rejected).  Remove -DNHARD_DIAG before commit.
+ *
+ * Calibration history:
+ *   OSD_CORR_THRESHOLD:
+ *     0.10 (shim 20260026): initial — S5 FP rate 75.0% (9 events / 12 slots).
+ *     0.15 (shim 20260027): S5 still > 0% (see R3 result).
+ *     0.20–0.40 (shim 20260028, R4): ceilinged — 0 FP needs >= 0.40; S7 needs <= 0.35.
+ *     0.10 (shim 20260028, R5): reverted; nhard gate replaces threshold escalation.
+ *   OSD_NHARD_MAX:
+ *     60 (shim 20260028, R5): initial calibration target — verified by S5/S7 gate runs.
+ */
+#define OSD_CORR_THRESHOLD 0.10f
+#define OSD_NHARD_MAX      60
 
 // Lookup table for y = 10*log10(1 + 10^(x/10)), where
 //   y - increase in signal level dB when adding a weaker independent signal
@@ -588,12 +632,53 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
     bp_decode(log174, max_iterations, plain174, &status->ldpc_errors);
     // ldpc_decode(log174, max_iterations, plain174, &status->ldpc_errors);
 
+    /* NHARD_DIAG: save OSD feature values so they can be emitted after CRC check.
+     * Initialised to -1 so the post-CRC probe can detect "OSD was not invoked"
+     * (i.e. BP converged) and stay silent.                                      */
+#ifdef NHARD_DIAG
+    int   _s1_nhard = -1;
+    int   _s1_sync  = -1;
+    float _s1_corr  = 0.0f;
+    float _s1_norm  = 0.0f;
+#endif
+
     if (status->ldpc_errors > 0)
     {
         /* BP failed to converge; try OSD fallback (shim 20260025).
          * ndeep=2 matches WSJT-X's default maxosd=2 at ndepth=3. */
         if (!osd_decode(llr_for_osd, 2, plain174))
             return false;
+
+        /* OSD two-feature gate (shim 20260028, D-009 R5):
+         * Feature 1 (corr/norm): reject if normalised correlation < OSD_CORR_THRESHOLD.
+         * Feature 2 (nhard):     reject if Hamming distance to channel hard decisions
+         *                        exceeds OSD_NHARD_MAX.
+         * See calibration history in the #define block above.
+         */
+        {
+            float osd_corr = 0.0f;
+            float osd_norm = 0.0f;
+            int   nhard    = 0;
+            for (int i = 0; i < FTX_LDPC_N; ++i) {
+                float hard_pm1 = (plain174[i] == 0) ? 1.0f : -1.0f;
+                osd_corr += hard_pm1 * llr_for_osd[i];
+                osd_norm += fabsf(llr_for_osd[i]);
+                int hd = (llr_for_osd[i] > 0.0f) ? 0 : 1;  /* channel hard decision */
+                if (plain174[i] != (uint8_t)hd) ++nhard;    /* codeword vs channel   */
+            }
+#ifdef NHARD_DIAG
+            /* Save for post-CRC emission — do NOT emit here (pre-CRC values would
+             * include gate-rejected candidates that never become real decodes).   */
+            _s1_nhard = nhard;
+            _s1_sync  = cand->score;
+            _s1_corr  = osd_corr;
+            _s1_norm  = osd_norm;
+#endif
+            if (nhard > OSD_NHARD_MAX)
+                return false;
+            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
+                return false;
+        }
         status->ldpc_errors = 0;
     }
 
@@ -612,6 +697,23 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
     {
         return false;
     }
+
+    /* NHARD_DIAG: emit OSD features only for CRC-valid decodes.
+     * Writing after the CRC gate ensures every logged line corresponds to a
+     * real decode event (FP in S5-noise; genuine or spurious in S7).
+     * stderr is unreliable through the .NET P/Invoke host; write to a fixed
+     * diagnostic file instead.  File is append-only so S5 and S7 runs can
+     * be separated by clearing / renaming it between scenarios.              */
+#ifdef NHARD_DIAG
+    if (_s1_nhard >= 0) {
+        FILE *_nf = fopen("C:\\Temp\\nhard_diag.log", "a");
+        if (_nf) {
+            fprintf(_nf, "OSD_CRC_OK_SITE1 %d corr %.3f norm %.3f sync %d\n",
+                    _s1_nhard, _s1_corr, _s1_norm, _s1_sync);
+            fclose(_nf);
+        }
+    }
+#endif
 
     // Reuse CRC value as a hash for the message (TODO: 14 bits only, should perhaps use full 16 or 32 bits?)
     message->hash = status->crc_calculated;
@@ -747,11 +849,43 @@ bool ftx_decode_candidate_ap(
     uint8_t plain174[FTX_LDPC_N];
     bp_decode(log174, max_iterations, plain174, &status->ldpc_errors);
 
+    /* NHARD_DIAG: save OSD features for post-CRC emission (AP decode path). */
+#ifdef NHARD_DIAG
+    int   _s2_nhard = -1;
+    int   _s2_sync  = -1;
+    float _s2_corr  = 0.0f;
+    float _s2_norm  = 0.0f;
+#endif
+
     if (status->ldpc_errors > 0)
     {
         /* BP failed; try OSD fallback with pre-BP normalised LLRs. */
         if (!osd_decode(llr_for_osd, 2, plain174))
             return false;
+
+        /* OSD two-feature gate (shim 20260028, D-009 R5) — same as ftx_decode_candidate. */
+        {
+            float osd_corr = 0.0f;
+            float osd_norm = 0.0f;
+            int   nhard    = 0;
+            for (int i = 0; i < FTX_LDPC_N; ++i) {
+                float hard_pm1 = (plain174[i] == 0) ? 1.0f : -1.0f;
+                osd_corr += hard_pm1 * llr_for_osd[i];
+                osd_norm += fabsf(llr_for_osd[i]);
+                int hd = (llr_for_osd[i] > 0.0f) ? 0 : 1;  /* channel hard decision */
+                if (plain174[i] != (uint8_t)hd) ++nhard;    /* codeword vs channel   */
+            }
+#ifdef NHARD_DIAG
+            _s2_nhard = nhard;
+            _s2_sync  = cand->score;
+            _s2_corr  = osd_corr;
+            _s2_norm  = osd_norm;
+#endif
+            if (nhard > OSD_NHARD_MAX)
+                return false;
+            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
+                return false;
+        }
         status->ldpc_errors = 0;
     }
 
@@ -765,6 +899,19 @@ bool ftx_decode_candidate_ap(
 
     if (status->crc_extracted != status->crc_calculated)
         return false;
+
+    /* NHARD_DIAG: emit after CRC check — AP decode path (SITE2).
+     * Same rationale as SITE1: only log candidates that became real decodes. */
+#ifdef NHARD_DIAG
+    if (_s2_nhard >= 0) {
+        FILE *_nf2 = fopen("C:\\Temp\\nhard_diag.log", "a");
+        if (_nf2) {
+            fprintf(_nf2, "OSD_CRC_OK_SITE2 %d corr %.3f norm %.3f sync %d\n",
+                    _s2_nhard, _s2_corr, _s2_norm, _s2_sync);
+            fclose(_nf2);
+        }
+    }
+#endif
 
     message->hash = status->crc_calculated;
 

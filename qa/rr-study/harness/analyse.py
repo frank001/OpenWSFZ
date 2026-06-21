@@ -103,7 +103,9 @@ NDC_FAIL = 2                 # ndc < 2 → FAIL
 NDC_PASS = 5                 # ndc ≥ 5 → PASS
 THRESH_KAPPA_PASS = 0.90
 THRESH_KAPPA_MARGINAL = 0.70
-THRESH_FP_PASS = 6.0        # FP rate ≤ 6% → PASS; > 6% → FAIL
+THRESH_FP_PASS = 6.0        # Decode-rate legacy threshold (retired as gate; kept for reference).
+                            # Gate is now: FP event count == 0 (AC5a, D-009 / widened S5).
+                            # Any slot that produces ≥ 1 false decode is a FAIL event.
 THRESH_BIAS_PASS = 2.0      # |bias| ≤ 2 dB → PASS; > 2 dB → FAIL
 
 APPRAISERS = ("WSJT-X", "OpenWSFZ")
@@ -147,8 +149,16 @@ def _verdict_kappa(kappa: float) -> str:
     return "FAIL"
 
 
-def _verdict_fp(pct: float) -> str:
-    return "PASS" if pct <= THRESH_FP_PASS else "FAIL"
+def _verdict_fp(fp_info: dict) -> str:
+    """Gate on FP event count = 0 (AC5a, D-009 widened S5).
+
+    A single slot with any false decode is FAIL regardless of the decode-rate percentage.
+    This replaces the legacy THRESH_FP_PASS = 6.0 decode-rate gate.
+    """
+    n_events = fp_info.get("n_fp_events", float("nan"))
+    if isinstance(n_events, float) and math.isnan(n_events):
+        return "PASS"   # undefined (zero S5 slots injected) — treat as vacuously passing
+    return "PASS" if int(n_events) == 0 else "FAIL"
 
 
 def _verdict_bias(bias: float) -> str:
@@ -550,20 +560,35 @@ def _bias_linearity(df_matched: pd.DataFrame, run_dir: Path) -> dict:
 # Task 4.7 — False-positive rate (S5)
 # ---------------------------------------------------------------------------
 
-def _fp_rate(df_matched: pd.DataFrame) -> dict[str, float]:
-    """Compute false-positive rate per appraiser for S5.
+def _fp_rate(df_matched: pd.DataFrame) -> dict[str, dict]:
+    """Compute false-positive metrics per appraiser for S5.
 
     Because all scenarios share a single ALL.TXT log file, the matcher's
     Pass-2 step assigns every decode from S1–S4 cycles as a false-positive
     relative to S5 (since those cycles have no S5 truth row).  To avoid
-    inflating the FP rate we scope the FP count to only those cycles that
-    actually overlap with the S5 injection window — i.e. cycles whose
-    cycle_utc appears in at least one S5 truth row.
+    inflating the FP count we scope all calculations to cycles that actually
+    overlap with the S5 injection window — i.e. cycle_utc values that appear
+    in at least one S5 truth row.
 
-    Denominator: number of signal-free S5 truth rows (expected = 0 decodes).
-    Numerator: FP decodes whose cycle_utc falls within the S5 window.
+    Returns per-appraiser dict with:
+        decode_rate   float       — total FP decodes / n_slots (%), legacy metric
+        event_rate    float       — slots-with-any-FP / n_slots (%), the AC5a gate metric
+        n_fp_events   int         — number of slots that produced ≥ 1 FP decode
+        n_fp_decodes  int         — total individual FP decodes (a slot can have > 1)
+        n_slots       int         — total signal-free S5 slots
+        rob_95        float|None  — rule-of-three 95% upper bound on per-slot FP
+                                    probability (= 300 / n_slots, expressed as %)
+                                    when n_fp_events == 0; None if any events observed.
     """
-    results: dict[str, float] = {}
+    _NAN: dict = {
+        "decode_rate":  float("nan"),
+        "event_rate":   float("nan"),
+        "n_fp_events":  float("nan"),
+        "n_fp_decodes": float("nan"),
+        "n_slots":      0,
+        "rob_95":       None,
+    }
+    results: dict[str, dict] = {}
 
     # Identify the set of cycle_utc slots that S5 actually injected into.
     s5_truth_rows = df_matched[df_matched["false_positive"] == False]
@@ -572,21 +597,36 @@ def _fp_rate(df_matched: pd.DataFrame) -> dict[str, float]:
     for appr in APPRAISERS:
         sub = df_matched[df_matched["appraiser"] == appr]
         truth_sub = sub[sub["false_positive"] == False]
-        fp_sub = sub[sub["false_positive"] == True]
+        fp_sub    = sub[sub["false_positive"] == True]
 
-        n_cycles = int(len(truth_sub))
-        # Count only FPs whose cycle_utc is within the S5 injection window
-        if s5_cycles:
-            n_fp = int(fp_sub["cycle_utc"].isin(s5_cycles).sum())
-        else:
-            n_fp = int(len(fp_sub))
+        n_slots = int(len(truth_sub))
 
-        if n_cycles == 0:
+        # Scope FPs to the S5 injection window.
+        fp_in_window = (fp_sub[fp_sub["cycle_utc"].isin(s5_cycles)]
+                        if s5_cycles else fp_sub)
+
+        if n_slots == 0:
             print(f"WARNING: S5 — zero signal-free cycles for {appr}; FP rate undefined",
                   file=sys.stderr)
-            results[appr] = float("nan")
-        else:
-            results[appr] = 100.0 * n_fp / n_cycles
+            results[appr] = _NAN.copy()
+            continue
+
+        n_fp_decodes = int(len(fp_in_window))
+        # Event count: distinct cycle_utc values with ≥ 1 FP decode.
+        n_fp_events  = int(fp_in_window["cycle_utc"].nunique())
+        decode_rate  = 100.0 * n_fp_decodes / n_slots
+        event_rate   = 100.0 * n_fp_events  / n_slots
+        # Rule-of-three 95% upper bound (valid only when n_fp_events == 0).
+        rob_95 = (300.0 / n_slots) if n_fp_events == 0 else None
+
+        results[appr] = {
+            "decode_rate":  decode_rate,
+            "event_rate":   event_rate,
+            "n_fp_events":  n_fp_events,
+            "n_fp_decodes": n_fp_decodes,
+            "n_slots":      n_slots,
+            "rob_95":       rob_95,
+        }
     return results
 
 
@@ -1234,7 +1274,7 @@ def _decode_rate_report_lines(results: dict) -> list[str]:
 def _collect_verdicts(
     continuous_results: dict[str, dict],
     kappa_results: dict[str, dict],
-    fp_results: dict[str, float],
+    fp_results: dict[str, dict],
     bias_results: dict[str, dict],
 ) -> tuple[list[tuple[str, str, float | str, str]], str, list[str]]:
     """Collect all metric verdicts and return (rows, overall_verdict)."""
@@ -1266,13 +1306,25 @@ def _collect_verdicts(
         v = _verdict_kappa(kappa)
         verdict_rows.append(("Kappa (advisory)", label, f"{kappa:.3f}", v))
 
-    for appr, rate in fp_results.items():
-        if math.isnan(rate):
+    for appr, info in fp_results.items():
+        n_events = info.get("n_fp_events", float("nan"))
+        if isinstance(n_events, float) and math.isnan(n_events):
             continue
-        v = _verdict_fp(rate)
-        verdict_rows.append(("FP rate", f"S5/{appr}", f"{rate:.1f}%", v))
+        event_rate  = info["event_rate"]
+        decode_rate = info["decode_rate"]
+        n_slots     = info["n_slots"]
+        rob_95      = info["rob_95"]
+        v = _verdict_fp(info)
+        rob_str = f"; 95% UB ≤ {rob_95:.2f}%" if rob_95 is not None else ""
+        value_str = (f"{int(n_events)}/{n_slots} slots "
+                     f"(event {event_rate:.1f}%{rob_str}; decode {decode_rate:.1f}%)")
+        verdict_rows.append(("FP event rate", f"S5/{appr}", value_str, v))
         if v == "FAIL":
-            fails.append(f"FP rate ({appr}) = {rate:.1f}% (threshold: ≤ {THRESH_FP_PASS}%)")
+            fails.append(
+                f"FP event rate ({appr}) = {int(n_events)} events in {n_slots} slots "
+                f"({event_rate:.1f}% event rate; {decode_rate:.1f}% decode rate); "
+                f"gate requires 0 events"
+            )
 
     for appr, info in bias_results.items():
         bias = info.get("mean_bias", float("nan"))
@@ -1415,12 +1467,33 @@ def _write_report(
 
     if fp_results:
         lines += ["### False-positive rate (S5)", ""]
-        lines += ["| Appraiser | FP rate | Verdict |",
-                  "|---|---|---|"]
-        for appr, rate in fp_results.items():
-            v = _verdict_fp(rate) if not math.isnan(rate) else "—"
-            lines.append(f"| {appr} | {_fmt_num(rate)}% | {v} |")
-        lines += [""]
+        lines += ["| Appraiser | FP events / slots | Event rate | 95% UB | Decode rate | Verdict |",
+                  "|---|---|---|---|---|---|"]
+        for appr, info in fp_results.items():
+            n_events = info.get("n_fp_events", float("nan"))
+            if isinstance(n_events, float) and math.isnan(n_events):
+                lines.append(f"| {appr} | — | — | — | — | — |")
+                continue
+            n_slots     = info["n_slots"]
+            event_rate  = info["event_rate"]
+            decode_rate = info["decode_rate"]
+            rob_95      = info["rob_95"]
+            rob_str     = f"≤ {rob_95:.2f}%" if rob_95 is not None else "—"
+            v = _verdict_fp(info)
+            lines.append(
+                f"| {appr} | {int(n_events)} / {n_slots} "
+                f"| {_fmt_num(event_rate)}% "
+                f"| {rob_str} "
+                f"| {_fmt_num(decode_rate)}% "
+                f"| {v} |"
+            )
+        lines += [
+            "",
+            "_Gate (AC5a): FP event count must be 0. "
+            "95% UB is the rule-of-three one-sided bound on per-slot FP probability "
+            "(valid only when 0 events observed; = 3 / N_slots)._",
+            "",
+        ]
 
     # S7 — compounding / co-channel overlap
     if s7_results:
@@ -1498,7 +1571,7 @@ def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
 
     fp_rate_s5 = ""
     if "OpenWSFZ" in fp_results:
-        fp_rate_s5 = _safe(fp_results.get("OpenWSFZ"))
+        fp_rate_s5 = _safe(fp_results["OpenWSFZ"].get("decode_rate"))
 
     row = {
         "run_date": run_date_str,
@@ -1622,8 +1695,21 @@ def main() -> None:
     # False-positive rate (S5) — gated metric, unchanged.
     if "S5" in matched:
         fp_results = _fp_rate(matched["S5"])
-        for appr, rate in fp_results.items():
-            print(f"  S5 FP rate ({appr}): {_fmt_num(rate)}%")
+        for appr, info in fp_results.items():
+            n_events = info.get("n_fp_events", float("nan"))
+            if isinstance(n_events, float) and math.isnan(n_events):
+                print(f"  S5 FP ({appr}): undefined (no S5 slots injected)")
+                continue
+            n_slots     = info["n_slots"]
+            event_rate  = info["event_rate"]
+            decode_rate = info["decode_rate"]
+            rob_95      = info["rob_95"]
+            rob_str = f"; 95% UB ≤ {rob_95:.2f}%" if rob_95 is not None else ""
+            print(
+                f"  S5 FP events ({appr}): {int(n_events)}/{n_slots} slots "
+                f"(event rate {_fmt_num(event_rate)}%{rob_str}; "
+                f"decode rate {_fmt_num(decode_rate)}%)"
+            )
 
     # Pooled attribute agreement (S4 positives + S5 negatives) — advisory κ.
     attr_results: dict | None = None

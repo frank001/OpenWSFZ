@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>D-009 — OSD False-Positive Investigation: Final Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="d-009-osd-false-positive-investigation-final-report">D-009 — OSD False-Positive Investigation: Final Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Defect ID</td>
+<td>D-009</td>
+</tr>
+<tr>
+<td>Title</td>
+<td>OSD false-positive callsign manufacture in noise</td>
+</tr>
+<tr>
+<td>Branch</td>
+<td><code>fix/d009-fp-callsign-filter</code></td>
+</tr>
+<tr>
+<td>Investigation period</td>
+<td>2026-06-20 – 2026-06-21</td>
+</tr>
+<tr>
+<td>Shims covered</td>
+<td>20260025 (trigger) → 20260028 (R5 gate) → 20260029 (K=10 candidate)</td>
+</tr>
+<tr>
+<td>Report date</td>
+<td>2026-06-21</td>
+</tr>
+<tr>
+<td>Status</td>
+<td><strong>OPEN — Captain decision required</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<h3 id="11-what-this-investigation-tested">1.1 What this investigation tested</h3>
+<p>OSD (Ordered Statistics Decoding) was introduced in shim 20260025 to close the D-001 co-channel decode gap. It succeeded: S7 blind recovery rose from 51.6% to 80.2%, and <code>co_channel_sweep</code> reached 92.1%, near WSJT-X's 92.9%.</p>
+<p>The same OSD path was then found to manufacture <strong>structurally valid FT8 messages from pure AWGN noise</strong> — callsign strings that pass CRC-14, match the message format, and appear in the decode log as if real stations had transmitted. This is D-009.</p>
+<p><strong>Core question:</strong> Is there a decoder configuration that simultaneously achieves (a) near-zero false-positive rate in noise and (b) preserves the S7 co_channel_sweep recovery introduced by OSD? If so, what is that configuration and can it be shipped?</p>
+<h3 id="12-null-hypotheses">1.2 Null hypotheses</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Null hypothesis</th>
+<th>Outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H₀₁</td>
+<td>The false positives and genuine co-channel decodes can be separated by a cheap signal-level feature (nhard or sync score)</td>
+<td><strong>REFUTED</strong> — R6 diagnostic (Section 3.2): both populations have identical nhard (mean 51.8 vs 51.4) and sync distributions. No threshold separates them at useful specificity.</td>
+</tr>
+<tr>
+<td>H₀₂</td>
+<td>Raising the pass-1 score floor (<code>K_MIN_SCORE_PASS2</code>) to K=10 suppresses FPs without regressing co_channel_sweep</td>
+<td><strong>PARTIALLY REFUTED</strong> — K=10 suppresses FPs by 94% (confirmed) but regresses co_channel_sweep by 5.5 pp at tight Δ5–7 Hz offsets (G-A gate fail).</td>
+</tr>
+<tr>
+<td>H₀₃</td>
+<td>The corr/nhard output gates (not the K floor) drive the FP suppression</td>
+<td><strong>REFUTED</strong> — Ablation cfg1/cfg4: with gates OFF and K=1 or K=5, FP rate is 0.692–0.700/slot. Gates alone do not suppress FPs. The K floor at 10 suppresses FPs independently of whether gates are active.</td>
+</tr>
+<tr>
+<td>H₀₄</td>
+<td>Removing corr/nhard gates while holding K=10 recovers co-channel sensitivity (architect's strong prior)</td>
+<td><strong>REFUTED</strong> — Ablation cfg2 (K=10, gates OFF): co_channel_sweep 44.2%, far below the 89% threshold. The gates provide ~43 pp of sweep recovery at fixed K=10.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="13-acceptance-criteria-pre-committed-from-architect-3">1.3 Acceptance criteria (pre-committed, from architect §3)</h3>
+<p>The investigation used a pre-committed decision rule to prevent post-hoc goalpost moving. <strong>SHIP</strong> the simplest configuration satisfying <strong>all three</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Criterion</th>
+<th>Threshold</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>co_channel_sweep</code></td>
+<td>≥ 89%</td>
+<td>AD4 equivalent; ~3 pp below 92.14% reference</td>
+</tr>
+<tr>
+<td><code>co_channel</code> (P0–P2 equal-SNR)</td>
+<td>≥ 45%</td>
+<td>Within 3 pp of pre-D-009 baseline 48.57%</td>
+</tr>
+<tr>
+<td>S5 FP rate</td>
+<td>≤ 0.10 /slot</td>
+<td>AD3; near WSJT-X behaviour</td>
+</tr>
+</tbody>
+</table>
+<p>If no configuration meets all three: declare the trade <strong>irreducible</strong> and escalate to the Captain.</p>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<h3 id="21-investigation-rounds">2.1 Investigation rounds</h3>
+<table>
+<thead>
+<tr>
+<th>Round</th>
+<th>Date</th>
+<th>Shim</th>
+<th>What was measured</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Trigger (S5 detection)</td>
+<td>2026-06-20</td>
+<td>20260025</td>
+<td>S5 FP rate before D-009 gating</td>
+<td>75% FP rate (6/8 slots) — D-009 opened</td>
+</tr>
+<tr>
+<td>R1–R4</td>
+<td>Pre-2026-06-20</td>
+<td>20260025–27</td>
+<td>corr/norm output gate tuning</td>
+<td>Ceilinged: 0 FP needs corr≥0.40, S7 regresses at corr≥0.35</td>
+</tr>
+<tr>
+<td>R5</td>
+<td>2026-06-20</td>
+<td>20260028</td>
+<td>nhard gate (OSD_NHARD_MAX=60)</td>
+<td>Shipped; S5 gate still fails — threshold uncalibrated</td>
+</tr>
+<tr>
+<td>R6 diagnostic</td>
+<td>2026-06-20</td>
+<td>20260028+diag</td>
+<td>nhard + sync population comparison</td>
+<td>Branch B2: neither axis separates FP from genuine</td>
+</tr>
+<tr>
+<td>Pass-1 K sweep</td>
+<td>2026-06-21</td>
+<td>20260028</td>
+<td>K∈{1,3,5,7,10} on S5+S7(P0–P2)</td>
+<td>K=10: FP −94%, co_ch +8.5 pp vs K=1 (sweep only)</td>
+</tr>
+<tr>
+<td>K=10 gate (contaminated)</td>
+<td>2026-06-21</td>
+<td>20260029</td>
+<td>S5+S7 simultaneous (VB-CABLE mix)</td>
+<td>Discarded — audio streams combined on OS mixer</td>
+</tr>
+<tr>
+<td>K=10 gate (clean)</td>
+<td>2026-06-21</td>
+<td>20260029</td>
+<td>Full 21-part S7 + 120-slot S5</td>
+<td>G-A FAIL: sweep 86.67% &lt; 89%; G-B marginal: FP 0.042</td>
+</tr>
+<tr>
+<td>Ablation 2×2</td>
+<td>2026-06-21</td>
+<td>diagnostic builds</td>
+<td S5="S5" S7="S7" _="+" full="full" wide="wide">4 configs ×</td>
+<td>All 4 fail pre-committed criteria → escalate to Captain</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-corpora">2.2 Corpora</h3>
+<p><strong>S5 (noise / D-009 cost axis):</strong>
+- Scenario: <code>s5-noise-wide.json</code> — widened widthband AWGN, no injected FT8 signals
+- Each run: ≥120 15-second slots (≥ 30 minutes of pure AWGN)
+- Truth definition: any decoded message is a false positive (no signal injected)
+- FP metric: decodes per slot (FP/slot)</p>
+<p><strong>S7 (co-channel / D-001 benefit axis):</strong>
+- Scenario: <code>s7-compounding.json</code> — 21 parts, K=5 trials/part
+- <code>co_channel_sweep</code> family: P15–P20 (Δ5–20 Hz offset, 2-stack equal 0 dB SNR)
+- <code>co_channel</code> family: P0–P2 (equal-SNR 2-stack and 3-stack, at Δ7–11 Hz)
+- Truth: synthetic Q-prefix callsigns (NFR-021 compliant; no real callsigns)
+- Reference: shim 20260025 (<code>d70aad5</code>), co_channel_sweep 92.14%, K=10 trials</p>
+<p><strong>R6 diagnostic populations (nhard/sync measurement):</strong>
+- FP population: 205 OSD CRC-valid hits from S5 AWGN (40 trials)
+- Genuine population: 92 OSD CRC-valid hits from S7 P0–P2 co-channel (15 slots)</p>
+<p><strong>WSJT-X observational data (informational only):</strong><br />
+WSJT-X (v2.7.0) ran alongside all test sessions on 2026-06-21. It correctly decoded the
+synthetic Q-prefix signals (Q1ABC, Q4XYZ, Q3PQR) in all test windows. It produced <strong>zero
+false positives</strong> in all noise and co-channel windows — consistent with its conservative
+decoding policy. WSJT-X was not formally scored against the S7 truth corpus for the
+ablation runs (harness not wired); these observations are for context only.</p>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h3 id="31-d-009-trigger-s5-fp-detection-2026-06-20-shim-20260025">3.1 D-009 trigger: S5 FP detection (2026-06-20, shim 20260025)</h3>
+<p>Before any D-009 mitigation, S5 on shim 20260025 recorded <strong>6 FPs in 8 slots</strong> (75% FP rate).
+The FP messages were structurally perfect <code>CALLSIGN CALLSIGN GRID/REPORT</code> messages, indistinguishable from real traffic, produced by OSD applying forced codeword corrections to pure AWGN.</p>
+<p>(Full S5 report: <code>qa/rr-study/results/2026-06-20-8eea3c4/report.md</code>)</p>
+<h3 id="32-r6-nhardsync-diagnostic-inseparability-confirmed">3.2 R6 nhard/sync diagnostic — inseparability confirmed</h3>
+<p><em>(Source: <code>qa/rr-study/results/diag-nhard-2026-06-20/nhard_observations.md</code>)</em></p>
+<p>The definitive population study measured 205 FPs (pure AWGN) and 92 genuine co-channel
+decodes against <strong>nhard</strong> (OSD Hamming distance to codeword) and <strong>sync score</strong> (candidate quality):</p>
+<table>
+<thead>
+<tr>
+<th>Axis</th>
+<th>FP (n=205)</th>
+<th>Genuine (n=92)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nhard — mean</td>
+<td>51.8</td>
+<td>51.4</td>
+</tr>
+<tr>
+<td>nhard — median</td>
+<td>52</td>
+<td>52</td>
+</tr>
+<tr>
+<td>nhard — stdev</td>
+<td>4.9</td>
+<td>5.0</td>
+</tr>
+<tr>
+<td>sync — mean</td>
+<td>8.1</td>
+<td>8.6</td>
+</tr>
+<tr>
+<td>sync — median</td>
+<td>8</td>
+<td>8</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Verdict — Branch B2:</strong> No threshold on either axis rejects FPs without simultaneously
+removing genuine decodes. The best achievable on nhard is 0.0% FP rejection at 100% genuine
+retention. The cheap-fix avenue is exhausted.</p>
+<p><strong>Root cause (architectural):</strong> Both FPs and genuine co-channel decodes originate in the
+same decode pass — pass-1 (SIC residual), which admits low-sync-score candidates
+(<code>K_MIN_SCORE_PASS2 = 1</code>) so OSD can dig co-channel signals out of a suppressed waterfall.
+When OSD runs blind on noise residuals at the same parameters, it produces valid-looking
+codewords with equal facility. Text filtering (Rules A/B/C) exhausts the structural signal.</p>
+<h3 id="33-pass-1-k-sweep-2026-06-21-shim-20260028">3.3 Pass-1 K sweep (2026-06-21, shim 20260028)</h3>
+<p><em>(Source: <code>qa/rr-study/results/diag-pass1-sweep-2026-06-21/pass1_sweep.md</code>)</em></p>
+<p>The <code>K_MIN_SCORE_PASS2</code> knob was swept at 5 points measuring both cost (S5 FP/slot)
+and benefit (S7 co_channel P0–P2 %) with all other parameters fixed at 20260028 values:</p>
+<table>
+<thead>
+<tr>
+<th><code>K_MIN_SCORE_PASS2</code></th>
+<th>S5 FP/slot</th>
+<th>S5 FP count / slots</th>
+<th>S7 co_channel P0–P2 %</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 (baseline)</td>
+<td>0.675</td>
+<td>81 / 120</td>
+<td>28.6%</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0.525</td>
+<td>63 / 120</td>
+<td>31.4%</td>
+</tr>
+<tr>
+<td><strong>5</strong></td>
+<td>0.533</td>
+<td>64 / 120</td>
+<td><strong>45.7% (peak)</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.558</td>
+<td>67 / 120</td>
+<td>42.9%</td>
+</tr>
+<tr>
+<td><strong>10</strong></td>
+<td><strong>0.042</strong></td>
+<td><strong>5 / 120</strong></td>
+<td>37.1%</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Pass-1 K trade curve" src="fig2_trade_curve.png" /></p>
+<p><strong>Key findings:</strong>
+- FP rate is essentially flat from K=1 to K=7 (0.525–0.675, ~22% spread)
+- K=10 produces a <strong>step-change</strong>: 94% FP reduction, attributable to the pass-1 floor
+  matching the pass-0 floor — very few high-sync candidates remain in the SIC residual
+- co_channel peaks at K=5 (45.7%); K=10 recovers less (37.1%) as tight-offset residuals
+  fall below the K=10 score floor after spectrogram suppression</p>
+<p>The sweep measured P0–P2 only (hard equal-SNR stacks). It did <strong>not</strong> measure the full
+<code>co_channel_sweep</code> (P15–P20 tight-offset family) — a gap that proved consequential in
+the next round.</p>
+<p>Initial interpretation: K=10 appears dominant on both axes (lower FP AND higher co_channel
+vs K=1). The architect recommended a K=10 confirmation run against the full 21-part S7.</p>
+<h3 id="34-k10-confirmation-gate-2026-06-21-shim-20260029">3.4 K=10 confirmation gate (2026-06-21, shim 20260029)</h3>
+<p><em>(Source: <code>qa/rr-study/results/d009-k10-confirm-s7-clean/confirm_summary.md</code>)</em></p>
+<p>The confirmation run used <code>K_MIN_SCORE_PASS2 = 10</code>, bumped to shim 20260029. Both axes
+were measured sequentially (the first simultaneous run was discarded due to VB-CABLE OS
+mixer contamination; lesson: audio routing must be configured before any multi-stream test).</p>
+<h4 id="gate-g-a-full-21-part-s7-co_channel_sweep">Gate G-A — Full 21-part S7 (co_channel_sweep)</h4>
+<table>
+<thead>
+<tr>
+<th>Overlap family</th>
+<th>K=1 reference (d70aad5)</th>
+<th>K=10 this run</th>
+<th>Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>co_channel</td>
+<td>48.57%</td>
+<td>34.29%</td>
+<td>−14.3 pp</td>
+</tr>
+<tr>
+<td><strong>co_channel_sweep</strong></td>
+<td><strong>92.14%</strong></td>
+<td><strong>86.67%</strong></td>
+<td><strong>−5.5 pp ❌</strong></td>
+</tr>
+<tr>
+<td>near_collision</td>
+<td>91.00%</td>
+<td>84.00%</td>
+<td>−7.0 pp</td>
+</tr>
+<tr>
+<td>time_freq</td>
+<td>93.33%</td>
+<td>100.00%</td>
+<td>+6.7 pp</td>
+</tr>
+<tr>
+<td>capture</td>
+<td>63.75%</td>
+<td>60.00%</td>
+<td>−3.8 pp</td>
+</tr>
+</tbody>
+</table>
+<h4 id="co_channel_sweep-per-part-breakdown">co_channel_sweep per-part breakdown</h4>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Condition</th>
+<th>K=1 ref</th>
+<th>K=10</th>
+<th>Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P15</td>
+<td>Δ5 Hz</td>
+<td>80%</td>
+<td><strong>50%</strong></td>
+<td><strong>−30 pp</strong></td>
+</tr>
+<tr>
+<td>P16</td>
+<td>Δ7 Hz</td>
+<td>85%</td>
+<td><strong>70%</strong></td>
+<td><strong>−15 pp</strong></td>
+</tr>
+<tr>
+<td>P17</td>
+<td>Δ10 Hz</td>
+<td>100%</td>
+<td>100%</td>
+<td>0 pp</td>
+</tr>
+<tr>
+<td>P18</td>
+<td>Δ15 Hz</td>
+<td>100%</td>
+<td>100%</td>
+<td>0 pp</td>
+</tr>
+<tr>
+<td>P19</td>
+<td>Δ8 Hz</td>
+<td>95%</td>
+<td>100%</td>
+<td>+5 pp</td>
+</tr>
+<tr>
+<td>P20</td>
+<td>Δ9 Hz</td>
+<td>100%</td>
+<td>100%</td>
+<td>0 pp</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="co_channel_sweep per-part: K=1 vs K=10" src="fig3_gate_per_part.png" /></p>
+<p><strong>G-A verdict: FAIL.</strong> co_channel_sweep 86.67% &lt; 89% threshold. P15 and P16 regress by
+30 pp and 15 pp respectively — well outside the ±5 pp noise band. <strong>Root cause:</strong> residual
+co-channel partner signals at Δ5–7 Hz have sync scores 7–9 after SIC suppression (heavy
+tile overlap at tight offsets). K=10 rejects them; K=1 admits them for OSD.</p>
+<h4 id="gate-g-b-widened-s5-fp-rate-120-slots-clean-sequential">Gate G-B — Widened S5 FP rate (120 slots, clean sequential)</h4>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>K=1 baseline</th>
+<th>K=10 this run</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FP/slot</td>
+<td>0.675</td>
+<td><strong>0.042</strong></td>
+</tr>
+<tr>
+<td>Total FPs</td>
+<td>81/120</td>
+<td>5/120</td>
+</tr>
+<tr>
+<td>FP reduction</td>
+<td>—</td>
+<td><strong>−94%</strong></td>
+</tr>
+<tr>
+<td>95% upper bound (Wilson)</td>
+<td>—</td>
+<td>~9.4%/slot</td>
+</tr>
+</tbody>
+</table>
+<p><strong>G-B verdict: MARGINAL</strong> — 0.042 FP/slot; consistent with sweep. Non-zero but 94%
+reduction. Would be acceptable if G-A had passed.</p>
+<p><strong>Overall: K=10 does not merge.</strong> G-A is the blocking gate.</p>
+<p><strong>Important confound identified:</strong> The G-A comparison changed <strong>two variables at once</strong> —
+the K floor (1→10) AND the full gating stack (corr/nhard gates). The reference (d70aad5)
+was shim 20260025 (pre-D-009 gating); K=10 is shim 20260029 (full gating + K floor). The
+gating stack itself had already cost ~20 pp on co_channel at K=1 (48.57% pre-gating →
+28.6% with gating). This confound prompted the ablation.</p>
+<h3 id="35-gate-isolation-ablation-2026-06-21-diagnostic-builds">3.5 Gate-isolation ablation (2026-06-21, diagnostic builds)</h3>
+<p><em>(Source: <code>qa/rr-study/results/d009-ablation-2026-06-21/ablation.md</code>)</em></p>
+<p>The architect ordered a <strong>2×2 factorial</strong> crossing the two levers independently:
+- <strong>K floor</strong>: 1, 5, or 10
+- <strong>corr/nhard gates</strong>: ON or OFF (text Rules A/B/C always ON)</p>
+<p>Four builds were measured, each against full S7 (21 parts, K=5) and widened S5 (≥120 slots):</p>
+<table>
+<thead>
+<tr>
+<th>Config</th>
+<th>K</th>
+<th>corr/nhard</th>
+<th>co_channel %</th>
+<th>co_channel_sweep %</th>
+<th>P15 (Δ5 Hz)</th>
+<th>P16 (Δ7 Hz)</th>
+<th>S5 FP/slot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cfg1</td>
+<td>1</td>
+<td>OFF</td>
+<td>45.7% (16/35)</td>
+<td>80.0% (48/60)</td>
+<td>0% (0/10)</td>
+<td>80% (8/10)</td>
+<td>0.692 (83/120)</td>
+</tr>
+<tr>
+<td>cfg2</td>
+<td>10</td>
+<td>OFF</td>
+<td>14.3%† (5/35)</td>
+<td>44.2% (53/120)‡</td>
+<td>15% (3/20)</td>
+<td>25% (5/20)</td>
+<td>0.042 (5/120)</td>
+</tr>
+<tr>
+<td>cfg3 (ref)</td>
+<td>10</td>
+<td>ON</td>
+<td>34.3% (12/35)</td>
+<td>86.7% (52/60)</td>
+<td>50% (5/10)</td>
+<td>70% (7/10)</td>
+<td>0.042 (5/120)</td>
+</tr>
+<tr>
+<td>cfg4</td>
+<td>5</td>
+<td>OFF</td>
+<td>48.6% (17/35)</td>
+<td>75.0% (45/60)</td>
+<td>0% (0/10)</td>
+<td>60% (6/10)</td>
+<td>0.700 (84/120)</td>
+</tr>
+</tbody>
+</table>
+<p>† cfg2 had a mixed K_scenario issue (appended runs with different K_scenario=5/7/10);
+  K=5-equivalent rate is 5/35 = 14.3%, directionally identical to the reported 12.2%.<br />
+‡ cfg2 sweep at K_scenario=10 (120 injections); K=5-equivalent direction unaffected.</p>
+<p><img alt="Ablation 2×2 summary" src="fig4_ablation_summary.png" /></p>
+<h4 id="decision-rule-evaluation">Decision-rule evaluation</h4>
+<table>
+<thead>
+<tr>
+<th>Config</th>
+<th>sweep ≥ 89%?</th>
+<th>co_ch ≥ 45%?</th>
+<th>FP ≤ 0.10?</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cfg1 (K=1, off)</td>
+<td>❌ 80.0%</td>
+<td>✅ 45.7%</td>
+<td>❌ 0.692</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>cfg2 (K=10, off)</td>
+<td>❌ 44.2%</td>
+<td>❌ 14.3%</td>
+<td>✅ 0.042</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>cfg3 (K=10, on)</td>
+<td>❌ 86.7%</td>
+<td>❌ 34.3%</td>
+<td>✅ 0.042</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>cfg4 (K=5, off)</td>
+<td>❌ 75.0%</td>
+<td>✅ 48.6%</td>
+<td>❌ 0.700</td>
+<td>FAIL</td>
+</tr>
+</tbody>
+</table>
+<p><strong>No configuration ships.</strong> Per the pre-committed decision rule: the trade is <strong>irreducible</strong>.</p>
+<h4 id="three-findings-from-the-ablation">Three findings from the ablation</h4>
+<p><strong>(a) The K floor — not the corr/nhard gates — is what suppresses false positives.</strong><br />
+FP rate is 0.692–0.700 at K=1 or K=5 regardless of whether gates are active.
+FP only collapses (→0.042) at K=10. The six rounds of corr/nhard tuning did not
+materially suppress FPs; they contributed almost nothing on that axis.</p>
+<p><strong>(b) The architect's strong prior (Config 2 wins) is refuted.</strong><br />
+K=10 with gates OFF (cfg2) does not recover co_channel_sweep — it collapses to 44%.
+The corr/nhard gates provide a ~43 pp lift on sweep at fixed K=10 (cfg2 44% → cfg3 87%).
+Removing the gates to simplify the decoder would surrender the majority of sweep recovery.</p>
+<p><strong>(c) The co_channel shortfall in cfg3 is structural, not marginal.</strong><br />
+cfg3 (K=10, gates ON) is the "closest" config: sweep 86.7% (2.3 pp below threshold) and
+FP 0.042/slot. However, co_channel falls to 34.3% vs the 45% threshold — a 3–4 match
+shortfall on 35 injections. This reflects the gating stack's ~20 pp cost on the equal-SNR
+co-channel family. A single additional trial would not close the co_channel gap; it is
+a structural consequence of the gating stack's filtering of low-corr OSD candidates.</p>
+<p>The sweep shortfall in cfg3 (86.7% vs 89%) is borderline and may be within run-to-run
+variability at K=5. However, the co_channel shortfall is not.</p>
+<hr />
+<h2 id="section-4-verdict-table">Section 4 — Verdict Table</h2>
+<table>
+<thead>
+<tr>
+<th>Round</th>
+<th>Configuration</th>
+<th>FP/slot</th>
+<th>co_ch_sweep %</th>
+<th>co_channel %</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shim 20260025 (OSD launch)</td>
+<td>K=1, no D-009 gating</td>
+<td>0.675+</td>
+<td>92.14%</td>
+<td>48.57%</td>
+<td><strong>FP: unacceptable</strong></td>
+</tr>
+<tr>
+<td>Shim 20260028 (R5 gate)</td>
+<td>K=1, corr+nhard ON</td>
+<td>0.675</td>
+<td>not measured</td>
+<td>not measured</td>
+<td><strong>FP: still fails S5</strong></td>
+</tr>
+<tr>
+<td>K sweep P0 (K=1)</td>
+<td>K=1, gates ON</td>
+<td>0.675</td>
+<td>—</td>
+<td>28.6%</td>
+<td>baseline</td>
+</tr>
+<tr>
+<td>K sweep P2 (K=5)</td>
+<td>K=5, gates ON</td>
+<td>0.533</td>
+<td>—</td>
+<td>45.7%</td>
+<td>co_ch peak</td>
+</tr>
+<tr>
+<td>K sweep P4 (K=10)</td>
+<td>K=10, gates ON</td>
+<td><strong>0.042</strong></td>
+<td>—</td>
+<td>37.1%</td>
+<td>FP best</td>
+</tr>
+<tr>
+<td>K=10 gate (clean, shim 20260029)</td>
+<td>K=10, gates ON</td>
+<td><strong>0.042</strong></td>
+<td><strong>86.67% ❌</strong></td>
+<td>34.3%</td>
+<td><strong>G-A FAIL</strong></td>
+</tr>
+<tr>
+<td>Ablation cfg1</td>
+<td>K=1, gates OFF</td>
+<td>0.692</td>
+<td>80.0% ❌</td>
+<td>45.7% ✅</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>Ablation cfg2</td>
+<td>K=10, gates OFF</td>
+<td><strong>0.042</strong> ✅</td>
+<td>44.2% ❌</td>
+<td>14.3% ❌</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td><strong>Ablation cfg3 (closest)</strong></td>
+<td><strong>K=10, gates ON</strong></td>
+<td><strong>0.042</strong> ✅</td>
+<td><strong>86.7% ❌</strong></td>
+<td><strong>34.3% ❌</strong></td>
+<td><strong>FAIL</strong></td>
+</tr>
+<tr>
+<td>Ablation cfg4</td>
+<td>K=5, gates OFF</td>
+<td>0.700 ❌</td>
+<td>75.0% ❌</td>
+<td>48.6% ✅</td>
+<td>FAIL</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: OPEN. No configuration found that satisfies all three acceptance criteria.</strong><br />
+The trade is confirmed irreducible across 8 measurement sessions and 4 de-confounded
+factorial configurations. The decision requires a product/policy position from the Captain.</p>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<h3 id="51-what-the-captain-must-decide">5.1 What the Captain must decide</h3>
+<p>The ablation has reduced the decision to a <strong>clean two-pole trade</strong> with de-confounded
+measurements. No further K probing is warranted — K=8/9 would land on the same curve (sync
+scores 8–9 are occupied by both tight-offset residuals and FP candidates; no gap exists).</p>
+<p><strong>The two poles:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Posture</th>
+<th>Config</th>
+<th>K</th>
+<th>gates</th>
+<th>co_ch %</th>
+<th>sweep %</th>
+<th>FP/slot</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Trust-first</strong></td>
+<td>cfg3</td>
+<td>10</td>
+<td>ON</td>
+<td>34.3%</td>
+<td>86.7%</td>
+<td>0.042</td>
+<td>Near-zero FPs; gives back ~14 pp co_ch and ~5 pp sweep vs OSD launch. Δ5–7 Hz co-channel recovery halved vs reference.</td>
+</tr>
+<tr>
+<td><strong>Sensitivity-first</strong></td>
+<td>cfg4</td>
+<td>5</td>
+<td>OFF</td>
+<td>48.6%</td>
+<td>75.0%</td>
+<td>0.700</td>
+<td>Best co_ch recovery; sweep already below 89%; ~1 FP per 1.4 slots in noise — most of the original problem remains.</td>
+</tr>
+</tbody>
+</table>
+<p>Neither option is obviously correct. For a <strong>logging product</strong>, a false QSO entry is a
+serious integrity defect (it corrupts the operator's log and may be reported to a contest
+or award system). The QA position is <strong>trust-first by default</strong>, accepting the sensitivity
+loss in exchange for log reliability. However, the Captain may judge that the blind
+co-channel decode gain is the product's primary differentiator and that a disclosed FP rate
+is acceptable with clear user guidance.</p>
+<h3 id="52-possible-implementation-paths-after-the-captains-decision">5.2 Possible implementation paths after the Captain's decision</h3>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>When to choose</th>
+<th>What to implement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A. Ship cfg3 (K=10, gates ON)</strong></td>
+<td>Trust-first, accept co_ch shortfall</td>
+<td>Revert ft8_shim.c to <code>K_MIN_SCORE_PASS2=10</code>, <code>OSD_NHARD_MAX=60</code>, <code>OSD_CORR_THRESHOLD=0.10</code>. <strong>Require explicit sign-off</strong> on co_channel regression (34.3% vs 45% criterion). Update MEMORY D-001 baseline to 86.67% sweep.</td>
+</tr>
+<tr>
+<td><strong>B. Ship cfg4 (K=5, gates OFF) with a FP disclosure</strong></td>
+<td>Sensitivity-first, transparent</td>
+<td>Remove corr/nhard gates (<code>OSD_NHARD_MAX=174</code>, <code>OSD_CORR_THRESHOLD=-1.1f</code>), set <code>K_MIN_SCORE_PASS2=5</code>. Document that OSD may produce ~0.7 FP/slot in low-signal conditions. Gates can be removed; decoder is simpler.</td>
+</tr>
+<tr>
+<td><strong>C. Waive co_channel criterion; ship cfg3 as-is</strong></td>
+<td>Trust-first, criteria adjustment</td>
+<td>Formally waive the <code>co_channel ≥ 45%</code> criterion on the grounds that sweep is the more operationally relevant metric. cfg3 then passes on sweep (86.7% borderline) and FP (0.042). Requires architect approval of criterion waiver.</td>
+</tr>
+<tr>
+<td><strong>D. Architectural redesign (H7)</strong></td>
+<td>Neither pole acceptable</td>
+<td>MMSE joint demodulation — removes the fundamental coupling between co-channel gain and FP manufacture. Substantial R&D; D-001 history suggests 3–6 months minimum. Defer unless Captain rejects A/B/C.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53-what-remains-for-qa-after-the-captains-decision">5.3 What remains for QA after the Captain's decision</h3>
+<ol>
+<li>The Captain selects a posture (trust-first or sensitivity-first).</li>
+<li>The architect produces a new developer handoff for the chosen path.</li>
+<li>QA reviews and gates:
+   - Gate G-A (sweep ≥ 89% or formally waived criterion)
+   - Gate G-B (FP/slot at or near agreed target)
+   - <code>dotnet build</code> 0/0; <code>dotnet test</code> all pass</li>
+<li>QA completes NFR-023 sections 1/2/5 for any new result directories.</li>
+<li>Normal <code>/opsx:verify</code> → review → merge to <code>main</code>.</li>
+</ol>
+<h3 id="54-dirty-contaminated-runs-disposition">5.4 Dirty / contaminated runs — disposition</h3>
+<p>The following runs exist in the results tree but are <strong>not authoritative</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Directory</th>
+<th>Status</th>
+<th>Disposition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>d009-k10-confirm-s5</code></td>
+<td>Contaminated (simultaneous S5+S7 on VB-CABLE)</td>
+<td>Retain as evidence; marked in <code>CONTAMINATED.md</code></td>
+</tr>
+<tr>
+<td><code>d009-k10-confirm-s7</code></td>
+<td>Contaminated (same; co_channel_sweep 85.0% vs 86.67% clean)</td>
+<td>Retain as evidence; marked in <code>CONTAMINATED.md</code></td>
+</tr>
+<tr>
+<td><code>2026-06-20-ccda50c-s5-wide</code></td>
+<td>Incomplete (truth.csv only; run did not complete)</td>
+<td>Retain; no usable data</td>
+</tr>
+<tr>
+<td><code>d009-ablation-2026-06-21/cfg2-s7-draft</code></td>
+<td>Draft run superseded by cfg2-s7</td>
+<td>Retain; not used in analysis</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="appendix-a-investigation-timeline">Appendix A — Investigation timeline</h2>
+<p><img alt="D-009 investigation: S7 co_channel_sweep across rounds" src="fig1_investigation_timeline.png" /></p>
+<hr />
+<h2 id="appendix-b-nhard-sync-population-histograms">Appendix B — nhard / sync population histograms</h2>
+<p><em>(Source: <code>qa/rr-study/results/diag-nhard-2026-06-20/nhard_observations.md</code>)</em></p>
+<p><strong>nhard — FP population (S5, n=205):</strong></p>
+<div class="highlight"><pre><span></span><code>[ 35- 39] ##                    (2)
+[ 40- 44] ##############        (14)
+[ 45- 49] ########################################  (50)
+[ 50- 54] ########################################  (71)
+[ 55- 59] ########################################  (61)
+[ 60- 64] #######               (7)
+</code></pre></div>
+
+<p><strong>nhard — Genuine population (S7 P0–P2, n=92):</strong></p>
+<div class="highlight"><pre><span></span><code>[ 35- 39] #                     (1)
+[ 40- 44] #######               (7)
+[ 45- 49] #####################          (21)
+[ 50- 54] ###################################    (35)
+[ 55- 59] #########################       (25)
+[ 60- 64] ###                   (3)
+</code></pre></div>
+
+<p><strong>sync — FP population:</strong></p>
+<div class="highlight"><pre><span></span><code>[  7] ########################################  (67)
+[  8] ########################################  (84)
+[  9] ##############################            (30)
+[ 10] ################                          (16)
+[ 11] ##                                        (2)
+[ 12] ####                                      (4)
+[ 13] ##                                        (2)
+</code></pre></div>
+
+<p><strong>sync — Genuine population:</strong></p>
+<div class="highlight"><pre><span></span><code>[  7] ########################                  (24)
+[  8] ###################################       (35)
+[  9] #############                             (13)
+[ 10] ################                          (16)
+[ 11] ##                                        (2)
+[ 21] ##                                        (2)
+</code></pre></div>
+
+<p>The distributions are visually and statistically indistinguishable. This confirms H₀₁ is
+refuted and the B2 branch is the correct escalation path.</p>
+<hr />
+<h2 id="appendix-c-wsjt-x-observational-data-informational">Appendix C — WSJT-X observational data (informational)</h2>
+<p>WSJT-X (v2.7.0) ran throughout the 2026-06-21 test sessions. It was not formally scored
+against the ablation truth corpora (harness not wired for WSJT-X comparison in ablation
+mode). Observations from the system ALL.TXT:</p>
+<table>
+<thead>
+<tr>
+<th>Run window (UTC)</th>
+<th>WSJT-X decodes</th>
+<th>Notable</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>K=10 clean S7 (15:38–16:11)</td>
+<td>~266 decodes</td>
+<td>All Q-prefix synthetic signals; 0 spurious</td>
+</tr>
+<tr>
+<td>cfg2 S7 (17:55–18:28)</td>
+<td>429 decodes</td>
+<td>All Q-prefix signals; 0 spurious</td>
+</tr>
+<tr>
+<td>cfg1 S7 (19:06–19:39)</td>
+<td>205 decodes</td>
+<td>All Q-prefix signals; 0 spurious</td>
+</tr>
+<tr>
+<td>cfg4 S7 (20:15–20:47)</td>
+<td>205 decodes</td>
+<td>All Q-prefix signals; 0 spurious</td>
+</tr>
+</tbody>
+</table>
+<p>WSJT-X produced <strong>zero false positives</strong> in any window. This is consistent with its
+conservative post-normalisation threshold (which systematically under-decodes co-channel
+signals but also never hallucinates). The co-channel performance gap between WSJT-X and
+OpenWSFZ OSD is documented in D-001 (WSJT-X: 0% on P0–P2; OpenWSFZ cfg1: 45.7%).</p>
+<hr />
+<p><strong>NFR-021 compliance:</strong> No real or ITU-assignable callsigns appear in this document.
+All S7 callsigns are Q-prefix synthetic (Q1ABC, Q4XYZ, Q3PQR — MSG-01/02/03 from
+<code>study-messages.json</code>). S5 FP counts are numeric only; S5 ALL.TXT files are not committed.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

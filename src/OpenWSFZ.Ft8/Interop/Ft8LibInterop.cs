@@ -164,8 +164,37 @@ internal static class Ft8LibInterop
     ///   count, established in H_ITER diagnostic; retired slots 20260022–20260024).
     ///   No ABI change; struct layout and all existing entry points unchanged.
     ///   Target: close D-001 blind co-channel decode gap to ≥80% MSG-01 at Δ7 Hz.
+    /// 20260026 (fix-d009-r2): OSD correlation gate in decode.c (native, both call sites).
+    ///   Rejects OSD candidates whose normalised correlation score (corr/norm) is below
+    ///   OSD_CORR_THRESHOLD = 0.10.  Closes the text-level ceiling identified in D-009 R1
+    ///   verification (d40b4cd, 2026-06-20).  Text-level D9-R3 Gap A and Gap C extensions
+    ///   applied in Ft8Decoder.IsPlausibleMessage.
+    /// 20260027 (fix-d009-r3): OSD_CORR_THRESHOLD raised 0.10 → 0.15 in decode.c.
+    ///   S5 R2 verification (8eea3c4, 2026-06-20): 75.0% FP rate at 0.10 (9 events / 12 slots).
+    ///   Category B residual (3-token structurally-valid FPs) and Category C (CQ &lt;...&gt;)
+    ///   are not addressable by text filtering; gate calibration is the only lever.
+    ///   Text-layer: 4-token non-CQ messages now rejected by IsPlausibleMessage (no shim change).
+    /// 20260028 (fix-d009-r5): OSD two-feature gate — nhard Hamming-distance check added
+    ///   alongside the existing corr/norm check (D-009 R5).  The R4 single-knob calibration
+    ///   loop proved ceilinged: 0 FP on S5 required OSD_CORR_THRESHOLD &gt;= 0.40, which
+    ///   conflicts with S7 co-channel decode (needs &lt;= 0.35).  The nhard discriminant is
+    ///   orthogonal to corr/norm (magnitude-independent) and mirrors WSJT-X's nharderrors
+    ///   metric (osd174_91.f90).  Genuine decodes are Hamming-close to the channel hard
+    ///   decisions regardless of SNR; noise CRC-14 coincidences cluster near 87 (= 174/2).
+    ///   OSD_CORR_THRESHOLD reverted to 0.10 (nhard carries noise rejection).
+    ///   OSD_NHARD_MAX = 60 (calibrated against S5 noise and S7 genuine histograms).
+    ///   Text-layer Rules A/B/C added to IsPlausibleMessage: single-token reject (Rule A);
+    ///   5+-token reject (Rule B); &quot;CQ &lt;hash&gt;&quot; 2-token reject (Rule C).
+    ///   NFR-021: real callsigns replaced with Q-prefix in D009FpFilterTests.cs.
+    ///   No ABI change; struct layout unchanged (48 bytes).
+    /// 20260029 (fix-d009-k10): K_MIN_SCORE_PASS2 raised 1 → 10.
+    ///   Pass-1 sweep (diag-pass1-sweep-2026-06-21) selected K=10 as the operating
+    ///   point: S5 FP rate cut 94% (0.675 → 0.042 FP/slot); S7 co-channel recovery
+    ///   improves +8.5 pp on the hard P0–P2 subset vs K=1 baseline.  All other
+    ///   shim-20260028 gate values unchanged: OSD_NHARD_MAX=60, OSD_CORR_THRESHOLD=0.10,
+    ///   text Rules A/B/C intact.  No ABI change; struct layout unchanged (48 bytes).
     /// </summary>
-    private const int ExpectedShimVersion = 20260025;
+    private const int ExpectedShimVersion = 20260029;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
