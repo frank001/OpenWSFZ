@@ -1,0 +1,26 @@
+{
+  "_comment": "S5-DIAG40 — diagnostic run for D-009 R6 nhard/sync data collection (40 trials). NOT a gate run. Seeds identical to s5-noise-wide.json (same formula), so trials 0–39 are a prefix of the wide scenario. Run to collect ≥30 FP nhard/sync pairs from shim 20260028 NHARD_DIAG build. Result dir: qa/rr-study/results/diag-nhard-2026-06-20/.",
+  "_format_version": "1",
+
+  "id": "S5",
+  "name": "Noise / false-positive rate (diagnostic 40-trial subset)",
+  "response": "False-positive decoded / not-decoded (attribute)",
+  "description": "40-trial subset of S5-WIDE for D-009 R6 nhard/sync diagnostic. Collects FP (nhard, sync) pairs from the NHARD_DIAG build. Not a gate run — no AD3 threshold applies.",
+
+  "message_ids": [],
+
+  "harness_note": "No FT8 signal is synthesised. Each slot renders 15 s of wideband AWGN seeded by compute_seed('S5', part_index, trial_index). Any decode is a false positive.",
+
+  "parts": [
+    {
+      "part_index": 0,
+      "noise_type": "awgn",
+      "level_dbfs": -20,
+      "note": "Wideband AWGN. level_dbfs is statistically inert for pure AWGN — peak-normalisation cancels amplitude."
+    }
+  ],
+
+  "trials": 40,
+
+  "seed_formula": "hash('S5', part_index, trial_index)"
+}

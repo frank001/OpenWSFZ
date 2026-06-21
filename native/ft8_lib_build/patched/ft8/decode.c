@@ -7,6 +7,9 @@
 #include <math.h>
 #include <stddef.h>   /* NULL — required for ftx_decode_candidate_ap (GCC/Clang strict C11) */
 #include <string.h>   /* memcpy, memset — required for osd_decode (shim 20260025)           */
+#ifdef NHARD_DIAG
+#include <stdio.h>    /* FILE, fopen, fprintf, fclose — diagnostic file output only          */
+#endif
 
 // #define LOG_LEVEL LOG_DEBUG
 // #include "debug.h"
@@ -629,6 +632,16 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
     bp_decode(log174, max_iterations, plain174, &status->ldpc_errors);
     // ldpc_decode(log174, max_iterations, plain174, &status->ldpc_errors);
 
+    /* NHARD_DIAG: save OSD feature values so they can be emitted after CRC check.
+     * Initialised to -1 so the post-CRC probe can detect "OSD was not invoked"
+     * (i.e. BP converged) and stay silent.                                      */
+#ifdef NHARD_DIAG
+    int   _s1_nhard = -1;
+    int   _s1_sync  = -1;
+    float _s1_corr  = 0.0f;
+    float _s1_norm  = 0.0f;
+#endif
+
     if (status->ldpc_errors > 0)
     {
         /* BP failed to converge; try OSD fallback (shim 20260025).
@@ -654,7 +667,12 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
                 if (plain174[i] != (uint8_t)hd) ++nhard;    /* codeword vs channel   */
             }
 #ifdef NHARD_DIAG
-            fprintf(stderr, "OSD_NHARD_SITE1 %d corr %.3f norm %.3f sync %d\n", nhard, osd_corr, osd_norm, cand->score);
+            /* Save for post-CRC emission — do NOT emit here (pre-CRC values would
+             * include gate-rejected candidates that never become real decodes).   */
+            _s1_nhard = nhard;
+            _s1_sync  = cand->score;
+            _s1_corr  = osd_corr;
+            _s1_norm  = osd_norm;
 #endif
             if (nhard > OSD_NHARD_MAX)
                 return false;
@@ -679,6 +697,23 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
     {
         return false;
     }
+
+    /* NHARD_DIAG: emit OSD features only for CRC-valid decodes.
+     * Writing after the CRC gate ensures every logged line corresponds to a
+     * real decode event (FP in S5-noise; genuine or spurious in S7).
+     * stderr is unreliable through the .NET P/Invoke host; write to a fixed
+     * diagnostic file instead.  File is append-only so S5 and S7 runs can
+     * be separated by clearing / renaming it between scenarios.              */
+#ifdef NHARD_DIAG
+    if (_s1_nhard >= 0) {
+        FILE *_nf = fopen("C:\\Temp\\nhard_diag.log", "a");
+        if (_nf) {
+            fprintf(_nf, "OSD_CRC_OK_SITE1 %d corr %.3f norm %.3f sync %d\n",
+                    _s1_nhard, _s1_corr, _s1_norm, _s1_sync);
+            fclose(_nf);
+        }
+    }
+#endif
 
     // Reuse CRC value as a hash for the message (TODO: 14 bits only, should perhaps use full 16 or 32 bits?)
     message->hash = status->crc_calculated;
@@ -814,6 +849,14 @@ bool ftx_decode_candidate_ap(
     uint8_t plain174[FTX_LDPC_N];
     bp_decode(log174, max_iterations, plain174, &status->ldpc_errors);
 
+    /* NHARD_DIAG: save OSD features for post-CRC emission (AP decode path). */
+#ifdef NHARD_DIAG
+    int   _s2_nhard = -1;
+    int   _s2_sync  = -1;
+    float _s2_corr  = 0.0f;
+    float _s2_norm  = 0.0f;
+#endif
+
     if (status->ldpc_errors > 0)
     {
         /* BP failed; try OSD fallback with pre-BP normalised LLRs. */
@@ -833,7 +876,10 @@ bool ftx_decode_candidate_ap(
                 if (plain174[i] != (uint8_t)hd) ++nhard;    /* codeword vs channel   */
             }
 #ifdef NHARD_DIAG
-            fprintf(stderr, "OSD_NHARD_SITE2 %d corr %.3f norm %.3f sync %d\n", nhard, osd_corr, osd_norm, cand->score);
+            _s2_nhard = nhard;
+            _s2_sync  = cand->score;
+            _s2_corr  = osd_corr;
+            _s2_norm  = osd_norm;
 #endif
             if (nhard > OSD_NHARD_MAX)
                 return false;
@@ -853,6 +899,19 @@ bool ftx_decode_candidate_ap(
 
     if (status->crc_extracted != status->crc_calculated)
         return false;
+
+    /* NHARD_DIAG: emit after CRC check — AP decode path (SITE2).
+     * Same rationale as SITE1: only log candidates that became real decodes. */
+#ifdef NHARD_DIAG
+    if (_s2_nhard >= 0) {
+        FILE *_nf2 = fopen("C:\\Temp\\nhard_diag.log", "a");
+        if (_nf2) {
+            fprintf(_nf2, "OSD_CRC_OK_SITE2 %d corr %.3f norm %.3f sync %d\n",
+                    _s2_nhard, _s2_corr, _s2_norm, _s2_sync);
+            fclose(_nf2);
+        }
+    }
+#endif
 
     message->hash = status->crc_calculated;
 
