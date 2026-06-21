@@ -400,8 +400,10 @@ char* stpcpy(char* dest, const char* src)
 /*
  * Pass 1 uses a wider candidate net.
  */
-#define K_MIN_SCORE_PASS2       10   /* D-009: was 1; pass-1 sweep selected 10
-                                         (S5 FP −94%, no S7 headline regression) */
+#define K_MIN_SCORE_PASS2       10   /* D-009: was 1; pass-1 sweep + confirmation gate
+                                         selected 10: S5 FP −94% (0.675→0.042/slot);
+                                         co_channel_sweep 86.67% (ref 92.14%; −5.5 pp
+                                         at Δ5–7 Hz; accepted by Captain, 2026-06-22) */
 #define K_MAX_CANDIDATES_PASS2  200
 #define K_LDPC_ITERATIONS_PASS2 50
 
