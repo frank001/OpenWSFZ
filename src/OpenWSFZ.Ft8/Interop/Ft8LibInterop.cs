@@ -187,8 +187,14 @@ internal static class Ft8LibInterop
     ///   5+-token reject (Rule B); &quot;CQ &lt;hash&gt;&quot; 2-token reject (Rule C).
     ///   NFR-021: real callsigns replaced with Q-prefix in D009FpFilterTests.cs.
     ///   No ABI change; struct layout unchanged (48 bytes).
+    /// 20260029 (fix-d009-k10): K_MIN_SCORE_PASS2 raised 1 → 10.
+    ///   Pass-1 sweep (diag-pass1-sweep-2026-06-21) selected K=10 as the operating
+    ///   point: S5 FP rate cut 94% (0.675 → 0.042 FP/slot); S7 co-channel recovery
+    ///   improves +8.5 pp on the hard P0–P2 subset vs K=1 baseline.  All other
+    ///   shim-20260028 gate values unchanged: OSD_NHARD_MAX=60, OSD_CORR_THRESHOLD=0.10,
+    ///   text Rules A/B/C intact.  No ABI change; struct layout unchanged (48 bytes).
     /// </summary>
-    private const int ExpectedShimVersion = 20260028;
+    private const int ExpectedShimVersion = 20260029;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.

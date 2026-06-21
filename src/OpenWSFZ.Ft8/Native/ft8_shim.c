@@ -275,6 +275,24 @@
  *   version slots 20260022–20260024 were used only on that unmerged branch and
  *   are permanently retired here to avoid version-number ambiguity).
  *
+ * fix-d009-k10 (FT8_SHIM_VERSION 20260029):
+ *
+ *   K_MIN_SCORE_PASS2 raised 1 → 10 (D-009: OSD false-positive manufacture in
+ *   noise).  The pass-1 sweep (qa/rr-study/results/diag-pass1-sweep-2026-06-21/
+ *   pass1_sweep.md) measured the S5 FP rate and S7 co_channel_sweep across five
+ *   K values on shim 20260028:
+ *
+ *     K=1 (baseline): 0.675 FP/slot; S7 co_channel_sweep 28.6% (hard P0–P2)
+ *     K=10:           0.042 FP/slot (−94%); S7 co_channel_sweep 37.1% (hard P0–P2)
+ *
+ *   Setting K_MIN_SCORE_PASS2 = K_MIN_SCORE (= 10) means pass-1 admits only
+ *   candidates whose sync score matches the pass-0 floor.  After pass-0 decodes
+ *   and suppresses genuine signals, residual energy at that quality level is almost
+ *   exclusively thermal noise; OSD's CRC-14 search over 529 trials therefore finds
+ *   very few false codewords.  All other shim-20260028 gate values unchanged:
+ *   OSD_NHARD_MAX = 60, OSD_CORR_THRESHOLD = 0.10, text Rules A/B/C intact.
+ *   No ABI change; no struct layout change.
+ *
  * Build: see BUILD.md.  encode.c and patched/ft8/decode.c must be compiled and linked.
  */
 
@@ -382,7 +400,8 @@ char* stpcpy(char* dest, const char* src)
 /*
  * Pass 1 uses a wider candidate net.
  */
-#define K_MIN_SCORE_PASS2       1
+#define K_MIN_SCORE_PASS2       10   /* D-009: was 1; pass-1 sweep selected 10
+                                         (S5 FP −94%, no S7 headline regression) */
 #define K_MAX_CANDIDATES_PASS2  200
 #define K_LDPC_ITERATIONS_PASS2 50
 

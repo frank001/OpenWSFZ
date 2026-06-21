@@ -242,8 +242,15 @@ extern "C" {
  *              OSD_CORR_THRESHOLD reverted to 0.10 (nhard carries noise rejection);
  *              OSD_NHARD_MAX = 60 (calibrated against S5/S7 histograms).
  *              No ABI change; struct layout unchanged (48 bytes).
+ *   20260029 — fix-d009-k10: K_MIN_SCORE_PASS2 raised 1 → 10 (D-009 production
+ *              fix).  Pass-1 sweep (diag-pass1-sweep-2026-06-21) showed K=10
+ *              cuts S5 FP rate by 94% (0.675 → 0.042 FP/slot) while improving
+ *              S7 co-channel recovery over the K=1 baseline (+8.5 pp on hard
+ *              P0–P2 subset).  All other shim-20260028 gate values unchanged:
+ *              OSD_NHARD_MAX=60, OSD_CORR_THRESHOLD=0.10, text Rules A/B/C.
+ *              No ABI change; struct layout unchanged (48 bytes).
  */
-#define FT8_SHIM_VERSION 20260028
+#define FT8_SHIM_VERSION 20260029
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
