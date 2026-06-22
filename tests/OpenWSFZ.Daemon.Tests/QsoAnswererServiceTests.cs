@@ -856,6 +856,168 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
+    // ── Mutable config store helper (phase-aware pending-target tests) ────────
+
+    /// <summary>
+    /// Simple mutable <see cref="IConfigStore"/> used in pending-target tests that
+    /// need to observe side-effects of <see cref="IConfigStore.SaveAsync"/>.
+    /// </summary>
+    private sealed class MutableConfigStore : IConfigStore
+    {
+        private AppConfig _current;
+        public MutableConfigStore(AppConfig initial) => _current = initial;
+        public AppConfig Current => _current;
+        public event Action<AppConfig>? OnSaved;
+        public Task SaveAsync(AppConfig config, CancellationToken ct = default)
+        {
+            _current = config;
+            OnSaved?.Invoke(config);
+            return Task.CompletedTask;
+        }
+    }
+
+    // ── AnswerCqAsync — phase-determination tests ─────────────────────────────
+
+    [Fact(DisplayName = "AnswerCqAsync: CQ at B-phase (:15) — fires TX when next A-phase batch arrives")]
+    public async Task AnswerCqAsync_WhenIdle_BPhaseAnswer_SetsPendingAPhase()
+    {
+        // CQ station was transmitting at B-phase (:15) → answer phase is A (:00 / :30).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero); // :15 = B-phase
+
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Feed a batch whose Time is A-phase (:00) — should trigger TX.
+        Send(new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+             Message: $"CQ {PartnerCall} {PartnerGrid}"));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        _sut!.Partner.Should().Be(PartnerCall, "pending target callsign must become the active partner");
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "AnswerCqAsync: CQ at A-phase (:00) — fires TX when next B-phase batch arrives")]
+    public async Task AnswerCqAsync_WhenIdle_APhaseAnswer_SetsPendingBPhase()
+    {
+        // CQ station was at A-phase (:00) → answer phase is B (:15 / :45).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero); // :00 = A-phase
+
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Feed a batch whose Time is B-phase (:15) — should trigger TX.
+        Send(new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+             Message: $"CQ {PartnerCall} {PartnerGrid}"));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        _sut!.Partner.Should().Be(PartnerCall);
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "HandleIdle: pending target — wrong phase batch does not fire TX")]
+    public async Task HandleIdle_PendingTarget_WrongPhase_DoesNotFire()
+    {
+        // CQ at :15 (B-phase) → answer wants A-phase (:00 / :30).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Feed a B-phase batch — same phase as the CQ, WRONG for the answer.
+        Send(new DecodeResult(Time: "17:29:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+             Message: $"CQ Q2NOISE IO91"));
+        await Task.Delay(300);
+
+        _sut!.State.Should().Be(QsoState.Idle, "wrong-phase batch must NOT trigger the pending TX");
+        await _ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "HandleIdle: pending target — correct phase batch fires TX")]
+    public async Task HandleIdle_PendingTarget_CorrectPhase_Fires()
+    {
+        // CQ at :15 (B-phase) → answer phase is A (:00 / :30).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Feed an A-phase batch — correct phase for the answer.
+        Send(new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+             Message: $"CQ Q2NOISE IO91"));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        _sut!.Partner.Should().Be(PartnerCall);
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "HandleIdle: pending target > 60 s old is cleared; no TX fires")]
+    public async Task HandleIdle_PendingTarget_TimedOut_ClearsAndDoesNotFire()
+    {
+        // CQ at :15 (B-phase) → answer phase is A.
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Backdating _pendingTargetSetAt via reflection to simulate a 65 s old pending target.
+        var fi = typeof(QsoAnswererService).GetField(
+            "_pendingTargetSetAt",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        fi.SetValue(_sut, DateTimeOffset.UtcNow.AddSeconds(-65));
+
+        // Feed the correct-phase batch — should be discarded due to timeout.
+        Send(new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+             Message: $"CQ Q2NOISE IO91"));
+        await Task.Delay(400);
+
+        _sut!.State.Should().Be(QsoState.Idle, "expired pending target must be discarded without TX");
+        await _ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "TxAbort: abort (AutoAnswer=false) clears pending target; no subsequent TX")]
+    public async Task TxAbort_ClearsPendingTarget()
+    {
+        // Fresh instance with a mutable store so SaveAsync side-effects persist.
+        var config = new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        };
+        var store   = new MutableConfigStore(config);
+        var ptt     = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Arm a pending CQ target (CQ at :15 → answer wants A-phase).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
+        await sut.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Simulate abort: set AutoAnswer = false in the config (what the abort endpoint does).
+        await store.SaveAsync(store.Current with
+        {
+            Tx = (store.Current.Tx ?? new TxConfig()) with { AutoAnswer = false }
+        });
+
+        // Feed the correct A-phase batch — pending target should be discarded, no TX.
+        channel.Writer.TryWrite(
+            [new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+             Message: $"CQ Q2NOISE IO91")]);
+        await Task.Delay(400);
+
+        sut.State.Should().Be(QsoState.Idle, "abort (AutoAnswer=false) must suppress the pending TX");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── D-TX-UI-001 / D-TX-UI-003: supervised single-QSO disarm ─────────────
 
     [Fact(DisplayName = "D-TX-UI-001: AbortAsync during active QSO saves autoAnswer = false in config")]

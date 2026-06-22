@@ -1,10 +1,74 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.DependencyInjection;
 using OpenWSFZ.Abstractions;
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using Xunit;
 
 namespace OpenWSFZ.Web.Tests;
+
+// ── Mock IQsoController for answer-cq endpoint tests ─────────────────────
+
+/// <summary>
+/// Controllable <see cref="IQsoController"/> stub for web-layer integration tests.
+/// State and Partner are settable so tests can exercise both Idle and non-Idle paths.
+/// </summary>
+internal sealed class MockQsoController : IQsoController
+{
+    public QsoState State   { get; set; } = QsoState.Idle;
+    public string?  Partner { get; set; }
+
+    public Task AbortAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task AnswerCqAsync(
+        string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct)
+        => Task.CompletedTask;
+}
+
+/// <summary>
+/// Fixture that wires a <see cref="MockQsoController"/> into a live Kestrel instance
+/// so that <c>POST /api/v1/tx/answer-cq</c> endpoint tests can control the
+/// controller's <see cref="QsoState"/>.
+/// </summary>
+public sealed class TxAnswerCqFixture : IAsyncLifetime
+{
+    internal readonly TestConfigStore    ConfigStore    = new();
+    internal readonly MockQsoController  QsoController  = new();
+
+    private Microsoft.AspNetCore.Builder.WebApplication? _app;
+    public  HttpClient Client { get; private set; } = null!;
+
+    public async Task InitializeAsync()
+    {
+        _app = WebApp.Create(
+            port:              0,
+            configStore:       ConfigStore,
+            configureServices: services =>
+                services.AddSingleton<IQsoController>(QsoController));
+
+        await _app.StartAsync();
+
+        var addr = _app.Services
+            .GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()!
+            .Addresses.First();
+
+        Client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{new Uri(addr).Port}") };
+    }
+
+    public async Task DisposeAsync()
+    {
+        Client.Dispose();
+        if (_app is not null)
+        {
+            await _app.StopAsync();
+            await _app.DisposeAsync();
+        }
+    }
+}
 
 /// <summary>
 /// Integration tests for the TX control endpoints (FR-047):
@@ -247,5 +311,75 @@ public sealed class TxEndpointTests : IClassFixture<AudioConfigFixture>
         // Assert config was persisted as disarmed
         _fixture.ConfigStore.Current.Tx?.AutoAnswer
             .Should().BeFalse("abort endpoint must persist autoAnswer = false in config");
+    }
+}
+
+// ── POST /api/v1/tx/answer-cq tests ─────────────────────────────────────────
+
+/// <summary>
+/// Integration tests for <c>POST /api/v1/tx/answer-cq</c> (TX-D01).
+/// Uses <see cref="TxAnswerCqFixture"/> which wires a <see cref="MockQsoController"/>
+/// so the test can control the controller's <see cref="QsoState"/>.
+/// NFR-021: all example callsigns use Q-prefix.
+/// </summary>
+public sealed class TxAnswerCqEndpointTests : IClassFixture<TxAnswerCqFixture>
+{
+    private readonly TxAnswerCqFixture _fixture;
+    private readonly HttpClient        _client;
+
+    public TxAnswerCqEndpointTests(TxAnswerCqFixture fixture)
+    {
+        _fixture = fixture;
+        _client  = fixture.Client;
+    }
+
+    private static StringContent JsonBody(string json)
+        => new(json, Encoding.UTF8, "application/json");
+
+    private const string ValidBody =
+        """{"callsign":"Q1TST","frequencyHz":897.0,"cqCycleStartUtc":"2026-06-22T17:29:15Z"}""";
+
+    // ── Test 7: 200 when Idle ────────────────────────────────────────────────
+
+    [Fact(DisplayName = "7: POST /api/v1/tx/answer-cq returns 200 with autoAnswerEnabled=true when Idle")]
+    public async Task PostTxAnswerCq_WhenIdle_Returns200WithAutoAnswerEnabledTrue()
+    {
+        // Arrange
+        _fixture.QsoController.State = QsoState.Idle;
+
+        // Act
+        var response = await _client.PostAsync("/api/v1/tx/answer-cq", JsonBody(ValidBody));
+
+        // Assert HTTP 200
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Assert body contains autoAnswerEnabled = true
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("autoAnswerEnabled").GetBoolean()
+            .Should().BeTrue("answer-cq endpoint must return autoAnswerEnabled = true on success");
+
+        // Assert 'state' and 'partner' fields are present
+        doc.RootElement.TryGetProperty("state",   out _).Should().BeTrue();
+        doc.RootElement.TryGetProperty("partner", out _).Should().BeTrue();
+    }
+
+    // ── Test 8: 409 when not Idle ────────────────────────────────────────────
+
+    [Fact(DisplayName = "8: POST /api/v1/tx/answer-cq returns 409 Conflict when TX is not Idle")]
+    public async Task PostTxAnswerCq_WhenNotIdle_Returns409()
+    {
+        // Arrange — simulate an active QSO
+        _fixture.QsoController.State = QsoState.WaitReport;
+
+        // Act
+        var response = await _client.PostAsync("/api/v1/tx/answer-cq", JsonBody(ValidBody));
+
+        // Assert HTTP 409 Conflict
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict,
+            "answer-cq must refuse with 409 when the controller is not in Idle state");
+
+        // Restore Idle so subsequent tests in this fixture are unaffected.
+        _fixture.QsoController.State = QsoState.Idle;
     }
 }

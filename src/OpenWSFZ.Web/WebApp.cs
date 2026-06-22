@@ -531,6 +531,47 @@ public static class WebApp
             return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false));
         });
 
+        // ── POST /api/v1/tx/answer-cq (TX-D01 phase-aware CQ answer) ──────────
+
+        app.MapPost("/api/v1/tx/answer-cq", async (
+            HttpRequest   request,
+            CancellationToken ct) =>
+        {
+            if (qsoController is null)
+                return Results.Problem("TX controller not available.", statusCode: 503);
+
+            if (qsoController.State != QsoState.Idle)
+                return Results.Conflict();
+
+            AnswerCqRequest? req;
+            try
+            {
+                req = await request.ReadFromJsonAsync(AppJsonContext.Default.AnswerCqRequest, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON.");
+            }
+
+            if (req is null)
+                return Results.BadRequest("Missing or empty request body.");
+
+            if (!DateTimeOffset.TryParse(
+                    req.CqCycleStartUtc,
+                    null,
+                    System.Globalization.DateTimeStyles.RoundtripKind,
+                    out var cqCycleStart))
+            {
+                return Results.BadRequest("cqCycleStartUtc is not a valid ISO 8601 date-time.");
+            }
+
+            await qsoController.AnswerCqAsync(req.Callsign, req.FrequencyHz, cqCycleStart, ct);
+
+            var txState   = qsoController.State;
+            var txPartner = qsoController.Partner;
+            return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true));
+        });
+
         // ── WebSocket Endpoint ────────────────────────────────────────────────
 
         // Create a per-class logger from the DI container after the app is built.

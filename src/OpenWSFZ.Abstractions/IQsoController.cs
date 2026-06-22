@@ -26,4 +26,20 @@ public interface IQsoController
     /// <see cref="QsoState.Idle"/>.  If the service is already in Idle, this is a no-op.
     /// </summary>
     Task AbortAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Arms a phase-aware pending TX target to answer a specific CQ call (TX-D01).
+    /// The service will fire TX at the next FT8 cycle boundary of the <em>opposite</em>
+    /// phase to <paramref name="cqCycleStart"/>, so that the operator's reply does not
+    /// collide with the CQ station's next transmission.
+    /// </summary>
+    /// <param name="callsign">Callsign of the CQ station to answer.</param>
+    /// <param name="frequencyHz">Audio frequency of the CQ decode, in Hz.</param>
+    /// <param name="cqCycleStart">UTC cycle-start timestamp of the CQ batch.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <remarks>
+    /// If the service is not in <see cref="QsoState.Idle"/> the call is silently ignored.
+    /// The pending target is cleared automatically on abort, QSO completion, or 60 s timeout.
+    /// </remarks>
+    Task AnswerCqAsync(string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct);
 }

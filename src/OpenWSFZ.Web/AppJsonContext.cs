@@ -38,6 +38,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(AudioOffsetPayload))]
 [JsonSerializable(typeof(WsAudioOffsetMessage))]
 [JsonSerializable(typeof(AudioOffsetRequest))]
+[JsonSerializable(typeof(AnswerCqRequest))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -104,3 +105,12 @@ internal sealed record WsAudioOffsetMessage(string Type, AudioOffsetPayload Payl
 /// Wire format: <c>{"rxHz":900,"txHz":1500,"holdTxFreq":false}</c>
 /// </summary>
 internal sealed record AudioOffsetRequest(int RxHz, int TxHz, bool HoldTxFreq);
+
+/// <summary>
+/// Request body for <c>POST /api/v1/tx/answer-cq</c> (TX-D01).
+/// Wire format: <c>{"callsign":"Q1TST","frequencyHz":897.0,"cqCycleStartUtc":"2026-06-22T17:29:15Z"}</c>
+/// </summary>
+internal sealed record AnswerCqRequest(
+    string Callsign,
+    double FrequencyHz,
+    string CqCycleStartUtc);    // ISO 8601 UTC, e.g. "2026-06-22T17:29:15Z"

@@ -66,6 +66,15 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private bool     _skipNextRetry = false; // A-01: true after entering WaitReport/WaitRr73 — skip the first empty cycle (our own TX window)
     private DateTime _qsoStartUtc   = DateTime.MinValue;
 
+    // Phase-aware pending-target for AnswerCqAsync (TX-D01).
+    // All four fields are read/written under _stateLock; volatile _state is checked inside
+    // the lock but may also be read outside (HTTP thread) without a lock as before.
+    private readonly object _stateLock             = new();
+    private string?         _pendingTargetCallsign;
+    private double          _pendingTargetFrequencyHz;
+    private bool            _pendingTargetIsAPhase;   // true = wait for A-phase (:00/:30); false = B-phase (:15/:45)
+    private DateTimeOffset  _pendingTargetSetAt;
+
     // Cancellation for the active TX session; cancelled on watchdog expiry or operator abort.
     // Volatile reference so AbortAsync (HTTP thread) can safely read and cancel the current CTS.
     // Never Disposed to avoid ObjectDisposedException race in AbortAsync; let GC handle old instances.
@@ -146,6 +155,38 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "KeyUpAsync threw during abort — ignoring.");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task AnswerCqAsync(
+        string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct)
+    {
+        lock (_stateLock)
+        {
+            if (_state != QsoState.Idle)
+                return;   // HTTP layer already returned 409; this is a safety guard
+
+            // CQ was on phase P → answer on the opposite phase
+            bool cqIsAPhase           = IsAPhase(cqCycleStart);
+            _pendingTargetCallsign    = callsign;
+            _pendingTargetFrequencyHz = frequencyHz;
+            _pendingTargetIsAPhase    = !cqIsAPhase;   // opposite phase
+            _pendingTargetSetAt       = DateTimeOffset.UtcNow;
+        }
+
+        // Arm the system — set AutoAnswer so the guard in HandleIdleAsync passes.
+        try
+        {
+            var current = _configStore.Current;
+            var tx      = current.Tx ?? new TxConfig();
+            await _configStore.SaveAsync(
+                current with { Tx = tx with { AutoAnswer = true } }, ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AnswerCqAsync: failed to save autoAnswer=true — ignoring.");
         }
     }
 
@@ -262,6 +303,66 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         TxConfig                    tx,
         CancellationToken           stoppingToken)
     {
+        // ── Phase-aware pending-target handling (TX-D01 / AnswerCqAsync) ─────────
+        // Placed before all other guards so that a CQ-click armed target fires
+        // independently of the general AutoAnswer flag (though AnswerCqAsync also
+        // sets AutoAnswer=true, the AutoAnswer guard is NOT consulted for this path).
+        string?        pendingCallsign;
+        double         pendingFrequencyHz;
+        bool           pendingIsAPhase;
+        DateTimeOffset pendingSetAt;
+
+        lock (_stateLock)
+        {
+            pendingCallsign    = _pendingTargetCallsign;
+            pendingFrequencyHz = _pendingTargetFrequencyHz;
+            pendingIsAPhase    = _pendingTargetIsAPhase;
+            pendingSetAt       = _pendingTargetSetAt;
+        }
+
+        if (pendingCallsign is not null)
+        {
+            // If AutoAnswer was rescinded (abort/disable saved AutoAnswer=false), discard.
+            if (!tx.AutoAnswer)
+            {
+                _logger.LogInformation(
+                    "QsoAnswererService: pending target '{Callsign}' discarded — AutoAnswer was disabled.",
+                    pendingCallsign);
+                lock (_stateLock) { _pendingTargetCallsign = null; }
+                return;
+            }
+
+            // Timeout guard: stale pending target (e.g. decode loop stalled).
+            if (DateTimeOffset.UtcNow - pendingSetAt > TimeSpan.FromSeconds(60))
+            {
+                _logger.LogWarning(
+                    "QsoAnswererService: pending target '{Callsign}' expired after 60 s — discarding.",
+                    pendingCallsign);
+                lock (_stateLock) { _pendingTargetCallsign = null; }
+                return;
+            }
+
+            // Phase check: only fire on the correct answer phase.
+            var  currentCycleStart = DeriveCycleStartFromBatch(batch);
+            bool currentIsAPhase   = IsAPhase(currentCycleStart);
+            if (currentIsAPhase != pendingIsAPhase)
+            {
+                // Wrong phase — skip this cycle; retain the pending target for next cycle.
+                return;
+            }
+
+            // Correct phase — clear the pending target and fire TX.
+            _logger.LogInformation(
+                "QsoAnswererService: pending CQ target '{Callsign}' at {FreqHz} Hz — answering at {Phase} phase.",
+                pendingCallsign, (int)Math.Round(pendingFrequencyHz),
+                pendingIsAPhase ? "A" : "B");
+            lock (_stateLock) { _pendingTargetCallsign = null; }
+            await ExecuteTxAnswerAsync(pendingCallsign, pendingFrequencyHz, null, tx, stoppingToken)
+                .ConfigureAwait(false);
+            return;
+        }
+        // ── End pending-target handling ───────────────────────────────────────────
+
         // Guard: auto-answer disabled → stay Idle regardless of decoded CQs.
         if (!tx.AutoAnswer)
             return;
@@ -281,8 +382,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         // Scan for the first CQ in the batch (FR-050: auto-answer first decoded CQ).
         DecodeResult? cqResult = null;
         string        partner  = string.Empty;
+        string?       cqGrid   = null;
 
-        string? cqGrid = null;
         foreach (var r in batch)
         {
             if (TryParseCq(r.Message, out var callsign, out var grid))
@@ -300,9 +401,37 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             "QsoAnswererService: CQ detected from {Partner} at {FreqHz} Hz — answering.",
             partner, cqResult.FreqHz);
 
+        await ExecuteTxAnswerAsync(partner, cqResult.FreqHz, cqGrid, tx, stoppingToken)
+            .ConfigureAwait(false);
+    }
+
+    // ── ExecuteTxAnswerAsync — shared TX answer logic ─────────────────────────
+
+    /// <summary>
+    /// Encodes and transmits an FT8 answer to <paramref name="partner"/> at
+    /// <paramref name="frequencyHz"/>, then advances the state machine to
+    /// <see cref="QsoState.WaitReport"/>.
+    /// Called from both the automatic CQ scan path and the phase-aware pending-target path.
+    /// </summary>
+    private async Task ExecuteTxAnswerAsync(
+        string            partner,
+        double            frequencyHz,
+        string?           partnerGrid,
+        TxConfig          tx,
+        CancellationToken stoppingToken)
+    {
+        // Guard: callsign and grid must be configured.
+        // (Normally caught earlier but this serves as a safety net for the pending-target path.)
+        if (string.IsNullOrWhiteSpace(tx.Callsign) || string.IsNullOrWhiteSpace(tx.Grid))
+        {
+            _logger.LogWarning(
+                "QsoAnswererService: TX suppressed — callsign or grid is not configured.");
+            return;
+        }
+
         // Record session state.
         _partner     = partner;
-        _partnerGrid = cqGrid;
+        _partnerGrid = partnerGrid;
         _retryCount  = 0;
         _rstRcvd     = "+00";
         _qsoStartUtc = DateTime.UtcNow;
@@ -323,7 +452,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         }
         else
         {
-            txFreqHz      = cqResult.FreqHz;
+            txFreqHz      = (int)Math.Round(frequencyHz);
             var currentTx = _configStore.Current.Tx ?? new TxConfig();
             await _configStore.SaveAsync(
                 _configStore.Current with
@@ -593,6 +722,15 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// </summary>
     private async Task SafeAbortToIdleAsync(CancellationToken stoppingToken)
     {
+        // Clear phase-aware pending target so no delayed TX fires after abort.
+        lock (_stateLock)
+        {
+            _pendingTargetCallsign    = null;
+            _pendingTargetFrequencyHz = 0.0;
+            _pendingTargetIsAPhase    = false;
+            _pendingTargetSetAt       = default;
+        }
+
         var wasPartner = _partner;
         _partner        = null;
         _partnerGrid    = null;
@@ -714,6 +852,55 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         // Create a fresh CTS with the new timeout; the old one is dropped (GC will collect it).
         _txCts = new CancellationTokenSource(timeout);
         _logger.LogDebug("QsoAnswererService: watchdog reset for {Minutes} minutes.", minutes);
+    }
+
+    // ── Phase helpers ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns <c>true</c> if the cycle starting at <paramref name="cycleStart"/> is
+    /// A-phase (:00 or :30 seconds within the minute); <c>false</c> for B-phase (:15/:45).
+    /// </summary>
+    private static bool IsAPhase(DateTimeOffset cycleStart)
+        => cycleStart.Second % 30 == 0;
+
+    /// <summary>
+    /// Derives the UTC cycle-start <see cref="DateTimeOffset"/> for the batch.
+    /// Parses the <c>Time</c> field of the first <see cref="DecodeResult"/> in
+    /// <paramref name="batch"/> (format <c>HH:mm:ss</c>); falls back to snapping
+    /// <see cref="DateTimeOffset.UtcNow"/> to the previous 15-second boundary when
+    /// the batch is empty or the field cannot be parsed.
+    /// </summary>
+    private static DateTimeOffset DeriveCycleStartFromBatch(IReadOnlyList<DecodeResult> batch)
+    {
+        if (batch.Count > 0)
+        {
+            var parts = batch[0].Time.Split(':');
+            if (parts.Length == 3 &&
+                int.TryParse(parts[0], out var h) &&
+                int.TryParse(parts[1], out var m) &&
+                int.TryParse(parts[2], out var s))
+            {
+                var now = DateTimeOffset.UtcNow;
+                var candidate = new DateTimeOffset(
+                    now.Year, now.Month, now.Day, h, m, s, TimeSpan.Zero);
+                // Guard against day rollover: if the parsed time appears to be in the future
+                // by more than a few minutes, the cycle straddled UTC midnight — subtract a day.
+                if (candidate > now.AddMinutes(2))
+                    candidate = candidate.AddDays(-1);
+                return candidate;
+            }
+        }
+
+        // Fallback: snap UtcNow back to the immediately preceding 15-second boundary.
+        var utcNow      = DateTimeOffset.UtcNow;
+        var totalSecs   = utcNow.Hour * 3600 + utcNow.Minute * 60 + utcNow.Second;
+        var cycleSecond = (totalSecs / 15) * 15;
+        return new DateTimeOffset(
+            utcNow.Year, utcNow.Month, utcNow.Day,
+            cycleSecond / 3600,
+            (cycleSecond % 3600) / 60,
+            cycleSecond % 60,
+            TimeSpan.Zero);
     }
 
     // ── Message parsers ───────────────────────────────────────────────────────

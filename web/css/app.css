@@ -754,3 +754,20 @@ select#dial-freq {
   cursor: pointer;
   width: auto;   /* override global select { width: 100% } — F-005 */
 }
+
+/* ── Decode table — CQ row highlight (TX-D01) ───────────────────────────── */
+/* Warm amber accent draws the operator's eye to CQing stations.            */
+.decode-cq {
+  background-color: rgba(200, 150, 50, 0.15);
+}
+.decode-cq:hover {
+  background-color: rgba(200, 150, 50, 0.28);
+  cursor: pointer;
+}
+
+/* ── Decode table — partner QSO exchange highlight ──────────────────────── */
+/* Subdued red marks rows involving both the operator and the active partner */
+/* during a QSO, making it easy to track the exchange at a glance.          */
+.decode-partner {
+  background-color: rgba(180, 40, 40, 0.18);
+}

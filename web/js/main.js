@@ -8,7 +8,8 @@
 
 import { connect }                                                          from './ws.js';
 import { getConfig, getFrequencies, postTune, postAudioOffset,
-         getTxStatus, postTxEnable, postTxDisable, postTxAbort }            from './api.js';
+         getTxStatus, postTxEnable, postTxDisable, postTxAbort,
+         postTxAnswerCq }                                                    from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
@@ -139,6 +140,65 @@ function renderTxPanel(state, partner, autoAnswerEnabled) {
   renderMessageRows(partner, state, autoAnswerEnabled);
 }
 
+// ── CQ / partner interaction helpers ─────────────────────────────────────
+
+/**
+ * Convert a DecodeResult `time` field ("HH:mm:ss" UTC) to an ISO 8601 UTC string
+ * suitable for use as `cqCycleStartUtc` in the answer-cq request body.
+ * Approximates the date as today UTC.  Corner case near midnight UTC is acceptable.
+ * @param {string} ft8Time  "HH:mm:ss" UTC cycle start from a DecodeResult.
+ * @returns {string}  e.g. "2026-06-22T17:29:15Z"
+ */
+function parseFt8CycleStartUtc(ft8Time) {
+  const now = new Date();
+  const [h, m, s] = ft8Time.split(':');
+  const year  = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day   = String(now.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}T${h}:${m}:${s}Z`;
+}
+
+/**
+ * Extract the target callsign from a CQ message.
+ * CQ callsign grid     → token[1]   (3 tokens)
+ * CQ modifier callsign → token[2]   (4 tokens, e.g. "CQ DX Q1TST JO22")
+ * @param {string} message  Full FT8 message text.
+ * @returns {string|null}
+ */
+function extractCqCallsign(message) {
+  const tokens = message.split(' ');
+  if (tokens.length === 3) return tokens[1];  // CQ callsign grid
+  if (tokens.length >= 4)  return tokens[2];  // CQ modifier callsign [grid]
+  return null;
+}
+
+/**
+ * Returns true if `token` matches `callsign` exactly or as a portable suffix
+ * (e.g. "PD2FZ/P" matches callsign "PD2FZ").
+ * @param {string} token
+ * @param {string} callsign
+ * @returns {boolean}
+ */
+function tokenMatchesCallsign(token, callsign) {
+  return token === callsign || token.startsWith(callsign + '/');
+}
+
+/**
+ * Returns true if `message` contains both the operator's callsign and the
+ * active partner's callsign as space-delimited tokens.
+ * Used to highlight partner QSO exchange rows in the decode table.
+ * @param {string}      message     Full FT8 message text.
+ * @param {string}      txCallsign  Operator callsign (from config.tx.callsign).
+ * @param {string|null} partner     Active QSO partner callsign, or null.
+ * @returns {boolean}
+ */
+function isPartnerInteractionRow(message, txCallsign, partner) {
+  if (!partner || !txCallsign) return false;
+  const tokens = message.split(' ');
+  return tokens.some(t => tokenMatchesCallsign(t, txCallsign))
+      && tokens.some(t => tokenMatchesCallsign(t, partner));
+}
+
 // ── Decoded-messages table ────────────────────────────────────────────────
 
 const decodesBody = /** @type {HTMLTableSectionElement} */ (document.getElementById('decodes-body'));
@@ -184,6 +244,38 @@ function handleDecodes(results) {
     tr.appendChild(makeCell(dtStr));
     tr.appendChild(makeCell(String(r.freqHz)));
     tr.appendChild(makeCell(r.message));
+
+    // Store cycle-start UTC string as a data attribute for the click handler.
+    tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
+
+    // CQ row highlighting and click-to-answer (TX-D01).
+    if (r.message.startsWith('CQ ')) {
+      tr.classList.add('decode-cq');
+      tr.style.cursor = 'pointer';
+
+      tr.addEventListener('click', async () => {
+        const callsign = extractCqCallsign(r.message);
+        if (!callsign) return;
+        const cqCycleStartUtc = tr.dataset.cqCycleStartUtc;
+        try {
+          const status = await postTxAnswerCq(callsign, r.freqHz, cqCycleStartUtc);
+          renderTxPanel(status.state, status.partner, status.autoAnswerEnabled);
+        } catch (err) {
+          if (/** @type {any} */ (err)?.status === 409) {
+            console.warn('TX not Idle — CQ click ignored.');
+          } else {
+            console.error('postTxAnswerCq error:', err);
+          }
+        }
+      });
+    }
+
+    // Partner interaction highlighting — rows that contain both operator's and
+    // partner's callsign are shown in subdued red during an active QSO.
+    if (isPartnerInteractionRow(r.message, txCallsign, currentTxPartner)) {
+      tr.classList.add('decode-partner');
+    }
+
     decodesBody.prepend(tr);
   }
 
