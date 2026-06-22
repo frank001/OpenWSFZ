@@ -63,4 +63,4 @@
 - [ ] 7.3 Confirm message rows show `——— Q1OFZ JO33 / ——— Q1OFZ R+00 / ——— Q1OFZ 73` when Idle, and populate with a real partner callsign when a `txState` event fires (can be triggered manually via the QSO answerer in a test setup)
 - [ ] 7.4 Confirm Abort TX button calls `/api/v1/tx/abort` (check browser DevTools Network tab)
 - [ ] 7.5 Confirm message rows are greyed out when TX is disarmed and normal when armed
-- [ ] 7.6 Run `dotnet test OpenWSFZ.slnx -c Release` — 388+ tests green, zero failures
+- [x] 7.6 Run `dotnet test OpenWSFZ.slnx -c Release` — 388+ tests green, zero failures
