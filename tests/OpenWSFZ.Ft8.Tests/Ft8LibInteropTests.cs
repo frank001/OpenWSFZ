@@ -84,6 +84,11 @@ public sealed class Ft8LibInteropTests
             "the fixture WAV must be exactly 15 s × 12 kHz = 180 000 samples");
 
         // Act — both calls on the same thread (no Task.Run); TLS is thread-scoped.
+        // AP bits are cleared before DecodeAll to prevent TLS contamination from
+        // D001H6ApDecodeTests.ApDecode_WithCorrectBits_RecoversCoChannelMessage, which
+        // runs concurrently and leaves non-zero AP bits on a Task.Run thread pool thread
+        // that CI (2-core VM) may reuse for this synchronous test.
+        Ft8LibInterop.SetApBits([], []);
         Ft8NativeResult[] results = Ft8LibInterop.DecodeAll(pcm);
         int[] counts = Ft8LibInterop.GetLastPassCounts(Ft8LibInterop.MaxDecodePasses);
 
@@ -134,6 +139,11 @@ public sealed class Ft8LibInteropTests
         pcm.Should().HaveCount(180_000);
 
         // Act — same thread
+        // AP bits are cleared before DecodeAll to prevent TLS contamination from
+        // D001H6ApDecodeTests.ApDecode_WithCorrectBits_RecoversCoChannelMessage, which
+        // runs concurrently and leaves non-zero AP bits on a Task.Run thread pool thread
+        // that CI (2-core VM) may reuse for this synchronous test.
+        Ft8LibInterop.SetApBits([], []);
         Ft8NativeResult[] results = Ft8LibInterop.DecodeAll(pcm);
         int[] decodeCounts    = Ft8LibInterop.GetLastPassCounts(Ft8LibInterop.MaxDecodePasses);
         int[] candidateCounts = Ft8LibInterop.GetLastCandidateCounts(Ft8LibInterop.MaxDecodePasses);
