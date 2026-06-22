@@ -1,10 +1,16 @@
 namespace OpenWSFZ.Abstractions;
 
 /// <summary>
-/// Abstraction over the FT8 QSO answerer state machine (FR-047).
-/// Consumed by the web layer for status reporting and abort control.
+/// Common contract implemented by all QSO role services (FR-047).
+/// Currently implemented by <c>QsoAnswererService</c>; <c>QsoCallerService</c> will
+/// implement it in future. Consumed by the web layer for status reporting and
+/// abort control.
 /// </summary>
-public interface IQsoAnswerer
+/// <remarks>
+/// QSO roles are exclusive: at any given time only one <see cref="IQsoController"/>
+/// implementation SHALL be active. No two role services SHALL transmit concurrently.
+/// </remarks>
+public interface IQsoController
 {
     /// <summary>Current state machine state.</summary>
     QsoState State { get; }

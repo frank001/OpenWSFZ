@@ -80,10 +80,11 @@ internal sealed record TuneResponse(double EffectiveFrequencyMHz);
 internal sealed record WsTxStateMessage(string Type, string State, string? Partner);
 
 /// <summary>
-/// Response body for <c>GET /api/v1/tx/status</c> (FR-047).
-/// Wire format: <c>{"state":"Idle","partner":null}</c>
+/// Response body for <c>GET /api/v1/tx/status</c>, <c>POST /api/v1/tx/enable</c>,
+/// and <c>POST /api/v1/tx/disable</c> (FR-047).
+/// Wire format: <c>{"state":"Idle","partner":null,"autoAnswerEnabled":false}</c>
 /// </summary>
-public sealed record TxStatusResponse(string State, string? Partner);
+public sealed record TxStatusResponse(string State, string? Partner, bool AutoAnswerEnabled);
 
 /// <summary>
 /// Payload for <c>audioOffset</c> WebSocket push events.

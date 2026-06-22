@@ -362,8 +362,8 @@ public static class WebApp
         // Capture ICatController (lifecycle control — retry on demand).
         var catController = app.Services.GetService<ICatController>();
 
-        // Capture IQsoAnswerer (may be null in tests or when the TX subsystem is not wired).
-        var qsoAnswerer = app.Services.GetService<IQsoAnswerer>();
+        // Capture IQsoController (may be null in tests or when the TX subsystem is not wired).
+        var qsoController = app.Services.GetService<IQsoController>();
 
         // Capture AudioOffsetEventBus (may be null in tests that don't register it).
         var audioOffsetEventBus = app.Services.GetService<AudioOffsetEventBus>();
@@ -490,17 +490,36 @@ public static class WebApp
 
         // ── TX / QSO answerer endpoints (FR-047) ─────────────────────────────
 
-        app.MapGet("/api/v1/tx/status", () =>
+        app.MapGet("/api/v1/tx/status", (IConfigStore store) =>
         {
-            var state   = qsoAnswerer?.State   ?? QsoState.Idle;
-            var partner = qsoAnswerer?.Partner;
-            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner));
+            var state              = qsoController?.State   ?? QsoState.Idle;
+            var partner            = qsoController?.Partner;
+            var autoAnswerEnabled  = store.Current.Tx?.AutoAnswer ?? false;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, autoAnswerEnabled));
+        });
+
+        app.MapPost("/api/v1/tx/enable", async (IConfigStore store, CancellationToken ct) =>
+        {
+            var currentTx = store.Current.Tx ?? new TxConfig();
+            await store.SaveAsync(store.Current with { Tx = currentTx with { AutoAnswer = true } }, ct);
+            var state   = qsoController?.State  ?? QsoState.Idle;
+            var partner = qsoController?.Partner;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: true));
+        });
+
+        app.MapPost("/api/v1/tx/disable", async (IConfigStore store, CancellationToken ct) =>
+        {
+            var currentTx = store.Current.Tx ?? new TxConfig();
+            await store.SaveAsync(store.Current with { Tx = currentTx with { AutoAnswer = false } }, ct);
+            var state   = qsoController?.State  ?? QsoState.Idle;
+            var partner = qsoController?.Partner;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false));
         });
 
         app.MapPost("/api/v1/tx/abort", async (CancellationToken ct) =>
         {
-            if (qsoAnswerer is not null)
-                await qsoAnswerer.AbortAsync(ct);
+            if (qsoController is not null)
+                await qsoController.AbortAsync(ct);
             return Results.Ok();
         });
 

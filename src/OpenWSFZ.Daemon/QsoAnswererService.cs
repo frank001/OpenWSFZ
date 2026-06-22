@@ -38,7 +38,7 @@ namespace OpenWSFZ.Daemon;
 /// <see cref="IPttController.KeyUpAsync"/>.
 /// </para>
 /// </summary>
-public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
+public sealed class QsoAnswererService : BackgroundService, IQsoController
 {
     // ── Private state ─────────────────────────────────────────────────────────
 
@@ -118,7 +118,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoAnswerer
         _watchdogDurationOverride = watchdogDurationOverride;
     }
 
-    // ── IQsoAnswerer ──────────────────────────────────────────────────────────
+    // ── IQsoController ───────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public QsoState State   => _state;

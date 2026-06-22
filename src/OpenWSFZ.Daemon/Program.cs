@@ -301,7 +301,7 @@ var app = WebApp.Create(
         services.AddSingleton<IApConstraintSink>(ft8Decoder);
 
         services.AddSingleton<QsoAnswererService>();
-        services.AddSingleton<IQsoAnswerer>(sp => sp.GetRequiredService<QsoAnswererService>());
+        services.AddSingleton<IQsoController>(sp => sp.GetRequiredService<QsoAnswererService>());
         services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());
     });
 
