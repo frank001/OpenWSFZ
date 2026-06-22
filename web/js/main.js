@@ -6,9 +6,10 @@
  * @module main
  */
 
-import { connect }                                    from './ws.js';
-import { getConfig, getFrequencies, postTune, postAudioOffset } from './api.js';
-import { WaterfallRenderer }                          from './spectrum.js';
+import { connect }                                                          from './ws.js';
+import { getConfig, getFrequencies, postTune, postAudioOffset,
+         getTxStatus, postTxEnable, postTxDisable, postTxAbort }            from './api.js';
+import { WaterfallRenderer }                                                 from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
 
@@ -25,6 +26,118 @@ let cachedFt8Frequencies = [];
 // ── Decode pipeline state ─────────────────────────────────────────────────
 /** @type {boolean} Mirrors the server-side DecodingEnabled flag. */
 let decodingEnabled = true;
+
+// ── TX panel state (tasks 6.2–6.5) ───────────────────────────────────────
+
+/** Operator callsign read from config.tx.callsign on page load. */
+let txCallsign = 'Q1OFZ';
+
+/** Operator grid read from config.tx.grid on page load. */
+let txGrid = 'JO33';
+
+/** Current QSO controller state string (e.g. 'Idle', 'TxAnswer'). */
+let currentTxState = 'Idle';
+
+/** Current active partner callsign, or null when Idle. */
+let currentTxPartner = /** @type {string|null} */ (null);
+
+/** Whether tx.autoAnswer is enabled (mirrors the config flag). */
+let currentAutoAnswerEnabled = false;
+
+// ── TX panel DOM elements ─────────────────────────────────────────────────
+
+const txEnableBtnEl  = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('tx-enable-btn')));
+const txAbortBtnEl   = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('tx-abort-btn')));
+const txStateDisplayEl = /** @type {HTMLElement} */ (document.getElementById('tx-state-display'));
+const txMsg1El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-1'));
+const txMsg2El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-2'));
+const txMsg3El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-3'));
+
+// ── TX panel render functions (tasks 6.3, 6.4) ───────────────────────────
+
+/**
+ * Compute and render the three standard FT8 message rows.
+ * Row text is computed from `partner`, `txCallsign`, and `txGrid`.
+ * Active row highlighting is driven by `state`.
+ * Rows are greyed out when `autoAnswerEnabled` is false.
+ *
+ * @param {string|null}  partner
+ * @param {string}       state
+ * @param {boolean}      autoAnswerEnabled
+ */
+function renderMessageRows(partner, state, autoAnswerEnabled) {
+  const p = partner ?? '———';
+
+  const texts = [
+    `${p} ${txCallsign} ${txGrid}`,   // Tx 1 — Answer (TxAnswer)
+    `${p} ${txCallsign} R+00`,         // Tx 2 — Report  (TxReport)
+    `${p} ${txCallsign} 73`,           // Tx 3 — 73      (Tx73)
+  ];
+
+  const activeStates = ['TxAnswer', 'TxReport', 'Tx73'];
+  const rows = [txMsg1El, txMsg2El, txMsg3El];
+
+  rows.forEach((row, i) => {
+    if (!row) return;
+
+    // Update text content
+    const textSpan = row.querySelector('.tx-msg-text');
+    if (textSpan) textSpan.textContent = texts[i];
+
+    // Active row highlight
+    if (state === activeStates[i]) {
+      row.classList.add('tx-msg-active');
+    } else {
+      row.classList.remove('tx-msg-active');
+    }
+
+    // Muted when disarmed
+    if (autoAnswerEnabled) {
+      row.classList.remove('tx-msg-muted');
+    } else {
+      row.classList.add('tx-msg-muted');
+    }
+  });
+}
+
+/**
+ * Render the full TX panel: button label/style, state display, and message rows.
+ *
+ * @param {string}       state              - QsoState string (e.g. 'Idle', 'TxAnswer')
+ * @param {string|null}  partner            - Active partner callsign or null
+ * @param {boolean}      autoAnswerEnabled  - Whether tx.autoAnswer is true
+ */
+function renderTxPanel(state, partner, autoAnswerEnabled) {
+  // Persist for subsequent partial updates (e.g. WS txState without config change).
+  currentTxState           = state;
+  currentTxPartner         = partner;
+  currentAutoAnswerEnabled = autoAnswerEnabled;
+
+  // ── Enable/Disable toggle button ─────────────────────────────────────
+  if (txEnableBtnEl) {
+    if (autoAnswerEnabled) {
+      txEnableBtnEl.textContent = 'TX Armed';
+      txEnableBtnEl.classList.add('tx-btn-armed');
+    } else {
+      txEnableBtnEl.textContent = 'Enable TX';
+      txEnableBtnEl.classList.remove('tx-btn-armed');
+    }
+  }
+
+  // ── State display ─────────────────────────────────────────────────────
+  if (txStateDisplayEl) {
+    if (!state || state === 'Idle') {
+      txStateDisplayEl.textContent = 'Idle';
+      txStateDisplayEl.className   = 'tx-state-idle';
+    } else {
+      txStateDisplayEl.textContent = partner ? `Working ${partner}` : state;
+      txStateDisplayEl.className   = 'tx-state-working';
+    }
+  }
+
+  // ── Message rows ─────────────────────────────────────────────────────
+  renderMessageRows(partner, state, autoAnswerEnabled);
+}
 
 // ── Decoded-messages table ────────────────────────────────────────────────
 
@@ -137,8 +250,13 @@ async function startCycleTimerIfEnabled() {
       setInterval(tickCycleTimer, 100);
     }
     // If false, CSS default (visibility: hidden) applies — no explicit set needed.
+
+    // Task 6.8: extract callsign and grid from tx config; refresh message rows.
+    if (config.tx?.callsign) txCallsign = config.tx.callsign;
+    if (config.tx?.grid)     txGrid     = config.tx.grid;
+    renderMessageRows(currentTxPartner, currentTxState, currentAutoAnswerEnabled);
   } catch {
-    // Config fetch failed — timer stays hidden (fail-safe).
+    // Config fetch failed — timer stays hidden; message rows keep their defaults.
   }
 }
 
@@ -331,7 +449,46 @@ function updateDialFreq(catStatus, freqMHz) {
 document.addEventListener('DOMContentLoaded', () => {
 
   // Start cycle countdown timer (shows only when enabled in config).
+  // Also extracts config.tx.callsign / .grid for message row rendering (task 6.8).
   startCycleTimerIfEnabled();
+
+  // Task 6.1 — Seed the TX panel with current server state on page load.
+  getTxStatus().then(status => {
+    renderTxPanel(
+      status.state             ?? 'Idle',
+      status.partner           ?? null,
+      status.autoAnswerEnabled ?? false);
+  }).catch(err => {
+    // Non-fatal — panel stays in default disarmed / Idle state.
+    console.warn('GET /api/v1/tx/status failed on load:', err);
+  });
+
+  // Task 6.6 — Enable TX / TX Armed toggle button.
+  if (txEnableBtnEl) {
+    txEnableBtnEl.addEventListener('click', async () => {
+      txEnableBtnEl.disabled = true;
+      try {
+        const status = currentAutoAnswerEnabled
+          ? await postTxDisable()
+          : await postTxEnable();
+        renderTxPanel(
+          status.state             ?? currentTxState,
+          status.partner           ?? currentTxPartner,
+          status.autoAnswerEnabled ?? false);
+      } catch (err) {
+        console.error('TX enable/disable failed:', err);
+      } finally {
+        txEnableBtnEl.disabled = false;
+      }
+    });
+  }
+
+  // Task 6.7 — Abort TX button.
+  if (txAbortBtnEl) {
+    txAbortBtnEl.addEventListener('click', () => {
+      postTxAbort().catch(err => console.error('POST /api/v1/tx/abort failed:', err));
+    });
+  }
 
   // Task 8.1: fetch frequency list once on page load and cache it.
   // F-004: if the dropdown was already rendered before the fetch resolved
@@ -537,6 +694,16 @@ document.addEventListener('DOMContentLoaded', () => {
         event.payload.rxHz,
         event.payload.txHz,
         event.payload.holdTxFreq);
+      return;
+    }
+
+    // Task 6.5 — txState event: update TX panel state and message rows;
+    // preserve the current autoAnswerEnabled value (not carried in the WS event).
+    if (event.type === 'txState') {
+      renderTxPanel(
+        event.state   ?? 'Idle',
+        event.partner ?? null,
+        currentAutoAnswerEnabled);
       return;
     }
 

@@ -122,6 +122,46 @@ export async function postCatRetry() {
 }
 
 /**
+ * GET /api/v1/tx/status
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
+ */
+export function getTxStatus() {
+  return fetchJson('/api/v1/tx/status');
+}
+
+/**
+ * POST /api/v1/tx/enable
+ * Sets tx.autoAnswer = true and returns the current TX status.
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
+ */
+export function postTxEnable() {
+  return fetchJson('/api/v1/tx/enable', { method: 'POST' });
+}
+
+/**
+ * POST /api/v1/tx/disable
+ * Sets tx.autoAnswer = false and returns the current TX status.
+ * Does NOT abort any in-progress QSO.
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
+ */
+export function postTxDisable() {
+  return fetchJson('/api/v1/tx/disable', { method: 'POST' });
+}
+
+/**
+ * POST /api/v1/tx/abort
+ * Requests an immediate abort of any in-progress QSO exchange.
+ * State update arrives via the txState WebSocket event.
+ * @returns {Promise<void>}
+ */
+export async function postTxAbort() {
+  const res = await fetch('/api/v1/tx/abort', { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/tx/abort`);
+  }
+}
+
+/**
  * POST /api/v1/audio-offset
  * Updates the RX/TX audio frequency cursor positions and Hold TX Freq state.
  * @param {number}  rxHz        RX cursor frequency in Hz (0–3000).
