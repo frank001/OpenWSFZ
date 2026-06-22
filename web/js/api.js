@@ -150,15 +150,12 @@ export function postTxDisable() {
 
 /**
  * POST /api/v1/tx/abort
- * Requests an immediate abort of any in-progress QSO exchange.
- * State update arrives via the txState WebSocket event.
- * @returns {Promise<void>}
+ * Aborts any in-progress QSO and disarms TX (sets autoAnswer = false).
+ * Returns the updated TX status.
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
  */
-export async function postTxAbort() {
-  const res = await fetch('/api/v1/tx/abort', { method: 'POST' });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/tx/abort`);
-  }
+export function postTxAbort() {
+  return fetchJson('/api/v1/tx/abort', { method: 'POST' });
 }
 
 /**

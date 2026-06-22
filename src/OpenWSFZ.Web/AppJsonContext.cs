@@ -75,9 +75,9 @@ internal sealed record TuneResponse(double EffectiveFrequencyMHz);
 
 /// <summary>
 /// Envelope for <c>txState</c> WebSocket text frames (FR-047).
-/// Wire format: <c>{"type":"txState","state":"TxAnswer","partner":"Q1TST"}</c>
+/// Wire format: <c>{"type":"txState","state":"TxAnswer","partner":"Q1TST","autoAnswerEnabled":true}</c>
 /// </summary>
-internal sealed record WsTxStateMessage(string Type, string State, string? Partner);
+internal sealed record WsTxStateMessage(string Type, string State, string? Partner, bool AutoAnswerEnabled);
 
 /// <summary>
 /// Response body for <c>GET /api/v1/tx/status</c>, <c>POST /api/v1/tx/enable</c>,

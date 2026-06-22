@@ -855,4 +855,136 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StopAsync(CancellationToken.None);
         await ptt.DisposeAsync();
     }
+
+    // ── D-TX-UI-001 / D-TX-UI-003: supervised single-QSO disarm ─────────────
+
+    [Fact(DisplayName = "D-TX-UI-001: AbortAsync during active QSO saves autoAnswer = false in config")]
+    public async Task AbortAsync_WhenActiveQso_SetsAutoAnswerFalseInConfig()
+    {
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig { AutoAnswer = true, Callsign = OurCallsign, Grid = OurGrid,
+                                RetryCount = 2, WatchdogMinutes = 4 }
+        });
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Reach WaitReport (QSO in progress).
+        channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
+            $"CQ {PartnerCall} {PartnerGrid}")]);
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+
+        // Abort and confirm return to Idle.
+        await sut.AbortAsync();
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+
+        // SafeAbortToIdleAsync must have saved autoAnswer = false.
+        await store.Received().SaveAsync(
+            Arg.Is<AppConfig>(c => c.Tx != null && c.Tx.AutoAnswer == false),
+            Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-TX-UI-003: QSO completion saves autoAnswer = false in config")]
+    public async Task QsoComplete_SetsAutoAnswerFalseInConfig()
+    {
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig { AutoAnswer = true, Callsign = OurCallsign, Grid = OurGrid,
+                                RetryCount = 2, WatchdogMinutes = 4 }
+        });
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Drive the full exchange: CQ → WaitReport → TxReport → WaitRr73 → Tx73 → Idle.
+        channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
+            $"CQ {PartnerCall} {PartnerGrid}")]);
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+
+        channel.Writer.TryWrite([new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz,
+            $"{OurCallsign} {PartnerCall} +05")]);
+        await WaitForStateAsync(sut, QsoState.WaitRr73);
+
+        channel.Writer.TryWrite([new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz,
+            $"{OurCallsign} {PartnerCall} RR73")]);
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // QsoComplete path (SafeAbortToIdleAsync) must save autoAnswer = false.
+        await store.Received().SaveAsync(
+            Arg.Is<AppConfig>(c => c.Tx != null && c.Tx.AutoAnswer == false),
+            Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-TX-UI-003: Retry exhaustion saves autoAnswer = false in config")]
+    public async Task RetryExhausted_SetsAutoAnswerFalseInConfig()
+    {
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig { AutoAnswer = true, Callsign = OurCallsign, Grid = OurGrid,
+                                RetryCount = 2, WatchdogMinutes = 4 }
+        });
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Reach WaitReport, then let retries exhaust (RetryCount = 2 → 6 noise cycles).
+        channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
+            $"CQ {PartnerCall} {PartnerGrid}")]);
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+
+        // Six noise cycles: [skip] [retry1] [skip] [retry2] [skip] [abort].
+        for (int i = 0; i < 6; i++)
+        {
+            channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
+                "Q2NOISE Q3NOISE -10")]);
+            await Task.Delay(150);
+        }
+
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // SafeAbortToIdleAsync on retry exhaustion must save autoAnswer = false.
+        await store.Received().SaveAsync(
+            Arg.Is<AppConfig>(c => c.Tx != null && c.Tx.AutoAnswer == false),
+            Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
 }

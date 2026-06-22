@@ -19,6 +19,6 @@ public sealed class TxEventBus
     /// Active partner callsign, or <c>null</c> when transitioning to
     /// <see cref="QsoState.Idle"/>.
     /// </param>
-    public void Publish(QsoState state, string? partner)
-        => WebSocketHub.BroadcastTxState(state, partner);
+    public void Publish(QsoState state, string? partner, bool autoAnswerEnabled)
+        => WebSocketHub.BroadcastTxState(state, partner, autoAnswerEnabled);
 }

@@ -516,11 +516,19 @@ public static class WebApp
             return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false));
         });
 
-        app.MapPost("/api/v1/tx/abort", async (CancellationToken ct) =>
+        app.MapPost("/api/v1/tx/abort", async (IConfigStore store, CancellationToken ct) =>
         {
             if (qsoController is not null)
                 await qsoController.AbortAsync(ct);
-            return Results.Ok();
+
+            // D-TX-UI-001: disarm after abort. Idempotent with the save in
+            // SafeAbortToIdleAsync — both write the same value; no conflict.
+            var currentTx = store.Current.Tx ?? new TxConfig();
+            await store.SaveAsync(store.Current with { Tx = currentTx with { AutoAnswer = false } }, ct);
+
+            var state   = qsoController?.State  ?? QsoState.Idle;
+            var partner = qsoController?.Partner;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false));
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────

@@ -583,7 +583,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         _state = newState;
         _logger.LogDebug("QsoAnswererService: state → {State} (partner: {Partner}).",
             newState, partner ?? "(none)");
-        _txEventBus.Publish(newState, partner);
+        _txEventBus.Publish(newState, partner, autoAnswerEnabled: true);
     }
 
     /// <summary>
@@ -625,6 +625,21 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             _logger.LogWarning(ex, "KeyUpAsync threw during abort — ignoring.");
         }
 
+        // D-TX-UI-001 / D-TX-UI-003: supervised single-QSO model — disarm on every return
+        // to Idle (abort, QSO completion, retry exhaustion, partner working another station).
+        // The write is idempotent with the /tx/abort HTTP endpoint save (both write the same value).
+        try
+        {
+            var currentTx = _configStore.Current.Tx ?? new TxConfig();
+            await _configStore.SaveAsync(
+                _configStore.Current with { Tx = currentTx with { AutoAnswer = false } },
+                stoppingToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "QsoAnswererService: failed to save autoAnswer=false on disarm — ignoring.");
+        }
+
         if (_state != QsoState.Idle)
         {
             _logger.LogInformation(
@@ -634,7 +649,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
         _state      = QsoState.Idle;
         _retryCount = 0;
-        _txEventBus.Publish(QsoState.Idle, null);
+        _txEventBus.Publish(QsoState.Idle, null, autoAnswerEnabled: false);
     }
 
     // ── H6 AP decode helper ───────────────────────────────────────────────────

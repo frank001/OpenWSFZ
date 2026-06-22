@@ -114,12 +114,12 @@ function renderTxPanel(state, partner, autoAnswerEnabled) {
   currentAutoAnswerEnabled = autoAnswerEnabled;
 
   // ── Enable/Disable toggle button ─────────────────────────────────────
+  // D-TX-UI-002: label is always "Enable TX"; red background alone signals the armed state.
   if (txEnableBtnEl) {
+    txEnableBtnEl.textContent = 'Enable TX';
     if (autoAnswerEnabled) {
-      txEnableBtnEl.textContent = 'TX Armed';
       txEnableBtnEl.classList.add('tx-btn-armed');
     } else {
-      txEnableBtnEl.textContent = 'Enable TX';
       txEnableBtnEl.classList.remove('tx-btn-armed');
     }
   }
@@ -483,10 +483,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Task 6.7 — Abort TX button.
+  // Task 6.7 — Abort TX button. D-TX-UI-001: read response body and re-render
+  // so the button returns to disarmed state immediately after abort.
   if (txAbortBtnEl) {
-    txAbortBtnEl.addEventListener('click', () => {
-      postTxAbort().catch(err => console.error('POST /api/v1/tx/abort failed:', err));
+    txAbortBtnEl.addEventListener('click', async () => {
+      txAbortBtnEl.disabled = true;
+      try {
+        const status = await postTxAbort();
+        renderTxPanel(
+          status.state             ?? currentTxState,
+          status.partner           ?? null,
+          status.autoAnswerEnabled ?? false);
+      } catch (err) {
+        console.error('POST /api/v1/tx/abort failed:', err);
+      } finally {
+        txAbortBtnEl.disabled = false;
+      }
     });
   }
 
@@ -697,13 +709,14 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Task 6.5 — txState event: update TX panel state and message rows;
-    // preserve the current autoAnswerEnabled value (not carried in the WS event).
+    // Task 6.5 — txState event: update TX panel state and message rows.
+    // D-TX-UI-003: read autoAnswerEnabled from the event (now carried in the WS frame)
+    // so QSO completion / abort disarms the panel without a separate HTTP call.
     if (event.type === 'txState') {
       renderTxPanel(
-        event.state   ?? 'Idle',
-        event.partner ?? null,
-        currentAutoAnswerEnabled);
+        event.state             ?? 'Idle',
+        event.partner           ?? null,
+        event.autoAnswerEnabled ?? currentAutoAnswerEnabled);
       return;
     }
 

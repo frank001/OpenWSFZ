@@ -222,4 +222,30 @@ public sealed class TxEndpointTests : IClassFixture<AudioConfigFixture>
         doc.RootElement.GetProperty("autoAnswerEnabled").GetBoolean()
             .Should().BeFalse("second disable call must still return autoAnswerEnabled = false");
     }
+
+    // ── POST /api/v1/tx/abort ────────────────────────────────────────────────
+
+    [Fact(DisplayName = "D-TX-UI-001: POST /api/v1/tx/abort returns 200 JSON body with autoAnswerEnabled = false")]
+    public async Task TxAbort_ReturnsJsonBodyWithAutoAnswerEnabledFalse()
+    {
+        // Arrange — arm TX first.
+        await _fixture.ConfigStore.SaveAsync(
+            new AppConfig() { Tx = new TxConfig(autoAnswer: true) });
+
+        // Act
+        var response = await _client.PostAsync("/api/v1/tx/abort", content: null);
+
+        // Assert HTTP 200
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Assert body contains autoAnswerEnabled = false
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("autoAnswerEnabled").GetBoolean()
+            .Should().BeFalse("abort endpoint must return autoAnswerEnabled = false");
+
+        // Assert config was persisted as disarmed
+        _fixture.ConfigStore.Current.Tx?.AutoAnswer
+            .Should().BeFalse("abort endpoint must persist autoAnswer = false in config");
+    }
 }
