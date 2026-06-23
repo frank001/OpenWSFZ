@@ -1250,7 +1250,13 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
-    // ── D-TX-UI-006 regression ────────────────────────────────────────────────
+    // ── D-TX-UI-005: double-click guard (manual verification) ───────────────
+    // AC-8a: a human double-click (~150 ms apart) on a CQ row must produce exactly ONE
+    // POST /api/v1/tx/answer-cq.  This is enforced by the `inFlight` flag in web/js/main.js
+    // which is reset only after a 400 ms setTimeout on success (D-TX-UI-005 fix).
+    // Automated coverage is not feasible at this layer; verify manually by clicking a CQ row
+    // rapidly and confirming a single POST in the server log.  See also: the `inFlight` guard
+    // comment in web/js/main.js line ~271.
 
     // ── D-TX-UI-007: wakeup channel tests ────────────────────────────────────
 
@@ -1259,6 +1265,12 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     {
         // Determine the current FT8 cycle phase at test time.
         // Set the pending phase to MATCH so the wakeup (which carries the current phase) fires TX.
+        //
+        // Phase-boundary caveat: if the test thread is pre-empted for ~100 ms between computing
+        // nowIsAPhase and AnswerCqAsync writing the wakeup, a 15-second cycle boundary may cross,
+        // making the wakeup carry the FOLLOWING phase and causing this test to time out.  The
+        // probability is ≈ 0.67 % per run (100 ms / 15 000 ms).  If this test becomes flaky,
+        // add a short delay after the phase sample to step clear of the boundary.
         bool nowIsAPhase = (DateTimeOffset.UtcNow.Second / 15 * 15) % 30 == 0;
 
         // CQ is at the OPPOSITE phase so that AnswerCqAsync sets pendingIsAPhase = nowIsAPhase.
