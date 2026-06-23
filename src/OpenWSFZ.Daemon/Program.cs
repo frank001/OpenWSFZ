@@ -154,8 +154,10 @@ var allTxtWriter = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllT
 // time. The decode pump compares the snapshot against the current live frequency; if they differ
 // the cycle audio spans two bands and the window is discarded (defect: dial-freq-snapshot).
 // Channel 2: decode pump → DecodeEventBus (direct call, no channel needed)
-// Channel 3: decode pump → QsoAnswererService (bounded, DropOldest — answerer must never block decode)
-var qsoAnswererChannel = Channel.CreateBounded<IReadOnlyList<DecodeResult>>(new BoundedChannelOptions(2)
+// Channel 3: decode pump → QsoAnswererService (bounded, DropOldest — answerer must never block decode).
+//   Carries DecodeBatch so the authoritative UTC cycle-start is always available to the answerer;
+//   avoids the fallback-to-UtcNow bug (D-TX-UI-004) for silence-guard cycles with empty results.
+var qsoAnswererChannel = Channel.CreateBounded<DecodeBatch>(new BoundedChannelOptions(2)
 {
     FullMode     = BoundedChannelFullMode.DropOldest,
     SingleWriter = true,
@@ -354,7 +356,10 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
                 // Feed the QSO answerer channel (non-blocking; DropOldest if the
                 // answerer is busy transmitting and the channel is full).
-                qsoAnswererChannel.Writer.TryWrite(results);
+                // Wrap in DecodeBatch so the authoritative cycle-start is carried through;
+                // the answerer must not derive phase from UtcNow (D-TX-UI-004).
+                qsoAnswererChannel.Writer.TryWrite(
+                    new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), results));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

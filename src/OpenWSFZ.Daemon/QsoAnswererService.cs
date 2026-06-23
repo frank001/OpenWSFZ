@@ -42,7 +42,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 {
     // ── Private state ─────────────────────────────────────────────────────────
 
-    private readonly ChannelReader<IReadOnlyList<DecodeResult>> _decodeChannel;
+    private readonly ChannelReader<DecodeBatch> _decodeChannel;
     private readonly IConfigStore                               _configStore;
     private readonly IPttController                             _pttController;
     private readonly TxEventBus                                 _txEventBus;
@@ -91,14 +91,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// (or omit) to leave AP decode disabled — the decoder behaves as pre-20260020.
     /// </param>
     public QsoAnswererService(
-        ChannelReader<IReadOnlyList<DecodeResult>> decodeChannel,
-        IConfigStore                               configStore,
-        IPttController                             pttController,
-        TxEventBus                                 txEventBus,
-        AdifLogWriter                              adifLog,
-        AudioOffsetEventBus                        audioOffsetEventBus,
-        ILogger<QsoAnswererService>                logger,
-        IApConstraintSink?                         decoder = null)
+        ChannelReader<DecodeBatch>   decodeChannel,
+        IConfigStore                 configStore,
+        IPttController               pttController,
+        TxEventBus                   txEventBus,
+        AdifLogWriter                adifLog,
+        AudioOffsetEventBus          audioOffsetEventBus,
+        ILogger<QsoAnswererService>  logger,
+        IApConstraintSink?           decoder = null)
     {
         _decodeChannel       = decodeChannel;
         _configStore         = configStore;
@@ -114,14 +114,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// Test constructor — allows watchdog duration override to avoid 1-minute waits in unit tests.
     /// </summary>
     internal QsoAnswererService(
-        ChannelReader<IReadOnlyList<DecodeResult>> decodeChannel,
-        IConfigStore                               configStore,
-        IPttController                             pttController,
-        TxEventBus                                 txEventBus,
-        AdifLogWriter                              adifLog,
-        AudioOffsetEventBus                        audioOffsetEventBus,
-        ILogger<QsoAnswererService>                logger,
-        TimeSpan                                   watchdogDurationOverride)
+        ChannelReader<DecodeBatch>   decodeChannel,
+        IConfigStore                 configStore,
+        IPttController               pttController,
+        TxEventBus                   txEventBus,
+        AdifLogWriter                adifLog,
+        AudioOffsetEventBus          audioOffsetEventBus,
+        ILogger<QsoAnswererService>  logger,
+        TimeSpan                     watchdogDurationOverride)
         : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
@@ -245,7 +245,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// token applies; in all other states the TX CTS (<see cref="_txCts"/>) is also linked
     /// so that watchdog expiry or operator abort interrupts the wait.
     /// </summary>
-    private async ValueTask<IReadOnlyList<DecodeResult>?> ReadNextBatchAsync(
+    private async ValueTask<DecodeBatch?> ReadNextBatchAsync(
         CancellationToken stoppingToken)
     {
         if (_state == QsoState.Idle)
@@ -266,7 +266,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // ── State machine ─────────────────────────────────────────────────────────
 
     private async Task ProcessBatchAsync(
-        IReadOnlyList<DecodeResult> batch,
+        DecodeBatch       batch,
         CancellationToken stoppingToken)
     {
         var tx = _configStore.Current.Tx ?? new TxConfig();
@@ -299,9 +299,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // ── Idle handler ──────────────────────────────────────────────────────────
 
     private async Task HandleIdleAsync(
-        IReadOnlyList<DecodeResult> batch,
-        TxConfig                    tx,
-        CancellationToken           stoppingToken)
+        DecodeBatch       batch,
+        TxConfig          tx,
+        CancellationToken stoppingToken)
     {
         // ── Phase-aware pending-target handling (TX-D01 / AnswerCqAsync) ─────────
         // Placed before all other guards so that a CQ-click armed target fires
@@ -343,8 +343,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             }
 
             // Phase check: only fire on the correct answer phase.
-            var  currentCycleStart = DeriveCycleStartFromBatch(batch);
-            bool currentIsAPhase   = IsAPhase(currentCycleStart);
+            // Use batch.CycleStart — the authoritative timestamp from the CycleFramer.
+            // Do NOT fall back to UtcNow: for silence-guard cycles (empty Results) the
+            // emission time is at the NEXT boundary and would always return the wrong phase.
+            bool currentIsAPhase = IsAPhase(batch.CycleStart);
             if (currentIsAPhase != pendingIsAPhase)
             {
                 // Wrong phase — skip this cycle; retain the pending target for next cycle.
@@ -384,7 +386,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         string        partner  = string.Empty;
         string?       cqGrid   = null;
 
-        foreach (var r in batch)
+        foreach (var r in batch.Results)
         {
             if (TryParseCq(r.Message, out var callsign, out var grid))
             {
@@ -493,14 +495,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // ── WaitReport handler ────────────────────────────────────────────────────
 
     private async Task HandleWaitReportAsync(
-        IReadOnlyList<DecodeResult> batch,
-        TxConfig                    tx,
-        CancellationToken           stoppingToken)
+        DecodeBatch       batch,
+        TxConfig          tx,
+        CancellationToken stoppingToken)
     {
         var ours    = tx.Callsign;
         var partner = _partner!;
 
-        foreach (var r in batch)
+        foreach (var r in batch.Results)
         {
             if (!TryParseMessage(r.Message, out var dest, out var src, out var payload))
                 continue;
@@ -571,14 +573,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // ── WaitRr73 handler ─────────────────────────────────────────────────────
 
     private async Task HandleWaitRr73Async(
-        IReadOnlyList<DecodeResult> batch,
-        TxConfig                    tx,
-        CancellationToken           stoppingToken)
+        DecodeBatch       batch,
+        TxConfig          tx,
+        CancellationToken stoppingToken)
     {
         var ours    = tx.Callsign;
         var partner = _partner!;
 
-        foreach (var r in batch)
+        foreach (var r in batch.Results)
         {
             if (!TryParseMessage(r.Message, out var dest, out var src, out var payload))
                 continue;
@@ -862,46 +864,6 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// </summary>
     private static bool IsAPhase(DateTimeOffset cycleStart)
         => cycleStart.Second % 30 == 0;
-
-    /// <summary>
-    /// Derives the UTC cycle-start <see cref="DateTimeOffset"/> for the batch.
-    /// Parses the <c>Time</c> field of the first <see cref="DecodeResult"/> in
-    /// <paramref name="batch"/> (format <c>HH:mm:ss</c>); falls back to snapping
-    /// <see cref="DateTimeOffset.UtcNow"/> to the previous 15-second boundary when
-    /// the batch is empty or the field cannot be parsed.
-    /// </summary>
-    private static DateTimeOffset DeriveCycleStartFromBatch(IReadOnlyList<DecodeResult> batch)
-    {
-        if (batch.Count > 0)
-        {
-            var parts = batch[0].Time.Split(':');
-            if (parts.Length == 3 &&
-                int.TryParse(parts[0], out var h) &&
-                int.TryParse(parts[1], out var m) &&
-                int.TryParse(parts[2], out var s))
-            {
-                var now = DateTimeOffset.UtcNow;
-                var candidate = new DateTimeOffset(
-                    now.Year, now.Month, now.Day, h, m, s, TimeSpan.Zero);
-                // Guard against day rollover: if the parsed time appears to be in the future
-                // by more than a few minutes, the cycle straddled UTC midnight — subtract a day.
-                if (candidate > now.AddMinutes(2))
-                    candidate = candidate.AddDays(-1);
-                return candidate;
-            }
-        }
-
-        // Fallback: snap UtcNow back to the immediately preceding 15-second boundary.
-        var utcNow      = DateTimeOffset.UtcNow;
-        var totalSecs   = utcNow.Hour * 3600 + utcNow.Minute * 60 + utcNow.Second;
-        var cycleSecond = (totalSecs / 15) * 15;
-        return new DateTimeOffset(
-            utcNow.Year, utcNow.Month, utcNow.Day,
-            cycleSecond / 3600,
-            (cycleSecond % 3600) / 60,
-            cycleSecond % 60,
-            TimeSpan.Zero);
-    }
 
     // ── Message parsers ───────────────────────────────────────────────────────
 

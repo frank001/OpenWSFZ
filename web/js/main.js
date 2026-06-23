@@ -256,6 +256,7 @@ function handleDecodes(results) {
       tr.addEventListener('click', async () => {
         const callsign = extractCqCallsign(r.message);
         if (!callsign) return;
+        tr.style.pointerEvents = 'none';           // prevent double-fire while request is in flight
         const cqCycleStartUtc = tr.dataset.cqCycleStartUtc;
         try {
           const status = await postTxAnswerCq(callsign, r.freqHz, cqCycleStartUtc);
@@ -266,6 +267,8 @@ function handleDecodes(results) {
           } else {
             console.error('postTxAnswerCq error:', err);
           }
+        } finally {
+          tr.style.pointerEvents = '';             // restore after response
         }
       });
     }

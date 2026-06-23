@@ -59,8 +59,29 @@
 ## 7. Verification
 
 - [x] 7.1 Build and run the application (`dotnet run --project src/OpenWSFZ.Daemon`); confirm TX panel is visible alongside the decoded-messages table
-- [x] 7.2 Confirm Enable TX button turns red with "TX Armed" label after click; confirm it returns to neutral "Enable TX" after a second click
+- [x] 7.2 Confirm Enable TX button turns red (armed style) after click with label remaining "Enable TX"; confirm it returns to neutral (disarmed style, label still "Enable TX") after a second click (D-TX-UI-002: label never changes to "TX Armed")
 - [x] 7.3 Confirm message rows show `——— Q1OFZ JO33 / ——— Q1OFZ R+00 / ——— Q1OFZ 73` when Idle, and populate with a real partner callsign when a `txState` event fires (can be triggered manually via the QSO answerer in a test setup)
 - [x] 7.4 Confirm Abort TX button calls `/api/v1/tx/abort` (check browser DevTools Network tab)
 - [x] 7.5 Confirm message rows are greyed out when TX is disarmed and normal when armed
-- [x] 7.6 Run `dotnet test OpenWSFZ.slnx -c Release` — 388+ tests green, zero failures
+- [x] 7.6 Run `dotnet test OpenWSFZ.slnx -c Release` — 546 tests green, zero failures
+
+## 8. UAT defect fixes (found during live QSO testing 2026-06-22)
+
+- [x] 8.1 (D-TX-UI-001) After clicking "Abort TX" during an active QSO, the "Enable TX" button returns to its disarmed (no red background) appearance; system does NOT automatically answer the next decoded CQ; `POST /api/v1/tx/abort` returns JSON body with `autoAnswerEnabled: false`
+- [x] 8.2 (D-TX-UI-002) Button label is always "Enable TX"; label never changes to "TX Armed" in any state; verified in browser
+- [x] 8.3 (D-TX-UI-003) After a QSO completes naturally (73 sent and ADIF logged), the "Enable TX" button returns to its disarmed appearance; system does NOT automatically answer the next decoded CQ without operator re-arming
+- [x] 8.4 `txState` WebSocket event carries `autoAnswerEnabled` field; verified in browser DevTools Network → WS frame inspector
+- [x] 8.5 Run `dotnet test OpenWSFZ.slnx -c Release` — 546 tests green (includes 3 new daemon tests and 12 new Web endpoint/WS tests for the disarm behaviour)
+
+## 9. CQ click, CQ highlight, partner highlight (added 2026-06-22)
+
+- [x] 9.1 `IQsoController` gains `Task AnswerCqAsync(string callsign, double frequencyHz, CancellationToken ct)`
+- [x] 9.2 `QsoAnswererService` implements `AnswerCqAsync(callsign, frequencyHz, cqCycleStart, ct)`: derives correct answer phase (opposite of CQ phase via `cqCycleStart.Second % 30`), stores `_pendingTargetCallsign/_pendingTargetFrequencyHz/_pendingTargetIsAPhase/_pendingTargetSetAt`, saves autoAnswer = true; `HandleIdleAsync` checks phase match and 60s timeout before firing; `SafeAbortToIdleAsync` clears all pending-target fields
+- [x] 9.3 New `AnswerCqRequest(Callsign, FrequencyHz, CqCycleStartUtc)` DTO in `AppJsonContext`; `POST /api/v1/tx/answer-cq` route: parses `CqCycleStartUtc`, calls `AnswerCqAsync`, returns HTTP 200 `TxStatusResponse` or HTTP 409 if not Idle
+- [x] 9.4 `web/js/api.js` — `postTxAnswerCq(callsign, frequencyHz, cqCycleStartUtc)` function
+- [x] 9.5 `web/js/main.js` — at row render time: parse decode timestamp to ISO 8601 UTC (`parseFt8CycleStartUtc`), store as `row.dataset.cqCycleStartUtc`; apply `decode-cq` class to CQ rows
+- [x] 9.6 `web/js/main.js` — click handler on CQ rows: extract callsign (3-token: index 1; 4-token: index 2), use `row.dataset.cqCycleStartUtc` and `offsetHz`; call `postTxAnswerCq`; call `renderTxPanel` on HTTP 200; swallow HTTP 409 with `console.warn`
+- [x] 9.7 `web/js/main.js` — apply `decode-partner` CSS class to rows containing both `txCallsign` and `currentTxPartner` as space-delimited tokens (exact or `/suffix` match)
+- [x] 9.8 `web/css/app.css` — `.decode-cq` warm accent colour; `.decode-partner` subdued red; both legible
+- [x] 9.9 Tests (≥8): phase derivation (A→B, B→A); wrong-phase skip; correct-phase fire; 60s timeout; abort clears pending; endpoint 200 when Idle; endpoint 409 when not Idle
+- [ ] 9.10 Verify: CQ rows highlighted; clicking a CQ row arms TX (correct phase selected); partner QSO exchange rows appear in subdued red; `dotnet test` green
