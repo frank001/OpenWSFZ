@@ -84,4 +84,12 @@
 - [x] 9.7 `web/js/main.js` — apply `decode-partner` CSS class to rows containing both `txCallsign` and `currentTxPartner` as space-delimited tokens (exact or `/suffix` match)
 - [x] 9.8 `web/css/app.css` — `.decode-cq` warm accent colour; `.decode-partner` subdued red; both legible
 - [x] 9.9 Tests (≥8): phase derivation (A→B, B→A); wrong-phase skip; correct-phase fire; 60s timeout; abort clears pending; endpoint 200 when Idle; endpoint 409 when not Idle
-- [ ] 9.10 Verify: CQ rows highlighted; clicking a CQ row arms TX (correct phase selected); partner QSO exchange rows appear in subdued red; `dotnet test` green
+- [x] 9.10 Verify: CQ rows highlighted; clicking a CQ row arms TX (correct phase selected); partner QSO exchange rows appear in subdued red; `dotnet test` green
+
+## 10. Post-UAT defect resolution (found during live QSO testing 2026-06-22/23)
+
+- [x] 10.1 (D-TX-UI-004) Phase detection for silent cycles: replace `UtcNow`-based phase check with `batch.CycleStart` from `DecodeBatch`; `CycleFramer` passes authoritative timestamp with each window (commit `34cfcba`)
+- [x] 10.2 (D-TX-UI-005) inFlight double-click guard: `web/js/main.js` success path resets `inFlight` after 400 ms `setTimeout` (not in `finally`) so human double-clicks ~150 ms apart are blocked; error path resets immediately (commit `4402dcc`)
+- [x] 10.3 (D-TX-UI-006) Pending-target async-save race: `HandleIdleAsync` re-reads `_configStore.Current.Tx` at firing time rather than relying on the value captured at click time; `SaveAsync` (AutoAnswer=true) is allowed to complete asynchronously without blocking TX (commit `03907bb`)
+- [x] 10.4 (D-TX-UI-007) Correct TX cycle phase: `HandleIdleAsync` evaluates `IsAPhase(batch.CycleStart + 15 s)` — the cycle beginning now — rather than `batch.CycleStart` (completed cycle, one phase too old); new `_wakeupChannel` written by `AnswerCqAsync` fires TX within the current cycle window without waiting for the next decode batch; `RoundDownTo15s` helper added (commit `4402dcc`)
+- [x] 10.5 Tests: two new wakeup-channel tests (`HandleIdle_PendingTarget_Wakeup_FiresInCurrentCycle`, `HandleIdle_PendingTarget_Wakeup_SkipsWrongPhase`); all existing pending-target tests updated to `CycleStart + 15 s` convention; 558 tests green
