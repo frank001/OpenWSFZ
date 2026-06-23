@@ -108,6 +108,13 @@ public sealed class JsonConfigStore : IConfigStore
             if (config.DecodeLog is null)
                 config = config with { DecodeLog = new DecodeLogConfig() };
 
+            // "remoteAccess" key is absent in config files written before the lan-remote-access
+            // phase.  STJ source-gen may set the non-nullable init property to null rather than
+            // using the property initialiser (= new()) when the key is missing from JSON — same
+            // behaviour as "logging" and "decodeLog" above.  Apply the same null guard.
+            if (config.RemoteAccess is null)
+                config = config with { RemoteAccess = new RemoteAccessConfig() };
+
             // "cat" key is intentionally nullable: absent in config files written before p16.
             // Null is the correct default (CAT disabled); no guard needed — consumers use
             // (config.Cat ?? new CatConfig()) to get a non-null value.
@@ -157,11 +164,11 @@ public sealed class JsonConfigStore : IConfigStore
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        // Include cat section with enabled=false and tx section with all defaults so the
-        // operator can see the available settings without having to look up the
-        // documentation (FR-031, FR-046).
+        // Include cat, tx, and remoteAccess sections with explicit defaults so the operator
+        // can see all available settings without having to look up the documentation
+        // (FR-031, FR-046, lan-remote-access).
         var json = JsonSerializer.Serialize(
-            new AppConfig() with { Cat = new CatConfig(), Tx = new TxConfig() },
+            new AppConfig() with { Cat = new CatConfig(), Tx = new TxConfig(), RemoteAccess = new RemoteAccessConfig() },
             ConfigJsonContext.Default.AppConfig);
 
         File.WriteAllText(path, json);

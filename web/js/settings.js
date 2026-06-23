@@ -65,6 +65,14 @@ const loggingDayGroup       = /** @type {HTMLElement}       */ (document.getElem
 const freqTbody  = /** @type {HTMLTableSectionElement} */ (document.getElementById('freq-tbody'));
 const addFreqBtn = /** @type {HTMLButtonElement}       */ (document.getElementById('add-freq-btn'));
 
+// Remote access controls (lan-remote-access)
+const remoteAccessEnabled         = /** @type {HTMLInputElement}  */ (document.getElementById('remote-access-enabled'));
+const remoteAccessPassphrase      = /** @type {HTMLInputElement}  */ (document.getElementById('remote-access-passphrase'));
+const remoteAccessPassphraseGroup = /** @type {HTMLElement}       */ (document.getElementById('remote-access-passphrase-group'));
+const remoteAccessPassToggle      = /** @type {HTMLButtonElement} */ (document.getElementById('remote-access-passphrase-toggle'));
+const remoteAccessRestartWarning  = /** @type {HTMLElement}       */ (document.getElementById('remote-access-restart-warning'));
+const remoteAccessDisclaimer      = /** @type {HTMLElement}       */ (document.getElementById('remote-access-disclaimer'));
+
 // ── Tab switching (FR-035) ────────────────────────────────────────────────
 
 const TAB_STORAGE_KEY = 'settings-tab';
@@ -220,6 +228,11 @@ function snapshotForm() {
     },
     // FR-043: include frequency table in dirty-state comparison (FR-040).
     _frequencies:         snapshotFrequencies(),
+    // lan-remote-access: include remote access controls in dirty-state snapshot (task 5.6).
+    remoteAccess: {
+      enabled:    remoteAccessEnabled.checked,
+      passphrase: remoteAccessPassphrase.value,
+    },
   });
 }
 
@@ -487,6 +500,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // FR-043: populate the frequencies table.
     renderFreqTable(Array.isArray(frequencies) ? frequencies : []);
 
+    // Pre-fill remote access controls (task 5.2).
+    const ra = config.remoteAccess ?? {};
+    remoteAccessEnabled.checked    = ra.enabled    ?? false;
+    remoteAccessPassphrase.value   = ra.passphrase ?? '';
+    updateRemoteAccessVisibility();
+
     // Capture the clean baseline after all fields are fully populated (FR-040).
     _cleanSnapshot = snapshotForm();
 
@@ -548,6 +567,27 @@ catRetryBtn.addEventListener('click', async () => {
     catRetryBtn.textContent = '↺ Retry';
     catRetryBtn.disabled    = false;
   }
+});
+
+// ── Remote access visibility (lan-remote-access) ─────────────────────────
+
+/**
+ * Show or hide the passphrase input, restart warning, and legal disclaimer
+ * based on the current state of the enable toggle (task 5.3).
+ */
+function updateRemoteAccessVisibility() {
+  const enabled = remoteAccessEnabled.checked;
+  remoteAccessPassphraseGroup.style.display = enabled ? '' : 'none';
+  remoteAccessRestartWarning.style.display  = enabled ? '' : 'none';
+  remoteAccessDisclaimer.style.display      = enabled ? '' : 'none';
+}
+
+remoteAccessEnabled.addEventListener('change', updateRemoteAccessVisibility);
+
+// Passphrase show/hide toggle (task 5.4).
+remoteAccessPassToggle.addEventListener('click', () => {
+  const isPassword = remoteAccessPassphrase.type === 'password';
+  remoteAccessPassphrase.type = isPassword ? 'text' : 'password';
 });
 
 // ── Visibility helpers (p9) ──────────────────────────────────────────────
@@ -664,6 +704,14 @@ saveBtn.addEventListener('click', async () => {
   const freqEntries = collectFrequencies();
 
   try {
+    // Collect remote access config (task 5.5).
+    // Post null for passphrase when the input is empty so the server receives a
+    // clean null rather than an empty string.
+    const remoteAccess = {
+      enabled:    remoteAccessEnabled.checked,
+      passphrase: remoteAccessPassphrase.value.trim() || null,
+    };
+
     // POST config and frequencies in parallel (FR-043 / FR-007).
     await Promise.all([
       postConfig({
@@ -678,6 +726,7 @@ saveBtn.addEventListener('click', async () => {
         logging,
         cat,
         tx,
+        remoteAccess,
       }),
       postFrequencies(freqEntries),
     ]);

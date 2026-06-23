@@ -240,9 +240,32 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
     }
 });
 
+// ── LAN remote-access policy selection (lan-remote-access phase) ──────────────
+//
+// Read RemoteAccessConfig from the loaded config and register the appropriate
+// IBindPolicy and IAuthPolicy singletons before WebApp.Create is called (D6).
+// The bind address is set once at Kestrel startup and cannot change without a restart.
+
+var remoteAccess = configStore.Current.RemoteAccess;
+
+IBindPolicy bindPolicy = remoteAccess.Enabled
+    ? new LanBindPolicy(loggerFactory.CreateLogger<LanBindPolicy>())
+    : new LoopbackBindPolicy(loggerFactory.CreateLogger<LoopbackBindPolicy>());
+
+IAuthPolicy authPolicy = (remoteAccess.Enabled && !string.IsNullOrEmpty(remoteAccess.Passphrase))
+    ? new PassphraseAuthPolicy(remoteAccess.Passphrase)
+    : new NullAuthPolicy();
+
+startupLogger.LogInformation(
+    "Remote access: Enabled={Enabled} → bind={BindPolicy}, auth={AuthPolicy}.",
+    remoteAccess.Enabled,
+    bindPolicy.GetType().Name,
+    authPolicy.GetType().Name);
+
 // Create and configure the web application.
 var app = WebApp.Create(
     port,
+    bindPolicy:                 bindPolicy,
     configStore:                configStore,
     frequencyStore:             frequencyStore,
     audioProviderFactory:       sp => new PlatformAudioDeviceProvider(
@@ -257,6 +280,8 @@ var app = WebApp.Create(
     restartPipeline:      restartPipeline,
     configureServices:    services =>
     {
+        // Register the auth policy selected above (daemon wins over WebApp.Create default).
+        services.AddSingleton<IAuthPolicy>(authPolicy);
         services.AddSingleton(loggingPipeline);
         services.AddSingleton(allTxtWriter);
         services.AddHostedService<LogRotationService>();

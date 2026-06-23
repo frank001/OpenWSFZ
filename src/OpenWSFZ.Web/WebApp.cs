@@ -127,6 +127,29 @@ public static class WebApp
 
         // ── Middleware ────────────────────────────────────────────────────────
 
+        // Auth middleware (D3): placed before UseWebSockets, UseDefaultFiles,
+        // UseStaticFiles, and all route registrations so that every request —
+        // including WebSocket upgrades and static-file requests — is gated.
+        // AOT-safe: plain lambda, no reflection or attribute-based filters.
+        var authPolicy = app.Services.GetRequiredService<IAuthPolicy>();
+        app.Use(async (ctx, next) =>
+        {
+            var remoteIp      = ctx.Connection.RemoteIpAddress;
+            var apiKeyHeader  = ctx.Request.Headers["X-Api-Key"].ToString();
+            var keyQueryParam = ctx.Request.Query["key"].ToString();
+
+            if (!authPolicy.IsAuthorized(
+                    remoteIp,
+                    apiKeyHeader.Length  > 0 ? apiKeyHeader  : null,
+                    keyQueryParam.Length > 0 ? keyQueryParam : null))
+            {
+                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
+
+            await next(ctx);
+        });
+
         app.UseWebSockets();
 
         // Static files from the `web/` directory next to the executable.

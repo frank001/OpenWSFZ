@@ -50,5 +50,13 @@ public sealed record AppConfig(
     /// deserialise without error.
     /// Consumers SHALL treat a <c>null</c> value as <c>new TxConfig()</c> (all defaults).
     /// </summary>
-    public TxConfig?        Tx        { get; init; } = null;
+    public TxConfig?           Tx           { get; init; } = null;
+
+    /// <summary>
+    /// LAN remote-access configuration (lan-remote-access phase).
+    /// Always non-null; defaults to <c>Enabled = false</c>, <c>Passphrase = null</c>
+    /// so that existing config files without a <c>remoteAccess</c> key deserialise
+    /// without error and the web interface remains loopback-only.
+    /// </summary>
+    public RemoteAccessConfig  RemoteAccess { get; init; } = new();
 }
