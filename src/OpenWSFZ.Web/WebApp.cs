@@ -134,6 +134,14 @@ public static class WebApp
         var authPolicy = app.Services.GetRequiredService<IAuthPolicy>();
         app.Use(async (ctx, next) =>
         {
+            // Whitelist: the login page is always served without auth so that
+            // a remote browser can reach it before it has a passphrase.
+            if (ctx.Request.Path.StartsWithSegments("/login.html", StringComparison.OrdinalIgnoreCase))
+            {
+                await next(ctx);
+                return;
+            }
+
             var remoteIp      = ctx.Connection.RemoteIpAddress;
             var apiKeyHeader  = ctx.Request.Headers["X-Api-Key"].ToString();
             var keyQueryParam = ctx.Request.Query["key"].ToString();
@@ -143,7 +151,17 @@ public static class WebApp
                     apiKeyHeader.Length  > 0 ? apiKeyHeader  : null,
                     keyQueryParam.Length > 0 ? keyQueryParam : null))
             {
-                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                // API paths and WebSocket upgrades return 401 so JS can handle them.
+                // Browser page-loads (everything else) redirect to the login page.
+                // Note: StartsWithSegments uses segment-boundary comparison; "/api" (no
+                // trailing slash) correctly matches /api/v1/status, /api/v1/ws, etc.
+                if (ctx.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return;
+                }
+
+                ctx.Response.Redirect("/login.html");
                 return;
             }
 

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWSFZ — Remote Access</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100svh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 1rem;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 360px;
+      background: #262626;
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 2rem 1.75rem;
+    }
+
+    h1 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: #b0b0b0;
+      margin-bottom: 0.4rem;
+    }
+
+    input[type="password"] {
+      width: 100%;
+      padding: 0.55rem 0.75rem;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      border-radius: 5px;
+      color: #e0e0e0;
+      font-size: 1rem;
+      outline: none;
+      margin-bottom: 1rem;
+      transition: border-color 0.15s;
+    }
+
+    input[type="password"]:focus {
+      border-color: #5b8dd9;
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      padding: 0.6rem;
+      background: #3a6abf;
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button[type="submit"]:hover {
+      background: #4a7ad4;
+    }
+
+    .error {
+      font-size: 0.82rem;
+      color: #e07070;
+      margin-top: -0.5rem;
+      margin-bottom: 0.75rem;
+      display: none;
+    }
+
+    .error.visible {
+      display: block;
+    }
+
+    .notice {
+      font-size: 0.82rem;
+      color: #c8a030;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .notice.visible {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>OpenWSFZ</h1>
+    <p class="subtitle">Remote Access</p>
+
+    <p class="notice" id="notice"></p>
+
+    <form id="login-form" novalidate>
+      <label for="passphrase">Passphrase</label>
+      <input
+        type="password"
+        id="passphrase"
+        name="passphrase"
+        autocomplete="current-password"
+        autofocus
+        placeholder="Enter passphrase"
+      >
+      <p class="error" id="error-msg"></p>
+      <button type="submit">Connect</button>
+    </form>
+  </div>
+
+  <script>
+    (function () {
+      var SESSION_KEY = 'owsfz-api-key';
+      var noticeEl   = document.getElementById('notice');
+      var errorEl    = document.getElementById('error-msg');
+      var inputEl    = document.getElementById('passphrase');
+      var formEl     = document.getElementById('login-form');
+
+      // If a key was already stored, the user was redirected after a 401 mid-session.
+      // Clear the stale key and show the "session expired" notice.
+      if (sessionStorage.getItem(SESSION_KEY)) {
+        sessionStorage.removeItem(SESSION_KEY);
+        noticeEl.textContent = 'Session expired — please reconnect.';
+        noticeEl.classList.add('visible');
+      }
+
+      formEl.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        var passphrase = inputEl.value;
+
+        if (!passphrase) {
+          errorEl.textContent = 'Passphrase is required.';
+          errorEl.classList.add('visible');
+          inputEl.focus();
+          return;
+        }
+
+        errorEl.classList.remove('visible');
+        sessionStorage.setItem(SESSION_KEY, passphrase);
+        window.location.href = '/?key=' + encodeURIComponent(passphrase);
+      });
+    })();
+  </script>
+</body>
+</html>

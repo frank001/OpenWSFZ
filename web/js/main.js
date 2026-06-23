@@ -9,7 +9,7 @@
 import { connect }                                                          from './ws.js';
 import { getConfig, getFrequencies, postTune, postAudioOffset,
          getTxStatus, postTxEnable, postTxDisable, postTxAbort,
-         postTxAnswerCq }                                                    from './api.js';
+         postTxAnswerCq, getApiKey }                                         from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
@@ -730,7 +730,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const endpoint = decodingEnabled ? '/api/v1/decode/stop' : '/api/v1/decode/start';
     decodeToggleEl.disabled = true;
     try {
-      const response = await fetch(endpoint, { method: 'POST' });
+      const key = getApiKey();
+      const response = await fetch(endpoint, {
+        method:  'POST',
+        headers: key ? { 'X-Api-Key': key } : {},
+      });
+      if (response.status === 401) {
+        sessionStorage.removeItem('owsfz-api-key');
+        window.location.href = '/login.html';
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         setDecodingState(data.decodingEnabled ?? decodingEnabled, !!data.audioDevice);

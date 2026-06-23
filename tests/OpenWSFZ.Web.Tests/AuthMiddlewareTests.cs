@@ -237,4 +237,57 @@ public sealed class AuthMiddlewareTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "loopback origin must bypass passphrase check and always receive 200 (D1)");
     }
+
+    // ── 8.5 — API paths still return 401, not redirect ───────────────────────
+
+    [Fact(DisplayName = "8.5: PassphraseAuthPolicy — GET /api/v1/status without key from non-loopback → 401 (not 302)")]
+    public async Task PassphraseAuth_ApiPath_NoKey_Returns401NotRedirect()
+    {
+        // Regression guard: the redirect-to-login behaviour added for browser page-loads
+        // must NOT apply to /api/ paths — JS needs a plain 401 to detect auth failure.
+        using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri($"http://127.0.0.1:{_spoofedPort}"),
+        };
+
+        var response = await client.GetAsync("/api/v1/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+            "/api/ paths must return 401 (not a redirect) so JavaScript can handle auth failure");
+    }
+
+    // ── 8.6 — Non-API page-loads redirect to /login.html ─────────────────────
+
+    [Fact(DisplayName = "8.6: PassphraseAuthPolicy — GET / without key from non-loopback → 302 to /login.html")]
+    public async Task PassphraseAuth_RootPath_NoKey_RedirectsToLogin()
+    {
+        // AllowAutoRedirect = false so we can inspect the 302 response directly.
+        using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri($"http://127.0.0.1:{_spoofedPort}"),
+        };
+
+        var response = await client.GetAsync("/");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect,
+            "a browser page-load for / from a non-loopback origin without a key must redirect to /login.html");
+        response.Headers.Location?.OriginalString.Should().Be("/login.html",
+            "the redirect target must be /login.html");
+    }
+
+    // ── 8.7 — /login.html is served without auth (middleware whitelist) ───────
+
+    [Fact(DisplayName = "8.7: PassphraseAuthPolicy — GET /login.html without key from non-loopback → 200")]
+    public async Task PassphraseAuth_LoginPage_NoKey_Returns200()
+    {
+        // The auth middleware must whitelist /login.html so the browser can reach it
+        // without a passphrase.  web/login.html is copied to the test output directory
+        // by the ItemGroup in OpenWSFZ.Web.Tests.csproj (same mechanism as index.html).
+        using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{_spoofedPort}") };
+
+        var response = await client.GetAsync("/login.html");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "/login.html must be served without auth so a remote browser can reach the login page");
+    }
 }
