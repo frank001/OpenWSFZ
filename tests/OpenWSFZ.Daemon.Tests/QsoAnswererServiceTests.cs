@@ -888,6 +888,25 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Config store that delays every <see cref="SaveAsync"/> call by a fixed amount —
+    /// used to deterministically reproduce the D-TX-UI-006 async-save race.
+    /// </summary>
+    private sealed class SlowConfigStore : IConfigStore
+    {
+        private AppConfig _current;
+        private readonly TimeSpan _delay;
+        public SlowConfigStore(AppConfig initial, TimeSpan delay) { _current = initial; _delay = delay; }
+        public AppConfig Current => _current;
+        public event Action<AppConfig>? OnSaved;
+        public async Task SaveAsync(AppConfig config, CancellationToken ct = default)
+        {
+            await Task.Delay(_delay, ct).ConfigureAwait(false);
+            _current = config;
+            OnSaved?.Invoke(config);
+        }
+    }
+
     // ── AnswerCqAsync — phase-determination tests ─────────────────────────────
 
     [Fact(DisplayName = "AnswerCqAsync: CQ at B-phase (:15) — fires TX when next A-phase batch arrives")]
@@ -1012,7 +1031,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await _ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
     }
 
-    [Fact(DisplayName = "TxAbort: abort (AutoAnswer=false) clears pending target; no subsequent TX")]
+    [Fact(DisplayName = "TxAbort: AbortAsync clears pending target; no subsequent TX")]
     public async Task TxAbort_ClearsPendingTarget()
     {
         // Fresh instance with a mutable store so SaveAsync side-effects persist.
@@ -1040,25 +1059,31 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         using var stopCts = new CancellationTokenSource();
         await sut.StartAsync(stopCts.Token);
 
-        // Arm a pending CQ target (CQ at :15 → answer wants A-phase).
+        // Arm a pending CQ target (CQ at :15 → answer phase is A).
         var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
         await sut.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
 
-        // Simulate abort: set AutoAnswer = false in the config (what the abort endpoint does).
-        await store.SaveAsync(store.Current with
-        {
-            Tx = (store.Current.Tx ?? new TxConfig()) with { AutoAnswer = false }
-        });
-
-        // Feed the correct A-phase batch — pending target should be discarded because AutoAnswer=false.
+        // Fire the pending target by delivering the correct A-phase batch.
         channel.Writer.TryWrite(new DecodeBatch(
             new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero),  // A-phase (:00)
             [new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
              Message: $"CQ Q2NOISE IO91")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Abort the active QSO — SafeAbortToIdleAsync clears _pendingTargetCallsign.
+        await sut.AbortAsync();
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+
+        // Feed another A-phase batch. No pending target remains; AutoAnswer=false after abort
+        // also suppresses the CQ-scan path. No further TX should fire.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 22, 17, 30, 30, TimeSpan.Zero),  // A-phase (:30)
+            [new DecodeResult(Time: "17:30:30", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+             Message: $"CQ Q2NOISE IO91")]));
         await Task.Delay(400);
 
-        sut.State.Should().Be(QsoState.Idle, "abort (AutoAnswer=false) must suppress the pending TX");
-        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+        sut.State.Should().Be(QsoState.Idle, "abort must clear pending target; no TX fires");
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>()); // only TxAnswer TX
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -1191,6 +1216,67 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await store.Received().SaveAsync(
             Arg.Is<AppConfig>(c => c.Tx != null && c.Tx.AutoAnswer == false),
             Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── D-TX-UI-006 regression ────────────────────────────────────────────────
+
+    [Fact(DisplayName = "D-TX-UI-006: pending target fires even when SaveAsync(AutoAnswer=true) is delayed (slow-save regression)")]
+    public async Task HandleIdle_PendingTarget_FiresWhenAutoAnswerSaveIsDelayed()
+    {
+        // Verifies that HandleIdleAsync does NOT gate on tx.AutoAnswer for the pending-target path.
+        // Simulates the race: AnswerCqAsync sets _pendingTargetCallsign synchronously but its
+        // SaveAsync(AutoAnswer=true) is delayed 200 ms. The A-phase batch is delivered before the
+        // save completes → AutoAnswer is still false in config when HandleIdleAsync runs.
+        // Before the fix: pending target silently discarded. After fix: TX fires regardless.
+
+        // Arrange: store whose saves are delayed 200 ms (longer than batch delivery below).
+        var config = new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = false,   // starts false; save "hasn't completed" during the race
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        };
+        var slowStore = new SlowConfigStore(config, TimeSpan.FromMilliseconds(200));
+
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog = new AdifLogWriter(slowStore, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, slowStore, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Arm pending target — SaveAsync(AutoAnswer=true) starts but takes 200 ms.
+        // cqCycleStart at :15 (B-phase) → answer fires on next A-phase (:00/:30).
+        var armTask = sut.AnswerCqAsync(
+            PartnerCall, AudioFreqHz,
+            new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero),
+            CancellationToken.None);
+
+        // Deliver A-phase batch immediately — before the 200 ms save completes.
+        // AutoAnswer is still false in slowStore.Current at this moment.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await armTask; // let AnswerCqAsync finish (save completes after batch processing)
+
+        // Assert: TX must fire into WaitReport despite the save lag.
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

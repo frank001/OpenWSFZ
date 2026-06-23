@@ -253,10 +253,17 @@ function handleDecodes(results) {
       tr.classList.add('decode-cq');
       tr.style.cursor = 'pointer';
 
+      let inFlight = false;
       tr.addEventListener('click', async () => {
+        if (inFlight) return;                          // guard already-queued duplicate events
+        inFlight = true;
+        tr.style.pointerEvents = 'none';               // belt-and-suspenders for mouse
         const callsign = extractCqCallsign(r.message);
-        if (!callsign) return;
-        tr.style.pointerEvents = 'none';           // prevent double-fire while request is in flight
+        if (!callsign) {
+          inFlight = false;
+          tr.style.pointerEvents = '';
+          return;
+        }
         const cqCycleStartUtc = tr.dataset.cqCycleStartUtc;
         try {
           const status = await postTxAnswerCq(callsign, r.freqHz, cqCycleStartUtc);
@@ -268,7 +275,8 @@ function handleDecodes(results) {
             console.error('postTxAnswerCq error:', err);
           }
         } finally {
-          tr.style.pointerEvents = '';             // restore after response
+          inFlight = false;
+          tr.style.pointerEvents = '';
         }
       });
     }

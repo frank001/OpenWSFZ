@@ -322,15 +322,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
         if (pendingCallsign is not null)
         {
-            // If AutoAnswer was rescinded (abort/disable saved AutoAnswer=false), discard.
-            if (!tx.AutoAnswer)
-            {
-                _logger.LogInformation(
-                    "QsoAnswererService: pending target '{Callsign}' discarded — AutoAnswer was disabled.",
-                    pendingCallsign);
-                lock (_stateLock) { _pendingTargetCallsign = null; }
-                return;
-            }
+            // NOTE: do NOT gate on tx.AutoAnswer here. The pending target is set synchronously
+            // under _stateLock, but SaveAsync(AutoAnswer=true) in AnswerCqAsync is async. If
+            // AutoAnswer is read before the save completes, the pending target is incorrectly
+            // discarded (D-TX-UI-006). Abort detection uses _pendingTargetCallsign = null
+            // (set by SafeAbortToIdleAsync under _stateLock), not the AutoAnswer flag.
 
             // Timeout guard: stale pending target (e.g. decode loop stalled).
             if (DateTimeOffset.UtcNow - pendingSetAt > TimeSpan.FromSeconds(60))
