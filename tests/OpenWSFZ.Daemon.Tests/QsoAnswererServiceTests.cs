@@ -30,8 +30,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private readonly Channel<IReadOnlyList<DecodeResult>> _channel =
-        Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+    private readonly Channel<DecodeBatch> _channel =
+        Channel.CreateUnbounded<DecodeBatch>();
 
     private readonly IPttController _ptt = Substitute.For<IPttController>();
 
@@ -81,8 +81,18 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     private static DecodeResult Make(string msg, int freqHz = AudioFreqHz)
         => new(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: freqHz, Message: msg);
 
+    /// <summary>
+    /// Write a batch to the shared channel with an arbitrary UtcNow timestamp.
+    /// Use the timestamp overload for phase-sensitive tests.
+    /// </summary>
     private void Send(params DecodeResult[] results)
-        => _channel.Writer.TryWrite(results);
+        => _channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow, results));
+
+    /// <summary>
+    /// Write a batch with an explicit cycle-start timestamp (for phase-sensitive tests).
+    /// </summary>
+    private void Send(DateTimeOffset cycleStart, params DecodeResult[] results)
+        => _channel.Writer.TryWrite(new DecodeBatch(cycleStart, results));
 
     private static async Task WaitForStateAsync(
         QsoAnswererService svc, QsoState expected,
@@ -130,7 +140,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         pttDisabled.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         pttDisabled.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel  = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var channel  = Channel.CreateUnbounded<DecodeBatch>();
         var adifLog  = new AdifLogWriter(disabledStore, NullLogger<AdifLogWriter>.Instance);
         var sut      = new QsoAnswererService(channel.Reader, disabledStore, pttDisabled,
                            new TxEventBus(), adifLog, new AudioOffsetEventBus(),
@@ -140,7 +150,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StartAsync(stopCts.Token);
 
         // Send a CQ — must be completely ignored.
-        channel.Writer.TryWrite([Make($"CQ {PartnerCall} {PartnerGrid}")]);
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow, [Make($"CQ {PartnerCall} {PartnerGrid}")]));
         await Task.Delay(300);
 
         sut.State.Should().Be(QsoState.Idle,
@@ -173,7 +183,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         pttEmpty.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         pttEmpty.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
         var adifLog = new AdifLogWriter(unconfiguredStore, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(channel.Reader, unconfiguredStore, pttEmpty,
                           new TxEventBus(), adifLog, new AudioOffsetEventBus(),
@@ -183,7 +193,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StartAsync(stopCts.Token);
 
         // A CQ arrives — must be suppressed because callsign/grid are empty.
-        channel.Writer.TryWrite([Make($"CQ {PartnerCall} {PartnerGrid}")]);
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow, [Make($"CQ {PartnerCall} {PartnerGrid}")]));
         await Task.Delay(300);
 
         sut.State.Should().Be(QsoState.Idle,
@@ -558,7 +568,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(
             channel.Reader, store, ptt, new TxEventBus(),
@@ -569,8 +579,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StartAsync(stopCts.Token);
 
         // CQ from partner at cqFreqHz.
-        channel.Writer.TryWrite(
-            [new DecodeResult("12:00:00", -5, 0.1, cqFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]);
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, cqFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
 
         // Wait until the service has answered and entered WaitReport.
         await WaitForStateAsync(sut, QsoState.WaitReport);
@@ -616,7 +626,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(
             channel.Reader, store, ptt, new TxEventBus(),
@@ -627,8 +637,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StartAsync(stopCts.Token);
 
         // CQ from partner at cqFreqHz (which differs from operatorFreqHz).
-        channel.Writer.TryWrite(
-            [new DecodeResult("12:00:00", -5, 0.1, cqFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]);
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, cqFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
 
         await WaitForStateAsync(sut, QsoState.WaitReport);
 
@@ -740,7 +750,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
         var sut     = new QsoAnswererService(channel.Reader, store, racyPtt, new TxEventBus(),
                           adifLog, new AudioOffsetEventBus(),
                           NullLogger<QsoAnswererService>.Instance);
@@ -749,11 +759,13 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StartAsync(stopCts.Token);
 
         // Reach WaitReport.
-        channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]);
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
         await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
 
         // Trigger TxReport TX.
-        channel.Writer.TryWrite([new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]);
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
 
         // Wait until KeyDownAsync is definitely in progress before aborting.
         await txInProgressTcs.Task.WaitAsync(TimeSpan.FromSeconds(3));
@@ -803,7 +815,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel = Channel.CreateUnbounded<IReadOnlyList<DecodeResult>>();
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
 
         var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
                       adifLog, new AudioOffsetEventBus(),
@@ -814,8 +826,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StartAsync(stopCts.Token);
 
         // Trigger CQ answer → WaitReport.
-        channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
-            $"CQ {PartnerCall} {PartnerGrid}")]);
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
         await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
 
         // Feed non-CQ noise continuously so retries keep cycling without pause.
@@ -833,8 +845,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         {
             while (!feedCts.IsCancellationRequested)
             {
-                channel.Writer.TryWrite([new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz,
-                    "Q2NOISE Q3NOISE -10")]);
+                channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                    [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "Q2NOISE Q3NOISE -10")]));
                 try   { await Task.Delay(10, feedCts.Token); }
                 catch (OperationCanceledException) { break; }
             }
@@ -850,6 +862,514 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // Cancel the feeder after confirming Idle.
         feedCts.Cancel();
         await feedTask;
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── Mutable config store helper (phase-aware pending-target tests) ────────
+
+    /// <summary>
+    /// Simple mutable <see cref="IConfigStore"/> used in pending-target tests that
+    /// need to observe side-effects of <see cref="IConfigStore.SaveAsync"/>.
+    /// </summary>
+    private sealed class MutableConfigStore : IConfigStore
+    {
+        private AppConfig _current;
+        public MutableConfigStore(AppConfig initial) => _current = initial;
+        public AppConfig Current => _current;
+        public event Action<AppConfig>? OnSaved;
+        public Task SaveAsync(AppConfig config, CancellationToken ct = default)
+        {
+            _current = config;
+            OnSaved?.Invoke(config);
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Config store that delays every <see cref="SaveAsync"/> call by a fixed amount —
+    /// used to deterministically reproduce the D-TX-UI-006 async-save race.
+    /// </summary>
+    private sealed class SlowConfigStore : IConfigStore
+    {
+        private AppConfig _current;
+        private readonly TimeSpan _delay;
+        public SlowConfigStore(AppConfig initial, TimeSpan delay) { _current = initial; _delay = delay; }
+        public AppConfig Current => _current;
+        public event Action<AppConfig>? OnSaved;
+        public async Task SaveAsync(AppConfig config, CancellationToken ct = default)
+        {
+            await Task.Delay(_delay, ct).ConfigureAwait(false);
+            _current = config;
+            OnSaved?.Invoke(config);
+        }
+    }
+
+    // ── AnswerCqAsync — phase-determination tests ─────────────────────────────
+
+    [Fact(DisplayName = "AnswerCqAsync: CQ at B-phase (:15) — fires TX when next A-phase batch arrives")]
+    public async Task AnswerCqAsync_WhenIdle_BPhaseAnswer_SetsPendingAPhase()
+    {
+        // CQ station was transmitting at B-phase (:15) → answer phase is A (:00 / :30).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero); // :15 = B-phase
+
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+        // Drain the wakeup before sending the test batch.  If the wakeup fires TX first and the
+        // batch then arrives in WaitReport carrying a CQ-from-partner, HandleWaitReportAsync would
+        // interpret it as "partner working another station" and abort back to Idle (race failure).
+        // Draining eliminates that path; the batch fires TX from the pending-target path instead.
+        _sut!._wakeupChannel.Reader.TryRead(out _);
+
+        // Feed a batch with CycleStart at :15 (B-phase) so that CycleStart + 15 s = :30 (A-phase).
+        // The framer emits a cycle's batch at the END of that cycle; the phase check therefore
+        // evaluates (CycleStart + 15 s), not CycleStart itself (D-TX-UI-007 fix).
+        // Use a noise message: safe in WaitReport if the wakeup wins the drain race (fallback).
+        var bPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero); // :15 B-phase → +15 s = :30 A-phase
+        Send(bPhaseStart,
+             new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+                 Message: $"Q2NOISE Q3NOISE -10"));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        _sut!.Partner.Should().Be(PartnerCall, "pending target callsign must become the active partner");
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "AnswerCqAsync: CQ at A-phase (:00) — fires TX when next B-phase batch arrives")]
+    public async Task AnswerCqAsync_WhenIdle_APhaseAnswer_SetsPendingBPhase()
+    {
+        // CQ station was at A-phase (:00) → answer phase is B (:15 / :45).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero); // :00 = A-phase
+
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+        // Drain the wakeup before sending the test batch to prevent the CQ-from-partner batch
+        // from landing in WaitReport (which would trigger "partner working another station").
+        _sut!._wakeupChannel.Reader.TryRead(out _);
+
+        // Feed a batch with CycleStart at :00 (A-phase) so that CycleStart + 15 s = :15 (B-phase).
+        // The framer emits a cycle's batch at the END of that cycle; the phase check therefore
+        // evaluates (CycleStart + 15 s), not CycleStart itself (D-TX-UI-007 fix).
+        // Use a noise message: safe in WaitReport if the wakeup wins the drain race (fallback).
+        var aPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero); // :00 A-phase → +15 s = :15 B-phase
+        Send(aPhaseStart,
+             new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+                 Message: $"Q2NOISE Q3NOISE -10"));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        _sut!.Partner.Should().Be(PartnerCall);
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "HandleIdle: pending target — wrong phase batch does not fire TX")]
+    public async Task HandleIdle_PendingTarget_WrongPhase_DoesNotFire()
+    {
+        // Set pending target via reflection — bypassing AnswerCqAsync avoids the wakeup batch.
+        // The wakeup fires with the current wall-clock phase which may or may not match; relying
+        // on a drain to beat the background loop is a known race.  The wakeup is tested separately
+        // by D-TX-UI-007; this test verifies only that a wrong-phase BATCH doesn't fire TX.
+        var type  = typeof(QsoAnswererService);
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        type.GetField("_pendingTargetCallsign",    flags)!.SetValue(_sut, PartnerCall);
+        type.GetField("_pendingTargetFrequencyHz", flags)!.SetValue(_sut, (double)AudioFreqHz);
+        type.GetField("_pendingTargetIsAPhase",    flags)!.SetValue(_sut, true);  // A-phase answer
+        type.GetField("_pendingTargetSetAt",       flags)!.SetValue(_sut, DateTimeOffset.UtcNow);
+
+        // Feed a batch with CycleStart at :30 (A-phase) so that CycleStart + 15 s = :45 (B-phase).
+        // B-phase ≠ pending A-phase → phase check fails → no TX (D-TX-UI-007 convention).
+        var wrongPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 29, 30, TimeSpan.Zero); // :30 A-phase → +15 s = :45 B-phase ≠ A-phase pending
+        Send(wrongPhaseStart,
+             new DecodeResult(Time: "17:29:30", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+                 Message: $"CQ Q2NOISE IO91"));
+        await Task.Delay(300);
+
+        _sut!.State.Should().Be(QsoState.Idle, "wrong-phase batch must NOT trigger the pending TX");
+        await _ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "HandleIdle: pending target — correct phase batch fires TX")]
+    public async Task HandleIdle_PendingTarget_CorrectPhase_Fires()
+    {
+        // CQ at :15 (B-phase) → answer phase is A (:00 / :30).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Feed a batch with CycleStart at :15 (B-phase) so that CycleStart + 15 s = :30 (A-phase).
+        // A-phase == pending A-phase → phase check passes → TX fires (D-TX-UI-007 convention).
+        var correctPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero); // :15 B-phase → +15 s = :30 A-phase
+        Send(correctPhaseStart,
+             new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+                 Message: $"CQ Q2NOISE IO91"));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        _sut!.Partner.Should().Be(PartnerCall);
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "HandleIdle: pending target — silent A-phase batch (empty results) still fires TX (D-TX-UI-004)")]
+    public async Task HandleIdle_PendingTarget_SilentAPhase_FiresTx()
+    {
+        // D-TX-UI-004 root cause: a silence-guard cycle (RMS below threshold → empty batch)
+        // was given the wrong phase because the fallback UtcNow snap returned the emission
+        // time (at the NEXT boundary), not the cycle-start time.
+        // Fix: DecodeBatch.CycleStart carries the authoritative timestamp; no UtcNow fallback.
+
+        // CQ at :15 (B-phase) → answer phase is A (:00 / :30).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero); // :15 = B-phase
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Feed an EMPTY batch whose CycleStart + 15 s is A-phase — the silence guard fired,
+        // but the phase is correct.  TX must fire despite the empty results list.
+        // CycleStart :15 (B-phase) → + 15 s = :30 (A-phase) → matches pending A-phase ✓
+        _channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero),  // :15 B-phase → +15 s = :30 A-phase
+            Array.Empty<DecodeResult>()));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        _sut!.Partner.Should().Be(PartnerCall,
+            "a silent A-phase cycle must still trigger the pending TX (D-TX-UI-004 fix)");
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "HandleIdle: pending target > 60 s old is cleared; no TX fires")]
+    public async Task HandleIdle_PendingTarget_TimedOut_ClearsAndDoesNotFire()
+    {
+        // Set pending target directly via reflection — bypassing AnswerCqAsync avoids the wakeup
+        // batch that AnswerCqAsync writes.  If the wakeup fires TX before the test can backdate
+        // _pendingTargetSetAt, the assertion would incorrectly see WaitReport.
+        // The wakeup behaviour is tested separately by the D-TX-UI-007 tests.
+        var type  = typeof(QsoAnswererService);
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        type.GetField("_pendingTargetCallsign",    flags)!.SetValue(_sut, PartnerCall);
+        type.GetField("_pendingTargetFrequencyHz", flags)!.SetValue(_sut, (double)AudioFreqHz);
+        type.GetField("_pendingTargetIsAPhase",    flags)!.SetValue(_sut, true);  // A-phase answer
+        // Pre-backdate SetAt to simulate a 65-second-old pending target.
+        type.GetField("_pendingTargetSetAt",       flags)!
+            .SetValue(_sut, DateTimeOffset.UtcNow.AddSeconds(-65));
+
+        // Feed the correct-phase batch (CycleStart + 15 s = A-phase) — should be discarded due to timeout.
+        var correctPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero); // :15 B-phase → +15 s = :30 A-phase
+        Send(correctPhaseStart,
+             new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+                 Message: $"CQ Q2NOISE IO91"));
+        await Task.Delay(400);
+
+        _sut!.State.Should().Be(QsoState.Idle, "expired pending target must be discarded without TX");
+        await _ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "TxAbort: AbortAsync clears pending target; no subsequent TX")]
+    public async Task TxAbort_ClearsPendingTarget()
+    {
+        // Fresh instance with a mutable store so SaveAsync side-effects persist.
+        var config = new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        };
+        var store   = new MutableConfigStore(config);
+        var ptt     = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Arm a pending CQ target (CQ at :15 → answer phase is A).
+        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
+        await sut.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Fire the pending target by delivering the correct-phase batch.
+        // CycleStart :15 (B-phase) → + 15 s = :30 (A-phase) → matches pending A-phase ✓ (D-TX-UI-007).
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero),  // :15 B-phase → +15 s = :30 A-phase
+            [new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+             Message: $"CQ Q2NOISE IO91")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Abort the active QSO — SafeAbortToIdleAsync clears _pendingTargetCallsign.
+        await sut.AbortAsync();
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+
+        // Feed another A-phase batch. No pending target remains; AutoAnswer=false after abort
+        // also suppresses the CQ-scan path. No further TX should fire.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 22, 17, 30, 30, TimeSpan.Zero),  // A-phase (:30)
+            [new DecodeResult(Time: "17:30:30", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+             Message: $"CQ Q2NOISE IO91")]));
+        await Task.Delay(400);
+
+        sut.State.Should().Be(QsoState.Idle, "abort must clear pending target; no TX fires");
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>()); // only TxAnswer TX
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── D-TX-UI-001 / D-TX-UI-003: supervised single-QSO disarm ─────────────
+
+    [Fact(DisplayName = "D-TX-UI-001: AbortAsync during active QSO saves autoAnswer = false in config")]
+    public async Task AbortAsync_WhenActiveQso_SetsAutoAnswerFalseInConfig()
+    {
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig { AutoAnswer = true, Callsign = OurCallsign, Grid = OurGrid,
+                                RetryCount = 2, WatchdogMinutes = 4 }
+        });
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Reach WaitReport (QSO in progress).
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+
+        // Abort and confirm return to Idle.
+        await sut.AbortAsync();
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+
+        // SafeAbortToIdleAsync must have saved autoAnswer = false.
+        await store.Received().SaveAsync(
+            Arg.Is<AppConfig>(c => c.Tx != null && c.Tx.AutoAnswer == false),
+            Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-TX-UI-003: QSO completion saves autoAnswer = false in config")]
+    public async Task QsoComplete_SetsAutoAnswerFalseInConfig()
+    {
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig { AutoAnswer = true, Callsign = OurCallsign, Grid = OurGrid,
+                                RetryCount = 2, WatchdogMinutes = 4 }
+        });
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Drive the full exchange: CQ → WaitReport → TxReport → WaitRr73 → Tx73 → Idle.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // QsoComplete path (SafeAbortToIdleAsync) must save autoAnswer = false.
+        await store.Received().SaveAsync(
+            Arg.Is<AppConfig>(c => c.Tx != null && c.Tx.AutoAnswer == false),
+            Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-TX-UI-003: Retry exhaustion saves autoAnswer = false in config")]
+    public async Task RetryExhausted_SetsAutoAnswerFalseInConfig()
+    {
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig { AutoAnswer = true, Callsign = OurCallsign, Grid = OurGrid,
+                                RetryCount = 2, WatchdogMinutes = 4 }
+        });
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Reach WaitReport, then let retries exhaust (RetryCount = 2 → 6 noise cycles).
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+
+        // Six noise cycles: [skip] [retry1] [skip] [retry2] [skip] [abort].
+        for (int i = 0; i < 6; i++)
+        {
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "Q2NOISE Q3NOISE -10")]));
+            await Task.Delay(150);
+        }
+
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // SafeAbortToIdleAsync on retry exhaustion must save autoAnswer = false.
+        await store.Received().SaveAsync(
+            Arg.Is<AppConfig>(c => c.Tx != null && c.Tx.AutoAnswer == false),
+            Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── D-TX-UI-005: double-click guard (manual verification) ───────────────
+    // AC-8a: a human double-click (~150 ms apart) on a CQ row must produce exactly ONE
+    // POST /api/v1/tx/answer-cq.  This is enforced by the `inFlight` flag in web/js/main.js
+    // which is reset only after a 400 ms setTimeout on success (D-TX-UI-005 fix).
+    // Automated coverage is not feasible at this layer; verify manually by clicking a CQ row
+    // rapidly and confirming a single POST in the server log.  See also: the `inFlight` guard
+    // comment in web/js/main.js line ~271.
+
+    // ── D-TX-UI-007: wakeup channel tests ────────────────────────────────────
+
+    [Fact(DisplayName = "D-TX-UI-007: wakeup batch fires TX in the current cycle window (no main-channel batch needed)")]
+    public async Task HandleIdle_PendingTarget_Wakeup_FiresInCurrentCycle()
+    {
+        // Determine the current FT8 cycle phase at test time.
+        // Set the pending phase to MATCH so the wakeup (which carries the current phase) fires TX.
+        //
+        // Phase-boundary caveat: if the test thread is pre-empted for ~100 ms between computing
+        // nowIsAPhase and AnswerCqAsync writing the wakeup, a 15-second cycle boundary may cross,
+        // making the wakeup carry the FOLLOWING phase and causing this test to time out.  The
+        // probability is ≈ 0.67 % per run (100 ms / 15 000 ms).  If this test becomes flaky,
+        // add a short delay after the phase sample to step clear of the boundary.
+        bool nowIsAPhase = (DateTimeOffset.UtcNow.Second / 15 * 15) % 30 == 0;
+
+        // CQ is at the OPPOSITE phase so that AnswerCqAsync sets pendingIsAPhase = nowIsAPhase.
+        var cqCycleStart = nowIsAPhase
+            ? new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero)  // B-phase CQ → A-phase answer
+            : new DateTimeOffset(2026, 6, 22, 17, 30, 0,  TimeSpan.Zero); // A-phase CQ → B-phase answer
+
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+        // No main-channel batch — TX must fire from the wakeup batch alone.
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(2));
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "D-TX-UI-007: wakeup batch skips wrong phase; TX fires from subsequent correct-phase batch")]
+    public async Task HandleIdle_PendingTarget_Wakeup_SkipsWrongPhase()
+    {
+        // Pending phase = OPPOSITE of current phase → wakeup is wrong phase → skips.
+        bool nowIsAPhase = (DateTimeOffset.UtcNow.Second / 15 * 15) % 30 == 0;
+        // CQ is at the SAME phase as now → answer = opposite = !nowIsAPhase.
+        var cqCycleStart = nowIsAPhase
+            ? new DateTimeOffset(2026, 6, 22, 17, 30, 0,  TimeSpan.Zero) // A-phase CQ → B-phase answer
+            : new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero); // B-phase CQ → A-phase answer
+        bool pendingIsAPhase = !nowIsAPhase;
+
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Drain the wakeup to enforce the "wakeup skips" scenario deterministically.
+        _sut!._wakeupChannel.Reader.TryRead(out _);
+
+        // Push a correct-phase batch from the main channel — TX must fire from this batch.
+        // CycleStart chosen so that CycleStart + 15 s == the pending phase boundary.
+        var correctPhaseCycleStart = pendingIsAPhase
+            ? new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero)  // :15 B-phase → +15 s = :30 A-phase
+            : new DateTimeOffset(2026, 6, 22, 17, 30, 0,  TimeSpan.Zero); // :00 A-phase → +15 s = :15 B-phase
+
+        Send(correctPhaseCycleStart,
+             new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+                 Message: $"CQ Q2NOISE IO91"));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    // ── D-TX-UI-006 regression ────────────────────────────────────────────────
+
+    [Fact(DisplayName = "D-TX-UI-006: pending target fires even when SaveAsync(AutoAnswer=true) is delayed (slow-save regression)")]
+    public async Task HandleIdle_PendingTarget_FiresWhenAutoAnswerSaveIsDelayed()
+    {
+        // Verifies that HandleIdleAsync does NOT gate on tx.AutoAnswer for the pending-target path.
+        // Simulates the race: AnswerCqAsync sets _pendingTargetCallsign synchronously but its
+        // SaveAsync(AutoAnswer=true) is delayed 200 ms. The A-phase batch is delivered before the
+        // save completes → AutoAnswer is still false in config when HandleIdleAsync runs.
+        // Before the fix: pending target silently discarded. After fix: TX fires regardless.
+
+        // Arrange: store whose saves are delayed 200 ms (longer than batch delivery below).
+        var config = new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = false,   // starts false; save "hasn't completed" during the race
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        };
+        var slowStore = new SlowConfigStore(config, TimeSpan.FromMilliseconds(200));
+
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog = new AdifLogWriter(slowStore, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, slowStore, ptt, new TxEventBus(),
+                          adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance);
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Arm pending target — SaveAsync(AutoAnswer=true) starts but takes 200 ms.
+        // cqCycleStart at :15 (B-phase) → answer fires on next A-phase (:00/:30).
+        var armTask = sut.AnswerCqAsync(
+            PartnerCall, AudioFreqHz,
+            new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero),
+            CancellationToken.None);
+
+        // Deliver a batch immediately — before the 200 ms save completes.
+        // AutoAnswer is still false in slowStore.Current at this moment.
+        // CycleStart :15 (B-phase) → + 15 s = :30 (A-phase) → matches pending A-phase (D-TX-UI-007).
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await armTask; // let AnswerCqAsync finish (save completes after batch processing)
+
+        // Assert: TX must fire into WaitReport despite the save lag.
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

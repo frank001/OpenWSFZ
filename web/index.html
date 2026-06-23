@@ -60,25 +60,61 @@
       <span class="freq-readout-hint">Left-click: RX &middot; Right-click: TX &middot; Shift+click: both</span>
     </div>
 
-    <!-- Decoded messages panel -->
-    <section id="decodes-panel" aria-label="Decoded FT8 messages">
-      <table id="decodes-table">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>dB</th>
-            <th>DT</th>
-            <th>Freq</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-        <tbody id="decodes-body">
-          <tr>
-            <td class="td-no-data" colspan="5">No decodes yet — waiting for FT8 signal</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+    <!-- Content row: decoded messages (left) + TX panel (right) -->
+    <div id="content-row">
+
+      <!-- Decoded messages panel -->
+      <section id="decodes-panel" aria-label="Decoded FT8 messages">
+        <table id="decodes-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>dB</th>
+              <th>DT</th>
+              <th>Freq</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="decodes-body">
+            <tr>
+              <td class="td-no-data" colspan="5">No decodes yet — waiting for FT8 signal</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- TX control panel -->
+      <section id="tx-panel" aria-label="TX control">
+
+        <!-- Armed/disarmed toggle + abort button -->
+        <div class="tx-controls-row">
+          <button id="tx-enable-btn" type="button">Enable TX</button>
+          <button id="tx-abort-btn" type="button">Abort TX</button>
+        </div>
+
+        <!-- Current QSO state / partner display -->
+        <div class="tx-state-row">
+          <span class="tx-state-label">State</span>
+          <span id="tx-state-display" class="tx-state-idle">Idle</span>
+        </div>
+
+        <!-- Standard FT8 message rows (Tx 1–3) -->
+        <div id="tx-msg-1" class="tx-msg-row tx-msg-muted">
+          <span class="tx-msg-text">——— Q1OFZ JO33</span>
+          <span class="tx-msg-label">Tx 1</span>
+        </div>
+        <div id="tx-msg-2" class="tx-msg-row tx-msg-muted">
+          <span class="tx-msg-text">——— Q1OFZ R+00</span>
+          <span class="tx-msg-label">Tx 2</span>
+        </div>
+        <div id="tx-msg-3" class="tx-msg-row tx-msg-muted">
+          <span class="tx-msg-text">——— Q1OFZ 73</span>
+          <span class="tx-msg-label">Tx 3</span>
+        </div>
+
+      </section>
+
+    </div>
 
   </div>
 

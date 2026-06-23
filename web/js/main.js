@@ -6,9 +6,11 @@
  * @module main
  */
 
-import { connect }                                    from './ws.js';
-import { getConfig, getFrequencies, postTune, postAudioOffset } from './api.js';
-import { WaterfallRenderer }                          from './spectrum.js';
+import { connect }                                                          from './ws.js';
+import { getConfig, getFrequencies, postTune, postAudioOffset,
+         getTxStatus, postTxEnable, postTxDisable, postTxAbort,
+         postTxAnswerCq }                                                    from './api.js';
+import { WaterfallRenderer }                                                 from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
 
@@ -25,6 +27,177 @@ let cachedFt8Frequencies = [];
 // ── Decode pipeline state ─────────────────────────────────────────────────
 /** @type {boolean} Mirrors the server-side DecodingEnabled flag. */
 let decodingEnabled = true;
+
+// ── TX panel state (tasks 6.2–6.5) ───────────────────────────────────────
+
+/** Operator callsign read from config.tx.callsign on page load. */
+let txCallsign = 'Q1OFZ';
+
+/** Operator grid read from config.tx.grid on page load. */
+let txGrid = 'JO33';
+
+/** Current QSO controller state string (e.g. 'Idle', 'TxAnswer'). */
+let currentTxState = 'Idle';
+
+/** Current active partner callsign, or null when Idle. */
+let currentTxPartner = /** @type {string|null} */ (null);
+
+/** Whether tx.autoAnswer is enabled (mirrors the config flag). */
+let currentAutoAnswerEnabled = false;
+
+// ── TX panel DOM elements ─────────────────────────────────────────────────
+
+const txEnableBtnEl  = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('tx-enable-btn')));
+const txAbortBtnEl   = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('tx-abort-btn')));
+const txStateDisplayEl = /** @type {HTMLElement} */ (document.getElementById('tx-state-display'));
+const txMsg1El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-1'));
+const txMsg2El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-2'));
+const txMsg3El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-3'));
+
+// ── TX panel render functions (tasks 6.3, 6.4) ───────────────────────────
+
+/**
+ * Compute and render the three standard FT8 message rows.
+ * Row text is computed from `partner`, `txCallsign`, and `txGrid`.
+ * Active row highlighting is driven by `state`.
+ * Rows are greyed out when `autoAnswerEnabled` is false.
+ *
+ * @param {string|null}  partner
+ * @param {string}       state
+ * @param {boolean}      autoAnswerEnabled
+ */
+function renderMessageRows(partner, state, autoAnswerEnabled) {
+  const p = partner ?? '———';
+
+  const texts = [
+    `${p} ${txCallsign} ${txGrid}`,   // Tx 1 — Answer (TxAnswer)
+    `${p} ${txCallsign} R+00`,         // Tx 2 — Report  (TxReport)
+    `${p} ${txCallsign} 73`,           // Tx 3 — 73      (Tx73)
+  ];
+
+  const activeStates = ['TxAnswer', 'TxReport', 'Tx73'];
+  const rows = [txMsg1El, txMsg2El, txMsg3El];
+
+  rows.forEach((row, i) => {
+    if (!row) return;
+
+    // Update text content
+    const textSpan = row.querySelector('.tx-msg-text');
+    if (textSpan) textSpan.textContent = texts[i];
+
+    // Active row highlight
+    if (state === activeStates[i]) {
+      row.classList.add('tx-msg-active');
+    } else {
+      row.classList.remove('tx-msg-active');
+    }
+
+    // Muted when disarmed
+    if (autoAnswerEnabled) {
+      row.classList.remove('tx-msg-muted');
+    } else {
+      row.classList.add('tx-msg-muted');
+    }
+  });
+}
+
+/**
+ * Render the full TX panel: button label/style, state display, and message rows.
+ *
+ * @param {string}       state              - QsoState string (e.g. 'Idle', 'TxAnswer')
+ * @param {string|null}  partner            - Active partner callsign or null
+ * @param {boolean}      autoAnswerEnabled  - Whether tx.autoAnswer is true
+ */
+function renderTxPanel(state, partner, autoAnswerEnabled) {
+  // Persist for subsequent partial updates (e.g. WS txState without config change).
+  currentTxState           = state;
+  currentTxPartner         = partner;
+  currentAutoAnswerEnabled = autoAnswerEnabled;
+
+  // ── Enable/Disable toggle button ─────────────────────────────────────
+  // D-TX-UI-002: label is always "Enable TX"; red background alone signals the armed state.
+  if (txEnableBtnEl) {
+    txEnableBtnEl.textContent = 'Enable TX';
+    if (autoAnswerEnabled) {
+      txEnableBtnEl.classList.add('tx-btn-armed');
+    } else {
+      txEnableBtnEl.classList.remove('tx-btn-armed');
+    }
+  }
+
+  // ── State display ─────────────────────────────────────────────────────
+  if (txStateDisplayEl) {
+    if (!state || state === 'Idle') {
+      txStateDisplayEl.textContent = 'Idle';
+      txStateDisplayEl.className   = 'tx-state-idle';
+    } else {
+      txStateDisplayEl.textContent = partner ? `Working ${partner}` : state;
+      txStateDisplayEl.className   = 'tx-state-working';
+    }
+  }
+
+  // ── Message rows ─────────────────────────────────────────────────────
+  renderMessageRows(partner, state, autoAnswerEnabled);
+}
+
+// ── CQ / partner interaction helpers ─────────────────────────────────────
+
+/**
+ * Convert a DecodeResult `time` field ("HH:mm:ss" UTC) to an ISO 8601 UTC string
+ * suitable for use as `cqCycleStartUtc` in the answer-cq request body.
+ * Approximates the date as today UTC.  Corner case near midnight UTC is acceptable.
+ * @param {string} ft8Time  "HH:mm:ss" UTC cycle start from a DecodeResult.
+ * @returns {string}  e.g. "2026-06-22T17:29:15Z"
+ */
+function parseFt8CycleStartUtc(ft8Time) {
+  const now = new Date();
+  const [h, m, s] = ft8Time.split(':');
+  const year  = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day   = String(now.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}T${h}:${m}:${s}Z`;
+}
+
+/**
+ * Extract the target callsign from a CQ message.
+ * CQ callsign grid     → token[1]   (3 tokens)
+ * CQ modifier callsign → token[2]   (4 tokens, e.g. "CQ DX Q1TST JO22")
+ * @param {string} message  Full FT8 message text.
+ * @returns {string|null}
+ */
+function extractCqCallsign(message) {
+  const tokens = message.split(' ');
+  if (tokens.length === 3) return tokens[1];  // CQ callsign grid
+  if (tokens.length >= 4)  return tokens[2];  // CQ modifier callsign [grid]
+  return null;
+}
+
+/**
+ * Returns true if `token` matches `callsign` exactly or as a portable suffix
+ * (e.g. "PD2FZ/P" matches callsign "PD2FZ").
+ * @param {string} token
+ * @param {string} callsign
+ * @returns {boolean}
+ */
+function tokenMatchesCallsign(token, callsign) {
+  return token === callsign || token.startsWith(callsign + '/');
+}
+
+/**
+ * Returns true if `message` contains both the operator's callsign and the
+ * active partner's callsign as space-delimited tokens.
+ * Used to highlight partner QSO exchange rows in the decode table.
+ * @param {string}      message     Full FT8 message text.
+ * @param {string}      txCallsign  Operator callsign (from config.tx.callsign).
+ * @param {string|null} partner     Active QSO partner callsign, or null.
+ * @returns {boolean}
+ */
+function isPartnerInteractionRow(message, txCallsign, partner) {
+  if (!partner || !txCallsign) return false;
+  const tokens = message.split(' ');
+  return tokens.some(t => tokenMatchesCallsign(t, txCallsign))
+      && tokens.some(t => tokenMatchesCallsign(t, partner));
+}
 
 // ── Decoded-messages table ────────────────────────────────────────────────
 
@@ -71,6 +244,55 @@ function handleDecodes(results) {
     tr.appendChild(makeCell(dtStr));
     tr.appendChild(makeCell(String(r.freqHz)));
     tr.appendChild(makeCell(r.message));
+
+    // Store cycle-start UTC string as a data attribute for the click handler.
+    tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
+
+    // CQ row highlighting and click-to-answer (TX-D01).
+    if (r.message.startsWith('CQ ')) {
+      tr.classList.add('decode-cq');
+      tr.style.cursor = 'pointer';
+
+      let inFlight = false;
+      tr.addEventListener('click', async () => {
+        if (inFlight) return;                          // guard already-queued duplicate events
+        inFlight = true;
+        tr.style.pointerEvents = 'none';               // belt-and-suspenders for mouse
+        const callsign = extractCqCallsign(r.message);
+        if (!callsign) {
+          inFlight = false;
+          tr.style.pointerEvents = '';
+          return;
+        }
+        const cqCycleStartUtc = tr.dataset.cqCycleStartUtc;
+        try {
+          const status = await postTxAnswerCq(callsign, r.freqHz, cqCycleStartUtc);
+          renderTxPanel(status.state, status.partner, status.autoAnswerEnabled);
+          // Delay guard reset to block human double-clicks (~130–185 ms interval).
+          // On success the operator does not need to retry; 400 ms is harmless (D-TX-UI-005).
+          setTimeout(() => {
+            inFlight = false;
+            tr.style.pointerEvents = '';
+          }, 400);
+        } catch (err) {
+          // On error, reset immediately so the operator can retry.
+          inFlight = false;
+          tr.style.pointerEvents = '';
+          if (/** @type {any} */ (err)?.status === 409) {
+            console.warn('TX not Idle — CQ click ignored.');
+          } else {
+            console.error('postTxAnswerCq error:', err);
+          }
+        }
+      });
+    }
+
+    // Partner interaction highlighting — rows that contain both operator's and
+    // partner's callsign are shown in subdued red during an active QSO.
+    if (isPartnerInteractionRow(r.message, txCallsign, currentTxPartner)) {
+      tr.classList.add('decode-partner');
+    }
+
     decodesBody.prepend(tr);
   }
 
@@ -137,8 +359,13 @@ async function startCycleTimerIfEnabled() {
       setInterval(tickCycleTimer, 100);
     }
     // If false, CSS default (visibility: hidden) applies — no explicit set needed.
+
+    // Task 6.8: extract callsign and grid from tx config; refresh message rows.
+    if (config.tx?.callsign) txCallsign = config.tx.callsign;
+    if (config.tx?.grid)     txGrid     = config.tx.grid;
+    renderMessageRows(currentTxPartner, currentTxState, currentAutoAnswerEnabled);
   } catch {
-    // Config fetch failed — timer stays hidden (fail-safe).
+    // Config fetch failed — timer stays hidden; message rows keep their defaults.
   }
 }
 
@@ -331,7 +558,58 @@ function updateDialFreq(catStatus, freqMHz) {
 document.addEventListener('DOMContentLoaded', () => {
 
   // Start cycle countdown timer (shows only when enabled in config).
+  // Also extracts config.tx.callsign / .grid for message row rendering (task 6.8).
   startCycleTimerIfEnabled();
+
+  // Task 6.1 — Seed the TX panel with current server state on page load.
+  getTxStatus().then(status => {
+    renderTxPanel(
+      status.state             ?? 'Idle',
+      status.partner           ?? null,
+      status.autoAnswerEnabled ?? false);
+  }).catch(err => {
+    // Non-fatal — panel stays in default disarmed / Idle state.
+    console.warn('GET /api/v1/tx/status failed on load:', err);
+  });
+
+  // Task 6.6 — Enable TX / TX Armed toggle button.
+  if (txEnableBtnEl) {
+    txEnableBtnEl.addEventListener('click', async () => {
+      txEnableBtnEl.disabled = true;
+      try {
+        const status = currentAutoAnswerEnabled
+          ? await postTxDisable()
+          : await postTxEnable();
+        renderTxPanel(
+          status.state             ?? currentTxState,
+          status.partner           ?? currentTxPartner,
+          status.autoAnswerEnabled ?? false);
+      } catch (err) {
+        console.error('TX enable/disable failed:', err);
+      } finally {
+        txEnableBtnEl.disabled = false;
+      }
+    });
+  }
+
+  // Task 6.7 — Abort TX button. D-TX-UI-001: read response body and re-render
+  // so the button returns to disarmed state immediately after abort.
+  if (txAbortBtnEl) {
+    txAbortBtnEl.addEventListener('click', async () => {
+      txAbortBtnEl.disabled = true;
+      try {
+        const status = await postTxAbort();
+        renderTxPanel(
+          status.state             ?? currentTxState,
+          status.partner           ?? null,
+          status.autoAnswerEnabled ?? false);
+      } catch (err) {
+        console.error('POST /api/v1/tx/abort failed:', err);
+      } finally {
+        txAbortBtnEl.disabled = false;
+      }
+    });
+  }
 
   // Task 8.1: fetch frequency list once on page load and cache it.
   // F-004: if the dropdown was already rendered before the fetch resolved
@@ -537,6 +815,17 @@ document.addEventListener('DOMContentLoaded', () => {
         event.payload.rxHz,
         event.payload.txHz,
         event.payload.holdTxFreq);
+      return;
+    }
+
+    // Task 6.5 — txState event: update TX panel state and message rows.
+    // D-TX-UI-003: read autoAnswerEnabled from the event (now carried in the WS frame)
+    // so QSO completion / abort disarms the panel without a separate HTTP call.
+    if (event.type === 'txState') {
+      renderTxPanel(
+        event.state             ?? 'Idle',
+        event.partner           ?? null,
+        event.autoAnswerEnabled ?? currentAutoAnswerEnabled);
       return;
     }
 

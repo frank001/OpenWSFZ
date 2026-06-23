@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using OpenWSFZ.Abstractions;
 using Xunit;
 
 namespace OpenWSFZ.Web.Tests;
@@ -166,6 +167,42 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         payload.ValueKind.Should().Be(JsonValueKind.Array);
         payload.GetArrayLength().Should().Be(1);
         payload[0].GetProperty("message").GetString().Should().Be("Q1AW Q1TTT EN43");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "D-TX-UI-003: txState broadcast includes autoAnswerEnabled field")]
+    public async Task TxState_BroadcastIncludesAutoAnswerEnabledField()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+        ws.State.Should().Be(WebSocketState.Open);
+
+        // Drain the initial status frame.
+        await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+
+        // Broadcast a txState event via TxEventBus (same path as the daemon uses).
+        var bus = new TxEventBus();
+        bus.Publish(QsoState.TxAnswer, "Q1TST", autoAnswerEnabled: true);
+
+        // Read frames until we get a txState (skip heartbeats / decode frames from other tests).
+        string? txFrame = null;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (txFrame is null && DateTime.UtcNow < deadline)
+        {
+            var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+            if (frame is null) break;
+            using var doc = JsonDocument.Parse(frame);
+            if (doc.RootElement.GetProperty("type").GetString() == "txState")
+                txFrame = frame;
+        }
+
+        txFrame.Should().NotBeNull("txState frame must be received within the deadline");
+
+        using var txDoc = JsonDocument.Parse(txFrame!);
+        txDoc.RootElement.TryGetProperty("autoAnswerEnabled", out var prop)
+            .Should().BeTrue("txState event must include autoAnswerEnabled field");
+        prop.GetBoolean().Should().BeTrue("active-state broadcast must carry autoAnswerEnabled = true");
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }

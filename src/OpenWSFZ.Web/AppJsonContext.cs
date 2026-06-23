@@ -38,6 +38,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(AudioOffsetPayload))]
 [JsonSerializable(typeof(WsAudioOffsetMessage))]
 [JsonSerializable(typeof(AudioOffsetRequest))]
+[JsonSerializable(typeof(AnswerCqRequest))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -75,15 +76,16 @@ internal sealed record TuneResponse(double EffectiveFrequencyMHz);
 
 /// <summary>
 /// Envelope for <c>txState</c> WebSocket text frames (FR-047).
-/// Wire format: <c>{"type":"txState","state":"TxAnswer","partner":"Q1TST"}</c>
+/// Wire format: <c>{"type":"txState","state":"TxAnswer","partner":"Q1TST","autoAnswerEnabled":true}</c>
 /// </summary>
-internal sealed record WsTxStateMessage(string Type, string State, string? Partner);
+internal sealed record WsTxStateMessage(string Type, string State, string? Partner, bool AutoAnswerEnabled);
 
 /// <summary>
-/// Response body for <c>GET /api/v1/tx/status</c> (FR-047).
-/// Wire format: <c>{"state":"Idle","partner":null}</c>
+/// Response body for <c>GET /api/v1/tx/status</c>, <c>POST /api/v1/tx/enable</c>,
+/// and <c>POST /api/v1/tx/disable</c> (FR-047).
+/// Wire format: <c>{"state":"Idle","partner":null,"autoAnswerEnabled":false}</c>
 /// </summary>
-public sealed record TxStatusResponse(string State, string? Partner);
+public sealed record TxStatusResponse(string State, string? Partner, bool AutoAnswerEnabled);
 
 /// <summary>
 /// Payload for <c>audioOffset</c> WebSocket push events.
@@ -103,3 +105,12 @@ internal sealed record WsAudioOffsetMessage(string Type, AudioOffsetPayload Payl
 /// Wire format: <c>{"rxHz":900,"txHz":1500,"holdTxFreq":false}</c>
 /// </summary>
 internal sealed record AudioOffsetRequest(int RxHz, int TxHz, bool HoldTxFreq);
+
+/// <summary>
+/// Request body for <c>POST /api/v1/tx/answer-cq</c> (TX-D01).
+/// Wire format: <c>{"callsign":"Q1TST","frequencyHz":897.0,"cqCycleStartUtc":"2026-06-22T17:29:15Z"}</c>
+/// </summary>
+internal sealed record AnswerCqRequest(
+    string Callsign,
+    double FrequencyHz,
+    string CqCycleStartUtc);    // ISO 8601 UTC, e.g. "2026-06-22T17:29:15Z"

@@ -167,10 +167,123 @@ label {
   cursor: crosshair;
 }
 
+/* ── Content row (task 5.1–5.4) ────────────────────────────────────────── */
+/* #content-row takes the slot that #decodes-panel used to occupy in the
+   flex-column spine; it is itself a flex row containing #decodes-panel
+   (left, grows) and #tx-panel (right, fixed width). */
+#content-row {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  min-height: 0; /* prevent flex overflow in nested columns */
+}
+
 #decodes-panel {
   flex: 1 1 0;
   overflow-y: auto;
   padding: 0;
+  min-width: 0; /* prevent table from forcing the panel wider than available space */
+}
+
+/* ── TX panel (task 5.4) ────────────────────────────────────────────────── */
+#tx-panel {
+  flex: 0 0 320px;
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  gap: 0.5rem;
+  overflow-y: auto;
+}
+
+/* ── TX panel: controls row ─────────────────────────────────────────────── */
+.tx-controls-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Armed toggle button (task 5.5) */
+#tx-enable-btn.tx-btn-armed {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+  font-weight: 700;
+}
+#tx-enable-btn.tx-btn-armed:hover:not(:disabled) {
+  background: #da3b36;
+  border-color: #da3b36;
+}
+
+/* ── TX panel: state row ────────────────────────────────────────────────── */
+.tx-state-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.tx-state-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+}
+
+.tx-state-idle {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+}
+
+.tx-state-working {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+/* ── TX panel: message rows (tasks 5.6–5.8) ─────────────────────────────── */
+.tx-msg-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid transparent;
+  gap: 0.5rem;
+}
+
+.tx-msg-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tx-msg-label {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  text-align: right;
+}
+
+/* task 5.7 — active row: accent colour + left border stripe */
+.tx-msg-active .tx-msg-text {
+  color: var(--color-accent);
+}
+.tx-msg-active {
+  border-left: 2px solid var(--color-accent);
+  padding-left: 0.4rem;
+}
+
+/* task 5.8 — muted rows when TX is disarmed */
+.tx-msg-muted .tx-msg-text {
+  opacity: 0.4;
 }
 
 /* ── Decodes table ─────────────────────────────────────────────────────── */
@@ -640,4 +753,21 @@ select#dial-freq {
   font-size: inherit;
   cursor: pointer;
   width: auto;   /* override global select { width: 100% } — F-005 */
+}
+
+/* ── Decode table — CQ row highlight (TX-D01) ───────────────────────────── */
+/* Warm amber accent draws the operator's eye to CQing stations.            */
+.decode-cq {
+  background-color: rgba(200, 150, 50, 0.15);
+}
+.decode-cq:hover {
+  background-color: rgba(200, 150, 50, 0.28);
+  cursor: pointer;
+}
+
+/* ── Decode table — partner QSO exchange highlight ──────────────────────── */
+/* Subdued red marks rows involving both the operator and the active partner */
+/* during a QSO, making it easy to track the exchange at a glance.          */
+.decode-partner {
+  background-color: rgba(180, 40, 40, 0.18);
 }

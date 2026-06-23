@@ -122,6 +122,67 @@ export async function postCatRetry() {
 }
 
 /**
+ * GET /api/v1/tx/status
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
+ */
+export function getTxStatus() {
+  return fetchJson('/api/v1/tx/status');
+}
+
+/**
+ * POST /api/v1/tx/enable
+ * Sets tx.autoAnswer = true and returns the current TX status.
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
+ */
+export function postTxEnable() {
+  return fetchJson('/api/v1/tx/enable', { method: 'POST' });
+}
+
+/**
+ * POST /api/v1/tx/disable
+ * Sets tx.autoAnswer = false and returns the current TX status.
+ * Does NOT abort any in-progress QSO.
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
+ */
+export function postTxDisable() {
+  return fetchJson('/api/v1/tx/disable', { method: 'POST' });
+}
+
+/**
+ * POST /api/v1/tx/abort
+ * Aborts any in-progress QSO and disarms TX (sets autoAnswer = false).
+ * Returns the updated TX status.
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
+ */
+export function postTxAbort() {
+  return fetchJson('/api/v1/tx/abort', { method: 'POST' });
+}
+
+/**
+ * POST /api/v1/tx/answer-cq
+ * Arms a phase-aware pending TX to answer a specific CQ call (TX-D01).
+ * Returns the updated TX status with autoAnswerEnabled = true.
+ * Throws an Error with `.status = 409` if the controller is not Idle.
+ * @param {string} callsign         Callsign of the CQ station.
+ * @param {number} frequencyHz      Audio frequency of the CQ decode, in Hz.
+ * @param {string} cqCycleStartUtc  ISO 8601 UTC cycle-start, e.g. "2026-06-22T17:29:15Z".
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
+ */
+export async function postTxAnswerCq(callsign, frequencyHz, cqCycleStartUtc) {
+  const res = await fetch('/api/v1/tx/answer-cq', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ callsign, frequencyHz, cqCycleStartUtc }),
+  });
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/tx/answer-cq`);
+    /** @type {any} */ (err).status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+/**
  * POST /api/v1/audio-offset
  * Updates the RX/TX audio frequency cursor positions and Hold TX Freq state.
  * @param {number}  rxHz        RX cursor frequency in Hz (0–3000).

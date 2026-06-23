@@ -311,11 +311,11 @@ internal static class WebSocketHub
     /// Mirrors the <see cref="BroadcastDecodes"/> pattern: no scope guard since TX state
     /// is daemon-global (there is only one QSO answerer per process).
     /// </summary>
-    internal static void BroadcastTxState(QsoState state, string? partner)
+    internal static void BroadcastTxState(QsoState state, string? partner, bool autoAnswerEnabled)
     {
         if (ActiveSockets.IsEmpty) return;
 
-        var msg     = new WsTxStateMessage(Type: "txState", State: state.ToString(), Partner: partner);
+        var msg     = new WsTxStateMessage(Type: "txState", State: state.ToString(), Partner: partner, AutoAnswerEnabled: autoAnswerEnabled);
         var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsTxStateMessage);
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);
