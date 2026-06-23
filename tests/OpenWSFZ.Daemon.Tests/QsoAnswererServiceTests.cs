@@ -916,12 +916,20 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero); // :15 = B-phase
 
         await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+        // Drain the wakeup before sending the test batch.  If the wakeup fires TX first and the
+        // batch then arrives in WaitReport carrying a CQ-from-partner, HandleWaitReportAsync would
+        // interpret it as "partner working another station" and abort back to Idle (race failure).
+        // Draining eliminates that path; the batch fires TX from the pending-target path instead.
+        _sut!._wakeupChannel.Reader.TryRead(out _);
 
-        // Feed a batch with CycleStart at A-phase (:00) — should trigger TX.
-        var aPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero); // :00 = A-phase
-        Send(aPhaseStart,
-             new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
-                 Message: $"CQ {PartnerCall} {PartnerGrid}"));
+        // Feed a batch with CycleStart at :15 (B-phase) so that CycleStart + 15 s = :30 (A-phase).
+        // The framer emits a cycle's batch at the END of that cycle; the phase check therefore
+        // evaluates (CycleStart + 15 s), not CycleStart itself (D-TX-UI-007 fix).
+        // Use a noise message: safe in WaitReport if the wakeup wins the drain race (fallback).
+        var bPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero); // :15 B-phase → +15 s = :30 A-phase
+        Send(bPhaseStart,
+             new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+                 Message: $"Q2NOISE Q3NOISE -10"));
 
         await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
         _sut!.Partner.Should().Be(PartnerCall, "pending target callsign must become the active partner");
@@ -935,12 +943,18 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero); // :00 = A-phase
 
         await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+        // Drain the wakeup before sending the test batch to prevent the CQ-from-partner batch
+        // from landing in WaitReport (which would trigger "partner working another station").
+        _sut!._wakeupChannel.Reader.TryRead(out _);
 
-        // Feed a batch with CycleStart at B-phase (:15) — should trigger TX.
-        var bPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero); // :15 = B-phase
-        Send(bPhaseStart,
-             new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
-                 Message: $"CQ {PartnerCall} {PartnerGrid}"));
+        // Feed a batch with CycleStart at :00 (A-phase) so that CycleStart + 15 s = :15 (B-phase).
+        // The framer emits a cycle's batch at the END of that cycle; the phase check therefore
+        // evaluates (CycleStart + 15 s), not CycleStart itself (D-TX-UI-007 fix).
+        // Use a noise message: safe in WaitReport if the wakeup wins the drain race (fallback).
+        var aPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero); // :00 A-phase → +15 s = :15 B-phase
+        Send(aPhaseStart,
+             new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+                 Message: $"Q2NOISE Q3NOISE -10"));
 
         await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
         _sut!.Partner.Should().Be(PartnerCall);
@@ -950,14 +964,22 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     [Fact(DisplayName = "HandleIdle: pending target — wrong phase batch does not fire TX")]
     public async Task HandleIdle_PendingTarget_WrongPhase_DoesNotFire()
     {
-        // CQ at :15 (B-phase) → answer wants A-phase (:00 / :30).
-        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
-        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+        // Set pending target via reflection — bypassing AnswerCqAsync avoids the wakeup batch.
+        // The wakeup fires with the current wall-clock phase which may or may not match; relying
+        // on a drain to beat the background loop is a known race.  The wakeup is tested separately
+        // by D-TX-UI-007; this test verifies only that a wrong-phase BATCH doesn't fire TX.
+        var type  = typeof(QsoAnswererService);
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        type.GetField("_pendingTargetCallsign",    flags)!.SetValue(_sut, PartnerCall);
+        type.GetField("_pendingTargetFrequencyHz", flags)!.SetValue(_sut, (double)AudioFreqHz);
+        type.GetField("_pendingTargetIsAPhase",    flags)!.SetValue(_sut, true);  // A-phase answer
+        type.GetField("_pendingTargetSetAt",       flags)!.SetValue(_sut, DateTimeOffset.UtcNow);
 
-        // Feed a batch with CycleStart at B-phase (:15) — same phase as the CQ, WRONG for the answer.
-        var bPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero); // :15 = B-phase
-        Send(bPhaseStart,
-             new DecodeResult(Time: "17:29:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+        // Feed a batch with CycleStart at :30 (A-phase) so that CycleStart + 15 s = :45 (B-phase).
+        // B-phase ≠ pending A-phase → phase check fails → no TX (D-TX-UI-007 convention).
+        var wrongPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 29, 30, TimeSpan.Zero); // :30 A-phase → +15 s = :45 B-phase ≠ A-phase pending
+        Send(wrongPhaseStart,
+             new DecodeResult(Time: "17:29:30", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
                  Message: $"CQ Q2NOISE IO91"));
         await Task.Delay(300);
 
@@ -972,10 +994,11 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
         await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
 
-        // Feed a batch with CycleStart at A-phase (:00) — correct phase for the answer.
-        var aPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero); // :00 = A-phase
-        Send(aPhaseStart,
-             new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+        // Feed a batch with CycleStart at :15 (B-phase) so that CycleStart + 15 s = :30 (A-phase).
+        // A-phase == pending A-phase → phase check passes → TX fires (D-TX-UI-007 convention).
+        var correctPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero); // :15 B-phase → +15 s = :30 A-phase
+        Send(correctPhaseStart,
+             new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
                  Message: $"CQ Q2NOISE IO91"));
 
         await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
@@ -995,10 +1018,11 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero); // :15 = B-phase
         await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
 
-        // Feed an EMPTY batch whose CycleStart is A-phase — the silence guard fired, but
-        // the phase is correct.  TX must fire despite the empty results list.
+        // Feed an EMPTY batch whose CycleStart + 15 s is A-phase — the silence guard fired,
+        // but the phase is correct.  TX must fire despite the empty results list.
+        // CycleStart :15 (B-phase) → + 15 s = :30 (A-phase) → matches pending A-phase ✓
         _channel.Writer.TryWrite(new DecodeBatch(
-            new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero),  // A-phase (:00)
+            new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero),  // :15 B-phase → +15 s = :30 A-phase
             Array.Empty<DecodeResult>()));
 
         await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
@@ -1010,20 +1034,23 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     [Fact(DisplayName = "HandleIdle: pending target > 60 s old is cleared; no TX fires")]
     public async Task HandleIdle_PendingTarget_TimedOut_ClearsAndDoesNotFire()
     {
-        // CQ at :15 (B-phase) → answer phase is A.
-        var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
-        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+        // Set pending target directly via reflection — bypassing AnswerCqAsync avoids the wakeup
+        // batch that AnswerCqAsync writes.  If the wakeup fires TX before the test can backdate
+        // _pendingTargetSetAt, the assertion would incorrectly see WaitReport.
+        // The wakeup behaviour is tested separately by the D-TX-UI-007 tests.
+        var type  = typeof(QsoAnswererService);
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        type.GetField("_pendingTargetCallsign",    flags)!.SetValue(_sut, PartnerCall);
+        type.GetField("_pendingTargetFrequencyHz", flags)!.SetValue(_sut, (double)AudioFreqHz);
+        type.GetField("_pendingTargetIsAPhase",    flags)!.SetValue(_sut, true);  // A-phase answer
+        // Pre-backdate SetAt to simulate a 65-second-old pending target.
+        type.GetField("_pendingTargetSetAt",       flags)!
+            .SetValue(_sut, DateTimeOffset.UtcNow.AddSeconds(-65));
 
-        // Backdating _pendingTargetSetAt via reflection to simulate a 65 s old pending target.
-        var fi = typeof(QsoAnswererService).GetField(
-            "_pendingTargetSetAt",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        fi.SetValue(_sut, DateTimeOffset.UtcNow.AddSeconds(-65));
-
-        // Feed the correct-phase batch — should be discarded due to timeout.
-        var aPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero);
-        Send(aPhaseStart,
-             new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+        // Feed the correct-phase batch (CycleStart + 15 s = A-phase) — should be discarded due to timeout.
+        var correctPhaseStart = new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero); // :15 B-phase → +15 s = :30 A-phase
+        Send(correctPhaseStart,
+             new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
                  Message: $"CQ Q2NOISE IO91"));
         await Task.Delay(400);
 
@@ -1063,10 +1090,11 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var cqCycleStart = new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero);
         await sut.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
 
-        // Fire the pending target by delivering the correct A-phase batch.
+        // Fire the pending target by delivering the correct-phase batch.
+        // CycleStart :15 (B-phase) → + 15 s = :30 (A-phase) → matches pending A-phase ✓ (D-TX-UI-007).
         channel.Writer.TryWrite(new DecodeBatch(
-            new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero),  // A-phase (:00)
-            [new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+            new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero),  // :15 B-phase → +15 s = :30 A-phase
+            [new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
              Message: $"CQ Q2NOISE IO91")]));
         await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
 
@@ -1224,6 +1252,58 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
     // ── D-TX-UI-006 regression ────────────────────────────────────────────────
 
+    // ── D-TX-UI-007: wakeup channel tests ────────────────────────────────────
+
+    [Fact(DisplayName = "D-TX-UI-007: wakeup batch fires TX in the current cycle window (no main-channel batch needed)")]
+    public async Task HandleIdle_PendingTarget_Wakeup_FiresInCurrentCycle()
+    {
+        // Determine the current FT8 cycle phase at test time.
+        // Set the pending phase to MATCH so the wakeup (which carries the current phase) fires TX.
+        bool nowIsAPhase = (DateTimeOffset.UtcNow.Second / 15 * 15) % 30 == 0;
+
+        // CQ is at the OPPOSITE phase so that AnswerCqAsync sets pendingIsAPhase = nowIsAPhase.
+        var cqCycleStart = nowIsAPhase
+            ? new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero)  // B-phase CQ → A-phase answer
+            : new DateTimeOffset(2026, 6, 22, 17, 30, 0,  TimeSpan.Zero); // A-phase CQ → B-phase answer
+
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+        // No main-channel batch — TX must fire from the wakeup batch alone.
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(2));
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "D-TX-UI-007: wakeup batch skips wrong phase; TX fires from subsequent correct-phase batch")]
+    public async Task HandleIdle_PendingTarget_Wakeup_SkipsWrongPhase()
+    {
+        // Pending phase = OPPOSITE of current phase → wakeup is wrong phase → skips.
+        bool nowIsAPhase = (DateTimeOffset.UtcNow.Second / 15 * 15) % 30 == 0;
+        // CQ is at the SAME phase as now → answer = opposite = !nowIsAPhase.
+        var cqCycleStart = nowIsAPhase
+            ? new DateTimeOffset(2026, 6, 22, 17, 30, 0,  TimeSpan.Zero) // A-phase CQ → B-phase answer
+            : new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero); // B-phase CQ → A-phase answer
+        bool pendingIsAPhase = !nowIsAPhase;
+
+        await _sut!.AnswerCqAsync(PartnerCall, AudioFreqHz, cqCycleStart, CancellationToken.None);
+
+        // Drain the wakeup to enforce the "wakeup skips" scenario deterministically.
+        _sut!._wakeupChannel.Reader.TryRead(out _);
+
+        // Push a correct-phase batch from the main channel — TX must fire from this batch.
+        // CycleStart chosen so that CycleStart + 15 s == the pending phase boundary.
+        var correctPhaseCycleStart = pendingIsAPhase
+            ? new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero)  // :15 B-phase → +15 s = :30 A-phase
+            : new DateTimeOffset(2026, 6, 22, 17, 30, 0,  TimeSpan.Zero); // :00 A-phase → +15 s = :15 B-phase
+
+        Send(correctPhaseCycleStart,
+             new DecodeResult(Time: "17:30:00", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
+                 Message: $"CQ Q2NOISE IO91"));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    // ── D-TX-UI-006 regression ────────────────────────────────────────────────
+
     [Fact(DisplayName = "D-TX-UI-006: pending target fires even when SaveAsync(AutoAnswer=true) is delayed (slow-save regression)")]
     public async Task HandleIdle_PendingTarget_FiresWhenAutoAnswerSaveIsDelayed()
     {
@@ -1266,10 +1346,11 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             new DateTimeOffset(2026, 6, 22, 17, 29, 15, TimeSpan.Zero),
             CancellationToken.None);
 
-        // Deliver A-phase batch immediately — before the 200 ms save completes.
+        // Deliver a batch immediately — before the 200 ms save completes.
         // AutoAnswer is still false in slowStore.Current at this moment.
+        // CycleStart :15 (B-phase) → + 15 s = :30 (A-phase) → matches pending A-phase (D-TX-UI-007).
         channel.Writer.TryWrite(new DecodeBatch(
-            new DateTimeOffset(2026, 6, 22, 17, 30, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 6, 22, 17, 30, 15, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
 
         await armTask; // let AnswerCqAsync finish (save completes after batch processing)

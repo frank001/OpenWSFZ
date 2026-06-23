@@ -268,15 +268,21 @@ function handleDecodes(results) {
         try {
           const status = await postTxAnswerCq(callsign, r.freqHz, cqCycleStartUtc);
           renderTxPanel(status.state, status.partner, status.autoAnswerEnabled);
+          // Delay guard reset to block human double-clicks (~130–185 ms interval).
+          // On success the operator does not need to retry; 400 ms is harmless (D-TX-UI-005).
+          setTimeout(() => {
+            inFlight = false;
+            tr.style.pointerEvents = '';
+          }, 400);
         } catch (err) {
+          // On error, reset immediately so the operator can retry.
+          inFlight = false;
+          tr.style.pointerEvents = '';
           if (/** @type {any} */ (err)?.status === 409) {
             console.warn('TX not Idle — CQ click ignored.');
           } else {
             console.error('postTxAnswerCq error:', err);
           }
-        } finally {
-          inFlight = false;
-          tr.style.pointerEvents = '';
         }
       });
     }

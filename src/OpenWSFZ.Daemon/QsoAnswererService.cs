@@ -83,6 +83,16 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // Non-null only in unit tests; overrides the watchdog duration so tests don't wait 60+ seconds.
     private readonly TimeSpan? _watchdogDurationOverride;
 
+    /// <summary>
+    /// Written by <see cref="AnswerCqAsync"/> immediately after setting the pending target,
+    /// so the background loop wakes up and can fire TX within the current FT8 cycle window
+    /// without waiting for the next regular <see cref="_decodeChannel"/> batch (D-TX-UI-007).
+    /// Exposed as <c>internal</c> so unit tests can drain it to avoid phase-dependent races.
+    /// </summary>
+    internal readonly Channel<DecodeBatch> _wakeupChannel =
+        Channel.CreateUnbounded<DecodeBatch>(
+            new UnboundedChannelOptions { SingleWriter = true, SingleReader = true });
+
     // ── Constructors ──────────────────────────────────────────────────────────
 
     /// <summary>Production constructor — all dependencies from DI.</summary>
@@ -175,6 +185,16 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             _pendingTargetSetAt       = DateTimeOffset.UtcNow;
         }
 
+        // Push a wakeup batch so the background loop can fire TX in the CURRENT cycle window
+        // if the click arrives while the correct phase is active (D-TX-UI-007).
+        //
+        // The wakeup batch's CycleStart is set to (currentCycleStart − 15 s) so that the
+        // phase check IsAPhase(batch.CycleStart + 15 s) evaluates to the phase of the
+        // cycle that is STARTING NOW — consistent with how regular decode batches are
+        // evaluated (see HandleIdleAsync phase check below).
+        var wakeupCycleStart = RoundDownTo15s(DateTimeOffset.UtcNow) - TimeSpan.FromSeconds(15);
+        _wakeupChannel.Writer.TryWrite(new DecodeBatch(wakeupCycleStart, []));
+
         // Arm the system — set AutoAnswer so the guard in HandleIdleAsync passes.
         try
         {
@@ -241,26 +261,49 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // ── Batch read helper ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Reads the next decode batch.  In <see cref="QsoState.Idle"/> only the stopping
-    /// token applies; in all other states the TX CTS (<see cref="_txCts"/>) is also linked
-    /// so that watchdog expiry or operator abort interrupts the wait.
+    /// Awaits the next <see cref="DecodeBatch"/> from either the main decode channel or
+    /// the internal wakeup channel.  When in <see cref="QsoState.Idle"/>, both channels
+    /// are raced so that a wakeup posted by <see cref="AnswerCqAsync"/> can fire TX in the
+    /// current cycle without waiting for the next regular batch (D-TX-UI-007).
+    /// In all other states only the decode channel is read, with the TX CTS also linked.
     /// </summary>
     private async ValueTask<DecodeBatch?> ReadNextBatchAsync(
         CancellationToken stoppingToken)
     {
-        if (_state == QsoState.Idle)
-            return await _decodeChannel.ReadAsync(stoppingToken).ConfigureAwait(false);
+        if (_state != QsoState.Idle)
+        {
+            // Non-Idle: only the decode channel is needed; TX CTS also cancels the wait.
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                stoppingToken, _txCts.Token);
+            try
+            {
+                return await _decodeChannel.ReadAsync(linked.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+            {
+                return null; // TX CTS fired (watchdog or abort).
+            }
+        }
 
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
-            stoppingToken, _txCts.Token);
-        try
+        // Idle: race _decodeChannel and _wakeupChannel.
+        // Drain any already-queued wakeup first (avoids a Task.WhenAny allocation in the
+        // common case where AnswerCqAsync has not yet been called this cycle).
+        if (_wakeupChannel.Reader.TryRead(out var pending)) return pending;
+
+        while (!stoppingToken.IsCancellationRequested)
         {
-            return await _decodeChannel.ReadAsync(linked.Token).ConfigureAwait(false);
+            if (_decodeChannel.TryRead(out var decode))          return decode;
+            if (_wakeupChannel.Reader.TryRead(out var wakeup)) return wakeup;
+
+            var decodeReady = _decodeChannel.WaitToReadAsync(stoppingToken).AsTask();
+            var wakeupReady = _wakeupChannel.Reader.WaitToReadAsync(stoppingToken).AsTask();
+            await Task.WhenAny(decodeReady, wakeupReady).ConfigureAwait(false);
+            stoppingToken.ThrowIfCancellationRequested();
+            // Loop back and TryRead from both channels.
         }
-        catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
-        {
-            return null; // TX CTS fired
-        }
+
+        stoppingToken.ThrowIfCancellationRequested();
+        return null!; // Unreachable.
     }
 
     // ── State machine ─────────────────────────────────────────────────────────
@@ -339,13 +382,19 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             }
 
             // Phase check: only fire on the correct answer phase.
-            // Use batch.CycleStart — the authoritative timestamp from the CycleFramer.
-            // Do NOT fall back to UtcNow: for silence-guard cycles (empty Results) the
-            // emission time is at the NEXT boundary and would always return the wrong phase.
-            bool currentIsAPhase = IsAPhase(batch.CycleStart);
-            if (currentIsAPhase != pendingIsAPhase)
+            //
+            // FRAMER SEMANTICS: the CycleFramer emits a cycle's batch at the END of that cycle —
+            // i.e., at wall-clock time (batch.CycleStart + 15 s).  The cycle BEGINNING NOW is
+            // therefore (batch.CycleStart + 15 s), not batch.CycleStart.
+            //
+            // Do NOT use UtcNow directly here: it includes sub-second jitter and is redundant
+            // given that (batch.CycleStart + 15 s) already equals the authoritative cycle boundary.
+            // Do NOT use batch.CycleStart alone: that is the COMPLETED cycle — one cycle too old —
+            // causing TX to fire in the phase of the cycle AFTER the target (D-TX-UI-007).
+            bool nextCycleIsAPhase = IsAPhase(batch.CycleStart + TimeSpan.FromSeconds(15));
+            if (nextCycleIsAPhase != pendingIsAPhase)
             {
-                // Wrong phase — skip this cycle; retain the pending target for next cycle.
+                // Wrong phase — skip this cycle; retain the pending target for next batch.
                 return;
             }
 
@@ -860,6 +909,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// </summary>
     private static bool IsAPhase(DateTimeOffset cycleStart)
         => cycleStart.Second % 30 == 0;
+
+    /// <summary>
+    /// Rounds <paramref name="t"/> down to the nearest 15-second FT8 cycle boundary (UTC).
+    /// Used to construct the wakeup batch's <c>CycleStart</c> in <see cref="AnswerCqAsync"/>.
+    /// </summary>
+    private static DateTimeOffset RoundDownTo15s(DateTimeOffset t) =>
+        new DateTimeOffset(t.Year, t.Month, t.Day,
+            t.Hour, t.Minute, (t.Second / 15) * 15, 0, TimeSpan.Zero);
 
     // ── Message parsers ───────────────────────────────────────────────────────
 
