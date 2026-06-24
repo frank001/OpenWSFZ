@@ -21,11 +21,11 @@
 
 ## 4. Manual verification
 
-- [ ] 4.1 Open `settings.html` in a browser — confirm General tab is selected by default and all four fields (callsign, grid, watchdog minutes, retry count) are pre-populated from the current config
-- [ ] 4.2 Confirm the Radio tab → TX fieldset shows only the auto-answer checkbox; no callsign/grid/watchdog/retry inputs remain there
-- [ ] 4.3 Change each General tab field — confirm the unsaved-changes indicator appears
-- [ ] 4.4 Click Save — confirm `POST /api/v1/config` body contains the correct values for all five `tx.*` fields and the daemon log shows **no** WRN clamp messages
-- [ ] 4.5 Reload the page — confirm the values saved in 4.4 are correctly pre-populated on reload
+- [x] 4.1 Open `settings.html` in a browser — confirm General tab is selected by default and all four fields (callsign, grid, watchdog minutes, retry count) are pre-populated from the current config
+- [x] 4.2 Confirm the Radio tab → TX fieldset shows only the auto-answer checkbox; no callsign/grid/watchdog/retry inputs remain there
+- [x] 4.3 Change each General tab field — confirm the unsaved-changes indicator appears
+- [x] 4.4 Click Save — confirm `POST /api/v1/config` body contains the correct values for all five `tx.*` fields and the daemon log shows **no** WRN clamp messages
+- [x] 4.5 Reload the page — confirm the values saved in 4.4 are correctly pre-populated on reload
 
 ## 5. Regression gate
 
