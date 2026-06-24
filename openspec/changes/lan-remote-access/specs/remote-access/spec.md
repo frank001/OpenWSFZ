@@ -24,7 +24,7 @@ The bind address is resolved once at daemon startup via `IBindPolicy.Resolve`. C
 ---
 
 ### Requirement: Passphrase authentication for non-loopback requests
-When `RemoteAccess.Enabled` is `true` and `RemoteAccess.Passphrase` is a non-null, non-empty string, the daemon SHALL require all requests from non-loopback origins to present the passphrase. Requests that fail authentication SHALL receive HTTP 401 and SHALL NOT be forwarded to the application middleware.
+When `RemoteAccess.Enabled` is `true` and `RemoteAccess.Passphrase` is a non-null, non-empty string, the daemon SHALL require all requests from non-loopback origins to present the passphrase. Requests that fail authentication are handled as follows: API paths (`/api/*`) receive HTTP 401; browser page-loads receive HTTP 302 to `/login.html?return=<original-path>`; static public paths (`/login.html`, `/css/*`, `/js/*`, `/favicon.ico`) are exempt and always served. See `specs/web-server/spec.md` for the full middleware rules.
 
 The passphrase is carried differently by request type:
 - **REST requests**: `X-Api-Key: <passphrase>` request header
@@ -81,7 +81,7 @@ When `RemoteAccess.Passphrase` is `null` or empty, the daemon SHALL accept all r
 
 #### Scenario: NullAuthPolicy always authorises (backward-compatibility)
 - **WHEN** the registered `IAuthPolicy` is `NullAuthPolicy`
-- **THEN** `IsAuthorized` SHALL return `true` for every `HttpContext` without inspecting any headers or parameters
+- **THEN** `IsAuthorized(remoteIp, apiKeyHeader, keyQueryParam)` SHALL return `true` regardless of any parameter values
 
 ---
 

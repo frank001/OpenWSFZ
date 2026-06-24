@@ -5,10 +5,11 @@ OpenWSFZ currently binds exclusively to 127.0.0.1, making it accessible only fro
 ## What Changes
 
 - New `RemoteAccessConfig` record added to `OpenWSFZ.Abstractions` (`Enabled` bool, `Passphrase` string?), surfaced as an `init` property on `AppConfig`.
-- `IAuthPolicy` gains a method: `bool IsAuthorized(HttpContext context)`. `NullAuthPolicy` returns `true` (no behaviour change for existing callers).
+- `IAuthPolicy` gains a method: `bool IsAuthorized(IPAddress? remoteIp, string? apiKeyHeader, string? keyQueryParam)`. The middleware in `WebApp.Create` extracts these values from `HttpContext` and passes them through, keeping `OpenWSFZ.Abstractions` free of an ASP.NET Core dependency. `NullAuthPolicy` returns `true` (no behaviour change for existing callers).
 - New `LanBindPolicy` in `OpenWSFZ.Web` — binds Kestrel to `0.0.0.0` instead of `127.0.0.1`.
 - New `PassphraseAuthPolicy` in `OpenWSFZ.Web` — checks `X-Api-Key` header (REST) or `?key=` query parameter (WebSocket upgrades). Loopback origins (`127.0.0.1`, `::1`) are always trusted.
-- Auth middleware wired into `WebApp.Create` before static files and routing; calls `IAuthPolicy.IsAuthorized` on every request.
+- Auth middleware wired into `WebApp.Create` before static files and routing; calls `IAuthPolicy.IsAuthorized` on every request. Unauthorised **API** requests receive HTTP 401; unauthorised **browser page-loads** receive a 302 redirect to `/login.html?return=<original-path>`. Static assets (`/css/`, `/js/`, `/favicon.ico`) and `/login.html` itself are exempt from auth so the browser can load the login page and its dependent resources.
+- New `web/login.html` — a self-contained (no external assets) passphrase form that stores the key in `sessionStorage` and redirects to the originally-requested path after login. `api.js` injects `X-Api-Key` into all REST requests and handles 401 by clearing the key and redirecting to `/login.html`. `ws.js` appends `?key=` to the WebSocket URL. Navigation links (`Settings` / `Back`) carry `?key=` so page transitions within an authenticated session do not trigger a redundant auth challenge.
 - `OpenWSFZ.Daemon` selects the correct bind + auth policy pair at startup based on `RemoteAccessConfig`.
 - New Remote Access settings page in the web frontend with enable toggle, passphrase field, restart-required warning, and legal disclaimer.
 - Legal disclaimer embedded in the UI (displayed when remote access is enabled).

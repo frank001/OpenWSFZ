@@ -70,3 +70,29 @@
 - [x] 8.4 Integration test: loopback bypass — configure `PassphraseAuthPolicy("secret")`; send `GET /api/v1/status` from a test client whose `RemoteIpAddress` is `127.0.0.1` with no `X-Api-Key` header → 200
 
 > **Test infrastructure note:** To simulate non-loopback remote IP in integration tests, `WebApplicationFactory`'s test client always presents `127.0.0.1`. Consider using a custom `TestServer` with a middleware shim that overrides `context.Connection.RemoteIpAddress` for the non-loopback 401 scenarios, or test `PassphraseAuthPolicy.IsAuthorized` directly with a mocked IP (unit test approach, already covered in task 7.2).
+
+---
+
+## Defect fixes applied post-initial-implementation (tracked via dev-task handoffs)
+
+### D-LAN-001/002/003 — Browser authentication flow (2026-06-23, `c59219d`)
+
+- [x] **D-LAN-001** — `web/js/api.js`: add `getApiKey()` / `bootstrapApiKeyFromUrl()` module-scope functions; inject `X-Api-Key` header into `fetchJson`; redirect to `/login.html` on 401; update `postCatRetry` (raw `fetch`) with the same header + 401 handling
+- [x] **D-LAN-002** — `web/js/ws.js`: append `?key=<passphrase>` to `wsUrl()`; detect auth failure via `everOpened` flag in the `close` handler and redirect to `/login.html`
+- [x] **D-LAN-003** — Auth middleware: redirect non-API unauthorized page-loads to `/login.html` (instead of returning bare 401); whitelist `/login.html` itself; create `web/login.html` — self-contained passphrase form with `sessionStorage` key storage, session-expired notice, non-empty guard, and `?return=` destination routing
+- [x] **Test isolation fix** — `WebTestFactory`: add `RemoveAll<IAuthPolicy>()` + `AddSingleton<IAuthPolicy, NullAuthPolicy>()` to isolate existing tests from the operator's live `PassphraseAuthPolicy` registration (`9a6e1bb`)
+- [x] **Tests 8.5/8.6/8.7** — verify API path still returns 401 (not redirect); non-API page-load returns 302 to `/login.html`; `/login.html` itself returns 200
+
+### D-LAN-004 — Static asset auth exemption (2026-06-24, `1abe3f7`)
+
+- [x] Extend auth middleware whitelist in `WebApp.cs` with `IsPublicPath` helper covering `/css/`, `/js/`, `/favicon.ico` (browsers cannot propagate `?key=` into sub-resource requests)
+- [x] **Test 8.8** — `[Theory]` over `/css/app.css`, `/js/main.js`, `/favicon.ico`: each returns 200 (not 302 or 401) from a non-loopback origin without a key
+
+### D-LAN-005 — Post-login navigation preserves original destination (2026-06-24, `76814be`)
+
+- [x] `WebApp.cs`: append `?return=<encoded-path>` to the login redirect so `/settings.html` → `/login.html?return=%2Fsettings.html`
+- [x] `web/login.html`: read `?return=` and navigate to the original destination after login; open-redirect guard enforces leading `/`
+- [x] `web/js/main.js`: update Settings nav link with `?key=` inside `DOMContentLoaded` so page transitions in an authenticated session skip the auth challenge
+- [x] `web/js/settings.js`: import `getApiKey`; update back-link at module scope (IIFE, before `backLink.addEventListener`) with `?key=` for the same reason
+- [x] **Test 8.6** updated — assert `Location: /login.html?return=%2F` (previously just `/login.html`)
+- [x] **Test 8.9** added — `GET /settings.html` from non-loopback without key → 302 with `Location: /login.html?return=%2Fsettings.html`
