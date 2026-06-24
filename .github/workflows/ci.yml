@@ -328,13 +328,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download Linux .so artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: libft8-so-linux-x64
           path: src/OpenWSFZ.Ft8/Native/linux-x64/
 
       - name: Download macOS dylib artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: libft8-dylib-osx-arm64
           path: src/OpenWSFZ.Ft8/Native/osx-arm64/
