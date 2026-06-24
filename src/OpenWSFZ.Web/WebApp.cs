@@ -320,13 +320,28 @@ public static class WebApp
                         txIn.WatchdogMinutes);
                     sanitisedTx = sanitisedTx with { WatchdogMinutes = 1 };
                 }
-
-                if (txIn.RetryCount < 1)
+                if (txIn.WatchdogMinutes > 60)
                 {
                     configApiLogger.LogWarning(
-                        "TX: retryCount {Original} below minimum (1) — clamped to 1.",
+                        "TX: watchdogMinutes {Original} exceeds maximum (60) — clamped to 60.",
+                        txIn.WatchdogMinutes);
+                    sanitisedTx = sanitisedTx with { WatchdogMinutes = 60 };
+                }
+
+                // RetryCount = 0 means unlimited; watchdog is the backstop.
+                if (txIn.RetryCount < 0)
+                {
+                    configApiLogger.LogWarning(
+                        "TX: retryCount {Original} below minimum (0) — clamped to 0.",
                         txIn.RetryCount);
-                    sanitisedTx = sanitisedTx with { RetryCount = 1 };
+                    sanitisedTx = sanitisedTx with { RetryCount = 0 };
+                }
+                if (txIn.RetryCount > 200)
+                {
+                    configApiLogger.LogWarning(
+                        "TX: retryCount {Original} exceeds maximum (200) — clamped to 200.",
+                        txIn.RetryCount);
+                    sanitisedTx = sanitisedTx with { RetryCount = 200 };
                 }
 
                 if (!ReferenceEquals(sanitisedTx, txIn))

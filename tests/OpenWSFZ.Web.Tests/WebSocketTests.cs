@@ -207,6 +207,73 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }
 
+    // ── FR-UX-002: txState abort reason wire format ───────────────────────────
+
+    [Fact(DisplayName = "FR-UX-002: abortReason property is omitted from txState frame when null")]
+    public async Task TxState_AbortReasonOmittedWhenNull()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+        await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));   // drain initial status
+
+        // Broadcast a normal (non-abort) txState — abortReason should be absent entirely.
+        var bus = new TxEventBus();
+        bus.Publish(QsoState.TxAnswer, "Q1TST", autoAnswerEnabled: true, abortReason: null);
+
+        string? txFrame = null;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (txFrame is null && DateTime.UtcNow < deadline)
+        {
+            var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+            if (frame is null) break;
+            using var doc = JsonDocument.Parse(frame);
+            if (doc.RootElement.GetProperty("type").GetString() == "txState")
+                txFrame = frame;
+        }
+
+        txFrame.Should().NotBeNull("txState frame must be received within the deadline");
+
+        using var txDoc = JsonDocument.Parse(txFrame!);
+        // With JsonIgnore(WhenWritingNull) the property must be absent, not "abortReason":null.
+        txDoc.RootElement.TryGetProperty("abortReason", out _)
+            .Should().BeFalse("abortReason must be absent from the wire frame when null (WhenWritingNull policy)");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "FR-UX-002: abortReason is included in txState frame when non-null")]
+    public async Task TxState_AbortReasonIncludedWhenNonNull()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+        await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));   // drain initial status
+
+        // Broadcast an abort-transition txState with a reason string.
+        var bus = new TxEventBus();
+        bus.Publish(QsoState.Idle, null, autoAnswerEnabled: false, abortReason: "Watchdog timeout");
+
+        string? txFrame = null;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (txFrame is null && DateTime.UtcNow < deadline)
+        {
+            var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+            if (frame is null) break;
+            using var doc = JsonDocument.Parse(frame);
+            if (doc.RootElement.GetProperty("type").GetString() == "txState")
+                txFrame = frame;
+        }
+
+        txFrame.Should().NotBeNull("txState frame must be received within the deadline");
+
+        using var txDoc = JsonDocument.Parse(txFrame!);
+        txDoc.RootElement.TryGetProperty("abortReason", out var prop)
+            .Should().BeTrue("abortReason must be present in the wire frame when non-null");
+        prop.GetString().Should().Be("Watchdog timeout",
+            "abortReason must carry the exact reason string");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private Uri WsUri(string path) =>

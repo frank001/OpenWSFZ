@@ -1375,4 +1375,131 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StopAsync(CancellationToken.None);
         await ptt.DisposeAsync();
     }
+
+    // ── D-TX-002: unlimited retries (RetryCount = 0) ─────────────────────────
+
+    [Fact(DisplayName = "D-TX-002: RetryCount = 0 never aborts — watchdog is the backstop")]
+    public async Task RetryOrAbortAsync_RetryCount0_NeverAbortsAfterMultipleEmptyCycles()
+    {
+        // Build an isolated instance with RetryCount = 0 (unlimited) and a very long watchdog.
+        // The watchdog is overridden to 10 seconds so the test completes in reasonable time,
+        // but we only feed a few empty cycles — far fewer than would trigger even a normal retry.
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 0,   // unlimited — must never abort due to retry exhaustion
+                WatchdogMinutes = 1,   // overridden below
+            }
+        });
+
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+
+        // Override watchdog to 10 s so the test doesn't need to wait 1 minute.
+        var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                      adifLog, new AudioOffsetEventBus(),
+                      NullLogger<QsoAnswererService>.Instance,
+                      watchdogDurationOverride: TimeSpan.FromSeconds(10));
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ → WaitReport.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Feed 6 empty batches — more than the default RetryCount=3 would tolerate.
+        // With RetryCount=3 the service would abort after ~4 cycles (skip + 3 retries).
+        // With RetryCount=0 the service must stay in WaitReport (or retransmit each cycle).
+        for (int i = 0; i < 6; i++)
+        {
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "Q2NOISE Q3NOISE -10")]));
+            await Task.Delay(50);
+        }
+
+        // Allow the last batch to be processed.
+        await Task.Delay(200);
+
+        // Service must still be in WaitReport (retransmitting), NOT Idle (aborted).
+        // If it is Idle, RetryCount=0 was treated as finite (old clamp to 1 bug).
+        sut.State.Should().NotBe(QsoState.Idle,
+            "RetryCount=0 means unlimited retries; the service must not abort to Idle after 6 empty cycles");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-TX-002: RetryCount = 3 aborts to Idle after retry exhaustion")]
+    public async Task RetryOrAbortAsync_RetryCount3_AbortsAfterExhaustion()
+    {
+        // Verify that a finite RetryCount still triggers abort at the right cycle.
+        // This is a regression guard: the unlimited-RetryCount=0 change must not
+        // disable the finite-retry abort path.
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 3,
+                WatchdogMinutes = 4,
+            }
+        });
+
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+
+        var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                      adifLog, new AudioOffsetEventBus(),
+                      NullLogger<QsoAnswererService>.Instance,
+                      watchdogDurationOverride: TimeSpan.FromSeconds(10));
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ → WaitReport.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Feed a continuous stream of empty (noise) batches; service must abort within 2 s.
+        using var feedCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var feedTask = Task.Run(async () =>
+        {
+            while (!feedCts.IsCancellationRequested)
+            {
+                channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                    [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "Q2NOISE Q3NOISE -10")]));
+                try   { await Task.Delay(10, feedCts.Token); }
+                catch (OperationCanceledException) { break; }
+            }
+        });
+
+        // With RetryCount=3, the abort must happen well within the 2 s feeder window.
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromMilliseconds(1500));
+        feedCts.Cancel();
+        await feedTask;
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
 }

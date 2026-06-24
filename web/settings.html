@@ -71,19 +71,17 @@
 
         <div class="field-group">
           <label for="general-watchdog-minutes">Watchdog timer (minutes)</label>
-          <input type="number" id="general-watchdog-minutes" min="1" placeholder="4" />
+          <input type="number" id="general-watchdog-minutes" min="1" max="60" placeholder="4" />
           <p class="field-hint">
-            Maximum time before an unresolved QSO is automatically aborted and the state
-            machine returns to Idle. Resets on each successful state transition.
+            Maximum 60 minutes. Resets on each successful state transition.
           </p>
         </div>
 
         <div class="field-group">
           <label for="general-retry-count">Retry count</label>
-          <input type="number" id="general-retry-count" min="1" placeholder="3" />
+          <input type="number" id="general-retry-count" min="0" max="200" placeholder="3" />
           <p class="field-hint">
-            Number of times to retransmit the last message before giving up on a
-            non-responding partner and returning to Idle.
+            0 = unlimited (watchdog is the backstop). Maximum 200.
           </p>
         </div>
 
@@ -180,22 +178,6 @@
             <label for="cat-poll-interval">Poll interval (seconds)</label>
             <input type="number" id="cat-poll-interval" min="1" max="60" placeholder="1" />
             <p class="field-hint">How often to query the rig. Range: 1–60 seconds.</p>
-          </div>
-
-        </fieldset>
-
-        <fieldset id="tx-settings">
-          <legend>FT8 TX</legend>
-
-          <div class="field-group">
-            <label class="checkbox-label">
-              <input type="checkbox" id="tx-auto-answer" />
-              Enable auto-answer
-            </label>
-            <p class="field-hint">
-              When enabled, OpenWSFZ will automatically answer the first decoded CQ call
-              and drive a full FT8 QSO exchange.
-            </p>
           </div>
 
         </fieldset>

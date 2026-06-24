@@ -133,21 +133,38 @@ public sealed class TxConfigTests
 
     // ── Scenario: Clamping via JsonConfigStore ────────────────────────────────
 
-    [Fact(DisplayName = "FR-046: JsonConfigStore clamps retryCount < 1 to 1")]
-    public void Load_RetryCountBelowMinimum_ClampsToOne()
+    [Fact(DisplayName = "FR-046: JsonConfigStore allows retryCount = 0 (unlimited sentinel)")]
+    public void Load_RetryCountZero_NotClamped()
     {
         using var dir = new TempDirectory();
         var configPath = System.IO.Path.Combine(dir.Path, "config.json");
 
-        // Write config with retryCount = 0 (invalid).
+        // retryCount = 0 is the unlimited sentinel; minimum is now 0.
         const string json = """{"tx":{"callsign":"Q1OFZ","grid":"JO33","retryCount":0,"watchdogMinutes":4}}""";
         File.WriteAllText(configPath, json);
 
         var store = new JsonConfigStore(configPath);
 
         store.Current.Tx.Should().NotBeNull();
-        store.Current.Tx!.RetryCount.Should().Be(1,
-            "retryCount 0 is below minimum and must be clamped to 1");
+        store.Current.Tx!.RetryCount.Should().Be(0,
+            "retryCount 0 is the unlimited sentinel and must not be clamped");
+    }
+
+    [Fact(DisplayName = "FR-046: JsonConfigStore clamps retryCount < 0 to 0")]
+    public void Load_RetryCountNegative_ClampsToZero()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+
+        // retryCount = -1 is invalid; minimum effective value is 0.
+        const string json = """{"tx":{"callsign":"Q1OFZ","grid":"JO33","retryCount":-1,"watchdogMinutes":4}}""";
+        File.WriteAllText(configPath, json);
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.Tx.Should().NotBeNull();
+        store.Current.Tx!.RetryCount.Should().Be(0,
+            "retryCount -1 is below minimum (0) and must be clamped to 0");
     }
 
     [Fact(DisplayName = "FR-046: JsonConfigStore clamps watchdogMinutes < 1 to 1")]
@@ -167,20 +184,54 @@ public sealed class TxConfigTests
             "watchdogMinutes -5 is below minimum and must be clamped to 1");
     }
 
-    [Fact(DisplayName = "FR-046: JsonConfigStore clamps both retryCount and watchdogMinutes when both are invalid")]
-    public void Load_BothFieldsBelowMinimum_BothClamped()
+    [Fact(DisplayName = "FR-046: JsonConfigStore clamps watchdogMinutes=0 to 1; retryCount=0 (unlimited) passes through")]
+    public void Load_BothFieldsBelowMinimum_WatchdogClamped_RetryUnchanged()
     {
         using var dir = new TempDirectory();
         var configPath = System.IO.Path.Combine(dir.Path, "config.json");
 
+        // retryCount = 0 is the unlimited sentinel (valid); watchdogMinutes = 0 is invalid.
         const string json = """{"tx":{"callsign":"Q1OFZ","grid":"JO33","retryCount":0,"watchdogMinutes":0}}""";
         File.WriteAllText(configPath, json);
 
         var store = new JsonConfigStore(configPath);
 
         store.Current.Tx.Should().NotBeNull();
-        store.Current.Tx!.RetryCount.Should().Be(1,      "retryCount 0 must clamp to 1");
+        store.Current.Tx!.RetryCount.Should().Be(0,      "retryCount 0 is the unlimited sentinel and must not be clamped");
         store.Current.Tx!.WatchdogMinutes.Should().Be(1, "watchdogMinutes 0 must clamp to 1");
+    }
+
+    [Fact(DisplayName = "FR-046: JsonConfigStore clamps watchdogMinutes > 60 to 60")]
+    public void Load_WatchdogMinutesExceedsMax_ClampsTo60()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+
+        // watchdogMinutes = 480000 is the crash-inducing value from D-TX-002.
+        const string json = """{"tx":{"callsign":"Q1OFZ","grid":"JO33","retryCount":3,"watchdogMinutes":480000}}""";
+        File.WriteAllText(configPath, json);
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.Tx.Should().NotBeNull();
+        store.Current.Tx!.WatchdogMinutes.Should().Be(60,
+            "watchdogMinutes 480000 exceeds maximum (60) and must be clamped to 60");
+    }
+
+    [Fact(DisplayName = "FR-046: JsonConfigStore clamps retryCount > 200 to 200")]
+    public void Load_RetryCountExceedsMax_ClampsTo200()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+
+        const string json = """{"tx":{"callsign":"Q1OFZ","grid":"JO33","retryCount":50000000,"watchdogMinutes":4}}""";
+        File.WriteAllText(configPath, json);
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.Tx.Should().NotBeNull();
+        store.Current.Tx!.RetryCount.Should().Be(200,
+            "retryCount 50000000 exceeds maximum (200) and must be clamped to 200");
     }
 
     [Fact(DisplayName = "FR-046: JsonConfigStore does not clamp valid retryCount and watchdogMinutes")]

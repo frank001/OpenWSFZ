@@ -54,6 +54,34 @@ const txMsg1El       = /** @type {HTMLElement} */ (document.getElementById('tx-m
 const txMsg2El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-2'));
 const txMsg3El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-3'));
 
+// TX abort reason history (FR-UX-002)
+const txAbortLogSection = /** @type {HTMLElement} */ (document.getElementById('tx-abort-log-section'));
+const txAbortLogEl      = /** @type {HTMLOListElement} */ (document.getElementById('tx-abort-log'));
+
+/** @type {Array<{isoTs: string, reason: string, partner: string|null}>} */
+const txAbortLog = [];
+const TX_ABORT_LOG_MAX = 10;
+
+/**
+ * Appends an entry to the TX abort log (newest on top) and refreshes the DOM list.
+ * Capped at TX_ABORT_LOG_MAX entries; oldest entries are dropped.
+ * @param {string}      reason   - Human-readable abort reason.
+ * @param {string|null} partner  - Partner callsign at time of abort, or null.
+ */
+function appendTxAbortLog(reason, partner) {
+  const isoTs = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  txAbortLog.unshift({ isoTs, reason, partner });
+  if (txAbortLog.length > TX_ABORT_LOG_MAX)
+    txAbortLog.length = TX_ABORT_LOG_MAX;
+
+  if (txAbortLogEl) {
+    txAbortLogEl.innerHTML = txAbortLog
+      .map(e => `<li><span class="tx-abort-ts">${e.isoTs}</span> — ${e.reason}</li>`)
+      .join('');
+  }
+  if (txAbortLogSection) txAbortLogSection.hidden = false;
+}
+
 // ── TX panel render functions (tasks 6.3, 6.4) ───────────────────────────
 
 /**
@@ -835,6 +863,11 @@ document.addEventListener('DOMContentLoaded', () => {
         event.state             ?? 'Idle',
         event.partner           ?? null,
         event.autoAnswerEnabled ?? currentAutoAnswerEnabled);
+
+      // FR-UX-002: append to abort log when the daemon reports an abort reason.
+      if (event.abortReason) {
+        appendTxAbortLog(event.abortReason, event.partner ?? null);
+      }
       return;
     }
 

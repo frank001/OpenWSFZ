@@ -19,6 +19,11 @@ public sealed class TxEventBus
     /// Active partner callsign, or <c>null</c> when transitioning to
     /// <see cref="QsoState.Idle"/>.
     /// </param>
-    public void Publish(QsoState state, string? partner, bool autoAnswerEnabled)
-        => WebSocketHub.BroadcastTxState(state, partner, autoAnswerEnabled);
+    /// <param name="abortReason">
+    /// Human-readable abort reason, or <c>null</c> for normal completion and routine
+    /// Idle pushes (FR-UX-002).
+    /// </param>
+    public void Publish(
+        QsoState state, string? partner, bool autoAnswerEnabled, string? abortReason = null)
+        => WebSocketHub.BroadcastTxState(state, partner, autoAnswerEnabled, abortReason);
 }
