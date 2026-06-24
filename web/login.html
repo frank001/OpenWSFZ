@@ -160,10 +160,15 @@
         var returnPath  = loginParams.get('return') || '/';
         // Guard: returnPath must start with '/' to prevent open-redirect abuse.
         if (!returnPath.startsWith('/')) returnPath = '/';
-        // SEC-002B: navigate to the return path WITHOUT the passphrase in the URL.
-        // The key lives in sessionStorage; api.js reads it for REST calls via
-        // the X-Api-Key header, and ws.js sends it as the first WebSocket frame.
-        window.location.href = returnPath;
+        // The server-side auth middleware must authorise the page load before any
+        // JavaScript runs, so ?key= must be present in this redirect URL.
+        // api.js bootstrapApiKey() strips it from the URL bar immediately via
+        // history.replaceState and moves the value into sessionStorage, so it
+        // is a one-time flash — it does NOT persist in the URL or appear in
+        // subsequent navigation or in the WebSocket URL (ws.js uses the
+        // JSON auth-frame protocol for that, per SEC-002B).
+        var sep = returnPath.indexOf('?') === -1 ? '?' : '&';
+        window.location.href = returnPath + sep + 'key=' + encodeURIComponent(passphrase);
       });
     })();
   </script>
