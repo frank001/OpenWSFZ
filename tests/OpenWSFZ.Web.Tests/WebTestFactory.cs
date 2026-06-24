@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenWSFZ.Abstractions;
+using OpenWSFZ.Web;
 
 namespace OpenWSFZ.Web.Tests;
 
@@ -71,6 +72,15 @@ public sealed class WebTestFactory : WebApplicationFactory<Program>
             // can assert TriggerRetry() was called.
             services.RemoveAll<ICatController>();
             services.AddSingleton<ICatController>(CatController);
+
+            // Restore NullAuthPolicy so tests are isolated from the operator's live
+            // auth configuration.  PassphraseAuthPolicy (registered by Program.cs when
+            // RemoteAccess is enabled in the live config) would reject all in-process
+            // TestServer requests because RemoteIpAddress is null on the test transport,
+            // defeating the loopback bypass.  Auth-middleware behaviour is already tested
+            // in AuthMiddlewareTests using its own bespoke server instances.
+            services.RemoveAll<IAuthPolicy>();
+            services.AddSingleton<IAuthPolicy, NullAuthPolicy>();
         });
     }
 }
