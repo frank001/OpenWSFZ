@@ -223,6 +223,25 @@ public sealed class AuthMiddlewareTests : IAsyncLifetime
             "WebSocket upgrade without ?key= from non-loopback must return 401");
     }
 
+    // ── 8.3d — F1 regression: Upgrade header on non-WS path must NOT bypass auth ─
+
+    [Fact(DisplayName = "SEC-002: 8.3d: 'Upgrade: websocket' header on REST path from non-loopback → 401 (F1 regression)")]
+    public async Task PassphraseAuth_UpgradeHeaderOnRestPath_Returns401()
+    {
+        // Regression guard for F1 (QA review R1): the isWebSocketUpgrade bypass in the
+        // auth middleware must be scoped to /api/v1/ws only.  A plain REST endpoint
+        // (e.g. /api/v1/config) that carries 'Upgrade: websocket' must still return 401
+        // from a non-loopback origin — not 200.
+        using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{_spoofedPort}") };
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/config");
+        request.Headers.TryAddWithoutValidation("Upgrade", "websocket");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+            "a REST endpoint with 'Upgrade: websocket' header must still require auth from a non-loopback origin");
+    }
+
     // ── 8.4 — Loopback bypass ─────────────────────────────────────────────────
 
     [Fact(DisplayName = "8.4: PassphraseAuthPolicy — GET /api/v1/status from 127.0.0.1 without key → 200")]
@@ -341,5 +360,96 @@ public sealed class AuthMiddlewareTests : IAsyncLifetime
             "/settings.html from a non-loopback origin without a key must redirect to the login page");
         response.Headers.Location?.OriginalString.Should().Be("/login.html?return=%2Fsettings.html",
             "the redirect must include ?return=%2Fsettings.html so post-login navigation lands on Settings");
+    }
+
+    // ── 8.10 — SEC-002B: WS auth-frame protocol for non-loopback connections ──
+
+    [Fact(DisplayName = "SEC-002: 8.10a: WS auth-frame — correct key from non-loopback → connection stays open")]
+    public async Task WsAuthFrame_CorrectKey_NonLoopback_ConnectionRemainsOpen()
+    {
+        // SEC-002B: Browser WS clients no longer send ?key= in the URL.
+        // Instead, the first WS frame carries {"type":"auth","key":"..."}.
+        // The server must accept it and proceed with normal heartbeats.
+        var wsUri = new Uri($"ws://127.0.0.1:{_spoofedPort}/api/v1/ws");
+        using var ws = new System.Net.WebSockets.ClientWebSocket();
+        await ws.ConnectAsync(wsUri, CancellationToken.None);
+
+        // Send auth frame immediately (mirrors ws.js behaviour after SEC-002B).
+        var authFrame = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+            new { type = "auth", key = "secret" });
+        await ws.SendAsync(authFrame, System.Net.WebSockets.WebSocketMessageType.Text,
+            endOfMessage: true, CancellationToken.None);
+
+        // Allow the server time to process the auth frame and send the initial status event.
+        await Task.Delay(500);
+
+        ws.State.Should().Be(System.Net.WebSockets.WebSocketState.Open,
+            "a correct auth frame from a non-loopback origin must keep the connection open");
+
+        await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure,
+            "done", CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "SEC-002: 8.10b: WS auth-frame — wrong key from non-loopback → close code 4001")]
+    public async Task WsAuthFrame_WrongKey_NonLoopback_ClosedWith4001()
+    {
+        // SEC-002B: A wrong key in the auth frame must cause the server to close
+        // the socket with application-defined close code 4001.
+        var wsUri = new Uri($"ws://127.0.0.1:{_spoofedPort}/api/v1/ws");
+        using var ws = new System.Net.WebSockets.ClientWebSocket();
+        await ws.ConnectAsync(wsUri, CancellationToken.None);
+
+        var authFrame = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+            new { type = "auth", key = "wrong-key" });
+        await ws.SendAsync(authFrame, System.Net.WebSockets.WebSocketMessageType.Text,
+            endOfMessage: true, CancellationToken.None);
+
+        // Drain until close.
+        var buffer = new byte[256];
+        System.Net.WebSockets.WebSocketReceiveResult result;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            do
+            {
+                result = await ws.ReceiveAsync(buffer, cts.Token);
+            } while (result.MessageType != System.Net.WebSockets.WebSocketMessageType.Close);
+        }
+        catch (OperationCanceledException)
+        {
+            throw new TimeoutException("Server did not close the WS connection within 5 seconds.");
+        }
+
+        ((int)ws.CloseStatus!.Value).Should().Be(4001,
+            "SEC-002B: wrong auth key must cause a close with code 4001");
+    }
+
+    [Fact(DisplayName = "SEC-002: 8.10c: WS auth-frame — no frame sent from non-loopback → close code 4001 within 5 s")]
+    public async Task WsAuthFrame_NoFrame_NonLoopback_ClosedWith4001()
+    {
+        // SEC-002B: A non-loopback connection that never sends an auth frame
+        // must be closed with 4001 after the server's 5-second timeout.
+        var wsUri = new Uri($"ws://127.0.0.1:{_spoofedPort}/api/v1/ws");
+        using var ws = new System.Net.WebSockets.ClientWebSocket();
+        await ws.ConnectAsync(wsUri, CancellationToken.None);
+
+        // Do NOT send an auth frame — just wait for the server to close us out.
+        var buffer = new byte[256];
+        System.Net.WebSockets.WebSocketReceiveResult result;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        try
+        {
+            do
+            {
+                result = await ws.ReceiveAsync(buffer, cts.Token);
+            } while (result.MessageType != System.Net.WebSockets.WebSocketMessageType.Close);
+        }
+        catch (OperationCanceledException)
+        {
+            throw new TimeoutException("Server did not close the WS connection within 8 seconds.");
+        }
+
+        ((int)ws.CloseStatus!.Value).Should().Be(4001,
+            "SEC-002B: missing auth frame must cause a close with code 4001");
     }
 }

@@ -335,17 +335,40 @@ function appendFreqRow(protocol, frequencyMHz, description) {
   const tr = document.createElement('tr');
   tr.setAttribute('data-freq-row', '');
 
-  tr.innerHTML = `
-    <td><input type="text"   class="freq-protocol" value="${escAttr(protocol)}" /></td>
-    <td><input type="number" class="freq-mhz"      step="0.001" min="0" value="${escAttr(String(frequencyMHz.toFixed(3)))}" /></td>
-    <td><input type="text"   class="freq-desc"     value="${escAttr(description)}" /></td>
-    <td><button type="button" class="freq-delete-btn" aria-label="Delete row">✕</button></td>
-  `;
+  // SEC-003: Build the row via DOM APIs so no server-derived value is ever
+  // assigned to innerHTML. A crafted description such as
+  // <img src=x onerror=alert(1)> would execute if assigned via innerHTML.
 
-  tr.querySelector('.freq-delete-btn').addEventListener('click', () => {
+  /** @param {string} type @param {string} cls @param {string} val */
+  function makeInputCell(type, cls, val) {
+    const td  = tr.insertCell();
+    const inp = document.createElement('input');
+    inp.type      = type;
+    inp.className = cls;
+    inp.value     = val;
+    if (type === 'number') {
+      inp.step = '0.001';
+      inp.min  = '0';
+    }
+    td.appendChild(inp);
+    return inp;
+  }
+
+  makeInputCell('text',   'freq-protocol', protocol);
+  makeInputCell('number', 'freq-mhz',      frequencyMHz.toFixed(3));
+  makeInputCell('text',   'freq-desc',     description);
+
+  const tdDel = tr.insertCell();
+  const btn   = document.createElement('button');
+  btn.type        = 'button';
+  btn.className   = 'freq-delete-btn';
+  btn.setAttribute('aria-label', 'Delete row');
+  btn.textContent = '✕';
+  btn.addEventListener('click', () => {
     tr.remove();
     syncDirtyUI();  // FR-040: deleting a row marks the form dirty
   });
+  tdDel.appendChild(btn);
 
   freqTbody.appendChild(tr);
 }

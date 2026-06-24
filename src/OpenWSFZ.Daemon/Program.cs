@@ -248,6 +248,15 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
 
 var remoteAccess = configStore.Current.RemoteAccess;
 
+// SEC-001: Refuse to start when LAN mode is enabled without a passphrase.
+// An empty passphrase would register NullAuthPolicy and leave every endpoint
+// open to any device on the local network.
+if (!LanModeValidator.IsValid(remoteAccess, out var lanError))
+{
+    startupLogger.LogCritical("{Error}", lanError);
+    return 1;
+}
+
 IBindPolicy bindPolicy = remoteAccess.Enabled
     ? new LanBindPolicy(loggerFactory.CreateLogger<LanBindPolicy>())
     : new LoopbackBindPolicy(loggerFactory.CreateLogger<LoopbackBindPolicy>());
@@ -543,6 +552,7 @@ app.Lifetime.ApplicationStopping.Register(() =>
 await frequencyStore.LoadAsync();
 
 await app.RunAsync();
+return 0;
 
 // ── Helper methods ───────────────────────────────────────────────────────────
 

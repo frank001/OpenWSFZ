@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Audio;
+using System.Net;
 
 namespace OpenWSFZ.Web;
 
@@ -51,6 +52,120 @@ internal static class WebSocketHub
     /// Called once at application start from <c>WebApp.Create</c>.
     /// </summary>
     internal static void SetBroadcastLogger(ILogger logger) => _broadcastLogger = logger;
+
+    // ── Auth frame validation (SEC-002B) ──────────────────────────────────────
+
+    /// <summary>
+    /// Authenticates a non-loopback WebSocket connection by expecting a
+    /// <c>{"type":"auth","key":"..."}</c> frame as the very first message.
+    /// <para>
+    /// Called from the <c>/api/v1/ws</c> MapGet handler in <see cref="WebApp.Create"/>
+    /// immediately after <see cref="System.Net.WebSockets.WebSocket.AcceptWebSocketAsync()"/>
+    /// completes, but only for connections whose <c>RemoteIpAddress</c> is not loopback.
+    /// </para>
+    /// <para>
+    /// Closes the socket with application-defined close code 4001 and returns <c>false</c>
+    /// when the frame is absent (timeout), malformed (wrong type or missing key), or
+    /// carries an invalid key according to <paramref name="authPolicy"/>.
+    /// Loopback connections bypass this method entirely at the call site.
+    /// </para>
+    /// </summary>
+    /// <param name="ws">Accepted WebSocket (not yet registered in the hub).</param>
+    /// <param name="authPolicy">The active auth policy to validate the key against.</param>
+    /// <param name="ct">Cancellation token tied to the HTTP request lifetime.</param>
+    /// <returns><c>true</c> if authentication succeeded; <c>false</c> if the socket was closed.</returns>
+    internal static async Task<bool> AuthenticateViaFrameAsync(
+        WebSocket ws, IAuthPolicy authPolicy, CancellationToken ct)
+    {
+        const WebSocketCloseStatus InvalidAuth = (WebSocketCloseStatus)4001;
+        const int AuthTimeoutMs = 5_000;
+
+        // Use Task.WhenAny rather than a linked CancellationToken for the auth
+        // timeout.  Canceling a ReceiveAsync via a CancellationToken causes
+        // ManagedWebSocket to call Abort(), which drops the TCP connection without
+        // sending a WS close frame — the client then sees an ungraceful disconnect
+        // and cannot inspect the close code.  Keeping the socket Open while the
+        // timeout delay fires lets us call CloseAsync(4001, ...) cleanly.
+        var buffer      = new byte[512];
+        var receiveTask = ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
+        var timeoutTask = Task.Delay(AuthTimeoutMs, ct);
+
+        if (await Task.WhenAny(receiveTask, timeoutTask) == timeoutTask)
+        {
+            // Timeout: socket is still Open — send a proper close frame.
+            await TryCloseAsync(ws, InvalidAuth, "Authentication timeout", ct);
+            return false;
+        }
+
+        // receiveTask completed — inspect the result.
+        WebSocketReceiveResult result;
+        try
+        {
+            result = await receiveTask;
+        }
+        catch (WebSocketException)
+        {
+            // Connection was dropped before the auth frame arrived.
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            // HTTP request was cancelled (e.g., server shutdown).
+            return false;
+        }
+
+        if (result.MessageType != WebSocketMessageType.Text)
+        {
+            await TryCloseAsync(ws, InvalidAuth, "Authentication required", ct);
+            return false;
+        }
+
+        WsAuthFrame? frame;
+        try
+        {
+            frame = JsonSerializer.Deserialize(
+                buffer.AsSpan(0, result.Count),
+                AppJsonContext.Default.WsAuthFrame);
+        }
+        catch (JsonException)
+        {
+            frame = null;
+        }
+
+        if (frame is null ||
+            !string.Equals(frame.Type, "auth", StringComparison.Ordinal) ||
+            string.IsNullOrEmpty(frame.Key))
+        {
+            await TryCloseAsync(ws, InvalidAuth, "Authentication required", ct);
+            return false;
+        }
+
+        // Validate the key using the active auth policy.
+        // Pass remoteIp = null so the loopback bypass is not triggered —
+        // the call site already confirmed the connection is non-loopback.
+        if (!authPolicy.IsAuthorized(remoteIp: null, apiKeyHeader: frame.Key, keyQueryParam: null))
+        {
+            await TryCloseAsync(ws, InvalidAuth, "Authentication failed", ct);
+            return false;
+        }
+
+        return true;
+    }
+
+    private static async Task TryCloseAsync(
+        WebSocket ws, WebSocketCloseStatus status, string description, CancellationToken ct)
+    {
+        if (ws.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        {
+            try
+            {
+                using var closeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                closeCts.CancelAfter(TimeSpan.FromSeconds(2));
+                await ws.CloseAsync(status, description, closeCts.Token);
+            }
+            catch { /* best-effort */ }
+        }
+    }
 
     /// <summary>
     /// Aborts all currently-open WebSocket connections that belong to the given

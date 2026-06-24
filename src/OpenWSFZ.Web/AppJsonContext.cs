@@ -41,6 +41,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(AnswerCqRequest))]
 [JsonSerializable(typeof(RemoteAccessConfig))]
 [JsonSerializable(typeof(DecoderConfig))]
+[JsonSerializable(typeof(WsAuthFrame))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -130,3 +131,12 @@ internal sealed record AnswerCqRequest(
     string Callsign,
     double FrequencyHz,
     string CqCycleStartUtc);    // ISO 8601 UTC, e.g. "2026-06-22T17:29:15Z"
+
+/// <summary>
+/// First-frame WebSocket authentication message sent by the browser client for
+/// non-loopback connections (SEC-002B).
+/// Wire format: <c>{"type":"auth","key":"passphrase"}</c>
+/// </summary>
+internal sealed record WsAuthFrame(
+    string? Type,
+    string? Key);
