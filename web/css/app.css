@@ -771,3 +771,10 @@ select#dial-freq {
 .decode-partner {
   background-color: rgba(180, 40, 40, 0.18);
 }
+
+/* ── TX abort reason history (FR-UX-002) ───────────────────────────────── */
+.tx-abort-log-title { font-size: 0.78rem; font-weight: 600; margin: 8px 0 2px; opacity: 0.8; }
+.tx-abort-log-list  { font-size: 0.75rem; font-family: monospace; margin: 0; padding-left: 1.4em; }
+.tx-abort-log-list li { margin-bottom: 2px; }
+.tx-abort-ts        { opacity: 0.65; }
+

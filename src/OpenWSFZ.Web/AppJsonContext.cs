@@ -78,9 +78,23 @@ internal sealed record TuneResponse(double EffectiveFrequencyMHz);
 
 /// <summary>
 /// Envelope for <c>txState</c> WebSocket text frames (FR-047).
-/// Wire format: <c>{"type":"txState","state":"TxAnswer","partner":"Q1TST","autoAnswerEnabled":true}</c>
+/// <para>
+/// Wire format: <c>{"type":"txState","state":"TxAnswer","partner":"Q1TST",
+/// "autoAnswerEnabled":true,"abortReason":null}</c>
+/// </para>
+/// <para>
+/// <c>abortReason</c> is non-null only when transitioning to Idle due to an abnormal
+/// termination (watchdog, operator abort, retry exhaustion, partner misbehaviour).
+/// It is null on normal QSO completion and on routine Idle state pushes.
+/// </para>
 /// </summary>
-internal sealed record WsTxStateMessage(string Type, string State, string? Partner, bool AutoAnswerEnabled);
+internal sealed record WsTxStateMessage(
+    string  Type,
+    string  State,
+    string? Partner,
+    bool    AutoAnswerEnabled,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? AbortReason = null);
 
 /// <summary>
 /// Response body for <c>GET /api/v1/tx/status</c>, <c>POST /api/v1/tx/enable</c>,

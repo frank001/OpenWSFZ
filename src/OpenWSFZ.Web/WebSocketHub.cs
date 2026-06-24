@@ -311,11 +311,18 @@ internal static class WebSocketHub
     /// Mirrors the <see cref="BroadcastDecodes"/> pattern: no scope guard since TX state
     /// is daemon-global (there is only one QSO answerer per process).
     /// </summary>
-    internal static void BroadcastTxState(QsoState state, string? partner, bool autoAnswerEnabled)
+    /// <param name="abortReason">
+    /// Human-readable abort reason, or <c>null</c> for normal QSO completion and routine
+    /// Idle pushes. Non-null only for abnormal terminations (FR-UX-002).
+    /// </param>
+    internal static void BroadcastTxState(
+        QsoState state, string? partner, bool autoAnswerEnabled, string? abortReason = null)
     {
         if (ActiveSockets.IsEmpty) return;
 
-        var msg     = new WsTxStateMessage(Type: "txState", State: state.ToString(), Partner: partner, AutoAnswerEnabled: autoAnswerEnabled);
+        var msg     = new WsTxStateMessage(Type: "txState", State: state.ToString(),
+                                           Partner: partner, AutoAnswerEnabled: autoAnswerEnabled,
+                                           AbortReason: abortReason);
         var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsTxStateMessage);
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);

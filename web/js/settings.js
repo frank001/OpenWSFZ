@@ -46,9 +46,6 @@ const txGrid            = /** @type {HTMLInputElement} */ (document.getElementBy
 const txWatchdogMinutes = /** @type {HTMLInputElement} */ (document.getElementById('general-watchdog-minutes'));
 const txRetryCount      = /** @type {HTMLInputElement} */ (document.getElementById('general-retry-count'));
 
-// TX auto-answer control (remains on Radio tab)
-const txAutoAnswer      = /** @type {HTMLInputElement} */ (document.getElementById('tx-auto-answer'));
-
 // Logging controls
 const loggingFileEnabled    = /** @type {HTMLInputElement}  */ (document.getElementById('logging-file-enabled'));
 const loggingDirectory      = /** @type {HTMLInputElement}  */ (document.getElementById('logging-directory'));
@@ -236,7 +233,6 @@ function snapshotForm() {
       pollIntervalSeconds: catPollInterval.value,
     },
     tx: {
-      autoAnswer:      txAutoAnswer.checked,
       callsign:        txCallsign.value.trim(),
       grid:            txGrid.value.trim().toUpperCase(),
       watchdogMinutes: txWatchdogMinutes.value,
@@ -514,7 +510,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tx = config.tx ?? {};
     txCallsign.value          = tx.callsign        ?? 'Q1OFZ';
     txGrid.value              = tx.grid            ?? 'JO33';
-    txAutoAnswer.checked      = tx.autoAnswer      ?? false;
     // A-02: pre-populate numeric TX fields so Save does not submit browser default (0).
     txWatchdogMinutes.value   = String(tx.watchdogMinutes ?? 4);
     txRetryCount.value        = String(tx.retryCount      ?? 3);
@@ -733,9 +728,8 @@ saveBtn.addEventListener('click', async () => {
   const tx = {
     callsign:        txCallsign.value.trim().toUpperCase()     || 'Q1OFZ',
     grid:            txGrid.value.trim().toUpperCase()          || 'JO33',
-    autoAnswer:      txAutoAnswer.checked,
-    watchdogMinutes: parseInt(txWatchdogMinutes.value, 10)     || 4,
-    retryCount:      parseInt(txRetryCount.value, 10)          || 3,
+    watchdogMinutes: Math.min(60,  Math.max(1,   parseInt(txWatchdogMinutes.value, 10) || 4)),
+    retryCount:      Math.min(200, Math.max(0,   parseInt(txRetryCount.value,      10) || 3)),
   };
 
   // FR-043: collect current frequency table entries for parallel POST.

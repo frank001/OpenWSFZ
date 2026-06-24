@@ -45,7 +45,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private readonly ChannelReader<DecodeBatch> _decodeChannel;
     private readonly IConfigStore                               _configStore;
     private readonly IPttController                             _pttController;
-    private readonly TxEventBus                                 _txEventBus;
+    private readonly ITxEventBus                                 _txEventBus;
     private readonly AudioOffsetEventBus                        _audioOffsetEventBus;
     private readonly ILogger<QsoAnswererService>                _logger;
     private readonly Ft8AudioSynthesiser                        _synthesiser = new();
@@ -80,6 +80,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // Never Disposed to avoid ObjectDisposedException race in AbortAsync; let GC handle old instances.
     private volatile CancellationTokenSource _txCts = new();
 
+    // Set in AbortAsync to distinguish an operator-requested abort from a watchdog timeout.
+    // Cleared by SafeAbortToIdleAsync immediately after reading (FR-UX-002).
+    private volatile bool _operatorAbortRequested;
+
     // Non-null only in unit tests; overrides the watchdog duration so tests don't wait 60+ seconds.
     private readonly TimeSpan? _watchdogDurationOverride;
 
@@ -104,7 +108,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         ChannelReader<DecodeBatch>   decodeChannel,
         IConfigStore                 configStore,
         IPttController               pttController,
-        TxEventBus                   txEventBus,
+        ITxEventBus                  txEventBus,
         AdifLogWriter                adifLog,
         AudioOffsetEventBus          audioOffsetEventBus,
         ILogger<QsoAnswererService>  logger,
@@ -127,7 +131,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         ChannelReader<DecodeBatch>   decodeChannel,
         IConfigStore                 configStore,
         IPttController               pttController,
-        TxEventBus                   txEventBus,
+        ITxEventBus                  txEventBus,
         AdifLogWriter                adifLog,
         AudioOffsetEventBus          audioOffsetEventBus,
         ILogger<QsoAnswererService>  logger,
@@ -154,6 +158,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             "TX abort requested (HTTP) — cancelling active session (partner: {Partner}, state: {State}).",
             _partner, _state);
 
+        // Flag operator abort intent before cancelling so SafeAbortToIdleAsync can distinguish
+        // an operator-requested abort from a watchdog timeout (FR-UX-002).
+        _operatorAbortRequested = true;
         // Cancel the TX CTS; this propagates to any awaited KeyDownAsync or channel ReadAsync.
         _txCts.Cancel();
 
@@ -228,7 +235,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                     _logger.LogInformation(
                         "QsoAnswererService: TX session cancelled while waiting (state: {State}).",
                         _state);
-                    await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
+                    // Derive the reason before the async call so we don't race with a concurrent AbortAsync.
+                    var reason1 = _operatorAbortRequested ? "Operator abort" : "Watchdog timeout";
+                    _operatorAbortRequested = false;
+                    await SafeAbortToIdleAsync(stoppingToken, reason1).ConfigureAwait(false);
                     continue;
                 }
 
@@ -244,14 +254,17 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                 _logger.LogInformation(
                     "QsoAnswererService: TX session cancelled during TX (state: {State}).",
                     _state);
-                await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
+                // Derive the reason before the async call so we don't race with a concurrent AbortAsync.
+                var reason2 = _operatorAbortRequested ? "Operator abort" : "Watchdog timeout";
+                _operatorAbortRequested = false;
+                await SafeAbortToIdleAsync(stoppingToken, reason2).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex,
                     "QsoAnswererService: unexpected error in state {State}; resetting to Idle.",
                     _state);
-                await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
+                await SafeAbortToIdleAsync(stoppingToken, $"Internal error: {ex.GetType().Name}").ConfigureAwait(false);
             }
         }
 
@@ -602,7 +615,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                 _logger.LogInformation(
                     "QsoAnswererService: {Partner} is working {OtherDest} — aborting.",
                     partner, dest);
-                await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
+                await SafeAbortToIdleAsync(stoppingToken, $"Partner {partner} is working another station").ConfigureAwait(false);
                 return;
             }
         }
@@ -698,15 +711,15 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
     private async Task RetryOrAbortAsync(TxConfig tx, CancellationToken stoppingToken)
     {
-        // Clamp defensively: RetryCount < 1 would cause abort on the very first no-response cycle.
-        var maxRetries = Math.Max(1, tx.RetryCount);
+        // RetryCount = 0 means unlimited; the watchdog timer acts as the backstop.
         _retryCount++;
-        if (_retryCount > maxRetries)
+        var maxRetries = tx.RetryCount; // 0 = unlimited; watchdog is the backstop
+        if (maxRetries > 0 && _retryCount > maxRetries)
         {
             _logger.LogInformation(
                 "QsoAnswererService: retry count {Count} exceeded {Max} — aborting QSO with {Partner}.",
                 _retryCount - 1, maxRetries, _partner);
-            await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
+            await SafeAbortToIdleAsync(stoppingToken, $"No response from {_partner} after {maxRetries} retries").ConfigureAwait(false);
             return;
         }
 
@@ -767,8 +780,20 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// resets session state, and replaces <see cref="_txCts"/> with a fresh CTS.
     /// Safe to call from any state, including Idle.
     /// </summary>
-    private async Task SafeAbortToIdleAsync(CancellationToken stoppingToken)
+    /// <param name="abortReason">
+    /// Optional human-readable abort reason for the TX history log (FR-UX-002).
+    /// Null means normal QSO completion or a routine Idle push — no abort entry is emitted.
+    /// When null, the method falls back to <see cref="_operatorAbortRequested"/> to detect
+    /// operator-abort intent (covers callers that do not derive the reason inline).
+    /// </param>
+    private async Task SafeAbortToIdleAsync(CancellationToken stoppingToken, string? abortReason = null)
     {
+        // Resolve the effective abort reason.
+        // An explicit caller reason takes precedence; otherwise check the operator-abort flag.
+        // Normal QSO completion callers pass null and clear the flag cleanly.
+        var effectiveReason = abortReason
+            ?? (_operatorAbortRequested ? "Operator abort" : (string?)null);
+        _operatorAbortRequested = false;
         // Clear phase-aware pending target so no delayed TX fires after abort.
         lock (_stateLock)
         {
@@ -834,7 +859,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
         _state      = QsoState.Idle;
         _retryCount = 0;
-        _txEventBus.Publish(QsoState.Idle, null, autoAnswerEnabled: false);
+        _txEventBus.Publish(QsoState.Idle, null, autoAnswerEnabled: false, abortReason: effectiveReason);
     }
 
     // ── H6 AP decode helper ───────────────────────────────────────────────────
@@ -877,13 +902,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// </summary>
     private void StartWatchdog(TxConfig tx)
     {
-        // Clamp defensively: WatchdogMinutes < 1 would cause CancelAfter(TimeSpan.Zero)
-        // which cancels the CTS immediately, aborting TX before it starts.
-        var minutes = Math.Max(1, tx.WatchdogMinutes);
+        // Clamp defensively to [1, 60]: WatchdogMinutes < 1 would cause CancelAfter(TimeSpan.Zero)
+        // which cancels the CTS immediately, aborting TX before it starts; > 60 exceeds the agreed
+        // maximum and could produce a TimeSpan that overflows CancellationTokenSource.CancelAfter.
+        var minutes = Math.Clamp(tx.WatchdogMinutes, 1, 60);
         // _watchdogDurationOverride is non-null only in unit tests; avoids 60-second waits.
         var timeout = _watchdogDurationOverride ?? TimeSpan.FromMinutes(minutes);
         _txCts.CancelAfter(timeout);
-        _logger.LogDebug("QsoAnswererService: watchdog armed for {Minutes} minutes.", minutes);
+        _logger.LogInformation("QsoAnswererService: watchdog armed for {Minutes} minutes.", minutes);
     }
 
     /// <summary>
@@ -892,13 +918,13 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// </summary>
     private void ResetWatchdog(TxConfig tx)
     {
-        // Clamp defensively — same rationale as StartWatchdog.
-        var minutes = Math.Max(1, tx.WatchdogMinutes);
+        // Clamp defensively to [1, 60] — same rationale as StartWatchdog.
+        var minutes = Math.Clamp(tx.WatchdogMinutes, 1, 60);
         // _watchdogDurationOverride is non-null only in unit tests; avoids 60-second waits.
         var timeout = _watchdogDurationOverride ?? TimeSpan.FromMinutes(minutes);
         // Create a fresh CTS with the new timeout; the old one is dropped (GC will collect it).
         _txCts = new CancellationTokenSource(timeout);
-        _logger.LogDebug("QsoAnswererService: watchdog reset for {Minutes} minutes.", minutes);
+        _logger.LogInformation("QsoAnswererService: watchdog reset for {Minutes} minutes.", minutes);
     }
 
     // ── Phase helpers ─────────────────────────────────────────────────────────

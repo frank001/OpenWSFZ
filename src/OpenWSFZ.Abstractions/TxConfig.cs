@@ -73,7 +73,7 @@ public sealed record TxConfig
     /// <summary>
     /// Maximum number of retry cycles per QSO state before the answerer aborts.
     /// A "retry" occurs when a partner does not respond within one FT8 period.
-    /// Minimum effective value is 1 (clamped at load time).
+    /// 0 = unlimited (watchdog is the backstop). Clamped to [0, 200] at load time.
     /// Default: 3.
     /// </summary>
     public int    RetryCount      { get; init; } = 3;
@@ -81,7 +81,7 @@ public sealed record TxConfig
     /// <summary>
     /// Watchdog timeout in minutes.  If a QSO has been in progress for this
     /// many minutes without completing, the answerer aborts to <c>Idle</c>.
-    /// Minimum effective value is 1 (clamped at load time).
+    /// Clamped to [1, 60] at load time.
     /// Default: 4.
     /// </summary>
     public int    WatchdogMinutes    { get; init; } = 4;

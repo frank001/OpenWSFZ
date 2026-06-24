@@ -319,7 +319,7 @@ var app = WebApp.Create(
         // The channel reader is created before WebApp.Create so it must be registered
         // as a concrete singleton instance rather than resolved from DI.
         services.AddSingleton(qsoAnswererChannel.Reader);
-        services.AddSingleton<TxEventBus>();
+        services.AddSingleton<ITxEventBus, TxEventBus>();
         services.AddSingleton<AudioOffsetEventBus>();
         services.AddSingleton<AdifLogWriter>();
 

@@ -126,11 +126,18 @@ public sealed class JsonConfigStore : IConfigStore
             if (config.Tx is { } tx)
             {
                 bool clamped = false;
-                if (tx.RetryCount < 1)
+                if (tx.RetryCount < 0)
                 {
                     Console.Error.WriteLine(
-                        $"[OpenWSFZ] WARNING: tx.retryCount = {tx.RetryCount} is below minimum (1); clamped to 1.");
-                    tx      = tx with { RetryCount = 1 };
+                        $"[OpenWSFZ] WARNING: tx.retryCount = {tx.RetryCount} is invalid (minimum 0); clamped to 0.");
+                    tx      = tx with { RetryCount = 0 };
+                    clamped = true;
+                }
+                if (tx.RetryCount > 200)
+                {
+                    Console.Error.WriteLine(
+                        $"[OpenWSFZ] WARNING: tx.retryCount = {tx.RetryCount} exceeds maximum (200); clamped to 200.");
+                    tx      = tx with { RetryCount = 200 };
                     clamped = true;
                 }
                 if (tx.WatchdogMinutes < 1)
@@ -138,6 +145,13 @@ public sealed class JsonConfigStore : IConfigStore
                     Console.Error.WriteLine(
                         $"[OpenWSFZ] WARNING: tx.watchdogMinutes = {tx.WatchdogMinutes} is below minimum (1); clamped to 1.");
                     tx      = tx with { WatchdogMinutes = 1 };
+                    clamped = true;
+                }
+                if (tx.WatchdogMinutes > 60)
+                {
+                    Console.Error.WriteLine(
+                        $"[OpenWSFZ] WARNING: tx.watchdogMinutes = {tx.WatchdogMinutes} exceeds maximum (60); clamped to 60.");
+                    tx      = tx with { WatchdogMinutes = 60 };
                     clamped = true;
                 }
                 if (clamped)
