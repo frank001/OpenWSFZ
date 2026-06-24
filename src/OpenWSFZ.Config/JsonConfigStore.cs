@@ -164,11 +164,17 @@ public sealed class JsonConfigStore : IConfigStore
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        // Include cat, tx, and remoteAccess sections with explicit defaults so the operator
-        // can see all available settings without having to look up the documentation
-        // (FR-031, FR-046, lan-remote-access).
+        // Include cat, tx, remoteAccess, and decoder sections with explicit defaults so the
+        // operator can see all available settings without having to look up the documentation
+        // (FR-031, FR-046, lan-remote-access, decoder-settings-page).
         var json = JsonSerializer.Serialize(
-            new AppConfig() with { Cat = new CatConfig(), Tx = new TxConfig(), RemoteAccess = new RemoteAccessConfig() },
+            new AppConfig() with
+            {
+                Cat          = new CatConfig(),
+                Tx           = new TxConfig(),
+                RemoteAccess = new RemoteAccessConfig(),
+                Decoder      = new DecoderConfig(),
+            },
             ConfigJsonContext.Default.AppConfig);
 
         File.WriteAllText(path, json);

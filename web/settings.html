@@ -199,6 +199,68 @@
           </div>
 
         </fieldset>
+
+        <!-- ── Advanced Decoder Settings (decoder-settings-page) ────────────── -->
+        <details id="advanced-decoder-settings">
+          <summary>Advanced Decoder Settings</summary>
+
+          <fieldset>
+            <p class="field-hint">
+              <strong>Default values are calibrated by R&amp;R study — change with caution.</strong>
+              Changes take effect on the next decode cycle without a daemon restart.
+            </p>
+
+            <div class="field-group">
+              <label for="decoder-k">Pass-1 Score Floor (K)</label>
+              <input
+                type="number"
+                id="decoder-k"
+                min="5"
+                max="30"
+                step="1"
+              />
+              <p class="field-hint">
+                Minimum sync score for pass-1 candidates [5–30]. Higher = fewer false positives; lower = more sensitivity.
+                Default: 10 (D-009 calibrated).
+              </p>
+            </div>
+
+            <div class="field-group">
+              <label for="decoder-corr">OSD Correlation Threshold</label>
+              <input
+                type="number"
+                id="decoder-corr"
+                min="0.05"
+                max="0.40"
+                step="0.01"
+              />
+              <p class="field-hint">
+                Normalised correlation gate for OSD candidates [0.05–0.40].
+                Default: 0.10 (D-009 calibrated).
+              </p>
+            </div>
+
+            <div class="field-group">
+              <label for="decoder-nhard">OSD Max Hard Errors</label>
+              <input
+                type="number"
+                id="decoder-nhard"
+                min="30"
+                max="100"
+                step="1"
+              />
+              <p class="field-hint">
+                Maximum Hamming distance for OSD candidates [30–100].
+                Default: 60 (D-009 calibrated).
+              </p>
+            </div>
+
+            <div class="field-group">
+              <button type="button" id="decoder-reset">Reset to defaults</button>
+            </div>
+          </fieldset>
+        </details>
+
       </div><!-- /tab-radio -->
 
       <!-- ── Tab 2: Logging ───────────────────────────────────────────────── -->

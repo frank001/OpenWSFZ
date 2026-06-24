@@ -1,26 +1,30 @@
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20260018 (diag-d001-candidate-counts):
-                  Adds ft8_get_last_candidate_counts() — TLS getter exposing per-pass candidate
-                  counts from ftx_find_candidates() before LDPC. Together with
-                  ft8_get_last_pass_counts() lets the managed layer distinguish candidate-
-                  generation failure from LDPC convergence failure in D-001 co-channel scenarios.
+Shim version:     FT8_SHIM_VERSION = 20260030 (decoder-settings-page):
+                  Adds ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold,
+                  int osd_nhard_max) — runtime-configurable OSD gate parameters.
+                  Three module-level (non-static) globals replace compile-time #defines so the
+                  UI can expose K_MIN_SCORE_PASS2, OSD_CORR_THRESHOLD, and OSD_NHARD_MAX without
+                  a daemon restart. Defaults unchanged from 20260029: K=10, corr=0.10f, nhard=60.
                   No change to decode logic, struct layout, or existing entry points.
-                  Previous: FT8_SHIM_VERSION = 20260017 (ft8-qso-answerer-v1).
+                  Previous: FT8_SHIM_VERSION = 20260029 (D-009 fp-callsign-filter).
 sizeof(FT8Result): 48 bytes
 SNR formula:      local_noise_floor (K=32) − 26.5 dB (unchanged from 20260012)
 Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_counts, ft8_get_max_passes,
-                  ft8_get_last_noise_floor_db, ft8_encode_message, ft8_get_last_candidate_counts
+                  ft8_get_last_noise_floor_db, ft8_encode_message, ft8_get_last_candidate_counts,
+                  ft8_get_last_llr_stats, ft8_set_ap_bits, ft8_set_decode_params
 
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-06-17 (diag-d001-candidate-counts: FT8_SHIM_VERSION=20260018;
-                              ft8_get_last_candidate_counts added; shim compiled from
+Build date:       2026-06-24 (decoder-settings-page: FT8_SHIM_VERSION=20260030;
+                              ft8_set_decode_params added; shim compiled from
                               Native/ft8_shim.c using rebuild_shim.bat)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
                   excpt.h included explicitly for EXCEPTION_EXECUTE_HANDLER
+                  decode.c uses extern globals (s_osd_corr_threshold, s_osd_nhard_max) from
+                  ft8_shim.c instead of compile-time #defines (decoder-settings-page patch)
 Sources:          native/ft8_lib @ msvc-compat (d18ed84) + src/OpenWSFZ.Ft8/Native/ft8_shim.c
 
 --- Linux x64 ---
@@ -28,9 +32,10 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       2026-06-17 (diag-d001-candidate-counts: FT8_SHIM_VERSION=20260018;
-                              ft8_get_last_candidate_counts added; full rebuild of all
-                              sources via native/ft8_lib_build/build_linux.sh)
+Build date:       CI-rebuilt — the committed binary is a prior-version placeholder;
+                  CI always builds from the current ft8_shim.c (current shim version).
+                  See .github/workflows/ci.yml step "Build native Linux SO (x64, GCC)".
+                  CI `commit-native-binaries` job auto-commits shim 20260030 after next push.
 Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
 Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84) + ft8_shim.c
 
@@ -42,6 +47,7 @@ Build date:       CI-rebuilt — the committed binary is a prior-version placeho
                   See .github/workflows/ci.yml step "Build native macOS dylib (ARM64, Clang)".
                   Note: the staleness check is continue-on-error for macOS (CI always rebuilds
                   anyway); stale placeholder commits generate a visible WARNING, not a hard fail.
+                  CI `commit-native-binaries` job auto-commits shim 20260030 after next push.
 Patches:          none — unpatched kgoba/ft8_lib sources used directly
 Sources:          shallow-clone native/ft8_lib @ msvc-compat (d18ed84) + ft8_shim.c
 Note:             encode.c is included in the build (required for ft8_encode in shim)

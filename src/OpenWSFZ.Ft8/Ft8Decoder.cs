@@ -68,6 +68,22 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     public void SetApConstraints(Ft8ApConstraints? constraints)
         => _apConstraints = constraints;
 
+    /// <summary>
+    /// Forwards the OSD gate parameters to the native shim so they take effect on the
+    /// next decode cycle.  Thread-safe: the native setter writes to module-level globals
+    /// that are only read at the start of each <c>ft8_decode_all</c> call.
+    ///
+    /// <para>
+    /// Called from the daemon's <c>IConfigStore.OnSaved</c> handler and once at startup
+    /// so that the operator's saved values override the compile-time defaults without a
+    /// daemon restart.  When the caller passes <c>null</c> for <paramref name="kMinScorePass2"/>
+    /// (i.e. the <c>decoder</c> config key is absent), use <c>new DecoderConfig()</c> to
+    /// obtain the calibrated defaults before calling this method.
+    /// </para>
+    /// </summary>
+    public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
+        => _interop.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
+
     /// <param name="clock">Wall-clock provider for aligning cycle timestamps.</param>
     /// <param name="logger">Optional structured logger; pass null to suppress all log output.</param>
     public Ft8Decoder(IClock clock, ILogger<Ft8Decoder>? logger = null)

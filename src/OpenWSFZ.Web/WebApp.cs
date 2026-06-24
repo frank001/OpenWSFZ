@@ -333,6 +333,45 @@ public static class WebApp
                     config = config with { Tx = sanitisedTx };
             }
 
+            // ── Decoder config validation (decoder-settings-page) ───────────────
+            if (config.Decoder is { } decoderIn)
+            {
+                var sanitisedDecoder = decoderIn;
+
+                // Clamp kMinScorePass2 to [5, 30].
+                if (decoderIn.KMinScorePass2 < 5 || decoderIn.KMinScorePass2 > 30)
+                {
+                    var clamped = Math.Clamp(decoderIn.KMinScorePass2, 5, 30);
+                    configApiLogger.LogWarning(
+                        "Decoder: kMinScorePass2 {Original} out of range [5, 30] — clamped to {Clamped}.",
+                        decoderIn.KMinScorePass2, clamped);
+                    sanitisedDecoder = sanitisedDecoder with { KMinScorePass2 = clamped };
+                }
+
+                // Clamp osdCorrThreshold to [0.05, 0.40].
+                if (decoderIn.OsdCorrThreshold < 0.05f || decoderIn.OsdCorrThreshold > 0.40f)
+                {
+                    var clamped = Math.Clamp(decoderIn.OsdCorrThreshold, 0.05f, 0.40f);
+                    configApiLogger.LogWarning(
+                        "Decoder: osdCorrThreshold {Original} out of range [0.05, 0.40] — clamped to {Clamped}.",
+                        decoderIn.OsdCorrThreshold, clamped);
+                    sanitisedDecoder = sanitisedDecoder with { OsdCorrThreshold = clamped };
+                }
+
+                // Clamp osdNhardMax to [30, 100].
+                if (decoderIn.OsdNhardMax < 30 || decoderIn.OsdNhardMax > 100)
+                {
+                    var clamped = Math.Clamp(decoderIn.OsdNhardMax, 30, 100);
+                    configApiLogger.LogWarning(
+                        "Decoder: osdNhardMax {Original} out of range [30, 100] — clamped to {Clamped}.",
+                        decoderIn.OsdNhardMax, clamped);
+                    sanitisedDecoder = sanitisedDecoder with { OsdNhardMax = clamped };
+                }
+
+                if (!ReferenceEquals(sanitisedDecoder, decoderIn))
+                    config = config with { Decoder = sanitisedDecoder };
+            }
+
             await store.SaveAsync(config, ct);
             return TypedResults.Ok(store.Current);
         });
