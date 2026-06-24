@@ -223,6 +223,25 @@ public sealed class AuthMiddlewareTests : IAsyncLifetime
             "WebSocket upgrade without ?key= from non-loopback must return 401");
     }
 
+    // ── 8.3d — F1 regression: Upgrade header on non-WS path must NOT bypass auth ─
+
+    [Fact(DisplayName = "SEC-002: 8.3d: 'Upgrade: websocket' header on REST path from non-loopback → 401 (F1 regression)")]
+    public async Task PassphraseAuth_UpgradeHeaderOnRestPath_Returns401()
+    {
+        // Regression guard for F1 (QA review R1): the isWebSocketUpgrade bypass in the
+        // auth middleware must be scoped to /api/v1/ws only.  A plain REST endpoint
+        // (e.g. /api/v1/config) that carries 'Upgrade: websocket' must still return 401
+        // from a non-loopback origin — not 200.
+        using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{_spoofedPort}") };
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/config");
+        request.Headers.TryAddWithoutValidation("Upgrade", "websocket");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+            "a REST endpoint with 'Upgrade: websocket' header must still require auth from a non-loopback origin");
+    }
+
     // ── 8.4 — Loopback bypass ─────────────────────────────────────────────────
 
     [Fact(DisplayName = "8.4: PassphraseAuthPolicy — GET /api/v1/status from 127.0.0.1 without key → 200")]

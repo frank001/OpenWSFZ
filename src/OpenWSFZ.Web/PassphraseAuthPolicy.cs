@@ -12,7 +12,7 @@ namespace OpenWSFZ.Web;
 /// <list type="bullet">
 ///   <item>The remote IP is loopback (<c>127.0.0.1</c> or <c>::1</c>) — always trusted (D1).</item>
 ///   <item>The <c>X-Api-Key</c> header matches the passphrase (REST clients).</item>
-///   <item>The <c>?key=</c> query parameter matches the passphrase (backward-compat / non-browser clients).</item>
+///   <item>The <c>?key=</c> query parameter matches the passphrase (REST clients / page-loads).</item>
 /// </list>
 /// </para>
 /// <para>
@@ -42,9 +42,15 @@ public sealed class PassphraseAuthPolicy : IAuthPolicy
         if (ConstantTimeEquals(apiKeyHeader, _passphrase))
             return true;
 
-        // WebSocket / backward-compat path: ?key= query parameter must match (SEC-002A).
-        // Browser clients now use the WS auth-frame protocol (SEC-002B); ?key= is kept
-        // for non-browser clients that cannot set an initial auth frame.
+        // REST / page-load path: ?key= query parameter must match (SEC-002A).
+        // This path is available to REST clients and browser page-loads that embed the
+        // passphrase in the URL.  It is NOT reachable for WebSocket connections from
+        // non-loopback origins — the WS upgrade bypass passes straight through the auth
+        // middleware to the /api/v1/ws handler, which delegates credential checking to
+        // the first WS message frame (SEC-002B, WebSocketHub.AuthenticateViaFrameAsync).
+        // Non-browser WS clients must also use the JSON auth-frame protocol
+        // ({"type":"auth","key":"..."}) as their first message — ?key= in the WS URL is
+        // silently ignored for WS connections (F2 — QA review R1, Option A fix).
         if (ConstantTimeEquals(keyQueryParam, _passphrase))
             return true;
 

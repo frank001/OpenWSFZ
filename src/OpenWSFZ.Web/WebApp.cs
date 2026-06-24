@@ -154,13 +154,18 @@ public static class WebApp
                 return;
             }
 
-            // SEC-002B: Allow genuine WebSocket upgrade requests through the auth middleware.
-            // A genuine WS upgrade carries the HTTP header 'Upgrade: websocket'; plain HTTP
-            // GETs (including test probes for 8.3b/8.3c) do not, so those still go through
-            // normal auth gating and return 401 as before.
-            // Auth for non-loopback WS connections is delegated to the first WS message frame
-            // (see the /api/v1/ws handler below and WebSocketHub.AuthenticateViaFrameAsync).
+            // SEC-002B: Allow genuine WebSocket upgrade requests to /api/v1/ws through
+            // the auth middleware.  Auth for non-loopback WS connections is delegated to
+            // the first WS message frame (see the /api/v1/ws handler below and
+            // WebSocketHub.AuthenticateViaFrameAsync).
+            //
+            // IMPORTANT: the path scope (/api/v1/ws) is required.  Without it, any REST
+            // request that carries the 'Upgrade: websocket' header would bypass auth
+            // entirely (F1 — QA review R1).  Plain HTTP GETs, REST calls, and any
+            // other path that happens to carry the header still go through normal
+            // credential gating and return 401.
             bool isWebSocketUpgrade =
+                ctx.Request.Path.StartsWithSegments("/api/v1/ws", StringComparison.OrdinalIgnoreCase) &&
                 ctx.Request.Headers.TryGetValue("Upgrade", out var upgradeValues) &&
                 upgradeValues.ToString().Equals("websocket", StringComparison.OrdinalIgnoreCase);
 
@@ -754,8 +759,12 @@ public static class WebApp
             // SEC-002B: Authenticate non-loopback connections via the first WS frame.
             // Loopback connections (local browser accessing 127.0.0.1) bypass auth here
             // — they were already trusted by the auth middleware (D1).
+            // A null RemoteIpAddress is treated as non-loopback and therefore requires
+            // auth (F3 — QA review R1).  Under direct-Kestrel deployment this is
+            // unreachable in production but we default to requiring auth rather than
+            // granting silent trust for an unknown origin.
             var remoteIp = ctx.Connection.RemoteIpAddress;
-            if (remoteIp is not null && !IPAddress.IsLoopback(remoteIp))
+            if (remoteIp is null || !IPAddress.IsLoopback(remoteIp))
             {
                 if (!await WebSocketHub.AuthenticateViaFrameAsync(ws, authPolicy, ctx.RequestAborted))
                     return; // Socket already closed with code 4001 by AuthenticateViaFrameAsync.
