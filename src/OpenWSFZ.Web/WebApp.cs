@@ -154,6 +154,22 @@ public static class WebApp
                 return;
             }
 
+            // SEC-002B: Allow genuine WebSocket upgrade requests through the auth middleware.
+            // A genuine WS upgrade carries the HTTP header 'Upgrade: websocket'; plain HTTP
+            // GETs (including test probes for 8.3b/8.3c) do not, so those still go through
+            // normal auth gating and return 401 as before.
+            // Auth for non-loopback WS connections is delegated to the first WS message frame
+            // (see the /api/v1/ws handler below and WebSocketHub.AuthenticateViaFrameAsync).
+            bool isWebSocketUpgrade =
+                ctx.Request.Headers.TryGetValue("Upgrade", out var upgradeValues) &&
+                upgradeValues.ToString().Equals("websocket", StringComparison.OrdinalIgnoreCase);
+
+            if (isWebSocketUpgrade)
+            {
+                await next(ctx);
+                return;
+            }
+
             var remoteIp      = ctx.Connection.RemoteIpAddress;
             var apiKeyHeader  = ctx.Request.Headers["X-Api-Key"].ToString();
             var keyQueryParam = ctx.Request.Query["key"].ToString();
@@ -734,6 +750,17 @@ public static class WebApp
             }
 
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
+
+            // SEC-002B: Authenticate non-loopback connections via the first WS frame.
+            // Loopback connections (local browser accessing 127.0.0.1) bypass auth here
+            // — they were already trusted by the auth middleware (D1).
+            var remoteIp = ctx.Connection.RemoteIpAddress;
+            if (remoteIp is not null && !IPAddress.IsLoopback(remoteIp))
+            {
+                if (!await WebSocketHub.AuthenticateViaFrameAsync(ws, authPolicy, ctx.RequestAborted))
+                    return; // Socket already closed with code 4001 by AuthenticateViaFrameAsync.
+            }
+
             await WebSocketHub.HandleAsync(
                 ws, store, audioMonitor, dataFlowMonitor,
                 captureManager, audioWatchdog, catState,

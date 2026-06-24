@@ -160,8 +160,10 @@
         var returnPath  = loginParams.get('return') || '/';
         // Guard: returnPath must start with '/' to prevent open-redirect abuse.
         if (!returnPath.startsWith('/')) returnPath = '/';
-        var sep = returnPath.includes('?') ? '&' : '?';
-        window.location.href = returnPath + sep + 'key=' + encodeURIComponent(passphrase);
+        // SEC-002B: navigate to the return path WITHOUT the passphrase in the URL.
+        // The key lives in sessionStorage; api.js reads it for REST calls via
+        // the X-Api-Key header, and ws.js sends it as the first WebSocket frame.
+        window.location.href = returnPath;
       });
     })();
   </script>

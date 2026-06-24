@@ -28,9 +28,10 @@ export function connect(onEvent) {
 
   function wsUrl() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const key      = sessionStorage.getItem('owsfz-api-key');
-    const keyParam = key ? `?key=${encodeURIComponent(key)}` : '';
-    return `${protocol}//${location.host}${WS_URL_PATH}${keyParam}`;
+    // SEC-002B: passphrase is NOT included in the URL (would appear in server logs
+    // and browser history). Auth for non-loopback connections happens via the first
+    // WebSocket message frame sent immediately on 'open' (see below).
+    return `${protocol}//${location.host}${WS_URL_PATH}`;
   }
 
   function scheduleReconnect() {
@@ -54,6 +55,16 @@ export function connect(onEvent) {
     ws.addEventListener('open', () => {
       everOpened = true;
       delay = DELAY_INITIAL; // reset back-off on successful connect
+
+      // SEC-002B: Send the auth frame immediately on connect so the server can
+      // validate the passphrase before accepting any other messages.
+      // Loopback connections bypass auth server-side, but sending the frame is
+      // harmless and keeps the client code path uniform.
+      const key = sessionStorage.getItem('owsfz-api-key');
+      if (key) {
+        ws.send(JSON.stringify({ type: 'auth', key }));
+      }
+
       onEvent({ type: '__state', payload: 'connected' });
     });
 

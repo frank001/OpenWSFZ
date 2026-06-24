@@ -106,27 +106,16 @@ public sealed class RemoteAccessPolicyTests
             "IPv6 loopback (::1) must also be trusted regardless of credentials (D1)");
     }
 
-    // ── 7.4 — PassphraseAuthPolicy: null/empty passphrase ────────────────────
-
-    [Fact(DisplayName = "7.4a: PassphraseAuthPolicy(null) returns true for any origin")]
-    public void PassphraseAuth_NullPassphrase_AlwaysAuthorized()
-    {
-        var policy = new PassphraseAuthPolicy(null);
-
-        policy.IsAuthorized(NonLoopback, null,     null).Should().BeTrue(
-            "null passphrase config means open LAN access — always authorized");
-        policy.IsAuthorized(NonLoopback, "wrong",  null).Should().BeTrue(
-            "null passphrase config means any header value is irrelevant");
-    }
-
-    [Fact(DisplayName = "7.4b: PassphraseAuthPolicy(\"\") returns true for any origin")]
-    public void PassphraseAuth_EmptyPassphrase_AlwaysAuthorized()
-    {
-        var policy = new PassphraseAuthPolicy("");
-
-        policy.IsAuthorized(NonLoopback, null,    null).Should().BeTrue(
-            "empty passphrase config means open LAN access — always authorized");
-        policy.IsAuthorized(NonLoopback, "wrong", null).Should().BeTrue(
-            "empty passphrase config means any header value is irrelevant");
-    }
+    // ── 7.4 — PassphraseAuthPolicy: null/empty passphrase (REMOVED — SEC-001) ──
+    //
+    // Tests 7.4a and 7.4b previously verified that PassphraseAuthPolicy(null) and
+    // PassphraseAuthPolicy("") would unconditionally authorise all requests (open LAN).
+    // That behaviour was a security anti-pattern.
+    //
+    // SEC-001 closes this gap at startup: LanModeValidator.IsValid() refuses to start
+    // the daemon when RemoteAccess.Enabled = true and no passphrase is configured.
+    // PassphraseAuthPolicy is therefore never registered without a non-empty passphrase
+    // in production, and its constructor now requires a non-null string by type contract.
+    //
+    // The startup guard behaviour is covered by LanModeValidatorTests.
 }

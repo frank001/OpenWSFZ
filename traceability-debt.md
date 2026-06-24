@@ -153,3 +153,13 @@ NFR-024  # QA harness — compliant report generation. This requirement mandates
 # Remove when a deterministic fixture for the AP+OSD combined path is engineered
 # (requires either a weaker SetApConstraints API or a new fixture geometry).
 D001-AP-OSD-GAP
+
+## Pending — Security hardening (fix/security-lan-hardening, 2026-06-24)
+
+SEC-003  # XSS guard — settings.js appendFreqRow DOM construction.
+         # The fix (replacing innerHTML with createElement/textContent) is confined
+         # to the browser JS layer. No xUnit/NUnit test can assert DOM construction
+         # technique; the absence of innerHTML for server-derived data is enforced
+         # by code review (grep confirms no innerHTML assignment receives server data).
+         # Remove when a browser-automation test (e.g. Playwright) asserts that
+         # inserting a description containing <script> does not execute JS.
