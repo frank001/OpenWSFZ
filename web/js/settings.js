@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry } from './api.js';
+import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, getApiKey } from './api.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const outputDeviceSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('output-device-select'));
@@ -72,6 +72,16 @@ const remoteAccessPassphraseGroup = /** @type {HTMLElement}       */ (document.g
 const remoteAccessPassToggle      = /** @type {HTMLButtonElement} */ (document.getElementById('remote-access-passphrase-toggle'));
 const remoteAccessRestartWarning  = /** @type {HTMLElement}       */ (document.getElementById('remote-access-restart-warning'));
 const remoteAccessDisclaimer      = /** @type {HTMLElement}       */ (document.getElementById('remote-access-disclaimer'));
+
+// D-LAN-005: update the back-link to carry the API key so navigating back to the
+// main page does not trigger an auth redirect.
+// `backLink` is already captured at module scope above.
+(function () {
+  const key = getApiKey();
+  if (key && backLink) {
+    backLink.href = '/?key=' + encodeURIComponent(key);
+  }
+})();
 
 // ── Tab switching (FR-035) ────────────────────────────────────────────────
 

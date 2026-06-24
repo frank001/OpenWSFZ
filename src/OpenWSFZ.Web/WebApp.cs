@@ -173,7 +173,8 @@ public static class WebApp
                     return;
                 }
 
-                ctx.Response.Redirect("/login.html");
+                var returnUrl = Uri.EscapeDataString(ctx.Request.Path.Value ?? "/");
+                ctx.Response.Redirect($"/login.html?return={returnUrl}");
                 return;
             }
 

@@ -842,4 +842,16 @@ document.addEventListener('DOMContentLoaded', () => {
       handleDecodes(event.payload);
     }
   });
+
+  // D-LAN-005: update the Settings nav link to carry the API key so the browser
+  // navigation does not trigger an unnecessary auth challenge.
+  // getApiKey() is already imported from './api.js'; bootstrapApiKeyFromUrl() has
+  // already run at module load time (before DOMContentLoaded), so the key is present.
+  const settingsNavLink = document.querySelector('nav a[href="/settings.html"]');
+  if (settingsNavLink) {
+    const key = getApiKey();
+    if (key) {
+      settingsNavLink.href = '/settings.html?key=' + encodeURIComponent(key);
+    }
+  }
 });

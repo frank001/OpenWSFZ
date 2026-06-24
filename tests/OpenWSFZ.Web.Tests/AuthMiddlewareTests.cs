@@ -258,7 +258,7 @@ public sealed class AuthMiddlewareTests : IAsyncLifetime
 
     // ── 8.6 — Non-API page-loads redirect to /login.html ─────────────────────
 
-    [Fact(DisplayName = "8.6: PassphraseAuthPolicy — GET / without key from non-loopback → 302 to /login.html")]
+    [Fact(DisplayName = "8.6: PassphraseAuthPolicy — GET / without key from non-loopback → 302 to /login.html?return=%2F")]
     public async Task PassphraseAuth_RootPath_NoKey_RedirectsToLogin()
     {
         // AllowAutoRedirect = false so we can inspect the 302 response directly.
@@ -271,8 +271,8 @@ public sealed class AuthMiddlewareTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect,
             "a browser page-load for / from a non-loopback origin without a key must redirect to /login.html");
-        response.Headers.Location?.OriginalString.Should().Be("/login.html",
-            "the redirect target must be /login.html");
+        response.Headers.Location?.OriginalString.Should().Be("/login.html?return=%2F",
+            "the redirect target must include ?return=%2F so login.html can navigate back to /");
     }
 
     // ── 8.7 — /login.html is served without auth (middleware whitelist) ───────
@@ -320,5 +320,26 @@ public sealed class AuthMiddlewareTests : IAsyncLifetime
             $"{path} must not return 401");
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             $"{path} is a static asset present in the test web root and must be served without auth");
+    }
+
+    // ── 8.9 — Non-root page-load redirect preserves original path (D-LAN-005) ─
+
+    [Fact(DisplayName = "8.9: PassphraseAuthPolicy — GET /settings.html without key from non-loopback → 302 with return=%2Fsettings.html")]
+    public async Task PassphraseAuth_SettingsPage_NoKey_RedirectsToLoginWithReturn()
+    {
+        // D-LAN-005: when the operator navigates directly to /settings.html without a
+        // key, the auth middleware must include ?return=%2Fsettings.html in the redirect
+        // so that login.html can land on the originally-requested page after login.
+        using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri($"http://127.0.0.1:{_spoofedPort}"),
+        };
+
+        var response = await client.GetAsync("/settings.html");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect,
+            "/settings.html from a non-loopback origin without a key must redirect to the login page");
+        response.Headers.Location?.OriginalString.Should().Be("/login.html?return=%2Fsettings.html",
+            "the redirect must include ?return=%2Fsettings.html so post-login navigation lands on Settings");
     }
 }

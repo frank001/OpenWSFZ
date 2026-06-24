@@ -156,7 +156,12 @@
 
         errorEl.classList.remove('visible');
         sessionStorage.setItem(SESSION_KEY, passphrase);
-        window.location.href = '/?key=' + encodeURIComponent(passphrase);
+        var loginParams = new URLSearchParams(window.location.search);
+        var returnPath  = loginParams.get('return') || '/';
+        // Guard: returnPath must start with '/' to prevent open-redirect abuse.
+        if (!returnPath.startsWith('/')) returnPath = '/';
+        var sep = returnPath.includes('?') ? '&' : '?';
+        window.location.href = returnPath + sep + 'key=' + encodeURIComponent(passphrase);
       });
     })();
   </script>
