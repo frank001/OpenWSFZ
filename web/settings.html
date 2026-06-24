@@ -351,6 +351,79 @@
           </p>
         </div>
 
+        <!-- ── Remote Access ─────────────────────────────────────────────── -->
+        <fieldset id="remote-access-settings">
+          <legend>Remote access</legend>
+
+          <div class="field-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="remote-access-enabled" />
+              Allow access from local network
+            </label>
+            <p class="field-hint">
+              When enabled, the web interface is reachable from other devices on your
+              local network (<code>0.0.0.0:&lt;port&gt;</code>).
+              <strong>A daemon restart is required for binding changes to take effect.</strong>
+            </p>
+          </div>
+
+          <!-- Passphrase + show/hide (only visible when enabled) -->
+          <div class="field-group" id="remote-access-passphrase-group" style="display:none">
+            <label for="remote-access-passphrase">Passphrase</label>
+            <div class="input-with-action">
+              <input type="password" id="remote-access-passphrase"
+                     autocomplete="new-password" spellcheck="false"
+                     placeholder="Leave empty for open LAN access" />
+              <button type="button" id="remote-access-passphrase-toggle"
+                      aria-label="Show / hide passphrase">👁</button>
+            </div>
+            <p class="field-hint">
+              Non-loopback clients must supply this passphrase via the
+              <code>X-Api-Key</code> header (REST) or <code>?key=</code> query
+              parameter (WebSocket). Leave empty to allow unauthenticated LAN access.
+              Stored as plaintext in <code>app.json</code>.
+            </p>
+          </div>
+
+          <!-- Restart-required warning (only visible when enabled) -->
+          <div id="remote-access-restart-warning" class="settings-warning" style="display:none"
+               role="alert" aria-live="polite">
+            ⚠ A restart is required for binding changes to take effect.
+          </div>
+
+          <!-- Legal disclaimer (only visible when enabled) -->
+          <div id="remote-access-disclaimer" class="settings-disclaimer" style="display:none">
+            <p>
+              The operator of this application is solely responsible for ensuring compliance
+              with all applicable local, national, and international laws, regulations, and
+              licensing requirements related to amateur radio operation.
+            </p>
+            <p>
+              This software may provide remote control or automation features that could
+              allow operation of the connected transceiver by unauthorized persons if the
+              hosting webpage, network, or system is improperly secured or exposed to the
+              public.
+            </p>
+            <p>
+              It is the responsibility of the operator to implement appropriate security
+              measures, restrict access to authorized users only, and ensure that the
+              station is operated in accordance with applicable regulations at all times.
+            </p>
+            <p>
+              The authors, developers, and contributors of this software accept no liability
+              for misuse, unauthorized transmissions, regulatory violations, equipment
+              damage, or any resulting claims, penalties, or losses arising from the use of
+              this application.
+            </p>
+            <p>
+              By using this software, you acknowledge and accept full responsibility for its
+              operation, its security configuration, and all consequences — including
+              regulatory, legal, and technical — arising from its use.
+            </p>
+          </div>
+
+        </fieldset><!-- /remote-access-settings -->
+
       </div><!-- /tab-advanced -->
 
       <!-- ── Tab 4: Frequencies ─────────────────────────────────────────── -->

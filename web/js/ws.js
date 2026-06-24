@@ -28,7 +28,9 @@ export function connect(onEvent) {
 
   function wsUrl() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${location.host}${WS_URL_PATH}`;
+    const key      = sessionStorage.getItem('owsfz-api-key');
+    const keyParam = key ? `?key=${encodeURIComponent(key)}` : '';
+    return `${protocol}//${location.host}${WS_URL_PATH}${keyParam}`;
   }
 
   function scheduleReconnect() {
@@ -45,9 +47,12 @@ export function connect(onEvent) {
     if (destroyed) return;
     reconnectTimer = null;
 
+    let everOpened = false;
+
     ws = new WebSocket(wsUrl());
 
     ws.addEventListener('open', () => {
+      everOpened = true;
       delay = DELAY_INITIAL; // reset back-off on successful connect
       onEvent({ type: '__state', payload: 'connected' });
     });
@@ -64,6 +69,16 @@ export function connect(onEvent) {
     ws.addEventListener('close', () => {
       ws = null;  // must be cleared so the visibilitychange guard (!ws) works correctly
       onEvent({ type: '__state', payload: 'disconnected' });
+
+      // If the connection closed before ever opening AND we have a stored key,
+      // assume auth failure (server returned 401 on the WS upgrade).
+      // Clear the key and redirect to the login page.
+      if (!everOpened && sessionStorage.getItem('owsfz-api-key')) {
+        sessionStorage.removeItem('owsfz-api-key');
+        window.location.href = '/login.html';
+        return;
+      }
+
       scheduleReconnect();
     });
 

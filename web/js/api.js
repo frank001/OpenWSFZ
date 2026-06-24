@@ -5,15 +5,67 @@
  * @module api
  */
 
+// ── Remote access passphrase (lan-remote-access) ──────────────────────────
+const API_KEY_SESSION_KEY = 'owsfz-api-key';
+
+/**
+ * Returns the stored API passphrase, or null if none is present
+ * (loopback access or no passphrase configured).
+ * @returns {string|null}
+ */
+export function getApiKey() {
+  return sessionStorage.getItem(API_KEY_SESSION_KEY);
+}
+
+/**
+ * Stores the passphrase extracted from the URL's ?key= parameter into
+ * sessionStorage, then removes the parameter from the browser history so
+ * the passphrase is not visible in the URL bar or the back-button history.
+ * Called once at module load time.
+ */
+function bootstrapApiKeyFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const key    = params.get('key');
+  if (key) {
+    sessionStorage.setItem(API_KEY_SESSION_KEY, key);
+    params.delete('key');
+    const clean = params.toString()
+      ? `${window.location.pathname}?${params}`
+      : window.location.pathname;
+    history.replaceState(null, '', clean);
+  }
+}
+
+bootstrapApiKeyFromUrl();
+
 /**
  * Fetches a URL and returns the parsed JSON body.
+ * Injects the stored API passphrase as an X-Api-Key header when present.
+ * Redirects to /login.html on 401.
  * Throws an Error with the HTTP status text if the response is not 2xx.
  * @param {string} url
  * @param {RequestInit} [init]
  * @returns {Promise<unknown>}
  */
 async function fetchJson(url, init) {
-  const res = await fetch(url, init);
+  const key = getApiKey();
+  const extraHeaders = key ? { 'X-Api-Key': key } : {};
+  const mergedInit = {
+    ...init,
+    headers: { ...(init?.headers ?? {}), ...extraHeaders },
+  };
+
+  const res = await fetch(url, mergedInit);
+
+  if (res.status === 401) {
+    // Passphrase rejected or session expired — return to login.
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    // Return a never-resolving promise so callers don't see a thrown error
+    // while the navigation is in progress.
+    return new Promise(() => {});
+  }
+
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} ${res.statusText} — ${url}`);
   }
@@ -114,7 +166,16 @@ export function postTune(frequencyMHz) {
  * @returns {Promise<void>}
  */
 export async function postCatRetry() {
-  const res = await fetch('/api/v1/cat/retry', { method: 'POST' });
+  const key = getApiKey();
+  const res = await fetch('/api/v1/cat/retry', {
+    method:  'POST',
+    headers: key ? { 'X-Api-Key': key } : {},
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return;
+  }
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/cat/retry`);
   }
@@ -169,11 +230,20 @@ export function postTxAbort() {
  * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean}>}
  */
 export async function postTxAnswerCq(callsign, frequencyHz, cqCycleStartUtc) {
+  const key = getApiKey();
   const res = await fetch('/api/v1/tx/answer-cq', {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-Api-Key': key } : {}),
+    },
     body:    JSON.stringify({ callsign, frequencyHz, cqCycleStartUtc }),
   });
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/tx/answer-cq`);
     /** @type {any} */ (err).status = res.status;

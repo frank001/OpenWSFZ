@@ -127,6 +127,60 @@ public static class WebApp
 
         // ── Middleware ────────────────────────────────────────────────────────
 
+        // Auth middleware (D3): placed before UseWebSockets, UseDefaultFiles,
+        // UseStaticFiles, and all route registrations so that every request —
+        // including WebSocket upgrades and static-file requests — is gated.
+        // AOT-safe: plain lambda, no reflection or attribute-based filters.
+        var authPolicy = app.Services.GetRequiredService<IAuthPolicy>();
+
+        // Paths that must be reachable before authentication (browsers cannot
+        // carry ?key= into sub-resource requests after the initial page-load):
+        //   /login.html  — the auth UI itself
+        //   /css/        — stylesheets
+        //   /js/         — ES module scripts
+        //   /favicon.ico — browser chrome (avoids a spurious 302 in the console)
+        // API paths are intentionally excluded — they must always be gated.
+        static bool IsPublicPath(PathString path) =>
+            path.StartsWithSegments("/login.html",  StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWithSegments("/css",         StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWithSegments("/js",          StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/favicon.ico",             StringComparison.OrdinalIgnoreCase);
+
+        app.Use(async (ctx, next) =>
+        {
+            if (IsPublicPath(ctx.Request.Path))
+            {
+                await next(ctx);
+                return;
+            }
+
+            var remoteIp      = ctx.Connection.RemoteIpAddress;
+            var apiKeyHeader  = ctx.Request.Headers["X-Api-Key"].ToString();
+            var keyQueryParam = ctx.Request.Query["key"].ToString();
+
+            if (!authPolicy.IsAuthorized(
+                    remoteIp,
+                    apiKeyHeader.Length  > 0 ? apiKeyHeader  : null,
+                    keyQueryParam.Length > 0 ? keyQueryParam : null))
+            {
+                // API paths and WebSocket upgrades return 401 so JS can handle them.
+                // Browser page-loads (everything else) redirect to the login page.
+                // Note: StartsWithSegments uses segment-boundary comparison; "/api" (no
+                // trailing slash) correctly matches /api/v1/status, /api/v1/ws, etc.
+                if (ctx.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return;
+                }
+
+                var returnUrl = Uri.EscapeDataString(ctx.Request.Path.Value ?? "/");
+                ctx.Response.Redirect($"/login.html?return={returnUrl}");
+                return;
+            }
+
+            await next(ctx);
+        });
+
         app.UseWebSockets();
 
         // Static files from the `web/` directory next to the executable.

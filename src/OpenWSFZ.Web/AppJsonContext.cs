@@ -39,6 +39,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(WsAudioOffsetMessage))]
 [JsonSerializable(typeof(AudioOffsetRequest))]
 [JsonSerializable(typeof(AnswerCqRequest))]
+[JsonSerializable(typeof(RemoteAccessConfig))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
