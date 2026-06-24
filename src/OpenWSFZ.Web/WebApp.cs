@@ -132,11 +132,23 @@ public static class WebApp
         // including WebSocket upgrades and static-file requests — is gated.
         // AOT-safe: plain lambda, no reflection or attribute-based filters.
         var authPolicy = app.Services.GetRequiredService<IAuthPolicy>();
+
+        // Paths that must be reachable before authentication (browsers cannot
+        // carry ?key= into sub-resource requests after the initial page-load):
+        //   /login.html  — the auth UI itself
+        //   /css/        — stylesheets
+        //   /js/         — ES module scripts
+        //   /favicon.ico — browser chrome (avoids a spurious 302 in the console)
+        // API paths are intentionally excluded — they must always be gated.
+        static bool IsPublicPath(PathString path) =>
+            path.StartsWithSegments("/login.html",  StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWithSegments("/css",         StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWithSegments("/js",          StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/favicon.ico",             StringComparison.OrdinalIgnoreCase);
+
         app.Use(async (ctx, next) =>
         {
-            // Whitelist: the login page is always served without auth so that
-            // a remote browser can reach it before it has a passphrase.
-            if (ctx.Request.Path.StartsWithSegments("/login.html", StringComparison.OrdinalIgnoreCase))
+            if (IsPublicPath(ctx.Request.Path))
             {
                 await next(ctx);
                 return;

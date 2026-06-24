@@ -290,4 +290,35 @@ public sealed class AuthMiddlewareTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "/login.html must be served without auth so a remote browser can reach the login page");
     }
+
+    // ── 8.8 — Static assets are exempt from auth (D-LAN-004) ─────────────────
+
+    [Theory(DisplayName = "8.8: PassphraseAuthPolicy — static asset paths without key from non-loopback → not 302/401")]
+    [InlineData("/css/app.css")]
+    [InlineData("/js/main.js")]
+    [InlineData("/favicon.ico")]
+    public async Task StaticAssets_AreServed_WithoutKey_OnNonLoopback(string path)
+    {
+        // Browsers do not propagate ?key= to sub-resource requests.  After the
+        // initial authenticated page-load, every <link rel="stylesheet"> and
+        // <script type="module"> fetch arrives without a key.  The auth middleware
+        // must whitelist /css/, /js/, and /favicon.ico so the page can render.
+        //
+        // web/ files are copied to the test output directory by the csproj ItemGroup,
+        // so the assets exist and must return 200.  Asserting "not 302 / not 401" is
+        // the critical gate; the 200 assertion provides belt-and-braces coverage.
+        using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri($"http://127.0.0.1:{_spoofedPort}"),
+        };
+
+        var response = await client.GetAsync(path);
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Redirect,
+            $"{path} must not be auth-redirected to /login.html — browsers cannot carry ?key= into sub-resource requests");
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized,
+            $"{path} must not return 401");
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            $"{path} is a static asset present in the test web root and must be served without auth");
+    }
 }
