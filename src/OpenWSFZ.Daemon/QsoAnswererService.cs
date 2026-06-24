@@ -45,7 +45,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private readonly ChannelReader<DecodeBatch> _decodeChannel;
     private readonly IConfigStore                               _configStore;
     private readonly IPttController                             _pttController;
-    private readonly TxEventBus                                 _txEventBus;
+    private readonly ITxEventBus                                 _txEventBus;
     private readonly AudioOffsetEventBus                        _audioOffsetEventBus;
     private readonly ILogger<QsoAnswererService>                _logger;
     private readonly Ft8AudioSynthesiser                        _synthesiser = new();
@@ -108,7 +108,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         ChannelReader<DecodeBatch>   decodeChannel,
         IConfigStore                 configStore,
         IPttController               pttController,
-        TxEventBus                   txEventBus,
+        ITxEventBus                  txEventBus,
         AdifLogWriter                adifLog,
         AudioOffsetEventBus          audioOffsetEventBus,
         ILogger<QsoAnswererService>  logger,
@@ -131,7 +131,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         ChannelReader<DecodeBatch>   decodeChannel,
         IConfigStore                 configStore,
         IPttController               pttController,
-        TxEventBus                   txEventBus,
+        ITxEventBus                  txEventBus,
         AdifLogWriter                adifLog,
         AudioOffsetEventBus          audioOffsetEventBus,
         ILogger<QsoAnswererService>  logger,

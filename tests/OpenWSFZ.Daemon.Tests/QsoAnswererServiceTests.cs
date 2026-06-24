@@ -1502,4 +1502,156 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StopAsync(CancellationToken.None);
         await ptt.DisposeAsync();
     }
+
+    // ── FR-UX-002: abort reason emitted on txState Idle transition ────────────
+
+    /// <summary>
+    /// Builds an isolated <see cref="QsoAnswererService"/> wired to an
+    /// <see cref="ITxEventBus"/> substitute so that <c>Publish</c> calls can be inspected.
+    /// </summary>
+    private static (QsoAnswererService sut, ITxEventBus eventBus, IPttController ptt,
+                    Channel<DecodeBatch> channel, CancellationTokenSource stopCts)
+        BuildIsolatedSut(
+            TxConfig                  txConfig,
+            TimeSpan                  watchdogDuration)
+    {
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with { Tx = txConfig });
+        // SaveAsync is called by SafeAbortToIdleAsync (disarm) and AnswerCqAsync (arm);
+        // return Task.CompletedTask for both so the service does not stall on a null Task.
+        store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>())
+             .Returns(Task.CompletedTask);
+
+        var eventBus = Substitute.For<ITxEventBus>();
+        var adifLog  = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var channel  = Channel.CreateUnbounded<DecodeBatch>();
+        var stopCts  = new CancellationTokenSource();
+
+        var sut = new QsoAnswererService(
+            channel.Reader, store, ptt, eventBus,
+            adifLog, new AudioOffsetEventBus(),
+            NullLogger<QsoAnswererService>.Instance,
+            watchdogDurationOverride: watchdogDuration);
+
+        return (sut, eventBus, ptt, channel, stopCts);
+    }
+
+    [Fact(DisplayName = "FR-UX-002: watchdog expiry publishes Idle with 'Watchdog timeout' abort reason")]
+    public async Task SafeAbortToIdleAsync_WatchdogTimeout_EmitsAbortReason()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 0,    // unlimited — only the watchdog terminates the session
+            WatchdogMinutes = 1,    // overridden to 300 ms below
+        };
+        var (sut, eventBus, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromMilliseconds(300));
+
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ → TxAnswer → WaitReport.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Feed no further batches — watchdog fires after 300 ms and drives the service to Idle.
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+
+        // The Idle publish must carry "Watchdog timeout" as the abort reason.
+        eventBus.Received().Publish(
+            QsoState.Idle,
+            Arg.Any<string?>(),
+            false,
+            "Watchdog timeout");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "FR-UX-002: operator AbortAsync publishes Idle with 'Operator abort' abort reason")]
+    public async Task SafeAbortToIdleAsync_OperatorAbort_EmitsAbortReason()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 0,    // unlimited — only an explicit abort terminates the session
+            WatchdogMinutes = 1,    // overridden to 30 s — well beyond test duration
+        };
+        var (sut, eventBus, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30));
+
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ → TxAnswer → WaitReport.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Operator presses the Abort button — simulated via AbortAsync().
+        await sut.AbortAsync();
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+
+        // The Idle publish must carry "Operator abort" as the abort reason.
+        eventBus.Received().Publish(
+            QsoState.Idle,
+            Arg.Any<string?>(),
+            false,
+            "Operator abort");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "FR-UX-002: normal 73 QSO completion publishes Idle with null abort reason")]
+    public async Task SafeAbortToIdleAsync_NormalCompletion_NoAbortReason()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 1,    // overridden to 30 s — well beyond test duration
+        };
+        var (sut, eventBus, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30));
+
+        await sut.StartAsync(stopCts.Token);
+
+        // Drive the full exchange: CQ → TxAnswer → WaitReport → TxReport → WaitRr73 → Tx73 → Idle.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // The Idle publish on normal QSO completion must carry a null abort reason
+        // (no entry is added to the TX history log — FR-UX-002).
+        eventBus.Received().Publish(
+            QsoState.Idle,
+            Arg.Any<string?>(),
+            false,
+            Arg.Is<string?>(r => r == null));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
 }

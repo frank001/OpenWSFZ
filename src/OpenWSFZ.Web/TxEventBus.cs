@@ -7,7 +7,7 @@ namespace OpenWSFZ.Web;
 /// <c>txState</c> WebSocket events to all connected clients without depending on the
 /// internal <see cref="WebSocketHub"/> class directly (FR-047).
 /// </summary>
-public sealed class TxEventBus
+public sealed class TxEventBus : ITxEventBus
 {
     /// <summary>
     /// Broadcasts a <c>txState</c> event carrying the new answerer state and active
