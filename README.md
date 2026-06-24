@@ -1,12 +1,12 @@
 # OpenWSFZ
 
 An open-source, cross-platform, MIT-licensed weak-signal amateur-radio
-application for HAM operators — covering the WSJT-X family of modes (FT8, FT4,
+application for amateur radio operators — covering the WSJT-X family of modes (FT8, FT4,
 JS8, JT9, JT65, WSPR, and related).
 
 ## Project intent
 
-- **For HAM operators**, as a flexible alternative for existing software.
+- **For amateur radio operators**, as a flexible alternative for existing software.
 - **Cross-platform** (Windows, Linux, macOS) and **free of restrictions**.
 - **MIT-licensed**, clean-room implementation derived from public protocol
   specifications. No code, algorithms, or assets are taken from the GPL-3.0
@@ -51,6 +51,7 @@ VoiceMeeter software loopback.
 | p19 — Frequency management | Configurable FT8 frequency list; `FrequencyStore`; REST tune endpoint; dial-frequency selector on main page (FR-042–FR-045) | ✅ merged |
 | p20 — FA digit width | Self-calibrating digit-width computation in `SerialCatConnection` FA tune command | ✅ merged |
 | ft8-qso-answerer-v1 — FT8 TX & QSO answerer | FT8 TX pipeline (native encode, GFSK synthesis, WASAPI playback); `IPttController` abstraction; QSO answerer state machine (auto-answer CQ, 6-message exchange, retry, watchdog, operator abort); ADIF 3.x log writer; `tx` config section; Settings TX fields | ✅ merged |
+| tx-ux-improvements — TX UX & config hardening | D-TX-002: config bounds enforced at four layers (HTML, JS, API, config-load) with `Math.Clamp` backstop; `RetryCount = 0` means unlimited retries; FR-UX-002: abort reasons surfaced in scrolling TX history panel; UI-001: obsolete "Enable auto-answer" toggle removed; `ITxEventBus` interface extracted for daemon-level unit testing | ✅ merged |
 
 ## Decoder Measurement System Analysis (Gage R&R)
 
@@ -85,12 +86,13 @@ noise realisation, giving non-zero repeatability variance.
 | S3 DT | %GR&R | 3.0% | ✅ PASS |
 | S3 DT | ndc | 7 | ✅ PASS |
 | S4/S5 Detection | κ (OpenWSFZ vs truth) | 1.000 | ✅ PASS |
-| S5 False positives | FP rate (OpenWSFZ) | 0.0% | ✅ PASS |
-| S7 Co-channel | Overall recovery | 50.54% vs WSJT-X 77.42% | ℹ️ Informational |
+| S5 False positives | FP rate (OpenWSFZ) | 0.042/slot (shim 20260029) | ℹ️ Informational — D-009 fix (−94% vs 0.675/slot baseline; 95% CI [0.020, 0.078]) |
+| S7 Co-channel | Overall recovery | 80.22% vs WSJT-X 96.67% (shim 20260025) | ℹ️ Informational — D-001 open; co_channel_sweep 86.67% ≈ WSJT-X |
 
 **Overall: PASS.**  Full S1–S8 regression gate run at `815b652` (2026-06-14, shim 20260016):
-all metric gates pass.  S7 co-channel gap remains informational (D-001, open);
-five shim-level hypotheses exhausted; current H4 variability band 43–57%.
+all metric gates pass.  S7 and S5 figures above reflect subsequent shim improvements
+(H6 AP decode + OSD fallback for D-001; K_MIN_SCORE_PASS2 = 10 for D-009).
+S7 co-channel gap and D-001 remain open; next step is on-air QSO testing.
 
 See [`qa/rr-study/STUDY-SPEC.md`](qa/rr-study/STUDY-SPEC.md) for the full study design
 and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedure.
@@ -104,16 +106,21 @@ and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedu
 > WSJT-X decodes, 40 m band, real off-air recordings). Higher is better;
 > false-positive rate must stay ≤ 6%.
 
-| Version | Phase | Recovery rate | Raw | False-positive rate | Approach |
+| Version | Phase / run | Recovery rate | Raw | False-positive rate | Approach |
 |---|---|---|---|---|---|
 | v0.10 | p10 baseline | 66.6% | 591 / 887 | 3.9% (24 / 615) | Single-pass ft8_lib decode |
-| v0.15 | p15 | **69.1%** | 613 / 887 | 3.8% (24 / 637) | + spectrogram-domain second-pass (±1-bin suppression) |
+| v0.15 | p15 | 69.1% | 613 / 887 | 3.8% (24 / 637) | + spectrogram-domain second-pass (±1-bin suppression) |
+| v0.21 | S6 corpus replay (2026-06-11, `d331d20`) | **69.7%** | — | — | K=3; OSD not yet tuned (pre-D-009) |
 
 The spectrogram-domain approach plateaus at ~69%: the FFT waterfall stores
 carrier frequency at ±3.125 Hz resolution, which prevents coherent
-PCM-domain waveform cancellation. Closing the remaining gap to ≥ 80%
-requires sub-Hz carrier-frequency estimation and PCM-domain waveform
-subtraction, planned for a future change.
+PCM-domain waveform cancellation. The S6 corpus replay (June 2026) confirmed
+this ceiling on real off-air recordings. The OSD false-positive fix (D-009,
+K_MIN_SCORE_PASS2 = 10, shim 20260029) significantly reduces false positives at
+a small cost to marginal co-channel decodes; a post-D-009 corpus re-run against
+the off-air fixtures is pending (corpus is git-ignored per NFR-021 — real
+callsigns). The synthetic R&R S7 scenario shows **80.22%** co-channel recovery
+(shim 20260025) with an OSD-lifted co_channel_sweep of **86.67%** ≈ WSJT-X.
 
 ## What works today
 
@@ -126,12 +133,13 @@ subtraction, planned for a future change.
   FT8 tone sequences (continuous-phase GFSK, 48 kHz, ±0.5 peak amplitude).
 - **QSO answerer** — an automated state machine listens for decoded CQs and
   conducts the full six-message FT8 exchange (answer → signal report →
-  roger report → RR73/RRR → 73). Configurable retry count (default 3) and
-  watchdog timer (default 4 minutes). Operator abort is available via
-  `POST /api/v1/tx/abort`. State is exposed via `GET /api/v1/tx/status` and
-  pushed in real time over WebSocket. Auto-answer is off by default and
-  must be enabled explicitly in Settings. Validated via VoiceMeeter
-  software loopback against WSJT-X (three complete QSOs logged).
+  roger report → RR73/RRR → 73). Configurable retry count (default 3; set to 0
+  for unlimited) and watchdog timer (default 4 minutes). Operator abort is
+  available via `POST /api/v1/tx/abort`. State is exposed via
+  `GET /api/v1/tx/status` and pushed in real time over WebSocket. Abort reasons
+  (watchdog timeout, operator abort, retry exhaustion, partner busy, internal
+  error) are surfaced in a scrolling TX history panel in the UI. Validated via
+  VoiceMeeter software loopback against WSJT-X (three complete QSOs logged).
 - **ADIF logging** — a completed QSO appends one ADIF 3.x record to
   `ADIF.log` (beside `ALL.TXT`), with correct `TIME_ON`/`TIME_OFF` in
   `HHMMSS` format, ITU band derivation from dial frequency, and graceful
@@ -147,8 +155,8 @@ subtraction, planned for a future change.
   changes are persisted to a JSON config file. Available serial ports are
   enumerated automatically and presented as a dropdown. An "Unsaved changes"
   badge appears when the form is dirty, and a navigation guard prevents
-  accidental loss of edits. TX fields (callsign, grid, auto-answer toggle,
-  watchdog minutes, retry count) are pre-populated from the loaded config.
+  accidental loss of edits. TX fields (callsign, grid, watchdog minutes, and
+  retry count) are pre-populated from the loaded config.
 - **CAT rig control** — live dial frequency readout via two selectable
   transports: `SerialCatConnection` (direct serial, `FA;` command) and
   `RigctldConnection` (TCP client to a running `rigctld` daemon). CAT status
@@ -239,8 +247,8 @@ The build and test suite has been verified on all three target platforms:
 
 | Platform | Build | Tests | CI |
 |---|---|---|---|
-| Windows x64 | ✅ 0 warnings | ✅ 442 passed | ✅ GitHub Actions |
-| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 442 passed | ✅ GitHub Actions |
+| Windows x64 | ✅ 0 warnings | ✅ 622 passed | ✅ GitHub Actions |
+| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 622 passed | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
 
 All five CI gates pass on every platform:
