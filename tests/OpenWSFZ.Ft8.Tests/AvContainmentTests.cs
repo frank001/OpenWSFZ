@@ -76,6 +76,8 @@ public sealed class AvContainmentTests
         {
             SetApBitsCalled = true;
         }
+
+        public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { /* no-op */ }
     }
 
     /// <summary>

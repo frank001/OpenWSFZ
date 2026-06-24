@@ -293,6 +293,19 @@
  *   OSD_NHARD_MAX = 60, OSD_CORR_THRESHOLD = 0.10, text Rules A/B/C intact.
  *   No ABI change; no struct layout change.
  *
+ * decoder-settings-page (FT8_SHIM_VERSION 20260030):
+ *
+ *   Exposes ft8_set_decode_params(int k, float corr, int nhard) — a new runtime-
+ *   configurable setter for the three OSD gate parameters previously fixed as
+ *   compile-time constants.  K_MIN_SCORE_PASS2 is stored as module-level variable
+ *   s_k_min_score_pass2 (default 10) read by the pass-config table in ft8_decode_all.
+ *   OSD_CORR_THRESHOLD and OSD_NHARD_MAX are stored as s_osd_corr_threshold (default
+ *   0.10f) and s_osd_nhard_max (default 60) and exposed to patched/ft8/decode.c via
+ *   extern linkage — decode.c reads them in place of the former #define constants.
+ *   Default values match shim 20260029, so calling ft8_set_decode_params is optional;
+ *   omitting the call produces identical behaviour.  No change to decode logic, ABI,
+ *   struct layout, or any existing entry points.
+ *
  * Build: see BUILD.md.  encode.c and patched/ft8/decode.c must be compiled and linked.
  */
 
@@ -352,6 +365,37 @@ char* stpcpy(char* dest, const char* src)
 }
 #endif
 
+/* ── Runtime-configurable OSD gate parameters (decoder-settings-page, shim 20260030) ─── */
+/*
+ * These three module-level variables are set once per config-change event via
+ * ft8_set_decode_params() and read on every ft8_decode_all() call.  They replace
+ * the former compile-time #define constants:
+ *
+ *   s_k_min_score_pass2  ← was K_MIN_SCORE_PASS2 = 10 (used in pass-config table)
+ *   s_osd_corr_threshold ← was OSD_CORR_THRESHOLD = 0.10f (used in decode.c)
+ *   s_osd_nhard_max      ← was OSD_NHARD_MAX = 60 (used in decode.c)
+ *
+ * Non-static: decode.c accesses s_osd_corr_threshold and s_osd_nhard_max via extern
+ * declarations.  Thread safety: module-level writes vs. thread-pool reads; a missed
+ * update means one cycle uses old values — acceptable per design (D2 in design.md).
+ */
+int   s_k_min_score_pass2  = 10;      /* default: D-009 calibrated value (K=10)  */
+float s_osd_corr_threshold = 0.10f;   /* default: D-009 calibrated value (0.10)  */
+int   s_osd_nhard_max      = 60;      /* default: D-009 calibrated value (60)     */
+
+/*
+ * ft8_set_decode_params — update the three runtime-configurable OSD gate parameters.
+ *
+ * Safe to call before the first ft8_decode_all invocation (no library init required).
+ * Values take effect on the next ft8_decode_all call.
+ */
+void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int osd_nhard_max)
+{
+    s_k_min_score_pass2  = k_min_score_pass2;
+    s_osd_corr_threshold = osd_corr_threshold;
+    s_osd_nhard_max      = osd_nhard_max;
+}
+
 /* ── Decode configuration ────────────────────────────────────────────────── */
 
 #define FT8_SAMPLE_RATE      12000
@@ -399,11 +443,9 @@ char* stpcpy(char* dest, const char* src)
 
 /*
  * Pass 1 uses a wider candidate net.
+ * K_MIN_SCORE_PASS2 default was 10 (D-009 calibrated); now a runtime variable
+ * s_k_min_score_pass2 set via ft8_set_decode_params() — see decoder-settings-page shim note.
  */
-#define K_MIN_SCORE_PASS2       10   /* D-009: was 1; pass-1 sweep + confirmation gate
-                                         selected 10: S5 FP −94% (0.675→0.042/slot);
-                                         co_channel_sweep 86.67% (ref 92.14%; −5.5 pp
-                                         at Δ5–7 Hz; accepted by Captain, 2026-06-22) */
 #define K_MAX_CANDIDATES_PASS2  200
 #define K_LDPC_ITERATIONS_PASS2 50
 
@@ -1118,9 +1160,12 @@ int ft8_decode_all(
     }
 
     /* ── 5. Multi-pass decode loop ───────────────────────────────────────── */
-    static const struct { int min_score; int max_cands; int ldpc; } k_pass_cfg[K_MAX_PASSES] = {
-        { K_MIN_SCORE,       K_MAX_CANDIDATES,       K_LDPC_ITERATIONS       }, /* pass 0: full waterfall           */
-        { K_MIN_SCORE_PASS2, K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 1: spectrogram-suppressed   */
+    /* Pass-config table: pass 1 min_score uses the runtime variable s_k_min_score_pass2
+     * (set via ft8_set_decode_params, default 10 = K_MIN_SCORE).  The table cannot be
+     * static const because one element is a runtime value; it is rebuilt each call. */
+    const struct { int min_score; int max_cands; int ldpc; } k_pass_cfg[K_MAX_PASSES] = {
+        { K_MIN_SCORE,           K_MAX_CANDIDATES,       K_LDPC_ITERATIONS       }, /* pass 0: full waterfall           */
+        { s_k_min_score_pass2,   K_MAX_CANDIDATES_PASS2, K_LDPC_ITERATIONS_PASS2 }, /* pass 1: spectrogram-suppressed   */
     };
 
     for (int pass = 0; pass < K_MAX_PASSES; pass++)

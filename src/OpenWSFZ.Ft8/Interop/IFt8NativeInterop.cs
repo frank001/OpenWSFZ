@@ -69,4 +69,14 @@ internal interface IFt8NativeInterop
     /// MUST be called on the same thread as <see cref="DecodeAll"/> or before it.
     /// </summary>
     void SetApBits(byte[] mycallBits, byte[] hiscallBits);
+
+    /// <summary>
+    /// Update the three runtime-configurable OSD gate parameters (decoder-settings-page,
+    /// shim 20260030).  Values take effect on the next <see cref="DecodeAll"/> call.
+    /// Safe to call before the first <see cref="DecodeAll"/> invocation.
+    /// </summary>
+    /// <param name="kMinScorePass2">Pass-1 candidate score floor (default 10, valid [5, 30]).</param>
+    /// <param name="osdCorrThreshold">OSD normalised correlation gate (default 0.10f, valid [0.05, 0.40]).</param>
+    /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (default 60, valid [30, 100]).</param>
+    void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax);
 }

@@ -193,8 +193,14 @@ internal static class Ft8LibInterop
     ///   improves +8.5 pp on the hard P0–P2 subset vs K=1 baseline.  All other
     ///   shim-20260028 gate values unchanged: OSD_NHARD_MAX=60, OSD_CORR_THRESHOLD=0.10,
     ///   text Rules A/B/C intact.  No ABI change; struct layout unchanged (48 bytes).
+    /// 20260030 (decoder-settings-page): runtime-configurable OSD gate parameters via
+    ///   <see cref="SetDecodeParams"/>.  K_MIN_SCORE_PASS2 promoted from compile-time
+    ///   <c>#define</c> to module-level variable <c>s_k_min_score_pass2</c> (default 10).
+    ///   OSD_CORR_THRESHOLD and OSD_NHARD_MAX in decode.c replaced by extern globals owned
+    ///   by ft8_shim.c (defaults 0.10f, 60).  No change to decode logic, ABI, struct layout
+    ///   (48 bytes), or existing entry points.  Default values identical to shim 20260029.
     /// </summary>
-    private const int ExpectedShimVersion = 20260029;
+    private const int ExpectedShimVersion = 20260030;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
@@ -309,6 +315,18 @@ internal static class Ft8LibInterop
     private static extern void NativeSetApBits(
         [In] byte[] mycallBits,   int numMycallBits,
         [In] byte[] hiscallBits,  int numHiscallBits);
+
+    /// <summary>
+    /// Update the three runtime-configurable OSD gate parameters
+    /// (decoder-settings-page, shim 20260030).
+    /// Values take effect on the next <see cref="NativeDecodeAll"/> call.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_decode_params",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetDecodeParams(
+        int   kMinScorePass2,
+        float osdCorrThreshold,
+        int   osdNhardMax);
 
     /// <summary>
     /// Return the compile-time <c>K_MAX_PASSES</c> constant from the native shim.
@@ -508,6 +526,23 @@ internal static class Ft8LibInterop
         byte[] hc = hiscallBits.Length > 0 ? hiscallBits : [0];
 
         NativeSetApBits(mc, numMycall, hc, numHiscall);
+    }
+
+    /// <summary>
+    /// Update the three runtime-configurable OSD gate parameters (decoder-settings-page,
+    /// shim 20260030).  Values take effect on the next <see cref="DecodeAll"/> call.
+    /// <para>
+    /// Calls <see cref="EnsureInitialized"/> internally before setting the native statics,
+    /// so it is safe to call before the first <see cref="DecodeAll"/> invocation.
+    /// </para>
+    /// </summary>
+    /// <param name="kMinScorePass2">Pass-1 candidate score floor (default 10, valid [5, 30]).</param>
+    /// <param name="osdCorrThreshold">OSD normalised correlation gate (default 0.10f, valid [0.05, 0.40]).</param>
+    /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (default 60, valid [30, 100]).</param>
+    public static void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
+    {
+        EnsureInitialized();
+        NativeSetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
     }
 
     /// <summary>

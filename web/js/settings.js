@@ -65,6 +65,12 @@ const loggingDayGroup       = /** @type {HTMLElement}       */ (document.getElem
 const freqTbody  = /** @type {HTMLTableSectionElement} */ (document.getElementById('freq-tbody'));
 const addFreqBtn = /** @type {HTMLButtonElement}       */ (document.getElementById('add-freq-btn'));
 
+// Advanced Decoder Settings controls (decoder-settings-page)
+const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-k'));
+const decoderCorr  = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-corr'));
+const decoderNhard = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-nhard'));
+const decoderReset = /** @type {HTMLButtonElement} */ (document.getElementById('decoder-reset'));
+
 // Remote access controls (lan-remote-access)
 const remoteAccessEnabled         = /** @type {HTMLInputElement}  */ (document.getElementById('remote-access-enabled'));
 const remoteAccessPassphrase      = /** @type {HTMLInputElement}  */ (document.getElementById('remote-access-passphrase'));
@@ -242,6 +248,12 @@ function snapshotForm() {
     remoteAccess: {
       enabled:    remoteAccessEnabled.checked,
       passphrase: remoteAccessPassphrase.value,
+    },
+    // decoder-settings-page: include decoder controls in dirty-state snapshot.
+    decoder: {
+      kMinScorePass2:   decoderK.value,
+      osdCorrThreshold: decoderCorr.value,
+      osdNhardMax:      decoderNhard.value,
     },
   });
 }
@@ -516,6 +528,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     remoteAccessPassphrase.value   = ra.passphrase ?? '';
     updateRemoteAccessVisibility();
 
+    // Pre-fill decoder settings (decoder-settings-page).
+    const dec = config.decoder ?? {};
+    decoderK.value     = String(dec.kMinScorePass2   ?? 10);
+    decoderCorr.value  = String(dec.osdCorrThreshold ?? 0.10);
+    decoderNhard.value = String(dec.osdNhardMax      ?? 60);
+
     // Capture the clean baseline after all fields are fully populated (FR-040).
     _cleanSnapshot = snapshotForm();
 
@@ -593,6 +611,16 @@ function updateRemoteAccessVisibility() {
 }
 
 remoteAccessEnabled.addEventListener('change', updateRemoteAccessVisibility);
+
+// ── Advanced Decoder Settings (decoder-settings-page) ────────────────────
+
+/** Reset decoder inputs to the D-009 calibrated defaults. */
+decoderReset.addEventListener('click', () => {
+  decoderK.value     = '10';
+  decoderCorr.value  = '0.10';
+  decoderNhard.value = '60';
+  syncDirtyUI();
+});
 
 // Passphrase show/hide toggle (task 5.4).
 remoteAccessPassToggle.addEventListener('click', () => {
@@ -722,6 +750,13 @@ saveBtn.addEventListener('click', async () => {
       passphrase: remoteAccessPassphrase.value.trim() || null,
     };
 
+    // Collect decoder config (decoder-settings-page).
+    const decoder = {
+      kMinScorePass2:   parseInt(decoderK.value,     10) || 10,
+      osdCorrThreshold: parseFloat(decoderCorr.value)    || 0.10,
+      osdNhardMax:      parseInt(decoderNhard.value, 10) || 60,
+    };
+
     // POST config and frequencies in parallel (FR-043 / FR-007).
     await Promise.all([
       postConfig({
@@ -737,6 +772,7 @@ saveBtn.addEventListener('click', async () => {
         cat,
         tx,
         remoteAccess,
+        decoder,
       }),
       postFrequencies(freqEntries),
     ]);

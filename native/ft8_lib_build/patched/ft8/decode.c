@@ -14,7 +14,7 @@
 // #define LOG_LEVEL LOG_DEBUG
 // #include "debug.h"
 
-/* OSD two-feature gate (shim 20260028, D-009 R5).
+/* OSD two-feature gate (shim 20260028, D-009 R5; runtime-configurable since shim 20260030).
  *
  * The single-knob corr/norm approach (R4) proved ceilinged: achieving 0 FP on S5
  * required OSD_CORR_THRESHOLD >= 0.40, which conflicts with S7 co-channel decode
@@ -37,11 +37,8 @@
  *   the noise LLRs → nhard clusters near 87 (= 174/2).
  *
  * Calibration:
- *   OSD_CORR_THRESHOLD: 0.10 (reverted from R4 ceiling; nhard now carries noise rejection).
- *   OSD_NHARD_MAX: calibrated against S5 noise and S7 genuine histograms.
- *     Expect S5 noise near ~87; S7 genuine clustered low.
- *     For histogram collection: rebuild with -DNHARD_DIAG; nhard values printed to stderr
- *     for every OSD hit (accepted and rejected).  Remove -DNHARD_DIAG before commit.
+ *   OSD_CORR_THRESHOLD default: 0.10 (reverted from R4 ceiling; nhard now carries noise rejection).
+ *   OSD_NHARD_MAX default: 60 (calibrated against S5 noise and S7 genuine histograms).
  *
  * Calibration history:
  *   OSD_CORR_THRESHOLD:
@@ -51,9 +48,18 @@
  *     0.10 (shim 20260028, R5): reverted; nhard gate replaces threshold escalation.
  *   OSD_NHARD_MAX:
  *     60 (shim 20260028, R5): initial calibration target — verified by S5/S7 gate runs.
+ *
+ * shim 20260030 (decoder-settings-page): OSD_CORR_THRESHOLD and OSD_NHARD_MAX promoted from
+ * compile-time #define constants to runtime-configurable extern globals owned by ft8_shim.c.
+ * Set via ft8_set_decode_params(); default values (0.10f, 60) are calibration-identical to
+ * the former defines.
  */
-#define OSD_CORR_THRESHOLD 0.10f
-#define OSD_NHARD_MAX      60
+extern float s_osd_corr_threshold;   /* runtime-configurable; default 0.10f (shim 20260030) */
+extern int   s_osd_nhard_max;        /* runtime-configurable; default 60   (shim 20260030) */
+
+/* Compatibility aliases so the gate code below continues to compile unmodified. */
+#define OSD_CORR_THRESHOLD s_osd_corr_threshold
+#define OSD_NHARD_MAX      s_osd_nhard_max
 
 // Lookup table for y = 10*log10(1 + 10^(x/10)), where
 //   y - increase in signal level dB when adding a weaker independent signal

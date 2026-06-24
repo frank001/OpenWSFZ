@@ -49,6 +49,7 @@ public sealed class D005MessageTrimTests
             => (new float[maxPasses], new float[maxPasses], new int[maxPasses]);
 
         public void SetApBits(byte[] mycallBits, byte[] hiscallBits) { /* no-op */ }
+        public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { /* no-op */ }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -18,4 +18,5 @@ namespace OpenWSFZ.Config;
 [JsonSerializable(typeof(CatConfig))]
 [JsonSerializable(typeof(TxConfig))]
 [JsonSerializable(typeof(RemoteAccessConfig))]
+[JsonSerializable(typeof(DecoderConfig))]
 public sealed partial class ConfigJsonContext : JsonSerializerContext { }

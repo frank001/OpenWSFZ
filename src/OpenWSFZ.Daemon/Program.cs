@@ -339,6 +339,14 @@ app.Lifetime.ApplicationStarted.Register(() =>
     WelcomeBannerEmitter.Emit(port);
     startupLogger.LogInformation("OpenWSFZ started on port {Port}.", port);
 
+    // ── Apply initial decoder parameters before the first decode cycle (task 5.2) ─
+    // Null decoder key in config is treated as calibrated defaults (new DecoderConfig()).
+    var initialDecoder = configStore.Current.Decoder ?? new DecoderConfig();
+    ft8Decoder.SetDecodeParams(
+        initialDecoder.KMinScorePass2,
+        initialDecoder.OsdCorrThreshold,
+        initialDecoder.OsdNhardMax);
+
     var deviceName = configStore.Current.AudioDeviceId;
     if (deviceName is not null && configStore.Current.DecodingEnabled)
         StartPipeline(deviceName);
@@ -408,6 +416,11 @@ LoggingConfig lastLoggingConfig   = configStore.Current.Logging ?? new LoggingCo
 LogLevel      lastLogConsoleLevel = logLevel;
 configStore.OnSaved += newConfig =>
 {
+    // ── Decoder params update (decoder-settings-page, task 5.1) ─────────────
+    // Apply the new decoder parameters immediately so the next decode cycle
+    // picks them up.  Null decoder is treated as calibrated defaults.
+    var dec = newConfig.Decoder ?? new DecoderConfig();
+    ft8Decoder.SetDecodeParams(dec.KMinScorePass2, dec.OsdCorrThreshold, dec.OsdNhardMax);
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
     // create a spurious new log file and reset the active sink.

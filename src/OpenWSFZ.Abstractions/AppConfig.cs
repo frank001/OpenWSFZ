@@ -59,4 +59,13 @@ public sealed record AppConfig(
     /// without error and the web interface remains loopback-only.
     /// </summary>
     public RemoteAccessConfig  RemoteAccess { get; init; } = new();
+
+    /// <summary>
+    /// Runtime-configurable OSD gate parameters (decoder-settings-page, shim 20260030).
+    /// Defaults to <c>null</c> so that existing config files without a <c>decoder</c>
+    /// key deserialise without error.  A <c>null</c> value is treated by all consumers
+    /// as equivalent to <c>new DecoderConfig()</c> (D-009 calibrated defaults:
+    /// <c>kMinScorePass2=10</c>, <c>osdCorrThreshold=0.10</c>, <c>osdNhardMax=60</c>).
+    /// </summary>
+    public DecoderConfig?      Decoder      { get; init; } = null;
 }

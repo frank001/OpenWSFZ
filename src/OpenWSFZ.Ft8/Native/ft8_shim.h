@@ -249,8 +249,16 @@ extern "C" {
  *              P0–P2 subset).  All other shim-20260028 gate values unchanged:
  *              OSD_NHARD_MAX=60, OSD_CORR_THRESHOLD=0.10, text Rules A/B/C.
  *              No ABI change; struct layout unchanged (48 bytes).
+ *   20260030 — decoder-settings-page: runtime-configurable OSD gate parameters via
+ *              ft8_set_decode_params(k, corr, nhard).  K_MIN_SCORE_PASS2 promoted from
+ *              compile-time #define to module-level int s_k_min_score_pass2 (default 10).
+ *              OSD_CORR_THRESHOLD and OSD_NHARD_MAX in decode.c replaced by extern globals
+ *              s_osd_corr_threshold (default 0.10f) and s_osd_nhard_max (default 60)
+ *              owned by ft8_shim.c.  No change to decode logic, ABI, struct layout (48 bytes),
+ *              or any existing entry points.  Default values identical to shim 20260029;
+ *              omitting ft8_set_decode_params produces identical behaviour.
  */
-#define FT8_SHIM_VERSION 20260029
+#define FT8_SHIM_VERSION 20260030
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -417,6 +425,31 @@ void ft8_set_ap_bits(
  * on separate threads do not interfere with each other.
  */
 int ft8_encode_message(const char* message, uint8_t* tones_out, int tones_capacity);
+
+/*
+ * ft8_set_decode_params — update the three runtime-configurable OSD gate parameters
+ * (decoder-settings-page, shim 20260030).
+ *
+ * Parameters:
+ *   k_min_score_pass2  — pass-1 candidate score floor (default 10, valid [5, 30]).
+ *                        Lower values admit more pass-1 candidates (higher sensitivity
+ *                        and more false positives); higher values are more selective.
+ *   osd_corr_threshold — OSD normalised correlation gate (default 0.10f, valid [0.05, 0.40]).
+ *                        Candidates whose normalised inner-product score is below this
+ *                        threshold are rejected as likely noise CRC-14 coincidences.
+ *   osd_nhard_max      — OSD maximum Hamming-distance gate (default 60, valid [30, 100]).
+ *                        Candidates with more hard-decision bit errors than this are rejected.
+ *
+ * Values take effect on the next ft8_decode_all call.  The default values (10, 0.10f, 60)
+ * match the D-009 calibrated operating point established at shim 20260029; calling this
+ * function with those defaults produces identical behaviour to shim 20260029.
+ *
+ * Thread safety: module-level write vs. thread-pool reads; a missed update means one decode
+ * cycle uses old values, which is acceptable.  No mutex needed in practice.
+ *
+ * Safe to call before the first ft8_decode_all invocation.
+ */
+void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int osd_nhard_max);
 
 #ifdef __cplusplus
 }

@@ -35,4 +35,7 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     public void SetApBits(byte[] mycallBits, byte[] hiscallBits)
         => Ft8LibInterop.SetApBits(mycallBits, hiscallBits);
+
+    public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
+        => Ft8LibInterop.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
 }
