@@ -780,7 +780,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         _state = newState;
         _logger.LogDebug("QsoAnswererService: state → {State} (partner: {Partner}).",
             newState, partner ?? "(none)");
-        _txEventBus.Publish(newState, partner, autoAnswerEnabled: true);
+        _txEventBus.Publish(
+            state:             newState.ToString(),
+            role:              "answerer",
+            partner:           partner,
+            autoAnswerEnabled: true);
     }
 
     /// <summary>
@@ -867,7 +871,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
         _state      = QsoState.Idle;
         _retryCount = 0;
-        _txEventBus.Publish(QsoState.Idle, null, autoAnswerEnabled: false, abortReason: effectiveReason);
+        _txEventBus.Publish(
+            state:             QsoState.Idle.ToString(),
+            role:              "answerer",
+            partner:           null,
+            autoAnswerEnabled: false,
+            abortReason:       effectiveReason);
     }
 
     // ── H6 AP decode helper ───────────────────────────────────────────────────

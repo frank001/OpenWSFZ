@@ -72,6 +72,13 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private volatile CancellationTokenSource _txCts = new();
     private volatile bool _operatorAbortRequested;
 
+    // Dedicated abort signal used by ReadNextBatchAsync in the Idle/WaitAnswer path.
+    // Token.Register on _txCts.Token has ordering fragility (volatile reference swap);
+    // a TCS set directly by AbortAsync is simpler and provably correct.
+    // Reset to a fresh TCS in SafeAbortToIdleAsync so subsequent sessions can abort.
+    private volatile TaskCompletionSource _abortTcs =
+        new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
     // Non-null only in unit tests — avoids 60-second watchdog waits.
     private readonly TimeSpan? _watchdogDurationOverride;
 
@@ -158,6 +165,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
         _operatorAbortRequested = true;
         _txCts.Cancel();
+        // Signal the dedicated TCS so ReadNextBatchAsync wakes up from the Idle/WaitAnswer
+        // Task.WhenAny even though _txCts is not directly linked there.
+        _abortTcs.TrySetResult();
 
         try
         {
@@ -196,6 +206,24 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _wakeupChannel.Writer.TryWrite(new DecodeBatch(wakeupCycleStart, []));
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Test-only helper: directly set pending-responder fields without pushing a wakeup batch.
+    /// This avoids the race in unit tests between the service reading the wakeup channel and
+    /// the test trying to drain it.  Only call from within tests that verify the pending-
+    /// responder state machine; production code must always use <see cref="SelectResponderAsync"/>.
+    /// </summary>
+    internal void TestSetPendingResponder(
+        string callsign, double freqHz, bool isAPhase, DateTimeOffset? setAt = null)
+    {
+        lock (_stateLock)
+        {
+            _pendingResponderCallsign    = callsign;
+            _pendingResponderFrequencyHz = freqHz;
+            _pendingResponderIsAPhase    = isAPhase;
+            _pendingResponderSetAt       = setAt ?? DateTimeOffset.UtcNow;
+        }
     }
 
     // ── BackgroundService ─────────────────────────────────────────────────────
@@ -275,18 +303,23 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             }
         }
 
-        // Idle or WaitAnswer: race both channels.
+        // Idle or WaitAnswer: race decode channel, wakeup channel, and the abort TCS.
+        // _abortTcs is set directly by AbortAsync — simpler and more reliable than
+        // linking _txCts.Token through Task.Delay or Token.Register approaches.
+        if (_txCts.IsCancellationRequested) return null;
         if (_wakeupChannel.Reader.TryRead(out var pending)) return pending;
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (_txCts.IsCancellationRequested)                  return null;
             if (_decodeChannel.TryRead(out var decode))          return decode;
             if (_wakeupChannel.Reader.TryRead(out var wakeup)) return wakeup;
 
             var decodeReady = _decodeChannel.WaitToReadAsync(stoppingToken).AsTask();
             var wakeupReady = _wakeupChannel.Reader.WaitToReadAsync(stoppingToken).AsTask();
-            await Task.WhenAny(decodeReady, wakeupReady).ConfigureAwait(false);
+            await Task.WhenAny(decodeReady, wakeupReady, _abortTcs.Task).ConfigureAwait(false);
             stoppingToken.ThrowIfCancellationRequested();
+            if (_txCts.IsCancellationRequested) return null;
         }
 
         stoppingToken.ThrowIfCancellationRequested();
@@ -297,6 +330,17 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
     private async Task ProcessBatchAsync(DecodeBatch batch, CancellationToken stoppingToken)
     {
+        // An abort written to the wakeup channel (see AbortAsync comment) arrives here as a
+        // regular batch.  Detect the cancelled CTS before dispatching to state handlers so we
+        // never start a TX operation on a cancelled session.
+        if (_txCts.IsCancellationRequested)
+        {
+            var reason = _operatorAbortRequested ? "Operator abort" : "Watchdog timeout";
+            _operatorAbortRequested = false;
+            await SafeAbortToIdleAsync(stoppingToken, reason).ConfigureAwait(false);
+            return;
+        }
+
         var tx = _configStore.Current.Tx ?? new TxConfig();
 
         switch (_callerState)
@@ -713,7 +757,13 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         // Clear H6 AP constraints.
         _decoder?.SetApConstraints(null);
 
-        _txCts = new CancellationTokenSource();
+        _txCts    = new CancellationTokenSource();
+        // Reset the abort TCS so future sessions can also be aborted cleanly.
+        _abortTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        // Drain any stale wakeup batches (e.g. from a SelectResponderAsync call that
+        // raced with the abort) so re-entering Idle does not immediately re-arm the
+        // CQ loop via HandleIdleAsync.
+        while (_wakeupChannel.Reader.TryRead(out _)) { }
 
         try
         {
