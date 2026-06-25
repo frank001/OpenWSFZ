@@ -46,6 +46,18 @@ const txGrid            = /** @type {HTMLInputElement} */ (document.getElementBy
 const txWatchdogMinutes = /** @type {HTMLInputElement} */ (document.getElementById('general-watchdog-minutes'));
 const txRetryCount      = /** @type {HTMLInputElement} */ (document.getElementById('general-retry-count'));
 
+// TX Mode and Partner Selection (qso-caller)
+const generalTxRole               = /** @type {HTMLSelectElement} */ (document.getElementById('general-tx-role'));
+const generalCallerPartnerSelect  = /** @type {HTMLSelectElement} */ (document.getElementById('general-caller-partner-select'));
+const callerPartnerSelectGroup    = /** @type {HTMLElement}       */ (document.getElementById('caller-partner-select-group'));
+
+/**
+ * Role value captured on page load. Used to detect a role change on save so
+ * a restart notice can be shown (task 8.7).
+ * @type {string}
+ */
+let _loadedTxRole = 'Answerer';
+
 // Logging controls
 const loggingFileEnabled    = /** @type {HTMLInputElement}  */ (document.getElementById('logging-file-enabled'));
 const loggingDirectory      = /** @type {HTMLInputElement}  */ (document.getElementById('logging-directory'));
@@ -233,10 +245,12 @@ function snapshotForm() {
       pollIntervalSeconds: catPollInterval.value,
     },
     tx: {
-      callsign:        txCallsign.value.trim(),
-      grid:            txGrid.value.trim().toUpperCase(),
-      watchdogMinutes: txWatchdogMinutes.value,
-      retryCount:      txRetryCount.value,
+      callsign:             txCallsign.value.trim(),
+      grid:                 txGrid.value.trim().toUpperCase(),
+      watchdogMinutes:      txWatchdogMinutes.value,
+      retryCount:           txRetryCount.value,
+      role:                 generalTxRole?.value ?? 'Answerer',
+      callerPartnerSelect:  generalCallerPartnerSelect?.value ?? 'First',
     },
     // FR-043: include frequency table in dirty-state comparison (FR-040).
     _frequencies:         snapshotFrequencies(),
@@ -537,6 +551,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     txWatchdogMinutes.value   = String(tx.watchdogMinutes ?? 4);
     txRetryCount.value        = String(tx.retryCount      ?? 3);
 
+    // qso-caller: pre-fill TX mode and partner selection (task 8.3).
+    const loadedRole = tx.role ?? 'Answerer';
+    _loadedTxRole = loadedRole;
+    if (generalTxRole) generalTxRole.value = loadedRole;
+    if (generalCallerPartnerSelect)
+      generalCallerPartnerSelect.value = tx.callerPartnerSelect ?? 'First';
+    updateCallerPartnerSelectVisibility();
+
     // FR-043: populate the frequencies table.
     renderFreqTable(Array.isArray(frequencies) ? frequencies : []);
 
@@ -646,6 +668,22 @@ remoteAccessPassToggle.addEventListener('click', () => {
   remoteAccessPassphrase.type = isPassword ? 'text' : 'password';
 });
 
+// ── Caller partner-select visibility (qso-caller task 8.4) ───────────────
+
+/**
+ * Show the Partner Selection fieldset only when TX Mode is Caller.
+ * Runs on page load and whenever the TX Mode select changes.
+ */
+function updateCallerPartnerSelectVisibility() {
+  if (callerPartnerSelectGroup) {
+    callerPartnerSelectGroup.hidden = generalTxRole?.value !== 'Caller';
+  }
+}
+
+if (generalTxRole) {
+  generalTxRole.addEventListener('change', updateCallerPartnerSelectVisibility);
+}
+
 // ── Visibility helpers (p9) ──────────────────────────────────────────────
 
 function updateDecodeLogVisibility() {
@@ -743,16 +781,19 @@ saveBtn.addEventListener('click', async () => {
     maxFiles:          parseInt(loggingMaxFiles.value, 10) || 7,
   };
 
-  // TX auto-answer config (ft8-qso-answerer-v1).
+  // TX auto-answer config (ft8-qso-answerer-v1 + qso-caller).
   // callsign and grid are normalised to upper-case; fall back to placeholder
   // defaults so the server never receives null/empty strings.
   // A-02: watchdogMinutes and retryCount are pre-populated on load; fall back
   //       to defaults so the server never receives 0 and triggers a WRN clamp.
+  const txRoleValue = generalTxRole?.value ?? 'Answerer';
   const tx = {
-    callsign:        txCallsign.value.trim().toUpperCase()     || 'Q1OFZ',
-    grid:            txGrid.value.trim().toUpperCase()          || 'JO33',
-    watchdogMinutes: Math.min(60,  Math.max(1,   parseInt(txWatchdogMinutes.value, 10) || 4)),
-    retryCount:      Math.min(200, Math.max(0,   parseInt(txRetryCount.value,      10) || 3)),
+    callsign:            txCallsign.value.trim().toUpperCase()     || 'Q1OFZ',
+    grid:                txGrid.value.trim().toUpperCase()          || 'JO33',
+    watchdogMinutes:     Math.min(60,  Math.max(1,   parseInt(txWatchdogMinutes.value, 10) || 4)),
+    retryCount:          Math.min(200, Math.max(0,   parseInt(txRetryCount.value,      10) || 3)),
+    role:                txRoleValue,
+    callerPartnerSelect: generalCallerPartnerSelect?.value ?? 'First',
   };
 
   // FR-043: collect current frequency table entries for parallel POST.
@@ -793,7 +834,15 @@ saveBtn.addEventListener('click', async () => {
       }),
       postFrequencies(freqEntries),
     ]);
-    showFeedback('Saved ✓', 'success');
+    // Task 8.7: show a restart notice when the TX mode changed.
+    if (txRoleValue !== _loadedTxRole) {
+      showFeedback(
+        'TX mode change saved. Restart the application for the change to take effect.',
+        'success');
+      _loadedTxRole = txRoleValue;  // update so a second save doesn't re-show
+    } else {
+      showFeedback('Saved ✓', 'success');
+    }
     _cleanSnapshot = snapshotForm();
     syncDirtyUI();          // clears the badge and removes the beforeunload guard
     setTimeout(() => { saveBtn.disabled = false; }, 2000);

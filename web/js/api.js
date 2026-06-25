@@ -253,6 +253,41 @@ export async function postTxAnswerCq(callsign, frequencyHz, cqCycleStartUtc) {
 }
 
 /**
+ * POST /api/v1/tx/select-responder
+ * Arms a phase-aware pending TX to call a specific station that responded to our CQ.
+ * Only valid when the QSO controller is in Caller role and WaitAnswer state.
+ * Returns the updated TX status.
+ * Throws an Error with `.status = 405` if the controller is Answerer role.
+ * Throws an Error with `.status = 409` if the controller is not in WaitAnswer state.
+ * @param {string} callsign               Callsign of the responding station.
+ * @param {number} frequencyHz            Audio frequency of the response decode, in Hz.
+ * @param {string} responseCycleStartUtc  ISO 8601 UTC cycle-start of the response, e.g. "2026-06-25T14:29:15Z".
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string}>}
+ */
+export async function postTxSelectResponder(callsign, frequencyHz, responseCycleStartUtc) {
+  const key = getApiKey();
+  const res = await fetch('/api/v1/tx/select-responder', {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-Api-Key': key } : {}),
+    },
+    body:    JSON.stringify({ callsign, frequencyHz, responseCycleStartUtc }),
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/tx/select-responder`);
+    /** @type {any} */ (err).status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+/**
  * POST /api/v1/audio-offset
  * Updates the RX/TX audio frequency cursor positions and Hold TX Freq state.
  * @param {number}  rxHz        RX cursor frequency in Hz (0–3000).

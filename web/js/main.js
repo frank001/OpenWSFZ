@@ -9,7 +9,7 @@
 import { connect }                                                          from './ws.js';
 import { getConfig, getFrequencies, postTune, postAudioOffset,
          getTxStatus, postTxEnable, postTxDisable, postTxAbort,
-         postTxAnswerCq, getApiKey }                                         from './api.js';
+         postTxAnswerCq, postTxSelectResponder, getApiKey }                  from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
@@ -28,7 +28,7 @@ let cachedFt8Frequencies = [];
 /** @type {boolean} Mirrors the server-side DecodingEnabled flag. */
 let decodingEnabled = true;
 
-// ── TX panel state (tasks 6.2–6.5) ───────────────────────────────────────
+// ── TX panel state (tasks 6.2–6.5, 7.1, 7.6) ────────────────────────────
 
 /** Operator callsign read from config.tx.callsign on page load. */
 let txCallsign = 'Q1OFZ';
@@ -44,6 +44,23 @@ let currentTxPartner = /** @type {string|null} */ (null);
 
 /** Whether tx.autoAnswer is enabled (mirrors the config flag). */
 let currentAutoAnswerEnabled = false;
+
+/**
+ * Current QSO controller role ('answerer' or 'caller').
+ * Updated from txState WS events and the initial getTxStatus() response.
+ * Controls TX panel message templates and decode-row highlighting.
+ * @type {'answerer'|'caller'}
+ */
+let currentTxRole = 'answerer';
+
+/**
+ * Caller partner-select mode ('First' or 'None').
+ * Populated from config.tx.callerPartnerSelect on page load.
+ * When 'None', responder rows in the decode table get the decode-responder class
+ * and a click handler that calls POST /api/v1/tx/select-responder.
+ * @type {'First'|'None'}
+ */
+let currentCallerPartnerSelect = 'First';
 
 // ── TX panel DOM elements ─────────────────────────────────────────────────
 
@@ -87,23 +104,49 @@ function appendTxAbortLog(reason, partner) {
 /**
  * Compute and render the three standard FT8 message rows.
  * Row text is computed from `partner`, `txCallsign`, and `txGrid`.
- * Active row highlighting is driven by `state`.
+ * Active row highlighting is driven by `state` and `role`.
  * Rows are greyed out when `autoAnswerEnabled` is false.
  *
- * @param {string|null}  partner
- * @param {string}       state
- * @param {boolean}      autoAnswerEnabled
+ * Answerer templates (role === 'answerer'):
+ *   Row 1 — TxAnswer:  {partner} {callsign} {grid}
+ *   Row 2 — TxReport:  {partner} {callsign} R+00
+ *   Row 3 — Tx73:      {partner} {callsign} 73
+ *
+ * Caller templates (role === 'caller'):
+ *   Row 1 — TxCq (mapped to TxAnswer proxy): CQ {callsign} {grid}
+ *   Row 2 — TxReport:                        {partner} {callsign} +00
+ *   Row 3 — TxRr73 (mapped to Tx73 proxy):   {partner} {callsign} RR73
+ *
+ * @param {string|null}      partner
+ * @param {string}           state
+ * @param {boolean}          autoAnswerEnabled
+ * @param {'answerer'|'caller'} [role]
  */
-function renderMessageRows(partner, state, autoAnswerEnabled) {
+function renderMessageRows(partner, state, autoAnswerEnabled, role) {
+  const effectiveRole = role ?? currentTxRole;
   const p = partner ?? '———';
 
-  const texts = [
-    `${p} ${txCallsign} ${txGrid}`,   // Tx 1 — Answer (TxAnswer)
-    `${p} ${txCallsign} R+00`,         // Tx 2 — Report  (TxReport)
-    `${p} ${txCallsign} 73`,           // Tx 3 — 73      (Tx73)
-  ];
+  /** @type {string[]} */
+  let texts;
+  /** @type {string[]} */
+  let activeStates;
 
-  const activeStates = ['TxAnswer', 'TxReport', 'Tx73'];
+  if (effectiveRole === 'caller') {
+    texts = [
+      `CQ ${txCallsign} ${txGrid}`,    // Tx 1 — CQ      (TxCq → TxAnswer proxy)
+      `${p} ${txCallsign} +00`,         // Tx 2 — Report  (TxReport)
+      `${p} ${txCallsign} RR73`,        // Tx 3 — RR73    (TxRr73 → Tx73 proxy)
+    ];
+    activeStates = ['TxAnswer', 'TxReport', 'Tx73'];
+  } else {
+    texts = [
+      `${p} ${txCallsign} ${txGrid}`,   // Tx 1 — Answer  (TxAnswer)
+      `${p} ${txCallsign} R+00`,         // Tx 2 — Report  (TxReport)
+      `${p} ${txCallsign} 73`,           // Tx 3 — 73      (Tx73)
+    ];
+    activeStates = ['TxAnswer', 'TxReport', 'Tx73'];
+  }
+
   const rows = [txMsg1El, txMsg2El, txMsg3El];
 
   rows.forEach((row, i) => {
@@ -132,15 +175,17 @@ function renderMessageRows(partner, state, autoAnswerEnabled) {
 /**
  * Render the full TX panel: button label/style, state display, and message rows.
  *
- * @param {string}       state              - QsoState string (e.g. 'Idle', 'TxAnswer')
- * @param {string|null}  partner            - Active partner callsign or null
- * @param {boolean}      autoAnswerEnabled  - Whether tx.autoAnswer is true
+ * @param {string}                  state              - QsoState string (e.g. 'Idle', 'TxAnswer')
+ * @param {string|null}             partner            - Active partner callsign or null
+ * @param {boolean}                 autoAnswerEnabled  - Whether tx.autoAnswer is true
+ * @param {'answerer'|'caller'|undefined} [role]       - Controller role; falls back to currentTxRole
  */
-function renderTxPanel(state, partner, autoAnswerEnabled) {
+function renderTxPanel(state, partner, autoAnswerEnabled, role) {
   // Persist for subsequent partial updates (e.g. WS txState without config change).
   currentTxState           = state;
   currentTxPartner         = partner;
   currentAutoAnswerEnabled = autoAnswerEnabled;
+  if (role) currentTxRole  = role;
 
   // ── Enable/Disable toggle button ─────────────────────────────────────
   // D-TX-UI-002: label is always "Enable TX"; red background alone signals the armed state.
@@ -165,7 +210,7 @@ function renderTxPanel(state, partner, autoAnswerEnabled) {
   }
 
   // ── Message rows ─────────────────────────────────────────────────────
-  renderMessageRows(partner, state, autoAnswerEnabled);
+  renderMessageRows(partner, state, autoAnswerEnabled, role ?? currentTxRole);
 }
 
 // ── CQ / partner interaction helpers ─────────────────────────────────────
@@ -321,6 +366,57 @@ function handleDecodes(results) {
       tr.classList.add('decode-partner');
     }
 
+    // Task 7.5 / 7.7 — Caller responder highlighting and click-to-select.
+    // When role is 'caller', state is WaitAnswer (WaitReport proxy), and
+    // CallerPartnerSelect is 'None', highlight rows where someone is calling us
+    // back (first token === txCallsign) and attach a click handler that fires
+    // POST /api/v1/tx/select-responder with the responder's callsign.
+    const msgTokens = r.message.split(' ');
+    const isResponderRow =
+      currentTxRole === 'caller'
+      && currentTxState === 'WaitReport'  // WaitAnswer proxy
+      && currentCallerPartnerSelect === 'None'
+      && msgTokens.length >= 3
+      && txCallsign
+      && msgTokens[0] === txCallsign;
+
+    if (isResponderRow) {
+      tr.classList.add('decode-responder');
+      tr.style.cursor = 'pointer';
+
+      let selectInFlight = false;
+      tr.addEventListener('click', async () => {
+        if (selectInFlight) return;
+        selectInFlight = true;
+        tr.style.pointerEvents = 'none';
+
+        const responderCallsign    = msgTokens[1];
+        const responseCycleStartUtc = tr.dataset.cqCycleStartUtc;
+        try {
+          const status = await postTxSelectResponder(
+            responderCallsign, r.freqHz, responseCycleStartUtc);
+          renderTxPanel(
+            status.state             ?? currentTxState,
+            status.partner           ?? currentTxPartner,
+            status.autoAnswerEnabled ?? currentAutoAnswerEnabled,
+            status.role              ?? currentTxRole);
+          setTimeout(() => {
+            selectInFlight = false;
+            tr.style.pointerEvents = '';
+          }, 400);
+        } catch (err) {
+          selectInFlight = false;
+          tr.style.pointerEvents = '';
+          const errStatus = /** @type {any} */ (err)?.status;
+          if (errStatus === 409 || errStatus === 405) {
+            console.warn('postTxSelectResponder ignored — role/state mismatch:', errStatus);
+          } else {
+            console.error('postTxSelectResponder error:', err);
+          }
+        }
+      });
+    }
+
     decodesBody.prepend(tr);
   }
 
@@ -391,7 +487,11 @@ async function startCycleTimerIfEnabled() {
     // Task 6.8: extract callsign and grid from tx config; refresh message rows.
     if (config.tx?.callsign) txCallsign = config.tx.callsign;
     if (config.tx?.grid)     txGrid     = config.tx.grid;
-    renderMessageRows(currentTxPartner, currentTxState, currentAutoAnswerEnabled);
+    // Task 7.6: read callerPartnerSelect for decode-responder row click handling.
+    if (config.tx?.callerPartnerSelect) {
+      currentCallerPartnerSelect = config.tx.callerPartnerSelect;
+    }
+    renderMessageRows(currentTxPartner, currentTxState, currentAutoAnswerEnabled, currentTxRole);
   } catch {
     // Config fetch failed — timer stays hidden; message rows keep their defaults.
   }
@@ -589,12 +689,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Also extracts config.tx.callsign / .grid for message row rendering (task 6.8).
   startCycleTimerIfEnabled();
 
-  // Task 6.1 — Seed the TX panel with current server state on page load.
+  // Task 6.1 / 7.4 — Seed the TX panel with current server state on page load.
   getTxStatus().then(status => {
     renderTxPanel(
       status.state             ?? 'Idle',
       status.partner           ?? null,
-      status.autoAnswerEnabled ?? false);
+      status.autoAnswerEnabled ?? false,
+      status.role              ?? 'answerer');
   }).catch(err => {
     // Non-fatal — panel stays in default disarmed / Idle state.
     console.warn('GET /api/v1/tx/status failed on load:', err);
@@ -855,14 +956,16 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Task 6.5 — txState event: update TX panel state and message rows.
+    // Task 6.5 / 7.4 — txState event: update TX panel state and message rows.
     // D-TX-UI-003: read autoAnswerEnabled from the event (now carried in the WS frame)
     // so QSO completion / abort disarms the panel without a separate HTTP call.
+    // Task 7.1: role field updates currentTxRole for decode-table highlighting.
     if (event.type === 'txState') {
       renderTxPanel(
         event.state             ?? 'Idle',
         event.partner           ?? null,
-        event.autoAnswerEnabled ?? currentAutoAnswerEnabled);
+        event.autoAnswerEnabled ?? currentAutoAnswerEnabled,
+        event.role              ?? undefined);
 
       // FR-UX-002: append to abort log when the daemon reports an abort reason.
       if (event.abortReason) {

@@ -66,31 +66,31 @@
 
 ## 6. Frontend — JS API
 
-- [ ] 6.1 Add `postTxSelectResponder(callsign, frequencyHz, responseCycleStartUtc)` function to `web/js/api.js`
+- [x] 6.1 Add `postTxSelectResponder(callsign, frequencyHz, responseCycleStartUtc)` function to `web/js/api.js`
 
 ## 7. Frontend — main.js logic
 
-- [ ] 7.1 Update module-level state in `main.js`: add `currentTxRole = "answerer"` variable; update from `txState` events and initial `getTxStatus()` response
-- [ ] 7.2 Update `renderMessageRows(partner, state, autoAnswerEnabled, role)`: branch on `role`; use caller templates (`CQ / +00 / RR73`) when `role === "caller"`, answerer templates otherwise
-- [ ] 7.3 Update active-row state mapping in `renderMessageRows`: caller states `TxCq` → row 1, `TxReport` → row 2, `TxRr73` → row 3
-- [ ] 7.4 Update `renderTxPanel(state, partner, autoAnswerEnabled, role)` signature; pass `role` from `txState` events and `getTxStatus()` response; fall back to `currentTxRole` when `role` absent
-- [ ] 7.5 Add `decode-responder` class application in the decode-row render path: when `currentTxRole === "caller"` and the current state is `"WaitAnswer"` and `callerPartnerSelect === "None"`, apply `decode-responder` to rows matching `{our_callsign} {any_callsign} {grid}` pattern (first token === `txCallsign`)
-- [ ] 7.6 Add `currentCallerPartnerSelect` module variable; populate from `getConfig()` response (`config.tx?.callerPartnerSelect ?? "First"`)
-- [ ] 7.7 Add click handler on `decode-responder` rows: extract callsign (second token), `offsetHz`, `cqCycleStartUtc` from `row.dataset`; call `postTxSelectResponder`; apply 400 ms `inFlight` guard; call `renderTxPanel` on HTTP 200; swallow 409/405 with `console.warn`
+- [x] 7.1 Update module-level state in `main.js`: add `currentTxRole = "answerer"` variable; update from `txState` events and initial `getTxStatus()` response
+- [x] 7.2 Update `renderMessageRows(partner, state, autoAnswerEnabled, role)`: branch on `role`; use caller templates (`CQ / +00 / RR73`) when `role === "caller"`, answerer templates otherwise
+- [x] 7.3 Update active-row state mapping in `renderMessageRows`: caller states `TxCq` → row 1, `TxReport` → row 2, `TxRr73` → row 3
+- [x] 7.4 Update `renderTxPanel(state, partner, autoAnswerEnabled, role)` signature; pass `role` from `txState` events and `getTxStatus()` response; fall back to `currentTxRole` when `role` absent
+- [x] 7.5 Add `decode-responder` class application in the decode-row render path: when `currentTxRole === "caller"` and the current state is `"WaitAnswer"` and `callerPartnerSelect === "None"`, apply `decode-responder` to rows matching `{our_callsign} {any_callsign} {grid}` pattern (first token === `txCallsign`)
+- [x] 7.6 Add `currentCallerPartnerSelect` module variable; populate from `getConfig()` response (`config.tx?.callerPartnerSelect ?? "First"`)
+- [x] 7.7 Add click handler on `decode-responder` rows: extract callsign (second token), `offsetHz`, `cqCycleStartUtc` from `row.dataset`; call `postTxSelectResponder`; apply 400 ms `inFlight` guard; call `renderTxPanel` on HTTP 200; swallow 409/405 with `console.warn`
 
 ## 8. Frontend — settings.js
 
-- [ ] 8.1 Add `<select id="general-tx-role">` with options `Answerer` / `Caller` to the General tab in `web/index.html` (settings.html)
-- [ ] 8.2 Add `<select id="general-caller-partner-select">` with options `First` / `None` inside a conditionally-shown fieldset below the TX Mode selector
-- [ ] 8.3 Update `settings.js`: pre-fill `#general-tx-role` from `config.tx.role`; pre-fill `#general-caller-partner-select` from `config.tx.callerPartnerSelect`
-- [ ] 8.4 Add show/hide logic in `settings.js`: `#general-caller-partner-select` and its label are hidden when `#general-tx-role = "Answerer"`; shown when `"Caller"` — applies on page load and on change event
-- [ ] 8.5 Include `tx.role` and `tx.callerPartnerSelect` in the `POST /api/v1/config` save payload in `settings.js`
-- [ ] 8.6 Add dirty-state tracking for `#general-tx-role` and `#general-caller-partner-select`
-- [ ] 8.7 After a successful save where `tx.role` differs from the pre-load value, display a visible restart notice: "TX mode change saved. Restart the application for the change to take effect."
+- [x] 8.1 Add `<select id="general-tx-role">` with options `Answerer` / `Caller` to the General tab in `web/index.html` (settings.html)
+- [x] 8.2 Add `<select id="general-caller-partner-select">` with options `First` / `None` inside a conditionally-shown fieldset below the TX Mode selector
+- [x] 8.3 Update `settings.js`: pre-fill `#general-tx-role` from `config.tx.role`; pre-fill `#general-caller-partner-select` from `config.tx.callerPartnerSelect`
+- [x] 8.4 Add show/hide logic in `settings.js`: `#general-caller-partner-select` and its label are hidden when `#general-tx-role = "Answerer"`; shown when `"Caller"` — applies on page load and on change event
+- [x] 8.5 Include `tx.role` and `tx.callerPartnerSelect` in the `POST /api/v1/config` save payload in `settings.js`
+- [x] 8.6 Add dirty-state tracking for `#general-tx-role` and `#general-caller-partner-select`
+- [x] 8.7 After a successful save where `tx.role` differs from the pre-load value, display a visible restart notice: "TX mode change saved. Restart the application for the change to take effect."
 
 ## 9. Frontend — CSS
 
-- [ ] 9.1 Add `.decode-responder` rule to `web/css/app.css` — a warm green or teal accent colour; legible on the dark theme; clearly distinct from `.decode-cq` (amber) and `.decode-partner` (subdued red)
+- [x] 9.1 Add `.decode-responder` rule to `web/css/app.css` — a warm green or teal accent colour; legible on the dark theme; clearly distinct from `.decode-cq` (amber) and `.decode-partner` (subdued red)
 
 ## 10. Verification
 
