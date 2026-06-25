@@ -324,7 +324,7 @@ var app = WebApp.Create(
 #endif
 #pragma warning restore CA1416
 
-        // QSO answerer state machine (tasks 6.1–6.15) and ADIF log writer (task 7.1).
+        // QSO controller and ADIF log writer.
         // The channel reader is created before WebApp.Create so it must be registered
         // as a concrete singleton instance rather than resolved from DI.
         services.AddSingleton(qsoAnswererChannel.Reader);
@@ -333,12 +333,25 @@ var app = WebApp.Create(
         services.AddSingleton<AdifLogWriter>();
 
         // H6 AP decode (D-001): register the ft8Decoder instance as IApConstraintSink so
-        // QsoAnswererService can arm/disarm AP constraints during active QSO sessions.
+        // the active QSO controller can arm/disarm AP constraints during active QSO sessions.
         services.AddSingleton<IApConstraintSink>(ft8Decoder);
 
-        services.AddSingleton<QsoAnswererService>();
-        services.AddSingleton<IQsoController>(sp => sp.GetRequiredService<QsoAnswererService>());
-        services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());
+        // Role-conditional DI (design.md D3): read the role from config before the DI container
+        // is built and register exactly one IQsoController implementation.  Switching roles
+        // requires a daemon restart; the Settings page displays a restart notice.
+        var txRole = configStore.Current.Tx?.Role ?? TxRole.Answerer;
+        if (txRole == TxRole.Caller)
+        {
+            services.AddSingleton<QsoCallerService>();
+            services.AddSingleton<IQsoController>(sp => sp.GetRequiredService<QsoCallerService>());
+            services.AddHostedService(sp => sp.GetRequiredService<QsoCallerService>());
+        }
+        else
+        {
+            services.AddSingleton<QsoAnswererService>();
+            services.AddSingleton<IQsoController>(sp => sp.GetRequiredService<QsoAnswererService>());
+            services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());
+        }
     });
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────

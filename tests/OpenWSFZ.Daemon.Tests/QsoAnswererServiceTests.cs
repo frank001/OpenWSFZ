@@ -1566,7 +1566,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         // The Idle publish must carry "Watchdog timeout" as the abort reason.
         eventBus.Received().Publish(
-            QsoState.Idle,
+            "Idle",
+            "answerer",
             Arg.Any<string?>(),
             false,
             "Watchdog timeout");
@@ -1603,7 +1604,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         // The Idle publish must carry "Operator abort" as the abort reason.
         eventBus.Received().Publish(
-            QsoState.Idle,
+            "Idle",
+            "answerer",
             Arg.Any<string?>(),
             false,
             "Operator abort");
@@ -1645,7 +1647,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // The Idle publish on normal QSO completion must carry a null abort reason
         // (no entry is added to the TX history log — FR-UX-002).
         eventBus.Received().Publish(
-            QsoState.Idle,
+            "Idle",
+            "answerer",
             Arg.Any<string?>(),
             false,
             Arg.Is<string?>(r => r == null));

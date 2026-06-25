@@ -424,18 +424,24 @@ internal static class WebSocketHub
     /// <summary>
     /// Broadcasts a <c>txState</c> event to all currently connected WebSocket clients (FR-047).
     /// Mirrors the <see cref="BroadcastDecodes"/> pattern: no scope guard since TX state
-    /// is daemon-global (there is only one QSO answerer per process).
+    /// is daemon-global (there is only one QSO controller per process).
     /// </summary>
+    /// <param name="state">Raw enum name from <c>QsoState</c> or <c>CallerState</c>.</param>
+    /// <param name="role"><c>"answerer"</c> or <c>"caller"</c>.</param>
     /// <param name="abortReason">
     /// Human-readable abort reason, or <c>null</c> for normal QSO completion and routine
     /// Idle pushes. Non-null only for abnormal terminations (FR-UX-002).
     /// </param>
     internal static void BroadcastTxState(
-        QsoState state, string? partner, bool autoAnswerEnabled, string? abortReason = null)
+        string  state,
+        string  role,
+        string? partner,
+        bool    autoAnswerEnabled,
+        string? abortReason = null)
     {
         if (ActiveSockets.IsEmpty) return;
 
-        var msg     = new WsTxStateMessage(Type: "txState", State: state.ToString(),
+        var msg     = new WsTxStateMessage(Type: "txState", Role: role, State: state,
                                            Partner: partner, AutoAnswerEnabled: autoAnswerEnabled,
                                            AbortReason: abortReason);
         var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsTxStateMessage);

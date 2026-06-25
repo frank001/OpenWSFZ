@@ -183,7 +183,7 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
 
         // Broadcast a txState event via TxEventBus (same path as the daemon uses).
         var bus = new TxEventBus();
-        bus.Publish(QsoState.TxAnswer, "Q1TST", autoAnswerEnabled: true);
+        bus.Publish(state: "TxAnswer", role: "answerer", partner: "Q1TST", autoAnswerEnabled: true);
 
         // Read frames until we get a txState (skip heartbeats / decode frames from other tests).
         string? txFrame = null;
@@ -218,7 +218,7 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
 
         // Broadcast a normal (non-abort) txState — abortReason should be absent entirely.
         var bus = new TxEventBus();
-        bus.Publish(QsoState.TxAnswer, "Q1TST", autoAnswerEnabled: true, abortReason: null);
+        bus.Publish(state: "TxAnswer", role: "answerer", partner: "Q1TST", autoAnswerEnabled: true, abortReason: null);
 
         string? txFrame = null;
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
@@ -250,7 +250,7 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
 
         // Broadcast an abort-transition txState with a reason string.
         var bus = new TxEventBus();
-        bus.Publish(QsoState.Idle, null, autoAnswerEnabled: false, abortReason: "Watchdog timeout");
+        bus.Publish(state: "Idle", role: "answerer", partner: null, autoAnswerEnabled: false, abortReason: "Watchdog timeout");
 
         string? txFrame = null;
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
