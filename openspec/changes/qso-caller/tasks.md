@@ -98,4 +98,4 @@
 - [ ] 10.2 Confirm `#tx-msg-1` shows `"CQ {callsign} {grid}"` in Idle state; row 1 highlights on `TxCq` event
 - [ ] 10.3 Confirm Settings → General shows TX Mode selector; Partner Selection appears only when Caller is selected; restart notice appears after saving a role change
 - [ ] 10.4 Confirm Answerer mode is unaffected: run in Answerer mode, verify existing message rows and behaviour unchanged (regression check)
-- [ ] 10.5 Run `dotnet test OpenWSFZ.slnx -c Release` — all tests green (expected: ~650+ passed including new qso-caller tests)
+- [x] 10.5 Run `dotnet test OpenWSFZ.slnx -c Release` — all tests green (658 passed, 0 failed)
