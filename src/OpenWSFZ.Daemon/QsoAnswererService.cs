@@ -150,6 +150,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     public string?  Partner => _partner;
 
     /// <inheritdoc/>
+    public QsoRole Role => QsoRole.Answerer;
+
+    /// <inheritdoc/>
+    public Task SelectResponderAsync(
+        string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct)
+        => Task.CompletedTask; // No-op: answerer does not support operator-driven responder selection.
+
+    /// <inheritdoc/>
     public async Task AbortAsync(CancellationToken ct = default)
     {
         if (_state == QsoState.Idle) return;

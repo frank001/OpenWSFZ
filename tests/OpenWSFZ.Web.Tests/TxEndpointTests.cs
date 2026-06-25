@@ -20,11 +20,16 @@ internal sealed class MockQsoController : IQsoController
 {
     public QsoState State   { get; set; } = QsoState.Idle;
     public string?  Partner { get; set; }
+    public QsoRole  Role    { get; set; } = QsoRole.Answerer;
 
     public Task AbortAsync(CancellationToken ct = default) => Task.CompletedTask;
 
     public Task AnswerCqAsync(
         string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct)
+        => Task.CompletedTask;
+
+    public Task SelectResponderAsync(
+        string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct)
         => Task.CompletedTask;
 }
 

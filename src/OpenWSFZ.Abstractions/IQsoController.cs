@@ -2,9 +2,8 @@ namespace OpenWSFZ.Abstractions;
 
 /// <summary>
 /// Common contract implemented by all QSO role services (FR-047).
-/// Currently implemented by <c>QsoAnswererService</c>; <c>QsoCallerService</c> will
-/// implement it in future. Consumed by the web layer for status reporting and
-/// abort control.
+/// Implemented by <c>QsoAnswererService</c> and <c>QsoCallerService</c>.
+/// Consumed by the web layer for status reporting and abort control.
 /// </summary>
 /// <remarks>
 /// QSO roles are exclusive: at any given time only one <see cref="IQsoController"/>
@@ -19,6 +18,11 @@ public interface IQsoController
     /// Active partner callsign, or <c>null</c> when in <see cref="QsoState.Idle"/>.
     /// </summary>
     string? Partner { get; }
+
+    /// <summary>
+    /// The role this controller implements.
+    /// </summary>
+    QsoRole Role { get; }
 
     /// <summary>
     /// Requests an immediate abort of any in-progress QSO.
@@ -42,4 +46,21 @@ public interface IQsoController
     /// The pending target is cleared automatically on abort, QSO completion, or 60 s timeout.
     /// </remarks>
     Task AnswerCqAsync(string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct);
+
+    /// <summary>
+    /// Arms a phase-aware pending TX target to reply to a station that responded to our CQ
+    /// (<c>CallerPartnerSelect = None</c> mode). Called from
+    /// <c>POST /api/v1/tx/select-responder</c> when the operator clicks a highlighted decode row.
+    /// </summary>
+    /// <param name="callsign">Callsign of the responding station.</param>
+    /// <param name="frequencyHz">Audio frequency of the response, in Hz.</param>
+    /// <param name="responseCycleStart">UTC cycle-start of the response batch.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <remarks>
+    /// <c>QsoAnswererService.SelectResponderAsync</c> is a no-op (returns immediately).
+    /// <c>QsoCallerService</c> implements it fully.
+    /// If the caller service is not in <c>WaitAnswer</c> the call is silently ignored.
+    /// </remarks>
+    Task SelectResponderAsync(
+        string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct);
 }
