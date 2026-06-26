@@ -62,6 +62,13 @@ let currentTxRole = 'answerer';
  */
 let currentCallerPartnerSelect = 'First';
 
+/**
+ * Timer handle for the delayed partner-clear after QSO completion (D-CALLER-002 gap 2).
+ * Cleared immediately when a new non-null partner arrives.
+ * @type {ReturnType<typeof setTimeout>|null}
+ */
+let _partnerClearTimer = null;
+
 // ── TX panel DOM elements ─────────────────────────────────────────────────
 
 const txEnableBtnEl  = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('tx-enable-btn')));
@@ -184,9 +191,47 @@ function renderMessageRows(partner, state, autoAnswerEnabled, role) {
 function renderTxPanel(state, partner, autoAnswerEnabled, role) {
   // Persist for subsequent partial updates (e.g. WS txState without config change).
   currentTxState           = state;
-  currentTxPartner         = partner;
   currentAutoAnswerEnabled = autoAnswerEnabled;
   if (role) currentTxRole  = role;
+
+  // ── Partner assignment with timing-gap fixes (D-CALLER-002) ──────────────
+  const previousPartner = currentTxPartner;
+  if (partner !== null) {
+    // New non-null partner: cancel any pending delayed-clear and assign immediately.
+    clearTimeout(_partnerClearTimer);
+    _partnerClearTimer = null;
+    currentTxPartner = partner;
+
+    // Retroactive scan: apply decode-partner to rows already in the decode table
+    // that reference this partner.  Needed because the txState WS event (which
+    // delivers the partner callsign) arrives fractionally after the decode batch
+    // event is rendered, so the batch rows would otherwise miss the class.
+    if (partner !== previousPartner) {
+      const partnerBase = partner.split('/')[0];
+      const txCallsignBase = txCallsign ? txCallsign.split('/')[0] : '';
+      document.querySelectorAll('#decodes-tbody tr').forEach(row => {
+        const tokens = (row.dataset.message ?? '').split(' ');
+        const callMatch = (txCallsign && tokens.includes(txCallsign))
+                       || (txCallsignBase && tokens.includes(txCallsignBase));
+        const partMatch = tokens.includes(partner)
+                       || tokens.includes(partnerBase);
+        if (callMatch && partMatch) {
+          row.classList.add('decode-partner');
+        }
+      });
+    }
+  } else {
+    // Partner cleared (QSO complete or abort): delay the actual clear by one
+    // full FT8 cycle (~16 s) so the partner's final 73 confirmation, which
+    // arrives in the next decode cycle, is still highlighted (D-CALLER-002 gap 2).
+    if (_partnerClearTimer === null && currentTxPartner !== null) {
+      _partnerClearTimer = setTimeout(() => {
+        currentTxPartner   = null;
+        _partnerClearTimer = null;
+      }, 16_000);
+    }
+    // Note: currentTxPartner is NOT reassigned here; it stays valid until the timer fires.
+  }
 
   // ── Enable/Disable toggle button ─────────────────────────────────────
   // D-TX-UI-002: label is always "Enable TX"; red background alone signals the armed state.
@@ -327,6 +372,8 @@ function handleDecodes(results) {
 
     // Store cycle-start UTC string as a data attribute for the click handler.
     tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
+    // Store raw decoded message for retroactive partner-highlight scan (D-CALLER-002).
+    tr.dataset.message = r.message;
 
     // CQ row highlighting and click-to-answer (TX-D01).
     if (r.message.startsWith('CQ ')) {

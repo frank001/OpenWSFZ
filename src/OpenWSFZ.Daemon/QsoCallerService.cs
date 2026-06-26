@@ -907,8 +907,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
     /// <summary>
     /// Returns <c>true</c> if <paramref name="msg"/> appears to be a response to our CQ:
-    /// <c>{ourCallsign} {theirCallsign} {theirGrid}</c>.
-    /// The third token must start with two letters (Maidenhead grid prefix).
+    /// <c>{ourCallsign} {theirCallsign} {theirGrid|signalReport}</c>.
+    /// The third token may be a Maidenhead grid (first two chars are letters) OR a signal
+    /// report (<c>+NN</c>, <c>-NN</c>, <c>R+NN</c>, <c>R-NN</c>): some operators skip the
+    /// grid exchange and answer a CQ directly with a report, which is valid FT8 behaviour.
     /// Accepts both the full compound callsign (e.g. <c>PD2FZ/P</c>) and the base callsign
     /// (<c>PD2FZ</c>), because some FT8 decoder implementations drop the portable suffix
     /// when packing the destination token.
@@ -935,9 +937,16 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             !parts[0].Equals(baseCallsign, StringComparison.OrdinalIgnoreCase))
             return false;
 
-        // Third token must look like a Maidenhead grid: 4 chars, first two letters.
-        var grid = parts[2];
-        if (grid.Length < 2 || !char.IsLetter(grid[0]) || !char.IsLetter(grid[1]))
+        // Third token must be either a Maidenhead grid (first two chars are letters)
+        // or a signal report (+NN / -NN / R+NN / R-NN).
+        // Some operators skip the grid-square exchange and respond to a CQ directly
+        // with a signal report; this is valid FT8 behaviour.
+        var thirdToken = parts[2];
+        var isGrid   = thirdToken.Length >= 2
+                       && char.IsLetter(thirdToken[0])
+                       && char.IsLetter(thirdToken[1]);
+        var isReport = IsSignalReport(thirdToken);
+        if (!isGrid && !isReport)
             return false;
 
         partner = parts[1];

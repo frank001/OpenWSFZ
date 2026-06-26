@@ -643,4 +643,53 @@ public sealed class QsoCallerServiceTests
         result.Should().BeFalse();
         partner.Should().BeEmpty();
     }
+
+    // ── TryParseResponder signal-report tests (D-CALLER-001) ─────────────────
+
+    [Fact(DisplayName = "TryParseResponder: accepts positive signal report (+32) as third token")]
+    public void TryParseResponder_AcceptsPositiveSignalReport()
+    {
+        // Some operators answer a CQ with a signal report instead of a grid square.
+        // "PD2FZ/P Q1ABC +32" must be accepted; partner must be "Q1ABC".
+        var result = QsoCallerService.TryParseResponder(
+            "PD2FZ/P Q1ABC +32", "PD2FZ/P",
+            out var partner, out _);
+
+        result.Should().BeTrue();
+        partner.Should().Be("Q1ABC");
+    }
+
+    [Fact(DisplayName = "TryParseResponder: accepts negative signal report (-05) as third token")]
+    public void TryParseResponder_AcceptsNegativeSignalReport()
+    {
+        var result = QsoCallerService.TryParseResponder(
+            "PD2FZ Q1ABC -05", "PD2FZ",
+            out var partner, out _);
+
+        result.Should().BeTrue();
+        partner.Should().Be("Q1ABC");
+    }
+
+    [Fact(DisplayName = "TryParseResponder: accepts roger signal report (R+33) as third token")]
+    public void TryParseResponder_AcceptsRogerSignalReport()
+    {
+        var result = QsoCallerService.TryParseResponder(
+            "PD2FZ/P Q1ABC R+33", "PD2FZ/P",
+            out var partner, out _);
+
+        result.Should().BeTrue();
+        partner.Should().Be("Q1ABC");
+    }
+
+    [Fact(DisplayName = "TryParseResponder: rejects 73 as third token (not a valid CQ response)")]
+    public void TryParseResponder_Rejects73AsThirdToken()
+    {
+        // "73" is a QSO termination message — must NOT be mistaken for a CQ response.
+        var result = QsoCallerService.TryParseResponder(
+            "PD2FZ/P Q1ABC 73", "PD2FZ/P",
+            out var partner, out _);
+
+        result.Should().BeFalse();
+        partner.Should().BeEmpty();
+    }
 }
