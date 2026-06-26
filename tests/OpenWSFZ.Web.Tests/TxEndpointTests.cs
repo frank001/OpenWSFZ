@@ -486,3 +486,107 @@ public sealed class SelectResponderEndpointTests : IClassFixture<TxAnswerCqFixtu
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 }
+
+// ── POST /api/v1/tx/call-cq tests (task 11.9) ────────────────────────────────
+
+/// <summary>
+/// Integration tests for <c>POST /api/v1/tx/call-cq</c> (task 11.5).
+/// Uses <see cref="TxAnswerCqFixture"/> which provides a <see cref="MockQsoController"/>
+/// (no router — exercises the endpoint's fallback path).  The router-specific switching
+/// behaviour is covered by unit tests for <see cref="QsoControllerRouter"/> (task 11.9b).
+/// NFR-021: all example callsigns use Q-prefix.
+/// </summary>
+[Collection("call-cq-tests")]
+public sealed class CallCqEndpointTests : IClassFixture<TxAnswerCqFixture>
+{
+    private readonly TxAnswerCqFixture _fixture;
+
+    public CallCqEndpointTests(TxAnswerCqFixture fixture) => _fixture = fixture;
+
+    // ── 11.9a: 200 when Answerer mode and Idle ───────────────────────────────
+
+    [Fact(DisplayName = "11.9a: POST /tx/call-cq returns 200 with role='caller' when Answerer Idle")]
+    public async Task CallCq_WhenAnswererIdle_Returns200WithCallerRole()
+    {
+        // Arrange
+        _fixture.QsoController.Role  = QsoRole.Answerer;
+        _fixture.QsoController.State = QsoState.Idle;
+        await _fixture.ConfigStore.SaveAsync(new AppConfig());
+
+        // Act
+        var response = await _fixture.Client.PostAsync("/api/v1/tx/call-cq", content: null);
+
+        // Assert HTTP 200
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Assert response body
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("role").GetString()
+            .Should().Be("caller", "call-cq always returns role='caller'");
+        doc.RootElement.GetProperty("autoAnswerEnabled").GetBoolean()
+            .Should().BeTrue("call-cq must arm AutoAnswer");
+    }
+
+    // ── 11.9b: 200 when already Caller Idle ─────────────────────────────────
+
+    [Fact(DisplayName = "11.9b: POST /tx/call-cq returns 200 with role='caller' when already Caller Idle")]
+    public async Task CallCq_WhenCallerIdle_Returns200WithCallerRole()
+    {
+        // Arrange — mock controller already reports Caller role and Idle state.
+        _fixture.QsoController.Role  = QsoRole.Caller;
+        _fixture.QsoController.State = QsoState.Idle;
+        await _fixture.ConfigStore.SaveAsync(new AppConfig());
+
+        // Act
+        var response = await _fixture.Client.PostAsync("/api/v1/tx/call-cq", content: null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("role").GetString().Should().Be("caller");
+        doc.RootElement.GetProperty("autoAnswerEnabled").GetBoolean().Should().BeTrue();
+    }
+
+    // ── 11.9c: 409 when TX is busy (any role) ───────────────────────────────
+
+    [Fact(DisplayName = "11.9c: POST /tx/call-cq returns 409 when TX is busy")]
+    public async Task CallCq_WhenBusy_Returns409()
+    {
+        // Arrange — simulate an active QSO.
+        _fixture.QsoController.Role  = QsoRole.Answerer;
+        _fixture.QsoController.State = QsoState.WaitReport;
+
+        // Act
+        var response = await _fixture.Client.PostAsync("/api/v1/tx/call-cq", content: null);
+
+        // Assert HTTP 409 Conflict
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict,
+            "call-cq must refuse with 409 when a QSO is already in progress");
+
+        // Restore Idle so subsequent tests in this fixture are unaffected.
+        _fixture.QsoController.State = QsoState.Idle;
+    }
+
+    // ── 11.9d: AutoAnswer is saved to config store ───────────────────────────
+
+    [Fact(DisplayName = "11.9d: POST /tx/call-cq persists autoAnswer=true when no router is wired")]
+    public async Task CallCq_WhenNoRouter_PersistsAutoAnswerTrue()
+    {
+        // Arrange
+        _fixture.QsoController.Role  = QsoRole.Answerer;
+        _fixture.QsoController.State = QsoState.Idle;
+        await _fixture.ConfigStore.SaveAsync(new AppConfig { Tx = new TxConfig(autoAnswer: false) });
+
+        // Act
+        await _fixture.Client.PostAsync("/api/v1/tx/call-cq", content: null);
+
+        // Assert config was persisted
+        _fixture.ConfigStore.Current.Tx?.AutoAnswer
+            .Should().BeTrue("call-cq fallback path must save AutoAnswer=true to config store");
+
+        // Restore
+        _fixture.QsoController.State = QsoState.Idle;
+    }
+}

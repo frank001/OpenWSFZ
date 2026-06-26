@@ -494,6 +494,10 @@ public static class WebApp
         // Capture IQsoController (may be null in tests or when the TX subsystem is not wired).
         var qsoController = app.Services.GetService<IQsoController>();
 
+        // Capture IQsoRoleSwitcher for runtime role switching (Call CQ, task 11.5).
+        // Null in tests that register a plain IQsoController stub rather than the full router.
+        var qsoRoleSwitcher = app.Services.GetService<IQsoRoleSwitcher>();
+
         // Capture AudioOffsetEventBus (may be null in tests that don't register it).
         var audioOffsetEventBus = app.Services.GetService<AudioOffsetEventBus>();
 
@@ -751,6 +755,38 @@ public static class WebApp
             var txPartner = qsoController.Partner;
             var txRole    = qsoController.Role.ToString().ToLowerInvariant();
             return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole));
+        });
+
+        // ── POST /api/v1/tx/call-cq (Call CQ button — runtime role switch) ────
+
+        app.MapPost("/api/v1/tx/call-cq", async (IConfigStore store, CancellationToken ct) =>
+        {
+            // 503 if TX subsystem is not wired (e.g. minimal test fixture).
+            if (qsoController is null)
+                return Results.Problem("TX controller not available.", statusCode: 503);
+
+            // 409 if any QSO is already in progress.
+            if (qsoController.State != QsoState.Idle)
+                return Results.Conflict();
+
+            if (qsoRoleSwitcher is not null)
+            {
+                // Full router path: switches to Caller and arms AutoAnswer atomically.
+                await qsoRoleSwitcher.SwitchToCallerAsync(ct);
+            }
+            else
+            {
+                // Fallback path: no router wired (test fixtures with plain IQsoController stub).
+                // Just set AutoAnswer = true; the role field in the response is always "caller".
+                var currentTx = store.Current.Tx ?? new TxConfig();
+                await store.SaveAsync(
+                    store.Current with { Tx = currentTx with { AutoAnswer = true } }, ct);
+            }
+
+            var newState   = qsoController.State;
+            var newPartner = qsoController.Partner;
+            return TypedResults.Ok(new TxStatusResponse(
+                newState.ToString(), newPartner, AutoAnswerEnabled: true, Role: "caller"));
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────

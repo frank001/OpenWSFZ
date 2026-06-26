@@ -154,10 +154,18 @@ var allTxtWriter = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllT
 // time. The decode pump compares the snapshot against the current live frequency; if they differ
 // the cycle audio spans two bands and the window is discarded (defect: dial-freq-snapshot).
 // Channel 2: decode pump → DecodeEventBus (direct call, no channel needed)
-// Channel 3: decode pump → QsoAnswererService (bounded, DropOldest — answerer must never block decode).
-//   Carries DecodeBatch so the authoritative UTC cycle-start is always available to the answerer;
-//   avoids the fallback-to-UtcNow bug (D-TX-UI-004) for silence-guard cycles with empty results.
+// Channel 3a: decode pump → QsoAnswererService (bounded, DropOldest — answerer must never block decode).
+// Channel 3b: decode pump → QsoCallerService  (bounded, DropOldest — same rationale).
+//   Both channels carry DecodeBatch so the authoritative UTC cycle-start is always available;
+//   avoids the fallback-to-UtcNow bug (D-TX-UI-004).  The decode pump fan-outs to both channels;
+//   QsoControllerRouter activates the appropriate service via IsActive flags.
 var qsoAnswererChannel = Channel.CreateBounded<DecodeBatch>(new BoundedChannelOptions(2)
+{
+    FullMode     = BoundedChannelFullMode.DropOldest,
+    SingleWriter = true,
+    SingleReader = true,
+});
+var qsoCallerChannel = Channel.CreateBounded<DecodeBatch>(new BoundedChannelOptions(2)
 {
     FullMode     = BoundedChannelFullMode.DropOldest,
     SingleWriter = true,
@@ -325,9 +333,6 @@ var app = WebApp.Create(
 #pragma warning restore CA1416
 
         // QSO controller and ADIF log writer.
-        // The channel reader is created before WebApp.Create so it must be registered
-        // as a concrete singleton instance rather than resolved from DI.
-        services.AddSingleton(qsoAnswererChannel.Reader);
         services.AddSingleton<ITxEventBus, TxEventBus>();
         services.AddSingleton<AudioOffsetEventBus>();
         services.AddSingleton<AdifLogWriter>();
@@ -336,22 +341,53 @@ var app = WebApp.Create(
         // the active QSO controller can arm/disarm AP constraints during active QSO sessions.
         services.AddSingleton<IApConstraintSink>(ft8Decoder);
 
-        // Role-conditional DI (design.md D3): read the role from config before the DI container
-        // is built and register exactly one IQsoController implementation.  Switching roles
-        // requires a daemon restart; the Settings page displays a restart notice.
+        // QSO controller — router pattern (Call CQ, task 11.4).
+        // Both services are always registered and run as HostedServices; each gets its own
+        // dedicated decode channel so they never compete for batches.  QsoControllerRouter
+        // activates the appropriate service via IsActive flags and acts as the IQsoController
+        // proxy.  Runtime role switching (Call CQ) is thus possible without a daemon restart.
         var txRole = configStore.Current.Tx?.Role ?? TxRole.Answerer;
-        if (txRole == TxRole.Caller)
-        {
-            services.AddSingleton<QsoCallerService>();
-            services.AddSingleton<IQsoController>(sp => sp.GetRequiredService<QsoCallerService>());
-            services.AddHostedService(sp => sp.GetRequiredService<QsoCallerService>());
-        }
-        else
-        {
-            services.AddSingleton<QsoAnswererService>();
-            services.AddSingleton<IQsoController>(sp => sp.GetRequiredService<QsoAnswererService>());
-            services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());
-        }
+
+        services.AddSingleton<QsoAnswererService>(sp => {
+            var svc = new QsoAnswererService(
+                qsoAnswererChannel.Reader,
+                sp.GetRequiredService<IConfigStore>(),
+                sp.GetRequiredService<IPttController>(),
+                sp.GetRequiredService<ITxEventBus>(),
+                sp.GetRequiredService<AdifLogWriter>(),
+                sp.GetRequiredService<AudioOffsetEventBus>(),
+                sp.GetRequiredService<ILogger<QsoAnswererService>>(),
+                sp.GetService<IApConstraintSink>());
+            // Set IsActive immediately so the service behaves correctly from the first batch.
+            svc.IsActive = (txRole == TxRole.Answerer);
+            return svc;
+        });
+
+        services.AddSingleton<QsoCallerService>(sp => {
+            var svc = new QsoCallerService(
+                qsoCallerChannel.Reader,
+                sp.GetRequiredService<IConfigStore>(),
+                sp.GetRequiredService<IPttController>(),
+                sp.GetRequiredService<ITxEventBus>(),
+                sp.GetRequiredService<AdifLogWriter>(),
+                sp.GetRequiredService<AudioOffsetEventBus>(),
+                sp.GetRequiredService<ILogger<QsoCallerService>>(),
+                sp.GetService<IApConstraintSink>());
+            svc.IsActive = (txRole == TxRole.Caller);
+            return svc;
+        });
+
+        // Router is registered as:
+        //   QsoControllerRouter — resolved by its own DI factory (the root singleton)
+        //   IQsoController      — all existing consumers (WebApp status/enable/abort/etc.)
+        //   IQsoRoleSwitcher    — call-cq endpoint in WebApp (avoids a Daemon→Web circular ref)
+        services.AddSingleton<QsoControllerRouter>();
+        services.AddSingleton<IQsoController>(sp => sp.GetRequiredService<QsoControllerRouter>());
+        services.AddSingleton<IQsoRoleSwitcher>(sp => sp.GetRequiredService<QsoControllerRouter>());
+
+        // Both services run as HostedServices; the inactive one discards batches cheaply.
+        services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());
+        services.AddHostedService(sp => sp.GetRequiredService<QsoCallerService>());
     });
 
 // ── Lifecycle hooks ──────────────────────────────────────────────────────────
@@ -409,12 +445,12 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 _ = decodeEventBus.Publish(results); // fire-and-forget: do not await WebSocket delivery
                 await allTxtWriter.AppendAsync(cycleStart, dialFreq, results);
 
-                // Feed the QSO answerer channel (non-blocking; DropOldest if the
-                // answerer is busy transmitting and the channel is full).
-                // Wrap in DecodeBatch so the authoritative cycle-start is carried through;
-                // the answerer must not derive phase from UtcNow (D-TX-UI-004).
-                qsoAnswererChannel.Writer.TryWrite(
-                    new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), results));
+                // Fan-out to both QSO controller channels (non-blocking; DropOldest when full).
+                // QsoControllerRouter activates only one service at a time via IsActive flags;
+                // the inactive service's HandleIdleAsync is a no-op, so the extra batches are cheap.
+                var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), results);
+                qsoAnswererChannel.Writer.TryWrite(batch);
+                qsoCallerChannel.Writer.TryWrite(batch);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

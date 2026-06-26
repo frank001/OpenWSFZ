@@ -54,6 +54,20 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private volatile CallerState _callerState = CallerState.Idle;
     private volatile string?     _partner     = null;
 
+    /// <summary>
+    /// When <see langword="false"/>, <see cref="HandleIdleAsync"/> returns immediately without
+    /// initiating any new CQ session.  Managed by <see cref="QsoControllerRouter"/>; defaults
+    /// to <see langword="true"/> so unit tests and the single-role startup path work without a router.
+    /// </summary>
+    internal bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// Optional callback invoked by <see cref="SafeAbortToIdleAsync"/> after the service
+    /// transitions to <see cref="CallerState.Idle"/>.  Set by <see cref="QsoControllerRouter"/>
+    /// to revert the active role back to Answerer after a caller QSO completes or is aborted.
+    /// </summary>
+    internal Action? OnBecameIdle;
+
     // Per-session TX state.
     private int      _lastTxFreqHz  = 0;
     private string   _rstRcvd       = "+00";
@@ -372,6 +386,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         TxConfig          tx,
         CancellationToken stoppingToken)
     {
+        // Router guard: when the active role is Answerer, the caller must not initiate
+        // any CQ session (even if AutoAnswer is set).
+        if (!IsActive) return;
+
         if (!tx.AutoAnswer)
             return;
 
@@ -802,6 +820,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             partner:           null,
             autoAnswerEnabled: false,
             abortReason:       effectiveReason);
+
+        // Notify the router (if wired) that this service has become idle.
+        // The router uses this to revert the active role back to Answerer when
+        // the configured role is Answerer (e.g. after a "Call CQ" session ends).
+        OnBecameIdle?.Invoke();
     }
 
     // ── H6 AP decode helper ───────────────────────────────────────────────────

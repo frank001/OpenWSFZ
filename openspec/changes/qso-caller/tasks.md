@@ -99,3 +99,16 @@
 - [ ] 10.3 Confirm Settings → General shows TX Mode selector; Partner Selection appears only when Caller is selected; restart notice appears after saving a role change
 - [ ] 10.4 Confirm Answerer mode is unaffected: run in Answerer mode, verify existing message rows and behaviour unchanged (regression check)
 - [x] 10.5 Run `dotnet test OpenWSFZ.slnx -c Release` — all tests green (658 passed, 0 failed)
+
+## 11. Call CQ button — runtime role switching
+
+- [x] 11.1 Add `internal bool IsActive { get; set; } = true;` to `QsoAnswererService`; add `if (!IsActive) return;` guard at top of `HandleIdleAsync`
+- [x] 11.2 Add `internal bool IsActive { get; set; } = true;` to `QsoCallerService`; add `if (!IsActive) return;` guard at top of `HandleIdleAsync`; add `internal Action? OnBecameIdle;` field; call at end of `SafeAbortToIdleAsync`
+- [x] 11.3 Create `src/OpenWSFZ.Daemon/QsoControllerRouter.cs` — thin proxy delegating `IQsoController` to the active service, with `SwitchToCallerAsync()` and `RevertToConfiguredRole()` methods
+- [x] 11.4 Update `Program.cs`: add `qsoCallerChannel`; fan-out decode pump to both channels; register both services with factory lambdas (each gets its own channel reader); register `QsoControllerRouter` as `IQsoController` and as `QsoControllerRouter`; both services registered as `IHostedService`; remove the old conditional registration
+- [x] 11.5 Add `POST /api/v1/tx/call-cq` endpoint to `WebApp.cs`; resolve `IQsoRoleSwitcher` from DI (avoids circular dep); return 409 if state is not Idle; call `SwitchToCallerAsync`; return `TxStatusResponse` with `role: "caller"`
+- [x] 11.6 Add `postTxCallCq()` to `web/js/api.js`
+- [x] 11.7 Add `<button id="tx-call-cq-btn" class="tx-btn">Call CQ</button>` between `#tx-enable-btn` and `#tx-abort-btn` in `web/index.html`
+- [x] 11.8 Update `web/js/main.js`: import `postTxCallCq`; cache `txCallCqBtnEl`; wire click handler; enable/disable in `renderTxPanel`
+- [x] 11.9 Add tests: `CallCq_WhenAnswererIdle_Returns200WithCallerRole`; `CallCq_WhenBusy_Returns409`; `CallCq_WhenCallerIdle_Returns200WithCallerRole`; `CallCq_WhenNoRouter_PersistsAutoAnswerTrue` (in `TxEndpointTests.cs`)
+- [x] 11.10 Run `dotnet test OpenWSFZ.slnx -c Release` — all 662 tests green (0 failures)

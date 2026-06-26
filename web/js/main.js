@@ -9,7 +9,7 @@
 import { connect }                                                          from './ws.js';
 import { getConfig, getFrequencies, postTune, postAudioOffset,
          getTxStatus, postTxEnable, postTxDisable, postTxAbort,
-         postTxAnswerCq, postTxSelectResponder, getApiKey }                  from './api.js';
+         postTxAnswerCq, postTxSelectResponder, postTxCallCq, getApiKey }    from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
@@ -65,6 +65,7 @@ let currentCallerPartnerSelect = 'First';
 // ── TX panel DOM elements ─────────────────────────────────────────────────
 
 const txEnableBtnEl  = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('tx-enable-btn')));
+const txCallCqBtnEl  = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('tx-call-cq-btn')));
 const txAbortBtnEl   = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('tx-abort-btn')));
 const txStateDisplayEl = /** @type {HTMLElement} */ (document.getElementById('tx-state-display'));
 const txMsg1El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-1'));
@@ -196,6 +197,12 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
     } else {
       txEnableBtnEl.classList.remove('tx-btn-armed');
     }
+  }
+
+  // ── Call CQ button — enabled only when Idle ───────────────────────────
+  // Spec (task 11.8): enabled when currentTxState === 'Idle'; disabled otherwise.
+  if (txCallCqBtnEl) {
+    txCallCqBtnEl.disabled = (state !== 'Idle');
   }
 
   // ── State display ─────────────────────────────────────────────────────
@@ -736,6 +743,39 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('POST /api/v1/tx/abort failed:', err);
       } finally {
         txAbortBtnEl.disabled = false;
+      }
+    });
+  }
+
+  // Task 11.8 — Call CQ button.
+  // Sends POST /api/v1/tx/call-cq; switches to Caller role (if not already) and arms TX.
+  // Button is only enabled when Idle (see renderTxPanel above).
+  // Uses a 400 ms inFlight guard to block double-clicks, same pattern as CQ-row clicks.
+  if (txCallCqBtnEl) {
+    let callCqInFlight = false;
+    txCallCqBtnEl.addEventListener('click', async () => {
+      if (callCqInFlight) return;
+      callCqInFlight = true;
+      txCallCqBtnEl.disabled = true;
+      try {
+        const status = await postTxCallCq();
+        renderTxPanel(
+          status.state             ?? currentTxState,
+          status.partner           ?? currentTxPartner,
+          status.autoAnswerEnabled ?? true,
+          status.role              ?? 'caller');
+        setTimeout(() => {
+          callCqInFlight = false;
+          // Button re-enable is driven by renderTxPanel (disabled when not Idle).
+        }, 400);
+      } catch (err) {
+        callCqInFlight = false;
+        txCallCqBtnEl.disabled = (currentTxState !== 'Idle');
+        if (/** @type {any} */ (err)?.status === 409) {
+          console.warn('Call CQ rejected — TX busy.');
+        } else {
+          console.error('POST /api/v1/tx/call-cq failed:', err);
+        }
       }
     });
   }
