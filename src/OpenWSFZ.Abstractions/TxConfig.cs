@@ -30,23 +30,27 @@ public sealed record TxConfig
     /// </summary>
     [JsonConstructor]
     public TxConfig(
-        bool   autoAnswer      = false,
-        string callsign        = "Q1OFZ",
-        string grid            = "JO33",
-        int    retryCount      = 3,
-        int    watchdogMinutes = 4,
-        int    rxAudioOffsetHz = 1500,
-        int    txAudioOffsetHz = 1500,
-        bool   holdTxFreq      = false)
+        bool                   autoAnswer           = false,
+        string                 callsign             = "Q1OFZ",
+        string                 grid                 = "JO33",
+        int                    retryCount           = 3,
+        int                    watchdogMinutes      = 4,
+        int                    rxAudioOffsetHz      = 1500,
+        int                    txAudioOffsetHz      = 1500,
+        bool                   holdTxFreq           = false,
+        TxRole                 role                 = TxRole.Answerer,
+        CallerPartnerSelectMode callerPartnerSelect  = CallerPartnerSelectMode.First)
     {
-        AutoAnswer      = autoAnswer;
-        Callsign        = callsign;
-        Grid            = grid;
-        RetryCount      = retryCount;
-        WatchdogMinutes = watchdogMinutes;
-        RxAudioOffsetHz = rxAudioOffsetHz;
-        TxAudioOffsetHz = txAudioOffsetHz;
-        HoldTxFreq      = holdTxFreq;
+        AutoAnswer          = autoAnswer;
+        Callsign            = callsign;
+        Grid                = grid;
+        RetryCount          = retryCount;
+        WatchdogMinutes     = watchdogMinutes;
+        RxAudioOffsetHz     = rxAudioOffsetHz;
+        TxAudioOffsetHz     = txAudioOffsetHz;
+        HoldTxFreq          = holdTxFreq;
+        Role                = role;
+        CallerPartnerSelect = callerPartnerSelect;
     }
 
     /// <summary>
@@ -109,4 +113,20 @@ public sealed record TxConfig
     /// cursor always reflects the actual TX position.
     /// </summary>
     public bool   HoldTxFreq         { get; init; } = false;
+
+    /// <summary>
+    /// The TX role the daemon operates in.
+    /// <c>Answerer</c> (default): responds to incoming CQ calls via <c>QsoAnswererService</c>.
+    /// <c>Caller</c>: originates CQ calls via <c>QsoCallerService</c>.
+    /// A daemon restart is required when this value changes.
+    /// </summary>
+    public TxRole Role { get; init; } = TxRole.Answerer;
+
+    /// <summary>
+    /// Determines how <c>QsoCallerService</c> selects a responding station while in
+    /// <c>WaitAnswer</c>. Only relevant when <see cref="Role"/> is <c>Caller</c>.
+    /// <c>First</c> (default): auto-engage the first responder.
+    /// <c>None</c>: operator clicks a highlighted decode-table row.
+    /// </summary>
+    public CallerPartnerSelectMode CallerPartnerSelect { get; init; } = CallerPartnerSelectMode.First;
 }

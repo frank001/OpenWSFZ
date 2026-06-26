@@ -253,6 +253,99 @@ export async function postTxAnswerCq(callsign, frequencyHz, cqCycleStartUtc) {
 }
 
 /**
+ * POST /api/v1/tx/select-responder
+ * Arms a phase-aware pending TX to call a specific station that responded to our CQ.
+ * Only valid when the QSO controller is in Caller role and WaitAnswer state.
+ * Returns the updated TX status.
+ * Throws an Error with `.status = 405` if the controller is Answerer role.
+ * Throws an Error with `.status = 409` if the controller is not in WaitAnswer state.
+ * @param {string} callsign               Callsign of the responding station.
+ * @param {number} frequencyHz            Audio frequency of the response decode, in Hz.
+ * @param {string} responseCycleStartUtc  ISO 8601 UTC cycle-start of the response, e.g. "2026-06-25T14:29:15Z".
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string}>}
+ */
+export async function postTxSelectResponder(callsign, frequencyHz, responseCycleStartUtc) {
+  const key = getApiKey();
+  const res = await fetch('/api/v1/tx/select-responder', {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-Api-Key': key } : {}),
+    },
+    body:    JSON.stringify({ callsign, frequencyHz, responseCycleStartUtc }),
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/tx/select-responder`);
+    /** @type {any} */ (err).status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+/**
+ * POST /api/v1/tx/call-cq
+ * Switches to Caller role (if not already) and arms AutoAnswer so the daemon
+ * transmits CQ on the next FT8 cycle.  Works regardless of the configured role:
+ * if the daemon was started in Answerer mode, the active role switches at runtime
+ * and reverts automatically after the CQ QSO completes or is aborted.
+ * Returns HTTP 409 (Conflict) if a QSO is already in progress.
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string}>}
+ */
+export async function postTxCallCq() {
+  const key = getApiKey();
+  const res = await fetch('/api/v1/tx/call-cq', {
+    method:  'POST',
+    headers: key ? { 'X-Api-Key': key } : {},
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/tx/call-cq`);
+    /** @type {any} */ (err).status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+/**
+ * POST /api/v1/tx/caller-partner-select
+ * Persists the caller partner-select mode to config (FR-PILEUP-001).
+ * @param {'First'|'None'} mode
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean,
+ *                    role: string, callerPartnerSelect: string}>}
+ */
+export async function postTxCallerPartnerSelect(mode) {
+  const key = getApiKey();
+  const res = await fetch('/api/v1/tx/caller-partner-select', {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-Api-Key': key } : {}),
+    },
+    body: JSON.stringify({ mode }),
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
+  if (!res.ok) {
+    const err = new Error(
+      `HTTP ${res.status} ${res.statusText} — /api/v1/tx/caller-partner-select`);
+    throw err;
+  }
+  return res.json();
+}
+
+/**
  * POST /api/v1/audio-offset
  * Updates the RX/TX audio frequency cursor positions and Hold TX Freq state.
  * @param {number}  rxHz        RX cursor frequency in Hz (0–3000).

@@ -765,11 +765,29 @@ select#dial-freq {
   cursor: pointer;
 }
 
-/* ── Decode table — partner QSO exchange highlight ──────────────────────── */
-/* Subdued red marks rows involving both the operator and the active partner */
-/* during a QSO, making it easy to track the exchange at a glance.          */
+/* ── Decode table — rows addressed to the operator ──────────────────────── */
+/* Subdued red marks any decoded row whose message contains the operator's   */
+/* callsign as a token, alerting the operator to activity directed at them.  */
 .decode-partner {
   background-color: rgba(180, 40, 40, 0.18);
+}
+
+/* ── Decode table — responder row highlight (qso-caller) ───────────────── */
+/* Warm teal/green marks rows where a station responded to our CQ            */
+/* (first token === operator callsign) when Caller mode + None select.       */
+/* Clearly distinct from .decode-cq (amber) and .decode-partner (dark red).  */
+.decode-responder {
+  background-color: rgba(40, 160, 130, 0.18);
+}
+.decode-responder:hover {
+  background-color: rgba(40, 160, 130, 0.32);
+  cursor: pointer;
+}
+
+/* ── Pileup-mode toggle row (FR-PILEUP-001) ─────────────────────────────── */
+.tx-pileup-row {
+  padding: 0.3rem 0;
+  font-size: 0.875rem;
 }
 
 /* ── TX abort reason history (FR-UX-002) ───────────────────────────────── */

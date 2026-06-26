@@ -20,11 +20,16 @@ internal sealed class MockQsoController : IQsoController
 {
     public QsoState State   { get; set; } = QsoState.Idle;
     public string?  Partner { get; set; }
+    public QsoRole  Role    { get; set; } = QsoRole.Answerer;
 
     public Task AbortAsync(CancellationToken ct = default) => Task.CompletedTask;
 
     public Task AnswerCqAsync(
         string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct)
+        => Task.CompletedTask;
+
+    public Task SelectResponderAsync(
+        string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct)
         => Task.CompletedTask;
 }
 
@@ -380,6 +385,208 @@ public sealed class TxAnswerCqEndpointTests : IClassFixture<TxAnswerCqFixture>
             "answer-cq must refuse with 409 when the controller is not in Idle state");
 
         // Restore Idle so subsequent tests in this fixture are unaffected.
+        _fixture.QsoController.State = QsoState.Idle;
+    }
+
+    // ── 5.16: role field in GET /tx/status ───────────────────────────────────
+
+    [Fact(DisplayName = "5.16a: GET /api/v1/tx/status returns role='answerer' when answerer is active")]
+    public async Task GetTxStatus_WhenAnswererRole_ReturnsRoleAnswerer()
+    {
+        _fixture.QsoController.Role  = QsoRole.Answerer;
+        _fixture.QsoController.State = QsoState.Idle;
+
+        var response = await _client.GetAsync("/api/v1/tx/status");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("role").GetString()
+            .Should().Be("answerer");
+    }
+
+    [Fact(DisplayName = "5.16b: GET /api/v1/tx/status returns role='caller' when caller is active")]
+    public async Task GetTxStatus_WhenCallerRole_ReturnsRoleCaller()
+    {
+        _fixture.QsoController.Role  = QsoRole.Caller;
+        _fixture.QsoController.State = QsoState.WaitReport; // simulates WaitAnswer
+
+        var response = await _client.GetAsync("/api/v1/tx/status");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("role").GetString()
+            .Should().Be("caller");
+
+        // Restore defaults for other tests.
+        _fixture.QsoController.Role  = QsoRole.Answerer;
+        _fixture.QsoController.State = QsoState.Idle;
+    }
+}
+
+/// <summary>
+/// Integration tests for POST /api/v1/tx/select-responder (5.15).
+/// Uses a dedicated <see cref="TxAnswerCqFixture"/> so the mock controller's Role
+/// and State can be set independently per test.
+/// </summary>
+[Collection("select-responder-tests")]
+public sealed class SelectResponderEndpointTests : IClassFixture<TxAnswerCqFixture>
+{
+    private readonly TxAnswerCqFixture _fixture;
+
+    public SelectResponderEndpointTests(TxAnswerCqFixture fixture)
+        => _fixture = fixture;
+
+    private static StringContent SelectResponderBody(
+        string callsign = "Q1TST",
+        double freqHz   = 1500.0,
+        string cycleStart = "2026-06-25T14:29:15Z")
+        => new(
+            $$$"""{"callsign":"{{{callsign}}}","frequencyHz":{{{freqHz}}},"responseCycleStartUtc":"{{{cycleStart}}}"}""",
+            System.Text.Encoding.UTF8, "application/json");
+
+    [Fact(DisplayName = "5.15a: POST /tx/select-responder returns 200 when Caller role and WaitAnswer")]
+    public async Task SelectResponder_CallerWaitAnswer_Returns200()
+    {
+        _fixture.QsoController.Role  = QsoRole.Caller;
+        _fixture.QsoController.State = QsoState.WaitReport; // WaitAnswer proxy
+
+        var response = await _fixture.Client.PostAsync(
+            "/api/v1/tx/select-responder", SelectResponderBody());
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("role").GetString().Should().Be("caller");
+    }
+
+    [Fact(DisplayName = "5.15b: POST /tx/select-responder returns 405 when Answerer role")]
+    public async Task SelectResponder_AnswererRole_Returns405()
+    {
+        _fixture.QsoController.Role  = QsoRole.Answerer;
+        _fixture.QsoController.State = QsoState.WaitReport;
+
+        var response = await _fixture.Client.PostAsync(
+            "/api/v1/tx/select-responder", SelectResponderBody());
+
+        ((int)response.StatusCode).Should().Be(405);
+    }
+
+    [Fact(DisplayName = "5.15c: POST /tx/select-responder returns 409 when Caller but not WaitAnswer")]
+    public async Task SelectResponder_CallerNotWaitAnswer_Returns409()
+    {
+        _fixture.QsoController.Role  = QsoRole.Caller;
+        _fixture.QsoController.State = QsoState.Idle; // not WaitAnswer
+
+        var response = await _fixture.Client.PostAsync(
+            "/api/v1/tx/select-responder", SelectResponderBody());
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+}
+
+// ── POST /api/v1/tx/call-cq tests (task 11.9) ────────────────────────────────
+
+/// <summary>
+/// Integration tests for <c>POST /api/v1/tx/call-cq</c> (task 11.5).
+/// Uses <see cref="TxAnswerCqFixture"/> which provides a <see cref="MockQsoController"/>
+/// (no router — exercises the endpoint's fallback path).  The router-specific switching
+/// behaviour is covered by unit tests for <see cref="QsoControllerRouter"/> (task 11.9b).
+/// NFR-021: all example callsigns use Q-prefix.
+/// </summary>
+[Collection("call-cq-tests")]
+public sealed class CallCqEndpointTests : IClassFixture<TxAnswerCqFixture>
+{
+    private readonly TxAnswerCqFixture _fixture;
+
+    public CallCqEndpointTests(TxAnswerCqFixture fixture) => _fixture = fixture;
+
+    // ── 11.9a: 200 when Answerer mode and Idle ───────────────────────────────
+
+    [Fact(DisplayName = "11.9a: POST /tx/call-cq returns 200 with role='caller' when Answerer Idle")]
+    public async Task CallCq_WhenAnswererIdle_Returns200WithCallerRole()
+    {
+        // Arrange
+        _fixture.QsoController.Role  = QsoRole.Answerer;
+        _fixture.QsoController.State = QsoState.Idle;
+        await _fixture.ConfigStore.SaveAsync(new AppConfig());
+
+        // Act
+        var response = await _fixture.Client.PostAsync("/api/v1/tx/call-cq", content: null);
+
+        // Assert HTTP 200
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Assert response body
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("role").GetString()
+            .Should().Be("caller", "call-cq always returns role='caller'");
+        doc.RootElement.GetProperty("autoAnswerEnabled").GetBoolean()
+            .Should().BeTrue("call-cq must arm AutoAnswer");
+    }
+
+    // ── 11.9b: 200 when already Caller Idle ─────────────────────────────────
+
+    [Fact(DisplayName = "11.9b: POST /tx/call-cq returns 200 with role='caller' when already Caller Idle")]
+    public async Task CallCq_WhenCallerIdle_Returns200WithCallerRole()
+    {
+        // Arrange — mock controller already reports Caller role and Idle state.
+        _fixture.QsoController.Role  = QsoRole.Caller;
+        _fixture.QsoController.State = QsoState.Idle;
+        await _fixture.ConfigStore.SaveAsync(new AppConfig());
+
+        // Act
+        var response = await _fixture.Client.PostAsync("/api/v1/tx/call-cq", content: null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("role").GetString().Should().Be("caller");
+        doc.RootElement.GetProperty("autoAnswerEnabled").GetBoolean().Should().BeTrue();
+    }
+
+    // ── 11.9c: 409 when TX is busy (any role) ───────────────────────────────
+
+    [Fact(DisplayName = "11.9c: POST /tx/call-cq returns 409 when TX is busy")]
+    public async Task CallCq_WhenBusy_Returns409()
+    {
+        // Arrange — simulate an active QSO.
+        _fixture.QsoController.Role  = QsoRole.Answerer;
+        _fixture.QsoController.State = QsoState.WaitReport;
+
+        // Act
+        var response = await _fixture.Client.PostAsync("/api/v1/tx/call-cq", content: null);
+
+        // Assert HTTP 409 Conflict
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict,
+            "call-cq must refuse with 409 when a QSO is already in progress");
+
+        // Restore Idle so subsequent tests in this fixture are unaffected.
+        _fixture.QsoController.State = QsoState.Idle;
+    }
+
+    // ── 11.9d: AutoAnswer is saved to config store ───────────────────────────
+
+    [Fact(DisplayName = "11.9d: POST /tx/call-cq persists autoAnswer=true when no router is wired")]
+    public async Task CallCq_WhenNoRouter_PersistsAutoAnswerTrue()
+    {
+        // Arrange
+        _fixture.QsoController.Role  = QsoRole.Answerer;
+        _fixture.QsoController.State = QsoState.Idle;
+        await _fixture.ConfigStore.SaveAsync(new AppConfig { Tx = new TxConfig(autoAnswer: false) });
+
+        // Act
+        await _fixture.Client.PostAsync("/api/v1/tx/call-cq", content: null);
+
+        // Assert config was persisted
+        _fixture.ConfigStore.Current.Tx?.AutoAnswer
+            .Should().BeTrue("call-cq fallback path must save AutoAnswer=true to config store");
+
+        // Restore
         _fixture.QsoController.State = QsoState.Idle;
     }
 }

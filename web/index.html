@@ -89,7 +89,16 @@
         <!-- Armed/disarmed toggle + abort button -->
         <div class="tx-controls-row">
           <button id="tx-enable-btn" type="button">Enable TX</button>
+          <button id="tx-call-cq-btn" type="button" class="tx-btn">Call CQ</button>
           <button id="tx-abort-btn" type="button">Abort TX</button>
+        </div>
+
+        <!-- Pileup mode toggle (caller role only) — shown/hidden by JS (FR-PILEUP-001) -->
+        <div id="pileup-mode-row" class="tx-pileup-row" hidden>
+          <label class="checkbox-label waterfall-hold-label">
+            <input type="checkbox" id="pileup-auto-select">
+            Auto-answer first responder
+          </label>
         </div>
 
         <!-- Current QSO state / partner display -->

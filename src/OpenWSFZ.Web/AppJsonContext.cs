@@ -35,6 +35,8 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(WsTxStateMessage))]
 [JsonSerializable(typeof(TxStatusResponse))]
 [JsonSerializable(typeof(QsoState))]
+[JsonSerializable(typeof(TxRole))]
+[JsonSerializable(typeof(CallerPartnerSelectMode))]
 [JsonSerializable(typeof(AudioOffsetPayload))]
 [JsonSerializable(typeof(WsAudioOffsetMessage))]
 [JsonSerializable(typeof(AudioOffsetRequest))]
@@ -42,6 +44,8 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(RemoteAccessConfig))]
 [JsonSerializable(typeof(DecoderConfig))]
 [JsonSerializable(typeof(WsAuthFrame))]
+[JsonSerializable(typeof(SelectResponderRequest))]
+[JsonSerializable(typeof(CallerPartnerSelectRequest))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -80,8 +84,12 @@ internal sealed record TuneResponse(double EffectiveFrequencyMHz);
 /// <summary>
 /// Envelope for <c>txState</c> WebSocket text frames (FR-047).
 /// <para>
-/// Wire format: <c>{"type":"txState","state":"TxAnswer","partner":"Q1TST",
-/// "autoAnswerEnabled":true,"abortReason":null}</c>
+/// Wire format (answerer): <c>{"type":"txState","role":"answerer","state":"TxAnswer",
+/// "partner":"Q1TST","autoAnswerEnabled":true,"abortReason":null}</c>
+/// </para>
+/// <para>
+/// Wire format (caller): <c>{"type":"txState","role":"caller","state":"TxCq",
+/// "partner":null,"autoAnswerEnabled":true}</c>
 /// </para>
 /// <para>
 /// <c>abortReason</c> is non-null only when transitioning to Idle due to an abnormal
@@ -91,6 +99,7 @@ internal sealed record TuneResponse(double EffectiveFrequencyMHz);
 /// </summary>
 internal sealed record WsTxStateMessage(
     string  Type,
+    string  Role,
     string  State,
     string? Partner,
     bool    AutoAnswerEnabled,
@@ -99,10 +108,16 @@ internal sealed record WsTxStateMessage(
 
 /// <summary>
 /// Response body for <c>GET /api/v1/tx/status</c>, <c>POST /api/v1/tx/enable</c>,
-/// and <c>POST /api/v1/tx/disable</c> (FR-047).
-/// Wire format: <c>{"state":"Idle","partner":null,"autoAnswerEnabled":false}</c>
+/// <c>POST /api/v1/tx/disable</c>, <c>POST /api/v1/tx/select-responder</c>,
+/// and <c>POST /api/v1/tx/caller-partner-select</c> (FR-047, FR-PILEUP-001).
+/// Wire format: <c>{"state":"Idle","partner":null,"autoAnswerEnabled":false,"role":"answerer","callerPartnerSelect":"First"}</c>
 /// </summary>
-public sealed record TxStatusResponse(string State, string? Partner, bool AutoAnswerEnabled);
+public sealed record TxStatusResponse(
+    string  State,
+    string? Partner,
+    bool    AutoAnswerEnabled,
+    string  Role                = "answerer",
+    string  CallerPartnerSelect = "First");
 
 /// <summary>
 /// Payload for <c>audioOffset</c> WebSocket push events.
@@ -140,3 +155,18 @@ internal sealed record AnswerCqRequest(
 internal sealed record WsAuthFrame(
     string? Type,
     string? Key);
+
+/// <summary>
+/// Request body for <c>POST /api/v1/tx/select-responder</c> (qso-caller).
+/// Wire format: <c>{"callsign":"Q1ABC","frequencyHz":1500.0,"responseCycleStartUtc":"2026-06-25T14:29:15Z"}</c>
+/// </summary>
+internal sealed record SelectResponderRequest(
+    string Callsign,
+    double FrequencyHz,
+    string ResponseCycleStartUtc);   // ISO 8601 UTC
+
+/// <summary>
+/// Request body for <c>POST /api/v1/tx/caller-partner-select</c> (FR-PILEUP-001).
+/// Wire format: <c>{"mode":"First"}</c> or <c>{"mode":"None"}</c>
+/// </summary>
+internal sealed record CallerPartnerSelectRequest(string Mode);

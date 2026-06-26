@@ -85,6 +85,28 @@
           </p>
         </div>
 
+        <div class="field-group">
+          <label for="general-tx-role">TX mode</label>
+          <select id="general-tx-role">
+            <option value="Answerer">Answerer — waits for CQ, answers automatically</option>
+            <option value="Caller">Caller — transmits CQ, waits for a response</option>
+          </select>
+          <p class="field-hint">
+            Change takes effect after restarting the application.
+          </p>
+        </div>
+
+        <div id="caller-partner-select-group" class="field-group" hidden>
+          <label for="general-caller-partner-select">Partner selection</label>
+          <select id="general-caller-partner-select">
+            <option value="First">First — auto-engage the first station that responds</option>
+            <option value="None">None — click a highlighted row to choose the partner</option>
+          </select>
+          <p class="field-hint">
+            Only applies in Caller mode.
+          </p>
+        </div>
+
       </div><!-- /tab-general -->
 
       <!-- ── Tab 1: Radio hardware ───────────────────────────────────────── -->

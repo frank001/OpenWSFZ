@@ -57,6 +57,16 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private volatile QsoState _state   = QsoState.Idle;
     private volatile string?  _partner = null;
 
+    /// <summary>
+    /// When <see langword="false"/>, <see cref="HandleIdleAsync"/> returns immediately without
+    /// initiating any new QSO session.  Set to <see langword="false"/> by
+    /// <see cref="QsoControllerRouter"/> when the active role has been switched to Caller at runtime,
+    /// and restored to <see langword="true"/> when the active role reverts to Answerer.
+    /// Defaults to <see langword="true"/> so the service behaves normally when used without a router
+    /// (e.g. unit tests and the legacy single-role startup path).
+    /// </summary>
+    internal bool IsActive { get; set; } = true;
+
     // Per-session TX state.
     private string   _lastTxMessage = string.Empty;
     private int      _lastTxFreqHz  = 0;
@@ -148,6 +158,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
     /// <inheritdoc/>
     public string?  Partner => _partner;
+
+    /// <inheritdoc/>
+    public QsoRole Role => QsoRole.Answerer;
+
+    /// <inheritdoc/>
+    public Task SelectResponderAsync(
+        string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct)
+        => Task.CompletedTask; // No-op: answerer does not support operator-driven responder selection.
 
     /// <inheritdoc/>
     public async Task AbortAsync(CancellationToken ct = default)
@@ -359,6 +377,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         TxConfig          tx,
         CancellationToken stoppingToken)
     {
+        // Router guard: when the active role is Caller, the answerer must not initiate
+        // any new QSO session (even if AutoAnswer or a pending target is set).
+        if (!IsActive) return;
+
         // ── Phase-aware pending-target handling (TX-D01 / AnswerCqAsync) ─────────
         // Placed before all other guards so that a CQ-click armed target fires
         // independently of the general AutoAnswer flag (though AnswerCqAsync also
@@ -772,7 +794,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         _state = newState;
         _logger.LogDebug("QsoAnswererService: state → {State} (partner: {Partner}).",
             newState, partner ?? "(none)");
-        _txEventBus.Publish(newState, partner, autoAnswerEnabled: true);
+        _txEventBus.Publish(
+            state:             newState.ToString(),
+            role:              "answerer",
+            partner:           partner,
+            autoAnswerEnabled: true);
     }
 
     /// <summary>
@@ -859,7 +885,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
         _state      = QsoState.Idle;
         _retryCount = 0;
-        _txEventBus.Publish(QsoState.Idle, null, autoAnswerEnabled: false, abortReason: effectiveReason);
+        _txEventBus.Publish(
+            state:             QsoState.Idle.ToString(),
+            role:              "answerer",
+            partner:           null,
+            autoAnswerEnabled: false,
+            abortReason:       effectiveReason);
     }
 
     // ── H6 AP decode helper ───────────────────────────────────────────────────
