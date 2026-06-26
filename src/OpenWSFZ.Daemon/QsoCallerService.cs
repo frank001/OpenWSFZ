@@ -508,7 +508,18 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 }
             }
         }
-        // None mode with no pending responder: stay in WaitAnswer, no TX.
+        // None mode with no pending responder: stay in WaitAnswer if this batch
+        // contains at least one response to our CQ — the operator must click a
+        // highlighted row.  Only proceed to retry when the batch is genuinely empty
+        // of responses.
+        if (tx.CallerPartnerSelect == CallerPartnerSelectMode.None)
+        {
+            foreach (var r in batch.Results)
+            {
+                if (TryParseResponder(r.Message, ours, out _, out _, _logger))
+                    return; // responses present — hold in WaitAnswer
+            }
+        }
 
         // No matching message — retry or abort.
         // A-01: first empty cycle after entering WaitAnswer = our own TX window; skip it.

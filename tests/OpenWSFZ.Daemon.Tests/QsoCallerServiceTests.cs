@@ -605,6 +605,183 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
+    // ── D-CALLER-003: None-mode retransmit guard ──────────────────────────────
+
+    /// <summary>
+    /// When <c>CallerPartnerSelect = None</c> and a decoded batch contains at least one
+    /// message addressed to our callsign, the service must hold in <see cref="QsoState.WaitReport"/>
+    /// (i.e. <see cref="CallerState.WaitAnswer"/>) without retransmitting the CQ.
+    /// Pre-fix: the service would fall through to <see cref="QsoCallerService.RetryOrAbortAsync"/>
+    /// and retransmit CQ on every cycle that lacked a pending responder, closing the operator
+    /// click window within milliseconds.
+    /// </summary>
+    [Fact(DisplayName = "D-CALLER-003 (1): None mode — batch with responder holds in WaitAnswer, no retry TX")]
+    public async Task HandleWaitAnswer_NoneMode_HoldsWhenResponderPresent()
+    {
+        // RetryCount=1 so without the fix the first non-skip cycle would retransmit CQ.
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.None,
+            RetryCount          = 1,
+            WatchdogMinutes     = 4,
+        };
+        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        // Arm service → CQ TX → WaitAnswer.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // A-01 skip: first empty cycle after entering WaitAnswer is always skipped.
+        Send(channel);
+        await Task.Delay(150);
+
+        // Batch WITH a responder addressed to our callsign — service must hold in WaitAnswer.
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await Task.Delay(200);
+
+        sut.State.Should().Be(QsoState.WaitReport,
+            "None mode should hold in WaitAnswer when the batch contains a response to our CQ");
+        ptt.ReceivedCalls()
+           .Count(c => c.GetMethodInfo().Name == "KeyDownAsync")
+           .Should().Be(1, "retry CQ must not fire when the batch contains a responder in None mode");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    /// <summary>
+    /// When <c>CallerPartnerSelect = None</c> and a decoded batch contains <em>no</em> message
+    /// addressed to our callsign, the service must still retransmit the CQ (same behaviour as
+    /// before the D-CALLER-003 fix, but now conditional on batch content).
+    ///
+    /// <para>
+    /// This test constructs its own SUT with a 100 ms <c>KeyDownAsync</c> delay so that the
+    /// <c>TxCq</c> (TxAnswer) state is observable by the polling helpers.  If <c>KeyDownAsync</c>
+    /// returns <c>Task.CompletedTask</c> the TxCq window is nanoseconds wide — the poller can
+    /// never catch it — so a delay is necessary for reliable state-based synchronisation.
+    /// </para>
+    /// </summary>
+    [Fact(DisplayName = "D-CALLER-003 (2): None mode — empty batch triggers CQ retransmit")]
+    public async Task HandleWaitAnswer_NoneMode_RetriesWhenNoBatchResponder()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.None,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+
+        // Inline SUT: KeyDownAsync takes 100 ms so TxCq state is visible to WaitForStateAsync.
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>())
+           .Returns(c => Task.Delay(100, (CancellationToken)c.Args()[0]));
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with { Tx = tx });
+        store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var stopCts = new CancellationTokenSource();
+
+        var sut = new QsoCallerService(
+            channel.Reader, store, ptt, Substitute.For<ITxEventBus>(),
+            adifLog, new AudioOffsetEventBus(),
+            NullLogger<QsoCallerService>.Instance,
+            watchdogDurationOverride: TimeSpan.FromSeconds(30));
+
+        await sut.StartAsync(stopCts.Token);
+
+        // Arm service → CQ TX → WaitAnswer.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // A-01 skip.
+        Send(channel);
+        await Task.Delay(250); // ample time for A-01 batch to be processed
+
+        // Empty batch (no message addresses our callsign): RetryOrAbortAsync should fire.
+        Send(channel);
+
+        // With 100 ms KeyDown delay, TxCq is visible for ~100 ms — catch the transition.
+        await WaitForStateAsync(sut, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
+        // Then wait for the retry CQ to complete and return to WaitAnswer.
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Two KeyDownAsync calls: initial CQ + retry CQ.
+        await ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>());
+        sut.State.Should().Be(QsoState.WaitReport, "service should re-enter WaitAnswer after CQ retry");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    /// <summary>
+    /// End-to-end None-mode flow: responder-present batch holds the service, then an operator
+    /// click via <see cref="QsoCallerService.SelectResponderAsync"/> advances the QSO to
+    /// <see cref="QsoState.WaitRr73"/> with the correct partner set.
+    /// </summary>
+    [Fact(DisplayName = "D-CALLER-003 (3): None mode — operator click after hold advances to TxReport/WaitRr73")]
+    public async Task HandleWaitAnswer_NoneMode_FiresTxAfterOperatorClick()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.None,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        // Arm service → CQ TX → WaitAnswer.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // A-01 skip.
+        Send(channel);
+        await Task.Delay(150);
+
+        // Batch WITH responder — service holds in WaitAnswer.
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await Task.Delay(200);
+        sut.State.Should().Be(QsoState.WaitReport, "service should hold in WaitAnswer");
+
+        // Operator clicks the highlighted decode-table row.
+        // Response at :15 → B-phase response → our answer must be A-phase (:00/:30).
+        var bPhaseResponseStart = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
+        await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponseStart, CancellationToken.None);
+
+        // Drain the wakeup batch pushed by SelectResponderAsync so the service does not
+        // fire on a non-deterministic wall-clock phase; the test controls the batch below.
+        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
+        await Task.Delay(50); // let service settle back into Task.WhenAny
+
+        // Feed an A-phase batch (CycleStart :45 → next cycle :00 = A-phase).
+        var aPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
+        SendAt(channel, aPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+
+        // Service fires TxReport then enters WaitRr73.
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        sut.Partner.Should().Be(PartnerCall);
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── TryParseResponder portable-suffix tests (fix-caller-state-bugs) ───────
 
     [Fact(DisplayName = "TryParseResponder: full compound callsign (PD2FZ/P) is matched")]
