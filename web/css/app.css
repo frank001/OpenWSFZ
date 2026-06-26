@@ -784,6 +784,12 @@ select#dial-freq {
   cursor: pointer;
 }
 
+/* ── Pileup-mode toggle row (FR-PILEUP-001) ─────────────────────────────── */
+.tx-pileup-row {
+  padding: 0.3rem 0;
+  font-size: 0.875rem;
+}
+
 /* ── TX abort reason history (FR-UX-002) ───────────────────────────────── */
 .tx-abort-log-title { font-size: 0.78rem; font-weight: 600; margin: 8px 0 2px; opacity: 0.8; }
 .tx-abort-log-list  { font-size: 0.75rem; font-family: monospace; margin: 0; padding-left: 1.4em; }

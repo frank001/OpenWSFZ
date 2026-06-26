@@ -625,31 +625,34 @@ public static class WebApp
 
         app.MapGet("/api/v1/tx/status", (IConfigStore store) =>
         {
-            var state              = qsoController?.State   ?? QsoState.Idle;
-            var partner            = qsoController?.Partner;
-            var autoAnswerEnabled  = store.Current.Tx?.AutoAnswer ?? false;
-            var role               = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
-            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, autoAnswerEnabled, role));
+            var state                = qsoController?.State   ?? QsoState.Idle;
+            var partner              = qsoController?.Partner;
+            var autoAnswerEnabled    = store.Current.Tx?.AutoAnswer ?? false;
+            var role                 = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
+            var callerPartnerSelect  = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, autoAnswerEnabled, role, callerPartnerSelect));
         });
 
         app.MapPost("/api/v1/tx/enable", async (IConfigStore store, CancellationToken ct) =>
         {
             var currentTx = store.Current.Tx ?? new TxConfig();
             await store.SaveAsync(store.Current with { Tx = currentTx with { AutoAnswer = true } }, ct);
-            var state   = qsoController?.State  ?? QsoState.Idle;
-            var partner = qsoController?.Partner;
-            var role    = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
-            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: true, Role: role));
+            var state               = qsoController?.State  ?? QsoState.Idle;
+            var partner             = qsoController?.Partner;
+            var role                = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
+            var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: true, Role: role, CallerPartnerSelect: callerPartnerSelect));
         });
 
         app.MapPost("/api/v1/tx/disable", async (IConfigStore store, CancellationToken ct) =>
         {
             var currentTx = store.Current.Tx ?? new TxConfig();
             await store.SaveAsync(store.Current with { Tx = currentTx with { AutoAnswer = false } }, ct);
-            var state   = qsoController?.State  ?? QsoState.Idle;
-            var partner = qsoController?.Partner;
-            var role    = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
-            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role));
+            var state               = qsoController?.State  ?? QsoState.Idle;
+            var partner             = qsoController?.Partner;
+            var role                = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
+            var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role, CallerPartnerSelect: callerPartnerSelect));
         });
 
         app.MapPost("/api/v1/tx/abort", async (IConfigStore store, CancellationToken ct) =>
@@ -662,16 +665,18 @@ public static class WebApp
             var currentTx = store.Current.Tx ?? new TxConfig();
             await store.SaveAsync(store.Current with { Tx = currentTx with { AutoAnswer = false } }, ct);
 
-            var state   = qsoController?.State  ?? QsoState.Idle;
-            var partner = qsoController?.Partner;
-            var role    = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
-            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role));
+            var state               = qsoController?.State  ?? QsoState.Idle;
+            var partner             = qsoController?.Partner;
+            var role                = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
+            var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role, CallerPartnerSelect: callerPartnerSelect));
         });
 
         // ── POST /api/v1/tx/answer-cq (TX-D01 phase-aware CQ answer) ──────────
 
         app.MapPost("/api/v1/tx/answer-cq", async (
             HttpRequest   request,
+            IConfigStore  store,
             CancellationToken ct) =>
         {
             if (qsoController is null)
@@ -704,16 +709,18 @@ public static class WebApp
 
             await qsoController.AnswerCqAsync(req.Callsign, req.FrequencyHz, cqCycleStart, ct);
 
-            var txState   = qsoController.State;
-            var txPartner = qsoController.Partner;
-            var txRole    = qsoController.Role.ToString().ToLowerInvariant();
-            return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole));
+            var txState             = qsoController.State;
+            var txPartner           = qsoController.Partner;
+            var txRole              = qsoController.Role.ToString().ToLowerInvariant();
+            var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
+            return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole, CallerPartnerSelect: callerPartnerSelect));
         });
 
         // ── POST /api/v1/tx/select-responder (qso-caller, None mode) ─────────
 
         app.MapPost("/api/v1/tx/select-responder", async (
             HttpRequest       request,
+            IConfigStore      store,
             CancellationToken ct) =>
         {
             if (qsoController is null)
@@ -751,10 +758,11 @@ public static class WebApp
 
             await qsoController.SelectResponderAsync(req.Callsign, req.FrequencyHz, responseCycleStart, ct);
 
-            var txState   = qsoController.State;
-            var txPartner = qsoController.Partner;
-            var txRole    = qsoController.Role.ToString().ToLowerInvariant();
-            return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole));
+            var txState             = qsoController.State;
+            var txPartner           = qsoController.Partner;
+            var txRole              = qsoController.Role.ToString().ToLowerInvariant();
+            var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
+            return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole, CallerPartnerSelect: callerPartnerSelect));
         });
 
         // ── POST /api/v1/tx/call-cq (Call CQ button — runtime role switch) ────
@@ -783,10 +791,51 @@ public static class WebApp
                     store.Current with { Tx = currentTx with { AutoAnswer = true } }, ct);
             }
 
-            var newState   = qsoController.State;
-            var newPartner = qsoController.Partner;
+            var newState            = qsoController.State;
+            var newPartner          = qsoController.Partner;
+            var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             return TypedResults.Ok(new TxStatusResponse(
-                newState.ToString(), newPartner, AutoAnswerEnabled: true, Role: "caller"));
+                newState.ToString(), newPartner, AutoAnswerEnabled: true, Role: "caller",
+                CallerPartnerSelect: callerPartnerSelect));
+        });
+
+        // ── POST /api/v1/tx/caller-partner-select (FR-PILEUP-001) ────────────
+
+        app.MapPost("/api/v1/tx/caller-partner-select", async (
+            HttpRequest  request,
+            IConfigStore store,
+            CancellationToken ct) =>
+        {
+            CallerPartnerSelectRequest? body;
+            try
+            {
+                body = await request.ReadFromJsonAsync(
+                    AppJsonContext.Default.CallerPartnerSelectRequest, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON.");
+            }
+
+            if (body is null || (body.Mode != "First" && body.Mode != "None"))
+                return Results.BadRequest("mode must be \"First\" or \"None\"");
+
+            var parsedMode = body.Mode == "First"
+                ? CallerPartnerSelectMode.First
+                : CallerPartnerSelectMode.None;
+
+            var currentTx = store.Current.Tx ?? new TxConfig();
+            await store.SaveAsync(
+                store.Current with { Tx = currentTx with { CallerPartnerSelect = parsedMode } }, ct);
+
+            var state   = qsoController?.State  ?? QsoState.Idle;
+            var partner = qsoController?.Partner;
+            var role    = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
+            return TypedResults.Ok(new TxStatusResponse(
+                state.ToString(), partner,
+                AutoAnswerEnabled: store.Current.Tx?.AutoAnswer ?? false,
+                Role: role,
+                CallerPartnerSelect: body.Mode));
         });
 
         // ── WebSocket Endpoint ────────────────────────────────────────────────

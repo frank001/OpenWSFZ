@@ -316,6 +316,36 @@ export async function postTxCallCq() {
 }
 
 /**
+ * POST /api/v1/tx/caller-partner-select
+ * Persists the caller partner-select mode to config (FR-PILEUP-001).
+ * @param {'First'|'None'} mode
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean,
+ *                    role: string, callerPartnerSelect: string}>}
+ */
+export async function postTxCallerPartnerSelect(mode) {
+  const key = getApiKey();
+  const res = await fetch('/api/v1/tx/caller-partner-select', {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-Api-Key': key } : {}),
+    },
+    body: JSON.stringify({ mode }),
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
+  if (!res.ok) {
+    const err = new Error(
+      `HTTP ${res.status} ${res.statusText} — /api/v1/tx/caller-partner-select`);
+    throw err;
+  }
+  return res.json();
+}
+
+/**
  * POST /api/v1/audio-offset
  * Updates the RX/TX audio frequency cursor positions and Hold TX Freq state.
  * @param {number}  rxHz        RX cursor frequency in Hz (0–3000).

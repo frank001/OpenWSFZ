@@ -9,7 +9,8 @@
 import { connect }                                                          from './ws.js';
 import { getConfig, getFrequencies, postTune, postAudioOffset,
          getTxStatus, postTxEnable, postTxDisable, postTxAbort,
-         postTxAnswerCq, postTxSelectResponder, postTxCallCq, getApiKey }    from './api.js';
+         postTxAnswerCq, postTxSelectResponder, postTxCallCq,
+         postTxCallerPartnerSelect, getApiKey }                              from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
@@ -82,6 +83,10 @@ const txMsg3El       = /** @type {HTMLElement} */ (document.getElementById('tx-m
 // TX abort reason history (FR-UX-002)
 const txAbortLogSection = /** @type {HTMLElement} */ (document.getElementById('tx-abort-log-section'));
 const txAbortLogEl      = /** @type {HTMLOListElement} */ (document.getElementById('tx-abort-log'));
+
+// Pileup-mode toggle (FR-PILEUP-001)
+const pileupModeRowEl    = /** @type {HTMLElement} */ (document.getElementById('pileup-mode-row'));
+const pileupAutoSelectEl = /** @type {HTMLInputElement} */ (/** @type {unknown} */ (document.getElementById('pileup-auto-select')));
 
 /** @type {Array<{isoTs: string, reason: string, partner: string|null}>} */
 const txAbortLog = [];
@@ -209,7 +214,7 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
     if (partner !== previousPartner) {
       const partnerBase = partner.split('/')[0];
       const txCallsignBase = txCallsign ? txCallsign.split('/')[0] : '';
-      document.querySelectorAll('#decodes-tbody tr').forEach(row => {
+      document.querySelectorAll('#decodes-body tr').forEach(row => {
         const tokens = (row.dataset.message ?? '').split(' ');
         const callMatch = (txCallsign && tokens.includes(txCallsign))
                        || (txCallsignBase && tokens.includes(txCallsignBase));
@@ -259,6 +264,15 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
       txStateDisplayEl.textContent = partner ? `Working ${partner}` : state;
       txStateDisplayEl.className   = 'tx-state-working';
     }
+  }
+
+  // ── Pileup-mode toggle (FR-PILEUP-001) ───────────────────────────────
+  // currentTxRole has already been updated above (if role was supplied).
+  if (pileupModeRowEl) {
+    pileupModeRowEl.hidden = (currentTxRole !== 'caller');
+  }
+  if (pileupAutoSelectEl) {
+    pileupAutoSelectEl.checked = (currentCallerPartnerSelect === 'First');
   }
 
   // ── Message rows ─────────────────────────────────────────────────────
@@ -551,6 +565,10 @@ async function startCycleTimerIfEnabled() {
     if (config.tx?.callerPartnerSelect != null) {
       currentCallerPartnerSelect = config.tx.callerPartnerSelect;
     }
+    // Sync initial checkbox state (no event fired).
+    if (pileupAutoSelectEl) {
+      pileupAutoSelectEl.checked = (currentCallerPartnerSelect === 'First');
+    }
     renderMessageRows(currentTxPartner, currentTxState, currentAutoAnswerEnabled, currentTxRole);
   } catch {
     // Config fetch failed — timer stays hidden; message rows keep their defaults.
@@ -751,6 +769,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Task 6.1 / 7.4 — Seed the TX panel with current server state on page load.
   getTxStatus().then(status => {
+    // FR-PILEUP-001: initialise pileup mode from the status response if present.
+    if (status.callerPartnerSelect != null) {
+      currentCallerPartnerSelect = status.callerPartnerSelect;
+    }
     renderTxPanel(
       status.state             ?? 'Idle',
       status.partner           ?? null,
@@ -829,6 +851,24 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           console.error('POST /api/v1/tx/call-cq failed:', err);
         }
+      }
+    });
+  }
+
+  // FR-PILEUP-001 — Pileup-mode toggle change handler (register once at DOMContentLoaded).
+  if (pileupAutoSelectEl) {
+    pileupAutoSelectEl.addEventListener('change', async () => {
+      const newMode = pileupAutoSelectEl.checked ? 'First' : 'None';
+      // Optimistic local update.
+      currentCallerPartnerSelect = newMode;
+
+      try {
+        await postTxCallerPartnerSelect(newMode);
+      } catch (err) {
+        // Revert on error.
+        currentCallerPartnerSelect = newMode === 'First' ? 'None' : 'First';
+        pileupAutoSelectEl.checked = (currentCallerPartnerSelect === 'First');
+        console.error('Failed to save pileup mode:', err);
       }
     });
   }
