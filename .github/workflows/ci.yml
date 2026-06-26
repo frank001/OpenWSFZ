@@ -316,6 +316,9 @@ jobs:
     name: Commit rebuilt native binaries
     runs-on: ubuntu-latest
     needs: build-test
+    permissions:
+      contents: write
+      pull-requests: write
     if: |
       github.event_name == 'push' &&
       github.actor != 'github-actions[bot]'
@@ -363,19 +366,48 @@ jobs:
           python3 tools/check_native_version.py \
             src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib "$EXPECTED"
 
-      - name: Commit and push updated binaries
+      - name: Commit updated binaries to PR branch
         if: steps.diff_check.outputs.changed == 'true'
+        id: branch_push
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add \
-            src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so \
-            src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
           SHIM=$(python3 -c "
           import re
           src = open('src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs').read()
           m = re.search(r'ExpectedShimVersion\s*=\s*(\d+)', src)
           print(m.group(1))
           ")
+          BRANCH="ci/native-binaries-shim${SHIM}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add \
+            src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so \
+            src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
           git commit -m "chore(native): rebuild Linux and macOS binaries to shim ${SHIM} [skip ci]"
-          git push origin HEAD:${{ github.ref_name }}
+          git push origin "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "shim=$SHIM"     >> "$GITHUB_OUTPUT"
+
+      - name: Open PR for updated binaries
+        if: steps.diff_check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ steps.branch_push.outputs.branch }}"
+          SHIM="${{ steps.branch_push.outputs.shim }}"
+          EXISTING=$(gh pr list --head "$BRANCH" --json number --jq 'length')
+          if [ "$EXISTING" -gt 0 ]; then
+            echo "PR already open for branch $BRANCH — skipping."
+            exit 0
+          fi
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(native): update Linux/macOS binaries to shim ${SHIM}" \
+            --body "Automated PR from the \`commit-native-binaries\` CI job.
+
+          The Linux (\`libft8.so\`) and macOS (\`libft8.dylib\`) native binaries
+          were rebuilt from source and differ from the committed versions.
+          This PR updates them to shim ${SHIM}.
+
+          **No source changes.** Safe to merge once CI passes on this branch."
