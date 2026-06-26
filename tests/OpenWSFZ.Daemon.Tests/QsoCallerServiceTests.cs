@@ -604,4 +604,43 @@ public sealed class QsoCallerServiceTests
 
         await ptt.DisposeAsync();
     }
+
+    // ── TryParseResponder portable-suffix tests (fix-caller-state-bugs) ───────
+
+    [Fact(DisplayName = "TryParseResponder: full compound callsign (PD2FZ/P) is matched")]
+    public void TryParseResponder_MatchesFullCallsign()
+    {
+        // "PD2FZ/P Q1ABC JO22" — destination token is the full compound callsign.
+        var result = QsoCallerService.TryParseResponder(
+            "PD2FZ/P Q1ABC JO22", "PD2FZ/P",
+            out var partner, out _);
+
+        result.Should().BeTrue();
+        partner.Should().Be("Q1ABC");
+    }
+
+    [Fact(DisplayName = "TryParseResponder: base callsign (PD2FZ) accepted when /P is dropped by decoder")]
+    public void TryParseResponder_MatchesBaseCallsignWhenSlashPDropped()
+    {
+        // "PD2FZ Q1ABC JO22" — decoder stripped /P from the destination token.
+        // TryParseResponder must still accept this as a valid response to our CQ.
+        var result = QsoCallerService.TryParseResponder(
+            "PD2FZ Q1ABC JO22", "PD2FZ/P",
+            out var partner, out _);
+
+        result.Should().BeTrue();
+        partner.Should().Be("Q1ABC");
+    }
+
+    [Fact(DisplayName = "TryParseResponder: non-matching callsign is rejected")]
+    public void TryParseResponder_RejectsNonMatchingCallsign()
+    {
+        // First token is a completely different callsign — must return false.
+        var result = QsoCallerService.TryParseResponder(
+            "Q9ZZZ Q1ABC JO22", "PD2FZ/P",
+            out var partner, out _);
+
+        result.Should().BeFalse();
+        partner.Should().BeEmpty();
+    }
 }

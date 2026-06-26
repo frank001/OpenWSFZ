@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace OpenWSFZ.Abstractions;
 
 /// <summary>
 /// Determines how <c>QsoCallerService</c> selects a responding station while in
 /// <c>WaitAnswer</c>.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<CallerPartnerSelectMode>))]
 public enum CallerPartnerSelectMode
 {
     /// <summary>

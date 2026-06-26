@@ -494,7 +494,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         {
             foreach (var r in batch.Results)
             {
-                if (TryParseResponder(r.Message, ours, out var responder, out var freqHz))
+                if (TryParseResponder(r.Message, ours, out var responder, out var freqHz, _logger))
                 {
                     _logger.LogInformation(
                         "QsoCallerService: {Responder} answered our CQ at {FreqHz} Hz — sending report.",
@@ -909,9 +909,13 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     /// Returns <c>true</c> if <paramref name="msg"/> appears to be a response to our CQ:
     /// <c>{ourCallsign} {theirCallsign} {theirGrid}</c>.
     /// The third token must start with two letters (Maidenhead grid prefix).
+    /// Accepts both the full compound callsign (e.g. <c>PD2FZ/P</c>) and the base callsign
+    /// (<c>PD2FZ</c>), because some FT8 decoder implementations drop the portable suffix
+    /// when packing the destination token.
     /// </summary>
     internal static bool TryParseResponder(
-        string msg, string ourCallsign, out string partner, out double freqHz)
+        string msg, string ourCallsign, out string partner, out double freqHz,
+        ILogger? logger = null)
     {
         partner = string.Empty;
         freqHz  = 0.0;
@@ -920,7 +924,15 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         if (parts.Length != 3)
             return false;
 
-        if (!parts[0].Equals(ourCallsign, StringComparison.OrdinalIgnoreCase))
+        // Accept both the full compound callsign ("PD2FZ/P") and the base callsign
+        // ("PD2FZ"), because some FT8 decoder implementations drop the portable suffix
+        // when packing the destination token.
+        var baseCallsign = ourCallsign.Contains('/')
+            ? ourCallsign[..ourCallsign.IndexOf('/')]
+            : ourCallsign;
+
+        if (!parts[0].Equals(ourCallsign, StringComparison.OrdinalIgnoreCase) &&
+            !parts[0].Equals(baseCallsign, StringComparison.OrdinalIgnoreCase))
             return false;
 
         // Third token must look like a Maidenhead grid: 4 chars, first two letters.
@@ -929,6 +941,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             return false;
 
         partner = parts[1];
+
+        logger?.LogDebug(
+            "QsoCallerService TryParseResponder: msg='{Msg}' ourCallsign='{Ours}' → match={Match}",
+            msg, ourCallsign, true);
+
         return true;
     }
 

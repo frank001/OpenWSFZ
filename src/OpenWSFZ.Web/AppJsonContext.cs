@@ -35,6 +35,8 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(WsTxStateMessage))]
 [JsonSerializable(typeof(TxStatusResponse))]
 [JsonSerializable(typeof(QsoState))]
+[JsonSerializable(typeof(TxRole))]
+[JsonSerializable(typeof(CallerPartnerSelectMode))]
 [JsonSerializable(typeof(AudioOffsetPayload))]
 [JsonSerializable(typeof(WsAudioOffsetMessage))]
 [JsonSerializable(typeof(AudioOffsetRequest))]

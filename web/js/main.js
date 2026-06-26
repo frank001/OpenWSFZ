@@ -134,11 +134,11 @@ function renderMessageRows(partner, state, autoAnswerEnabled, role) {
 
   if (effectiveRole === 'caller') {
     texts = [
-      `CQ ${txCallsign} ${txGrid}`,    // Tx 1 — CQ      (TxCq → TxAnswer proxy)
+      `CQ ${txCallsign} ${txGrid}`,    // Tx 1 — CQ      (TxCq)
       `${p} ${txCallsign} +00`,         // Tx 2 — Report  (TxReport)
-      `${p} ${txCallsign} RR73`,        // Tx 3 — RR73    (TxRr73 → Tx73 proxy)
+      `${p} ${txCallsign} RR73`,        // Tx 3 — RR73    (TxRr73)
     ];
-    activeStates = ['TxAnswer', 'TxReport', 'Tx73'];
+    activeStates = ['TxCq', 'TxReport', 'TxRr73'];
   } else {
     texts = [
       `${p} ${txCallsign} ${txGrid}`,   // Tx 1 — Answer  (TxAnswer)
@@ -374,18 +374,21 @@ function handleDecodes(results) {
     }
 
     // Task 7.5 / 7.7 — Caller responder highlighting and click-to-select.
-    // When role is 'caller', state is WaitAnswer (WaitReport proxy), and
-    // CallerPartnerSelect is 'None', highlight rows where someone is calling us
-    // back (first token === txCallsign) and attach a click handler that fires
+    // When role is 'caller', state is WaitAnswer, and CallerPartnerSelect is
+    // 'None', highlight rows where someone is calling us back (first token ===
+    // txCallsign or its base callsign, to handle /P suffix stripping by the
+    // FT8 decoder) and attach a click handler that fires
     // POST /api/v1/tx/select-responder with the responder's callsign.
     const msgTokens = r.message.split(' ');
+    const txCallsignBase = txCallsign ? txCallsign.split('/')[0] : '';
     const isResponderRow =
       currentTxRole === 'caller'
-      && currentTxState === 'WaitReport'  // WaitAnswer proxy
+      && currentTxState === 'WaitAnswer'
       && currentCallerPartnerSelect === 'None'
       && msgTokens.length >= 3
       && txCallsign
-      && msgTokens[0] === txCallsign;
+      && (msgTokens[0] === txCallsign
+          || msgTokens[0] === txCallsignBase);
 
     if (isResponderRow) {
       tr.classList.add('decode-responder');
@@ -495,7 +498,10 @@ async function startCycleTimerIfEnabled() {
     if (config.tx?.callsign) txCallsign = config.tx.callsign;
     if (config.tx?.grid)     txGrid     = config.tx.grid;
     // Task 7.6: read callerPartnerSelect for decode-responder row click handling.
-    if (config.tx?.callerPartnerSelect) {
+    // Guard against null/undefined (not falsy) so 'First' (which is truthy anyway)
+    // and 'None' are both accepted, and any future integer serialisation artefacts
+    // are still captured correctly.
+    if (config.tx?.callerPartnerSelect != null) {
       currentCallerPartnerSelect = config.tx.callerPartnerSelect;
     }
     renderMessageRows(currentTxPartner, currentTxState, currentAutoAnswerEnabled, currentTxRole);
