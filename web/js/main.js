@@ -63,13 +63,6 @@ let currentTxRole = 'answerer';
  */
 let currentCallerPartnerSelect = 'First';
 
-/**
- * Timer handle for the delayed partner-clear after QSO completion (D-CALLER-002 gap 2).
- * Cleared immediately when a new non-null partner arrives.
- * @type {ReturnType<typeof setTimeout>|null}
- */
-let _partnerClearTimer = null;
-
 // ── TX panel DOM elements ─────────────────────────────────────────────────
 
 const txEnableBtnEl  = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('tx-enable-btn')));
@@ -199,44 +192,8 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
   currentAutoAnswerEnabled = autoAnswerEnabled;
   if (role) currentTxRole  = role;
 
-  // ── Partner assignment with timing-gap fixes (D-CALLER-002) ──────────────
-  const previousPartner = currentTxPartner;
-  if (partner !== null) {
-    // New non-null partner: cancel any pending delayed-clear and assign immediately.
-    clearTimeout(_partnerClearTimer);
-    _partnerClearTimer = null;
-    currentTxPartner = partner;
-
-    // Retroactive scan: apply decode-partner to rows already in the decode table
-    // that reference this partner.  Needed because the txState WS event (which
-    // delivers the partner callsign) arrives fractionally after the decode batch
-    // event is rendered, so the batch rows would otherwise miss the class.
-    if (partner !== previousPartner) {
-      const partnerBase = partner.split('/')[0];
-      const txCallsignBase = txCallsign ? txCallsign.split('/')[0] : '';
-      document.querySelectorAll('#decodes-body tr').forEach(row => {
-        const tokens = (row.dataset.message ?? '').split(' ');
-        const callMatch = (txCallsign && tokens.includes(txCallsign))
-                       || (txCallsignBase && tokens.includes(txCallsignBase));
-        const partMatch = tokens.includes(partner)
-                       || tokens.includes(partnerBase);
-        if (callMatch && partMatch) {
-          row.classList.add('decode-partner');
-        }
-      });
-    }
-  } else {
-    // Partner cleared (QSO complete or abort): delay the actual clear by one
-    // full FT8 cycle (~16 s) so the partner's final 73 confirmation, which
-    // arrives in the next decode cycle, is still highlighted (D-CALLER-002 gap 2).
-    if (_partnerClearTimer === null && currentTxPartner !== null) {
-      _partnerClearTimer = setTimeout(() => {
-        currentTxPartner   = null;
-        _partnerClearTimer = null;
-      }, 16_000);
-    }
-    // Note: currentTxPartner is NOT reassigned here; it stays valid until the timer fires.
-  }
+  // Track partner for TX panel state display and message row templates.
+  currentTxPartner = partner;
 
   // ── Enable/Disable toggle button ─────────────────────────────────────
   // D-TX-UI-002: label is always "Enable TX"; red background alone signals the armed state.
@@ -322,22 +279,6 @@ function tokenMatchesCallsign(token, callsign) {
   return token === callsign || token.startsWith(callsign + '/');
 }
 
-/**
- * Returns true if `message` contains both the operator's callsign and the
- * active partner's callsign as space-delimited tokens.
- * Used to highlight partner QSO exchange rows in the decode table.
- * @param {string}      message     Full FT8 message text.
- * @param {string}      txCallsign  Operator callsign (from config.tx.callsign).
- * @param {string|null} partner     Active QSO partner callsign, or null.
- * @returns {boolean}
- */
-function isPartnerInteractionRow(message, txCallsign, partner) {
-  if (!partner || !txCallsign) return false;
-  const tokens = message.split(' ');
-  return tokens.some(t => tokenMatchesCallsign(t, txCallsign))
-      && tokens.some(t => tokenMatchesCallsign(t, partner));
-}
-
 // ── Decoded-messages table ────────────────────────────────────────────────
 
 const decodesBody = /** @type {HTMLTableSectionElement} */ (document.getElementById('decodes-body'));
@@ -386,8 +327,6 @@ function handleDecodes(results) {
 
     // Store cycle-start UTC string as a data attribute for the click handler.
     tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
-    // Store raw decoded message for retroactive partner-highlight scan (D-CALLER-002).
-    tr.dataset.message = r.message;
 
     // CQ row highlighting and click-to-answer (TX-D01).
     if (r.message.startsWith('CQ ')) {
@@ -428,9 +367,10 @@ function handleDecodes(results) {
       });
     }
 
-    // Partner interaction highlighting — rows that contain both operator's and
-    // partner's callsign are shown in subdued red during an active QSO.
-    if (isPartnerInteractionRow(r.message, txCallsign, currentTxPartner)) {
+    // Highlight any row addressed to the operator's callsign in red.
+    // Simple rule: any space-delimited token in the message matches our callsign.
+    const msgTokens = r.message.split(' ');
+    if (txCallsign && msgTokens.some(t => tokenMatchesCallsign(t, txCallsign))) {
       tr.classList.add('decode-partner');
     }
 
@@ -440,7 +380,8 @@ function handleDecodes(results) {
     // txCallsign or its base callsign, to handle /P suffix stripping by the
     // FT8 decoder) and attach a click handler that fires
     // POST /api/v1/tx/select-responder with the responder's callsign.
-    const msgTokens = r.message.split(' ');
+    // Note: decode-responder (teal) wins over decode-partner (red) in the CSS
+    // cascade when both apply, correctly signalling that the row is clickable.
     const txCallsignBase = txCallsign ? txCallsign.split('/')[0] : '';
     const isResponderRow =
       currentTxRole === 'caller'

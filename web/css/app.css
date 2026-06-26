@@ -765,9 +765,9 @@ select#dial-freq {
   cursor: pointer;
 }
 
-/* ── Decode table — partner QSO exchange highlight ──────────────────────── */
-/* Subdued red marks rows involving both the operator and the active partner */
-/* during a QSO, making it easy to track the exchange at a glance.          */
+/* ── Decode table — rows addressed to the operator ──────────────────────── */
+/* Subdued red marks any decoded row whose message contains the operator's   */
+/* callsign as a token, alerting the operator to activity directed at them.  */
 .decode-partner {
   background-color: rgba(180, 40, 40, 0.18);
 }

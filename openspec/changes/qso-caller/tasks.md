@@ -94,11 +94,11 @@
 
 ## 10. Verification
 
-- [ ] 10.1 Build and run the application in Caller mode (`tx.role = "Caller"` in config); confirm TX panel shows caller message row templates
-- [ ] 10.2 Confirm `#tx-msg-1` shows `"CQ {callsign} {grid}"` in Idle state; row 1 highlights on `TxCq` event
-- [ ] 10.3 Confirm Settings → General shows TX Mode selector; Partner Selection appears only when Caller is selected; restart notice appears after saving a role change
-- [ ] 10.4 Confirm Answerer mode is unaffected: run in Answerer mode, verify existing message rows and behaviour unchanged (regression check)
-- [x] 10.5 Run `dotnet test OpenWSFZ.slnx -c Release` — all tests green (658 passed, 0 failed)
+- [x] 10.1 Build and run the application in Caller mode (`tx.role = "Caller"` in config); confirm TX panel shows caller message row templates
+- [x] 10.2 Confirm `#tx-msg-1` shows `"CQ {callsign} {grid}"` in Idle state; row 1 highlights on `TxCq` event
+- [x] 10.3 Confirm Settings → General shows TX Mode selector; Partner Selection appears only when Caller is selected; restart notice appears after saving a role change
+- [x] 10.4 Confirm Answerer mode is unaffected: run in Answerer mode, verify existing message rows and behaviour unchanged (regression check)
+- [x] 10.5 Run `dotnet test OpenWSFZ.slnx -c Release` — all tests green (675 passed, 0 failed)
 
 ## 11. Call CQ button — runtime role switching
 
