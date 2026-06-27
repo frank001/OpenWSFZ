@@ -332,4 +332,63 @@ public sealed class TxConfigTests
         json.Should().Contain("\"txAudioOffsetHz\"", "camelCase key name must be used");
         json.Should().Contain("\"holdTxFreq\"",      "camelCase key name must be used");
     }
+
+    // ── Task 2.4: qso-log-dialog config fields ────────────────────────────────
+
+    [Fact(DisplayName = "2.4: TxConfig without qsoConfirmation key deserialises as true (lesson 6)")]
+    public void Load_MissingQsoConfirmationKey_DefaultsTrue()
+    {
+        // Old config file without the qsoConfirmation key.
+        const string json = """{"tx":{"callsign":"Q1OFZ","grid":"JO33"}}""";
+        var config = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        (config.Tx ?? new TxConfig()).QsoConfirmation.Should().BeTrue(
+            "absent qsoConfirmation must default to true (JsonConstructor parameter default)");
+    }
+
+    [Fact(DisplayName = "2.4: TxConfig qsoConfirmation=false round-trips correctly")]
+    public void RoundTrip_QsoConfirmationFalse_Preserved()
+    {
+        var original = new AppConfig() with { Tx = new TxConfig { QsoConfirmation = false } };
+        var json     = JsonSerializer.Serialize(original, ConfigJsonContext.Default.AppConfig);
+        var loaded   = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        loaded.Tx!.QsoConfirmation.Should().BeFalse("qsoConfirmation=false must survive round-trip");
+        json.Should().Contain("\"qsoConfirmation\"", "camelCase key must be serialised");
+    }
+
+    [Fact(DisplayName = "2.4: Retained fields default to empty string when absent from JSON")]
+    public void Load_MissingRetainedFields_DefaultEmptyString()
+    {
+        const string json = """{"tx":{"callsign":"Q1OFZ","grid":"JO33"}}""";
+        var config = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+        var tx = config.Tx ?? new TxConfig();
+
+        tx.RetainedTxPower.Should().Be(string.Empty,  "missing retainedTxPower defaults to empty string");
+        tx.RetainedComment.Should().Be(string.Empty,  "missing retainedComment defaults to empty string");
+        tx.RetainedPropMode.Should().Be(string.Empty, "missing retainedPropMode defaults to empty string");
+    }
+
+    [Fact(DisplayName = "2.4: Retained fields round-trip through JSON serialisation")]
+    public void RoundTrip_RetainedFields_PreservesValues()
+    {
+        var original = new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                RetainedTxPower  = "100",
+                RetainedComment  = "Nice contact",
+                RetainedPropMode = "TR",
+            }
+        };
+        var json   = JsonSerializer.Serialize(original, ConfigJsonContext.Default.AppConfig);
+        var loaded = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        loaded.Tx!.RetainedTxPower.Should().Be("100",          "retainedTxPower must survive round-trip");
+        loaded.Tx.RetainedComment.Should().Be("Nice contact",  "retainedComment must survive round-trip");
+        loaded.Tx.RetainedPropMode.Should().Be("TR",           "retainedPropMode must survive round-trip");
+        json.Should().Contain("\"retainedTxPower\"",  "camelCase key must be serialised");
+        json.Should().Contain("\"retainedComment\"",  "camelCase key must be serialised");
+        json.Should().Contain("\"retainedPropMode\"", "camelCase key must be serialised");
+    }
 }

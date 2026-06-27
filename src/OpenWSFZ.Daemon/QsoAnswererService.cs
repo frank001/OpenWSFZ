@@ -49,7 +49,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private readonly AudioOffsetEventBus                        _audioOffsetEventBus;
     private readonly ILogger<QsoAnswererService>                _logger;
     private readonly Ft8AudioSynthesiser                        _synthesiser = new();
-    private readonly AdifLogWriter                               _adifLog;
+    private readonly IAdifLogWriter                              _adifLog;
     // H6 AP decode (D-001): null means AP disabled (default before any QSO is active).
     private readonly IApConstraintSink?                         _decoder;
 
@@ -119,7 +119,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         IConfigStore                 configStore,
         IPttController               pttController,
         ITxEventBus                  txEventBus,
-        AdifLogWriter                adifLog,
+        IAdifLogWriter               adifLog,
         AudioOffsetEventBus          audioOffsetEventBus,
         ILogger<QsoAnswererService>  logger,
         IApConstraintSink?           decoder = null)
@@ -142,7 +142,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         IConfigStore                 configStore,
         IPttController               pttController,
         ITxEventBus                  txEventBus,
-        AdifLogWriter                adifLog,
+        IAdifLogWriter               adifLog,
         AudioOffsetEventBus          audioOffsetEventBus,
         ILogger<QsoAnswererService>  logger,
         TimeSpan                     watchdogDurationOverride)
@@ -702,6 +702,32 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         // Note: no ResetWatchdog call here — SafeAbortToIdleAsync (below) unconditionally
         // replaces _txCts with a fresh CTS, so any timeout-armed CTS would be immediately
         // discarded. Resetting the watchdog at QSO completion serves no purpose.
+        // Build the QSO record (used for both qsoReview event and ADIF write).
+        var record = new QsoRecord
+        {
+            PartnerCallsign  = partner,
+            PartnerGrid      = _partnerGrid,       // captured from the CQ decode
+            RstSent          = "R+00",
+            RstRcvd          = _rstRcvd,
+            QsoStartUtc      = _qsoStartUtc,
+            QsoEndUtc        = Ft8TimeHelper.DeriveFt8CycleStartUtc(DateTime.UtcNow),
+            OperatorCallsign = tx.Callsign,
+            OperatorGrid     = tx.Grid,
+            DialFrequencyMHz = _configStore.Current.DecodeLog.DialFrequencyMHz,
+        };
+
+        // qso-log-dialog: if confirmation is enabled, emit the qsoReview WS event so the
+        // browser opens the confirmation dialog.  The browser is responsible for calling
+        // POST /api/v1/tx/log-qso once the operator clicks OK.
+        if (tx.QsoConfirmation)
+        {
+            _txEventBus.PublishQsoReview(
+                record,
+                retainedTxPower:  tx.RetainedTxPower,
+                retainedComment:  tx.RetainedComment,
+                retainedPropMode: tx.RetainedPropMode);
+        }
+
         SetStateAndNotify(QsoState.Tx73);
         await TransmitAsync(msg73, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
 
@@ -711,19 +737,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             "QsoAnswererService: QSO with {Partner} complete!", partner);
 
         // Write ADIF log entry (task 7.6 — failures are logged as Warning; never throw).
-        var record = new QsoRecord
+        // When qsoConfirmation is enabled the browser sends the record via POST /api/v1/tx/log-qso;
+        // the daemon must NOT also write it here (double-entry prevention — qso-log-dialog D3).
+        if (!tx.QsoConfirmation)
         {
-            PartnerCallsign  = partner,
-            PartnerGrid      = _partnerGrid,       // captured from the CQ decode
-            RstSent          = "R+00",
-            RstRcvd          = _rstRcvd,
-            QsoStartUtc      = _qsoStartUtc,
-            QsoEndUtc        = DateTime.UtcNow,
-            OperatorCallsign = tx.Callsign,
-            OperatorGrid     = tx.Grid,
-            DialFrequencyMHz = _configStore.Current.DecodeLog.DialFrequencyMHz,
-        };
-        await _adifLog.AppendQsoAsync(record).ConfigureAwait(false);
+            await _adifLog.AppendQsoAsync(record).ConfigureAwait(false);
+        }
 
         // Return to Idle.
         await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);

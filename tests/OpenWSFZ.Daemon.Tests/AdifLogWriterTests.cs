@@ -228,4 +228,64 @@ public sealed class AdifLogWriterTests : IDisposable
         var act = async () => await sut.AppendQsoAsync(MakeRecord());
         await act.Should().NotThrowAsync();
     }
+
+    // ── Task 1.3: Optional enrichment fields (qso-log-dialog) ────────────────
+
+    [Theory(DisplayName = "1.3: Optional field included in ADIF when non-null/non-empty")]
+    [InlineData("NAME",       nameof(QsoRecord.PartnerName), "John")]
+    [InlineData("TX_PWR",     nameof(QsoRecord.TxPower),     "100")]
+    [InlineData("COMMENT",    nameof(QsoRecord.Comment),     "Nice contact")]
+    [InlineData("PROP_MODE",  nameof(QsoRecord.PropMode),    "TR")]
+    [InlineData("STX_STRING", nameof(QsoRecord.ExchSent),    "599001")]
+    [InlineData("SRX_STRING", nameof(QsoRecord.ExchRcvd),    "599042")]
+    public void BuildAdifRecord_OptionalField_IncludedWhenNonEmpty(
+        string adifField, string propertyName, string value)
+    {
+        var record = MakeRecord() with
+        {
+            PartnerName = propertyName == nameof(QsoRecord.PartnerName) ? value : null,
+            TxPower     = propertyName == nameof(QsoRecord.TxPower)     ? value : null,
+            Comment     = propertyName == nameof(QsoRecord.Comment)      ? value : null,
+            PropMode    = propertyName == nameof(QsoRecord.PropMode)     ? value : null,
+            ExchSent    = propertyName == nameof(QsoRecord.ExchSent)     ? value : null,
+            ExchRcvd    = propertyName == nameof(QsoRecord.ExchRcvd)     ? value : null,
+        };
+
+        var adif = AdifLogWriter.BuildAdifRecord(record);
+
+        adif.Should().Contain($"<{adifField}:{value.Length}>{value}",
+            $"ADIF field {adifField} must be written as <{adifField}:len>value");
+    }
+
+    [Theory(DisplayName = "1.3: Optional field omitted from ADIF when null or empty")]
+    [InlineData(nameof(QsoRecord.PartnerName), "NAME",       null)]
+    [InlineData(nameof(QsoRecord.PartnerName), "NAME",       "")]
+    [InlineData(nameof(QsoRecord.TxPower),     "TX_PWR",     null)]
+    [InlineData(nameof(QsoRecord.TxPower),     "TX_PWR",     "")]
+    [InlineData(nameof(QsoRecord.Comment),     "COMMENT",    null)]
+    [InlineData(nameof(QsoRecord.Comment),     "COMMENT",    "")]
+    [InlineData(nameof(QsoRecord.PropMode),    "PROP_MODE",  null)]
+    [InlineData(nameof(QsoRecord.PropMode),    "PROP_MODE",  "")]
+    [InlineData(nameof(QsoRecord.ExchSent),    "STX_STRING", null)]
+    [InlineData(nameof(QsoRecord.ExchSent),    "STX_STRING", "")]
+    [InlineData(nameof(QsoRecord.ExchRcvd),    "SRX_STRING", null)]
+    [InlineData(nameof(QsoRecord.ExchRcvd),    "SRX_STRING", "")]
+    public void BuildAdifRecord_OptionalField_OmittedWhenNullOrEmpty(
+        string propertyName, string adifField, string? value)
+    {
+        var record = MakeRecord() with
+        {
+            PartnerName = propertyName == nameof(QsoRecord.PartnerName) ? value : null,
+            TxPower     = propertyName == nameof(QsoRecord.TxPower)     ? value : null,
+            Comment     = propertyName == nameof(QsoRecord.Comment)      ? value : null,
+            PropMode    = propertyName == nameof(QsoRecord.PropMode)     ? value : null,
+            ExchSent    = propertyName == nameof(QsoRecord.ExchSent)     ? value : null,
+            ExchRcvd    = propertyName == nameof(QsoRecord.ExchRcvd)     ? value : null,
+        };
+
+        var adif = AdifLogWriter.BuildAdifRecord(record);
+
+        adif.Should().NotContain($"<{adifField}:",
+            $"ADIF field {adifField} must be omitted when the source value is null or empty");
+    }
 }

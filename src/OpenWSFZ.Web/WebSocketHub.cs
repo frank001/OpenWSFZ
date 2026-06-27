@@ -472,6 +472,24 @@ internal static class WebSocketHub
             _ = SendWithTimeoutAsync(ws, segment);
     }
 
+    /// <summary>
+    /// Broadcasts a <c>qsoReview</c> event to all currently connected WebSocket clients.
+    /// Called when the state machine enters <c>Tx73</c> (answerer) or <c>TxRr73</c> (caller)
+    /// and <c>tx.qsoConfirmation</c> is <c>true</c>.  The browser opens the confirmation dialog
+    /// on receipt (qso-log-dialog).
+    /// </summary>
+    internal static void BroadcastQsoReview(WsQsoReviewMessage msg)
+    {
+        if (ActiveSockets.IsEmpty) return;
+
+        var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsQsoReviewMessage);
+        var bytes   = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        foreach (var (ws, _) in ActiveSockets)
+            _ = SendWithTimeoutAsync(ws, segment);
+    }
+
     private static async Task SendWithTimeoutAsync(WebSocket ws, ArraySegment<byte> data)
     {
         if (ws.State != WebSocketState.Open) return;

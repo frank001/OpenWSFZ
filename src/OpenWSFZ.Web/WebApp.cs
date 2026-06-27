@@ -41,6 +41,8 @@ public static class WebApp
         IBindPolicy?                                        bindPolicy                  = null,
         IConfigStore?                                       configStore                 = null,
         IFrequencyStore?                                    frequencyStore              = null,
+        IPropModeStore?                                     propModeStore               = null,
+        IAdifLogWriter?                                     adifLogWriter               = null,
         IAudioDeviceProvider?                               audioProvider               = null,
         Func<IServiceProvider, IAudioDeviceProvider>?       audioProviderFactory        = null,
         IAudioOutputDeviceProvider?                         audioOutputProvider         = null,
@@ -83,6 +85,15 @@ public static class WebApp
 
         builder.Services.AddSingleton<IFrequencyStore>(
             frequencyStore ?? new InMemoryFrequencyStore());
+
+        builder.Services.AddSingleton<IPropModeStore>(
+            propModeStore ?? new InMemoryPropModeStore());
+
+        // IAdifLogWriter: supplied explicitly by callers that need to capture writes (qso-log-dialog).
+        // When null, the endpoint returns 503 (no writer available) — which is the correct behaviour
+        // for test instances that do not wire the TX subsystem.
+        if (adifLogWriter is not null)
+            builder.Services.AddSingleton<IAdifLogWriter>(adifLogWriter);
 
         if (audioProviderFactory is not null)
             builder.Services.AddSingleton<IAudioDeviceProvider>(audioProviderFactory);
@@ -478,6 +489,34 @@ public static class WebApp
             return TypedResults.Ok(freqStore.Entries.ToList());
         });
 
+        // ── Propagation mode list endpoints (qso-log-dialog) ─────────────────
+
+        app.MapGet("/api/v1/prop-modes", (IPropModeStore pmStore) =>
+            TypedResults.Ok(pmStore.Entries.ToList()));
+
+        app.MapPost("/api/v1/prop-modes", async (
+            HttpRequest       request,
+            IPropModeStore    pmStore,
+            CancellationToken ct) =>
+        {
+            List<PropModeEntry>? entries;
+            try
+            {
+                entries = await request.ReadFromJsonAsync(
+                    AppJsonContext.Default.ListPropModeEntry, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON — expected an array of prop mode entries.");
+            }
+
+            if (entries is null)
+                return Results.BadRequest("Missing or empty request body.");
+
+            await pmStore.SaveAsync(entries, ct);
+            return TypedResults.Ok(pmStore.Entries.ToList());
+        });
+
         // ── Tune endpoint (FR-045) ────────────────────────────────────────────
 
         var tuneLogger = app.Services.GetRequiredService<ILoggerFactory>()
@@ -500,6 +539,10 @@ public static class WebApp
 
         // Capture AudioOffsetEventBus (may be null in tests that don't register it).
         var audioOffsetEventBus = app.Services.GetService<AudioOffsetEventBus>();
+
+        // Capture IAdifLogWriter (may be null in tests that don't wire the TX subsystem).
+        // Using a different local name to avoid shadowing the method parameter of the same name.
+        var adifLogSvc = app.Services.GetService<IAdifLogWriter>();
 
         app.MapPost("/api/v1/tune", async (
             HttpRequest       request,
@@ -838,6 +881,79 @@ public static class WebApp
                 CallerPartnerSelect: body.Mode));
         });
 
+        // ── POST /api/v1/tx/log-qso (qso-log-dialog) ─────────────────────────
+
+        app.MapPost("/api/v1/tx/log-qso", async (
+            HttpRequest       request,
+            IConfigStore      store,
+            CancellationToken ct) =>
+        {
+            LogQsoRequest? req;
+            try
+            {
+                req = await request.ReadFromJsonAsync(AppJsonContext.Default.LogQsoRequest, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON.");
+            }
+
+            if (req is null)
+                return Results.BadRequest("Missing or empty request body.");
+
+            if (adifLogSvc is null)
+                return Results.Problem("ADIF log writer not available.", statusCode: 503);
+
+            // Parse timestamps.
+            if (!DateTime.TryParse(req.StartUtc, null,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var startUtc))
+                return Results.BadRequest("startUtc is not a valid ISO 8601 date-time.");
+
+            if (!DateTime.TryParse(req.EndUtc, null,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var endUtc))
+                return Results.BadRequest("endUtc is not a valid ISO 8601 date-time.");
+
+            // Build QsoRecord from the request body.
+            var record = new QsoRecord
+            {
+                PartnerCallsign  = req.Callsign,
+                PartnerGrid      = req.Grid,
+                RstSent          = req.RstSent,
+                RstRcvd          = req.RstRcvd,
+                QsoStartUtc      = startUtc,
+                QsoEndUtc        = endUtc,
+                OperatorCallsign = req.OperatorCallsign,
+                OperatorGrid     = store.Current.Tx?.Grid ?? string.Empty,
+                DialFrequencyMHz = req.FreqMHz,
+                PartnerName      = req.Name,
+                TxPower          = req.TxPower,
+                Comment          = req.Comment,
+                PropMode         = req.PropMode,
+                ExchSent         = req.ExchSent,
+                ExchRcvd         = req.ExchRcvd,
+            };
+
+            // Write ADIF log entry.
+            await adifLogSvc.AppendQsoAsync(record);
+
+            // Update retained fields in config for any field whose retain flag is set.
+            var currentTxForRetain = store.Current.Tx ?? new TxConfig();
+            var needsSave = req.RetainTxPower || req.RetainComment || req.RetainPropMode;
+
+            if (needsSave)
+            {
+                var updatedTx = currentTxForRetain with
+                {
+                    RetainedTxPower  = req.RetainTxPower  ? (req.TxPower  ?? string.Empty) : currentTxForRetain.RetainedTxPower,
+                    RetainedComment  = req.RetainComment  ? (req.Comment  ?? string.Empty) : currentTxForRetain.RetainedComment,
+                    RetainedPropMode = req.RetainPropMode ? (req.PropMode ?? string.Empty) : currentTxForRetain.RetainedPropMode,
+                };
+                await store.SaveAsync(store.Current with { Tx = updatedTx }, ct);
+            }
+
+            return TypedResults.Ok(new LogQsoResponse(Logged: true));
+        });
+
         // ── WebSocket Endpoint ────────────────────────────────────────────────
 
         // Create a per-class logger from the DI container after the app is built.
@@ -1005,6 +1121,22 @@ internal sealed class InMemoryFrequencyStore : IFrequencyStore
     public Task SaveAsync(IReadOnlyList<FrequencyEntry> entries, CancellationToken ct = default)
     {
         _entries = entries;
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class InMemoryPropModeStore : IPropModeStore
+{
+    private volatile IReadOnlyList<PropModeEntry> _entries;
+
+    public InMemoryPropModeStore(IReadOnlyList<PropModeEntry>? initial = null)
+        => _entries = initial ?? [];
+
+    public IReadOnlyList<PropModeEntry> Entries => _entries;
+
+    public Task SaveAsync(IEnumerable<PropModeEntry> entries, CancellationToken ct = default)
+    {
+        _entries = entries.ToList();
         return Task.CompletedTask;
     }
 }

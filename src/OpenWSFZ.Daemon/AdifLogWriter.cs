@@ -29,7 +29,7 @@ namespace OpenWSFZ.Daemon;
 /// is not affected (task 7.7).
 /// </para>
 /// </summary>
-public sealed class AdifLogWriter
+public sealed class AdifLogWriter : IAdifLogWriter
 {
     private readonly IConfigStore             _configStore;
     private readonly ILogger<AdifLogWriter>   _logger;
@@ -147,6 +147,14 @@ public sealed class AdifLogWriter
             if (band is not null)
                 Append(sb, "BAND", band);
         }
+
+        // Optional enrichment fields (qso-log-dialog) — only written when non-null and non-empty.
+        if (!string.IsNullOrEmpty(record.PartnerName)) Append(sb, "NAME",       record.PartnerName);
+        if (!string.IsNullOrEmpty(record.TxPower))     Append(sb, "TX_PWR",     record.TxPower);
+        if (!string.IsNullOrEmpty(record.Comment))     Append(sb, "COMMENT",    record.Comment);
+        if (!string.IsNullOrEmpty(record.PropMode))    Append(sb, "PROP_MODE",  record.PropMode);
+        if (!string.IsNullOrEmpty(record.ExchSent))    Append(sb, "STX_STRING", record.ExchSent);
+        if (!string.IsNullOrEmpty(record.ExchRcvd))    Append(sb, "SRX_STRING", record.ExchRcvd);
 
         sb.Append("<EOR>");
         return sb.ToString();

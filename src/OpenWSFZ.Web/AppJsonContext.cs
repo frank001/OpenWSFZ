@@ -46,6 +46,11 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(WsAuthFrame))]
 [JsonSerializable(typeof(SelectResponderRequest))]
 [JsonSerializable(typeof(CallerPartnerSelectRequest))]
+[JsonSerializable(typeof(PropModeEntry))]
+[JsonSerializable(typeof(List<PropModeEntry>))]
+[JsonSerializable(typeof(LogQsoRequest))]
+[JsonSerializable(typeof(LogQsoResponse))]
+[JsonSerializable(typeof(WsQsoReviewMessage))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -170,3 +175,64 @@ internal sealed record SelectResponderRequest(
 /// Wire format: <c>{"mode":"First"}</c> or <c>{"mode":"None"}</c>
 /// </summary>
 internal sealed record CallerPartnerSelectRequest(string Mode);
+
+/// <summary>
+/// Request body for <c>POST /api/v1/tx/log-qso</c> (qso-log-dialog).
+/// Carries the complete QSO record (from the <c>qsoReview</c> WS event) plus
+/// optional enrichment fields and retain flags.
+/// </summary>
+public sealed record LogQsoRequest(
+    string  Callsign,
+    string? Grid,
+    string  RstSent,
+    string  RstRcvd,
+    string  StartUtc,
+    string  EndUtc,
+    // Explicit JsonPropertyName to avoid ambiguity: STJ camelCase of "FreqMHz" produces
+    // "freqMHz" but some source-gen versions may differ on mixed-acronym identifiers.
+    [property: System.Text.Json.Serialization.JsonPropertyName("freqMHz")]
+    double  FreqMHz,
+    string  OperatorCallsign,
+    string? Name,
+    string? TxPower,
+    string? Comment,
+    string? PropMode,
+    string? ExchSent,
+    string? ExchRcvd,
+    bool    RetainTxPower,
+    bool    RetainComment,
+    bool    RetainPropMode);
+
+/// <summary>Response body for <c>POST /api/v1/tx/log-qso</c> (qso-log-dialog).</summary>
+internal sealed record LogQsoResponse(bool Logged);
+
+/// <summary>
+/// WebSocket <c>qsoReview</c> event (qso-log-dialog).
+/// Pushed when the state machine enters <c>Tx73</c> (answerer) or <c>TxRr73</c> (caller)
+/// and <c>tx.qsoConfirmation = true</c>.  The browser opens the confirmation dialog on receipt.
+/// Wire format:
+/// <code>
+/// {
+///   "type": "qsoReview",
+///   "callsign": "Q1TST", "grid": "JO22", "rstSent": "+00", "rstRcvd": "+05",
+///   "startUtc": "2026-06-27T14:29:15Z", "endUtc": "2026-06-27T14:30:00Z",
+///   "freqMhz": 14.074, "operatorCallsign": "Q2OPR",
+///   "retainedTxPower": "100", "retainedComment": "", "retainedPropMode": "TR"
+/// }
+/// </code>
+/// </summary>
+internal sealed record WsQsoReviewMessage(
+    string  Type,
+    string  Callsign,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? Grid,
+    string  RstSent,
+    string  RstRcvd,
+    string  StartUtc,
+    string  EndUtc,
+    [property: JsonPropertyName("freqMHz")]
+    double  FreqMHz,
+    string  OperatorCallsign,
+    string  RetainedTxPower,
+    string  RetainedComment,
+    string  RetainedPropMode);
