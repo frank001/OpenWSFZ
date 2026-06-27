@@ -10,7 +10,8 @@ import { connect }                                                          from
 import { getConfig, getFrequencies, postTune, postAudioOffset,
          getTxStatus, postTxEnable, postTxDisable, postTxAbort,
          postTxAnswerCq, postTxSelectResponder, postTxCallCq,
-         postTxCallerPartnerSelect, getApiKey }                              from './api.js';
+         postTxCallerPartnerSelect, getApiKey,
+         getPropModes, postLogQso }                                          from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
@@ -700,6 +701,163 @@ function updateDialFreq(catStatus, freqMHz) {
   }
 }
 
+// ── QSO Log Confirmation Dialog (qso-log-dialog) ─────────────────────────
+
+/**
+ * Format an ISO 8601 UTC date-time string for display.
+ * @param {string} isoStr
+ * @returns {string}
+ */
+function fmtUtc(isoStr) {
+  try {
+    return new Date(isoStr).toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z');
+  } catch {
+    return isoStr;
+  }
+}
+
+/**
+ * Open the QSO confirmation dialog with data from the daemon's `qsoReview` WS event.
+ * Guards against double-open; suppresses Escape close (cancel button only).
+ * @param {object} ev  The parsed `qsoReview` WebSocket event object.
+ */
+async function openQsoLogDialog(ev) {
+  const dialog = /** @type {HTMLDialogElement|null} */ (
+    document.getElementById('qso-log-dialog'));
+  if (!dialog) return;
+
+  // Guard: if already open, warn and ignore.
+  if (dialog.open) {
+    console.warn('[qso-log-dialog] Dialog already open — ignoring duplicate qsoReview event.');
+    return;
+  }
+
+  // Suppress Escape key close (cancel button is the only way to dismiss).
+  const cancelHandler = (/** @type {Event} */ e) => e.preventDefault();
+  dialog.addEventListener('cancel', cancelHandler, { once: false });
+
+  // Populate read-only summary fields.
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val ?? '';
+  };
+  set('dlg-callsign', ev.callsign);
+  set('dlg-grid',     ev.grid ?? '—');
+  set('dlg-mode',     'FT8');
+  set('dlg-freq',     ev.freqMHz != null ? ev.freqMHz.toFixed(6) : '');
+  set('dlg-rst-sent', ev.rstSent);
+  set('dlg-rst-rcvd', ev.rstRcvd);
+  set('dlg-start',    fmtUtc(ev.startUtc));
+  set('dlg-end',      fmtUtc(ev.endUtc));
+  set('dlg-operator', ev.operatorCallsign ?? '');
+
+  // Pre-fill editable fields from retained values.
+  const txPowerEl      = /** @type {HTMLInputElement|null}  */ (document.getElementById('dlg-tx-power'));
+  const commentEl      = /** @type {HTMLInputElement|null}  */ (document.getElementById('dlg-comment'));
+  const propModeEl     = /** @type {HTMLSelectElement|null} */ (document.getElementById('dlg-prop-mode'));
+  const nameEl         = /** @type {HTMLInputElement|null}  */ (document.getElementById('dlg-name'));
+  const exchSentEl     = /** @type {HTMLInputElement|null}  */ (document.getElementById('dlg-exch-sent'));
+  const exchRcvdEl     = /** @type {HTMLInputElement|null}  */ (document.getElementById('dlg-exch-rcvd'));
+  const retainTxPEl    = /** @type {HTMLInputElement|null}  */ (document.getElementById('dlg-retain-tx-power'));
+  const retainCommentEl = /** @type {HTMLInputElement|null} */ (document.getElementById('dlg-retain-comment'));
+  const retainPropMEl  = /** @type {HTMLInputElement|null}  */ (document.getElementById('dlg-retain-prop-mode'));
+
+  if (txPowerEl)     txPowerEl.value = ev.retainedTxPower ?? '';
+  if (commentEl)     commentEl.value = ev.retainedComment ?? '';
+  if (nameEl)        nameEl.value    = '';
+  if (exchSentEl)    exchSentEl.value = '';
+  if (exchRcvdEl)    exchRcvdEl.value = '';
+
+  // Populate Prop Mode dropdown from /api/v1/prop-modes.
+  if (propModeEl) {
+    propModeEl.innerHTML = '';
+    try {
+      const modes = await getPropModes();
+      // Filter to the active protocol only (OBS-003: removed dead `|| m.protocol === ''` branch).
+      const ft8Modes = Array.isArray(modes)
+        ? modes.filter(m => m.protocol === activeProtocol)
+        : [];
+      for (const m of ft8Modes) {
+        const opt = document.createElement('option');
+        opt.value       = m.value;
+        opt.textContent = m.description ? `${m.value ? m.value + ' — ' : ''}${m.description}` : m.value;
+        propModeEl.appendChild(opt);
+      }
+    } catch (err) {
+      console.warn('[qso-log-dialog] Failed to load prop modes:', err);
+      // OBS-001: API unavailable — restore the hardcoded blank fallback so the select
+      // is never empty and the operator can still submit the dialog.
+      const fallback = document.createElement('option');
+      fallback.value = '';
+      fallback.textContent = 'Not specified';
+      propModeEl.appendChild(fallback);
+    }
+    // Pre-select retained prop mode.
+    const retainedPm = ev.retainedPropMode ?? '';
+    if ([...propModeEl.options].some(o => o.value === retainedPm)) {
+      propModeEl.value = retainedPm;
+    } else if (propModeEl.options.length > 0) {
+      propModeEl.selectedIndex = 0;
+    }
+  }
+
+  // Wire Cancel button (once; remove previous listener to avoid stacking).
+  const cancelBtn = document.getElementById('dlg-cancel-btn');
+  const logBtn    = document.getElementById('dlg-log-qso-btn');
+
+  const handleCancel = () => {
+    dialog.removeEventListener('cancel', cancelHandler);
+    dialog.close();
+  };
+
+  const handleLog = async () => {
+    logBtn && (logBtn.disabled = true);
+    try {
+      const body = {
+        callsign:         ev.callsign,
+        grid:             ev.grid     ?? null,
+        rstSent:          ev.rstSent,
+        rstRcvd:          ev.rstRcvd,
+        startUtc:         ev.startUtc,
+        endUtc:           ev.endUtc,
+        freqMHz:          ev.freqMHz,
+        operatorCallsign: ev.operatorCallsign,
+        name:             nameEl?.value.trim()    || null,
+        txPower:          txPowerEl?.value.trim() || null,
+        comment:          commentEl?.value.trim() || null,
+        propMode:         propModeEl?.value        || null,
+        exchSent:         exchSentEl?.value.trim() || null,
+        exchRcvd:         exchRcvdEl?.value.trim() || null,
+        retainTxPower:    retainTxPEl?.checked  ?? false,
+        retainComment:    retainCommentEl?.checked ?? false,
+        retainPropMode:   retainPropMEl?.checked ?? false,
+      };
+      await postLogQso(body);
+      dialog.removeEventListener('cancel', cancelHandler);
+      dialog.close();
+    } catch (err) {
+      console.error('[qso-log-dialog] POST /api/v1/tx/log-qso failed:', err);
+      logBtn && (logBtn.disabled = false);
+      // Leave dialog open so the operator can retry.
+    }
+  };
+
+  // Attach one-time handlers; cloneNode trick avoids listener accumulation.
+  if (cancelBtn) {
+    const freshCancel = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode?.replaceChild(freshCancel, cancelBtn);
+    freshCancel.addEventListener('click', handleCancel, { once: true });
+  }
+  if (logBtn) {
+    const freshLog = logBtn.cloneNode(true);
+    logBtn.parentNode?.replaceChild(freshLog, logBtn);
+    freshLog.disabled = false;
+    freshLog.addEventListener('click', handleLog, { once: true });
+  }
+
+  dialog.showModal();
+}
+
 // ── Initialise ────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1050,6 +1208,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (event.type === 'decode') {
       handleDecodes(event.payload);
+      return;
+    }
+
+    // qso-log-dialog (tasks 11.1–11.2): open the QSO confirmation dialog.
+    if (event.type === 'qsoReview') {
+      openQsoLogDialog(event);
+      return;
     }
   });
 

@@ -25,4 +25,15 @@ public interface ITxEventBus
         string? partner,
         bool    autoAnswerEnabled,
         string? abortReason = null);
+
+    /// <summary>
+    /// Broadcasts a <c>qsoReview</c> event to all connected WebSocket clients,
+    /// carrying the full QSO record plus retained field values (qso-log-dialog).
+    /// The browser uses this event to open the QSO confirmation dialog.
+    /// </summary>
+    void PublishQsoReview(
+        OpenWSFZ.Abstractions.QsoRecord record,
+        string retainedTxPower,
+        string retainedComment,
+        string retainedPropMode);
 }

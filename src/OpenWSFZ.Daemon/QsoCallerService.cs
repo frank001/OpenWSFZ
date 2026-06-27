@@ -47,7 +47,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private readonly AudioOffsetEventBus                        _audioOffsetEventBus;
     private readonly ILogger<QsoCallerService>                  _logger;
     private readonly Ft8AudioSynthesiser                        _synthesiser = new();
-    private readonly AdifLogWriter                               _adifLog;
+    private readonly IAdifLogWriter                              _adifLog;
     private readonly IApConstraintSink?                         _decoder;
 
     // Volatile: readable from the HTTP handler thread without a lock.
@@ -113,7 +113,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         IConfigStore                configStore,
         IPttController              pttController,
         ITxEventBus                 txEventBus,
-        AdifLogWriter               adifLog,
+        IAdifLogWriter              adifLog,
         AudioOffsetEventBus         audioOffsetEventBus,
         ILogger<QsoCallerService>   logger,
         IApConstraintSink?          decoder = null)
@@ -134,7 +134,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         IConfigStore                configStore,
         IPttController              pttController,
         ITxEventBus                 txEventBus,
-        AdifLogWriter               adifLog,
+        IAdifLogWriter              adifLog,
         AudioOffsetEventBus         audioOffsetEventBus,
         ILogger<QsoCallerService>   logger,
         TimeSpan                    watchdogDurationOverride)
@@ -645,13 +645,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
         var rr73Message = $"{partner} {ours} RR73";
 
-        SetStateAndNotify(CallerState.TxRr73);
-        await TransmitAsync(rr73Message, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
-
-        SetStateAndNotify(CallerState.QsoComplete);
-        _logger.LogInformation("QsoCallerService: QSO with {Partner} complete!", partner);
-
-        // Write ADIF log entry.
+        // Build the QSO record (used for both qsoReview event and ADIF write).
         var record = new QsoRecord
         {
             PartnerCallsign  = partner,
@@ -659,12 +653,37 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             RstSent          = "+00",       // fixed report (TX-D04 deferred)
             RstRcvd          = _rstRcvd,
             QsoStartUtc      = _qsoStartUtc,
-            QsoEndUtc        = DateTime.UtcNow,
+            QsoEndUtc        = Ft8TimeHelper.DeriveFt8CycleStartUtc(DateTime.UtcNow),
             OperatorCallsign = ours,
             OperatorGrid     = tx.Grid,
             DialFrequencyMHz = _configStore.Current.DecodeLog.DialFrequencyMHz,
         };
-        await _adifLog.AppendQsoAsync(record).ConfigureAwait(false);
+
+        // qso-log-dialog: if confirmation is enabled, emit the qsoReview WS event so the
+        // browser opens the confirmation dialog.  The browser is responsible for calling
+        // POST /api/v1/tx/log-qso once the operator clicks OK.
+        if (tx.QsoConfirmation)
+        {
+            _txEventBus.PublishQsoReview(
+                record,
+                retainedTxPower:  tx.RetainedTxPower,
+                retainedComment:  tx.RetainedComment,
+                retainedPropMode: tx.RetainedPropMode);
+        }
+
+        SetStateAndNotify(CallerState.TxRr73);
+        await TransmitAsync(rr73Message, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
+
+        SetStateAndNotify(CallerState.QsoComplete);
+        _logger.LogInformation("QsoCallerService: QSO with {Partner} complete!", partner);
+
+        // Write ADIF log entry.
+        // When qsoConfirmation is enabled the browser sends the record via POST /api/v1/tx/log-qso;
+        // the daemon must NOT also write it here (double-entry prevention — qso-log-dialog D3).
+        if (!tx.QsoConfirmation)
+        {
+            await _adifLog.AppendQsoAsync(record).ConfigureAwait(false);
+        }
 
         await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
     }

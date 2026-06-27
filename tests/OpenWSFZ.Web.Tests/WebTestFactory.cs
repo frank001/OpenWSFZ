@@ -67,6 +67,16 @@ public sealed class WebTestFactory : WebApplicationFactory<Program>
             services.RemoveAll<IFrequencyStore>();
             services.AddSingleton<IFrequencyStore>(new TestFrequencyStore());
 
+            // Same isolation for IPropModeStore: POST /api/v1/prop-modes must not
+            // write to %APPDATA%\OpenWSFZ\prop-modes.json during tests.
+            services.RemoveAll<IPropModeStore>();
+            services.AddSingleton<IPropModeStore>(new InMemoryPropModeStore());
+
+            // Register a no-op IAdifLogWriter so POST /api/v1/tx/log-qso returns 200
+            // rather than 503 in WebApplicationFactory tests (qso-log-dialog task 7.4).
+            services.RemoveAll<IAdifLogWriter>();
+            services.AddSingleton<IAdifLogWriter>(new NullAdifLogWriter());
+
             // Replace the production ICatController (backed by CatPollingService)
             // with a test double so POST /api/v1/cat/retry returns 204 and tests
             // can assert TriggerRetry() was called.

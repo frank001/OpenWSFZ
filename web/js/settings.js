@@ -51,6 +51,9 @@ const generalTxRole               = /** @type {HTMLSelectElement} */ (document.g
 const generalCallerPartnerSelect  = /** @type {HTMLSelectElement} */ (document.getElementById('general-caller-partner-select'));
 const callerPartnerSelectGroup    = /** @type {HTMLElement}       */ (document.getElementById('caller-partner-select-group'));
 
+// QSO log confirmation dialog toggle (qso-log-dialog)
+const generalQsoConfirmation = /** @type {HTMLInputElement} */ (document.getElementById('general-qso-confirmation'));
+
 /**
  * Role value captured on page load. Used to detect a role change on save so
  * a restart notice can be shown (task 8.7).
@@ -251,6 +254,7 @@ function snapshotForm() {
       retryCount:           txRetryCount.value,
       role:                 generalTxRole?.value ?? 'Answerer',
       callerPartnerSelect:  generalCallerPartnerSelect?.value ?? 'First',
+      qsoConfirmation:      generalQsoConfirmation?.checked ?? true,
     },
     // FR-043: include frequency table in dirty-state comparison (FR-040).
     _frequencies:         snapshotFrequencies(),
@@ -559,6 +563,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       generalCallerPartnerSelect.value = tx.callerPartnerSelect ?? 'First';
     updateCallerPartnerSelectVisibility();
 
+    // qso-log-dialog: pre-fill QSO confirmation toggle (task 8.3).
+    if (generalQsoConfirmation)
+      generalQsoConfirmation.checked = tx.qsoConfirmation ?? true;
+
     // FR-043: populate the frequencies table.
     renderFreqTable(Array.isArray(frequencies) ? frequencies : []);
 
@@ -794,6 +802,7 @@ saveBtn.addEventListener('click', async () => {
     retryCount:          Math.min(200, Math.max(0,   parseInt(txRetryCount.value,      10) || 3)),
     role:                txRoleValue,
     callerPartnerSelect: generalCallerPartnerSelect?.value ?? 'First',
+    qsoConfirmation:    generalQsoConfirmation?.checked ?? true,
   };
 
   // FR-043: collect current frequency table entries for parallel POST.

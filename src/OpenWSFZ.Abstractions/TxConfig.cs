@@ -39,7 +39,15 @@ public sealed record TxConfig
         int                    txAudioOffsetHz      = 1500,
         bool                   holdTxFreq           = false,
         TxRole                 role                 = TxRole.Answerer,
-        CallerPartnerSelectMode callerPartnerSelect  = CallerPartnerSelectMode.First)
+        CallerPartnerSelectMode callerPartnerSelect  = CallerPartnerSelectMode.First,
+        // qso-log-dialog: QsoConfirmation defaults to true (lesson 6 / design R4).
+        // STJ source-gen would deserialise a missing bool field as false; the constructor
+        // parameter default of true ensures old config files (without this key) still
+        // enable the confirmation dialog on first run after upgrade.
+        bool                   qsoConfirmation      = true,
+        string                 retainedTxPower      = "",
+        string                 retainedComment      = "",
+        string                 retainedPropMode     = "")
     {
         AutoAnswer          = autoAnswer;
         Callsign            = callsign;
@@ -51,6 +59,10 @@ public sealed record TxConfig
         HoldTxFreq          = holdTxFreq;
         Role                = role;
         CallerPartnerSelect = callerPartnerSelect;
+        QsoConfirmation     = qsoConfirmation;
+        RetainedTxPower     = retainedTxPower;
+        RetainedComment     = retainedComment;
+        RetainedPropMode    = retainedPropMode;
     }
 
     /// <summary>
@@ -129,4 +141,34 @@ public sealed record TxConfig
     /// <c>None</c>: operator clicks a highlighted decode-table row.
     /// </summary>
     public CallerPartnerSelectMode CallerPartnerSelect { get; init; } = CallerPartnerSelectMode.First;
+
+    // ── QSO confirmation dialog fields (qso-log-dialog) ───────────────────────
+
+    /// <summary>
+    /// When <c>true</c> (default), the browser confirmation dialog is shown when the last
+    /// TX begins; ADIF is written only when the operator clicks OK.
+    /// When <c>false</c>, the existing silent auto-log at <c>QsoComplete</c> is used.
+    /// </summary>
+    public bool QsoConfirmation { get; init; } = true;
+
+    /// <summary>
+    /// Last TX power value for which the operator checked "Retain".
+    /// Pre-fills the Tx Power field in subsequent confirmation dialogs.
+    /// Empty string when no value has been retained.
+    /// </summary>
+    public string RetainedTxPower { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Last comment value for which the operator checked "Retain".
+    /// Pre-fills the Comments field in subsequent confirmation dialogs.
+    /// Empty string when no value has been retained.
+    /// </summary>
+    public string RetainedComment { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Last propagation mode ADIF value for which the operator checked "Retain".
+    /// Pre-fills the Prop Mode dropdown in subsequent confirmation dialogs.
+    /// Empty string when no value has been retained.
+    /// </summary>
+    public string RetainedPropMode { get; init; } = string.Empty;
 }

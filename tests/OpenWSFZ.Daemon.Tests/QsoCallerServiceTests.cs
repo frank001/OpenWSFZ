@@ -25,9 +25,10 @@ public sealed class QsoCallerServiceTests
 
     // ── SUT builder ───────────────────────────────────────────────────────────
 
-    private static (QsoCallerService sut, ITxEventBus eventBus, IPttController ptt,
-                    Channel<DecodeBatch> channel, CancellationTokenSource stopCts)
-        BuildIsolatedSut(TxConfig txConfig, TimeSpan? watchdogDuration = null)
+    private static (QsoCallerService sut, ITxEventBus eventBus, IAdifLogWriter adifLog,
+                    IPttController ptt, Channel<DecodeBatch> channel, CancellationTokenSource stopCts)
+        BuildIsolatedSut(TxConfig txConfig, TimeSpan? watchdogDuration = null,
+                         IAdifLogWriter? adifLog = null)
     {
         var ptt = Substitute.For<IPttController>();
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -38,23 +39,23 @@ public sealed class QsoCallerServiceTests
         store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>())
              .Returns(Task.CompletedTask);
 
-        var eventBus = Substitute.For<ITxEventBus>();
-        var adifLog  = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel  = Channel.CreateUnbounded<DecodeBatch>();
-        var stopCts  = new CancellationTokenSource();
+        var eventBus    = Substitute.For<ITxEventBus>();
+        var resolvedLog = adifLog ?? new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var channel     = Channel.CreateUnbounded<DecodeBatch>();
+        var stopCts     = new CancellationTokenSource();
 
         var sut = watchdogDuration.HasValue
             ? new QsoCallerService(
                 channel.Reader, store, ptt, eventBus,
-                adifLog, new AudioOffsetEventBus(),
+                resolvedLog, new AudioOffsetEventBus(),
                 NullLogger<QsoCallerService>.Instance,
                 watchdogDurationOverride: watchdogDuration.Value)
             : new QsoCallerService(
                 channel.Reader, store, ptt, eventBus,
-                adifLog, new AudioOffsetEventBus(),
+                resolvedLog, new AudioOffsetEventBus(),
                 NullLogger<QsoCallerService>.Instance);
 
-        return (sut, eventBus, ptt, channel, stopCts);
+        return (sut, eventBus, resolvedLog, ptt, channel, stopCts);
     }
 
     // ── Wait helpers ──────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@ public sealed class QsoCallerServiceTests
     public void Role_IsQsoRoleCaller()
     {
         var tx = new TxConfig { AutoAnswer = false, Callsign = OurCallsign, Grid = OurGrid };
-        var (sut, _, _, _, _) = BuildIsolatedSut(tx);
+        var (sut, _, _, _, _, _) = BuildIsolatedSut(tx);
         sut.Role.Should().Be(QsoRole.Caller);
     }
 
@@ -107,7 +108,7 @@ public sealed class QsoCallerServiceTests
             RetryCount      = 3,
             WatchdogMinutes = 4,
         };
-        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // Send any batch — triggers CQ transmission from Idle.
@@ -138,7 +139,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 3,
             WatchdogMinutes     = 4,
         };
-        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // Trigger CQ → WaitAnswer.
@@ -172,7 +173,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 0,    // unlimited so no retry fires
             WatchdogMinutes     = 4,
         };
-        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // Trigger CQ → WaitAnswer.
@@ -212,7 +213,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 0,
             WatchdogMinutes     = 4,
         };
-        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // Drive to WaitAnswer.
@@ -275,7 +276,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 0,
             WatchdogMinutes     = 4,
         };
-        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // Drive to WaitAnswer.
@@ -327,7 +328,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 0,
             WatchdogMinutes     = 4,
         };
-        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
@@ -369,7 +370,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 3,
             WatchdogMinutes     = 4,
         };
-        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // CQ → WaitAnswer → TxReport → WaitRr73.
@@ -407,7 +408,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 3,
             WatchdogMinutes     = 4,
         };
-        var (sut, eventBus, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, eventBus, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
@@ -450,7 +451,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 2,
             WatchdogMinutes     = 4,
         };
-        var (sut, eventBus, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, eventBus, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // Arm → CQ → WaitAnswer.
@@ -506,7 +507,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 1,    // only 1 retry allowed
             WatchdogMinutes     = 4,
         };
-        var (sut, eventBus, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, eventBus, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
@@ -549,7 +550,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 3,
             WatchdogMinutes     = 4,
         };
-        var (sut, eventBus, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, eventBus, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // Start a CQ session.
@@ -628,7 +629,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 1,
             WatchdogMinutes     = 4,
         };
-        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // Arm service → CQ TX → WaitAnswer.
@@ -743,7 +744,7 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 3,
             WatchdogMinutes     = 4,
         };
-        var (sut, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
         await sut.StartAsync(stopCts.Token);
 
         // Arm service → CQ TX → WaitAnswer.
@@ -868,5 +869,123 @@ public sealed class QsoCallerServiceTests
 
         result.Should().BeFalse();
         partner.Should().BeEmpty();
+    }
+
+    // ── qso-log-dialog: QsoConfirmation tests (task 6.3) ─────────────────────
+
+    [Fact(DisplayName = "qso-log-dialog 6.3a: QsoConfirmation=true emits PublishQsoReview on TxRr73 entry")]
+    public async Task ExecuteTxRr73Async_QsoConfirmationEnabled_PublishesQsoReviewEvent()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 1,
+            QsoConfirmation     = true,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, eventBus, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        // CQ → WaitAnswer (WaitReport) → TxReport → WaitRr73 → TxRr73 → Idle.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        eventBus.Received(1).PublishQsoReview(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "qso-log-dialog 6.3b: QsoConfirmation=true skips ADIF AppendQsoAsync")]
+    public async Task ExecuteTxRr73Async_QsoConfirmationEnabled_SkipsAdifWrite()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 1,
+            QsoConfirmation     = true,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.DidNotReceive().AppendQsoAsync(Arg.Any<QsoRecord>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "qso-log-dialog 6.3c: QsoConfirmation=false still calls ADIF AppendQsoAsync")]
+    public async Task ExecuteTxRr73Async_QsoConfirmationDisabled_WritesAdif()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 1,
+            QsoConfirmation     = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(Arg.Any<QsoRecord>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
     }
 }

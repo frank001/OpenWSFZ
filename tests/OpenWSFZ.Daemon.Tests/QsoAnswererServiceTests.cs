@@ -1509,11 +1509,12 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     /// Builds an isolated <see cref="QsoAnswererService"/> wired to an
     /// <see cref="ITxEventBus"/> substitute so that <c>Publish</c> calls can be inspected.
     /// </summary>
-    private static (QsoAnswererService sut, ITxEventBus eventBus, IPttController ptt,
-                    Channel<DecodeBatch> channel, CancellationTokenSource stopCts)
+    private static (QsoAnswererService sut, ITxEventBus eventBus, IAdifLogWriter adifLog,
+                    IPttController ptt, Channel<DecodeBatch> channel, CancellationTokenSource stopCts)
         BuildIsolatedSut(
             TxConfig                  txConfig,
-            TimeSpan                  watchdogDuration)
+            TimeSpan                  watchdogDuration,
+            IAdifLogWriter?           adifLog = null)
     {
         var ptt = Substitute.For<IPttController>();
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -1526,18 +1527,18 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>())
              .Returns(Task.CompletedTask);
 
-        var eventBus = Substitute.For<ITxEventBus>();
-        var adifLog  = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel  = Channel.CreateUnbounded<DecodeBatch>();
-        var stopCts  = new CancellationTokenSource();
+        var eventBus    = Substitute.For<ITxEventBus>();
+        var resolvedLog = adifLog ?? new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var channel     = Channel.CreateUnbounded<DecodeBatch>();
+        var stopCts     = new CancellationTokenSource();
 
         var sut = new QsoAnswererService(
             channel.Reader, store, ptt, eventBus,
-            adifLog, new AudioOffsetEventBus(),
+            resolvedLog, new AudioOffsetEventBus(),
             NullLogger<QsoAnswererService>.Instance,
             watchdogDurationOverride: watchdogDuration);
 
-        return (sut, eventBus, ptt, channel, stopCts);
+        return (sut, eventBus, resolvedLog, ptt, channel, stopCts);
     }
 
     [Fact(DisplayName = "FR-UX-002: watchdog expiry publishes Idle with 'Watchdog timeout' abort reason")]
@@ -1551,7 +1552,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             RetryCount      = 0,    // unlimited — only the watchdog terminates the session
             WatchdogMinutes = 1,    // overridden to 300 ms below
         };
-        var (sut, eventBus, ptt, channel, stopCts) =
+        var (sut, eventBus, _, ptt, channel, stopCts) =
             BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromMilliseconds(300));
 
         await sut.StartAsync(stopCts.Token);
@@ -1588,7 +1589,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             RetryCount      = 0,    // unlimited — only an explicit abort terminates the session
             WatchdogMinutes = 1,    // overridden to 30 s — well beyond test duration
         };
-        var (sut, eventBus, ptt, channel, stopCts) =
+        var (sut, eventBus, _, ptt, channel, stopCts) =
             BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30));
 
         await sut.StartAsync(stopCts.Token);
@@ -1626,7 +1627,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             RetryCount      = 3,
             WatchdogMinutes = 1,    // overridden to 30 s — well beyond test duration
         };
-        var (sut, eventBus, ptt, channel, stopCts) =
+        var (sut, eventBus, _, ptt, channel, stopCts) =
             BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30));
 
         await sut.StartAsync(stopCts.Token);
@@ -1652,6 +1653,132 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             Arg.Any<string?>(),
             false,
             Arg.Is<string?>(r => r == null));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── qso-log-dialog: QsoConfirmation tests (tasks 5.3–5.5) ────────────────
+
+    [Fact(DisplayName = "qso-log-dialog 5.3: QsoConfirmation=true emits PublishQsoReview on Tx73 entry")]
+    public async Task ExecuteTx73Async_QsoConfirmationEnabled_PublishesQsoReviewEvent()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 1,
+            QsoConfirmation = true,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, eventBus, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // PublishQsoReview must have been called exactly once.
+        eventBus.Received(1).PublishQsoReview(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "qso-log-dialog 5.4: QsoConfirmation=true skips ADIF AppendQsoAsync")]
+    public async Task ExecuteTx73Async_QsoConfirmationEnabled_SkipsAdifWrite()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 1,
+            QsoConfirmation = true,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // AppendQsoAsync must NOT have been called when confirmation is enabled.
+        await mockAdif.DidNotReceive().AppendQsoAsync(Arg.Any<QsoRecord>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "qso-log-dialog 5.5: QsoConfirmation=false still calls ADIF AppendQsoAsync")]
+    public async Task ExecuteTx73Async_QsoConfirmationDisabled_WritesAdif()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // AppendQsoAsync must have been called exactly once when confirmation is disabled.
+        await mockAdif.Received(1).AppendQsoAsync(Arg.Any<QsoRecord>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

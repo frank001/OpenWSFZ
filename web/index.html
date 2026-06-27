@@ -133,6 +133,91 @@
 
   </div>
 
+  <!-- ── QSO Log Confirmation Dialog (qso-log-dialog) ─────────────────────── -->
+  <!--
+    Shown before each QSO is written to the ADIF log when tx.qsoConfirmation=true.
+    The dialog is opened via dialog.showModal() in main.js (openQsoLogDialog).
+    Cancel closes without logging; "Log QSO" POSTs to /api/v1/tx/log-qso.
+  -->
+  <dialog id="qso-log-dialog" aria-labelledby="qso-log-dialog-title">
+
+    <h2 id="qso-log-dialog-title" class="dialog-title">Log QSO</h2>
+
+    <!-- Read-only QSO summary (populated from the qsoReview WS event) -->
+    <section class="dialog-section">
+      <h3 class="dialog-section-title">QSO summary</h3>
+      <dl class="dialog-summary-grid">
+        <dt>Callsign</dt><dd><span id="dlg-callsign" class="dialog-summary-value"></span></dd>
+        <dt>Grid</dt>    <dd><span id="dlg-grid"     class="dialog-summary-value"></span></dd>
+        <dt>Mode</dt>    <dd><span id="dlg-mode"     class="dialog-summary-value">FT8</span></dd>
+        <dt>Freq (MHz)</dt><dd><span id="dlg-freq"  class="dialog-summary-value"></span></dd>
+        <dt>Rpt sent</dt><dd><span id="dlg-rst-sent" class="dialog-summary-value"></span></dd>
+        <dt>Rpt rcvd</dt><dd><span id="dlg-rst-rcvd" class="dialog-summary-value"></span></dd>
+        <dt>Start (UTC)</dt><dd><span id="dlg-start" class="dialog-summary-value"></span></dd>
+        <dt>End (UTC)</dt>  <dd><span id="dlg-end"   class="dialog-summary-value"></span></dd>
+        <dt>Operator</dt><dd><span id="dlg-operator"  class="dialog-summary-value"></span></dd>
+      </dl>
+    </section>
+
+    <!-- Editable enrichment fields -->
+    <section class="dialog-section">
+      <h3 class="dialog-section-title">Optional details</h3>
+
+      <div class="dialog-field-row">
+        <label for="dlg-name">Name</label>
+        <input type="text" id="dlg-name" class="dialog-input" placeholder="Partner name" autocomplete="off" />
+      </div>
+
+      <div class="dialog-field-row dialog-retain-row">
+        <label for="dlg-tx-power">TX power (W)</label>
+        <input type="text" id="dlg-tx-power" class="dialog-input dialog-input-narrow" placeholder="e.g. 100" autocomplete="off" />
+        <label class="dialog-retain-label">
+          <input type="checkbox" id="dlg-retain-tx-power" />
+          Retain
+        </label>
+      </div>
+
+      <div class="dialog-field-row dialog-retain-row">
+        <label for="dlg-comment">Comment</label>
+        <input type="text" id="dlg-comment" class="dialog-input" placeholder="Free-text comment" autocomplete="off" />
+        <label class="dialog-retain-label">
+          <input type="checkbox" id="dlg-retain-comment" />
+          Retain
+        </label>
+      </div>
+
+      <div class="dialog-field-row dialog-retain-row">
+        <label for="dlg-prop-mode">Prop mode</label>
+        <select id="dlg-prop-mode" class="dialog-select">
+          <!-- Hardcoded blank option; serves as fallback if GET /api/v1/prop-modes fails.
+               On a successful fetch the option list is replaced by the API response. -->
+          <option value="">Not specified</option>
+        </select>
+        <label class="dialog-retain-label">
+          <input type="checkbox" id="dlg-retain-prop-mode" />
+          Retain
+        </label>
+      </div>
+
+      <div class="dialog-field-row">
+        <label for="dlg-exch-sent">Exch sent</label>
+        <input type="text" id="dlg-exch-sent" class="dialog-input dialog-input-narrow" placeholder="e.g. 001" autocomplete="off" />
+      </div>
+
+      <div class="dialog-field-row">
+        <label for="dlg-exch-rcvd">Exch rcvd</label>
+        <input type="text" id="dlg-exch-rcvd" class="dialog-input dialog-input-narrow" placeholder="e.g. 001" autocomplete="off" />
+      </div>
+    </section>
+
+    <!-- Action buttons -->
+    <div class="dialog-button-row">
+      <button type="button" id="dlg-cancel-btn"  class="btn btn-secondary">Cancel</button>
+      <button type="button" id="dlg-log-qso-btn" class="btn btn-primary">Log QSO</button>
+    </div>
+
+  </dialog>
+
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

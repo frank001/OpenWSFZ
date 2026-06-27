@@ -28,4 +28,28 @@ public sealed class TxEventBus : ITxEventBus
         bool    autoAnswerEnabled,
         string? abortReason = null)
         => WebSocketHub.BroadcastTxState(state, role, partner, autoAnswerEnabled, abortReason);
+
+    /// <inheritdoc/>
+    public void PublishQsoReview(
+        OpenWSFZ.Abstractions.QsoRecord record,
+        string retainedTxPower,
+        string retainedComment,
+        string retainedPropMode)
+    {
+        var msg = new WsQsoReviewMessage(
+            Type:              "qsoReview",
+            Callsign:          record.PartnerCallsign,
+            Grid:              record.PartnerGrid,
+            RstSent:           record.RstSent,
+            RstRcvd:           record.RstRcvd,
+            StartUtc:          record.QsoStartUtc.ToString("O"),
+            EndUtc:            record.QsoEndUtc.ToString("O"),
+            FreqMHz:           record.DialFrequencyMHz,
+            OperatorCallsign:  record.OperatorCallsign,
+            RetainedTxPower:   retainedTxPower,
+            RetainedComment:   retainedComment,
+            RetainedPropMode:  retainedPropMode);
+
+        WebSocketHub.BroadcastQsoReview(msg);
+    }
 }

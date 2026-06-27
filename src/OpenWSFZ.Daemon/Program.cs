@@ -35,6 +35,14 @@ var frequenciesPath = Path.Combine(
 // Create the FrequencyStore (logger not available yet; assigned after host builds).
 var frequencyStore = new FrequencyStore(frequenciesPath);
 
+// Resolve the prop-modes.json path — same data directory as app.json (qso-log-dialog).
+var propModesPath = Path.Combine(
+    Path.GetDirectoryName(configPath) ?? AppContext.BaseDirectory,
+    "prop-modes.json");
+
+// Create the PropModeStore (logger not available yet; assigned after host builds).
+var propModeStore = new PropModeStore(propModesPath);
+
 // ── Logging setup (FR-019, FR-022, FR-023, FR-024) ────────────────────────────
 // Parse the configured log level.  Invalid values fall back to Information.
 var logLevel = Enum.TryParse<LogLevel>(configStore.Current.LogLevel, ignoreCase: true, out var parsedLevel)
@@ -285,6 +293,7 @@ var app = WebApp.Create(
     bindPolicy:                 bindPolicy,
     configStore:                configStore,
     frequencyStore:             frequencyStore,
+    propModeStore:              propModeStore,
     audioProviderFactory:       sp => new PlatformAudioDeviceProvider(
                                           sp.GetRequiredService<ILoggerFactory>()),
     audioOutputProviderFactory: sp => new PlatformAudioOutputDeviceProvider(
@@ -305,6 +314,9 @@ var app = WebApp.Create(
 
         // Frequency store DI wiring (FR-042).
         services.AddSingleton<IFrequencyStore>(frequencyStore);
+
+        // Prop mode store DI wiring (qso-log-dialog).
+        services.AddSingleton<IPropModeStore>(propModeStore);
 
         // CAT DI wiring (tasks 11.1–11.3, FR-031).
         // Register the CatState singleton under both its concrete type (for
@@ -336,6 +348,7 @@ var app = WebApp.Create(
         services.AddSingleton<ITxEventBus, TxEventBus>();
         services.AddSingleton<AudioOffsetEventBus>();
         services.AddSingleton<AdifLogWriter>();
+        services.AddSingleton<IAdifLogWriter>(sp => sp.GetRequiredService<AdifLogWriter>());
 
         // H6 AP decode (D-001): register the ft8Decoder instance as IApConstraintSink so
         // the active QSO controller can arm/disarm AP constraints during active QSO sessions.
@@ -599,6 +612,9 @@ app.Lifetime.ApplicationStopping.Register(() =>
 
 // Load (or create) frequencies.json before starting the web host (FR-042, task 3.3).
 await frequencyStore.LoadAsync();
+
+// Load (or create) prop-modes.json before starting the web host (qso-log-dialog).
+await propModeStore.LoadAsync();
 
 await app.RunAsync();
 return 0;

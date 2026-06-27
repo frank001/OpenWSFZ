@@ -360,3 +360,44 @@ export function postAudioOffset(rxHz, txHz, holdTxFreq) {
     body:    JSON.stringify({ rxHz, txHz, holdTxFreq }),
   });
 }
+
+/**
+ * GET /api/v1/prop-modes
+ * Returns the operator's propagation mode list.
+ * @returns {Promise<Array<{protocol: string, value: string, description: string}>>}
+ */
+export function getPropModes() {
+  return fetchJson('/api/v1/prop-modes');
+}
+
+/**
+ * POST /api/v1/tx/log-qso
+ * Writes a completed QSO to the ADIF log (qso-log-dialog).
+ * @param {{
+ *   callsign: string,
+ *   grid: string|null,
+ *   rstSent: string,
+ *   rstRcvd: string,
+ *   startUtc: string,
+ *   endUtc: string,
+ *   freqMHz: number,
+ *   operatorCallsign: string,
+ *   name: string|null,
+ *   txPower: string|null,
+ *   comment: string|null,
+ *   propMode: string|null,
+ *   exchSent: string|null,
+ *   exchRcvd: string|null,
+ *   retainTxPower: boolean,
+ *   retainComment: boolean,
+ *   retainPropMode: boolean
+ * }} data
+ * @returns {Promise<{logged: boolean}>}
+ */
+export async function postLogQso(data) {
+  return fetchJson('/api/v1/tx/log-qso', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(data),
+  });
+}

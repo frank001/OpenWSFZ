@@ -796,3 +796,141 @@ select#dial-freq {
 .tx-abort-log-list li { margin-bottom: 2px; }
 .tx-abort-ts        { opacity: 0.65; }
 
+/* ── QSO Log Confirmation Dialog (qso-log-dialog) ───────────────────────── */
+
+/* Semi-transparent backdrop */
+#qso-log-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* Dialog container */
+#qso-log-dialog {
+  background:    var(--color-surface);
+  color:         var(--color-text);
+  border:        1px solid var(--color-border);
+  border-radius: calc(var(--radius) * 2);
+  padding:       1.5rem 1.75rem;
+  width:         min(520px, 95vw);
+  max-height:    90vh;
+  overflow-y:    auto;
+  font-size:     0.9rem;
+}
+
+/* Title */
+.dialog-title {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.6rem;
+}
+
+/* Section grouping */
+.dialog-section + .dialog-section {
+  margin-top: 1.1rem;
+}
+
+.dialog-section-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+  margin: 0 0 0.6rem;
+}
+
+/* Read-only summary grid — two-column definition list */
+.dialog-summary-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.8rem;
+  row-gap: 0.25rem;
+  margin: 0;
+}
+
+.dialog-summary-grid dt {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  align-self: center;
+}
+
+.dialog-summary-value {
+  font-size: 0.88rem;
+  font-family: var(--font-mono);
+}
+
+/* Editable field rows */
+.dialog-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.dialog-field-row > label:first-child {
+  flex: 0 0 8rem;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  text-align: right;
+}
+
+.dialog-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog-input-narrow {
+  flex: 0 0 7rem;
+}
+
+.dialog-select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Retain checkbox rows */
+.dialog-retain-row { flex-wrap: nowrap; }
+
+.dialog-retain-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Button row */
+.dialog-button-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Utility button classes used in dialog (mirrors settings page convention) */
+.btn {
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.45rem 1.1rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn:hover { background: var(--color-border); }
+
+.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #0d1117;
+  font-weight: 600;
+}
+.btn-primary:hover { background: #79c0ff; border-color: #79c0ff; }
+
+.btn-secondary { /* uses .btn defaults */ }
+
