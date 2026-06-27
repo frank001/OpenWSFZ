@@ -106,6 +106,20 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // Non-null only in unit tests; overrides the watchdog duration so tests don't wait 60+ seconds.
     private readonly TimeSpan? _watchdogDurationOverride;
 
+    // TimeProvider used for the late-start guard (D-CALLER-013).
+    // Defaults to TimeProvider.System in production; overridable in unit tests via the internal
+    // test constructor so the guard can be exercised without sleeping through real FT8 windows.
+    private readonly TimeProvider _timeProvider;
+
+    // ── Timing constants ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Maximum number of seconds into a 15-second FT8 window that TX may still be started.
+    /// An FT8 signal is 12.64 s; starting later than this causes overrun into the next window.
+    /// A 1.5 s threshold leaves ~0.86 s margin (15 - 12.64 - 1.5 = 0.86 s).
+    /// </summary>
+    private const double MaxLateStartSeconds = 1.5;
+
     /// <summary>
     /// Written by <see cref="AnswerCqAsync"/> immediately after setting the pending target,
     /// so the background loop wakes up and can fire TX within the current FT8 cycle window
@@ -141,10 +155,13 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         _adifLog             = adifLog;
         _logger              = logger;
         _decoder             = decoder;
+        _timeProvider        = TimeProvider.System;
     }
 
     /// <summary>
-    /// Test constructor — allows watchdog duration override to avoid 1-minute waits in unit tests.
+    /// Test constructor — allows watchdog duration override to avoid 1-minute waits in unit tests,
+    /// and an optional <see cref="TimeProvider"/> override to exercise the late-start guard
+    /// (D-CALLER-013) without sleeping through real FT8 window boundaries.
     /// </summary>
     internal QsoAnswererService(
         ChannelReader<DecodeBatch>   decodeChannel,
@@ -154,10 +171,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         IAdifLogWriter               adifLog,
         AudioOffsetEventBus          audioOffsetEventBus,
         ILogger<QsoAnswererService>  logger,
-        TimeSpan                     watchdogDurationOverride)
+        TimeSpan                     watchdogDurationOverride,
+        TimeProvider?                timeProvider = null)
         : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
+        _timeProvider             = timeProvider ?? TimeProvider.System;
     }
 
     // ── IQsoController ───────────────────────────────────────────────────────
@@ -454,7 +473,25 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                 if (nextCycleIsAPhase != jumpIsAPhase)
                     return; // wrong phase — wait for next cycle
 
-                // Correct phase — consume the jump-in and execute.
+                // Late-start guard (D-CALLER-013): if we are more than MaxLateStartSeconds into
+                // the target window the 12.64-second FT8 signal would overrun into the adjacent
+                // window.  Defer to the next occurrence of the correct phase (~30 s later).
+                // _jumpPartner is NOT cleared here — the 60-second expiry at the top of this
+                // block handles stale entries.
+                {
+                    var jumpNow           = _timeProvider.GetUtcNow();
+                    var jumpWindowStart   = RoundDownTo15s(jumpNow);
+                    var jumpSecondsIn     = (jumpNow - jumpWindowStart).TotalSeconds;
+                    if (jumpSecondsIn > MaxLateStartSeconds)
+                    {
+                        _logger.LogDebug(
+                            "QsoAnswererService: jump-in '{Partner}' — late start ({SecondsIn:F1} s into window); deferring to next occurrence.",
+                            jumpPartner, jumpSecondsIn);
+                        return; // Retain _jumpPartner; fires at next correct-phase window (~30 s later).
+                    }
+                }
+
+                // Correct phase, timely start — consume the jump-in and execute.
                 lock (_stateLock) { _jumpPartner = null; }
 
                 _logger.LogInformation(
@@ -520,7 +557,25 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                 return;
             }
 
-            // Correct phase — clear the pending target and fire TX.
+            // Late-start guard (D-CALLER-013): if we are more than MaxLateStartSeconds into
+            // the target window the 12.64-second FT8 signal would overrun into the adjacent
+            // window.  Skip this occurrence and wait for the next cycle with the correct phase
+            // (~30 s later).  _pendingTargetSetAt is NOT reset — the 60-second expiry continues
+            // to run from the original click time so stale targets are still discarded promptly.
+            {
+                var pendNow         = _timeProvider.GetUtcNow();
+                var pendWindowStart = RoundDownTo15s(pendNow);
+                var pendSecondsIn   = (pendNow - pendWindowStart).TotalSeconds;
+                if (pendSecondsIn > MaxLateStartSeconds)
+                {
+                    _logger.LogDebug(
+                        "QsoAnswererService: pending target '{Callsign}' — late start ({SecondsIn:F1} s into window); deferring to next occurrence.",
+                        pendingCallsign, pendSecondsIn);
+                    return; // Retain _pendingTargetCallsign; fires at next correct-phase window (~30 s later).
+                }
+            }
+
+            // Correct phase, timely start — clear the pending target and fire TX.
             _logger.LogInformation(
                 "QsoAnswererService: pending CQ target '{Callsign}' at {FreqHz} Hz — answering at {Phase} phase.",
                 pendingCallsign, (int)Math.Round(pendingFrequencyHz),
