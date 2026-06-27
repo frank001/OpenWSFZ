@@ -30,8 +30,8 @@ QSOs logged by OpenWSFZ are written to ADIF automatically and silently at comple
 - **`OpenWSFZ.Daemon`**: `QsoRecord` (new optional fields), `AdifLogWriter` (new ADIF fields + conditional write path), `QsoAnswererService` (emit `qsoReview` at `Tx73`; skip auto-ADIF when confirmation enabled), `QsoCallerService` (same at `TxRr73`), `TxConfig` (four new fields), new `PropModeStore` + `PropModeEntry` classes, new `PropModeJsonContext`.
 - **`OpenWSFZ.Abstractions`**: `ITxEventBus` — new `PublishQsoReview(...)` overload.
 - **`OpenWSFZ.Web`**: `WebApp.cs` — new `POST /api/v1/tx/log-qso` and `GET/POST /api/v1/prop-modes` endpoints; `TxEventBus` gains `PublishQsoReview` implementation.
-- **`web/js/`**: `ws.js` (handle `qsoReview` event), `main.js` (show/close dialog, populate fields, wire OK/Cancel), `api.js` (add `postLogQso`, `getApiKey` already present), `settings.js` (QsoConfirmation toggle + prop-modes management section).
+- **`web/js/`**: `main.js` (handle `qsoReview` WS event, show/close dialog, populate fields, wire OK/Cancel), `api.js` (add `postLogQso` and `getPropModes`), `settings.js` (QsoConfirmation toggle). Note: `ws.js` is unchanged — the qsoReview event dispatch is handled inside the existing `main.js` WS message handler.
 - **`web/`**: `index.html` (new `<dialog>` element), `css/app.css` (modal dialog styles).
-- **`web/settings.html`**: toggle for `tx.qsoConfirmation`; prop-modes management table (same pattern as frequencies table).
+- **`web/settings.html`**: toggle for `tx.qsoConfirmation`. Note: Settings UI for managing the prop-modes list was explicitly deferred in the design (non-goal); `GET/POST /api/v1/prop-modes` are available to client tooling, but no settings table is provided in this change.
 - **Tests**: `AdifLogWriterTests` (new optional-field scenarios), `QsoAnswererServiceTests` / `QsoCallerServiceTests` (qsoReview event emission, skip-auto-ADIF path), new `PropModeStoreTests`.
 - **No breaking changes** to existing API surface; `tx.qsoConfirmation = false` restores the pre-change behaviour exactly.
