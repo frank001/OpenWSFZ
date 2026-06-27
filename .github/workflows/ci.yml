@@ -4,6 +4,7 @@ on:
   push:
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -321,6 +322,7 @@ jobs:
       pull-requests: write
     if: |
       github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
       github.actor != 'github-actions[bot]'
 
     steps:
