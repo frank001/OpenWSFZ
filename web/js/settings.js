@@ -759,6 +759,16 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
+  // D-LAN-006: passphrase is mandatory when remote access is enabled.
+  if (remoteAccessEnabled.checked && !remoteAccessPassphrase.value.trim()) {
+    showFeedback(
+      'A passphrase is required when remote access is enabled.',
+      'error'
+    );
+    saveBtn.disabled = false;
+    return;
+  }
+
   // p16: collect CAT config — carry forward opaque server-managed fields (FR-039).
   const cat = {
     ...catOpaqueFields,          // ← carry forward server-managed fields
