@@ -107,6 +107,34 @@ public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher
         string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct)
         => ActiveController.SelectResponderAsync(callsign, frequencyHz, responseCycleStart, ct);
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// D-CALLER-012: mid-exchange jump-in always uses the answerer service.
+    /// If the active role is Caller, the router switches to Answerer here so that
+    /// <see cref="QsoAnswererService.HandleIdleAsync"/> fires with <c>IsActive = true</c>.
+    /// Phase 1 supports answerer-configured roles; for caller-configured roles the
+    /// switch may race with the <c>OnBecameIdle</c> revert — document as untested.
+    /// </remarks>
+    public Task EngageAtAsync(
+        string partnerCallsign,
+        double frequencyHz,
+        DateTimeOffset theirCycleStart,
+        EngagePoint point,
+        CancellationToken ct)
+    {
+        // Switch to answerer if currently active as caller.
+        if (_activeRole != QsoRole.Answerer)
+        {
+            _logger.LogInformation(
+                "QsoControllerRouter: switching to Answerer for mid-exchange jump-in (D-CALLER-012).");
+            _caller.IsActive   = false;
+            _answerer.IsActive = true;
+            _activeRole        = QsoRole.Answerer;
+        }
+
+        return _answerer.EngageAtAsync(partnerCallsign, frequencyHz, theirCycleStart, point, ct);
+    }
+
     // ── Router-specific ───────────────────────────────────────────────────────
 
     /// <summary>

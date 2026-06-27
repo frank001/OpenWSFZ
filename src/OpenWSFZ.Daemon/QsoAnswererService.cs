@@ -85,6 +85,15 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private bool            _pendingTargetIsAPhase;   // true = wait for A-phase (:00/:30); false = B-phase (:15/:45)
     private DateTimeOffset  _pendingTargetSetAt;
 
+    // ── Jump-in state (D-CALLER-012 EngageAtAsync) ────────────────────────────
+    // Set by EngageAtAsync; consumed by HandleIdleAsync before the pending-target block.
+    // Protected by _stateLock. Cleared by SafeAbortToIdleAsync.
+    private EngagePoint    _jumpPoint;          // only meaningful when _jumpPartner != null
+    private string?        _jumpPartner;
+    private double         _jumpFreqHz;
+    private bool           _jumpIsAPhase;       // false = B-phase, i.e. opposite of their decode
+    private DateTimeOffset _jumpSetAt;
+
     // Cancellation for the active TX session; cancelled on watchdog expiry or operator abort.
     // Volatile reference so AbortAsync (HTTP thread) can safely read and cancel the current CTS.
     // Never Disposed to avoid ObjectDisposedException race in AbortAsync; let GC handle old instances.
@@ -166,6 +175,34 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     public Task SelectResponderAsync(
         string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct)
         => Task.CompletedTask; // No-op: answerer does not support operator-driven responder selection.
+
+    /// <inheritdoc/>
+    public Task EngageAtAsync(
+        string         partnerCallsign,
+        double         frequencyHz,
+        DateTimeOffset theirCycleStart,
+        EngagePoint    point,
+        CancellationToken ct)
+    {
+        lock (_stateLock)
+        {
+            // Safety guard: caller (HTTP layer) must have brought us to Idle first.
+            if (_state != QsoState.Idle)
+                return Task.CompletedTask;
+
+            _jumpPoint    = point;
+            _jumpPartner  = partnerCallsign;
+            _jumpFreqHz   = frequencyHz;
+            _jumpIsAPhase = !IsAPhase(theirCycleStart);  // TX in the opposite slot
+            _jumpSetAt    = DateTimeOffset.UtcNow;
+        }
+
+        // Push a wakeup so the background loop fires within the current cycle window,
+        // matching the pattern used by AnswerCqAsync (_wakeupChannel push).
+        var wakeupCycleStart = RoundDownTo15s(DateTimeOffset.UtcNow) - TimeSpan.FromSeconds(15);
+        _wakeupChannel.Writer.TryWrite(new DecodeBatch(wakeupCycleStart, []));
+        return Task.CompletedTask;
+    }
 
     /// <inheritdoc/>
     public async Task AbortAsync(CancellationToken ct = default)
@@ -381,6 +418,56 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         // any new QSO session (even if AutoAnswer or a pending target is set).
         if (!IsActive) return;
 
+        // ── Jump-in handler (D-CALLER-012) ───────────────────────────────────────────
+        // EngageAtAsync arms this block.  Fires before the pending-target block so
+        // that a double-click engage takes effect even if a stale pending-target exists.
+        {
+            EngagePoint    jumpPoint;
+            string?        jumpPartner;
+            double         jumpFreqHz;
+            bool           jumpIsAPhase;
+            DateTimeOffset jumpSetAt;
+
+            lock (_stateLock)
+            {
+                jumpPoint    = _jumpPoint;
+                jumpPartner  = _jumpPartner;
+                jumpFreqHz   = _jumpFreqHz;
+                jumpIsAPhase = _jumpIsAPhase;
+                jumpSetAt    = _jumpSetAt;
+            }
+
+            if (jumpPartner is not null)
+            {
+                // 60-second expiry guard (stale jump-in after a decode-loop stall).
+                if (DateTimeOffset.UtcNow - jumpSetAt > TimeSpan.FromSeconds(60))
+                {
+                    _logger.LogWarning(
+                        "QsoAnswererService: jump-in target '{Partner}' expired — discarding.",
+                        jumpPartner);
+                    lock (_stateLock) { _jumpPartner = null; }
+                    return;
+                }
+
+                // Phase check: same semantics as the pending-target block.
+                bool nextCycleIsAPhase = IsAPhase(batch.CycleStart + TimeSpan.FromSeconds(15));
+                if (nextCycleIsAPhase != jumpIsAPhase)
+                    return; // wrong phase — wait for next cycle
+
+                // Correct phase — consume the jump-in and execute.
+                lock (_stateLock) { _jumpPartner = null; }
+
+                _logger.LogInformation(
+                    "QsoAnswererService: jump-in to {Point} with partner {Partner} at {FreqHz} Hz.",
+                    jumpPoint, jumpPartner, (int)Math.Round(jumpFreqHz));
+
+                await ExecuteJumpInAsync(jumpPartner, jumpFreqHz, jumpPoint, tx, stoppingToken)
+                    .ConfigureAwait(false);
+                return;
+            }
+        }
+        // ── End jump-in handler ───────────────────────────────────────────────────────
+
         // ── Phase-aware pending-target handling (TX-D01 / AnswerCqAsync) ─────────
         // Placed before all other guards so that a CQ-click armed target fires
         // independently of the general AutoAnswer flag (though AnswerCqAsync also
@@ -570,6 +657,102 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         ApplyApConstraints(tx.Callsign, partner);
 
         SetStateAndNotify(QsoState.WaitReport);
+    }
+
+    // ── ExecuteJumpInAsync — mid-exchange jump-in (D-CALLER-012) ─────────────────
+
+    /// <summary>
+    /// Executes a mid-exchange jump-in requested by <see cref="EngageAtAsync"/>.
+    /// Sets partner/frequency, transmits the correct response message for
+    /// <paramref name="point"/>, and advances the state machine accordingly.
+    /// </summary>
+    private async Task ExecuteJumpInAsync(
+        string        partner,
+        double        freqHz,
+        EngagePoint   point,
+        TxConfig      tx,
+        CancellationToken stoppingToken)
+    {
+        if (string.IsNullOrWhiteSpace(tx.Callsign) || string.IsNullOrWhiteSpace(tx.Grid))
+        {
+            _logger.LogWarning(
+                "QsoAnswererService: jump-in suppressed — callsign or grid not configured.");
+            return;
+        }
+
+        // Initialise per-session state (mirrors ExecuteTxAnswerAsync).
+        _partner      = partner;
+        _partnerGrid  = null;        // not available in mid-exchange jump-in
+        _retryCount   = 0;
+        _rstRcvd      = "+00";
+        _qsoStartUtc  = DateTime.UtcNow;
+
+        // Determine TX frequency (mirrors ExecuteTxAnswerAsync HoldTxFreq logic).
+        int txFreqHz;
+        if (tx.HoldTxFreq)
+        {
+            txFreqHz = tx.TxAudioOffsetHz;
+        }
+        else
+        {
+            txFreqHz = (int)Math.Round(freqHz);
+            try
+            {
+                await _configStore.SaveAsync(
+                    _configStore.Current with
+                    {
+                        Tx = (_configStore.Current.Tx ?? new TxConfig()) with
+                        {
+                            TxAudioOffsetHz = txFreqHz,
+                        },
+                    }, stoppingToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "QsoAnswererService: jump-in failed to update TxAudioOffsetHz.");
+            }
+            var currentTxForEvent = _configStore.Current.Tx ?? new TxConfig();
+            _audioOffsetEventBus.Publish(currentTxForEvent.RxAudioOffsetHz, txFreqHz, holdTxFreq: false);
+        }
+
+        _lastTxFreqHz = txFreqHz;
+
+        StartWatchdog(tx);
+        ApplyApConstraints(tx.Callsign, partner);
+
+        switch (point)
+        {
+            case EngagePoint.SendReport:
+            {
+                // They sent us a plain SNR → we reply R+00 → enter WaitRr73.
+                var msg = $"{partner} {tx.Callsign} R+00";
+                _lastTxMessage = msg;
+                SetStateAndNotify(QsoState.TxReport);
+                await TransmitAsync(msg, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
+                ResetWatchdog(tx);
+                _skipNextRetry = true;   // A-01: our TX window immediately follows
+                SetStateAndNotify(QsoState.WaitRr73);
+                break;
+            }
+
+            case EngagePoint.SendRr73:
+            {
+                // They sent RRR or R±NN → we reply RR73 → QsoComplete (no ADIF — partial QSO).
+                var msg = $"{partner} {tx.Callsign} RR73";
+                _lastTxMessage = msg;
+                SetStateAndNotify(QsoState.Tx73);    // nearest proxy; UI shows as final TX
+                await TransmitAsync(msg, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
+                await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
+                break;
+            }
+
+            case EngagePoint.Send73:
+            {
+                // They sent RR73 → we reply 73 → QsoComplete (ADIF written via ExecuteTx73Async).
+                await ExecuteTx73Async(tx, stoppingToken).ConfigureAwait(false);
+                break;
+            }
+        }
     }
 
     // ── WaitReport handler ────────────────────────────────────────────────────
@@ -846,6 +1029,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             _pendingTargetFrequencyHz = 0.0;
             _pendingTargetIsAPhase    = false;
             _pendingTargetSetAt       = default;
+            _jumpPartner              = null;   // D-CALLER-012: clear any pending jump-in
         }
 
         var wasPartner = _partner;
