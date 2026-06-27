@@ -2,15 +2,20 @@
 
 ### Requirement: ADIF log file written on QSO completion
 
-A new component `AdifLogWriter` in `OpenWSFZ.Daemon` SHALL append one ADIF 3.x record to `ADIF.log` when a QSO reaches `QsoComplete`. The file SHALL be located in the same directory as `decodeLog.path` (resolved at startup). Relative paths in `decodeLog.path` are resolved from the directory containing the daemon executable. The ADIF filename is `ADIF.log` and is not separately configurable in v1.
+A new component `AdifLogWriter` in `OpenWSFZ.Daemon` SHALL append one ADIF 3.x record to `ADIF.log` when a QSO is confirmed by the operator (via `POST /api/v1/tx/log-qso` when `tx.qsoConfirmation = true`) or at `QsoComplete` (when `tx.qsoConfirmation = false`). The file SHALL be located in the same directory as `decodeLog.path` (resolved at startup). Relative paths in `decodeLog.path` are resolved from the directory containing the daemon executable. The ADIF filename is `ADIF.log` and is not separately configurable.
 
 The file SHALL be opened in append mode for each write and closed immediately after, matching the ALL.TXT write pattern.
 
-If `QsoComplete` is reached but the watchdog has fired or the operator aborted before TX_73 completed, no record SHALL be written.
+If the QSO is aborted (watchdog fired or operator abort) before the final TX, no record SHALL be written. If `tx.qsoConfirmation = true` and the operator presses Cancel in the confirmation dialog, no record SHALL be written.
 
-#### Scenario: ADIF record appended on QSO completion
+#### Scenario: ADIF record written when operator confirms (qsoConfirmation = true)
 
-- **WHEN** a QSO completes (TX_73 transmission finished)
+- **WHEN** a QSO completes, `tx.qsoConfirmation = true`, and the operator presses Log QSO in the confirmation dialog
+- **THEN** one ADIF record SHALL be appended to `ADIF.log` containing all confirmed fields
+
+#### Scenario: ADIF record written at QsoComplete (qsoConfirmation = false)
+
+- **WHEN** a QSO completes (TX_73 transmission finished) and `tx.qsoConfirmation = false`
 - **THEN** one ADIF record SHALL be appended to `ADIF.log` containing at minimum: `CALL`, `GRIDSQUARE`, `MODE`, `FREQ`, `RST_SENT`, `RST_RCVD`, `QSO_DATE`, `TIME_ON`, `TIME_OFF`, `OPERATOR`, `MY_GRIDSQUARE`
 
 #### Scenario: No record written on watchdog abort
@@ -23,51 +28,99 @@ If `QsoComplete` is reached but the watchdog has fired or the operator aborted b
 - **WHEN** `POST /api/v1/tx/abort` is received before `QsoComplete`
 - **THEN** no ADIF record SHALL be written
 
+#### Scenario: No record written when operator cancels confirmation dialog
+
+- **WHEN** a QSO completes, `tx.qsoConfirmation = true`, and the operator presses Cancel in the dialog
+- **THEN** no ADIF record SHALL be written
+
 #### Scenario: File created if absent
 
-- **WHEN** `ADIF.log` does not yet exist and the first QSO completes
+- **WHEN** `ADIF.log` does not yet exist and the first QSO is logged
 - **THEN** `AdifLogWriter` SHALL create the file (and any missing parent directories) and write the first record
 
 ---
 
 ### Requirement: ADIF record field content
 
-Each ADIF record written by `AdifLogWriter` SHALL contain the following fields with values as specified:
+Each ADIF record written by `AdifLogWriter` SHALL contain the following mandatory fields with values as specified, plus optional fields when non-empty values are supplied:
+
+**Mandatory fields:**
 
 | Field | Value |
 |---|---|
-| `CALL` | Active partner callsign (from decoded CQ) |
-| `GRIDSQUARE` | Partner grid locator (from decoded CQ, if present) |
+| `CALL` | Active partner callsign |
+| `GRIDSQUARE` | Partner grid locator (omitted if null/empty) |
 | `MODE` | `FT8` |
-| `BAND` | ITU band name derived from `decodeLog.dialFrequencyMHz` (e.g. `40m`); omitted if `dialFrequencyMHz` is 0.0 |
-| `FREQ` | `decodeLog.dialFrequencyMHz` formatted to 6 decimal places; omitted if 0.0 |
-| `RST_SENT` | `+00` (fixed for v1) |
-| `RST_RCVD` | Signed integer string of the SNR from the partner's report message (e.g. `+05`, `-12`) |
-| `QSO_DATE` | UTC date of cycle start of the received CQ, formatted `YYYYMMDD` (8 chars) |
-| `TIME_ON` | UTC time of cycle start of the received CQ, formatted `HHMMSS` (6 chars, seconds precision) |
-| `TIME_OFF` | UTC time when TX_73 playback completed, formatted `HHMMSS` (6 chars, seconds precision) |
-| `OPERATOR` | `tx.callsign` |
-| `MY_GRIDSQUARE` | `tx.grid` |
+| `BAND` | ITU band name derived from dial frequency (e.g. `40m`); omitted if frequency is 0.0 |
+| `FREQ` | Dial frequency in MHz formatted to 6 decimal places (trailing zeros trimmed); omitted if 0.0 |
+| `RST_SENT` | RST report sent (e.g. `+00`, `R+00`) |
+| `RST_RCVD` | RST report received (e.g. `+05`, `-12`) |
+| `QSO_DATE` | UTC date formatted `YYYYMMDD` |
+| `TIME_ON` | UTC time of QSO start formatted `HHMMSS` |
+| `TIME_OFF` | UTC time of QSO end (FT8 cycle-start floor at last-TX entry) formatted `HHMMSS` |
+| `OPERATOR` | Operator callsign (from request body `operatorCallsign` when via POST; from `tx.callsign` when auto-logged) |
+| `MY_GRIDSQUARE` | Operator grid locator |
+
+**Optional fields (included when the supplied value is non-null and non-empty):**
+
+| ADIF Field | Source |
+|---|---|
+| `NAME` | `PartnerName` / `name` in POST body |
+| `TX_PWR` | `TxPower` / `txPower` in POST body |
+| `COMMENT` | `Comment` / `comment` in POST body |
+| `PROP_MODE` | `PropMode` / `propMode` in POST body |
+| `STX_STRING` | `ExchSent` / `exchSent` in POST body |
+| `SRX_STRING` | `ExchRcvd` / `exchRcvd` in POST body |
 
 #### Scenario: BAND derived correctly for 40 m band
 
-- **WHEN** `decodeLog.dialFrequencyMHz` is `7.074`
+- **WHEN** dial frequency is `7.074` MHz
 - **THEN** the ADIF record SHALL contain `<BAND:3>40m`
 
 #### Scenario: BAND omitted when dialFrequencyMHz is 0.0
 
-- **WHEN** `decodeLog.dialFrequencyMHz` is `0.0`
+- **WHEN** dial frequency is `0.0`
 - **THEN** the ADIF record SHALL NOT contain a `BAND` field and SHALL NOT contain a `FREQ` field
 
 #### Scenario: RST_RCVD populated from partner report
 
-- **WHEN** the partner transmitted `Q1OFZ Q1TST +12` and the QSO completes
+- **WHEN** the partner transmitted `Q1OFZ Q1TST +12` and the QSO is logged
 - **THEN** the ADIF record SHALL contain `<RST_RCVD:3>+12`
 
-#### Scenario: RST_RCVD populated with negative report
+#### Scenario: Optional NAME field written when supplied
 
-- **WHEN** the partner transmitted `Q1OFZ Q1TST -07`
-- **THEN** the ADIF record SHALL contain `<RST_RCVD:3>-07`
+- **WHEN** the POST body contains `name = "John"`
+- **THEN** the ADIF record SHALL contain `<NAME:4>John`
+
+#### Scenario: Optional TX_PWR field written when supplied
+
+- **WHEN** the POST body contains `txPower = "100"`
+- **THEN** the ADIF record SHALL contain `<TX_PWR:3>100`
+
+#### Scenario: Optional PROP_MODE field written when supplied
+
+- **WHEN** the POST body contains `propMode = "TR"`
+- **THEN** the ADIF record SHALL contain `<PROP_MODE:2>TR`
+
+#### Scenario: Optional STX_STRING field written when supplied
+
+- **WHEN** the POST body contains `exchSent = "599001"`
+- **THEN** the ADIF record SHALL contain `<STX_STRING:6>599001`
+
+#### Scenario: Optional SRX_STRING field written when supplied
+
+- **WHEN** the POST body contains `exchRcvd = "599042"`
+- **THEN** the ADIF record SHALL contain `<SRX_STRING:6>599042`
+
+#### Scenario: Empty optional fields omitted from ADIF
+
+- **WHEN** the POST body contains `comment = ""` (empty string)
+- **THEN** the ADIF record SHALL NOT contain a `COMMENT` field
+
+#### Scenario: TIME_OFF reflects FT8 cycle-start floor
+
+- **WHEN** the last TX begins at 11:08:37 UTC and the QSO is confirmed
+- **THEN** the `TIME_OFF` field SHALL be `113000` (reflecting the cycle start 11:08:30 UTC, not 11:08:37)
 
 ---
 
