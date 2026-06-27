@@ -42,9 +42,14 @@ public sealed record RemoteAccessConfig
 
     /// <summary>
     /// Shared passphrase for non-loopback access.
-    /// <c>null</c> or empty means no authentication is required (open LAN access).
+    /// <para>
+    /// <strong>Required</strong> when <see cref="Enabled"/> is <c>true</c>.
+    /// The daemon refuses to start (<c>LanModeValidator</c>, SEC-001) and
+    /// <c>POST /api/v1/config</c> returns 400 when this is null or whitespace
+    /// with <see cref="Enabled"/> set.
+    /// </para>
     /// Stored as plaintext in <c>app.json</c>; acceptable for a home LAN threat model.
-    /// Default: <c>null</c>.
+    /// Default: <c>null</c> (safe only when <see cref="Enabled"/> is <c>false</c>).
     /// </summary>
     public string? Passphrase { get; init; } = null;
 }

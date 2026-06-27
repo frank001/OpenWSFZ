@@ -451,15 +451,14 @@
             <div class="input-with-action">
               <input type="password" id="remote-access-passphrase"
                      autocomplete="new-password" spellcheck="false"
-                     placeholder="Leave empty for open LAN access" />
+                     placeholder="Required when remote access is enabled" />
               <button type="button" id="remote-access-passphrase-toggle"
                       aria-label="Show / hide passphrase">👁</button>
             </div>
             <p class="field-hint">
-              Non-loopback clients must supply this passphrase via the
-              <code>X-Api-Key</code> header (REST) or <code>?key=</code> query
-              parameter (WebSocket). Leave empty to allow unauthenticated LAN access.
-              Stored as plaintext in <code>app.json</code>.
+              Required. Non-loopback clients must supply this passphrase via the
+              <code>X-Api-Key</code> header (REST) or as the first WebSocket message
+              frame. Stored as plaintext in <code>app.json</code>.
             </p>
           </div>
 

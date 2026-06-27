@@ -419,6 +419,17 @@ public static class WebApp
                     config = config with { Decoder = sanitisedDecoder };
             }
 
+            // ── Remote access config validation (SEC-001 / D-LAN-006) ──────────────
+            // The daemon refuses to start when Enabled = true and Passphrase is absent.
+            // Reject the save here so the operator cannot commit an unlaunchable config.
+            if (config.RemoteAccess is { Enabled: true } &&
+                string.IsNullOrWhiteSpace(config.RemoteAccess.Passphrase))
+            {
+                return Results.BadRequest(
+                    "A passphrase is required when remote access is enabled. " +
+                    "Enter a passphrase before saving.");
+            }
+
             await store.SaveAsync(config, ct);
             return TypedResults.Ok(store.Current);
         });
