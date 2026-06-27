@@ -216,7 +216,7 @@ internal sealed record LogQsoResponse(bool Logged);
 ///   "type": "qsoReview",
 ///   "callsign": "Q1TST", "grid": "JO22", "rstSent": "+00", "rstRcvd": "+05",
 ///   "startUtc": "2026-06-27T14:29:15Z", "endUtc": "2026-06-27T14:30:00Z",
-///   "freqMhz": 14.074, "operatorCallsign": "Q2OPR",
+///   "freqMHz": 14.074, "operatorCallsign": "Q2OPR",
 ///   "retainedTxPower": "100", "retainedComment": "", "retainedPropMode": "TR"
 /// }
 /// </code>

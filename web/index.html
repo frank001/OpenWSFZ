@@ -189,7 +189,9 @@
       <div class="dialog-field-row dialog-retain-row">
         <label for="dlg-prop-mode">Prop mode</label>
         <select id="dlg-prop-mode" class="dialog-select">
-          <!-- Populated dynamically from GET /api/v1/prop-modes -->
+          <!-- Hardcoded blank option; serves as fallback if GET /api/v1/prop-modes fails.
+               On a successful fetch the option list is replaced by the API response. -->
+          <option value="">Not specified</option>
         </select>
         <label class="dialog-retain-label">
           <input type="checkbox" id="dlg-retain-prop-mode" />

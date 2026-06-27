@@ -82,9 +82,9 @@
 
 - [x] 12.1 Build passes: `dotnet build OpenWSFZ.slnx -c Release` — 0 errors, 0 warnings
 - [x] 12.2 Full test suite passes: 713/713 green (34 TraceabilityCheck + 24 LicenseInventory + 35 Rig + 2 E2E + 65 Config + 19 Audio + 194 Ft8 + 162 Daemon + 177 Web)
-- [ ] 12.3 Manual smoke test — answerer path: complete a QSO with `tx.qsoConfirmation = true`; confirm the dialog appears on Tx73, fields are pre-filled correctly, OK writes an ADIF entry with correct fields, Cancel produces no ADIF entry
-- [ ] 12.4 Manual smoke test — caller path: complete a CQ QSO; confirm dialog appears on TxRr73 with correct fields
-- [ ] 12.5 Manual smoke test — retain: check Retain on Tx Power, click OK; open a second QSO dialog; confirm Tx Power is pre-filled from the retained value
-- [ ] 12.6 Manual smoke test — qsoConfirmation = false: uncheck "Show QSO confirmation dialog" in Settings; complete a QSO; confirm no dialog appears and ADIF is written automatically
-- [ ] 12.7 Manual smoke test — prop modes: confirm the Prop Mode dropdown contains the 10 default FT8 entries; select TR; verify ADIF record contains `<PROP_MODE:2>TR`
+- [x] 12.3 Manual smoke test — answerer path: complete a QSO with `tx.qsoConfirmation = true`; confirm the dialog appears on Tx73, fields are pre-filled correctly, OK writes an ADIF entry with correct fields, Cancel produces no ADIF entry
+- [x] 12.4 Manual smoke test — caller path: complete a CQ QSO; confirm dialog appears on TxRr73 with correct fields
+- [x] 12.5 Manual smoke test — retain: check Retain on Tx Power, click OK; open a second QSO dialog; confirm Tx Power is pre-filled from the retained value
+- [x] 12.6 Manual smoke test — qsoConfirmation = false: uncheck "Show QSO confirmation dialog" in Settings; complete a QSO; confirm no dialog appears and ADIF is written automatically
+- [x] 12.7 Manual smoke test — prop modes: confirm the Prop Mode dropdown contains the 10 default FT8 entries; select TR; verify ADIF record contains `<PROP_MODE:2>TR`
 - [x] 12.8 G3 traceability check: 34/34 PASS

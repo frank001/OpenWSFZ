@@ -773,8 +773,9 @@ async function openQsoLogDialog(ev) {
     propModeEl.innerHTML = '';
     try {
       const modes = await getPropModes();
+      // Filter to the active protocol only (OBS-003: removed dead `|| m.protocol === ''` branch).
       const ft8Modes = Array.isArray(modes)
-        ? modes.filter(m => m.protocol === activeProtocol || m.protocol === '')
+        ? modes.filter(m => m.protocol === activeProtocol)
         : [];
       for (const m of ft8Modes) {
         const opt = document.createElement('option');
@@ -784,6 +785,12 @@ async function openQsoLogDialog(ev) {
       }
     } catch (err) {
       console.warn('[qso-log-dialog] Failed to load prop modes:', err);
+      // OBS-001: API unavailable — restore the hardcoded blank fallback so the select
+      // is never empty and the operator can still submit the dialog.
+      const fallback = document.createElement('option');
+      fallback.value = '';
+      fallback.textContent = 'Not specified';
+      propModeEl.appendChild(fallback);
     }
     // Pre-select retained prop mode.
     const retainedPm = ev.retainedPropMode ?? '';

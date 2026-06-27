@@ -109,7 +109,7 @@ public sealed class LogQsoEndpointTests : IClassFixture<LogQsoFixture>
             rstRcvd          = "+05",
             startUtc         = "2026-06-27T14:29:15Z",
             endUtc           = "2026-06-27T14:30:00Z",
-            freqMhz          = 14.074,
+            freqMHz          = 14.074,
             operatorCallsign = Operator,
             name             = (string?)null,
             txPower          = (string?)null,
