@@ -222,6 +222,19 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         return Task.CompletedTask;
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Not implemented: <see cref="QsoControllerRouter"/> always delegates
+    /// <c>EngageAtAsync</c> to <see cref="QsoAnswererService"/> (D-CALLER-012).
+    /// </remarks>
+    public Task EngageAtAsync(
+        string partnerCallsign,
+        double frequencyHz,
+        DateTimeOffset theirCycleStart,
+        EngagePoint point,
+        CancellationToken ct)
+        => Task.CompletedTask;
+
     /// <summary>
     /// Test-only helper: directly set pending-responder fields without pushing a wakeup batch.
     /// This avoids the race in unit tests between the service reading the wakeup channel and

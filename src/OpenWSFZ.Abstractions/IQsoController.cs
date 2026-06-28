@@ -63,4 +63,26 @@ public interface IQsoController
     /// </remarks>
     Task SelectResponderAsync(
         string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct);
+
+    /// <summary>
+    /// Arms a mid-exchange jump-in: the service will TX the correct response message
+    /// at the next FT8 cycle boundary of the <em>opposite</em> phase to
+    /// <paramref name="theirCycleStart"/> and advance the state machine accordingly.
+    /// </summary>
+    /// <param name="partnerCallsign">Callsign of the partner.</param>
+    /// <param name="frequencyHz">Audio frequency of the decoded message, in Hz.</param>
+    /// <param name="theirCycleStart">UTC cycle-start of the decode batch.</param>
+    /// <param name="point">Which exchange message to transmit next.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <remarks>
+    /// The service MUST already be in <see cref="QsoState.Idle"/> when this is called.
+    /// The caller (HTTP layer) is responsible for aborting and waiting for Idle first.
+    /// <c>QsoCallerService</c> does not implement this — it returns a no-op.
+    /// </remarks>
+    Task EngageAtAsync(
+        string partnerCallsign,
+        double frequencyHz,
+        DateTimeOffset theirCycleStart,
+        EngagePoint point,
+        CancellationToken ct);
 }

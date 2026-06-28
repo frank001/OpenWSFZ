@@ -220,6 +220,42 @@ export function postTxAbort() {
 }
 
 /**
+ * POST /api/v1/tx/engage-decode
+ * Atomically aborts any in-progress QSO and engages a new one based on the
+ * double-clicked decode.  The backend parses the message, determines the correct
+ * response, and primes the state machine.
+ *
+ * Returns HTTP 422 Unprocessable Entity if the message is not actionable
+ * (not addressed to us, or unknown format).  In that case the abort has still
+ * been performed; the caller should refresh TX status.
+ *
+ * @param {string} message       Full FT8 message text (e.g. "PD2FZ W1ABC -07").
+ * @param {number} frequencyHz   Audio frequency of the decode, in Hz.
+ * @param {string} cycleStartUtc ISO 8601 UTC cycle-start (e.g. "2026-06-27T10:00:15Z").
+ * @returns {Promise<{state:string, partner:string|null, autoAnswerEnabled:boolean, role:string}>}
+ */
+export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc) {
+  const key = getApiKey();
+  const res = await fetch('/api/v1/tx/engage-decode', {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-Api-Key': key } : {}),
+    },
+    body: JSON.stringify({ message, frequencyHz, cycleStartUtc }),
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    throw new Error('Unauthorized');
+  }
+  const err = new Error(`engage-decode: ${res.status}`);
+  /** @type {any} */ (err).status = res.status;
+  if (!res.ok) throw err;
+  return res.json();
+}
+
+/**
  * POST /api/v1/tx/answer-cq
  * Arms a phase-aware pending TX to answer a specific CQ call (TX-D01).
  * Returns the updated TX status with autoAnswerEnabled = true.

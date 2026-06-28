@@ -819,6 +819,166 @@ public static class WebApp
             return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole, CallerPartnerSelect: callerPartnerSelect));
         });
 
+        // ── POST /api/v1/tx/engage-decode (D-CALLER-012) ─────────────────────────────
+        //
+        // Atomically aborts any in-progress QSO and engages a new one based on the
+        // double-clicked decode row.  Dispatches by message type:
+        //
+        //   CQ ...                 → AnswerCqAsync   (same as clicking a CQ row)
+        //   OURS PARTNER -NN/+NN   → EngageAtAsync(SendReport)   → TxReport
+        //   OURS PARTNER R±NN/RRR  → EngageAtAsync(SendRr73)     → Tx73/QsoComplete
+        //   OURS PARTNER RR73      → EngageAtAsync(Send73)        → Tx73/QsoComplete
+        //   OURS PARTNER 73        → abort only (QSO already done)
+        //   Any other pattern      → 422 Unprocessable Entity
+
+        app.MapPost("/api/v1/tx/engage-decode", async (
+            HttpRequest   request,
+            IConfigStore  store,
+            CancellationToken ct) =>
+        {
+            if (qsoController is null)
+                return Results.Problem("TX controller not available.", statusCode: 503);
+
+            EngageDecodeRequest? req;
+            try
+            {
+                req = await request.ReadFromJsonAsync(
+                    AppJsonContext.Default.EngageDecodeRequest, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON.");
+            }
+
+            if (req is null)
+                return Results.BadRequest("Missing or empty request body.");
+
+            if (!DateTimeOffset.TryParse(
+                    req.CycleStartUtc,
+                    null,
+                    System.Globalization.DateTimeStyles.RoundtripKind,
+                    out var cycleStart))
+            {
+                return Results.BadRequest("cycleStartUtc is not a valid ISO 8601 date-time.");
+            }
+
+            // ── Step 1: Abort if not Idle ─────────────────────────────────────────
+            if (qsoController.State != QsoState.Idle)
+            {
+                await qsoController.AbortAsync(ct).ConfigureAwait(false);
+
+                // SafeAbortToIdleAsync runs on the background service thread; poll until
+                // the state propagates.  2-second deadline is generous: in practice
+                // KeyUpAsync completes in <100 ms.
+                var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+                while (qsoController.State != QsoState.Idle
+                       && DateTimeOffset.UtcNow < deadline)
+                {
+                    await Task.Delay(10, ct).ConfigureAwait(false);
+                }
+
+                if (qsoController.State != QsoState.Idle)
+                {
+                    return Results.Problem(
+                        "QSO did not abort in time; please retry.",
+                        statusCode: 503);
+                }
+            }
+
+            // ── Step 2: Parse message and dispatch ────────────────────────────────
+
+            var txConfig     = store.Current.Tx ?? new TxConfig();
+            var ourCallsign  = txConfig.Callsign ?? string.Empty;
+            var ourBase      = ourCallsign.Split('/')[0];    // strip /P, /M suffixes
+
+            var tokens = req.Message.Trim().Split(
+                ' ', StringSplitOptions.RemoveEmptyEntries);
+
+            if (tokens.Length < 2)
+                return Results.UnprocessableEntity();
+
+            // ── Case A: CQ row ────────────────────────────────────────────────────
+            if (tokens[0].Equals("CQ", StringComparison.OrdinalIgnoreCase))
+            {
+                // CQ PARTNER GRID  →  partner = tokens[1]
+                // CQ DX PARTNER    →  partner = tokens[2]
+                // CQ modifier PARTNER [GRID]  →  partner = tokens[2]
+                var partnerCallsign = tokens.Length >= 4 ? tokens[2] : tokens[1];
+
+                await qsoController.AnswerCqAsync(
+                    partnerCallsign, req.FrequencyHz, cycleStart, ct).ConfigureAwait(false);
+            }
+
+            // ── Case B: Directed message TO us ────────────────────────────────────
+            else if (tokens.Length >= 3
+                     && (tokens[0].Equals(ourCallsign, StringComparison.OrdinalIgnoreCase)
+                         || tokens[0].Equals(ourBase,   StringComparison.OrdinalIgnoreCase)))
+            {
+                var partner = tokens[1];
+                var info    = tokens[2];
+
+                static bool IsPlainSnr(string s) =>
+                    s.Length == 3
+                    && (s[0] == '+' || s[0] == '-')
+                    && char.IsDigit(s[1])
+                    && char.IsDigit(s[2]);
+
+                static bool IsRReport(string s) =>
+                    s.Length >= 4
+                    && s[0] == 'R'
+                    && IsPlainSnr(s[1..]);
+
+                if (info.Equals("73", StringComparison.OrdinalIgnoreCase))
+                {
+                    // QSO already complete — abort only (already done above).  Return Idle.
+                }
+                else if (info.Equals("RR73", StringComparison.OrdinalIgnoreCase))
+                {
+                    await qsoController.EngageAtAsync(
+                        partner, req.FrequencyHz, cycleStart, EngagePoint.Send73, ct)
+                        .ConfigureAwait(false);
+                }
+                else if (info.Equals("RRR", StringComparison.OrdinalIgnoreCase) || IsRReport(info))
+                {
+                    await qsoController.EngageAtAsync(
+                        partner, req.FrequencyHz, cycleStart, EngagePoint.SendRr73, ct)
+                        .ConfigureAwait(false);
+                }
+                else if (IsPlainSnr(info))
+                {
+                    await qsoController.EngageAtAsync(
+                        partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, ct)
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    // Unrecognised payload (e.g. CQ or free-text bleed-through).
+                    return Results.UnprocessableEntity();
+                }
+            }
+
+            // ── Case C: Message not addressed to us ───────────────────────────────
+            else
+            {
+                // Abort already done.  Return 422 so the JS can show a console note.
+                return Results.UnprocessableEntity();
+            }
+
+            // ── Step 3: Return new state ──────────────────────────────────────────
+            var state               = qsoController.State;
+            var partner_out         = qsoController.Partner;
+            var role                = qsoController.Role.ToString().ToLowerInvariant();
+            var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
+            var autoAnswer          = store.Current.Tx?.AutoAnswer ?? false;
+
+            return TypedResults.Ok(new TxStatusResponse(
+                state.ToString(),
+                partner_out,
+                AutoAnswerEnabled: autoAnswer,
+                Role:              role,
+                CallerPartnerSelect: callerPartnerSelect));
+        });
+
         // ── POST /api/v1/tx/call-cq (Call CQ button — runtime role switch) ────
 
         app.MapPost("/api/v1/tx/call-cq", async (IConfigStore store, CancellationToken ct) =>

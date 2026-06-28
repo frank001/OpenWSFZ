@@ -45,6 +45,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(DecoderConfig))]
 [JsonSerializable(typeof(WsAuthFrame))]
 [JsonSerializable(typeof(SelectResponderRequest))]
+[JsonSerializable(typeof(EngageDecodeRequest))]
 [JsonSerializable(typeof(CallerPartnerSelectRequest))]
 [JsonSerializable(typeof(PropModeEntry))]
 [JsonSerializable(typeof(List<PropModeEntry>))]
@@ -160,6 +161,15 @@ internal sealed record AnswerCqRequest(
 internal sealed record WsAuthFrame(
     string? Type,
     string? Key);
+
+/// <summary>
+/// Request body for <c>POST /api/v1/tx/engage-decode</c> (D-CALLER-012).
+/// Wire format: <c>{"message":"PD2FZ W1ABC -07","frequencyHz":1234.0,"cycleStartUtc":"2026-06-27T10:00:15Z"}</c>
+/// </summary>
+internal sealed record EngageDecodeRequest(
+    string Message,
+    double FrequencyHz,
+    string CycleStartUtc);
 
 /// <summary>
 /// Request body for <c>POST /api/v1/tx/select-responder</c> (qso-caller).

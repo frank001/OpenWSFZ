@@ -11,7 +11,8 @@ import { getConfig, getFrequencies, postTune, postAudioOffset,
          getTxStatus, postTxEnable, postTxDisable, postTxAbort,
          postTxAnswerCq, postTxSelectResponder, postTxCallCq,
          postTxCallerPartnerSelect, getApiKey,
-         getPropModes, postLogQso }                                          from './api.js';
+         getPropModes, postLogQso,
+         postTxEngageDecode }                                                from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
 
 const MAX_DECODE_ROWS = 200;
@@ -188,6 +189,9 @@ function renderMessageRows(partner, state, autoAnswerEnabled, role) {
  * @param {'answerer'|'caller'|undefined} [role]       - Controller role; falls back to currentTxRole
  */
 function renderTxPanel(state, partner, autoAnswerEnabled, role) {
+  // Capture previous state before overwriting — used below for D-CALLER-008 sweep.
+  const prevState = currentTxState;
+
   // Persist for subsequent partial updates (e.g. WS txState without config change).
   currentTxState           = state;
   currentAutoAnswerEnabled = autoAnswerEnabled;
@@ -235,6 +239,20 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
 
   // ── Message rows ─────────────────────────────────────────────────────
   renderMessageRows(partner, state, autoAnswerEnabled, role ?? currentTxRole);
+
+  // D-CALLER-008: Sweep stale decode-responder rows when WaitAnswer begins.
+  // Rows from prior WaitAnswer sessions carry the decode-responder class but
+  // have stale responseCycleStartUtc values.  Clearing them here ensures only
+  // rows created in the new WaitAnswer window are teal and single-click-selectable.
+  // Note: rows are NOT cleared on WaitAnswer exit so the operator can still
+  // double-click them (D-CALLER-012) to abort and re-engage.
+  if (prevState !== 'WaitAnswer' && state === 'WaitAnswer') {
+    decodesBody.querySelectorAll('tr.decode-responder').forEach(row => {
+      row.classList.remove('decode-responder');
+      row.style.cursor        = '';
+      row.style.pointerEvents = 'none';
+    });
+  }
 }
 
 // ── CQ / partner interaction helpers ─────────────────────────────────────
@@ -429,6 +447,53 @@ function handleDecodes(results) {
         }
       });
     }
+
+    // ── D-CALLER-012: Double-click any decode row to abort + engage ───────────
+    // The first click of a double-click fires the existing single-click handlers
+    // (CQ answer or responder select) which fail gracefully with 409 if not idle.
+    // The dblclick then calls engage-decode which performs the abort + re-engage
+    // atomically on the server.
+    let engageInFlight = false;
+    tr.addEventListener('dblclick', async () => {
+      if (engageInFlight) return;
+      engageInFlight = true;
+
+      try {
+        const status = await postTxEngageDecode(
+          r.message,
+          r.freqHz,
+          tr.dataset.cqCycleStartUtc);
+
+        renderTxPanel(
+          status.state             ?? 'Idle',
+          status.partner           ?? null,
+          status.autoAnswerEnabled ?? false,
+          status.role              ?? currentTxRole);
+
+      } catch (err) {
+        const code = /** @type {any} */ (err)?.status;
+
+        if (code === 422) {
+          // Message not actionable (73, or not addressed to us) — abort already
+          // happened.  Refresh state from the server so the UI reflects Idle.
+          console.info('D-CALLER-012: engage-decode not actionable for:', r.message);
+          try {
+            const s = await getTxStatus();
+            renderTxPanel(s.state, s.partner, s.autoAnswerEnabled, s.role);
+          } catch { /* ignore secondary error */ }
+
+        } else if (code === 503) {
+          console.warn('D-CALLER-012: engage-decode — abort timed out (503).');
+
+        } else {
+          console.error('D-CALLER-012: engage-decode error:', err);
+        }
+
+      } finally {
+        engageInFlight = false;
+      }
+    });
+    // ── End D-CALLER-012 ─────────────────────────────────────────────────────
 
     decodesBody.prepend(tr);
   }
