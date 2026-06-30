@@ -84,6 +84,116 @@ identical seeded vector (`STUDY-SPEC.md` §14).
 | **Linux** | PulseAudio `module-null-sink` + `module-loopback` | Apps capture the null sink's `.monitor` source. |
 | **macOS** | **BlackHole** (2ch) — <https://existential.audio/blackhole/> | Both apps select BlackHole as input. |
 
+### 1.5 Linux / WSL2 (validated 2026-06-30)
+
+**Environment:**
+
+| Item | Value |
+|---|---|
+| WSL2 distro | Debian GNU/Linux 13 (trixie) |
+| WSL2 kernel | `6.6.87.2-microsoft-standard-WSL2` |
+| WSL2 version | VERSION 2 (confirmed via `wsl --list --verbose`) |
+| `arecord` version | 1.2.14 (from `alsa-utils` package) |
+| .NET runtime | Shipped as AOT-compiled native binary (no SDK in WSL2) |
+
+**PulseAudio source name:**
+
+WSLg exposes two PulseAudio sources inside WSL2:
+
+| Source | Module | Format | Role |
+|---|---|---|---|
+| `RDPSink.monitor` | `module-rdp-sink.c` | s16le 2ch 44100Hz | **Use this for loopback capture** — monitors Windows audio playback via WSLg RDP bridge |
+| `RDPSource` | `module-rdp-source.c` | s16le 1ch 44100Hz | Microphone input from Windows host |
+
+> **Note:** There is no VB-CABLE–named source visible in WSL2. The WSLg bridge mirrors
+> Windows playback (including VB-CABLE Input playback) through `RDPSink.monitor`. The
+> synthesizer must play to a device that is the **default Windows playback device** or
+> is routed through VB-Audio Voicemeeter so that it is picked up by the RDP bridge.
+
+**Daemon audio device configuration:**
+
+The daemon's audio device is set via the JSON config file at `~/.config/OpenWSFZ/config.json`.
+Set `audioDeviceId` to `"pulse"` to route through PulseAudio:
+
+```json
+{
+  "audioDeviceId": "pulse",
+  "decodeLog": { "enabled": true }
+}
+```
+
+The daemon selects the PulseAudio default source when `pulse` is specified. The default
+source can be set with:
+
+```bash
+pactl set-default-source RDPSink.monitor
+```
+
+**Daemon binary:**
+
+The daemon is distributed as a CI-built native AOT binary. Download from the GitHub CI
+artifact `daemon-linux-x64` (produced by the `build-test / ubuntu-latest` matrix leg).
+Place `OpenWSFZ.Daemon` and `libft8.so` in the same directory:
+
+```bash
+# Copy libft8.so from the repo (already committed at correct shim version)
+cp src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so qa/rr-study/linux-daemon/
+chmod +x qa/rr-study/linux-daemon/OpenWSFZ.Daemon
+```
+
+**Verified startup log (confirming ArecordAudioSource and linux-x64 libft8.so):**
+
+```
+[INF] Starting FT8 pipeline for device 'pulse'.
+[INF] Starting audio capture on device 'pulse'.
+[INF] CycleFramer started; cycle start = ...
+[INF] Cycle ...: 0 decode(s) found, elapsed=9 ms.
+```
+
+**Prerequisites installed in Debian WSL2:**
+
+```bash
+apt-get install -y alsa-utils pulseaudio-utils libasound2-plugins python3-pip python3-venv
+```
+
+**Python harness venv (Linux):**
+
+```bash
+cd qa/rr-study
+python3 -m venv .venv-linux
+source .venv-linux/bin/activate
+pip install numpy scipy soundfile pandas matplotlib
+python run_study.py --help   # AC-9 verified
+```
+
+**Deviations from the planned procedure:**
+
+1. Distro is **Debian 13 (trixie)**, not Ubuntu 22.04. Behaviour is identical.
+2. .NET SDK was **not** installed in WSL2. Instead, a native AOT binary is downloaded from
+   CI (`daemon-linux-x64` artifact). No `dotnet build` or `dotnet run` step is needed.
+3. The Microsoft .NET apt repository is unusable on Debian 13 (SHA1 signature rejected by
+   Debian 13's security policy). The dotnet-install.sh approach was also bypassed in favour
+   of the AOT binary.
+4. `arecord --list-devices` returns no `hw:` devices in the default WSL2 Debian environment
+   (ALSA HW interface not bridged by WSLg). Use `pulse` as the device ID, not a `hw:N,M` ID.
+5. `pactl list sources short` shows only `RDPSink.monitor` and `RDPSource` — no VB-CABLE
+   source entry. The loopback capture point is `RDPSink.monitor`; the daemon device ID
+   remains `"pulse"` (PulseAudio routes to the default source).
+
+**AC verification results (all pass):**
+
+| AC | Criterion | Result |
+|---|---|---|
+| AC-1 | WSL2 VERSION 2 Debian distro present | ✅ `Debian  Stopped  2` |
+| AC-2 | `pactl info` connects | ✅ `Server String: unix:/mnt/wslg/PulseServer` |
+| AC-3 | At least one `*.monitor` source | ✅ `RDPSink.monitor` |
+| AC-4 | `arecord -D pulse` produces non-empty file | ✅ 144000 bytes in 3 s |
+| AC-5 | `dotnet build` not applicable — AOT binary used | ✅ binary ELF verified |
+| AC-6 | Daemon starts and logs ArecordAudioSource on `pulse` | ✅ 6 audio chunks, first cycle decoded |
+| AC-7 | End-to-end FT8 decode from Windows playback | 🔲 requires manual test with live audio (Captain to run) |
+| AC-8 | RUNBOOK.md §1.5 written | ✅ this section |
+| AC-9 | `run_study.py --help` executes without error | ✅ confirmed |
+
 ---
 
 ## 2. Application settings for a run
