@@ -4,7 +4,7 @@
 - [x] 1.2 In `ft8_shim.c` `ft8_decode_all`: replace the two compile-time `#define` references to `K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, and `OSD_NHARD_MAX` (in the pass-config table and decode.c call sites) with reads of the three module-level statics. Update the version comment block and advance `FT8_SHIM_VERSION` to `20260030`.
 - [x] 1.3 In `native/ft8_lib_build/patched/ft8/decode.c`: update `OSD_CORR_THRESHOLD` and `OSD_NHARD_MAX` references to use the values passed through from the shim (the patched decode.c call sites receive these via function parameters — update `ftx_decode_candidate` and `ftx_decode_candidate_ap` signatures accordingly, or use extern globals exposed from `ft8_shim.c`).
 - [x] 1.4 Rebuild the Windows x64 binary, verify `FT8_SHIM_VERSION = 20260030` via `check_native_version.py`, update `libft8.version.txt` and `BUILD.md`, and commit `src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll`.
-- [ ] 1.5 Push to CI and verify the `commit-native-binaries` job commits updated Linux x64 and macOS ARM64 binaries at shim 20260030.
+- [x] 1.5 Push to CI and verify the `commit-native-binaries` job commits updated Linux x64 and macOS ARM64 binaries at shim 20260030.
 
 ## 2. C# Interop Layer
 
