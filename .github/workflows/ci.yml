@@ -386,7 +386,7 @@ jobs:
             src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so \
             src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
           git commit -m "chore(native): rebuild Linux and macOS binaries to shim ${SHIM} [skip ci]"
-          git push origin "$BRANCH"
+          git push --force origin "$BRANCH"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
           echo "shim=$SHIM"     >> "$GITHUB_OUTPUT"
 
