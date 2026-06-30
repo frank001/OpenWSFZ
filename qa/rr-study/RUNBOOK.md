@@ -105,10 +105,10 @@ WSLg exposes two PulseAudio sources inside WSL2:
 | `RDPSink.monitor` | `module-rdp-sink.c` | s16le 2ch 44100Hz | **Use this for loopback capture** — monitors Windows audio playback via WSLg RDP bridge |
 | `RDPSource` | `module-rdp-source.c` | s16le 1ch 44100Hz | Microphone input from Windows host |
 
-> **Note:** There is no VB-CABLE–named source visible in WSL2. The WSLg bridge mirrors
-> Windows playback (including VB-CABLE Input playback) through `RDPSink.monitor`. The
-> synthesizer must play to a device that is the **default Windows playback device** or
-> is routed through VB-Audio Voicemeeter so that it is picked up by the RDP bridge.
+> **Note:** There is no VB-CABLE–named source visible in WSL2. WSLg bridges Windows
+> audio rendering to PulseAudio through `RDPSink.monitor`; the loopback device's audio
+> reaches WSLg via the host's audio rendering graph. The exact path is host-specific —
+> see Deviation 6 below and the audio-chain verification step in STUDY-SPEC-XPLAT.md §11.
 
 **Daemon audio device configuration:**
 
