@@ -928,6 +928,12 @@ public static class WebApp
                     && s[0] == 'R'
                     && IsPlainSnr(s[1..]);
 
+                static bool IsGridSquare(string s) =>
+                    (s.Length == 4 || s.Length == 6)
+                    && char.IsLetter(s[0]) && char.IsLetter(s[1])
+                    && char.IsDigit(s[2])  && char.IsDigit(s[3])
+                    && (s.Length == 4 || (char.IsLetter(s[4]) && char.IsLetter(s[5])));
+
                 if (info.Equals("73", StringComparison.OrdinalIgnoreCase))
                 {
                     // QSO already complete — abort only (already done above).  Return Idle.
@@ -946,6 +952,14 @@ public static class WebApp
                 }
                 else if (IsPlainSnr(info))
                 {
+                    await qsoController.EngageAtAsync(
+                        partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, ct)
+                        .ConfigureAwait(false);
+                }
+                else if (IsGridSquare(info))
+                {
+                    // OURCALL PARTNER GRID: partner is answering our CQ with their grid square.
+                    // Semantically equivalent to a plain-SNR first exchange — respond with our report.
                     await qsoController.EngageAtAsync(
                         partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, ct)
                         .ConfigureAwait(false);
