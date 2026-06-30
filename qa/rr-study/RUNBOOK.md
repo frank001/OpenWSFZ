@@ -179,6 +179,12 @@ python run_study.py --help   # AC-9 verified
 5. `pactl list sources short` shows only `RDPSink.monitor` and `RDPSource` — no VB-CABLE
    source entry. The loopback capture point is `RDPSink.monitor`; the daemon device ID
    remains `"pulse"` (PulseAudio routes to the default source).
+6. **VB-CABLE Input must be the Windows default playback device** (or routed via Voicemeeter)
+   for WSLg's RDP audio bridge to pick it up. WSLg bridges the Windows default playback
+   device, not a named virtual cable. Confirmed during AC-7: Python `sounddevice.play()` to
+   device index 28 (`CABLE Input`) at the UTC cycle boundary produced a successful decode in
+   the Linux daemon. Operator must ensure VB-CABLE Input is set as default playback device
+   before each study run (Sound Control Panel → Playback → CABLE Input → Set as Default).
 
 **AC verification results (all pass):**
 
@@ -190,7 +196,7 @@ python run_study.py --help   # AC-9 verified
 | AC-4 | `arecord -D pulse` produces non-empty file | ✅ 144000 bytes in 3 s |
 | AC-5 | `dotnet build` not applicable — AOT binary used | ✅ binary ELF verified |
 | AC-6 | Daemon starts and logs ArecordAudioSource on `pulse` | ✅ 6 audio chunks, first cycle decoded |
-| AC-7 | End-to-end FT8 decode from Windows playback | 🔲 requires manual test with live audio (Captain to run) |
+| AC-7 | End-to-end FT8 decode from Windows playback | ✅ decode received at UTC 21:47:00 (2026-06-30): SNR +11 dB, DT 0.5 s, 1500 Hz — daemon log confirms `Cycle 21:47:00: 1 decode(s) found, elapsed=119 ms` |
 | AC-8 | RUNBOOK.md §1.5 written | ✅ this section |
 | AC-9 | `run_study.py --help` executes without error | ✅ confirmed |
 
