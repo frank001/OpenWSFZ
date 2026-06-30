@@ -3,7 +3,7 @@
 
 **Document type:** Study specification — Measurement System Analysis (MSA)  
 **Owner of execution & reporting:** QA  
-**Status:** **Draft** — awaiting WSL2 environment setup (see `dev-tasks/2026-06-30-wsl-linux-rr-environment.md`)  
+**Status:** **Active** — WSL2 environment validated 2026-06-30 (see RUNBOOK.md §1.5); ready for first production run  
 **Applies to:** OpenWSFZ FT8 receive/decode pipeline, native binary cross-platform parity  
 **Companion to:** [`STUDY-SPEC.md`](./STUDY-SPEC.md) (existing Windows-only study)  
 **Created:** 2026-06-30  
@@ -502,8 +502,19 @@ Before starting a production run:
 - [ ] Both daemons running: Windows daemon on host, Linux daemon in WSL2.
 - [ ] Both daemons report the same shim version (`GET /api/v1/status` → `shimVersion`).
 - [ ] Both daemons configured to write `ALL.TXT` to distinct, known paths.
-- [ ] VB-CABLE Input set as the playback device for the synthesizer.
+- [ ] Virtual audio loopback device set as the playback device for the synthesizer on the
+  Windows host (e.g. VB-CABLE Input).
+- [ ] Inside WSL2: `pactl set-default-source RDPSink.monitor` — must be re-run after every
+  WSL2 restart; the setting does not persist across WSL2 shutdown.
 - [ ] WSL2 Linux daemon configured with audio device `pulse`.
+- [ ] **Audio chain verified end-to-end:** play one strong FT8 fixture (+10 dB or above) to
+  the loopback device on Windows and confirm a decode appears in the Linux daemon's ALL.TXT
+  before starting the production run. This verifies that audio played on the Windows side
+  is reaching WSLg's PulseAudio bridge and the Linux daemon (see §3.2). The routing path
+  depends on the host's audio subsystem configuration; if no decode arrives, check that
+  audio played to the loopback device is audible/visible in the Windows host's audio graph
+  (e.g. via a meter in a virtual mixer such as Voicemeeter, or via Windows Sound settings)
+  — if it is not, WSLg cannot see it either.
 - [ ] Simultaneous capture verified (one-shot check: both ALL.TXT receive the same
   decode at the same UTC cycle for a manually played +10 dB fixture).
 - [ ] System clock accurate (NTP synced on both Windows and WSL2).
@@ -552,5 +563,5 @@ each platform's absolute decode-rate and measurement accuracy.
 
 ---
 
-*Authored by QA, 2026-06-30. Study execution pending WSL2 environment setup.*
+*Authored by QA, 2026-06-30. WSL2 environment validated 2026-06-30; first production run pending.*
 *Companion handoff: `dev-tasks/2026-06-30-wsl-linux-rr-environment.md`.*

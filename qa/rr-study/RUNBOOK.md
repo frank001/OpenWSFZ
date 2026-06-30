@@ -179,12 +179,21 @@ python run_study.py --help   # AC-9 verified
 5. `pactl list sources short` shows only `RDPSink.monitor` and `RDPSource` — no VB-CABLE
    source entry. The loopback capture point is `RDPSink.monitor`; the daemon device ID
    remains `"pulse"` (PulseAudio routes to the default source).
-6. **VB-CABLE Input must be the Windows default playback device** (or routed via Voicemeeter)
-   for WSLg's RDP audio bridge to pick it up. WSLg bridges the Windows default playback
-   device, not a named virtual cable. Confirmed during AC-7: Python `sounddevice.play()` to
-   device index 28 (`CABLE Input`) at the UTC cycle boundary produced a successful decode in
-   the Linux daemon. Operator must ensure VB-CABLE Input is set as default playback device
-   before each study run (Sound Control Panel → Playback → CABLE Input → Set as Default).
+6. **The audio path from the Windows loopback device to WSLg's `RDPSink.monitor` depends on
+   the host audio configuration and must be verified on each machine.** WSLg bridges Windows
+   audio rendering to PulseAudio; any audio that passes through the Windows audio rendering
+   graph (whether via the system default device, a virtual mixer, or another routing path)
+   will appear in `RDPSink.monitor`. The exact mechanism is host-specific.
+   **Evidence from the development machine (validated 2026-06-30):** with VB-Audio Voicemeeter
+   installed and CABLE Output configured as a Voicemeeter input channel, playing audio to
+   `CABLE Input (VB-Audio Virtual Cable)` routed audio through the Windows audio graph to
+   WSLg's RDP bridge and produced a successful decode in the Linux daemon at SNR +11 dB
+   (AC-7). Voicemeeter is cited here only as the example configuration on the development
+   machine; other host audio setups may differ.
+   **Before each study run:** play one FT8 fixture to the loopback device and confirm the
+   Linux daemon decodes it (per STUDY-SPEC-XPLAT.md §11 audio-chain verification step).
+   If no decode arrives, verify that the loopback playback is audible in the Windows host's
+   audio rendering graph — if it is not present there, WSLg cannot pick it up.
 
 **AC verification results (all pass):**
 
