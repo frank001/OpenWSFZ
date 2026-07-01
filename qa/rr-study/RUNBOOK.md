@@ -580,16 +580,166 @@ table) of `report.md` automatically. **The QA engineer must complete:**
 
 ---
 
-### 5.5 Known invariants and calibration offsets
+### 5.5 Known invariants — pilot study (2026-07-01, pre-normalization)
 
-These are expected, characterised differences between the two platforms — not defects:
+Recorded from the D3 pilot run. These are measurement-system characteristics,
+not decoder defects. The target state after §5.6 normalization is shown alongside.
 
-| Measurement | Linux daemon | Windows daemon | Cause |
+| Measurement | Pilot (pre-normalization) | Target (post-normalization) | Root cause |
 |---|---|---|---|
-| **DT bias** | ≈ −1 s relative to Windows | Reference (≈ 0) | ft8loopback delivers audio earlier than the WSLg/Voicemeeter path; both within decoder ±2 s range |
-| **SNR offset** | ≈ −18 dB relative to injected | Close to injected | Calibration difference in noise floor estimation between libft8.so and libft8.dll; primary R&R measurement |
-| **Audio device** | `pulse` (PulseAudio, 48 kHz) | Voicemeeter Out B2 (WASAPI, 48 kHz) | Platform audio stack |
-| **ft8 binary** | `libft8.so` linux-x64 | `libft8.dll` win-x64 | Same source, different compiler/OS |
+| **SNR offset Linux vs Windows** | ≈ −18 dB | ≤ ±2 dB | Voicemeeter B2 path gain ~18 dB below ft8loopback; fix by Voicemeeter gain adjustment |
+| **Freq offset Linux vs Windows** | ≈ −10 to −16 Hz at 1500 Hz | ≤ ±2 Hz | PulseAudio server running at 44100 Hz; fix by setting 48000 Hz |
+| **DT bias Linux vs Windows** | ≈ −1 s | < 0.5 s (routing latency; hard to eliminate) | ft8loopback delivers audio earlier than WSLg/Voicemeeter path |
+| **Audio device — Linux** | `pulse` (ft8loopback.monitor) | unchanged | PulseAudio null-sink |
+| **Audio device — Windows / WSJT-X** | Voicemeeter Out B2 | unchanged (shared WASAPI) | Both appraisers capture same B2 device |
+| **ft8 binary** | `libft8.so` linux-x64 / `libft8.dll` win-x64 | unchanged | Same kgoba/ft8_lib source, different compiler |
+
+---
+
+### 5.6 Audio path normalization — three-appraiser design
+
+This section describes how to normalize the measurement system before running the
+three-appraiser study (Windows daemon + Linux daemon + WSJT-X). Complete §5.6.1
+and §5.6.2 once (settings persist); verify §5.6.3 at the start of each session.
+
+---
+
+#### 5.6.1 Fix PulseAudio sample rate (WSL2, one-time)
+
+The pilot study showed a ~10–16 Hz frequency offset on the Linux path, caused by
+PulseAudio running at 44100 Hz while the synthesiser and Windows use 48000 Hz.
+
+**In a WSL2 terminal:**
+
+```bash
+# Step 1 — Check current rate
+pactl info | grep "Default Sample"
+# If it shows "44100 Hz", proceed. If "48000 Hz", this is already fixed.
+
+# Step 2 — Check if user daemon.conf exists
+cat ~/.config/pulse/daemon.conf 2>/dev/null || echo "(not found — will create)"
+
+# Step 3 — Set 48000 Hz
+mkdir -p ~/.config/pulse
+cat >> ~/.config/pulse/daemon.conf << 'EOF'
+default-sample-rate = 48000
+alternate-sample-rate = 48000
+EOF
+
+# Step 4 — Restart PulseAudio
+pulseaudio -k
+sleep 2
+pulseaudio --start --log-target=syslog
+
+# Step 5 — Verify
+pactl info | grep "Default Sample"
+# Must show: Default Sample Specification: s16le 2ch 48000Hz
+```
+
+> If `pulseaudio -k` fails with "connection refused" (WSLg manages PulseAudio),
+> restart WSL2 entirely (`wsl --shutdown` from Windows, then relaunch) and check
+> again. WSLg typically uses its own PulseAudio; in that case set the rate in
+> `/etc/pulse/daemon.conf` (requires `sudo`) and restart WSL.
+
+---
+
+#### 5.6.2 Voicemeeter gain equalization (Windows, one-time + verify)
+
+The pilot showed ~18 dB gain deficit on the Windows/Voicemeeter path relative to
+the direct ft8loopback path. Both WSJT-X and the Windows daemon receive audio via
+Voicemeeter Out B2, so adjusting B2 gain brings both Windows appraisers into line
+with Linux simultaneously.
+
+**Calibration procedure:**
+
+1. Ensure all three appraisers are running (Linux daemon, Windows daemon, WSJT-X).
+2. Ensure PulseAudio sample rate is 48000 Hz (§5.6.1).
+3. Inject a single-tone FT8 signal at **0 dB true SNR** at 1500 Hz for 10 trials
+   using the smoke-test script or a manual run of `run_scenario.py --parts 5 --trials 10`
+   against the S1 scenario (part 5 is approximately 0 dB SNR).
+4. After the injection window, check the reported SNR from each appraiser:
+   - Linux daemon: browser UI or `linux-all.txt` (last 10 entries)
+   - Windows daemon: `ALL.TXT` (last 10 entries)
+   - WSJT-X: `C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT` (last 10 entries)
+5. **Compare the three SNR values.** The target is all three within **±2 dB** of
+   each other.
+6. **If Windows/WSJT-X SNR < Linux SNR by more than 2 dB:**
+   Open Voicemeeter → find the **VAIO2** (Voicemeeter AUX Input) strip →
+   increase the strip **fader gain** (dB slider) by approximately half the
+   observed gap. Repeat from step 3.
+7. **If Windows/WSJT-X SNR > Linux SNR by more than 2 dB:**
+   Reduce the VAIO2 strip fader or the B2 bus output level.
+8. Record the final Voicemeeter VAIO2 fader position in §5.5 once stable.
+
+> One click of the Voicemeeter fader ≈ 1 dB. The pilot showed ~18 dB deficit
+> so expect to move the fader significantly upward from its default position.
+>
+> Check that the gain change does not clip (Voicemeeter meters should stay
+> below 0 dBFS during injection). Use a lower injection amplitude if clipping
+> occurs, then scale the comparison accordingly.
+
+---
+
+#### 5.6.3 WSJT-X per-session setup
+
+WSJT-X must be running and configured before starting any three-appraiser study
+session.
+
+**One-time WSJT-X configuration (first run only):**
+
+1. Open WSJT-X → File → Settings → Audio tab:
+   - **Input:** `Voicemeeter Out B2 (VB-Audio Voicemeeter VAIO)` — same device
+     as the Windows daemon.
+   - **Output:** any device (WSJT-X output is not used during the R&R study).
+2. Settings → General tab:
+   - Set **Mode** to `FT8`.
+   - Leave **Auto Seq** unchecked (receive-only).
+   - **My Call:** use own callsign `PD2FZ` (or any valid call — appears in log but
+     WSJT-X does not transmit during the study).
+3. Settings → Reporting tab:
+   - Confirm **Log file:** uses the default location
+     (`C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT`) or note the actual path.
+4. Click **OK** and let WSJT-X begin receiving.
+
+**Per-session checklist:**
+
+```
+☐ WSJT-X is open and showing "Receiving" status
+☐ WSJT-X Input = Voicemeeter Out B2
+☐ WSJT-X is decoding (rows appearing in its decode panel) — confirmed by smoke test
+☐ ALL.TXT exists at C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT
+```
+
+**Verify WSJT-X is receiving (add to smoke test after §5.2 Step 5):**
+
+After running `smoke_test_null_sink.py`, also confirm:
+```powershell
+# Check WSJT-X ALL.TXT was updated within the last 5 minutes
+(Get-Item "C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT").LastWriteTime
+# Should be recent if WSJT-X is running and receiving
+```
+
+> The updated `smoke_test_null_sink.py` (pending developer handoff
+> `dev-tasks/2026-07-01-xplat-three-appraiser-harness.md`) will add WSJT-X
+> as a third check automatically.
+
+---
+
+#### 5.6.4 Verification: all three appraisers calibrated
+
+Before starting a formal study run after normalization, confirm:
+
+```
+☐ pactl info | grep "Default Sample" → 48000 Hz
+☐ Voicemeeter VAIO2 fader set to calibrated position
+☐ Smoke test PASSED for Linux daemon
+☐ Smoke test PASSED for Windows daemon
+☐ WSJT-X ALL.TXT shows recent decodes matching the smoke test signal
+☐ Reported SNR across all three appraisers within ±2 dB of each other
+☐ Reported frequency across all three appraisers within ±2 Hz of 1500 Hz
+```
+
+Only when all six items are checked should a formal R&R run be started.
 
 ---
 
