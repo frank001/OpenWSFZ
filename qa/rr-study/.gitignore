@@ -9,3 +9,5 @@ gate_wav/
 *.wav
 # Linux daemon binary (downloaded from CI; not source-committed)
 linux-daemon/
+# ...but do track the session setup script
+!linux-daemon/start-daemon.sh

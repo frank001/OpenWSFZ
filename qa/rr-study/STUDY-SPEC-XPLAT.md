@@ -16,7 +16,7 @@
 |---|---|---|---|
 | D1 | Study type | **Crossed Gauge R&R — two appraisers** | Both platforms measure every part in every trial; no nesting |
 | D2 | Appraisers | **Windows daemon (WASAPI + win-x64 `libft8.dll`) and Linux daemon (ALSA/PulseAudio + linux-x64 `libft8.so`)** | Direct binary parity test; same shim version required |
-| D3 | Signal injection | **Windows synthesizer plays to VB-CABLE → WSLg PulseAudio bridge** — same audio chain topology as existing study | Maintains crossed-design guarantee: both appraisers hear the same noise realization simultaneously |
+| D3 | Signal injection | **Amended 2026-07-01:** Windows synthesizer plays to VB-CABLE → Windows daemon. Linux synthesizer (same Python harness, same seeds) plays to PulseAudio null-sink (`ft8loopback`) → Linux daemon. Both run simultaneously, aligned to UTC 15 s cycle boundaries. Same-seed guarantee replaces the shared-physical-signal guarantee of the original design. | WSLg bridge was host-configuration-dependent and unreliable. Independent synthesis with matching seeds preserves crossed simultaneous design and statistical validity for H₀_DEC, H₀_SNR, H₀_FREQ, H₀_ATT. H₁_DIR (WSLg latency) is no longer testable — this is acceptable; the sub-hypothesis concerned the bridge, which is eliminated. |
 | D4 | Response variables | Primary: **binary decode outcome** (Attribute R&R). Secondary: **reported SNR, DT, audio freq** (Continuous R&R) where both appraisers decode | Decode-or-not is the most operationally meaningful metric |
 | D5 | Scenarios | **S1, S2, S3, S4, S5, S7** — identical scenario set to the existing Windows study (STUDY-SPEC.md §6) | Enables direct result comparison; any platform divergence is immediately visible |
 | D6 | Acceptance thresholds | Same as STUDY-SPEC.md §10 for continuous metrics; attribute Kappa ≥ 0.90 for platform agreement | Consistent with established study |
@@ -166,35 +166,38 @@ and the most likely location for platform-specific floating-point divergence.
  ┌──────────────────────────────────────────────────────────────┐
  │  WINDOWS SIDE                                                 │
  │                                                               │
- │  R&R synthesizer (Python, existing harness)                   │
+ │  R&R synthesizer (Python, harness) — seed S, trial T         │
  │  synthesizes FT8 + seeded noise, aligned to 15 s UTC cycle    │
  │            │                                                  │
  │            │ plays PCM (mono, 48 kHz)                         │
  │            ▼                                                  │
  │  VB-CABLE Input (render endpoint)                             │
  │            │                                                  │
- │            ├─────────────────────────────────────────────┐    │
- │            ▼                                             │    │
- │  VB-CABLE Output (capture endpoint, WASAPI shared mode)  │    │
- │            │                                             │    │
- │            ▼                                             │    │
- │  Windows daemon (OpenWSFZ.Daemon)                        │    │
- │  WasapiAudioSource → libft8.dll (win-x64 shim 20260030) │    │
- │  ALL.TXT → results/windows/                              │    │
- └──────────────────────────────────────────────────────────┘    │
-                                                                  │
- ┌──────────────────────────────────────────────────────────┐    │
- │  WSL2 SIDE (same physical machine)                        │    │
- │                                                           │    │
- │  WSLg PulseAudio bridge  ◄──── Windows audio subsystem ◄─┘    │
- │  (mirrors VB-CABLE Input playback as PulseAudio source)       │
- │            │                                                   │
- │            │ arecord -D pulse -f FLOAT_LE -r 12000             │
- │            ▼                                                   │
- │  Linux daemon (OpenWSFZ.Daemon)                                │
- │  ArecordAudioSource → libft8.so (linux-x64 shim 20260030)     │
- │  ALL.TXT → results/linux/                                      │
- └────────────────────────────────────────────────────────────────┘
+ │            ▼                                                  │
+ │  VB-CABLE Output (capture endpoint, WASAPI shared mode)       │
+ │            │                                                  │
+ │            ▼                                                  │
+ │  Windows daemon (OpenWSFZ.Daemon)                             │
+ │  WasapiAudioSource → libft8.dll (win-x64 shim 20260030)      │
+ │  ALL.TXT → results/windows/                                   │
+ └──────────────────────────────────────────────────────────────┘
+
+ ┌──────────────────────────────────────────────────────────────┐
+ │  WSL2 SIDE (same physical machine) — runs simultaneously      │
+ │                                                               │
+ │  R&R synthesizer (Python, harness) — SAME seed S, trial T    │
+ │  synthesizes identical FT8 + noise, aligned to same UTC cycle │
+ │            │                                                  │
+ │            │ plays PCM (mono, 48 kHz) via sounddevice         │
+ │            ▼                                                  │
+ │  PulseAudio null-sink (ft8loopback)                           │
+ │            │                                                  │
+ │            │ arecord -D pulse -f FLOAT_LE -r 12000            │
+ │            ▼  (captures ft8loopback.monitor)                  │
+ │  Linux daemon (OpenWSFZ.Daemon)                               │
+ │  ArecordAudioSource → libft8.so (linux-x64 shim 20260030)    │
+ │  ALL.TXT → results/linux/                                     │
+ └──────────────────────────────────────────────────────────────┘
                   │                      │
                   ▼                      ▼
           ┌──────────────────────────────────┐
@@ -204,21 +207,29 @@ and the most likely location for platform-specific floating-point divergence.
           └──────────────────────────────────┘
 ```
 
-### 3.2 Critical design requirement — crossed simultaneous capture
+### 3.2 Critical design requirement — crossed simultaneous capture (amended 2026-07-01)
 
-Both daemons **must capture the same noise realization simultaneously**. This is the same
-requirement as the existing study (STUDY-SPEC.md §2.1) and is equally load-bearing here:
+Both daemons **must receive the same noise realization**. Under the original design this
+was guaranteed by sharing a single physical audio signal via the WSLg bridge. Under the
+amended D3, it is guaranteed by **using identical PRNG seeds** in two independent synthesis
+runs that execute simultaneously, each feeding its own platform's audio chain.
 
-- The Windows daemon captures VB-CABLE Output via WASAPI shared mode.
-- The WSLg PulseAudio bridge mirrors the same Windows audio playback; the Linux daemon
-  captures the mirrored stream.
-- Because both paths originate from the same Windows audio render call, they carry the
-  same signal content — not merely the same nominal scenario parameters.
+- The Windows daemon captures VB-CABLE Output via WASAPI shared mode (unchanged).
+- The Linux daemon captures `ft8loopback.monitor` via PulseAudio / arecord (amended).
+- Both synthesizers use the same scenario JSON and the same per-trial seed derivation
+  (`harness/common.py:compute_seed`), producing mathematically identical noise realizations.
+- Both runs are launched simultaneously and align to the same UTC 15 s cycle boundaries,
+  maintaining the crossed simultaneous design.
 
-**Consequence if this requirement is violated:** If the two daemons capture different noise
-realizations (e.g. because playback is re-run sequentially per platform), repeatability
-variance collapses to zero and reproducibility variance becomes artificially inflated by
-trial-to-trial signal variation, not platform differences. The study becomes invalid.
+**Amended INVALID condition:** Sequential runs with *different* seeds remain invalid (noise
+realizations differ; reproducibility variance is inflated). Sequential runs with *identical*
+seeds are a design deviation but may be acceptable as a fallback (document in Section 1 of
+the report). Simultaneous runs with same seeds (the standard procedure) are fully valid.
+
+**What the amended design cannot test:** The WSLg bridge latency contribution to DT bias
+(H₁_DIR sub-hypothesis) is no longer testable, because the bridge is no longer in the path.
+This is acceptable — the sub-hypothesis concerned the bridge itself, which has been
+eliminated as an unreliable dependency.
 
 **Verification step (required before first production run):** Play one trial simultaneously,
 collect both ALL.TXT outputs, confirm both decode the same message text at the same cycle
@@ -504,22 +515,29 @@ Before starting a production run:
 - [ ] Both daemons configured to write `ALL.TXT` to distinct, known paths.
 - [ ] Virtual audio loopback device set as the playback device for the synthesizer on the
   Windows host (e.g. VB-CABLE Input).
-- [ ] Inside WSL2: `pactl set-default-source RDPSink.monitor` — must be re-run after every
-  WSL2 restart; the setting does not persist across WSL2 shutdown.
-- [ ] WSL2 Linux daemon configured with audio device `pulse`.
-- [ ] **Audio chain verified end-to-end:** play one strong FT8 fixture (+10 dB or above) to
-  the loopback device on Windows and confirm a decode appears in the Linux daemon's ALL.TXT
-  before starting the production run. This verifies that audio played on the Windows side
-  is reaching WSLg's PulseAudio bridge and the Linux daemon (see §3.2). The routing path
-  depends on the host's audio subsystem configuration; if no decode arrives, check that
-  audio played to the loopback device is audible/visible in the Windows host's audio graph
-  (e.g. via a meter in a virtual mixer such as Voicemeeter, or via Windows Sound settings)
-  — if it is not, WSLg cannot see it either.
-- [ ] Simultaneous capture verified (one-shot check: both ALL.TXT receive the same
-  decode at the same UTC cycle for a manually played +10 dB fixture).
+- [ ] **WSL2 — ft8loopback null-sink active** (must be created once per WSL2 session):
+  ```
+  pactl list sinks short | grep ft8loopback   # should return one line
+  # If absent:
+  pactl load-module module-null-sink sink_name=ft8loopback \
+        sink_properties=device.description=FT8Loopback
+  pactl set-default-sink ft8loopback
+  pactl set-default-source ft8loopback.monitor
+  ```
+- [ ] WSL2 Linux daemon configured with `audioDeviceId = "pulse"`.
+  **Do NOT save settings via the browser UI** — the empty device dropdown will overwrite
+  this value to `null` (D-LINUX-001, pending fix). Configure via `POST /api/v1/config`
+  with the full correct body if a reset is needed (see RUNBOOK.md §1.5).
+- [ ] **Audio chain verified end-to-end:** run `python smoke_test_null_sink.py` from
+  inside `.venv-linux` in WSL2 — must print `✅ PASSED`. This confirms the null-sink
+  is routing audio from the synthesizer to the Linux daemon (see §3.2, AC-10).
+- [ ] Simultaneous capture verified: run `python smoke_test_null_sink.py` on WSL2 while
+  the Windows daemon is also running and check that the Windows ALL.TXT receives its own
+  decode at the same UTC cycle (both sides active simultaneously before production run).
 - [ ] System clock accurate (NTP synced on both Windows and WSL2).
 - [ ] No other audio playback or capture applications running.
-- [ ] Python harness virtual environment activated on the platform running `run_study.py`.
+- [ ] Python harness virtual environment activated: `.venv` (Windows) for
+  `run_study_xplat.py`; `.venv-linux` (WSL2) activated by the orchestrator automatically.
 
 ---
 

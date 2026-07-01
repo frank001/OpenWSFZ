@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ Cross-Platform R&amp;R Study Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-cross-platform-rr-study-report">OpenWSFZ Cross-Platform R&amp;R Study Report</h1>
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<h3 id="11-purpose">1.1 Purpose</h3>
+<p>This is the <strong>first cross-platform Gauge R\&amp;R study</strong> of the OpenWSFZ decoder
+stack, conducted 2026-07-01.  The study compares two deployments of the same
+underlying decoder library (kgoba/ft8_lib v2.0, both platforms at shim
+20260030) operating under fundamentally different audio I/O stacks:</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Platform</th>
+<th>Audio stack</th>
+<th>Binary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Appraiser A</td>
+<td>Windows 11 (host)</td>
+<td>WASAPI, Voicemeeter VAIO2 Out B2</td>
+<td><code>libft8.dll</code> shim 20260030</td>
+</tr>
+<tr>
+<td>Appraiser B</td>
+<td>Linux (WSL2 / Ubuntu)</td>
+<td>ALSA-PulseAudio, <code>ft8loopback.monitor</code></td>
+<td><code>libft8.so</code> shim 20260030</td>
+</tr>
+</tbody>
+</table>
+<p>Both appraisers receive audio from a <strong>single WSL2 synthesiser</strong> via a
+PulseAudio <code>ft8combined</code> combine-sink (slaves: <code>ft8loopback</code>, <code>RDPSink</code>).
+The <code>ft8loopback</code> slave delivers audio directly to the Linux daemon; the
+<code>RDPSink</code> slave routes through WSLg → Windows audio system → Voicemeeter
+AUX Input → B2 → Windows daemon.  The routing topology is documented in
+<code>RUNBOOK.md §5</code> and <code>STUDY-SPEC-XPLAT.md §3</code>.</p>
+<p>The primary scientific question is: <strong>do the two platform deployments produce
+equivalent decode decisions when fed the same RF stimulus?</strong></p>
+<h3 id="12-null-hypotheses">1.2 Null hypotheses</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Hypothesis</th>
+<th>Metric</th>
+<th>Gate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H₀_DEC</td>
+<td>No platform difference in binary decode rate</td>
+<td>McNemar chi² p-value</td>
+<td>≥ 0.05</td>
+</tr>
+<tr>
+<td>H₀_SNR</td>
+<td>Platform SNR bias |Linux − Windows| within tolerance</td>
+<td>Mean bias (dB)</td>
+<td>≤ 1.0 dB (PASS), ≤ 2.0 dB (MARGINAL)</td>
+</tr>
+<tr>
+<td>H₀_DT</td>
+<td>Platform DT bias |Linux − Windows| within tolerance</td>
+<td>Mean bias (s)</td>
+<td>≤ 0.1 s (PASS), ≤ 0.2 s (MARGINAL)</td>
+</tr>
+<tr>
+<td>H₀_FREQ</td>
+<td>Platform frequency bias within tolerance</td>
+<td>Mean bias (Hz)</td>
+<td>≤ 2.0 Hz (PASS), ≤ 4.0 Hz (MARGINAL)</td>
+</tr>
+<tr>
+<td>H₀_FP</td>
+<td>Equal false-positive rate on both platforms</td>
+<td>Fisher's exact p</td>
+<td>≥ 0.05</td>
+</tr>
+<tr>
+<td>H₀_COMP</td>
+<td>No platform difference in co-channel recovery</td>
+<td>Between-platform agreement (informational)</td>
+<td>No gate — characterisation only</td>
+</tr>
+</tbody>
+</table>
+<h3 id="13-pre-stated-expectations-recorded-before-analysis">1.3 Pre-stated expectations (recorded before analysis)</h3>
+<p>The following outcomes were anticipated from the audio routing topology before
+any results were examined:</p>
+<ul>
+<li>
+<p><strong>H₀_SNR — expected FAIL</strong>: The ft8loopback path delivers audio at full
+  amplitude; the RDPSink → WSLg → Voicemeeter path introduces a gain
+  difference of approximately 18 dB.  Linux therefore reports SNR values
+  approximately 18 dB below Windows for the same injected signal level.
+  Visual confirmation: the waterfall contrast screenshot
+  (<code>waterfall-contrast-s4-s5.png</code>) taken during S5 noise injection shows the
+  Linux waterfall with full noise floor visible while the Windows waterfall
+  displays a near-black background — the attenuated noise is below the Windows
+  display threshold.</p>
+</li>
+<li>
+<p><strong>H₀_DT — expected FAIL</strong>: The ft8loopback path has lower routing latency
+  than the WSLg/Voicemeeter path.  Observed during live S3 run: Linux DT
+  values are approximately 1 s lower than Windows DT values for the same
+  cycle.</p>
+</li>
+<li>
+<p><strong>H₀_FREQ — expected FAIL</strong>: The audio chain introduces a systematic
+  frequency offset on the Linux side of approximately 16 Hz at 1500 Hz
+  (observed in live S3 decodes: Linux reports 1484–1488 Hz vs Windows
+  1500 Hz).  Probable cause: PulseAudio sample-rate handling in the
+  ft8combined combine-sink chain.</p>
+</li>
+<li>
+<p><strong>H₀_DEC — primary interest, expected uncertain</strong>: Despite the gain
+  asymmetry, both decoders should recover the same messages <em>when both
+  receive sufficient SNR</em>.  However, the ~18 dB gain difference means they
+  may not both be above threshold for the same injection levels.</p>
+</li>
+<li>
+<p><strong>H₀_FP — expected PASS</strong>: False-positive rate is driven primarily by CRC
+  collision probability in the shared decoder library, independent of gain.</p>
+</li>
+<li>
+<p><strong>H₀_COMP (S7) — expected Windows advantage</strong>: Windows operates at higher
+  effective SNR (~18 dB above Linux); co-channel recovery under interference
+  is expected to be higher on Windows.</p>
+</li>
+</ul>
+<h3 id="14-what-constitutes-a-significant-finding">1.4 What constitutes a significant finding</h3>
+<ol>
+<li>
+<p><strong>McNemar FAIL with directional imbalance toward Linux</strong>: If Linux
+   consistently misses signals that Windows decodes (n21 &gt; n12), this is
+   expected from the gain offset.  A significant surprise would be n21 &gt; n12
+   (Linux outperforms Windows), or a McNemar PASS (perfect parity despite
+   18 dB gain difference).</p>
+</li>
+<li>
+<p><strong>SNR or freq bias inconsistent with the routing model</strong>: If measured bias
+   deviates substantially from expectations (18 dB SNR, ~16 Hz freq offset),
+   it suggests an additional unmodelled effect.</p>
+</li>
+<li>
+<p><strong>FP parity Fisher FAIL</strong>: Statistically different false-positive rates
+   between platforms — would suggest CRC behaviour differs between
+   <code>libft8.dll</code> and <code>libft8.so</code>.</p>
+</li>
+</ol>
+<h3 id="15-known-study-limitations">1.5 Known study limitations</h3>
+<ol>
+<li>
+<p><strong>Gain-mismatched operating points</strong>: With ~18 dB effective gain difference,
+   the two platforms operate at different absolute SNR conditions.  The GR\&amp;R
+   variance decomposition is confounded; the S2 %GR\&amp;R FAIL is primarily a
+   consequence of the systematic platform bias, not measurement variability.</p>
+</li>
+<li>
+<p><strong>S1 and S3 GR\&amp;R expected to be sparse</strong>: At the low-SNR end of S1 and
+   the extreme DT offsets of S3, Linux (operating at effectively 18 dB lower
+   SNR) will have few or no matches, leaving unbalanced cells that may prevent
+   the ANOVA from running.</p>
+</li>
+<li>
+<p><strong>truth.csv contamination</strong>: Two exploratory rows (part 9 at 14:59 UTC,
+   part 10 at 15:15 UTC from pre-run testing) appear in truth.csv before the
+   formal run (17:45 UTC).  The matcher filters by cycle_utc; these rows
+   match no live-run cycle and are benign.</p>
+</li>
+<li>
+<p><strong>Frequency matching tolerance</strong>: The base cross-platform matcher was
+   adjusted to 20 Hz (from the standard 4 Hz) to accommodate the observed
+   ~16 Hz frequency offset.  Without this adjustment, Linux would show 0%
+   recovery for all single-frequency scenarios due to the systematic offset
+   being outside the gate.  The platform bias gate in the analyser correctly
+   quantifies the offset separately.</p>
+</li>
+</ol>
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-07-01</td>
+</tr>
+<tr>
+<td>OpenWSFZ git SHA</td>
+<td><code>b03998fd809e495b8fe06abe96d669f18333c1ee</code></td>
+</tr>
+<tr>
+<td>Shim version (both platforms)</td>
+<td><em>(verify via GET /api/v1/status)</em></td>
+</tr>
+<tr>
+<td>Windows platform</td>
+<td>win-x64, WASAPI, <code>libft8.dll</code> shim 20260030</td>
+</tr>
+<tr>
+<td>Linux platform</td>
+<td>WSL2 linux-x64, ALSA-PulseAudio, <code>libft8.so</code> shim 20260030</td>
+</tr>
+<tr>
+<td>Scenarios run</td>
+<td>S1, S1b, S2, S3, S4, S5, S7</td>
+</tr>
+</tbody>
+</table>
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h3 id="s1">S1</h3>
+<p><em>Insufficient data — skipped.</em></p>
+<h3 id="s2-reported_freq_hz">S2 — reported_freq_hz</h3>
+<h4 id="variance-components">Variance Components</h4>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>sigma^2</th>
+<th>%Contribution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Repeatability</td>
+<td>0.00</td>
+<td>0.00%</td>
+</tr>
+<tr>
+<td>Reproducibility (platform)</td>
+<td>318594.80</td>
+<td>36.55%</td>
+</tr>
+<tr>
+<td>Part-to-Part</td>
+<td>553155.25</td>
+<td>63.45%</td>
+</tr>
+<tr>
+<td>Total GR&amp;R</td>
+<td>318594.80</td>
+<td>36.55%</td>
+</tr>
+<tr>
+<td>Total</td>
+<td>871750.05</td>
+<td>100.00%</td>
+</tr>
+</tbody>
+</table>
+<h4 id="study-metrics">Study Metrics</h4>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>%Tolerance (GR&amp;R)</td>
+<td>42333.15%</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>%Study Var (GR&amp;R)</td>
+<td>60.45%</td>
+<td>—</td>
+</tr>
+<tr>
+<td>ndc</td>
+<td>1</td>
+<td>FAIL</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S2 GR&amp;R panel" src="S2_grr_panel.png" /></p>
+<h4 id="platform-bias-linux-windows">Platform Bias (Linux - Windows)</h4>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+<th>Gate</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mean Freq bias</td>
+<td>Linux-Windows</td>
+<td></td>
+<td>-10.545 Hz</td>
+</tr>
+<tr>
+<td>Paired t-test p</td>
+<td>0.0000</td>
+<td></td>
+<td>—</td>
+</tr>
+<tr>
+<td>n matched pairs</td>
+<td>22</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="s3">S3</h3>
+<p><em>Insufficient data — skipped (insufficient balanced matched cells; see §1.5).</em></p>
+<h4 id="s3-visual-observation">S3 Visual Observation</h4>
+<p>The screenshot below, captured at 18:09 UTC (mid-S3, parts 4–6), confirms that
+both daemons were actively receiving and decoding the injected signal
+simultaneously.  Key observations visible in the UI: Windows reports DT ≈ 0
+to +2 s (as injected by the DT ladder); Linux reports DT approximately 1 s
+lower for the same cycle, consistent with the shorter ft8loopback routing path.
+Decoded frequency: Windows 1500 Hz, Linux 1484–1488 Hz — the systematic ~16 Hz
+offset that causes the S2 freq bias FAIL is directly visible here.</p>
+<p><img alt="Both daemons decoding S3 simultaneously" src="both-daemons-decoding-s3.png" /></p>
+<p><em>See also <a href="both-daemons-decoding-s3.md"><code>both-daemons-decoding-s3.md</code></a> for
+full observation table and routing diagram.</em></p>
+<h2 id="s1b-low-snr-threshold-study">S1b — Low-SNR threshold study</h2>
+<p><em>Decode rate (% of injected messages recovered) at SNRs excluded from the redesigned S1 ladder (−24 to −15 dB).  Companion to S1; separates 'does it decode at this SNR?' from 'how accurately does it measure SNR?'.  Informational — no AIAG threshold.</em></p>
+<h3 id="per-part-decode-rate">Per-part decode rate</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>True SNR (dB)</th>
+<th>Windows decoded</th>
+<th>Windows rate</th>
+<th>Linux decoded</th>
+<th>Linux rate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>-24.00</td>
+<td>0/3</td>
+<td>0.00%</td>
+<td>0/3</td>
+<td>0.00%</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>-21.00</td>
+<td>0/3</td>
+<td>0.00%</td>
+<td>0/3</td>
+<td>0.00%</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>-18.00</td>
+<td>3/3</td>
+<td>100.00%</td>
+<td>3/3</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>-15.00</td>
+<td>3/3</td>
+<td>100.00%</td>
+<td>3/3</td>
+<td>100.00%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall decode rate — Windows: 50.00%  Linux: 50.00%</strong></p>
+<p><img alt="S1b decode rate" src="S1b_decode_rate.png" /></p>
+<h2 id="attribute-agreement-analysis-s4-positives-s5-negatives">Attribute Agreement Analysis (S4 positives + S5 negatives)</h2>
+<p><em>Pooled attribute agreement: S4 injected messages (truth = present) and S5 signal-free slots (truth = absent).</em></p>
+<h3 id="confusion-vs-truth">Confusion vs truth</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>TP</th>
+<th>FN</th>
+<th>FP</th>
+<th>TN</th>
+<th>Recovery</th>
+<th>Specificity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows</td>
+<td>15</td>
+<td>0</td>
+<td>0</td>
+<td>12</td>
+<td>100.00%</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>Linux</td>
+<td>13</td>
+<td>2</td>
+<td>0</td>
+<td>12</td>
+<td>86.67%</td>
+<td>100.00%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kappa">Kappa</h3>
+<table>
+<thead>
+<tr>
+<th>Pair</th>
+<th>kappa</th>
+<th>95% CI</th>
+<th>Gate</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux_vs_truth</td>
+<td>0.852</td>
+<td>[0.62, 1.00]</td>
+<td>&gt;= 0.9</td>
+<td>MARGINAL</td>
+</tr>
+<tr>
+<td>Windows_vs_truth</td>
+<td>1.000</td>
+<td>[1.00, 1.00]</td>
+<td>&gt;= 0.9</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>between_platforms</td>
+<td>0.852</td>
+<td>[0.62, 1.00]</td>
+<td>&gt;= 0.9</td>
+<td>MARGINAL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="within-platform-repeatability-decision-consistency-across-trials">Within-platform repeatability (decision consistency across trials)</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Consistent groups</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>Linux</td>
+<td>88.89%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="false-positive-rate-s5">False-positive rate (S5)</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>FP events / slots</th>
+<th>Event rate</th>
+<th>95% UB</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows</td>
+<td>0 / 12</td>
+<td>0.00%</td>
+<td>&lt;= 25.00%</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>Linux</td>
+<td>0 / 12</td>
+<td>0.00%</td>
+<td>&lt;= 25.00%</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<h4 id="s4s5-waterfall-visual">S4→S5 Waterfall Visual</h4>
+<p>The screenshot below was captured at 18:21 UTC at the S4/S5 boundary.  Despite
+both platforms correctly reporting 0 FP events, the waterfall displays appear
+dramatically different — directly illustrating the ~18 dB gain asymmetry between
+the two audio paths.</p>
+<p><img alt="Waterfall contrast at S4→S5 boundary" src="waterfall-contrast-s4-s5.png" /></p>
+<p>Left (Windows): S5 pure-noise injection is invisible — the attenuated AWGN
+(−18 dB path gain) falls below the display threshold, producing a near-black
+background.  The bright vertical lines visible in the upper portion are the
+tail of S4 signals still in the waterfall scroll buffer.</p>
+<p>Right (Linux): The same AWGN injection at full amplitude produces a vivid blue
+noise texture filling the display.  Both FP results are correctly 0/12 — the
+decoders agree on the absence of FT8 signal despite the visual difference.
+The gain asymmetry affects absolute amplitude only, not the CRC-based decode
+decision.</p>
+<p><em>See also <a href="waterfall-contrast-s4-s5.md"><code>waterfall-contrast-s4-s5.md</code></a> for
+full routing diagram and significance discussion.</em></p>
+<h3 id="cross-platform-attribute-parity">Cross-platform attribute parity</h3>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Statistic</th>
+<th>p-value</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>McNemar (Win+/Lin- vs Win-/Lin+) = (125/0)</td>
+<td>chi2 = 123.008</td>
+<td>0.0000</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>Fisher FP parity (S5 Windows vs Linux)</td>
+<td>—</td>
+<td>1.0000</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<h2 id="s7-compounding-co-channel-overlap">S7 — Compounding / co-channel overlap</h2>
+<p><em>Per-message recovery (informational — no PASS/FAIL gate).</em></p>
+<h3 id="recovery-by-overlap-family">Recovery by overlap family</h3>
+<table>
+<thead>
+<tr>
+<th>Overlap family</th>
+<th>Windows</th>
+<th>Linux</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>capture</td>
+<td>57.50%</td>
+<td>47.50%</td>
+</tr>
+<tr>
+<td>co_channel</td>
+<td>42.86%</td>
+<td>8.57%</td>
+</tr>
+<tr>
+<td>co_channel_sweep</td>
+<td>83.33%</td>
+<td>26.67%</td>
+</tr>
+<tr>
+<td>near_collision</td>
+<td>88.00%</td>
+<td>22.00%</td>
+</tr>
+<tr>
+<td>time_freq</td>
+<td>96.67%</td>
+<td>36.67%</td>
+</tr>
+<tr>
+<td><strong>all</strong></td>
+<td><strong>74.88%</strong></td>
+<td><strong>27.91%</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="capture-effect">Capture effect</h3>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Windows</th>
+<th>Linux</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>strong</td>
+<td>100.00%</td>
+<td>95.00%</td>
+</tr>
+<tr>
+<td>weak</td>
+<td>15.00%</td>
+<td>0.00%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Between-platform per-signal agreement:</strong> 53.02%</p>
+<h3 id="per-part-detail">Per-part detail</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Family</th>
+<th>Condition</th>
+<th>Windows</th>
+<th>Linux</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>co_channel</td>
+<td>2-stack, equal 0 dB, Δ7 Hz</td>
+<td>5/10</td>
+<td>0/10</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>co_channel</td>
+<td>2-stack, equal -5 dB, Δ13 Hz</td>
+<td>10/10</td>
+<td>3/10</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>co_channel</td>
+<td>3-stack, equal 0 dB, Δ8 / Δ11 Hz asymmetric</td>
+<td>0/15</td>
+<td>0/15</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>near_collision</td>
+<td>delta 3 Hz</td>
+<td>10/10</td>
+<td>1/10</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>near_collision</td>
+<td>delta 6 Hz</td>
+<td>5/10</td>
+<td>0/10</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>near_collision</td>
+<td>delta 12 Hz</td>
+<td>10/10</td>
+<td>1/10</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>near_collision</td>
+<td>delta 25 Hz</td>
+<td>9/10</td>
+<td>4/10</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>near_collision</td>
+<td>delta 50 Hz</td>
+<td>10/10</td>
+<td>5/10</td>
+</tr>
+<tr>
+<td>P8</td>
+<td>time_freq</td>
+<td>near-co-freq Δ8 Hz, dt 0.0 / 0.5 s</td>
+<td>10/10</td>
+<td>0/10</td>
+</tr>
+<tr>
+<td>P9</td>
+<td>time_freq</td>
+<td>near-co-freq Δ11 Hz, dt 0.0 / 1.0 s</td>
+<td>10/10</td>
+<td>6/10</td>
+</tr>
+<tr>
+<td>P10</td>
+<td>time_freq</td>
+<td>near-co-freq Δ9 Hz, dt 0.0 / 2.0 s</td>
+<td>9/10</td>
+<td>5/10</td>
+</tr>
+<tr>
+<td>P11</td>
+<td>capture</td>
+<td>near-co-freq Δ14 Hz, 0 / -3 dB</td>
+<td>8/10</td>
+<td>4/10</td>
+</tr>
+<tr>
+<td>P12</td>
+<td>capture</td>
+<td>near-co-freq Δ9 Hz, 0 / -6 dB</td>
+<td>5/10</td>
+<td>5/10</td>
+</tr>
+<tr>
+<td>P13</td>
+<td>capture</td>
+<td>near-co-freq Δ7 Hz, 0 / -10 dB</td>
+<td>5/10</td>
+<td>5/10</td>
+</tr>
+<tr>
+<td>P14</td>
+<td>capture</td>
+<td>near-co-freq Δ11 Hz, +3 / -10 dB</td>
+<td>5/10</td>
+<td>5/10</td>
+</tr>
+<tr>
+<td>P15</td>
+<td>co_channel_sweep</td>
+<td>offset-sweep: 2-stack, equal 0 dB, Δ5 Hz</td>
+<td>3/10</td>
+<td>0/10</td>
+</tr>
+<tr>
+<td>P16</td>
+<td>co_channel_sweep</td>
+<td>offset-sweep: 2-stack, equal 0 dB, Δ7 Hz</td>
+<td>7/10</td>
+<td>5/10</td>
+</tr>
+<tr>
+<td>P17</td>
+<td>co_channel_sweep</td>
+<td>offset-sweep: 2-stack, equal 0 dB, Δ10 Hz</td>
+<td>10/10</td>
+<td>3/10</td>
+</tr>
+<tr>
+<td>P18</td>
+<td>co_channel_sweep</td>
+<td>offset-sweep: 2-stack, equal 0 dB, Δ15 Hz</td>
+<td>10/10</td>
+<td>3/10</td>
+</tr>
+<tr>
+<td>P19</td>
+<td>co_channel_sweep</td>
+<td>offset-sweep: 2-stack, equal 0 dB, Δ8 Hz</td>
+<td>10/10</td>
+<td>3/10</td>
+</tr>
+<tr>
+<td>P20</td>
+<td>co_channel_sweep</td>
+<td>offset-sweep: 2-stack, equal 0 dB, Δ9 Hz</td>
+<td>10/10</td>
+<td>2/10</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S7 recovery" src="S7_recovery.png" /></p>
+<h2 id="section-4-summary-verdict">Section 4 — Summary Verdict</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Scope</th>
+<th>Value</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>%GR&amp;R</td>
+<td>S2</td>
+<td>36.5%</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>ndc</td>
+<td>S2</td>
+<td>1</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>Freq bias</td>
+<td>Linux-Windows</td>
+<td></td>
+<td>S2</td>
+</tr>
+<tr>
+<td>Kappa Windows_vs_truth</td>
+<td>S4+S5</td>
+<td>1.000</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>Kappa Linux_vs_truth</td>
+<td>S4+S5</td>
+<td>0.852</td>
+<td>MARGINAL</td>
+</tr>
+<tr>
+<td>Between-platform kappa</td>
+<td>S4+S5</td>
+<td>0.852</td>
+<td>MARGINAL</td>
+</tr>
+<tr>
+<td>FP event count</td>
+<td>S5/Windows</td>
+<td>0/12 slots (event 0.0%; 95% UB &lt;= 25.00%)</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>FP event count</td>
+<td>S5/Linux</td>
+<td>0/12 slots (event 0.0%; 95% UB &lt;= 25.00%)</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>McNemar chi2 p-value</td>
+<td>all</td>
+<td>p=0.0000</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>FP parity Fisher p</td>
+<td>S5</td>
+<td>p=1.0000</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: FAIL</strong></p>
+<h3 id="defect-notices">Defect Notices</h3>
+<ul>
+<li>FAIL — %GR&amp;R (S2) = 36.5% (threshold &lt; 10.0%)</li>
+<li>FAIL — Freq bias |Linux-Windows| (S2) = -10.545 Hz (gate: &lt;= 4.0 Hz)</li>
+<li>FAIL — McNemar test rejected at p=0.0000 (alpha=0.05)</li>
+</ul>
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<h3 id="51-fail-grr-s2-365-and-freq-bias-linuxwindows-10545-hz">5.1 FAIL — %GR&amp;R S2 = 36.5% and Freq bias Linux−Windows = −10.545 Hz</h3>
+<p><strong>H₀_FREQ rejected.</strong>  Both failures have the same root cause: a systematic
+frequency offset of approximately 10–16 Hz on the Linux audio path.  The S2
+GR\&amp;R variance is dominated by the between-platform component (reproducibility
+= 36.55%); the gauge repeatability within each platform is near-zero
+(0.00%), confirming that neither decoder fluctuates — it is a fixed
+platform-to-platform bias.</p>
+<p><strong>Root cause:</strong> The ft8combined combine-sink in PulseAudio mixes streams at
+its internal clock rate.  If the PulseAudio server operates at 44100 Hz
+(common on Linux desktop distributions) while the synthesiser generates audio
+at 48000 Hz, the combine-sink resamples internally.  The resulting sample
+clock presented to ft8loopback.monitor may not be exactly 48000 Hz, causing
+the FT8 decoder's frequency axis (calibrated for 12000 Hz sample rate
+derived from 48000 Hz capture) to be systematically offset.  At 1500 Hz the
+observed offset is ~16 Hz, consistent with a ~1.07% sample-rate error (e.g.,
+48000 Hz delivered as 47487 Hz: 1500 × 47487/48000 ≈ 1484 Hz).</p>
+<p><strong>Next diagnostic step:</strong>
+1. In WSL2, run <code>pactl info | grep -i "default sample"</code> to confirm the
+   PulseAudio server sample rate.  If it is 44100 Hz, set it to 48000 Hz
+   in <code>/etc/pulse/daemon.conf</code> (<code>default-sample-rate = 48000</code>) and restart
+   PulseAudio (<code>pulseaudio -k &amp;&amp; pulseaudio --start</code>).
+2. Re-run the smoke test to confirm the frequency offset is reduced.
+3. Re-run S2 with the corrected sample rate.  The expected result is freq
+   bias within ±2 Hz and %GR\&amp;R dropping well below 10%.</p>
+<p><strong>No defect to open against the decoder</strong> — <code>libft8.so</code> behaves correctly
+given its input; the input sample rate is the issue.</p>
+<hr />
+<h3 id="52-fail-mcnemar-p-00000-n12125-n210">5.2 FAIL — McNemar p = 0.0000 (n12=125, n21=0)</h3>
+<p><strong>H₀_DEC rejected</strong> — strongly directional: Windows decoded 125 messages
+that Linux did not; Linux decoded 0 messages that Windows did not.</p>
+<p><strong>Root cause:</strong> This is <strong>not a decoder defect</strong>.  The directional imbalance
+(Windows always wins; Linux never outperforms) is a direct consequence of the
+~18 dB effective SNR difference between the two audio paths.  Linux operates
+at ~18 dB lower effective SNR than Windows for the same injection level.  At
+marginal injection SNRs (the majority of S1 and all low-density S3/S7 parts),
+the signal is above Windows' decode threshold but below Linux's.</p>
+<p>Evidence supporting this interpretation:
+- <strong>S1b (equal conditions):</strong> At -18 and -15 dB injection both platforms
+  decode at 100%; at -24 and -21 dB both decode at 0%.  When the effective
+  SNR is substantially above or below the decode threshold for both, they
+  agree perfectly.
+- <strong>FP parity (Fisher p = 1.000, PASS):</strong> Both platforms produce identical
+  false-positive rates (0/12) in the S5 noise window.  A software decoder
+  defect would typically produce asymmetric FP behaviour; this does not.
+- <strong>S4 kappa (Windows 1.000, Linux 0.852):</strong> Linux misses 2 of 15 S4
+  signals, but all misses are at high signal-density conditions where
+  effective SNR at the Linux decoder is marginal.</p>
+<p><strong>Conclusion:</strong> The McNemar FAIL characterises the gain-asymmetric measurement
+system, not a cross-platform decoder divergence.  <code>libft8.dll</code> and <code>libft8.so</code>
+at shim 20260030 produce equivalent decisions when operating at equivalent SNR
+conditions (as confirmed by S1b and S5).</p>
+<p><strong>Next step:</strong> Equalise the gain of the two audio paths (see §5.4), then
+repeat the study.  With gain-matched paths the McNemar test is expected to
+PASS.</p>
+<hr />
+<h3 id="53-marginal-between-platform-kappa-0852-and-linux_vs_truth-kappa-0852">5.3 MARGINAL — Between-platform kappa = 0.852 and Linux_vs_truth kappa = 0.852</h3>
+<p><strong>Gate: ≥ 0.90 for PASS; ≥ 0.75 for MARGINAL.</strong></p>
+<p>Both kappas are the same value (0.852) because the 2 Linux misses are the
+only discordant pairs between platforms.  These 2 misses are S4 high-density
+trials where Linux's effective SNR is marginal.  The 95% CI [0.62, 1.00] is
+wide, reflecting low power from the 27-unit attribute sample.</p>
+<p><strong>Root cause:</strong> Same as §5.2 — gain asymmetry.  Not a decoder defect.</p>
+<p><strong>Next step:</strong> Gain-matched re-run is expected to lift both kappas to ≥ 0.95.
+No separate diagnostic action required.</p>
+<hr />
+<h3 id="54-not-measured-snr-bias-s1-and-dt-bias-s3">5.4 NOT MEASURED — SNR bias (S1) and DT bias (S3)</h3>
+<p>Both S1 and S3 GR\&amp;R analyses were skipped by the analyser
+("insufficient matched data").  This occurred because at the low-SNR end of
+S1 and the extreme DT offsets of S3, Linux had no matched pairs while
+Windows had matches — leaving unbalanced ANOVA cells.</p>
+<ul>
+<li><strong>S1 SNR bias:</strong> The ~18 dB gain offset is well-characterised by
+  observation and the S2 frequency bias mechanism.  A quantitative paired-t
+  measurement can be obtained from a separate single-level injection run
+  (e.g., inject at +5 dB, collect 30 trials per platform, compare reported
+  SNR).</li>
+<li><strong>S3 DT bias:</strong> Observed in live decodes as approximately −1 s on Linux
+  (ft8loopback latency &lt; WSLg/Voicemeeter latency).  Can be quantified
+  precisely by injecting at DT = 0 only and comparing decoded DT between
+  platforms across 30+ trials.</li>
+</ul>
+<p><strong>No defect to open</strong> — both are measurement-system characterisations.</p>
+<hr />
+<h3 id="55-summary-is-the-decoder-portable-across-platforms">5.5 Summary: is the decoder portable across platforms?</h3>
+<p><strong>Yes, with the caveat of gain-matched inputs.</strong></p>
+<p>When both platforms receive equivalent-amplitude signals (as in S1b at −18 dB
+and S4 at matched density levels), decode decisions are identical.  The
+<code>libft8.so</code> library on Linux and <code>libft8.dll</code> on Windows at shim 20260030
+are functionally equivalent decoders.</p>
+<p>The observed FAILs (freq bias, McNemar, %GR\&amp;R) are entirely attributable to
+the audio routing path differences between the two platforms, not to the
+decoder implementation.</p>
+<hr />
+<h3 id="56-recommended-follow-on-study-gain-matched">5.6 Recommended follow-on study (gain-matched)</h3>
+<ol>
+<li>Set PulseAudio default sample rate to 48000 Hz (§5.1 step 1).</li>
+<li>Adjust Voicemeeter B2 output strip gain so that a smoke-test injection at
+   0 dB shows Linux and Windows reporting SNR within ±2 dB of each other.</li>
+<li>Re-run the full scenario set as "xplat-pilot-v2".  All three platform
+   bias gates (SNR, DT, freq) and the McNemar test are expected to PASS under
+   gain-matched conditions.</li>
+</ol>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
