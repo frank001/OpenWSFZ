@@ -828,10 +828,15 @@ saveBtn.addEventListener('click', async () => {
     };
 
     // Collect decoder config (decoder-settings-page).
+    // Use Number.isFinite rather than || to correctly handle user-entered 0
+    // (falsy-or-default would silently replace 0 with the calibrated default).
+    const decoderKRaw     = parseInt(decoderK.value,     10);
+    const decoderCorrRaw  = parseFloat(decoderCorr.value);
+    const decoderNhardRaw = parseInt(decoderNhard.value, 10);
     const decoder = {
-      kMinScorePass2:   parseInt(decoderK.value,     10) || 10,
-      osdCorrThreshold: parseFloat(decoderCorr.value)    || 0.10,
-      osdNhardMax:      parseInt(decoderNhard.value, 10) || 60,
+      kMinScorePass2:   Number.isFinite(decoderKRaw)     ? decoderKRaw     : 10,
+      osdCorrThreshold: Number.isFinite(decoderCorrRaw)  ? decoderCorrRaw  : 0.10,
+      osdNhardMax:      Number.isFinite(decoderNhardRaw) ? decoderNhardRaw : 60,
     };
 
     // POST config and frequencies in parallel (FR-043 / FR-007).
