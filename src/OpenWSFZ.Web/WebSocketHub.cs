@@ -77,54 +77,75 @@ internal static class WebSocketHub
     internal static async Task<bool> AuthenticateViaFrameAsync(
         WebSocket ws, IAuthPolicy authPolicy, CancellationToken ct)
     {
-        const WebSocketCloseStatus InvalidAuth = (WebSocketCloseStatus)4001;
-        const int AuthTimeoutMs = 5_000;
+        const WebSocketCloseStatus InvalidAuth    = (WebSocketCloseStatus)4001;
+        const int  AuthTimeoutMs                 = 5_000;
+        const int  MaxAuthFrameBytes             = 4_096; // guard against oversized frames
 
-        // Use Task.WhenAny rather than a linked CancellationToken for the auth
-        // timeout.  Canceling a ReceiveAsync via a CancellationToken causes
-        // ManagedWebSocket to call Abort(), which drops the TCP connection without
-        // sending a WS close frame — the client then sees an ungraceful disconnect
-        // and cannot inspect the close code.  Keeping the socket Open while the
-        // timeout delay fires lets us call CloseAsync(4001, ...) cleanly.
-        var buffer      = new byte[512];
-        var receiveTask = ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
+        // timeoutTask is created once and reused across all loop iterations so that the
+        // 5-second budget is shared, not reset per fragment.
         var timeoutTask = Task.Delay(AuthTimeoutMs, ct);
 
-        if (await Task.WhenAny(receiveTask, timeoutTask) == timeoutTask)
-        {
-            // Timeout: socket is still Open — send a proper close frame.
-            await TryCloseAsync(ws, InvalidAuth, "Authentication timeout", ct);
-            return false;
-        }
+        // Use Task.WhenAny rather than a linked CancellationToken for the timeout.
+        // Cancelling a ReceiveAsync via CT causes ManagedWebSocket to call Abort(),
+        // dropping the TCP connection without a WS close frame.  Keeping the socket
+        // Open while the delay fires lets us call CloseAsync(4001, …) cleanly.
+        var buffer = new byte[512];
+        using var ms = new System.IO.MemoryStream(capacity: 128);
+        bool firstFragment = true;
 
-        // receiveTask completed — inspect the result.
         WebSocketReceiveResult result;
-        try
+        do
         {
-            result = await receiveTask;
-        }
-        catch (WebSocketException)
-        {
-            // Connection was dropped before the auth frame arrived.
-            return false;
-        }
-        catch (OperationCanceledException)
-        {
-            // HTTP request was cancelled (e.g., server shutdown).
-            return false;
-        }
+            var receiveTask = ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
 
-        if (result.MessageType != WebSocketMessageType.Text)
-        {
-            await TryCloseAsync(ws, InvalidAuth, "Authentication required", ct);
-            return false;
-        }
+            if (await Task.WhenAny(receiveTask, timeoutTask) == timeoutTask)
+            {
+                await TryCloseAsync(ws, InvalidAuth, "Authentication timeout", ct);
+                return false;
+            }
+
+            try
+            {
+                result = await receiveTask;
+            }
+            catch (WebSocketException)
+            {
+                // Connection dropped before auth frame arrived.
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                // Server shutdown.
+                return false;
+            }
+
+            // Only check the message type on the first fragment. .NET's WebSocket API
+            // reports the same Text/Binary MessageType on every fragment of a message
+            // (there is no distinct "continuation" value), so this guard would be
+            // equally correct if re-checked every iteration — it is skipped after the
+            // first fragment purely to avoid redundant work.
+            if (firstFragment && result.MessageType != WebSocketMessageType.Text)
+            {
+                await TryCloseAsync(ws, InvalidAuth, "Authentication required", ct);
+                return false;
+            }
+            firstFragment = false;
+
+            // Size guard: reject oversized frames before accumulating bytes.
+            if (ms.Length + result.Count > MaxAuthFrameBytes)
+            {
+                await TryCloseAsync(ws, InvalidAuth, "Authentication required", ct);
+                return false;
+            }
+
+            ms.Write(buffer, 0, result.Count);
+        } while (!result.EndOfMessage);
 
         WsAuthFrame? frame;
         try
         {
             frame = JsonSerializer.Deserialize(
-                buffer.AsSpan(0, result.Count),
+                ms.ToArray().AsSpan(),
                 AppJsonContext.Default.WsAuthFrame);
         }
         catch (JsonException)
