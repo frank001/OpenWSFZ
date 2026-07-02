@@ -202,6 +202,25 @@ catEnabled.addEventListener('change', updateDialFreqLock);
 
 let catOpaqueFields = {};
 
+/**
+ * D-LINUX-001: on platforms with no audio device enumeration (e.g. Linux,
+ * where GET /api/v1/audio/devices returns [] by design and the audio device
+ * is configured manually in the JSON config file, such as "pulse"), the
+ * device <select> has no option matching the configured audioDeviceId. The
+ * dropdown therefore falls back to its empty "(none)" selection even though
+ * a device IS configured. Populated here on load whenever that situation is
+ * detected; carried forward verbatim by the Save handler so an unrelated
+ * settings save does not silently null out the manually-configured device.
+ * @type {{audioDeviceId?: string|null, audioDeviceFriendlyName?: string|null}}
+ */
+let audioOpaqueFields = {};
+
+// D-LINUX-001: once the operator deliberately interacts with the device
+// dropdown, its value (including an explicit "(none)") is authoritative —
+// stop carrying forward the stale opaque value so a genuine clear-selection
+// is respected rather than silently reverted.
+deviceSelect.addEventListener('change', () => { audioOpaqueFields = {}; });
+
 // ── Dirty-state snapshot (FR-040) ────────────────────────────────────────
 
 /** JSON string of form values captured immediately after a successful page load.
@@ -456,6 +475,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Pre-select the configured device (p7: use audioDeviceId, not audioDeviceName).
     deviceSelect.value = config.audioDeviceId ?? '';
+
+    // D-LINUX-001: when the device list is empty (Linux — no WASAPI
+    // enumeration; the device is configured manually in the JSON config, e.g.
+    // "pulse"), the dropdown has no option matching config.audioDeviceId, so
+    // assigning select.value leaves it at '' / "(none)" even though a device
+    // IS configured. Remember the original value so Save can carry it forward
+    // instead of submitting null. Scoped strictly to the empty-list case (not
+    // "value doesn't match any option") so the pre-existing Windows behaviour
+    // for a disconnected/unplugged device — where the operator can still
+    // deliberately select "(none)" to clear it — is left untouched.
+    audioOpaqueFields = (devices.length === 0 && config.audioDeviceId)
+        ? {
+            audioDeviceId:           config.audioDeviceId,
+            audioDeviceFriendlyName: config.audioDeviceFriendlyName ?? null,
+          }
+        : {};
 
     // Populate output device selector.
     outputDeviceSelect.innerHTML = '';
@@ -736,11 +771,18 @@ saveBtn.addEventListener('click', async () => {
   clearFeedback();
 
   // p7: capture both device ID (for WASAPI) and friendly name (for display).
-  const audioDeviceId           = deviceSelect.value.trim() || null;
+  // D-LINUX-001: when the dropdown has no selection (e.g. Linux, where the
+  // device list is never enumerated), fall back to the opaque carried-forward
+  // value captured on load instead of submitting null and silently wiping the
+  // manually configured device out from under the daemon.
+  const deviceSelectValue       = deviceSelect.value.trim();
   const selectedOption          = deviceSelect.options[deviceSelect.selectedIndex];
-  const audioDeviceFriendlyName = audioDeviceId
+  const audioDeviceId           = deviceSelectValue
+      ? deviceSelectValue
+      : (audioOpaqueFields.audioDeviceId ?? null);
+  const audioDeviceFriendlyName = deviceSelectValue
       ? (selectedOption?.textContent?.trim() || null)
-      : null;
+      : (audioOpaqueFields.audioDeviceFriendlyName ?? null);
 
   // Audio output device (TX pipeline routing).
   const audioOutputDeviceId       = outputDeviceSelect.value.trim() || null;
