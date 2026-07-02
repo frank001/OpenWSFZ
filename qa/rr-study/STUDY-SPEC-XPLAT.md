@@ -3,11 +3,12 @@
 
 **Document type:** Study specification — Measurement System Analysis (MSA)  
 **Owner of execution & reporting:** QA  
-**Status:** **Active** — pilot two-appraiser run completed 2026-07-01 (see §13); three-appraiser design pending harness extension (`chore/xplat-rr-three-appraiser`)  
+**Status:** **Active** — pilot two-appraiser run completed 2026-07-01 (see §13); three-appraiser harness implemented 2026-07-02; audio normalization required before production run (D10)  
 **Applies to:** OpenWSFZ FT8 receive/decode pipeline, native binary cross-platform parity  
 **Companion to:** [`STUDY-SPEC.md`](./STUDY-SPEC.md) (existing Windows-only study)  
 **Created:** 2026-06-30  
 **Amended:** 2026-07-01 — added WSJT-X as third appraiser; added audio path normalization requirements  
+**Amended:** 2026-07-02 — three-appraiser harness implemented (`run_study_xplat.py`, `matcher_xplat.py`, `analyse_xplat.py`, `smoke_test_null_sink.py`); CI uploads Linux daemon binary artifact  
 
 ---
 

@@ -1,2 +1,2 @@
-run_date,git_sha,pct_grr_snr,ndc_snr,platform_snr_bias_db,between_platform_kappa,fp_events_windows,fp_events_linux,mcnemar_p,overall
-2026-07-01,b03998fd809e495b8fe06abe96d669f18333c1ee,,,,0.8525,0,0,0.0,FAIL
+run_date,git_sha,pct_grr_snr,ndc_snr,platform_snr_bias_db,win_wsjt_snr_bias_db,linux_wsjt_snr_bias_db,between_platform_kappa,fp_events_windows,fp_events_linux,fp_events_wsjt,mcnemar_p,overall
+2026-07-01,b03998fd809e495b8fe06abe96d669f18333c1ee,,,,,,0.8525,0,0,,0.0,FAIL
