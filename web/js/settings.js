@@ -460,10 +460,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     deviceSelect.appendChild(noneOpt);
 
     if (devices.length === 0) {
-      const noDevOpt = document.createElement('option');
-      noDevOpt.disabled     = true;
-      noDevOpt.textContent  = 'No devices found';
-      deviceSelect.appendChild(noDevOpt);
+      // D-LINUX-001: the daemon has no audio device enumeration on Linux.
+      // Add a real selectable option so the dropdown is not visually broken
+      // and Save naturally sends the correct device ID without any opaque
+      // field carry-forward logic being needed.
+      const sysOpt = document.createElement('option');
+      sysOpt.value       = 'pulse';
+      sysOpt.textContent = 'System default (PulseAudio)';
+      deviceSelect.appendChild(sysOpt);
     } else {
       for (const dev of devices) {
         const opt = document.createElement('option');
@@ -474,20 +478,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Pre-select the configured device (p7: use audioDeviceId, not audioDeviceName).
-    deviceSelect.value = config.audioDeviceId ?? '';
+    // On Linux (empty device list) fall back to 'pulse' so the synthetic
+    // "System default (PulseAudio)" option is always pre-selected.
+    deviceSelect.value = config.audioDeviceId || (devices.length === 0 ? 'pulse' : '');
 
-    // D-LINUX-001: when the device list is empty (Linux — no WASAPI
-    // enumeration; the device is configured manually in the JSON config, e.g.
-    // "pulse"), the dropdown has no option matching config.audioDeviceId, so
-    // assigning select.value leaves it at '' / "(none)" even though a device
-    // IS configured. Remember the original value so Save can carry it forward
-    // instead of submitting null. Scoped strictly to the empty-list case (not
-    // "value doesn't match any option") so the pre-existing Windows behaviour
-    // for a disconnected/unplugged device — where the operator can still
-    // deliberately select "(none)" to clear it — is left untouched.
-    audioOpaqueFields = (devices.length === 0 && config.audioDeviceId)
+    // D-LINUX-001: audioOpaqueFields is retained as a safety net for any edge
+    // case where deviceSelect.value ends up empty despite the synthetic option
+    // (e.g. a future platform with empty enumeration but a non-pulse device ID).
+    audioOpaqueFields = (devices.length === 0)
         ? {
-            audioDeviceId:           config.audioDeviceId,
+            audioDeviceId:           config.audioDeviceId || 'pulse',
             audioDeviceFriendlyName: config.audioDeviceFriendlyName ?? null,
           }
         : {};
