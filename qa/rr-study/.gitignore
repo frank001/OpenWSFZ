@@ -1,4 +1,5 @@
 .venv/
+.venv-linux/
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -6,3 +7,10 @@ __pycache__/
 results/test-*/
 gate_wav/
 *.wav
+# Linux daemon binary (downloaded from CI; not source-committed)
+linux-daemon/
+# ...but do track the session setup script
+!linux-daemon/start-daemon.sh
+# Transient run logs written by run_study_xplat.py (not committed)
+xplat_study_run.log
+xplat_study_run.log.err

@@ -1,12 +1,14 @@
 # OpenWSFZ Cross-Platform Decoder Gauge R&R Study
-## Windows (win-x64 / WASAPI) vs Linux/WSL2 (linux-x64 / ALSA–PulseAudio)
+## Windows daemon vs Linux/WSL2 daemon vs WSJT-X (three-appraiser design)
 
 **Document type:** Study specification — Measurement System Analysis (MSA)  
 **Owner of execution & reporting:** QA  
-**Status:** **Draft** — awaiting WSL2 environment setup (see `dev-tasks/2026-06-30-wsl-linux-rr-environment.md`)  
+**Status:** **Active** — pilot two-appraiser run completed 2026-07-01 (see §13); three-appraiser harness implemented 2026-07-02; audio normalization required before production run (D10)  
 **Applies to:** OpenWSFZ FT8 receive/decode pipeline, native binary cross-platform parity  
 **Companion to:** [`STUDY-SPEC.md`](./STUDY-SPEC.md) (existing Windows-only study)  
 **Created:** 2026-06-30  
+**Amended:** 2026-07-01 — added WSJT-X as third appraiser; added audio path normalization requirements  
+**Amended:** 2026-07-02 — three-appraiser harness implemented (`run_study_xplat.py`, `matcher_xplat.py`, `analyse_xplat.py`, `smoke_test_null_sink.py`); CI uploads Linux daemon binary artifact  
 
 ---
 
@@ -14,25 +16,37 @@
 
 | # | Decision | Choice | Rationale |
 |---|---|---|---|
-| D1 | Study type | **Crossed Gauge R&R — two appraisers** | Both platforms measure every part in every trial; no nesting |
-| D2 | Appraisers | **Windows daemon (WASAPI + win-x64 `libft8.dll`) and Linux daemon (ALSA/PulseAudio + linux-x64 `libft8.so`)** | Direct binary parity test; same shim version required |
-| D3 | Signal injection | **Windows synthesizer plays to VB-CABLE → WSLg PulseAudio bridge** — same audio chain topology as existing study | Maintains crossed-design guarantee: both appraisers hear the same noise realization simultaneously |
+| D1 | Study type | **Crossed Gauge R&R — three appraisers (target)** | All three appraisers measure every part in every trial; no nesting. Two-appraiser pilot completed 2026-07-01. |
+| D2 | Appraisers | **Windows daemon** (WASAPI + win-x64 `libft8.dll`), **Linux daemon** (ALSA/PulseAudio + linux-x64 `libft8.so`), **WSJT-X** (WASAPI shared mode from same Voicemeeter Out B2 device as Windows daemon) | Three-appraiser design separates *decoder* effect (libft8 vs Fortran) from *audio-chain* effect (ft8loopback vs Voicemeeter). WSJT-X vs Windows = pure decoder comparison. |
+| D3 | Signal injection | **Amended 2026-07-01:** Windows synthesizer plays to Voicemeeter AUX Input (VAIO2) → Voicemeeter Out B2 → (a) Windows daemon, (b) WSJT-X (both WASAPI shared mode). Linux synthesizer (same Python harness, same seeds) plays to PulseAudio null-sink (`ft8loopback`) → Linux daemon. All three run simultaneously, aligned to UTC 15 s cycle boundaries. | Same-seed guarantee preserves crossed simultaneous design. The ft8combined combine-sink approach trialled in the pilot was replaced: combine-sink caused resampling artefacts (§5.5). VAIO2 in-strip gain is calibrated so all three appraisers receive the same effective SNR (see §11 and RUNBOOK.md §5.6). |
 | D4 | Response variables | Primary: **binary decode outcome** (Attribute R&R). Secondary: **reported SNR, DT, audio freq** (Continuous R&R) where both appraisers decode | Decode-or-not is the most operationally meaningful metric |
 | D5 | Scenarios | **S1, S2, S3, S4, S5, S7** — identical scenario set to the existing Windows study (STUDY-SPEC.md §6) | Enables direct result comparison; any platform divergence is immediately visible |
 | D6 | Acceptance thresholds | Same as STUDY-SPEC.md §10 for continuous metrics; attribute Kappa ≥ 0.90 for platform agreement | Consistent with established study |
-| D7 | Native binary shim | **Both platforms must run the same shim version** (currently shim 20260030). Confirm via `GET /api/v1/status` before each run | Cross-shim comparison is invalid |
-| D8 | Ground truth | **Synthesized truth** — same harness as existing study; no WSJT-X involvement | WSJT-X is a Windows application and cannot participate as a third appraiser in this study |
-| D9 | Statistical analysis | **Python** (same `analyse.py` pipeline, extended for cross-platform output) + Minitab-style tables | Consistent with D6 of STUDY-SPEC.md |
+| D7 | Native binary shim | **Both OpenWSFZ daemons must run the same shim version** (currently shim 20260030). Confirm via `GET /api/v1/status` before each run. WSJT-X version noted in §2 but not required to match. | Cross-shim daemon comparison is invalid |
+| D8 | Ground truth | **Synthesized truth** — same harness as existing study. WSJT-X is an appraiser in this study, not the ground truth reference. | WSJT-X's ALL.TXT is matched against synthesized truth exactly as the Windows/Linux ALL.TXT files are. |
+| D9 | Statistical analysis | **Python** (same `analyse.py` pipeline, extended for three-appraiser cross-platform output in `analyse_xplat.py`) + Minitab-style tables | Consistent with D6 of STUDY-SPEC.md |
+| D10 | Audio normalization | **Required before production run:** PulseAudio set to 48000 Hz; Voicemeeter VAIO2 gain calibrated so all three appraisers report SNR within ±2 dB for a 0 dB reference injection. See RUNBOOK.md §5.6. | Pilot showed ~18 dB gain deficit on Windows/WSJT-X path and ~16 Hz Linux freq offset. Both are measurement-system defects that must be corrected before the study delivers valid parity conclusions. |
 
 ---
 
 ## 1. Purpose
 
-This study answers one operational question:
+This study answers two operational questions:
 
-> **Does the `libft8.so` Linux binary (deployed to WSL2 via the ALSA–PulseAudio audio chain)
-> perform equivalently to the `libft8.dll` Windows binary (WASAPI) across all measurable
-> dimensions of the FT8 decode pipeline?**
+> **Q1 — Decoder parity:** Does the `libft8.so` Linux binary produce the same decode
+> decisions as the `libft8.dll` Windows binary for the same injected FT8 signals?
+
+> **Q2 — Audio chain characterization:** Does the ALSA–PulseAudio audio chain (WSL2)
+> introduce systematic bias in SNR, frequency, or DT measurements relative to the
+> Voicemeeter WASAPI path shared by the Windows daemon and WSJT-X?
+
+The three-appraiser design separates these questions:
+- **Windows daemon vs WSJT-X** — same Voicemeeter Out B2 audio path, different decoder
+  (`libft8.dll` vs Fortran). Any difference here is a pure decoder effect.
+- **Windows daemon vs Linux daemon** — same decoder source, different audio chain. Any
+  difference here is primarily an audio-chain effect, modulo build-flag differences.
+- **WSJT-X vs Linux daemon** — different decoder AND different audio chain. Differences
+  here are a combination; the first two pairs disambiguate.
 
 "Equivalently" is defined precisely in §10 (acceptance thresholds). The study is not looking
 for exact numerical identity — the two audio paths introduce different timing jitter, different
@@ -46,6 +60,8 @@ indicate a platform-specific defect.
   decode decisions as the Windows binary for the same injected signals.
 - Whether the ALSA–PulseAudio audio chain introduces material additional jitter or
   sample-rate artefacts that degrade decode performance relative to WASAPI.
+- Whether `libft8.dll` and the WSJT-X Fortran decoder agree at each SNR/frequency/DT
+  operating point (pure decoder parity, same audio path).
 - Whether any audio-frequency, DT, or SNR *measurement* biases differ between platforms
   (indicating a platform-specific calibration issue).
 
@@ -54,9 +70,9 @@ indicate a platform-specific defect.
 - Decode performance under real off-air propagation (use S6 corpus replay for that, once
   the Linux audio path is validated).
 - Performance of the Linux binary under native Linux hardware (non-WSL2). The audio path
-  tested here includes the WSLg RDP bridge, which is not present on bare-metal Linux.
+  tested here includes PulseAudio running under WSLg, which is not present on bare-metal Linux.
 - Any behaviour unique to the UI layer (WPF, JavaScript front-end). This study tests the
-  daemon only.
+  daemon and WSJT-X decoder only.
 
 ---
 
@@ -163,62 +179,82 @@ and the most likely location for platform-specific floating-point divergence.
 ### 3.1 Topology
 
 ```
- ┌──────────────────────────────────────────────────────────────┐
- │  WINDOWS SIDE                                                 │
- │                                                               │
- │  R&R synthesizer (Python, existing harness)                   │
- │  synthesizes FT8 + seeded noise, aligned to 15 s UTC cycle    │
- │            │                                                  │
- │            │ plays PCM (mono, 48 kHz)                         │
- │            ▼                                                  │
- │  VB-CABLE Input (render endpoint)                             │
- │            │                                                  │
- │            ├─────────────────────────────────────────────┐    │
- │            ▼                                             │    │
- │  VB-CABLE Output (capture endpoint, WASAPI shared mode)  │    │
- │            │                                             │    │
- │            ▼                                             │    │
- │  Windows daemon (OpenWSFZ.Daemon)                        │    │
- │  WasapiAudioSource → libft8.dll (win-x64 shim 20260030) │    │
- │  ALL.TXT → results/windows/                              │    │
- └──────────────────────────────────────────────────────────┘    │
-                                                                  │
- ┌──────────────────────────────────────────────────────────┐    │
- │  WSL2 SIDE (same physical machine)                        │    │
- │                                                           │    │
- │  WSLg PulseAudio bridge  ◄──── Windows audio subsystem ◄─┘    │
- │  (mirrors VB-CABLE Input playback as PulseAudio source)       │
- │            │                                                   │
- │            │ arecord -D pulse -f FLOAT_LE -r 12000             │
- │            ▼                                                   │
- │  Linux daemon (OpenWSFZ.Daemon)                                │
- │  ArecordAudioSource → libft8.so (linux-x64 shim 20260030)     │
- │  ALL.TXT → results/linux/                                      │
- └────────────────────────────────────────────────────────────────┘
-                  │                      │
-                  ▼                      ▼
-          ┌──────────────────────────────────┐
-          │  Matcher + analyser (Python)      │
-          │  joins truth ↔ Windows ↔ Linux    │
-          │  emits CSV + Minitab-style report │
-          └──────────────────────────────────┘
+ ┌──────────────────────────────────────────────────────────────────┐
+ │  WINDOWS SIDE                                                     │
+ │                                                                   │
+ │  R&R synthesizer (Python, harness) — seed S, trial T             │
+ │  synthesizes FT8 + seeded noise, aligned to 15 s UTC cycle        │
+ │            │                                                      │
+ │            │ plays PCM (mono, 48 kHz)                             │
+ │            ▼                                                      │
+ │  Voicemeeter AUX Input (VAIO2) — gain calibrated per §5.6.2      │
+ │            │                                                      │
+ │            ▼                                                      │
+ │  Voicemeeter Out B2 (capture endpoint, WASAPI shared mode)        │
+ │            │                          │                           │
+ │            ▼                          ▼                           │
+ │  Windows daemon (OpenWSFZ.Daemon)    WSJT-X (FT8 mode)           │
+ │  WasapiAudioSource                   Input = Voicemeeter Out B2   │
+ │  → libft8.dll (win-x64 shim ≥20260030)  (Fortran decoder)        │
+ │  ALL.TXT → results/windows/          ALL.TXT → AppData\WSJT-X\   │
+ └──────────────────────────────────────────────────────────────────┘
+
+ ┌──────────────────────────────────────────────────────────────────┐
+ │  WSL2 SIDE (same physical machine) — runs simultaneously          │
+ │                                                                   │
+ │  R&R synthesizer (Python, harness) — SAME seed S, trial T        │
+ │  synthesizes identical FT8 + noise, aligned to same UTC cycle     │
+ │            │                                                      │
+ │            │ plays PCM (mono, 48 kHz) via sounddevice             │
+ │            ▼                                                      │
+ │  PulseAudio null-sink (ft8loopback) — server @ 48000 Hz          │
+ │            │                                                      │
+ │            │ arecord -D pulse -f FLOAT_LE -r 12000                │
+ │            ▼  (captures ft8loopback.monitor)                      │
+ │  Linux daemon (OpenWSFZ.Daemon)                                   │
+ │  ArecordAudioSource → libft8.so (linux-x64 shim ≥20260030)       │
+ │  ALL.TXT → results/linux/                                         │
+ └──────────────────────────────────────────────────────────────────┘
+         │                 │                     │
+         ▼                 ▼                     ▼
+ ┌───────────────────────────────────────────────────────┐
+ │  Matcher + analyser (Python)                           │
+ │  joins truth ↔ Windows daemon ↔ Linux daemon ↔ WSJT-X │
+ │  emits CSV + Minitab-style report (all pairwise)       │
+ └───────────────────────────────────────────────────────┘
 ```
 
-### 3.2 Critical design requirement — crossed simultaneous capture
+**Audio path comparison — key differences between appraisers:**
 
-Both daemons **must capture the same noise realization simultaneously**. This is the same
-requirement as the existing study (STUDY-SPEC.md §2.1) and is equally load-bearing here:
+| Appraiser | Audio path | Decoder | Gain-matched? |
+|---|---|---|---|
+| Windows daemon | Voicemeeter Out B2 (WASAPI shared) | libft8.dll (C, shim 20260030) | Reference |
+| WSJT-X | Voicemeeter Out B2 (WASAPI shared, same device) | Fortran (WSJT-X binary) | ✅ Same path as Windows |
+| Linux daemon | PulseAudio ft8loopback.monitor (arecord) | libft8.so (GCC, shim 20260030) | Requires §5.6.2 calibration |
 
-- The Windows daemon captures VB-CABLE Output via WASAPI shared mode.
-- The WSLg PulseAudio bridge mirrors the same Windows audio playback; the Linux daemon
-  captures the mirrored stream.
-- Because both paths originate from the same Windows audio render call, they carry the
-  same signal content — not merely the same nominal scenario parameters.
+### 3.2 Critical design requirement — crossed simultaneous capture (amended 2026-07-01)
 
-**Consequence if this requirement is violated:** If the two daemons capture different noise
-realizations (e.g. because playback is re-run sequentially per platform), repeatability
-variance collapses to zero and reproducibility variance becomes artificially inflated by
-trial-to-trial signal variation, not platform differences. The study becomes invalid.
+Both daemons **must receive the same noise realization**. Under the original design this
+was guaranteed by sharing a single physical audio signal via the WSLg bridge. Under the
+amended D3, it is guaranteed by **using identical PRNG seeds** in two independent synthesis
+runs that execute simultaneously, each feeding its own platform's audio chain.
+
+- The Windows daemon captures VB-CABLE Output via WASAPI shared mode (unchanged).
+- The Linux daemon captures `ft8loopback.monitor` via PulseAudio / arecord (amended).
+- Both synthesizers use the same scenario JSON and the same per-trial seed derivation
+  (`harness/common.py:compute_seed`), producing mathematically identical noise realizations.
+- Both runs are launched simultaneously and align to the same UTC 15 s cycle boundaries,
+  maintaining the crossed simultaneous design.
+
+**Amended INVALID condition:** Sequential runs with *different* seeds remain invalid (noise
+realizations differ; reproducibility variance is inflated). Sequential runs with *identical*
+seeds are a design deviation but may be acceptable as a fallback (document in Section 1 of
+the report). Simultaneous runs with same seeds (the standard procedure) are fully valid.
+
+**What the amended design cannot test:** The WSLg bridge latency contribution to DT bias
+(H₁_DIR sub-hypothesis) is no longer testable, because the bridge is no longer in the path.
+This is acceptable — the sub-hypothesis concerned the bridge itself, which has been
+eliminated as an unreliable dependency.
 
 **Verification step (required before first production run):** Play one trial simultaneously,
 collect both ALL.TXT outputs, confirm both decode the same message text at the same cycle
@@ -404,18 +440,28 @@ continuous metrics.
 | %GR&R (platform reproducibility) | < 10% | 10–30% | > 30% |
 | %Tolerance (%P/T) | < 10% | 10–30% | > 30% |
 | ndc | ≥ 5 | 2–4 | < 2 |
-| Platform SNR bias \|Linux − Windows\| | ≤ 1 dB | 1–2 dB | > 2 dB |
-| Platform DT bias \|Linux − Windows\| | ≤ 0.1 s | 0.1–0.2 s | > 0.2 s |
-| Platform freq bias \|Linux − Windows\| | ≤ 2 Hz | 2–4 Hz | > 4 Hz |
+| SNR bias \|Linux − Windows\| | ≤ 1 dB | 1–2 dB | > 2 dB |
+| SNR bias \|WSJT-X − Windows\| | ≤ 1 dB | 1–2 dB | > 2 dB |
+| SNR bias \|Linux − WSJT-X\| | ≤ 1 dB | 1–2 dB | > 2 dB |
+| DT bias \|Linux − Windows\| | ≤ 0.1 s | 0.1–0.2 s | > 0.2 s |
+| DT bias \|WSJT-X − Windows\| | ≤ 0.1 s | 0.1–0.2 s | > 0.2 s |
+| Freq bias \|Linux − Windows\| | ≤ 2 Hz | 2–4 Hz | > 4 Hz |
+| Freq bias \|WSJT-X − Windows\| | ≤ 2 Hz | 2–4 Hz | > 4 Hz |
+
+> The `WSJT-X − Windows` pair shares the same Voicemeeter Out B2 audio path; any
+> bias here is a pure decoder effect. A PASS on this pair with a FAIL on `Linux − Windows`
+> isolates the defect to the Linux audio chain.
 
 ### 8.2 Per-metric gate (attribute)
 
 | Metric | PASS | MARGINAL | FAIL |
 |---|---|---|---|
-| Between-platform Cohen's κ (decode decision) | ≥ 0.90 | 0.75–0.89 | < 0.75 |
-| McNemar χ² p-value | ≥ 0.05 (H₀ not rejected) | — | < 0.05 (H₀ rejected) |
+| Between-platform Cohen's κ — Windows vs Linux | ≥ 0.90 | 0.75–0.89 | < 0.75 |
+| Between-platform Cohen's κ — Windows vs WSJT-X | ≥ 0.90 | 0.75–0.89 | < 0.75 |
+| Between-platform Cohen's κ — Linux vs WSJT-X | ≥ 0.90 | 0.75–0.89 | < 0.75 |
+| McNemar χ² p-value (all pairs) | ≥ 0.05 (H₀ not rejected) | — | < 0.05 (H₀ rejected) |
 | Within-platform Kappa (Linux) | ≥ 0.90 | 0.75–0.89 | < 0.75 |
-| False-positive rate (Linux vs Windows) | Fisher p ≥ 0.05 | — | Fisher p < 0.05 |
+| False-positive rate (Fisher, all pairs) | p ≥ 0.05 | — | p < 0.05 |
 
 ### 8.3 Overall study verdict
 
@@ -497,18 +543,50 @@ that reuses internal functions but does not alter the existing Windows+WSJT-X wo
 
 ## 11. Pre-run checklist (operator)
 
-Before starting a production run:
+Before starting a production run, complete all items. For the audio-normalization
+procedure details see RUNBOOK.md §5.6.
 
-- [ ] Both daemons running: Windows daemon on host, Linux daemon in WSL2.
-- [ ] Both daemons report the same shim version (`GET /api/v1/status` → `shimVersion`).
+### One-time setup (first run only)
+
+- [ ] PulseAudio sample rate set to 48000 Hz in WSL2 — see RUNBOOK.md §5.6.1.
+  Verify: `pactl info | grep "Default Sample"` shows `48000 Hz`.
+- [ ] WSJT-X configured: Input = Voicemeeter Out B2; Mode = FT8; TX disabled.
+  See RUNBOOK.md §5.6.3 for full configuration steps.
+- [ ] Voicemeeter VAIO2 gain calibrated — see RUNBOOK.md §5.6.2. All three appraisers
+  report SNR within ±2 dB of each other for a 0 dB reference injection.
+
+### Per-session checklist
+
+- [ ] Windows daemon running on host; Linux daemon running in WSL2.
+- [ ] Both OpenWSFZ daemons report the **same shim version** (`GET /api/v1/status` → `shimVersion`).
 - [ ] Both daemons configured to write `ALL.TXT` to distinct, known paths.
-- [ ] VB-CABLE Input set as the playback device for the synthesizer.
-- [ ] WSL2 Linux daemon configured with audio device `pulse`.
-- [ ] Simultaneous capture verified (one-shot check: both ALL.TXT receive the same
-  decode at the same UTC cycle for a manually played +10 dB fixture).
+- [ ] WSJT-X running and showing "Receiving" status; Input = Voicemeeter Out B2.
+- [ ] Voicemeeter open; VAIO2 strip gain at calibrated position.
+- [ ] R&R synthesizer plays to **Voicemeeter AUX Input (VAIO2)** — confirm Voicemeeter
+  meters respond when a test tone is played.
+- [ ] **WSL2 — ft8loopback null-sink active** (must be created once per WSL2 session):
+  ```
+  pactl list sinks short | grep ft8loopback   # should return one line
+  # If absent:
+  pactl load-module module-null-sink sink_name=ft8loopback \
+        sink_properties=device.description=FT8Loopback
+  pactl set-default-sink ft8loopback
+  pactl set-default-source ft8loopback.monitor
+  ```
+- [ ] WSL2 Linux daemon configured with `audioDeviceId = "pulse"`.
+  **Do NOT save settings via the browser UI** — the empty device dropdown will overwrite
+  this value to `null` (D-LINUX-001, pending fix). Configure via `POST /api/v1/config`
+  with the full correct body if a reset is needed (see RUNBOOK.md §1.5).
+- [ ] **Audio chain verified end-to-end:** run `python smoke_test_null_sink.py` from
+  inside `.venv-linux` in WSL2 — must print `✅ PASSED` for all three appraisers (Windows,
+  Linux, WSJT-X). The updated script checks WSJT-X ALL.TXT for a recent decode.
+  See §5.6.4 for the six-point verification gate.
 - [ ] System clock accurate (NTP synced on both Windows and WSL2).
 - [ ] No other audio playback or capture applications running.
-- [ ] Python harness virtual environment activated on the platform running `run_study.py`.
+- [ ] Python harness virtual environment activated: `.venv` (Windows) for
+  `run_study_xplat.py`; `.venv-linux` (WSL2) activated by the orchestrator automatically.
+- [ ] WSJT-X ALL.TXT location confirmed: `C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT`
+  (or note actual path in Section 2 of the report if different).
 
 ---
 
@@ -527,9 +605,10 @@ Before starting a production run:
 
 ## 13. Run history
 
-| Date | SHA | Shim | Windows %GR&R | Linux %GR&R | Platform κ | Overall | Notes |
+| Date | SHA | Shim | Windows %GR&R | Linux %GR&R | Platform κ (Win/Lin) | Overall | Notes |
 |---|---|---|---|---|---|---|---|
-| *(first run pending)* | | | | | | | |
+| 2026-07-01 | b03998f | 20260030 | — (S2 only) | — (S2 only) | 0.852 | **FAIL** | Pilot two-appraiser run. S2/S3/S4/S5/S7 only (S1/S1b/S3b not measured). Platform κ MARGINAL. SNR FAIL (18 dB gain asymmetry). Freq FAIL (−10.5 Hz offset). McNemar FAIL (n12=125, n21=0, p=0.0000) — directional, caused by gain asymmetry not decoder defect. FP parity PASS. Report: `results/2026-07-01-b03998f/report.md`. |
+| *(v2 run pending normalization)* | | | | | | | Audio normalization (§5.6) required before next run. |
 
 ---
 
@@ -541,16 +620,27 @@ This study **extends** rather than replaces STUDY-SPEC.md. The two studies share
 - The same NFR-023 five-section report structure.
 
 The key differences:
-- **Appraisers:** Windows + WSJT-X → Windows daemon + Linux daemon.
-- **Audio path for Linux:** WASAPI shared mode → ALSA–PulseAudio–WSLg bridge.
-- **Ground truth:** Still synthesized (no WSJT-X third-party reference in this study).
-- **Run logistics:** Two daemons must run concurrently on the same physical machine.
+
+| Dimension | STUDY-SPEC.md (existing) | This study |
+|---|---|---|
+| Appraisers | Windows daemon + WSJT-X | Windows daemon + Linux daemon + WSJT-X |
+| WSJT-X role | **Appraiser** (primary reference) | **Appraiser** (decoder comparison) |
+| Ground truth | Synthesized | Synthesized |
+| Audio path | WASAPI shared mode (both appraisers) | WASAPI (Windows/WSJT-X) + PulseAudio (Linux) |
+| Run logistics | Single machine, two appraisers | Single machine, three appraisers; Linux in WSL2 |
+| Primary question | OpenWSFZ decode rate vs WSJT-X reference | Cross-platform binary parity; audio chain characterization |
+
+WSJT-X appears in both studies: in STUDY-SPEC.md it is the *primary reference decoder*
+against which OpenWSFZ is validated. In this study it is a *third appraiser* that allows
+isolation of the decoder effect from the audio-chain effect. This dual role is intentional
+and the results are complementary rather than contradictory.
 
 Results from this study and from STUDY-SPEC.md runs are **not directly comparable** (different
-appraisers) but the scenario definitions are identical, enabling qualitative comparison of
-each platform's absolute decode-rate and measurement accuracy.
+operating points and normalization states) but the scenario definitions are identical, enabling
+qualitative comparison of each platform's absolute decode-rate and measurement accuracy.
 
 ---
 
-*Authored by QA, 2026-06-30. Study execution pending WSL2 environment setup.*
-*Companion handoff: `dev-tasks/2026-06-30-wsl-linux-rr-environment.md`.*
+*Authored by QA, 2026-06-30.*  
+*Amended 2026-07-01: three-appraiser design; audio normalization requirements added.*  
+*Companion handoffs: `dev-tasks/2026-06-30-wsl-linux-rr-environment.md`; `dev-tasks/2026-07-01-xplat-three-appraiser-harness.md`.*
