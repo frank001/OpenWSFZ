@@ -120,6 +120,20 @@ qa/rr-study/results/corpus-*/run_manifest.json
 
 # D-009 / OSD false-positive evidence — S5 AWGN decode files ALWAYS contain OSD CRC-14
 # coincidences (ITU-assignable callsign patterns) → NFR-021 violation if committed.
-# These files must remain local only. S7 owsfz-all.txt files must be scrubbed before commit.
+# S7 high-scene-complexity files carry the same risk (noise-floor FPs at −27 dB).
+# Both must remain local only and must be reviewed / scrubbed before any commit.
 owsfz-s5-all.txt
+owsfz-s7-all.txt
 openswfz-*.log
+
+# Linux cross-platform R&R — runtime artefacts generated at repo root during WSL2 sessions.
+# These are operator files, not source, and may contain callsigns (NFR-021).
+linux-all.txt
+linux-daemon.log
+
+# Native build diagnostic variants — intermediate DLLs produced during
+# D-009 / libft8_cfg* ablation builds; not source-controlled.
+native/ft8_lib_build/libft8_cfg*.dll
+native/ft8_lib_build/libft8_diag.dll
+native/ft8_lib_build/libft8_prod_backup.dll
+native/ft8_lib_build/rebuild_*.txt

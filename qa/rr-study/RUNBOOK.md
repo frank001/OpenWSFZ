@@ -609,37 +609,27 @@ and §5.6.2 once (settings persist); verify §5.6.3 at the start of each session
 The pilot study showed a ~10–16 Hz frequency offset on the Linux path, caused by
 PulseAudio running at 44100 Hz while the synthesiser and Windows use 48000 Hz.
 
-**In a WSL2 terminal:**
+**Resolution (applied 2026-07-02):** `start-daemon.sh` now passes `rate=48000`
+explicitly when creating the `ft8loopback` null-sink. This is the definitive fix:
+the null-sink rate is set at creation time, independently of the PulseAudio server
+default, so the fix survives WSL2 restarts without touching PulseAudio config.
+
+> **Note on daemon.conf approach (attempted, abandoned 2026-07-02):** WSLg owns
+> the PulseAudio process on Debian 13 — the `pulseaudio` binary is not available
+> in the user PATH, so `pulseaudio -k` fails. `~/.config/pulse/daemon.conf` is
+> not picked up without a PulseAudio restart. `/etc/pulse/daemon.conf` requires
+> `sudo` and an interactive terminal. None of these paths are viable in a running
+> session. The `start-daemon.sh` `rate=48000` approach supersedes them all.
+
+**Verification:** after running `start-daemon.sh`, confirm:
 
 ```bash
-# Step 1 — Check current rate
-pactl info | grep "Default Sample"
-# If it shows "44100 Hz", proceed. If "48000 Hz", this is already fixed.
-
-# Step 2 — Check if user daemon.conf exists
-cat ~/.config/pulse/daemon.conf 2>/dev/null || echo "(not found — will create)"
-
-# Step 3 — Set 48000 Hz
-mkdir -p ~/.config/pulse
-cat >> ~/.config/pulse/daemon.conf << 'EOF'
-default-sample-rate = 48000
-alternate-sample-rate = 48000
-EOF
-
-# Step 4 — Restart PulseAudio
-pulseaudio -k
-sleep 2
-pulseaudio --start --log-target=syslog
-
-# Step 5 — Verify
-pactl info | grep "Default Sample"
-# Must show: Default Sample Specification: s16le 2ch 48000Hz
+pactl list sinks short | grep ft8loopback
+# Must show: ft8loopback  module-null-sink.c  s16le 2ch 48000Hz
 ```
 
-> If `pulseaudio -k` fails with "connection refused" (WSLg manages PulseAudio),
-> restart WSL2 entirely (`wsl --shutdown` from Windows, then relaunch) and check
-> again. WSLg typically uses its own PulseAudio; in that case set the rate in
-> `/etc/pulse/daemon.conf` (requires `sudo`) and restart WSL.
+The PulseAudio server itself may still report 44100 Hz via `pactl info`; that is
+harmless as long as the null-sink is explicitly at 48000 Hz.
 
 ---
 
@@ -752,3 +742,99 @@ Only when all six items are checked should a formal R&R run be started.
 | Decodes are garbled / SNR is wildly off | Sample-rate mismatch / Windows resampling | Set both sides to 48000 Hz default format (§1.2). |
 | Feedback / echo on monitors | *CABLE Output* "Listen to this device" enabled | Untick it (§1.2). |
 | No audio reaches the apps | Media/harness output device ≠ *CABLE Input* | Point the player/harness at **CABLE Input**. |
+
+---
+
+## 7. WSL2 cross-platform R&R — closure note (2026-07-02)
+
+### 7.1 Decision
+
+**The WSL2-based three-appraiser cross-platform R&R study is suspended indefinitely.**
+Production R&R runs against the Linux daemon using this approach are not feasible in
+the current configuration. The infrastructure brought-up work (AC-1 through AC-11) is
+preserved as a validated starting point should the approach be revisited.
+
+### 7.2 Root causes of abandonment
+
+The study design requires both the Linux daemon and the Windows appraisers (Windows
+daemon + WSJT-X) to receive the *same signal at the same amplitude*. The dual-path
+architecture — WSL2 null-sink for Linux, Voicemeeter B2 for Windows — introduces
+structural measurement-system errors that cannot be eliminated without equipment changes:
+
+| Issue | Magnitude | Nature | Mitigated? |
+|---|---|---|---|
+| **SNR offset** — ft8loopback delivers signal ~18 dB louder than Voicemeeter B2 path | ~18 dB | Systematic; all Windows appraisers vs Linux | No — §5.6.2 calibration not completed |
+| **DT bias** — ft8loopback delivers audio ~1 s earlier than WSLg/Voicemeeter path | ~−1 s | Systematic; affects timing comparison | Inherent to dual-path routing; not eliminable |
+| **Voicemeeter gain calibration** (§5.6.2) — iterative fader adjustment required each session | N/A | Host-session-dependent; fragile | Procedure written; not practical for repeatable runs |
+| **PulseAudio server rate** — WSLg daemon runs at 44100 Hz; null-sink forced to 48000 Hz by `start-daemon.sh` | ~10–16 Hz freq offset | Fixed at null-sink; server mismatch persists | Partially — null-sink fix applied (§5.6.1) |
+| **WSLg RDP bridge** (original D3 design) — `RDPSink.monitor` reliability is host-config-dependent | N/A | Superseded by null-sink approach | Superseded; not used for production runs |
+
+The `2026-06-30-b03998f` run directory represents the last formal attempt: the harness
+was started, the truth CSV was generated, and the run was aborted without capturing
+decode results due to the gain offset making meaningful SNR comparison impossible.
+
+### 7.3 What was accomplished
+
+The infrastructure brought-up work is a genuine and reusable result:
+
+- **AC-1 through AC-11** — all verified (see §1.5). The Linux daemon runs correctly
+  inside WSL2 Debian 13, captures from `ft8loopback.monitor`, and decodes synthetic
+  FT8 at the expected SNR.
+- **End-to-end decode chain** — confirmed (AC-10, 2026-07-01): synthesiser in WSL2
+  plays to null-sink; Linux daemon decodes 3/3 cycles at −7/−8 dB SNR.
+- **Dual-path smoke test** — confirmed (AC-11, 2026-07-01): both Linux and Windows
+  daemons decode the same synthetic signal simultaneously via the combined sink.
+- **PulseAudio null-sink approach** — validated as a clean, self-contained audio
+  injection method. Supersedes the fragile WSLg bridge original design.
+- **`start-daemon.sh`** — automates null-sink creation at 48000 Hz; handles daemon
+  launch; documented `D-LINUX-001` (audio-device wipe via settings UI).
+- **Diagnostic tooling** — eight diagnostic scripts committed to `qa/rr-study/`:
+  `diag_null_sink_rms.py`, `diag_format_check.py`, `diag_wav_check.py`,
+  `diag_aplay_native.py`, `verify_audio_chain.py`, `verify_loopback.py`,
+  `verify_wasapi.py`, `check_hostapi.py`, `check_rdp_rms.py`, `list_devices.py`.
+
+### 7.4 Gentoo path forward (provisional)
+
+A dedicated Gentoo Linux machine (headless, with real audio hardware) offers a
+potentially cleaner path to Linux daemon R&R:
+
+**Advantages over WSL2:**
+
+- Real audio hardware — no virtual audio cable, no Voicemeeter, no dual-path routing
+- Single-path null-sink: synthesiser → PulseAudio null-sink → daemon captures from
+  `.monitor` → WSJT-X (if available) captures from the same `.monitor`
+- No WSLg, no RDPSink, no 18 dB gain offset problem
+- Native Linux (not WSL2) — no WSLg PulseAudio ownership issues
+- PulseAudio daemon.conf is user-controllable (no WSLg override)
+
+**Constraints to resolve before pursuing:**
+
+1. **WSJT-X on headless Linux** — requires Xvfb + VNC or X11 forwarding, or the
+   study reverts to a single-appraiser design (Linux daemon vs synthesiser oracle only).
+2. **SSH + audio forwarding** — the synthesiser harness must run on the Gentoo machine
+   (or PulseAudio TCP socket / SSH tunnel used to inject audio remotely).
+3. **Shim version alignment** — Linux `libft8.so` must match the committed shim version
+   before any run.
+
+**Single-appraiser alternative (no WSJT-X required):** Run S1–S8 scenarios on the
+Gentoo daemon only, comparing against the synthesiser ground truth. This gives a valid
+decode-rate vs SNR curve for the Linux daemon without requiring a second appraiser.
+The Windows vs Linux comparison is deferred to a separate study where both machines
+run the same scenario sequentially with the same seeded corpus (sequential design,
+not concurrent — statistical power is lower but the measurement is valid).
+
+### 7.5 Noise-floor false positive note (NFR-021 implication)
+
+S5 (pure noise, no signal) and S7 (high scene complexity) scenarios produce noise-floor
+false positive decodes. At −25 to −30 dB SNR, the FT8 CRC (14 bits) occasionally
+passes for random bit patterns, producing decoded strings that match the format of
+real amateur callsigns. These are **not real transmissions** — they are coincidental
+CRC matches in AWGN — but the resulting strings are indistinguishable from real
+third-party callsigns and constitute personal data under NFR-021.
+
+**Rule:** `owsfz-all.txt` and `wsjt-all.txt` files from S5/S7/noise-floor scenarios
+**must be reviewed before committing**. If any line contains a callsign that is not a
+synthetic Q-prefix call, the file must either be scrubbed or left untracked. The
+committed result files in this repository have been reviewed; the `diag-nhard-2026-06-20`
+and `diag-pass1-sweep-2026-06-21` owsfz-all.txt files were **not committed** for this
+reason.

@@ -1,0 +1,3 @@
+trial_index,cycle_phase,probe_message,probe_freq_hz,probe_snr_db,interferer_freq_hz,interferer_snr_db,offset_hz,arm_cycle_utc,probe_cycle_utc,seed
+0,probe,Q4XYZ Q1ABC -07,1500.0,0.0,1507.0,0.0,7.0,2026-06-19T20:51:30Z,2026-06-19T20:52:00Z,164727969
+1,probe,Q4XYZ Q1ABC -07,1500.0,0.0,1507.0,0.0,7.0,2026-06-19T20:52:30Z,2026-06-19T20:53:00Z,1781272122
