@@ -96,3 +96,16 @@
 - [x] `web/js/settings.js`: import `getApiKey`; update back-link at module scope (IIFE, before `backLink.addEventListener`) with `?key=` for the same reason
 - [x] **Test 8.6** updated — assert `Location: /login.html?return=%2F` (previously just `/login.html`)
 - [x] **Test 8.9** added — `GET /settings.html` from non-loopback without key → 302 with `Location: /login.html?return=%2Fsettings.html`
+
+### D-LAN-006 — Passphrase required when remote access enabled (2026-06-27, `6cdb26b`)
+
+- [x] `src/OpenWSFZ.Web/WebApp.cs`: add validation block in `POST /api/v1/config` handler — reject (400) when `RemoteAccess.Enabled = true` and `Passphrase` is null/whitespace; prevents operator committing a config that `LanModeValidator` (SEC-001) would refuse at daemon start
+- [x] `web/js/settings.js`: client-side guard in the Save handler — show inline error and abort `POST` when remote access is enabled and passphrase input is empty
+- [x] `web/settings.html`: passphrase field placeholder changed from "Leave empty for open LAN access" to "Required when remote access is enabled"; hint text updated accordingly
+- [x] `src/OpenWSFZ.Abstractions/RemoteAccessConfig.cs`: `Passphrase` XML-doc comment updated to reflect mandatory-when-enabled constraint
+- [x] **Tests** — four new cases: `enabled=true, passphrase=null` → 400; `enabled=true, passphrase="   "` → 400; `enabled=true, passphrase="hunter2"` → 200; `enabled=false, passphrase=null` → 200
+
+### R5-SEC-F4 — WebSocket auth-frame fragmentation loop (2026-07-02, `fix/r5-sec-f4-ws-frame-loop`)
+
+- [x] `src/OpenWSFZ.Web/WebSocketHub.cs` `AuthenticateViaFrameAsync`: replaced single `ReceiveAsync` call with a `do/while (!result.EndOfMessage)` loop accumulating bytes in a `MemoryStream` (128-byte initial capacity, 4 096-byte size guard); `timeoutTask` created once before the loop so the 5-second budget is shared across all fragments; `firstFragment` flag preserves the `MessageType != Text` guard on the first fragment only; `ms.ToArray().AsSpan()` passed to `JsonSerializer.Deserialize` in place of the single-frame buffer span
+- [x] `tests/OpenWSFZ.Web.Tests/WebSocketHubAuthTests.cs`: six new unit tests via `FakeWebSocket` test double — single frame (non-regression), two-fragment valid key, two-fragment wrong key, oversized frame, malformed JSON, binary first frame
