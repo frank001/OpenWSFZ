@@ -48,6 +48,8 @@ _REPEAT_CYCLES  = 3                   # play signal N consecutive cycles — gua
                                       # PulseAudio onset latency
 _LINUX_ALL_TXT  = _QA_ROOT.parent.parent / "linux-all.txt"   # Linux daemon AllTxtWriter output
 _WIN_ALL_TXT    = _QA_ROOT.parent.parent / "ALL.TXT"          # Windows daemon AllTxtWriter output
+# WSJT-X log — accessible from WSL2 via /mnt/c mount
+_WSJT_ALL_TXT   = Path("/mnt/c/Users/Frank/AppData/Local/WSJT-X/ALL.TXT")
 _SETTLE_S       = 8                   # seconds after last cycle ends to wait for decode
 
 
@@ -85,6 +87,7 @@ def main() -> None:
     print(f"  Sample rate  : {_SAMPLE_RATE} Hz")
     print(f"  Linux log    : {_LINUX_ALL_TXT}")
     print(f"  Windows log  : {_WIN_ALL_TXT}")
+    print(f"  WSJT-X log   : {_WSJT_ALL_TXT}")
     print()
 
     # ── Enumerate sounddevice devices ─────────────────────────────────────────
@@ -147,10 +150,11 @@ def main() -> None:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         return [l for l in lines if "Q1ABC" in l]
 
-    lin_hits = _check_log(_LINUX_ALL_TXT, "Linux")
-    win_hits = _check_log(_WIN_ALL_TXT,   "Windows")
+    lin_hits  = _check_log(_LINUX_ALL_TXT, "Linux")
+    win_hits  = _check_log(_WIN_ALL_TXT,   "Windows")
+    wsjt_hits = _check_log(_WSJT_ALL_TXT,  "WSJT-X")
 
-    # Filter to only lines plausibly from this run (crude: any Q1ABC hit)
+    # ── Report results ────────────────────────────────────────────────────────
     print()
     print("─── Linux daemon (ft8loopback.monitor) ──────────────────────────────")
     if lin_hits:
@@ -175,8 +179,30 @@ def main() -> None:
         print("             Windows daemon captures from Voicemeeter Out B2")
 
     print()
-    if lin_hits and win_hits:
-        print("Smoke test PASSED — both daemons received the signal.")
+    print("─── WSJT-X (Voicemeeter Out B2) ─────────────────────────────────────")
+    if not _WSJT_ALL_TXT.exists():
+        print(f"  ⚠️   WSJT-X ALL.TXT not found at {_WSJT_ALL_TXT}")
+        print("      (WSJT-X check skipped — not an error if WSJT-X is not running)")
+        wsjt_available = False
+    elif wsjt_hits:
+        print(f"  ✅  {len(wsjt_hits)} decode(s) total in log (last 3):")
+        for h in wsjt_hits[-3:]:
+            print(f"     {h}")
+        wsjt_available = True
+    else:
+        print("  ❌  No Q1ABC decodes in WSJT-X ALL.TXT")
+        print("      Check: WSJT-X is running and listening on Voicemeeter Out B2")
+        wsjt_available = True  # file exists but no hit
+
+    print()
+    # Verdict logic: Windows + Linux are mandatory; WSJT-X is optional
+    if lin_hits and win_hits and (not wsjt_available or wsjt_hits):
+        status = "PASSED"
+        label  = "all three appraisers" if wsjt_available and wsjt_hits else "both mandatory daemons"
+        print(f"Smoke test {status} — {label} received the signal.")
+    elif lin_hits and win_hits:
+        print("Smoke test PASSED (mandatory) — Windows + Linux OK.")
+        print("  WSJT-X: no hits (check WSJT-X is running and tuned to correct VFO).")
     elif lin_hits:
         print("Smoke test PARTIAL — Linux OK, Windows silent. Check Voicemeeter routing.")
         sys.exit(1)
@@ -184,7 +210,7 @@ def main() -> None:
         print("Smoke test PARTIAL — Windows OK, Linux silent. Check ft8combined default sink.")
         sys.exit(1)
     else:
-        print("Smoke test FAILED — neither daemon decoded the signal.")
+        print("Smoke test FAILED — neither mandatory daemon decoded the signal.")
         sys.exit(1)
 
 

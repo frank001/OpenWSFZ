@@ -59,6 +59,8 @@ _RESULTS       = _HERE / "results"
 _DEFAULT_WINDOWS_ALL_TXT = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 # Linux daemon writes to this Windows-accessible path (set in daemon config)
 _DEFAULT_LINUX_ALL_TXT   = Path(r"D:\Projects\claude\OpenWSFZ\linux-all.txt")
+# WSJT-X ALL.TXT — appended across sessions; matcher filters by cycle_utc
+_WSJT_ALL_TXT = Path(r"C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT")
 
 # The WSL2 scenario runner writes truth.csv to the study run_dir (via --run-dir).
 # The Windows daemon receives audio passively via RDPSink/Voicemeeter — no
@@ -190,10 +192,16 @@ def main() -> None:
              "path (e.g. D:\\...\\linux-all.txt, which the WSL2 daemon "
              f"writes as /mnt/d/.../linux-all.txt). Default: {_DEFAULT_LINUX_ALL_TXT}",
     )
+    parser.add_argument(
+        "--wsjt-all-txt", default=str(_WSJT_ALL_TXT),
+        help="Path to WSJT-X ALL.TXT (optional; a WARNING is emitted if absent). "
+             f"Default: {_WSJT_ALL_TXT}",
+    )
     args = parser.parse_args()
 
-    win_path = Path(args.windows_all_txt)
-    lin_path = Path(args.linux_all_txt)
+    win_path  = Path(args.windows_all_txt)
+    lin_path  = Path(args.linux_all_txt)
+    wsjt_path = Path(args.wsjt_all_txt)
 
     # ── Build scenario list ─────────────────────────────────────────────────
     if args.scenarios:
@@ -226,6 +234,7 @@ def main() -> None:
     print("=" * 70)
     print(f"  Windows ALL.TXT  : {win_path}")
     print(f"  Linux ALL.TXT    : {lin_path}")
+    print(f"  WSJT-X ALL.TXT   : {wsjt_path}")
     print(f"  WSL2 device      : {args.linux_device}  (ft8combined → ft8loopback + RDPSink)")
     print(f"  Scenarios        : {', '.join(scenario_ids)}")
     if args.parts:
@@ -247,6 +256,9 @@ def main() -> None:
         print("  [ ] Both daemons on same shim version: GET /api/v1/status")
         print("  [ ] Audio chain verified: python smoke_test_null_sink.py  →  PASSED (both)")
         print()
+        if not wsjt_path.exists():
+            print(f"  WARNING: WSJT-X ALL.TXT not found at {wsjt_path} — WSJT-X will be skipped")
+            print()
         ans = input("All items confirmed? [Y/n]: ").strip().lower()
         if ans not in ("", "y", "yes"):
             sys.exit("Aborted. Complete the pre-flight checklist and re-run.")
@@ -295,27 +307,33 @@ def main() -> None:
             f"       WSL2 path would be: {wsl_hint}"
         )
 
-    win_dest = run_dir / "windows-all.txt"
-    lin_dest = run_dir / "linux-all.txt"
+    win_dest  = run_dir / "windows-all.txt"
+    lin_dest  = run_dir / "linux-all.txt"
     shutil.copy2(win_path, win_dest)
     shutil.copy2(lin_path, lin_dest)
     print(f"  Copied Windows  → {win_dest.name}")
     print(f"  Copied Linux    → {lin_dest.name}")
 
+    wsjt_dest = run_dir / "wsjt-all.txt"
+    if wsjt_path.exists():
+        shutil.copy2(wsjt_path, wsjt_dest)
+        print(f"  Copied WSJT-X   → {wsjt_dest.name}")
+    else:
+        print(f"  WARNING: WSJT-X ALL.TXT not found at {wsjt_path} — skipping")
+
     # ── Step 3: Run cross-platform matcher for each scenario ─────────────────
     print("\nRunning cross-platform matcher ...")
     for scen_id in scenario_ids:
-        subprocess.run(
-            [
-                str(_VENV_PYTHON), "harness/matcher_xplat.py",
-                "--run-dir",  str(run_dir),
-                "--scenario", scen_id,
-                "--windows",  str(win_dest),
-                "--linux",    str(lin_dest),
-            ],
-            cwd=str(_HERE),
-            check=True,
-        )
+        cmd = [
+            str(_VENV_PYTHON), "harness/matcher_xplat.py",
+            "--run-dir",  str(run_dir),
+            "--scenario", scen_id,
+            "--windows",  str(win_dest),
+            "--linux",    str(lin_dest),
+        ]
+        if wsjt_dest.exists():
+            cmd += ["--wsjt", str(wsjt_dest)]
+        subprocess.run(cmd, cwd=str(_HERE), check=True)
         print(f"  [OK] {scen_id} matched\n", flush=True)
 
     # ── Step 4: Analyse ───────────────────────────────────────────────────────
