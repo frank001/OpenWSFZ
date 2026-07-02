@@ -69,12 +69,13 @@ recover.
 
 ## Acceptance criteria
 
-- [ ] Saving any settings tab on the Linux daemon UI **does not** change
+- [x] Saving any settings tab on the Linux daemon UI **does not** change
       `audioDeviceId` when the audio device dropdown is empty.
-- [ ] `GET /api/v1/config` after a settings save still returns
+- [x] `GET /api/v1/config` after a settings save still returns
       `"audioDeviceId": "pulse"` (or whatever was previously configured).
-- [ ] The regression test passes.
-- [ ] The fix does not break the Windows settings flow (where the dropdown IS
+- [ ] The regression test passes. — **No automated test added; see Implementation
+      notes below for why, and what was verified instead.**
+- [x] The fix does not break the Windows settings flow (where the dropdown IS
       populated and saving the selected device must still work).
 
 ---
@@ -87,3 +88,63 @@ recover.
 - `qa/rr-study/RUNBOOK.md` §1.5 — Linux daemon config (`audioDeviceId: "pulse"`)  
 - Deferred QA items: R3-O1, R3-O2 in MEMORY.md — related pattern of falsy-value
   substitution in `settings.js` parse blocks  
+
+---
+
+## Implementation notes (2026-07-02)
+
+**Step 3 finding — server merge behaviour confirmed:** `POST /api/v1/config` in
+`WebApp.cs` (`await store.SaveAsync(config, ct)`, line ~433) fully replaces
+`store.Current` with the deserialised request body — there is no field-level
+merge anywhere in the config pipeline. This is exercised deliberately by
+existing tests (`AudioConfigIntegrationTests.PostConfig_PersistsUpdatedConfig_AndSubsequentGetReflectsChange`,
+`LogLevel_RoundTrips_ViaConfigApi`), which post partial payloads and expect the
+rest of the config to fall back to `AppConfig` defaults. Adding server-side
+null-preservation would contradict this existing, intentional contract (and
+would prevent an operator from ever *deliberately* clearing a field via a full
+save). **The fix is client-side only**, per the task's own contingency note.
+
+**Fix implemented in `web/js/settings.js`:**
+- New `audioOpaqueFields` module-level variable, following the existing
+  `catOpaqueFields` (FR-039) "carry forward server-managed fields the UI
+  can't edit" pattern.
+- On load, if `devices.length === 0` (the Linux case — `GET /api/v1/audio/devices`
+  never enumerates) and `config.audioDeviceId` is non-null, the loaded
+  `audioDeviceId`/`audioDeviceFriendlyName` are captured into
+  `audioOpaqueFields`. `deviceSelect.value` still falls back to `''`
+  ("(none)") since there's no matching `<option>`, but the real value is now
+  remembered.
+- Scoped strictly to the **empty-list** case, not "value doesn't match any
+  option" — this deliberately leaves the pre-existing Windows
+  disconnected/unplugged-device behaviour untouched, so an operator can still
+  select "(none)" to deliberately clear a stale device on Windows.
+- A `change` listener on `deviceSelect` clears `audioOpaqueFields` the moment
+  the operator interacts with the dropdown, so a genuine selection (including
+  explicitly picking "(none)" after first picking something else) is always
+  authoritative and never silently reverted.
+- The Save handler now falls back to `audioOpaqueFields.audioDeviceId` /
+  `audioDeviceFriendlyName` when `deviceSelect.value` is empty, instead of
+  unconditionally sending `null`.
+- Windows flow (populated list, value matches an enumerated option) is
+  unaffected: `audioOpaqueFields` stays `{}`, so `audioDeviceId` is taken
+  straight from `deviceSelect.value` exactly as before.
+
+**Why no automated regression test (step 4) was added:** the repository has
+no JS test runner, harness, or `package.json` of any kind (`find` for
+`package.json` / `.eslintrc*` at repo root returned nothing) — this mirrors
+the prior R3-O1/R3-O2 JS-only fix (`eee59ca`), which also shipped without an
+automated test. A C#-level regression test asserting "`POST` with
+`audioDeviceId: null` does not overwrite the stored value" was considered and
+rejected: it would assert server behaviour that is intentionally *not* being
+changed (see Step 3 finding above) and would contradict the existing
+`AudioConfigIntegrationTests` contract tests. What **was** verified:
+- `node --check web/js/settings.js` — syntax valid.
+- Full `AudioConfigIntegrationTests` suite (9 tests) re-run — all pass
+  unchanged, confirming the server-side contract is untouched.
+- Manual code-path trace through both the Linux (`devices.length === 0`) and
+  Windows (populated list, matched/unmatched/user-cleared) scenarios (see
+  above).
+
+Recommend a UAT scenario (browser + WSL2 daemon, per the original defect
+report) as the practical verification step for this fix, added to the next
+UAT session.

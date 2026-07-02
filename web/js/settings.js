@@ -202,6 +202,25 @@ catEnabled.addEventListener('change', updateDialFreqLock);
 
 let catOpaqueFields = {};
 
+/**
+ * D-LINUX-001: on platforms with no audio device enumeration (e.g. Linux,
+ * where GET /api/v1/audio/devices returns [] by design and the audio device
+ * is configured manually in the JSON config file, such as "pulse"), the
+ * device <select> has no option matching the configured audioDeviceId. The
+ * dropdown therefore falls back to its empty "(none)" selection even though
+ * a device IS configured. Populated here on load whenever that situation is
+ * detected; carried forward verbatim by the Save handler so an unrelated
+ * settings save does not silently null out the manually-configured device.
+ * @type {{audioDeviceId?: string|null, audioDeviceFriendlyName?: string|null}}
+ */
+let audioOpaqueFields = {};
+
+// D-LINUX-001: once the operator deliberately interacts with the device
+// dropdown, its value (including an explicit "(none)") is authoritative —
+// stop carrying forward the stale opaque value so a genuine clear-selection
+// is respected rather than silently reverted.
+deviceSelect.addEventListener('change', () => { audioOpaqueFields = {}; });
+
 // ── Dirty-state snapshot (FR-040) ────────────────────────────────────────
 
 /** JSON string of form values captured immediately after a successful page load.
@@ -441,10 +460,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     deviceSelect.appendChild(noneOpt);
 
     if (devices.length === 0) {
-      const noDevOpt = document.createElement('option');
-      noDevOpt.disabled     = true;
-      noDevOpt.textContent  = 'No devices found';
-      deviceSelect.appendChild(noDevOpt);
+      // D-LINUX-001: the daemon has no audio device enumeration on Linux.
+      // Add a real selectable option so the dropdown is not visually broken
+      // and Save naturally sends the correct device ID without any opaque
+      // field carry-forward logic being needed.
+      const sysOpt = document.createElement('option');
+      sysOpt.value       = 'pulse';
+      sysOpt.textContent = 'System default (PulseAudio)';
+      deviceSelect.appendChild(sysOpt);
     } else {
       for (const dev of devices) {
         const opt = document.createElement('option');
@@ -455,7 +478,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Pre-select the configured device (p7: use audioDeviceId, not audioDeviceName).
-    deviceSelect.value = config.audioDeviceId ?? '';
+    // On Linux (empty device list) fall back to 'pulse' so the synthetic
+    // "System default (PulseAudio)" option is always pre-selected.
+    deviceSelect.value = config.audioDeviceId || (devices.length === 0 ? 'pulse' : '');
+
+    // D-LINUX-001: audioOpaqueFields is retained as a safety net for any edge
+    // case where deviceSelect.value ends up empty despite the synthetic option
+    // (e.g. a future platform with empty enumeration but a non-pulse device ID).
+    audioOpaqueFields = (devices.length === 0)
+        ? {
+            audioDeviceId:           config.audioDeviceId || 'pulse',
+            audioDeviceFriendlyName: config.audioDeviceFriendlyName ?? null,
+          }
+        : {};
 
     // Populate output device selector.
     outputDeviceSelect.innerHTML = '';
@@ -736,11 +771,18 @@ saveBtn.addEventListener('click', async () => {
   clearFeedback();
 
   // p7: capture both device ID (for WASAPI) and friendly name (for display).
-  const audioDeviceId           = deviceSelect.value.trim() || null;
+  // D-LINUX-001: when the dropdown has no selection (e.g. Linux, where the
+  // device list is never enumerated), fall back to the opaque carried-forward
+  // value captured on load instead of submitting null and silently wiping the
+  // manually configured device out from under the daemon.
+  const deviceSelectValue       = deviceSelect.value.trim();
   const selectedOption          = deviceSelect.options[deviceSelect.selectedIndex];
-  const audioDeviceFriendlyName = audioDeviceId
+  const audioDeviceId           = deviceSelectValue
+      ? deviceSelectValue
+      : (audioOpaqueFields.audioDeviceId ?? null);
+  const audioDeviceFriendlyName = deviceSelectValue
       ? (selectedOption?.textContent?.trim() || null)
-      : null;
+      : (audioOpaqueFields.audioDeviceFriendlyName ?? null);
 
   // Audio output device (TX pipeline routing).
   const audioOutputDeviceId       = outputDeviceSelect.value.trim() || null;
