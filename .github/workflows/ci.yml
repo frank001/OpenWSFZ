@@ -113,34 +113,30 @@ jobs:
       - name: Verify deterministic macOS link
         if: runner.os == 'macOS'
         run: |
-          cd /tmp/ft8_lib
-          # Relink into a separate directory using the SAME output filename.
-          # Apple's ad-hoc code-signing embeds the output *filename* as the
-          # signature identifier (visible via `codesign -dvvv`), so comparing
-          # against a differently-named file (e.g. libft8-relink-check.dylib)
-          # always mismatches regardless of build determinism — that was a
-          # false positive in an earlier version of this check.
+          # Relink from a SEPARATE directory but with the exact same relative
+          # -o argument ("libft8.dylib"), so the embedded LC_ID_DYLIB string
+          # (ld embeds the literal -o argument verbatim, not a resolved
+          # absolute path) matches the original build byte-for-byte. Using a
+          # different path string here (e.g. an absolute path to a sibling
+          # dir) changes LC_ID_DYLIB's cmdsize and cascades into every
+          # subsequent section offset — a false positive from two earlier
+          # versions of this check, not real link non-determinism.
           mkdir -p /tmp/ft8_lib_relink_check
+          cp /tmp/ft8_lib/*.o /tmp/ft8_lib_relink_check/
+          cd /tmp/ft8_lib_relink_check
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -Wl,-no_uuid \
-            -o /tmp/ft8_lib_relink_check/libft8.dylib \
+            -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
             monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
-          if ! cmp -s libft8.dylib /tmp/ft8_lib_relink_check/libft8.dylib; then
+          if ! cmp -s /tmp/ft8_lib/libft8.dylib libft8.dylib; then
             echo "=== DIAGNOSTIC: sizes ==="
-            ls -la libft8.dylib /tmp/ft8_lib_relink_check/libft8.dylib
-            echo "=== DIAGNOSTIC: mach header (build 1) ==="
-            otool -h libft8.dylib
-            echo "=== DIAGNOSTIC: mach header (build 2) ==="
-            otool -h /tmp/ft8_lib_relink_check/libft8.dylib
+            ls -la /tmp/ft8_lib/libft8.dylib libft8.dylib
             echo "=== DIAGNOSTIC: full load commands diff ==="
-            otool -l libft8.dylib > /tmp/lc1.txt
-            otool -l /tmp/ft8_lib_relink_check/libft8.dylib > /tmp/lc2.txt
+            otool -l /tmp/ft8_lib/libft8.dylib > /tmp/lc1.txt
+            otool -l libft8.dylib > /tmp/lc2.txt
             diff -u /tmp/lc1.txt /tmp/lc2.txt || true
-            echo "=== DIAGNOSTIC: which clang/ld ==="
-            clang --version
-            ld -version 2>&1 || true
-            echo "::error::macOS dylib link is non-deterministic — two consecutive links of identical object files, same output filename, produced different bytes. This will cause spurious commit-native-binaries PRs."
+            echo "::error::macOS dylib link is non-deterministic — two consecutive links of identical object files, same -o argument, produced different bytes. This will cause spurious commit-native-binaries PRs."
             exit 1
           fi
           echo "macOS link verified deterministic (byte-identical relink)."
