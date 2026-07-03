@@ -114,25 +114,28 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd /tmp/ft8_lib
+          # Relink into a separate directory using the SAME output filename.
+          # Apple's ad-hoc code-signing embeds the output *filename* as the
+          # signature identifier (visible via `codesign -dvvv`), so comparing
+          # against a differently-named file (e.g. libft8-relink-check.dylib)
+          # always mismatches regardless of build determinism — that was a
+          # false positive in an earlier version of this check.
+          mkdir -p /tmp/ft8_lib_relink_check
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -Wl,-no_uuid \
-            -o libft8-relink-check.dylib \
+            -o /tmp/ft8_lib_relink_check/libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
             monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
-          if ! cmp -s libft8.dylib libft8-relink-check.dylib; then
+          if ! cmp -s libft8.dylib /tmp/ft8_lib_relink_check/libft8.dylib; then
             echo "=== DIAGNOSTIC: sizes ==="
-            ls -la libft8.dylib libft8-relink-check.dylib
+            ls -la libft8.dylib /tmp/ft8_lib_relink_check/libft8.dylib
             echo "=== DIAGNOSTIC: first 20 differing byte offsets ==="
-            cmp -l libft8.dylib libft8-relink-check.dylib | head -20
-            echo "=== DIAGNOSTIC: LC_UUID / signature info (build 1) ==="
-            otool -l libft8.dylib | grep -A4 "LC_UUID\|LC_CODE_SIGNATURE" || true
-            echo "=== DIAGNOSTIC: LC_UUID / signature info (build 2) ==="
-            otool -l libft8-relink-check.dylib | grep -A4 "LC_UUID\|LC_CODE_SIGNATURE" || true
+            cmp -l libft8.dylib /tmp/ft8_lib_relink_check/libft8.dylib | head -20
             echo "=== DIAGNOSTIC: codesign build 1 ==="
             codesign -dvvv libft8.dylib 2>&1 || true
             echo "=== DIAGNOSTIC: codesign build 2 ==="
-            codesign -dvvv libft8-relink-check.dylib 2>&1 || true
-            echo "::error::macOS dylib link is non-deterministic — two consecutive links of identical object files produced different bytes. This will cause spurious commit-native-binaries PRs."
+            codesign -dvvv /tmp/ft8_lib_relink_check/libft8.dylib 2>&1 || true
+            echo "::error::macOS dylib link is non-deterministic — two consecutive links of identical object files, same output filename, produced different bytes. This will cause spurious commit-native-binaries PRs."
             exit 1
           fi
           echo "macOS link verified deterministic (byte-identical relink)."
