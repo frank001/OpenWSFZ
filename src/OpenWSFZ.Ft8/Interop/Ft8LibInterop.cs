@@ -199,8 +199,15 @@ internal static class Ft8LibInterop
     ///   OSD_CORR_THRESHOLD and OSD_NHARD_MAX in decode.c replaced by extern globals owned
     ///   by ft8_shim.c (defaults 0.10f, 60).  No change to decode logic, ABI, struct layout
     ///   (48 bytes), or existing entry points.  Default values identical to shim 20260029.
+    /// 20260031 (f-001-hashed-callsign-resolution): the native callsign hash table used by
+    ///   <see cref="DecodeAll"/> is now a process-global static (g_session_hash_table)
+    ///   instead of a per-call stack-local one, so a Type 4 message's nonstandard callsign,
+    ///   once decoded, resolves correctly when referenced by 22-bit hash in a Type 1/2/3
+    ///   message in a later decode cycle. No change to this managed layer, ABI, or struct
+    ///   layout (48 bytes) — <see cref="ExpectedShimVersion"/> is bumped purely so the
+    ///   startup ABI check catches a stale (pre-fix) native binary.
     /// </summary>
-    private const int ExpectedShimVersion = 20260030;
+    private const int ExpectedShimVersion = 20260031;
 
     /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.

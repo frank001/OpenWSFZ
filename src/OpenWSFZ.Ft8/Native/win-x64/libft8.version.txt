@@ -1,13 +1,15 @@
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20260030 (decoder-settings-page):
-                  Adds ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold,
-                  int osd_nhard_max) — runtime-configurable OSD gate parameters.
-                  Three module-level (non-static) globals replace compile-time #defines so the
-                  UI can expose K_MIN_SCORE_PASS2, OSD_CORR_THRESHOLD, and OSD_NHARD_MAX without
-                  a daemon restart. Defaults unchanged from 20260029: K=10, corr=0.10f, nhard=60.
-                  No change to decode logic, struct layout, or existing entry points.
-                  Previous: FT8_SHIM_VERSION = 20260029 (D-009 fp-callsign-filter).
+Shim version:     FT8_SHIM_VERSION = 20260031 (f-001-hashed-callsign-resolution):
+                  ft8_decode_all's callsign hash table is now a process-global static
+                  (g_session_hash_table), initialised once and reused for the life of the
+                  process instead of being allocated fresh and destroyed on every call. A
+                  Type 4 message's nonstandard callsign, once decoded, now resolves correctly
+                  when referenced by 22-bit hash in a Type 1/2/3 message in a later decode
+                  cycle. Bounded at 256 entries (reject-when-full, unchanged); AV-safe (table
+                  contents survive a caught access violation — only the thread-local pointer
+                  is detached). No ABI change, no struct layout change, no new entry points.
+                  Previous: FT8_SHIM_VERSION = 20260030 (decoder-settings-page).
 sizeof(FT8Result): 48 bytes
 SNR formula:      local_noise_floor (K=32) − 26.5 dB (unchanged from 20260012)
 Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_counts, ft8_get_max_passes,
@@ -17,8 +19,8 @@ Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_count
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-06-24 (decoder-settings-page: FT8_SHIM_VERSION=20260030;
-                              ft8_set_decode_params added; shim compiled from
+Build date:       2026-07-03 (f-001-hashed-callsign-resolution: FT8_SHIM_VERSION=20260031;
+                              session-scoped callsign hash table; shim compiled from
                               Native/ft8_shim.c using rebuild_shim.bat)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)

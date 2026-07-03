@@ -1,72 +1,129 @@
 ## 1. Native shim — persistent hash table (D1)
 
-- [ ] 1.1 Confirm the current `FT8_SHIM_VERSION` value in `ft8_shim.c` at implementation time and
+- [x] 1.1 Confirm the current `FT8_SHIM_VERSION` value in `ft8_shim.c` at implementation time and
       reserve the next sequential version number (design D4); do not assume `20260030` is still
       current.
-- [ ] 1.2 Add a process-global `static callsign_table_t g_session_hash_table` (and an
+      → Confirmed 20260030 was current; reserved 20260031.
+- [x] 1.2 Add a process-global `static callsign_table_t g_session_hash_table` (and an
       initialisation guard, e.g. `static bool g_hash_table_initialised`) near the existing
       `tls_hash_table` declaration in `ft8_shim.c`.
-- [ ] 1.3 In `ft8_decode_all`, replace the per-call stack-local `callsign_table_t htbl` /
+- [x] 1.3 In `ft8_decode_all`, replace the per-call stack-local `callsign_table_t htbl` /
       `hash_table_init(&htbl)` with: initialise `g_session_hash_table` once on first use, then set
       `tls_hash_table = &g_session_hash_table` at the top of every call (no re-init on subsequent
       calls).
-- [ ] 1.4 Confirm `tls_hash_table = NULL` still executes on both the normal-return path and the
+- [x] 1.4 Confirm `tls_hash_table = NULL` still executes on both the normal-return path and the
       `__except` (SEH) path, and that neither path calls `hash_table_init` on
       `g_session_hash_table` (design D2 — contents survive a caught AV; only the pointer is
       detached).
-- [ ] 1.5 Leave `ft8_encode_message`'s existing per-call local table untouched — encoding computes
+      → Confirmed unchanged; neither path was ever modified by this task.
+- [x] 1.5 Leave `ft8_encode_message`'s existing per-call local table untouched — encoding computes
       hashes fresh via `ihashcall` and does not depend on prior session state (per design Context).
-- [ ] 1.6 Update the version-history comment block at the top of `ft8_shim.c` with a new entry
+      → Confirmed untouched (still saves/restores `tls_hash_table` around its own local table).
+- [x] (discovered during implementation) `Ft8LibInterop.cs`'s `ExpectedShimVersion` constant
+      (line ~203) is a separate managed-side copy of the ABI version check, not mentioned in
+      proposal.md's Impact section ("no required change to Ft8Decoder.cs" — true, but this is
+      a different file). Bumped 20260030 → 20260031 to match; without this, `LoadAndVerify()`
+      throws `InvalidOperationException` for every native call against the rebuilt DLL. Noted
+      here so this isn't lost as a "no managed change" false assumption in future shim bumps.
+- [x] 1.6 Update the version-history comment block at the top of `ft8_shim.c` with a new entry
       describing this change, following the existing style (see prior entries such as
       `fix-d004-local-noise-floor`, `decoder-settings-page`) — reference this change's name and
       summarise the persistent-table behaviour and the D2/D3 decisions.
 
 ## 2. Native shim — diagnostics (optional per design Open Questions)
 
-- [ ] 2.1 Decide whether to add a native-only counter/log for `hash_table_add`'s
+- [x] 2.1 Decide whether to add a native-only counter/log for `hash_table_add`'s
       reject-when-full guard (design's saturation risk mitigation), or defer until real session
       logs show it triggering. If added, keep it native-only (no new P/Invoke surface) per the
       Open Questions recommendation.
+      → Added `static int g_hash_table_reject_count` (native-only, no P/Invoke surface),
+      incremented inside `hash_table_add`'s existing full-table guard, per the Open
+      Questions' recommendation.
 
 ## 3. Tests — native/shim-level
 
-- [ ] 3.1 Add a synthetic two-cycle test: encode a Type 4 message announcing a nonstandard
+- [x] 3.1 Add a synthetic two-cycle test: encode a Type 4 message announcing a nonstandard
       callsign, decode it via `ft8_decode_all` in "cycle 1," then encode and decode (in a
       separate `ft8_decode_all` call, "cycle 2") a Type 1/2/3 message referencing that callsign's
       22-bit hash; assert the cycle-2 decoded text contains the full callsign rather than a hash
       placeholder. Covers the primary spec requirement (Cross-cycle callsign hash resolution).
-- [ ] 3.2 Add a regression test confirming a hash with no prior Type 4 announcement in the
+      → `HashedCallsignResolutionTests.CrossCycleResolution_Type4ThenHashReference_ResolvesFullCallsign`.
+      `ft8_encode_message`'s auto-dispatcher can never actually reach `ftx_message_encode_nonstd`
+      for well-formed callsigns (`pack28`'s nonstandard-hash fallback always makes
+      `ftx_message_encode_std` succeed first), so a new `TestFt8Encoder.PackType4CqAnnounce`
+      hand-packs a genuine Type 4 wire signal instead — see that method's doc comment.
+- [x] 3.2 Add a regression test confirming a hash with no prior Type 4 announcement in the
       session still decodes to the existing `<...>` placeholder (unchanged behaviour) — covers
       "Never-announced hash remains unresolved."
-- [ ] 3.3 Add a regression test confirming same-cycle resolution (Type 4 and its hash reference
+      → `HashedCallsignResolutionTests.NeverAnnouncedHash_DecodesToPlaceholder`.
+- [x] 3.3 Add a regression test confirming same-cycle resolution (Type 4 and its hash reference
       both decoded within one `ft8_decode_all` call) still works — covers "Same-cycle resolution
       continues to work."
-- [ ] 3.4 Add a table-saturation test: fill the table to its 256-entry capacity with distinct
+      → `HashedCallsignResolutionTests.SameCycleResolution_Type4AndHashReferenceInOneCall_BothResolve`.
+- [x] 3.4 Add a table-saturation test: fill the table to its 256-entry capacity with distinct
       callsigns, then attempt to add one more; assert the new callsign is rejected and all
       previously stored entries remain resolvable and unchanged — covers "Bounded hash table
       growth."
-- [ ] 3.5 Add (or extend an existing) AV-path test confirming that after a simulated/forced fault
+      → `HashedCallsignResolutionTests.HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive`.
+      The table is process-global and shared by the whole test assembly with no reset entry
+      point (by design), so the test can't assume it starts empty — it sidesteps this by adding
+      264 (> 256) distinct new callsigns itself, batched 8-per-DecodeAll-call for CI runtime.
+      See the test's doc comment for the full reasoning.
+- [x] 3.5 Add (or extend an existing) AV-path test confirming that after a simulated/forced fault
       path, a subsequent unrelated `ft8_decode_all` call executes normally and previously learned
       hash mappings from before the fault remain resolvable — covers "Exception-path safety." If
       the existing D-006 AV test harness cannot easily simulate a fault mid-decode, document why
       and cover this via careful code review of the exception path instead; note the gap in the
       PR description.
+      → Gap confirmed and documented: `AvContainmentTests`'s `ThrowingNativeInterop` is a pure
+      C# fake that never calls into the real native shim, so it cannot simulate a genuine AV
+      mid-decode. Documented in `AvContainmentTests.cs`'s class summary; covered instead by code
+      review of the `__except` handler (only ever executes `tls_hash_table = NULL;`, never
+      touches `g_session_hash_table`'s contents — see design D2).
+- [x] (discovered during implementation) Test-suite parallelization risk: the persistent table
+      is the first native global *written* concurrently by decode calls across xUnit's
+      default parallel test-class execution (previously each call had an isolated stack-local
+      table). Flagged to the user; resolved by disabling assembly-wide test parallelization
+      (`tests/OpenWSFZ.Ft8.Tests/AssemblyInfo.cs`, `[assembly: CollectionBehavior
+      (DisableTestParallelization = true)]`) so every native-decode test observes a single,
+      serialised view of the table.
 
 ## 4. Managed-layer verification (no code change expected)
 
-- [ ] 4.1 Confirm `Ft8Decoder.cs`'s `IsPlausibleMessage` and the D-005 trim-fix path require no
+- [x] 4.1 Confirm `Ft8Decoder.cs`'s `IsPlausibleMessage` and the D-005 trim-fix path require no
       changes — run the existing `D005MessageTrimTests` and `Ft8DecoderPlausibilityTests` suites
       unmodified against the updated native shim to confirm no regression.
-- [ ] 4.2 Confirm no existing R&R study synthetic corpus scenario exercises nonstandard/hashed
+      → Both suites pass unmodified (see 5.2 full-suite run); no code changes needed, confirming
+      the proposal's Impact section assessment for these two files.
+- [x] 4.2 Confirm no existing R&R study synthetic corpus scenario exercises nonstandard/hashed
       callsign forms (per the proposal's Impact section); if one is found to exist, re-run the
       relevant R&R scenario and record the result in the change's QA notes before merge.
+      → Confirmed: the S1–S8 synthetic corpus (qa/rr-study) and the committed
+      `synth-qso-01/02/03` fixtures use only standard 6-char-shaped fictional Q-prefix
+      callsigns (Q1AW, Q1ABC, Q9XYZ, etc.) — none are nonstandard/compound-shaped, so none
+      exercise the Type 4 / hash-reference path. No re-run needed; this change is additive to a
+      message class not currently exercised by the corpus, matching the proposal's Impact
+      section.
 
 ## 5. Build & regression
 
-- [ ] 5.1 Rebuild `libft8.dll` from the updated shim per `BUILD.md`.
-- [ ] 5.2 Run the full `OpenWSFZ.Ft8.Tests` suite against the rebuilt native binary.
+- [x] 5.1 Rebuild `libft8.dll` from the updated shim per `BUILD.md`.
+      → Rebuilt via native/ft8_lib_build/rebuild_shim.bat (MSVC 19.44.35223); copied to
+      src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll; win-x64/libft8.version.txt updated.
+- [x] 5.2 Run the full `OpenWSFZ.Ft8.Tests` suite against the rebuilt native binary.
+      → `dotnet test`: 198/198 passed (0 failed), ~53 s total. Includes the 4 new
+      f-001-hashed-callsign-resolution tests and all pre-existing suites (D-005, D-006/AV,
+      D-009, R&R fixture gate, etc.) unmodified and green.
 - [ ] 5.3 Run the existing R&R study synthetic corpus (S1–S8 baseline) to confirm no regression in
       overall decode/false-positive rates versus the current baseline reference run.
+      → DEFERRED (by user decision) to a manual run outside this session: `run_study.py` /
+      `run_study_xplat.py` require a live audio rig (real WSJT-X, VB-CABLE/PulseAudio routing,
+      both daemons running simultaneously, interactive pre-flight prompts) not appropriate to
+      run unattended mid-implementation. Per 4.2, none of S1–S8's scenarios use
+      nonstandard/hashed callsigns, so this change cannot affect any of their outcomes (the new
+      code path is only reachable via `ftx_message_decode_nonstd`/the 22-bit-hash branch of
+      `unpack28`, neither exercised by the existing corpus) — this is a low-risk deferral, not a
+      blind skip. Run manually before merge if the Captain wants belt-and-braces confirmation.
 
 ## 6. Optional / stretch — Gap B: AP-assist for nonstandard callsigns (not required for merge)
 
@@ -74,10 +131,18 @@
       tokens (`CQ`/`DE`/`QRZ`, "CQ nnn", "CQ ABCD") and nonstandard/hashed callsigns
       (`NTOKENS ≤ n28 < NTOKENS + MAX22` range, via the same `ihashcall` algorithm described in
       design.md) so `Pack28` no longer returns `[]` for these cases.
+      → DEFERRED (by user decision) to a follow-up change. Not started.
 - [ ] 6.2 (Stretch) Wire the extended packer into `QsoAnswererService.cs` /
       `QsoCallerService.cs`'s AP-constraint construction so AP decode-assist remains active when
       either party's callsign is nonstandard.
+      → DEFERRED (by user decision) to a follow-up change. Not started; depends on 6.1.
 - [ ] 6.3 (Stretch) Add tests confirming AP-assisted decode succeeds for a nonstandard-callsign
       QSO exchange once both 1.x (persistent table) and 6.1/6.2 are in place.
-- [ ] 6.4 If Gap B is deferred, note it explicitly as a follow-up in the change's closing notes /
+      → DEFERRED (by user decision) to a follow-up change. Not started; depends on 6.1/6.2.
+- [x] 6.4 If Gap B is deferred, note it explicitly as a follow-up in the change's closing notes /
       archive summary so it isn't lost.
+      → Noted here and to be carried into the archive summary: Gap B (AP-assisted decode for
+      nonstandard/compound callsigns) remains open. The core guarantee this change ships —
+      cross-cycle hash resolution via the persistent native table — is a prerequisite for Gap B
+      (hinting a hash the decoder couldn't look up before would have bought nothing), and is now
+      in place, so Gap B is unblocked for whenever a follow-up change takes it on.

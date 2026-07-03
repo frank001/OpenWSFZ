@@ -306,6 +306,31 @@
  *   omitting the call produces identical behaviour.  No change to decode logic, ABI,
  *   struct layout, or any existing entry points.
  *
+ * f-001-hashed-callsign-resolution (FT8_SHIM_VERSION 20260031):
+ *
+ *   ft8_decode_all's callsign hash table (htbl) was previously a stack-local
+ *   callsign_table_t, allocated fresh and destroyed on every call — so a Type 4
+ *   message's full-text nonstandard callsign was immediately forgotten and could
+ *   never be resolved by a Type 1/2/3 message's 22-bit hash reference in a later
+ *   15-second cycle, even though that is the entire point of the hash mechanism
+ *   (WSJT-X keeps this table alive for the life of the running session).
+ *
+ *   Fix: htbl is replaced by a process-global static, g_session_hash_table,
+ *   guarded by a one-shot g_hash_table_initialised flag.  tls_hash_table (still
+ *   _Thread_local — see D1 in the change's design.md for why a thread-local table
+ *   would be worse than today's fully-deterministic-empty behaviour) is set to
+ *   &g_session_hash_table at the top of every call instead of at a freshly-zeroed
+ *   local, and is still cleared to NULL at the end of the call and on the __except
+ *   (SEH) path — only the pointer is detached on both paths; hash_table_init is
+ *   never called again after the first call, so the global's contents survive a
+ *   caught access violation untouched (D2: neither documented AV root cause —
+ *   D-006 message.c pointer truncation, RQ-2 waterfall OOB read — has any code
+ *   path that writes into this table's memory).  Eviction policy is unchanged:
+ *   hash_table_add still rejects new entries once the 256-slot table is full (D3 —
+ *   true FIFO eviction deferred; see design.md Risks for the saturation mitigation).
+ *   ft8_encode_message's own per-call local table is untouched.  No ABI change; no
+ *   struct layout change; no new exported entry points.
+ *
  * Build: see BUILD.md.  encode.c and patched/ft8/decode.c must be compiled and linked.
  */
 
@@ -517,12 +542,21 @@ static bool hash_table_lookup(callsign_table_t* tbl,
     callsign[0] = '\0'; return false;
 }
 
+/* f-001-hashed-callsign-resolution (shim 20260031, design Open Questions): native-only
+ * counter for hash_table_add's reject-when-full guard.  Not exposed via P/Invoke (no
+ * new managed-layer surface per the design's recommendation) — intended to be inspected
+ * with a debugger/dump if the 256-slot saturation risk is ever suspected in the field.
+ * Deliberately not thread-local: it is a best-effort diagnostic counter, not used for
+ * any decode-affecting decision, so an occasional missed increment under concurrent
+ * decode is an acceptable trade-off against adding synchronisation to the hot path. */
+static int g_hash_table_reject_count = 0;
+
 static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t hash)
 {
     /* Guard: discard new callsigns when the table is full rather than looping
      * forever.  Full table → unknown callsigns display as <HASH>, matching
      * WSJT-X first-seen behaviour; no crash, no hang, no data corruption. */
-    if (tbl->count >= HASH_TABLE_SIZE) return;
+    if (tbl->count >= HASH_TABLE_SIZE) { g_hash_table_reject_count++; return; }
 
     uint16_t h10 = (hash >> 12) & 0x3FFu;
     int      idx = (h10 * 23) % HASH_TABLE_SIZE;
@@ -537,6 +571,16 @@ static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t
     tbl->entries[idx].callsign[11] = '\0';
     tbl->entries[idx].hash = hash;
 }
+
+/* f-001-hashed-callsign-resolution (shim 20260031): session-scoped hash table for
+ * ft8_decode_all.  Process-global rather than thread-local — see design D1 — so a
+ * Type 4 message's callsign, once decoded, resolves against a later hash reference
+ * regardless of which thread-pool thread the .NET side happens to run each decode
+ * cycle on.  Initialised once on first use; never re-initialised, so its contents
+ * persist for the life of the process (see ft8_decode_all section 2 and the
+ * cleanup / __except paths below). */
+static callsign_table_t g_session_hash_table;
+static bool              g_hash_table_initialised = false;
 
 static _Thread_local callsign_table_t* tls_hash_table = NULL;
 static bool cb_lookup_hash(ftx_callsign_hash_type_t t, uint32_t h, char* cs) {
@@ -1072,10 +1116,15 @@ int ft8_decode_all(
     for (int pos = 0; pos + mon.block_size <= pcm_len; pos += mon.block_size)
         monitor_process(&mon, pcm + pos);
 
-    /* ── 2. Callsign table ───────────────────────────────────────────────── */
-    callsign_table_t htbl;
-    hash_table_init(&htbl);
-    tls_hash_table = &htbl;
+    /* ── 2. Callsign table (f-001-hashed-callsign-resolution, shim 20260031) ─
+     * Session-scoped: initialised once, then reused (not re-zeroed) by every
+     * subsequent call so a Type 4 message decoded in an earlier cycle remains
+     * resolvable by hash in this and later cycles.  See design D1/D2/D3.     */
+    if (!g_hash_table_initialised) {
+        hash_table_init(&g_session_hash_table);
+        g_hash_table_initialised = true;
+    }
+    tls_hash_table = &g_session_hash_table;
 
     /* ── 3. Noise floor ──────────────────────────────────────────────────── */
     float     noise_floor_db;
