@@ -129,12 +129,17 @@ jobs:
           if ! cmp -s libft8.dylib /tmp/ft8_lib_relink_check/libft8.dylib; then
             echo "=== DIAGNOSTIC: sizes ==="
             ls -la libft8.dylib /tmp/ft8_lib_relink_check/libft8.dylib
-            echo "=== DIAGNOSTIC: first 20 differing byte offsets ==="
-            cmp -l libft8.dylib /tmp/ft8_lib_relink_check/libft8.dylib | head -20
-            echo "=== DIAGNOSTIC: codesign build 1 ==="
-            codesign -dvvv libft8.dylib 2>&1 || true
-            echo "=== DIAGNOSTIC: codesign build 2 ==="
-            codesign -dvvv /tmp/ft8_lib_relink_check/libft8.dylib 2>&1 || true
+            echo "=== DIAGNOSTIC: mach header (build 1) ==="
+            otool -h libft8.dylib
+            echo "=== DIAGNOSTIC: mach header (build 2) ==="
+            otool -h /tmp/ft8_lib_relink_check/libft8.dylib
+            echo "=== DIAGNOSTIC: full load commands diff ==="
+            otool -l libft8.dylib > /tmp/lc1.txt
+            otool -l /tmp/ft8_lib_relink_check/libft8.dylib > /tmp/lc2.txt
+            diff -u /tmp/lc1.txt /tmp/lc2.txt || true
+            echo "=== DIAGNOSTIC: which clang/ld ==="
+            clang --version
+            ld -version 2>&1 || true
             echo "::error::macOS dylib link is non-deterministic — two consecutive links of identical object files, same output filename, produced different bytes. This will cause spurious commit-native-binaries PRs."
             exit 1
           fi
