@@ -93,10 +93,60 @@ jobs:
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
             monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
+          # ld embeds a fresh, randomly-generated LC_UUID on every link (see
+          # chore/ci-native-binary-reproducibility, 2026-07-03). Omitting it
+          # via -Wl,-no_uuid is NOT viable — dyld refuses to dlopen a Mach-O
+          # image with no LC_UUID at all ("missing LC_UUID load command"),
+          # which broke every macOS test that P/Invokes this library. Instead,
+          # zero the UUID *value* in place (the load command itself stays
+          # present, satisfying dyld) and re-sign, which is deterministic for
+          # identical input since ad-hoc signing contacts no timestamp
+          # authority. See tools/zero_dylib_uuid.py for the full rationale.
+          python3 "$GITHUB_WORKSPACE/tools/zero_dylib_uuid.py" libft8.dylib
           echo "=== macOS dylib exports ==="
           nm -gU libft8.dylib | grep "ft8_"
           cp libft8.dylib \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib"
+
+      # -----------------------------------------------------------------
+      # Regression guard for the commit-native-binaries churn fixed in
+      # chore/ci-native-binary-reproducibility (2026-07-03): this proves the
+      # link + UUID-zeroing + re-sign pipeline above is actually
+      # deterministic by relinking the same object files a second time and
+      # diffing the output, so a future regression fails CI immediately
+      # instead of resurfacing as PR churn days later (see PR #23 and four
+      # earlier no-op merges under the label "shim 20260030").
+      # -----------------------------------------------------------------
+      - name: Verify deterministic macOS link
+        if: runner.os == 'macOS'
+        run: |
+          # Relink from a SEPARATE directory but with the exact same relative
+          # -o argument ("libft8.dylib"), so the embedded LC_ID_DYLIB string
+          # (ld embeds the literal -o argument verbatim, not a resolved
+          # absolute path) matches the original build byte-for-byte. Using a
+          # different path string here (e.g. an absolute path to a sibling
+          # dir) changes LC_ID_DYLIB's cmdsize and cascades into every
+          # subsequent section offset — a false positive from two earlier
+          # versions of this check, not real link non-determinism.
+          mkdir -p /tmp/ft8_lib_relink_check
+          cp /tmp/ft8_lib/*.o /tmp/ft8_lib_relink_check/
+          cd /tmp/ft8_lib_relink_check
+          clang -dynamiclib -target arm64-apple-macos11.0 \
+            -o libft8.dylib \
+            constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
+          python3 "$GITHUB_WORKSPACE/tools/zero_dylib_uuid.py" libft8.dylib
+          if ! cmp -s /tmp/ft8_lib/libft8.dylib libft8.dylib; then
+            echo "=== DIAGNOSTIC: sizes ==="
+            ls -la /tmp/ft8_lib/libft8.dylib libft8.dylib
+            echo "=== DIAGNOSTIC: full load commands diff ==="
+            otool -l /tmp/ft8_lib/libft8.dylib > /tmp/lc1.txt
+            otool -l libft8.dylib > /tmp/lc2.txt
+            diff -u /tmp/lc1.txt /tmp/lc2.txt || true
+            echo "::error::macOS dylib link is non-deterministic — two consecutive links of identical object files, same -o argument, produced different bytes. This will cause spurious commit-native-binaries PRs."
+            exit 1
+          fi
+          echo "macOS link verified deterministic (byte-identical relink)."
 
       - name: Upload macOS dylib artifact
         if: runner.os == 'macOS'
