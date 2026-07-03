@@ -130,6 +130,12 @@ owsfz-s5-all.txt
 owsfz-s7-all.txt
 openswfz-*.log
 
+# Same rule, different naming convention: the ablation-study harness (run_ablation.py)
+# writes the plain filename "owsfz-all.txt" inside a directory suffixed "-s5" instead of
+# encoding "s5" into the filename itself (e.g. cfg1-s5/owsfz-all.txt). Same NFR-021 risk,
+# same "never commit" rule — this pattern just matches the directory-name convention.
+**/*-s5/owsfz-all.txt
+
 # Linux cross-platform R&R — runtime artefacts generated at repo root during WSL2 sessions.
 # These are operator files, not source, and may contain callsigns (NFR-021).
 linux-all.txt
