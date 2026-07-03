@@ -65,6 +65,10 @@ licence-inventory.md
 resume.txt
 notes/
 
+# Ad-hoc Playwright/Node scaffolding for browser-driven UAT scripts (e.g. D-LINUX-001
+# DOM-inspection verification). Reinstallable on demand; never a deliverable.
+qa/uat-tmp/
+
 # D001 PCM-SIC development corpus — real off-air WAVs and ALL.TXT logs containing
 # real third-party callsigns; local only (NFR-021 / GDPR).
 D001-pcm-sic_items/
