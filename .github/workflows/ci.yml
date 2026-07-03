@@ -120,6 +120,18 @@ jobs:
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
             monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
           if ! cmp -s libft8.dylib libft8-relink-check.dylib; then
+            echo "=== DIAGNOSTIC: sizes ==="
+            ls -la libft8.dylib libft8-relink-check.dylib
+            echo "=== DIAGNOSTIC: first 20 differing byte offsets ==="
+            cmp -l libft8.dylib libft8-relink-check.dylib | head -20
+            echo "=== DIAGNOSTIC: LC_UUID / signature info (build 1) ==="
+            otool -l libft8.dylib | grep -A4 "LC_UUID\|LC_CODE_SIGNATURE" || true
+            echo "=== DIAGNOSTIC: LC_UUID / signature info (build 2) ==="
+            otool -l libft8-relink-check.dylib | grep -A4 "LC_UUID\|LC_CODE_SIGNATURE" || true
+            echo "=== DIAGNOSTIC: codesign build 1 ==="
+            codesign -dvvv libft8.dylib 2>&1 || true
+            echo "=== DIAGNOSTIC: codesign build 2 ==="
+            codesign -dvvv libft8-relink-check.dylib 2>&1 || true
             echo "::error::macOS dylib link is non-deterministic — two consecutive links of identical object files produced different bytes. This will cause spurious commit-native-binaries PRs."
             exit 1
           fi
