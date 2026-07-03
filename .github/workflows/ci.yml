@@ -90,6 +90,7 @@ jobs:
             -target arm64-apple-macos11.0 -c \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/ft8_shim.c"
           clang -dynamiclib -target arm64-apple-macos11.0 \
+            -Wl,-no_uuid \
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
             monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
@@ -97,6 +98,32 @@ jobs:
           nm -gU libft8.dylib | grep "ft8_"
           cp libft8.dylib \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib"
+
+      # -----------------------------------------------------------------
+      # Regression guard for the commit-native-binaries churn fixed in
+      # chore/ci-native-binary-reproducibility (2026-07-03): Apple's ld64
+      # embeds a fresh LC_UUID load command on every link by default, which
+      # made libft8.dylib differ byte-for-byte between otherwise-identical
+      # CI runs and triggered spurious "binaries changed" PRs (see PR #23).
+      # -Wl,-no_uuid above fixes it; this step proves the link step is
+      # actually deterministic by relinking the same object files a second
+      # time and diffing the output, so a future flag regression fails CI
+      # immediately instead of resurfacing as PR churn days later.
+      # -----------------------------------------------------------------
+      - name: Verify deterministic macOS link
+        if: runner.os == 'macOS'
+        run: |
+          cd /tmp/ft8_lib
+          clang -dynamiclib -target arm64-apple-macos11.0 \
+            -Wl,-no_uuid \
+            -o libft8-relink-check.dylib \
+            constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
+          if ! cmp -s libft8.dylib libft8-relink-check.dylib; then
+            echo "::error::macOS dylib link is non-deterministic — two consecutive links of identical object files produced different bytes. This will cause spurious commit-native-binaries PRs."
+            exit 1
+          fi
+          echo "macOS link verified deterministic (byte-identical relink)."
 
       - name: Upload macOS dylib artifact
         if: runner.os == 'macOS'
