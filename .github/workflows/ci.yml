@@ -368,8 +368,14 @@ jobs:
   #
   # Only runs on direct-push events (not PRs from forks, where write
   # access is unavailable). Skipped when the push was itself made by
-  # the GitHub Actions bot (loop guard). The commit message carries
-  # [skip ci] so GitHub does not re-trigger the workflow.
+  # the GitHub Actions bot (loop guard, `github.actor != 'github-actions[bot]'`
+  # below) — that guard alone is sufficient to prevent this job re-triggering
+  # itself, so the commit message must NOT carry [skip ci]. That tag
+  # suppresses BOTH the push trigger AND the pull_request trigger for the
+  # tagged commit, which meant the auto-opened PR's three required status
+  # checks never posted and branch protection left it permanently BLOCKED
+  # (discovered 2026-07-03, PR #25 — see lesson 25 in
+  # project-state-2026-07.md). Do not reintroduce [skip ci] here.
   # -----------------------------------------------------------------
   commit-native-binaries:
     name: Commit rebuilt native binaries
@@ -443,7 +449,7 @@ jobs:
           git add \
             src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so \
             src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib
-          git commit -m "chore(native): rebuild Linux and macOS binaries to shim ${SHIM} [skip ci]"
+          git commit -m "chore(native): rebuild Linux and macOS binaries to shim ${SHIM}"
           git push --force origin "$BRANCH"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
           echo "shim=$SHIM"     >> "$GITHUB_OUTPUT"
