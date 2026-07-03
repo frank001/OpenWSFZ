@@ -376,18 +376,65 @@ jobs:
   # checks never posted and branch protection left it permanently BLOCKED
   # (discovered 2026-07-03, PR #25 — see lesson 25 in
   # project-state-2026-07.md). Do not reintroduce [skip ci] here.
+  #
+  # Gated on detect-native-changes (below): the macOS build is not
+  # byte-reproducible across separate runner instances (lesson 26 —
+  # compiler cold-path codegen drifts between runs even with identical
+  # source), so rebuilding on *every* push to main would spuriously detect
+  # a "diff" and open a cosmetic no-op PR almost every time, regardless of
+  # whether anything native-relevant changed (observed 2026-07-03: PRs #26
+  # and #28, the latter spawned by an unrelated .gitignore push). Skipping
+  # the rebuild entirely when the push touches none of the native-relevant
+  # paths eliminates that churn at the source instead of relying on someone
+  # to notice and close each spurious PR by hand.
   # -----------------------------------------------------------------
+  detect-native-changes:
+    name: Detect native-relevant changes
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor != 'github-actions[bot]'
+    outputs:
+      relevant: ${{ steps.check.outputs.relevant }}
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check whether this push touches native-relevant paths
+        id: check
+        run: |
+          BEFORE="${{ github.event.before }}"
+          # First push GitHub ever records for a ref reports an all-zero SHA
+          # for "before" — fall back to the immediate parent commit so the
+          # diff still has a valid starting point.
+          if [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^0+$ ]]; then
+            BEFORE="${{ github.sha }}^"
+          fi
+          echo "Diffing $BEFORE..${{ github.sha }}"
+          CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}")
+          echo "Changed files:"
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(src/OpenWSFZ\.Ft8/Native/|native/ft8_lib_build/|src/OpenWSFZ\.Ft8/Interop/Ft8LibInterop\.cs)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
   commit-native-binaries:
     name: Commit rebuilt native binaries
     runs-on: ubuntu-latest
-    needs: build-test
+    needs: [build-test, detect-native-changes]
     permissions:
       contents: write
       pull-requests: write
     if: |
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      github.actor != 'github-actions[bot]'
+      github.actor != 'github-actions[bot]' &&
+      needs.detect-native-changes.outputs.relevant == 'true'
 
     steps:
       - name: Checkout (full depth, with write access)
