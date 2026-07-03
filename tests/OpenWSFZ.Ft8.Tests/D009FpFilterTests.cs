@@ -22,7 +22,11 @@ namespace OpenWSFZ.Ft8.Tests;
 ///   <item>D9-R1 — reject blank / whitespace messages.</item>
 ///   <item>D9-R2 — reject single-token hex-dump strings ≥ 16 chars (unrecognised type).</item>
 ///   <item>D9-R3 — reject messages whose callsign-position token has a base length
-///     exceeding 6 chars, or total length exceeding 10 chars (not valid Type 1 packing).</item>
+///     exceeding 11 chars, or total length exceeding 11 chars (not valid Type 1 packing,
+///     nor a valid Type 4 literal nonstandard-callsign full-text field). Raised from the
+///     original 6/10-char ceiling by D-011 to admit genuine literal nonstandard callsigns
+///     (up to the true 11-char protocol maximum) without reopening the OSD false-positive
+///     hole for tokens that are genuinely oversized beyond that true maximum.</item>
 /// </list>
 /// </para>
 ///
@@ -97,9 +101,9 @@ public sealed class D009FpFilterTests
     // ── Unit tests: D9-R3 — oversized callsign in CQ message ─────────────────
 
     [Theory(DisplayName = "D009 D9-R3: IsPlausibleMessage rejects CQ messages with oversized callsigns")]
-    [InlineData("CQ ETRHB0I3RYO",   "11-char base callsign (observed OSD FP)")]
-    [InlineData("CQ GKC5JNL82FW",   "11-char base callsign (observed OSD FP)")]
-    [InlineData("CQ ELUX7QIYUCF",   "11-char base callsign")]
+    [InlineData("CQ ETRHB0I3RYOX",  "12-char base callsign — beyond the true 11-char protocol maximum (D-011)")]
+    [InlineData("CQ GKC5JNL82FWZ",  "12-char base callsign — beyond the true 11-char protocol maximum (D-011)")]
+    [InlineData("CQ ELUX7QIYUCFZ",  "12-char base callsign — beyond the true 11-char protocol maximum (D-011)")]
     public void IsPlausibleMessage_CqOversizedCallsign_ReturnsFalse(string text, string reason)
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
                $"'{text}' has an oversized CQ callsign and must be rejected by D9-R3 ({reason})");
@@ -107,9 +111,9 @@ public sealed class D009FpFilterTests
     // ── Unit tests: D9-R3 — oversized callsign in Standard QSO (sender) ──────
 
     [Theory(DisplayName = "D009 D9-R3: IsPlausibleMessage rejects Standard QSO with oversized sender callsign")]
-    [InlineData("UDWA9WGLHX <...> RR73",   "10-char sender (base 10 > 6; observed OSD FP)")]
-    [InlineData("DDK4NYWXBIU Q9XYZ RR73",  "11-char sender (base 11 > 6; observed OSD FP)")]
-    [InlineData("1RY8RU98FJ9 Q1ABC R-05",  "11-char sender (base 11 > 6; observed OSD FP)")]
+    [InlineData("UDWA9WGLHXQR <...> RR73",  "12-char sender — beyond the true 11-char protocol maximum (D-011)")]
+    [InlineData("DDK4NYWXBIUZ Q9XYZ RR73",  "12-char sender — beyond the true 11-char protocol maximum (D-011)")]
+    [InlineData("1RY8RU98FJ9Z Q1ABC R-05",  "12-char sender — beyond the true 11-char protocol maximum (D-011)")]
     public void IsPlausibleMessage_StandardQsoOversizedSender_ReturnsFalse(string text, string reason)
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
                $"'{text}' has an oversized sender callsign and must be rejected by D9-R3 ({reason})");
@@ -117,8 +121,8 @@ public sealed class D009FpFilterTests
     // ── Unit tests: D9-R3 — oversized callsign in Standard QSO (addressee) ───
 
     [Theory(DisplayName = "D009 D9-R3: IsPlausibleMessage rejects Standard QSO with oversized addressee callsign")]
-    [InlineData("Q1ABC ETRHB0I3RYO R-10",  "11-char addressee (base 11 > 6; observed OSD FP)")]
-    [InlineData("Q9XYZ 1RY8RU98FJ9 73",    "11-char addressee (base 11 > 6; observed OSD FP)")]
+    [InlineData("Q1ABC ETRHB0I3RYOX R-10",  "12-char addressee — beyond the true 11-char protocol maximum (D-011)")]
+    [InlineData("Q9XYZ 1RY8RU98FJ9Z 73",    "12-char addressee — beyond the true 11-char protocol maximum (D-011)")]
     public void IsPlausibleMessage_StandardQsoOversizedAddressee_ReturnsFalse(string text, string reason)
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
                $"'{text}' has an oversized addressee callsign and must be rejected by D9-R3 ({reason})");
@@ -126,10 +130,10 @@ public sealed class D009FpFilterTests
     // ── Unit tests: D9-R3 Gap A — 2-token messages: both tokens now checked ──────
 
     [Theory(DisplayName = "D009 Gap A (R2): IsPlausibleMessage rejects 2-token messages with oversized token")]
-    [InlineData("<...> M5E5B91HFHL", "11-char token1; was not caught before Gap A fix")]
-    [InlineData("<...> 7P8R9J2R3BG", "11-char token1")]
-    [InlineData("<...> UF5NDNNJD2P", "11-char token1")]
-    [InlineData("9ULLPTCDZH <...>",  "10-char token0 (base 10 > 6); hash in token1")]
+    [InlineData("<...> M5E5B91HFHLZ", "12-char token1, beyond the true 11-char protocol maximum (D-011); was not caught before Gap A fix")]
+    [InlineData("<...> 7P8R9J2R3BGZ", "12-char token1, beyond the true 11-char protocol maximum (D-011)")]
+    [InlineData("<...> UF5NDNNJD2PZ", "12-char token1, beyond the true 11-char protocol maximum (D-011)")]
+    [InlineData("9ULLPTCDZHQR <...>", "12-char token0, beyond the true 11-char protocol maximum (D-011); hash in token1")]
     public void IsPlausibleMessage_GapA_TwoTokenOversized_ReturnsFalse(string text, string reason)
         => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
                $"'{text}' has an oversized token in a 2-token message and must be rejected by Gap A ({reason})");
@@ -261,13 +265,13 @@ public sealed class D009FpFilterTests
             new Ft8NativeResult { FreqHz = 1450, Dt = 0.2f, Snr = -28, Message = "1DA5713612BD5A3C22" },
 
             // ── D9-R3: oversized callsign (must be filtered) ─────────────────
-            new Ft8NativeResult { FreqHz = 1500, Dt = 0.1f, Snr = -23, Message = "CQ ETRHB0I3RYO"         },
-            new Ft8NativeResult { FreqHz = 1600, Dt = 0.2f, Snr = -24, Message = "DDK4NYWXBIU Q9XYZ RR73" },
-            new Ft8NativeResult { FreqHz = 1700, Dt = 0.3f, Snr = -25, Message = "Q1ABC 1RY8RU98FJ9 73"   },
+            new Ft8NativeResult { FreqHz = 1500, Dt = 0.1f, Snr = -23, Message = "CQ ETRHB0I3RYOX"          },
+            new Ft8NativeResult { FreqHz = 1600, Dt = 0.2f, Snr = -24, Message = "DDK4NYWXBIUZ Q9XYZ RR73"  },
+            new Ft8NativeResult { FreqHz = 1700, Dt = 0.3f, Snr = -25, Message = "Q1ABC 1RY8RU98FJ9Z 73"    },
 
             // ── D9-R3 Gap A: 2-token both-token check (must be filtered) ─────
-            new Ft8NativeResult { FreqHz = 1800, Dt = 0.1f, Snr = -27, Message = "<...> M5E5B91HFHL" },
-            new Ft8NativeResult { FreqHz = 1850, Dt = 0.2f, Snr = -28, Message = "9ULLPTCDZH <...>"  },
+            new Ft8NativeResult { FreqHz = 1800, Dt = 0.1f, Snr = -27, Message = "<...> M5E5B91HFHLZ" },
+            new Ft8NativeResult { FreqHz = 1850, Dt = 0.2f, Snr = -28, Message = "9ULLPTCDZHQR <...>" },
 
             // ── D9-R3 Gap C: CQ with garbage grid field (must be filtered) ───
             new Ft8NativeResult { FreqHz = 1900, Dt = 0.1f, Snr = -26, Message = "CQ 3QQF EXLJSR"  },
