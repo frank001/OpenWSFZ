@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ R&amp;R Study Report — S5 FP Verification (D-009 R1 filter, branch fix/d009-fp-callsign-filter)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-rr-study-report-s5-fp-verification-d-009-r1-filter-branch-fixd009-fp-callsign-filter">OpenWSFZ R&amp;R Study Report — S5 FP Verification (D-009 R1 filter, branch fix/d009-fp-callsign-filter)</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-06-20</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>d40b4cdac047e1a4b5b8f14267b488048cf42f47</code></td>
+</tr>
+<tr>
+<td>Branch</td>
+<td><code>fix/d009-fp-callsign-filter</code></td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0 (inferred from binary date 2025-02-04)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<p><strong>Purpose of this run:</strong> Targeted S5-only verification that the D-009 R1 false-positive filter (commit <code>d40b4cd</code>) reduces the OSD-induced S5 FP rate below the gate threshold of 6.0%.</p>
+<p><strong>Background:</strong> The OSD fallback introduced at shim 20260025 (<code>fix/d001-osd-fallback</code>, merged <code>1809ce7</code>) evaluates up to 529 trial codewords per candidate when <code>bp_decode</code> fails to converge.  In pure noise (S5) or a busy band (S8) this generates CRC-14 coincidences at a non-trivial rate, producing garbage messages in ALL.TXT and the UI.  The full S1–S8 gate run at <code>6e821fa</code> (2026-06-20) measured S5 FP rate = 91.67% — gate-blocking FAIL.  That run raised defect D-009.</p>
+<p><strong>D-009 R1 fix (commit <code>d40b4cd</code>):</strong> Three new guard rules added to <code>Ft8Decoder.IsPlausibleMessage</code>:
+- D9-R1 — reject blank / whitespace messages.
+- D9-R2 — reject single-token strings ≥ 16 chars of pure uppercase hex (unrecognised message type rendered as hex dump).
+- D9-R3 — reject any callsign-position token whose base callsign exceeds 6 chars or whose total length (including <code>/suffix</code>) exceeds 10 chars.</p>
+<p><strong>Null hypothesis under test:</strong></p>
+<ul>
+<li><strong>H₀_D9:</strong> D9-R1 + D9-R2 + D9-R3 together reduce the S5 FP rate to ≤ 6.0%.
+  Rejection criterion: S5 FP rate (OpenWSFZ) &gt; 6.0% on the same 12-slot S5 noise-only protocol used in <code>6e821fa</code>.</li>
+</ul>
+<p><strong>What constitutes a meaningful result:</strong></p>
+<ul>
+<li>H₀_D9 NOT REJECTED (PASS, FP rate ≤ 6.0%): Filter is sufficient; branch ready for merge review.</li>
+<li>H₀_D9 REJECTED (FAIL, FP rate &gt; 6.0%): Filter is insufficient; D-009 requires a further revision before merge.</li>
+</ul>
+<p><strong>Defect IDs under observation:</strong> D-009 (OSD FP filter — first implementation attempt).</p>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<p><strong>Scenarios:</strong> S5 only (signal-free noise slots — attribute specificity test).</p>
+<p><strong>Corpus description:</strong>
+- Synthetic (no off-air signals): pure AWGN generated by the clean-room synthesiser with the same seeds used in the <code>6e821fa</code> full gate run.  Confirmed by comparing <code>truth.csv</code> seed columns between both runs.
+- 4 parts × 3 trials = 12 noise-only slots per appraiser.
+- Part 0 and Parts 2–3: SNR target −20 dB (noise floor context).
+- Part 1: SNR target −10 dB (nominally more energetic noise — tests whether higher-amplitude noise produces more OSD collisions).
+- No S4 precursor in this run: this is a standalone S5-only playback.  The <code>6e821fa</code> run was a full S1–S8 sweep where S4 audio immediately preceded S5; residual S4 signal energy during early S5 slots may have influenced OSD candidate selection in that run.  The two FP measurements are therefore not directly comparable, though both use the same noise seeds for the S5 slots themselves.</p>
+<p><strong>Acceptance thresholds (STUDY-SPEC §10):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Threshold</th>
+<th>Gate?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S5 FP rate (OpenWSFZ)</td>
+<td>≤ 6.0%</td>
+<td>✅ Gated</td>
+</tr>
+<tr>
+<td>S5 FP rate (WSJT-X)</td>
+<td>≤ 6.0%</td>
+<td>✅ Gated</td>
+</tr>
+</tbody>
+</table>
+<p>FP rate is computed as: total FP decode events within trial windows / total trial slots.  A slot with two FP decodes counts as two events (penalises multiple noise hits per slot).</p>
+<p><strong>Cycle window:</strong> 2026-06-20T12:29:00Z – 2026-06-20T12:32:30Z (standalone S5 run, ~3.5 min).</p>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h2 id="attribute-agreement-analysis-s5-negatives">Attribute Agreement Analysis (S5 negatives)</h2>
+<p><em>Only S5 (signal-free) slots are present in this run.  There are no injected signals, so TP = FN = 0 for both appraisers.  κ cannot be computed without a positive class; the table is omitted.  The operative gate metric is the false-positive rate.</em></p>
+<h3 id="confusion-vs-truth">Confusion vs truth</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>TP</th>
+<th>FN</th>
+<th>FP</th>
+<th>TN</th>
+<th>Recovery</th>
+<th>Specificity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>12</td>
+<td>—%</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>0</td>
+<td>0</td>
+<td>7</td>
+<td>5</td>
+<td>—%</td>
+<td>41.67%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kappa-advisory">Kappa (advisory)</h3>
+<table>
+<thead>
+<tr>
+<th>Pair</th>
+<th>κ</th>
+<th>95% CI</th>
+<th>Verdict (advisory)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenWSFZ_vs_truth</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>WSJT-X_vs_truth</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>between_appraisers</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="within-app-repeatability-decision-consistency-across-trials">Within-app repeatability (decision consistency across trials)</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>Consistent groups</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>75.00%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="false-positive-rate-s5">False-positive rate (S5)</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>FP events</th>
+<th>Trial slots</th>
+<th>FP rate</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>0</td>
+<td>12</td>
+<td>0.00%</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>16</td>
+<td>12</td>
+<td>133.33%</td>
+<td>FAIL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="breakdown-of-fp-events-by-trial-slot-openwsfz">Breakdown of FP events by trial slot (OpenWSFZ)</h3>
+<table>
+<thead>
+<tr>
+<th>Slot</th>
+<th>Cycle UTC</th>
+<th>FP decodes in slot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0 T0</td>
+<td>12:29:30Z</td>
+<td>3 (<code>C77HMN Z7ZFP/P FM42</code>, <code>&lt;...&gt; M5E5B91HFHL</code>, <code>2X0COC/R JL0LEP/R IC86</code>)</td>
+</tr>
+<tr>
+<td>P0 T1</td>
+<td>12:29:45Z</td>
+<td>1 (<code>&lt;...&gt; 7P8R9J2R3BG</code>)</td>
+</tr>
+<tr>
+<td>P0 T2</td>
+<td>12:30:00Z</td>
+<td>2 (<code>CQ 3QQF EXLJSR</code>, <code>CQ &lt;...&gt;</code>)</td>
+</tr>
+<tr>
+<td>P1 T0</td>
+<td>12:30:15Z</td>
+<td>1 (<code>TU9DPH AO6YXV R EO14</code>)</td>
+</tr>
+<tr>
+<td>P1 T1</td>
+<td>12:30:30Z</td>
+<td>4 (<code>Q2V./WAM2TSGL</code>, <code>YD1IHN/R JU2SVQ R MR07</code>, <code>CC5XNB WD3TQU/P FM36</code>, <code>9ULLPTCDZH &lt;...&gt;</code>)</td>
+</tr>
+<tr>
+<td>P1 T2</td>
+<td>12:30:45Z</td>
+<td>4 (<code>&lt;...&gt; UF5NDNNJD2P</code>, <code>CQ /UX 6PY23BM</code>, <code>CQ &lt;...&gt;</code>, <code>2O1MCQ LO9NYA JL51</code>)</td>
+</tr>
+<tr>
+<td>P2 T0</td>
+<td>12:31:00Z</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P2 T1</td>
+<td>12:31:15Z</td>
+<td>1 (<code>CQ &lt;...&gt;</code>)</td>
+</tr>
+<tr>
+<td>P2 T2</td>
+<td>12:31:45Z</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P3 T0</td>
+<td>12:32:00Z</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P3 T1</td>
+<td>12:32:15Z</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P3 T2</td>
+<td>12:32:30Z</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-4-verdict">Section 4 — Verdict</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Scope</th>
+<th>Value</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FP rate</td>
+<td>S5/WSJT-X</td>
+<td>0.0%</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>FP rate</td>
+<td>S5/OpenWSFZ</td>
+<td>133.3%</td>
+<td>FAIL</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: FAIL</strong></p>
+<h3 id="defect-notices">Defect Notices</h3>
+<ul>
+<li>❌ FAIL — FP rate (OpenWSFZ) = 133.3% (threshold: ≤ 6.0%)</li>
+</ul>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<p><strong>D-009 (OSD false-positive filter) — filter R1 is insufficient.  Branch <code>fix/d009-fp-callsign-filter</code> CANNOT MERGE.</strong></p>
+<p>The R1 filter (D9-R1/R2/R3) eliminated the specific FP categories observed in the <code>6e821fa</code> diagnostic run — blank messages and oversized callsigns (&gt;6-char base, e.g. <code>ETRHB0I3RYO</code>, <code>GKC5JNL82FW</code>).  However, the <code>d40b4cd</code> verification run reveals six distinct categories of FP that the filter does not address.  Every FP in this run has a base callsign ≤ 6 characters — the exact guard boundary of D9-R3.</p>
+<h3 id="gap-analysis">Gap analysis</h3>
+<table>
+<thead>
+<tr>
+<th>Gap</th>
+<th>Count</th>
+<th>Example</th>
+<th>Why it passes</th>
+<th>Addressable at text level?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A</strong> — 2-token messages: D9-R3 only checks token1 when token0 is CQ/DE/QRZ</td>
+<td>4</td>
+<td><code>&lt;...&gt; M5E5B91HFHL</code> (token1 = 11 chars)</td>
+<td>token0 starts with <code>&lt;</code> → D9-R3 exempt; token1 not inspected</td>
+<td><strong>Yes</strong> — check both tokens unconditionally</td>
+</tr>
+<tr>
+<td><strong>B</strong> — 4-token messages: D9-R3 explicitly defers these</td>
+<td>2</td>
+<td><code>TU9DPH AO6YXV R EO14</code></td>
+<td>4-token path in D9-R3 not implemented; both callsigns are 6 chars anyway</td>
+<td>Partially (extension handles some; 6-char callsigns remain)</td>
+</tr>
+<tr>
+<td><strong>C</strong> — CQ 3-token messages: D9-R4 returns <code>true</code> on <code>"CQ "</code> prefix before grid validation</td>
+<td>2</td>
+<td><code>CQ 3QQF EXLJSR</code> (<code>EXLJSR</code> = 6 chars, not a valid grid)</td>
+<td>Early return skips third-token validation</td>
+<td><strong>Yes</strong> — remove CQ early return; validate third token as grid/report</td>
+</tr>
+<tr>
+<td><strong>D</strong> — <code>CQ &lt;...&gt;</code> (2-token): structurally valid FT8</td>
+<td>3</td>
+<td><code>CQ &lt;...&gt;</code></td>
+<td>Legitimate format; textually indistinguishable from a real CQ-to-hashed-callsign</td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td><strong>E</strong> — 3-token with valid callsign lengths and valid grids</td>
+<td>4</td>
+<td><code>2O1MCQ LO9NYA JL51</code> (both 6 chars; grid LN03 valid)</td>
+<td>Passes all structural checks; indistinguishable from real traffic by text alone</td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td><strong>F</strong> — single-token garbage &lt; 16 chars</td>
+<td>1</td>
+<td><code>Q2V./WAM2TSGL</code> (13 chars, contains <code>.</code>)</td>
+<td>D9-R2 requires ≥ 16 chars; <code>.</code> is a valid FT8 free-text character</td>
+<td>No (would risk false-negatives on free text)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="text-level-ceiling">Text-level ceiling</h3>
+<p>Even if Gaps A and C are fixed (7 events removed), the remaining Gaps B, D, E, F leave ≥ 9 FP events across ≥ 6 of the 12 trial slots — a minimum of 75% event FP rate.  <strong>Text-level heuristics cannot bring the OpenWSFZ S5 FP rate below the 6% gate threshold.</strong>  The OSD CRC-14 false-alarm rate at 529 trials per candidate is simply too high; a subset of noise coincidences always decode to structurally valid-looking FT8 messages.</p>
+<h3 id="required-fix-native-osd-confidence-gate-d-009-r2">Required fix — native OSD confidence gate (D-009 R2)</h3>
+<p>After <code>osd_decode</code> finds a CRC-14-valid codeword, compute the normalised correlation between the decoded codeword and the input LLR array:</p>
+<div class="highlight"><pre><span></span><code>corr = Σ (hard_pm1[i] × llr[i]) for i = 0..173
+       where hard_pm1[i] = +1 if plain174[i] == 0, −1 if plain174[i] == 1
+norm = Σ |llr[i]|
+score = corr / norm   ∈ [−1, +1]
+</code></pre></div>
+
+<p>For a genuine signal at any SNR where OSD can recover the message, the decoded bits are predominantly aligned with the soft LLR signs → <code>score ≫ 0</code> (expected 0.2–0.5 at decodable SNR).  For a CRC-14 coincidence from pure noise, the 174 decoded bits are uncorrelated with the noise LLRs → <code>score ≈ 0</code>.</p>
+<p>Reject the OSD result if <code>score &lt; OSD_CORR_THRESHOLD</code>.  Initial recommended threshold: <strong>0.10</strong> (10% normalised correlation).  This value requires calibration against S5 (reject) and S7 P0 (accept) empirical distributions; the handoff document specifies the calibration procedure.</p>
+<h3 id="text-level-extensions-still-required-regardless">Text-level extensions (still required regardless)</h3>
+<p>Even with the correlation gate in place, Gaps A and C should be fixed as additional defence-in-depth:</p>
+<ul>
+<li><strong>Gap A fix:</strong> Extend D9-R3 2-token branch to apply <code>IsCallsignOversized</code> to both tokens, not only to token1 when token0 is CQ/DE/QRZ.  (Hash references are already exempt via the <code>StartsWith('&lt;')</code> guard in <code>IsCallsignOversized</code>.)</li>
+<li><strong>Gap C fix:</strong> Remove the <code>if (text.StartsWith("CQ ", StringComparison.Ordinal)) return true;</code> early-return from <code>IsPlausibleMessage</code>.  With this removed, CQ 3-token messages are subject to the same grid/report validation as Standard QSO messages, which correctly rejects <code>CQ 3QQF EXLJSR</code> (6-char third token, not a valid grid) while accepting <code>CQ Q1ABC FN42</code> (valid 4-char grid).</li>
+</ul>
+<h3 id="next-steps">Next steps</h3>
+<p>See <code>dev-tasks/2026-06-20-d009-fp-filter-r2.md</code> for the developer handoff (D-009 R2).  The acceptance criterion for the next verification run is: <strong>S5 FP rate ≤ 6.0% on the same 12-slot S5 protocol</strong>, confirmed with both the native gate and the text-level extensions in place.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
