@@ -29,6 +29,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 import numpy as np
 import pandas as pd
+from scipy.stats import beta as _beta_dist
 
 # Matplotlib in non-interactive mode
 import matplotlib
@@ -103,9 +104,13 @@ NDC_FAIL = 2                 # ndc < 2 → FAIL
 NDC_PASS = 5                 # ndc ≥ 5 → PASS
 THRESH_KAPPA_PASS = 0.90
 THRESH_KAPPA_MARGINAL = 0.70
-THRESH_FP_PASS = 6.0        # Decode-rate legacy threshold (retired as gate; kept for reference).
-                            # Gate is now: FP event count == 0 (AC5a, D-009 / widened S5).
-                            # Any slot that produces ≥ 1 false decode is a FAIL event.
+THRESH_FP_UB95 = 6.0        # FP gate (STUDY-SPEC §10, ratified 2026-07-04, R&R-004):
+                            # PASS iff the one-sided 95% Clopper–Pearson UPPER BOUND on
+                            # the per-slot FP event rate is ≤ 6%.  Gates the true rate at
+                            # 95% confidence, not the Poisson-noisy point estimate.
+                            # Supersedes the retired interim zero-event gate (n_fp_events==0)
+                            # and the legacy decode-rate threshold (kept only as reference).
+FP_UB_CONF = 0.95           # one-sided confidence level for the CP upper bound
 THRESH_BIAS_PASS = 2.0      # |bias| ≤ 2 dB → PASS; > 2 dB → FAIL
 
 APPRAISERS = ("WSJT-X", "OpenWSFZ")
@@ -149,16 +154,34 @@ def _verdict_kappa(kappa: float) -> str:
     return "FAIL"
 
 
-def _verdict_fp(fp_info: dict) -> str:
-    """Gate on FP event count = 0 (AC5a, D-009 widened S5).
+def _cp_upper_95(k: int, n: int, conf: float = FP_UB_CONF) -> float:
+    """One-sided upper Clopper–Pearson confidence bound on a binomial proportion.
 
-    A single slot with any false decode is FAIL regardless of the decode-rate percentage.
-    This replaces the legacy THRESH_FP_PASS = 6.0 decode-rate gate.
+    Returns the upper bound (as a fraction 0–1) on p given *k* successes in *n*
+    trials at confidence *conf*.  Collapses to the rule-of-three (≈ 3/n) at k=0
+    and to 1.0 at k=n.  This is the statistically honest FP gate quantity: it
+    bounds the *true* per-slot FP probability rather than reacting to the
+    Poisson-noisy point estimate at the study's small N.
     """
-    n_events = fp_info.get("n_fp_events", float("nan"))
-    if isinstance(n_events, float) and math.isnan(n_events):
+    if n <= 0:
+        return float("nan")
+    if k >= n:
+        return 1.0
+    return float(_beta_dist.ppf(conf, k + 1, n - k))
+
+
+def _verdict_fp(fp_info: dict) -> str:
+    """Gate on the one-sided 95% CP upper bound of the per-slot FP event rate.
+
+    STUDY-SPEC §10 (ratified 2026-07-04, R&R-004): PASS iff UB₉₅ ≤ THRESH_FP_UB95.
+    This supersedes the retired interim zero-event gate (n_fp_events == 0), which
+    was never ratified into §10 and was ill-posed at the study's N (coincidental
+    CRC-14 passes on the AWGN noise floor make a nonzero observed rate expected).
+    """
+    ub = fp_info.get("event_rate_ub95", float("nan"))
+    if isinstance(ub, float) and math.isnan(ub):
         return "PASS"   # undefined (zero S5 slots injected) — treat as vacuously passing
-    return "PASS" if int(n_events) == 0 else "FAIL"
+    return "PASS" if ub <= THRESH_FP_UB95 else "FAIL"
 
 
 def _verdict_bias(bias: float) -> str:
@@ -571,22 +594,24 @@ def _fp_rate(df_matched: pd.DataFrame) -> dict[str, dict]:
     in at least one S5 truth row.
 
     Returns per-appraiser dict with:
-        decode_rate   float       — total FP decodes / n_slots (%), legacy metric
-        event_rate    float       — slots-with-any-FP / n_slots (%), the AC5a gate metric
-        n_fp_events   int         — number of slots that produced ≥ 1 FP decode
-        n_fp_decodes  int         — total individual FP decodes (a slot can have > 1)
-        n_slots       int         — total signal-free S5 slots
-        rob_95        float|None  — rule-of-three 95% upper bound on per-slot FP
-                                    probability (= 300 / n_slots, expressed as %)
-                                    when n_fp_events == 0; None if any events observed.
+        decode_rate      float       — total FP decodes / n_slots (%), reference metric
+        event_rate       float       — slots-with-any-FP / n_slots (%), the gate metric's
+                                       point estimate
+        event_rate_ub95  float       — one-sided 95% Clopper–Pearson UPPER BOUND on the
+                                       per-slot FP event rate (%). THIS is the §10 gate
+                                       quantity (PASS iff ≤ THRESH_FP_UB95). Defined for
+                                       all k (collapses to ≈ 3/n at k=0).
+        n_fp_events      int         — number of slots that produced ≥ 1 FP decode
+        n_fp_decodes     int         — total individual FP decodes (a slot can have > 1)
+        n_slots          int         — total signal-free S5 slots
     """
     _NAN: dict = {
-        "decode_rate":  float("nan"),
-        "event_rate":   float("nan"),
-        "n_fp_events":  float("nan"),
-        "n_fp_decodes": float("nan"),
-        "n_slots":      0,
-        "rob_95":       None,
+        "decode_rate":     float("nan"),
+        "event_rate":      float("nan"),
+        "event_rate_ub95": float("nan"),
+        "n_fp_events":     float("nan"),
+        "n_fp_decodes":    float("nan"),
+        "n_slots":         0,
     }
     results: dict[str, dict] = {}
 
@@ -616,16 +641,17 @@ def _fp_rate(df_matched: pd.DataFrame) -> dict[str, dict]:
         n_fp_events  = int(fp_in_window["cycle_utc"].nunique())
         decode_rate  = 100.0 * n_fp_decodes / n_slots
         event_rate   = 100.0 * n_fp_events  / n_slots
-        # Rule-of-three 95% upper bound (valid only when n_fp_events == 0).
-        rob_95 = (300.0 / n_slots) if n_fp_events == 0 else None
+        # One-sided 95% Clopper–Pearson upper bound on the per-slot FP event
+        # rate — the §10 gate quantity (valid for all k; ≈ 3/n at k=0).
+        event_rate_ub95 = 100.0 * _cp_upper_95(n_fp_events, n_slots)
 
         results[appr] = {
-            "decode_rate":  decode_rate,
-            "event_rate":   event_rate,
-            "n_fp_events":  n_fp_events,
-            "n_fp_decodes": n_fp_decodes,
-            "n_slots":      n_slots,
-            "rob_95":       rob_95,
+            "decode_rate":     decode_rate,
+            "event_rate":      event_rate,
+            "event_rate_ub95": event_rate_ub95,
+            "n_fp_events":     n_fp_events,
+            "n_fp_decodes":    n_fp_decodes,
+            "n_slots":         n_slots,
         }
     return results
 
@@ -1313,17 +1339,16 @@ def _collect_verdicts(
         event_rate  = info["event_rate"]
         decode_rate = info["decode_rate"]
         n_slots     = info["n_slots"]
-        rob_95      = info["rob_95"]
+        ub95        = info["event_rate_ub95"]
         v = _verdict_fp(info)
-        rob_str = f"; 95% UB ≤ {rob_95:.2f}%" if rob_95 is not None else ""
         value_str = (f"{int(n_events)}/{n_slots} slots "
-                     f"(event {event_rate:.1f}%{rob_str}; decode {decode_rate:.1f}%)")
-        verdict_rows.append(("FP event rate", f"S5/{appr}", value_str, v))
+                     f"(event {event_rate:.1f}%; 95% UB {ub95:.2f}%; decode {decode_rate:.1f}%)")
+        verdict_rows.append(("FP event rate (95% UB)", f"S5/{appr}", value_str, v))
         if v == "FAIL":
             fails.append(
                 f"FP event rate ({appr}) = {int(n_events)} events in {n_slots} slots "
-                f"({event_rate:.1f}% event rate; {decode_rate:.1f}% decode rate); "
-                f"gate requires 0 events"
+                f"(event rate {event_rate:.1f}%, 95% UB {ub95:.2f}%); "
+                f"gate requires 95% UB ≤ {THRESH_FP_UB95:.0f}%"
             )
 
     for appr, info in bias_results.items():
@@ -1477,21 +1502,23 @@ def _write_report(
             n_slots     = info["n_slots"]
             event_rate  = info["event_rate"]
             decode_rate = info["decode_rate"]
-            rob_95      = info["rob_95"]
-            rob_str     = f"≤ {rob_95:.2f}%" if rob_95 is not None else "—"
+            ub95        = info["event_rate_ub95"]
             v = _verdict_fp(info)
             lines.append(
                 f"| {appr} | {int(n_events)} / {n_slots} "
                 f"| {_fmt_num(event_rate)}% "
-                f"| {rob_str} "
+                f"| {_fmt_num(ub95)}% "
                 f"| {_fmt_num(decode_rate)}% "
                 f"| {v} |"
             )
         lines += [
             "",
-            "_Gate (AC5a): FP event count must be 0. "
-            "95% UB is the rule-of-three one-sided bound on per-slot FP probability "
-            "(valid only when 0 events observed; = 3 / N_slots)._",
+            f"_Gate (STUDY-SPEC §10, ratified 2026-07-04, R&R-004): the per-slot FP "
+            f"**event rate**, gated on its one-sided 95% Clopper–Pearson **upper bound** "
+            f"(PASS iff 95% UB ≤ {THRESH_FP_UB95:.0f}%). The UB is defined for all event "
+            f"counts (≈ 3 / N_slots at 0 events) and bounds the true per-slot FP "
+            f"probability at 95% confidence rather than the Poisson-noisy point estimate. "
+            f"Decode rate is reported for reference only._",
             "",
         ]
 
@@ -1569,9 +1596,11 @@ def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
             kappa_s4 = _safe(info.get("kappa"))
             break
 
+    # Track the gate quantity (95% CP upper bound on per-slot FP event rate),
+    # not the reference decode_rate, so trend regressions match the §10 gate.
     fp_rate_s5 = ""
     if "OpenWSFZ" in fp_results:
-        fp_rate_s5 = _safe(fp_results["OpenWSFZ"].get("decode_rate"))
+        fp_rate_s5 = _safe(fp_results["OpenWSFZ"].get("event_rate_ub95"))
 
     row = {
         "run_date": run_date_str,
@@ -1692,7 +1721,7 @@ def main() -> None:
             print(f"  {sid} decode rate ({appr}): {_fmt_num(rate)}%  (informational)")
 
     # --- Attribute scenarios ---
-    # False-positive rate (S5) — gated metric, unchanged.
+    # False-positive rate (S5) — gated metric (§10 95% UB gate, R&R-004).
     if "S5" in matched:
         fp_results = _fp_rate(matched["S5"])
         for appr, info in fp_results.items():
@@ -1703,11 +1732,10 @@ def main() -> None:
             n_slots     = info["n_slots"]
             event_rate  = info["event_rate"]
             decode_rate = info["decode_rate"]
-            rob_95      = info["rob_95"]
-            rob_str = f"; 95% UB ≤ {rob_95:.2f}%" if rob_95 is not None else ""
+            ub95        = info["event_rate_ub95"]
             print(
                 f"  S5 FP events ({appr}): {int(n_events)}/{n_slots} slots "
-                f"(event rate {_fmt_num(event_rate)}%{rob_str}; "
+                f"(event rate {_fmt_num(event_rate)}%; 95% UB {_fmt_num(ub95)}%; "
                 f"decode rate {_fmt_num(decode_rate)}%)"
             )
 

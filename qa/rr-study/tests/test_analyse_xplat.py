@@ -30,6 +30,10 @@ from harness.analyse_xplat import (
     _decode_rate_report_lines,
     _compounding_report_lines,
 )
+from harness.analyse import (
+    _cp_upper_95, _verdict_fp, _fp_rate, THRESH_FP_UB95,
+    APPRAISERS as _ANALYSE_APPRAISERS,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -285,3 +289,73 @@ class TestDynamicColumnReports:
         assert "Windows vs Linux"   in joined
         assert "Windows vs WSJT-X"  in joined
         assert "Linux vs WSJT-X"    in joined
+
+
+# ---------------------------------------------------------------------------
+# 6. R&R-004 — FP gate = one-sided 95% Clopper–Pearson upper bound (STUDY-SPEC §10)
+# ---------------------------------------------------------------------------
+
+class TestFpGateClopperPearsonUpperBound:
+    """Pins the exact values in PR #34's worked table (N=120) so a future edit
+    to _cp_upper_95/_verdict_fp/_fp_rate can't silently drift the ship gate.
+    """
+
+    def test_known_values_at_n120(self):
+        """k=0/2/3/7 at n=120 reproduce the ratified §10 gate's worked examples."""
+        expected = {0: 2.47, 2: 5.15, 3: 6.33, 7: 10.68}
+        for k, want_pct in expected.items():
+            got_pct = 100.0 * _cp_upper_95(k, 120)
+            assert abs(got_pct - want_pct) < 0.01, (
+                f"k={k}, n=120: expected UB {want_pct}%, got {got_pct:.2f}%"
+            )
+
+    def test_k_equals_n_returns_one(self):
+        """Upper bound saturates at 1.0 (100%) when every slot is a FP event."""
+        assert _cp_upper_95(5, 5) == 1.0
+
+    def test_n_zero_is_nan(self):
+        """No slots injected → bound is undefined, not a divide-by-zero crash."""
+        assert math.isnan(_cp_upper_95(0, 0))
+
+    def test_verdict_boundary_k2_pass_k3_fail(self):
+        """The gate's PASS/FAIL crossover at N=120 is between k=2 and k=3 events."""
+        pass_info = {"event_rate_ub95": 100.0 * _cp_upper_95(2, 120)}
+        fail_info = {"event_rate_ub95": 100.0 * _cp_upper_95(3, 120)}
+        assert _verdict_fp(pass_info) == "PASS"
+        assert _verdict_fp(fail_info) == "FAIL"
+
+    def test_verdict_exactly_at_threshold_is_pass(self):
+        """PASS iff UB <= THRESH_FP_UB95 — the boundary itself is inclusive."""
+        assert _verdict_fp({"event_rate_ub95": THRESH_FP_UB95}) == "PASS"
+
+    def test_verdict_nan_is_vacuous_pass(self):
+        """Undefined UB (zero S5 slots injected) is treated as vacuously passing."""
+        assert _verdict_fp({"event_rate_ub95": float("nan")}) == "PASS"
+
+    def test_fp_rate_populates_ub95_matching_direct_call(self):
+        """_fp_rate's event_rate_ub95 for a real matched-df matches _cp_upper_95 directly."""
+        n_slots, n_fp_events = 120, 7
+        rows = []
+        for appr in _ANALYSE_APPRAISERS:
+            for i in range(n_slots):
+                rows.append({
+                    "scenario_id":    "S5",
+                    "appraiser":      appr,
+                    "false_positive": False,
+                    "cycle_utc":      f"cycle_truth_{i}",
+                })
+            if appr == "OpenWSFZ":
+                for i in range(n_fp_events):
+                    rows.append({
+                        "scenario_id":    "S5",
+                        "appraiser":      appr,
+                        "false_positive": True,
+                        "cycle_utc":      f"cycle_truth_{i}",
+                    })
+        df = pd.DataFrame(rows)
+        result = _fp_rate(df)
+        expected_ub = 100.0 * _cp_upper_95(n_fp_events, n_slots)
+        assert abs(result["OpenWSFZ"]["event_rate_ub95"] - expected_ub) < 1e-9
+        assert result["OpenWSFZ"]["n_fp_events"] == n_fp_events
+        assert _verdict_fp(result["OpenWSFZ"]) == "FAIL"
+        assert _verdict_fp(result["WSJT-X"]) == "PASS"
