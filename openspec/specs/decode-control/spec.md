@@ -1,3 +1,10 @@
+# decode-control Specification
+
+## Purpose
+
+Specifies how the decode pipeline's enabled/disabled state is persisted, controlled via the
+start/stop REST endpoints, applied at startup, and surfaced in the daemon status response.
+
 ## Requirements
 
 ### Requirement: DecodingEnabled persisted to configuration

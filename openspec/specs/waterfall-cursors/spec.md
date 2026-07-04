@@ -1,3 +1,10 @@
+# waterfall-cursors Specification
+
+## Purpose
+
+Specifies the waterfall display's RX/TX frequency cursor lines, click-to-tune interaction,
+and the numeric RX/TX frequency readouts shown alongside the waterfall.
+
 ## Requirements
 
 ### Requirement: Waterfall cursor lines

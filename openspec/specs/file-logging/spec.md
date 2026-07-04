@@ -1,3 +1,10 @@
+# file-logging Specification
+
+## Purpose
+
+Specifies the daemon's file logging sink: session-based rotation, scheduled rotation,
+retention of old log files, and live reconfiguration without a restart.
+
 ## Requirements
 
 ### Requirement: File logging sink

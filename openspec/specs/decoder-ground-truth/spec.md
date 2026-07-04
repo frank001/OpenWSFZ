@@ -1,3 +1,11 @@
+# decoder-ground-truth Specification
+
+## Purpose
+
+Specifies the real-signal WAV test corpus (with a WSJT-X-derived answer key), the
+WAV-to-PCM reader, and the offline replay harness used to measure decoder recovery rate
+against known-good off-air recordings.
+
 ## Requirements
 
 ### Requirement: Real-signal WAV test corpus with WSJT-X answer key

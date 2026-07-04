@@ -1,3 +1,11 @@
+# audio-capture Specification
+
+## Purpose
+
+Specifies the cross-platform PCM audio capture abstraction the daemon uses to acquire 12 kHz
+mono audio for decoding, its lifecycle management, and how capture status is surfaced via the
+daemon status endpoint.
+
 ## Requirements
 
 ### Requirement: PCM audio capture interface

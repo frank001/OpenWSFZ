@@ -1,3 +1,10 @@
+# prop-mode-store Specification
+
+## Purpose
+
+Specifies `PropModeStore`, which persists the protocol-aware propagation-mode list, and the
+REST endpoints (`GET`/`POST /api/v1/prop-modes`) that read and replace it.
+
 ## Requirements
 
 ### Requirement: PropModeStore persists protocol-aware propagation mode list

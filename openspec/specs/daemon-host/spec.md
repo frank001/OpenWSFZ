@@ -1,3 +1,12 @@
+# daemon-host Specification
+
+## Purpose
+
+Specifies the daemon process's startup and shutdown behaviour: the welcome banner,
+loopback-only network binding, clean shutdown on Ctrl-C/SIGTERM, config-file path override
+via CLI flag and environment variable, and logging-pipeline initialisation/flush ordering
+relative to the web host.
+
 ## Requirements
 
 ### Requirement: Welcome banner on startup

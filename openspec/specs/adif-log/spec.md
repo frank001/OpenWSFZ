@@ -1,3 +1,11 @@
+# adif-log Specification
+
+## Purpose
+
+Specifies ADIF 3.x QSO logging: when a record is written (on operator confirmation or at
+`QsoComplete`), what fields it contains, and the conditions (watchdog/operator abort,
+confirmation cancelled) under which no record is written.
+
 ## Requirements
 
 ### Requirement: ADIF log file written on QSO completion

@@ -1,3 +1,10 @@
+# decode-log Specification
+
+## Purpose
+
+Specifies the `ALL.TXT` decode log file — the WSJT-X-compatible plaintext decode history
+the daemon writes for every decoded FT8 message.
+
 ## Requirements
 
 ### Requirement: ALL.TXT decode log file

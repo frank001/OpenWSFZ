@@ -1,3 +1,11 @@
+# decoder-settings Specification
+
+## Purpose
+
+Specifies the `DecoderConfig` schema, its optional presence on `AppConfig`, when
+`SetDecodeParams` is applied to the native decoder, and the Advanced Decoder Settings
+section of the settings UI that edits it.
+
 ## Requirements
 
 ### Requirement: DecoderConfig schema

@@ -1,3 +1,12 @@
+# ci-quality-gates Specification
+
+## Purpose
+
+Specifies the CI pipeline's quality gates: the three-OS build/test matrix, the
+build-and-test (G1), traceability (G3), licence-inventory (G5), and decoder-correctness
+(G6) gates, informational coverage reporting, the reproducible-evidence rule for decoder
+defects (NFR-016), and reserved placeholders for gates not yet active.
+
 ## Requirements
 
 ### Requirement: CI matrix on three operating systems
