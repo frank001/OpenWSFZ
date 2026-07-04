@@ -60,6 +60,7 @@ if str(_QA_ROOT) not in sys.path:
 from harness.analyse import (
     _git_sha,
     _verdict_grr, _verdict_ndc, _verdict_kappa, _verdict_fp, _verdict_bias,
+    _cp_upper_95,
     _fmt_num,
     _load_scenario_meta, _load_matched_csvs,
     _two_way_anova, _derived_metrics,
@@ -69,6 +70,7 @@ from harness.analyse import (
     DECODE_RATE_CONFIG, RESPONSE_VAR, TOLERANCE_HALF, REQUIRED_COLUMNS,
     THRESH_GRR_PASS, THRESH_GRR_MARGINAL, NDC_FAIL, NDC_PASS,
     THRESH_KAPPA_PASS, THRESH_KAPPA_MARGINAL, THRESH_BIAS_PASS,
+    THRESH_FP_UB95,
 )
 
 # ---------------------------------------------------------------------------
@@ -417,8 +419,9 @@ def _fp_rate(df_matched: pd.DataFrame) -> dict[str, dict]:
     """FP rate per appraiser for S5 (scoped to S5 injection window)."""
     _NAN: dict = {
         "decode_rate": float("nan"), "event_rate": float("nan"),
+        "event_rate_ub95": float("nan"),
         "n_fp_events": float("nan"), "n_fp_decodes": float("nan"),
-        "n_slots": 0, "rob_95": None,
+        "n_slots": 0,
     }
     results: dict[str, dict] = {}
 
@@ -443,12 +446,15 @@ def _fp_rate(df_matched: pd.DataFrame) -> dict[str, dict]:
         n_fp_events  = int(fp_in_window["cycle_utc"].nunique())
         decode_rate  = 100.0 * n_fp_decodes / n_slots
         event_rate   = 100.0 * n_fp_events  / n_slots
-        rob_95       = (300.0 / n_slots) if n_fp_events == 0 else None
+        # One-sided 95% Clopper–Pearson upper bound on the per-slot FP event
+        # rate — the §10 gate quantity (R&R-004; valid for all k, ≈ 3/n at k=0).
+        event_rate_ub95 = 100.0 * _cp_upper_95(n_fp_events, n_slots)
 
         results[appr] = {
             "decode_rate": decode_rate, "event_rate": event_rate,
+            "event_rate_ub95": event_rate_ub95,
             "n_fp_events": n_fp_events, "n_fp_decodes": n_fp_decodes,
-            "n_slots": n_slots, "rob_95": rob_95,
+            "n_slots": n_slots,
         }
     return results
 
@@ -1006,16 +1012,18 @@ def _collect_verdicts(
         if isinstance(n_events, float) and math.isnan(n_events):
             continue
         event_rate = info["event_rate"]
-        rob_95     = info["rob_95"]
-        rob_str    = f"; 95% UB <= {rob_95:.2f}%" if rob_95 is not None else ""
+        ub95       = info["event_rate_ub95"]
         v          = _verdict_fp(info)
         value_str  = (
             f"{int(n_events)}/{info['n_slots']} slots "
-            f"(event {event_rate:.1f}%{rob_str})"
+            f"(event {event_rate:.1f}%; 95% UB {ub95:.2f}%)"
         )
-        verdict_rows.append(("FP event count", f"S5/{appr}", value_str, v))
+        verdict_rows.append(("FP event rate (95% UB)", f"S5/{appr}", value_str, v))
         if v == "FAIL":
-            fails.append(f"FP event count ({appr}): {int(n_events)} events (gate = 0)")
+            fails.append(
+                f"FP event rate ({appr}): {int(n_events)} events, "
+                f"95% UB {ub95:.2f}% (gate = 95% UB <= {THRESH_FP_UB95:.0f}%)"
+            )
 
     # ── SNR bias per appraiser vs truth ──────────────────────────────────────
     for appr, info in bias_results.items():
@@ -1243,12 +1251,11 @@ def _write_report(
                 continue
             n_slots    = info["n_slots"]
             event_rate = info["event_rate"]
-            rob_95     = info["rob_95"]
-            rob_str    = f"<= {rob_95:.2f}%" if rob_95 is not None else "—"
+            ub95       = info["event_rate_ub95"]
             v          = _verdict_fp(info)
             lines.append(
                 f"| {appr} | {int(n_events)} / {n_slots} "
-                f"| {_fmt_num(event_rate)}% | {rob_str} | {v} |"
+                f"| {_fmt_num(event_rate)}% | {_fmt_num(ub95)}% | {v} |"
             )
         lines += [""]
 

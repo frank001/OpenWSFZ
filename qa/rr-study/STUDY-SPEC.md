@@ -342,10 +342,24 @@ AIAG conventions, for ratification:
 | %GR&R (per response) | < 10% | 10–30% | > 30% |
 | ndc | ≥ 5 | — | < 2 |
 | Attribute Kappa (vs truth, between apps) | ≥ 0.90 | 0.70–0.90 | < 0.70 |
-| False-positive rate | ≤ 6% | — | > 6% |
+| False-positive rate (S5 per-slot event rate, 95% UB) | ≤ 6% | — | > 6% |
 | SNR bias (OpenWSFZ vs truth) | ≤ ±2 dB mean AND slope ≤ 0.1 | — | mean > ±2 dB OR slope > 0.1 |
 
 Evaluated every run; a regression past these bands raises a defect for the Developer.
+
+> **False-positive gate definition (ratified 2026-07-04, R&R-004 / GitHub #32).**
+> The FP gate is the **per-slot event rate** — P(a signal-free S5 slot emits ≥ 1
+> false decode) — and is gated on the **one-sided 95% Clopper–Pearson upper
+> confidence bound** of that rate, not the point estimate. `PASS` iff UB₉₅ ≤ 6%.
+> Rationale: at the study's N (~120 signal-free slots) the point estimate is
+> Poisson-noisy, and coincidental CRC-14 passes on the AWGN noise floor make a
+> nonzero observed rate expected rather than a regression; bounding the *true*
+> rate at 95% confidence is the statistically honest gate. At N = 120 this
+> tolerates ≤ 2 FP events (k = 2 → UB 5.15% PASS; k = 3 → UB 6.33% FAIL).
+> This **supersedes and retires** the interim in-code zero-event gate
+> (`n_fp_events == 0`, provisionally introduced with D-009's widened S5 but never
+> ratified into §10 — the conflict logged as R&R-004). The `decode_rate` metric
+> (total FP decodes / slots) remains reported for reference but is **not** the gate.
 
 > **Attribute Kappa gate status (2026-06-06): advisory.** Following the §9.3 κ
 > pooling correction, the attribute-Kappa row is computed and reported but **does
