@@ -331,10 +331,10 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 <tbody>
 <tr>
 <td>Run date</td>
-<td>2026-07-04</td>
+<td>2026-07-04 (analysis re-run after an R&amp;R-004 gate fix, see Section 1)</td>
 </tr>
 <tr>
-<td>OpenWSFZ SHA</td>
+<td>OpenWSFZ SHA (build under test — audio captured against this build)</td>
 <td><code>793a29815b44773d32adac92d392acda8c262ca1</code></td>
 </tr>
 <tr>
@@ -351,6 +351,10 @@ synthetic regression gate, deferred at implementation time (2026-07-03/04) becau
 a live audio rig (real WSJT-X + VB-CABLE + both daemons running interactively), which is not
 appropriate to run unattended mid-implementation. It is executed now, on demand, against the
 current <code>main</code> HEAD.</p>
+<p><strong>Note on this revision:</strong> the live audio run and all decode data below were captured once,
+against build <code>793a298</code>, and are unchanged from the original run. This report was regenerated
+from that same data after a same-day fix to the analysis harness itself (<code>harness/analyse.py</code>),
+described under H₀-C below — no new audio was played and no scenario was re-run.</p>
 <h3 id="changes-under-observation-since-the-last-full-s1s8-run-815b652-2026-06-14-shim-20260016">Changes under observation since the last full S1–S8 run (<code>815b652</code>, 2026-06-14, shim <code>20260016</code>)</h3>
 <p>A large number of shim/decoder changes have landed since the <code>815b652</code> baseline — this is not a
 single-commit diff. The changes most relevant to this run's null hypotheses:</p>
@@ -383,14 +387,24 @@ single-commit diff. The changes most relevant to this run's null hypotheses:</p>
   the STUDY-SPEC §10 thresholds (%GR&amp;R ≤ 10%, ndc ≥ 5), consistent with <code>815b652</code>.</li>
 <li><strong>H₀-B (SNR bias, S1):</strong> OpenWSFZ and WSJT-X SNR bias remain within ±2.0 dB of <code>815b652</code>.</li>
 <li><strong>H₀-C (S5 false positives):</strong> The false-positive rate does not regress from <code>815b652</code>'s 0.0%
-  observed rate. (Evaluated informally at this run's N=12; the statistically powered verdict is
-  the separately-run N=300 gate referenced above.)</li>
-<li><strong>H₀-D (S7 co-channel recovery):</strong> Recovery rates are consistent with the most recent prior
-  measurement (<code>f11f438</code>, 2026-06-22) — i.e., no <em>new</em> regression since that run — not
-  necessarily consistent with <code>815b652</code>, which predates several already-approved tuning changes.</li>
-<li><strong>H₀-E (f-001 non-interference):</strong> The persistent hash table introduces no change to any
-  S1–S8 metric, since no scenario message is Type 4 / nonstandard-callsign shaped.</li>
+  observed rate.</li>
 </ul>
+<p><em>Revised during Captain's review of the first draft of this report:</em> this run's S5 part
+  carries only N=12 slots. The STUDY-SPEC §10 gate (ratified 2026-07-04, R&amp;R-004) certifies the
+  true rate at 95% confidence via a Clopper–Pearson upper bound — a bound that, at N=12, cannot
+  fall below the 6% ceiling even at zero observed events (UB = 22.09% at 0/12; the crossover
+  point is N=49). The first draft of this report reported this as a bare <strong>FAIL</strong>, which read as
+  a decoder regression when it was in fact a sample-size artifact: no outcome at N=12 could have
+  produced anything but FAIL, regardless of decoder quality. <code>harness/analyse.py</code> has been fixed
+  (see <code>MIN_N_FOR_FP_GATE</code>) to report this case as <strong>INFO</strong> — informational, excluded from the
+  gate table and the overall verdict — rather than manufacturing a FAIL that no correctness could
+  avoid. The statistically powered verdict remains the separately-run, adequately-sized N=300
+  gate referenced above.
+- <strong>H₀-D (S7 co-channel recovery):</strong> Recovery rates are consistent with the most recent prior
+  measurement (<code>f11f438</code>, 2026-06-22) — i.e., no <em>new</em> regression since that run — not
+  necessarily consistent with <code>815b652</code>, which predates several already-approved tuning changes.
+- <strong>H₀-E (f-001 non-interference):</strong> The persistent hash table introduces no change to any
+  S1–S8 metric, since no scenario message is Type 4 / nonstandard-callsign shaped.</p>
 <h3 id="what-constitutes-a-meaningful-result">What Constitutes a Meaningful Result</h3>
 <p>All null hypotheses retained → task 5.3 is satisfied with no regression found; the deferred gate
 can be closed. Any hypothesis rejected — specifically, any GR&amp;R/bias/kappa gate failing beyond
@@ -431,15 +445,19 @@ would require investigation before this task can be marked complete.</p>
 <td>Corpus</td>
 <td>Synthetic fixtures only (NFR-021 compliant; no real callsigns). Full S1–S8 (+S1b) suite.</td>
 </tr>
+<tr>
+<td>Analysis harness fix</td>
+<td><code>harness/analyse.py</code> — S5 FP-rate gate now reports <code>INFO</code> (not <code>FAIL</code>) below <code>MIN_N_FOR_FP_GATE</code> (49 slots); see H₀-C above and Section 5.</td>
+</tr>
 </tbody>
 </table>
 <p><strong>S5 gate methodology note:</strong> STUDY-SPEC §10 was amended 2026-07-04 (R&amp;R-004) to gate the S5
 false-positive rate on its one-sided 95% Clopper–Pearson <strong>upper bound</strong> (PASS iff 95% UB ≤ 6%)
 rather than the raw point estimate used at the <code>815b652</code> baseline (which required 0.0% exactly).
 This run's S5 part carries only N=12 slots — mathematically incapable of proving a 95% UB ≤ 6%
-even at zero observed events (UB=22.09% at 0/12) — so its S5 verdict below is <strong>expected to read
-FAIL regardless of decoder quality</strong> and is superseded by the dedicated N=300 run cited above.
-See Section 5 for the full account.</p>
+even at zero observed events (UB=22.09% at 0/12) — so this metric is now correctly reported as
+<strong>INFO</strong> rather than FAIL (see H₀-C). The ratified verdict for this gate comes from the dedicated
+N=300 run cited above.</p>
 <hr />
 <h2 id="section-3-results">Section 3 — Results</h2>
 <h2 id="s1-reported_snr_db">S1 — reported_snr_db</h2>
@@ -831,7 +849,7 @@ See Section 5 for the full account.</p>
 <td>0.00%</td>
 <td>22.09%</td>
 <td>0.00%</td>
-<td>FAIL</td>
+<td>INFO</td>
 </tr>
 <tr>
 <td>OpenWSFZ</td>
@@ -839,11 +857,11 @@ See Section 5 for the full account.</p>
 <td>0.00%</td>
 <td>22.09%</td>
 <td>0.00%</td>
-<td>FAIL</td>
+<td>INFO</td>
 </tr>
 </tbody>
 </table>
-<p><em>Gate (STUDY-SPEC §10, ratified 2026-07-04, R&amp;R-004): the per-slot FP <strong>event rate</strong>, gated on its one-sided 95% Clopper–Pearson <strong>upper bound</strong> (PASS iff 95% UB ≤ 6%). The UB is defined for all event counts (≈ 3 / N_slots at 0 events) and bounds the true per-slot FP probability at 95% confidence rather than the Poisson-noisy point estimate. Decode rate is reported for reference only.</em></p>
+<p><em>Gate (STUDY-SPEC §10, ratified 2026-07-04, R&amp;R-004): the per-slot FP <strong>event rate</strong>, gated on its one-sided 95% Clopper–Pearson <strong>upper bound</strong> (PASS iff 95% UB ≤ 6%). The UB is defined for all event counts (≈ 3 / N_slots at 0 events) and bounds the true per-slot FP probability at 95% confidence rather than the Poisson-noisy point estimate. Decode rate is reported for reference only. <strong>INFO</strong> means the gate is not evaluated at this N: below 49 slots, even zero observed events cannot clear the 6% ceiling, so no outcome at this sample size can produce a PASS or a meaningful FAIL — see a properly powered run (N ≥ 49) for the ratified §10 verdict.</em></p>
 <h2 id="s7-compounding-co-channel-overlap">S7 — Compounding / co-channel overlap</h2>
 <p><em>Per-message recovery when 2–3 signals occupy the same or near-same audio frequency / time slot (the pileup case S4 does not exercise). Informational — no AIAG threshold is defined for co-channel separation.</em></p>
 <h3 id="recovery-by-overlap-family">Recovery by overlap family</h3>
@@ -1260,18 +1278,6 @@ See Section 5 for the full account.</p>
 <td>PASS</td>
 </tr>
 <tr>
-<td>FP event rate (95% UB)</td>
-<td>S5/WSJT-X</td>
-<td>0/12 slots (event 0.0%; 95% UB 22.09%; decode 0.0%)</td>
-<td>FAIL</td>
-</tr>
-<tr>
-<td>FP event rate (95% UB)</td>
-<td>S5/OpenWSFZ</td>
-<td>0/12 slots (event 0.0%; 95% UB 22.09%; decode 0.0%)</td>
-<td>FAIL</td>
-</tr>
-<tr>
 <td>SNR bias</td>
 <td>S1/WSJT-X</td>
 <td>+0.85 dB</td>
@@ -1285,11 +1291,11 @@ See Section 5 for the full account.</p>
 </tr>
 </tbody>
 </table>
-<p><strong>Overall verdict: FAIL</strong></p>
-<h3 id="defect-notices">Defect Notices</h3>
+<p><strong>Overall verdict: PASS</strong></p>
+<h3 id="excluded-from-gate-informational">Excluded From Gate (Informational)</h3>
 <ul>
-<li>❌ FAIL — FP event rate (WSJT-X) = 0 events in 12 slots (event rate 0.0%, 95% UB 22.09%); gate requires 95% UB ≤ 6%</li>
-<li>❌ FAIL — FP event rate (OpenWSFZ) = 0 events in 12 slots (event rate 0.0%, 95% UB 22.09%); gate requires 95% UB ≤ 6%</li>
+<li>ℹ️ FP event rate (S5/WSJT-X) not gated: 0/12 slots (event 0.0%; 95% UB 22.09%; decode 0.0%) — N=12 slots is below the 49-slot minimum required to clear the §10 gate at zero observed events. See a properly powered run (N ≥ 49) for the ratified verdict.</li>
+<li>ℹ️ FP event rate (S5/OpenWSFZ) not gated: 0/12 slots (event 0.0%; 95% UB 22.09%; decode 0.0%) — N=12 slots is below the 49-slot minimum required to clear the §10 gate at zero observed events. See a properly powered run (N ≥ 49) for the ratified verdict.</li>
 </ul>
 <hr />
 <h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
@@ -1357,30 +1363,35 @@ See Section 5 for the full account.</p>
 </table>
 <p>No measurable effect from any change since <code>815b652</code>, including <code>f-001</code>'s persistent hash
 table — exactly as predicted by H₀-E (the mechanism is unreachable by this corpus).</p>
-<h3 id="h0-c-s5-false-positives-retained-but-the-automatic-verdict-is-misleading">H₀-C (S5 false positives) — Retained, but the automatic verdict is misleading ⚠️</h3>
-<p>The harness reports <strong>FAIL</strong> for both appraisers, but this is a <strong>statistical-power artifact</strong>,
-not a decoder regression:</p>
+<h3 id="h0-c-s5-false-positives-retained-and-the-report-now-says-so-plainly">H₀-C (S5 false positives) — Retained, and the report now says so plainly ✅</h3>
+<p>Observed FP count is <strong>0/12 for both appraisers</strong> — identical to the <code>815b652</code> baseline (0.0%).
+Nothing regressed.</p>
+<p>The first draft of this report showed a bare <strong>FAIL</strong> here, which the Captain correctly flagged
+as wrong on inspection: a metric that reads FAIL next to two rows of zeroes, with no outcome at
+that sample size capable of reading otherwise, is not reporting a defect — it is reporting an
+underpowered measurement. Per the Captain's 2026-07-04 review, <code>harness/analyse.py</code> has been
+fixed rather than merely explained around:</p>
 <ul>
-<li>Observed FP count is <strong>0/12 for both appraisers</strong> — identical to the <code>815b652</code> baseline
-  (0.0%). Nothing got <em>worse</em>.</li>
-<li>The STUDY-SPEC §10 gate was tightened today (R&amp;R-004) to a 95% Clopper–Pearson upper-bound
-  test. At N=12, the UB on zero observed events is 22.09% — mathematically incapable of
-  clearing the 6% ceiling no matter how clean the decoder is. This scenario's default trial
-  count (12 slots) was never sized for the new gate; it predates R&amp;R-004.</li>
-<li>The gate <strong>has</strong> been correctly evaluated at an adequately powered sample size in a dedicated
-  run: <code>2026-07-04-a3738fc-f002-s5-n300</code> (N=300) — <strong>PASS</strong> for both appraisers, and a clear
-  improvement over the D-011 baseline (OpenWSFZ 5.83%→2.67% point estimate, 10.68%→4.76% UB).</li>
+<li>Added <code>MIN_N_FOR_FP_GATE</code> (=49): the smallest slot count at which a clean run (0 events) can
+  clear the §10 6% ceiling, derived directly from the same Clopper–Pearson formula the gate
+  itself uses.</li>
+<li><code>_verdict_fp</code> now returns <code>INFO</code> — not <code>PASS</code> or <code>FAIL</code> — whenever the sample is below that
+  minimum. <code>INFO</code> results are excluded from the Section 4 gate table and from the overall
+  verdict entirely (they no longer appear as a row there at all), while the raw counts remain
+  fully visible above for transparency. A <code>notes</code> list threads this exclusion through to a new
+  "Excluded From Gate (Informational)" block so the omission is traceable, not silent.
+  Regression-tested in <code>tests/test_analyse_xplat.py::TestFpGateUnderpoweredIsInfoNotFail</code>
+  (6 new cases; 163/163 harness tests pass).</li>
+<li>The N=300 dedicated gate run (<code>2026-07-04-a3738fc-f002-s5-n300</code>) is unaffected by this change
+  (N=300 ≥ 49) and remains — as it already was — the ratified §10 verdict for this metric: PASS,
+  with a clear improvement over the D-011 baseline (OpenWSFZ 5.83%→2.67% point estimate,
+  10.68%→4.76% UB).</li>
 </ul>
-<p>H₀-C is retained on the strength of that dedicated, adequately-powered run. The FAIL surfaced
-by <em>this</em> run is a known, expected consequence of running the old scenario file under the new
-gate and requires no code investigation.</p>
-<p><strong>Process recommendation (not blocking):</strong> <code>scenarios/s5-noise.json</code>'s default N=12 will produce
-this same misleading FAIL on every future routine full-suite run under the R&amp;R-004 gate.
-Recommend either (a) raising the default S5 trial count in the routine scenario file closer to
-the N needed for a meaningful UB at the 6% ceiling, or (b) annotating this specific gate in
-<code>run_study.py</code>'s console/report output as "underpowered at routine N — see dedicated gate run"
-so it stops reading as an actionable defect on every full-suite run. Filed here for the
-Captain's consideration; not a merge blocker for <code>f-001</code>.</p>
+<p><strong>Process recommendation (still open, not blocking):</strong> <code>scenarios/s5-noise.json</code>'s routine
+default (N=12) will always report <code>INFO</code> rather than a real verdict under the R&amp;R-004 gate, by
+construction — that's now transparent rather than misleading, but a future improvement would be
+raising the routine trial count nearer the N=49 floor so routine runs can occasionally produce a
+real, gated verdict rather than always deferring to a separately-commissioned large-N run.</p>
 <h3 id="h0-d-s7-co-channel-recovery-retained">H₀-D (S7 co-channel recovery) — Retained ✅</h3>
 <p>Compared against the <em>correct</em> reference point (<code>f11f438</code>, 2026-06-22 — the most recent prior
 S7 measurement, postdating the H6/OSD-fallback/D-009 tuning that <code>815b652</code> predates):</p>
@@ -1447,13 +1458,15 @@ unchanged status), not a <code>f-001</code>/<code>f-002</code>-introduced regres
 at <code>815b652</code>) — both within the expected run-to-run spread at K=5 trials; no action indicated.</p>
 <h3 id="overall-recommendation">Overall Recommendation</h3>
 <p><strong>Task 5.3 is satisfied.</strong> No regression attributable to <code>f-001-hashed-callsign-resolution</code> (or
-the intervening <code>f-002</code>/D-011 changes) was found across S1–S8. The one FAIL verdict in Section 4
-is a scenario-sizing artifact of a same-day gate-tightening change, already independently
-resolved by an adequately-powered dedicated run. Recommend:</p>
+the intervening <code>f-002</code>/D-011 changes) was found across S1–S8. The Section 4 verdict table is
+now clean — <strong>Overall verdict: PASS</strong> — with the S5 sample-size limitation reported as
+informational rather than as a manufactured FAIL. Recommend:</p>
 <ol>
 <li>Mark <code>f-001-hashed-callsign-resolution</code> tasks.md item 5.3 complete, referencing this run
    (<code>results/2026-07-04-793a298/</code>).</li>
-<li>Track the S5 default-N sizing note above as a small process follow-up (not blocking).</li>
+<li>Land the <code>harness/analyse.py</code> <code>MIN_N_FOR_FP_GATE</code>/<code>INFO</code>-verdict fix (this change) so every
+   future routine run reports the same way.</li>
+<li>Track the S5 routine-scenario-sizing note above as a small process follow-up (not blocking).</li>
 <li>No further diagnostic action required before archiving <code>f-001-hashed-callsign-resolution</code>.</li>
 </ol>
   </div>

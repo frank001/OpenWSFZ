@@ -179,12 +179,18 @@ Three gaps identified and closed/tracked as follows:
       `report.html` rendered). All null hypotheses retained: S1/S2/S3 GR&R, ndc, and SNR bias
       unchanged from `815b652` within tolerance; S7/S8 informational recovery consistent with
       the most recent prior measurement (`f11f438`, 2026-06-22) — the open D-001 co-channel gap
-      is unchanged, not a new regression. The one Section-4 FAIL (S5 false-positive rate) is a
-      statistical-power artifact of this scenario's N=12 default under the same-day-tightened
-      R&R-004 Clopper-Pearson gate, not a decoder regression — already independently confirmed
-      PASS at an adequately powered N=300 (`results/2026-07-04-a3738fc-f002-s5-n300/`). Per 4.2,
-      none of S1–S8's scenarios exercise nonstandard/hashed callsigns, and this run confirms
-      zero measurable effect from the persistent hash table, as predicted. No regression found;
+      is unchanged, not a new regression. **Overall verdict: PASS.** The S5 false-positive metric
+      initially showed as a FAIL, but Captain's review correctly identified this as a harness
+      defect, not a decoder regression: this scenario's N=12 default cannot mathematically clear
+      the same-day-tightened R&R-004 Clopper-Pearson gate even at zero observed events (crossover
+      at N=49). Fixed at the source in `harness/analyse.py` (`MIN_N_FOR_FP_GATE`, `_verdict_fp`
+      now reports `INFO` — excluded from the gate table and overall verdict — rather than a
+      FAIL no outcome at that N could have avoided; 6 new regression tests,
+      `tests/test_analyse_xplat.py::TestFpGateUnderpoweredIsInfoNotFail`, 163/163 harness tests
+      pass). The ratified §10 verdict for this metric remains the adequately powered N=300 run
+      (`results/2026-07-04-a3738fc-f002-s5-n300/`, PASS). Per 4.2, none of S1–S8's scenarios
+      exercise nonstandard/hashed callsigns, and this run confirms zero measurable effect from
+      the persistent hash table, as predicted. No regression found;
       no further diagnostic action required before archiving this change.
 
 ## 6. Optional / stretch — Gap B: AP-assist for nonstandard callsigns (not required for merge)
