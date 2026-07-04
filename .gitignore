@@ -136,6 +136,14 @@ openswfz-*.log
 # same "never commit" rule — this pattern just matches the directory-name convention.
 **/*-s5/owsfz-all.txt
 
+# Same rule, third naming convention: ad-hoc dated re-check run directories under
+# qa/rr-study/results/ (e.g. d011-fp-recheck-2026-07-04/, produced by run_scenario.py)
+# hold the same raw appraiser decode logs and matched CSV — same NFR-021 risk, never
+# commit. Scoped to filename so the accompanying report.md/report.html/*.png stay tracked.
+qa/rr-study/results/*/owsfz-all.txt
+qa/rr-study/results/*/wsjt-all.txt
+qa/rr-study/results/*/*_matched.csv
+
 # Linux cross-platform R&R — runtime artefacts generated at repo root during WSL2 sessions.
 # These are operator files, not source, and may contain callsigns (NFR-021).
 linux-all.txt
