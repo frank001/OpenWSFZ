@@ -134,7 +134,14 @@
 
 ## 6. Regression
 
-- [ ] 6.1 Run the full existing `qa/rr-study` test suite (`pytest qa/rr-study/tests/`) to confirm
+- [x] 6.1 Run the full existing `qa/rr-study` test suite (`pytest qa/rr-study/tests/`) to confirm
       no regression from the synth/harness/analyser changes.
-- [ ] 6.2 Re-run at least one existing scenario's `--dry-run` output and diff against
+      156/156 pass (150 pre-existing + 6 new, `test_analyse_hashed_resolution.py`) — run
+      repeatedly throughout implementation, final pass clean.
+- [x] 6.2 Re-run at least one existing scenario's `--dry-run` output and diff against
       pre-change output (per 2.4) as a final confirmation before merge.
+      Final confirmation (broader than 2.4's single-scenario check): diffed `--dry-run` truth.csv
+      output for S1, S1b, S3b, S7, and S8 (single-signal, decode-rate, compounding, and
+      band-scene shapes) against the branch-point baseline (`1fc57c6`). All five byte-identical
+      on every pre-existing column; only cosmetic diffs (run-dir name, wall-clock dry-run
+      timestamp) in stdout.
