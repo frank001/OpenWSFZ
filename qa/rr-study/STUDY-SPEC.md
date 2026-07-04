@@ -154,6 +154,8 @@ Continuous studies use one response variable each (clean separation). All use
 | **S5 Noise / birdies** | False positives | signal-free cycles: white noise, pink noise, steady carriers/birdies | 3 | False-positive rate & agreement |
 | **S6 Off-air corpus** | External validity + appraiser consistency | 42 real off-air WAV files from local p10 corpus; K=3 runs; independently randomised order per run; both appraisers hear each WAV simultaneously | 3 | Within-appraiser consistency; between-appraiser Cohen's κ; SNR delta (D-002 field validation); order-effect test |
 | **S7 Compounding / co-channel** | Per-message recovery under overlap | 4 overlap families × 3 trials: co-channel stacks; near-collision Δf∈{3,6,12,25,50} Hz; time+freq stagger Δt∈{0.5,1.0,2.0} s; capture-ratio pairs | 3 | Per-message recovery, capture split, between-app agreement |
+| **S9 Hashed-callsign resolution** | Cross-cycle table confirmation | 2 linked pairs (announce + hash-reference, `gap_cycles=1`) at 2 SNR points; **not** a `parts` scenario — see §6.3 | 5 | Resolved / placeholder / not-decoded rate, conditional on announce decode; informational |
+| **S11 Type 4 decode-rate sweep** | Decode rate for the Type 4 message class | SNR ∈ {−15,−12,−9,−6,0} dB; fixed freq=1500 Hz, DT=0.2 s, one Type 4 "CQ <nonstandard call>" message (companion to S9; see §6.3) | 5 | Per-SNR decode rate per appraiser; informational |
 
 Replays/trials are seeded: `seed = hash(scenario, part_index, trial_index)` → byte-reproducible.
 
@@ -233,6 +235,60 @@ class "injected" and Cohen's κ is undefined on one class.
 Co-channel separation has no AIAG tolerance, so S7 is reported as an **informational** recovery
 table (per overlap family, per part, capture strong-vs-weak split, and between-app agreement); it
 does not contribute a PASS/FAIL verdict to the regression gate.
+
+### 6.3 S9 / S11 rationale — hashed-callsign cross-cycle resolution
+
+`f-001-hashed-callsign-resolution` (merged `86780dc`, shim `20260031`) gave the native decoder a
+session-scoped hash table so a Type 4 (`i3=4`) announcement's nonstandard/compound callsign
+resolves against a later Type 1/2/3 hash reference. Its own test suite (native shim unit tests
+plus a managed-pipeline test) proves the table mechanism is deterministic — but every one of
+those tests hand-packs the 77-bit payload and feeds it directly to `Ft8LibInterop.DecodeAll`,
+never through a live audio channel. It cannot say whether a *genuine* Type 4 announcement decodes
+often enough, under realistic noise, for the feature to matter in practice, nor confirm the
+cross-cycle join holds end-to-end over VB-CABLE. That is squarely an R&R-study-shaped question.
+
+**Two questions, kept deliberately separate (design D1 of
+`rr-study-hashed-callsign-effectiveness`)** rather than one blended "end-to-end success rate" —
+conflating them would make a low number uninterpretable (is the table broken, or did OSD/LDPC
+simply not decode the announcement at that SNR?):
+
+- **S11 — Type 4 decode rate.** Genuinely unknown. Modelled directly on S1b's decode-rate
+  methodology (`parts` schema, `_render_single`/`_analyse_decode_rate`, unchanged): an SNR sweep
+  of a Type 4 `"CQ <nonstandard callsign>"` announcement, scored purely on whether the CQ message
+  itself decoded. `message_kind: "type4"` is the only scenario-file difference from S1b — it
+  routes `_render_single` through the Type-4 packer (`pack_type4_announce`) instead of the
+  standard Type-1 packer.
+- **S9 — cross-cycle resolution.** Already proven deterministic by `f-001`'s own unit tests; this
+  needs only a **thin confirmatory check** that the resolution still holds over a real live-audio
+  channel, not a full statistical sweep. Unlike every other scenario in this study, S9 is **not** a
+  `parts` scenario: its scenario file declares a top-level `pairs` array, each entry explicitly
+  naming an `announce` signal (the Type 4 message) and a `reference` signal (a standard message
+  referencing the announced callsign's 22-bit `ihashcall` hash — task 1.3's extension to the
+  standard-message packer) plus a `gap_cycles` integer. The harness plays `announce` at cycle *N*,
+  waits `gap_cycles − 1` silent intervening cycles, plays `reference` at cycle *N + gap_cycles*,
+  and writes **one truth row per pair** (both halves' truth plus a `resolved_expected` flag) —
+  distinct from, and appended alongside, the existing per-part truth schema, so S1–S8/S11 are
+  unaffected.
+
+  Scoring (`analyse.py`'s `_analyse_hashed_callsign_resolution`) is **conditional**: the
+  reference-cycle resolution rate's denominator is restricted to pairs where the announcement
+  actually decoded, so a low resolution rate can never be confused with a low announcement-decode
+  rate (that question belongs to S11). Three outcomes are distinguished once the announcement has
+  decoded: **resolved** (decoded reference text contains the real callsign), **not resolved /
+  placeholder** (decoded reference text contains ft8_lib's `<...>` unresolved-hash sentinel), and
+  **reference not decoded** (nothing decoded in that cycle at all) — matching the same black-box
+  decode-text-comparison approach every other scenario in this study already uses, rather than
+  adding a new native diagnostic surface.
+
+  The independent QA synth encoder's Type 4 packer and `ihashcall` (`synth/packing.py`) are, per
+  this study's existing attestation convention, an independent second implementation of the
+  published protocol (Franke/Somerville/Taylor QEX 2020, plus the `ihashcall` formula) — not a
+  port of `ft8_lib`/`ft8_shim.c` — so a bug shared between the encoder and the shim under test
+  does not silently cancel out and inflate the apparent resolution rate.
+
+Both scenarios are **informational only** — no PASS/FAIL verdict is added to the §10 regression
+gate. The table mechanism itself is already gated by `f-001`'s own merged unit tests; S9/S11 exist
+to *measure*, not to re-litigate, what that mechanism does under realistic operating conditions.
 
 ---
 

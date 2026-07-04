@@ -85,13 +85,24 @@ def _load_scenario(path: Path, messages: dict[str, str]) -> dict:
     for field in ("id", "trials"):
         if field not in scenario:
             sys.exit(f"ERROR: scenario file missing required field '{field}': {path}")
-    # S8 uses a top-level 'signals' array instead of 'parts'; all others require 'parts'.
-    if scenario.get("id") != "S8" and "parts" not in scenario:
-        sys.exit(f"ERROR: scenario file missing required field 'parts': {path}")
+    # S8 uses a top-level 'signals' array instead of 'parts'; a linked-pair
+    # scenario (rr-linked-cycle-effectiveness-scenario) uses a top-level
+    # 'pairs' array instead of both; all others require 'parts'.
+    if (scenario.get("id") != "S8"
+            and "parts" not in scenario
+            and "pairs" not in scenario):
+        sys.exit(f"ERROR: scenario file missing required field 'parts' (or 'pairs'): {path}")
 
     # Resolve message texts
     msg_ids = scenario.get("message_ids") or []
     msg_pool = scenario.get("message_pool") or msg_ids
+    # Pairs scenarios nest their msg_ids under pairs[].announce/reference
+    # rather than a flat message_ids/message_pool list (design D2).
+    for pair in scenario.get("pairs") or []:
+        for half in ("announce", "reference"):
+            mid = pair.get(half, {}).get("msg_id")
+            if mid and mid not in msg_pool:
+                msg_pool = [*msg_pool, mid]
     resolved = {}
     for mid in msg_pool:
         if mid not in messages:
@@ -159,7 +170,7 @@ def _wait_for_cycle(boundary_ts: float) -> datetime:
 
 def _render_single(scenario: dict, part: dict, trial_index: int,
                    seed: int) -> "numpy.ndarray":
-    """Render a single-message part (S1, S1b, S2, S3) using the clean-room synthesiser.
+    """Render a single-message part (S1, S1b, S2, S3, S11) using the clean-room synthesiser.
 
     The signal is encoded clean (no noise), then **wideband** AWGN is added
     (no ``noise_cutoff_hz``).  Single-signal scenarios intentionally use wideband
@@ -174,17 +185,41 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
     The noise cutoff (``_NOISE_CUTOFF_HZ``) is preserved for multi-signal scenarios
     (S4, S7, S8) where perceptual realism matters and the shared-floor mixer is
     used; it is not applied here.
+
+    rr-linked-cycle-effectiveness-scenario (D1 path 1, S11): a scenario file
+    may set a top-level ``"message_kind": "type4"`` to render its message via
+    the Type-4 "CQ <nonstandard callsign>" packer instead of the standard
+    Type-1 packer — everything else about this function (noise model, dt/freq
+    handling) is identical and message-type-agnostic. Absent from S1/S1b/S2/S3
+    (all standard-message scenarios), so they are unaffected.
     """
     from synth import channel, encoder
 
     fixed = scenario.get("fixed", {})
     msg_ids = list(scenario["message_texts"].keys())
-    # S1/S1b/S2/S3 use only the first message_id
+    # S1/S1b/S2/S3/S11 use only the first message_id
     text = scenario["message_texts"][msg_ids[0]]
 
     base_freq_hz = part.get("base_freq_hz", fixed.get("base_freq_hz", 1500.0))
     dt_s = part.get("dt_s", fixed.get("dt_s", 0.0))
     snr_db = part.get("snr_db", fixed.get("snr_db", 0.0))
+
+    if scenario.get("message_kind") == "type4":
+        tokens = text.strip().split()
+        if len(tokens) != 2 or tokens[0].upper() != "CQ":
+            sys.exit(
+                f"ERROR: Type-4 message {text!r} must be of the form 'CQ <callsign>' "
+                f"(scenario {scenario.get('id')!r} sets message_kind='type4')"
+            )
+        clean = encoder.encode_message_type4(
+            tokens[1],
+            base_freq_hz=float(base_freq_hz),
+            dt_s=float(dt_s),
+            snr_db=None,
+            sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+        )
+        return channel.add_noise(clean, float(snr_db), seed,
+                                 sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ)
 
     clean = encoder.encode_message(
         text,
@@ -396,6 +431,222 @@ def _render_noise(part: dict, seed: int) -> "numpy.ndarray":
 
 
 # ---------------------------------------------------------------------------
+# PCM rendering — linked-pair scenario (rr-linked-cycle-effectiveness-scenario)
+# ---------------------------------------------------------------------------
+
+def _render_pair_announce(scenario: dict, announce: dict, seed: int) -> tuple:
+    """Render the Type-4 "CQ <nonstandard callsign>" half of a linked pair.
+
+    The announce message's stored text (study-messages.json) must be of the
+    form "CQ <CALLSIGN>" — the harness extracts <CALLSIGN> and packs it via
+    the Type-4 packer (`encoder.encode_message_type4`), NOT the standard
+    Type-1 packer used everywhere else in this harness.
+
+    Returns (samples, text, freq_hz, snr_db, callsign).
+    """
+    from synth import channel, encoder
+
+    text = scenario["message_texts"][announce["msg_id"]]
+    tokens = text.strip().split()
+    if len(tokens) != 2 or tokens[0].upper() != "CQ":
+        sys.exit(
+            f"ERROR: Type-4 announce message {text!r} (msg_id={announce['msg_id']!r}) "
+            "must be of the form 'CQ <callsign>'"
+        )
+    callsign = tokens[1]
+
+    freq_hz = float(announce.get("freq_hz", 1500.0))
+    dt_s = float(announce.get("dt_s", 0.0))
+    snr_db = float(announce.get("snr_db", 0.0))
+
+    clean = encoder.encode_message_type4(
+        callsign,
+        base_freq_hz=freq_hz,
+        dt_s=dt_s,
+        snr_db=None,
+        sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+    )
+    samples = channel.add_noise(clean, snr_db, seed, sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ)
+    return samples, text, freq_hz, snr_db, callsign
+
+
+def _render_pair_reference(scenario: dict, reference: dict, seed: int) -> tuple:
+    """Render the standard-message hash-reference half of a linked pair.
+
+    This is an ordinary Type 1/2/3 message (e.g. "Q1TST Q0ABCDEF RR73")
+    rendered exactly like any S1/S2-style single signal — the nonstandard
+    callsign's hash-sub-range packing (task 1.3) is transparent to the
+    caller here; no Type-4-specific handling is needed for this half.
+
+    Returns (samples, text, freq_hz, snr_db).
+    """
+    from synth import channel, encoder
+
+    text = scenario["message_texts"][reference["msg_id"]]
+    freq_hz = float(reference.get("freq_hz", 1500.0))
+    dt_s = float(reference.get("dt_s", 0.0))
+    snr_db = float(reference.get("snr_db", 0.0))
+
+    clean = encoder.encode_message(
+        text,
+        base_freq_hz=freq_hz,
+        dt_s=dt_s,
+        snr_db=None,
+        sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+    )
+    samples = channel.add_noise(clean, snr_db, seed, sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ)
+    return samples, text, freq_hz, snr_db
+
+
+def _finalize_playback_samples(samples: "numpy.ndarray") -> "numpy.ndarray":
+    """Cast to float32, peak-normalise to ±_PLAYBACK_PEAK_LEVEL, and apply the
+    half-cosine fade-out — the same finishing steps every rendered slot in
+    the main loop already applies (extracted here so the pairs path reuses
+    them verbatim instead of duplicating the logic; see the main loop's
+    inline comments for why each step exists).
+    """
+    import numpy as np
+
+    samples = samples.astype("float32")
+    peak = float(np.max(np.abs(samples)))
+    if peak > 0.0:
+        samples = (samples * (_PLAYBACK_PEAK_LEVEL / peak)).astype("float32")
+
+    n_fade = int(_FADEOUT_DURATION_S * DEFAULT_SAMPLE_RATE_HZ)
+    if 0 < n_fade <= len(samples):
+        t = np.linspace(0.0, 1.0, n_fade, endpoint=True)
+        fade_env = (0.5 * (1.0 + np.cos(np.pi * t))).astype("float32")
+        samples[-n_fade:] *= fade_env
+    return samples
+
+
+def _play_samples(samples: "numpy.ndarray", args: argparse.Namespace,
+                  device_idx, label: str) -> None:
+    """Wait is the CALLER's job (cycle alignment); this only renders/plays.
+
+    Mirrors the main loop's existing dry-run/live playback branch verbatim
+    (see the main loop for the identical PortAudio error-handling path).
+    """
+    if args.dry_run:
+        print(f"{label} [DRY RUN] would play {len(samples)} samples at 48 kHz")
+        return
+    import sounddevice as sd
+    try:
+        sd.play(samples, samplerate=DEFAULT_SAMPLE_RATE_HZ, device=device_idx, blocking=False)
+        sd.wait()
+    except sd.PortAudioError as exc:
+        print(f"\nERROR: PortAudio playback failed: {exc}")
+        print("Available output devices:")
+        for i, d in enumerate(sd.query_devices()):
+            if d["max_output_channels"] > 0:
+                print(f"  [{i}] {d['name']}")
+        sys.exit(1)
+    print(f"{label} done")
+
+
+def _cycle_boundary_utc(args: argparse.Namespace) -> datetime:
+    """Wait for (or, in --dry-run, snap to) the next FT8 cycle boundary and
+    return its UTC datetime — shared alignment step for every play in a pair
+    (announce, silent intervening cycles, and reference alike)."""
+    if args.dry_run:
+        now_s = int(time.time())
+        snap = now_s - (now_s % SLOT_SECONDS)
+        return datetime.fromtimestamp(snap, tz=timezone.utc).replace(microsecond=0)
+    boundary_ts = _next_cycle_boundary()
+    return _wait_for_cycle(boundary_ts)
+
+
+def _run_pairs(scenario: dict, run_dir: Path, args: argparse.Namespace,
+              device_idx, qa_rr_root: Path) -> None:
+    """Play every (pair × trial) of a linked-pair scenario (design D2).
+
+    For each pair: play `announce` at cycle N, wait `gap_cycles - 1` silent
+    intervening cycles, play `reference` at cycle N + gap_cycles, then write
+    ONE truth row covering the whole pair (both halves' truth fields plus
+    resolved_expected) — see _PAIR_TRUTH_EXTRA_COLUMNS.
+    """
+    import numpy as np
+
+    scenario_id = scenario["id"]
+    pairs = scenario["pairs"]
+    n_trials = scenario["trials"]
+    silence = np.zeros(int(DEFAULT_SAMPLE_RATE_HZ * SLOT_SECONDS), dtype="float32")
+
+    total = len(pairs) * n_trials
+    played = 0
+
+    for pair in pairs:
+        pair_index = pair["pair_index"]
+        announce = pair["announce"]
+        reference = pair["reference"]
+        gap_cycles = int(reference.get("gap_cycles", 1))
+        if gap_cycles < 1:
+            sys.exit(f"ERROR: pair {pair_index} gap_cycles must be >= 1, got {gap_cycles}")
+
+        for trial_index in range(n_trials):
+            ann_seed = compute_seed(f"{scenario_id}:announce", pair_index, trial_index)
+            ref_seed = compute_seed(f"{scenario_id}:reference", pair_index, trial_index)
+
+            ann_samples, ann_text, ann_freq, ann_snr, callsign = _render_pair_announce(
+                scenario, announce, ann_seed
+            )
+            ann_samples = _finalize_playback_samples(ann_samples)
+            ref_samples, ref_text, ref_freq, ref_snr = _render_pair_reference(
+                scenario, reference, ref_seed
+            )
+            ref_samples = _finalize_playback_samples(ref_samples)
+
+            label = (
+                f"[{scenario_id}] Pair {pair_index} Trial {trial_index + 1}/{n_trials} "
+                f"gap={gap_cycles}"
+            )
+            print(f"{label} — announce …", end=" ", flush=True)
+            ann_cycle_utc = _cycle_boundary_utc(args)
+            _play_samples(ann_samples, args, device_idx, label="  announce")
+
+            for k in range(gap_cycles - 1):
+                _cycle_boundary_utc(args)
+                _play_samples(silence, args, device_idx, label=f"  silence ({k + 1}/{gap_cycles - 1})")
+
+            ref_cycle_utc = _cycle_boundary_utc(args)
+            _play_samples(ref_samples, args, device_idx, label="  reference")
+
+            ann_cycle_str = ann_cycle_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            ref_cycle_str = ref_cycle_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            _append_pair_truth(run_dir, {
+                "scenario_id": scenario_id,
+                "part_index": pair_index,
+                "trial_index": trial_index,
+                "seed": ann_seed,
+                "true_snr_db": "",
+                "true_dt_s": "",
+                "true_freq_hz": "",
+                "message_text": f"{ann_text}; {ref_text}",
+                "cycle_utc": ann_cycle_str,
+                "gap_cycles": gap_cycles,
+                "resolved_expected": True,
+                "announce_text": ann_text,
+                "announce_freq_hz": ann_freq,
+                "announce_snr_db": ann_snr,
+                "announce_cycle_utc": ann_cycle_str,
+                "reference_text": ref_text,
+                "reference_freq_hz": ref_freq,
+                "reference_snr_db": ref_snr,
+                "reference_cycle_utc": ref_cycle_str,
+                "resolved_callsign": callsign,
+                "unresolved_placeholder": UNRESOLVED_CALLSIGN_PLACEHOLDER,
+            })
+            played += 1
+
+    truth_rel = (run_dir / "truth.csv").relative_to(qa_rr_root)
+    print(
+        f"\nScenario {scenario_id} complete — {played} pairs injected "
+        f"({total} expected). Truth: {truth_rel}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Truth CSV logging
 # ---------------------------------------------------------------------------
 
@@ -403,6 +654,28 @@ _TRUTH_COLUMNS = [
     "scenario_id", "part_index", "trial_index", "seed",
     "true_snr_db", "true_dt_s", "true_freq_hz", "message_text", "cycle_utc",
 ]
+
+# rr-linked-cycle-effectiveness-scenario (design D2/D3, spec: "Harness writes
+# one truth row per pair, not one per part"): extra columns for the
+# linked-pair truth-row schema, appended ALONGSIDE the existing columns above
+# (never replacing them — existing per-part rows leave these blank via
+# csv.DictWriter's restval). A pair row reuses "part_index" for pair_index
+# and "cycle_utc"/"message_text" for the announce half (for continuity with
+# the existing per-part convention), and carries both halves' full truth plus
+# the resolution-scoring fields in the columns below.
+_PAIR_TRUTH_EXTRA_COLUMNS = [
+    "gap_cycles", "resolved_expected",
+    "announce_text", "announce_freq_hz", "announce_snr_db", "announce_cycle_utc",
+    "reference_text", "reference_freq_hz", "reference_snr_db", "reference_cycle_utc",
+    "resolved_callsign", "unresolved_placeholder",
+]
+_TRUTH_COLUMNS = _TRUTH_COLUMNS + _PAIR_TRUTH_EXTRA_COLUMNS
+
+# Placeholder text ft8_lib's lookup_callsign() emits for an unresolved hash
+# (confirmed by inspection of the vendored ft8_lib submodule's git history —
+# message.c's lookup_callsign: `strcpy(callsign, "<...>");` — a real,
+# already-shipped protocol/reference-implementation constant, not a guess).
+UNRESOLVED_CALLSIGN_PLACEHOLDER = "<...>"
 
 
 def _append_truth(run_dir: Path, row: dict) -> None:
@@ -414,6 +687,16 @@ def _append_truth(run_dir: Path, row: dict) -> None:
         if write_header:
             writer.writeheader()
         writer.writerow(row)
+
+
+def _append_pair_truth(run_dir: Path, row: dict) -> None:
+    """Append one linked-pair truth row (see _PAIR_TRUTH_EXTRA_COLUMNS) to truth.csv.
+
+    Shares truth.csv with the per-part schema (same file, superset of
+    columns) rather than a separate file, so a single run directory holds one
+    complete truth record regardless of scenario shape.
+    """
+    _append_truth(run_dir, row)
 
 
 # ---------------------------------------------------------------------------
@@ -444,20 +727,31 @@ def _run(args: argparse.Namespace) -> None:
         )
 
     # S8 has no 'parts' array — a single implicit part covers all trials.
+    # A 'pairs' scenario (rr-linked-cycle-effectiveness-scenario, e.g. S9) has
+    # no 'parts' array either — the placeholder below is inert for it (see the
+    # 'pairs' dispatch further down); it exists only so this function's shared
+    # setup code (run_dir, device_idx, the part-filter guard immediately below)
+    # doesn't need a third special case threaded through it.
     parts: list[dict] = scenario.get("parts", [{"part_index": 0}])
     n_trials: int = scenario["trials"]
     is_s5 = (scenario_id == "S5")
     is_s4 = (scenario_id == "S4")
     is_s7 = (scenario_id == "S7")
     is_s8 = (scenario_id == "S8")
+    is_pairs = "pairs" in scenario
 
     # ── Part filter ────────────────────────────────────────────────────────────
     # --parts 0,2,5  selects specific parts by part_index.
-    # Not applicable to S8, which uses a single implicit slot rather than a parts
-    # array.  Silently ignored for S8 so that the caller does not need special-case
-    # logic when forwarding flags from run_study.py.
+    # Not applicable to S8 (single implicit slot, no parts array) or to a
+    # 'pairs' scenario (S9: pairs are addressed by pair_index within their own
+    # playback path, not by this parts-array filter). Silently ignored for
+    # both so the caller does not need special-case logic when forwarding
+    # flags from run_study.py. Without this guard, a pairs scenario's inert
+    # single-element 'parts' placeholder above would make --parts reject any
+    # index other than 0, which would be actively misleading (S9 has 2 valid
+    # pairs) rather than merely inapplicable.
     _requested_parts = getattr(args, "parts", None)
-    if _requested_parts is not None and not is_s8:
+    if _requested_parts is not None and not is_s8 and not is_pairs:
         requested_indices: set[int] = set()
         for _tok in _requested_parts.split(","):
             _tok = _tok.strip()
@@ -503,6 +797,20 @@ def _run(args: argparse.Namespace) -> None:
     device_idx = None
     if not args.dry_run:
         device_idx = _select_device(args.device)
+
+    # rr-linked-cycle-effectiveness-scenario: a 'pairs' scenario (e.g. S9)
+    # takes an entirely separate playback/truth path (design D2). The 'parts'/
+    # is_s5/is_s4/... locals built above for a pairs scenario are inert
+    # placeholders (default [{"part_index": 0}], never referenced below this
+    # point once we return) — kept that way, rather than skipping their
+    # construction, so this dispatch sits at the same place in the function
+    # the original code already computed run_dir/device_idx, leaving every
+    # existing scenario's control flow and print order byte-for-byte
+    # unchanged (spec: "Existing part-based scenarios are unaffected";
+    # verified via before/after --dry-run diff, task 2.4/6.2).
+    if "pairs" in scenario:
+        _run_pairs(scenario, run_dir, args, device_idx, qa_rr_root)
+        return
 
     total_trials = len(parts) * n_trials
     played = 0
@@ -684,7 +992,8 @@ def main() -> None:
         help=(
             "Comma-separated list of part indices to run (0-based). "
             "If omitted, all parts are run. "
-            "Not applicable to S8 (no parts array — silently ignored)."
+            "Not applicable to S8 or to a 'pairs'-schema scenario such as S9 "
+            "(neither has a parts array — silently ignored for both)."
         ),
     )
     parser.add_argument(

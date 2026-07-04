@@ -1,0 +1,27 @@
+{
+  "_comment": "S11 Type 4 nonstandard-callsign decode-rate sweep — rr-linked-cycle-effectiveness-scenario, design D1 path 1. Genuinely unknown question (unlike S9's confirmatory table check): does a Type 4 'CQ <nonstandard callsign>' announcement decode reliably at realistic SNR? Modelled directly on S1b's decode-rate methodology (closest existing template per design.md's Open Questions) — same SNR ladder shape, same 'parts' schema, same _render_single/_analyse_decode_rate path — the only difference is message_kind='type4', which routes _render_single through the Type-4 packer instead of the standard Type-1 packer. NOTE: 'S10' is already reserved (STUDY-SPEC.md §17, 'QSO Context-Awareness Study', deferred) — this scenario is S11 to avoid collision.",
+  "_format_version": "1",
+
+  "id": "S11",
+  "name": "Type 4 nonstandard-callsign decode-rate sweep",
+  "response": "decode_rate",
+  "message_kind": "type4",
+
+  "description": "5 parts x 5 trials. Decode rate for a genuine Type 4 (i3=4) CQ announcement across an SNR sweep spanning S1's redesigned ladder plus S1b's low-SNR extension, so the Type 4 message class's OSD/LDPC decode-rate curve can be compared directly against the standard-message S1/S1b baseline. Companion to S9 (which answers the separate, already-largely-answered question of whether a decoded announcement then resolves) — kept apart per design D1 so a poor result here is unambiguously an OSD/LDPC decode-rate property of the message class, not a defect in f-001's hash table.",
+
+  "message_ids": ["MSG-T4-ANNOUNCE"],
+  "fixed": {"base_freq_hz": 1500, "dt_s": 0.2},
+
+  "analysis": "attribute_decode_rate",
+
+  "parts": [
+    {"part_index": 0, "snr_db": -15},
+    {"part_index": 1, "snr_db": -12},
+    {"part_index": 2, "snr_db": -9},
+    {"part_index": 3, "snr_db": -6},
+    {"part_index": 4, "snr_db": 0}
+  ],
+
+  "trials": 5,
+  "seed_formula": "hash('S11', part_index, trial_index)"
+}

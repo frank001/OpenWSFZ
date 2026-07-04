@@ -105,6 +105,63 @@
       message class not currently exercised by the corpus, matching the proposal's Impact
       section.
 
+## 4a. Effectiveness validation (added 2026-07-04 — regression-only coverage was not enough)
+
+QA review 2026-07-04 noted that sections 3–4 above prove the mechanism is *correct in
+isolation* (native shim, unit-level) but not that it is *effective* — i.e. that a resolved
+callsign actually reaches the operator-facing layer, and that it works on real traffic.
+Three gaps identified and closed/tracked as follows:
+
+- [x] 4a.1 **Managed-pipeline gap**: no existing test chained two `Ft8Decoder.DecodeAsync`
+      calls (real interop) to confirm a cross-cycle *resolved* callsign survives the D9-R3
+      false-positive guard (`IsPlausibleMessage`/`IsCallsignOversized`) on its way out —
+      only the raw `Ft8LibInterop.DecodeAll` path (this change's own tests) and single-cycle
+      literal-announcement survival (D-011's tests) were covered. This gap is exactly why
+      D-011 (a resolved/literal nonstandard callsign token being silently filtered) was only
+      caught on live traffic, not by any automated test — closing it here reduces the chance
+      of a sibling defect recurring unnoticed for the *resolution* path specifically.
+      → Added `HashedCallsignResolutionTests.CrossCycleResolution_ThroughManagedDecodeAsync_ResolvedCallsignReachesOperatorFacingLayer`:
+      chains two real-interop `Ft8Decoder.DecodeAsync` calls and asserts the resolved
+      callsign text (not a placeholder, not filtered) reaches the second call's results.
+      212/212 full suite green.
+- [x] 4a.2 **Real-world effectiveness evidence**: this change's own artifacts never recorded
+      whether the feature actually works against real off-air traffic — that evidence exists
+      but was only ever written up in a *different* defect's dev-task. Recorded here for
+      discoverability: during the live 1-hour R&R session on 2026-07-03 that led to D-011
+      (`dev-tasks/2026-07-03-d-011-nonstandard-callsign-fp-guard.md` §1), the session-scoped
+      hash table correctly showed the unresolved placeholder for a real special-event
+      station's callsign at the very first cycle of the session (before it had heard
+      anything), then correctly resolved it for every subsequent correspondent reply for the
+      rest of the 45+ minute session, matching WSJT-X's own decode text exactly. The defect
+      found in that session (D-011) was a *different, adjacent* bug — the FP guard
+      discarding the station's own literal announcements — not a failure of the
+      cross-cycle resolution mechanism itself, which worked throughout. No real callsigns
+      reproduced here, per NFR-021.
+- [x] 4a.3 **Statistical effectiveness under realistic SNR/QRM**: no R&R-harness scenario
+      exists measuring hash-resolution rate as decode conditions degrade, separate from
+      whether the table mechanism itself is correct. `qa/rr-study/synth/packing.py`
+      explicitly excludes Type 4 / hashed-callsign packing (`NotImplementedError`, "out of
+      scope for the first R&R study"), and `run_scenario.py`'s model plays independent
+      slots/trials scored against their own truth row — there is no existing concept of a
+      linked two-cycle announce→reference pair with "resolved" as a distinct outcome from
+      "decoded." Closing this requires: (a) extending the synth encoder for Type 4 packing +
+      `ihashcall`, (b) extending the harness to link a two-cycle pair and score resolution as
+      its own metric, (c) a live-audio-rig run (same requirement that got 5.3 deferred).
+      Scoped as a design proposal for Captain's review before harness-engineering effort
+      begins — tracked separately, not blocking this change's own closure.
+      → Full proposal drafted 2026-07-04:
+      `openspec/changes/rr-study-hashed-callsign-effectiveness/` (proposal.md, design.md,
+      specs/, tasks.md — all four artifacts complete, `openspec validate --strict` passes).
+      → **Implemented and closed 2026-07-04.** Live-rig run
+      `qa/rr-study/results/2026-07-04-22c3a94/` (report.md §1/§5): S9 (cross-cycle resolution)
+      100% resolved, both appraisers, 10/10 pairs across both SNR points; S11 (Type 4 decode-rate
+      sweep) 100% decode rate, both appraisers, across the full −15…0 dB SNR sweep. No evidence
+      of a Type 4 decode-rate penalty or a resolution failure at these operating points — this
+      task's original question is answered. (A genuine defect was found and fixed in the QA
+      harness's own scoring during this run — not in this feature's shipped mechanism — see the
+      rr-study change's own tasks.md §5.3 for detail.) See
+      `openspec/changes/rr-study-hashed-callsign-effectiveness/tasks.md` §5 for the full record.
+
 ## 5. Build & regression
 
 - [x] 5.1 Rebuild `libft8.dll` from the updated shim per `BUILD.md`.

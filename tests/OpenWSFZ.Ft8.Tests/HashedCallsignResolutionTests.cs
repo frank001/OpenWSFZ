@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using OpenWSFZ.Ft8.Interop;
 using Xunit;
@@ -69,6 +71,53 @@ public sealed class HashedCallsignResolutionTests
             "the persistent hash table must resolve the hash learned in cycle 1, so cycle " +
             "2's decoded text contains the full callsign rather than the <...> placeholder " +
             "— this is the entire point of f-001-hashed-callsign-resolution");
+    }
+
+    // ── Effectiveness gap-closer: cross-cycle resolution through the FULL managed pipeline ──
+    //
+    // Every test above drives Ft8LibInterop.DecodeAll directly — proving the native table
+    // mechanism is correct, but not that a resolved callsign actually reaches the
+    // operator-facing layer. Ft8Decoder.DecodeAsync sits between the shim and the UI/log
+    // surface, and applies IsPlausibleMessage/IsCallsignOversized (the D9-R3 false-positive
+    // guard) to every decoded message — including a resolved cross-cycle callsign, which is
+    // a literal (non-"<...>") token once resolved, exactly the shape D-011 found the guard
+    // silently discarding for a *directly*-decoded literal nonstandard callsign. Nothing in
+    // the existing suite chains two DecodeAsync calls to confirm the RESOLVED text (as
+    // opposed to a hand-authored fake string, per D011NonstandardCallsignFpGuardTests, or an
+    // unresolved "<...>" placeholder) survives the guard. This closes that gap.
+
+    [Fact(DisplayName = "Cross-cycle resolution survives the full managed pipeline: DecodeAsync (real interop) in cycle 2 surfaces the resolved callsign, not a placeholder and not filtered by the D9-R3 guard")]
+    public async Task CrossCycleResolution_ThroughManagedDecodeAsync_ResolvedCallsignReachesOperatorFacingLayer()
+    {
+        const string nonstd = "Q0MGDTST"; // fictional, 8 chars, unique to this test
+
+        var clock = new FakeClock(new DateTime(2026, 7, 4, 20, 0, 0, DateTimeKind.Utc));
+
+        // Cycle 1 — through Ft8Decoder.DecodeAsync (real interop): Type 4 announcement.
+        var decoder1 = new Ft8Decoder(clock);
+        float[] pcm1 = BuildPcmFromType4(nonstd, DefaultFreqHz);
+        var results1 = await decoder1.DecodeAsync(pcm1, CancellationToken.None);
+        results1.Select(r => r.Message).Should().Contain(m => m.Contains(nonstd),
+            "cycle 1 must decode the Type 4 announcement through the managed layer, " +
+            "surviving IsPlausibleMessage exactly as D011NonstandardCallsignFpGuardTests " +
+            "proves for a single cycle");
+
+        // Cycle 2 — a separate Ft8Decoder instance and a separate DecodeAsync call (the
+        // hash table is a process-global native static, so persistence does not depend on
+        // reusing the same managed Ft8Decoder object): Type 1 message referencing the same
+        // callsign's 22-bit hash.
+        var decoder2 = new Ft8Decoder(clock);
+        float[] pcm2 = BuildPcmFromEncodedMessage($"Q1MGD2 {nonstd} JO33", DefaultFreqHz);
+        var results2 = await decoder2.DecodeAsync(pcm2, CancellationToken.None);
+
+        results2.Select(r => r.Message).Should().Contain(m => m.Contains(nonstd),
+            "the persistent hash table must resolve the hash learned in cycle 1, AND the " +
+            "resolved (now-literal, non-\"<...>\") callsign text must survive Ft8Decoder's " +
+            "D9-R3 false-positive guard on its way out of DecodeAsync — proving the " +
+            "feature's effectiveness through the actual code path the daemon uses, not just " +
+            "the raw native P/Invoke layer this test class otherwise exercises");
+        results2.Select(r => r.Message).Should().NotContain(m => m.Contains("<...>") && m.Contains("Q1MGD2"),
+            "a resolved cycle-2 reference must not still show the unresolved placeholder");
     }
 
     // ── 3.2: Never-announced hash remains unresolved (regression / unchanged behaviour) ──
