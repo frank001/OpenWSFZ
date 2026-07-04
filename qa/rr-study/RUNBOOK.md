@@ -547,9 +547,9 @@ cd D:\Projects\claude\OpenWSFZ\qa\rr-study
 | S2 | varies | ~varies |
 | S3 | varies | ~varies |
 | S4 | varies | ~varies |
-| S5 | varies | ~varies |
+| S5 | 4 × 30 = 120 cycles (raised from 4 × 3 2026-07-04, R&R-006/GitHub #39 — see STUDY-SPEC §16) | ~30 min |
 | S7 | varies | ~varies |
-| **Total** | | **~45–90 min** |
+| **Total** | | **~45–120 min** |
 
 ---
 

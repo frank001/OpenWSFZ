@@ -187,7 +187,11 @@ Three gaps identified and closed/tracked as follows:
       now reports `INFO` — excluded from the gate table and overall verdict — rather than a
       FAIL no outcome at that N could have avoided; 6 new regression tests,
       `tests/test_analyse_xplat.py::TestFpGateUnderpoweredIsInfoNotFail`, 163/163 harness tests
-      pass). The ratified §10 verdict for this metric remains the adequately powered N=300 run
+      pass). Also fixed at the root: `scenarios/s5-noise.json`'s routine trial count was raised
+      from 3 to 30 (12 → 120 total slots, R&R-006 / GitHub #39), matching the N=120 STUDY-SPEC
+      §10's own ratification text already assumed, so future routine runs can produce a real
+      gated S5 verdict instead of always reading `INFO`. The ratified §10 verdict for this
+      metric remains the adequately powered N=300 run
       (`results/2026-07-04-a3738fc-f002-s5-n300/`, PASS). Per 4.2, none of S1–S8's scenarios
       exercise nonstandard/hashed callsigns, and this run confirms zero measurable effect from
       the persistent hash table, as predicted. No regression found;

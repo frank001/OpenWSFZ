@@ -394,11 +394,15 @@ fixed rather than merely explained around:
   with a clear improvement over the D-011 baseline (OpenWSFZ 5.83%→2.67% point estimate,
   10.68%→4.76% UB).
 
-**Process recommendation (still open, not blocking):** `scenarios/s5-noise.json`'s routine
-default (N=12) will always report `INFO` rather than a real verdict under the R&R-004 gate, by
-construction — that's now transparent rather than misleading, but a future improvement would be
-raising the routine trial count nearer the N=49 floor so routine runs can occasionally produce a
-real, gated verdict rather than always deferring to a separately-commissioned large-N run.
+**Process recommendation — resolved (R&R-006 / GitHub #39):** `scenarios/s5-noise.json`'s
+routine default (N=12) would have always reported `INFO` rather than a real verdict under the
+R&R-004 gate, by construction. Fixed same-day: the scenario's `trials` field is raised from 3
+to 30 (12 → 120 total slots), matching the N = 120 already assumed by STUDY-SPEC §10's
+ratification text and worked examples, so future routine runs can produce a real gated S5
+verdict rather than always deferring to a separately-commissioned large-N run. See
+`STUDY-SPEC.md` §16 for the full record. (This run predates that fix — it still ran at N=12,
+hence the `INFO` result above — and is not being replayed for this alone, since the decode data
+itself is unaffected by a scenario-sizing change.)
 
 ### H₀-D (S7 co-channel recovery) — Retained ✅
 
