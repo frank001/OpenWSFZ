@@ -213,8 +213,10 @@ Three gaps identified and closed/tracked as follows:
       → DEFERRED (by user decision) to a follow-up change. Not started; depends on 6.1/6.2.
 - [x] 6.4 If Gap B is deferred, note it explicitly as a follow-up in the change's closing notes /
       archive summary so it isn't lost.
-      → Noted here and to be carried into the archive summary: Gap B (AP-assisted decode for
+      → Noted here and carried into the archive summary: Gap B (AP-assisted decode for
       nonstandard/compound callsigns) remains open. The core guarantee this change ships —
       cross-cycle hash resolution via the persistent native table — is a prerequisite for Gap B
       (hinting a hash the decoder couldn't look up before would have bought nothing), and is now
-      in place, so Gap B is unblocked for whenever a follow-up change takes it on.
+      in place. **Update 2026-07-05**: Gap B has been drafted as its own follow-up change,
+      `f-003-ap-assist-nonstandard-callsigns` (proposal/design/specs/tasks all complete,
+      `openspec validate --strict` passes) — see that change for scope and status.
