@@ -12,9 +12,11 @@ range offsets — are transcribed as published FT8 protocol facts, each with
 exactly one correct value. No algorithmic code has been ported from any
 encoder/decoder implementation.
 
-Only Type-1 standard messages (i3 = 1) are supported.  Out of scope for the
-first R&R study: non-standard / hashed callsigns, /P suffix, compound prefixes
-beyond the single rover /R bit, free-text (i3=0), telemetry, EU-VHF (i3=2), and
+Type-1 standard messages (i3 = 1) and Type-4 nonstandard-callsign messages
+(i3 = 4, rr-synth-nonstandard-callsign-packing) are supported, including
+referencing a Type-4-announced callsign by its 22-bit hash from a standard
+message's callsign field. Out of scope: /P suffix, compound prefixes beyond
+the single rover /R bit, free-text (i3=0), telemetry, EU-VHF (i3=2), and
 contest types.  Inputs that require unsupported forms raise ValueError.
 """
 from __future__ import annotations
@@ -67,6 +69,23 @@ _CHAR2 = "0123456789"
 
 # Positions 3–5: space FIRST, then letters (27 chars) — space is index 0
 _CHAR3 = " ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+# ---------------------------------------------------------------------------
+# Nonstandard-callsign / hash alphabet (rr-synth-nonstandard-callsign-packing)
+# ---------------------------------------------------------------------------
+# Source: the published `ihashcall` algorithm (WSJT-X's packjt77.f90, reproduced
+# identically in ft8_lib; formula documented in
+# f-001-hashed-callsign-resolution/design.md's Context section). 38 characters:
+# space, then 0-9, then A-Z, then '/' LAST. This differs from the c6 basecall
+# alphabets above (_CHAR0..._CHAR3), which are a distinct field with its own
+# per-position alphabets — the two must not be confused.
+_HASH_ALPHABET = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/"
+assert len(_HASH_ALPHABET) == 38
+
+# Published 64-bit multiplicative constant used by `ihashcall` (protocol fact,
+# one correct value; source as above).
+_HASH_MULT_CONST = 47_055_833_459
+_HASH_FIELD_CHARS = 11   # ihashcall and the Type-4 c58 field both cap at 11 chars
 
 
 # ---------------------------------------------------------------------------
@@ -143,9 +162,15 @@ def _pack_callsign(call: str) -> tuple[int, int]:
 
     n28: 28-bit value.
          0 = DE, 1 = QRZ, 2 = CQ, 3–1002 = CQ NNN,
+         NTOKENS … NTOKENS+MAX22-1 = 22-bit hash of a nonstandard callsign,
          NTOKENS+MAX22 … 2^28-1 = standard callsigns.
     ipa: 1 if the callsign carried a /R or /P suffix, else 0.
          (This bit occupies the rover / suffix flag slot in the 77-bit word.)
+         Nonstandard-shaped callsigns always report ipa=0 regardless of any
+         /R or /P suffix stripped below — this matches the published
+         reference behaviour (the rover flag is not preserved once a
+         callsign falls back to hash encoding; ihashcall hashes the callsign
+         text as given, suffix included, rather than carrying a separate flag).
 
     Source: QEX 2020 §III-A, Table I (the c28 field and special-token definitions).
     Raises ValueError for malformed or unsupported callsigns.
@@ -167,14 +192,112 @@ def _pack_callsign(call: str) -> tuple[int, int]:
     if call == "CQ":
         return _N28_CQ, ipa
 
-    # Non-standard / hashed callsigns are out of scope for the R&R study.
     # Standard callsign — normalise to 6 chars and mixed-radix-encode.
-    c6 = _normalize_to_c6(call)
-    n_base = _pack_basecall(c6)
+    try:
+        c6 = _normalize_to_c6(call)
+        n_base = _pack_basecall(c6)
+    except ValueError:
+        # Nonstandard-shaped callsign (rr-synth-nonstandard-callsign-packing,
+        # task 1.3): fall back to the 22-bit ihashcall hash sub-range
+        # (NTOKENS <= n28 < NTOKENS + MAX22) instead of raising. Only
+        # 3-11 character callsigns are hash-encodable (ihashcall's own
+        # field width); anything else is a genuine error and re-raises.
+        if not (3 <= len(call) <= _HASH_FIELD_CHARS):
+            raise
+        n22 = ihashcall(call, bits=22)
+        return NTOKENS + n22, 0
+
     n28 = NTOKENS + MAX22 + n_base
     if n28 > (1 << 28) - 1:
         raise ValueError(f"n28={n28} overflows 28 bits for callsign {call!r}")
     return n28, ipa
+
+
+def ihashcall(callsign: str, bits: int = 22) -> int:
+    """Compute the published `ihashcall` callsign hash (rr-synth-nonstandard-callsign-packing).
+
+    Independently implemented (D4) from the published formula — WSJT-X's
+    `ihashcall` (packjt77.f90), reproduced identically in ft8_lib, documented
+    in f-001-hashed-callsign-resolution/design.md's Context section:
+
+        n8 = 0
+        for each of up to 11 characters (charset: space, 0-9, A-Z, /):
+            n8 = 38 * n8 + char_index
+        hash = (47055833459 * n8) >> (64 - m)     # keep the top m bits
+
+    The callsign is right-padded with spaces to the full 11-character field
+    (space is index 0 in _HASH_ALPHABET, so padding contributes zero to n8) —
+    this is what makes the hash depend only on the callsign's own characters,
+    left-aligned in the field, regardless of length.
+
+    *bits* selects which published hash width to return: 22 (the standard-
+    message c28 sub-range, and the width the 12/10-bit widths are themselves
+    derived from), 12 (Type-4 announcement hash of the "other" call), or 10.
+    The narrower widths are always the top bits of the 22-bit hash
+    (h12 = h22 >> 10, h10 = h22 >> 12 — one right-shift each, not independent
+    computations), matching the published relationship between the three.
+
+    Raises ValueError if the callsign is longer than 11 characters or
+    contains a character outside the 38-character hash alphabet.
+    """
+    if bits not in (22, 12, 10):
+        raise ValueError(f"ihashcall: unsupported hash width {bits} (must be 22, 12, or 10)")
+
+    call = callsign.strip().upper()
+    if len(call) > _HASH_FIELD_CHARS:
+        raise ValueError(
+            f"ihashcall: callsign {call!r} exceeds {_HASH_FIELD_CHARS} characters"
+        )
+    padded = call.ljust(_HASH_FIELD_CHARS)
+
+    n8 = 0
+    for ch in padded:
+        try:
+            idx = _HASH_ALPHABET.index(ch)
+        except ValueError as exc:
+            raise ValueError(
+                f"ihashcall: character {ch!r} in {call!r} is not in the "
+                f"38-character hash alphabet"
+            ) from exc
+        n8 = 38 * n8 + idx
+
+    full22 = (_HASH_MULT_CONST * n8) >> (64 - 22)
+    full22 &= (1 << 22) - 1   # keep exactly the top 22 bits (protocol fact)
+    if bits == 22:
+        return full22
+    return full22 >> (22 - bits)
+
+
+def _pack_call58(callsign: str) -> int:
+    """Mixed-radix encode a callsign into the Type-4 message's 58-bit plaintext field.
+
+    Unlike `ihashcall`'s n8 (which right-pads to 11 characters — see its
+    docstring), this field is NOT padded: only the callsign's own characters
+    are encoded, in the same 38-character alphabet (_HASH_ALPHABET). This
+    (un-padded) encoding, paired with the decoder's fixed 11-position
+    unpacking, is what right-aligns a short callsign in the 58-bit numeric
+    field — a protocol fact, not a stylistic choice: the encoder and decoder
+    must agree on this convention for a receiver to recover the original text.
+
+    Raises ValueError for a callsign longer than 11 characters or containing
+    a character outside the 38-character hash alphabet.
+    """
+    call = callsign.strip().upper()
+    if len(call) > _HASH_FIELD_CHARS:
+        raise ValueError(
+            f"_pack_call58: callsign {call!r} exceeds {_HASH_FIELD_CHARS} characters"
+        )
+    n58 = 0
+    for ch in call:
+        try:
+            idx = _HASH_ALPHABET.index(ch)
+        except ValueError as exc:
+            raise ValueError(
+                f"_pack_call58: character {ch!r} in {call!r} is not in the "
+                f"38-character hash alphabet"
+            ) from exc
+        n58 = 38 * n58 + idx
+    return n58
 
 
 def _parse_dd(s: str) -> int:
@@ -294,6 +417,66 @@ def pack_message(text: str) -> list[int]:
         + _int_to_bits(n28b, 28) + [ipb]
         + [ir]
         + _int_to_bits(igrid4, 15)
+        + _int_to_bits(i3, 3)
+    )
+    return _assert_width(bits)
+
+
+def pack_type4_announce(callsign: str) -> list[int]:
+    """Pack a Type-4 (i3=4) "CQ <nonstandard callsign>" announcement into 77 bits.
+
+    rr-synth-nonstandard-callsign-packing (design D4): independently
+    implemented from the published FT8 protocol description (Franke/
+    Somerville/Taylor, QEX 2020) and the Type-4 field layout as documented
+    in f-001-hashed-callsign-resolution/design.md's Context section — NOT
+    ported or transliterated from `ft8_lib`/`ft8_shim.c`.
+
+    This packs the "call to CQ" form only (icq=1): the *other* station's
+    hash field is unused (n12=0) because a CQ call has no second callsign to
+    hash, and no report/RRR/RR73/73 field is sent (nrpt=0). This is the
+    message shape the linked-pair R&R scenario needs — a station with a
+    nonstandard/compound callsign announcing itself — and is what a decoded
+    Type-4 CQ renders back to as text: "CQ <callsign>".
+
+    77-bit layout (MSB -> LSB, source: the published Type-4 field
+    definition — 12 + 58 + 1 + 2 + 1 + 3 = 77 bits):
+        n12   (12 bits) — hash of the "other" callsign; unused (0) for CQ
+        n58   (58 bits) — full plaintext of the announced callsign
+        iflip ( 1 bit ) — which call is plaintext vs hashed; 0 for CQ
+        nrpt  ( 2 bits) — report/RRR/RR73/73 token; 0 (none) for CQ
+        icq   ( 1 bit ) — 1 iff the directed call is "CQ"
+        i3    ( 3 bits) — message type = 4
+
+    Returns a list of exactly 77 ints, each in {0, 1}, MSB first.
+
+    Raises ValueError if *callsign* is shorter than 3 or longer than 11
+    characters, or contains a character outside the 38-character hash
+    alphabet (space, 0-9, A-Z, /).
+    """
+    call = callsign.strip().upper()
+    if len(call) > _HASH_FIELD_CHARS:
+        raise ValueError(
+            f"pack_type4_announce: callsign {call!r} exceeds "
+            f"{_HASH_FIELD_CHARS} characters"
+        )
+    if len(call) < 3:
+        raise ValueError(
+            f"pack_type4_announce: callsign {call!r} shorter than 3 characters"
+        )
+
+    n58 = _pack_call58(call)
+    n12 = 0     # no second callsign to hash for a CQ announcement
+    iflip = 0
+    nrpt = 0    # no report/RRR/RR73/73 field on a CQ announcement
+    icq = 1     # directed call is "CQ"
+    i3 = 4      # Type-4 nonstandard-callsign message
+
+    bits: list[int] = (
+        _int_to_bits(n12, 12)
+        + _int_to_bits(n58, 58)
+        + [iflip]
+        + _int_to_bits(nrpt, 2)
+        + [icq]
         + _int_to_bits(i3, 3)
     )
     return _assert_width(bits)

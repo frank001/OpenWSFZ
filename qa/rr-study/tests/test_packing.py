@@ -27,6 +27,7 @@ from synth.packing import (
     _N28_CQ, _N28_DE, _N28_QRZ,
     _G15_RRR, _G15_RR73, _G15_73,
     _pack_callsign, _pack_grid_field, _pack_basecall, _normalize_to_c6,
+    ihashcall, _pack_call58, pack_type4_announce,
 )
 
 
@@ -290,9 +291,23 @@ class TestUnsupportedForms:
             packing.pack_message("Q1ABC Q9XYZ ZZZZ")
 
     def test_invalid_callsign_format_raises(self):
-        """A callsign with no recognisable digit position raises."""
+        """A callsign with no recognisable digit position AND outside the
+        3-11 char hash-fallback range still raises.
+
+        NOTE (rr-synth-nonstandard-callsign-packing, task 1.3): a callsign
+        with no digit position but a length in [3, 11] (e.g. "AAAAA") is no
+        longer unsupported — it now falls back to a 22-bit ihashcall hash,
+        exactly as the published protocol's own pack28 does. See
+        TestNonstandardCallsignHashReference for that behaviour.
+        """
         with pytest.raises(ValueError):
-            packing.pack_message("Q1ABC AAAAA FN42")  # AAAAA has no digit at pos 1 or 2
+            packing.pack_message("Q1ABC AAAAAAAAAAAA FN42")  # 12 chars: exceeds the hash field too
+
+    def test_no_digit_short_callsign_now_hashes_instead_of_raising(self):
+        """Documents the task-1.3 behaviour change: a callsign with no digit
+        position but a valid hash-fallback length no longer raises."""
+        bits = packing.pack_message("Q1ABC AAAAA FN42")
+        assert len(bits) == MESSAGE_BITS
 
 
 # ---------------------------------------------------------------------------
@@ -316,3 +331,208 @@ class TestCallsignNormalise:
     def test_5char_digit_at_2(self):
         # QG5AB → "QG5AB " (trailing space)
         assert _normalize_to_c6("QG5AB") == "QG5AB "
+
+
+# ---------------------------------------------------------------------------
+# 6. ihashcall — 22/12/10-bit callsign hash (rr-synth-nonstandard-callsign-packing)
+# ---------------------------------------------------------------------------
+# Shared test vector (task 1.4): fictional Q-prefix nonstandard callsign
+# "Q0ABCDEF" (8 chars, GDPR-compliant synthetic callsign per MEMORY.md's
+# privacy/callsign policy). Expected hash values are HAND-DERIVED from the
+# published `ihashcall` formula (WSJT-X packjt77.f90 / ft8_lib, as documented
+# in f-001-hashed-callsign-resolution/design.md's Context section):
+#
+#   alphabet = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/"  (space=0 ... /=37)
+#   call padded to 11 chars: "Q0ABCDEF   " (3 trailing spaces)
+#   n8 = mixed-radix encode over the 38-char alphabet = 169_726_174_981_079_792
+#   h22 = (47_055_833_459 * n8) >> 42 & 0x3FFFFF          = 2_523_336
+#   h12 = h22 >> 10                                        = 2_464
+#   h10 = h22 >> 12                                        = 616
+#
+# Cross-checked by inspection (not by calling into the native shim from
+# Python, per D4) against the actual reference implementation recovered from
+# the vendored ft8_lib submodule's git history (`hashcodes.f90`'s public
+# reference program and `message.c`'s `save_callsign`), which use the
+# identical alphabet, constant, and top-22-bits-then-derive-narrower-widths
+# scheme. This catches a transcription error in either implementation
+# without coupling the two at runtime.
+_Q0ABCDEF_N8 = 169_726_174_981_079_792
+_Q0ABCDEF_H22 = 2_523_336
+_Q0ABCDEF_H12 = 2_464
+_Q0ABCDEF_H10 = 616
+
+
+class TestIhashcall:
+    def test_shared_vector_h22(self):
+        assert ihashcall("Q0ABCDEF", bits=22) == _Q0ABCDEF_H22
+
+    def test_shared_vector_h12(self):
+        assert ihashcall("Q0ABCDEF", bits=12) == _Q0ABCDEF_H12
+
+    def test_shared_vector_h10(self):
+        assert ihashcall("Q0ABCDEF", bits=10) == _Q0ABCDEF_H10
+
+    def test_h12_is_top_bits_of_h22(self):
+        assert ihashcall("Q0ABCDEF", bits=12) == ihashcall("Q0ABCDEF", bits=22) >> 10
+
+    def test_h10_is_top_bits_of_h22(self):
+        assert ihashcall("Q0ABCDEF", bits=10) == ihashcall("Q0ABCDEF", bits=22) >> 12
+
+    def test_deterministic(self):
+        assert ihashcall("Q0ABCDEF") == ihashcall("Q0ABCDEF")
+        assert ihashcall("PJ4/K1ABC") == ihashcall("PJ4/K1ABC")
+
+    def test_case_insensitive(self):
+        assert ihashcall("q0abcdef") == ihashcall("Q0ABCDEF")
+
+    def test_fits_in_22_bits(self):
+        assert 0 <= ihashcall("Q0ABCDEF", bits=22) < (1 << 22)
+
+    def test_too_long_raises(self):
+        with pytest.raises(ValueError):
+            ihashcall("Q0ABCDEFGHIJ")  # 12 chars, exceeds the 11-char field
+
+    def test_invalid_character_raises(self):
+        with pytest.raises(ValueError):
+            ihashcall("Q0AB#DEF")  # '#' is not in the 38-char hash alphabet
+
+    def test_unsupported_bit_width_raises(self):
+        with pytest.raises(ValueError):
+            ihashcall("Q0ABCDEF", bits=8)
+
+
+# ---------------------------------------------------------------------------
+# 7. Type-4 nonstandard-callsign announcement packing
+# ---------------------------------------------------------------------------
+
+class TestPackType4Announce:
+    def test_returns_77_bits(self):
+        bits = pack_type4_announce("Q0ABCDEF")
+        assert len(bits) == MESSAGE_BITS
+        assert all(b in (0, 1) for b in bits)
+
+    def test_i3_is_4(self):
+        bits = pack_type4_announce("Q0ABCDEF")
+        assert bits[-3:] == [1, 0, 0]   # i3 = 4 = 0b100
+
+    def test_icq_bit_is_set(self):
+        # icq occupies bit index 73 (0-based, MSB-first): position -4 from the end
+        # (i3 occupies the last 3 bits; icq is the bit immediately before it).
+        bits = pack_type4_announce("Q0ABCDEF")
+        assert bits[-4] == 1
+
+    def test_bit_exact_worked_example(self):
+        """Full 77-bit word for 'CQ Q0ABCDEF', hand-derived from the field layout.
+
+        n12=0 (unused, CQ has no second call to hash), n58=_pack_call58('Q0ABCDEF')
+        (unpadded mixed-radix, no left-padding — see _pack_call58's docstring),
+        iflip=0, nrpt=0 (no report field), icq=1, i3=4.
+        """
+        expected_n58 = 3_093_129_008_986
+        assert _pack_call58("Q0ABCDEF") == expected_n58
+
+        bits = pack_type4_announce("Q0ABCDEF")
+
+        def _bits_to_int(b: list[int]) -> int:
+            n = 0
+            for x in b:
+                n = (n << 1) | x
+            return n
+
+        # n12(12)=0, n58(58)=expected_n58, iflip(1)=0, nrpt(2)=0, icq(1)=1, i3(3)=4
+        expected = (0 << 65) | (expected_n58 << 7) | (0 << 6) | (0 << 4) | (1 << 3) | 4
+        assert _bits_to_int(bits) == expected
+
+    def test_deterministic(self):
+        assert pack_type4_announce("Q0ABCDEF") == pack_type4_announce("Q0ABCDEF")
+
+    def test_case_insensitive(self):
+        assert pack_type4_announce("q0abcdef") == pack_type4_announce("Q0ABCDEF")
+
+    def test_too_long_raises_value_error(self):
+        """Spec scenario: callsign longer than 11 characters raises ValueError."""
+        with pytest.raises(ValueError):
+            pack_type4_announce("Q0ABCDEFGHIJ")  # 12 characters
+
+    def test_too_short_raises_value_error(self):
+        with pytest.raises(ValueError):
+            pack_type4_announce("Q1")  # 2 characters
+
+
+# ---------------------------------------------------------------------------
+# 8. Standard-message packer accepts a nonstandard callsign via its hash
+# ---------------------------------------------------------------------------
+
+class TestNonstandardCallsignHashReference:
+    def test_pack_callsign_falls_back_to_hash(self):
+        """A nonstandard-shaped callsign packs into the NTOKENS..NTOKENS+MAX22
+        hash sub-range instead of raising (task 1.3)."""
+        n28, ipa = _pack_callsign("Q0ABCDEF")
+        assert NTOKENS <= n28 < NTOKENS + MAX22
+        assert n28 == NTOKENS + _Q0ABCDEF_H22
+        assert ipa == 0
+
+    def test_pack_message_accepts_nonstandard_second_call(self):
+        bits = packing.pack_message("Q1TST Q0ABCDEF RR73")
+        assert len(bits) == MESSAGE_BITS
+        assert all(b in (0, 1) for b in bits)
+
+    def test_pack_message_nonstandard_call_in_hash_subrange(self):
+        """Confirms the packed c28 field for the nonstandard call lands in the
+        hash sub-range (NTOKENS <= n28 < NTOKENS + MAX22), per the spec."""
+        bits = packing.pack_message("Q1TST Q0ABCDEF RR73")
+
+        def _bits_to_int(b: list[int]) -> int:
+            n = 0
+            for x in b:
+                n = (n << 1) | x
+            return n
+
+        full = _bits_to_int(bits)
+        # Layout: n29a(29) | n29b(29) | ir(1) | igrid4(15) | i3(3) = 77
+        n29b = (full >> (15 + 3 + 1)) & ((1 << 29) - 1)
+        n28b = n29b >> 1
+        assert NTOKENS <= n28b < NTOKENS + MAX22
+        assert n28b == NTOKENS + _Q0ABCDEF_H22
+
+    def test_standard_callsigns_unaffected(self):
+        """Existing standard-callsign packing is bit-for-bit unchanged (task 1.3/1.5)."""
+        assert packing.pack_message("CQ Q1ABC FN42") == packing.pack_message("CQ Q1ABC FN42")
+        n28, ipa = _pack_callsign("Q1ABC")
+        assert n28 >= NTOKENS + MAX22
+        assert ipa == 0
+
+    def test_too_short_nonstandard_call_raises(self):
+        """A 2-character callsign with no digit position is neither a
+        standard basecall nor a valid hash-encodable nonstandard call
+        (ihashcall requires >= 3 chars). Note: "Q1" is NOT a suitable
+        example here — a digit at position 1 makes it a valid (if unusual)
+        standard callsign shape per QEX 2020 §III-A ("A0XYZ form")."""
+        with pytest.raises(ValueError):
+            _pack_callsign("AA")
+
+    def test_too_long_nonstandard_call_raises(self):
+        with pytest.raises(ValueError):
+            _pack_callsign("Q0ABCDEFGHIJ")  # 12 characters
+
+
+# ---------------------------------------------------------------------------
+# 9. _pack_call58 — Type-4 plaintext field (unpadded, distinct from ihashcall)
+# ---------------------------------------------------------------------------
+
+class TestPackCall58:
+    def test_matches_worked_example(self):
+        assert _pack_call58("Q0ABCDEF") == 3_093_129_008_986
+
+    def test_not_padded_like_ihashcall(self):
+        """_pack_call58 must NOT right-pad to 11 characters — that padding
+        is specific to ihashcall's n8 (see both functions' docstrings)."""
+        assert _pack_call58("Q0ABCDEF") != ihashcall("Q0ABCDEF")
+
+    def test_too_long_raises(self):
+        with pytest.raises(ValueError):
+            _pack_call58("Q0ABCDEFGHIJ")
+
+    def test_invalid_character_raises(self):
+        with pytest.raises(ValueError):
+            _pack_call58("Q0AB#DEF")
