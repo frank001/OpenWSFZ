@@ -191,7 +191,5 @@
 - [x] 7.2 Cross-link this change from `dev-tasks/2026-07-03-d-011-nonstandard-callsign-fp-guard.md`
       as the follow-up that closes its flagged residual risk.
       Added a "§7. Follow-up" section to that dev-task pointing here.
-- [ ] 7.3 Run `/opsx:archive` once merged and the R&R gate (task 6) has passed.
-      **Unblocked** — task 6's R&R gate PASSED 2026-07-04 (see 6.1–6.3 above). Remaining
-      before archive: open a PR from `feat/f-002-callsign-structure-region-lookup`,
-      merge to `main`, then run `/opsx:archive`.
+- [x] 7.3 Run `/opsx:archive` once merged and the R&R gate (task 6) has passed.
+      Merged via PR #37 (`238ee45`, 2026-07-04). Archiving now.
