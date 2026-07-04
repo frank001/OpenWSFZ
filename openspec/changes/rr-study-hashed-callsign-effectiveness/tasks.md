@@ -120,17 +120,43 @@
 
 ## 5. Live-rig execution (requires the Captain's operating position)
 
-- [ ] 5.1 Run the confirmatory linked-pair resolution scenario (cheaper, per design.md's
+- [x] 5.1 Run the confirmatory linked-pair resolution scenario (cheaper, per design.md's
       Migration Plan ordering) via VB-CABLE loopback with WSJT-X and OpenWSFZ decoding
       concurrently.
-- [ ] 5.2 Run the Type 4 decode-rate sweep scenario — schedule independently; not required to
+      Run 2026-07-04, `results/2026-07-04-22c3a94/` (shim/SHA `22c3a94`, WSJT-X 2.7.0 b4f9a4).
+      S9: 2 pairs × 5 trials = 10 pairs, both SNR points (0 dB, −10 dB). **Result: 100% resolved,
+      both appraisers, all 10 pairs** — every reference cycle showed the correctly-resolved
+      callsign (WSJT-X and OpenWSFZ decode text identical). See report §1/§5, finding 2.
+      A genuine QA-harness defect was found and fixed live during this run (see 5.3 note below).
+- [x] 5.2 Run the Type 4 decode-rate sweep scenario — schedule independently; not required to
       unblock 5.1's result.
-- [ ] 5.3 Render the report via `render_report.py`; QA authors Sections 1/5 (+2 framing) per the
+      Same session/run directory. S11: 5 SNR points (−15…0 dB) × 5 trials = 25 cycles.
+      **Result: 100% decode rate, both appraisers, at every SNR point including −15 dB.**
+      No evidence of a Type 4 message-class decode-rate penalty versus the standard message
+      class at these operating points. See report §1/§5, finding 2.
+- [x] 5.3 Render the report via `render_report.py`; QA authors Sections 1/5 (+2 framing) per the
       existing HK-001 convention before committing `report.md`/`report.html` under a dated
       `qa/rr-study/results/` directory.
-- [ ] 5.4 Record the outcome in this change's own notes (and cross-link from
+      `results/2026-07-04-22c3a94/report.md` + `.html` committed. **Live-rig finding: a real bug
+      was caught and fixed in this change's own analyser** — `_analyse_hashed_callsign_resolution`
+      matched "resolved" against the bare reference text, but the real, ratified decode format
+      (confirmed against the recovered `ft8_lib` reference source, `message.c`'s
+      `lookup_callsign`/`add_brackets`) wraps *every* hash-lookup result in `<>`, resolved or not
+      — so this run initially scored 0/10 resolved before the fix (misclassified
+      `reference_not_decoded`). Fixed in `analyse.py` (accepts the bracketed form; bare form kept
+      as a defensive fallback) with a new regression test,
+      `test_bracketed_resolved_form_is_recognised` (157/157 suite green after the fix). This is a
+      harness-only defect — `f-001`'s shipped mechanism was correct throughout; the live data is
+      what exposed the harness's wrong assumption, exactly the value this capability exists to
+      provide. Also fixed: 3 noise-floor false-CRC decode lines scrubbed from `owsfz-all.txt`
+      before commit per `RUNBOOK.md` §7.5 / NFR-021 (coincidental AWGN CRC-14 passes, not real
+      traffic, but callsign-shaped — none were synthetic Q-prefix calls).
+- [x] 5.4 Record the outcome in this change's own notes (and cross-link from
       `f-001-hashed-callsign-resolution`'s `tasks.md` §4a.3, which currently tracks this work as
       not-started) before archiving this change.
+      Outcome: both effectiveness questions D1 separates came back positive at N=10/N=25 —
+      Type 4 decodes as reliably as standard messages at every SNR tested, and cross-cycle
+      resolution held for every trial over live audio. f-001's tasks.md §4a.3 cross-linked below.
 
 ## 6. Regression
 

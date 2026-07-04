@@ -137,7 +137,7 @@ Three gaps identified and closed/tracked as follows:
       discarding the station's own literal announcements — not a failure of the
       cross-cycle resolution mechanism itself, which worked throughout. No real callsigns
       reproduced here, per NFR-021.
-- [ ] 4a.3 **Statistical effectiveness under realistic SNR/QRM**: no R&R-harness scenario
+- [x] 4a.3 **Statistical effectiveness under realistic SNR/QRM**: no R&R-harness scenario
       exists measuring hash-resolution rate as decode conditions degrade, separate from
       whether the table mechanism itself is correct. `qa/rr-study/synth/packing.py`
       explicitly excludes Type 4 / hashed-callsign packing (`NotImplementedError`, "out of
@@ -152,7 +152,15 @@ Three gaps identified and closed/tracked as follows:
       → Full proposal drafted 2026-07-04:
       `openspec/changes/rr-study-hashed-callsign-effectiveness/` (proposal.md, design.md,
       specs/, tasks.md — all four artifacts complete, `openspec validate --strict` passes).
-      Awaiting the Captain's decision to proceed to implementation (`/opsx:apply`).
+      → **Implemented and closed 2026-07-04.** Live-rig run
+      `qa/rr-study/results/2026-07-04-22c3a94/` (report.md §1/§5): S9 (cross-cycle resolution)
+      100% resolved, both appraisers, 10/10 pairs across both SNR points; S11 (Type 4 decode-rate
+      sweep) 100% decode rate, both appraisers, across the full −15…0 dB SNR sweep. No evidence
+      of a Type 4 decode-rate penalty or a resolution failure at these operating points — this
+      task's original question is answered. (A genuine defect was found and fixed in the QA
+      harness's own scoring during this run — not in this feature's shipped mechanism — see the
+      rr-study change's own tasks.md §5.3 for detail.) See
+      `openspec/changes/rr-study-hashed-callsign-effectiveness/tasks.md` §5 for the full record.
 
 ## 5. Build & regression
 

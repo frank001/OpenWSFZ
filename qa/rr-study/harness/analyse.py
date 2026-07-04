@@ -1309,6 +1309,19 @@ def _analyse_hashed_callsign_resolution(run_dir: Path, scen_id: str = "S9") -> d
         resolved_callsign = row["resolved_callsign"]
         placeholder = row.get("unresolved_placeholder") or UNRESOLVED_PLACEHOLDER_DEFAULT
         placeholder_text = reference_text.replace(resolved_callsign, placeholder)
+        # A hash-resolved callsign is NOT rendered bare — ft8_lib's lookup_callsign()
+        # (message.c) calls add_brackets() for every hash lookup result, resolved or
+        # not; only the *content* differs ("<...>" unresolved vs "<REALCALL>"
+        # resolved). Confirmed 2026-07-04 against both the recovered ft8_lib
+        # reference source and this scenario's own live-rig run: both WSJT-X and
+        # OpenWSFZ decoded the reference cycle as "Q1TST <Q0ABCDEF> RR73", never
+        # bare "Q1TST Q0ABCDEF RR73" — matching bare text here would (and, before
+        # this fix, did) misclassify every genuinely-resolved pair as
+        # reference_not_decoded. The bare form is still accepted as a defensive
+        # fallback in case some other decoder ever renders without brackets.
+        resolved_bracketed_text = reference_text.replace(
+            resolved_callsign, f"<{resolved_callsign}>"
+        )
 
         pair_detail: dict = {
             "pair_index": row.get("part_index", ""),
@@ -1332,7 +1345,8 @@ def _analyse_hashed_callsign_resolution(run_dir: Path, scen_id: str = "S9") -> d
                 counts[appr]["n_announce_decoded"] += 1
                 ref_candidates = buckets.get(reference_dt, []) if reference_dt is not None else []
                 resolved = any(
-                    _hcr_text_matches(c.message, reference_text)
+                    (_hcr_text_matches(c.message, resolved_bracketed_text)
+                     or _hcr_text_matches(c.message, reference_text))
                     and _hcr_freq_matches(c.freq_hz, reference_freq)
                     for c in ref_candidates
                 )

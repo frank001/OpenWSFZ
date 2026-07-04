@@ -27,6 +27,15 @@ ANNOUNCE_TEXT = "CQ Q0ABCDEF"
 REFERENCE_TEXT = "Q1TST Q0ABCDEF RR73"
 CALLSIGN = "Q0ABCDEF"
 PLACEHOLDER_TEXT = REFERENCE_TEXT.replace(CALLSIGN, UNRESOLVED_CALLSIGN_PLACEHOLDER)
+# The REAL shape a resolved reference decodes to (confirmed 2026-07-04 against a
+# live-rig S9 run and the recovered ft8_lib reference source: message.c's
+# lookup_callsign() calls add_brackets() for EVERY hash-lookup result, resolved
+# or not — only the placeholder vs. the real callsign differs inside the
+# brackets). Both WSJT-X and OpenWSFZ decoded "Q1TST <Q0ABCDEF> RR73" on the
+# live run, never the bare form. The bare REFERENCE_TEXT above is kept only as
+# a defensive fallback match in _analyse_hashed_callsign_resolution, not the
+# expected shape.
+RESOLVED_BRACKETED_TEXT = REFERENCE_TEXT.replace(CALLSIGN, f"<{CALLSIGN}>")
 
 
 def _write_truth_csv(run_dir: Path, rows: list[dict]) -> None:
@@ -110,6 +119,37 @@ class TestHashedCallsignResolutionAnalysis:
 
         assert results["per_pair"][0]["WSJT-X"] == "resolved"
         assert results["per_pair"][0]["OpenWSFZ"] == "not_resolved_placeholder"
+
+    def test_bracketed_resolved_form_is_recognised(self, tmp_path: Path):
+        """Regression test for the 2026-07-04 live-rig finding: a genuinely
+        resolved reference decodes as "<CALLSIGN>" (angle-bracketed), NOT bare
+        "CALLSIGN" — both WSJT-X and OpenWSFZ produced this real shape on an
+        actual VB-CABLE run of S9, and the analyser originally scored 0/10
+        resolved (misclassified as reference_not_decoded) before this was
+        fixed, because it only matched the bare form. ft8_lib's own
+        lookup_callsign()/add_brackets() confirm this is the correct,
+        ratified-reference shape, not an app-side bug."""
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+
+        ann_cycle = "2026-07-04T13:00:00Z"
+        ref_cycle = "2026-07-04T13:00:15Z"
+        _write_truth_csv(run_dir, [_pair_truth_row(0, 0, ann_cycle, ref_cycle)])
+
+        for appr_file in ("wsjt-all.txt", "owsfz-all.txt"):
+            (run_dir / appr_file).write_text(
+                _all_txt_line(ann_cycle, 1500, ANNOUNCE_TEXT) + "\n"
+                + _all_txt_line(ref_cycle, 1500, RESOLVED_BRACKETED_TEXT) + "\n",
+                encoding="utf-8",
+            )
+
+        results = _analyse_hashed_callsign_resolution(run_dir, SCEN_ID)
+        assert results is not None
+        for appr in APPRAISERS:
+            r = results["rates"][appr]
+            assert r["n_resolved"] == 1
+            assert r["resolution_rate"] == pytest.approx(100.0)
+            assert results["per_pair"][0][appr] == "resolved"
 
     def test_announce_not_decoded_excluded_from_resolution_denominator(self, tmp_path: Path):
         """Spec: resolution rate's denominator excludes pairs where the

@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ R&amp;R Study Report — S9/S11 Hashed-Callsign Effectiveness (live-rig)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-rr-study-report-s9s11-hashed-callsign-effectiveness-live-rig">OpenWSFZ R&amp;R Study Report — S9/S11 Hashed-Callsign Effectiveness (live-rig)</h1>
+<h2 id="1-study-hypothesis">1. Study Hypothesis</h2>
+<p><strong>Context.</strong> <code>f-001-hashed-callsign-resolution</code> (merged <code>86780dc</code>) gave the native decoder a
+session-scoped hash table so a Type 4 (<code>i3=4</code>) announcement's nonstandard/compound callsign
+resolves against a later hash reference. Its own test suite proves the table mechanism is
+<em>correct in isolation</em> (native shim unit tests, plus a managed-pipeline test), but every one of
+those tests hand-packs the 77-bit payload and feeds it directly to <code>Ft8LibInterop.DecodeAll</code> /
+<code>Ft8Decoder.DecodeAsync</code> — never through a live audio channel. This run
+(<code>rr-study-hashed-callsign-effectiveness</code>, tasks 5.1–5.2) exists to answer the two questions the
+change's own design (D1) deliberately keeps separate, so a poor result in either is
+interpretable rather than conflated:</p>
+<blockquote>
+<p><strong>S11 — does a genuine Type 4 "CQ \&lt;nonstandard callsign&gt;" announcement decode reliably at
+realistic SNR?</strong> (an OSD/LDPC decode-rate property of the message class — genuinely unknown
+going into this run.)</p>
+<p><strong>S9 — given a decoded announcement, does the cross-cycle hash resolution then hold over a
+real live-audio channel</strong> (VB-CABLE, WSJT-X and OpenWSFZ decoding concurrently), not just in
+<code>f-001</code>'s already-proven-deterministic unit tests?</p>
+</blockquote>
+<p><strong>Null hypotheses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Null hypothesis</th>
+<th>Would be refuted by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H₀₁ (S11)</td>
+<td>A Type 4 CQ announcement's decode rate is not materially worse than the standard-message class at comparable SNR, across the swept range −15…0 dB.</td>
+<td>Any SNR point showing a materially depressed decode rate versus the equivalent S1/S1b standard-message point.</td>
+</tr>
+<tr>
+<td>H₀₂ (S9)</td>
+<td>A genuinely-decoded Type 4 announcement's nonstandard callsign resolves correctly (matches the real callsign, not the unresolved <code>&lt;...&gt;</code> placeholder) when referenced by hash in a later cycle, for both appraisers, at both SNR points tested (0 dB, −10 dB).</td>
+<td>Any pair where an appraiser decodes the announce cycle but the reference-cycle outcome is <code>not_resolved_placeholder</code> or <code>reference_not_decoded</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defect IDs under observation:</strong> none — the mechanism under test is already shipped and closed
+(<code>f-001</code>). This run is effectiveness <em>measurement</em>, not a defect investigation, per this change's
+own Non-Goals. (One defect <em>was</em> found and fixed in the QA harness itself during this run —
+see §5, finding 1 — but it is a harness bug, not a finding about the shipped feature.)</p>
+<p><strong>What constitutes a meaningful result:</strong> both S9 and S11 are informational scenarios (design
+D1) — no AIAG PASS/FAIL gate applies, per <code>STUDY-SPEC.md</code> §6.3. A meaningful result here is one
+that changes confidence in the feature's practical value, or surfaces something actionable for
+<code>f-001</code>'s deferred Gap B (AP-assist for nonstandard callsigns) prioritisation decision — not a
+merge-blocking verdict.</p>
+<p><strong>Scenario note:</strong> S9 was run first (cheaper, per the design's Migration Plan ordering), then S11
+in the same session, into the <em>same</em> <code>wsjt-all.txt</code>/<code>owsfz-all.txt</code> pair — see §5, finding 3, for
+what that shared log means for S11's reported "FP" count.</p>
+<h2 id="2-run-context">2. Run Context</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-07-04</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>22c3a940571fc5ea2a6ca48bbf95681d946c1e30</code></td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0 b4f9a4</td>
+</tr>
+<tr>
+<td>Scenarios</td>
+<td><code>s9-hashed-callsign-resolution.json</code> (2 pairs × 5 trials = 10 pairs), then <code>s11-type4-decode-rate.json</code> (5 SNR points × 5 trials = 25 cycles) — same VB-CABLE session</td>
+</tr>
+<tr>
+<td>Pre-flight check</td>
+<td>No separate warm-up cycle recorded this run — <code>run_study.py</code>'s interactive warm-up guard cannot be driven non-interactively in this session, and its scenario registry does not yet include S9/S11 (harness-completeness gap, not fixed here — see §5, finding 4). Verification instead came from inspecting both apps' <code>ALL.TXT</code> immediately after the S9 run, before committing to the longer S11 run.</td>
+</tr>
+<tr>
+<td>Log scrub</td>
+<td>3 noise-floor false-CRC decode lines removed from <code>owsfz-all.txt</code> before commit, per <code>RUNBOOK.md</code> §7.5 / NFR-021 (coincidental AWGN CRC-14 passes, not real traffic, but callsign-shaped)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="34-results-harness-generated">3–4. Results (harness-generated)</h2>
+<h2 id="s11-type-4-nonstandard-callsign-decode-rate-sweep">S11 — Type 4 nonstandard-callsign decode-rate sweep</h2>
+<p><em>Decode rate (% of injected CQ <nonstandard callsign> announcements recovered) across an SNR sweep (rr-linked-cycle-effectiveness-scenario, design D1 path 1: 'does a genuine Type 4 announcement decode reliably at realistic SNR?', modelled on the S1/S1b decode-rate methodology). Companion to S9, which answers the separate question of whether a decoded announcement then resolves correctly — kept apart per D1 so a low number here is never mistaken for a resolution-table defect. Informational — no AIAG threshold.</em></p>
+<h3 id="per-part-decode-rate">Per-part decode rate</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>True SNR (dB)</th>
+<th>WSJT-X decoded</th>
+<th>WSJT-X rate</th>
+<th>OpenWSFZ decoded</th>
+<th>OpenWSFZ rate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>-15.00</td>
+<td>5/5</td>
+<td>100.00%</td>
+<td>5/5</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>-12.00</td>
+<td>5/5</td>
+<td>100.00%</td>
+<td>5/5</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>-9.00</td>
+<td>5/5</td>
+<td>100.00%</td>
+<td>5/5</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>-6.00</td>
+<td>5/5</td>
+<td>100.00%</td>
+<td>5/5</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>0.00</td>
+<td>5/5</td>
+<td>100.00%</td>
+<td>5/5</td>
+<td>100.00%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall decode rate — WSJT-X: 100.00%  OpenWSFZ: 100.00%</strong></p>
+<p><img alt="S11 decode rate" src="S11_decode_rate.png" /></p>
+<h2 id="s9-hashed-callsign-cross-cycle-resolution">S9 — Hashed-callsign cross-cycle resolution</h2>
+<p><em>Confirmatory check (design D1 path 2): does a genuinely-decoded Type 4 announcement's nonstandard callsign resolve correctly when referenced by hash in a later cycle, over the real live-audio channel? The resolution rate's denominator is restricted to pairs where the announcement decoded, so a low number here is never conflated with a low announcement-decode rate (see the companion S11 decode-rate sweep for that separate question). Informational — no AIAG threshold; the table mechanism itself is already proven deterministic by f-001-hashed-callsign-resolution's unit tests.</em></p>
+<h3 id="outcome-rates">Outcome rates</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>Announce decoded</th>
+<th>Resolved</th>
+<th>Placeholder (not resolved)</th>
+<th>Ref not decoded</th>
+<th>Denominator</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>100.00% (10/10)</td>
+<td>100.00%</td>
+<td>0.00%</td>
+<td>0.00%</td>
+<td>n=10 (announce-decoded pairs)</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>100.00% (10/10)</td>
+<td>100.00%</td>
+<td>0.00%</td>
+<td>0.00%</td>
+<td>n=10 (announce-decoded pairs)</td>
+</tr>
+</tbody>
+</table>
+<p><em>Resolved / Placeholder / Ref-not-decoded are each a % of the announce-decoded denominator (n in the last column), per the spec's conditional-scoring requirement.</em></p>
+<p><img alt="S9 hashed-callsign resolution" src="S9_hashed_resolution.png" /></p>
+<h3 id="per-pair-detail">Per-pair detail</h3>
+<table>
+<thead>
+<tr>
+<th>Pair</th>
+<th>Trial</th>
+<th>WSJT-X</th>
+<th>OpenWSFZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>0</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+<tr>
+<td>0</td>
+<td>1</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+<tr>
+<td>0</td>
+<td>2</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+<tr>
+<td>0</td>
+<td>3</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+<tr>
+<td>0</td>
+<td>4</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+<tr>
+<td>1</td>
+<td>0</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+<tr>
+<td>1</td>
+<td>2</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+<tr>
+<td>1</td>
+<td>3</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+<tr>
+<td>1</td>
+<td>4</td>
+<td>resolved</td>
+<td>resolved</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-recommendations">5. Recommendations</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Finding</th>
+<th>Defect / Ticket</th>
+<th>Hypothesis</th>
+<th>Next diagnostic step</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Fixed during this run.</strong> <code>analyse.py</code>'s <code>_analyse_hashed_callsign_resolution</code> scored "resolved" via exact match against the <em>bare</em> reference text (e.g. <code>"Q1TST Q0ABCDEF RR73"</code>). The real decode from both apps was <code>"Q1TST &lt;Q0ABCDEF&gt; RR73"</code> — angle-bracketed. Before the fix, this run scored 0/10 resolved (misclassified <code>reference_not_decoded</code>) despite both apps genuinely resolving every pair.</td>
+<td>None filed — QA-caught and fixed same session.</td>
+<td>Harness-only bug, not a defect in the shipped <code>f-001</code> mechanism: <code>add_brackets()</code> in the recovered <code>ft8_lib</code> reference source (<code>message.c</code>'s <code>lookup_callsign</code>) wraps <strong>every</strong> hash-lookup result in <code>&lt;&gt;</code>, resolved or not — only the placeholder vs. the real callsign differs inside the brackets. Confirmed against source before and after the fix.</td>
+<td>Done — <code>analyse.py</code> now matches the bracketed form (with the bare form kept as a defensive fallback); regression test <code>test_bracketed_resolved_form_is_recognised</code> added and passing.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Both scenarios came back at ceiling: <strong>S9 — 100% resolution</strong>, both appraisers, both SNR points (0 dB, −10 dB), 10/10 pairs; <strong>S11 — 100% decode rate</strong>, both appraisers, across the full −15…0 dB sweep. H₀₁ and H₀₂ both hold; no evidence of a decode-rate or resolution problem at these operating points.</td>
+<td>None.</td>
+<td>At N=10 (S9) / N=25 (S11) a 100% result is encouraging but not a tight statistical bound — a single rare failure would look identical whether the true rate is 100% or merely very high.</td>
+<td>If a tighter bound matters for the <code>f-001</code> Gap-B (AP-assist) prioritisation decision, extend S11's SNR floor below −15 dB to find where Type 4 actually starts failing, and/or increase N on both scenarios. Not required to close this change.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>S11's <code>matcher.py</code> output reports 20 "FP" for both appraisers. These are <strong>not</strong> noise-floor false positives — they are S9's own legitimate announce/reference decode lines, artefacts of running S9 and S11 back-to-back into the same <code>ALL.TXT</code> pair without clearing between them.</td>
+<td>None — reporting caveat only.</td>
+<td>N/A</td>
+<td>If S9+S11 are re-run together, either rotate/clear <code>ALL.TXT</code> between scenarios or note this caveat inline; S11's own decode-rate scoring is truth-row-driven (matches each truth row against the log) and is unaffected by the extra lines either way.</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>run_study.py</code>'s one-shot orchestrator (<code>_SCENARIO_REGISTRY</code>) does not yet include S9/S11 — this run used <code>harness/run_scenario.py</code> + <code>harness/matcher.py</code> + <code>harness/analyse.py</code> directly instead. Its interactive warm-up guard (<code>harness/warmup.py</code>) also cannot be driven non-interactively.</td>
+<td>None filed.</td>
+<td>Out of this change's own task list (tasks.md has no item for <code>run_study.py</code>); not a blocker for this run, but a convenience gap for the next live-rig session.</td>
+<td>Optional follow-up: add S9/S11 to <code>_SCENARIO_REGISTRY</code> (S9 needs its matcher step skipped, per its own analyser design) if this scenario pair is expected to run again regularly.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall recommendation.</strong> Both live measurements support the shipped feature: Type 4 decodes
+as reliably as the standard message class at every SNR point tested, and cross-cycle hash
+resolution held for every trial over a real audio channel with both appraisers in exact
+agreement. The one real defect this run surfaced was in the QA harness's own scoring logic, not
+in <code>f-001</code>'s shipped mechanism — it has been fixed and regression-tested in this same session.
+Recommend closing out <code>rr-study-hashed-callsign-effectiveness</code> task 5 (record this outcome,
+cross-link <code>f-001</code>'s tasks.md §4a.3) and proceeding to archive. Findings 2–4 above are optional
+follow-ups, not merge blockers.</p>
+<h2 id="summary">Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Scope</th>
+<th>Value</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: PASS</strong> (informational scenarios only — no AIAG gate applies to S9/S11 per design D1; PASS reflects the absence of any regression-gate metric in this run, not a judgement on S9/S11 themselves, which are scored qualitatively above.)</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
