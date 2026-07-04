@@ -66,7 +66,7 @@
     {
       "id": "MSG-T4-ANNOUNCE",
       "text": "CQ Q0ABCDEF",
-      "used_in": ["S9", "S10"],
+      "used_in": ["S9", "S11"],
       "note": "rr-synth-nonstandard-callsign-packing: Type 4 (i3=4) CQ announcement of a fictional Q-prefix nonstandard/compound callsign. Convention: harness parses this as 'CQ <CALLSIGN>' and packs it via pack_type4_announce, not the standard Type-1 packer. Same callsign used for the committed ihashcall test vector (test_packing.py) so the announced hash and the standard-message hash-reference below are traceably the same station."
     },
     {

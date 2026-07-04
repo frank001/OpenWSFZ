@@ -52,10 +52,11 @@ CONTINUOUS_SCENARIOS = {"S1", "S2", "S3"}
 ATTRIBUTE_SCENARIOS = {"S4", "S5"}
 # S3b / S1b are attribute decode-rate studies (not continuous Gage R&R).
 DECODE_RATE_SCENARIOS = {"S3b", "S1b"}
-# S10 (rr-linked-cycle-effectiveness-scenario, D1 path 1): Type 4 decode-rate
+# S11 (rr-linked-cycle-effectiveness-scenario, D1 path 1): Type 4 decode-rate
 # sweep — reuses _analyse_decode_rate/_decode_rate_report_lines unchanged
-# (see DECODE_RATE_CONFIG below), same as S3b/S1b.
-DECODE_RATE_SCENARIOS = DECODE_RATE_SCENARIOS | {"S10"}
+# (see DECODE_RATE_CONFIG below), same as S3b/S1b. ("S10" is already reserved
+# in STUDY-SPEC.md §17 for the deferred QSO Context-Awareness Study, hence S11.)
+DECODE_RATE_SCENARIOS = DECODE_RATE_SCENARIOS | {"S11"}
 # S9 (rr-linked-cycle-effectiveness-scenario, D1 path 2): linked-pair
 # confirmatory resolution check. Not matched-CSV-driven like every other
 # scenario here — its truth rows span two cycles (announce + reference), so
@@ -87,7 +88,7 @@ DECODE_RATE_CONFIG: dict[str, dict] = {
         ),
         "chart_ref_line": None,  # no reference line on SNR axis
     },
-    "S10": {
+    "S11": {
         "part_var":      "true_snr_db",
         "part_label":    "True SNR (dB)",
         "section_title": "Type 4 nonstandard-callsign decode-rate sweep",
@@ -1415,7 +1416,7 @@ def _hashed_callsign_resolution_report_lines(results: dict) -> list[str]:
         "announcement's nonstandard callsign resolve correctly when referenced by hash in a "
         "later cycle, over the real live-audio channel? The resolution rate's denominator is "
         "restricted to pairs where the announcement decoded, so a low number here is never "
-        "conflated with a low announcement-decode rate (see the companion S10 decode-rate "
+        "conflated with a low announcement-decode rate (see the companion S11 decode-rate "
         "sweep for that separate question). Informational — no AIAG threshold; the table "
         "mechanism itself is already proven deterministic by "
         "f-001-hashed-callsign-resolution's unit tests._",

@@ -170,7 +170,7 @@ def _wait_for_cycle(boundary_ts: float) -> datetime:
 
 def _render_single(scenario: dict, part: dict, trial_index: int,
                    seed: int) -> "numpy.ndarray":
-    """Render a single-message part (S1, S1b, S2, S3) using the clean-room synthesiser.
+    """Render a single-message part (S1, S1b, S2, S3, S11) using the clean-room synthesiser.
 
     The signal is encoded clean (no noise), then **wideband** AWGN is added
     (no ``noise_cutoff_hz``).  Single-signal scenarios intentionally use wideband
@@ -185,17 +185,41 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
     The noise cutoff (``_NOISE_CUTOFF_HZ``) is preserved for multi-signal scenarios
     (S4, S7, S8) where perceptual realism matters and the shared-floor mixer is
     used; it is not applied here.
+
+    rr-linked-cycle-effectiveness-scenario (D1 path 1, S11): a scenario file
+    may set a top-level ``"message_kind": "type4"`` to render its message via
+    the Type-4 "CQ <nonstandard callsign>" packer instead of the standard
+    Type-1 packer — everything else about this function (noise model, dt/freq
+    handling) is identical and message-type-agnostic. Absent from S1/S1b/S2/S3
+    (all standard-message scenarios), so they are unaffected.
     """
     from synth import channel, encoder
 
     fixed = scenario.get("fixed", {})
     msg_ids = list(scenario["message_texts"].keys())
-    # S1/S1b/S2/S3 use only the first message_id
+    # S1/S1b/S2/S3/S11 use only the first message_id
     text = scenario["message_texts"][msg_ids[0]]
 
     base_freq_hz = part.get("base_freq_hz", fixed.get("base_freq_hz", 1500.0))
     dt_s = part.get("dt_s", fixed.get("dt_s", 0.0))
     snr_db = part.get("snr_db", fixed.get("snr_db", 0.0))
+
+    if scenario.get("message_kind") == "type4":
+        tokens = text.strip().split()
+        if len(tokens) != 2 or tokens[0].upper() != "CQ":
+            sys.exit(
+                f"ERROR: Type-4 message {text!r} must be of the form 'CQ <callsign>' "
+                f"(scenario {scenario.get('id')!r} sets message_kind='type4')"
+            )
+        clean = encoder.encode_message_type4(
+            tokens[1],
+            base_freq_hz=float(base_freq_hz),
+            dt_s=float(dt_s),
+            snr_db=None,
+            sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+        )
+        return channel.add_noise(clean, float(snr_db), seed,
+                                 sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ)
 
     clean = encoder.encode_message(
         text,

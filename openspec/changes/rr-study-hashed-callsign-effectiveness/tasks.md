@@ -94,16 +94,29 @@
 
 ## 4. Scenario definition & documentation
 
-- [ ] 4.1 Confirm the next free scenario ID against `qa/rr-study/scenarios/` at implementation
+- [x] 4.1 Confirm the next free scenario ID against `qa/rr-study/scenarios/` at implementation
       time (design.md notes S8 is highest as of this proposal; placeholder used throughout this
       change's artifacts is "S9" — confirm and rename if a scenario has landed in the interim).
-- [ ] 4.2 Author the linked-pair scenario JSON file: one or two SNR points for the confirmatory
+      S9 confirmed free against `scenarios/`. IMPORTANT finding: the D1-path-1 decode-rate
+      scenario could NOT use "S10" as originally planned — `STUDY-SPEC.md` §17 already reserves
+      S10 for a deferred "QSO Context-Awareness Study". Renamed to **S11** throughout (scenario
+      file, `analyse.py`'s `DECODE_RATE_SCENARIOS`/`DECODE_RATE_CONFIG`, study-messages.json,
+      docstrings/comments) before any of it was committed.
+- [x] 4.2 Author the linked-pair scenario JSON file: one or two SNR points for the confirmatory
       resolution check (D1 path 2), following design.md's guidance to keep this thin.
-- [ ] 4.3 Author a separate Type-4-decode-rate scenario JSON file (D1 path 1), modelled on the
+      `scenarios/s9-hashed-callsign-resolution.json` — 2 pairs (0 dB, -10 dB), gap_cycles=1,
+      5 trials; verified via `--dry-run`.
+- [x] 4.3 Author a separate Type-4-decode-rate scenario JSON file (D1 path 1), modelled on the
       closest existing S1/S2-style decode-rate scenario — confirm the closest template at
       implementation time per design.md's Open Questions.
-- [ ] 4.4 Add a new scenario methodology section to `qa/rr-study/STUDY-SPEC.md` documenting both
+      `scenarios/s11-type4-decode-rate.json`, modelled directly on `s1b-snr-threshold.json`
+      (closest template: same parts/fixed/analysis shape); adds `"message_kind": "type4"`,
+      handled by a small addition to `_render_single` — no new analyser needed, reuses
+      `_analyse_decode_rate` exactly as D1 specifies. Verified via `--dry-run`.
+- [x] 4.4 Add a new scenario methodology section to `qa/rr-study/STUDY-SPEC.md` documenting both
       new scenarios, their response variables, and the D1 rationale for keeping them separate.
+      New §6.3 "S9 / S11 rationale — hashed-callsign cross-cycle resolution", plus two new rows
+      in the §6 scenarios table.
 
 ## 5. Live-rig execution (requires the Captain's operating position)
 
