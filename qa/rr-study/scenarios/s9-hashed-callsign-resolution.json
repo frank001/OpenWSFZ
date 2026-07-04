@@ -1,0 +1,25 @@
+{
+  "_comment": "S9 Hashed-callsign cross-cycle resolution — rr-linked-cycle-effectiveness-scenario. A Type 4 (i3=4) CQ announcement of a fictional Q-prefix nonstandard callsign is played in cycle N; a standard Type 1 message referencing that callsign's 22-bit ihashcall hash is played in cycle N + gap_cycles. This is design D1's PATH 2 (confirmatory resolution check) — deliberately thin per design.md: the cross-cycle table mechanism is already proven deterministic by f-001-hashed-callsign-resolution's own unit tests, so this scenario's only job is confirming 'resolved' fires correctly over a real live-audio channel, at one or two comfortably-decodable SNR points. It is NOT a decode-rate characterisation (see S10 for that — D1 path 1).",
+  "_format_version": "1",
+
+  "id": "S9",
+  "name": "Hashed-callsign cross-cycle resolution",
+  "response": "resolved / not-resolved (placeholder) / announcement-not-decoded, conditional on announce-cycle decode (see analyse.py _analyse_hashed_callsign_resolution)",
+  "description": "2 pairs x 5 trials. Confirmatory check only (design D1 path 2): does a genuinely-decoded Type 4 announcement's nonstandard callsign resolve correctly when referenced by hash in a later cycle, over the real VB-CABLE live-audio channel (not hand-packed PCM fed directly to DecodeAll, as f-001's own tests do). gap_cycles=1 for both pairs per design.md's Open Questions recommendation (start with one gap value; add a second only if the first raises a question).",
+
+  "pairs": [
+    {
+      "pair_index": 0,
+      "announce":  {"msg_id": "MSG-T4-ANNOUNCE", "freq_hz": 1500, "snr_db": 0},
+      "reference": {"msg_id": "MSG-T1-HASHREF",  "freq_hz": 1500, "snr_db": 0, "gap_cycles": 1}
+    },
+    {
+      "pair_index": 1,
+      "announce":  {"msg_id": "MSG-T4-ANNOUNCE", "freq_hz": 1500, "snr_db": -10},
+      "reference": {"msg_id": "MSG-T1-HASHREF",  "freq_hz": 1500, "snr_db": -10, "gap_cycles": 1}
+    }
+  ],
+
+  "trials": 5,
+  "seed_formula": "hash('S9:announce'|'S9:reference', pair_index, trial_index)"
+}

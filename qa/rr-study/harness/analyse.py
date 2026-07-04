@@ -16,6 +16,7 @@ import json
 import math
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,8 @@ _QA_ROOT = Path(__file__).resolve().parent.parent
 if str(_QA_ROOT) not in sys.path:
     sys.path.insert(0, str(_QA_ROOT))
 
+from harness.common import parse_all_txt
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -49,6 +52,16 @@ CONTINUOUS_SCENARIOS = {"S1", "S2", "S3"}
 ATTRIBUTE_SCENARIOS = {"S4", "S5"}
 # S3b / S1b are attribute decode-rate studies (not continuous Gage R&R).
 DECODE_RATE_SCENARIOS = {"S3b", "S1b"}
+# S10 (rr-linked-cycle-effectiveness-scenario, D1 path 1): Type 4 decode-rate
+# sweep — reuses _analyse_decode_rate/_decode_rate_report_lines unchanged
+# (see DECODE_RATE_CONFIG below), same as S3b/S1b.
+DECODE_RATE_SCENARIOS = DECODE_RATE_SCENARIOS | {"S10"}
+# S9 (rr-linked-cycle-effectiveness-scenario, D1 path 2): linked-pair
+# confirmatory resolution check. Not matched-CSV-driven like every other
+# scenario here — its truth rows span two cycles (announce + reference), so
+# _analyse_hashed_callsign_resolution reads truth.csv and the raw ALL.TXT
+# logs directly instead of going through matcher.py's per-message model.
+LINKED_PAIR_SCENARIOS = {"S9"}
 
 DECODE_RATE_CONFIG: dict[str, dict] = {
     "S3b": {
@@ -73,6 +86,21 @@ DECODE_RATE_CONFIG: dict[str, dict] = {
             "Informational — no AIAG threshold."
         ),
         "chart_ref_line": None,  # no reference line on SNR axis
+    },
+    "S10": {
+        "part_var":      "true_snr_db",
+        "part_label":    "True SNR (dB)",
+        "section_title": "Type 4 nonstandard-callsign decode-rate sweep",
+        "section_intro": (
+            "Decode rate (% of injected CQ <nonstandard callsign> announcements recovered) "
+            "across an SNR sweep (rr-linked-cycle-effectiveness-scenario, design D1 path 1: "
+            "'does a genuine Type 4 announcement decode reliably at realistic SNR?', modelled "
+            "on the S1/S1b decode-rate methodology). Companion to S9, which answers the "
+            "separate question of whether a decoded announcement then resolves correctly — "
+            "kept apart per D1 so a low number here is never mistaken for a resolution-table "
+            "defect. Informational — no AIAG threshold."
+        ),
+        "chart_ref_line": None,
     },
 }
 
@@ -1175,6 +1203,264 @@ def _band_scene_report_lines(results: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# S9 — Hashed-callsign cross-cycle resolution (rr-linked-cycle-effectiveness-scenario)
+# ---------------------------------------------------------------------------
+# Not matched-CSV-driven like every other analyser in this module: a linked
+# pair's truth row spans TWO decode cycles (announce + reference) and two
+# distinct message texts, which does not fit matcher.py's one-truth-row-per-
+# single-message model (see design D2/D3). This analyser therefore reads
+# truth.csv's pair rows and the raw WSJT-X/OpenWSFZ ALL.TXT logs directly,
+# doing its own (bespoke, per the established one-analyser-per-scenario-type
+# convention) slot-bucketed text/frequency matching — the same black-box
+# decode-text-comparison approach every other scenario here already uses,
+# per D3's rejection of a new app-exposed diagnostic surface.
+
+_HCR_FREQ_TOLERANCE_HZ = 4.0   # matches matcher.py's FREQ_TOLERANCE_HZ convention
+
+# Fallback only — the harness (run_scenario.py's UNRESOLVED_CALLSIGN_PLACEHOLDER)
+# always populates truth.csv's unresolved_placeholder column, so this constant
+# is a defensive default for a truth.csv written by an older harness version,
+# not the normal code path. Value matches ft8_lib's lookup_callsign() sentinel
+# (confirmed by inspection; see run_scenario.py's own constant for the citation).
+UNRESOLVED_PLACEHOLDER_DEFAULT = "<...>"
+
+
+def _hcr_text_matches(candidate_msg: str, truth_msg: str) -> bool:
+    """Case-sensitive whitespace-normalised message equality (matcher.py convention)."""
+    return " ".join(candidate_msg.split()) == " ".join(truth_msg.split())
+
+
+def _hcr_freq_matches(candidate_freq: float, true_freq: float) -> bool:
+    return abs(candidate_freq - true_freq) <= _HCR_FREQ_TOLERANCE_HZ
+
+
+def _hcr_load_pair_truth(run_dir: Path, scen_id: str) -> list[dict]:
+    """Load truth.csv rows for *scen_id* that carry a populated resolved_expected flag."""
+    truth_path = run_dir / "truth.csv"
+    if not truth_path.exists():
+        return []
+    rows: list[dict] = []
+    with open(truth_path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if row.get("scenario_id") != scen_id:
+                continue
+            if str(row.get("resolved_expected", "")).strip().lower() not in ("true", "1"):
+                continue
+            rows.append(row)
+    return rows
+
+
+def _hcr_parse_cycle(cycle_str: str):
+    try:
+        return datetime.strptime(cycle_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _analyse_hashed_callsign_resolution(run_dir: Path, scen_id: str = "S9") -> dict | None:
+    """Score each linked pair's announce-decode and conditional resolution outcome.
+
+    Returns a dict with per-appraiser aggregate rates plus a per-pair detail
+    table, or None if truth.csv has no pair rows for *scen_id* or the
+    WSJT-X/OpenWSFZ ALL.TXT logs are not present in *run_dir* (e.g. the
+    scenario has only been --dry-run'd, never actually played on the rig).
+    """
+    pair_rows = _hcr_load_pair_truth(run_dir, scen_id)
+    if not pair_rows:
+        return None
+
+    wsjt_path = run_dir / "wsjt-all.txt"
+    owsfz_path = run_dir / "owsfz-all.txt"
+    if not wsjt_path.exists() or not owsfz_path.exists():
+        print(
+            f"WARNING: {scen_id} — ALL.TXT log(s) not found in {run_dir}; "
+            "skipping hashed-callsign resolution analysis (needs a live-rig run, not --dry-run)",
+            file=sys.stderr,
+        )
+        return None
+
+    records_by_appraiser = {
+        "WSJT-X":   parse_all_txt(wsjt_path)[0],
+        "OpenWSFZ": parse_all_txt(owsfz_path)[0],
+    }
+    # Slot buckets: dict[normalised cycle utc] -> list[AllTxtRecord].
+    buckets_by_appraiser: dict[str, dict] = {}
+    for appr, recs in records_by_appraiser.items():
+        buckets: dict = {}
+        for rec in recs:
+            buckets.setdefault(rec.utc, []).append(rec)
+        buckets_by_appraiser[appr] = buckets
+
+    per_pair_rows: list[dict] = []
+    counts: dict[str, dict[str, int]] = {
+        appr: {"n_pairs": 0, "n_announce_decoded": 0, "n_resolved": 0,
+               "n_placeholder": 0, "n_not_decoded": 0}
+        for appr in APPRAISERS
+    }
+
+    for row in pair_rows:
+        announce_text = row["announce_text"]
+        announce_freq = float(row["announce_freq_hz"])
+        announce_dt = _hcr_parse_cycle(row["announce_cycle_utc"])
+        reference_text = row["reference_text"]
+        reference_freq = float(row["reference_freq_hz"])
+        reference_dt = _hcr_parse_cycle(row["reference_cycle_utc"])
+        resolved_callsign = row["resolved_callsign"]
+        placeholder = row.get("unresolved_placeholder") or UNRESOLVED_PLACEHOLDER_DEFAULT
+        placeholder_text = reference_text.replace(resolved_callsign, placeholder)
+
+        pair_detail: dict = {
+            "pair_index": row.get("part_index", ""),
+            "trial_index": row.get("trial_index", ""),
+        }
+
+        for appr in APPRAISERS:
+            counts[appr]["n_pairs"] += 1
+            buckets = buckets_by_appraiser[appr]
+
+            announce_decoded = False
+            if announce_dt is not None:
+                announce_decoded = any(
+                    _hcr_text_matches(c.message, announce_text)
+                    and _hcr_freq_matches(c.freq_hz, announce_freq)
+                    for c in buckets.get(announce_dt, [])
+                )
+
+            outcome = "announce_not_decoded"
+            if announce_decoded:
+                counts[appr]["n_announce_decoded"] += 1
+                ref_candidates = buckets.get(reference_dt, []) if reference_dt is not None else []
+                resolved = any(
+                    _hcr_text_matches(c.message, reference_text)
+                    and _hcr_freq_matches(c.freq_hz, reference_freq)
+                    for c in ref_candidates
+                )
+                if resolved:
+                    counts[appr]["n_resolved"] += 1
+                    outcome = "resolved"
+                else:
+                    is_placeholder = any(
+                        _hcr_text_matches(c.message, placeholder_text)
+                        and _hcr_freq_matches(c.freq_hz, reference_freq)
+                        for c in ref_candidates
+                    )
+                    if is_placeholder:
+                        counts[appr]["n_placeholder"] += 1
+                        outcome = "not_resolved_placeholder"
+                    else:
+                        counts[appr]["n_not_decoded"] += 1
+                        outcome = "reference_not_decoded"
+
+            pair_detail[appr] = outcome
+
+        per_pair_rows.append(pair_detail)
+
+    rates: dict[str, dict] = {}
+    for appr in APPRAISERS:
+        c = counts[appr]
+        n_pairs = c["n_pairs"]
+        n_ann = c["n_announce_decoded"]
+        rates[appr] = {
+            **c,
+            "announce_decode_rate": 100.0 * n_ann / n_pairs if n_pairs else float("nan"),
+            # Conditional on the announce cycle having decoded (spec requirement):
+            # denominator is n_announce_decoded, not n_pairs.
+            "resolution_rate": 100.0 * c["n_resolved"] / n_ann if n_ann else float("nan"),
+            "placeholder_rate": 100.0 * c["n_placeholder"] / n_ann if n_ann else float("nan"),
+            "not_decoded_rate": 100.0 * c["n_not_decoded"] / n_ann if n_ann else float("nan"),
+        }
+
+    # Chart: announce-decode rate vs. conditional resolution-outcome breakdown.
+    chart_path = None
+    if any(rates[appr]["n_pairs"] for appr in APPRAISERS):
+        fig, ax = plt.subplots(figsize=(8, 5))
+        x = np.arange(len(APPRAISERS))
+        width = 0.2
+        metrics = [
+            ("announce_decode_rate", "Announce decoded"),
+            ("resolution_rate", "Resolved | announce decoded"),
+            ("placeholder_rate", "Placeholder | announce decoded"),
+            ("not_decoded_rate", "Ref not decoded | announce decoded"),
+        ]
+        for i, (key, label) in enumerate(metrics):
+            vals = [rates[appr][key] for appr in APPRAISERS]
+            vals = [0.0 if (isinstance(v, float) and math.isnan(v)) else v for v in vals]
+            ax.bar(x + (i - 1.5) * width, vals, width, label=label)
+        ax.set_xticks(x)
+        ax.set_xticklabels(APPRAISERS)
+        ax.set_ylabel("Rate (%)")
+        ax.set_ylim(0, 105)
+        ax.set_title(f"{scen_id} — Hashed-callsign cross-cycle resolution")
+        ax.legend(fontsize=7)
+        ax.grid(axis="y", linestyle=":", lw=0.5)
+        plt.tight_layout()
+        chart_path = run_dir / f"{scen_id}_hashed_resolution.png"
+        fig.savefig(chart_path, dpi=150)
+        plt.close(fig)
+
+    return {
+        "scenario_id": scen_id,
+        "rates": rates,
+        "per_pair": per_pair_rows,
+        "chart": chart_path.name if chart_path else None,
+    }
+
+
+def _hashed_callsign_resolution_report_lines(results: dict) -> list[str]:
+    """Render the S9 hashed-callsign resolution section of report.md."""
+    scen_id = results["scenario_id"]
+    lines: list[str] = [f"## {scen_id} — Hashed-callsign cross-cycle resolution", ""]
+    lines += [
+        "_Confirmatory check (design D1 path 2): does a genuinely-decoded Type 4 "
+        "announcement's nonstandard callsign resolve correctly when referenced by hash in a "
+        "later cycle, over the real live-audio channel? The resolution rate's denominator is "
+        "restricted to pairs where the announcement decoded, so a low number here is never "
+        "conflated with a low announcement-decode rate (see the companion S10 decode-rate "
+        "sweep for that separate question). Informational — no AIAG threshold; the table "
+        "mechanism itself is already proven deterministic by "
+        "f-001-hashed-callsign-resolution's unit tests._",
+        "",
+    ]
+
+    lines += [
+        "### Outcome rates", "",
+        "| Appraiser | Announce decoded | Resolved | Placeholder (not resolved) | "
+        "Ref not decoded | Denominator |",
+        "|---|---|---|---|---|---|",
+    ]
+    for appr in APPRAISERS:
+        r = results["rates"][appr]
+        lines.append(
+            f"| {appr} | {_fmt_num(r['announce_decode_rate'])}% "
+            f"({r['n_announce_decoded']}/{r['n_pairs']}) "
+            f"| {_fmt_num(r['resolution_rate'])}% "
+            f"| {_fmt_num(r['placeholder_rate'])}% "
+            f"| {_fmt_num(r['not_decoded_rate'])}% "
+            f"| n={r['n_announce_decoded']} (announce-decoded pairs) |"
+        )
+    lines += [
+        "",
+        "_Resolved / Placeholder / Ref-not-decoded are each a % of the announce-decoded "
+        "denominator (n in the last column), per the spec's conditional-scoring requirement._",
+        "",
+    ]
+
+    if results.get("chart"):
+        lines += [f"![{scen_id} hashed-callsign resolution]({results['chart']})", ""]
+
+    if results.get("per_pair"):
+        lines += ["### Per-pair detail", "", "| Pair | Trial | WSJT-X | OpenWSFZ |", "|---|---|---|---|"]
+        for r in results["per_pair"]:
+            lines.append(
+                f"| {r['pair_index']} | {r['trial_index']} "
+                f"| {r.get('WSJT-X', '—')} | {r.get('OpenWSFZ', '—')} |"
+            )
+        lines += [""]
+
+    return lines
+
+
+# ---------------------------------------------------------------------------
 # S3b — Negative-DT decode-rate analysis
 # ---------------------------------------------------------------------------
 
@@ -1399,6 +1685,7 @@ def _write_report(
     s8_results: dict | None = None,
     attr_results: dict | None = None,
     decode_rate_results: list[dict] | None = None,
+    hcr_results: dict | None = None,
 ) -> Path:
     lines: list[str] = []
     run_date = run_dir.name.split("-")[0:3]
@@ -1530,6 +1817,10 @@ def _write_report(
     if s8_results:
         lines += _band_scene_report_lines(s8_results)
 
+    # S9 — hashed-callsign cross-cycle resolution (informational; no PASS/FAIL verdict)
+    if hcr_results:
+        lines += _hashed_callsign_resolution_report_lines(hcr_results)
+
     # Summary
     lines += [
         "## Summary",
@@ -1643,10 +1934,24 @@ def main() -> None:
 
     # Load matched CSVs
     matched = _load_matched_csvs(run_dir, scenario_filter, scenarios_dir)
-    if not matched:
+
+    # Linked-pair scenarios (S9) never produce a *_matched.csv — their truth
+    # rows span two cycles and are scored directly from truth.csv + the raw
+    # ALL.TXT logs (see LINKED_PAIR_SCENARIOS' docstring) — so their presence
+    # alone is enough to proceed even when `matched` is otherwise empty.
+    _pair_scenario_ids = [
+        sid for sid in sorted(LINKED_PAIR_SCENARIOS)
+        if (not scenario_filter or sid in scenario_filter)
+        and _hcr_load_pair_truth(run_dir, sid)
+    ]
+
+    if not matched and not _pair_scenario_ids:
         sys.exit(f"ERROR: no *_matched.csv files found in {run_dir}")
 
-    print(f"Analysing: {', '.join(sorted(matched.keys()))}")
+    if matched:
+        print(f"Analysing: {', '.join(sorted(matched.keys()))}")
+    if _pair_scenario_ids:
+        print(f"Analysing (linked-pair): {', '.join(_pair_scenario_ids)}")
 
     git_sha = _git_sha()
     continuous_results: dict = {}
@@ -1768,6 +2073,22 @@ def main() -> None:
             "  (informational)"
         )
 
+    # --- S9 hashed-callsign cross-cycle resolution (linked-pair, informational) ---
+    hcr_results: dict | None = None
+    for sid in _pair_scenario_ids:
+        hcr_results = _analyse_hashed_callsign_resolution(run_dir, sid)
+        if hcr_results is None:
+            continue
+        for appr in APPRAISERS:
+            r = hcr_results["rates"][appr]
+            print(
+                f"  {sid} hashed-callsign resolution ({appr}): "
+                f"announce decoded {_fmt_num(r['announce_decode_rate'])}% "
+                f"({r['n_announce_decoded']}/{r['n_pairs']})  "
+                f"resolved {_fmt_num(r['resolution_rate'])}% of announce-decoded  "
+                "(informational)"
+            )
+
     # --- Verdicts ---
     verdict_rows, overall, fails = _collect_verdicts(
         continuous_results, kappa_results, fp_results, bias_results
@@ -1781,6 +2102,7 @@ def main() -> None:
         s8_results=s8_results,
         attr_results=attr_results,
         decode_rate_results=decode_rate_results,
+        hcr_results=hcr_results,
     )
     print(f"\nReport written: {report_path}")
     print(f"Overall verdict: {overall}")

@@ -37,36 +37,60 @@
 
 ## 2. Harness — linked-pair scenario support (D2)
 
-- [ ] 2.1 Design and implement the `pairs` scenario-file schema in
+- [x] 2.1 Design and implement the `pairs` scenario-file schema in
       `qa/rr-study/harness/run_scenario.py` (announce/reference signal definitions,
       `gap_cycles`), per design.md's D2 example shape.
-- [ ] 2.2 Implement linked-pair playback: play `announce` at cycle *N*, silence for
+      Implemented exactly per the D2 example shape (`gap_cycles` nested under `reference`).
+- [x] 2.2 Implement linked-pair playback: play `announce` at cycle *N*, silence for
       `gap_cycles - 1` intervening cycles, play `reference` at cycle *N + gap_cycles*, reusing
       the existing `_next_cycle_boundary`/`_wait_for_cycle` alignment mechanism.
-- [ ] 2.3 Implement the per-pair truth-row schema (both messages' truth fields plus
+      `_run_pairs`/`_cycle_boundary_utc` reuse the existing alignment helpers unchanged.
+- [x] 2.3 Implement the per-pair truth-row schema (both messages' truth fields plus
       `resolved_expected`), distinct from the existing per-part truth schema, written alongside
       (not replacing) the existing truth CSV columns.
-- [ ] 2.4 Confirm existing `parts`-based scenarios (S1–S8) are unaffected: run at least one
+      `_PAIR_TRUTH_EXTRA_COLUMNS` appended to `_TRUTH_COLUMNS`; existing per-part rows leave
+      the new columns blank via `csv.DictWriter`'s `restval`.
+- [x] 2.4 Confirm existing `parts`-based scenarios (S1–S8) are unaffected: run at least one
       existing scenario in `--dry-run` mode before and after this change and diff the output.
-- [ ] 2.5 Add a `--dry-run`-exercisable path for the new `pairs` schema so the harness/synth
+      S1 `--dry-run` (part 0) diffed byte-for-byte before/after (git HEAD vs. working tree):
+      identical print order and identical truth.csv data for every pre-existing column; only
+      the new (blank) pair columns are appended.
+- [x] 2.5 Add a `--dry-run`-exercisable path for the new `pairs` schema so the harness/synth
       integration can be validated without live-rig time (per design.md's Migration Plan
       roll-out ordering).
+      Verified via `scenarios/s9-hashed-callsign-resolution.json --dry-run`: both pairs (2
+      SNR points x 5 trials) played and truth rows written correctly with all fields populated.
 
 ## 3. Analysis — "resolved" outcome (D1/D3)
 
-- [ ] 3.1 Add `_analyse_hashed_callsign_resolution` (or similarly named) to
+- [x] 3.1 Add `_analyse_hashed_callsign_resolution` (or similarly named) to
       `qa/rr-study/harness/analyse.py`, following the existing one-analyser-per-scenario-type
       convention (`_analyse_compounding`, `_analyse_band_scene`, `_analyse_decode_rate`).
-- [ ] 3.2 Implement conditional scoring: announce-cycle decode rate reported separately from
+      Note: unlike every other analyser, this one is NOT `*_matched.csv`-driven — a pair's truth
+      row spans two decode cycles, which doesn't fit matcher.py's one-row-per-message model — so
+      it reads truth.csv's pair rows + the raw WSJT-X/OpenWSFZ ALL.TXT logs directly (own
+      slot-bucketed text/freq matching, same black-box approach every other scenario uses).
+- [x] 3.2 Implement conditional scoring: announce-cycle decode rate reported separately from
       reference-cycle resolution rate, with the resolution rate's denominator restricted to
       pairs where the announcement decoded (spec requirement: distinguishable "not resolved" vs
       "announcement never decoded").
-- [ ] 3.3 Implement report-lines rendering for the new analyser, following the existing
+      Three distinguishable per-pair outcomes when announce decoded: resolved /
+      not_resolved_placeholder / reference_not_decoded, plus announce_not_decoded when the
+      announce cycle itself didn't decode (excluded from the resolution-rate denominator).
+- [x] 3.3 Implement report-lines rendering for the new analyser, following the existing
       `_compounding_report_lines`/`_band_scene_report_lines`/`_decode_rate_report_lines`
       convention, wired into `_write_report`/`_collect_verdicts`.
-- [ ] 3.4 Add unit-level test coverage for the new analyser function using a small synthetic
+      `_hashed_callsign_resolution_report_lines` wired into `_write_report` (new `hcr_results`
+      param) and `main()`; informational only (no PASS/FAIL verdict, matching S7/S8/decode-rate
+      convention) — the table mechanism itself is already gated by f-001's own unit tests.
+      Verified end-to-end via a synthetic run directory (fabricated truth.csv + ALL.TXT logs,
+      `analyse.py --run-dir ... --scenario S9` produces a correct report.md section + chart).
+- [x] 3.4 Add unit-level test coverage for the new analyser function using a small synthetic
       matched-CSV fixture (mirroring existing `analyse.py` test conventions), independent of a
       live run.
+      `tests/test_analyse_hashed_resolution.py` — 6 tests (resolved vs. placeholder
+      distinguished, announce-not-decoded excluded from denominator, reference-not-decoded
+      distinguished from placeholder, empty/missing-log edge cases, truth-row filtering).
 
 ## 4. Scenario definition & documentation
 

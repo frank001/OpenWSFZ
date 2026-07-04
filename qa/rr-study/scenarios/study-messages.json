@@ -62,6 +62,18 @@
       "text": "Q1ABC Q1DEF -05",
       "used_in": ["S4"],
       "note": "S4 density pool — reply to European station."
+    },
+    {
+      "id": "MSG-T4-ANNOUNCE",
+      "text": "CQ Q0ABCDEF",
+      "used_in": ["S9", "S10"],
+      "note": "rr-synth-nonstandard-callsign-packing: Type 4 (i3=4) CQ announcement of a fictional Q-prefix nonstandard/compound callsign. Convention: harness parses this as 'CQ <CALLSIGN>' and packs it via pack_type4_announce, not the standard Type-1 packer. Same callsign used for the committed ihashcall test vector (test_packing.py) so the announced hash and the standard-message hash-reference below are traceably the same station."
+    },
+    {
+      "id": "MSG-T1-HASHREF",
+      "text": "Q1TST Q0ABCDEF RR73",
+      "used_in": ["S9"],
+      "note": "rr-linked-cycle-effectiveness-scenario: standard Type 1 message referencing MSG-T4-ANNOUNCE's nonstandard callsign by its 22-bit ihashcall hash (task 1.3's hash sub-range fallback in _pack_callsign) rather than retransmitting it in full. A correctly-resolving decoder should decode this cycle's text as the same literal string; an unresolved decode substitutes the '<...>' placeholder in place of the callsign."
     }
   ]
 }
