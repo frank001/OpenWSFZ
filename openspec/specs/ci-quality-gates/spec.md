@@ -3,9 +3,10 @@
 ## Purpose
 
 Specifies the CI pipeline's quality gates: the three-OS build/test matrix, the
-build-and-test (G1), traceability (G3), licence-inventory (G5), and decoder-correctness
-(G6) gates, informational coverage reporting, the reproducible-evidence rule for decoder
-defects (NFR-016), and reserved placeholders for gates not yet active.
+build-and-test (G1), traceability (G3), licence-inventory (G5), decoder-correctness (G6),
+secrets-scan (G7), and OpenSpec-validation (G8) gates, informational coverage reporting,
+the reproducible-evidence rule for decoder defects (NFR-016), and reserved placeholders for
+gates not yet active.
 
 ## Requirements
 
@@ -91,6 +92,29 @@ A decoder defect "root cause" SHALL be substantiated by a failing reproducible t
 
 - **WHEN** a decoder fix is proposed
 - **THEN** its correctness SHALL be established by the reproducible fixture test, with the live smoke test used only to confirm end-to-end behaviour in the field
+
+### Requirement: Secrets-scan gate (G7)
+
+The CI workflow SHALL invoke `gitleaks detect` against the full repository history on the Linux matrix leg only, implementing NFR-017 (security — secrets scan gate). A non-zero exit from `gitleaks` SHALL fail the workflow.
+
+#### Scenario: Detected secret blocks merge
+
+- **WHEN** `gitleaks detect` finds a credential, private key, or other secret anywhere in the scanned commit history
+- **THEN** the CI workflow SHALL report failure on the Linux leg and the pull-request SHALL be blocked
+
+### Requirement: OpenSpec-validation gate (G8)
+
+The CI workflow SHALL invoke `openspec validate --strict --all` (a version-pinned `npx` invocation, not `@latest`) on the Linux matrix leg only. A non-zero exit from the tool SHALL fail the workflow. This gate exists because no automated check previously verified that every spec under `openspec/specs/` and every active change under `openspec/changes/` satisfies the OpenSpec schema (missing `## Purpose`/`## Requirements` sections, a requirement lacking a SHALL/MUST keyword or a scenario, etc.) — 24 of 42 specs were found failing strict validation on 2026-07-05, discovered only by an ad-hoc manual run during an unrelated change, not by any process that required it.
+
+#### Scenario: Invalid spec or change blocks merge
+
+- **WHEN** any spec under `openspec/specs/` or any active change under `openspec/changes/` fails `openspec validate --strict`
+- **THEN** the CI workflow SHALL report failure on the Linux leg and the pull-request SHALL be blocked
+
+#### Scenario: Gate runs regardless of which files changed
+
+- **WHEN** a pull-request touches any files at all (not only `openspec/`)
+- **THEN** Gate G8 SHALL still run `openspec validate --strict --all` against the full repository, since a spec can drift out of validity independent of the PR's own diff
 
 ### Requirement: Inert placeholders for later gates
 
