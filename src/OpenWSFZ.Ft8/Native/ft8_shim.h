@@ -257,8 +257,26 @@ extern "C" {
  *              owned by ft8_shim.c.  No change to decode logic, ABI, struct layout (48 bytes),
  *              or any existing entry points.  Default values identical to shim 20260029;
  *              omitting ft8_set_decode_params produces identical behaviour.
+ *   20260031 — f-001-hashed-callsign-resolution: the per-call stack-local callsign hash
+ *              table in ft8_decode_all is replaced by a process-global, session-scoped
+ *              static (g_session_hash_table), initialised once and reused by every
+ *              subsequent call for the life of the process.  A Type 4 message's full-text
+ *              nonstandard callsign, once decoded in any cycle, now resolves correctly
+ *              when referenced by 22-bit hash in a Type 1/2/3 message in a later cycle —
+ *              previously the table was destroyed at the end of every call, so cross-cycle
+ *              resolution could never succeed.  tls_hash_table (thread-local) is unchanged
+ *              in nature: it is still cleared to NULL on both the normal-return and the
+ *              __except (SEH) path, but now merely detaches from the shared global instead
+ *              of pointing at a per-call local; the global's *contents* survive a caught
+ *              access violation untouched (D2 — neither documented AV root cause touches
+ *              this table's memory region).  Eviction policy is unchanged: hash_table_add
+ *              still rejects new entries once the existing 256-slot table is full (D3 —
+ *              true FIFO eviction deferred, not required for this change).
+ *              ft8_encode_message's own per-call local table is untouched — encoding does
+ *              not depend on prior session state.  No ABI change; struct layout unchanged
+ *              (48 bytes); no new exported entry points.
  */
-#define FT8_SHIM_VERSION 20260030
+#define FT8_SHIM_VERSION 20260031
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

@@ -364,9 +364,14 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// <para>
     /// D9-R3 — oversized callsign: a Type 1 callsign packs into 28 bits; the largest
     /// valid rendered form is a 6-char base call with a 3-char portable suffix
-    /// (e.g. <c>VK9ABC/QRP</c>, 10 chars total).  Any callsign-position token whose base
-    /// exceeds 6 chars, or whose total exceeds 10 chars, was not produced by valid
-    /// callsign packing and is therefore a false-positive OSD candidate.
+    /// (e.g. <c>VK9ABC/QRP</c>, 10 chars total). A literal (non-hash) nonstandard
+    /// callsign — the Type 4 58-bit full-text field, per
+    /// <c>f-001-hashed-callsign-resolution</c> design.md — can legitimately be up to
+    /// 11 characters (the <c>ihashcall</c>/<c>pack58</c> charset's width limit), so the
+    /// ceiling used here is 11, not 10 (D-011). Any callsign-position token whose base
+    /// or total length exceeds 11 chars was not produced by valid callsign packing (Type
+    /// 1) nor by a valid Type 4 literal-text field, and is therefore a false-positive
+    /// OSD candidate.
     /// </para>
     /// <para>
     /// D9-R4 (existing) — Maidenhead grid / report validation on 3-token Standard QSO
@@ -530,8 +535,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// </list>
     /// A valid Type 1 base callsign has at most 6 characters; with a portable suffix
     /// (<c>/P</c>, <c>/M</c>, <c>/R</c>, <c>/MM</c>, <c>/QRP</c>) the rendered token
-    /// reaches at most 10 characters.  Anything beyond these limits was not produced
-    /// by valid callsign packing.
+    /// reaches at most 10 characters. A literal (non-hash) Type 4 nonstandard-callsign
+    /// full-text field can legitimately reach 11 characters (D-011,
+    /// <c>f-001-hashed-callsign-resolution</c> design.md's <c>ihashcall</c>/<c>pack58</c>
+    /// charset width) — this guard cannot distinguish that genuine case from same-shaped,
+    /// same-length OSD noise by text alone, so the ceiling below is set to the true
+    /// protocol maximum (11) rather than the tighter Type-1-only bound (10), trading a
+    /// small amount of residual OSD-noise headroom for the ability to show real
+    /// nonstandard-callsign traffic at all. Anything beyond 11 characters was not
+    /// produced by any valid FT8 message field and is rejected.
     /// </remarks>
     private static bool IsCallsignOversized(string token)
     {
@@ -542,8 +554,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         int    slashPos  = token.IndexOf('/');
         string baseCall  = slashPos >= 0 ? token[..slashPos] : token;
 
-        // Base callsign from standard Type 1 packing: maximum 6 characters.
-        // Rendered token with /suffix: maximum 10 characters.
-        return baseCall.Length > 6 || token.Length > 10;
+        // Base callsign from standard Type 1 packing, OR a literal Type 4 nonstandard
+        // callsign's full text (D-011): maximum 11 characters either way.
+        return baseCall.Length > 11 || token.Length > 11;
     }
 }

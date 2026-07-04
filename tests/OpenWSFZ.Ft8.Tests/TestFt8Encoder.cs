@@ -349,6 +349,73 @@ internal static class TestFt8Encoder
         return pcm;
     }
 
+    /// <summary>
+    /// Packs a Type 4 (i3=4, "nonstandard calls") message announcing a nonstandard/compound
+    /// callsign in full 58-bit text, addressed to the special token "CQ" (icq=1, so the
+    /// 12-bit hash slot for the "other" callsign is unused and left zero).
+    ///
+    /// <para>
+    /// Mirrors kgoba/ft8_lib's <c>ftx_message_encode_nonstd</c> (message.c) bit-for-bit:
+    /// n12(12) + n58(58) + iflip(1) + nrpt(2) + icq(1) + i3(3) = 77 bits. This deliberately
+    /// bypasses the native shim's own <c>ft8_encode_message</c> entry point (which only
+    /// exposes the auto-dispatching <c>ftx_message_encode</c>): that dispatcher tries
+    /// <c>ftx_message_encode_std</c> first, and <c>pack28</c> already handles any
+    /// 3-11 character nonstandard callsign via its own 22-bit-hash fallback branch, so
+    /// <c>ftx_message_encode_std</c> essentially never fails for a well-formed callsign —
+    /// the auto-dispatcher can never actually reach <c>ftx_message_encode_nonstd</c> for
+    /// realistic test input. Packing the Type 4 payload directly here (same approach as
+    /// <see cref="PackType1"/> for standard messages) is the only reliable way to construct
+    /// a genuine Type 4 wire signal for a cross-cycle hash-resolution test
+    /// (f-001-hashed-callsign-resolution).
+    /// </para>
+    /// </summary>
+    public static byte[] PackType4CqAnnounce(string nonstandardCallsign)
+    {
+        var bits = new byte[77];
+        ulong n58 = EncodeNonstandardCall58(nonstandardCallsign);
+        PackBitsInto(bits,  0, 12, 0);   // n12 — unused; call_to == "CQ" (icq=1)
+        PackBitsInto(bits, 12, 58, n58); // n58 — full-text nonstandard callsign
+        PackBitsInto(bits, 70,  1, 0);   // iflip
+        PackBitsInto(bits, 71,  2, 0);   // nrpt — no report/RRR/RR73/73 suffix
+        PackBitsInto(bits, 73,  1, 1);   // icq = 1 ("CQ")
+        PackBitsInto(bits, 74,  3, 4);   // i3 = 4 (Type 4 — nonstandard calls)
+        return bits;
+    }
+
+    /// <summary>
+    /// Computes the 58-bit mixed-radix encoding of a callsign for the Type 4 message's
+    /// full-text slot, matching kgoba/ft8_lib's <c>pack58</c> (message.c): up to 11
+    /// characters from the charset {space, 0-9, A-Z, /}, right-padded with space
+    /// (index 0) to exactly 11 symbols, base-38 mixed radix.
+    /// </summary>
+    public static ulong EncodeNonstandardCall58(string callsign)
+    {
+        string cs = callsign.ToUpperInvariant();
+        ulong n = 0;
+        for (int i = 0; i < 11; i++)
+        {
+            int j = i < cs.Length ? CharIndex38(cs[i]) : 0;
+            n = n * 38 + (ulong)j;
+        }
+        return n;
+    }
+
+    /// <summary>
+    /// Character → index mapping for the FT8 nonstandard-callsign charset
+    /// (kgoba/ft8_lib <c>text.c</c> <c>FT8_CHAR_TABLE_ALPHANUM_SPACE_SLASH</c>):
+    /// space=0, '0'-'9'=1..10, 'A'-'Z'=11..36, '/'=37.
+    /// </summary>
+    private static int CharIndex38(char c)
+    {
+        if (c == ' ') return 0;
+        if (c >= '0' && c <= '9') return c - '0' + 1;
+        if (c >= 'A' && c <= 'Z') return c - 'A' + 11;
+        if (c == '/') return 37;
+        throw new ArgumentException(
+            $"Character '{c}' is not valid in the FT8 nonstandard-callsign charset " +
+            "(space, 0-9, A-Z, / only).");
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private static void PackBitsInto(byte[] bits, int start, int count, ulong value)

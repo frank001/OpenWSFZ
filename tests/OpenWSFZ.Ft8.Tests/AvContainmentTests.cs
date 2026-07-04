@@ -26,6 +26,23 @@ namespace OpenWSFZ.Ft8.Tests;
 ///     (not throws) when an AV is simulated.</item>
 /// </list>
 /// </para>
+///
+/// <para>
+/// <strong>f-001-hashed-callsign-resolution (shim 20260031) coverage gap, documented per
+/// that change's tasks.md 3.5:</strong> the session-scoped callsign hash table's
+/// exception-path safety requirement — that <c>g_session_hash_table</c>'s contents
+/// survive a caught access violation untouched, with only the thread-local
+/// <c>tls_hash_table</c> pointer detached (design D2) — cannot be exercised by this test
+/// class, because <see cref="ThrowingNativeInterop"/> is a pure C# fake that throws
+/// <see cref="NativeAccessViolationException"/> without ever calling into the real native
+/// shim; there is no mechanism here (or elsewhere in this suite) to force a genuine
+/// access violation mid-decode inside <c>ft8_decode_all</c>. This is covered instead by
+/// careful code review of the exception path: the <c>__except</c> handler (ft8_shim.c,
+/// end of <c>ft8_decode_all</c>) only ever executes <c>tls_hash_table = NULL;</c> — it
+/// does not call <c>hash_table_init</c> on <c>g_session_hash_table</c>, and no other code
+/// path writes to that table from the exception handler, so its contents are provably
+/// unreachable from the AV path. See design.md D2 for the full reasoning.
+/// </para>
 /// </summary>
 public sealed class AvContainmentTests
 {
