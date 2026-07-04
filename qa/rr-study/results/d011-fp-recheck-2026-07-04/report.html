@@ -616,7 +616,7 @@ determination uses the two pre-committed gates evaluated above (both <strong>PAS
 <tr>
 <td>2</td>
 <td><code>harness/analyse.py</code>'s <code>_verdict_fp()</code> enforces a zero-tolerance FP gate ("event count must be 0"), contradicting the architect-ratified ≤6% threshold in <code>STUDY-SPEC.md</code> §10. The code comment asserts the 6% threshold was "retired" but §10 was never amended, unlike the properly-dated 2026-06-06 Kappa-gate downgrade note in the same section.</td>
-<td>Process / governance (no defect ID assigned yet — recommend opening one, e.g. <code>R&amp;R-003</code>, parallel to the existing <code>R&amp;R-002</code> Kappa-pooling tracker)</td>
+<td>Process / governance — filed as <strong><a href="https://github.com/frank001/OpenWSFZ/issues/32">R&amp;R-004 (GitHub #32)</a></strong></td>
 <td>An unratified gate tightening was committed to the harness without a corresponding <code>STUDY-SPEC.md</code> §10 amendment, meaning every run since that change has been evaluated (and reported "FAIL") against a gate the Architect never signed off on.</td>
 <td>Architect to either (a) ratify the zero-tolerance gate and amend §10 with a dated note (as was done for Kappa), or (b) revert <code>_verdict_fp()</code> to the ratified ≤6% threshold. Until resolved, treat <code>analyse.py</code>'s printed "Overall verdict" as informational only, not authoritative — as done in this report.</td>
 </tr>

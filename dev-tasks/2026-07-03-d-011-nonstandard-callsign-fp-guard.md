@@ -239,6 +239,7 @@ run began at `09:59:00Z`.
      note, unlike the precedent set for the Kappa gate's 2026-06-06 advisory
      downgrade). This is an unratified gate change embedded in code and should be
      raised with the Architect independently of this defect's merge decision.
+     **Filed as R&R-004, GitHub #32.**
 
 **Raw evidence handling (NFR-021):** `owsfz-all.txt`, `wsjt-all.txt`, and
 `S5_matched.csv` in the run directory contain noise-floor OSD decodes that are
