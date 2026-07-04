@@ -727,20 +727,31 @@ def _run(args: argparse.Namespace) -> None:
         )
 
     # S8 has no 'parts' array — a single implicit part covers all trials.
+    # A 'pairs' scenario (rr-linked-cycle-effectiveness-scenario, e.g. S9) has
+    # no 'parts' array either — the placeholder below is inert for it (see the
+    # 'pairs' dispatch further down); it exists only so this function's shared
+    # setup code (run_dir, device_idx, the part-filter guard immediately below)
+    # doesn't need a third special case threaded through it.
     parts: list[dict] = scenario.get("parts", [{"part_index": 0}])
     n_trials: int = scenario["trials"]
     is_s5 = (scenario_id == "S5")
     is_s4 = (scenario_id == "S4")
     is_s7 = (scenario_id == "S7")
     is_s8 = (scenario_id == "S8")
+    is_pairs = "pairs" in scenario
 
     # ── Part filter ────────────────────────────────────────────────────────────
     # --parts 0,2,5  selects specific parts by part_index.
-    # Not applicable to S8, which uses a single implicit slot rather than a parts
-    # array.  Silently ignored for S8 so that the caller does not need special-case
-    # logic when forwarding flags from run_study.py.
+    # Not applicable to S8 (single implicit slot, no parts array) or to a
+    # 'pairs' scenario (S9: pairs are addressed by pair_index within their own
+    # playback path, not by this parts-array filter). Silently ignored for
+    # both so the caller does not need special-case logic when forwarding
+    # flags from run_study.py. Without this guard, a pairs scenario's inert
+    # single-element 'parts' placeholder above would make --parts reject any
+    # index other than 0, which would be actively misleading (S9 has 2 valid
+    # pairs) rather than merely inapplicable.
     _requested_parts = getattr(args, "parts", None)
-    if _requested_parts is not None and not is_s8:
+    if _requested_parts is not None and not is_s8 and not is_pairs:
         requested_indices: set[int] = set()
         for _tok in _requested_parts.split(","):
             _tok = _tok.strip()
@@ -981,7 +992,8 @@ def main() -> None:
         help=(
             "Comma-separated list of part indices to run (0-based). "
             "If omitted, all parts are run. "
-            "Not applicable to S8 (no parts array — silently ignored)."
+            "Not applicable to S8 or to a 'pairs'-schema scenario such as S9 "
+            "(neither has a parts array — silently ignored for both)."
         ),
     )
     parser.add_argument(
