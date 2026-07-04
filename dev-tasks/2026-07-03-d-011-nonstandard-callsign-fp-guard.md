@@ -164,9 +164,10 @@ The QA engineer will verify the following before approving merge:
   tokens beyond 11 chars, malformed grids/reports) are still rejected.
 - [ ] **AC-3** New managed-layer test from Action 3.2 passes and demonstrates the fix
   is exercised through `Ft8Decoder`, not just the native P/Invoke layer.
-- [ ] **AC-4** S5 false-positive-rate re-run (Action 3.3) shows no statistically
+- [x] **AC-4** S5 false-positive-rate re-run (Action 3.3) shows no statistically
   meaningful regression versus the 0.042/slot baseline. Record the result in the
-  change's QA notes.
+  change's QA notes. **Result 2026-07-04:** no statistically significant regression
+  (Fisher's exact p=0.77); hard-ceiling margin is thin (5.83% vs 6% gate) — see §6.
 - [ ] **AC-5** Full test suite green: `dotnet test` — 0 failures.
 - [ ] **AC-6** No real off-air callsigns appear in any committed file (this defect's
   own writeup already uses fictional placeholders — verify the fix/tests follow the
@@ -192,3 +193,56 @@ The QA engineer will verify the following before approving merge:
   Trace-level "false-positive guard" rejection lines. **Real third-party callsigns
   observed in that session are not reproduced here per NFR-021** — ask QA directly if
   the raw comparison is needed for deeper debugging; the raw logs remain local/untracked.
+
+---
+
+## 6. QA notes — AC-4 result (2026-07-04)
+
+**Correction to Action 3.3 / References:** the scenario actually comparable to the
+0.042/slot, N=120 baseline is **`qa/rr-study/scenarios/s5-noise-wide.json`** (1 part ×
+120 trials, independent AWGN per slot), not `s5-noise.json` named above/in Action 3.3
+(that file is a 4-part × 3-trial = 12-slot carrier/birdie *coverage* scenario, not the
+statistically-powered rate estimator). Confirmed against the D-009 report's own
+methodology section (`results/d009-investigation-2026-06-21/report.md` §2.2: "Scenario:
+`s5-noise-wide.json`").
+
+**Run:** `results/d011-fp-recheck-2026-07-04/` — shim as built at `f1e76d4` (D-011 fix
+live, verified: clean working tree, DLL freshly built off this commit). 120 independent
+signal-free slots, VB-CABLE loopback, both apps confirmed decoding via pre-flight
+warm-up (`CQ Q1ABC FN42` decoded by both apps, cycle `260704_095700`) before the timed
+run began at `09:59:00Z`.
+
+**Result:**
+
+| Appraiser | FP events / slots | Rate | 95% CI (Wilson) |
+|---|---|---|---|
+| WSJT-X | 0/120 | 0.00% | rule-of-three UB ≤ 2.50% |
+| OpenWSFZ | 7/120 | 5.83% | [2.85%, 11.55%] |
+| **Baseline (shim 20260029, 2026-06-21)** | 5/120 | 4.17% | [1.79%, 9.38%] |
+
+- **Gate 1 (hard ship gate, STUDY-SPEC.md §10, ≤6%):** PASS — 5.83% ≤ 6%, but by only
+  a 0.17 pp margin (one additional FP slot, 8/120 = 6.67%, would have failed it).
+- **Gate 2 (regression vs. baseline):** No statistically significant difference —
+  Fisher's exact test on 5/120 vs. 7/120: p = 0.77 (two-proportion z-test: p = 0.55).
+  95% CIs overlap substantially ([2.85%, 9.38%] common range).
+- **Verdict: PASS on both pre-committed gates**, with two caveats flagged for the
+  Captain rather than decided unilaterally here:
+  1. The point estimate rose 40% relative (4.17% → 5.83%) even though the difference
+     isn't statistically significant at N=120 — consistent with the resume-note's own
+     warning that N=120 is a "confirmatory," not fully decisive, sample size, and the
+     margin to the hard ceiling is thin.
+  2. **Harness/spec gate discrepancy found:** `harness/analyse.py`'s own `_verdict_fp()`
+     enforces a zero-tolerance gate ("FP event count must be 0") and printed
+     `Overall verdict: FAIL` for this run — this contradicts the architect-ratified
+     ≤6% threshold in `STUDY-SPEC.md` §10, and the code's own comment states the 6%
+     threshold was "retired," but §10 was never amended to match (no dated changelog
+     note, unlike the precedent set for the Kappa gate's 2026-06-06 advisory
+     downgrade). This is an unratified gate change embedded in code and should be
+     raised with the Architect independently of this defect's merge decision.
+
+**Raw evidence handling (NFR-021):** `owsfz-all.txt`, `wsjt-all.txt`, and
+`S5_matched.csv` in the run directory contain noise-floor OSD decodes that are
+coincidentally callsign-shaped (CRC-14 passes on AWGN, no real signal was injected).
+None are real third-party callsigns, but per `RUNBOOK.md` §7.5 they are left
+**untracked** (not committed) as a matter of policy; only `report.md` and this
+aggregated table are committable.
