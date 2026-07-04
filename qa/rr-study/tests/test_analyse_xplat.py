@@ -32,6 +32,7 @@ from harness.analyse_xplat import (
 )
 from harness.analyse import (
     _cp_upper_95, _verdict_fp, _fp_rate, THRESH_FP_UB95,
+    _min_n_for_fp_gate, MIN_N_FOR_FP_GATE, _collect_verdicts,
     APPRAISERS as _ANALYSE_APPRAISERS,
 )
 
@@ -359,3 +360,62 @@ class TestFpGateClopperPearsonUpperBound:
         assert result["OpenWSFZ"]["n_fp_events"] == n_fp_events
         assert _verdict_fp(result["OpenWSFZ"]) == "FAIL"
         assert _verdict_fp(result["WSJT-X"]) == "PASS"
+
+
+class TestFpGateUnderpoweredIsInfoNotFail:
+    """A clean (zero-event) run below MIN_N_FOR_FP_GATE cannot mathematically
+    clear the §10 ceiling — the gate must report this as informational, not as
+    a FAIL that no amount of decoder correctness could have avoided. Regression
+    coverage for the Captain's 2026-07-04 review of the routine S1-S8 report.
+    """
+
+    def test_min_n_is_the_zero_event_crossover_point(self):
+        """One slot short of the minimum, even 0 events still exceeds the ceiling;
+        at the minimum, 0 events clears it."""
+        n = MIN_N_FOR_FP_GATE
+        assert 100.0 * _cp_upper_95(0, n) <= THRESH_FP_UB95
+        assert 100.0 * _cp_upper_95(0, n - 1) > THRESH_FP_UB95
+
+    def test_verdict_is_info_below_minimum_n_even_at_zero_events(self):
+        """N below the minimum + 0 observed events -> INFO, not FAIL."""
+        n = MIN_N_FOR_FP_GATE - 1
+        info = {"event_rate_ub95": 100.0 * _cp_upper_95(0, n), "n_slots": n}
+        assert _verdict_fp(info) == "INFO"
+
+    def test_verdict_evaluates_normally_at_or_above_minimum_n(self):
+        """At >= the minimum N, a clean run PASSes for real (not just INFO)."""
+        n = MIN_N_FOR_FP_GATE
+        info = {"event_rate_ub95": 100.0 * _cp_upper_95(0, n), "n_slots": n}
+        assert _verdict_fp(info) == "PASS"
+
+    def test_bare_dict_without_n_slots_is_unaffected(self):
+        """A dict with no 'n_slots' key (unit tests probing the raw threshold
+        logic in isolation) must not be silently treated as zero slots."""
+        assert _verdict_fp({"event_rate_ub95": 0.0}) == "PASS"
+        assert _verdict_fp({"event_rate_ub95": 100.0}) == "FAIL"
+
+    def test_collect_verdicts_excludes_underpowered_fp_from_gate_table(self):
+        """An underpowered S5 result must not appear in verdict_rows, must not
+        drive the overall verdict to FAIL, and must be recorded in notes."""
+        n = 12  # this study's routine S5 default, well below the minimum
+        fp_results = {
+            "WSJT-X":   {"n_fp_events": 0, "event_rate": 0.0,
+                         "event_rate_ub95": 100.0 * _cp_upper_95(0, n),
+                         "decode_rate": 0.0, "n_slots": n},
+            "OpenWSFZ": {"n_fp_events": 0, "event_rate": 0.0,
+                         "event_rate_ub95": 100.0 * _cp_upper_95(0, n),
+                         "decode_rate": 0.0, "n_slots": n},
+        }
+        verdict_rows, overall, fails, notes = _collect_verdicts(
+            continuous_results={}, kappa_results={}, fp_results=fp_results,
+            bias_results={},
+        )
+        assert not any(row[0] == "FP event rate (95% UB)" for row in verdict_rows)
+        assert overall == "PASS"
+        assert not fails
+        assert len(notes) == 2
+        assert all("not gated" in note for note in notes)
+
+    def test_min_n_helper_matches_module_constant(self):
+        """_min_n_for_fp_gate() is deterministic and matches the cached constant."""
+        assert _min_n_for_fp_gate() == MIN_N_FOR_FP_GATE

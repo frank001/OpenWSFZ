@@ -171,16 +171,31 @@ Three gaps identified and closed/tracked as follows:
       → `dotnet test`: 198/198 passed (0 failed), ~53 s total. Includes the 4 new
       f-001-hashed-callsign-resolution tests and all pre-existing suites (D-005, D-006/AV,
       D-009, R&R fixture gate, etc.) unmodified and green.
-- [ ] 5.3 Run the existing R&R study synthetic corpus (S1–S8 baseline) to confirm no regression in
+- [x] 5.3 Run the existing R&R study synthetic corpus (S1–S8 baseline) to confirm no regression in
       overall decode/false-positive rates versus the current baseline reference run.
-      → DEFERRED (by user decision) to a manual run outside this session: `run_study.py` /
-      `run_study_xplat.py` require a live audio rig (real WSJT-X, VB-CABLE/PulseAudio routing,
-      both daemons running simultaneously, interactive pre-flight prompts) not appropriate to
-      run unattended mid-implementation. Per 4.2, none of S1–S8's scenarios use
-      nonstandard/hashed callsigns, so this change cannot affect any of their outcomes (the new
-      code path is only reachable via `ftx_message_decode_nonstd`/the 22-bit-hash branch of
-      `unpack28`, neither exercised by the existing corpus) — this is a low-risk deferral, not a
-      blind skip. Run manually before merge if the Captain wants belt-and-braces confirmation.
+      → **Completed 2026-07-04** — full live run against WSJT-X 2.7.0 over VB-CABLE, daemon
+      freshly rebuilt and hash-verified against the committed shim `20260031` binary before the
+      run. `results/2026-07-04-793a298/report.md` (Sections 1/5 QA-authored per HK-001;
+      `report.html` rendered). All null hypotheses retained: S1/S2/S3 GR&R, ndc, and SNR bias
+      unchanged from `815b652` within tolerance; S7/S8 informational recovery consistent with
+      the most recent prior measurement (`f11f438`, 2026-06-22) — the open D-001 co-channel gap
+      is unchanged, not a new regression. **Overall verdict: PASS.** The S5 false-positive metric
+      initially showed as a FAIL, but Captain's review correctly identified this as a harness
+      defect, not a decoder regression: this scenario's N=12 default cannot mathematically clear
+      the same-day-tightened R&R-004 Clopper-Pearson gate even at zero observed events (crossover
+      at N=49). Fixed at the source in `harness/analyse.py` (`MIN_N_FOR_FP_GATE`, `_verdict_fp`
+      now reports `INFO` — excluded from the gate table and overall verdict — rather than a
+      FAIL no outcome at that N could have avoided; 6 new regression tests,
+      `tests/test_analyse_xplat.py::TestFpGateUnderpoweredIsInfoNotFail`, 163/163 harness tests
+      pass). Also fixed at the root: `scenarios/s5-noise.json`'s routine trial count was raised
+      from 3 to 30 (12 → 120 total slots, R&R-006 / GitHub #39), matching the N=120 STUDY-SPEC
+      §10's own ratification text already assumed, so future routine runs can produce a real
+      gated S5 verdict instead of always reading `INFO`. The ratified §10 verdict for this
+      metric remains the adequately powered N=300 run
+      (`results/2026-07-04-a3738fc-f002-s5-n300/`, PASS). Per 4.2, none of S1–S8's scenarios
+      exercise nonstandard/hashed callsigns, and this run confirms zero measurable effect from
+      the persistent hash table, as predicted. No regression found;
+      no further diagnostic action required before archiving this change.
 
 ## 6. Optional / stretch — Gap B: AP-assist for nonstandard callsigns (not required for merge)
 

@@ -151,7 +151,7 @@ Continuous studies use one response variable each (clean separation). All use
 | **S3 DT offset** | DT R&R | DT ∈ {0.0,+0.3,…,+2.7} s (10 steps, positive only — redesigned 2026-06-06 per R&R-003); fixed SNR=0 dB; WSJT-X DT corrected +0.55 s (convention offset) | 3 | DT Gage R&R |
 | **S3b Negative-DT boundary** | Decode rate vs DT < 0 | DT ∈ {0.0,−0.3,…,−2.7} s (10 steps, negative sweep); fixed SNR=0 dB (companion to S3; attribute, not GR&R) | 3 | Per-DT decode rate per appraiser; informational |
 | **S4 Density / QRM** | Attribute agreement | cycles with N∈{1,5,10,20,30} simultaneous signals at mixed SNRs; ≥ 50 message instances total | 3 | Recovery Kappa (vs truth & between apps) |
-| **S5 Noise / birdies** | False positives | signal-free cycles: white noise, pink noise, steady carriers/birdies | 3 | False-positive rate & agreement |
+| **S5 Noise / birdies** | False positives | signal-free cycles: white noise, pink noise, steady carriers/birdies | 30 | False-positive rate & agreement |
 | **S6 Off-air corpus** | External validity + appraiser consistency | 42 real off-air WAV files from local p10 corpus; K=3 runs; independently randomised order per run; both appraisers hear each WAV simultaneously | 3 | Within-appraiser consistency; between-appraiser Cohen's κ; SNR delta (D-002 field validation); order-effect test |
 | **S7 Compounding / co-channel** | Per-message recovery under overlap | 4 overlap families × 3 trials: co-channel stacks; near-collision Δf∈{3,6,12,25,50} Hz; time+freq stagger Δt∈{0.5,1.0,2.0} s; capture-ratio pairs | 3 | Per-message recovery, capture split, between-app agreement |
 | **S9 Hashed-callsign resolution** | Cross-cycle table confirmation | 2 linked pairs (announce + hash-reference, `gap_cycles=1`) at 2 SNR points; **not** a `parts` scenario — see §6.3 | 5 | Resolved / placeholder / not-decoded rate, conditional on announce decode; informational |
@@ -407,15 +407,29 @@ Evaluated every run; a regression past these bands raises a defect for the Devel
 > The FP gate is the **per-slot event rate** — P(a signal-free S5 slot emits ≥ 1
 > false decode) — and is gated on the **one-sided 95% Clopper–Pearson upper
 > confidence bound** of that rate, not the point estimate. `PASS` iff UB₉₅ ≤ 6%.
-> Rationale: at the study's N (~120 signal-free slots) the point estimate is
-> Poisson-noisy, and coincidental CRC-14 passes on the AWGN noise floor make a
-> nonzero observed rate expected rather than a regression; bounding the *true*
-> rate at 95% confidence is the statistically honest gate. At N = 120 this
-> tolerates ≤ 2 FP events (k = 2 → UB 5.15% PASS; k = 3 → UB 6.33% FAIL).
+> Rationale: at the study's N (120 signal-free slots — `scenarios/s5-noise.json`,
+> 4 parts × 30 trials) the point estimate is Poisson-noisy, and coincidental
+> CRC-14 passes on the AWGN noise floor make a nonzero observed rate expected
+> rather than a regression; bounding the *true* rate at 95% confidence is the
+> statistically honest gate. At N = 120 this tolerates ≤ 2 FP events
+> (k = 2 → UB 5.15% PASS; k = 3 → UB 6.33% FAIL).
 > This **supersedes and retires** the interim in-code zero-event gate
 > (`n_fp_events == 0`, provisionally introduced with D-009's widened S5 but never
 > ratified into §10 — the conflict logged as R&R-004). The `decode_rate` metric
 > (total FP decodes / slots) remains reported for reference but is **not** the gate.
+>
+> **Underpowered-N handling (2026-07-04, harness fix, GitHub #38) and routine-scenario
+> sizing (R&R-006 / GitHub #39).** Below `harness/analyse.py`'s `MIN_N_FOR_FP_GATE`
+> (= 49 slots — the smallest N at which even zero observed events can clear the 6%
+> ceiling), no outcome can produce a meaningful PASS or FAIL; `_verdict_fp` reports
+> `INFO` in that regime and the metric is excluded from the Section 4 gate table and
+> the overall verdict, rather than manufacturing a FAIL that no correctness could
+> avoid. This was discovered because `scenarios/s5-noise.json` — the scenario the
+> routine `run_study.py` S1–S8 suite actually runs — specified only 12 slots (4 parts
+> × 3 trials), far below both `MIN_N_FOR_FP_GATE` and the N = 120 this note already
+> assumed, so every routine run's S5 metric silently read `INFO` (or, before the
+> harness fix, a misleading `FAIL`). The scenario's trial count is now 30
+> (120 slots total), matching the N this note has described since ratification.
 
 > **Attribute Kappa gate status (2026-06-06): advisory.** Following the §9.3 κ
 > pooling correction, the attribute-Kappa row is computed and reported but **does
@@ -568,6 +582,49 @@ was fundamental measurement noise:
 The DT GR&R is expected to improve substantially on the next run; the within-cell repeatability
 (σ ≈ 0.10–0.14 s per appraiser from run aa053a9) is physically meaningful and is the residual
 noise once the two artificial inflation sources are removed.
+
+### S5 routine scenario sizing — R&R-006 (GitHub #39) — **IMPLEMENTED 2026-07-04**
+
+Discovered during Captain's review of the `f-001-hashed-callsign-resolution` task 5.3 regression
+run (`results/2026-07-04-793a298/`): the routine `run_study.py` S1–S8 suite's S5 metric always
+read as a bare **FAIL** next to two rows of zero observed events, which read as a decoder
+regression when it was in fact impossible to avoid at that sample size.
+
+**Root cause.** `scenarios/s5-noise.json` — the scenario file the routine suite actually runs —
+specified 4 parts × 3 trials = **12 total slots**. The R&R-004 gate (§10) requires a one-sided
+95% Clopper–Pearson upper bound ≤ 6%; at N = 12 the UB at zero observed events is 22.09%, and the
+crossover point below which *no* outcome can clear the ceiling is N = 49
+(`harness/analyse.py`'s `MIN_N_FOR_FP_GATE`). The routine scenario had never been sized to the
+gate it was supposed to feed — it predates R&R-004 and was never revisited when that gate was
+ratified, despite §10's own ratification note already describing worked examples at N = 120.
+
+**Two-part fix:**
+
+1. **Harness (GitHub #38):** `_verdict_fp` now returns `INFO` — excluded from the Section 4 gate
+   table and the overall verdict, with the raw counts still reported for transparency — whenever
+   N is below `MIN_N_FOR_FP_GATE`, instead of a FAIL that no correctness could have avoided.
+2. **Scenario sizing (this issue, GitHub #39):** `scenarios/s5-noise.json`'s `trials` raised from
+   3 to 30 (12 → 120 total slots), so the routine suite's S5 part actually matches the N = 120
+   already assumed by §10's ratification text — rather than inventing a new, undocumented sample
+   size. The routine run can now produce a real gated verdict (previously impossible), while the
+   dedicated, adequately-powered N = 300 confirmatory run (e.g.
+   `results/2026-07-04-a3738fc-f002-s5-n300/`) remains the authoritative reference for any change
+   specifically requiring FP-rate certification before merge.
+
+**Changes implemented:**
+
+- **`scenarios/s5-noise.json`** — `trials: 3` → `trials: 30`; `description` and new `trials_note`
+  field updated to record the rationale and this issue.
+- **`harness/analyse.py`** — `MIN_N_FOR_FP_GATE` constant, `_min_n_for_fp_gate()` helper, `INFO`
+  verdict branch in `_verdict_fp`, and `notes`-list plumbing through `_collect_verdicts` /
+  `_write_report` (GitHub #38; see above).
+- **`tests/test_analyse_xplat.py`** — `TestFpGateUnderpoweredIsInfoNotFail` (6 new cases).
+- **STUDY-SPEC.md §6 and §10** (this document) — scenario table's S5 trial count and the
+  ratification note updated to state N = 120 precisely rather than "~120", cross-referencing
+  this issue.
+
+Routine full-suite runtime increases by roughly (120 − 12) × ~15 s ≈ 27 minutes for the S5 part
+alone — accepted as the cost of the routine suite ever producing a real S5 verdict at all.
 
 ---
 

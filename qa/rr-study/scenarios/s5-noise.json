@@ -5,7 +5,8 @@
   "id": "S5",
   "name": "Noise / birdies",
   "response": "False-positive decoded / not-decoded (attribute)",
-  "description": "Signal-free cycles. 3 trials per noise type. Drives: false-positive rate and between-appraiser agreement on false positives.",
+  "description": "Signal-free cycles. 30 trials per noise type (120 total slots). Drives: false-positive rate and between-appraiser agreement on false positives.",
+  "trials_note": "Raised from 3 to 30 (12 -> 120 total slots) 2026-07-04, R&R-006 (GitHub #39). At the previous N=12, harness/analyse.py's MIN_N_FOR_FP_GATE (=49) meant this scenario could never clear the ratified R&R-004 95% Clopper-Pearson UB gate even at zero observed events -- every routine run reported the S5 metric as INFO, never a real PASS/FAIL. 120 matches the N already assumed by STUDY-SPEC.md Section 10's ratification text and worked examples (k=2 events -> UB 5.15% PASS; k=3 -> UB 6.33% FAIL), rather than introducing a new, undocumented sample size.",
 
   "message_ids": [],
 
@@ -40,7 +41,7 @@
     }
   ],
 
-  "trials": 3,
+  "trials": 30,
 
   "seed_formula": "hash('S5', part_index, trial_index)",
 
