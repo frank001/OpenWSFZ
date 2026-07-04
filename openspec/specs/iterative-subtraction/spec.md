@@ -45,9 +45,7 @@ deduplication hash table so no message is reported more than once.
 
 ### Requirement: Soft SNR-scaled tile attenuation (fix-d001-revised Option B)
 
-Rather than hard-zeroing suppressed tiles (which over-suppresses borderline decodes whose tile
-bins may overlap with an adjacent co-channel signal), the suppression SHALL use a linear
-attenuation factor derived from the decoded signal's SNR:
+The suppression SHALL use a linear attenuation factor derived from the decoded signal's SNR, rather than hard-zeroing suppressed tiles (which over-suppresses borderline decodes whose tile bins may overlap with an adjacent co-channel signal):
 
 ```
 factor = 1.0 − clamp((snr_db − K_SOFT_SUPP_SNR_MIN_DB) / (K_SOFT_SUPP_SNR_MAX_DB − K_SOFT_SUPP_SNR_MIN_DB), 0.0, 1.0)
@@ -132,12 +130,7 @@ number, `{max}` is **2**, and `{k}` is the number of new messages decoded in tha
 
 ### Requirement: Option C approval gate — PoC SHALL demonstrate improvement before PCM-domain SIC implementation proceeds
 
-*(Gated on Captain approval — only applicable if Option C is approved in fix-d001-revised task 5.2)*
-
-If a PCM-domain SIC approach (per-symbol amplitude estimation + linear frequency trajectory) is
-considered for implementation, a Python proof-of-concept SHALL demonstrate ≥ +5 percentage-point
-improvement on at least 10 synthetic S7 co-channel trial cases before any production native code
-is written. The Captain SHALL explicitly approve the PoC results before implementation begins.
+A Python proof-of-concept SHALL demonstrate ≥ +5 percentage-point improvement on at least 10 synthetic S7 co-channel trial cases before any production native code is written, if a PCM-domain SIC approach (per-symbol amplitude estimation + linear frequency trajectory) is considered for implementation *(gated on Captain approval — only applicable if Option C is approved in fix-d001-revised task 5.2)*. The Captain SHALL explicitly approve the PoC results before implementation begins.
 
 This requirement exists to prevent a repeat of the `fix-d001-pcm-sic` pattern, in which
 production-quality three-platform infrastructure was built before the core hypothesis was validated
@@ -159,13 +152,7 @@ on even the simplest synthetic test cases.
 
 ### Requirement: Any PCM residual buffer SHALL use heap allocation, not stack allocation
 
-*(Gated on Captain approval — only applicable if Option C is approved in fix-d001-revised task 5.2)*
-
-If a PCM-domain residual buffer of size `FT8_EXPECTED_SAMPLES * sizeof(float)` (720 000 bytes)
-is required in `ft8_decode_all`, it SHALL be allocated via `malloc` and freed before function
-return. Stack allocation of any buffer exceeding 100 KB in a function called via P/Invoke from
-a .NET thread pool thread is prohibited, as the combined managed + native stack frame approaches
-the 1 MB thread pool thread stack limit.
+A PCM-domain residual buffer of size `FT8_EXPECTED_SAMPLES * sizeof(float)` (720 000 bytes) SHALL be allocated via `malloc` and freed before function return if required in `ft8_decode_all` *(gated on Captain approval — only applicable if Option C is approved in fix-d001-revised task 5.2)*. Stack allocation of any buffer exceeding 100 KB in a function called via P/Invoke from a .NET thread pool thread is prohibited, as the combined managed + native stack frame approaches the 1 MB thread pool thread stack limit.
 
 #### Scenario: PCM residual is heap-allocated
 

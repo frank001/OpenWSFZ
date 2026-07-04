@@ -1,3 +1,11 @@
+# build-pipeline Specification
+
+## Purpose
+
+Specifies the solution's build structure: project layout, pinned .NET SDK version,
+centralised NuGet package versioning, and AOT-publish readiness verification across all
+supported operating systems.
+
 ## Requirements
 
 ### Requirement: Solution structure

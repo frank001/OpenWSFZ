@@ -1,3 +1,10 @@
+# audio-offset-state Specification
+
+## Purpose
+
+Specifies the audio-offset (RX/TX tone frequency) state endpoint and its WebSocket broadcast
+event, keeping the frontend's displayed offset in sync with the daemon's active configuration.
+
 ## Requirements
 
 ### Requirement: POST /api/v1/audio-offset endpoint

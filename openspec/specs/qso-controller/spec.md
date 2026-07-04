@@ -1,9 +1,13 @@
+# qso-controller Specification
+
 ## Purpose
 
 This capability defines the `IQsoController` abstraction — the common interface
 implemented by all QSO role services — and the HTTP endpoints that expose TX control
 to the web frontend. Currently implemented by `QsoAnswererService`; `QsoCallerService`
 will implement it in future.
+
+## Requirements
 
 ---
 
@@ -43,10 +47,7 @@ be active. No two role services SHALL transmit concurrently.
 
 ### Requirement: TxStatusResponse includes autoAnswerEnabled
 
-The `TxStatusResponse` record (returned by `GET /api/v1/tx/status`, `POST /api/v1/tx/enable`,
-`POST /api/v1/tx/disable`, and `POST /api/v1/tx/abort`) SHALL include a boolean field
-`AutoAnswerEnabled` reflecting the current value of `tx.autoAnswer` in `IConfigStore` at
-the time of the response.
+The `TxStatusResponse` record (returned by `GET /api/v1/tx/status`, `POST /api/v1/tx/enable`, `POST /api/v1/tx/disable`, and `POST /api/v1/tx/abort`) SHALL include a boolean field `AutoAnswerEnabled` reflecting the current value of `tx.autoAnswer` in `IConfigStore` at the time of the response.
 
 `POST /api/v1/tx/abort` SHALL always return `AutoAnswerEnabled: false` in its response,
 since abort unconditionally disarms the system (supervised single-QSO model,
@@ -146,23 +147,37 @@ received (the cycle boundary at which the 15-second receive window began).
 4. Save `tx.autoAnswer = true` in `IConfigStore`.
 5. Return — TX is NOT initiated immediately.
 
-When `HandleIdleAsync` is called (once per cycle boundary):
-- **Timeout guard:** if a pending target is held and `utcNow - _pendingTargetSetAt > 60s`,
-  clear all pending-target fields, log a warning, and return.
-- **Phase match:** if pending target is set AND the current cycle's phase
-  (`batch.CycleStart.Second % 30`) matches `_pendingTargetAnswerPhase` — clear pending
-  fields and execute TX for the pending callsign/frequency. The CQ need not be present
-  in the current batch.
-- **Phase mismatch:** if pending target is set AND phase does NOT match — return
-  immediately without answering any CQ from the batch. The pending target is retained
-  for the next cycle.
-- **Normal path:** if no pending target is set, apply the standard `autoAnswer` CQ
-  detection logic.
-
-The phase-mismatch skip ensures the system never transmits in the same phase as the CQ
-station (which would produce a TX collision at the remote end).
-
+`HandleIdleAsync` (called once per cycle boundary) SHALL apply, in order: a timeout guard,
+a phase-match check, a phase-mismatch skip, and — if no pending target is held — the normal
+`autoAnswer` CQ-detection path. The phase-mismatch skip ensures the system never transmits in
+the same phase as the CQ station (which would produce a TX collision at the remote end).
 `AbortAsync` / `SafeAbortToIdleAsync` SHALL clear all pending-target fields.
+
+#### Scenario: Timeout guard clears a stale pending target
+
+- **WHEN** `HandleIdleAsync` is called, a pending target is held, and
+  `utcNow - _pendingTargetSetAt > 60s`
+- **THEN** all pending-target fields SHALL be cleared, a warning SHALL be logged, and the
+  call SHALL return without transmitting
+
+#### Scenario: Phase match fires TX for the pending target
+
+- **WHEN** `HandleIdleAsync` is called, a pending target is held, and the current cycle's
+  phase (`batch.CycleStart.Second % 30`) matches `_pendingTargetAnswerPhase`
+- **THEN** the pending-target fields SHALL be cleared and TX SHALL execute for the pending
+  callsign/frequency, whether or not the originating CQ is present in the current batch
+
+#### Scenario: Phase mismatch retains the pending target without answering
+
+- **WHEN** `HandleIdleAsync` is called, a pending target is held, and the current cycle's
+  phase does not match `_pendingTargetAnswerPhase`
+- **THEN** the call SHALL return immediately without answering any CQ from the batch, and
+  the pending target SHALL be retained for the next cycle
+
+#### Scenario: Normal path applies standard CQ detection when no pending target is held
+
+- **WHEN** `HandleIdleAsync` is called and no pending target is held
+- **THEN** the standard `autoAnswer` CQ-detection logic SHALL apply
 
 ---
 

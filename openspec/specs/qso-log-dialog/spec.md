@@ -1,3 +1,12 @@
+# qso-log-dialog Specification
+
+## Purpose
+
+Specifies the operator QSO-confirmation flow: the `qsoReview` WebSocket event, suppressing
+automatic ADIF writes when confirmation is enabled, the enriched
+`POST /api/v1/tx/log-qso` endpoint, the browser's confirmation dialog, and the Settings
+toggle that controls this behaviour.
+
 ## Requirements
 
 ### Requirement: qsoReview WebSocket event emitted at last-TX state entry

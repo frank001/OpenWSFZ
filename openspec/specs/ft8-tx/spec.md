@@ -1,3 +1,11 @@
+# ft8-tx Specification
+
+## Purpose
+
+Specifies the FT8 transmit pipeline: message encoding via the native shim, GFSK audio
+synthesis from the resulting tone sequence, the PTT abstraction, and the TX control REST
+API.
+
 ## Requirements
 
 ### Requirement: FT8 message encoding via native shim

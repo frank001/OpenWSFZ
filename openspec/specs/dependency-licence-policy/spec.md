@@ -1,3 +1,11 @@
+# dependency-licence-policy Specification
+
+## Purpose
+
+Specifies the licence-inventory tool: how it enumerates NuGet dependencies and native
+submodules (including `kgoba/ft8_lib`), applies the allowed-licence policy, and produces
+its report artefact from CI.
+
 ## Requirements
 
 ### Requirement: Tool exists and runs from CI

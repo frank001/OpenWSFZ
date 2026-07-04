@@ -69,8 +69,7 @@ default), `QsoCallerService` SHALL NOT be instantiated.
 
 ### Requirement: TxCq — transmitting the CQ call
 
-While in `Idle` with `tx.autoAnswer = true`, on the first decode batch received the
-service SHALL:
+While in `Idle` with `tx.autoAnswer = true`, on the first decode batch received the service SHALL:
 
 1. Validate that `tx.callsign` and `tx.grid` are non-empty; if not, log a Warning and
    remain in `Idle`.
@@ -148,8 +147,7 @@ CQ station's own TX window; silence there does not count as a missed response.
 
 ### Requirement: TxReport — transmitting the signal report
 
-When the service has selected a partner (via `First` auto-selection or `None` operator
-click), it SHALL:
+When the service has selected a partner (via `First` auto-selection or `None` operator click), it SHALL:
 
 1. Set `_partner = selectedCallsign`.
 2. Compose: `{partner} {callsign} +00` (fixed report; TX-D04 deferred).
@@ -228,9 +226,7 @@ When a valid R+report is received, the service SHALL:
 
 ### Requirement: Repeat-CQ retry logic
 
-While in `WaitAnswer`, if no response arrives within the retry budget, the service
-SHALL retransmit the CQ. The retry mechanism follows the same `RetryCount` and
-`WatchdogMinutes` parameters as `QsoAnswererService`.
+While in `WaitAnswer`, if no response arrives within the retry budget, the service SHALL retransmit the CQ. The retry mechanism follows the same `RetryCount` and `WatchdogMinutes` parameters as `QsoAnswererService`.
 
 `RetryCount = 0` means unlimited (watchdog is the backstop). Retries do NOT reset the
 watchdog.
@@ -262,8 +258,7 @@ to `WaitAnswer`, and sets `_skipNextRetry = true`.
 
 ### Requirement: SelectResponderAsync — operator-driven partner selection (None mode)
 
-`QsoCallerService.SelectResponderAsync(callsign, frequencyHz, responseCycleStart, ct)`
-SHALL:
+`QsoCallerService.SelectResponderAsync(callsign, frequencyHz, responseCycleStart, ct)` SHALL:
 
 1. Return without action if `_callerState != WaitAnswer`.
 2. Derive the TX answer phase from `responseCycleStart.Second % 30` (same phase

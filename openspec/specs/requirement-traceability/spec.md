@@ -1,3 +1,12 @@
+# requirement-traceability Specification
+
+## Purpose
+
+Specifies the traceability tool: how it parses requirement IDs, reflects over test
+assemblies to find their mappings, detects missing mappings (rubric criterion C1) and
+stale references, excludes skipped/excluded tests from coverage claims (rubric criterion
+C4), and produces its report artefact from CI.
+
 ## Requirements
 
 ### Requirement: Tool exists and runs from CI

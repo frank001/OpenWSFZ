@@ -1,3 +1,12 @@
+# qso-answerer Specification
+
+## Purpose
+
+Specifies `QsoAnswererService`'s state machine: auto-answering a decoded CQ, retry-on-no-
+response behaviour, ignoring decodes not addressed to us, aborting when the caller works
+another station, RRR/RR73 handling, watchdog abort, operator abort, and the TX state
+WebSocket event.
+
 ## Requirements
 
 ### Requirement: Answerer state machine

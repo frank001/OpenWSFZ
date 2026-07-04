@@ -511,12 +511,6 @@ The TX fieldset legend SHALL read "FT8 TX".
 
 ---
 
-### Requirement: Settings page pre-fills TX numeric fields from loaded config
-
-> **Superseded by tx-general-settings-page.** The element IDs `tx-watchdog-minutes` and `tx-retry-count` no longer exist; the fields are now `general-watchdog-minutes` and `general-retry-count` on the General tab. The behavioural contract (pre-populate from config, save without changes does not trigger clamp warnings) is preserved in the **Settings page — General tab** requirement above.
-
----
-
 ### Requirement: TX panel — layout alongside decoded-messages panel
 
 The main page SHALL be restructured so that the area below the waterfall controls
@@ -1030,9 +1024,7 @@ be pre-populated from `config.tx.callerPartnerSelect` on page load.
 
 ### Requirement: Settings page — restart notice after role change
 
-If the operator changes `#general-tx-role` (to a value different from the currently
-saved `config.tx.role`) and clicks Save, the page SHALL display a visible notice:
-**"TX mode change saved. Restart the application for the change to take effect."**
+The page SHALL display a visible notice, **"TX mode change saved. Restart the application for the change to take effect."**, if the operator changes `#general-tx-role` (to a value different from the currently saved `config.tx.role`) and clicks Save.
 
 The notice SHALL appear after the save succeeds (HTTP 200) and SHALL persist until
 the page is navigated away from or reloaded.
@@ -1052,9 +1044,7 @@ the page is navigated away from or reloaded.
 
 ### Requirement: Decode table — responder row highlighting (None mode)
 
-When the active role is `Caller`, `CallerPartnerSelect = None`, and the controller is
-in `WaitAnswer`, decode table rows that appear to be responses to our CQ SHALL receive
-the CSS class `decode-responder`.
+Decode table rows that appear to be responses to our CQ SHALL receive the CSS class `decode-responder` when the active role is `Caller`, `CallerPartnerSelect = None`, and the controller is in `WaitAnswer`.
 
 A row is a candidate response if its message contains `{our_callsign}` as the first
 token AND a second token that is a valid callsign AND a third token that looks like a
@@ -1088,8 +1078,7 @@ or teal accent) that differentiates responders from `decode-cq` (warm amber) and
 
 ### Requirement: Decode table — clickable responder rows (None mode)
 
-When `role = "caller"` and `CallerPartnerSelect = None`, rows bearing the
-`decode-responder` class SHALL be clickable. A click SHALL:
+Rows bearing the `decode-responder` class SHALL be clickable when `role = "caller"` and `CallerPartnerSelect = None`. A click SHALL:
 
 1. Extract the responding callsign (second token), audio frequency offset, and
    response cycle start time from the row.

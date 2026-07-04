@@ -1,3 +1,11 @@
+# audio-output-device Specification
+
+## Purpose
+
+Specifies audio output device enumeration via `IAudioOutputDeviceProvider` and the REST
+endpoint that exposes the available output device list, mirroring the input-device
+enumeration in `audio-device`.
+
 ## Requirements
 
 ### Requirement: Audio output device enumeration via IAudioOutputDeviceProvider

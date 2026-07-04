@@ -1,3 +1,10 @@
+# audio-device Specification
+
+## Purpose
+
+Specifies audio capture device enumeration and the REST endpoint that exposes the available
+input device list to the web frontend for selection.
+
 ## Requirements
 
 ### Requirement: USB audio capture device enumeration
