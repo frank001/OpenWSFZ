@@ -85,7 +85,7 @@ public sealed class D009FpFilterTests
     [InlineData("   ",   "spaces only")]
     [InlineData("\t",    "tab only")]
     public void IsPlausibleMessage_BlankOrWhitespace_ReturnsFalse(string? text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' is blank/whitespace and must be rejected by D9-R1 ({reason})");
 
     // ── Unit tests: D9-R2 — hex dump ─────────────────────────────────────────
@@ -95,7 +95,7 @@ public sealed class D009FpFilterTests
     [InlineData("1DA5713612BD5A3C22",   "observed OSD FP — 18 hex chars")]
     [InlineData("0000000000000000",     "16-char all-zero hex string")]
     public void IsPlausibleMessage_HexDump_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' is a hex-dump string and must be rejected by D9-R2 ({reason})");
 
     // ── Unit tests: D9-R3 — oversized callsign in CQ message ─────────────────
@@ -105,7 +105,7 @@ public sealed class D009FpFilterTests
     [InlineData("CQ GKC5JNL82FWZ",  "12-char base callsign — beyond the true 11-char protocol maximum (D-011)")]
     [InlineData("CQ ELUX7QIYUCFZ",  "12-char base callsign — beyond the true 11-char protocol maximum (D-011)")]
     public void IsPlausibleMessage_CqOversizedCallsign_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' has an oversized CQ callsign and must be rejected by D9-R3 ({reason})");
 
     // ── Unit tests: D9-R3 — oversized callsign in Standard QSO (sender) ──────
@@ -115,7 +115,7 @@ public sealed class D009FpFilterTests
     [InlineData("DDK4NYWXBIUZ Q9XYZ RR73",  "12-char sender — beyond the true 11-char protocol maximum (D-011)")]
     [InlineData("1RY8RU98FJ9Z Q1ABC R-05",  "12-char sender — beyond the true 11-char protocol maximum (D-011)")]
     public void IsPlausibleMessage_StandardQsoOversizedSender_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' has an oversized sender callsign and must be rejected by D9-R3 ({reason})");
 
     // ── Unit tests: D9-R3 — oversized callsign in Standard QSO (addressee) ───
@@ -124,7 +124,7 @@ public sealed class D009FpFilterTests
     [InlineData("Q1ABC ETRHB0I3RYOX R-10",  "12-char addressee — beyond the true 11-char protocol maximum (D-011)")]
     [InlineData("Q9XYZ 1RY8RU98FJ9Z 73",    "12-char addressee — beyond the true 11-char protocol maximum (D-011)")]
     public void IsPlausibleMessage_StandardQsoOversizedAddressee_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' has an oversized addressee callsign and must be rejected by D9-R3 ({reason})");
 
     // ── Unit tests: D9-R3 Gap A — 2-token messages: both tokens now checked ──────
@@ -135,7 +135,7 @@ public sealed class D009FpFilterTests
     [InlineData("<...> UF5NDNNJD2PZ", "12-char token1, beyond the true 11-char protocol maximum (D-011)")]
     [InlineData("9ULLPTCDZHQR <...>", "12-char token0, beyond the true 11-char protocol maximum (D-011); hash in token1")]
     public void IsPlausibleMessage_GapA_TwoTokenOversized_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' has an oversized token in a 2-token message and must be rejected by Gap A ({reason})");
 
     [Theory(DisplayName = "D009 Gap A (R2): IsPlausibleMessage accepts valid 2-token messages")]
@@ -144,7 +144,7 @@ public sealed class D009FpFilterTests
     [InlineData("Q1ABC <...>",   "valid callsign sender, hash addressee")]
     [InlineData("<...> RR73",    "Type 4 shorthand terminal")]
     public void IsPlausibleMessage_GapA_ValidTwoToken_ReturnsTrue(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeTrue(
                $"'{text}' is a valid 2-token message and must not be rejected by Gap A ({reason})");
 
     // ── Unit tests: D9-R3 Gap C — CQ 3-token garbage third token ─────────────
@@ -153,7 +153,7 @@ public sealed class D009FpFilterTests
     [InlineData("CQ 3QQF EXLJSR",  "6-char third token; not a valid Maidenhead grid")]
     [InlineData("CQ /UX 6PY23BM",  "7-char third token; not a valid Maidenhead grid")]
     public void IsPlausibleMessage_GapC_CqGarbageThirdToken_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' has a garbage third token and must be rejected now that the CQ early-return is removed ({reason})");
 
     [Theory(DisplayName = "D009 Gap C (R2): IsPlausibleMessage accepts valid CQ 3-token messages")]
@@ -161,7 +161,7 @@ public sealed class D009FpFilterTests
     [InlineData("CQ 3DA0MN KH51", "6-char DX call with grid")]
     [InlineData("CQ VK9AA OC12",  "5-char DX call with grid")]
     public void IsPlausibleMessage_GapC_ValidCqMessage_ReturnsTrue(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeTrue(
                $"'{text}' is a valid CQ message and must not be rejected by Gap C ({reason})");
 
     // ── Unit tests: R5 Rule A — single-token reject ──────────────────────────
@@ -172,7 +172,7 @@ public sealed class D009FpFilterTests
     [InlineData("73",       "terminal without context")]
     [InlineData("RR73",     "shorthand without sender/addressee")]
     public void IsPlausibleMessage_RuleA_SingleToken_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' is a single-token string and must be rejected by R5 Rule A ({reason})");
 
     // ── Unit tests: R5 Rule B — 5+ token reject ──────────────────────────────
@@ -182,7 +182,7 @@ public sealed class D009FpFilterTests
     [InlineData("CQ DX Q1ABC FN42 73",         "5 tokens — trailing extra token")]
     [InlineData("Q1ABC Q9XYZ -10 73 RR73",     "5 tokens — OSD CRC-14 noise coincidence")]
     public void IsPlausibleMessage_RuleB_FivePlusTokens_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' has 5+ tokens and must be rejected by R5 Rule B ({reason})");
 
     // ── Unit tests: R5 Rule C — CQ <hash> 2-token reject ─────────────────────
@@ -191,7 +191,7 @@ public sealed class D009FpFilterTests
     [InlineData("CQ <...>",     "CQ followed by hash — not a valid 2-token FT8 form (D-009 Category C FP)")]
     [InlineData("CQ <Q1ABC>",   "CQ followed by bracketed callsign hash")]
     public void IsPlausibleMessage_RuleC_CqHash_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' is a 'CQ <hash>' 2-token message and must be rejected by R5 Rule C ({reason})");
 
     [Theory(DisplayName = "D009 R5 Rule C: IsPlausibleMessage accepts hash-first 2-token messages")]
@@ -199,7 +199,7 @@ public sealed class D009FpFilterTests
     [InlineData("<...> RR73",   "hash sender with terminal — valid Type 4 shorthand")]
     [InlineData("Q1ABC <...>",  "callsign sender, hash addressee — valid Type 4 QSO")]
     public void IsPlausibleMessage_RuleC_HashFirst_ReturnsTrue(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeTrue(
                $"'{text}' is a hash-first (not CQ-first) 2-token message and must not be rejected by Rule C ({reason})");
 
     // ── Unit tests: D9-R3 R3 — 4-token non-CQ reject ────────────────────────
@@ -211,7 +211,7 @@ public sealed class D009FpFilterTests
     [InlineData("Q7GGG/P Q8HHH R EO10",     "same CALLSIGN CALLSIGN R GRID pattern")]
     [InlineData("Q9III/P Q1JJJ O/P QG94",   "O/P as third token is not a valid FT8 field")]
     public void IsPlausibleMessage_FourTokenNonCq_ReturnsFalse(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeFalse(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' is a non-CQ 4-token message and must be rejected by the R3 4-token rule ({reason})");
 
     [Theory(DisplayName = "D009 R3: IsPlausibleMessage accepts valid CQ 4-token messages")]
@@ -219,7 +219,7 @@ public sealed class D009FpFilterTests
     [InlineData("CQ NA Q9XYZ EN37", "CQ North America")]
     [InlineData("CQ EU Q1AW JO54",  "CQ Europe")]
     public void IsPlausibleMessage_FourTokenCq_ReturnsTrue(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeTrue(
                $"'{text}' is a valid CQ 4-token message and must not be rejected by the R3 4-token rule ({reason})");
 
     // ── Unit tests: must NOT reject — valid messages ──────────────────────────
@@ -237,7 +237,7 @@ public sealed class D009FpFilterTests
     [InlineData("VK9AA Q1ABC -15",        "5-char DX call in sender position")]
     [InlineData("Q1ABC VK9AA/P RR73",     "8-char portable suffix in addressee (base 5, total 8)")]
     public void IsPlausibleMessage_ValidMessages_ReturnsTrue(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeTrue(
                $"'{text}' is a valid FT8 message and must not be rejected ({reason})");
 
     // ── Integration test: DecodeAsync filters garbage messages end-to-end ─────

@@ -43,7 +43,7 @@ public sealed class D011NonstandardCallsignFpGuardTests
     [InlineData("CQ Q0D011ABCD",  "10-char literal nonstandard callsign")]
     [InlineData("CQ Q0D011ABCDE", "11-char literal nonstandard callsign — true protocol maximum")]
     public void IsPlausibleMessage_LiteralNonstandardCqAnnounce_ReturnsTrue(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeTrue(
                $"'{text}' is a genuine literal Type 4 CQ announcement and must not be rejected by D9-R3 ({reason})");
 
     [Theory(DisplayName = "D011: IsPlausibleMessage accepts a literal nonstandard callsign confirming to a hash-resolved addressee")]
@@ -51,7 +51,7 @@ public sealed class D011NonstandardCallsignFpGuardTests
     [InlineData("Q0D011FZAB <...> RR73", "8-char literal sender, hash addressee")]
     [InlineData("Q0D011FZABC <...> 73",  "9-char literal sender, hash addressee")]
     public void IsPlausibleMessage_LiteralNonstandardSenderHashAddressee_ReturnsTrue(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeTrue(
                $"'{text}' mirrors the live bug report's 'NONSTD1 <hash> RR73' shape and must not be rejected ({reason})");
 
     [Theory(DisplayName = "D011: IsPlausibleMessage accepts a hash-resolved sender confirming to a literal nonstandard addressee")]
@@ -59,7 +59,7 @@ public sealed class D011NonstandardCallsignFpGuardTests
     [InlineData("<...> Q0D011GZAB RR73", "8-char literal addressee, hash sender")]
     [InlineData("<...> Q0D011GZABC 73",  "9-char literal addressee, hash sender")]
     public void IsPlausibleMessage_HashSenderLiteralNonstandardAddressee_ReturnsTrue(string text, string reason)
-        => Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue(
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeTrue(
                $"'{text}' mirrors the live bug report's '<hash> NONSTD1 RR73' shape and must not be rejected ({reason})");
 
     // ── Integration test: DecodeAsync (fake interop) surfaces the exact bug-report shapes ──
