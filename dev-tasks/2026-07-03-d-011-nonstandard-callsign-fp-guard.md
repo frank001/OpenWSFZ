@@ -247,3 +247,22 @@ coincidentally callsign-shaped (CRC-14 passes on AWGN, no real signal was inject
 None are real third-party callsigns, but per `RUNBOOK.md` §7.5 they are left
 **untracked** (not committed) as a matter of policy; only `report.md` and this
 aggregated table are committable.
+
+---
+
+## 7. Follow-up: `f-002-callsign-structure-region-lookup`
+
+§6's residual risk — a *length-only* ceiling (raised to 11 by this fix) cannot
+distinguish a genuine literal nonstandard callsign from callsign-*shaped* OSD noise of
+the same length — was confirmed live: a decode matching the predicted failure shape
+(fictional `3AG9672ATCH`, no real signal, 4-digit run) motivated
+`openspec/changes/f-002-callsign-structure-region-lookup`, which replaces
+`IsCallsignOversized`'s length-only check with an ITU Article 19-derived structural
+shape grammar (rejects the digit-run-reappears-after-suffix-begins shape) while
+preserving every case this fix (D-011) opened up. That change also adds the advisory
+callsign region lookup as bycatch of now being able to parse a valid callsign's prefix.
+
+As of this note: implementation, unit/integration tests, and the full `dotnet test`
+suite (791/791) are complete on that change's branch; the mandatory S5 false-positive
+re-run (that change's own acceptance gate, mirroring this task's §6 methodology) is
+still outstanding before merge — see that change's `tasks.md` §6.

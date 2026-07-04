@@ -317,11 +317,26 @@ function makeCell(text) {
 }
 
 /**
+ * Formats a decode row's advisory `region` field for display (region-lookup capability).
+ * - Synthetic region (NFR-021, R&R Study test traffic): the entity label verbatim, no continent.
+ * - Recognised region: "{continent} — {entity}".
+ * - Unresolved / absent: "Unknown".
+ *
+ * @param {{continent?: string|null, entity: string, synthetic: boolean}|null|undefined} region
+ * @returns {string}
+ */
+function formatRegion(region) {
+  if (!region) return 'Unknown';
+  if (region.synthetic) return region.entity;
+  return region.continent ? `${region.continent} — ${region.entity}` : region.entity;
+}
+
+/**
  * Handle a `decode` WebSocket event.
  * Prepends one row per result, removes the placeholder row on first decode,
  * and caps the table at MAX_DECODE_ROWS.
  *
- * @param {Array<{time:string, snr:number, dt:number, freqHz:number, message:string}>} results
+ * @param {Array<{time:string, snr:number, dt:number, freqHz:number, message:string, region?:{continent?:string|null, entity:string, synthetic:boolean}|null}>} results
  */
 function handleDecodes(results) {
   if (!results || results.length === 0) return;
@@ -343,6 +358,7 @@ function handleDecodes(results) {
     tr.appendChild(makeCell(dtStr));
     tr.appendChild(makeCell(String(r.freqHz)));
     tr.appendChild(makeCell(r.message));
+    tr.appendChild(makeCell(formatRegion(r.region)));
 
     // Store cycle-start UTC string as a data attribute for the click handler.
     tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);

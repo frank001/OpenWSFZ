@@ -19,6 +19,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(AppConfig))]
 [JsonSerializable(typeof(DecodeResult))]
 [JsonSerializable(typeof(List<DecodeResult>))]
+[JsonSerializable(typeof(RegionInfo))]
 [JsonSerializable(typeof(WsSpectrumMessage))]
 [JsonSerializable(typeof(int[]))]
 [JsonSerializable(typeof(string[]))]

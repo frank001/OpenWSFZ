@@ -54,9 +54,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     // Singleton default — stateless adapter; safe to share across instances.
     private static readonly IFt8NativeInterop DefaultInterop = new Ft8NativeInteropAdapter();
 
-    private readonly IClock               _clock;
-    private readonly ILogger<Ft8Decoder>? _logger;
-    private readonly IFt8NativeInterop    _interop;
+    private readonly IClock                 _clock;
+    private readonly ILogger<Ft8Decoder>?   _logger;
+    private readonly IFt8NativeInterop      _interop;
+    private readonly ICallsignGrammarStore? _grammarStore;
+    private readonly ICallsignRegionStore?  _regionStore;
 
     // H6 AP decode (D-001): snapshot is taken inside Task.Run (same thread as DecodeAll).
     // volatile guarantees a fresh read without a lock; the reference itself is atomically
@@ -86,19 +88,41 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
 
     /// <param name="clock">Wall-clock provider for aligning cycle timestamps.</param>
     /// <param name="logger">Optional structured logger; pass null to suppress all log output.</param>
-    public Ft8Decoder(IClock clock, ILogger<Ft8Decoder>? logger = null)
-        : this(clock, logger, DefaultInterop) { }
+    /// <param name="grammarStore">
+    /// Optional callsign shape-grammar store (<c>f-002-callsign-structure-region-lookup</c>).
+    /// When <c>null</c>, <see cref="IsPlausibleMessage"/> falls back to
+    /// <see cref="CallsignGrammarConfig.BuiltInDefault"/> — existing callers that do not
+    /// wire this up keep today's behaviour.
+    /// </param>
+    /// <param name="regionStore">
+    /// Optional advisory callsign region-lookup store. When <c>null</c>, every
+    /// <see cref="DecodeResult.Region"/> resolves to <c>null</c> ("Unknown") — purely a GUI
+    /// bycatch, never affects decode acceptance.
+    /// </param>
+    public Ft8Decoder(
+        IClock                  clock,
+        ILogger<Ft8Decoder>?    logger       = null,
+        ICallsignGrammarStore?  grammarStore = null,
+        ICallsignRegionStore?   regionStore  = null)
+        : this(clock, logger, DefaultInterop, grammarStore, regionStore) { }
 
     /// <summary>
     /// Internal constructor for unit testing — allows a fake <see cref="IFt8NativeInterop"/>
     /// to be injected without loading the native DLL (accessible via
     /// <c>[assembly: InternalsVisibleTo("OpenWSFZ.Ft8.Tests")]</c>).
     /// </summary>
-    internal Ft8Decoder(IClock clock, ILogger<Ft8Decoder>? logger, IFt8NativeInterop interop)
+    internal Ft8Decoder(
+        IClock                  clock,
+        ILogger<Ft8Decoder>?    logger,
+        IFt8NativeInterop       interop,
+        ICallsignGrammarStore?  grammarStore = null,
+        ICallsignRegionStore?   regionStore  = null)
     {
-        _clock   = clock;
-        _logger  = logger;
-        _interop = interop;
+        _clock        = clock;
+        _logger       = logger;
+        _interop      = interop;
+        _grammarStore = grammarStore;
+        _regionStore  = regionStore;
     }
 
     // ── IModeDecoder — backward-compatible overload ───────────────────────────
@@ -242,7 +266,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
             // Reject Standard QSO messages whose 15-bit grid/report field has an
             // impossible value that slipped through CRC-14 by chance (≈ 1/16 384
             // per candidate; non-trivial over a 24-hour session on a busy band).
-            if (!IsPlausibleMessage(msg))
+            if (!IsPlausibleMessage(msg, _grammarStore))
             {
                 _logger?.LogDebug(
                     "Cycle {Time}: filtered implausible message '{Message}' (false-positive guard).",
@@ -250,12 +274,34 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 continue;
             }
 
+            // ── Region bycatch (advisory only, region-lookup capability) ─────
+            // Best-effort: any failure here degrades to Region = null ("Unknown") and
+            // never withholds or alters the decode itself.
+            RegionInfo? region = null;
+            if (_regionStore is not null)
+            {
+                try
+                {
+                    var primaryToken = ExtractPrimaryCallsignToken(msg);
+                    if (primaryToken is not null)
+                        region = _regionStore.TryGetRegion(primaryToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex,
+                        "Cycle {Time}: region resolution failed for message '{Message}' — " +
+                        "defaulting to Unknown.", timeStr, msg);
+                    region = null;
+                }
+            }
+
             results.Add(new DecodeResult(
                 Time:    timeStr,
                 Snr:     nr.Snr,
                 Dt:      Math.Round(nr.Dt, 1),
                 FreqHz:  nr.FreqHz,
-                Message: msg));
+                Message: msg,
+                Region:  region));
         }
 
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────
@@ -362,16 +408,13 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// every character is an uppercase hex digit is rejected.
     /// </para>
     /// <para>
-    /// D9-R3 — oversized callsign: a Type 1 callsign packs into 28 bits; the largest
-    /// valid rendered form is a 6-char base call with a 3-char portable suffix
-    /// (e.g. <c>VK9ABC/QRP</c>, 10 chars total). A literal (non-hash) nonstandard
-    /// callsign — the Type 4 58-bit full-text field, per
-    /// <c>f-001-hashed-callsign-resolution</c> design.md — can legitimately be up to
-    /// 11 characters (the <c>ihashcall</c>/<c>pack58</c> charset's width limit), so the
-    /// ceiling used here is 11, not 10 (D-011). Any callsign-position token whose base
-    /// or total length exceeds 11 chars was not produced by valid callsign packing (Type
-    /// 1) nor by a valid Type 4 literal-text field, and is therefore a false-positive
-    /// OSD candidate.
+    /// D9-R3 — callsign shape grammar (<c>f-002-callsign-structure-region-lookup</c>):
+    /// replaces the earlier length-only oversized-callsign guard with an ITU Radio
+    /// Regulations Article 19 §19.68–19.69-derived structural check — see
+    /// <see cref="IsCallsignShapeInvalid"/> for the full rule. Any callsign-position
+    /// token whose shape or total length is invalid was not produced by valid callsign
+    /// packing (Type 1) nor by a valid Type 4 literal-text field, and is therefore a
+    /// false-positive OSD candidate.
     /// </para>
     /// <para>
     /// D9-R4 (existing) — Maidenhead grid / report validation on 3-token Standard QSO
@@ -379,7 +422,14 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// All other message forms are accepted unconditionally.
     /// </para>
     /// </remarks>
-    internal static bool IsPlausibleMessage(string? text)
+    /// <param name="text">The candidate decode text.</param>
+    /// <param name="grammarStore">
+    /// Optional callsign shape-grammar store; falls back to
+    /// <see cref="CallsignGrammarConfig.BuiltInDefault"/> when <c>null</c> (existing
+    /// call sites that predate <c>f-002-callsign-structure-region-lookup</c> keep
+    /// today's behaviour unchanged).
+    /// </param>
+    internal static bool IsPlausibleMessage(string? text, ICallsignGrammarStore? grammarStore = null)
     {
         if (text is null) return false;
 
@@ -415,10 +465,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 // 2-token message: "TOKEN0 TOKEN1"
                 // Check both tokens — the CQ/DE/QRZ restriction on token0 was too narrow;
                 // patterns like "<...> M5E5B91HFHL" and "9ULLPTCDZH <...>" slipped through.
-                // IsCallsignOversized already exempts hash references (<...) and short keywords.
+                // IsCallsignShapeInvalid already exempts hash references (<...) and short keywords.
                 string token0 = text[..firstSpace];
                 string token1 = text[(firstSpace + 1)..];
-                if (IsCallsignOversized(token0) || IsCallsignOversized(token1))
+                if (IsCallsignShapeInvalid(token0, grammarStore) || IsCallsignShapeInvalid(token1, grammarStore))
                     return false;
 
                 // R5 Rule C — CQ <hash>: "CQ <...>" is not a valid 2-token FT8 form.
@@ -434,7 +484,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 // Exactly 3-token message: "TOKEN0 TOKEN1 TOKEN2"
                 string token0 = text[..firstSpace];
                 string token1 = text[(firstSpace + 1)..secondSpace];
-                if (IsCallsignOversized(token0) || IsCallsignOversized(token1))
+                if (IsCallsignShapeInvalid(token0, grammarStore) || IsCallsignShapeInvalid(token1, grammarStore))
                     return false;
             }
             else if (firstSpace > 0 && secondSpace > firstSpace && thirdSpace > secondSpace
@@ -525,7 +575,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
 
     /// <summary>
     /// Returns <c>true</c> when <paramref name="token"/> is a callsign-position token
-    /// that exceeds the limits of valid Type 1 callsign packing (D9-R3 guard).
+    /// that fails the ITU Radio Regulations Article 19 §19.68–19.69-derived shape
+    /// grammar (D9-R3 guard, <c>f-002-callsign-structure-region-lookup</c>) — replacing
+    /// the earlier length-only oversized-callsign check.
     /// </summary>
     /// <remarks>
     /// Exempt cases (always returns <c>false</c>):
@@ -533,29 +585,200 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     ///   <item>Hash-reference tokens beginning with <c>&lt;</c> (e.g. <c>&lt;...&gt;</c>).</item>
     ///   <item>Short pseudo-callsigns with ≤ 3 characters (CQ, DE, QRZ).</item>
     /// </list>
-    /// A valid Type 1 base callsign has at most 6 characters; with a portable suffix
-    /// (<c>/P</c>, <c>/M</c>, <c>/R</c>, <c>/MM</c>, <c>/QRP</c>) the rendered token
-    /// reaches at most 10 characters. A literal (non-hash) Type 4 nonstandard-callsign
-    /// full-text field can legitimately reach 11 characters (D-011,
-    /// <c>f-001-hashed-callsign-resolution</c> design.md's <c>ihashcall</c>/<c>pack58</c>
-    /// charset width) — this guard cannot distinguish that genuine case from same-shaped,
-    /// same-length OSD noise by text alone, so the ceiling below is set to the true
-    /// protocol maximum (11) rather than the tighter Type-1-only bound (10), trading a
-    /// small amount of residual OSD-noise headroom for the ability to show real
-    /// nonstandard-callsign traffic at all. Anything beyond 11 characters was not
-    /// produced by any valid FT8 message field and is rejected.
+    /// <para>
+    /// The shape grammar (design.md Decision 1) accepts a <em>superset</em> of the
+    /// standard prefix–numeral–suffix form so that genuine Type 4 nonstandard/special-
+    /// event callsign literals (D-011, <c>f-001-hashed-callsign-resolution</c>) are not
+    /// rejected again via a different mechanism: a base callsign (before any portable
+    /// suffix) is shape-valid when its <em>trailing</em> contiguous digit-run (the run
+    /// immediately preceding the letters-only suffix) is 1 to
+    /// <see cref="CallsignGrammarConfig.DigitRunMax"/> digits long, the suffix after
+    /// that run is 1 to <see cref="CallsignGrammarConfig.SuffixLengthMax"/> letters, and
+    /// the remaining leading prefix (1–4 alphanumeric characters containing at least one
+    /// letter) accounts for everything before the digit-run. A token whose total or base
+    /// length exceeds <see cref="CallsignGrammarConfig.TotalLengthMax"/> (default 11,
+    /// unchanged from D-011 — the Type 4 <c>ihashcall</c>/<c>pack58</c> charset width) is
+    /// rejected outright, before the shape check runs.
+    /// </para>
+    /// <para>
+    /// This is what rejects <c>3AG9672ATCH</c>-class noise (digit-run <c>9672</c> — 4
+    /// consecutive digits, exceeding the default cap of 3) while continuing to admit
+    /// genuine nonstandard literals like <c>Q0D011ABCDE</c> (trailing digit-run
+    /// <c>011</c> — 3 digits, within cap; prefix <c>Q0D</c>; suffix <c>ABCDE</c>).
+    /// </para>
+    /// <para>
+    /// A parsed prefix matching a reserved/never-allocated entry in
+    /// <see cref="CallsignGrammarConfig.ReservedPrefixExclusions"/> with no synthetic
+    /// carve-out is also rejected (Decision 2) — this is an exclusion signal, not a
+    /// positive allow-list: a prefix absent from the table is never rejected on that
+    /// basis alone.
+    /// </para>
     /// </remarks>
-    private static bool IsCallsignOversized(string token)
+    /// <param name="token">The callsign-position token to check.</param>
+    /// <param name="grammarStore">
+    /// Optional callsign shape-grammar store; falls back to
+    /// <see cref="CallsignGrammarConfig.BuiltInDefault"/> when <c>null</c>.
+    /// </param>
+    internal static bool IsCallsignShapeInvalid(string token, ICallsignGrammarStore? grammarStore = null)
     {
-        if (token.StartsWith('<')) return false;   // hash reference — never oversized
+        if (token.StartsWith('<')) return false;   // hash reference — always shape-valid
         if (token.Length <= 3)    return false;    // CQ / DE / QRZ / very short call — exempt
 
-        // Split on '/' to isolate the base callsign from any portable suffix.
-        int    slashPos  = token.IndexOf('/');
-        string baseCall  = slashPos >= 0 ? token[..slashPos] : token;
+        // Terminal shorthand tokens are not callsign-position tokens even though the
+        // 2-token "check both tokens" path (Gap A) calls this on every token
+        // indiscriminately — a Type 4 shorthand message like "<...> RR73" has RR73 in
+        // the token-1 position, which must not be evaluated against the shape grammar.
+        // "RRR" and "73" are already exempt via the ≤3-char check above; "RR73" is the
+        // only 4+ char terminal keyword.
+        if (token.Equals("RR73", StringComparison.Ordinal)) return false;
 
-        // Base callsign from standard Type 1 packing, OR a literal Type 4 nonstandard
-        // callsign's full text (D-011): maximum 11 characters either way.
-        return baseCall.Length > 11 || token.Length > 11;
+        var config = grammarStore?.Current ?? CallsignGrammarConfig.BuiltInDefault;
+
+        // Split on '/' to isolate the base callsign from any portable suffix
+        // (/P, /M, /MM, /QRP, /A, or a compound second callsign) — evaluated
+        // separately from the shape grammar, as today.
+        int    slashPos = token.IndexOf('/');
+        string baseCall = slashPos >= 0 ? token[..slashPos] : token;
+
+        // Total-length ceiling: base callsign from standard Type 1 packing, OR a
+        // literal Type 4 nonstandard callsign's full text (D-011) — checked before
+        // the shape grammar so a merely-too-long token is rejected outright.
+        if (baseCall.Length > config.TotalLengthMax || token.Length > config.TotalLengthMax)
+            return true;
+
+        if (!TryParseCallsignShape(baseCall, config, out string prefix))
+            return true;
+
+        // Decision 2: reserved/never-allocated prefix exclusion list, with an explicit
+        // synthetic-use carve-out (NFR-021) — an additional signal, not a positive
+        // allow-list. A prefix absent from the table is never rejected on this basis.
+        var exclusion = FindExclusion(config, prefix);
+        if (exclusion is not null && !exclusion.SyntheticCarveOut)
+            return true;
+
+        return false;
+    }
+
+    private static CallsignPrefixExclusion? FindExclusion(CallsignGrammarConfig config, string prefix)
+    {
+        foreach (var exclusion in config.ReservedPrefixExclusions)
+            if (string.Equals(exclusion.Prefix, prefix, StringComparison.OrdinalIgnoreCase))
+                return exclusion;
+        return null;
+    }
+
+    /// <summary>
+    /// Attempts to parse <paramref name="baseCall"/> into the three shape-grammar
+    /// components (design.md Decision 1): a leading prefix (1–4 alphanumeric characters
+    /// containing at least one letter), a trailing contiguous digit-run of 1 to
+    /// <see cref="CallsignGrammarConfig.DigitRunMax"/> digits, and a letters-only suffix
+    /// of 1 to <see cref="CallsignGrammarConfig.SuffixLengthMax"/> characters.
+    /// </summary>
+    /// <remarks>
+    /// The digit-run is identified as the maximal contiguous run of digits ending at the
+    /// <em>last</em> digit anywhere in <paramref name="baseCall"/> — not an arbitrary
+    /// split — so digits earlier in the string (which belong to the prefix) cannot be
+    /// used to dodge the digit-run cap. This is what distinguishes a genuine literal like
+    /// <c>Q0D011ABCDE</c> (trailing run <c>011</c>, 3 digits) from garbage like
+    /// <c>3AG9672ATCH</c> (trailing run <c>9672</c>, 4 digits — over cap).
+    /// </remarks>
+    private static bool TryParseCallsignShape(string baseCall, CallsignGrammarConfig config, out string prefix)
+    {
+        const int PrefixLengthMax = 4;
+        prefix = "";
+
+        int lastDigitIndex = -1;
+        for (int i = baseCall.Length - 1; i >= 0; i--)
+        {
+            if (char.IsAsciiDigit(baseCall[i])) { lastDigitIndex = i; break; }
+        }
+        if (lastDigitIndex < 0) return false; // no mandatory call-area digit at all
+
+        // Suffix: everything after the last digit — must be letters only.
+        string suffix = baseCall[(lastDigitIndex + 1)..];
+        if (suffix.Length == 0 || suffix.Length > config.SuffixLengthMax) return false;
+        foreach (char c in suffix)
+            if (!char.IsAsciiLetter(c)) return false;
+
+        // Digit-run: the maximal contiguous run of digits ending at lastDigitIndex.
+        int digitRunStart = lastDigitIndex;
+        while (digitRunStart > 0 && char.IsAsciiDigit(baseCall[digitRunStart - 1]))
+            digitRunStart--;
+        int digitRunLength = lastDigitIndex - digitRunStart + 1;
+        if (digitRunLength > config.DigitRunMax) return false;
+
+        // Prefix: everything before the digit-run — 1–4 alphanumeric chars, ≥1 letter.
+        string candidatePrefix = baseCall[..digitRunStart];
+        if (candidatePrefix.Length == 0 || candidatePrefix.Length > PrefixLengthMax) return false;
+
+        bool prefixHasLetter = false;
+        foreach (char c in candidatePrefix)
+        {
+            if (char.IsAsciiLetter(c)) prefixHasLetter = true;
+            else if (!char.IsAsciiDigit(c)) return false;
+        }
+        if (!prefixHasLetter) return false;
+
+        prefix = candidatePrefix;
+        return true;
+    }
+
+    // ── Region lookup (advisory bycatch, region-lookup capability) ────────────
+
+    /// <summary>
+    /// Extracts the callsign-position token in the "caller-identification" position from
+    /// a plausible decode text — the station whose callsign identifies the transmission
+    /// that produced this message — for the advisory region lookup (design.md Decision 4).
+    /// Best-effort only: a <c>null</c> result simply leaves <see cref="DecodeResult.Region"/>
+    /// unresolved ("Unknown"); it never affects decode acceptance.
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item>
+    ///     <c>CQ [modifier] &lt;call&gt; [grid]</c>: the CQ caller's own callsign — token 1
+    ///     for the 2/3-token forms, token 2 for the 4-token <c>CQ &lt;modifier&gt; &lt;call&gt; &lt;grid&gt;</c> form
+    ///     (mirrors <c>web/js/main.js</c>'s <c>extractCqCallsign</c>).
+    ///   </item>
+    ///   <item>
+    ///     Standard QSO <c>&lt;to&gt; &lt;from&gt; &lt;ext&gt;</c> form: token 1 (the "from"/sender
+    ///     field — the station identifying itself in this transmission), falling back to
+    ///     token 0 when token 1 is a hash reference or a terminal keyword.
+    ///   </item>
+    /// </list>
+    /// </remarks>
+    internal static string? ExtractPrimaryCallsignToken(string text)
+    {
+        var tokens = text.Split(' ');
+        if (tokens.Length == 0) return null;
+
+        if (tokens[0].Equals("CQ", StringComparison.Ordinal))
+        {
+            string? candidate = tokens.Length switch
+            {
+                2 or 3         => tokens[1],
+                >= 4           => tokens[2],
+                _              => null,
+            };
+            return candidate is not null && IsCandidateCallsignToken(candidate)
+                ? StripPortableSuffix(candidate)
+                : null;
+        }
+
+        if (tokens.Length >= 2 && IsCandidateCallsignToken(tokens[1]))
+            return StripPortableSuffix(tokens[1]);
+
+        if (tokens.Length >= 1 && IsCandidateCallsignToken(tokens[0]))
+            return StripPortableSuffix(tokens[0]);
+
+        return null;
+    }
+
+    private static bool IsCandidateCallsignToken(string token)
+        => token.Length > 0 && token[0] != '<' && token is not ("RRR" or "73" or "RR73");
+
+    private static string StripPortableSuffix(string token)
+    {
+        int slashPos = token.IndexOf('/');
+        return slashPos >= 0 ? token[..slashPos] : token;
     }
 }

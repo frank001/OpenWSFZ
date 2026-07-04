@@ -43,6 +43,19 @@ var propModesPath = Path.Combine(
 // Create the PropModeStore (logger not available yet; assigned after host builds).
 var propModeStore = new PropModeStore(propModesPath);
 
+// Resolve the callsign-grammar.json / callsign-regions.json paths — same data
+// directory as app.json (f-002-callsign-structure-region-lookup).
+var callsignGrammarPath = Path.Combine(
+    Path.GetDirectoryName(configPath) ?? AppContext.BaseDirectory,
+    "callsign-grammar.json");
+var callsignRegionsPath = Path.Combine(
+    Path.GetDirectoryName(configPath) ?? AppContext.BaseDirectory,
+    "callsign-regions.json");
+
+// Create the callsign grammar/region stores (logger not available yet; assigned after host builds).
+var callsignGrammarStore = new CallsignGrammarStore(callsignGrammarPath);
+var callsignRegionStore  = new CallsignRegionStore(callsignRegionsPath);
+
 // ── Logging setup (FR-019, FR-022, FR-023, FR-024) ────────────────────────────
 // Parse the configured log level.  Invalid values fall back to Information.
 var logLevel = Enum.TryParse<LogLevel>(configStore.Current.LogLevel, ignoreCase: true, out var parsedLevel)
@@ -151,7 +164,11 @@ var catState = new CatState();
 // ── FT8 decode pipeline ──────────────────────────────────────────────────────
 
 var clock          = new SystemClock();
-var ft8Decoder     = new Ft8Decoder(clock, loggerFactory.CreateLogger<Ft8Decoder>());
+var ft8Decoder     = new Ft8Decoder(
+    clock,
+    loggerFactory.CreateLogger<Ft8Decoder>(),
+    grammarStore: callsignGrammarStore,
+    regionStore:  callsignRegionStore);
 var decodeEventBus = new DecodeEventBus();
 // AllTxtWriter no longer holds a reference to ICatState; the caller (decode pump) supplies
 // the snapshotted dial frequency for each cycle (defect: dial-freq-snapshot, FR-032).
@@ -317,6 +334,10 @@ var app = WebApp.Create(
 
         // Prop mode store DI wiring (qso-log-dialog).
         services.AddSingleton<IPropModeStore>(propModeStore);
+
+        // Callsign grammar / region store DI wiring (f-002-callsign-structure-region-lookup).
+        services.AddSingleton<ICallsignGrammarStore>(callsignGrammarStore);
+        services.AddSingleton<ICallsignRegionStore>(callsignRegionStore);
 
         // CAT DI wiring (tasks 11.1–11.3, FR-031).
         // Register the CatState singleton under both its concrete type (for
@@ -615,6 +636,12 @@ await frequencyStore.LoadAsync();
 
 // Load (or create) prop-modes.json before starting the web host (qso-log-dialog).
 await propModeStore.LoadAsync();
+
+// Load (or create) callsign-grammar.json / callsign-regions.json before starting the
+// web host (f-002-callsign-structure-region-lookup) — Ft8Decoder is already constructed
+// with references to these stores, so this must complete before the first decode cycle.
+await callsignGrammarStore.LoadAsync();
+await callsignRegionStore.LoadAsync();
 
 await app.RunAsync();
 return 0;

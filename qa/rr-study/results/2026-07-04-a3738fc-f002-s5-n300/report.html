@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ R&amp;R Study Report — f-002 Callsign Shape Grammar Acceptance Gate</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-rr-study-report-f-002-callsign-shape-grammar-acceptance-gate">OpenWSFZ R&amp;R Study Report — f-002 Callsign Shape Grammar Acceptance Gate</h1>
+<h2 id="1-study-hypothesis">1. Study Hypothesis</h2>
+<p><strong>Context.</strong> <code>f-002-callsign-structure-region-lookup</code> replaces <code>Ft8Decoder.IsCallsignOversized</code>'s
+length-only D9-R3 guard (raised to an 11-char ceiling by D-011, to admit genuine Type 4
+nonstandard-callsign literals) with <code>IsCallsignShapeInvalid</code> — an ITU Radio Regulations Article 19
+§19.68–19.69-derived structural grammar (prefix + capped digit-run + letters-only suffix), plus a
+reserved/never-allocated prefix exclusion list with a synthetic <code>Q</code>-series carve-out (NFR-021). The
+change exists because a length-only ceiling cannot distinguish a genuine literal nonstandard
+callsign from callsign-<em>shaped</em> OSD noise of the same length — a live decode matching the
+predicted failure shape (fictional <code>3AG9672ATCH</code>, 4-digit trailing run) motivated the change; see
+<code>design.md</code>. This run is that change's own pre-committed acceptance gate (tasks.md §6).</p>
+<p><strong>Null hypotheses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Null hypothesis</th>
+<th>Would be refuted by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H₀₁</td>
+<td>The shape-grammar gate does not raise the S5 noise-floor false-positive rate above the <code>STUDY-SPEC.md</code> §10 ratified ceiling (95% Clopper–Pearson upper bound ≤ 6%/slot).</td>
+<td>Observed 95% UB &gt; 6%/slot.</td>
+</tr>
+<tr>
+<td>H₀₂</td>
+<td>The shape-grammar gate does not produce a statistically meaningful increase in FP rate versus the D-011 AC-4 baseline (shim/SHA <code>f1e76d4</code>, 7/120 = 5.83%/slot, 95% UB 10.68%).</td>
+<td>Baseline and new-run 95% CIs fail to overlap in the adverse direction, or a two-proportion test rejects equality at α = 0.05 with the new rate higher.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defect IDs under observation:</strong> this change (<code>f-002</code>) is the fix under test; D-011/D-009 are the
+source of the baseline this run validates against — not themselves being re-litigated.</p>
+<p><strong>Sample size.</strong> The D-011 AC-4 recheck (<code>results/d011-fp-recheck-2026-07-04/report.md</code>, finding</p>
+<h1 id="1-flagged-its-own-n120-as-merely-confirmatory-for-a-result-that-close-to-the-ceiling-583">1) flagged its own N=120 as merely "confirmatory" for a result that close to the ceiling (5.83%</h1>
+<p>observed vs. a 6% ceiling), and recommended N=300–500 for a decisive read. Since this change makes
+a materially similar claim against the same gate, this run uses <strong>N=300</strong> (<code>s5-noise-wide-n300.json</code>,
+a sibling of <code>s5-noise-wide.json</code> differing only in <code>trials</code>) rather than repeating the
+underpowered N=120.</p>
+<p><strong>What constitutes a meaningful result:</strong> a FAIL on H₀₁ is merge-blocking; a FAIL on H₀₂ (a
+significant regression, even if H₀₁ still passes) warrants scrutiny before merge. A PASS on both
+is evidence the shape-grammar replacement is safe to ship at current settings — ideally an
+<em>improvement</em> over baseline, since shape-invalid noise of the <code>3AG9672ATCH</code> class should now be
+rejected where it previously wasn't.</p>
+<h2 id="2-run-context">2. Run Context</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-07-04</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>a3738fcbece0e19ca827591325139a91f48f0fcb</code> (fresh Release build from a clean commit on <code>feat/f-002-callsign-structure-region-lookup</code>)</td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td><code>2.7.0</code> (<code>D:\WSJT\wsjtx\bin\wsjtx.exe</code> file version)</td>
+</tr>
+<tr>
+<td>Scenario</td>
+<td><code>s5-noise-wide-n300.json</code>, 300 signal-free AWGN slots, VB-CABLE loopback</td>
+</tr>
+<tr>
+<td>Pre-flight check</td>
+<td>Warm-up cycle (<code>CQ Q1ABC FN42</code>) independently verified via both apps' <code>ALL.TXT</code> at cycle <code>260704_164115</code> (SNR +7 dB WSJT-X, −10 dB OpenWSFZ) before proceeding — not taken on <code>warmup.py</code>'s own prompt alone</td>
+</tr>
+<tr>
+<td>Baseline compared against</td>
+<td>7/120 (5.83%/slot, 95% UB 10.68%), shim/SHA <code>f1e76d4</code>, <code>results/d011-fp-recheck-2026-07-04/</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Data-integrity note (methodology, disclosed rather than silently corrected).</strong> WSJT-X's
+<code>ALL.TXT</code> (<code>%LOCALAPPDATA%\WSJT-X\ALL.TXT</code>) persists across sessions and was not cleared before
+this run — it still carried two pre-run warm-up decodes (<code>CQ Q1ABC FN42</code> at cycles <code>164030</code> and
+<code>164115</code>, both outside this run's cycle range, which starts at <code>164430</code>). OpenWSFZ's <code>ALL.TXT</code> is
+disposable and <em>was</em> truncated immediately before the timed run started, so it required no
+correction. The first <code>matcher.py</code> pass, run against WSJT-X's raw log, consequently mis-attributed
+those two warm-up lines as false positives. This was caught before the result was recorded: a
+cutoff-timestamp filter (<code>awk '$1 &gt;= "260704_164430"'</code>) was applied to WSJT-X's log, confirmed
+empty (both warm-up lines predate the run), and the match re-run — see finding #3 below for the
+process recommendation this motivates.</p>
+<h2 id="34-attribute-agreement-analysis-s4-positives-s5-negatives">3–4. Attribute Agreement Analysis (S4 positives + S5 negatives)</h2>
+<p><em>κ is computed over a pooled population: S4 injected messages (truth = present) and S5 signal-free slots (truth = absent), so the truth vector has both classes. <strong>κ verdicts below are advisory</strong> — the §10 attribute gate is pending Captain ratification of this pooled method.</em></p>
+<h3 id="confusion-vs-truth">Confusion vs truth</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>TP</th>
+<th>FN</th>
+<th>FP</th>
+<th>TN</th>
+<th>Recovery</th>
+<th>Specificity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>300</td>
+<td>—%</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>0</td>
+<td>0</td>
+<td>8</td>
+<td>292</td>
+<td>—%</td>
+<td>97.33%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kappa-advisory">Kappa (advisory)</h3>
+<table>
+<thead>
+<tr>
+<th>Pair</th>
+<th>κ</th>
+<th>95% CI</th>
+<th>Verdict (advisory)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenWSFZ_vs_truth</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>WSJT-X_vs_truth</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>between_appraisers</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="within-app-repeatability-decision-consistency-across-trials">Within-app repeatability (decision consistency across trials)</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>Consistent groups</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>0.00%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="false-positive-rate-s5">False-positive rate (S5)</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>FP events / slots</th>
+<th>Event rate</th>
+<th>95% UB</th>
+<th>Decode rate</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>0 / 300</td>
+<td>0.00%</td>
+<td>0.99%</td>
+<td>0.00%</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>8 / 300</td>
+<td>2.67%</td>
+<td>4.76%</td>
+<td>2.67%</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<p><em>Gate (STUDY-SPEC §10, ratified 2026-07-04, R&amp;R-004): the per-slot FP <strong>event rate</strong>, gated on its one-sided 95% Clopper–Pearson <strong>upper bound</strong> (PASS iff 95% UB ≤ 6%). The UB is defined for all event counts (≈ 3 / N_slots at 0 events) and bounds the true per-slot FP probability at 95% confidence rather than the Poisson-noisy point estimate. Decode rate is reported for reference only.</em></p>
+<h3 id="f-002-acceptance-gate-evaluation-pre-committed-tasksmd-6">f-002 acceptance-gate evaluation (pre-committed, tasks.md §6)</h3>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Criterion</th>
+<th>Result</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 — Hard ship ceiling (<code>STUDY-SPEC.md</code> §10, ratified)</td>
+<td>95% UB ≤ 6%/slot</td>
+<td>OpenWSFZ 4.76% UB (8/300)</td>
+<td><strong>PASS</strong> (margin 1.24 pp)</td>
+</tr>
+<tr>
+<td>2 — Regression vs. D-011 baseline</td>
+<td>New 95% UB not worse than baseline's; point estimate not significantly higher</td>
+<td>Baseline 5.83% [UB 10.68%] vs. new 2.67% [UB 4.76%] — <strong>lower</strong> on both point estimate and UB</td>
+<td><strong>PASS</strong> — clear improvement, not merely non-regression</td>
+</tr>
+</tbody>
+</table>
+<p>H₀₁ and H₀₂ (§1) are both <strong>not refuted</strong>; the result is stronger than a bare non-regression — the
+point estimate roughly halved (5.83% → 2.67%) and the upper bound dropped by more than half
+(10.68% → 4.76%), consistent with the shape grammar rejecting a real share of the
+<code>3AG9672ATCH</code>-class noise the length-only guard let through.</p>
+<h2 id="summary">Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Scope</th>
+<th>Value</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FP event rate (95% UB)</td>
+<td>S5/WSJT-X</td>
+<td>0/300 slots (event 0.0%; 95% UB 0.99%; decode 0.0%)</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>FP event rate (95% UB)</td>
+<td>S5/OpenWSFZ</td>
+<td>8/300 slots (event 2.7%; 95% UB 4.76%; decode 2.7%)</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: PASS</strong></p>
+<h2 id="5-recommendations">5. Recommendations</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Finding</th>
+<th>Defect / Ticket</th>
+<th>Hypothesis</th>
+<th>Next diagnostic step</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Gate PASSES with a comfortable margin (4.76% UB vs. 6% ceiling) and is a genuine improvement over the D-011 baseline on both the point estimate (5.83%→2.67%) and the 95% UB (10.68%→4.76%), at a larger, better-powered N (300 vs. 120).</td>
+<td>f-002 (this change)</td>
+<td>The shape grammar's digit-run cap (3) closes a real share of the noise-floor OSD false-positive space that the length-only guard could not distinguish from genuine nonstandard literals.</td>
+<td>None — result stands. Safe to proceed to merge.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Of the 8 OpenWSFZ false positives, 2 (<code>&lt;...&gt; KOWQ8MGEQVT RR73</code> at <code>164900</code>; <code>&lt;...&gt; RHLI8VWMXMG RRR</code> at <code>175945</code>) share an identified residual shape hole: exactly one digit buried inside an otherwise-long letter run, with a 4-character prefix sitting at the current <code>PrefixLengthMax</code> ceiling (<code>KOWQ</code>, <code>RHLI</code>). This was flagged and empirically confirmed <em>live</em> during this same session, independent of this run's own data.</td>
+<td>Candidate follow-up (not filed as a numbered defect yet)</td>
+<td>The digit-run cap alone cannot reject this shape, since the grammar has no requirement that a prefix be <em>semantically</em> plausible — only that it be 1–4 alphanumeric characters containing a letter. Tightening <code>PrefixLengthMax</code> from 4 to 3 was tested against the full <code>OpenWSFZ.Ft8.Tests</code> suite (244/244 pass, including every existing D-011 nonstandard-literal fixture, all of which already use a 3-char prefix) and confirmed to reject both tokens above with zero regressions.</td>
+<td>Recommend a small, fast follow-up change: promote <code>PrefixLengthMax</code> from a hardcoded local <code>const</code> in <code>Ft8Decoder.TryParseCallsignShape</code> into <code>CallsignGrammarConfig</code> (it is currently the one grammar parameter <em>not</em> JSON-configurable, unlike <code>DigitRunMax</code>/<code>SuffixLengthMax</code>/<code>TotalLengthMax</code>) and default it to 3. Not blocking this merge — the gate already passes with these included.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>The other 6 false positives (<code>VN6NY/R K69IGM/R CA05</code>, <code>&lt;...&gt; 3W3ZAJ/R RM02</code>, <code>&lt;...&gt; HL5QRM/R ML60</code>, <code>HA3YSR 1D2QID/R EB40</code>, <code>C4QM 2F1SJJ/R HK20</code>, <code>N0LMJ/R WO9TMN GK96</code>) are structurally indistinguishable from genuine Standard-QSO traffic — valid-shaped compound calls with <code>/R</code> portable suffixes and valid Maidenhead-shaped grid fields (D9-R4 passes them cleanly).</td>
+<td>Not a defect of <code>f-002</code></td>
+<td>These are inherent OSD/CRC-14 noise-floor coincidences that happen to land on a shape-and-grid-valid combination. No shape-grammar rule can reject them without also rejecting real traffic of the identical shape — this is D-009's domain (OSD correlation threshold / <code>kMinScorePass2</code> tuning), not D9-R3's, and any such tuning trades sensitivity for specificity elsewhere in the S1–S8 suite.</td>
+<td>None recommended against this change. Track only if the overall S5 rate trends upward across future runs.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>WSJT-X version was not recorded in the D-011 AC-4 recheck report (flagged there as finding #3, a <code>STUDY-SPEC.md</code> §11 process gap). Recorded here (<code>2.7.0</code>) without incident.</td>
+<td>Process (closed)</td>
+<td>N/A</td>
+<td>None — confirms the manual pre-run check from <code>RUNBOOK.md</code> §2 is sufficient when followed; no tooling change needed.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>WSJT-X's <code>ALL.TXT</code> persists across sessions (unlike OpenWSFZ's, which this session truncates before each timed run) and briefly contaminated the first match pass with two pre-run warm-up decodes, caught and corrected before this report was written (see §2 data-integrity note).</td>
+<td>Process</td>
+<td><code>RUNBOOK.md</code>'s pre-run checklist (§4.1 and elsewhere) says to "clear ALL.TXT in both apps" but doesn't distinguish that OpenWSFZ's is disposable while WSJT-X's is the operator's persistent application log, which a QA session shouldn't casually truncate.</td>
+<td>Recommend <code>RUNBOOK.md</code> be updated to either (a) instruct recording the WSJT-X <code>ALL.TXT</code> line count/last-timestamp as an explicit cutoff marker before every run (as done here after the fact), or (b) note that <code>matcher.py</code> could optionally take a <code>--since</code> cutoff parameter to make this automatic rather than relying on the operator's memory. Filing as a small process follow-up, not blocking.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall recommendation.</strong> Both pre-committed gates (tasks.md §6.1/§6.2) <strong>PASS</strong>, with a
+materially better result than the D-011 baseline at a larger, better-powered N. Safe to proceed to
+merge. Finding #2 (the <code>PrefixLengthMax</code> residual gap) is recommended as a fast, narrow, separate
+follow-up — not a merge blocker, since the gate already accounts for its effect in the observed
+rate and the fix is small, tested, and non-regressive whenever it lands.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
