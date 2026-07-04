@@ -321,6 +321,16 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 <body>
   <div class="markdown-body">
 <h1 id="openwsfz-rr-study-report-d-011-ac-4-false-positive-re-check">OpenWSFZ R&amp;R Study Report — D-011 AC-4 False-Positive Re-check</h1>
+<blockquote>
+<p><strong>Revision 2 (2026-07-04, post-run):</strong> the embedded harness block (§3–4, Summary)
+was regenerated after <strong>R&amp;R-004 (GitHub #32)</strong> was resolved — the §10 false-positive
+gate is now ratified as the per-slot event rate's one-sided <strong>95% CP upper bound ≤ 6%</strong>
+(PR #34), superseding both the retired in-code zero-event rule and the point-estimate
+reading of "≤ 6%". Under the ratified gate this run's OpenWSFZ result (UB 10.68%) is a
+<strong>FAIL</strong>. This materially affects pre-committed AC-4 Gate 1 (§1/§3–4) — see the
+post-hoc note there and the updated §5 finding #2. Revision 1 (original run-time
+evaluation, point-estimate reading) is preserved in git history at the run SHA.</p>
+</blockquote>
 <h2 id="1-study-hypothesis">1. Study Hypothesis</h2>
 <p><strong>Context.</strong> D-011 raised <code>Ft8Decoder.IsCallsignOversized</code>'s base-callsign ceiling from
 6 to 11 characters, so that genuine literal (non-hash) Type 4 nonstandard callsigns
@@ -505,7 +515,7 @@ non-comparable, underpowered (N=12) result.</p>
 <td>WSJT-X</td>
 <td>0 / 120</td>
 <td>0.00%</td>
-<td>≤ 2.50%</td>
+<td>2.47%</td>
 <td>0.00%</td>
 <td>PASS</td>
 </tr>
@@ -513,38 +523,36 @@ non-comparable, underpowered (N=12) result.</p>
 <td>OpenWSFZ</td>
 <td>7 / 120</td>
 <td>5.83%</td>
-<td>—</td>
+<td>10.68%</td>
 <td>5.83%</td>
 <td>FAIL</td>
 </tr>
 </tbody>
 </table>
-<p><em>Gate (AC5a): FP event count must be 0. 95% UB is the rule-of-three one-sided bound on per-slot FP probability (valid only when 0 events observed; = 3 / N_slots).</em></p>
+<p><em>Gate (STUDY-SPEC §10, ratified 2026-07-04, R&amp;R-004): the per-slot FP <strong>event rate</strong>, gated on its one-sided 95% Clopper–Pearson <strong>upper bound</strong> (PASS iff 95% UB ≤ 6%). The UB is defined for all event counts (≈ 3 / N_slots at 0 events) and bounds the true per-slot FP probability at 95% confidence rather than the Poisson-noisy point estimate. Decode rate is reported for reference only.</em></p>
 <blockquote>
-<p>⚠️ <strong>Gate discrepancy, flagged not resolved here.</strong> The AC5a zero-tolerance gate above
-is <code>harness/analyse.py</code>'s own code-level rule, and it disagrees with the
-architect-ratified threshold in <code>STUDY-SPEC.md</code> §10 ("False-positive rate ≤ 6%:
-Acceptable"). The code comment states the 6% threshold was "retired," but §10 was
-never amended to record that decision (contrast the properly-dated 2026-06-06
-advisory-downgrade note for the Kappa gate in the same section). This run is
-evaluated against the <strong>two gates pre-committed for D-011 AC-4</strong> — the ratified §10
-ceiling and a regression-vs-baseline check — not against the in-code AC5a rule, whose
-authority is disputed. See §5.</p>
+<p>✅ <strong>Gate conflict resolved (R&amp;R-004, PR #34, ratified 2026-07-04).</strong> At the original
+run (Revision 1) this row printed against <code>analyse.py</code>'s in-code zero-event rule, whose
+authority was disputed against §10's then-point-estimate "≤ 6%" ceiling. R&amp;R-004 has
+since ratified a single §10 gate: the per-slot event rate's one-sided <strong>95% CP upper
+bound ≤ 6%</strong>. Under it, OpenWSFZ's 7/120 result (UB <strong>10.68%</strong>) is a genuine <strong>FAIL</strong> —
+not on the retired zero-event rule, but on the ratified ceiling. See the post-hoc note
+under the AC-4 gate table below and §5 finding #2.</p>
 </blockquote>
 <h3 id="d-011-ac-4-gate-evaluation-pre-committed-not-the-harnesss-ac5a-rule-above">D-011 AC-4 gate evaluation (pre-committed, not the harness's AC5a rule above)</h3>
 <table>
 <thead>
 <tr>
 <th>Gate</th>
-<th>Criterion</th>
+<th>Criterion (as pre-committed / run-time reading)</th>
 <th>Result</th>
-<th>Verdict</th>
+<th>Verdict (Rev 1)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>1 — Hard ship ceiling (<code>STUDY-SPEC.md</code> §10)</td>
-<td>FP rate ≤ 6%/slot</td>
+<td>FP rate ≤ 6%/slot (point estimate, as §10 stood at run time)</td>
 <td>OpenWSFZ 5.83%/slot (7/120)</td>
 <td><strong>PASS</strong> (margin 0.17 pp)</td>
 </tr>
@@ -556,7 +564,21 @@ authority is disputed. See §5.</p>
 </tr>
 </tbody>
 </table>
-<p>Both pre-committed AC-4 gates <strong>PASS</strong>. H₀₁ and H₀₂ (§1) are both <strong>not refuted</strong>.</p>
+<blockquote>
+<p><strong>Post-hoc note (Revision 2, R&amp;R-004).</strong> Gate 1 <em>is</em> the §10 ceiling — not a separate
+gate — so R&amp;R-004's ratification directly changes how it reads. Evaluated as it stood
+at run time (point estimate ≤ 6%), Gate 1 was a narrow <strong>PASS</strong> (5.83% ≤ 6.00%).
+Evaluated under the <strong>now-ratified</strong> §10 gate (95% CP upper bound ≤ 6%), Gate 1 is a
+<strong>FAIL</strong> (UB 10.68% &gt; 6%). Gate 2 (regression) is unaffected and remains <strong>PASS</strong>.
+D-011 was merged (PRs #30–#32) under the Revision-1 reading; whether the tightened
+gate warrants revisiting D-011 (e.g. a larger-N re-run) is a Captain decision — see §5
+finding #2. This report does not unilaterally reverse the merge; it records the
+changed gate transparently.</p>
+</blockquote>
+<p>Under the Revision-1 (run-time) reading, both pre-committed AC-4 gates <strong>PASS</strong> and
+H₀₁/H₀₂ (§1) are both <strong>not refuted</strong>. Under the Revision-2 (ratified §10) reading, H₀₁
+(FP rate within the §10 ceiling) is <strong>refuted</strong> on the upper-bound gate while H₀₂
+(no regression vs. baseline) still stands.</p>
 <h2 id="summary">Summary</h2>
 <table>
 <thead>
@@ -569,30 +591,30 @@ authority is disputed. See §5.</p>
 </thead>
 <tbody>
 <tr>
-<td>FP event rate</td>
+<td>FP event rate (95% UB)</td>
 <td>S5/WSJT-X</td>
-<td>0/120 slots (event 0.0%; 95% UB ≤ 2.50%; decode 0.0%)</td>
+<td>0/120 slots (event 0.0%; 95% UB 2.47%; decode 0.0%)</td>
 <td>PASS</td>
 </tr>
 <tr>
-<td>FP event rate</td>
+<td>FP event rate (95% UB)</td>
 <td>S5/OpenWSFZ</td>
-<td>7/120 slots (event 5.8%; decode 5.8%)</td>
+<td>7/120 slots (event 5.8%; 95% UB 10.68%; decode 5.8%)</td>
 <td>FAIL</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Overall verdict: FAIL</strong></p>
 <blockquote>
-<p>This "Overall verdict" and the Defect Notice below are <code>analyse.py</code>'s raw, unedited
-output against its own in-code AC5a zero-tolerance rule — retained here verbatim for
-traceability, not because it is the applicable gate. The actual D-011 AC-4
-determination uses the two pre-committed gates evaluated above (both <strong>PASS</strong>); see
-§5 for the recommended disposition of the AC5a/§10 conflict itself.</p>
+<p>This "Overall verdict" and the Defect Notice below are <code>analyse.py</code>'s regenerated
+(Revision 2) output against the <strong>ratified §10 gate</strong> (95% CP upper bound ≤ 6%,
+R&amp;R-004 / PR #34) — now the applicable gate, not a disputed in-code rule. The FAIL is
+genuine: OpenWSFZ's 95% upper bound (10.68%) exceeds the 6% ceiling. See §5 finding #2
+for the disposition (including the D-011 revisit question).</p>
 </blockquote>
 <h3 id="defect-notices">Defect Notices</h3>
 <ul>
-<li>❌ FAIL — FP event rate (OpenWSFZ) = 7 events in 120 slots (5.8% event rate; 5.8% decode rate); gate requires 0 events</li>
+<li>❌ FAIL — FP event rate (OpenWSFZ) = 7 events in 120 slots (event rate 5.8%, 95% UB 10.68%); gate requires 95% UB ≤ 6%</li>
 </ul>
 <h2 id="5-recommendations">5. Recommendations</h2>
 <table>
@@ -615,10 +637,10 @@ determination uses the two pre-committed gates evaluated above (both <strong>PAS
 </tr>
 <tr>
 <td>2</td>
-<td><code>harness/analyse.py</code>'s <code>_verdict_fp()</code> enforces a zero-tolerance FP gate ("event count must be 0"), contradicting the architect-ratified ≤6% threshold in <code>STUDY-SPEC.md</code> §10. The code comment asserts the 6% threshold was "retired" but §10 was never amended, unlike the properly-dated 2026-06-06 Kappa-gate downgrade note in the same section.</td>
-<td>Process / governance — filed as <strong><a href="https://github.com/frank001/OpenWSFZ/issues/32">R&amp;R-004 (GitHub #32)</a></strong></td>
-<td>An unratified gate tightening was committed to the harness without a corresponding <code>STUDY-SPEC.md</code> §10 amendment, meaning every run since that change has been evaluated (and reported "FAIL") against a gate the Architect never signed off on.</td>
-<td>Architect to either (a) ratify the zero-tolerance gate and amend §10 with a dated note (as was done for Kappa), or (b) revert <code>_verdict_fp()</code> to the ratified ≤6% threshold. Until resolved, treat <code>analyse.py</code>'s printed "Overall verdict" as informational only, not authoritative — as done in this report.</td>
+<td><strong>RESOLVED.</strong> <code>harness/analyse.py</code>'s <code>_verdict_fp()</code> enforced an unratified zero-tolerance FP gate, contradicting §10's ≤6% ceiling with no dated amendment.</td>
+<td>Process / governance — <strong><a href="https://github.com/frank001/OpenWSFZ/issues/32">R&amp;R-004 (GitHub #32)</a></strong>, resolved via <strong><a href="https://github.com/frank001/OpenWSFZ/pull/34">PR #34</a></strong> (2026-07-04).</td>
+<td>Neither option (a) nor (b) as originally posed: the Captain ratified a third, principled option — the §10 FP gate is the per-slot <strong>event rate</strong>, gated on its one-sided <strong>95% CP upper bound ≤ 6%</strong>, with a dated §10 note mirroring the Kappa precedent. The retired zero-event rule and the point-estimate reading are both superseded.</td>
+<td><strong>Done:</strong> §10 amended, <code>analyse.py</code>/<code>analyse_xplat.py</code> updated (15/15 tests pass), this report's embedded block regenerated (Revision 2). <strong>Open (Captain):</strong> under the ratified gate this run FAILs Gate 1 (§3–4 post-hoc note); decide whether D-011 (already merged) warrants a larger-N re-run or revisit.</td>
 </tr>
 <tr>
 <td>3</td>
@@ -629,10 +651,19 @@ determination uses the two pre-committed gates evaluated above (both <strong>PAS
 </tr>
 </tbody>
 </table>
-<p><strong>Overall recommendation:</strong> No defect is being raised against the D-011 fix itself —
-both pre-committed AC-4 gates pass. Recommend merge subject to the Captain's judgement
-on finding #1's thin margin, and independently opening a process ticket for finding #2
-(the AC5a/§10 gate conflict), since that conflict predates and is orthogonal to D-011.</p>
+<p><strong>Overall recommendation (updated Revision 2).</strong> The finding-#2 gate conflict is now
+resolved: §10's FP gate is ratified as the 95% CP upper bound ≤ 6% (R&amp;R-004 / PR #34).
+Applying that ratified gate to this run changes the bottom line from Revision 1 — Gate 1
+(which <em>is</em> the §10 ceiling) now <strong>FAILs</strong> (UB 10.68% &gt; 6%), while the regression gate
+(Gate 2) still passes. Because the pre-committed Gate 1 and §10 are the same threshold,
+this is <strong>not</strong> orthogonal to D-011 as Revision 1 assumed — the earlier "both gates PASS"
+conclusion held only under the point-estimate reading in force at run time. D-011 is
+already merged (PRs #30–#32); this report does not reverse that. <strong>Escalated to the
+Captain:</strong> decide whether the tightened, now-ratified gate warrants revisiting D-011 —
+options are (i) accept the merge as-shipped (Gate 1 passed under the reading in force
+when it merged) and record the tighter gate as forward-looking only, or (ii) commission a
+larger-N (300–500 slot) re-run to measure whether the true FP rate genuinely clears the
+6% upper-bound gate before considering the ceiling raise settled.</p>
   </div>
   <script>
     // Colour verdict cells: PASS / FAIL / MARGINAL / informational
