@@ -136,38 +136,47 @@
 
 ## 6. R&R acceptance gate
 
-- [ ] 6.1 Re-run `qa/rr-study/scenarios/s5-noise-wide.json` (same methodology as D-011 AC-4 /
+- [x] 6.1 Re-run `qa/rr-study/scenarios/s5-noise-wide.json` (same methodology as D-011 AC-4 /
       D-009) with this change's grammar gate live.
       **Correction (QA review, 2026-07-04):** the methodology this task originally cited —
       "WSL2 Debian daemon build/run … per `RUNBOOK.md` §5" — is the three-appraiser
-      cross-platform rig (Windows daemon + Linux/WSL2 daemon + WSJT-X). That rig was
-      **suspended indefinitely** by `RUNBOOK.md` §7 (2026-07-02, i.e. *before* this task
-      note was written): an unresolvable ~18 dB systematic SNR offset and ~1 s DT bias
-      between its two audio paths make it unfit for any measurement requiring a
-      false-positive rate comparison. It was never the right rig for this gate in any
-      case — 6.2's comparison is a same-platform, same-decoder-family before/after
-      check (this build vs. the prior OpenWSFZ shim baseline), not a cross-platform one.
-      Use the **D-011 AC-4 recheck methodology** instead
-      (`qa/rr-study/results/d011-fp-recheck-2026-07-04/report.md`): single Windows daemon
-      (this change's build/SHA) + VB-CABLE loopback, WSJT-X running concurrently only as
-      the reference/control appraiser (expected ~0% FP, feeds the pooled S4/S5 table —
-      not the gating comparison itself), warm-up cycle, then the timed 15s-cycle-
-      synchronized S5 run per `RUNBOOK.md` §§1–4. No WSL2, Voicemeeter cross-platform
-      routing, or Linux daemon build is required.
-      **Sample size:** the D-011 AC-4 recheck's own finding #1 flagged N=120 as
-      "confirmatory," not decisive, and recommended N=300–500 for tighter certainty
-      before merge. This change makes a materially similar claim (replacing the same
-      D9-R3 gate) against the same §10 ceiling, so run at **N=300–500** rather than
-      repeating the underpowered N=120, unless the Captain elects otherwise.
-      Deferred by Captain's decision (2026-07-04) pending the live rig session; all
-      code/tests (tasks 0-5) are complete and green pending this corrected gate.
-- [ ] 6.2 Compare the resulting false-positive rate against the current 5.83%/120 figure (shim
+      cross-platform rig (Windows daemon + Linux/WSL2 daemon + WSJT-X), suspended
+      indefinitely by `RUNBOOK.md` §7 and never the right rig for this gate regardless
+      (a same-platform before/after check, not a cross-platform one). Corrected to the
+      D-011 AC-4 recheck methodology — see below.
+      **Run (2026-07-04, SHA `a3738fc`):** single Windows daemon (Release build, this
+      change's committed SHA) + VB-CABLE, WSJT-X as reference/control appraiser, warm-up
+      cycle independently verified via both apps' `ALL.TXT` (cycle `164115`, not taken on
+      trust from `warmup.py`'s own prompt), then the timed N=300 run of
+      `s5-noise-wide-n300.json` (a sibling of `s5-noise-wide.json` differing only in
+      `trials`, per the sample-size note below). Result:
+      `qa/rr-study/results/2026-07-04-a3738fc-f002-s5-n300/report.md`.
+      **Sample size:** ran at **N=300** (not the original N=120) per the D-011 AC-4
+      recheck's own finding #1, which flagged N=120 as merely "confirmatory" for a
+      result this close to the ceiling.
+      **Data-integrity correction applied mid-analysis:** WSJT-X's persistent `ALL.TXT`
+      still carried two pre-run warm-up decodes outside this run's cycle range; caught
+      before recording the result, filtered via a cutoff timestamp, and re-matched — see
+      report.md §2. Flagged as a process follow-up (report.md §5 finding #5), not a defect.
+- [x] 6.2 Compare the resulting false-positive rate against the current 5.83%/120 figure (shim
       `f1e76d4`, N=120 baseline — compare rates/CIs, not raw counts, given the larger N above);
       confirm no regression (ideally an improvement, since shape-invalid `3AG9672ATCH`-class
       noise should now be rejected). Gate per `STUDY-SPEC.md` §10 as ratified under R&R-004
       (95% Clopper–Pearson upper bound ≤ 6%).
-- [ ] 6.3 Record the result in this change's QA notes (report.md, per HK-001 report-section
+      **Result: PASS, and a genuine improvement** — OpenWSFZ 8/300 (2.67%/slot, 95% UB
+      4.76%) vs. baseline 7/120 (5.83%/slot, 95% UB 10.68%). Both the point estimate and
+      the 95% UB roughly halved. WSJT-X (control) 0/300, 95% UB 0.99%.
+- [x] 6.3 Record the result in this change's QA notes (report.md, per HK-001 report-section
       convention), following the D-011 §6 QA-notes precedent.
+      `qa/rr-study/results/2026-07-04-a3738fc-f002-s5-n300/report.md` (+ rendered
+      `report.html`). Sections 1/2/5 QA-authored; 3–4 harness-generated (`analyse.py`).
+      §5 records two residual-risk findings: (a) 2 of the 8 FPs share an identified
+      shape hole (single digit buried in an otherwise-long letter run, 4-char prefix at
+      the current `PrefixLengthMax` ceiling) — tested fix (cap→3) confirmed
+      non-regressive against the full 244-test suite, recommended as a small separate
+      follow-up, not a merge blocker; (b) the remaining 6 FPs are structurally
+      indistinguishable from genuine QSO traffic (valid compound calls + valid grids) —
+      D-009's domain, not addressable by any shape-grammar rule.
 
 ## 7. Documentation and handoff
 
@@ -183,11 +192,6 @@
       as the follow-up that closes its flagged residual risk.
       Added a "§7. Follow-up" section to that dev-task pointing here.
 - [ ] 7.3 Run `/opsx:archive` once merged and the R&R gate (task 6) has passed.
-      **Blocked on task 6** — Captain elected to defer the live R&R S5 re-run rather than
-      have this session drive the rig for the first time. Per the 6.1 correction above,
-      this is a **single-platform** Windows + VB-CABLE session (D-011 AC-4 methodology,
-      WSJT-X as reference control only) — no WSL2/Linux daemon build required, so the
-      real-time cost is the S5 playback duration itself (N=300–500 slots at 15 s/cycle,
-      ~75–125 min), not a cross-platform rig bring-up. Resume `/opsx:apply` (or hand to
-      the QA workflow per MEMORY.md HK-000/HK-001) once the S5 re-run and report.md are
-      in hand.
+      **Unblocked** — task 6's R&R gate PASSED 2026-07-04 (see 6.1–6.3 above). Remaining
+      before archive: open a PR from `feat/f-002-callsign-structure-region-lookup`,
+      merge to `main`, then run `/opsx:archive`.

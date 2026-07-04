@@ -1,0 +1,30 @@
+{
+  "_comment": "S5-WIDE-N300 — f-002-callsign-structure-region-lookup acceptance-gate variant of s5-noise-wide.json. N=300 rather than 120: the D-011 AC-4 recheck (qa/rr-study/results/d011-fp-recheck-2026-07-04/report.md, finding #1) flagged N=120 as merely 'confirmatory' for a ceiling this close (5.83% observed vs a 6% ceiling, 95% UB 10.68%) and recommended N=300-500 for a decisive read. This change makes a materially similar claim (replacing the same D9-R3 gate with a shape grammar) against the same STUDY-SPEC.md Sec10 ceiling, so it uses the wider N rather than repeating the underpowered run. Same id ('S5'), same seed formula, same noise parameters as s5-noise-wide.json — only 'trials' differs — so trials 0-119 are bit-for-bit identical AWGN realisations to the original file (compute_seed keys on scenario id + part_index + trial_index, not filename).",
+  "_format_version": "1",
+
+  "id": "S5",
+  "name": "Noise / false-positive rate (widened, N=300)",
+  "response": "False-positive decoded / not-decoded (attribute)",
+  "description": "Signal-free wideband-AWGN cycles, one independent noise realisation per trial. Drives the OSD false-positive RATE with a rule-of-three 95% upper confidence bound. 1 part x 300 trials = 300 independent slots (UB ~= 1.0% at 0 observed FPs).",
+
+  "message_ids": [],
+
+  "harness_note": "No FT8 signal is synthesised. Each slot renders 15 s of wideband AWGN seeded by compute_seed('S5', part_index, trial_index); every trial therefore yields a statistically independent noise buffer. Any decode reported by either appraiser on any slot is a false positive.",
+
+  "parts": [
+    {
+      "part_index": 0,
+      "noise_type": "awgn",
+      "level_dbfs": -20,
+      "note": "Wideband AWGN. NOTE: level_dbfs is statistically INERT for pure AWGN in S5 — run_scenario.py peak-normalises every buffer to 0.9 before playback, and for signal-free AWGN the amplitude cancels (samples * 0.9 / peak is independent of level_dbfs). Independent samples come ONLY from the per-trial seed, not from varying the level. Do NOT add extra AWGN levels expecting added statistical power; add trials instead."
+    }
+  ],
+
+  "trials": 300,
+
+  "seed_formula": "hash('S5', part_index, trial_index)",
+
+  "runtime_note": "Playback is real-time, ~15 s per slot aligned to the FT8 cycle boundary. 300 slots ~= 75 min wall clock. Rule-of-three 95% upper bound on per-slot FP probability at 0 observed FPs is ~= 3 / trials (300 -> 1.0%).",
+
+  "channel_note": "Wideband AWGN only (no noise_cutoff_hz), matching s5-noise.json and the single-signal path. Carrier/birdie coverage lives in s5-noise.json and is deterministic (seed-independent); it is NOT repeated here because repeated carrier trials are identical buffers and add zero independent samples."
+}
