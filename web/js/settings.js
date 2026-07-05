@@ -939,8 +939,13 @@ const LOGS_POLL_INTERVAL_MS  = 3000;
 
 /**
  * Fetches the last LOGS_TAIL_LINES lines of the active log file and renders them
- * (oldest first, as returned by the API) — but only while the Logs tab is actually
- * the visible tab, so this doesn't poll uselessly in the background on every other tab.
+ * newest first — but only while the Logs tab is actually the visible tab, so this
+ * doesn't poll uselessly in the background on every other tab.
+ *
+ * The API itself still returns the lines oldest first (unchanged); the reversal
+ * here is purely a display-layer concern so the freshest content is always at the
+ * top of the box, visible without scrolling after each poll (there is no
+ * scrollTop/scrollIntoView handling on this element).
  */
 async function refreshLogsTailIfActive() {
   const panel = document.getElementById('tab-logs');
@@ -949,7 +954,7 @@ async function refreshLogsTailIfActive() {
   try {
     const { lines } = await getLogsTail(LOGS_TAIL_LINES);
     logsTailOutputEl.textContent = (Array.isArray(lines) && lines.length > 0)
-      ? lines.join('\n')
+      ? lines.slice().reverse().join('\n')
       : '(no log content — file logging may be disabled, or no log file exists yet)';
   } catch (err) {
     logsTailOutputEl.textContent = `Failed to load log tail: ${err.message}`;
