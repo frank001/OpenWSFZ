@@ -17,11 +17,12 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.21**. v0.x scope: FT8 receive and transmit,
-> CAT rig control, loopback-only web UI, single operator.
+> The current release is **v0.30**. v0.x scope: FT8 receive and transmit,
+> CAT rig control, a web UI (loopback or passphrase-protected LAN),
+> single operator.
 > v1.0 is reached when the software can complete a confirmed two-way contact
-> end-to-end over RF (RX + CAT rig control + TX on-air). LAN/remote operation
-> and the wider mode menu are deferred to v1.0+.
+> end-to-end over RF (RX + CAT rig control + TX on-air). Internet-facing
+> operation and the wider mode menu are deferred to v1.0+.
 
 All development phases to date are merged and archived. FT8 decoding
 **and transmitting** are fully functional against live audio and recorded fixtures.
@@ -52,6 +53,15 @@ VoiceMeeter software loopback.
 | p20 — FA digit width | Self-calibrating digit-width computation in `SerialCatConnection` FA tune command | ✅ merged |
 | ft8-qso-answerer-v1 — FT8 TX & QSO answerer | FT8 TX pipeline (native encode, GFSK synthesis, WASAPI playback); `IPttController` abstraction; QSO answerer state machine (auto-answer CQ, 6-message exchange, retry, watchdog, operator abort); ADIF 3.x log writer; `tx` config section; Settings TX fields | ✅ merged |
 | tx-ux-improvements — TX UX & config hardening | D-TX-002: config bounds enforced at four layers (HTML, JS, API, config-load) with `Math.Clamp` backstop; `RetryCount = 0` means unlimited retries; FR-UX-002: abort reasons surfaced in scrolling TX history panel; UI-001: obsolete "Enable auto-answer" toggle removed; `ITxEventBus` interface extracted for daemon-level unit testing | ✅ merged |
+| gui-tx-panel — main-page TX control | TX enable/disable and live state moved onto the primary page; no longer activated by a Settings toggle or confirmed only via logs | ✅ merged |
+| qso-caller — Call CQ origination | `QsoCallerService`: the station can now originate CQ calls, not only answer them — completing both FT8 TX roles | ✅ merged |
+| qso-log-dialog — pre-log confirmation | WSJT-X-style confirmation dialog at final transmission; enrich (name, TX power, comments) or discard before the ADIF record is written | ✅ merged |
+| decoder-settings-page — live OSD tuning | The three D-009 OSD gate parameters (`K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, `OSD_NHARD_MAX`) exposed as live-configurable settings — false-positive/sensitivity trade-off tunable without a native rebuild | ✅ merged |
+| lan-remote-access — LAN + passphrase auth | Kestrel bind-address selectable via config; `LanBindPolicy` + `PassphraseAuthPolicy` (`X-Api-Key` / `?key=`); login page; Remote Access settings section. Loopback always trusted; internet exposure out of scope | ✅ merged |
+| f-002 — callsign-structure region lookup | Shape-aware callsign parsing and region/entity lookup surfaced to the operator | ✅ merged |
+| f-001 — hashed-callsign resolution | Session-scoped 22-bit hash table resolves nonstandard/compound callsigns (`PJ4/K1ABC`, special-event calls) announced once via a Type 4 message and later referenced by hash | ✅ merged |
+| f-003 — AP-assist for nonstandard callsigns | AP-assisted decode of nonstandard callsigns (Gap B) building on the f-001 hash table | ✅ merged |
+| f-004 — operator visibility | Native shim ABI version exposed in the UI; TX/Call-CQ button visual states (armed vs transmitting); log viewer (Settings Logs tab + standalone full-log page); waterfall display modifiers | ✅ merged |
 
 ## Decoder Measurement System Analysis (Gage R&R)
 
@@ -140,10 +150,32 @@ callsigns). The synthetic R&R S7 scenario shows **80.22%** co-channel recovery
   (watchdog timeout, operator abort, retry exhaustion, partner busy, internal
   error) are surfaced in a scrolling TX history panel in the UI. Validated via
   VoiceMeeter software loopback against WSJT-X (three complete QSOs logged).
-- **ADIF logging** — a completed QSO appends one ADIF 3.x record to
-  `ADIF.log` (beside `ALL.TXT`), with correct `TIME_ON`/`TIME_OFF` in
-  `HHMMSS` format, ITU band derivation from dial frequency, and graceful
-  handling of write failures.
+- **QSO caller (Call CQ)** — beyond answering, the station can originate CQ
+  calls via `QsoCallerService`, completing both FT8 TX roles. TX is enabled,
+  disabled, and monitored directly from the main page, with button visual
+  states distinguishing "armed but idle" from "transmitting now".
+- **ADIF logging with pre-log dialog** — at the final transmission a WSJT-X-style
+  confirmation dialog opens, allowing the operator to enrich the entry (name,
+  TX power, comments) or discard an unintended QSO before the record is written.
+  A confirmed QSO appends one ADIF 3.x record to `ADIF.log` (beside `ALL.TXT`),
+  with correct `TIME_ON`/`TIME_OFF` in `HHMMSS` format, ITU band derivation
+  from dial frequency, and graceful handling of write failures.
+- **Nonstandard-callsign resolution** — a session-scoped 22-bit hash table
+  resolves nonstandard/compound callsigns (`PJ4/K1ABC`, special-event calls)
+  announced once via a Type 4 message and later referenced by hash, with
+  AP-assisted decode and shape-aware callsign/region lookup surfaced to the
+  operator.
+- **LAN remote access** — the web UI can bind to the local network behind a
+  shared passphrase (`X-Api-Key` header for REST, `?key=` for WebSocket), with
+  a login page and a Remote Access settings section. Loopback origins are always
+  trusted; internet exposure is out of scope for v0.x.
+- **Log viewer** — decode and daemon logs are viewable in-app via a Settings
+  Logs tab (newest-first tail) and a standalone full-log page; the native shim
+  ABI version is surfaced in the UI for diagnostics.
+- **Live decoder tuning** — the three OSD gate parameters
+  (`K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, `OSD_NHARD_MAX`) are configurable
+  at runtime from the Decoder settings page, so the false-positive/sensitivity
+  trade-off can be adjusted without a native rebuild.
 - **Audio device enumeration** returns real devices on Windows (WASAPI),
   Linux (ALSA via `arecord`), and macOS (sox).
 - **PCM audio capture** streams 32-bit float mono at 12 000 Hz from the
@@ -247,17 +279,20 @@ The build and test suite has been verified on all three target platforms:
 
 | Platform | Build | Tests | CI |
 |---|---|---|---|
-| Windows x64 | ✅ 0 warnings | ✅ 622 passed | ✅ GitHub Actions |
-| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ 622 passed | ✅ GitHub Actions |
+| Windows x64 | ✅ 0 warnings | ✅ all green | ✅ GitHub Actions |
+| Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ all green | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
 
-All five CI gates pass on every platform:
+All six active CI gates pass on every platform:
 
 - **G1** — `dotnet build` with zero warnings
 - **G3** — Requirement traceability (every FR/NFR ID mapped to a test)
 - **G5** — Dependency licence inventory (MIT / Apache-2.0 / BSD only)
 - **G6** — Real off-air signal recovery: three committed 40 m band fixture WAVs decoded against WSJT-X answer keys on Windows x64, Linux x64, and macOS ARM64
 - **G7** — Secrets scan (gitleaks over full commit history; any credential finding fails the build)
+- **G8** — OpenSpec validation (`openspec validate --strict --all` across every spec and active change)
+
+(G2 performance and G4 UI-visibility are inert placeholders, awaiting the tests they will gate.)
 
 ## Architecture
 
@@ -271,8 +306,9 @@ OpenWSFZ v0.x is a single native executable with four concurrent roles:
    The `QsoAnswererService` drives a six-state FSM (Idle → TxAnswer → WaitReport
    → TxReport → WaitRr73 → Tx73 → QsoComplete) and writes ADIF records on
    completion.
-3. **Embedded web server** — serves the browser UI over loopback (Kestrel),
-   REST for config and TX control, WebSocket for live events.
+3. **Embedded web server** — serves the browser UI (Kestrel; loopback by
+   default, optionally the LAN behind a passphrase), REST for config and TX
+   control, WebSocket for live events.
 4. **Configuration manager** — reads and writes a JSON config file; propagates
    changes to the running daemon without a restart.
 
