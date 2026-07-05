@@ -317,6 +317,20 @@ jobs:
             --exit-code 1
 
       # -----------------------------------------------------------------
+      # Gate G8: OpenSpec validation
+      # Runs `openspec validate --strict --all` across every spec and active
+      # change. Added 2026-07-05 after 24 of 42 specs were found failing
+      # strict validation, discovered only by a manual, ad-hoc run during an
+      # unrelated change — nothing had ever run this check before, in CI or
+      # otherwise. Version pinned (not @latest) so a future openspec release
+      # can't silently change gate behaviour without a deliberate version
+      # bump reviewed in a PR.
+      # -----------------------------------------------------------------
+      - name: Gate G8 — OpenSpec validation
+        if: runner.os == 'Linux'
+        run: npx --yes @fission-ai/openspec@1.3.1 validate --strict --all
+
+      # -----------------------------------------------------------------
       # Coverage reporting (informational only — never fails the workflow)
       # Implements: "Coverage reporting is informational" (ci-quality-gates spec)
       # -----------------------------------------------------------------
