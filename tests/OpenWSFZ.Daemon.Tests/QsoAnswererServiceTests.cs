@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Daemon;
+using OpenWSFZ.Ft8;
 using OpenWSFZ.Web;
 using Xunit;
 
@@ -213,6 +214,69 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
         await pttEmpty.DisposeAsync();
+    }
+
+    // ── f-003-ap-assist-nonstandard-callsigns: H6 AP arming for nonstandard callsigns ────────
+
+    [Fact(DisplayName = "f-003 4.3: AP constraints arm (not disabled) when the CQ caller has a nonstandard callsign")]
+    public async Task WaitReport_NonstandardPartnerCallsign_ArmsApConstraintsInsteadOfDisabling()
+    {
+        const string nonstandardPartner = "PJ4/K1ABC"; // 9-char compound callsign (f-001/f-003 Gap B)
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        });
+
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var decoder = Substitute.For<IApConstraintSink>();
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt,
+                          new TxEventBus(), adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance, decoder: decoder);
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [Make($"CQ {nonstandardPartner} {PartnerGrid}")]));
+
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+        sut.Partner.Should().Be(nonstandardPartner);
+
+        // NOTE: this calls Ft8CallsignPacker.Pack28 — the very function under test in
+        // Ft8CallsignPackerTests.cs — so these are not "independently derived" expected
+        // values. This integration test verifies a different concern: that
+        // QsoAnswererService.ApplyApConstraints() arms AP with whatever Pack28 produces
+        // (rather than disabling AP) when the partner's callsign is nonstandard, and
+        // passes the packer's own output through unmodified. Pack28's byte-level
+        // correctness is covered independently by Ft8CallsignPackerTests.cs.
+        byte[] expectedMycallBits   = Ft8CallsignPacker.Pack28(OurCallsign);
+        byte[] expectedHiscallBits  = Ft8CallsignPacker.Pack28(nonstandardPartner);
+        expectedHiscallBits.Should().NotBeEmpty(
+            "the extended packer must be able to hash-encode a nonstandard callsign");
+
+        decoder.Received(1).SetApConstraints(Arg.Is<Ft8ApConstraints>(c =>
+            c != null &&
+            c.MycallBits.SequenceEqual(expectedMycallBits) &&
+            c.HiscallBits.SequenceEqual(expectedHiscallBits)));
+        decoder.DidNotReceive().SetApConstraints(null);
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
     }
 
     // ── Task 6.4: CQ detection ────────────────────────────────────────────────
