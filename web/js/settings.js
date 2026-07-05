@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, getApiKey } from './api.js';
+import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, getApiKey, getLogsTail } from './api.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const outputDeviceSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('output-device-select'));
@@ -76,6 +76,9 @@ const loggingDayGroup       = /** @type {HTMLElement}       */ (document.getElem
 // Frequencies tab controls (FR-043)
 const freqTbody  = /** @type {HTMLTableSectionElement} */ (document.getElementById('freq-tbody'));
 const addFreqBtn = /** @type {HTMLButtonElement}       */ (document.getElementById('add-freq-btn'));
+
+// Native shim version display (daemon-status-visibility)
+const shimVersionValue = /** @type {HTMLElement} */ (document.getElementById('shim-version-value'));
 
 // Advanced Decoder Settings controls (decoder-settings-page)
 const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-k'));
@@ -566,6 +569,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Show live CAT status from the daemon status endpoint.
     updateCatStatusBadge(status?.catConnectionStatus ?? null);
 
+    // Native shim version, read-only (daemon-status-visibility).
+    if (shimVersionValue) {
+      shimVersionValue.textContent = status?.shimVersion != null
+        ? String(status.shimVersion)
+        : '—';
+    }
+
     // FR-039: carry forward server-managed fields that the UI does not edit.
     catOpaqueFields = {
       lastPolledFrequencyMHz: cat.lastPolledFrequencyMHz ?? null,
@@ -917,6 +927,56 @@ saveBtn.addEventListener('click', async () => {
     saveBtn.disabled = false;
   }
 });
+
+// ── Log viewer (log-viewer) ───────────────────────────────────────────────
+
+const logsTailOutputEl = /** @type {HTMLElement} */ (document.getElementById('logs-tail-output'));
+const logsOpenFullBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('logs-open-full-btn'));
+const tabBtnLogs        = /** @type {HTMLButtonElement} */ (document.getElementById('tab-btn-logs'));
+
+const LOGS_TAIL_LINES        = 150;
+const LOGS_POLL_INTERVAL_MS  = 3000;
+
+/**
+ * Fetches the last LOGS_TAIL_LINES lines of the active log file and renders them
+ * (oldest first, as returned by the API) — but only while the Logs tab is actually
+ * the visible tab, so this doesn't poll uselessly in the background on every other tab.
+ */
+async function refreshLogsTailIfActive() {
+  const panel = document.getElementById('tab-logs');
+  if (!panel || !panel.classList.contains('active') || !logsTailOutputEl) return;
+
+  try {
+    const { lines } = await getLogsTail(LOGS_TAIL_LINES);
+    logsTailOutputEl.textContent = (Array.isArray(lines) && lines.length > 0)
+      ? lines.join('\n')
+      : '(no log content — file logging may be disabled, or no log file exists yet)';
+  } catch (err) {
+    logsTailOutputEl.textContent = `Failed to load log tail: ${err.message}`;
+  }
+}
+
+// Poll on a fixed interval; refreshLogsTailIfActive no-ops whenever the Logs tab
+// isn't the visible one.
+setInterval(refreshLogsTailIfActive, LOGS_POLL_INTERVAL_MS);
+
+// Refresh immediately when the Logs tab is opened, rather than waiting up to
+// LOGS_POLL_INTERVAL_MS for the next scheduled poll. Registered in addition to the
+// generic tab-switching listener above (which runs first and applies the 'active'
+// class this function checks for).
+if (tabBtnLogs) {
+  tabBtnLogs.addEventListener('click', () => refreshLogsTailIfActive());
+}
+
+// Open the standalone full-log page in a new tab, carrying the API key forward
+// (D-LAN-005 pattern) so a non-loopback session doesn't hit an auth redirect.
+if (logsOpenFullBtn) {
+  logsOpenFullBtn.addEventListener('click', () => {
+    const key = getApiKey();
+    const url = key ? `/logs.html?key=${encodeURIComponent(key)}` : '/logs.html';
+    window.open(url, '_blank');
+  });
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 

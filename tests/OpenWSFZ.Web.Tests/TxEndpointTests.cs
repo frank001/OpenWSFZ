@@ -22,7 +22,19 @@ internal sealed class MockQsoController : IQsoController
     public string?  Partner { get; set; }
     public QsoRole  Role    { get; set; } = QsoRole.Answerer;
 
+    /// <summary>
+    /// Number of times <see cref="GracefulStopAsync"/> has been called
+    /// (f-004-operator-visibility-improvements — POST /api/v1/tx/stop-cq tests).
+    /// </summary>
+    public int GracefulStopCallCount { get; private set; }
+
     public Task AbortAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task GracefulStopAsync(CancellationToken ct = default)
+    {
+        GracefulStopCallCount++;
+        return Task.CompletedTask;
+    }
 
     public Task AnswerCqAsync(
         string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct)
@@ -593,5 +605,91 @@ public sealed class CallCqEndpointTests : IClassFixture<TxAnswerCqFixture>
 
         // Restore
         _fixture.QsoController.State = QsoState.Idle;
+    }
+}
+
+// ── POST /api/v1/tx/stop-cq tests (qso-controller, f-004-operator-visibility-improvements) ──
+
+/// <summary>
+/// Integration tests for <c>POST /api/v1/tx/stop-cq</c> (qso-controller spec).
+/// Uses <see cref="TxAnswerCqFixture"/> which provides a <see cref="MockQsoController"/>.
+/// Shares the "call-cq-tests" collection with <see cref="CallCqEndpointTests"/> since both
+/// mutate the same fixture's shared, non-thread-safe <see cref="MockQsoController"/> state.
+/// </summary>
+[Collection("call-cq-tests")]
+public sealed class StopCqEndpointTests : IClassFixture<TxAnswerCqFixture>
+{
+    private readonly TxAnswerCqFixture _fixture;
+
+    public StopCqEndpointTests(TxAnswerCqFixture fixture) => _fixture = fixture;
+
+    [Fact(DisplayName = "qso-controller: POST /tx/stop-cq calls GracefulStopAsync and returns 200")]
+    public async Task StopCq_WhenControllerRegistered_CallsGracefulStopAndReturns200()
+    {
+        // Arrange — caller engaged, waiting for an answer (matches the spec scenario).
+        _fixture.QsoController.Role  = QsoRole.Caller;
+        _fixture.QsoController.State = QsoState.WaitReport; // proxy for CallerState.WaitAnswer
+
+        var callsBefore = _fixture.QsoController.GracefulStopCallCount;
+
+        // Act
+        var response = await _fixture.Client.PostAsync("/api/v1/tx/stop-cq", content: null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _fixture.QsoController.GracefulStopCallCount.Should().Be(callsBefore + 1,
+            "POST /api/v1/tx/stop-cq must call GracefulStopAsync on the resolved controller");
+
+        // Restore Idle so subsequent tests in this shared fixture are unaffected.
+        _fixture.QsoController.State = QsoState.Idle;
+    }
+
+    [Fact(DisplayName = "qso-controller: POST /tx/stop-cq does not hardcode autoAnswerEnabled=false")]
+    public async Task StopCq_ReturnsResponse_WithoutHardcodingAutoAnswerFalse()
+    {
+        // Arrange — TX may still be mid-completion; autoAnswer remains true in config,
+        // unlike POST /api/v1/tx/abort which always disarms.
+        _fixture.QsoController.Role  = QsoRole.Caller;
+        _fixture.QsoController.State = QsoState.WaitReport;
+        await _fixture.ConfigStore.SaveAsync(new AppConfig { Tx = new TxConfig(autoAnswer: true) });
+
+        // Act
+        var response = await _fixture.Client.PostAsync("/api/v1/tx/stop-cq", content: null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("autoAnswerEnabled").GetBoolean()
+            .Should().BeTrue(
+                "unlike /abort, stop-cq must not hardcode AutoAnswerEnabled: false — " +
+                "the service may still be completing an in-progress TX");
+
+        // Restore Idle so subsequent tests in this shared fixture are unaffected.
+        _fixture.QsoController.State = QsoState.Idle;
+    }
+}
+
+/// <summary>
+/// Integration test for <c>POST /api/v1/tx/stop-cq</c> when no <see cref="IQsoController"/>
+/// is registered (qso-controller spec: 503 problem response, matching the existing
+/// <c>/answer-cq</c>/<c>/select-responder</c> convention).
+/// Uses <see cref="AudioConfigFixture"/> (no controller wired), separate from the
+/// "call-cq-tests" collection's shared mutable state.
+/// </summary>
+public sealed class StopCqNoControllerEndpointTests : IClassFixture<AudioConfigFixture>
+{
+    private readonly AudioConfigFixture _fixture;
+
+    public StopCqNoControllerEndpointTests(AudioConfigFixture fixture) => _fixture = fixture;
+
+    [Fact(DisplayName = "qso-controller: POST /tx/stop-cq returns 503 when no controller is registered")]
+    public async Task StopCq_WhenNoControllerRegistered_Returns503()
+    {
+        var response = await _fixture.Client.PostAsync("/api/v1/tx/stop-cq", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable,
+            "stop-cq must return 503 (not throw) when no IQsoController is registered, " +
+            "matching the existing /answer-cq and /select-responder convention");
     }
 }

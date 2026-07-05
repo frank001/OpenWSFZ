@@ -108,6 +108,144 @@ public sealed class LoggingPipelineTests : IDisposable
             "Debug-level messages must not appear when the file threshold is Warning");
     }
 
+    [Fact(DisplayName = "log-viewer: a logged event reaches disk immediately, without requiring Dispose()")]
+    public async Task Apply_LoggedEvent_ReachesDiskWithoutDispose()
+    {
+        // Regression test for a gap found during f-004 manual verification: the file sink was
+        // buffered:true with no flush interval, so a log event could sit in memory indefinitely
+        // (until the buffer filled or the process shut down) — which meant GET
+        // /api/v1/logs/tail's polling could show stale/empty content for a long time under light
+        // logging volume. LoggingPipeline now writes unbuffered (buffered: false — the Serilog
+        // default) so this test can observe the write on disk WITHOUT ever calling
+        // Dispose()/CloseAndFlush(). (An earlier attempt at this fix used buffered:true plus
+        // flushToDiskInterval; that reliably flushed a logger built at process startup but did
+        // NOT flush one rebuilt via a later Apply() call from within an HTTP request handler —
+        // see the test below — hence the switch to unbuffered writes instead.)
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = true, Directory = _tempDir };
+
+        pipeline.Apply(config);
+        Serilog.Log.Information("logged-event-must-reach-disk-without-dispose");
+
+        // Poll briefly rather than asserting instantaneously, to stay robust against ordinary
+        // OS-level write scheduling — but this should resolve near-instantly, not after a
+        // meaningful delay, since writes are no longer buffered.
+        var files = Directory.GetFiles(_tempDir, "openswfz-*.log");
+        files.Should().HaveCount(1);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
+        string content;
+        do
+        {
+            content = ReadWithSharing(files[0]);
+            if (content.Contains("logged-event-must-reach-disk-without-dispose")) break;
+            await Task.Delay(20);
+        } while (DateTime.UtcNow < deadline);
+
+        content.Should().Contain("logged-event-must-reach-disk-without-dispose",
+            "unbuffered writes must reach disk immediately — an operator polling " +
+            "GET /api/v1/logs/tail must not have to wait for the daemon to shut down " +
+            "(or a buffer to fill) before new log content becomes visible");
+    }
+
+    [Fact(DisplayName = "log-viewer: a logged event still reaches disk after a SECOND Apply() (e.g. operator enables file logging at runtime)")]
+    public async Task Apply_LoggedEvent_ReachesDiskAfterSecondApplyCall()
+    {
+        // The real daemon calls Apply() at least twice: once at startup (often with
+        // FileEnabled=false, the default), and again whenever the operator changes logging
+        // settings via the Settings page while the daemon is already running — the realistic
+        // way file logging actually gets turned on. This isolates that exact sequence.
+        //
+        // This is the scenario that exposed the buffered:true + flushToDiskInterval approach as
+        // unreliable: in the real daemon, a logger rebuilt via this second Apply() call (invoked
+        // from inside the POST /api/v1/config request handler) never flushed its periodic timer,
+        // even after 60+ real seconds — while the exact same two-Apply() sequence in this
+        // in-process unit test (no ASP.NET Core hosting involved) flushed within 3 s. Root cause
+        // undetermined; switching to unbuffered writes sidesteps it entirely by not depending on
+        // a timer at all.
+        using var pipeline = new LoggingPipeline();
+
+        pipeline.Apply(new LoggingConfig { FileEnabled = false, Directory = _tempDir });
+        pipeline.Apply(new LoggingConfig { FileEnabled = true,  Directory = _tempDir });
+
+        Serilog.Log.Information("logged-event-must-reach-disk-after-second-apply");
+
+        var files = Directory.GetFiles(_tempDir, "openswfz-*.log");
+        files.Should().HaveCount(1);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
+        string content;
+        do
+        {
+            content = ReadWithSharing(files[0]);
+            if (content.Contains("logged-event-must-reach-disk-after-second-apply")) break;
+            await Task.Delay(20);
+        } while (DateTime.UtcNow < deadline);
+
+        content.Should().Contain("logged-event-must-reach-disk-after-second-apply",
+            "unbuffered writes must reach disk immediately whether the file sink was built on " +
+            "the first Apply() call or a later one — an operator enabling file logging " +
+            "mid-session must see the same live-tail behaviour as one who started with it " +
+            "already enabled");
+    }
+
+    // ── f-004-operator-visibility-improvements (log-viewer): CurrentLogFilePath ──
+
+    [Fact(DisplayName = "log-viewer: CurrentLogFilePath is set to the created file when FileEnabled is true")]
+    public void CurrentLogFilePath_IsSet_WhenFileEnabled()
+    {
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = true, Directory = _tempDir };
+
+        pipeline.Apply(config);
+
+        var createdFiles = Directory.GetFiles(_tempDir, "openswfz-*.log");
+        createdFiles.Should().HaveCount(1);
+        pipeline.CurrentLogFilePath.Should().Be(createdFiles[0],
+            "CurrentLogFilePath must be set to the exact path Apply() just created via TryCreateLogFile");
+    }
+
+    [Fact(DisplayName = "log-viewer: CurrentLogFilePath is null when FileEnabled is false")]
+    public void CurrentLogFilePath_IsNull_WhenFileDisabled()
+    {
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = false, Directory = _tempDir };
+
+        pipeline.Apply(config);
+
+        pipeline.CurrentLogFilePath.Should().BeNull(
+            "no log file is created when FileEnabled is false, so there is no active path to expose");
+    }
+
+    [Fact(DisplayName = "log-viewer: CurrentLogFilePath is null when the log directory cannot be created")]
+    public void CurrentLogFilePath_IsNull_WhenDirectoryIsInvalid()
+    {
+        var blockingFile = Path.Combine(_tempDir, "blocking.txt");
+        File.WriteAllText(blockingFile, "I block directory creation");
+        var invalidDir = Path.Combine(blockingFile, "subdir");
+
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = true, Directory = invalidDir };
+
+        pipeline.Apply(config);
+
+        pipeline.CurrentLogFilePath.Should().BeNull(
+            "file creation failed, so CurrentLogFilePath must reflect that (null), " +
+            "the same as the file-logging-disabled case");
+    }
+
+    [Fact(DisplayName = "log-viewer: CurrentLogFilePath is reset to null on a subsequent Apply() that disables file logging")]
+    public void CurrentLogFilePath_ResetsToNull_OnSubsequentApplyWithFileDisabled()
+    {
+        using var pipeline = new LoggingPipeline();
+
+        pipeline.Apply(new LoggingConfig { FileEnabled = true, Directory = _tempDir });
+        pipeline.CurrentLogFilePath.Should().NotBeNull("first Apply() enabled file logging");
+
+        pipeline.Apply(new LoggingConfig { FileEnabled = false, Directory = _tempDir });
+        pipeline.CurrentLogFilePath.Should().BeNull(
+            "a later Apply() that disables file logging must clear the stale path from the " +
+            "previous call, not leave it pointing at a file that is no longer being written to");
+    }
+
     // ── FR-024: retention enforcement ────────────────────────────────────────
 
     [Fact(DisplayName = "FR-024: LoggingPipeline.EnforceRetention leaves files untouched when within limit")]
@@ -176,6 +314,20 @@ public sealed class LoggingPipelineTests : IDisposable
     {
         foreach (var name in names)
             File.WriteAllText(Path.Combine(_tempDir, name), "log content");
+    }
+
+    /// <summary>
+    /// Reads a file while it may still be open for writing by the Serilog file sink.
+    /// A plain <see cref="File.ReadAllText(string)"/> throws <see cref="IOException"/> on
+    /// Windows in that case (default share mode is not compatible with the sink's open
+    /// handle) — this mirrors the <c>FileShare.ReadWrite</c> approach the real
+    /// <c>GET /api/v1/logs/tail</c>/<c>/logs/full</c> endpoints use for the same reason.
+    /// </summary>
+    private static string ReadWithSharing(string path)
+    {
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var sr = new StreamReader(fs);
+        return sr.ReadToEnd();
     }
 }
 

@@ -54,6 +54,21 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     // Singleton default — stateless adapter; safe to share across instances.
     private static readonly IFt8NativeInterop DefaultInterop = new Ft8NativeInteropAdapter();
 
+    /// <summary>
+    /// The native FT8 decoder shim's actual loaded ABI version
+    /// (f-004-operator-visibility-improvements, design.md Decision 1).
+    /// Reading this property triggers the native library's lazy load + ABI self-test
+    /// as a side effect if it has not already run — callers that want the ABI check to
+    /// happen at daemon startup (rather than on the first decode cycle) should read this
+    /// property once, early, before the web host starts accepting requests. The value is
+    /// stable for the remainder of the process lifetime once read.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the native DLL cannot be loaded or the ABI version check fails — same as
+    /// any other native call through <see cref="Ft8LibInterop"/>.
+    /// </exception>
+    public static int LoadedShimVersion => Ft8LibInterop.LoadedShimVersion;
+
     private readonly IClock                 _clock;
     private readonly ILogger<Ft8Decoder>?   _logger;
     private readonly IFt8NativeInterop      _interop;

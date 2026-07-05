@@ -216,6 +216,39 @@ label {
   border-color: #da3b36;
 }
 
+/* Armed AND actively transmitting — bright red (FR-TX-UI-004, tx-state-indicators).
+   Takes visual precedence over tx-btn-armed by being a brighter/more saturated red;
+   both classes are applied together (armed is always true whenever transmitting is). */
+#tx-enable-btn.tx-btn-transmitting {
+  background: #ff3b30;
+  border-color: #ff3b30;
+  color: #fff;
+  font-weight: 700;
+}
+#tx-enable-btn.tx-btn-transmitting:hover:not(:disabled) {
+  background: #ff5c52;
+  border-color: #ff5c52;
+}
+
+/* Call CQ button engaged — steady bright green (tx-state-indicators, design.md Decision 2).
+   Applied whenever role === 'caller' && autoAnswerEnabled, independent of sub-state and of
+   the button's disabled attribute — an engaged button is never disabled in practice
+   (web-frontend "TX panel — Call CQ button"), but the opacity override below keeps the
+   colour visible even if it ever were. */
+#tx-call-cq-btn.tx-call-cq-armed {
+  background:   var(--color-success);
+  border-color: var(--color-success);
+  color:        #0d1117;
+  font-weight:  700;
+}
+#tx-call-cq-btn.tx-call-cq-armed:disabled {
+  opacity: 1;
+}
+#tx-call-cq-btn.tx-call-cq-armed:hover:not(:disabled) {
+  background:   #35a247;
+  border-color: #35a247;
+}
+
 /* ── TX panel: state row ────────────────────────────────────────────────── */
 .tx-state-row {
   display: flex;
@@ -899,6 +932,37 @@ select#dial-freq {
   color: var(--color-muted);
   white-space: nowrap;
   cursor: pointer;
+}
+
+/* ── Log viewer (log-viewer) ─────────────────────────────────────────────── */
+.logs-tail-output {
+  margin-top:    0.75rem;
+  max-height:    60vh;
+  overflow-y:    auto;
+  overflow-x:    auto;
+  white-space:   pre-wrap;
+  word-break:    break-word;
+  background:    var(--color-bg);
+  border:        1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding:       0.75rem;
+  font-family:   var(--font-mono);
+  font-size:     0.78rem;
+  line-height:   1.4;
+  color:         var(--color-text);
+}
+
+/* Standalone full-log page (web/logs.html) */
+.logs-full-page {
+  margin:      0;
+  padding:     1rem;
+  white-space: pre-wrap;
+  word-break:  break-word;
+  background:  var(--color-bg);
+  color:       var(--color-text);
+  font-family: var(--font-mono);
+  font-size:   0.8rem;
+  line-height: 1.4;
 }
 
 /* Button row */

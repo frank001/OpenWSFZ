@@ -210,6 +210,32 @@ internal static class Ft8LibInterop
     private const int ExpectedShimVersion = 20260031;
 
     /// <summary>
+    /// The native shim's actual loaded ABI version, as read once by the startup ABI
+    /// self-test in <see cref="LoadAndVerify"/> (f-004-operator-visibility-improvements,
+    /// design.md Decision 1). Always equal to <see cref="ExpectedShimVersion"/> once set —
+    /// <see cref="LoadAndVerify"/> throws before returning if the two differ — but is
+    /// retained separately (rather than just discarded after the comparison) so it can be
+    /// read back out and surfaced on <c>GET /api/v1/status</c> for operator diagnosis.
+    /// Reading <see cref="LoadedShimVersion"/> triggers the same lazy initialisation as any
+    /// other public member of this class.
+    /// </summary>
+    private static int _loadedShimVersion;
+
+    /// <summary>
+    /// The native shim's actual loaded ABI version. Triggers lazy initialisation
+    /// (native library load + ABI self-test) as a side effect if it has not already run.
+    /// Stable for the remainder of the process lifetime once set.
+    /// </summary>
+    internal static int LoadedShimVersion
+    {
+        get
+        {
+            EnsureInitialized();
+            return _loadedShimVersion;
+        }
+    }
+
+    /// <summary>
     /// Maximum number of decoded messages per two-pass decode cycle.
     /// Sized to the two-pass output capacity: K_MAX_CANDIDATES (pass 0, 140)
     /// + K_MAX_CANDIDATES_PASS2 (pass 1, 200) = 340.
@@ -671,6 +697,11 @@ internal static class Ft8LibInterop
                 $"Native library ABI mismatch at '{libPath}'. " +
                 $"Expected FT8_SHIM_VERSION={expected}, got {actual}. " +
                 "Rebuild the native library from the committed shim source (see src/OpenWSFZ.Ft8/Native/BUILD.md).");
+
+        // Retain the actual version so it can be read back via LoadedShimVersion
+        // (f-004-operator-visibility-improvements) — set only after the mismatch
+        // check above passes, so a caller can never observe a stale or wrong value.
+        _loadedShimVersion = actual;
 
         // Step 3b: K_MAX_PASSES / MaxDecodePasses drift check.
         // If the native shim is ever rebuilt with a different K_MAX_PASSES while

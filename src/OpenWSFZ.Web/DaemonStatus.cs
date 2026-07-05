@@ -41,4 +41,11 @@ public sealed record DaemonStatus(
     /// <summary>
     /// Whether the QSO answerer is locked to the operator-set TX frequency.
     /// </summary>
-    bool    HoldTxFreq = false);
+    bool    HoldTxFreq = false,
+    /// <summary>
+    /// The native FT8 decoder shim's actual loaded ABI version
+    /// (f-004-operator-visibility-improvements, daemon-status-visibility). Stable for the
+    /// process lifetime once the native library has been initialised. Defaults to 0 for
+    /// callers that do not wire up the native shim (e.g. minimal test fixtures).
+    /// </summary>
+    int     ShimVersion = 0);

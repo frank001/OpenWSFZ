@@ -36,6 +36,13 @@ public static class WebApp
     /// <see cref="IAudioDeviceProvider"/> to register as a singleton.
     /// Defaults to <see cref="InMemoryAudioDeviceProvider"/> (empty list).
     /// </param>
+    /// <param name="shimVersion">
+    /// The native FT8 decoder shim's actual loaded ABI version, surfaced as
+    /// <see cref="DaemonStatus.ShimVersion"/> on <c>GET /api/v1/status</c> and the initial
+    /// WebSocket <c>status</c> event (daemon-status-visibility). Callers should read
+    /// <c>Ft8Decoder.LoadedShimVersion</c> once at startup and pass it here; defaults to 0
+    /// for callers (e.g. minimal test fixtures) that do not wire up the native shim.
+    /// </param>
     public static WebApplication Create(
         int port,
         IBindPolicy?                                        bindPolicy                  = null,
@@ -53,7 +60,8 @@ public static class WebApp
         ICatState?                                          catState                    = null,
         Action<ILoggingBuilder>?                            configureLogging            = null,
         Func<Task>?                                         restartPipeline             = null,
-        Action<IServiceCollection>?                         configureServices           = null)
+        Action<IServiceCollection>?                         configureServices           = null,
+        int                                                  shimVersion                 = 0)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
         // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(appScope)
@@ -252,7 +260,8 @@ public static class WebApp
                 AudioActive:         audioMonitor?.IsActive ?? false,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    effectiveFreq,
-                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
+                ShimVersion:         shimVersion));
         });
 
         app.MapGet("/api/v1/audio/devices", async (
@@ -452,7 +461,8 @@ public static class WebApp
                 AudioActive:         audioMonitor?.IsActive ?? false,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStart,
-                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
+                ShimVersion:         shimVersion));
         });
 
         app.MapPost("/api/v1/decode/stop", async (
@@ -469,7 +479,8 @@ public static class WebApp
                 AudioActive:         audioMonitor?.IsActive ?? false,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStop,
-                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
+                ShimVersion:         shimVersion));
         });
 
         // ── Frequency list endpoints (FR-042) ─────────────────────────────────
@@ -554,6 +565,71 @@ public static class WebApp
         // Capture IAdifLogWriter (may be null in tests that don't wire the TX subsystem).
         // Using a different local name to avoid shadowing the method parameter of the same name.
         var adifLogSvc = app.Services.GetService<IAdifLogWriter>();
+
+        // Capture ILogFileSource (log-viewer). May be null in tests that don't wire up
+        // LoggingPipeline — both endpoints below treat that the same as "no active log file".
+        var logFileSource = app.Services.GetService<ILogFileSource>();
+
+        // ── GET /api/v1/logs/tail (log-viewer) ────────────────────────────────
+        // Returns the last N lines (default 150, capped at 1000) of the daemon's currently
+        // active log file. Returns an empty array with HTTP 200 — never an error — when file
+        // logging is disabled or no log file has been created yet.
+        const int DefaultTailLines = 150;
+        const int MaxTailLines     = 1000;
+
+        app.MapGet("/api/v1/logs/tail", (int? lines) =>
+        {
+            var requested = Math.Clamp(lines ?? DefaultTailLines, 1, MaxTailLines);
+            var path      = logFileSource?.CurrentLogFilePath;
+
+            if (path is null || !File.Exists(path))
+                return TypedResults.Ok(new LogTailResponse([]));
+
+            try
+            {
+                // FileShare.ReadWrite: the Serilog file sink (buffered, same process) may hold
+                // the file open for writing concurrently — this read must not be blocked by that.
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var sr = new StreamReader(fs);
+                var allLines = sr.ReadToEnd()
+                                  .Split('\n')
+                                  .Select(l => l.TrimEnd('\r'))
+                                  .ToArray();
+
+                var tail = allLines.Length > requested
+                    ? allLines[^requested..]
+                    : allLines;
+                return TypedResults.Ok(new LogTailResponse(tail));
+            }
+            catch (IOException)
+            {
+                // Rotation/deletion raced with this read — treat as "nothing to show" rather
+                // than surfacing a transient filesystem error to the operator.
+                return TypedResults.Ok(new LogTailResponse([]));
+            }
+        });
+
+        // ── GET /api/v1/logs/full (log-viewer) ────────────────────────────────
+        // Returns the complete current contents of the daemon's currently active log file as
+        // plain text. Returns an empty body with HTTP 200 when no active log file exists.
+        app.MapGet("/api/v1/logs/full", () =>
+        {
+            var path = logFileSource?.CurrentLogFilePath;
+
+            if (path is null || !File.Exists(path))
+                return Results.Text(string.Empty, "text/plain");
+
+            try
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var sr = new StreamReader(fs);
+                return Results.Text(sr.ReadToEnd(), "text/plain");
+            }
+            catch (IOException)
+            {
+                return Results.Text(string.Empty, "text/plain");
+            }
+        });
 
         app.MapPost("/api/v1/tune", async (
             HttpRequest       request,
@@ -724,6 +800,30 @@ public static class WebApp
             var role                = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
             var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role, CallerPartnerSelect: callerPartnerSelect));
+        });
+
+        // ── POST /api/v1/tx/stop-cq (qso-controller — Call CQ graceful stop) ──
+        //
+        // Requests a graceful stop: any in-progress TX sample completes normally, then the
+        // service returns to Idle. Unlike /abort, this does NOT hardcode
+        // AutoAnswerEnabled: false in the response — the service may still be mid-TX at the
+        // time of the response, and the frontend does not act on this response directly;
+        // it waits for the subsequent txState WebSocket event to reflect the completed stop.
+
+        app.MapPost("/api/v1/tx/stop-cq", async (IConfigStore store, CancellationToken ct) =>
+        {
+            if (qsoController is null)
+                return Results.Problem("TX controller not available.", statusCode: 503);
+
+            await qsoController.GracefulStopAsync(ct);
+
+            var state               = qsoController.State;
+            var partner             = qsoController.Partner;
+            var autoAnswerEnabled   = store.Current.Tx?.AutoAnswer ?? false;
+            var role                = qsoController.Role.ToString().ToLowerInvariant();
+            var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
+            return TypedResults.Ok(new TxStatusResponse(
+                state.ToString(), partner, autoAnswerEnabled, role, callerPartnerSelect));
         });
 
         // ── POST /api/v1/tx/answer-cq (TX-D01 phase-aware CQ answer) ──────────
@@ -1211,7 +1311,7 @@ public static class WebApp
             await WebSocketHub.HandleAsync(
                 ws, store, audioMonitor, dataFlowMonitor,
                 captureManager, audioWatchdog, catState,
-                wsLogger, appScope, ctx.RequestAborted);
+                wsLogger, appScope, shimVersion, ctx.RequestAborted);
         });
 
         return app;

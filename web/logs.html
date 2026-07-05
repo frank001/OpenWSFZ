@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenWSFZ — Full Log</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+
+  <header id="settings-page">
+    <nav class="settings-nav" aria-label="Breadcrumb">
+      <a id="back-link" href="/">← Back to main</a>
+      <span aria-hidden="true">/</span>
+      <span>Full Log</span>
+    </nav>
+
+    <h1>Full Log</h1>
+    <p class="field-hint">
+      Complete contents of the daemon's currently active log file, fetched once on load.
+      This page does <strong>not</strong> auto-refresh — reload the page manually to see
+      new content.
+    </p>
+  </header>
+
+  <main id="settings-main">
+    <pre id="logs-full-output" class="logs-full-page">Loading…</pre>
+  </main>
+
+  <script type="module" src="js/logs.js"></script>
+</body>
+</html>

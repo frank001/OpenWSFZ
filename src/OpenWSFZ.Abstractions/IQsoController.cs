@@ -32,6 +32,19 @@ public interface IQsoController
     Task AbortAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Requests a graceful stop of the current CQ caller session
+    /// (f-004-operator-visibility-improvements, design.md Decision 2b).
+    /// Distinct from <see cref="AbortAsync"/>: this SHALL NOT invoke
+    /// <c>IPttController.KeyUpAsync</c> or otherwise interrupt any TX sample already in
+    /// progress — the active controller returns to <see cref="QsoState.Idle"/> only once it
+    /// reaches its next natural wait point. Defaults to a no-op so role services with no
+    /// graceful-stop concept (currently <c>QsoAnswererService</c>) require no change;
+    /// <c>QsoCallerService</c> overrides it with the behaviour specified by the
+    /// <c>qso-caller</c> capability.
+    /// </summary>
+    Task GracefulStopAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    /// <summary>
     /// Arms a phase-aware pending TX target to answer a specific CQ call (TX-D01).
     /// The service will fire TX at the next FT8 cycle boundary of the <em>opposite</em>
     /// phase to <paramref name="cqCycleStart"/>, so that the operator's reply does not

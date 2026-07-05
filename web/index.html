@@ -44,7 +44,7 @@
 
     <!-- Waterfall / spectrogram panel -->
     <section id="waterfall-panel" aria-label="Waterfall display">
-      <canvas id="waterfall"></canvas>
+      <canvas id="waterfall" title="Ctrl+click: set RX &middot; Ctrl+right-click: set TX &middot; Shift+click: set both &middot; unmodified clicks do nothing"></canvas>
     </section>
 
     <!-- Waterfall cursor controls (Tasks 7.1, 7.2) -->
@@ -57,7 +57,7 @@
         <input type="checkbox" id="hold-tx-freq">
         Hold TX Freq
       </label>
-      <span class="freq-readout-hint">Left-click: RX &middot; Right-click: TX &middot; Shift+click: both</span>
+      <span class="freq-readout-hint">Ctrl+click: RX &middot; Ctrl+right-click: TX &middot; Shift+click: both</span>
     </div>
 
     <!-- Content row: decoded messages (left) + TX panel (right) -->

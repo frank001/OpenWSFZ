@@ -98,6 +98,10 @@ public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher
         => ActiveController.AbortAsync(ct);
 
     /// <inheritdoc/>
+    public Task GracefulStopAsync(CancellationToken ct = default)
+        => ActiveController.GracefulStopAsync(ct);
+
+    /// <inheritdoc/>
     public Task AnswerCqAsync(
         string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct)
         => ActiveController.AnswerCqAsync(callsign, frequencyHz, cqCycleStart, ct);
