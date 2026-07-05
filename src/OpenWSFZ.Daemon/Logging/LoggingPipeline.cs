@@ -16,6 +16,44 @@ internal sealed class LoggingPipeline : IDisposable, ILogFileSource
     private LogLevel      _consoleLevel = LogLevel.Information;
 
     /// <summary>
+    /// Stable-identity wrapper assigned to <see cref="Log.Logger"/> exactly once, on the first
+    /// <see cref="Apply"/> call (f-004-operator-visibility-improvements, log-viewer).
+    ///
+    /// <para>
+    /// Previously, <see cref="Apply"/> reassigned <c>Log.Logger</c> itself to a brand-new
+    /// <see cref="Serilog.Core.Logger"/> on every call. That silently broke every already-
+    /// resolved <c>Microsoft.Extensions.Logging.ILogger&lt;T&gt;</c> in the application (not
+    /// just this class's own diagnostics): Serilog.Extensions.Logging's <c>SerilogLogger</c>
+    /// resolves <c>Serilog.Log.Logger</c> exactly once, in its own constructor, and caches the
+    /// result forever — so an operator enabling file logging via the Settings page while the
+    /// daemon was already running would see the new file created, but it would never receive a
+    /// single application log line, because every category's cached <c>ILogger&lt;T&gt;</c> kept
+    /// writing to whatever logger existed at the moment that category first logged (almost
+    /// always well before the reconfigure). Confirmed against a live daemon: ASP.NET Core's own
+    /// request-logging middleware kept appending to the OLD file after a runtime reconfigure; the
+    /// new file received nothing.
+    /// </para>
+    ///
+    /// <para>
+    /// See <see cref="ReconfigurableLogger"/>'s remarks for the fix: <c>Log.Logger</c> is now
+    /// assigned to a single stable wrapper instance once; every subsequent <see cref="Apply"/>
+    /// call swaps only the wrapper's inner target via <see cref="ReconfigurableLogger.Reconfigure"/>,
+    /// which every already-cached <c>ILogger&lt;T&gt;</c> transparently observes.
+    /// </para>
+    /// </summary>
+    private ReconfigurableLogger? _reconfigurableLogger;
+
+    /// <summary>
+    /// The inner logger currently wrapped by <see cref="_reconfigurableLogger"/>. Tracked
+    /// separately so <see cref="Apply"/> can flush/dispose the previous one (releasing its file
+    /// handle) after swapping the wrapper to the new one, and so <see cref="Dispose"/> can flush
+    /// the final one on shutdown — <see cref="Log.CloseAndFlush"/> is no longer used for this,
+    /// since it would reassign the static <c>Log.Logger</c> itself, which must never change once
+    /// <see cref="_reconfigurableLogger"/> is installed.
+    /// </summary>
+    private Serilog.Core.Logger? _currentInnerLogger;
+
+    /// <summary>
     /// The daemon's currently active log file path, or <see langword="null"/> when file
     /// logging is disabled or the file could not be created
     /// (f-004-operator-visibility-improvements, log-viewer). Set at the same point
@@ -25,8 +63,10 @@ internal sealed class LoggingPipeline : IDisposable, ILogFileSource
     public string? CurrentLogFilePath { get; private set; }
 
     /// <summary>
-    /// (Re-)builds the Serilog logger from config and assigns <see cref="Log.Logger"/>.
-    /// Flushes the previous logger before replacing it.
+    /// (Re-)builds the Serilog logger from config. On the first call, installs
+    /// <see cref="_reconfigurableLogger"/> as <see cref="Log.Logger"/>; on every subsequent call,
+    /// swaps only its inner target (see <see cref="_reconfigurableLogger"/>'s remarks) and
+    /// flushes/disposes the previous inner logger.
     /// </summary>
     public void Apply(LoggingConfig config, LogLevel consoleLevel = LogLevel.Information)
     {
@@ -54,17 +94,50 @@ internal sealed class LoggingPipeline : IDisposable, ILogFileSource
             var path = TryCreateLogFile(config.Directory);
             if (path is not null)
             {
+                // buffered: false (the default) — each event is written and flushed to disk
+                // immediately. This project's logging volume is low (occasional Information-
+                // level status/QSO events, not a hot path), so the per-write flush cost is
+                // negligible, and it sidesteps a genuine reliability gap found in this
+                // ASP.NET Core hosting context: buffered:true + flushToDiskInterval's periodic
+                // timer reliably flushed a logger built at process startup (verified in an
+                // isolated unit test and against a real daemon instance), but did NOT flush a
+                // logger rebuilt via a later Apply() call triggered from within an HTTP request
+                // handler (i.e. an operator enabling file logging via the Settings page while
+                // the daemon is already running — the realistic way this actually happens) —
+                // confirmed stuck at 0 bytes after 60+ s of real daemon runtime. Root cause
+                // undetermined (suspected interaction between Serilog.Sinks.File's periodic
+                // flush timer and the Kestrel/ASP.NET Core hosting environment); unbuffered
+                // writes avoid relying on that timer at all (log-viewer,
+                // f-004-operator-visibility-improvements).
                 loggerCfg = loggerCfg.WriteTo.File(
                     path,
                     restrictedToMinimumLevel: fileSerilog,
                     rollingInterval: RollingInterval.Infinite,
-                    buffered: true);
+                    buffered: false);
                 CurrentLogFilePath = path;
             }
         }
 
-        Log.CloseAndFlush();
-        Log.Logger = loggerCfg.CreateLogger();
+        var newInnerLogger = loggerCfg.CreateLogger();
+        var previousInnerLogger = _currentInnerLogger;
+        _currentInnerLogger = newInnerLogger;
+
+        if (_reconfigurableLogger is null)
+        {
+            // First call: install the stable wrapper. Never reassigned again — see
+            // ReconfigurableLogger's remarks for why.
+            _reconfigurableLogger = new ReconfigurableLogger(newInnerLogger);
+            Log.Logger = _reconfigurableLogger;
+        }
+        else
+        {
+            // Subsequent calls: swap the wrapper's target first, so every already-cached
+            // ILogger<T> starts observing the new logger immediately, THEN flush/dispose the
+            // previous inner logger (releasing its file handle) — never the other way around,
+            // to avoid disposing the active target out from under an in-flight write.
+            _reconfigurableLogger.Reconfigure(newInnerLogger);
+            previousInnerLogger?.Dispose();
+        }
 
         if (config.FileEnabled)
             EnforceRetention(config.Directory, config.MaxFiles);
@@ -108,7 +181,14 @@ internal sealed class LoggingPipeline : IDisposable, ILogFileSource
         }
     }
 
-    public void Dispose() => Log.CloseAndFlush();
+    /// <summary>
+    /// Flushes and disposes the current inner logger on shutdown. Deliberately does not call
+    /// <see cref="Log.CloseAndFlush"/> or otherwise reassign <see cref="Log.Logger"/> — that
+    /// would replace the stable <see cref="_reconfigurableLogger"/> wrapper with Serilog's
+    /// no-op <c>SilentLogger</c>, which is unnecessary at process shutdown and would defeat the
+    /// entire point of keeping the wrapper's identity stable.
+    /// </summary>
+    public void Dispose() => _currentInnerLogger?.Dispose();
 
     // ── Private helpers ──────────────────────────────────────────────────────
 

@@ -131,6 +131,26 @@ fixes (D-CALLER-006 through 015).
       `null` when disabled/failed) and for both `/api/v1/logs/*` endpoints (line-count limiting,
       empty-file-logging-disabled case, content-type of the full endpoint). Added to
       `LoggingPipelineTests.cs` (4 new cases) and new `LogEndpointTests.cs` (5 new cases).
+      **Addendum (post-implementation, Captain-directed follow-up):** manual verification against
+      a real running daemon found the file sink's writes never reaching disk for a logger
+      rebuilt via a runtime `POST /api/v1/config` reconfigure (the realistic way an operator
+      actually turns on file logging). Root-caused to a genuine pre-existing bug, not something
+      introduced by this change: Serilog.Extensions.Logging's `SerilogLogger` resolves
+      `Serilog.Log.Logger` exactly once per category (on that category's first use) and caches
+      it forever, so `LoggingPipeline.Apply()` reassigning `Log.Logger` on every reconfigure left
+      every already-resolved `ILogger<T>` in the whole daemon (not just logging-internal code)
+      silently stuck on the logger built at process startup — confirmed live: after a runtime
+      reconfigure, ASP.NET Core's own request-logging kept appending to the OLD file forever; the
+      new file received nothing, even after 60+ real seconds. Fixed with a new
+      `ReconfigurableLogger` (`src/OpenWSFZ.Daemon/Logging/ReconfigurableLogger.cs`): a stable-
+      identity `Serilog.ILogger` wrapper assigned to `Log.Logger` exactly once, whose inner target
+      `Apply()` now swaps via `Reconfigure(...)` instead of reassigning `Log.Logger` itself — every
+      cached `ILogger<T>` (and any `ForContext` derivative) transparently observes the swap. Also
+      switched the file sink from `buffered: true` (no flush interval — could sit in memory
+      indefinitely) to `buffered: false` (immediate per-write flush), which was the first fix
+      attempted and remains a compounding improvement. Both fixes verified via new unit tests
+      (`ReconfigurableLoggerTests.cs`, 2 new `LoggingPipelineTests.cs` cases) and re-confirmed
+      end-to-end against a live daemon reproducing the exact previously-broken scenario.
 - [x] 7.6 Unit tests for `QsoCallerService.GracefulStopAsync` per the `qso-caller` spec: no-op when
       already `Idle`; no `KeyUpAsync` call when stopping mid-TX; reaches `Idle` within the current
       cycle from `WaitAnswer` and `WaitRr73`; idempotent on a second call before the first completes.
