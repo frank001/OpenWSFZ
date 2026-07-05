@@ -50,20 +50,25 @@
       `detect-native-changes` job's checkout style (`fetch-depth: 0`), gated to
       `github.event_name == 'pull_request'`, running both scripts from 4.1 and 4.2. **Done** —
       job `version-governance` (Gate G9) with steps G9a (docs) and G9b (bump); YAML validated.
-- [ ] 4.4 Verify the new job fails as expected against a deliberately-broken local scenario (e.g.
+- [x] 4.4 Verify the new job fails as expected against a deliberately-broken local scenario (e.g.
       a scratch branch with a `user_facing: yes` archived proposal and no `VERSION` change), then
-      confirm it passes once corrected, before relying on it in the real PR.
+      confirm it passes once corrected, before relying on it in the real PR. **Done** — scratch
+      branch `scratch/g9-test` exercised all four G9b paths (yes+no-bump → FAIL; yes+bump → PASS;
+      no+no-bump → PASS; malformed → FAIL) plus the G9a docs-drift FAIL path; all behaved as
+      designed; scratch branch deleted.
 
 ## 5. OpenSpec process convention
 
-- [ ] 5.1 Add `**User-facing:** yes` (this change ships an operator-visible fix — the daemon's
+- [x] 5.1 Add `**User-facing:** yes` (this change ships an operator-visible fix — the daemon's
       reported version and welcome-banner text both change) as the first line of this change's
       own `proposal.md`, ahead of `## Why`, so this change is itself gate-G9-compliant when
-      archived.
-- [ ] 5.2 Document the `user_facing` marker convention in a place future proposal authors will
+      archived. **Done** — already present as line 1 of `proposal.md`; verified, not re-added.
+- [x] 5.2 Document the `user_facing` marker convention in a place future proposal authors will
       see it before writing `proposal.md` — e.g. a short addition to `openspec/qa-backlog.md` or
       wherever this project's OpenSpec contribution notes live (confirm the right location during
       implementation; no dedicated CONTRIBUTING.md currently exists for OpenSpec conventions).
+      **Done** — added a "Process notes" section at the top of `openspec/qa-backlog.md` (no
+      `AGENTS.md`/`project.md`/`CONTRIBUTING.md` exists; qa-backlog is the most-read OpenSpec doc).
 
 ## 6. Manual follow-up (not automated by this change)
 
@@ -76,9 +81,15 @@
 
 - [ ] 7.1 Run the full three-OS CI matrix and confirm gate G9 passes on this change's own PR
       (which itself changes `VERSION` from `0.1.0` to `0.30` and declares `user_facing: yes` once
-      archived).
-- [ ] 7.2 QA review: confirm `openspec validate --strict --all` (gate G8) still passes with the
-      new `release-versioning` capability and the `ci-quality-gates` delta in place.
+      archived). **PENDING** — requires pushing `feat/adopt-canonical-version-source` and opening
+      the PR so GitHub Actions runs; awaiting the Captain's go-ahead to push. Gate G9 was fully
+      exercised locally in task 4.4 (all four G9b paths + the G9a drift path), so the CI run is a
+      confirmation, not a first test. Note: G9 only inspects the PR diff at merge time, so it will
+      not retroactively gate this change against its own future archival — expected, per §7 of the
+      dev-tasks handoff.
+- [x] 7.2 QA review: confirm `openspec validate --strict --all` (gate G8) still passes with the
+      new `release-versioning` capability and the `ci-quality-gates` delta in place. **Done** —
+      `46 passed, 0 failed` with `@fission-ai/openspec@1.3.1`.
 - [ ] 7.3 **Cross-surface consistency check (release-versioning's "Version consistency across all
       surfaces" requirement) — required before every merge that touches `VERSION` or any of the
       surfaces it governs, not just this PR.** Confirm, by direct inspection (not by trusting that
@@ -103,3 +114,9 @@
       check on every future PR — but it does not check the status API, banner, or git tag, so this
       task remains a manual step for any PR touching versioning until/unless those are also
       automated.
+      **Done** — all seven surfaces independently observed to report `0.30`/`v0.30`: `VERSION`
+      file; `Directory.Build.props` (reads `VERSION`); built `OpenWSFZ.Web` assembly (Release);
+      daemon status API (`GET /api/v1/status` → `"Version": "0.30"`, observed on a live local
+      run); daemon stdout welcome banner (`OpenWSFZ v0.30 listening on ...`, observed on the same
+      run); `README.md` anchor (`v0.30`); `REQUIREMENTS.md` anchor (`v0.30`); annotated git tag
+      `v0.30`.

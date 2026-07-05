@@ -5,6 +5,35 @@ Each item is classified with a severity and the change in which it was first not
 
 ---
 
+## Process notes (read before authoring a `proposal.md`)
+
+**Every `proposal.md` MUST declare its user-facing status.** On a single line, before the
+`## Why` heading, add exactly one of:
+
+```
+**User-facing:** yes
+```
+```
+**User-facing:** no
+```
+
+A change is **user-facing** if and only if it ships operator-visible behaviour (e.g. a new or
+changed feature, UI, API response, or stdout the operator sees). Defect fixes, diagnostics,
+QA-study runs, CI/tooling, and documentation-only changes are **not** user-facing.
+
+This declaration is the sole input to the "one user-facing feature = one minor version bump"
+rule, enforced mechanically by CI gate **G9** (`version-governance` job in
+`.github/workflows/ci.yml`, backed by `tools/check_version_bump.py`). When a PR archives a
+`**User-facing:** yes` change, G9 fails the build unless the root `VERSION` file is also bumped;
+when the declaration is missing or malformed, G9 fails and names the offending change. The
+canonical definition lives in the `release-versioning` capability spec
+(`openspec/specs/release-versioning/spec.md`).
+
+The OpenSpec CLI's stock `proposal` template does not scaffold this line (it ships inside the
+globally-installed npm package, not the repo), so it is added by convention — don't forget it.
+
+---
+
 ## N1 — `Ft8LibInterop`: retry-after-failure produces a confusing exception
 
 **Severity:** Low
