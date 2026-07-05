@@ -50,6 +50,16 @@
       `detect-native-changes` job's checkout style (`fetch-depth: 0`), gated to
       `github.event_name == 'pull_request'`, running both scripts from 4.1 and 4.2. **Done** —
       job `version-governance` (Gate G9) with steps G9a (docs) and G9b (bump); YAML validated.
+      **QA review addendum:** the job existing in `ci.yml` is necessary but not sufficient — unlike
+      G1–G8 (steps inside the `build-test` job, which *is* a required status check), G9 was added
+      as a separate top-level job, so it was initially possible for it to fail red without
+      blocking merge. Confirmed via `gh api repos/:owner/:repo/branches/main/protection` that
+      `required_status_checks.contexts` only listed the three `Build & Test (<os>)` contexts.
+      Fixed directly against the live repo (not a file in this change) via
+      `gh api --method PATCH .../branches/main/protection/required_status_checks`, adding
+      `"Gate G9 — Version governance"` (verified byte-for-byte against the job's `name:` field, em
+      dash included, so the required check isn't left permanently pending on a string mismatch).
+      Re-queried afterwards to confirm all four contexts are present with `strict: true`.
 - [x] 4.4 Verify the new job fails as expected against a deliberately-broken local scenario (e.g.
       a scratch branch with a `user_facing: yes` archived proposal and no `VERSION` change), then
       confirm it passes once corrected, before relying on it in the real PR. **Done** — scratch
