@@ -45,7 +45,8 @@ public sealed class AllTxtWriter
 
     /// <summary>
     /// Appends one line per result to the configured ALL.TXT file.
-    /// Returns immediately if decode logging is disabled or <paramref name="results"/> is empty.
+    /// Returns immediately if decode logging is disabled, <paramref name="results"/> is empty,
+    /// or the decode log configuration is unavailable (<c>null</c> — D-010 defence in depth).
     /// </summary>
     /// <param name="cycleUtc">
     ///   UTC wall-clock time at which the 15-second capture window began (the cycle-start
