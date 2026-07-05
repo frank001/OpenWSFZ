@@ -490,6 +490,17 @@ body:has(#tab-logs.active) #settings-main {
   max-width: 900px;
 }
 
+/* logs.html (the standalone "full log" page reached via "Open full log in new
+   tab") has no tab bar and no #tab-logs element, so the rule above never
+   matches there — it shows the same monospace daemon log lines (see
+   .logs-full-page below) as the Logs tab's tail, only more of them, so it
+   needs at least the same 900px width. Keyed off #logs-full-output, the one
+   element unique to this page, so settings.html's other tabs are unaffected. */
+body:has(#logs-full-output) #settings-page,
+body:has(#logs-full-output) #settings-main {
+  max-width: 900px;
+}
+
 #settings-page {
   padding-top: 2rem;
   padding-bottom: 0.5rem;
