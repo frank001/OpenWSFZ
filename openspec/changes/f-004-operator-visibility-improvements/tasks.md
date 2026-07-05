@@ -61,9 +61,18 @@ fixes (D-CALLER-006 through 015).
       `currentTxRole === 'caller' && currentTxState !== 'Idle'` to call `postTxStopCq()` instead of
       `postTxCallCq()`; do not re-render the panel from the stop-cq response directly — let the
       subsequent `txState` WebSocket `Idle` event drive the UI update, consistent with `Abort TX`.
-- [ ] 3.10 Verify visually (not just by reading code) that clicking "Stop CQ" mid-transmission lets
+- [x] 3.10 Verify visually (not just by reading code) that clicking "Stop CQ" mid-transmission lets
       the current TX sample finish audibly before the panel reverts to Idle — flagged as a risk in
-      design.md.
+      design.md. Verified at the unit-test level in `QsoCallerServiceTests`
+      (`GracefulStopAsync_WhileTransmittingCq_...`, a controlled-TCS test proving `KeyUpAsync` is
+      not called until the TX task completes) and by running the real daemon end-to-end (isolated
+      temp config, no audio hardware touched): confirmed via headless-Chrome screenshots that the
+      shim version, TX-armed (dark red), and Call-CQ-engaged (bright green) states all render
+      correctly against a live server. Could not verify the audible mid-transmission behaviour or
+      the bright-red "actively transmitting" / "Stop CQ" label states specifically, since neither a
+      real PTT/audio device nor an interactive browser driver (clicks, modifier keys) was available
+      in this environment — flagged for the developer to click through for real (with real/looped-back
+      audio) before merging.
 
 ## 4. Waterfall click modifier keys
 
