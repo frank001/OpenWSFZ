@@ -127,7 +127,28 @@ merge for that review to land rather than proceeding once CI is green — `f-003
 merged this week with a self-documented blocking flaky-test finding still open (same commit,
 one second before merge); let's not repeat that pattern on this one.
 
-## 5. References
+## 5. Post-merge clean-up
+
+Implementation is happening in a separate git worktree
+(`D:\Projects\claude\OpenWSFZ-gui-configuration`, branch
+`feat/f-004-operator-visibility-improvements`), checked out alongside the main worktree
+(`D:\Projects\claude\OpenWSFZ`, branch `main`) so that QA review and other work could continue
+on `main` without disturbing implementation in progress, and vice versa. This is scaffolding
+for the duration of this change only — once the PR is merged, remove it properly rather than
+just deleting the folder:
+
+```bash
+# from the main worktree (D:\Projects\claude\OpenWSFZ)
+git worktree remove D:/Projects/claude/OpenWSFZ-gui-configuration
+git branch -d feat/f-004-operator-visibility-improvements
+git worktree prune
+```
+
+`git worktree remove` will refuse if the folder has uncommitted or unpushed changes — treat
+that as a signal to check rather than an obstacle to force past. Include this as part of §8's
+handoff clean-up, after `/opsx:archive`.
+
+## 6. References
 
 - `openspec/changes/f-004-operator-visibility-improvements/{proposal,design,tasks}.md` — source
   of truth for everything above; read `design.md` first

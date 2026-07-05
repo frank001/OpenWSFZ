@@ -194,4 +194,4 @@ fixes (D-CALLER-006 through 015).
       old handoff was deliberately NOT adopted — it conflicts with this proposal's own
       already-decided steady-green Decision 2; flagged to the Captain as available if wanted, not
       applied unasked.
-- [ ] 8.3 Run `/opsx:archive` once merged.
+- [x] 8.3 Run `/opsx:archive` once merged.
