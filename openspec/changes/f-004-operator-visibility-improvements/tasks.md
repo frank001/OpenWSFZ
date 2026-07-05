@@ -1,6 +1,6 @@
 ## 1. Shim version visibility
 
-- [ ] 1.1 Retain the native shim's actual loaded ABI version in `Ft8LibInterop` (e.g. a
+- [x] 1.1 Retain the native shim's actual loaded ABI version in `Ft8LibInterop` (e.g. a
       `public static int LoadedShimVersion` set at the point `NativeVersionCheck()` is called and
       compared against `ExpectedShimVersion`), per design.md Decision 1.
 - [ ] 1.2 Add `ShimVersion` to `DaemonStatus` (`src/OpenWSFZ.Web/DaemonStatus.cs`) and populate it
