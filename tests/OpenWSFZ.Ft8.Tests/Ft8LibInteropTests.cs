@@ -165,6 +165,52 @@ public sealed class Ft8LibInteropTests
             "pass 0 must find at least one candidate in the synthetic signal fixture");
     }
 
+    // ── f-004-operator-visibility-improvements: LoadedShimVersion ────────────
+
+    /// <summary>
+    /// daemon-status-visibility: verifies that reading <see cref="Ft8LibInterop.LoadedShimVersion"/>
+    /// triggers native initialisation (if not already done) and returns the actual ABI version
+    /// retained by <c>LoadAndVerify</c> — never the uninitialised default of 0. A value of 0
+    /// would mean <c>LoadAndVerify</c> either never ran or never set the field before returning.
+    /// </summary>
+    [Fact(DisplayName = "f-004: LoadedShimVersion is populated (non-zero) — reading it triggers initialisation")]
+    public void LoadedShimVersion_IsPopulated_WhenRead()
+    {
+        Ft8LibInterop.LoadedShimVersion.Should().BeGreaterThan(0,
+            "LoadAndVerify retains the native ABI self-test's actual return value once " +
+            "initialisation succeeds; a value of 0 would mean it was never set");
+    }
+
+    /// <summary>
+    /// daemon-status-visibility scenario "Shim version is stable for the process lifetime":
+    /// the native ABI self-test runs once per process — repeated reads must return the exact
+    /// same value, not re-query the native library on every call.
+    /// </summary>
+    [Fact(DisplayName = "f-004: LoadedShimVersion is stable across repeated reads")]
+    public void LoadedShimVersion_IsStable_AcrossRepeatedReads()
+    {
+        var first  = Ft8LibInterop.LoadedShimVersion;
+        var second = Ft8LibInterop.LoadedShimVersion;
+
+        second.Should().Be(first,
+            "the native ABI self-test is read once at startup, not re-queried per request; " +
+            "the retained value must be identical across every subsequent read");
+    }
+
+    /// <summary>
+    /// design.md Decision 1: <see cref="Ft8Decoder.LoadedShimVersion"/> is the public forwarding
+    /// property that <c>OpenWSFZ.Daemon</c>/<c>OpenWSFZ.Web</c> read (they cannot reach the
+    /// internal <see cref="Ft8LibInterop"/> class directly) — verifies it returns the same
+    /// value as the interop layer it forwards to.
+    /// </summary>
+    [Fact(DisplayName = "f-004: Ft8Decoder.LoadedShimVersion forwards Ft8LibInterop.LoadedShimVersion")]
+    public void Ft8DecoderLoadedShimVersion_ForwardsInteropValue()
+    {
+        Ft8Decoder.LoadedShimVersion.Should().Be(Ft8LibInterop.LoadedShimVersion,
+            "Ft8Decoder.LoadedShimVersion is a thin public forwarding property with no " +
+            "independent logic — it must always agree with the interop layer");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>

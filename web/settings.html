@@ -46,6 +46,10 @@
                 role="tab" aria-selected="false" aria-controls="tab-frequencies" id="tab-btn-frequencies">
           Frequencies
         </button>
+        <button type="button" class="settings-tab-btn"
+                role="tab" aria-selected="false" aria-controls="tab-logs" id="tab-btn-logs">
+          Logs
+        </button>
       </div>
 
       <!-- ── Tab 0: General ────────────────────────────────────────────────── -->
@@ -388,6 +392,17 @@
       <!-- ── Tab 3: Advanced ─────────────────────────────────────────────── -->
       <div id="tab-advanced" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-advanced">
 
+        <!-- ── Native shim version (daemon-status-visibility) ────────────── -->
+        <div class="field-group">
+          <label>Native FT8 decoder shim version</label>
+          <p><code id="shim-version-value">—</code></p>
+          <p class="field-hint">
+            The ABI version of the native FT8 decoder shim loaded at daemon startup,
+            read-only. Useful for comparing against a known-good value from a release
+            note or R&amp;R study report when diagnosing a decode regression.
+          </p>
+        </div>
+
         <div class="field-group">
           <label for="port-input">Web UI port</label>
           <input
@@ -530,6 +545,25 @@
         </div>
 
       </div><!-- /tab-frequencies -->
+
+      <!-- ── Tab 5: Logs (log-viewer) ────────────────────────────────────── -->
+      <div id="tab-logs" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-logs">
+
+        <p class="field-hint">
+          Shows the last 150 lines of the daemon's currently active log file, refreshed
+          automatically on an interval while this tab is open. Shows a placeholder when
+          file logging is disabled or no log file has been created yet. For the complete
+          log, open the full-log page — it fetches once on load and does not auto-refresh;
+          reload that page manually to see new content.
+        </p>
+
+        <div class="field-group">
+          <button id="logs-open-full-btn" type="button">Open full log in new tab</button>
+        </div>
+
+        <pre id="logs-tail-output" class="logs-tail-output" aria-live="off">(loading…)</pre>
+
+      </div><!-- /tab-logs -->
 
       <div class="form-footer">
         <button id="save-btn" type="button" class="primary">Save</button>

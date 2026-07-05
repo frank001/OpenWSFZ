@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Daemon;
+using OpenWSFZ.Ft8;
 using OpenWSFZ.Web;
 using Xunit;
 
@@ -28,7 +29,7 @@ public sealed class QsoCallerServiceTests
     private static (QsoCallerService sut, ITxEventBus eventBus, IAdifLogWriter adifLog,
                     IPttController ptt, Channel<DecodeBatch> channel, CancellationTokenSource stopCts)
         BuildIsolatedSut(TxConfig txConfig, TimeSpan? watchdogDuration = null,
-                         IAdifLogWriter? adifLog = null)
+                         IAdifLogWriter? adifLog = null, IApConstraintSink? decoder = null)
     {
         var ptt = Substitute.For<IPttController>();
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -49,11 +50,13 @@ public sealed class QsoCallerServiceTests
                 channel.Reader, store, ptt, eventBus,
                 resolvedLog, new AudioOffsetEventBus(),
                 NullLogger<QsoCallerService>.Instance,
-                watchdogDurationOverride: watchdogDuration.Value)
+                watchdogDurationOverride: watchdogDuration.Value,
+                decoder: decoder)
             : new QsoCallerService(
                 channel.Reader, store, ptt, eventBus,
                 resolvedLog, new AudioOffsetEventBus(),
-                NullLogger<QsoCallerService>.Instance);
+                NullLogger<QsoCallerService>.Instance,
+                decoder: decoder);
 
         return (sut, eventBus, resolvedLog, ptt, channel, stopCts);
     }
@@ -153,6 +156,61 @@ public sealed class QsoCallerServiceTests
         await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         sut.Partner.Should().Be(PartnerCall);
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── f-003-ap-assist-nonstandard-callsigns: H6 AP arming for nonstandard callsigns ────────
+
+    [Fact(DisplayName = "f-003 4.3: AP constraints arm (not disabled) when the answering partner has a nonstandard callsign")]
+    public async Task TxReport_NonstandardPartnerCallsign_ArmsApConstraintsInsteadOfDisabling()
+    {
+        const string nonstandardPartner = "PJ4/K1ABC"; // 9-char compound callsign (f-001/f-003 Gap B)
+
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+        var decoder = Substitute.For<IApConstraintSink>();
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), decoder: decoder);
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ → WaitAnswer.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Feed a response from a nonstandard/compound callsign.
+        Send(channel, Make($"{OurCallsign} {nonstandardPartner} {PartnerGrid}"));
+
+        // Should advance through TxReport → WaitRr73, arming AP constraints along the way.
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        sut.Partner.Should().Be(nonstandardPartner);
+
+        // NOTE: this calls Ft8CallsignPacker.Pack28 — the very function under test in
+        // Ft8CallsignPackerTests.cs — so these are not "independently derived" expected
+        // values. This integration test verifies a different concern: that
+        // QsoCallerService arms AP with whatever Pack28 produces (rather than disabling
+        // AP) when the partner's callsign is nonstandard, and passes the packer's own
+        // output through unmodified. Pack28's byte-level correctness is covered
+        // independently by Ft8CallsignPackerTests.cs.
+        byte[] expectedMycallBits  = Ft8CallsignPacker.Pack28(OurCallsign);
+        byte[] expectedHiscallBits = Ft8CallsignPacker.Pack28(nonstandardPartner);
+        expectedHiscallBits.Should().NotBeEmpty(
+            "the extended packer must be able to hash-encode a nonstandard callsign");
+
+        decoder.Received(1).SetApConstraints(Arg.Is<Ft8ApConstraints>(c =>
+            c != null &&
+            c.MycallBits.SequenceEqual(expectedMycallBits) &&
+            c.HiscallBits.SequenceEqual(expectedHiscallBits)));
+        decoder.DidNotReceive().SetApConstraints(null);
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -983,6 +1041,183 @@ public sealed class QsoCallerServiceTests
         await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(Arg.Any<QsoRecord>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── f-004-operator-visibility-improvements: GracefulStopAsync (qso-caller spec) ────────
+
+    [Fact(DisplayName = "f-004: GracefulStopAsync while TxCq does not call KeyUpAsync until the in-progress transmission completes")]
+    public async Task GracefulStopAsync_WhileTransmittingCq_DoesNotInterruptThenReturnsToIdle()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer = true, Callsign = OurCallsign, Grid = OurGrid,
+            RetryCount = 3, WatchdogMinutes = 4,
+        };
+
+        // Controlled TCS so the "CQ sample" stays in flight until the test releases it —
+        // this is the window during which GracefulStopAsync must NOT call KeyUpAsync.
+        var keyDownTcs = new TaskCompletionSource();
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(_ => keyDownTcs.Task);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with { Tx = tx });
+        store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var eventBus = Substitute.For<ITxEventBus>();
+        var channel  = Channel.CreateUnbounded<DecodeBatch>();
+        var stopCts  = new CancellationTokenSource();
+
+        var sut = new QsoCallerService(
+            channel.Reader, store, ptt, eventBus,
+            new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance), new AudioOffsetEventBus(),
+            NullLogger<QsoCallerService>.Instance,
+            watchdogDurationOverride: TimeSpan.FromSeconds(30));
+
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ — the service enters TxCq (proxy: TxAnswer) and blocks on KeyDownAsync.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
+
+        // Request a graceful stop while the CQ sample is still "transmitting".
+        await sut.GracefulStopAsync();
+
+        // KeyUpAsync must not fire while the sample is still in flight, and the state
+        // machine must not jump ahead of the transmission.
+        await ptt.DidNotReceive().KeyUpAsync(Arg.Any<CancellationToken>());
+        sut.State.Should().Be(QsoState.TxAnswer,
+            "the state machine must not transition to Idle until the in-progress TX completes");
+
+        // Let the "sample" finish.
+        keyDownTcs.SetResult();
+
+        // The service must proceed through its normal post-TX transition and then, because a
+        // graceful stop was requested, go straight to Idle without transmitting again.
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>()); // exactly one TX — no retransmission
+        await ptt.Received(1).KeyUpAsync(Arg.Any<CancellationToken>());  // SafeAbortToIdleAsync's cleanup call
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "f-004: GracefulStopAsync while WaitAnswer transitions to Idle without a further batch")]
+    public async Task GracefulStopAsync_WhileWaitAnswer_TransitionsToIdlePromptly()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer = true, Callsign = OurCallsign, Grid = OurGrid,
+            RetryCount = 3, WatchdogMinutes = 4,
+        };
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5)); // WaitAnswer proxy
+
+        // No further batch is sent — the wakeup channel (not the decode channel) must be
+        // what carries this request to the state machine promptly.
+        await sut.GracefulStopAsync();
+
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "f-004: GracefulStopAsync while WaitRr73 transitions to Idle without a further batch")]
+    public async Task GracefulStopAsync_WhileWaitRr73_TransitionsToIdlePromptly()
+    {
+        // This is the case the dev-task kickoff specifically flags as easy to forget:
+        // WaitRr73 is the state newly added to the wakeup-eligible set for this change.
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        // No further batch is sent — relies entirely on WaitRr73 now being wakeup-eligible.
+        await sut.GracefulStopAsync();
+
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        sut.Partner.Should().BeNull("SafeAbortToIdleAsync clears the partner on return to Idle");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "f-004: GracefulStopAsync when already Idle is a no-op")]
+    public async Task GracefulStopAsync_WhenAlreadyIdle_IsNoOp()
+    {
+        var tx = new TxConfig { AutoAnswer = false, Callsign = OurCallsign, Grid = OurGrid };
+        var (sut, eventBus, _, ptt, _, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        sut.State.Should().Be(QsoState.Idle, "a freshly started, disarmed service starts Idle");
+
+        await sut.GracefulStopAsync();
+
+        // Give the background loop a brief window to (incorrectly) react, then assert nothing did.
+        await Task.Delay(100);
+        sut.State.Should().Be(QsoState.Idle);
+        await ptt.DidNotReceive().KeyUpAsync(Arg.Any<CancellationToken>());
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "f-004: two GracefulStopAsync requests in quick succession are idempotent")]
+    public async Task GracefulStopAsync_CalledTwiceInQuickSuccession_ReachesIdleExactlyOnce()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer = true, Callsign = OurCallsign, Grid = OurGrid,
+            RetryCount = 3, WatchdogMinutes = 4,
+        };
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Two requests back-to-back — neither call itself may throw, and the service must
+        // still land on Idle exactly once (not double-transition, not error).
+        var act = async () =>
+        {
+            await sut.GracefulStopAsync();
+            await sut.GracefulStopAsync();
+        };
+        await act.Should().NotThrowAsync();
+
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // Settle briefly and confirm it stays Idle rather than oscillating.
+        await Task.Delay(100);
+        sut.State.Should().Be(QsoState.Idle);
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

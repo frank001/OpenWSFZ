@@ -86,6 +86,15 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private volatile CancellationTokenSource _txCts = new();
     private volatile bool _operatorAbortRequested;
 
+    /// <summary>
+    /// Set by <see cref="GracefulStopAsync"/> (f-004-operator-visibility-improvements,
+    /// design.md Decision 2b). Mirrors <see cref="_operatorAbortRequested"/> but drives a
+    /// graceful stop rather than an immediate one: checked in <see cref="ProcessBatchAsync"/>
+    /// alongside the existing <c>_txCts.IsCancellationRequested</c> check, never inside
+    /// <see cref="TransmitAsync"/> — so an in-progress TX sample is never interrupted.
+    /// </summary>
+    private volatile bool _gracefulStopRequested;
+
     // Dedicated abort signal used by ReadNextBatchAsync in the Idle/WaitAnswer path.
     // Token.Register on _txCts.Token has ordering fragility (volatile reference swap);
     // a TCS set directly by AbortAsync is simpler and provably correct.
@@ -128,7 +137,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _decoder             = decoder;
     }
 
-    /// <summary>Test constructor — allows watchdog duration override.</summary>
+    /// <summary>
+    /// Test constructor — allows watchdog duration override, and (f-003-ap-assist-nonstandard-
+    /// callsigns) an optional <see cref="IApConstraintSink"/> so tests can verify H6 AP
+    /// constraint arming without waiting through the production watchdog duration.
+    /// </summary>
     internal QsoCallerService(
         ChannelReader<DecodeBatch>  decodeChannel,
         IConfigStore                configStore,
@@ -137,8 +150,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         IAdifLogWriter              adifLog,
         AudioOffsetEventBus         audioOffsetEventBus,
         ILogger<QsoCallerService>   logger,
-        TimeSpan                    watchdogDurationOverride)
-        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger)
+        TimeSpan                    watchdogDurationOverride,
+        IApConstraintSink?          decoder = null)
+        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, decoder)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
     }
@@ -191,6 +205,32 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         {
             _logger.LogWarning(ex, "QsoCallerService: KeyUpAsync threw during abort — ignoring.");
         }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// f-004-operator-visibility-improvements, design.md Decision 2b (FR-CQ-STOP-001).
+    /// Unlike <see cref="AbortAsync"/>, this does NOT cancel <see cref="_txCts"/> or call
+    /// <c>IPttController.KeyUpAsync</c> — any TX sample already in flight completes normally.
+    /// The state machine picks up the request the next time <see cref="ProcessBatchAsync"/>
+    /// runs (i.e. once it has returned to a Wait state), at which point it transitions to
+    /// <see cref="CallerState.Idle"/> via <see cref="SafeAbortToIdleAsync"/> without
+    /// transmitting again.
+    /// </remarks>
+    public Task GracefulStopAsync(CancellationToken ct = default)
+    {
+        if (_callerState == CallerState.Idle) return Task.CompletedTask;
+
+        _gracefulStopRequested = true;
+
+        // Post a wakeup so the service exits ReadNextBatchAsync promptly in
+        // Wait states, rather than waiting up to 15 s for the next decode batch.
+        // In TX states the wakeup is queued and consumed after TransmitAsync returns
+        // and the state machine re-enters a Wait state.
+        var wakeupCycleStart = RoundDownTo15s(DateTimeOffset.UtcNow) - TimeSpan.FromSeconds(15);
+        _wakeupChannel.Writer.TryWrite(new DecodeBatch(wakeupCycleStart, []));
+
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
@@ -307,14 +347,19 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
     /// <summary>
     /// Awaits the next <see cref="DecodeBatch"/> from either the main decode channel or
-    /// the internal wakeup channel. When in <see cref="CallerState.Idle"/> or
-    /// <see cref="CallerState.WaitAnswer"/>, both channels are raced so that a wakeup
-    /// posted by <see cref="SelectResponderAsync"/> can fire TX immediately.
-    /// In all other states only the decode channel is read, with the TX CTS also linked.
+    /// the internal wakeup channel. When in <see cref="CallerState.Idle"/>,
+    /// <see cref="CallerState.WaitAnswer"/>, or <see cref="CallerState.WaitRr73"/>, both
+    /// channels are raced so that a wakeup posted by <see cref="SelectResponderAsync"/> or
+    /// <see cref="GracefulStopAsync"/> can fire immediately. <see cref="CallerState.WaitRr73"/>
+    /// was added to this set for <see cref="GracefulStopAsync"/>
+    /// (f-004-operator-visibility-improvements) — without it, a stop requested while holding
+    /// in WaitRr73 would stall for up to the current 15 s decode cycle instead of firing
+    /// immediately. In all other states only the decode channel is read, with the TX CTS
+    /// also linked.
     /// </summary>
     private async ValueTask<DecodeBatch?> ReadNextBatchAsync(CancellationToken stoppingToken)
     {
-        bool needsWakeup = _callerState is CallerState.Idle or CallerState.WaitAnswer;
+        bool needsWakeup = _callerState is CallerState.Idle or CallerState.WaitAnswer or CallerState.WaitRr73;
 
         if (!needsWakeup)
         {
@@ -365,6 +410,18 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             var reason = _operatorAbortRequested ? "Operator abort" : "Watchdog timeout";
             _operatorAbortRequested = false;
             await SafeAbortToIdleAsync(stoppingToken, reason).ConfigureAwait(false);
+            return;
+        }
+
+        // f-004-operator-visibility-improvements: graceful stop requested via
+        // POST /api/v1/tx/stop-cq (GracefulStopAsync). By the time ProcessBatchAsync runs,
+        // the state machine is always in a Wait state or Idle (Tx* states are transient,
+        // handled synchronously inside the Handle*Async methods below) — so no TX is ever
+        // in flight here, and this transition never interrupts an in-progress transmission.
+        if (_gracefulStopRequested)
+        {
+            _gracefulStopRequested = false;
+            await SafeAbortToIdleAsync(stoppingToken, "Operator stop").ConfigureAwait(false);
             return;
         }
 
@@ -801,6 +858,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         var effectiveReason = abortReason
             ?? (_operatorAbortRequested ? "Operator abort" : (string?)null);
         _operatorAbortRequested = false;
+        // Clear any pending graceful-stop flag — a superseding immediate abort (or any other
+        // path into Idle) must not leave a stale request that fires on a future session.
+        _gracefulStopRequested = false;
 
         // Clear pending responder under lock.
         lock (_stateLock)

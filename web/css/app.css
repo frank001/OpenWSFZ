@@ -216,6 +216,39 @@ label {
   border-color: #da3b36;
 }
 
+/* Armed AND actively transmitting — bright red (FR-TX-UI-004, tx-state-indicators).
+   Takes visual precedence over tx-btn-armed by being a brighter/more saturated red;
+   both classes are applied together (armed is always true whenever transmitting is). */
+#tx-enable-btn.tx-btn-transmitting {
+  background: #ff3b30;
+  border-color: #ff3b30;
+  color: #fff;
+  font-weight: 700;
+}
+#tx-enable-btn.tx-btn-transmitting:hover:not(:disabled) {
+  background: #ff5c52;
+  border-color: #ff5c52;
+}
+
+/* Call CQ button engaged — steady bright green (tx-state-indicators, design.md Decision 2).
+   Applied whenever role === 'caller' && autoAnswerEnabled, independent of sub-state and of
+   the button's disabled attribute — an engaged button is never disabled in practice
+   (web-frontend "TX panel — Call CQ button"), but the opacity override below keeps the
+   colour visible even if it ever were. */
+#tx-call-cq-btn.tx-call-cq-armed {
+  background:   var(--color-success);
+  border-color: var(--color-success);
+  color:        #0d1117;
+  font-weight:  700;
+}
+#tx-call-cq-btn.tx-call-cq-armed:disabled {
+  opacity: 1;
+}
+#tx-call-cq-btn.tx-call-cq-armed:hover:not(:disabled) {
+  background:   #35a247;
+  border-color: #35a247;
+}
+
 /* ── TX panel: state row ────────────────────────────────────────────────── */
 .tx-state-row {
   display: flex;
@@ -435,11 +468,37 @@ label {
 }
 
 /* ── Settings page ─────────────────────────────────────────────────────── */
+/* Base width covers the 6-tab bar (General/Radio hardware/Logging/Advanced/
+   Frequencies/Logs) on one unwrapped row; short-form tabs only get a modest
+   ~180px wider column than the old 520px, since their inputs are width:100%
+   and stretching them further looks worse than the wrap they used to have. */
 #settings-page,
 #settings-main {
-  max-width: 520px;
+  max-width: 700px;
   margin: 0 auto;
   padding: 0 1rem;
+}
+
+/* The Logs tab's monospace tail (~90–110 char lines) needs more room than the
+   short-form tabs to avoid wrapping two or three times over. Widen the shared
+   container further, but only while that tab is active, so General/Radio
+   hardware/Logging/Advanced/Frequencies keep the narrower column above. Reacts
+   to the existing `.active` class already toggled by settings.js — no JS
+   changes required. */
+body:has(#tab-logs.active) #settings-page,
+body:has(#tab-logs.active) #settings-main {
+  max-width: 900px;
+}
+
+/* logs.html (the standalone "full log" page reached via "Open full log in new
+   tab") has no tab bar and no #tab-logs element, so the rule above never
+   matches there — it shows the same monospace daemon log lines (see
+   .logs-full-page below) as the Logs tab's tail, only more of them, so it
+   needs at least the same 900px width. Keyed off #logs-full-output, the one
+   element unique to this page, so settings.html's other tabs are unaffected. */
+body:has(#logs-full-output) #settings-page,
+body:has(#logs-full-output) #settings-main {
+  max-width: 900px;
 }
 
 #settings-page {
@@ -559,6 +618,8 @@ label {
 /* ── Settings tabs (FR-035) ─────────────────────────────────────────────── */
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap; /* narrow viewports: whole buttons wrap onto a new row
+                       instead of the row overflowing the container */
   gap: 0;
   border-bottom: 1px solid var(--color-border);
   margin-bottom: 1.5rem;
@@ -573,6 +634,9 @@ label {
   cursor: pointer;
   font-size: 0.9rem;
   padding: 0.5rem 1.2rem;
+  white-space: nowrap; /* keep each label (e.g. "Radio hardware") on one
+                          line — the wrapping bug was inside the button,
+                          not the row */
   transition: color 0.15s, border-color 0.15s;
 }
 
@@ -899,6 +963,37 @@ select#dial-freq {
   color: var(--color-muted);
   white-space: nowrap;
   cursor: pointer;
+}
+
+/* ── Log viewer (log-viewer) ─────────────────────────────────────────────── */
+.logs-tail-output {
+  margin-top:    0.75rem;
+  max-height:    60vh;
+  overflow-y:    auto;
+  overflow-x:    auto;
+  white-space:   pre-wrap;
+  word-break:    break-word;
+  background:    var(--color-bg);
+  border:        1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding:       0.75rem;
+  font-family:   var(--font-mono);
+  font-size:     0.78rem;
+  line-height:   1.4;
+  color:         var(--color-text);
+}
+
+/* Standalone full-log page (web/logs.html) */
+.logs-full-page {
+  margin:      0;
+  padding:     1rem;
+  white-space: pre-wrap;
+  word-break:  break-word;
+  background:  var(--color-bg);
+  color:       var(--color-text);
+  font-family: var(--font-mono);
+  font-size:   0.8rem;
+  line-height: 1.4;
 }
 
 /* Button row */

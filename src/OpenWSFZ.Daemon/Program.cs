@@ -169,6 +169,15 @@ var ft8Decoder     = new Ft8Decoder(
     loggerFactory.CreateLogger<Ft8Decoder>(),
     grammarStore: callsignGrammarStore,
     regionStore:  callsignRegionStore);
+
+// f-004-operator-visibility-improvements (daemon-status-visibility): force the native
+// shim's lazy load + ABI self-test to run now, at true process startup, rather than
+// waiting for the first decode cycle. A version mismatch throws here — before the web
+// host starts listening — and the retained value is ready to serve on GET /api/v1/status
+// from the very first request (design.md Decision 1).
+var shimVersion = Ft8Decoder.LoadedShimVersion;
+startupLogger.LogInformation("Native FT8 decoder shim ABI version: {ShimVersion}.", shimVersion);
+
 var decodeEventBus = new DecodeEventBus();
 // AllTxtWriter no longer holds a reference to ICatState; the caller (decode pump) supplies
 // the snapshotted dial frequency for each cycle (defect: dial-freq-snapshot, FR-032).
@@ -321,11 +330,15 @@ var app = WebApp.Create(
     catState:             catState,
     configureLogging:     ConfigureLogging,
     restartPipeline:      restartPipeline,
+    shimVersion:          shimVersion,
     configureServices:    services =>
     {
         // Register the auth policy selected above (daemon wins over WebApp.Create default).
         services.AddSingleton<IAuthPolicy>(authPolicy);
         services.AddSingleton(loggingPipeline);
+        // ILogFileSource (log-viewer): lets WebApp.cs read the active log file path
+        // without OpenWSFZ.Web depending on OpenWSFZ.Daemon.
+        services.AddSingleton<ILogFileSource>(loggingPipeline);
         services.AddSingleton(allTxtWriter);
         services.AddHostedService<LogRotationService>();
 

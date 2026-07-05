@@ -121,13 +121,12 @@ public sealed class Ft8CallsignPackerTests
 
     // ── Failure cases ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "Pack28 returns empty array for non-standard callsign (no digit)")]
-    public void Pack28_NoDigit_ReturnsEmptyArray()
-    {
-        // "QABC" has no digit — cannot be a standard callsign.
-        Ft8CallsignPacker.Pack28("QABC").Should().BeEmpty(
-            "a callsign with no district digit is not a standard callsign");
-    }
+    // NOTE (f-003-ap-assist-nonstandard-callsigns): "QABC" (no digit) and "1QABC" (digit at
+    // index 0) no longer return an empty array — both are 3–11 character, hash-alphabet-valid
+    // strings that don't match either standard pattern, so they now pack via the nonstandard/
+    // compound-callsign hash sub-range instead (see the "Nonstandard/compound callsign hashing"
+    // region below for the corresponding positive-path tests). The two tests below use inputs
+    // that are still genuinely unsupported after this change.
 
     [Fact(DisplayName = "Pack28 returns empty array for empty string input")]
     public void Pack28_EmptyString_ReturnsEmptyArray()
@@ -141,12 +140,23 @@ public sealed class Ft8CallsignPackerTests
         Ft8CallsignPacker.Pack28("   ").Should().BeEmpty();
     }
 
-    [Fact(DisplayName = "Pack28 returns empty array for callsign with digit at position 0")]
-    public void Pack28_DigitAtPosition0_ReturnsEmptyArray()
+    [Fact(DisplayName = "Pack28 returns empty array for a 2-character string with no digit (too short to hash)")]
+    public void Pack28_TooShortForHashAndNoDigit_ReturnsEmptyArray()
     {
-        // "1QABC" has digit at index 0 — neither ft8_lib pattern matches.
-        Ft8CallsignPacker.Pack28("1QABC").Should().BeEmpty(
-            "a callsign with a digit at index 0 does not match either standard pattern");
+        // "QA" has no digit (not a standard callsign) and is shorter than the 3-character
+        // minimum ihashcall's hash sub-range accepts — genuinely unsupported, not just
+        // "not yet implemented".
+        Ft8CallsignPacker.Pack28("QA").Should().BeEmpty(
+            "a 2-character string with no digit is neither a standard callsign nor long enough to hash");
+    }
+
+    [Fact(DisplayName = "Pack28 returns empty array for input longer than 11 characters")]
+    public void Pack28_LongerThan11Characters_ReturnsEmptyArray()
+    {
+        // 18 characters — exceeds ihashcall's 11-character field width, so it cannot fall back
+        // to the nonstandard-callsign hash sub-range either.
+        Ft8CallsignPacker.Pack28("NOTAVALIDCALLSIGN").Should().BeEmpty(
+            "a string longer than 11 characters cannot be hash-encoded");
     }
 
     [Fact(DisplayName = "Pack28 does not throw on any input — returns empty for invalid")]
@@ -180,5 +190,197 @@ public sealed class Ft8CallsignPackerTests
         b[1].Should().Be(0x08, "bits 19..12 of N28(Q9XYZ)");
         b[2].Should().Be(0xE8, "bits 11..4  of N28(Q9XYZ)");
         b[3].Should().Be(0x40, "bits 3..0   of N28(Q9XYZ) in high nibble of byte[3]");
+    }
+
+    // ── Special-token packing (f-003-ap-assist-nonstandard-callsigns) ────────
+
+    [Fact(DisplayName = "Pack28('CQ'): plain CQ token packs to n28 = 2")]
+    public void Pack28_Cq_PacksToN28Two()
+    {
+        byte[] result = Ft8CallsignPacker.Pack28("CQ");
+
+        result.Should().HaveCount(4);
+        Unpack(result).Should().Be(2L);
+    }
+
+    [Fact(DisplayName = "Pack28('DE'): DE token packs to n28 = 0")]
+    public void Pack28_De_PacksToN28Zero()
+    {
+        byte[] result = Ft8CallsignPacker.Pack28("DE");
+
+        result.Should().HaveCount(4);
+        Unpack(result).Should().Be(0L);
+    }
+
+    [Fact(DisplayName = "Pack28('QRZ'): QRZ token packs to n28 = 1")]
+    public void Pack28_Qrz_PacksToN28One()
+    {
+        byte[] result = Ft8CallsignPacker.Pack28("QRZ");
+
+        result.Should().HaveCount(4);
+        Unpack(result).Should().Be(1L);
+    }
+
+    [Fact(DisplayName = "Pack28('CQ 123'): 3-digit numeral CQ packs to n28 = 3 + 123 = 126")]
+    public void Pack28_CqNumeralSuffix_PacksToNTokenBasePlusNumeral()
+    {
+        byte[] result = Ft8CallsignPacker.Pack28("CQ 123");
+
+        result.Should().HaveCount(4);
+        Unpack(result).Should().Be(126L);
+    }
+
+    [Fact(DisplayName = "Pack28('CQ 000'): lowest 3-digit numeral CQ packs to n28 = 3")]
+    public void Pack28_CqNumeralSuffixZero_PacksToNTokenBase()
+    {
+        byte[] result = Ft8CallsignPacker.Pack28("CQ 000");
+
+        result.Should().HaveCount(4);
+        Unpack(result).Should().Be(3L);
+    }
+
+    [Fact(DisplayName = "Pack28('CQ DX'): directed CQ with a non-numeric suffix is not yet supported")]
+    public void Pack28_DirectedCqNonNumericSuffix_ReturnsEmptyArray()
+    {
+        // Tracked as a follow-up (design D3) — the exact c28 encoding for this form is not yet
+        // confirmed against the vendored ft8_lib source, so it must not be guessed at.
+        Ft8CallsignPacker.Pack28("CQ DX").Should().BeEmpty();
+    }
+
+    [Fact(DisplayName = "Pack28 special tokens are case-insensitive")]
+    public void Pack28_SpecialTokens_CaseInsensitive()
+    {
+        Ft8CallsignPacker.Pack28("cq").Should().BeEquivalentTo(Ft8CallsignPacker.Pack28("CQ"));
+        Ft8CallsignPacker.Pack28("de").Should().BeEquivalentTo(Ft8CallsignPacker.Pack28("DE"));
+        Ft8CallsignPacker.Pack28("qrz").Should().BeEquivalentTo(Ft8CallsignPacker.Pack28("QRZ"));
+    }
+
+    // ── Nonstandard/compound-callsign hashing (f-003-ap-assist-nonstandard-callsigns) ────────
+
+    [Fact(DisplayName = "Pack28('PJ4/K1ABC'): 9-character compound callsign hashes instead of returning empty")]
+    public void Pack28_CompoundCallsign_HashesInsteadOfEmpty()
+    {
+        // Expected n28 = NTOKENS + ihashcall("PJ4/K1ABC", bits: 22) = 2,063,592 + 1,420,834
+        // = 3,484,426 (cross-checked against qa/rr-study/synth/packing.py's independent
+        // ihashcall implementation — task 2.3).
+        byte[] result = Ft8CallsignPacker.Pack28("PJ4/K1ABC");
+
+        result.Should().HaveCount(4).And.NotBeEmpty();
+        Unpack(result).Should().Be(3_484_426L);
+    }
+
+    [Fact(DisplayName = "Pack28('QABC'): 4-character callsign with no digit hashes instead of returning empty")]
+    public void Pack28_NoDigitShortCallsign_HashesInsteadOfEmpty()
+    {
+        long expected = 2_063_592L + Ft8CallsignPacker.Ihashcall("QABC");
+        byte[] result = Ft8CallsignPacker.Pack28("QABC");
+
+        result.Should().HaveCount(4);
+        Unpack(result).Should().Be(expected);
+    }
+
+    [Fact(DisplayName = "Pack28('1QABC'): digit-at-position-0 callsign hashes instead of returning empty")]
+    public void Pack28_DigitAtPosition0_HashesInsteadOfEmpty()
+    {
+        long expected = 2_063_592L + Ft8CallsignPacker.Ihashcall("1QABC");
+        byte[] result = Ft8CallsignPacker.Pack28("1QABC");
+
+        result.Should().HaveCount(4);
+        Unpack(result).Should().Be(expected);
+    }
+
+    [Fact(DisplayName = "Pack28 standard-basecall path is byte-for-byte unchanged (regression guard)")]
+    public void Pack28_StandardBasecall_RegressionUnchanged()
+    {
+        // Same input/expected pair as Pack28_Q1ABC_ProducesCorrectBytes above — restated here as
+        // an explicit regression guard for design D1's "no behavioural change to the existing
+        // path" goal, now that Pack28 has two additional branches ahead of the standard-basecall
+        // check.
+        Unpack(Ft8CallsignPacker.Pack28("Q1ABC")).Should().Be(N28_Q1ABC);
+    }
+
+    // ── Ihashcall — 22/12/10-bit callsign hash (f-003-ap-assist-nonstandard-callsigns) ────────
+    //
+    // Shared test vector: fictional Q-prefix nonstandard callsign "Q0ABCDEF" (8 chars,
+    // GDPR-compliant synthetic callsign per MEMORY.md's privacy/callsign policy). Expected hash
+    // values are the same shared vector already validated by
+    // qa/rr-study/tests/test_packing.py's TestIhashcall (task 2.2/2.3) — an independently
+    // hand-derived value from the published ihashcall formula, not copied from this port.
+
+    private const int Q0ABCDEF_H22 = 2_523_336;
+    private const int Q0ABCDEF_H12 = 2_464;
+    private const int Q0ABCDEF_H10 = 616;
+
+    [Fact(DisplayName = "Ihashcall('Q0ABCDEF', bits: 22) matches the shared known-vector table")]
+    public void Ihashcall_SharedVector_H22()
+    {
+        Ft8CallsignPacker.Ihashcall("Q0ABCDEF", bits: 22).Should().Be(Q0ABCDEF_H22);
+    }
+
+    [Fact(DisplayName = "Ihashcall('Q0ABCDEF', bits: 12) matches the shared known-vector table")]
+    public void Ihashcall_SharedVector_H12()
+    {
+        Ft8CallsignPacker.Ihashcall("Q0ABCDEF", bits: 12).Should().Be(Q0ABCDEF_H12);
+    }
+
+    [Fact(DisplayName = "Ihashcall('Q0ABCDEF', bits: 10) matches the shared known-vector table")]
+    public void Ihashcall_SharedVector_H10()
+    {
+        Ft8CallsignPacker.Ihashcall("Q0ABCDEF", bits: 10).Should().Be(Q0ABCDEF_H10);
+    }
+
+    [Fact(DisplayName = "Ihashcall h12 is the top bits of h22")]
+    public void Ihashcall_H12IsTopBitsOfH22()
+    {
+        Ft8CallsignPacker.Ihashcall("Q0ABCDEF", bits: 12).Should().Be(
+            Ft8CallsignPacker.Ihashcall("Q0ABCDEF", bits: 22) >> 10);
+    }
+
+    [Fact(DisplayName = "Ihashcall h10 is the top bits of h22")]
+    public void Ihashcall_H10IsTopBitsOfH22()
+    {
+        Ft8CallsignPacker.Ihashcall("Q0ABCDEF", bits: 10).Should().Be(
+            Ft8CallsignPacker.Ihashcall("Q0ABCDEF", bits: 22) >> 12);
+    }
+
+    [Fact(DisplayName = "Ihashcall is deterministic")]
+    public void Ihashcall_Deterministic()
+    {
+        Ft8CallsignPacker.Ihashcall("Q0ABCDEF").Should().Be(Ft8CallsignPacker.Ihashcall("Q0ABCDEF"));
+        Ft8CallsignPacker.Ihashcall("PJ4/K1ABC").Should().Be(Ft8CallsignPacker.Ihashcall("PJ4/K1ABC"));
+    }
+
+    [Fact(DisplayName = "Ihashcall is case-insensitive")]
+    public void Ihashcall_CaseInsensitive()
+    {
+        Ft8CallsignPacker.Ihashcall("q0abcdef").Should().Be(Ft8CallsignPacker.Ihashcall("Q0ABCDEF"));
+    }
+
+    [Fact(DisplayName = "Ihashcall result fits within the requested bit width")]
+    public void Ihashcall_FitsInRequestedBits()
+    {
+        int h22 = Ft8CallsignPacker.Ihashcall("Q0ABCDEF", bits: 22);
+        h22.Should().BeInRange(0, (1 << 22) - 1);
+    }
+
+    [Fact(DisplayName = "Ihashcall throws for a callsign longer than 11 characters")]
+    public void Ihashcall_TooLong_Throws()
+    {
+        var act = () => Ft8CallsignPacker.Ihashcall("Q0ABCDEFGHIJ"); // 12 chars
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact(DisplayName = "Ihashcall throws for a character outside the 38-character hash alphabet")]
+    public void Ihashcall_InvalidCharacter_Throws()
+    {
+        var act = () => Ft8CallsignPacker.Ihashcall("Q0AB#DEF"); // '#' is not in the hash alphabet
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact(DisplayName = "Ihashcall throws for an unsupported bit width")]
+    public void Ihashcall_UnsupportedBitWidth_Throws()
+    {
+        var act = () => Ft8CallsignPacker.Ihashcall("Q0ABCDEF", bits: 8);
+        act.Should().Throw<ArgumentOutOfRangeException>();
     }
 }

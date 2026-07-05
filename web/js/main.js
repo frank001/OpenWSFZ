@@ -9,7 +9,7 @@
 import { connect }                                                          from './ws.js';
 import { getConfig, getFrequencies, postTune, postAudioOffset,
          getTxStatus, postTxEnable, postTxDisable, postTxAbort,
-         postTxAnswerCq, postTxSelectResponder, postTxCallCq,
+         postTxAnswerCq, postTxSelectResponder, postTxCallCq, postTxStopCq,
          postTxCallerPartnerSelect, getApiKey,
          getPropModes, postLogQso,
          postTxEngageDecode }                                                from './api.js';
@@ -107,6 +107,22 @@ function appendTxAbortLog(reason, partner) {
   if (txAbortLogSection) txAbortLogSection.hidden = false;
 }
 
+// ── TX button visual state helpers (f-004-operator-visibility-improvements) ──
+
+/**
+ * Returns true when `state` is one of the transmitting sub-states of either
+ * `QsoState` (Answerer: TxAnswer/TxReport/Tx73) or `CallerState` (Caller:
+ * TxCq/TxReport/TxRr73). Both enums name every transmitting sub-state with a
+ * `Tx` prefix and no waiting/idle state with that prefix (design.md Decision 2),
+ * so a simple prefix check works uniformly across both roles with no
+ * additional server-side signal.
+ * @param {string|undefined|null} state
+ * @returns {boolean}
+ */
+function isTransmittingSubState(state) {
+  return typeof state === 'string' && state.startsWith('Tx');
+}
+
 // ── TX panel render functions (tasks 6.3, 6.4) ───────────────────────────
 
 /**
@@ -202,6 +218,8 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
 
   // ── Enable/Disable toggle button ─────────────────────────────────────
   // D-TX-UI-002: label is always "Enable TX"; red background alone signals the armed state.
+  // FR-TX-UI-004 (tx-state-indicators): dark red when armed-idle, bright red when armed AND
+  // actively transmitting (state is a Tx* sub-state) — design.md Decision 2.
   if (txEnableBtnEl) {
     txEnableBtnEl.textContent = 'Enable TX';
     if (autoAnswerEnabled) {
@@ -209,12 +227,35 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
     } else {
       txEnableBtnEl.classList.remove('tx-btn-armed');
     }
+
+    if (autoAnswerEnabled && isTransmittingSubState(state)) {
+      txEnableBtnEl.classList.add('tx-btn-transmitting');
+    } else {
+      txEnableBtnEl.classList.remove('tx-btn-transmitting');
+    }
   }
 
-  // ── Call CQ button — enabled only when Idle ───────────────────────────
-  // Spec (task 11.8): enabled when currentTxState === 'Idle'; disabled otherwise.
+  // ── Call CQ button — enable/disable + label + engaged colour ─────────
+  // web-frontend "TX panel — Call CQ button" (f-004-operator-visibility-improvements):
+  // supersedes the old `disabled = (state !== 'Idle')` gating. While role === 'caller'
+  // the button stays enabled throughout the session ("Stop CQ" → graceful stop, task 3.9);
+  // it is disabled only when the answerer role is mid-QSO (role !== 'caller' && state !== 'Idle').
+  // currentTxRole has already been updated above (if role was supplied this call).
+  // tx-state-indicators: bright green (`tx-call-cq-armed`) whenever engaged
+  // (role === 'caller' && autoAnswerEnabled), independent of the disabled/label state above —
+  // this can be true even at state === 'Idle' (a caller-role daemon armed but not yet
+  // transmitting), so it is computed separately from isCallerEngaged.
   if (txCallCqBtnEl) {
-    txCallCqBtnEl.disabled = (state !== 'Idle');
+    const isCallerEngaged = currentTxRole === 'caller' && state !== 'Idle';
+
+    txCallCqBtnEl.disabled    = (currentTxRole !== 'caller') && (state !== 'Idle');
+    txCallCqBtnEl.textContent = isCallerEngaged ? 'Stop CQ' : 'Call CQ';
+
+    if (currentTxRole === 'caller' && autoAnswerEnabled) {
+      txCallCqBtnEl.classList.add('tx-call-cq-armed');
+    } else {
+      txCallCqBtnEl.classList.remove('tx-call-cq-armed');
+    }
   }
 
   // ── State display ─────────────────────────────────────────────────────
@@ -1002,13 +1043,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Task 11.8 — Call CQ button.
-  // Sends POST /api/v1/tx/call-cq; switches to Caller role (if not already) and arms TX.
-  // Button is only enabled when Idle (see renderTxPanel above).
-  // Uses a 400 ms inFlight guard to block double-clicks, same pattern as CQ-row clicks.
+  // Task 11.8 / 3.9 — Call CQ / Stop CQ toggle button.
+  // When role === 'caller' && state !== 'Idle': engaged session — POST /api/v1/tx/stop-cq
+  //   requests a graceful stop (any in-progress TX plays out; no immediate audio kill).
+  //   Does NOT re-render the panel from this response directly (web-frontend spec) — the
+  //   panel updates once the subsequent txState WS event with state: 'Idle' arrives,
+  //   consistent with how Abort TX is already handled.
+  // Otherwise (Idle, any role): POST /api/v1/tx/call-cq starts a new CQ session (existing).
+  // Uses a 400 ms inFlight guard on the call-cq path to block double-clicks, same pattern
+  // as CQ-row clicks. The stop-cq path has no such guard — the spec requires it to be
+  // idempotent on the backend, so a second click while the first is in flight is harmless.
   if (txCallCqBtnEl) {
     let callCqInFlight = false;
     txCallCqBtnEl.addEventListener('click', async () => {
+
+      // ── Graceful stop path ────────────────────────────────────────────
+      if (currentTxRole === 'caller' && currentTxState !== 'Idle') {
+        try {
+          await postTxStopCq();
+          // Intentionally no renderTxPanel call here — see comment above.
+        } catch (err) {
+          console.error('POST /api/v1/tx/stop-cq failed:', err);
+        }
+        return;
+      }
+
+      // ── Normal Call CQ path ───────────────────────────────────────────
       if (callCqInFlight) return;
       callCqInFlight = true;
       txCallCqBtnEl.disabled = true;
@@ -1021,11 +1081,11 @@ document.addEventListener('DOMContentLoaded', () => {
           status.role              ?? 'caller');
         setTimeout(() => {
           callCqInFlight = false;
-          // Button re-enable is driven by renderTxPanel (disabled when not Idle).
+          // Button re-enable / label driven by renderTxPanel (via WS events).
         }, 400);
       } catch (err) {
         callCqInFlight = false;
-        txCallCqBtnEl.disabled = (currentTxState !== 'Idle');
+        txCallCqBtnEl.disabled = (currentTxRole !== 'caller') && (currentTxState !== 'Idle');
         if (/** @type {any} */ (err)?.status === 409) {
           console.warn('Call CQ rejected — TX busy.');
         } else {
@@ -1132,23 +1192,35 @@ document.addEventListener('DOMContentLoaded', () => {
     return Math.max(0, Math.min(3000, hz));
   }
 
-  // Task 6.1 — Left-click: set RX (or both when Shift held).
+  // Task 4.1 (f-004-operator-visibility-improvements, waterfall-cursors) —
+  // Ctrl+left-click: RX. Shift+left-click: both RX and TX. Any left-click with no
+  // modifier held is a no-op — this is the whole point of the change (design.md
+  // Decision 3): existing plain-click muscle memory stops working, on purpose, so an
+  // accidental click during a live session can no longer silently retune anything.
   canvas.addEventListener('click', (e) => {
-    const hz = freqFromEvent(e);
     if (e.shiftKey) {
       // Shift+left-click: set both RX and TX to the same frequency.
+      const hz = freqFromEvent(e);
       applyAudioOffset(hz, hz, holdTxFreqEl?.checked ?? false);
       postAudioOffsetSilently(hz, hz, holdTxFreqEl?.checked ?? false);
-    } else {
-      // Plain left-click: set RX only; TX stays unchanged.
+    } else if (e.ctrlKey) {
+      // Ctrl+left-click: set RX only; TX stays unchanged.
+      const hz = freqFromEvent(e);
       applyAudioOffset(hz, currentTxHz, holdTxFreqEl?.checked ?? false);
       postAudioOffsetSilently(hz, currentTxHz, holdTxFreqEl?.checked ?? false);
     }
+    // No modifier held: no-op — deliberately does not touch RX/TX or call the API.
   });
 
-  // Task 6.2 — Right-click: set TX; suppress browser context menu.
+  // Task 4.2 — Ctrl+right-click: set TX. Shift+right-click and an unmodified
+  // right-click are no-ops. The browser's context menu is suppressed unconditionally
+  // for every right-click regardless of modifier (design.md Decision 3) — the waterfall
+  // canvas has no useful native context-menu items, and showing it only for the
+  // no-op cases would be an inconsistent experience tied to a modifier key the
+  // operator may not even be thinking about.
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (!e.ctrlKey) return; // Shift+right-click or unmodified right-click: no-op.
     const hz = freqFromEvent(e);
     applyAudioOffset(currentRxHz, hz, holdTxFreqEl?.checked ?? false);
     postAudioOffsetSilently(currentRxHz, hz, holdTxFreqEl?.checked ?? false);
