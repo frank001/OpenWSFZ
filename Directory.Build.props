@@ -1,12 +1,14 @@
 <Project>
   <PropertyGroup>
     <!--
-      Product version for all assemblies. Increment per release.
+      Product version for all assemblies, read from the repository-root VERSION
+      file — the single canonical source (see openspec/specs/release-versioning).
+      Do not hardcode a version here; edit VERSION instead.
       Setting <Version> causes the SDK to populate AssemblyVersion,
       FileVersion, and AssemblyInformationalVersion automatically.
       AssemblyInformationalVersion carries the human-readable semantic
       version and is preserved through AOT trimming.
     -->
-    <Version>0.1.0</Version>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</Version>
   </PropertyGroup>
 </Project>

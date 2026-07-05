@@ -1,3 +1,5 @@
+using OpenWSFZ.Web;
+
 namespace OpenWSFZ.Daemon;
 
 /// <summary>
@@ -9,10 +11,12 @@ internal static class WelcomeBannerEmitter
 {
     /// <summary>
     /// Writes the welcome banner for the given <paramref name="port"/> to stdout.
-    /// The banner contains the loopback URL so the operator knows where to point their browser.
+    /// The banner contains the loopback URL so the operator knows where to point their browser,
+    /// and the running build's version (see <see cref="AssemblyVersion"/>, sourced from the
+    /// repository-root <c>VERSION</c> file — the canonical source per openspec/specs/release-versioning).
     /// </summary>
     public static void Emit(int port)
     {
-        Console.Out.WriteLine($"OpenWSFZ listening on http://127.0.0.1:{port} — open this in your browser.");
+        Console.Out.WriteLine($"OpenWSFZ v{AssemblyVersion.Get()} listening on http://127.0.0.1:{port} — open this in your browser.");
     }
 }
