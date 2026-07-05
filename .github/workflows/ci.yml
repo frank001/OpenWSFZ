@@ -538,3 +538,34 @@ jobs:
           This PR updates them to shim ${SHIM}.
 
           **No source changes.** Safe to merge once CI passes on this branch."
+
+  # -----------------------------------------------------------------
+  # Gate G9: Version governance
+  # Enforces the canonical-version invariant on every PR targeting main:
+  #   (a) the version cited in README.md / REQUIREMENTS.md matches VERSION
+  #       (tools/check_version_docs.py), and
+  #   (b) any PR that archives a `**User-facing:** yes` OpenSpec change also
+  #       bumps VERSION relative to main (tools/check_version_bump.py).
+  # Implements: ci-quality-gates spec (gate G9), release-versioning capability.
+  #
+  # Runs only on pull_request events — a direct push has no base ref to diff
+  # against, and main is never the base of a diff against itself (see design.md
+  # Decision 6). Uses a dedicated fetch-depth: 0 checkout, mirroring the
+  # detect-native-changes job, because the default shallow (depth 1) checkout in
+  # build-test cannot diff the PR branch against main.
+  # -----------------------------------------------------------------
+  version-governance:
+    name: Gate G9 — Version governance
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: G9a — Doc/VERSION consistency
+        run: python3 tools/check_version_docs.py
+
+      - name: G9b — Mandatory bump on user-facing archive
+        run: python3 tools/check_version_bump.py "origin/${{ github.base_ref }}"

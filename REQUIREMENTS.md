@@ -29,6 +29,9 @@ over RF (RX + CAT control + TX on-air). The wider mode menu,
 internet-facing operation, and headless deployment remain explicitly
 deferred to v1.0+ on the way to a public release.
 
+<sub>The release number cited above is sourced from the root `VERSION` file
+and CI-checked (gate G9) — do not hand-edit it here; edit `VERSION` instead.</sub>
+
 ---
 
 ## 2. Project Context

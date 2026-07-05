@@ -23,6 +23,9 @@ JS8, JT9, JT65, WSPR, and related).
 > v1.0 is reached when the software can complete a confirmed two-way contact
 > end-to-end over RF (RX + CAT rig control + TX on-air). Internet-facing
 > operation and the wider mode menu are deferred to v1.0+.
+>
+> <sub>The version above is sourced from the root [`VERSION`](VERSION) file and
+> CI-checked (gate G9) — do not hand-edit it here; edit `VERSION` instead.</sub>
 
 All development phases to date are merged and archived. FT8 decoding
 **and transmitting** are fully functional against live audio and recorded fixtures.
