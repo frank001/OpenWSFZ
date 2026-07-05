@@ -43,9 +43,10 @@ server-side signal:
 `#tx-call-cq-btn` SHALL render bright green whenever Call-CQ mode is engaged (`role` is
 `"caller"` and `autoAnswerEnabled` is `true`), regardless of which sub-state the Caller state
 machine currently occupies, and SHALL render its neutral background colour otherwise. This colour
-state is independent of the button's `disabled` attribute (which continues to gate whether a new
-Call-CQ action may be submitted; see the `qso-caller` capability for that behaviour) — a disabled
-button in the engaged state SHALL still render bright green, not a dimmed/greyed treatment.
+state is independent of the button's `disabled` attribute, which continues to gate whether a new
+Call-CQ action may be submitted (existing `renderTxPanel` behaviour, unchanged and not otherwise
+specified elsewhere: `disabled = (state !== 'Idle')`) — a disabled button in the engaged state
+SHALL still render bright green, not a dimmed/greyed treatment.
 
 #### Scenario: Call-CQ engaged renders bright green regardless of sub-state
 

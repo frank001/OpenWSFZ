@@ -45,10 +45,10 @@ the last *N* lines of the daemon's currently active log file as JSON.
 
 ### Requirement: A standalone full-log page is available with no auto-refresh
 
-A standalone page (`web/logs.html`), reached via a link or button from the settings page's Logs
-tab, SHALL fetch the daemon's entire currently active log file exactly once on page load via
-`GET /api/v1/logs/full`, and SHALL NOT poll or auto-refresh — new log content is only shown after
-the operator manually reloads the browser page.
+A standalone page (`web/logs.html`) SHALL fetch the daemon's entire currently active log file
+exactly once on page load via `GET /api/v1/logs/full`, and SHALL NOT poll or auto-refresh — new
+log content is only shown after the operator manually reloads the browser page. The page SHALL be
+reachable via a link or button from the settings page's Logs tab.
 
 #### Scenario: Full-log page shows the complete active log file on load
 

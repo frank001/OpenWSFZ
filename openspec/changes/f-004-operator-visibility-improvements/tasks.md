@@ -73,5 +73,14 @@
 
 ## 7. Documentation and handoff
 
-- [ ] 7.1 Confirm the Decision 2b Open Question with the Captain before or during task 2.4/2.5.
-- [ ] 7.2 Run `/opsx:archive` once merged.
+- [x] 7.1 QA pre-merge review (2026-07-05): renumbered `f-003-operator-visibility-improvements` →
+      `f-004-operator-visibility-improvements` (the `f-003` slug was already claimed by the
+      merged `f-003-ap-assist-nonstandard-callsigns`); rebased onto `main`; added a
+      `web-frontend` MODIFIED delta narrowing the pre-existing "TX panel — Enable TX toggle
+      button" requirement so it no longer conflicts with `tx-state-indicators`'s dark-red/
+      bright-red split; corrected `tx-state-indicators`' dangling cross-reference to a
+      non-existent `qso-caller` frontend requirement; fixed a `log-viewer` requirement whose
+      `SHALL` fell outside the validator's first-line check. `openspec validate --strict` now
+      passes.
+- [ ] 7.2 Confirm the Decision 2b Open Question with the Captain before or during task 2.4/2.5.
+- [ ] 7.3 Run `/opsx:archive` once merged.

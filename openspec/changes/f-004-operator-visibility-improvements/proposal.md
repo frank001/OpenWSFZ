@@ -50,6 +50,10 @@ already-wired data path or page.
   `{plain-left→RX, plain-right→TX, shift-left→RX+TX}` to
   `{ctrl-left→RX, ctrl-right→TX, shift-left→RX+TX, shift-right→no-op, unmodified→no-op}`, plus a
   new tooltip requirement on the waterfall canvas.
+- `web-frontend`: the existing "TX panel — Enable TX toggle button" requirement is narrowed from
+  "armed ⇒ a single `tx-btn-armed` style, unconditionally" to "armed ⇒ some armed style, with the
+  specific dark-red/bright-red choice governed by the new `tx-state-indicators` capability" — this
+  removes the direct conflict between the two capabilities' descriptions of the same button.
 
 ## Impact
 
