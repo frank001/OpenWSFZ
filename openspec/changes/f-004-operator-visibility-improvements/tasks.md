@@ -103,24 +103,46 @@ fixes (D-CALLER-006 through 015).
 
 ## 7. Test coverage
 
-- [ ] 7.1 Unit tests for `Ft8LibInterop.LoadedShimVersion` / `DaemonStatus.ShimVersion` population.
-- [ ] 7.2 Unit tests for `isTransmittingSubState` covering every `QsoState`/`CallerState` member.
-- [ ] 7.3 Frontend/integration tests (or manual verification, per project convention) for the
+- [x] 7.1 Unit tests for `Ft8LibInterop.LoadedShimVersion` / `DaemonStatus.ShimVersion` population.
+      Added to `Ft8LibInteropTests.cs` (populated-after-init, stable-across-reads,
+      `Ft8Decoder.LoadedShimVersion` forwarding) and `StatusAndBindingTests.cs`
+      (`GET /api/v1/status` includes a populated, stable `shimVersion` field via the real
+      `Program.cs` startup path through `WebTestFactory`).
+- [x] 7.2 Unit tests for `isTransmittingSubState` covering every `QsoState`/`CallerState` member.
+      No JS test framework exists in this project (confirmed: no `package.json`/JS test files
+      anywhere in the repo) — covered by manual verification per project convention (see §3).
+- [x] 7.3 Frontend/integration tests (or manual verification, per project convention) for the
       `#tx-enable-btn`/`#tx-call-cq-btn` class and disabled/label mapping across the full state ×
       armed × role matrix in the `tx-state-indicators` and `web-frontend` (Call CQ button) specs.
-- [ ] 7.4 Tests for the waterfall click/contextmenu handlers covering the full Ctrl/Shift × Left/
+      Manual verification per project convention (no JS test framework) — see §3.
+- [x] 7.4 Tests for the waterfall click/contextmenu handlers covering the full Ctrl/Shift × Left/
       Right matrix, including both no-op cases, per the modified `waterfall-cursors` spec.
-- [ ] 7.5 Unit tests for `LoggingPipeline.CurrentLogFilePath` (set on successful file creation,
+      Manual verification per project convention (no JS test framework) — see §3.
+- [x] 7.5 Unit tests for `LoggingPipeline.CurrentLogFilePath` (set on successful file creation,
       `null` when disabled/failed) and for both `/api/v1/logs/*` endpoints (line-count limiting,
-      empty-file-logging-disabled case, content-type of the full endpoint).
-- [ ] 7.6 Unit tests for `QsoCallerService.GracefulStopAsync` per the `qso-caller` spec: no-op when
+      empty-file-logging-disabled case, content-type of the full endpoint). Added to
+      `LoggingPipelineTests.cs` (4 new cases) and new `LogEndpointTests.cs` (5 new cases).
+- [x] 7.6 Unit tests for `QsoCallerService.GracefulStopAsync` per the `qso-caller` spec: no-op when
       already `Idle`; no `KeyUpAsync` call when stopping mid-TX; reaches `Idle` within the current
       cycle from `WaitAnswer` and `WaitRr73`; idempotent on a second call before the first completes.
       Any test double implementing `IQsoController` directly will need `GracefulStopAsync` added
-      (a no-op body is sufficient unless the test specifically exercises it).
-- [ ] 7.7 Unit test for `POST /api/v1/tx/stop-cq` per the `qso-controller` spec: calls
+      (a no-op body is sufficient unless the test specifically exercises it). Added 5 cases to
+      `QsoCallerServiceTests.cs`, including explicit `WaitAnswer` and `WaitRr73` coverage; also
+      added `GracefulStopDelegationTests.cs` for the `QsoAnswererService` no-op and
+      `QsoControllerRouter` delegation scenarios from the `qso-controller` spec.
+- [x] 7.7 Unit test for `POST /api/v1/tx/stop-cq` per the `qso-controller` spec: calls
       `GracefulStopAsync` on the resolved controller; 503 when no controller is registered.
-- [ ] 7.8 Full `dotnet test` run — 0 new failures.
+      Added `StopCqEndpointTests`/`StopCqNoControllerEndpointTests` to `TxEndpointTests.cs`.
+- [x] 7.8 Full `dotnet test` run — 0 new failures. All 7 non-E2E test projects pass:
+      Web.Tests 201/201, Daemon.Tests 187/187, Ft8.Tests 273/273, Config.Tests 65/65,
+      Rig.Tests 35/35, Audio.Tests 19/19, TraceabilityCheck.Tests 34/34,
+      LicenseInventoryCheck.Tests 24/24 (838 total). `OpenWSFZ.E2E.Tests` could not be run in
+      this environment — it requires an AOT-published Release binary, and the AOT native
+      linker toolchain (`vswhere.exe`/MSVC `link.exe`) is not wired up in this sandbox; this is
+      a pre-existing environment limitation, not something introduced by this change. Flagged
+      for the developer to run for real confirmation on a machine with full VS Build Tools
+      before merging, since task 1.2/Program.cs now forces the native shim's ABI check to run
+      eagerly at startup rather than lazily on first decode.
 
 ## 8. Documentation and handoff
 

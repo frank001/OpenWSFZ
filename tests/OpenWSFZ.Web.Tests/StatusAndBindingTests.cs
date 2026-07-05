@@ -52,6 +52,40 @@ public sealed class StatusAndBindingTests : IClassFixture<WebTestFactory>
             "fallback sentinel must not reach the wire; set <Version> in Directory.Build.props");
     }
 
+    [Fact(DisplayName = "daemon-status-visibility: GET /api/v1/status includes a populated shimVersion field")]
+    public async Task GetStatus_IncludesShimVersionField()
+    {
+        // WebTestFactory runs the real Program.cs top-level statements, which now read
+        // Ft8Decoder.LoadedShimVersion (forcing the native shim's ABI self-test) before
+        // calling WebApp.Create — so this is a genuine end-to-end check, not a stub.
+        var response = await _client.GetAsync("/api/v1/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+
+        doc.RootElement.TryGetProperty("shimVersion", out var shimVersionProp).Should().BeTrue(
+            "daemon-status-visibility requires a shimVersion field on GET /api/v1/status");
+        shimVersionProp.GetInt32().Should().BeGreaterThan(0,
+            "shimVersion must equal the native library's actual loaded ABI version, " +
+            "never the uninitialised default of 0");
+    }
+
+    [Fact(DisplayName = "daemon-status-visibility: shimVersion is stable across repeated GET /api/v1/status calls")]
+    public async Task GetStatus_ShimVersionIsStable_AcrossRepeatedCalls()
+    {
+        var first  = await _client.GetAsync("/api/v1/status");
+        var second = await _client.GetAsync("/api/v1/status");
+
+        using var firstDoc  = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
+        using var secondDoc = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
+
+        secondDoc.RootElement.GetProperty("shimVersion").GetInt32().Should().Be(
+            firstDoc.RootElement.GetProperty("shimVersion").GetInt32(),
+            "shimVersion is read once at startup, not re-queried per request — it must be " +
+            "identical across all responses during the same process lifetime");
+    }
+
     [Fact(DisplayName = "FR-020: GET /api/v1/status response includes audioActive boolean field")]
     public async Task GetStatus_IncludesAudioActiveField()
     {

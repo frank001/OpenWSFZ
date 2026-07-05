@@ -108,6 +108,65 @@ public sealed class LoggingPipelineTests : IDisposable
             "Debug-level messages must not appear when the file threshold is Warning");
     }
 
+    // ── f-004-operator-visibility-improvements (log-viewer): CurrentLogFilePath ──
+
+    [Fact(DisplayName = "log-viewer: CurrentLogFilePath is set to the created file when FileEnabled is true")]
+    public void CurrentLogFilePath_IsSet_WhenFileEnabled()
+    {
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = true, Directory = _tempDir };
+
+        pipeline.Apply(config);
+
+        var createdFiles = Directory.GetFiles(_tempDir, "openswfz-*.log");
+        createdFiles.Should().HaveCount(1);
+        pipeline.CurrentLogFilePath.Should().Be(createdFiles[0],
+            "CurrentLogFilePath must be set to the exact path Apply() just created via TryCreateLogFile");
+    }
+
+    [Fact(DisplayName = "log-viewer: CurrentLogFilePath is null when FileEnabled is false")]
+    public void CurrentLogFilePath_IsNull_WhenFileDisabled()
+    {
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = false, Directory = _tempDir };
+
+        pipeline.Apply(config);
+
+        pipeline.CurrentLogFilePath.Should().BeNull(
+            "no log file is created when FileEnabled is false, so there is no active path to expose");
+    }
+
+    [Fact(DisplayName = "log-viewer: CurrentLogFilePath is null when the log directory cannot be created")]
+    public void CurrentLogFilePath_IsNull_WhenDirectoryIsInvalid()
+    {
+        var blockingFile = Path.Combine(_tempDir, "blocking.txt");
+        File.WriteAllText(blockingFile, "I block directory creation");
+        var invalidDir = Path.Combine(blockingFile, "subdir");
+
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = true, Directory = invalidDir };
+
+        pipeline.Apply(config);
+
+        pipeline.CurrentLogFilePath.Should().BeNull(
+            "file creation failed, so CurrentLogFilePath must reflect that (null), " +
+            "the same as the file-logging-disabled case");
+    }
+
+    [Fact(DisplayName = "log-viewer: CurrentLogFilePath is reset to null on a subsequent Apply() that disables file logging")]
+    public void CurrentLogFilePath_ResetsToNull_OnSubsequentApplyWithFileDisabled()
+    {
+        using var pipeline = new LoggingPipeline();
+
+        pipeline.Apply(new LoggingConfig { FileEnabled = true, Directory = _tempDir });
+        pipeline.CurrentLogFilePath.Should().NotBeNull("first Apply() enabled file logging");
+
+        pipeline.Apply(new LoggingConfig { FileEnabled = false, Directory = _tempDir });
+        pipeline.CurrentLogFilePath.Should().BeNull(
+            "a later Apply() that disables file logging must clear the stale path from the " +
+            "previous call, not leave it pointing at a file that is no longer being written to");
+    }
+
     // ── FR-024: retention enforcement ────────────────────────────────────────
 
     [Fact(DisplayName = "FR-024: LoggingPipeline.EnforceRetention leaves files untouched when within limit")]
