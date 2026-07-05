@@ -60,15 +60,21 @@ public sealed class AllTxtWriter
     /// <param name="results">Decoded messages from this cycle.</param>
     public async Task AppendAsync(DateTime cycleUtc, double dialMhz, IReadOnlyList<DecodeResult> results)
     {
-        var config = _configStore.Current.DecodeLog;
-
-        if (!config.Enabled || results.Count == 0)
-            return;
-
-        var path = config.Path;
-
+        // D-010 defence in depth: read _configStore.Current.DecodeLog inside the try
+        // block so this method cannot throw unguarded even if some future code path
+        // reintroduces a null DecodeLog into IConfigStore.Current (the actual root
+        // cause — a null-persisting POST /api/v1/config body — is fixed at the
+        // source in WebApp.cs, but this method should be self-defending regardless).
+        string? path = null;
         try
         {
+            var config = _configStore.Current.DecodeLog;
+
+            if (config is null || !config.Enabled || results.Count == 0)
+                return;
+
+            path = config.Path;
+
             // Create parent directories if they do not exist.
             var dir = System.IO.Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir))
@@ -98,21 +104,21 @@ public sealed class AllTxtWriter
             _logger.LogWarning(ex,
                 "FR-028: Failed to write decode log to '{Path}' — {Message}. " +
                 "Decode results and WebSocket broadcast are unaffected.",
-                path, ex.Message);
+                path ?? "(unset)", ex.Message);
         }
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex,
                 "FR-028: Access denied writing decode log to '{Path}' — {Message}. " +
                 "Decode results and WebSocket broadcast are unaffected.",
-                path, ex.Message);
+                path ?? "(unset)", ex.Message);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
                 "FR-028: Cannot write decode log to '{Path}' — {Message}. " +
                 "Decode results and WebSocket broadcast are unaffected.",
-                path, ex.Message);
+                path ?? "(unset)", ex.Message);
         }
     }
 }
