@@ -27,25 +27,29 @@
       check; adjust wording only if needed to fit `The current release is **v<VERSION>**.`
       (bold optional) without changing their meaning. **Confirmed already correct — no edit
       needed, `547b05c`'s commit message notes this explicitly.**
-- [ ] 3.2 Add a short note near each anchor sentence (or in a shared "Versioning" section) that
+- [x] 3.2 Add a short note near each anchor sentence (or in a shared "Versioning" section) that
       the value is sourced from the root `VERSION` file and is CI-checked, so a future editor
-      knows not to hand-drift it.
+      knows not to hand-drift it. **Done** — a `<sub>`-tagged note added after the anchor
+      sentence in both `README.md` and `REQUIREMENTS.md`.
 
 ## 4. CI enforcement (gate G9)
 
-- [ ] 4.1 Write `tools/check_version_docs.py`: reads `VERSION`, extracts the version from the
+- [x] 4.1 Write `tools/check_version_docs.py`: reads `VERSION`, extracts the version from the
       anchor sentence in `README.md` and in `REQUIREMENTS.md`, exits non-zero with a clear
       remediation message if either disagrees with `VERSION` (following the messaging style of
-      `tools/check_native_version.py`).
-- [ ] 4.2 Write `tools/check_version_bump.py`: given a base ref (e.g.
+      `tools/check_native_version.py`). **Done** — no-argument script, exits 0 against current
+      repo (both docs cite v0.30).
+- [x] 4.2 Write `tools/check_version_bump.py`: given a base ref (e.g.
       `origin/${{ github.base_ref }}`), lists `proposal.md` files newly added under
       `openspec/changes/archive/` in the diff; for each, checks for a `**User-facing:**` line
       (fails if missing/malformed) and, if `yes`, checks `VERSION` differs from the base ref's
       copy (fails if unchanged). Exits non-zero with a clear remediation message naming the
-      offending change(s).
-- [ ] 4.3 Add a `version-governance` job to `.github/workflows/ci.yml`, modelled on the existing
+      offending change(s). **Done** — exits 0 against current baseline (no archived proposals in
+      diff).
+- [x] 4.3 Add a `version-governance` job to `.github/workflows/ci.yml`, modelled on the existing
       `detect-native-changes` job's checkout style (`fetch-depth: 0`), gated to
-      `github.event_name == 'pull_request'`, running both scripts from 4.1 and 4.2.
+      `github.event_name == 'pull_request'`, running both scripts from 4.1 and 4.2. **Done** —
+      job `version-governance` (Gate G9) with steps G9a (docs) and G9b (bump); YAML validated.
 - [ ] 4.4 Verify the new job fails as expected against a deliberately-broken local scenario (e.g.
       a scratch branch with a `user_facing: yes` archived proposal and no `VERSION` change), then
       confirm it passes once corrected, before relying on it in the real PR.
