@@ -321,6 +321,17 @@ public static class WebApp
             if (config is null)
                 return Results.BadRequest("Missing or empty request body.");
 
+            // Guard against the same STJ source-generation quirk documented in
+            // JsonConfigStore.Load(): a JSON payload that omits "logging" or "decodeLog"
+            // deserialises those non-nullable properties to null instead of falling back
+            // to their initialisers. Left unguarded here, a null DecodeLog persists into
+            // the live in-memory config and crashes every subsequent decode cycle
+            // (D-010: unguarded NRE in AllTxtWriter.AppendAsync).
+            if (config.Logging is null)
+                config = config with { Logging = new LoggingConfig() };
+            if (config.DecodeLog is null)
+                config = config with { DecodeLog = new DecodeLogConfig() };
+
             // ── CAT config validation (FR-031, FR-034) ─────────────────────────
             if (config.Cat is { } cat)
             {

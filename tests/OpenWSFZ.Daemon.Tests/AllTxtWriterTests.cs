@@ -115,6 +115,28 @@ public sealed class AllTxtWriterTests : IDisposable
         logger.HasWarning.Should().BeTrue("a Warning must be logged when the file cannot be written");
     }
 
+    // ── D-010: null DecodeLog does not throw (defence in depth) ──────────────
+
+    [Fact(DisplayName = "D-010 AC-3: AppendAsync does not throw when IConfigStore.Current.DecodeLog is null")]
+    public async Task AppendAsync_ConfigStoreReturnsNullDecodeLog_DoesNotThrow()
+    {
+        // Reproduces D-010: a config with DecodeLog = null (e.g. persisted by a
+        // POST /api/v1/config body that omitted the "decodeLog" key before the
+        // WebApp.cs guard existed) must not crash the decode pump every cycle.
+        var configStore = new NullDecodeLogConfigStore();
+        var logger      = new CapturingLogger<AllTxtWriter>();
+        var writer      = new AllTxtWriter(configStore, logger);
+
+        var results = new List<DecodeResult>
+        {
+            new("17:29:30", Snr: 3, Dt: 0.2, FreqHz: 2252, Message: "Q1ABC Q9XYZ FN42"),
+        };
+
+        var act = async () => await writer.AppendAsync(DateTime.UtcNow, 7.074, results);
+        await act.Should().NotThrowAsync(
+            "a null DecodeLog must never crash AppendAsync — this is exactly the D-010 NRE");
+    }
+
     // ── FR-032: caller-supplied dial frequency (defect: dial-freq-snapshot) ───
 
     [Fact(DisplayName = "FR-032: AppendAsync uses caller-supplied dialMhz, not live state")]
@@ -153,6 +175,31 @@ public sealed class AllTxtWriterTests : IDisposable
     private sealed class StubConfigStore : IConfigStore
     {
         public StubConfigStore(AppConfig config) => Current = config;
+        public AppConfig Current { get; }
+        public event Action<AppConfig>? OnSaved;
+        public Task SaveAsync(AppConfig config, CancellationToken ct = default)
+        {
+            OnSaved?.Invoke(config);
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// D-010 repro double: <see cref="Current"/> is a real <see cref="AppConfig"/> whose
+    /// <see cref="AppConfig.DecodeLog"/> has been forced back to <c>null</c> via reflection,
+    /// bypassing the C# init-property initialiser (there is no public API to construct this
+    /// state — that is exactly what made the original bug surprising).
+    /// </summary>
+    private sealed class NullDecodeLogConfigStore : IConfigStore
+    {
+        public NullDecodeLogConfigStore()
+        {
+            Current = new AppConfig();
+            typeof(AppConfig)
+                .GetProperty(nameof(AppConfig.DecodeLog))!
+                .SetValue(Current, null);
+        }
+
         public AppConfig Current { get; }
         public event Action<AppConfig>? OnSaved;
         public Task SaveAsync(AppConfig config, CancellationToken ct = default)
