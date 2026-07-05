@@ -1,12 +1,25 @@
-# DEV TASK — f-003-ap-assist-nonstandard-callsigns: flaky end-to-end AP-decode test blocks merge
+# DEV TASK — f-003-ap-assist-nonstandard-callsigns: flaky end-to-end AP-decode test on main
 
-**Date:** 2026-07-05
-**QA defect ID:** N/A — pre-merge code review finding on an unmerged branch, not a shipped defect
-**Severity:** Blocking for merge — the test's own stated purpose (task 5.1: "proof that
-AP-assisted decode succeeds") is not met by a test that only passes about half the time
+**Date:** 2026-07-05 (corrected 2026-07-05 — see Correction note below)
+**QA defect ID:** N/A — no formal defect number assigned yet; treat as a live, unresolved
+defect on `main`, not a pre-merge gate
+**Severity:** Blocking — merge should have waited on this and did not (see Correction note);
+the test's own stated purpose (task 5.1: "proof that AP-assisted decode succeeds") is not met
+by a test that only passes about half the time
 **OpenSpec change:** `f-003-ap-assist-nonstandard-callsigns` (all 16 tasks marked complete;
 this is the one gap found in QA's pre-merge review)
-**Branch:** `feat/f-003-ap-assist-nonstandard-callsigns` (existing branch, no new branch needed)
+**Branch:** none currently exists — `feat/f-003-ap-assist-nonstandard-callsigns` was deleted
+when PR #43 merged. Cut a **new** branch off current `main` for this fix; do not attempt to
+reuse or resurrect the old one.
+
+**Correction note (QA, 2026-07-05):** this dev-task was originally written and committed
+*inside* the `f-003-ap-assist-nonstandard-callsigns` branch/commit (`94a6e3b`) as a pre-merge
+"do not merge until AC-1–AC-6 pass" gate. PR #43 merged one second later
+(`2026-07-05T01:22:37Z`) — the same commit that carries this file — so the flake shipped to
+`main` with none of the acceptance criteria below actually satisfied. This is now a genuine
+post-merge defect fix, not a branch amendment; the "Branch"/"Severity" fields above have been
+updated accordingly. The technical content below (root cause investigation, acceptance
+criteria) is unchanged and still the correct plan.
 
 ---
 
