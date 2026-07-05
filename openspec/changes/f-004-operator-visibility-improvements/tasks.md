@@ -3,9 +3,9 @@
 - [x] 1.1 Retain the native shim's actual loaded ABI version in `Ft8LibInterop` (e.g. a
       `public static int LoadedShimVersion` set at the point `NativeVersionCheck()` is called and
       compared against `ExpectedShimVersion`), per design.md Decision 1.
-- [ ] 1.2 Add `ShimVersion` to `DaemonStatus` (`src/OpenWSFZ.Web/DaemonStatus.cs`) and populate it
+- [x] 1.2 Add `ShimVersion` to `DaemonStatus` (`src/OpenWSFZ.Web/DaemonStatus.cs`) and populate it
       in the `GET /api/v1/status` handler and the initial WebSocket `status` event in `WebApp.cs`.
-- [ ] 1.3 Display the shim version read-only in the settings page's Advanced tab
+- [x] 1.3 Display the shim version read-only in the settings page's Advanced tab
       (`web/settings.html` / `web/js/settings.js`), sourced from the existing `getStatus()` call.
 
 ## 2. TX-enable button visual states

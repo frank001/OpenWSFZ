@@ -36,6 +36,13 @@ public static class WebApp
     /// <see cref="IAudioDeviceProvider"/> to register as a singleton.
     /// Defaults to <see cref="InMemoryAudioDeviceProvider"/> (empty list).
     /// </param>
+    /// <param name="shimVersion">
+    /// The native FT8 decoder shim's actual loaded ABI version, surfaced as
+    /// <see cref="DaemonStatus.ShimVersion"/> on <c>GET /api/v1/status</c> and the initial
+    /// WebSocket <c>status</c> event (daemon-status-visibility). Callers should read
+    /// <c>Ft8Decoder.LoadedShimVersion</c> once at startup and pass it here; defaults to 0
+    /// for callers (e.g. minimal test fixtures) that do not wire up the native shim.
+    /// </param>
     public static WebApplication Create(
         int port,
         IBindPolicy?                                        bindPolicy                  = null,
@@ -53,7 +60,8 @@ public static class WebApp
         ICatState?                                          catState                    = null,
         Action<ILoggingBuilder>?                            configureLogging            = null,
         Func<Task>?                                         restartPipeline             = null,
-        Action<IServiceCollection>?                         configureServices           = null)
+        Action<IServiceCollection>?                         configureServices           = null,
+        int                                                  shimVersion                 = 0)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
         // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(appScope)
@@ -252,7 +260,8 @@ public static class WebApp
                 AudioActive:         audioMonitor?.IsActive ?? false,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    effectiveFreq,
-                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
+                ShimVersion:         shimVersion));
         });
 
         app.MapGet("/api/v1/audio/devices", async (
@@ -452,7 +461,8 @@ public static class WebApp
                 AudioActive:         audioMonitor?.IsActive ?? false,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStart,
-                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
+                ShimVersion:         shimVersion));
         });
 
         app.MapPost("/api/v1/decode/stop", async (
@@ -469,7 +479,8 @@ public static class WebApp
                 AudioActive:         audioMonitor?.IsActive ?? false,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStop,
-                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled"));
+                CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
+                ShimVersion:         shimVersion));
         });
 
         // ── Frequency list endpoints (FR-042) ─────────────────────────────────
@@ -1211,7 +1222,7 @@ public static class WebApp
             await WebSocketHub.HandleAsync(
                 ws, store, audioMonitor, dataFlowMonitor,
                 captureManager, audioWatchdog, catState,
-                wsLogger, appScope, ctx.RequestAborted);
+                wsLogger, appScope, shimVersion, ctx.RequestAborted);
         });
 
         return app;

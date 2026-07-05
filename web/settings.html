@@ -388,6 +388,17 @@
       <!-- ── Tab 3: Advanced ─────────────────────────────────────────────── -->
       <div id="tab-advanced" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-advanced">
 
+        <!-- ── Native shim version (daemon-status-visibility) ────────────── -->
+        <div class="field-group">
+          <label>Native FT8 decoder shim version</label>
+          <p><code id="shim-version-value">—</code></p>
+          <p class="field-hint">
+            The ABI version of the native FT8 decoder shim loaded at daemon startup,
+            read-only. Useful for comparing against a known-good value from a release
+            note or R&amp;R study report when diagnosing a decode regression.
+          </p>
+        </div>
+
         <div class="field-group">
           <label for="port-input">Web UI port</label>
           <input

@@ -77,6 +77,9 @@ const loggingDayGroup       = /** @type {HTMLElement}       */ (document.getElem
 const freqTbody  = /** @type {HTMLTableSectionElement} */ (document.getElementById('freq-tbody'));
 const addFreqBtn = /** @type {HTMLButtonElement}       */ (document.getElementById('add-freq-btn'));
 
+// Native shim version display (daemon-status-visibility)
+const shimVersionValue = /** @type {HTMLElement} */ (document.getElementById('shim-version-value'));
+
 // Advanced Decoder Settings controls (decoder-settings-page)
 const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-k'));
 const decoderCorr  = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-corr'));
@@ -565,6 +568,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Show live CAT status from the daemon status endpoint.
     updateCatStatusBadge(status?.catConnectionStatus ?? null);
+
+    // Native shim version, read-only (daemon-status-visibility).
+    if (shimVersionValue) {
+      shimVersionValue.textContent = status?.shimVersion != null
+        ? String(status.shimVersion)
+        : '—';
+    }
 
     // FR-039: carry forward server-managed fields that the UI does not edit.
     catOpaqueFields = {
