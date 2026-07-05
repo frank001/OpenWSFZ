@@ -1,6 +1,6 @@
 # OpenWSFZ &mdash; Requirements Document
 
-**Version:** 1.26
+**Version:** 1.27
 **Date:** 2026-07-05
 **Status:** Draft
 **Prepared by:** Requirements Analyst (AI-assisted)
@@ -20,7 +20,7 @@ they prefer (Windows, Linux, macOS) and reach it from a local browser.
 work prior to a confirmed QSO; v1.0 is reached when the software can
 make a confirmed two-way contact (RX + CAT control + TX); each
 user-facing feature shipped increments the minor version.
-The current release is v0.30.** The v0.x body of work now covers FT8
+The current release is v0.31.** The v0.x body of work now covers FT8
 receive and transmit, CAT rig control, an automated QSO answerer and
 caller, and a web UI reachable over loopback or a passphrase-protected
 LAN — for a single operator, source-only distribution. v1.0 is reached
@@ -447,3 +447,4 @@ data in v0.x:
 | 1.24    | 2026-06-14 | DEVELOPER (AI-assisted)               | Added **FR-049** (FT8 TX encode and audio synthesis — native `ft8_encode_message` shim export, managed `Ft8LibInterop.EncodeMessage` binding, `Ft8AudioSynthesiser` GFSK continuous-phase FM synthesiser at 48000 Hz producing 606720 samples, `IPttController` abstraction, `AudioOnlyPttController` WASAPI playback), **FR-050** (QSO answerer state machine — `QsoAnswererService` `IHostedService` with `Idle→TxAnswer→WaitReport→TxReport→WaitRr73→Tx73→QsoComplete→Idle` state machine, watchdog timer, retry counter, `POST /api/v1/tx/abort`, `GET /api/v1/tx/status`, `txState` WebSocket events), and **FR-051** (ADIF QSO log — `AdifLogWriter` appending ADIF 3.x tagged-field records to `ADIF.log` on QsoComplete, ITU band derivation, FREQ/BAND omitted when dial frequency is 0.0). Implemented by `ft8-qso-answerer-v1`. |
 | 1.25    | 2026-06-24 | QA (AI-assisted)                      | Added **SEC-001** (LAN mode startup guard — daemon refuses to start when `RemoteAccess.Enabled = true` and no passphrase configured; exits non-zero with Critical log), **SEC-002** (LAN mode credential hygiene — constant-time passphrase comparison via `CryptographicOperations.FixedTimeEquals`; passphrase removed from login redirect URL and WebSocket URL; WS auth frame protocol for non-loopback connections), **SEC-003** (stored XSS guard — `appendFreqRow` in `settings.js` must not assign server-derived data via `innerHTML`). All three findings identified in the 2026-06-24 security review; confined to `RemoteAccess.Enabled = true` LAN mode (off by default). |
 | 1.26    | 2026-07-05 | QA (AI-assisted)                      | Documentation reconciliation only — no new requirements. Bumped the header version/date (which had lagged at 1.18/2026-06-03 while the change log ran to 1.25) and refreshed the Executive Summary to the current **v0.30** scope: FT8 receive **and transmit**, CAT rig control, automated QSO answerer and caller, and a loopback-or-LAN web UI are all shipped and no longer deferred (only the wider mode menu, internet-facing operation, and headless deployment remain v1.0+). Updated the stale "as of v0.15 / 69.1%" recovery-rate note in **NFR-018** to the v0.21 S6 corpus-replay figure (69.7%). Companion to the same-day README refresh; version derived by counting nine user-facing feature increments archived since v0.21. |
+| 1.27    | 2026-07-05 | QA (AI-assisted)                      | Added the **release-versioning** capability (canonical root `VERSION` file as sole version source; `Directory.Build.props` derives `<Version>` from it; cross-surface consistency invariant across build metadata, status API, welcome banner, and doc citations; minor-version-per-user-facing-feature bump rule; OpenSpec `**User-facing:**` proposal marker convention) and gate **G9** (version-governance CI job enforcing doc/VERSION consistency and the mandatory bump on user-facing archive) in **ci-quality-gates**, archiving `adopt-canonical-version-source` (GitHub issue #49). Bumped **VERSION** to **v0.31** per the newly-formalised rule, since this change itself is user-facing (the daemon's runtime version reporting changed from a stale hardcoded `0.1.0` to the canonical, CI-verified source). |

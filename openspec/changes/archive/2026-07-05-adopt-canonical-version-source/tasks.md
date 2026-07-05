@@ -89,18 +89,26 @@
 
 ## 7. Verification
 
-- [ ] 7.1 Run the full three-OS CI matrix and confirm gate G9 passes on this change's own PR
-      (which itself changes `VERSION` from `0.1.0` to `0.30` and declares `user_facing: yes` once
-      archived). **PENDING** — requires pushing `feat/adopt-canonical-version-source` and opening
-      the PR so GitHub Actions runs; awaiting the Captain's go-ahead to push. Gate G9 was fully
-      exercised locally in task 4.4 (all four G9b paths + the G9a drift path), so the CI run is a
-      confirmation, not a first test. Note: G9 only inspects the PR diff at merge time, so it will
-      not retroactively gate this change against its own future archival — expected, per §7 of the
-      dev-tasks handoff.
+- [x] 7.1 Run the full three-OS CI matrix and confirm gate G9 passes on this change's own PR.
+      **Done** — PR #50 (`feat/adopt-canonical-version-source` → `main`), merged as `798c69c`. All
+      six required checks passed: `Build & Test (windows-latest)`, `Build & Test (ubuntu-latest)`,
+      `Build & Test (macos-latest)`, and `Gate G9 — Version governance` (7s). Note: this PR's own
+      diff against `main` touched no `VERSION` line — the `0.1.0`→`0.30` runtime fix had already
+      landed separately and earlier via `547b05c`/PR #49 — so G9b correctly reported "archives no
+      new OpenSpec changes; no version bump required" rather than the "yes + bump present" path.
+      G9 was fully exercised locally beforehand in task 4.4 (all four G9b paths + the G9a drift
+      path); this CI run is the first confirmation in the real GitHub Actions environment, and it
+      also caught a real gap the local exercise couldn't: `Gate G9 — Version governance` initially
+      existed only as a job in `ci.yml`, not as a required branch-protection check, so a red result
+      would not have blocked merge — fixed live via `gh api .../required_status_checks` before this
+      PR was opened (see task 4.3's addendum). G9 only inspects the PR diff at merge time, so it
+      will not retroactively gate this change against its own future archival — the version bump
+      the minor-version-per-feature rule actually owes for this change falls due on *that* PR
+      instead, expected per §7 of the dev-tasks handoff.
 - [x] 7.2 QA review: confirm `openspec validate --strict --all` (gate G8) still passes with the
       new `release-versioning` capability and the `ci-quality-gates` delta in place. **Done** —
       `46 passed, 0 failed` with `@fission-ai/openspec@1.3.1`.
-- [ ] 7.3 **Cross-surface consistency check (release-versioning's "Version consistency across all
+- [x] 7.3 **Cross-surface consistency check (release-versioning's "Version consistency across all
       surfaces" requirement) — required before every merge that touches `VERSION` or any of the
       surfaces it governs, not just this PR.** Confirm, by direct inspection (not by trusting that
       the individual tasks above were done correctly), that all of the following report the
