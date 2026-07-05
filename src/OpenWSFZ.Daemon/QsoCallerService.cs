@@ -128,7 +128,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _decoder             = decoder;
     }
 
-    /// <summary>Test constructor — allows watchdog duration override.</summary>
+    /// <summary>
+    /// Test constructor — allows watchdog duration override, and (f-003-ap-assist-nonstandard-
+    /// callsigns) an optional <see cref="IApConstraintSink"/> so tests can verify H6 AP
+    /// constraint arming without waiting through the production watchdog duration.
+    /// </summary>
     internal QsoCallerService(
         ChannelReader<DecodeBatch>  decodeChannel,
         IConfigStore                configStore,
@@ -137,8 +141,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         IAdifLogWriter              adifLog,
         AudioOffsetEventBus         audioOffsetEventBus,
         ILogger<QsoCallerService>   logger,
-        TimeSpan                    watchdogDurationOverride)
-        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger)
+        TimeSpan                    watchdogDurationOverride,
+        IApConstraintSink?          decoder = null)
+        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, decoder)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
     }

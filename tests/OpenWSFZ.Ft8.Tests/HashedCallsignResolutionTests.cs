@@ -43,7 +43,23 @@ namespace OpenWSFZ.Ft8.Tests;
 /// failures. All fictional callsigns here use unique names not used elsewhere in the
 /// suite (NFR-021: Q-prefix synthetic calls only).
 /// </para>
+/// <para>
+/// <strong>Run-order pin (dev-tasks/2026-07-05-f-003-ap-assist-flaky-decode-test.md):</strong>
+/// this class is deliberately assigned to the
+/// <see cref="HashTableSaturationCollectionDefinition"/> collection, which
+/// <see cref="RunHashTableSaturationCollectionLastOrderer"/> always schedules last in the
+/// assembly. <see cref="HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive"/>
+/// below deliberately and permanently fills the 256-slot table to capacity — once it runs,
+/// every later test that needs a fresh hash-table slot silently fails to have its entry
+/// stored, for the remaining lifetime of the process. Running this whole class last (not
+/// just that one test) guarantees every other test gets a non-exhausted table first,
+/// regardless of xUnit's otherwise-unstable cross-class execution order. See that orderer's
+/// doc comment (<c>HashTableSaturationCollection.cs</c>) for the full root-cause writeup —
+/// this was the actual cause of the f-003 co-channel AP-decode test's flakiness, not the
+/// LDPC/decode-margin timing sensitivity originally suspected.
+/// </para>
 /// </summary>
+[Collection(HashTableSaturationCollectionDefinition.Name)]
 public sealed class HashedCallsignResolutionTests
 {
     private const double DefaultFreqHz = 1500.0;
@@ -178,6 +194,17 @@ public sealed class HashedCallsignResolutionTests
     /// suite's total distinct-callsign footprint is small — a couple of dozen fictional
     /// Q-prefix calls across all other tests — so the first several dozen of these 264 are
     /// expected to succeed comfortably before any saturation.)
+    /// </para>
+    /// <para>
+    /// <b>This permanently saturates the table for the rest of the process.</b> There is no
+    /// reset entry point (by design), so every later test needing a fresh hash-table slot
+    /// would silently fail to have its entry stored if it ran after this one. That is exactly
+    /// what caused <c>F003ApAssistNonstandardCallsignDecodeTests</c>'s co-channel AP-decode
+    /// test to flake under the full suite (see
+    /// <c>dev-tasks/2026-07-05-f-003-ap-assist-flaky-decode-test.md</c>) — this class is now
+    /// pinned to run last via <see cref="HashTableSaturationCollectionDefinition"/> /
+    /// <see cref="RunHashTableSaturationCollectionLastOrderer"/> specifically so this test's
+    /// deliberate saturation can never precede anything that still needs table capacity.
     /// </para>
     /// <para>
     /// Signals are batched 8-per-<see cref="Ft8LibInterop.DecodeAll"/>-call (250 Hz spacing,
