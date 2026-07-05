@@ -32,6 +32,25 @@ canonical definition lives in the `release-versioning` capability spec
 The OpenSpec CLI's stock `proposal` template does not scaffold this line (it ships inside the
 globally-installed npm package, not the repo), so it is added by convention — don't forget it.
 
+### PR granularity and branch protection (decided 2026-07-05, Captain + QA)
+
+Following `adopt-canonical-version-source` shipping as three separate PRs (#49 hotfix, #50
+implement, #51 archive+bump) for what was really one logical change, the Captain flagged the
+process as overengineered for a solo-maintainer repo. Two changes were agreed:
+
+- **One PR per OpenSpec change by default.** Implement, archive, and any accompanying `VERSION`
+  bump belong in the same branch/PR once tasks are complete and CI is green — do not default to
+  a separate follow-up PR just to run `/opsx:archive`. Split into multiple PRs only for a genuine
+  reason: an urgent hotfix that shouldn't wait behind unrelated work, or the Captain explicitly
+  wanting to review the implementation before archiving.
+- **Branch protection on `main` no longer requires an approving review**
+  (`required_approving_review_count: 0`, set 2026-07-05). A PR is still required before merging
+  (no direct pushes), and all required status checks (`Build & Test` × 3 OSes, `Gate G9`) still
+  block a merge — but the review-count requirement was pure friction on a repo with one
+  contributor: GitHub disallows self-approval, so every merge needed an `--admin` bypass that
+  added a step without adding a check. Revisit both of these if the project ever gains another
+  human contributor.
+
 ---
 
 ## N1 — `Ft8LibInterop`: retry-after-failure produces a confusing exception
