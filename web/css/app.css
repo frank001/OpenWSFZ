@@ -468,11 +468,26 @@ label {
 }
 
 /* ── Settings page ─────────────────────────────────────────────────────── */
+/* Base width covers the 6-tab bar (General/Radio hardware/Logging/Advanced/
+   Frequencies/Logs) on one unwrapped row; short-form tabs only get a modest
+   ~180px wider column than the old 520px, since their inputs are width:100%
+   and stretching them further looks worse than the wrap they used to have. */
 #settings-page,
 #settings-main {
-  max-width: 520px;
+  max-width: 700px;
   margin: 0 auto;
   padding: 0 1rem;
+}
+
+/* The Logs tab's monospace tail (~90–110 char lines) needs more room than the
+   short-form tabs to avoid wrapping two or three times over. Widen the shared
+   container further, but only while that tab is active, so General/Radio
+   hardware/Logging/Advanced/Frequencies keep the narrower column above. Reacts
+   to the existing `.active` class already toggled by settings.js — no JS
+   changes required. */
+body:has(#tab-logs.active) #settings-page,
+body:has(#tab-logs.active) #settings-main {
+  max-width: 900px;
 }
 
 #settings-page {
@@ -592,6 +607,8 @@ label {
 /* ── Settings tabs (FR-035) ─────────────────────────────────────────────── */
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap; /* narrow viewports: whole buttons wrap onto a new row
+                       instead of the row overflowing the container */
   gap: 0;
   border-bottom: 1px solid var(--color-border);
   margin-bottom: 1.5rem;
@@ -606,6 +623,9 @@ label {
   cursor: pointer;
   font-size: 0.9rem;
   padding: 0.5rem 1.2rem;
+  white-space: nowrap; /* keep each label (e.g. "Radio hardware") on one
+                          line — the wrapping bug was inside the button,
+                          not the row */
   transition: color 0.15s, border-color 0.15s;
 }
 
