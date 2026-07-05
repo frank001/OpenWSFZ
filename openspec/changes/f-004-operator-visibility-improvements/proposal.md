@@ -21,10 +21,17 @@ already-wired data path or page.
   one of its `Tx*` sub-states) — computed entirely from data already on the existing `txState`
   WebSocket payload (`state`, `autoAnswerEnabled`). Give `#tx-call-cq-btn` a steady bright-green
   state whenever Call-CQ mode is engaged (`role === 'caller' && autoAnswerEnabled`), independent of
-  the literal transmitting sub-state, and background colour otherwise. **BREAKING (UI behaviour)**:
-  `#tx-call-cq-btn` currently disables itself whenever `state !== 'Idle'`; this change reworks that
-  interaction so the button can read as steadily green through the Caller state-machine cycle (see
-  design.md for the resolution).
+  the literal transmitting sub-state, and background colour otherwise.
+- **BREAKING (UI behaviour + new backend capability)**: `#tx-call-cq-btn` currently disables itself
+  for the whole non-`Idle` duration of a caller session, with no way to end a session short of the
+  immediate-kill `Abort TX` button. Per the Captain's ruling (2026-07-05, "the operator is in
+  control"), this changes to a Call CQ / Stop CQ toggle: while engaged (`role === 'caller' && state
+  !== 'Idle'`) the button stays enabled, reads "Stop CQ", and clicking it requests a **graceful
+  stop** — any in-progress TX sample completes normally, then the service returns to `Idle` — via a
+  new `IQsoController.GracefulStopAsync` method and `POST /api/v1/tx/stop-cq` endpoint. This is a
+  revival of a previously-drafted-but-never-implemented handoff,
+  `dev-tasks/2026-06-26-caller-cq-stop.md` (FR-CQ-STOP-001); see design.md Decision 2b for the full
+  design and what was/wasn't carried forward from it.
 - Replace the waterfall canvas's current click scheme (plain left-click = RX, Shift+left-click =
   RX+TX, plain right-click = TX, no confirmation, no tooltip) with a modifier-gated scheme: only
   Ctrl+left-click (RX), Ctrl+right-click (TX), and Shift+left-click (RX+TX) change anything;
@@ -53,7 +60,14 @@ already-wired data path or page.
 - `web-frontend`: the existing "TX panel — Enable TX toggle button" requirement is narrowed from
   "armed ⇒ a single `tx-btn-armed` style, unconditionally" to "armed ⇒ some armed style, with the
   specific dark-red/bright-red choice governed by the new `tx-state-indicators` capability" — this
-  removes the direct conflict between the two capabilities' descriptions of the same button.
+  removes the direct conflict between the two capabilities' descriptions of the same button. A new
+  "TX panel — Call CQ button" requirement is also added, formalising (and superseding) the
+  previously undocumented `disabled = (state !== 'Idle')` behaviour with the Call CQ / Stop CQ
+  toggle described above.
+- `qso-controller`: adds `IQsoController.GracefulStopAsync` (default no-op) and the
+  `POST /api/v1/tx/stop-cq` endpoint.
+- `qso-caller`: adds `QsoCallerService`'s graceful-stop behaviour — completes any in-progress TX,
+  extends wakeup-channel eligibility to `WaitRr73`, idempotent on repeated requests.
 
 ## Impact
 
@@ -64,9 +78,15 @@ already-wired data path or page.
   version from `NativeVersionCheck()` needs to be retained (not just compared and discarded) so it
   can be read back out.
 - **Frontend**: `web/settings.html` / `web/js/settings.js` (Advanced tab shim-version display, new
-  Logs tab), `web/index.html` / `web/js/main.js` (`renderTxPanel`'s button-class logic, waterfall
-  canvas click/contextmenu handlers and tooltip), new `web/logs.html` + a new small JS module
+  Logs tab), `web/index.html` / `web/js/main.js` (`renderTxPanel`'s button-class logic, Call CQ
+  button's disabled/label/click-routing logic, waterfall canvas click/contextmenu handlers and
+  tooltip), `web/js/api.js` (new `postTxStopCq()`), new `web/logs.html` + a new small JS module
   mirroring the existing `settings.html`/`login.html` standalone-page pattern.
+- **Backend (Call CQ graceful stop)**: `src/OpenWSFZ.Abstractions/IQsoController.cs` (new
+  `GracefulStopAsync` method, default no-op), `src/OpenWSFZ.Daemon/QsoCallerService.cs`
+  (`GracefulStopAsync` implementation, `_gracefulStopRequested` flag, `WaitRr73` added to
+  wakeup-eligible states), `src/OpenWSFZ.Daemon/QsoControllerRouter.cs` (delegation),
+  `src/OpenWSFZ.Web/WebApp.cs` (new `POST /api/v1/tx/stop-cq` route).
 - **Configuration**: none — this change reads existing `logging.directory`/rotation settings
   (`AppConfig`/`DecodeLogConfig`) rather than adding new config surface.
 - **Non-goals**: a remote-restart capability was raised in the same discovery conversation but is

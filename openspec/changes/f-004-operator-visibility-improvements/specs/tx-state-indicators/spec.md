@@ -43,22 +43,18 @@ server-side signal:
 `#tx-call-cq-btn` SHALL render bright green whenever Call-CQ mode is engaged (`role` is
 `"caller"` and `autoAnswerEnabled` is `true`), regardless of which sub-state the Caller state
 machine currently occupies, and SHALL render its neutral background colour otherwise. This colour
-state is independent of the button's `disabled` attribute, which continues to gate whether a new
-Call-CQ action may be submitted (existing `renderTxPanel` behaviour, unchanged and not otherwise
-specified elsewhere: `disabled = (state !== 'Idle')`) — a disabled button in the engaged state
-SHALL still render bright green, not a dimmed/greyed treatment.
+rule is independent of, and governed separately from, the button's `disabled` attribute and label,
+which are specified by the `web-frontend` capability's "TX panel — Call CQ button" requirement —
+under that requirement, an engaged button (`role === 'caller' && state !== 'Idle'`) is always
+enabled (labelled "Stop CQ"), so a disabled button never coincides with the engaged/green state in
+practice; this requirement's colour rule holds regardless.
 
 #### Scenario: Call-CQ engaged renders bright green regardless of sub-state
 
 - **WHEN** `role` is `"caller"`, `autoAnswerEnabled` is `true`, and `state` is any of `"Idle"`,
   `"TxCq"`, `"WaitAnswer"`, `"TxReport"`, `"WaitRr73"`, `"TxRr73"`, or `"QsoComplete"`
-- **THEN** `#tx-call-cq-btn` SHALL render bright green in every case
-
-#### Scenario: Call-CQ engaged and button disabled still renders bright green
-
-- **WHEN** `role` is `"caller"`, `autoAnswerEnabled` is `true`, `state` is not `"Idle"` (so the
-  button's `disabled` attribute is set per existing behaviour), and the button is currently disabled
-- **THEN** `#tx-call-cq-btn` SHALL still render bright green, not a dimmed disabled-button treatment
+- **THEN** `#tx-call-cq-btn` SHALL render bright green in every case, and SHALL be enabled in every
+  non-`"Idle"` case among them (see `web-frontend`)
 
 #### Scenario: Call-CQ not engaged renders background colour
 

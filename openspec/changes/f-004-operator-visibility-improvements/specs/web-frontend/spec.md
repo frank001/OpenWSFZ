@@ -1,3 +1,68 @@
+## ADDED Requirements
+
+### Requirement: TX panel — Call CQ button
+
+The TX panel SHALL contain a single `<button id="tx-call-cq-btn">` whose label, enabled state, and
+click action are all derived from the existing `role` and `state` fields (no additional
+server-side signal beyond the new `POST /api/v1/tx/stop-cq` endpoint described below):
+
+| Condition | Enabled? | Label | Click action |
+|---|---|---|---|
+| `role !== "caller"` and `state === "Idle"` | Enabled | "Call CQ" | `POST /api/v1/tx/call-cq` (existing) |
+| `role === "caller"` and `state !== "Idle"` | Enabled | "Stop CQ" | `POST /api/v1/tx/stop-cq` (new) |
+| `role !== "caller"` and `state !== "Idle"` (answerer mid-QSO) | Disabled | "Call CQ" | — |
+
+This SHALL supersede the button's previous informal gating (`disabled` whenever `state !== "Idle"`,
+undocumented as a formal requirement prior to this change) — the button is no longer unconditionally
+disabled for the whole non-`Idle` duration of a caller session; while `role === "caller"` it remains
+enabled throughout, so the operator can always stop a session in progress.
+
+A "Stop CQ" click requests a **graceful stop**, distinct from the always-available `Abort TX`
+button: any TX sample already in flight plays to completion (no audio interruption), and the
+service returns to `Idle` only once it reaches its next natural wait point. The click handler
+SHALL NOT re-render the panel from the `POST /api/v1/tx/stop-cq` response directly — the panel
+SHALL update once the subsequent `txState` WebSocket event carrying `state: "Idle"` arrives,
+consistent with how `Abort TX` is already handled.
+
+This button's bright-green "engaged" colour while `role === "caller" && autoAnswerEnabled` is
+governed by the `tx-state-indicators` capability, independently of the enabled/label/click
+behaviour specified here.
+
+#### Scenario: Idle button starts a CQ session
+
+- **WHEN** `state` is `"Idle"` (any role)
+- **THEN** `#tx-call-cq-btn` SHALL be enabled with label "Call CQ"
+- **AND** clicking it SHALL call `POST /api/v1/tx/call-cq`
+
+#### Scenario: Engaged caller button offers a graceful stop
+
+- **WHEN** `role` is `"caller"` and `state` is any non-`"Idle"` value (e.g. `"TxCq"`,
+  `"WaitAnswer"`, `"TxReport"`, `"WaitRr73"`, `"TxRr73"`, `"QsoComplete"`)
+- **THEN** `#tx-call-cq-btn` SHALL be enabled with label "Stop CQ"
+- **AND** clicking it SHALL call `POST /api/v1/tx/stop-cq`, not `POST /api/v1/tx/abort`
+
+#### Scenario: Answerer mid-QSO disables the button
+
+- **WHEN** `role` is `"answerer"` and `state` is not `"Idle"`
+- **THEN** `#tx-call-cq-btn` SHALL be disabled with label "Call CQ"
+
+#### Scenario: Stop CQ click does not immediately re-render the panel
+
+- **WHEN** the operator clicks "Stop CQ" and `POST /api/v1/tx/stop-cq` returns HTTP 200 with a
+  non-`"Idle"` `state` (TX still completing)
+- **THEN** the TX panel SHALL NOT be forced to the `Idle`/disarmed appearance from that response
+  alone
+- **AND** the panel SHALL update to `Idle` only when a subsequent `txState` WebSocket event with
+  `state: "Idle"` is received
+
+#### Scenario: Clicking Stop CQ twice in quick succession is idempotent
+
+- **WHEN** `POST /api/v1/tx/stop-cq` is sent twice in immediate succession for the same session
+- **THEN** neither call SHALL error, and the service SHALL still reach `Idle` exactly once, at the
+  same point it would have from a single request
+
+---
+
 ## MODIFIED Requirements
 
 ### Requirement: TX panel — Enable TX toggle button
