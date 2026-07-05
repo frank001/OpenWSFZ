@@ -163,6 +163,15 @@ When the service has selected a partner (via `First` auto-selection or `None` op
   `TxReport`
 - **THEN** the transmitted message SHALL be `"Q1ABC PD2FZ +00"`
 
+#### Scenario: AP decode constraints arm successfully for a nonstandard partner callsign
+
+- **WHEN** the service transmits from `TxReport` with `partner` a nonstandard/compound
+  callsign (e.g. `"PJ4/K1ABC"`) and `callsign` a standard basecall
+- **THEN** step 6 SHALL arm H6 AP decode constraints using the extended callsign packer's
+  nonstandard-callsign encoding for `partner`, rather than disabling AP decode-assist for the
+  QSO (previously: either callsign failing to pack under the standard-basecall-only packer
+  disabled AP entirely)
+
 ---
 
 ### Requirement: WaitRr73 — waiting for partner's R+report
