@@ -12,6 +12,31 @@ no other file SHALL declare a version value independent of it.
 - **WHEN** the repository is inspected at the root
 - **THEN** a `VERSION` file SHALL exist containing a single `MAJOR.MINOR` (or `MAJOR.MINOR.PATCH`) line with no `v` prefix
 
+### Requirement: Version consistency across all surfaces
+
+At all times on `main`, every surface that reports or states the project's version SHALL agree
+with `VERSION`'s content. This is the umbrella invariant the other requirements in this
+capability exist to serve; it is listed explicitly, and separately, so it can be checked as a
+single fact rather than inferred piecemeal. The surfaces are: `VERSION` itself; the assembly
+version derived from `Directory.Build.props` (and therefore `AssemblyInformationalVersion` on
+every built assembly); the daemon's status API (`GET /api/v1/status` and the WebSocket
+equivalent); the daemon's stdout welcome banner; the anchor sentence in `README.md`; the anchor
+sentence in `REQUIREMENTS.md`; and, following each release, the corresponding annotated git tag.
+A change to `VERSION` SHALL be accompanied, in the same commit or pull request, by whatever
+follow-on action keeps every other surface derived from or consistent with it (most surfaces are
+automatically consistent by construction — see the other requirements in this capability — but
+the git tag is cut manually and SHALL NOT be forgotten).
+
+#### Scenario: All surfaces agree after a version change
+
+- **WHEN** `VERSION` is changed to a new value and the change is merged to `main`
+- **THEN** the built assemblies' informational version, the daemon status API, the daemon welcome banner, the `README.md` anchor sentence, and the `REQUIREMENTS.md` anchor sentence SHALL all report that same new value, and an annotated git tag matching it SHALL be cut
+
+#### Scenario: A surface drifts from VERSION
+
+- **WHEN** any one of these surfaces reports a version different from `VERSION`'s content
+- **THEN** this SHALL be treated as a defect against this requirement, regardless of which surface drifted or why
+
 ### Requirement: Build reads the canonical version
 
 `Directory.Build.props` SHALL derive its `<Version>` MSBuild property by reading `VERSION` at

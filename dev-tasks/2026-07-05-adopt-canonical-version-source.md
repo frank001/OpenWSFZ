@@ -5,7 +5,11 @@
 `openspec validate --strict --changes adopt-canonical-version-source` passes (1 new capability:
 `release-versioning`; 1 modified capability delta: `ci-quality-gates`, adding gate G9)
 **Branch:** `feat/adopt-canonical-version-source` (not yet created — branch from current `main`)
-**Status:** Ready for implementation — no code written yet, OpenSpec artifacts only
+**Status:** **Partially implemented directly on `main` by QA at the Captain's request** — tasks
+1–3 and 6.1 of `tasks.md` are done (commits `547b05c`, tag `v0.30`; see §1 below and `tasks.md`
+for the full list). Tasks 4 (CI gate G9) and 5 (OpenSpec process convention) remain and are what
+this handoff is actually for. **Do not redo tasks 1–3 or 6.1** — verify them (§2/§4 below), don't
+re-implement them.
 **Origin:** GitHub issue #49 ("Adopt a canonical version source + enforce minor-bump-per-feature")
 
 ---
@@ -34,7 +38,34 @@ short. The two things most worth internalising before you start:
    change's own `proposal.md` already carries that line (`yes`) — don't strip it during any
    editing pass.
 
-## 2. Work breakdown & suggested sequencing
+## 2. Non-negotiable requirement — version consistency across all surfaces
+
+This is now a formal, explicit requirement in
+`openspec/changes/adopt-canonical-version-source/specs/release-versioning/spec.md` ("Version
+consistency across all surfaces") — added after the Captain asked for it directly, so treat it
+as load-bearing rather than incidental colour. Stating it plainly here too, because it's the
+whole point of this change and easy to lose sight of while implementing individual tasks:
+
+> **At all times on `main`, every place the project's version appears SHALL show the identical
+> value.** That is: the `VERSION` file; the `AssemblyInformationalVersion` every built assembly
+> carries (derived from `Directory.Build.props`, which reads `VERSION`); the daemon's status API
+> (`GET /api/v1/status` and the WebSocket equivalent); the daemon's stdout welcome banner;
+> `README.md`'s anchor sentence; `REQUIREMENTS.md`'s anchor sentence; and the annotated git tag
+> for the current release. A PR that changes `VERSION` without every other surface following is
+> not done, even if its own assigned task's acceptance criterion is technically met.
+
+Task 7.3 in `tasks.md` gives the exact shell one-liner to check this by hand. Gate G9 (task 4),
+once built, automates the `VERSION`/README/REQUIREMENTS leg of it on every future PR — but it
+does **not** check the status API, the banner, or the git tag, so 7.3's manual check remains
+necessary for any PR (this one or a future one) that touches versioning until those are also
+automated. Don't treat gate G9 passing as proof that every surface agrees.
+
+QA has already done this cross-check once, for tasks 1–3 and the tag (see §1 above and
+`tasks.md`'s §1/§2/§3/§6, now marked done with commit references) — this section exists so the
+same discipline is applied to whatever this handoff's remaining tasks (§4 CI enforcement, §5
+process convention) touch, and to every PR after this one that bumps `VERSION`.
+
+## 3. Work breakdown & suggested sequencing
 
 Follow `openspec/changes/adopt-canonical-version-source/tasks.md` §1–§7 in order — they're
 dependency-ordered. Notes below are pitfalls found during spec/design review, not a restatement.
@@ -131,7 +162,7 @@ This is the part with the most new surface. Two independent scripts, one job:
   `release-versioning` spec and the `ci-quality-gates` delta don't break the 46/46 passing baseline
   (verified clean as of this handoff).
 
-## 3. Before opening a PR
+## 4. Before opening a PR
 
 - `openspec validate --strict --all` must still pass (46 specs + this change, currently green).
 - Full `dotnet test` — 0 new failures.
@@ -142,15 +173,20 @@ This is the part with the most new surface. Two independent scripts, one job:
   local run — this is a "does it actually work" check, not just a unit-test claim (same category
   of caution as the flaky-decode-test lesson from `f-003-ap-assist`, see
   `dev-tasks/2026-07-05-f-003-ap-assist-flaky-decode-test.md`).
+- Run task 7.3's cross-surface consistency check (§2 above) in full, not just the two bullets
+  above — it also covers `README.md`, `REQUIREMENTS.md`, and the git tag, which the previous
+  bullets don't touch.
 
-## 4. QA review
+## 5. QA review
 
 Standard process: QA reviews the diff against `openspec/changes/adopt-canonical-version-source/`'s
 artifacts, confirms task-completion-on-archive and spec-sync state (HK-002 checklist), verifies
 gate G9 actually fires in the negative case somewhere in the PR's CI history (not just that it's
-green), and signs off before merge. Please hold the merge for that review.
+green), **independently re-runs the §2 cross-surface consistency check rather than trusting the
+PR description's claim that it was done**, and signs off before merge. Please hold the merge for
+that review.
 
-## 5. References
+## 6. References
 
 - `openspec/changes/adopt-canonical-version-source/{proposal,design,tasks}.md` — source of truth;
   read `design.md` first, especially the Decisions and Risks/Trade-offs sections.
