@@ -352,6 +352,19 @@ export async function postTxCallCq() {
 }
 
 /**
+ * POST /api/v1/tx/stop-cq
+ * Requests a graceful stop of the current CQ caller session: any TX sample already in
+ * flight completes normally, then the service returns to Idle. Unlike postTxAbort(),
+ * this does not immediately kill audio. The caller should not re-render the TX panel
+ * from this response directly — wait for the subsequent txState WebSocket event
+ * (state: 'Idle') instead, consistent with how Abort TX is already handled.
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string}>}
+ */
+export function postTxStopCq() {
+  return fetchJson('/api/v1/tx/stop-cq', { method: 'POST' });
+}
+
+/**
  * POST /api/v1/tx/caller-partner-select
  * Persists the caller partner-select mode to config (FR-PILEUP-001).
  * @param {'First'|'None'} mode

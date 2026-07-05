@@ -737,6 +737,30 @@ public static class WebApp
             return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role, CallerPartnerSelect: callerPartnerSelect));
         });
 
+        // ── POST /api/v1/tx/stop-cq (qso-controller — Call CQ graceful stop) ──
+        //
+        // Requests a graceful stop: any in-progress TX sample completes normally, then the
+        // service returns to Idle. Unlike /abort, this does NOT hardcode
+        // AutoAnswerEnabled: false in the response — the service may still be mid-TX at the
+        // time of the response, and the frontend does not act on this response directly;
+        // it waits for the subsequent txState WebSocket event to reflect the completed stop.
+
+        app.MapPost("/api/v1/tx/stop-cq", async (IConfigStore store, CancellationToken ct) =>
+        {
+            if (qsoController is null)
+                return Results.Problem("TX controller not available.", statusCode: 503);
+
+            await qsoController.GracefulStopAsync(ct);
+
+            var state               = qsoController.State;
+            var partner             = qsoController.Partner;
+            var autoAnswerEnabled   = store.Current.Tx?.AutoAnswer ?? false;
+            var role                = qsoController.Role.ToString().ToLowerInvariant();
+            var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
+            return TypedResults.Ok(new TxStatusResponse(
+                state.ToString(), partner, autoAnswerEnabled, role, callerPartnerSelect));
+        });
+
         // ── POST /api/v1/tx/answer-cq (TX-D01 phase-aware CQ answer) ──────────
 
         app.MapPost("/api/v1/tx/answer-cq", async (

@@ -10,12 +10,12 @@
 
 ## 2. TX-enable button visual states
 
-- [ ] 2.1 Add an `isTransmittingSubState(state)` helper to `web/js/main.js` (returns `true` when
+- [x] 2.1 Add an `isTransmittingSubState(state)` helper to `web/js/main.js` (returns `true` when
       `state` is a string starting with `"Tx"`) per design.md Decision 2.
-- [ ] 2.2 Update `renderTxPanel` to apply the three-state `#tx-enable-btn` class mapping
+- [x] 2.2 Update `renderTxPanel` to apply the three-state `#tx-enable-btn` class mapping
       (background / `tx-btn-armed` dark red / new `tx-btn-transmitting` bright red) per the
       `tx-state-indicators` spec.
-- [ ] 2.3 Add CSS for `tx-btn-transmitting` in `web/css/app.css`.
+- [x] 2.3 Add CSS for `tx-btn-transmitting` in `web/css/app.css`.
 
 ## 3. Call CQ button — engaged colour + graceful stop
 
@@ -28,36 +28,36 @@ fixes (D-CALLER-006 through 015).
 
 **Backend:**
 
-- [ ] 3.1 Add `Task GracefulStopAsync(CancellationToken ct = default)` to `IQsoController`
+- [x] 3.1 Add `Task GracefulStopAsync(CancellationToken ct = default)` to `IQsoController`
       (`src/OpenWSFZ.Abstractions/IQsoController.cs`), defaulting to a no-op so
       `QsoAnswererService` needs no change, per the `qso-controller` spec.
-- [ ] 3.2 Implement `QsoCallerService.GracefulStopAsync` (`src/OpenWSFZ.Daemon/QsoCallerService.cs`):
+- [x] 3.2 Implement `QsoCallerService.GracefulStopAsync` (`src/OpenWSFZ.Daemon/QsoCallerService.cs`):
       a `_gracefulStopRequested` flag (mirroring `_operatorAbortRequested`), a wakeup posted via the
       existing `_wakeupChannel`, a no-op guard when `_callerState == Idle`, and a check in the
       batch-processing loop (alongside the existing `_txCts.IsCancellationRequested` check) that
       clears the flag and calls `SafeAbortToIdleAsync(stoppingToken, "Operator stop")` — without
       cancelling `_txCts` — per the `qso-caller` spec.
-- [ ] 3.3 Add `WaitRr73` to the wakeup-eligible state set alongside the existing `Idle`/`WaitAnswer`
+- [x] 3.3 Add `WaitRr73` to the wakeup-eligible state set alongside the existing `Idle`/`WaitAnswer`
       so a stop requested there is honoured within the current cycle, per the `qso-caller` spec.
-- [ ] 3.4 Add `_gracefulStopRequested = false` to `SafeAbortToIdleAsync`'s existing reset block
+- [x] 3.4 Add `_gracefulStopRequested = false` to `SafeAbortToIdleAsync`'s existing reset block
       (alongside `_txCts`/`_abortTcs`) so a superseding immediate abort clears any pending flag.
-- [ ] 3.5 Add `GracefulStopAsync` delegation to `QsoControllerRouter`
+- [x] 3.5 Add `GracefulStopAsync` delegation to `QsoControllerRouter`
       (`src/OpenWSFZ.Daemon/QsoControllerRouter.cs`), matching its existing `AbortAsync` delegation.
-- [ ] 3.6 Add `POST /api/v1/tx/stop-cq` in `WebApp.cs`: calls `GracefulStopAsync` on the resolved
+- [x] 3.6 Add `POST /api/v1/tx/stop-cq` in `WebApp.cs`: calls `GracefulStopAsync` on the resolved
       `IQsoController`, returns the current `TxStatusResponse` (do NOT hardcode
       `AutoAnswerEnabled: false` — the service may still be mid-TX); 503 problem response when no
       controller is registered, matching the existing `/answer-cq`/`/select-responder` convention.
 
 **Frontend:**
 
-- [ ] 3.7 Add `postTxStopCq()` to `web/js/api.js` (mirrors `postTxAbort`/`postTxCallCq` —
+- [x] 3.7 Add `postTxStopCq()` to `web/js/api.js` (mirrors `postTxAbort`/`postTxCallCq` —
       `fetchJson('/api/v1/tx/stop-cq', { method: 'POST' })`) and import it in `web/js/main.js`.
-- [ ] 3.8 Update `renderTxPanel`'s `#tx-call-cq-btn` block in `web/js/main.js`: `disabled` becomes
+- [x] 3.8 Update `renderTxPanel`'s `#tx-call-cq-btn` block in `web/js/main.js`: `disabled` becomes
       `role !== 'caller' && state !== 'Idle'` (was `state !== 'Idle'`); label becomes "Stop CQ" when
       `role === 'caller' && state !== 'Idle'`, otherwise "Call CQ"; apply the `tx-call-cq-armed`
       bright-green class per the existing `tx-state-indicators` mapping (task 2.3-equivalent —
       unchanged colour logic, only label/disabled change here).
-- [ ] 3.9 Update the `#tx-call-cq-btn` click handler in `web/js/main.js`: branch on
+- [x] 3.9 Update the `#tx-call-cq-btn` click handler in `web/js/main.js`: branch on
       `currentTxRole === 'caller' && currentTxState !== 'Idle'` to call `postTxStopCq()` instead of
       `postTxCallCq()`; do not re-render the panel from the stop-cq response directly — let the
       subsequent `txState` WebSocket `Idle` event drive the UI update, consistent with `Abort TX`.
@@ -67,12 +67,12 @@ fixes (D-CALLER-006 through 015).
 
 ## 4. Waterfall click modifier keys
 
-- [ ] 4.1 Update the `canvas.addEventListener('click', ...)` handler in `web/js/main.js` to require
+- [x] 4.1 Update the `canvas.addEventListener('click', ...)` handler in `web/js/main.js` to require
       Ctrl for RX-only and Shift for RX+TX; a click with neither modifier is a no-op.
-- [ ] 4.2 Update the `canvas.addEventListener('contextmenu', ...)` handler to require Ctrl to set
+- [x] 4.2 Update the `canvas.addEventListener('contextmenu', ...)` handler to require Ctrl to set
       TX; Shift or no modifier is a no-op. Keep `e.preventDefault()` unconditional for every
       right-click (design.md Decision 3).
-- [ ] 4.3 Add a `title` attribute (or equivalent tooltip) to the waterfall canvas element in
+- [x] 4.3 Add a `title` attribute (or equivalent tooltip) to the waterfall canvas element in
       `web/index.html` describing the Ctrl/Shift click scheme.
 
 ## 5. Log viewer — backend
