@@ -53,6 +53,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(LogQsoRequest))]
 [JsonSerializable(typeof(LogQsoResponse))]
 [JsonSerializable(typeof(WsQsoReviewMessage))]
+[JsonSerializable(typeof(LogTailResponse))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -232,6 +233,12 @@ internal sealed record LogQsoResponse(bool Logged);
 /// }
 /// </code>
 /// </summary>
+/// <summary>
+/// Response body for <c>GET /api/v1/logs/tail</c> (log-viewer).
+/// Wire format: <c>{"lines":["2026-07-05 12:00:00 [INF] ...", "..."]}</c>
+/// </summary>
+internal sealed record LogTailResponse(string[] Lines);
+
 internal sealed record WsQsoReviewMessage(
     string  Type,
     string  Callsign,

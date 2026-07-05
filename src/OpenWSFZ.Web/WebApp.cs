@@ -566,6 +566,71 @@ public static class WebApp
         // Using a different local name to avoid shadowing the method parameter of the same name.
         var adifLogSvc = app.Services.GetService<IAdifLogWriter>();
 
+        // Capture ILogFileSource (log-viewer). May be null in tests that don't wire up
+        // LoggingPipeline — both endpoints below treat that the same as "no active log file".
+        var logFileSource = app.Services.GetService<ILogFileSource>();
+
+        // ── GET /api/v1/logs/tail (log-viewer) ────────────────────────────────
+        // Returns the last N lines (default 150, capped at 1000) of the daemon's currently
+        // active log file. Returns an empty array with HTTP 200 — never an error — when file
+        // logging is disabled or no log file has been created yet.
+        const int DefaultTailLines = 150;
+        const int MaxTailLines     = 1000;
+
+        app.MapGet("/api/v1/logs/tail", (int? lines) =>
+        {
+            var requested = Math.Clamp(lines ?? DefaultTailLines, 1, MaxTailLines);
+            var path      = logFileSource?.CurrentLogFilePath;
+
+            if (path is null || !File.Exists(path))
+                return TypedResults.Ok(new LogTailResponse([]));
+
+            try
+            {
+                // FileShare.ReadWrite: the Serilog file sink (buffered, same process) may hold
+                // the file open for writing concurrently — this read must not be blocked by that.
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var sr = new StreamReader(fs);
+                var allLines = sr.ReadToEnd()
+                                  .Split('\n')
+                                  .Select(l => l.TrimEnd('\r'))
+                                  .ToArray();
+
+                var tail = allLines.Length > requested
+                    ? allLines[^requested..]
+                    : allLines;
+                return TypedResults.Ok(new LogTailResponse(tail));
+            }
+            catch (IOException)
+            {
+                // Rotation/deletion raced with this read — treat as "nothing to show" rather
+                // than surfacing a transient filesystem error to the operator.
+                return TypedResults.Ok(new LogTailResponse([]));
+            }
+        });
+
+        // ── GET /api/v1/logs/full (log-viewer) ────────────────────────────────
+        // Returns the complete current contents of the daemon's currently active log file as
+        // plain text. Returns an empty body with HTTP 200 when no active log file exists.
+        app.MapGet("/api/v1/logs/full", () =>
+        {
+            var path = logFileSource?.CurrentLogFilePath;
+
+            if (path is null || !File.Exists(path))
+                return Results.Text(string.Empty, "text/plain");
+
+            try
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var sr = new StreamReader(fs);
+                return Results.Text(sr.ReadToEnd(), "text/plain");
+            }
+            catch (IOException)
+            {
+                return Results.Text(string.Empty, "text/plain");
+            }
+        });
+
         app.MapPost("/api/v1/tune", async (
             HttpRequest       request,
             IConfigStore      store,

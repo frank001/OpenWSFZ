@@ -934,6 +934,37 @@ select#dial-freq {
   cursor: pointer;
 }
 
+/* ── Log viewer (log-viewer) ─────────────────────────────────────────────── */
+.logs-tail-output {
+  margin-top:    0.75rem;
+  max-height:    60vh;
+  overflow-y:    auto;
+  overflow-x:    auto;
+  white-space:   pre-wrap;
+  word-break:    break-word;
+  background:    var(--color-bg);
+  border:        1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding:       0.75rem;
+  font-family:   var(--font-mono);
+  font-size:     0.78rem;
+  line-height:   1.4;
+  color:         var(--color-text);
+}
+
+/* Standalone full-log page (web/logs.html) */
+.logs-full-page {
+  margin:      0;
+  padding:     1rem;
+  white-space: pre-wrap;
+  word-break:  break-word;
+  background:  var(--color-bg);
+  color:       var(--color-text);
+  font-family: var(--font-mono);
+  font-size:   0.8rem;
+  line-height: 1.4;
+}
+
 /* Button row */
 .dialog-button-row {
   display: flex;

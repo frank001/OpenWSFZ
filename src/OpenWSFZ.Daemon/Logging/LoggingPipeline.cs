@@ -10,10 +10,19 @@ namespace OpenWSFZ.Daemon.Logging;
 /// Call <see cref="Apply"/> once at bootstrap and again on every config save.
 /// Call <see cref="Dispose"/> on shutdown to flush buffered file events.
 /// </summary>
-internal sealed class LoggingPipeline : IDisposable
+internal sealed class LoggingPipeline : IDisposable, ILogFileSource
 {
     private LoggingConfig _config       = new();
     private LogLevel      _consoleLevel = LogLevel.Information;
+
+    /// <summary>
+    /// The daemon's currently active log file path, or <see langword="null"/> when file
+    /// logging is disabled or the file could not be created
+    /// (f-004-operator-visibility-improvements, log-viewer). Set at the same point
+    /// <see cref="Apply"/> computes the path via <see cref="TryCreateLogFile"/>; read by the
+    /// <c>GET /api/v1/logs/tail</c> and <c>GET /api/v1/logs/full</c> endpoints.
+    /// </summary>
+    public string? CurrentLogFilePath { get; private set; }
 
     /// <summary>
     /// (Re-)builds the Serilog logger from config and assigns <see cref="Log.Logger"/>.
@@ -35,6 +44,11 @@ internal sealed class LoggingPipeline : IDisposable
             .MinimumLevel.Is(globalMin)
             .WriteTo.Console(restrictedToMinimumLevel: consoleSerilog);
 
+        // Reset before recomputing — if file logging is disabled or file creation fails
+        // below, CurrentLogFilePath must reflect that (null), not a stale path from a
+        // previous Apply()/Rotate() call.
+        CurrentLogFilePath = null;
+
         if (config.FileEnabled)
         {
             var path = TryCreateLogFile(config.Directory);
@@ -45,6 +59,7 @@ internal sealed class LoggingPipeline : IDisposable
                     restrictedToMinimumLevel: fileSerilog,
                     rollingInterval: RollingInterval.Infinite,
                     buffered: true);
+                CurrentLogFilePath = path;
             }
         }
 

@@ -336,6 +336,9 @@ var app = WebApp.Create(
         // Register the auth policy selected above (daemon wins over WebApp.Create default).
         services.AddSingleton<IAuthPolicy>(authPolicy);
         services.AddSingleton(loggingPipeline);
+        // ILogFileSource (log-viewer): lets WebApp.cs read the active log file path
+        // without OpenWSFZ.Web depending on OpenWSFZ.Daemon.
+        services.AddSingleton<ILogFileSource>(loggingPipeline);
         services.AddSingleton(allTxtWriter);
         services.AddHostedService<LogRotationService>();
 

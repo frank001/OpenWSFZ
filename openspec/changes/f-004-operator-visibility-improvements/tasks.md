@@ -77,24 +77,27 @@ fixes (D-CALLER-006 through 015).
 
 ## 5. Log viewer — backend
 
-- [ ] 5.1 Add a `CurrentLogFilePath` property to `LoggingPipeline`
+- [x] 5.1 Add a `CurrentLogFilePath` property to `LoggingPipeline`
       (`src/OpenWSFZ.Daemon/Logging/LoggingPipeline.cs`), set in `Apply()` at the same point
       `TryCreateLogFile` succeeds; `null` when file logging is disabled or file creation failed.
-- [ ] 5.2 Add `GET /api/v1/logs/tail?lines=150` in `WebApp.cs`: reads `CurrentLogFilePath` via the
+      Implemented via a new `ILogFileSource` interface in `OpenWSFZ.Abstractions` (mirroring the
+      existing `IAdifLogWriter` pattern) so `OpenWSFZ.Web` can read it without depending on
+      `OpenWSFZ.Daemon`.
+- [x] 5.2 Add `GET /api/v1/logs/tail?lines=150` in `WebApp.cs`: reads `CurrentLogFilePath` via the
       DI-registered `LoggingPipeline`, returns the last *N* lines (default 150) as
       `{ "lines": string[] }`; returns an empty array with HTTP 200 when no active file exists.
-- [ ] 5.3 Add `GET /api/v1/logs/full` in `WebApp.cs`: reads the complete current contents of
+- [x] 5.3 Add `GET /api/v1/logs/full` in `WebApp.cs`: reads the complete current contents of
       `CurrentLogFilePath`, returns as `Content-Type: text/plain`; returns an empty body with
       HTTP 200 when no active file exists.
 
 ## 6. Log viewer — frontend
 
-- [ ] 6.1 Add a "Logs" tab to `web/settings.html` (alongside General/Radio hardware/Logging/
+- [x] 6.1 Add a "Logs" tab to `web/settings.html` (alongside General/Radio hardware/Logging/
       Advanced/Frequencies), following the existing tab markup/ARIA pattern.
-- [ ] 6.2 In `web/js/settings.js`, poll `GET /api/v1/logs/tail?lines=150` on an interval while the
+- [x] 6.2 In `web/js/settings.js`, poll `GET /api/v1/logs/tail?lines=150` on an interval while the
       Logs tab is active and render the lines (oldest first).
-- [ ] 6.3 Add a link/button on the Logs tab to open the standalone full-log page in a new tab.
-- [ ] 6.4 Create `web/logs.html` + a small new JS module (mirroring the `settings.html`/`login.html`
+- [x] 6.3 Add a link/button on the Logs tab to open the standalone full-log page in a new tab.
+- [x] 6.4 Create `web/logs.html` + a small new JS module (mirroring the `settings.html`/`login.html`
       standalone-page pattern) that fetches `GET /api/v1/logs/full` exactly once on load and
       performs no polling/auto-refresh.
 

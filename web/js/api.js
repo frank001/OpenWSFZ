@@ -352,6 +352,40 @@ export async function postTxCallCq() {
 }
 
 /**
+ * GET /api/v1/logs/tail?lines=N
+ * Returns the last N lines of the daemon's currently active log file, oldest first.
+ * Returns an empty array (not an error) when file logging is disabled or no active
+ * log file exists yet.
+ * @param {number} [lines=150]
+ * @returns {Promise<{lines: string[]}>}
+ */
+export function getLogsTail(lines = 150) {
+  return fetchJson(`/api/v1/logs/tail?lines=${encodeURIComponent(lines)}`);
+}
+
+/**
+ * GET /api/v1/logs/full
+ * Fetches the complete current contents of the daemon's currently active log file as
+ * plain text. Returns an empty string when no active log file exists.
+ * @returns {Promise<string>}
+ */
+export async function getLogsFull() {
+  const key = getApiKey();
+  const res = await fetch('/api/v1/logs/full', {
+    headers: key ? { 'X-Api-Key': key } : {},
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/logs/full`);
+  }
+  return res.text();
+}
+
+/**
  * POST /api/v1/tx/stop-cq
  * Requests a graceful stop of the current CQ caller session: any TX sample already in
  * flight completes normally, then the service returns to Idle. Unlike postTxAbort(),
