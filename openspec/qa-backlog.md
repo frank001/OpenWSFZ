@@ -129,3 +129,38 @@ section is added — a latent trip-hazard for the next developer.
 **Suggested fix:** Add a concise, content-neutral `## Purpose` paragraph above `## Requirements`
 in each of the eleven specs (one short sentence describing the capability), then confirm
 `openspec validate --all --strict` reports 19/19 passing. Doc-only; no behaviour change.
+
+---
+
+## N5 — `check_version_bump.py` misses a proposal archived in a separate PR from its own creation
+
+**Severity:** Low
+**Source:** `g9-automate-release-tagging` archive (PR #53, 2026-07-06)
+**File:** `tools/check_version_bump.py` — `_added_proposals()`
+
+The script detects newly-archived proposals via `git diff --name-only --diff-filter=A
+<base>...HEAD -- 'openspec/changes/archive/**/proposal.md'`, i.e. it only catches files that are
+pure **additions** relative to the PR's base ref. If a change's `proposal.md` is created and
+merged to `main` first (as an active, un-archived change) and only archived — i.e. moved under
+`openspec/changes/archive/...` — in a **later, separate** PR, git correctly detects that move as a
+**rename** (the file already existed on `main` at the old path), not an addition. `--diff-filter=A`
+excludes renames, so `_added_proposals()` returns empty and gate G9b silently reports "this PR
+archives no new OpenSpec changes; no version bump required" — even if the proposal declares
+`**User-facing:** yes` and no `VERSION` bump is present.
+
+Confirmed empirically: `python3 tools/check_version_bump.py origin/main` returned this false-negative
+"OK" for PR #53, which archived `g9-automate-release-tagging` (itself `User-facing: no`, so no
+enforcement gap materialised in that instance — but the detection logic itself would have missed a
+`yes`-declared change archived the same way).
+
+This gap only bites when propose-and-implement and archive happen in **separate** PRs. The
+Captain and QA agreed on 2026-07-05 to default to one PR per OpenSpec change (see the Process
+notes above) specifically to avoid this shape of split, which makes the trigger rare going
+forward — logged here rather than fixed immediately for that reason.
+
+**Suggested fix:** Either (a) add `-M`-aware rename detection and treat a renamed-in file under
+the archive path the same as an addition (`git diff --diff-filter=AR` plus reading the *new* path's
+content, not the old one), or (b) accept the narrower rename-blind-spot as a documented limitation
+and rely on the one-PR-per-change convention to avoid triggering it. Whichever is chosen, add a
+regression test/scratch-branch exercise (mirroring `adopt-canonical-version-source` task 4.4) that
+specifically covers the split-PR/rename case before changing the script.
