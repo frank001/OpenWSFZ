@@ -83,6 +83,8 @@ public sealed class AvContainmentTests
             return 0f;
         }
 
+        public int GetHashTableRejectCount() => 0;
+
         public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
         {
             GetLastLlrStatsCalled = true;

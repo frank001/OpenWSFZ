@@ -101,6 +101,22 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
         => _interop.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
 
+    /// <summary>
+    /// Return the process-lifetime count of Type 4 callsign announcements the native decoder
+    /// discarded because its session-scoped callsign hash table was already at its 256-slot
+    /// capacity (f-005-hash-table-saturation-diagnostic).
+    /// <para>
+    /// A non-zero value means the hash table saturated during this session and one or more
+    /// nonstandard-callsign announcements could not be stored — the exact condition F-001's
+    /// design flagged as a risk on a busy or long session.  The daemon reads this once at
+    /// graceful shutdown to log a session-end summary line, and serves it live on
+    /// <c>GET /api/v1/status</c> for mid-session diagnosis.  Reading has no side effects; the
+    /// counter resets to 0 only on daemon restart.
+    /// </para>
+    /// </summary>
+    public int GetHashTableRejectCount()
+        => _interop.GetHashTableRejectCount();
+
     /// <param name="clock">Wall-clock provider for aligning cycle timestamps.</param>
     /// <param name="logger">Optional structured logger; pass null to suppress all log output.</param>
     /// <param name="grammarStore">

@@ -331,6 +331,10 @@ var app = WebApp.Create(
     configureLogging:     ConfigureLogging,
     restartPipeline:      restartPipeline,
     shimVersion:          shimVersion,
+    // f-005-hash-table-saturation-diagnostic (D2): live provider so GET /api/v1/status can
+    // report the native hash-table reject count mid-session (it changes over time, unlike
+    // the fixed shimVersion above).
+    hashTableRejectCountProvider: () => ft8Decoder.GetHashTableRejectCount(),
     configureServices:    services =>
     {
         // Register the auth policy selected above (daemon wins over WebApp.Create default).
@@ -636,6 +640,16 @@ app.Lifetime.ApplicationStopping.Register(() =>
         captureManager.StopAsync().GetAwaiter().GetResult();
         captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
         framerOutput.Writer.TryComplete();
+
+        // f-005-hash-table-saturation-diagnostic (D2): read the session's final native
+        // hash-table reject count once at graceful shutdown and log it, so table
+        // saturation can be confirmed or ruled out during endurance-run review without a
+        // live diagnostic query. The decode pump has already stopped by this point, so no
+        // torn read of the process-global counter is possible. Logged BEFORE loggingPipeline
+        // is disposed so the line reaches the file sink. HashTableRejectCountReporter swallows
+        // any native/ABI fault so a best-effort diagnostic read can never block shutdown.
+        HashTableRejectCountReporter.Report(startupLogger, () => ft8Decoder.GetHashTableRejectCount());
+
         loggingPipeline.Dispose();    // flush buffered file events before process exit
     }
     finally

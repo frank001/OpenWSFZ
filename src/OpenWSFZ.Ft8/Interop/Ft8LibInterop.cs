@@ -206,8 +206,22 @@ internal static class Ft8LibInterop
     ///   message in a later decode cycle. No change to this managed layer, ABI, or struct
     ///   layout (48 bytes) — <see cref="ExpectedShimVersion"/> is bumped purely so the
     ///   startup ABI check catches a stale (pre-fix) native binary.
+    /// 20260032 (f-005-hash-table-saturation-diagnostic): adds one exported read-only getter,
+    ///   <c>ft8_get_hash_table_reject_count</c> (surfaced here as <see cref="GetHashTableRejectCount"/>),
+    ///   returning the existing process-global reject-when-full counter added at 20260031.
+    ///   Observability-only: no change to decode/resolution behaviour, the 256-slot capacity,
+    ///   or struct layout (48 bytes).  The bump ensures the startup ABI check rejects a native
+    ///   binary too old to export the new symbol.
+    /// 20260033 (fix-d012-hash-table-add-overcounting): native <c>hash_table_add</c> no longer
+    ///   increments the reject counter for re-announcements of callsigns already present in the
+    ///   table once it is full — the full-table guard now runs after the already-known check,
+    ///   not before. Fixes D-012 (a real 9.5h corpus replay showed a reject-count delta of
+    ///   73,627 against only 42,429 total decodes, an arithmetic impossibility). No change to
+    ///   this managed layer, ABI, or struct layout (48 bytes) — the bump exists purely so the
+    ///   startup ABI check catches a stale (pre-fix) native binary whose reject count cannot be
+    ///   trusted once the hash table saturates.
     /// </summary>
-    private const int ExpectedShimVersion = 20260031;
+    private const int ExpectedShimVersion = 20260033;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -378,6 +392,20 @@ internal static class Ft8LibInterop
     /// </summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_get_last_noise_floor_db", CallingConvention = CallingConvention.Cdecl)]
     private static extern float NativeGetLastNoiseFloorDb();
+
+    /// <summary>
+    /// Return the process-lifetime count of Type 4 callsign announcements discarded because
+    /// the session-scoped hash table was already at its 256-slot capacity
+    /// (f-005-hash-table-saturation-diagnostic, shim 20260032).
+    /// <para>
+    /// Unlike the per-thread getters above, this reflects a <b>process-global</b> counter and
+    /// may be read from any thread — including the daemon shutdown path — regardless of which
+    /// thread last called <see cref="NativeDecodeAll"/>.  Read-only: reading never resets the
+    /// counter or alters the hash table.  Returns 0 if the table has never reached capacity.
+    /// </para>
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_hash_table_reject_count", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetHashTableRejectCount();
 
     /// <summary>
     /// Encode a text message to 79 tone indices via <c>ft8_encode_message</c> in the native shim.
@@ -595,6 +623,26 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         return NativeGetLastNoiseFloorDb();
+    }
+
+    /// <summary>
+    /// Return the process-lifetime count of Type 4 callsign announcements discarded because
+    /// the native session-scoped callsign hash table was already at its 256-slot capacity
+    /// (f-005-hash-table-saturation-diagnostic, shim 20260032).
+    /// <para>
+    /// This is a process-global counter (not thread-local): it may be read from any thread,
+    /// including the daemon's graceful-shutdown path, regardless of which thread last called
+    /// <see cref="DecodeAll"/>.  A non-zero value means the 256-slot table filled during the
+    /// session and one or more nonstandard-callsign announcements could not be stored — the
+    /// exact saturation condition F-001's design flagged as a risk.  Reading the value has no
+    /// side effects: it never resets the counter nor alters hash resolution behaviour.
+    /// Returns 0 if the table never reached capacity this session.
+    /// </para>
+    /// </summary>
+    public static int GetHashTableRejectCount()
+    {
+        EnsureInitialized();
+        return NativeGetHashTableRejectCount();
     }
 
     /// <summary>

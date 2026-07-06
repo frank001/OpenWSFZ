@@ -99,6 +99,39 @@ public sealed class DecodeControlEndpointTests : IClassFixture<AudioConfigFixtur
             "the config store must be persisted by the start endpoint");
     }
 
+    // ── f-005: decode/start and decode/stop responses carry hashTableRejectCount ──
+
+    [Fact(DisplayName = "f-005: POST /api/v1/decode/start and /stop responses each include hashTableRejectCount")]
+    public async Task PostDecodeStartAndStop_ResponsesIncludeHashTableRejectCount()
+    {
+        // decode/start and decode/stop each construct their OWN DaemonStatus in WebApp.cs —
+        // separate construction sites from GET /api/v1/status — so a wiring bug in either one
+        // specifically would not be caught by the /status test. Assert both independently
+        // (f-005-hash-table-saturation-diagnostic, dev-task §3.2 / design.md Risk 1).
+        await _fixture.ConfigStore.SaveAsync(
+            new AppConfig(AudioDeviceId: "hw:0,0", DecodingEnabled: false));
+
+        var startResponse = await _client.PostAsync("/api/v1/decode/start", content: null);
+        startResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        using (var startDoc = JsonDocument.Parse(await startResponse.Content.ReadAsStringAsync()))
+        {
+            startDoc.RootElement.TryGetProperty("hashTableRejectCount", out var startProp)
+                .Should().BeTrue("decode/start response must include hashTableRejectCount (f-005)");
+            startProp.GetInt32().Should().BeGreaterThanOrEqualTo(0,
+                "the reject count is a non-negative counter, present even at 0");
+        }
+
+        var stopResponse = await _client.PostAsync("/api/v1/decode/stop", content: null);
+        stopResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        using (var stopDoc = JsonDocument.Parse(await stopResponse.Content.ReadAsStringAsync()))
+        {
+            stopDoc.RootElement.TryGetProperty("hashTableRejectCount", out var stopProp)
+                .Should().BeTrue("decode/stop response must include hashTableRejectCount (f-005)");
+            stopProp.GetInt32().Should().BeGreaterThanOrEqualTo(0,
+                "the reject count is a non-negative counter, present even at 0");
+        }
+    }
+
     // ── GET /api/v1/status reflects DecodingEnabled ───────────────────────
 
     [Fact(DisplayName = "FR-017: GET /api/v1/status reflects DecodingEnabled from config")]

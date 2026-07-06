@@ -86,6 +86,39 @@ public sealed class StatusAndBindingTests : IClassFixture<WebTestFactory>
             "identical across all responses during the same process lifetime");
     }
 
+    [Fact(DisplayName = "f-005: GET /api/v1/status includes a hashTableRejectCount field")]
+    public async Task GetStatus_IncludesHashTableRejectCountField()
+    {
+        // f-005-hash-table-saturation-diagnostic (D2): the native hash-table reject count is
+        // surfaced live on the status endpoint, alongside shimVersion. Unlike shimVersion
+        // (which must be > 0 once the shim loads), a fresh test-host process has legitimately
+        // never saturated its 256-slot hash table, so the field's VALUE here is expected to be
+        // 0 — the point of this test is that the field is PRESENT and readable, guarding the
+        // WebApp.Create → status-endpoint wiring against a silent regression (design.md Risk 1,
+        // applied to the HTTP/WS surface the sibling shimVersion tests above cover for F-001).
+        var response = await _client.GetAsync("/api/v1/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+
+        doc.RootElement.TryGetProperty("hashTableRejectCount", out var rejectCountProp).Should().BeTrue(
+            "f-005 requires a hashTableRejectCount field on GET /api/v1/status (the live " +
+            "counterpart to the static shimVersion field)");
+        rejectCountProp.GetInt32().Should().BeGreaterThanOrEqualTo(0,
+            "the reject count is a non-negative session-lifetime counter; it must be present " +
+            "and readable even when the table has never saturated (value 0)");
+    }
+
+    // Note: dev-task §3.1.2 (a "liveness" test proving the value updates mid-session, unlike
+    // shimVersion) is deliberately NOT implemented. Forcing a real hash-table saturation
+    // through the web host would require pushing 264+ synthetic Type 4 PCM decodes through the
+    // live decode pipeline — disproportionate, and the WebTestFactory exposes no lighter-weight
+    // seam to override hashTableRejectCountProvider. The counter's increment-on-reject behaviour
+    // is already proven directly against the native shim by
+    // HashedCallsignResolutionTests.HashTableSaturation_... (reject-count delta assertion); the
+    // presence tests here cover what the web surface adds: that the wired value reaches the wire.
+
     [Fact(DisplayName = "FR-020: GET /api/v1/status response includes audioActive boolean field")]
     public async Task GetStatus_IncludesAudioActiveField()
     {

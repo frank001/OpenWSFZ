@@ -331,6 +331,36 @@
  *   ft8_encode_message's own per-call local table is untouched.  No ABI change; no
  *   struct layout change; no new exported entry points.
  *
+ * f-005-hash-table-saturation-diagnostic (FT8_SHIM_VERSION 20260032):
+ *
+ *   Observability-only follow-up to F-001's deferred saturation mitigation.  Adds one
+ *   new exported read-only getter, ft8_get_hash_table_reject_count(), returning the
+ *   existing process-global g_hash_table_reject_count (incremented by hash_table_add's
+ *   reject-when-full guard, D3).  No change to resolution behaviour, the 256-slot
+ *   capacity, or the eviction policy — the counter was already there; this change merely
+ *   makes it readable from the managed layer so table saturation can be confirmed or
+ *   ruled out during a live or completed session instead of being inferred off-line from
+ *   an ALL.TXT text heuristic.  Mirrors the ft8_get_last_noise_floor_db diagnostic-getter
+ *   precedent.  No struct layout change; the only ABI change is the single added export.
+ *
+ * fix-d012-hash-table-add-overcounting (FT8_SHIM_VERSION 20260033):
+ *
+ *   hash_table_add's full-table guard (`tbl->count >= HASH_TABLE_SIZE`) previously ran
+ *   BEFORE the linear-probe loop that checks whether the callsign is already stored,
+ *   so once the 256-slot table saturated, EVERY subsequent call incremented
+ *   g_hash_table_reject_count and returned immediately — including re-announcements of
+ *   callsigns already resolvable in the table.  A real 9.5h off-air corpus replay
+ *   (2,291 WAVs, 42,429 total decodes) surfaced a reject-count delta of 73,627 — more
+ *   "rejects" than total decodes, an arithmetic impossibility under the metric's
+ *   documented meaning.  Fixed by reordering: the bounded linear probe (mirroring
+ *   hash_table_lookup's existing guard) now always runs first; an already-known
+ *   callsign returns as a no-op with no counter change regardless of table fullness;
+ *   the `tbl->count >= HASH_TABLE_SIZE` reject check now only fires after a full probe
+ *   confirms the callsign is genuinely new.  No change to the 256-slot capacity, the
+ *   eviction policy, or resolution behaviour for callsigns already present.  No struct
+ *   layout or ABI change; no new exported entry points — this is a same-signature
+ *   behaviour fix inside an existing static function.
+ *
  * Build: see BUILD.md.  encode.c and patched/ft8/decode.c must be compiled and linked.
  */
 
@@ -542,10 +572,11 @@ static bool hash_table_lookup(callsign_table_t* tbl,
     callsign[0] = '\0'; return false;
 }
 
-/* f-001-hashed-callsign-resolution (shim 20260031, design Open Questions): native-only
- * counter for hash_table_add's reject-when-full guard.  Not exposed via P/Invoke (no
- * new managed-layer surface per the design's recommendation) — intended to be inspected
- * with a debugger/dump if the 256-slot saturation risk is ever suspected in the field.
+/* f-001-hashed-callsign-resolution (shim 20260031): counter for hash_table_add's
+ * reject-when-full guard.  f-005-hash-table-saturation-diagnostic (shim 20260032) now
+ * exposes it read-only via ft8_get_hash_table_reject_count() — the 256-slot saturation
+ * risk flagged in F-001's design has plausibly materialised in a long endurance session,
+ * so the diagnostic promised at the time is now due.
  * Deliberately not thread-local: it is a best-effort diagnostic counter, not used for
  * any decode-affecting decision, so an occasional missed increment under concurrent
  * decode is an acceptable trade-off against adding synchronisation to the hot path. */
@@ -553,19 +584,33 @@ static int g_hash_table_reject_count = 0;
 
 static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t hash)
 {
-    /* Guard: discard new callsigns when the table is full rather than looping
-     * forever.  Full table → unknown callsigns display as <HASH>, matching
-     * WSJT-X first-seen behaviour; no crash, no hang, no data corruption. */
-    if (tbl->count >= HASH_TABLE_SIZE) { g_hash_table_reject_count++; return; }
-
     uint16_t h10 = (hash >> 12) & 0x3FFu;
     int      idx = (h10 * 23) % HASH_TABLE_SIZE;
-    while (tbl->entries[idx].callsign[0] != '\0') {
+
+    /* Bounded probe (mirrors hash_table_lookup's guard above): safe even when the
+     * table is completely full (all 256 slots occupied, no '\0' terminator to stop
+     * an unbounded linear scan). When the table has room, an empty slot is always
+     * reachable within HASH_TABLE_SIZE probes, so the bound never changes behaviour
+     * in that case — it only prevents an infinite loop in the all-256-occupied case.
+     * D-012: checking for an existing match BEFORE the full-table guard (rather than
+     * after, as the previous version did) is the actual fix — a repeat announcement
+     * of an already-known callsign must never increment g_hash_table_reject_count,
+     * only a genuinely new callsign turned away for lack of room may. */
+    for (int probe = 0; probe < HASH_TABLE_SIZE; probe++) {
+        if (tbl->entries[idx].callsign[0] == '\0') break; /* empty slot — genuinely new, room found */
         if (((tbl->entries[idx].hash & 0x3FFFFFu) == hash) &&
             !strcmp(tbl->entries[idx].callsign, callsign)) {
-            tbl->entries[idx].hash &= 0x3FFFFFu; return; }
+            tbl->entries[idx].hash &= 0x3FFFFFu; return; /* already known — no-op, NOT a reject */
+        }
         idx = (idx + 1) % HASH_TABLE_SIZE;
     }
+
+    /* Not found after a full probe: this is a genuinely new callsign. Reject only
+     * now, if the table has no room left.  Full table → unknown callsigns display
+     * as <HASH>, matching WSJT-X first-seen behaviour; no crash, no hang, no data
+     * corruption. */
+    if (tbl->count >= HASH_TABLE_SIZE) { g_hash_table_reject_count++; return; }
+
     tbl->count++;
     strncpy(tbl->entries[idx].callsign, callsign, 11);
     tbl->entries[idx].callsign[11] = '\0';
@@ -940,6 +985,20 @@ int ft8_get_max_passes(void) { return K_MAX_PASSES; }
 
 /* ── Noise floor query ───────────────────────────────────────────────────── */
 float ft8_get_last_noise_floor_db(void) { return tls_last_noise_floor_db; }
+
+/* ── Hash table saturation query ─────────────────────────────────────────── */
+/*
+ * ft8_get_hash_table_reject_count — return the process-lifetime count of Type 4
+ * callsign announcements discarded by hash_table_add because g_session_hash_table
+ * was already at its 256-slot capacity (f-005-hash-table-saturation-diagnostic, D1).
+ *
+ * Read-only: never resets the counter, never touches the table (D3 — no reset-on-read).
+ * Not thread-local — g_hash_table_reject_count is a process-global best-effort diagnostic
+ * (see its definition above); this getter mirrors that lifecycle, resetting to 0 only on
+ * daemon restart, exactly like g_session_hash_table itself.  Returns 0 if the table has
+ * never reached capacity this session.
+ */
+int ft8_get_hash_table_reject_count(void) { return g_hash_table_reject_count; }
 
 /* ── Encode entry point ──────────────────────────────────────────────────── */
 /*

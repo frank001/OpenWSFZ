@@ -1,27 +1,43 @@
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20260031 (f-001-hashed-callsign-resolution):
-                  ft8_decode_all's callsign hash table is now a process-global static
-                  (g_session_hash_table), initialised once and reused for the life of the
-                  process instead of being allocated fresh and destroyed on every call. A
-                  Type 4 message's nonstandard callsign, once decoded, now resolves correctly
-                  when referenced by 22-bit hash in a Type 1/2/3 message in a later decode
-                  cycle. Bounded at 256 entries (reject-when-full, unchanged); AV-safe (table
-                  contents survive a caught access violation — only the thread-local pointer
-                  is detached). No ABI change, no struct layout change, no new entry points.
-                  Previous: FT8_SHIM_VERSION = 20260030 (decoder-settings-page).
+Shim version:     FT8_SHIM_VERSION = 20260033 (fix-d012-hash-table-add-overcounting):
+                  hash_table_add's full-table guard previously ran before the "already known"
+                  linear-probe check, so once the 256-slot table saturated, every subsequent
+                  call incremented g_hash_table_reject_count and returned immediately —
+                  including re-announcements of callsigns already resolvable in the table. A
+                  real 9.5h corpus replay (42,429 total decodes) exposed a reject-count delta
+                  of 73,627, an arithmetic impossibility. Fixed by reordering: the bounded
+                  linear probe now always runs first; an already-known callsign is a no-op
+                  regardless of table fullness; the count>=HASH_TABLE_SIZE reject-and-count
+                  only fires after a full probe confirms the callsign is genuinely new. No
+                  change to the 256-slot capacity or eviction policy; no ABI or struct layout
+                  change; no new exported entry points.
+                  Previous: FT8_SHIM_VERSION = 20260032 (f-005-hash-table-saturation-diagnostic):
+                  observability-only follow-up to F-001's deferred saturation mitigation.
+                  Adds one new exported read-only getter, ft8_get_hash_table_reject_count(),
+                  returning the existing process-global g_hash_table_reject_count (the
+                  reject-when-full counter added at 20260031 but not previously exposed). No
+                  change to resolution behaviour, the 256-slot capacity, or the eviction
+                  policy; struct layout unchanged (48 bytes). The only ABI change is the
+                  single added export.
+                  Previous: FT8_SHIM_VERSION = 20260031 (f-001-hashed-callsign-resolution):
+                  ft8_decode_all's callsign hash table became a process-global session-scoped
+                  static (g_session_hash_table) so a Type 4 nonstandard callsign resolves
+                  across decode cycles; bounded at 256 entries (reject-when-full), AV-safe.
 sizeof(FT8Result): 48 bytes
 SNR formula:      local_noise_floor (K=32) − 26.5 dB (unchanged from 20260012)
 Exported symbols: ft8_lib_version_check, ft8_decode_all, ft8_get_last_pass_counts, ft8_get_max_passes,
                   ft8_get_last_noise_floor_db, ft8_encode_message, ft8_get_last_candidate_counts,
-                  ft8_get_last_llr_stats, ft8_set_ap_bits, ft8_set_decode_params
+                  ft8_get_last_llr_stats, ft8_set_ap_bits, ft8_set_decode_params,
+                  ft8_get_hash_table_reject_count
 
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-07-03 (f-001-hashed-callsign-resolution: FT8_SHIM_VERSION=20260031;
-                              session-scoped callsign hash table; shim compiled from
-                              Native/ft8_shim.c using rebuild_shim.bat)
+Build date:       2026-07-06 (fix-d012-hash-table-add-overcounting: FT8_SHIM_VERSION=20260033;
+                              hash_table_add reordered so an already-known callsign never
+                              increments the reject counter, even once the table is full; shim
+                              compiled from Native/ft8_shim.c using rebuild_shim.bat)
 MSVC patches:     VLA in ft8/decode.c (float s2[512]) and common/monitor.c (fixed 8192/4097)
                   stpcpy provided in ft8_shim.c (POSIX; absent from MSVC CRT import libs)
                   excpt.h included explicitly for EXCEPTION_EXECUTE_HANDLER

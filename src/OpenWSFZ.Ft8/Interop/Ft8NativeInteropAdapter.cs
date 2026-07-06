@@ -30,6 +30,9 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
     public float GetLastNoiseFloorDb()
         => Ft8LibInterop.GetLastNoiseFloorDb();
 
+    public int GetHashTableRejectCount()
+        => Ft8LibInterop.GetHashTableRejectCount();
+
     public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
         => Ft8LibInterop.GetLastLlrStats(maxPasses);
 
