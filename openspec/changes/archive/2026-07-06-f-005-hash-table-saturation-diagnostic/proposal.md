@@ -1,3 +1,5 @@
+**User-facing:** no
+
 ## Why
 
 The 2026-07-06 endurance run (`qa/endurance/2026-07-06-7340e45/report.md` §3.5) observed the
