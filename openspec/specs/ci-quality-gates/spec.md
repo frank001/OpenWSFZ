@@ -133,6 +133,13 @@ workflow if either is violated:
 A non-zero exit from either check SHALL fail the workflow and SHALL block the pull request from
 merging.
 
+In addition, the CI workflow SHALL run a `tag-release-version` job on every push to `main` (after
+the build-and-test matrix succeeds) that cuts and pushes an annotated git tag named `v<VERSION>`
+if a tag by that exact name does not already exist. This job is not a required branch-protection
+status check — it runs after a commit is already on `main` and has nothing to block — but its
+absence of an existing tag for the current `VERSION` value SHALL be treated as transient (resolved
+by the next push to `main`), not as a standing defect requiring manual intervention.
+
 #### Scenario: Doc/VERSION drift blocks merge
 
 - **WHEN** `VERSION` and the anchor sentence in `README.md` or `REQUIREMENTS.md` disagree on the pull request's resulting state
@@ -157,6 +164,21 @@ merging.
 
 - **WHEN** a commit is pushed directly to a branch outside the context of a pull request targeting `main`
 - **THEN** the `version-governance` job SHALL be skipped, since there is no base ref to diff against
+
+#### Scenario: Tag cut automatically after a version bump reaches main
+
+- **WHEN** a push to `main` results in `VERSION` containing a value with no corresponding annotated tag
+- **THEN** the `tag-release-version` job SHALL create and push an annotated tag named `v<VERSION>` pointing at that commit, without any manual step
+
+#### Scenario: Tag-cutting is idempotent
+
+- **WHEN** a push to `main` occurs and an annotated tag named `v<VERSION>` already exists
+- **THEN** the `tag-release-version` job SHALL exit successfully without creating or pushing a duplicate tag
+
+#### Scenario: Tag push does not re-trigger the workflow
+
+- **WHEN** the `tag-release-version` job pushes a new tag ref
+- **THEN** that push SHALL NOT itself trigger a new run of the CI workflow, since the workflow's `push` trigger is scoped to branch refs only
 
 ### Requirement: Inert placeholders for later gates
 
