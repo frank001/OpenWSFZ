@@ -1,7 +1,14 @@
 name: CI
 
 on:
+  # branches: ['**'] (rather than an unfiltered `push:`) matches any branch
+  # push but excludes tag-ref pushes. This matters once gate G9's
+  # tag-release-version job (below) starts pushing annotated release tags —
+  # an unfiltered push trigger would fire the whole workflow again for that
+  # tag push alone. See design.md Decision 4 in
+  # openspec/changes/g9-automate-release-tagging (or its archived copy).
   push:
+    branches: ['**']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -569,3 +576,49 @@ jobs:
 
       - name: G9b — Mandatory bump on user-facing archive
         run: python3 tools/check_version_bump.py "origin/${{ github.base_ref }}"
+
+  # -----------------------------------------------------------------
+  # Gate G9 (continued): automated release tagging
+  # Closes the gap the original gate G9 left manual: cuts an annotated git
+  # tag matching VERSION's content on every push to main, if that tag
+  # doesn't already exist yet. Discovered necessary 2026-07-06 — VERSION
+  # moved 0.30 -> 0.31 in commit d36f711, but no v0.31 tag was ever cut,
+  # because tagging was a remembered-not-automated manual step (see
+  # design.md, openspec/changes/g9-automate-release-tagging or its archived
+  # copy, and release-versioning's "Version consistency across all
+  # surfaces" requirement).
+  #
+  # Runs only on direct pushes to main, after build-test has passed on all
+  # three OSes (needs:), so a tag only ever marks a commit that has already
+  # passed CI. Idempotent by construction (tools/cut_version_tag.py checks
+  # for the tag's existence before creating one), so it is safe and cheap
+  # to run unconditionally on every push to main rather than gating it
+  # behind a separate "did VERSION change" detection job the way
+  # commit-native-binaries needs detect-native-changes (that job's rebuild
+  # is expensive and non-deterministic across runners; a tag-existence
+  # check is neither). Not a required branch-protection status check —
+  # there is nothing left to block once a commit is already on main.
+  # -----------------------------------------------------------------
+  tag-release-version:
+    name: Gate G9 — Tag release version
+    runs-on: ubuntu-latest
+    needs: [build-test]
+    permissions:
+      contents: write
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout (full history, with write access)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Cut annotated tag matching VERSION, if not already present
+        run: python3 tools/cut_version_tag.py
