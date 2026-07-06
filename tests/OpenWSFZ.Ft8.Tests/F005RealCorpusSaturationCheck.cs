@@ -13,8 +13,9 @@ using Xunit.Abstractions;
 namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
-/// ONE-OFF VERIFICATION (not a permanent gate, pending Captain's decision on whether to keep
-/// it) — F-005 hash-table-saturation-diagnostic. Replays the full real off-air corpus at
+/// ONE-OFF VERIFICATION (not a permanent gate — kept deliberately, per Captain's 2026-07-06
+/// decision, as an opt-in-only diagnostic rather than a standard-suite test) — F-005
+/// hash-table-saturation-diagnostic. Replays the full real off-air corpus at
 /// <c>artefacts/20260615_live_run/save</c> (2,291 WAVs, ~9.5h of genuine captured FT8 traffic,
 /// predates F-001) through the current decoder build in a single process, so the native
 /// process-global hash table accumulates exactly as it would in a real daemon session, then
@@ -30,14 +31,29 @@ namespace OpenWSFZ.Ft8.Tests;
 /// </para>
 ///
 /// <para>
-/// Follows the same "measurement tool, not a gate" philosophy and graceful-skip-when-absent
-/// convention as <see cref="ReplayHarnessTests"/> (FR-029) — <c>artefacts/</c> is gitignored
-/// (NFR-021/GDPR — may contain real third-party callsigns), so this always skips cleanly in CI
-/// and on any machine without the corpus.
+/// <b>Opt-in only.</b> Because the corpus lives at a fixed path under the gitignored
+/// <c>artefacts/</c> directory (NFR-021/GDPR — may contain real third-party callsigns), a
+/// directory-presence check alone is not sufficient to keep this out of a standard local
+/// <c>dotnet test</c> run: on the Captain's own machine, where the corpus is legitimately
+/// present, presence-only skipping would make this ~17-minute replay run on <i>every</i>
+/// standard test invocation. It therefore also requires the environment variable
+/// <c>OPENWSFZ_RUN_F005_CORPUS_REPLAY=1</c> to be set before it will do any work; absent that,
+/// it skips instantly regardless of whether the corpus folder exists. This makes the test
+/// truly "run only when required" rather than merely "run whenever the corpus happens to be
+/// on disk." It always skips cleanly in CI too (the corpus is never present there).
+/// </para>
+///
+/// <para>
+/// To run deliberately:
+/// <code>
+/// OPENWSFZ_RUN_F005_CORPUS_REPLAY=1 dotnet test -c Release --filter "DisplayName~f-005 VERIFY"
+/// </code>
 /// </para>
 /// </summary>
 public sealed class F005RealCorpusSaturationCheck
 {
+    private const string OptInEnvVar = "OPENWSFZ_RUN_F005_CORPUS_REPLAY";
+
     private readonly ITestOutputHelper _out;
     public F005RealCorpusSaturationCheck(ITestOutputHelper output) => _out = output;
 
@@ -48,6 +64,14 @@ public sealed class F005RealCorpusSaturationCheck
     [Fact(DisplayName = "f-005 VERIFY: full 20260615 real corpus replay — genuine hash-table reject count")]
     public async Task ReplayFullCorpus_ReportsGenuineRejectCount()
     {
+        if (Environment.GetEnvironmentVariable(OptInEnvVar) != "1")
+        {
+            _out.WriteLine(
+                $"Skipping — this ~17-minute corpus replay is opt-in only. " +
+                $"Set {OptInEnvVar}=1 to run it deliberately.");
+            return;
+        }
+
         if (!Directory.Exists(CorpusDir))
         {
             _out.WriteLine($"Corpus not found at {CorpusDir} — skipping (expected on CI/other machines; artefacts/ is gitignored).");
