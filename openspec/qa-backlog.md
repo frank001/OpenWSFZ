@@ -164,3 +164,38 @@ content, not the old one), or (b) accept the narrower rename-blind-spot as a doc
 and rely on the one-PR-per-change convention to avoid triggering it. Whichever is chosen, add a
 regression test/scratch-branch exercise (mirroring `adopt-canonical-version-source` task 4.4) that
 specifically covers the split-PR/rename case before changing the script.
+
+---
+
+## N6 — `WebSocketHub.BroadcastDecodes`/`BroadcastAudioOffset`/`BroadcastTxState` lack the scope guard `BroadcastCatStatus` already has
+
+**Severity:** Low (test-isolation flake only; no production impact — a real daemon process hosts
+exactly one `WebApp` instance, so there is only ever one scope in practice)
+**Source:** found reviewing/merging `f-005-hash-table-saturation-diagnostic` (PR #54, 2026-07-06)
+**File:** `src/OpenWSFZ.Web/WebSocketHub.cs`
+
+`ActiveSockets` (the socket→scope registry `BroadcastDecodes`, `BroadcastAudioOffset`, and
+`BroadcastTxState` all iterate) is a `static ConcurrentDictionary`, shared by every `WebApp`/test-host
+instance created in the same process. `BroadcastCatStatus` already scope-filters
+(`if (socketScope != scope) continue;`, explicitly to stop one in-process test host's
+`CatPollingService` broadcasting into a concurrently-running test server's sockets — see that
+method's own doc comment) but `BroadcastDecodes`, `BroadcastAudioOffset`, and `BroadcastTxState` do
+not: they send to every registered socket regardless of which `WebApp` instance registered it.
+
+Observed effect: PR #54's CI run failed `WebSocketTests.WebSocket_DecodeEventReceived_AfterBroadcast`
+(FR-009) on `windows-latest` — the test's socket received a stray `audioOffset` frame (from some
+other, concurrently-running test's `AudioOffsetEventBus.Publish`) instead of the `decode` frame it
+had just triggered. Confirmed unrelated to that PR's own changes (identical files had passed
+`windows-latest` in the immediately preceding run; a re-run of the same failed job then passed) — a
+pre-existing gap, not a regression. This is the same failure *shape* `b126e61` ("fix(test): eliminate
+FR-009 WebSocket broadcast race") already fixed once, for a different cause (that fix made
+`BroadcastDecodes`'s own send awaited instead of fire-and-forget); this is a second, distinct
+mechanism producing the same symptom — cross-test contamination via the unscoped static registry,
+not a within-test timing race.
+
+**Suggested fix:** add the same `scope` parameter and guard to `BroadcastDecodes`,
+`BroadcastAudioOffset`, and `BroadcastTxState` that `BroadcastCatStatus`/`AbortAll` already use, and
+thread `appScope` through their call sites (`DecodeEventBus`, `AudioOffsetEventBus`, TX event
+publishing) the same way `WebApp.Create` already does for CAT status. Low priority given no
+production impact, but worth doing before this test flakes again — likely to recur as the Web test
+suite grows more WS-connecting tests sharing the same process.
