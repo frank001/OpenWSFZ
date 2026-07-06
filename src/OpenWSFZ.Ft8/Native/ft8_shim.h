@@ -275,8 +275,26 @@ extern "C" {
  *              ft8_encode_message's own per-call local table is untouched — encoding does
  *              not depend on prior session state.  No ABI change; struct layout unchanged
  *              (48 bytes); no new exported entry points.
+ *   20260032 — f-005-hash-table-saturation-diagnostic: adds one exported read-only getter,
+ *              ft8_get_hash_table_reject_count(), returning the existing process-global
+ *              g_hash_table_reject_count (the reject-when-full counter added at 20260031 but
+ *              not previously exposed).  Observability-only: no change to resolution
+ *              behaviour, the 256-slot capacity, or the eviction policy.  Struct layout
+ *              unchanged (48 bytes); the only ABI change is the single added export.
+ *   20260033 — fix-d012-hash-table-add-overcounting: hash_table_add's full-table guard
+ *              ran BEFORE the "already known" linear-probe check, so once the 256-slot
+ *              table saturated every subsequent call incremented g_hash_table_reject_count
+ *              and returned immediately — including re-announcements of callsigns already
+ *              resolvable in the table.  A real 9.5h corpus replay (42,429 total decodes)
+ *              exposed a reject-count delta of 73,627, an arithmetic impossibility.  Fixed
+ *              by reordering: a bounded linear probe (mirroring hash_table_lookup's existing
+ *              guard) now always runs first; an already-known callsign is a no-op regardless
+ *              of table fullness; the tbl->count >= HASH_TABLE_SIZE reject-and-count only
+ *              fires after a full probe confirms the callsign is genuinely new.  No change
+ *              to the 256-slot capacity or eviction policy.  No ABI or struct layout change;
+ *              no new exported entry points.
  */
-#define FT8_SHIM_VERSION 20260031
+#define FT8_SHIM_VERSION 20260033
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -357,6 +375,20 @@ int ft8_get_max_passes(void);
  * Returns 0.0f if ft8_decode_all has not yet been called on this thread.
  */
 float ft8_get_last_noise_floor_db(void);
+
+/*
+ * ft8_get_hash_table_reject_count — return the process-lifetime count of Type 4
+ * callsign announcements discarded because the session-scoped callsign hash table
+ * (g_session_hash_table) was already at its 256-slot capacity
+ * (f-005-hash-table-saturation-diagnostic).
+ *
+ * Read-only and side-effect-free: reading it never resets the counter or alters the
+ * hash table.  Unlike the per-thread noise-floor / pass-count getters this reflects a
+ * process-global counter, so it may be read from any thread (e.g. the daemon's
+ * shutdown path) regardless of which thread last called ft8_decode_all.
+ * Returns 0 if the table has never reached capacity this session.
+ */
+int ft8_get_hash_table_reject_count(void);
 
 /*
  * ft8_get_last_candidate_counts — return per-pass candidate counts from the

@@ -125,6 +125,32 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }
 
+    [Fact(DisplayName = "f-005: initial status event payload carries hashTableRejectCount field")]
+    public async Task WebSocket_StatusEventCarriesHashTableRejectCountField()
+    {
+        // f-005-hash-table-saturation-diagnostic: the initial WS status handshake carries the
+        // native hash-table reject count (a snapshot at connect time), the same field served
+        // live on GET /api/v1/status. This is the surface with no sibling-field precedent to
+        // copy (the shimVersion tests are HTTP-only), so it mirrors the audioActive status test
+        // above. Presence — not a specific value — is the guarantee under test (Risk 1).
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+
+        var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+        frame.Should().NotBeNull("status event must arrive on connect");
+
+        using var doc = JsonDocument.Parse(frame!);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("status");
+
+        var payload = doc.RootElement.GetProperty("payload");
+        payload.TryGetProperty("hashTableRejectCount", out var rejectCountProp).Should().BeTrue(
+            "f-005 requires the initial WS status payload to include 'hashTableRejectCount'");
+        rejectCountProp.GetInt32().Should().BeGreaterThanOrEqualTo(0,
+            "the reject count is a non-negative session-lifetime counter, present even at 0");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
     [Fact(DisplayName = "FR-002: plain HTTP GET to /api/v1/ws returns 400")]
     public async Task WebSocket_PlainHttpReturns400()
     {

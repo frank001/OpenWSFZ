@@ -43,6 +43,15 @@ public static class WebApp
     /// <c>Ft8Decoder.LoadedShimVersion</c> once at startup and pass it here; defaults to 0
     /// for callers (e.g. minimal test fixtures) that do not wire up the native shim.
     /// </param>
+    /// <param name="hashTableRejectCountProvider">
+    /// Live provider for the native hash-table reject count, surfaced as
+    /// <see cref="DaemonStatus.HashTableRejectCount"/> on <c>GET /api/v1/status</c> and the
+    /// initial WebSocket <c>status</c> event (f-005-hash-table-saturation-diagnostic, D2).
+    /// Unlike <paramref name="shimVersion"/> this value changes over the session, so it is
+    /// supplied as a delegate and invoked fresh on each read (callers pass
+    /// <c>() =&gt; ft8Decoder.GetHashTableRejectCount()</c>). Defaults to <c>null</c> →
+    /// reported as 0 for callers (e.g. minimal test fixtures) that do not wire up the native shim.
+    /// </param>
     public static WebApplication Create(
         int port,
         IBindPolicy?                                        bindPolicy                  = null,
@@ -61,7 +70,8 @@ public static class WebApp
         Action<ILoggingBuilder>?                            configureLogging            = null,
         Func<Task>?                                         restartPipeline             = null,
         Action<IServiceCollection>?                         configureServices           = null,
-        int                                                  shimVersion                 = 0)
+        int                                                  shimVersion                 = 0,
+        Func<int>?                                           hashTableRejectCountProvider = null)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
         // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(appScope)
@@ -261,7 +271,8 @@ public static class WebApp
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    effectiveFreq,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
-                ShimVersion:         shimVersion));
+                ShimVersion:         shimVersion,
+                HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0));
         });
 
         app.MapGet("/api/v1/audio/devices", async (
@@ -473,7 +484,8 @@ public static class WebApp
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStart,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
-                ShimVersion:         shimVersion));
+                ShimVersion:         shimVersion,
+                HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0));
         });
 
         app.MapPost("/api/v1/decode/stop", async (
@@ -491,7 +503,8 @@ public static class WebApp
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStop,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
-                ShimVersion:         shimVersion));
+                ShimVersion:         shimVersion,
+                HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0));
         });
 
         // ── Frequency list endpoints (FR-042) ─────────────────────────────────
@@ -1322,7 +1335,8 @@ public static class WebApp
             await WebSocketHub.HandleAsync(
                 ws, store, audioMonitor, dataFlowMonitor,
                 captureManager, audioWatchdog, catState,
-                wsLogger, appScope, shimVersion, ctx.RequestAborted);
+                wsLogger, appScope, shimVersion,
+                hashTableRejectCountProvider?.Invoke() ?? 0, ctx.RequestAborted);
         });
 
         return app;

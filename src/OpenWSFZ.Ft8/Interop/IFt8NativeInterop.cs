@@ -51,6 +51,18 @@ internal interface IFt8NativeInterop
     float GetLastNoiseFloorDb();
 
     /// <summary>
+    /// Return the process-lifetime count of Type 4 callsign announcements discarded because
+    /// the native session-scoped hash table was already at its 256-slot capacity
+    /// (f-005-hash-table-saturation-diagnostic, shim 20260032).
+    /// <para>
+    /// Process-global (not thread-local): unlike the other getters here it may be read from
+    /// any thread, including the daemon shutdown path.  Read-only — reading it never resets the
+    /// counter or alters hash resolution.  Returns 0 if the table never reached capacity.
+    /// </para>
+    /// </summary>
+    int GetHashTableRejectCount();
+
+    /// <summary>
     /// Return per-pass LLR statistics for LDPC-failing candidates from the most
     /// recent <see cref="DecodeAll"/> call on this thread (redesigned at shim 20260020).
     /// <para>

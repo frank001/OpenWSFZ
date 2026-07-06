@@ -30,6 +30,7 @@ public sealed class SetDecodeParamsTests
         public int[]  GetLastPassCounts(int maxPasses)      => new int[maxPasses];
         public int[]  GetLastCandidateCounts(int maxPasses) => new int[maxPasses];
         public float  GetLastNoiseFloorDb()                  => 0f;
+        public int    GetHashTableRejectCount()              => 0;
         public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
             => (new float[maxPasses], new float[maxPasses], new int[maxPasses]);
 

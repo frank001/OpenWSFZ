@@ -122,6 +122,7 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_get_last_llr_stats ^
    /EXPORT:ft8_set_ap_bits ^
    /EXPORT:ft8_set_decode_params ^
+   /EXPORT:ft8_get_hash_table_reject_count ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
    monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj
 
@@ -162,7 +163,7 @@ gcc -shared -o libft8.so \
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
-Verify exports (all ten symbols must appear):
+Verify exports (all eleven symbols must appear):
 
 ```bash
 nm -D libft8.so | grep "ft8_"
@@ -212,7 +213,7 @@ clang -dynamiclib -target arm64-apple-macos11.0 \
 > **Note:** `-D_GNU_SOURCE` is required for `stpcpy` on macOS as well (same reason as
 > Linux — see note in the Linux section above).
 
-Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all ten symbols must appear):
+Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all eleven symbols must appear):
 
 ```bash
 nm -gU libft8.dylib | grep "ft8_"

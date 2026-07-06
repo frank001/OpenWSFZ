@@ -77,6 +77,7 @@ public sealed class D011NonstandardCallsignFpGuardTests
         public int[]  GetLastPassCounts(int maxPasses)      => [results.Length, 0];
         public int[]  GetLastCandidateCounts(int maxPasses) => [results.Length, 0];
         public float  GetLastNoiseFloorDb()                  => -70.0f;
+        public int    GetHashTableRejectCount()              => 0;
         public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
             => (new float[maxPasses], new float[maxPasses], new int[maxPasses]);
 

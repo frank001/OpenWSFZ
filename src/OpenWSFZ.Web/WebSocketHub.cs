@@ -249,6 +249,13 @@ internal static class WebSocketHub
     /// <see cref="WebApp.Create"/> and included in the initial <c>status</c> event
     /// (daemon-status-visibility). Defaults to 0 when the caller does not supply one.
     /// </param>
+    /// <param name="hashTableRejectCount">
+    /// Snapshot of the native hash-table reject count at connection time, forwarded from
+    /// <see cref="WebApp.Create"/> and included in the initial <c>status</c> event
+    /// (f-005-hash-table-saturation-diagnostic). A live value is served on
+    /// <c>GET /api/v1/status</c>; this is a point-in-time snapshot for the WS handshake.
+    /// Defaults to 0 when the caller does not wire up the native shim.
+    /// </param>
     /// <param name="ct">Cancellation token tied to the HTTP request lifetime.</param>
     public static async Task HandleAsync(
         WebSocket ws,
@@ -261,6 +268,7 @@ internal static class WebSocketHub
         ILogger logger,
         Guid scope,
         int shimVersion,
+        int hashTableRejectCount,
         CancellationToken ct)
     {
         RegisterSocket(ws, scope);
@@ -289,7 +297,8 @@ internal static class WebSocketHub
                 RxAudioOffsetHz:     txCfg.RxAudioOffsetHz,
                 TxAudioOffsetHz:     txCfg.TxAudioOffsetHz,
                 HoldTxFreq:          txCfg.HoldTxFreq,
-                ShimVersion:         shimVersion);
+                ShimVersion:         shimVersion,
+                HashTableRejectCount: hashTableRejectCount);
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);

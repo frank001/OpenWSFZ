@@ -60,6 +60,8 @@ namespace OpenWSFZ.Ft8.Tests;
 /// </para>
 /// </summary>
 [Collection(HashTableSaturationCollectionDefinition.Name)]
+[TestCaseOrderer(
+    "OpenWSFZ.Ft8.Tests.RunD012RegressionAfterSaturationTestCaseOrderer", "OpenWSFZ.Ft8.Tests")]
 public sealed class HashedCallsignResolutionTests
 {
     private const double DefaultFreqHz = 1500.0;
@@ -221,12 +223,22 @@ public sealed class HashedCallsignResolutionTests
             .Select(i => $"Q0{i:D5}") // 7-char, all-digits-after-Q, unique per index
             .ToArray();
 
-        // Announce phase — batched Type 4 messages.
+        // f-005: snapshot the native reject counter immediately before the announce phase so
+        // we can assert the getter actually observed the overflow (design.md Migration Plan /
+        // §4.2). The table is process-global and shared with the rest of the assembly, so the
+        // absolute value is meaningless — only the DELTA this test induces is well-defined.
+        int rejectsBefore = Ft8LibInterop.GetHashTableRejectCount();
+
+        // Announce phase — batched Type 4 messages. All adds (and therefore all
+        // reject-when-full events) happen here; the verify phase below only performs hash
+        // *lookups*, which never call hash_table_add.
         foreach (var batch in callsigns.Chunk(BatchFreqsHz.Length))
         {
             float[] pcm = BuildBatchedPcm(batch, BuildPcmFromType4);
             _ = Ft8LibInterop.DecodeAll(pcm);
         }
+
+        int rejectsAfter = Ft8LibInterop.GetHashTableRejectCount();
 
         // Verify phase — batched Type 1 hash-reference messages.
         var resolved = new HashSet<string>();
@@ -244,11 +256,92 @@ public sealed class HashedCallsignResolutionTests
             "at least one must have been rejected by the reject-when-full guard (D3), " +
             "regardless of how much capacity other tests in this process had already used");
 
+        // f-005: the native counter exposed by ft8_get_hash_table_reject_count must have
+        // observed those rejects. 264 distinct new callsigns against a 256-slot table force at
+        // least 264 − 256 = 8 reject-when-full events; if the shared table already held entries
+        // from earlier tests (it runs last, so it usually does), the delta is correspondingly
+        // larger. Asserting the delta (not an absolute value) keeps this robust to prior
+        // occupancy — exactly the caveat the design's Migration Plan calls out.
+        (rejectsAfter - rejectsBefore).Should().BeGreaterThanOrEqualTo(8,
+            "the reject counter must increment once per discarded Type 4 announcement, and " +
+            "264 announcements against 256 slots guarantee at least 8 discards this test");
+
         for (int i = 0; i < 10; i++)
             resolved.Should().Contain(callsigns[i],
                 $"entry #{i} was added early in the saturation batch and must remain " +
                 "resolvable and unchanged — a full table must reject NEW entries, not " +
                 "corrupt or evict ones already stored");
+    }
+
+    // ── 3.5: D-012 regression — repeat announcement of an already-known callsign after
+    // saturation must not increment the reject counter ─────────────────────────────
+
+    /// <summary>
+    /// Regression test for D-012
+    /// (dev-tasks/2026-07-06-d-012-hash-table-reject-count-overcounting.md): before the fix,
+    /// <c>hash_table_add</c>'s full-table guard ran BEFORE the "already known" linear-probe
+    /// check, so once the table saturated, EVERY call — including a re-announcement of a
+    /// callsign already stored — incremented <c>g_hash_table_reject_count</c>. A real 9.5h
+    /// off-air corpus replay exposed a reject-count delta of 73,627 against only 42,429 total
+    /// decodes, an arithmetic impossibility that only a real-traffic replay (not this
+    /// synthetic suite's unique-per-test callsigns) could surface, because a real station
+    /// re-announces the same callsign many times over a long session.
+    ///
+    /// <para>
+    /// <b>Deliberately reuses <see cref="HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive"/>'s
+    /// own guaranteed-resolvable early entry ("Q000000", its <c>callsigns[0]</c>) instead of
+    /// storing a fresh callsign of its own.</b> The native hash table is process-global and never
+    /// reset (design D1/D3); once that sibling test has permanently saturated it to capacity, no
+    /// later test can ever get a genuinely new entry stored — it can only reuse one already proven
+    /// present. This test is therefore pinned to run strictly AFTER that sibling test via
+    /// <c>[TestCaseOrderer(...)]</c> on this class
+    /// (<see cref="RunD012RegressionAfterSaturationTestCaseOrderer"/>) — xUnit does not guarantee
+    /// method-execution order within a class by default, and an earlier draft of this test that
+    /// tried to store its own fresh "pre-existing" callsign before saturating (independently of the
+    /// sibling test) was observed to run AFTER the sibling test in practice, finding the table
+    /// already completely full and its own fresh entry silently rejected — exactly the ordering
+    /// hazard this explicit orderer removes.
+    /// </para>
+    /// </summary>
+    [Fact(DisplayName = "D-012: re-announcing an already-known callsign after the table is saturated does not increment the reject count")]
+    public void RepeatAnnouncement_OfAlreadyKnownCallsign_AfterSaturation_DoesNotIncrementRejectCount()
+    {
+        // "Q000000" == HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive's own
+        // callsigns[0] ($"Q0{0:D5}") — proven resolvable by that test's own final assertions. This
+        // test relies on that sibling test having already run, enforced by this class's
+        // [TestCaseOrderer] (RunD012RegressionAfterSaturationTestCaseOrderer).
+        const string knownCallsign = "Q000000";
+
+        float[] pcmVerifyBefore = BuildPcmFromEncodedMessage($"Q1D12PR {knownCallsign} JO33", DefaultFreqHz);
+        var verifyBeforeResults = Ft8LibInterop.DecodeAll(pcmVerifyBefore);
+        verifyBeforeResults.Should().Contain(r => r.Message.Contains(knownCallsign),
+            "the sibling saturation test must have already run and stored this callsign — if " +
+            "this fails, the class's [TestCaseOrderer] is not enforcing the required method order");
+
+        int rejectsBefore = Ft8LibInterop.GetHashTableRejectCount();
+
+        // Re-announce via a fresh Type 4 decode cycle (not a hash reference) — exactly the
+        // "repeat CQ from the same station" shape a real corpus produces. This is the assertion
+        // that fails on the pre-D-012-fix code.
+        float[] pcmReannounce = BuildPcmFromType4(knownCallsign, DefaultFreqHz);
+        var reannounceResults = Ft8LibInterop.DecodeAll(pcmReannounce);
+        reannounceResults.Should().Contain(r => r.Message.Contains(knownCallsign),
+            "the repeat announcement must still decode correctly");
+
+        int rejectsAfter = Ft8LibInterop.GetHashTableRejectCount();
+
+        (rejectsAfter - rejectsBefore).Should().Be(0,
+            "D-012: re-announcing a callsign already present in the table must be a no-op " +
+            "for the reject counter, even once the table is completely full — only a " +
+            "genuinely new callsign turned away for lack of room may increment it");
+
+        // The known callsign must still resolve correctly after the repeat announcement (the
+        // no-op path only refreshes the stored hash's high bits; it must not corrupt or evict
+        // the entry).
+        float[] pcmVerifyAfter = BuildPcmFromEncodedMessage($"Q1D12PA {knownCallsign} JO33", DefaultFreqHz);
+        var verifyAfterResults = Ft8LibInterop.DecodeAll(pcmVerifyAfter);
+        verifyAfterResults.Should().Contain(r => r.Message.Contains(knownCallsign),
+            "the known callsign must remain resolvable after its repeat announcement");
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
