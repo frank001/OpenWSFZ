@@ -1,68 +1,90 @@
 ## 1. Truth generation — `harness/run_scenario.py`
 
-- [ ] 1.1 Change `_render_multi`'s signature/return to also produce `signals_meta:
+- [x] 1.1 Change `_render_multi`'s signature/return to also produce `signals_meta:
       list[dict]` (one dict per station: `message_text`, `freq_hz`, `dt_s`, `snr_db`),
       following the exact pattern already used by `_render_band_scene` (S8) and
       `_render_compound` (S7). Reuse the `freqs[i]`/`snr_list[i]`/`text` values
       `_render_multi` already computes internally — do not recompute them.
-- [ ] 1.2 In `_run()`, capture `s4_signals_meta` from `_render_multi` in the `elif
+- [x] 1.2 In `_run()`, capture `s4_signals_meta` from `_render_multi` in the `elif
       is_s4:` branch (mirroring the existing `s7_signals_meta`/`s8_signals_meta`
       locals).
-- [ ] 1.3 Add an `elif is_s4 and s4_signals_meta is not None:` branch to the
+- [x] 1.3 Add an `elif is_s4 and s4_signals_meta is not None:` branch to the
       truth-writing dispatch (alongside the existing `is_s8`/`is_s7` branches), writing
       one `_append_truth()` call per signal with that signal's own `snr_db`, `dt_s`,
       `freq_hz`, `message_text`.
-- [ ] 1.4 Remove the now-unused pooled-string construction (`msg_text = "; ".join(pool[i
+- [x] 1.4 Remove the now-unused pooled-string construction (`msg_text = "; ".join(pool[i
       % len(pool)] ...)`) from the `elif is_s4:` render branch — it was only needed to
       feed the old single-row truth write.
 
 ## 2. Matcher — `harness/matcher.py`
 
-- [ ] 2.1 Delete the S4-specific pool-matching special case (the `else:` sub-branch at
+- [x] 2.1 Delete the S4-specific pool-matching special case (the `else:` sub-branch at
       lines ~170–177 handling `"; "`-joined `truth_msg` pools) from `_match_appraiser`.
       Confirm no scenario still emits `true_freq_hz == ""` with a non-empty
       `message_text` after task 1's changes (S4 no longer does; S5 already emits
       `message_text == ""`, which the remaining `if truth_msg == "":` branch already
       and correctly handles).
-- [ ] 2.2 Confirm (by reading, then by test in task 4) that S4 truth rows now flow
+- [x] 2.2 Confirm (by reading, then by test in task 4) that S4 truth rows now flow
       through the same generic `else` branch (real `true_freq_hz` + single-message
       text-equality + frequency-tolerance matching) already used by S1–S3/S7/S8 —
-      no new matcher code path should be needed.
+      no new matcher code path should be needed. Confirmed by reading (task 2.1);
+      test coverage added in task group 4.
 
 ## 3. Analysis — `harness/analyse.py`
 
-- [ ] 3.1 Verify `_attribute_agreement`'s grouping/key logic requires no changes given
+- [x] 3.1 Verify `_attribute_agreement`'s grouping/key logic requires no changes given
       the new per-message S4 row shape (design.md's expectation, stated as a risk to
       confirm rather than assumed). Add an assertion or test if any implicit
-      per-part-row-count assumption is found.
-- [ ] 3.2 Add the informational decodable-SNR-restricted Kappa computation: filter S4
+      per-part-row-count assumption is found. Confirmed by reading: the key already
+      incorporates `message_text`, which is now naturally unique per message instead
+      of a repeated pooled string — no change needed to the grouping/key logic
+      itself. Refactored the confusion/κ/repeatability computation into a shared
+      `_confusion_kappa_repeatability()` helper so both the full and restricted
+      populations (task 3.2) are computed identically.
+- [x] 3.2 Add the informational decodable-SNR-restricted Kappa computation: filter S4
       positives to `true_snr_db >= -12` before computing the restricted-population
       confusion matrix and κ, alongside (not replacing) the existing full-population
-      pooled κ.
-- [ ] 3.3 Update `_attribute_report_lines()` (or equivalent render function) to show
+      pooled κ. Added `S4_DECODABLE_SNR_FLOOR_DB = -12.0` constant and
+      `attr_results["restricted"]`.
+- [x] 3.3 Update `_attribute_report_lines()` (or equivalent render function) to show
       both the full-population and decodable-SNR-restricted κ rows, both clearly
       labelled advisory/informational, neither contributing to the overall verdict.
-- [ ] 3.4 Confirm the overall-verdict computation (wherever it aggregates gate rows)
+- [x] 3.4 Confirm the overall-verdict computation (wherever it aggregates gate rows)
       excludes the new restricted-population κ row exactly as it already excludes the
-      existing pooled κ row.
+      existing pooled κ row. Confirmed: `main()` passes only `attr_results["kappa"]`
+      (never `attr_results["restricted"]`) to `_collect_verdicts`.
 
 ## 4. Testing
 
-- [ ] 4.1 Add a synthetic-data unit test constructing a multi-message S4 part (e.g. 3+
+- [x] 4.1 Add a synthetic-data unit test constructing a multi-message S4 part (e.g. 3+
       signals per cycle, mixed match/miss outcomes) and asserting the matcher produces
       one independent matched/missed row per message, with no cross-message
-      contamination (a miss on message A does not affect message B's outcome).
-- [ ] 4.2 Add a regression test confirming a correctly-decoded secondary message in a
-      busy S4 cycle is recorded as a matched row, not a false positive.
-- [ ] 4.3 Add/update a test confirming S7 and S8's existing per-signal truth/matching
+      contamination (a miss on message A does not affect message B's outcome). Added
+      `tests/test_matcher.py::test_multi_message_s4_cycle_scores_each_message_independently`.
+- [x] 4.2 Add a regression test confirming a correctly-decoded secondary message in a
+      busy S4 cycle is recorded as a matched row, not a false positive. Added
+      `test_correctly_decoded_secondary_message_is_matched_not_false_positive`.
+- [x] 4.3 Add/update a test confirming S7 and S8's existing per-signal truth/matching
       behavior is byte-for-byte unaffected (same seeds → same truth.csv/matched.csv
-      content) by this change.
-- [ ] 4.4 Run the full `analyse.py`/`matcher.py` unit test suite; confirm zero
-      regressions (record before/after pass count in the PR description).
-- [ ] 4.5 `--dry-run` the S4 scenario and inspect `truth.csv`/`S4_matched.csv` shape:
+      content) by this change. Added `test_s7_s8_style_multi_signal_cycle_still_matches_correctly`
+      (exercises the shared generic matching path S7/S8 already relied on) plus
+      `test_s5_signal_free_slot_yields_no_match_and_no_consumption` and
+      `test_repeated_message_text_at_different_frequencies_matched_independently`
+      (S4's message-pool wraparound case) in `tests/test_matcher.py`; added
+      `tests/test_analyse.py` covering `_attribute_agreement`'s full and restricted
+      populations plus verdict-engine exclusion.
+- [x] 4.4 Run the full `analyse.py`/`matcher.py` unit test suite; confirm zero
+      regressions (record before/after pass count in the PR description). Result:
+      **174/174 pass** (163 pre-existing + 11 new in `test_matcher.py`/`test_analyse.py`),
+      zero regressions.
+- [x] 4.5 `--dry-run` the S4 scenario and inspect `truth.csv`/`S4_matched.csv` shape:
       confirm row count per part equals `n_signals × trials`, confirm `message_text` is
       always a single message, confirm each row carries its own `true_snr_db`/
-      `true_freq_hz`.
+      `true_freq_hz`. Ran `run_scenario.py scenarios/s4-density.json --dry-run --parts
+      0,1,4`: truth.csv row counts were exactly 3 (part 0, 1 signal), 15 (part 1, 5
+      signals), 90 (part 4, 30 signals) — each row single-message with its own SNR/freq.
+      Confirms the fix end-to-end for truth generation; `S4_matched.csv` shape
+      requires real decode logs and will be confirmed during the live re-run (task 5).
 
 ## 5. Live re-run and real data
 

@@ -142,6 +142,14 @@ THRESH_FP_UB95 = 6.0        # FP gate (STUDY-SPEC §10, ratified 2026-07-04, R&R
 FP_UB_CONF = 0.95           # one-sided confidence level for the CP upper bound
 THRESH_BIAS_PASS = 2.0      # |bias| ≤ 2 dB → PASS; > 2 dB → FAIL
 
+# Decodable-SNR floor for the informational restricted-population attribute-Kappa
+# variant (rr-density-qrm-scenario / R&R-007).  Established by R&R-005 for the
+# redesigned S1 ladder as "the reliable decode floor for both apps"; reused here to
+# separate agreement-on-decodable-signals from agreement-including-signals-below-the-
+# decode-capability-boundary.  Informational only — does NOT feed the §10 gate or the
+# overall verdict (see _collect_verdicts, which is never passed this variant).
+S4_DECODABLE_SNR_FLOOR_DB: float = -12.0
+
 APPRAISERS = ("WSJT-X", "OpenWSFZ")
 
 # ---------------------------------------------------------------------------
@@ -771,42 +779,14 @@ def _cohen_kappa_ci(labels_a: list, labels_b: list,
     return {"kappa": kappa, "ci_lo": kappa, "ci_hi": kappa}
 
 
-def _attribute_agreement(matched: dict[str, pd.DataFrame], run_dir: Path) -> dict:
-    """Pooled attribute agreement: S4 positives + S5 negatives.
+def _confusion_kappa_repeatability(units: dict[str, dict[tuple, tuple]]) -> dict:
+    """Compute confusion counts, κ (vs truth + between-app), and within-app
+    repeatability from a ``units`` mapping of ``appr -> {unit_key: (truth, call, group)}``.
 
-    Returns a dict with κ (each-app-vs-truth, between-app), within-app
-    repeatability, and the per-appraiser confusion counts.
+    Shared by the full-population and decodable-SNR-restricted attribute-agreement
+    computations (rr-density-qrm-scenario / R&R-007) so both variants are computed
+    identically save for which units are included.
     """
-    pos_df = matched.get("S4")
-    neg_df = matched.get("S5")
-
-    # units[appr][unit_key] = (truth_bool, call_bool, group_key)
-    units: dict[str, dict[tuple, tuple]] = {a: {} for a in APPRAISERS}
-
-    # --- Positives (S4): truth present; call = decoded? ---
-    if pos_df is not None:
-        d = pos_df[pos_df["false_positive"] == False]
-        for _, r in d.iterrows():
-            appr = r["appraiser"]
-            if appr not in units:
-                continue
-            key = ("S4", r["part_index"], r["trial_index"], r["cycle_utc"], r["message_text"])
-            group = ("S4", r["part_index"], r["message_text"])
-            units[appr][key] = (True, bool(r["matched"]), group)
-
-    # --- Negatives (S5): truth absent; call = emitted a false positive in slot? ---
-    if neg_df is not None:
-        truth_rows = neg_df[neg_df["false_positive"] == False]
-        s5_cycles = set(truth_rows["cycle_utc"].dropna().unique())
-        for appr in APPRAISERS:
-            sub = neg_df[neg_df["appraiser"] == appr]
-            fp_cycles = set(sub[sub["false_positive"] == True]["cycle_utc"]) & s5_cycles
-            for _, r in sub[sub["false_positive"] == False].iterrows():
-                cyc = r["cycle_utc"]
-                key = ("S5", r["part_index"], r["trial_index"], cyc, "")
-                group = ("S5", r["part_index"], "")
-                units[appr][key] = (False, cyc in fp_cycles, group)
-
     # --- Confusion counts ---
     confusion: dict[str, dict] = {}
     for appr in APPRAISERS:
@@ -852,6 +832,64 @@ def _attribute_agreement(matched: dict[str, pd.DataFrame], run_dir: Path) -> dic
             repeatability[appr] = float("nan")
 
     return {"kappa": kappa, "repeatability": repeatability, "confusion": confusion}
+
+
+def _attribute_agreement(matched: dict[str, pd.DataFrame], run_dir: Path) -> dict:
+    """Pooled attribute agreement: S4 positives + S5 negatives.
+
+    Returns a dict with κ (each-app-vs-truth, between-app), within-app
+    repeatability, and the per-appraiser confusion counts for the full population,
+    plus an **informational** ``restricted`` variant computed over only those S4
+    positives at or above ``S4_DECODABLE_SNR_FLOOR_DB`` (all S5 negatives are kept
+    in both — SNR does not apply to a signal-free slot). The restricted variant
+    operationalises STUDY-SPEC.md §9.3's second ratification condition for
+    evaluation; it does not change the full population's gate status, and is never
+    passed to ``_collect_verdicts`` (see call site in ``main()``).
+    """
+    pos_df = matched.get("S4")
+    neg_df = matched.get("S5")
+
+    # units[appr][unit_key] = (truth_bool, call_bool, group_key)
+    units: dict[str, dict[tuple, tuple]] = {a: {} for a in APPRAISERS}
+    units_restricted: dict[str, dict[tuple, tuple]] = {a: {} for a in APPRAISERS}
+
+    # --- Positives (S4): truth present; call = decoded? ---
+    if pos_df is not None:
+        d = pos_df[pos_df["false_positive"] == False]
+        for _, r in d.iterrows():
+            appr = r["appraiser"]
+            if appr not in units:
+                continue
+            key = ("S4", r["part_index"], r["trial_index"], r["cycle_utc"], r["message_text"])
+            group = ("S4", r["part_index"], r["message_text"])
+            entry = (True, bool(r["matched"]), group)
+            units[appr][key] = entry
+
+            snr = pd.to_numeric(r.get("true_snr_db"), errors="coerce")
+            if pd.notna(snr) and float(snr) >= S4_DECODABLE_SNR_FLOOR_DB:
+                units_restricted[appr][key] = entry
+
+    # --- Negatives (S5): truth absent; call = emitted a false positive in slot? ---
+    # Included unfiltered in both the full and restricted populations — SNR is not
+    # a meaningful concept for a signal-free slot.
+    if neg_df is not None:
+        truth_rows = neg_df[neg_df["false_positive"] == False]
+        s5_cycles = set(truth_rows["cycle_utc"].dropna().unique())
+        for appr in APPRAISERS:
+            sub = neg_df[neg_df["appraiser"] == appr]
+            fp_cycles = set(sub[sub["false_positive"] == True]["cycle_utc"]) & s5_cycles
+            for _, r in sub[sub["false_positive"] == False].iterrows():
+                cyc = r["cycle_utc"]
+                key = ("S5", r["part_index"], r["trial_index"], cyc, "")
+                group = ("S5", r["part_index"], "")
+                entry = (False, cyc in fp_cycles, group)
+                units[appr][key] = entry
+                units_restricted[appr][key] = entry
+
+    result = _confusion_kappa_repeatability(units)
+    result["restricted"] = _confusion_kappa_repeatability(units_restricted)
+    result["restricted"]["snr_floor_db"] = S4_DECODABLE_SNR_FLOOR_DB
+    return result
 
 
 def _attribute_report_lines(attr: dict) -> list[str]:
@@ -900,6 +938,43 @@ def _attribute_report_lines(attr: dict) -> list[str]:
         lines.append(f"| {appr} | {_fmt_num(attr['repeatability'].get(appr, float('nan')))}% |")
     lines += [""]
 
+    # Decodable-SNR-restricted κ (informational; rr-density-qrm-scenario / R&R-007).
+    # Operationalises STUDY-SPEC.md §9.3's second ratification condition for
+    # evaluation only — this figure never contributes to the overall verdict.
+    restricted = attr.get("restricted")
+    if restricted:
+        floor_db = restricted.get("snr_floor_db", S4_DECODABLE_SNR_FLOOR_DB)
+        lines += [
+            f"### Kappa — decodable-SNR-restricted positives (informational, floor {floor_db:g} dB)",
+            "",
+            "_S4 positives below the decodable-SNR floor are excluded (S5 negatives "
+            "unchanged); shown alongside the full-population figures above per "
+            "STUDY-SPEC.md §9.3's second ratification condition. **Informational "
+            "only — does not affect the §10 gate or the overall verdict.**",
+            "",
+        ]
+        lines += ["| Appraiser | TP | FN | FP | TN | Recovery | Specificity |",
+                  "|---|---|---|---|---|---|---|"]
+        for appr in APPRAISERS:
+            c = restricted["confusion"].get(appr, {})
+            tp, fn, fp, tn = c.get("TP", 0), c.get("FN", 0), c.get("FP", 0), c.get("TN", 0)
+            rec = 100.0 * tp / (tp + fn) if (tp + fn) else float("nan")
+            spec = 100.0 * tn / (tn + fp) if (tn + fp) else float("nan")
+            lines.append(
+                f"| {appr} | {tp} | {fn} | {fp} | {tn} | "
+                f"{_fmt_num(rec)}% | {_fmt_num(spec)}% |"
+            )
+        lines += ["", "| Pair | κ | 95% CI | Verdict (informational) |", "|---|---|---|---|"]
+        for label, info in sorted(restricted["kappa"].items()):
+            k = info.get("kappa", float("nan"))
+            if "ci_lo" in info and not (isinstance(info["ci_lo"], float) and math.isnan(info["ci_lo"])):
+                ci = f"[{_fmt_num(info['ci_lo'])}, {_fmt_num(info['ci_hi'])}]"
+            else:
+                ci = "—"
+            v = _verdict_kappa(k) if not math.isnan(k) else "—"
+            lines.append(f"| {label} | {_fmt_num(k, '.3f')} | {ci} | {v} |")
+        lines += [""]
+
     return lines
 
 
@@ -911,10 +986,11 @@ def _analyse_compounding(df_matched: pd.DataFrame, scen_meta: dict | None,
                          run_dir: Path) -> dict:
     """Per-message recovery analysis for the S7 compounding scenario.
 
-    Unlike S4/S5, S7 logs one truth row per compounded signal, so we can measure
-    genuine per-message recovery (matched / injected) instead of the degenerate
-    single-class Kappa.  Reports recovery per appraiser, per overlap family, per
-    part, the capture-effect strong-vs-weak split, and between-app agreement.
+    S7 logs one truth row per compounded signal (as S4 and S8 also do — see
+    rr-density-qrm-scenario / R&R-007 for S4's history), so we can measure genuine
+    per-message recovery (matched / injected) instead of the degenerate single-class
+    Kappa.  Reports recovery per appraiser, per overlap family, per part, the
+    capture-effect strong-vs-weak split, and between-app agreement.
     """
     df = df_matched[df_matched["false_positive"] == False].copy()
     df["matched"] = df["matched"].astype(bool)
@@ -2129,6 +2205,13 @@ def main() -> None:
         kappa_results = attr_results["kappa"]
         for label, info in kappa_results.items():
             print(f"  Kappa {label}: {_fmt_num(info.get('kappa', float('nan')), '.3f')} (advisory)")
+        # Informational only (rr-density-qrm-scenario / R&R-007) — never passed to
+        # _collect_verdicts, so it cannot affect the overall verdict.
+        for label, info in attr_results["restricted"]["kappa"].items():
+            print(
+                f"  Kappa {label} (SNR>={S4_DECODABLE_SNR_FLOOR_DB:g}dB only): "
+                f"{_fmt_num(info.get('kappa', float('nan')), '.3f')} (informational)"
+            )
 
     # --- S7 compounding / co-channel overlap ---
     s7_results: dict | None = None

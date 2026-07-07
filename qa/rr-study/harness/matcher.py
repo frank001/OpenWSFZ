@@ -158,23 +158,17 @@ def _match_appraiser(
         for idx, cand in enumerate(candidates):
             if (cycle_dt, idx) in consumed:
                 continue
-            # Try to match single truth message; S4 has multiple messages per part
+            # Try to match this truth row's single message against a candidate decode.
+            # Every scenario (S1-S4, S7, S8) now writes one truth row per individual
+            # injected message, each carrying its own message_text + true_freq_hz —
+            # rr-density-qrm-scenario retired S4's previous "pooled '; '-joined
+            # message set, match any one" special case (see RR-007), so a single
+            # generic path now covers all of them.
             truth_msg = truth["message_text"]
             true_freq_str = truth["true_freq_hz"]
-            # For S4/S5, freq and message matching behaves differently
             if not true_freq_str:
-                if truth_msg == "":
-                    # S5: signal-free slot — nothing is expected; no match possible
-                    pass
-                else:
-                    # S4: truth_msg is a "; "-joined pool of individual messages.
-                    # A candidate matches if its decoded text equals any one pool entry.
-                    pool_msgs = [m.strip() for m in truth_msg.split(";")]
-                    if any(_text_matches(cand.message, m) for m in pool_msgs):
-                        consumed.add((cycle_dt, idx))
-                        output_rows.append(_matched_row(truth, appraiser, scenario_id, cand))
-                        match_found = True
-                        break
+                # S5: signal-free slot — nothing is expected; no match possible.
+                pass
             else:
                 true_freq = float(true_freq_str)
                 if _text_matches(cand.message, truth_msg) and _freq_matches(cand.freq_hz, true_freq):

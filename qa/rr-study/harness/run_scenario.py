@@ -238,12 +238,19 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
 # ---------------------------------------------------------------------------
 
 def _render_multi(scenario: dict, part: dict, trial_index: int,
-                  seed: int) -> "numpy.ndarray":
+                  seed: int) -> "tuple[numpy.ndarray, list[dict]]":
     """Render a multi-signal density part (S4) over one shared band-noise floor.
 
     Stations are spread evenly across 300–2700 Hz and scaled by their relative
     SNR; a single seeded noise floor is added once (see
     :func:`synth.channel.mix_to_shared_floor`) — not one floor per station.
+
+    Returns ``(mixed_samples, signals_meta)`` where ``signals_meta`` is a list
+    of ``{message_text, freq_hz, dt_s, snr_db}`` dicts, one per signal, used to
+    write one truth row PER SIGNAL (rr-density-qrm-scenario) so the matcher
+    scores each message independently instead of pooling the whole cycle into
+    a single "matched any one" outcome. Mirrors ``_render_band_scene`` (S8) and
+    ``_render_compound`` (S7), which already do this correctly.
     """
     from synth import channel, encoder
 
@@ -261,8 +268,10 @@ def _render_multi(scenario: dict, part: dict, trial_index: int,
 
     clean_signals = []
     snr_list = []
+    signals_meta: list[dict] = []
     for i in range(n_signals):
         text = msg_pool[i % len(msg_pool)]
+        snr_db = float(snr_db_set[i % len(snr_db_set)])
         clean_signals.append(encoder.encode_message(
             text,
             base_freq_hz=freqs[i],
@@ -270,11 +279,18 @@ def _render_multi(scenario: dict, part: dict, trial_index: int,
             snr_db=None,  # clean render; the floor is added once by the mixer
             sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
         ))
-        snr_list.append(float(snr_db_set[i % len(snr_db_set)]))
+        snr_list.append(snr_db)
+        signals_meta.append({
+            "message_text": text,
+            "freq_hz":      freqs[i],
+            "dt_s":         0.0,
+            "snr_db":       snr_db,
+        })
 
-    return channel.mix_to_shared_floor(clean_signals, snr_list, seed,
-                                       sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
-                                       noise_cutoff_hz=_NOISE_CUTOFF_HZ)
+    mixed = channel.mix_to_shared_floor(clean_signals, snr_list, seed,
+                                        sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+                                        noise_cutoff_hz=_NOISE_CUTOFF_HZ)
+    return mixed, signals_meta
 
 
 # ---------------------------------------------------------------------------
@@ -822,8 +838,9 @@ def _run(args: argparse.Namespace) -> None:
 
             # Render PCM
             import numpy as np
-            s7_signals_meta = None  # populated only for S7/S8 (one truth row per signal)
+            s7_signals_meta = None  # populated only for S7/S8/S4 (one truth row per signal)
             s8_signals_meta = None
+            s4_signals_meta = None
             if is_s8:
                 samples, s8_signals_meta = _render_band_scene(scenario, seed)
                 # Per-slot truth fields unused for S8 (logged per signal below).
@@ -845,14 +862,17 @@ def _run(args: argparse.Namespace) -> None:
                 true_freq_hz = ""
                 msg_text = "; ".join(s["message_text"] for s in s7_signals_meta)
             elif is_s4:
-                samples = _render_multi(scenario, part, trial_index, seed)
-                true_snr_db = ""  # multiple SNRs per part
-                true_dt_s = 0.0
+                samples, s4_signals_meta = _render_multi(scenario, part, trial_index, seed)
+                # Per-slot truth fields are unused for S4 (logged per signal below,
+                # rr-density-qrm-scenario — one truth row per injected message so the
+                # matcher scores each independently instead of "matched any one").
+                # No pooled msg_text is built here (task 1.4): it was only ever
+                # needed to feed the old single pooled-row truth write, which the
+                # per-signal branch below replaces.
+                true_snr_db = ""
+                true_dt_s = ""
                 true_freq_hz = ""
-                # Use pool message texts (comma-separated for truth log)
-                pool = list(scenario["message_texts"].values())
-                n_sig = part["n_signals"]
-                msg_text = "; ".join(pool[i % len(pool)] for i in range(n_sig))
+                msg_text = ""
             else:
                 # S1, S1b, S2, S3 — single signal
                 fixed = scenario.get("fixed", {})
@@ -920,9 +940,10 @@ def _run(args: argparse.Namespace) -> None:
                     sys.exit(1)
                 print("done")
 
-            # Log truth row(s).  S7 and S8 write one row per signal so the
-            # matcher scores each message independently; all other scenarios
-            # write a single per-slot row.
+            # Log truth row(s).  S4, S7, and S8 write one row per signal so the
+            # matcher scores each message independently (rr-density-qrm-scenario
+            # extended this to S4, which previously wrote a single pooled row per
+            # cycle — see RR-007); all other scenarios write a single per-slot row.
             if is_s8 and s8_signals_meta is not None:
                 for sig in s8_signals_meta:
                     _append_truth(run_dir, {
@@ -938,6 +959,19 @@ def _run(args: argparse.Namespace) -> None:
                     })
             elif is_s7 and s7_signals_meta is not None:
                 for sig in s7_signals_meta:
+                    _append_truth(run_dir, {
+                        "scenario_id": scenario_id,
+                        "part_index": part_index,
+                        "trial_index": trial_index,
+                        "seed": seed,
+                        "true_snr_db": sig["snr_db"],
+                        "true_dt_s": sig["dt_s"],
+                        "true_freq_hz": sig["freq_hz"],
+                        "message_text": sig["message_text"],
+                        "cycle_utc": cycle_utc_str,
+                    })
+            elif is_s4 and s4_signals_meta is not None:
+                for sig in s4_signals_meta:
                     _append_truth(run_dir, {
                         "scenario_id": scenario_id,
                         "part_index": part_index,
