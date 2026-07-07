@@ -88,16 +88,29 @@
 
 ## 5. Live re-run and real data
 
-- [ ] 5.1 Schedule and run a live-audio re-run (real WSJT-X + VB-CABLE) covering at
+- [x] 5.1 Schedule and run a live-audio re-run (real WSJT-X + VB-CABLE) covering at
       minimum S4 (the changed scenario) and S5 (the negative population the pooled κ
-      needs); include S1 as a rig-health sanity check.
-- [ ] 5.2 Regenerate `report.md`/`report.html` from the new run; confirm the new
+      needs); include S1 as a rig-health sanity check. Run: `results/2026-07-07-df4cc89/`
+      (`--scenarios S1,S4,S5`), Captain-operated live session.
+- [x] 5.2 Regenerate `report.md`/`report.html` from the new run; confirm the new
       per-message S4 confusion matrix and both κ figures (full + decodable-SNR-restricted)
       render correctly and no longer show the degenerate TP=15/FN=0 ceiling result.
-- [ ] 5.3 Compare the new S4 per-message recovery figures against S7's per-message
+      Confirmed: WSJT-X TP=75/FN=33 (69.44% recovery), OpenWSFZ TP=71/FN=37 (65.74%
+      recovery) — real, differentiated, non-degenerate figures (vs `793a298`'s
+      TP=15/FN=0, 100%, κ=1.000 for both). Restricted-population κ table also
+      rendered (WSJT-X/OpenWSFZ both 79.01% recovery, between-appraiser κ=0.931 PASS).
+      Sections 1/2/5 authored per HK-001; HTML rendered via `render_report.py`.
+- [x] 5.3 Compare the new S4 per-message recovery figures against S7's per-message
       figures from the same run as a sanity cross-check (they should now tell a
       broadly consistent story about QRM-handling capability, unlike the `793a298`
-      contradiction that triggered RR-007).
+      contradiction that triggered RR-007). **Caveat:** S7 was not included in this
+      run (out of the task 5.1 minimum scope), so the comparison used the most
+      recent available S7 data (`793a298`) rather than a same-run check. Direction is
+      consistent (OpenWSFZ trails WSJT-X in both S4 and S7's co_channel family);
+      magnitude differs as expected (S4 aggregates all SNRs/densities, S7's
+      `co_channel` isolates the hardest equal-power case). A same-run comparison
+      would require a follow-up run including S7 — noted in `report.md` Section 5 and
+      left as a suggestion, not a blocking gap.
 
 ## 6. Documentation
 

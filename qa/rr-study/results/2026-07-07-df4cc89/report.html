@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWSFZ R&amp;R Study Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="openwsfz-rr-study-report">OpenWSFZ R&amp;R Study Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-07-07</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA (build under test)</td>
+<td><code>df4cc89fc5519bc47e157193c6c1d60de3a9c862</code></td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0 (inferred from binary date 2025-02-04)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<h3 id="purpose">Purpose</h3>
+<p>This run validates <code>rr-study-s4-per-message-matching</code> (tasks 1–4, GitHub #59 / <code>qa/rr-study/RR-007.md</code>)
+against real live audio, on the current <code>main</code> HEAD (<code>df4cc89</code>). RR-007 found that S4's truth
+generation and matcher pooled every message injected into a cycle into one truth row and scored a
+match as "decoded any one of N" — a ceiling effect that made S4 structurally incapable of
+distinguishing good QRM handling from bad. The prior full-suite run (<code>793a298</code>, 2026-07-04) is the
+degenerate baseline this run supersedes for S4: both appraisers scored a perfect <strong>TP=15/FN=0,
+κ=1.000, PASS</strong> — a result flatly contradicted by that same run's S7 data, which showed OpenWSFZ
+recovering only 40.00% of co-channel stacks against WSJT-X's 100.00%.</p>
+<p>This run's scope is deliberately narrow per <code>tasks.md</code> task 5.1: <strong>S1</strong> (rig-health sanity check,
+no code path shared with the fix), <strong>S4</strong> (the scenario whose truth/matcher logic changed), and
+<strong>S5</strong> (the negative population the pooled attribute-κ needs). S2, S3, S1b, S7, and S8 were not
+run — the design's non-goals state plainly that none of their truth/matching behavior changed, and
+re-running them would not test anything this change touches.</p>
+<h3 id="null-hypotheses">Null Hypotheses</h3>
+<ul>
+<li><strong>H₀-A (S1 rig sanity):</strong> S1's %GR&amp;R, ndc, and SNR bias remain within STUDY-SPEC §10 thresholds,
+  confirming the audio rig itself is healthy — so any change observed in S4 is attributable to the
+  harness fix, not a rig or environment problem.</li>
+<li><strong>H₀-F (the S4 ceiling effect is resolved):</strong> S4's per-message recovery/κ figures are no longer
+  the degenerate TP=n/FN=0, κ=1.000 result seen in <code>793a298</code>. If the fix works, recovery should be
+  measurably below 100% for at least one appraiser, with independent per-message TP/FN counts
+  reflecting <code>n_signals × trials</code>, not <code>parts × trials</code>.</li>
+<li><strong>H₀-G (the decodable-SNR-restricted κ diverges meaningfully from the full-population κ):</strong> per
+  §9.3's second ratification condition, restricting S4 positives to the R&amp;R-005 decodable floor
+  (≥ −12 dB) should raise recovery/κ relative to the full population, confirming that sub-threshold
+  misses were genuinely contaminating the full-population figure with a decode-capability boundary
+  rather than a measurement disagreement.</li>
+</ul>
+<h3 id="what-constitutes-a-meaningful-result">What Constitutes a Meaningful Result</h3>
+<p>If S4 no longer shows the ceiling effect (real TP+FN counts equal to <code>n_signals × trials</code>, recovery
+&lt; 100% for at least one appraiser), the RR-007 fix is confirmed working with real data, and this
+change's implementation tasks (1–4) are validated end-to-end, not just by unit test. <strong>Ratifying the
+attribute-Kappa gate itself is explicitly not a goal of this run</strong> — it remains advisory, and
+whether/when to promote it to a hard gate is a separate Captain decision informed by, but not
+decided by, this data.</p>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build under test</td>
+<td><code>df4cc89</code> (branch <code>main</code>) — <code>rr-study-s4-per-message-matching</code> tasks 1–4</td>
+</tr>
+<tr>
+<td>Prior S4 result (pre-fix, degenerate)</td>
+<td><code>793a298</code>, 2026-07-04 — TP=15/FN=0 for both appraisers, κ=1.000 PASS (see RR-007.md §2.3)</td>
+</tr>
+<tr>
+<td>Scope this run</td>
+<td>S1 (rig sanity), S4 (fix under test), S5 (pooled-κ negative population)</td>
+</tr>
+<tr>
+<td>Not run this session</td>
+<td>S2, S3, S1b, S7, S8 — unaffected by this change (design.md non-goals); most recent S7 reference remains <code>793a298</code></td>
+</tr>
+<tr>
+<td>WSJT-X reference</td>
+<td>2.7.0</td>
+</tr>
+<tr>
+<td>Corpus</td>
+<td>Synthetic fixtures only (NFR-021 compliant; no real callsigns)</td>
+</tr>
+<tr>
+<td>Harness change under test</td>
+<td>S4 truth generation now emits one row per injected message (previously one pooled row per cycle); matcher's dead S4-pool-matching branch retired; informational decodable-SNR-restricted κ added (<code>S4_DECODABLE_SNR_FLOOR_DB = -12.0</code>)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h2 id="s1-reported_snr_db">S1 — reported_snr_db</h2>
+<h3 id="variance-components">Variance Components</h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>σ²</th>
+<th>%Contribution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Repeatability</td>
+<td>0.10</td>
+<td>0.12%</td>
+</tr>
+<tr>
+<td>Reproducibility</td>
+<td>0.19</td>
+<td>0.23%</td>
+</tr>
+<tr>
+<td>Part-to-Part</td>
+<td>80.97</td>
+<td>99.64%</td>
+</tr>
+<tr>
+<td>Total GR&amp;R</td>
+<td>0.29</td>
+<td>0.36%</td>
+</tr>
+<tr>
+<td>Total</td>
+<td>81.26</td>
+<td>100.00%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="study-metrics">Study Metrics</h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>%Tolerance (GR&amp;R)</td>
+<td>32.25%</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>%Study Var (GR&amp;R)</td>
+<td>5.96%</td>
+<td>—</td>
+</tr>
+<tr>
+<td>ndc</td>
+<td>23</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S1 GR&amp;R panel" src="S1_grr_panel.png" /></p>
+<h3 id="bias-linearity-s1">Bias &amp; Linearity (S1)</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>Mean Bias (dB)</th>
+<th>Slope</th>
+<th>Intercept</th>
+<th>R²</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>+0.88</td>
+<td>-0.005</td>
+<td>0.892</td>
+<td>0.019</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>+1.42</td>
+<td>-0.017</td>
+<td>1.449</td>
+<td>0.114</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S1 Bias &amp; Linearity" src="S1_bias_linearity.png" /></p>
+<h2 id="attribute-agreement-analysis-s4-positives-s5-negatives">Attribute Agreement Analysis (S4 positives + S5 negatives)</h2>
+<p><em>κ is computed over a pooled population: S4 injected messages (truth = present) and S5 signal-free slots (truth = absent), so the truth vector has both classes. <strong>κ verdicts below are advisory</strong> — the §10 attribute gate is pending Captain ratification of this pooled method.</em></p>
+<h3 id="confusion-vs-truth">Confusion vs truth</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>TP</th>
+<th>FN</th>
+<th>FP</th>
+<th>TN</th>
+<th>Recovery</th>
+<th>Specificity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>75</td>
+<td>33</td>
+<td>0</td>
+<td>120</td>
+<td>69.44%</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>71</td>
+<td>37</td>
+<td>0</td>
+<td>120</td>
+<td>65.74%</td>
+<td>100.00%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kappa-advisory">Kappa (advisory)</h3>
+<table>
+<thead>
+<tr>
+<th>Pair</th>
+<th>κ</th>
+<th>95% CI</th>
+<th>Verdict (advisory)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenWSFZ_vs_truth</td>
+<td>0.669</td>
+<td>[0.57, 0.76]</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>WSJT-X_vs_truth</td>
+<td>0.705</td>
+<td>[0.61, 0.79]</td>
+<td>MARGINAL</td>
+</tr>
+<tr>
+<td>between_appraisers</td>
+<td>0.879</td>
+<td>—</td>
+<td>MARGINAL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="within-app-repeatability-decision-consistency-across-trials">Within-app repeatability (decision consistency across trials)</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>Consistent groups</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>87.50%</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>92.50%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kappa-decodable-snr-restricted-positives-informational-floor-12-db">Kappa — decodable-SNR-restricted positives (informational, floor -12 dB)</h3>
+<p>_S4 positives below the decodable-SNR floor are excluded (S5 negatives unchanged); shown alongside the full-population figures above per STUDY-SPEC.md §9.3's second ratification condition. <strong>Informational only — does not affect the §10 gate or the overall verdict.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>TP</th>
+<th>FN</th>
+<th>FP</th>
+<th>TN</th>
+<th>Recovery</th>
+<th>Specificity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>64</td>
+<td>17</td>
+<td>0</td>
+<td>120</td>
+<td>79.01%</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>64</td>
+<td>17</td>
+<td>0</td>
+<td>120</td>
+<td>79.01%</td>
+<td>100.00%</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Pair</th>
+<th>κ</th>
+<th>95% CI</th>
+<th>Verdict (informational)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenWSFZ_vs_truth</td>
+<td>0.818</td>
+<td>[0.73, 0.89]</td>
+<td>MARGINAL</td>
+</tr>
+<tr>
+<td>WSJT-X_vs_truth</td>
+<td>0.818</td>
+<td>[0.72, 0.89]</td>
+<td>MARGINAL</td>
+</tr>
+<tr>
+<td>between_appraisers</td>
+<td>0.931</td>
+<td>—</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<h3 id="false-positive-rate-s5">False-positive rate (S5)</h3>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>FP events / slots</th>
+<th>Event rate</th>
+<th>95% UB</th>
+<th>Decode rate</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>0 / 120</td>
+<td>0.00%</td>
+<td>2.47%</td>
+<td>0.00%</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>0 / 120</td>
+<td>0.00%</td>
+<td>2.47%</td>
+<td>0.00%</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<p><em>Gate (STUDY-SPEC §10, ratified 2026-07-04, R&amp;R-004): the per-slot FP <strong>event rate</strong>, gated on its one-sided 95% Clopper–Pearson <strong>upper bound</strong> (PASS iff 95% UB ≤ 6%). The UB is defined for all event counts (≈ 3 / N_slots at 0 events) and bounds the true per-slot FP probability at 95% confidence rather than the Poisson-noisy point estimate. Decode rate is reported for reference only.</em></p>
+<hr />
+<h2 id="section-4-summary-verdict-table">Section 4 — Summary Verdict Table</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Scope</th>
+<th>Value</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>%GR&amp;R</td>
+<td>S1</td>
+<td>0.4%</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>ndc</td>
+<td>S1</td>
+<td>23</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>Kappa (advisory)</td>
+<td>WSJT-X_vs_truth</td>
+<td>0.705</td>
+<td>MARGINAL</td>
+</tr>
+<tr>
+<td>Kappa (advisory)</td>
+<td>OpenWSFZ_vs_truth</td>
+<td>0.669</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>Kappa (advisory)</td>
+<td>between_appraisers</td>
+<td>0.879</td>
+<td>MARGINAL</td>
+</tr>
+<tr>
+<td>FP event rate (95% UB)</td>
+<td>S5/WSJT-X</td>
+<td>0/120 slots (event 0.0%; 95% UB 2.47%; decode 0.0%)</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>FP event rate (95% UB)</td>
+<td>S5/OpenWSFZ</td>
+<td>0/120 slots (event 0.0%; 95% UB 2.47%; decode 0.0%)</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>SNR bias</td>
+<td>S1/WSJT-X</td>
+<td>+0.88 dB</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>SNR bias</td>
+<td>S1/OpenWSFZ</td>
+<td>+1.42 dB</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: PASS</strong></p>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<h3 id="h0-a-s1-rig-sanity-retained">H₀-A (S1 rig sanity) — Retained ✅</h3>
+<p>S1's %GR&amp;R (0.4%), ndc (23), and bias (WSJT-X +0.88 dB, OpenWSFZ +1.42 dB) all clear STUDY-SPEC
+§10 thresholds with wide margin. The rig is healthy; the S4 result below is attributable to the
+harness fix under test, not an environment artifact.</p>
+<h3 id="h0-f-the-s4-ceiling-effect-is-resolved-confirmed">H₀-F (the S4 ceiling effect is resolved) — Confirmed ✅</h3>
+<p>The ceiling effect is gone. Compare directly against the degenerate <code>793a298</code> baseline:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th><code>793a298</code> (pre-fix)</th>
+<th><code>df4cc89</code> (this run)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X TP/FN</td>
+<td>15 / 0</td>
+<td><strong>75 / 33</strong></td>
+</tr>
+<tr>
+<td>OpenWSFZ TP/FN</td>
+<td>15 / 0</td>
+<td><strong>71 / 37</strong></td>
+</tr>
+<tr>
+<td>WSJT-X recovery</td>
+<td>100.00%</td>
+<td><strong>69.44%</strong></td>
+</tr>
+<tr>
+<td>OpenWSFZ recovery</td>
+<td>100.00%</td>
+<td><strong>65.74%</strong></td>
+</tr>
+<tr>
+<td>κ (both, vs truth)</td>
+<td>1.000 / 1.000</td>
+<td><strong>0.705 / 0.669</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Total positive count rose from 15 (the old <code>parts × trials</code> cycle count) to 108 per appraiser
+(<code>n_signals × trials</code> summed across parts — matching the design's acceptance criterion exactly).
+Recovery is no longer pinned at 100%, and — critically — the two appraisers are no longer
+indistinguishable: OpenWSFZ recovers modestly fewer messages than WSJT-X under S4's density/QRM
+conditions (65.74% vs 69.44%), a real, plausible gap in place of the previous statistically
+meaningless perfection.</p>
+<p><strong>Directional cross-check against S7 (not from the same run — see caveat below):</strong> the most recent
+S7 data (<code>793a298</code>) showed OpenWSFZ trailing WSJT-X in co-channel recovery (40.00% vs 100.00%,
+<code>co_channel</code> family). This run's S4 gap points the same direction (OpenWSFZ behind WSJT-X) though
+at a much smaller magnitude (~4 pp vs ~60 pp) — expected, since S4 aggregates across <em>all</em> SNR
+levels and densities (parts 0–2 are dominated by easy, high-SNR signals that both apps recover
+reliably), while S7's <code>co_channel</code> family isolates the hardest equal-power collision cases
+specifically. The two results are consistent in direction, not magnitude, which is the right
+relationship for two scenarios measuring related but distinct things.</p>
+<p><strong>Caveat:</strong> S7 was not re-run in this session (out of scope per task 5.1's minimum set), so this is
+a cross-scenario, cross-run comparison, not a same-run apples-to-apples check. If a tighter
+comparison is wanted, task 5.3 recommends a follow-up run including S7.</p>
+<h3 id="h0-g-decodable-snr-restricted-diverges-from-the-full-population-confirmed">H₀-G (decodable-SNR-restricted κ diverges from the full population) — Confirmed ✅</h3>
+<p>Restricting S4 positives to the R&amp;R-005 decodable floor (≥ −12 dB) changes the picture measurably:</p>
+<table>
+<thead>
+<tr>
+<th>Population</th>
+<th>WSJT-X recovery</th>
+<th>OpenWSFZ recovery</th>
+<th>κ (between-appraiser)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Full (all SNRs)</td>
+<td>69.44%</td>
+<td>65.74%</td>
+<td>0.879 (MARGINAL)</td>
+</tr>
+<tr>
+<td>Restricted (≥ −12 dB only)</td>
+<td><strong>79.01%</strong></td>
+<td><strong>79.01%</strong></td>
+<td><strong>0.931 (PASS)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Two things stand out. First, both figures rise substantially once sub-threshold-SNR misses are
+excluded, exactly as §9.3/RR-007 hypothesized — a real share of the full population's disagreement
+was a decode-capability boundary, not a genuine measurement disagreement. Second, and unexpectedly
+informative: <strong>within the restricted population, WSJT-X and OpenWSFZ show identical recovery
+(79.01%, TP=64/FN=17 each)</strong> — the apps agree closely on which decodable-SNR messages they can pull
+out of a dense QRM scene, even though recovery is well below 100% (79%, not 100%) — a genuine,
+non-trivial QRM/density effect S4 was always meant to measure, now visible for the first time.</p>
+<p>This figure remains strictly informational per the design; it does not by itself ratify anything.
+It gives the Captain real numbers for the first time against both of §9.3's stated conditions.</p>
+<h3 id="kappa-gate-status-unchanged-correctly">Kappa gate status — Unchanged, correctly ✅</h3>
+<p>The attribute-Kappa row remains advisory in Section 4's verdict table and did not affect the
+overall verdict (PASS, driven by S1's GR&amp;R/bias and S5's FP gate alone) — confirmed both by the
+dedicated unit test (<code>test_restricted_population_never_reaches_the_verdict_engine</code>) and now by this
+live run's Section 4 table, which lists only the full-population κ rows, not the restricted variant.</p>
+<h3 id="outstanding-task-6-documentation">Outstanding — task 6 (documentation)</h3>
+<p><code>STUDY-SPEC.md</code> §6/§9.3 and <code>RR-007.md</code> still need updating with this run's real figures, and
+GitHub issue #59 needs a status update distinguishing "the matcher defect is fixed and confirmed
+with real data" from "the gate is ratified" (the latter remains undecided, by design).</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
