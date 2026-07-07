@@ -54,6 +54,9 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(LogQsoResponse))]
 [JsonSerializable(typeof(WsQsoReviewMessage))]
 [JsonSerializable(typeof(LogTailResponse))]
+[JsonSerializable(typeof(RegionRefreshResponse))]
+[JsonSerializable(typeof(RegionDataStatusResponse))]
+[JsonSerializable(typeof(RegionLookupResponse))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -238,6 +241,51 @@ internal sealed record LogQsoResponse(bool Logged);
 /// Wire format: <c>{"lines":["2026-07-05 12:00:00 [INF] ...", "..."]}</c>
 /// </summary>
 internal sealed record LogTailResponse(string[] Lines);
+
+/// <summary>
+/// Response body for <c>POST /api/v1/region-data/refresh</c> (region-lookup-data-refresh).
+/// Wire format: <c>{"success":true,"entryCount":29006,"releaseVersion":"20260629"}</c>.
+/// <c>releaseVersion</c> is <c>null</c> when the release's <c>VERyyyymmdd</c> marker entry
+/// (see <c>cty-dat-format</c>'s version-tracking convention) was not present or recognised —
+/// this is informational only and never fails the refresh.
+/// </summary>
+public sealed record RegionRefreshResponse(bool Success, int EntryCount, string? ReleaseVersion);
+
+/// <summary>
+/// Response body for <c>GET /api/v1/region-data/status</c> (region-lookup-data-refresh, GUI
+/// operator status view). <c>EntryCount</c> always reflects <c>regionStore.Entries.Count</c>,
+/// regardless of whether a refresh has ever run this session — seed data or a previously-saved
+/// <c>callsign-regions.json</c> both count. The remaining fields describe <em>this daemon
+/// session's</em> refresh history only (no new persistence; they reset on restart, consistent
+/// with "refresh is never automatic").
+/// Wire format: <c>{"entryCount":38,"hasRefreshedThisSession":false,"lastRefreshUtc":null,
+/// "lastRefreshSucceeded":null,"lastReleaseVersion":null,"lastErrorMessage":null}</c>.
+/// </summary>
+public sealed record RegionDataStatusResponse(
+    int             EntryCount,
+    bool            HasRefreshedThisSession,
+    DateTimeOffset? LastRefreshUtc,
+    bool?           LastRefreshSucceeded,
+    string?         LastReleaseVersion,
+    string?         LastErrorMessage);
+
+/// <summary>
+/// Response body for <c>GET /api/v1/region-data/lookup?callsign={token}</c>
+/// (region-lookup-data-refresh, GUI operator diagnostic lookup). Mirrors the decode pipeline's
+/// own longest-prefix-match logic (<see cref="ICallsignRegionStore.TryGetRegion"/>) so an
+/// operator can confirm how a specific callsign currently resolves without decoding a live
+/// signal. A lookup miss reports <c>Matched: false</c> with every other field
+/// <c>null</c>/<c>false</c> — the diagnostic equivalent of the decode pipeline's "Unknown".
+/// Wire format: <c>{"matched":true,"entity":"Monaco","continent":"EU","cqZone":14,"ituZone":27,
+/// "synthetic":false}</c>.
+/// </summary>
+public sealed record RegionLookupResponse(
+    bool    Matched,
+    string? Entity,
+    string? Continent,
+    int?    CqZone,
+    int?    ItuZone,
+    bool    Synthetic);
 
 internal sealed record WsQsoReviewMessage(
     string  Type,

@@ -563,6 +563,140 @@ public static class WebApp
             return TypedResults.Ok(pmStore.Entries.ToList());
         });
 
+        // ── Region data refresh + status + lookup endpoints (region-lookup-data-refresh) ──
+
+        var regionRefreshLogger = app.Services.GetRequiredService<ILoggerFactory>()
+                                     .CreateLogger("OpenWSFZ.Web.RegionDataRefreshApi");
+
+        // This-session refresh history, captured by both the refresh endpoint (writer) and the
+        // status endpoint (reader) via closure — same pattern as regionRefreshLogger above. No
+        // new persistence: resets on daemon restart, consistent with "refresh is never
+        // automatic" (f-006 §6.1). Not a static/singleton field — scoped to this WebApp instance
+        // like every other captured variable in this method.
+        var regionRefreshHasRun    = false;
+        DateTimeOffset? regionRefreshLastUtc        = null;
+        bool?           regionRefreshLastSucceeded  = null;
+        string?         regionRefreshLastVersion    = null;
+        string?         regionRefreshLastError      = null;
+
+        app.MapPost("/api/v1/region-data/refresh", async (
+            ICountryFileSource    source,
+            ICountryFileConverter converter,
+            ICallsignRegionStore  regionStore,
+            CancellationToken     ct) =>
+        {
+            string xml;
+            try
+            {
+                xml = await source.FetchAsync(ct);
+            }
+            catch (CountryFileFetchException ex)
+            {
+                regionRefreshLogger.LogWarning(ex,
+                    "Region data refresh: fetch from country-files.com failed — existing data retained.");
+                regionRefreshHasRun          = true;
+                regionRefreshLastUtc         = DateTimeOffset.UtcNow;
+                regionRefreshLastSucceeded   = false;
+                regionRefreshLastError       = ex.Message;
+                return Results.Problem(statusCode: StatusCodes.Status502BadGateway, detail: ex.Message);
+            }
+
+            IReadOnlyList<CallsignRegionEntry> converted;
+            try
+            {
+                // Pass-through mode (prefixBlocksOnly: false): callsign-regions.json is never
+                // committed to version control, so individual-callsign exception entries are
+                // installed unfiltered (region-lookup-data-refresh, NFR-021 note in design.md).
+                converted = converter.Convert(xml, prefixBlocksOnly: false);
+            }
+            catch (CountryFileConversionException ex)
+            {
+                regionRefreshLogger.LogWarning(ex,
+                    "Region data refresh: conversion of fetched release failed — existing data retained.");
+                regionRefreshHasRun          = true;
+                regionRefreshLastUtc         = DateTimeOffset.UtcNow;
+                regionRefreshLastSucceeded   = false;
+                regionRefreshLastError       = ex.Message;
+                return Results.Problem(statusCode: StatusCodes.Status502BadGateway, detail: ex.Message);
+            }
+
+            try
+            {
+                await regionStore.SaveAsync(converted, ct);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // f-006 §6.2: mirror the fetch/convert siblings above — a write failure (disk
+                // full, permissions, AV lock) is logged and reported the same way, rather than
+                // propagating as an unhandled 500. SaveAsync is atomic (write-temp-then-rename),
+                // so existing region data is guaranteed untouched by a failed write.
+                regionRefreshLogger.LogWarning(ex,
+                    "Region data refresh: saving converted data failed — existing data retained.");
+                regionRefreshHasRun          = true;
+                regionRefreshLastUtc         = DateTimeOffset.UtcNow;
+                regionRefreshLastSucceeded   = false;
+                regionRefreshLastError       = ex.Message;
+                return Results.Problem(statusCode: StatusCodes.Status502BadGateway, detail: ex.Message);
+            }
+
+            // Best-effort extraction of the release's VERyyyymmdd marker entry (see
+            // cty-dat-format's version-tracking convention) so the operator can confirm which
+            // release was installed. Absent or unrecognised → null, not a failure.
+            var releaseVersion = converted
+                .Select(e => e.PrefixStart)
+                .FirstOrDefault(alias =>
+                    alias.Length == 11 &&
+                    alias.StartsWith("VER", StringComparison.Ordinal) &&
+                    alias[3..].All(char.IsAsciiDigit))
+                ?[3..];
+
+            // regionStore.Entries.Count (not converted.Count): CallsignRegionStore.SaveAsync may
+            // silently top up a synthetic Q-series entry the converted release doesn't carry (see
+            // its remarks) — report what's actually active after the save, not the pre-save count,
+            // so the two numbers can never quietly disagree.
+            var activeCount = regionStore.Entries.Count;
+
+            regionRefreshHasRun         = true;
+            regionRefreshLastUtc        = DateTimeOffset.UtcNow;
+            regionRefreshLastSucceeded  = true;
+            regionRefreshLastVersion    = releaseVersion;
+            regionRefreshLastError      = null;
+
+            regionRefreshLogger.LogInformation(
+                "Region data refresh succeeded: {Count} entries installed (release {Version}).",
+                activeCount, releaseVersion ?? "unknown");
+
+            return TypedResults.Ok(new RegionRefreshResponse(true, activeCount, releaseVersion));
+        });
+
+        // GET /api/v1/region-data/status (f-006 §6.1): operator-facing summary of the active
+        // region table and this session's refresh history — no GUI reachability existed for the
+        // refresh capability until this endpoint + the "Region data" settings tab were added.
+        app.MapGet("/api/v1/region-data/status", (ICallsignRegionStore regionStore) =>
+            TypedResults.Ok(new RegionDataStatusResponse(
+                EntryCount:               regionStore.Entries.Count,
+                HasRefreshedThisSession:  regionRefreshHasRun,
+                LastRefreshUtc:           regionRefreshLastUtc,
+                LastRefreshSucceeded:     regionRefreshLastSucceeded,
+                LastReleaseVersion:       regionRefreshLastVersion,
+                LastErrorMessage:         regionRefreshLastError)));
+
+        // GET /api/v1/region-data/lookup?callsign={token} (f-006 §6.4): read-only diagnostic —
+        // resolves a callsign against the active region table using the same longest-prefix-match
+        // logic the decode pipeline uses (ICallsignRegionStore.TryGetRegion), so an operator can
+        // confirm coverage or investigate an "Unknown" result without decoding a live signal.
+        app.MapGet("/api/v1/region-data/lookup", (string? callsign, ICallsignRegionStore regionStore) =>
+        {
+            if (string.IsNullOrWhiteSpace(callsign))
+                return Results.BadRequest("Missing or empty callsign query parameter.");
+
+            var region = regionStore.TryGetRegion(callsign);
+
+            return TypedResults.Ok(region is null
+                ? new RegionLookupResponse(false, null, null, null, null, false)
+                : new RegionLookupResponse(true, region.Entity, region.Continent, region.CqZone, region.ItuZone, region.Synthetic));
+        });
+
         // ── Tune endpoint (FR-045) ────────────────────────────────────────────
 
         var tuneLogger = app.Services.GetRequiredService<ILoggerFactory>()

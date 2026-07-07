@@ -46,7 +46,19 @@ public sealed record CallsignRegionEntry(
 /// <c>true</c> when this is the project's synthetic-callsign region — the frontend
 /// renders <see cref="Entity"/> verbatim with no continent prefix in this case.
 /// </param>
+/// <param name="CqZone">
+/// CQ zone number of the matched entry, or <c>null</c> when not sourced or not applicable
+/// (e.g. the synthetic entry). Not rendered by the main decode-result table; surfaced for the
+/// region-data lookup diagnostic tool (region-lookup-data-refresh).
+/// </param>
+/// <param name="ItuZone">
+/// ITU zone number of the matched entry, or <c>null</c> when not sourced or not applicable
+/// (e.g. the synthetic entry). Not rendered by the main decode-result table; surfaced for the
+/// region-data lookup diagnostic tool (region-lookup-data-refresh).
+/// </param>
 public sealed record RegionInfo(
     string? Continent,
     string  Entity,
-    bool    Synthetic);
+    bool    Synthetic,
+    int?    CqZone  = null,
+    int?    ItuZone = null);

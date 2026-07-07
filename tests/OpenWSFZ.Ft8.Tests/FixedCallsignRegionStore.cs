@@ -7,9 +7,13 @@ namespace OpenWSFZ.Ft8.Tests;
 /// no file I/O. Mirrors <see cref="CallsignRegionStore"/>'s longest-prefix-match lookup so
 /// tests exercise the same matching semantics without touching disk.
 /// </summary>
-internal sealed class FixedCallsignRegionStore(IReadOnlyList<CallsignRegionEntry> entries) : ICallsignRegionStore
+internal sealed class FixedCallsignRegionStore : ICallsignRegionStore
 {
-    public IReadOnlyList<CallsignRegionEntry> Entries { get; } = entries;
+    private IReadOnlyList<CallsignRegionEntry> _entries;
+
+    public FixedCallsignRegionStore(IReadOnlyList<CallsignRegionEntry> entries) => _entries = entries;
+
+    public IReadOnlyList<CallsignRegionEntry> Entries => _entries;
 
     public RegionInfo? TryGetRegion(string callsignToken)
     {
@@ -32,7 +36,18 @@ internal sealed class FixedCallsignRegionStore(IReadOnlyList<CallsignRegionEntry
                 best = entry;
         }
 
-        return best is null ? null : new RegionInfo(best.Continent, best.Entity, best.Synthetic);
+        return best is null ? null : new RegionInfo(best.Continent, best.Entity, best.Synthetic, best.CqZone, best.ItuZone);
+    }
+
+    /// <summary>
+    /// region-lookup-data-refresh (f-006): a trivial, fully-functional in-memory implementation —
+    /// no file I/O, matching this test double's overall no-disk contract. Replaces
+    /// <see cref="Entries"/> immediately (no atomicity concerns without a backing file).
+    /// </summary>
+    public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default)
+    {
+        _entries = entries;
+        return Task.CompletedTask;
     }
 }
 
@@ -46,5 +61,8 @@ internal sealed class ThrowingCallsignRegionStore : ICallsignRegionStore
     public IReadOnlyList<CallsignRegionEntry> Entries => [];
 
     public RegionInfo? TryGetRegion(string callsignToken)
+        => throw new InvalidOperationException("Simulated region-lookup failure.");
+
+    public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default)
         => throw new InvalidOperationException("Simulated region-lookup failure.");
 }

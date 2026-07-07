@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, getApiKey, getLogsTail } from './api.js';
+import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const outputDeviceSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('output-device-select'));
@@ -79,6 +79,13 @@ const addFreqBtn = /** @type {HTMLButtonElement}       */ (document.getElementBy
 
 // Native shim version display (daemon-status-visibility)
 const shimVersionValue = /** @type {HTMLElement} */ (document.getElementById('shim-version-value'));
+
+// Region data tab controls (region-lookup-data-refresh, f-006 §6.5)
+const regionDataStatusSummary = /** @type {HTMLElement}       */ (document.getElementById('region-data-status-summary'));
+const regionDataRefreshBtn    = /** @type {HTMLButtonElement} */ (document.getElementById('region-data-refresh-btn'));
+const regionDataLookupInput   = /** @type {HTMLInputElement}  */ (document.getElementById('region-data-lookup-input'));
+const regionDataLookupBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('region-data-lookup-btn'));
+const regionDataLookupResult  = /** @type {HTMLElement}       */ (document.getElementById('region-data-lookup-result'));
 
 // Advanced Decoder Settings controls (decoder-settings-page)
 const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-k'));
@@ -981,6 +988,142 @@ if (logsOpenFullBtn) {
     const url = key ? `/logs.html?key=${encodeURIComponent(key)}` : '/logs.html';
     window.open(url, '_blank');
   });
+}
+
+// ── Region data tab (region-lookup-data-refresh, f-006 §6.5) ────────────────
+//
+// callsign-regions.json is an operator-maintained working document; this tab is the only GUI
+// surface for it. Status summary + refresh button follow the same pattern as CAT retry above
+// (disable/relabel while in flight, await the POST, feedback, re-enable in finally). Unlike the
+// Logs tab, this is a diagnostic on-demand view — no auto-refresh/polling.
+
+const tabBtnRegionData = /** @type {HTMLButtonElement} */ (document.getElementById('tab-btn-region-data'));
+
+/**
+ * Render the region-data status summary from a GET /api/v1/region-data/status response.
+ * @param {{
+ *   entryCount: number,
+ *   hasRefreshedThisSession: boolean,
+ *   lastRefreshUtc: string|null,
+ *   lastRefreshSucceeded: boolean|null,
+ *   lastReleaseVersion: string|null,
+ *   lastErrorMessage: string|null
+ * }} status
+ */
+function renderRegionDataStatus(status) {
+  if (!regionDataStatusSummary) return;
+
+  const count = status.entryCount ?? 0;
+
+  if (!status.hasRefreshedThisSession) {
+    regionDataStatusSummary.textContent =
+      `${count} entries active — not refreshed this session (using seed/existing data).`;
+    return;
+  }
+
+  if (status.lastRefreshSucceeded) {
+    const when    = status.lastRefreshUtc ? new Date(status.lastRefreshUtc).toLocaleString() : 'unknown time';
+    const release = status.lastReleaseVersion ? `release ${status.lastReleaseVersion}` : 'release unknown';
+    regionDataStatusSummary.textContent =
+      `Last refreshed: ${when}, ${release}, ${count} entries active.`;
+  } else {
+    regionDataStatusSummary.textContent =
+      `Last refresh attempt failed: ${status.lastErrorMessage ?? 'unknown error'}. ` +
+      `${count} entries active (unchanged).`;
+  }
+}
+
+/** Fetches and renders the current region-data status. Best-effort; a failure shows inline. */
+async function refreshRegionDataStatus() {
+  if (!regionDataStatusSummary) return;
+  try {
+    const status = await getRegionDataStatus();
+    renderRegionDataStatus(status);
+  } catch (err) {
+    regionDataStatusSummary.textContent = `Failed to load region data status: ${err.message}`;
+  }
+}
+
+if (regionDataRefreshBtn) {
+  regionDataRefreshBtn.addEventListener('click', async () => {
+    regionDataRefreshBtn.disabled    = true;
+    regionDataRefreshBtn.textContent = '↻ Refreshing…';
+    clearFeedback();
+
+    try {
+      await postRegionDataRefresh();
+      showFeedback('Region data refreshed ✓', 'success');
+    } catch (err) {
+      showFeedback(`Region data refresh failed — ${err.message}`, 'error');
+    } finally {
+      // Re-fetch and re-render regardless of outcome, so the summary always reflects the
+      // daemon's actual last-refresh state rather than a stale pre-click value.
+      await refreshRegionDataStatus();
+      regionDataRefreshBtn.textContent = '↺ Refresh region data';
+      regionDataRefreshBtn.disabled    = false;
+    }
+  });
+}
+
+/**
+ * @param {string} callsign
+ * @param {{matched: boolean, entity: string|null, continent: string|null,
+ *          cqZone: number|null, ituZone: number|null, synthetic: boolean}} result
+ * @returns {string}
+ */
+function formatRegionDataLookupResult(callsign, result) {
+  const upper = callsign.toUpperCase();
+
+  if (!result.matched) {
+    return `${upper} — No match — resolves to Unknown.`;
+  }
+  if (result.synthetic) {
+    return `${upper} — ${result.entity} (synthetic — R&R study test traffic, no CQ/ITU zone).`;
+  }
+
+  const zones = [];
+  if (result.cqZone  != null) zones.push(`CQ zone ${result.cqZone}`);
+  if (result.ituZone != null) zones.push(`ITU zone ${result.ituZone}`);
+  const zonePart = zones.length > 0 ? ` — ${zones.join(', ')}` : '';
+
+  return `${upper} — ${result.continent ?? '?'} — ${result.entity}${zonePart}`;
+}
+
+if (regionDataLookupBtn) {
+  regionDataLookupBtn.addEventListener('click', async () => {
+    const callsign = regionDataLookupInput.value.trim();
+    if (!callsign) {
+      regionDataLookupResult.textContent = 'Enter a callsign to look up.';
+      return;
+    }
+
+    regionDataLookupBtn.disabled       = true;
+    regionDataLookupResult.textContent = 'Looking up…';
+
+    try {
+      const result = await getRegionDataLookup(callsign);
+      regionDataLookupResult.textContent = formatRegionDataLookupResult(callsign, result);
+    } catch (err) {
+      regionDataLookupResult.textContent = `Lookup failed — ${err.message}`;
+    } finally {
+      regionDataLookupBtn.disabled = false;
+    }
+  });
+
+  // Enter in the callsign field triggers a lookup without needing a form submit.
+  regionDataLookupInput.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      regionDataLookupBtn.click();
+    }
+  });
+}
+
+// Populate the status summary on load, and again each time the tab is opened (cheap GET, no
+// polling — covers the case where a refresh happened via a concurrent session/tab).
+refreshRegionDataStatus();
+if (tabBtnRegionData) {
+  tabBtnRegionData.addEventListener('click', () => refreshRegionDataStatus());
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
