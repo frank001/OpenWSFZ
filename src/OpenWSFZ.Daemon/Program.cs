@@ -103,6 +103,18 @@ startupLogger.LogInformation("Log level: {Level}", logLevel);
 // CLI --port wins; fall back to the persisted config value.
 var port = options.Port ?? configStore.Current.Port;
 
+// region-lookup-data-refresh (f-006): fetch/convert components for the operator-triggered
+// POST /api/v1/region-data/refresh endpoint. The HttpClient is long-lived (one instance for the
+// daemon's lifetime, matching the style of other singletons constructed here) with a bounded
+// timeout so an unreachable country-files.com cannot hang the endpoint indefinitely. The fetch
+// only ever happens in response to an explicit operator request (never on startup or a timer).
+var countryFileHttpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+countryFileHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
+    $"OpenWSFZ/{OpenWSFZ.Web.AssemblyVersion.Get()}");
+var countryFileSource    = new HttpCountryFileSource(
+    countryFileHttpClient, loggerFactory.CreateLogger<HttpCountryFileSource>());
+var countryFileConverter = new CountryFilePlistConverter();
+
 // ── Audio capture ─────────────────────────────────────────────────────────────
 
 var audioSource    = new PlatformAudioSource(loggerFactory);
@@ -355,6 +367,10 @@ var app = WebApp.Create(
         // Callsign grammar / region store DI wiring (f-002-callsign-structure-region-lookup).
         services.AddSingleton<ICallsignGrammarStore>(callsignGrammarStore);
         services.AddSingleton<ICallsignRegionStore>(callsignRegionStore);
+
+        // Region-data-refresh fetch/convert DI wiring (region-lookup-data-refresh, f-006).
+        services.AddSingleton<ICountryFileSource>(countryFileSource);
+        services.AddSingleton<ICountryFileConverter>(countryFileConverter);
 
         // CAT DI wiring (tasks 11.1–11.3, FR-031).
         // Register the CatState singleton under both its concrete type (for

@@ -15,6 +15,7 @@ public sealed class CallsignRegionStore : ICallsignRegionStore
 {
     private readonly string                         _path;
     private readonly ILogger<CallsignRegionStore>?  _logger;
+    private readonly SemaphoreSlim                  _saveLock = new(1, 1);
     private volatile IReadOnlyList<CallsignRegionEntry> _entries;
 
     /// <param name="path">Resolved path to <c>callsign-regions.json</c>.</param>
@@ -55,7 +56,50 @@ public sealed class CallsignRegionStore : ICallsignRegionStore
 
         return best is null
             ? null
-            : new RegionInfo(best.Continent, best.Entity, best.Synthetic);
+            : new RegionInfo(best.Continent, best.Entity, best.Synthetic, best.CqZone, best.ItuZone);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// region-lookup-data-refresh (f-006): reuses the same atomic write-to-temp-then-rename
+    /// logic as the missing-file seed path in <see cref="LoadAsync"/>. A <see cref="SemaphoreSlim"/>
+    /// serialises concurrent callers so two simultaneous saves cannot race on the final
+    /// <see cref="File.Move(string, string, bool)"/> to the shared destination path — mirroring
+    /// <see cref="FrequencyStore.SaveAsync"/>. <see cref="Entries"/> is assigned only after
+    /// <see cref="WriteAsync"/> completes successfully, so a failed write leaves the previous
+    /// in-memory table (and on-disk file) unchanged.
+    /// <para>
+    /// Discovered live during f-006's own manual end-to-end verification (task 5.2): the
+    /// pre-existing, unconditional <c>region-lookup</c> requirement "Synthetic Q-prefix
+    /// callsigns resolve to a distinct synthetic region" has no carve-out for a runtime refresh,
+    /// yet a real country-files.com release naturally contains no <c>Q</c>-series entry — a
+    /// refresh with real data would otherwise silently regress that requirement (synthetic
+    /// R&amp;R-study traffic would start resolving to <c>"Unknown"</c>). <see cref="SaveAsync"/>
+    /// therefore guarantees the synthetic entry survives <em>any</em> caller's replacement list,
+    /// rather than depending on every future caller to remember to preserve it.
+    /// </para>
+    /// </remarks>
+    public async Task SaveAsync(
+        IReadOnlyList<CallsignRegionEntry> entries,
+        CancellationToken                  cancellationToken = default)
+    {
+        var toWrite = entries.Any(e => e.Synthetic)
+            ? entries
+            : [.. entries, .. CallsignRegionDefaults.Entries.Where(e => e.Synthetic)];
+
+        await _saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await WriteAsync(toWrite, cancellationToken);
+            _entries = toWrite;
+            _logger?.LogInformation(
+                "Saved {Count} region entr{Ies} to '{Path}'.",
+                toWrite.Count, toWrite.Count == 1 ? "y" : "ies", _path);
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
     }
 
     // ── Startup ───────────────────────────────────────────────────────────────

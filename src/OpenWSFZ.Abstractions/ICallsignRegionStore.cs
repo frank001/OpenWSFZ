@@ -23,4 +23,15 @@ public interface ICallsignRegionStore
     /// (rendered as <c>"Unknown"</c> by the frontend).
     /// </returns>
     RegionInfo? TryGetRegion(string callsignToken);
+
+    /// <summary>
+    /// Replaces the in-memory region table and persists the new list to
+    /// <c>callsign-regions.json</c> atomically (write-to-temp-then-rename), without requiring a
+    /// daemon restart (region-lookup-data-refresh capability). Mirrors
+    /// <see cref="IFrequencyStore.SaveAsync"/>'s contract exactly. <see cref="Entries"/> is updated
+    /// only after a successful file write — a failed write leaves the previous in-memory table and
+    /// on-disk file unchanged. An in-flight <see cref="TryGetRegion"/> call observes either the
+    /// complete old table or the complete new table, never a partial one.
+    /// </summary>
+    Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default);
 }

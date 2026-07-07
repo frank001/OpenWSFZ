@@ -50,6 +50,10 @@
                 role="tab" aria-selected="false" aria-controls="tab-logs" id="tab-btn-logs">
           Logs
         </button>
+        <button type="button" class="settings-tab-btn"
+                role="tab" aria-selected="false" aria-controls="tab-region-data" id="tab-btn-region-data">
+          Region data
+        </button>
       </div>
 
       <!-- ── Tab 0: General ────────────────────────────────────────────────── -->
@@ -564,6 +568,51 @@
         <pre id="logs-tail-output" class="logs-tail-output" aria-live="off">(loading…)</pre>
 
       </div><!-- /tab-logs -->
+
+      <!-- ── Tab 6: Region data (region-lookup-data-refresh) ─────────────── -->
+      <div id="tab-region-data" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-region-data">
+
+        <p class="field-hint">
+          <code>callsign-regions.json</code> is an operator-maintained working document used to
+          show an advisory continent/entity/CQ/ITU-zone label alongside decoded callsigns. Refresh
+          pulls the current release from country-files.com and installs it immediately — no daemon
+          restart needed. This is never automatic; nothing is fetched unless you click Refresh
+          below. Individual per-entry editing is not supported — Refresh replaces the whole table.
+        </p>
+
+        <fieldset id="region-data-status-fieldset">
+          <legend>Status</legend>
+
+          <div class="field-group">
+            <p id="region-data-status-summary">Loading…</p>
+          </div>
+
+          <div class="field-group">
+            <button type="button" id="region-data-refresh-btn">↺ Refresh region data</button>
+          </div>
+        </fieldset>
+
+        <fieldset id="region-data-lookup-fieldset">
+          <legend>Lookup</legend>
+
+          <p class="field-hint">
+            Diagnostic tool — see how a specific callsign currently resolves, without decoding a
+            live signal.
+          </p>
+
+          <div class="field-group">
+            <label for="region-data-lookup-input">Callsign</label>
+            <div class="input-with-action">
+              <input type="text" id="region-data-lookup-input" placeholder="e.g. 3A2XYZ"
+                     autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+              <button type="button" id="region-data-lookup-btn">Look up</button>
+            </div>
+          </div>
+
+          <pre id="region-data-lookup-result" class="logs-tail-output" aria-live="polite">(no lookup performed yet)</pre>
+        </fieldset>
+
+      </div><!-- /tab-region-data -->
 
       <div class="form-footer">
         <button id="save-btn" type="button" class="primary">Save</button>

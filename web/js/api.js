@@ -454,6 +454,56 @@ export function getPropModes() {
 }
 
 /**
+ * GET /api/v1/region-data/status
+ * Returns the active region table's entry count and this daemon session's refresh history
+ * (region-lookup-data-refresh operator status view). `lastRefreshUtc`/`lastRefreshSucceeded`/
+ * `lastReleaseVersion`/`lastErrorMessage` are all `null` until a refresh has been triggered at
+ * least once this session.
+ * @returns {Promise<{
+ *   entryCount: number,
+ *   hasRefreshedThisSession: boolean,
+ *   lastRefreshUtc: string|null,
+ *   lastRefreshSucceeded: boolean|null,
+ *   lastReleaseVersion: string|null,
+ *   lastErrorMessage: string|null
+ * }>}
+ */
+export function getRegionDataStatus() {
+  return fetchJson('/api/v1/region-data/status');
+}
+
+/**
+ * POST /api/v1/region-data/refresh
+ * Fetches the current country-files.com release, converts it, and installs it as the daemon's
+ * active region table (region-lookup-data-refresh). On failure the existing region data is left
+ * untouched — the thrown Error carries the server's detail message.
+ * @returns {Promise<{success: boolean, entryCount: number, releaseVersion: string|null}>}
+ */
+export function postRegionDataRefresh() {
+  return fetchJson('/api/v1/region-data/refresh', { method: 'POST' });
+}
+
+/**
+ * GET /api/v1/region-data/lookup?callsign={token}
+ * Resolves a callsign against the active region table using the same longest-prefix-match logic
+ * the decode pipeline uses — a read-only diagnostic, not a live decode
+ * (region-lookup-data-refresh). `matched: false` means no entry covers the given prefix (the
+ * diagnostic equivalent of the decode pipeline's "Unknown").
+ * @param {string} callsign
+ * @returns {Promise<{
+ *   matched: boolean,
+ *   entity: string|null,
+ *   continent: string|null,
+ *   cqZone: number|null,
+ *   ituZone: number|null,
+ *   synthetic: boolean
+ * }>}
+ */
+export function getRegionDataLookup(callsign) {
+  return fetchJson(`/api/v1/region-data/lookup?callsign=${encodeURIComponent(callsign)}`);
+}
+
+/**
  * POST /api/v1/tx/log-qso
  * Writes a completed QSO to the ADIF log (qso-log-dialog).
  * @param {{
