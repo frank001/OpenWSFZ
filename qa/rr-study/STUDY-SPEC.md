@@ -150,7 +150,7 @@ Continuous studies use one response variable each (clean separation). All use
 | **S2 Frequency sweep** | Frequency R&R | audio freq ∈ {300,567,834,…,2700} Hz; fixed SNR=0 dB | 3 | Frequency Gage R&R |
 | **S3 DT offset** | DT R&R | DT ∈ {0.0,+0.3,…,+2.7} s (10 steps, positive only — redesigned 2026-06-06 per R&R-003); fixed SNR=0 dB; WSJT-X DT corrected +0.55 s (convention offset) | 3 | DT Gage R&R |
 | **S3b Negative-DT boundary** | Decode rate vs DT < 0 | DT ∈ {0.0,−0.3,…,−2.7} s (10 steps, negative sweep); fixed SNR=0 dB (companion to S3; attribute, not GR&R) | 3 | Per-DT decode rate per appraiser; informational |
-| **S4 Density / QRM** | Attribute agreement | cycles with N∈{1,5,10,20,30} simultaneous signals at mixed SNRs; ≥ 50 message instances total | 3 | Recovery Kappa (vs truth & between apps) |
+| **S4 Density / QRM** | Attribute agreement | cycles with N∈{1,5,10,20,30} simultaneous signals at mixed SNRs; ≥ 50 message instances total (per-message truth/matching redesigned 2026-07-07, `rr-density-qrm-scenario` / R&R-007 — see §9.3) | 3 | Recovery Kappa (vs truth & between apps) |
 | **S5 Noise / birdies** | False positives | signal-free cycles: white noise, pink noise, steady carriers/birdies | 30 | False-positive rate & agreement |
 | **S6 Off-air corpus** | External validity + appraiser consistency | 42 real off-air WAV files from local p10 corpus; K=3 runs; independently randomised order per run; both appraisers hear each WAV simultaneously | 3 | Within-appraiser consistency; between-appraiser Cohen's κ; SNR delta (D-002 field validation); order-effect test |
 | **S7 Compounding / co-channel** | Per-message recovery under overlap | 4 overlap families × 3 trials: co-channel stacks; near-collision Δf∈{3,6,12,25,50} Hz; time+freq stagger Δt∈{0.5,1.0,2.0} s; capture-ratio pairs | 3 | Per-message recovery, capture split, between-app agreement |
@@ -385,6 +385,27 @@ deliverable and SHALL be raised as a finding before the run results are consider
 > overall verdict** (see §10) pending Captain ratification of the pooled method and
 > of restricting the positive population to decodable SNRs (cf. the §16 S1 redesign
 > note) so κ measures agreement rather than decode probability.
+>
+> **S4 per-message matching fix (2026-07-07, `rr-density-qrm-scenario` / R&R-007,
+> GitHub #59).** Investigating the above ratification conditions found a third,
+> previously undocumented blocker: S4's truth generation and matcher pooled every
+> message injected into a cycle into one truth row and scored a match as "decoded
+> any one of N" — a ceiling effect, not the SNR-population issue the note above
+> anticipated. Confirmed on live data (run `793a298`): both appraisers scored a
+> degenerate perfect TP=15/FN=0, κ=1.000, PASS on S4, directly contradicted by that
+> same run's S7 data (OpenWSFZ recovering only 40% of co-channel stacks vs WSJT-X's
+> 100%). Fixed by giving S4 one truth row per individual message (as S7/S8 already
+> had); confirmed with a live re-run (`df4cc89`, `results/2026-07-07-df4cc89/`):
+> WSJT-X TP=75/FN=33 (69.44% recovery, κ=0.705), OpenWSFZ TP=71/FN=37 (65.74%
+> recovery, κ=0.669) — real, differentiated, non-degenerate figures. An
+> **informational** decodable-SNR-restricted κ (≥ −12 dB, per R&R-005's floor) is
+> now also reported alongside the full-population figures, operationalising this
+> note's SNR-restriction condition for evaluation: both appraisers show identical
+> 79.01% recovery in the restricted population, confirming sub-threshold-SNR misses
+> were contaminating the full-population figure with a decode-capability boundary.
+> **Neither finding ratifies the gate** — κ remains advisory; both conditions above
+> can now be evaluated with real data, but the ratification decision itself is
+> unchanged and remains the Captain's to make.
 
 ---
 
@@ -444,6 +465,13 @@ Evaluated every run; a regression past these bands raises a defect for the Devel
 > decodable-SNR-population ratification), with no separate ticket tracking that
 > decision. If and when Kappa ratification becomes active work, it should be opened
 > as a fresh, correctly-numbered issue at that time.
+>
+> **S4 matcher fix confirmed live (2026-07-07, R&R-007 / GitHub #59).** The
+> investigation that followed the correction above found a blocker neither
+> ratification condition anticipated — see §9.3's R&R-007 note for the full
+> account and the real recovery/κ figures from `results/2026-07-07-df4cc89/`. Gate
+> status is unchanged: still advisory, still pending both stated conditions, still
+> the Captain's decision to make.
 
 ---
 

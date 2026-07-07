@@ -114,15 +114,20 @@
 
 ## 6. Documentation
 
-- [ ] 6.1 Update `STUDY-SPEC.md`'s S4 scenario description (§6) to record the
+- [x] 6.1 Update `STUDY-SPEC.md`'s S4 scenario description (§6) to record the
       per-message truth/matching redesign and reference this change.
-- [ ] 6.2 Update `STUDY-SPEC.md` §9.3's Kappa note to record that condition 3 (per
+- [x] 6.2 Update `STUDY-SPEC.md` §9.3's Kappa note to record that condition 3 (per
       RR-007) has been addressed, and add the real decodable-SNR-restricted κ figure
       once available from the re-run — without ratifying the gate (that remains a
-      separate, explicit Captain decision).
-- [ ] 6.3 Update `qa/rr-study/RR-007.md` with the outcome: implementation landed, real
+      separate, explicit Captain decision). Also added a pointer from §10's advisory
+      note for consistency with the existing R&R-005 correction note there.
+- [x] 6.3 Update `qa/rr-study/RR-007.md` with the outcome: implementation landed, real
       per-message data obtained, and the current state of the two original §9.3
-      ratification conditions now that both can actually be evaluated.
-- [ ] 6.4 Close or update GitHub issue #59 reflecting the implemented fix and the
+      ratification conditions now that both can actually be evaluated. Added §6
+      (Outcome).
+- [x] 6.4 Close or update GitHub issue #59 reflecting the implemented fix and the
       real data obtained, distinguishing clearly between "the matcher defect is fixed"
       and "the gate is ratified" (the latter is explicitly not decided by this change).
+      Commented with the outcome; left **open** deliberately — the matcher defect is
+      resolved, but the broader ratification question is a distinct, still-open
+      Captain decision this change does not make.
