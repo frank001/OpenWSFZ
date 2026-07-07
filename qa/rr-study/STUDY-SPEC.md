@@ -384,8 +384,7 @@ deliverable and SHALL be raised as a finding before the run results are consider
 > pooled attribute κ is currently reported as *advisory* and does not drive the
 > overall verdict** (see §10) pending Captain ratification of the pooled method and
 > of restricting the positive population to decodable SNRs (cf. the §16 S1 redesign
-> note) so κ measures agreement rather than decode probability. **Tracked: R&R-002
-> (GitHub #34).**
+> note) so κ measures agreement rather than decode probability.
 
 ---
 
@@ -435,7 +434,16 @@ Evaluated every run; a regression past these bands raises a defect for the Devel
 > pooling correction, the attribute-Kappa row is computed and reported but **does
 > not contribute to the overall PASS/FAIL verdict** until the pooled method (and a
 > decodable-SNR positive population) is ratified. %GR&R, ndc, FP rate, and SNR bias
-> remain hard gates. **Tracked: R&R-002 (GitHub #34).**
+> remain hard gates.
+>
+> **Correction (2026-07-07, R&R-005 / GitHub #35).** This note previously read
+> "Tracked: R&R-002 (GitHub #34)". No R&R-002 issue was ever filed, and #34 is the
+> merged PR resolving the unrelated R&R-004 FP-gate ratification — the citation was
+> dangling from the day it was written. It is removed rather than replaced: the
+> advisory status above stands on its own stated conditions (pooled-method and
+> decodable-SNR-population ratification), with no separate ticket tracking that
+> decision. If and when Kappa ratification becomes active work, it should be opened
+> as a fresh, correctly-numbered issue at that time.
 
 ---
 
