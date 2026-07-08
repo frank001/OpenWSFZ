@@ -319,6 +319,34 @@ spike-window hours identified here to test whether the spike itself is structura
 (new-station-never-yet-heard) or a genuine resolution gap concentrated in fast-changing
 conditions.
 
+**Follow-up executed (2026-07-08) — the aggregate hypothesis-1-vs-2 question, not the
+spike-window-specific sub-question.** `triage_f001_hash_gap.py` (`artefacts/20260706_live_run/`,
+written during the 07-06 session, not previously run) was copied unchanged into
+`artefacts/20260706_live_run_2308/` (this session's own artefact folder) and run against this
+session's own `OpenWSFZ ALL.TXT` (4,993 raw `<...>` lines):
+
+| Outcome | Count | % of hashed lines |
+|---|---|---|
+| No prior in-session announcement for this correspondent at all — structurally unresolvable | 4,618 | 92.5% |
+| Announcement decoded only *after* the hashed line — protocol-correct, not yet resolvable at that moment | 266 | 5.3% |
+| **Announcement decoded *before* the hashed line — F-001 should have resolved this (genuine-gap candidate)** | **106** | **2.12%** |
+| No identifiable known-correspondent token | 3 | — |
+
+**Consistent with the 07-06 session** (same script, same method, see that report's §3.5
+addendum): structural unresolvability dominates in both (92.5% here vs 95.1% there), and the
+genuine-gap residual is small and consistent in order of magnitude in both (2.12% here vs 3.68%
+there). **This closes the original hypothesis-1-vs-2 question from the 07-06 report to a first
+approximation: F-001 resolves the large majority of what it is actually capable of resolving; a
+small (~2–4%), consistently-ordered gap remains, worth a narrower root-cause look if pursued
+further, but is not the dominant explanation for either session's hashed-rate figures.** Same
+proxy caveat as the 07-06 addendum applies — shape-matched correspondent pairing, not a
+confirmed 22-bit hash identity match.
+
+**What this does *not* close:** the spike-window-specific sub-question raised earlier in this
+section (whether the 05:00–07:00 UTC transient spike itself is structural or a genuine
+fast-changing-conditions resolution gap) was not separately time-binned in this pass — the
+figures above are whole-session aggregates. That narrower analysis remains open if pursued.
+
 ### 3.6 NEW — False-positive-guard rejection vs "Unknown region" correlation
 
 This section reports a new, exploratory analysis requested mid-session: whether messages
@@ -388,7 +416,7 @@ between FP-guard-rejected and accepted messages.**
 | Recall < −15 dB | 22.7–32.2% | informational (D-001) | — |
 | Overall recall vs WSJT-X | 56.30% (53.81% baseline) | informational | — |
 | SNR-stratified recall vs baseline | within 0.7–3.3 pp, no directional trend | ordinary variance | **PASS** (no regression) |
-| Hashed-callsign rate | 0.76/cycle, down from 1.79 (07-06) and 1.04 (06-22); driven by session-length/composition, not resolved either way | informational | **INCONCLUSIVE** — session averages not safely comparable; new spike-window phenomenon found instead |
+| Hashed-callsign rate | 0.76/cycle, down from 1.79 (07-06) and 1.04 (06-22); driven by session-length/composition, not resolved either way | informational | **INCONCLUSIVE** on session-average comparison; **hypothesis-1-vs-2 question resolved 2026-07-08** via ALL.TXT mining (§3.5 addendum) — 92.5% structural, 2.12% genuine-gap-candidate; spike-window-specific sub-question still open |
 | FP-guard rejection vs Unknown-region correlation (NEW) | +36.7 pp (78.9% vs 42.2%), stable across session | informational/exploratory | **NOTABLE FINDING** |
 
 **Overall verdict: PASS** — stability objectives met (new endurance benchmark, first full
@@ -409,19 +437,23 @@ remains most severe below −15 dB (23–32% recall) and best above +5 dB (83–
 diagnostic step for D-001 remains MMSE (H7) or further iterative subtraction tuning, unchanged
 from the last two reports.
 
-**Hashed-callsign rate (F-001) — original question still open; new spike phenomenon to
-investigate:** This run's session-average comparison against the 07-06 baseline does not
-resolve hypothesis 1 vs hypothesis 2 from that report — the lower average is adequately
-explained by this run's longer, differently-composed session rather than by either hypothesis.
+**Hashed-callsign rate (F-001) — original hypothesis-1-vs-2 question resolved 2026-07-08; spike
+phenomenon still to investigate:** This run's session-average comparison against the 07-06
+baseline does not resolve hypothesis 1 vs hypothesis 2 from that report on its own — the lower
+average is adequately explained by this run's longer, differently-composed session rather than
+by either hypothesis. **The underlying question has since been resolved directly** (§3.5
+addendum, 2026-07-08): mining both sessions' `OpenWSFZ ALL.TXT` shows structural
+unresolvability dominates in both (92.5–95.1%) with a small, consistent genuine-gap residual
+(2.12–3.68%) — hypothesis 1 is the dominant explanation, hypothesis 2 is real but minor.
 However, hour-by-hour analysis surfaced a multi-hour transient spike in the hashed-only rate
 (11–19% vs a 2–9% background), confirmed independently in both OpenWSFZ's and WSJT-X's own
 hashed-only buckets, at different clock hours in this run vs the baseline. Recommended, not
 blocking:
-1. The originally recommended follow-up (mining `OpenWSFZ ALL.TXT` for `<...>` tokens against
-   same-session decode history) remains the right way to close the original hypothesis-1-vs-2
-   question, and should now be time-binned specifically around each run's spike window to test
-   whether the spike itself is structural (genuinely new stations, never heard before in that
-   window) or a resolution gap specific to fast-changing propagation.
+1. ~~The originally recommended follow-up (mining `OpenWSFZ ALL.TXT` for `<...>` tokens against
+   same-session decode history)~~ — **done** (§3.5 addendum). What remains is the narrower,
+   not-yet-performed refinement: time-bin that same mining specifically around each run's spike
+   window to test whether the spike itself is structural (genuinely new stations, never heard
+   before in that window) or a resolution gap specific to fast-changing propagation.
 2. Track whether the spike's timing correlates with a specific grey-line/propagation-path
    transition (rather than fixed local sunrise) across further endurance runs — worth a
    dedicated propagation-timing note if the pattern repeats a third time.

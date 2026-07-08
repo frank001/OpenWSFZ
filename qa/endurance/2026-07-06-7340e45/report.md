@@ -259,6 +259,33 @@ referenced hash could have been resolved from an earlier-in-session decode of th
 station, to distinguish hypothesis 1 (structural, expected) from hypothesis 2 (F-001 field
 effectiveness gap). No defect is raised pending that investigation.
 
+**Follow-up executed (2026-07-08).** The mining above was performed via
+`artefacts/20260706_live_run/triage_f001_hash_gap.py` — written this same session but not
+previously run — directly against this session's own `OpenWSFZ ALL.TXT` (6,907 raw `<...>`
+lines, a larger count than the 4,671 "OpenWSFZ-only" figure above because that figure is
+deduplicated and restricted to messages absent from WSJT-X's log; this mining works from every
+raw hashed line instead):
+
+| Outcome | Count | % of hashed lines |
+|---|---|---|
+| No prior in-session announcement for this correspondent at all — structurally unresolvable | 6,568 | 95.1% |
+| Announcement decoded only *after* the hashed line — protocol-correct, not yet resolvable at that moment | 82 | 1.2% |
+| **Announcement decoded *before* the hashed line — F-001 should have resolved this (genuine-gap candidate)** | **254** | **3.68%** |
+| No identifiable known-correspondent token | 3 | — |
+
+**H₀-3, resolved to a first approximation: hypothesis 1 (structural cold-start floor) dominates.**
+95.1% of this session's unresolved hashes reference a station OpenWSFZ never heard directly
+this session at all — exactly the expected behaviour of a session-scoped hash table, not a
+defect. Hypothesis 2 (a genuine F-001 resolution gap) is real but small: 3.68% of hashed lines
+had everything F-001's table needed — the correspondent already decoded earlier, same session —
+and still weren't resolved. **Caveat:** this is a shape-matched proxy (nonstandard-callsign-shape
+heuristic pairing a known correspondent to an earlier decode), not a confirmed 22-bit hash
+identity match — `ALL.TXT` is text-only and carries no hash value to check directly, so some
+misclassification in either direction is possible. Repeated with the same script and method on
+the 07-07 session (`qa/endurance/2026-07-07-bb0a1c4/report.md` §3.5) with a consistent result:
+92.5% structural, 2.12% genuine-gap-candidate. Neither night shows F-001 failing on the majority
+of what it is actually capable of resolving.
+
 ---
 
 ## 4. Summary verdict table
@@ -275,7 +302,7 @@ effectiveness gap). No defect is raised pending that investigation.
 | Recall < −15 dB | 23.5–34.7% | informational (D-001) | — |
 | Overall recall vs WSJT-X | 53.81% (59.52% baseline) | informational | — |
 | SNR-stratified recall vs baseline | within 1.1–5.1 pp, no directional trend | ordinary variance | **PASS** (no regression) |
-| Hashed callsign resolution (F-001) | Rate *increased* vs pre-F-001 baseline (1.79 vs 1.04/cycle) | informational | **FOLLOW-UP FLAGGED** |
+| Hashed callsign resolution (F-001) | Rate *increased* vs pre-F-001 baseline (1.79 vs 1.04/cycle) | informational | **FOLLOW-UP FLAGGED** → executed 2026-07-08, see §3.5 addendum: 95.1% structural, 3.68% genuine-gap-candidate |
 
 **Overall verdict: PASS** — stability objectives met (new endurance benchmark); D-001 decode
 gap reconfirmed unchanged, no regression from this session's shipped work; D-009 fix holds;
