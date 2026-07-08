@@ -15,10 +15,19 @@ namespace OpenWSFZ.Abstractions;
 /// <see cref="ICallsignRegionStore"/> was supplied to the decoder. The frontend
 /// renders <c>null</c> as <c>"Unknown"</c>. Never affects decode acceptance.
 /// </param>
+/// <param name="WorkedBefore">
+/// Advisory "worked before" state resolved from the message's primary callsign-position
+/// token against the <c>ADIF.log</c> history (<c>qso-confirmation</c> capability), or
+/// <c>null</c> when resolution fails or no <see cref="IWorkedBeforeIndex"/> was supplied to
+/// the decoder — the frontend treats a <c>null</c> field identically to
+/// <see cref="WorkedBeforeInfo.None"/> (every checkbox unchecked). Never affects decode
+/// acceptance.
+/// </param>
 public sealed record DecodeResult(
-    string      Time,
-    int         Snr,
-    double      Dt,
-    int         FreqHz,
-    string      Message,
-    RegionInfo? Region = null);
+    string             Time,
+    int                Snr,
+    double             Dt,
+    int                FreqHz,
+    string             Message,
+    RegionInfo?        Region       = null,
+    WorkedBeforeInfo?  WorkedBefore = null);

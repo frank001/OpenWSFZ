@@ -229,6 +229,43 @@ public sealed class AdifLogWriterTests : IDisposable
         await act.Should().NotThrowAsync();
     }
 
+    // ── Task 2.5/2.6: worked-before index registration (qso-confirmation) ────
+
+    [Fact(DisplayName = "2.6: AppendQsoAsync registers the partner callsign into the worked-before index on a successful write")]
+    public async Task AppendQsoAsync_SuccessfulWrite_RegistersCallsignIntoIndex()
+    {
+        var store = StoreWith(Path.Combine(_tempDir, "ALL.TXT"));
+        var index = new SpyWorkedBeforeIndex();
+        var sut   = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance, index);
+
+        await sut.AppendQsoAsync(MakeRecord()); // PartnerCallsign = "Q1TST"
+
+        index.Registered.Should().ContainSingle().Which.Should().Be("Q1TST");
+    }
+
+    [Fact(DisplayName = "2.6: AppendQsoAsync does not register the callsign into the worked-before index when the write fails")]
+    public async Task AppendQsoAsync_FailedWrite_DoesNotRegisterCallsign()
+    {
+        var store = StoreWith(Path.Combine(_tempDir, "subdir", "ALL.TXT"));
+        Directory.CreateDirectory(Path.Combine(_tempDir, "subdir", "ADIF.log")); // forces the write to fail
+        var index = new SpyWorkedBeforeIndex();
+        var sut   = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance, index);
+
+        await sut.AppendQsoAsync(MakeRecord());
+
+        index.Registered.Should().BeEmpty("a failed write must not register the callsign");
+    }
+
+    /// <summary>Records every callsign passed to <see cref="Register"/> — no ADIF/region I/O.</summary>
+    private sealed class SpyWorkedBeforeIndex : IWorkedBeforeIndex
+    {
+        public List<string> Registered { get; } = [];
+
+        public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public void Register(string callsign) => Registered.Add(callsign);
+        public WorkedBeforeInfo Resolve(string callsignToken) => WorkedBeforeInfo.None;
+    }
+
     // ── Task 1.3: Optional enrichment fields (qso-log-dialog) ────────────────
 
     [Theory(DisplayName = "1.3: Optional field included in ADIF when non-null/non-empty")]
