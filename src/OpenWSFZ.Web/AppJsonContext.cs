@@ -20,6 +20,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(DecodeResult))]
 [JsonSerializable(typeof(List<DecodeResult>))]
 [JsonSerializable(typeof(RegionInfo))]
+[JsonSerializable(typeof(WorkedBeforeInfo))]
 [JsonSerializable(typeof(WsSpectrumMessage))]
 [JsonSerializable(typeof(int[]))]
 [JsonSerializable(typeof(string[]))]

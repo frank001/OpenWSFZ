@@ -197,14 +197,36 @@ server-side, delivered on the same payload" data in this codebase.
    `ADIF.log` yet sees all three columns unchecked for every decode, which is correct (nothing
    worked before), not an error state.
 
+### Decision 7 — P/C/R indicator is a readonly `<span>` glyph, not a disabled checkbox (post-review correction)
+
+The initial implementation followed this design's original Open Question resolution
+(`disabled` checkbox, `accent-color` styling). After manual review against the real dark theme,
+the Captain found the disabled-checkbox state too washed-out to read at a glance while decodes
+scroll past — exactly the risk the Open Question flagged, but the `accent-color` mitigation
+proved insufficient in practice (most browsers suppress `accent-color` on `:disabled` controls
+regardless, per the code comment already in `app.css`). The Captain's direction: replace the
+checkbox with a plain `<span>` per cell — a green checkmark glyph (reusing the existing
+`--color-success` token already used elsewhere for positive-state indicators, e.g. the Call-CQ
+button) when the corresponding `workedBefore` boolean is `true`, and empty when `false`. No
+`disabled` attribute is needed since a `<span>` has no interactive semantics to suppress in the
+first place.
+
+**Rationale:** a coloured glyph against the existing dark background reads at a glance during a
+fast-moving session — the original goal of this feature — whereas a disabled form control's
+suppressed styling actively works against that goal. A `<span>` is also simpler than a checkbox
+plus disabling machinery for a value that was never meant to be interactive.
+
+**Impact:** `web/js/main.js`'s `makeWorkedBeforeCell` renders a `<span>` (e.g. textContent `"✓"`
+when true, empty string when false) instead of an `<input type="checkbox" disabled>`; `app.css`'s
+checkbox-specific rules (`accent-color`, `cursor: default` on `input[type="checkbox"]`) are
+replaced with a rule styling the checkmark glyph in `--color-success`. `web-frontend/spec.md`'s
+requirement text and scenarios are updated accordingly (indicator span, not checkbox) — see the
+spec delta for the corrected requirement.
+
 ## Open Questions
 
-- HTML's `readonly` attribute has no effect on `<input type="checkbox">`; the practical
-  equivalent is `disabled`, which typically renders visually washed-out/grey in default browser
-  styling. Left open for the Captain/implementing developer: is the default disabled-checkbox
-  appearance acceptable, or should CSS (e.g. `accent-color`, or a custom checked/unchecked glyph)
-  be applied to keep the checked state visually crisp against the rest of the dark-themed decode
-  table? Non-blocking cosmetic decision, not required to resolve before implementation starts.
+None remaining — the one open item (disabled-checkbox visual legibility) is resolved by
+Decision 7 above.
 - Exact TypeScript-less JSDoc typing and exact field-naming casing (`workedBefore` vs `worked_before`
   etc.) on the WebSocket payload are left to the implementing developer, following this codebase's
   existing `region`/camelCase convention.

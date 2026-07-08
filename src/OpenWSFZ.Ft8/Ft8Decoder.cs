@@ -74,6 +74,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     private readonly IFt8NativeInterop      _interop;
     private readonly ICallsignGrammarStore? _grammarStore;
     private readonly ICallsignRegionStore?  _regionStore;
+    private readonly IWorkedBeforeIndex?    _workedBeforeIndex;
 
     // H6 AP decode (D-001): snapshot is taken inside Task.Run (same thread as DecodeAll).
     // volatile guarantees a fresh read without a lock; the reference itself is atomically
@@ -130,12 +131,18 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// <see cref="DecodeResult.Region"/> resolves to <c>null</c> ("Unknown") — purely a GUI
     /// bycatch, never affects decode acceptance.
     /// </param>
+    /// <param name="workedBeforeIndex">
+    /// Optional advisory worked-before index (<c>qso-confirmation</c> capability). When
+    /// <c>null</c>, every <see cref="DecodeResult.WorkedBefore"/> resolves to <c>null</c>
+    /// (every checkbox unchecked) — purely a GUI bycatch, never affects decode acceptance.
+    /// </param>
     public Ft8Decoder(
         IClock                  clock,
-        ILogger<Ft8Decoder>?    logger       = null,
-        ICallsignGrammarStore?  grammarStore = null,
-        ICallsignRegionStore?   regionStore  = null)
-        : this(clock, logger, DefaultInterop, grammarStore, regionStore) { }
+        ILogger<Ft8Decoder>?    logger            = null,
+        ICallsignGrammarStore?  grammarStore      = null,
+        ICallsignRegionStore?   regionStore       = null,
+        IWorkedBeforeIndex?     workedBeforeIndex = null)
+        : this(clock, logger, DefaultInterop, grammarStore, regionStore, workedBeforeIndex) { }
 
     /// <summary>
     /// Internal constructor for unit testing — allows a fake <see cref="IFt8NativeInterop"/>
@@ -146,14 +153,16 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         IClock                  clock,
         ILogger<Ft8Decoder>?    logger,
         IFt8NativeInterop       interop,
-        ICallsignGrammarStore?  grammarStore = null,
-        ICallsignRegionStore?   regionStore  = null)
+        ICallsignGrammarStore?  grammarStore      = null,
+        ICallsignRegionStore?   regionStore       = null,
+        IWorkedBeforeIndex?     workedBeforeIndex = null)
     {
-        _clock        = clock;
-        _logger       = logger;
-        _interop      = interop;
-        _grammarStore = grammarStore;
-        _regionStore  = regionStore;
+        _clock             = clock;
+        _logger            = logger;
+        _interop           = interop;
+        _grammarStore      = grammarStore;
+        _regionStore       = regionStore;
+        _workedBeforeIndex = workedBeforeIndex;
     }
 
     // ── IModeDecoder — backward-compatible overload ───────────────────────────
@@ -326,13 +335,35 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 }
             }
 
+            // ── Worked-before bycatch (advisory only, qso-confirmation capability) ───
+            // Best-effort: any failure here degrades to WorkedBefore = null (every
+            // checkbox unchecked) and never withholds or alters the decode itself.
+            WorkedBeforeInfo? workedBefore = null;
+            if (_workedBeforeIndex is not null)
+            {
+                try
+                {
+                    var primaryToken = ExtractPrimaryCallsignToken(msg);
+                    if (primaryToken is not null)
+                        workedBefore = _workedBeforeIndex.Resolve(primaryToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex,
+                        "Cycle {Time}: worked-before resolution failed for message '{Message}' — " +
+                        "defaulting to not-worked-before.", timeStr, msg);
+                    workedBefore = null;
+                }
+            }
+
             results.Add(new DecodeResult(
-                Time:    timeStr,
-                Snr:     nr.Snr,
-                Dt:      Math.Round(nr.Dt, 1),
-                FreqHz:  nr.FreqHz,
-                Message: msg,
-                Region:  region));
+                Time:         timeStr,
+                Snr:          nr.Snr,
+                Dt:           Math.Round(nr.Dt, 1),
+                FreqHz:       nr.FreqHz,
+                Message:      msg,
+                Region:       region,
+                WorkedBefore: workedBefore));
         }
 
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────

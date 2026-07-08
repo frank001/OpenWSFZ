@@ -364,6 +364,30 @@ label {
   white-space: normal !important;
 }
 
+/* Worked-before P/C/R columns (qso-confirmation capability) — narrow, rightmost, centred
+   indicator-only cells; nth-child(7/8/9) = P/C/R, the three columns after Region. */
+#decodes-table th:nth-child(7),
+#decodes-table th:nth-child(8),
+#decodes-table th:nth-child(9),
+#decodes-table td:nth-child(7),
+#decodes-table td:nth-child(8),
+#decodes-table td:nth-child(9) {
+  width: 1%;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  text-align: center;
+}
+
+/* design.md Decision 7: a disabled checkbox's `accent-color` is suppressed by most browsers
+   regardless of what CSS specifies, which left the checked state illegible against this dark
+   theme (the original Open Question from task 3.4). Replaced with a plain checkmark glyph
+   span (main.js's makeWorkedBeforeCell), styled in the same success colour used elsewhere for
+   positive-state indicators (Call-CQ button, #ws-state.connected::before). */
+#decodes-table .worked-before-mark {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
 /* ── Audio activity indicator (FR-020) ────────────────────────────────── */
 #audio-indicator {
   display: flex;

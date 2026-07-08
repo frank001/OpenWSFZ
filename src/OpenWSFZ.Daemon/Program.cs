@@ -173,14 +173,22 @@ spectrumAnalyser.SpectrumReady += magnitudes =>
 // and registered in DI — no manual construction needed here.
 var catState = new CatState();
 
+// Worked-before index (qso-confirmation): resolves "worked before" advisory state from
+// ADIF.log's history, resolving each logged callsign's DXCC entity/continent via the
+// callsign region store above. Constructed here (after loggerFactory exists) so it gets a
+// real logger, unlike callsignRegionStore/callsignGrammarStore above.
+var workedBeforeIndex = new WorkedBeforeIndex(
+    configStore, callsignRegionStore, loggerFactory.CreateLogger<WorkedBeforeIndex>());
+
 // ── FT8 decode pipeline ──────────────────────────────────────────────────────
 
 var clock          = new SystemClock();
 var ft8Decoder     = new Ft8Decoder(
     clock,
     loggerFactory.CreateLogger<Ft8Decoder>(),
-    grammarStore: callsignGrammarStore,
-    regionStore:  callsignRegionStore);
+    grammarStore:      callsignGrammarStore,
+    regionStore:       callsignRegionStore,
+    workedBeforeIndex: workedBeforeIndex);
 
 // f-004-operator-visibility-improvements (daemon-status-visibility): force the native
 // shim's lazy load + ABI self-test to run now, at true process startup, rather than
@@ -367,6 +375,10 @@ var app = WebApp.Create(
         // Callsign grammar / region store DI wiring (f-002-callsign-structure-region-lookup).
         services.AddSingleton<ICallsignGrammarStore>(callsignGrammarStore);
         services.AddSingleton<ICallsignRegionStore>(callsignRegionStore);
+
+        // Worked-before index DI wiring (qso-confirmation). AdifLogWriter picks this up via
+        // constructor injection to register newly-logged QSOs into the live index.
+        services.AddSingleton<IWorkedBeforeIndex>(workedBeforeIndex);
 
         // Region-data-refresh fetch/convert DI wiring (region-lookup-data-refresh, f-006).
         services.AddSingleton<ICountryFileSource>(countryFileSource);
@@ -685,6 +697,12 @@ await propModeStore.LoadAsync();
 // with references to these stores, so this must complete before the first decode cycle.
 await callsignGrammarStore.LoadAsync();
 await callsignRegionStore.LoadAsync();
+
+// Build the worked-before index from ADIF.log before starting the web host
+// (qso-confirmation) — Ft8Decoder is already constructed with a reference to it, so this
+// must complete before the first decode cycle. Depends on callsignRegionStore above having
+// already loaded (entity/continent resolution for each logged callsign).
+await workedBeforeIndex.LoadAsync();
 
 await app.RunAsync();
 return 0;

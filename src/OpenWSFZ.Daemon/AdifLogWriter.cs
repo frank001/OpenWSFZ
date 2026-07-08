@@ -33,11 +33,25 @@ public sealed class AdifLogWriter : IAdifLogWriter
 {
     private readonly IConfigStore             _configStore;
     private readonly ILogger<AdifLogWriter>   _logger;
+    private readonly IWorkedBeforeIndex?      _workedBeforeIndex;
 
-    public AdifLogWriter(IConfigStore configStore, ILogger<AdifLogWriter> logger)
+    /// <param name="configStore">Resolves the ADIF output path (same directory as ALL.TXT).</param>
+    /// <param name="logger">Structured logger for write successes/failures.</param>
+    /// <param name="workedBeforeIndex">
+    /// Optional live worked-before index (<c>qso-confirmation</c> capability). When supplied,
+    /// a successful write registers the just-logged partner callsign into the index so the very
+    /// next decode of that station resolves "worked before" without a daemon restart. A failed
+    /// write never registers the callsign. When <c>null</c>, existing callers that do not wire
+    /// this up keep today's behaviour (no worked-before tracking).
+    /// </param>
+    public AdifLogWriter(
+        IConfigStore           configStore,
+        ILogger<AdifLogWriter> logger,
+        IWorkedBeforeIndex?    workedBeforeIndex = null)
     {
-        _configStore = configStore;
-        _logger      = logger;
+        _configStore       = configStore;
+        _logger            = logger;
+        _workedBeforeIndex = workedBeforeIndex;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -69,6 +83,12 @@ public sealed class AdifLogWriter : IAdifLogWriter
                 record.PartnerCallsign,
                 DeriveBand(record.DialFrequencyMHz) ?? "unknown",
                 path);
+
+            // qso-confirmation: register the just-logged callsign into the live worked-before
+            // index so the very next decode of this station resolves "worked before" without a
+            // daemon restart or a re-read of ADIF.log (design.md Decision 5). Only reached on a
+            // successful write — a failed write below never registers the callsign.
+            _workedBeforeIndex?.Register(record.PartnerCallsign);
         }
         catch (IOException ex)
         {
@@ -95,15 +115,10 @@ public sealed class AdifLogWriter : IAdifLogWriter
     /// <summary>
     /// Resolves the ADIF output path from config.  The ADIF file lives in the same
     /// directory as the ALL.TXT decode log, named <c>ADIF.log</c>.
+    /// Delegates to <see cref="AdifPathResolver"/> (shared with <see cref="WorkedBeforeIndex"/>,
+    /// <c>qso-confirmation</c> capability) so both components always agree on the path.
     /// </summary>
-    internal string ResolveAdifPath()
-    {
-        var decodeLogPath = _configStore.Current.DecodeLog.Path;
-        var dir           = Path.GetDirectoryName(decodeLogPath);
-        return string.IsNullOrEmpty(dir)
-            ? "ADIF.log"
-            : Path.Combine(dir, "ADIF.log");
-    }
+    internal string ResolveAdifPath() => AdifPathResolver.Resolve(_configStore);
 
     // ── ADIF record builder ───────────────────────────────────────────────────
 
