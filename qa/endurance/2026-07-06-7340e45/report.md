@@ -286,6 +286,14 @@ the 07-07 session (`qa/endurance/2026-07-07-bb0a1c4/report.md` §3.5) with a con
 92.5% structural, 2.12% genuine-gap-candidate. Neither night shows F-001 failing on the majority
 of what it is actually capable of resolving.
 
+**This session's own spike (00:00–04:00 UTC), explained (2026-07-08).** Station/region mining
+(`qa/endurance/2026-07-07-bb0a1c4/report.md` §3.5, full detail) found this spike is a genuine
+pre-dawn transatlantic grey-line DX opening: North American primary-callsign share jumps from
+2.1% (prior evening background) to 41.2% during the spike — a burst of previously-silent
+US/Canada stations becoming audible right at the terminator crossing, peaking ~1 hour before
+actual Netherlands sunrise. The 07-07 session's spike turned out to be a *different*
+mechanism (the opposite direction, hours later) — see that report for the comparison.
+
 ---
 
 ## 4. Summary verdict table

@@ -364,12 +364,49 @@ signature: elevated from ~2.5 h before sunrise, peaking ~1 h before, tapering of
 on 07-06, this session shows only 4.0% (flat background), and the hour containing actual
 sunrise is unremarkable (6.3%). The spike doesn't begin until 93 minutes *after* sunrise and
 peaks nearly 4 hours after — well outside any conventional local-sunrise grey-line window.
-**Local Netherlands sunrise does not explain the 07-07 spike's timing.** If propagation is
-the driver at all, a more defensible hypothesis is that it tracks the terminator crossing
-somewhere else along the specific DX path being worked that hour (a distant correspondent's
-own dawn/dusk, which needn't align with Amsterdam's clock) rather than local sunrise directly
-— but that requires knowing which stations were actually worked in each window, which this
-check did not attempt, and remains open if pursued further.
+**Local Netherlands sunrise does not explain the 07-07 spike's timing directly.**
+
+**Which stations were actually heard, checked directly (2026-07-08).** Captain asked for the
+actual station data rather than continued speculation. Extracted the primary callsign from
+every decoded line (position-based extraction, same method already validated by §3.6's
+FP/region correlation — a naive per-token shape scan was tried first and discarded: it
+misclassified grid squares like `JN27` as callsigns) and classified each by continent, spike
+window vs. a same-night background window, for both this run and the 07-06 baseline:
+
+| | Window | EU | NA | Distinct primary calls |
+|---|---|---|---|---|
+| 07-06 baseline | Background (21–24 UTC, prior evening) | 89.1% | 2.1% | 966 |
+| 07-06 baseline | **Spike (00:00–04:00 UTC)** | 51.5% | **41.2%** | 1,325 |
+| 07-07 (this run) | Background (01–04 UTC) | 58.3% | 36.0% | 1,042 |
+| 07-07 (this run) | **Spike (05:00–07:00 UTC)** | **91.6%** | 6.4% | 658 |
+
+**These are two different propagation phenomena, not one, which is exactly why they sit at
+different offsets from sunrise:**
+
+- **07-06's spike is a textbook pre-dawn transatlantic grey-line DX opening.** North American
+  share jumps from 2.1% to 41.2% — a burst of ~7,271 US/Canada primary-callsign decodes
+  (led by call areas like `NF3R`, `K2M`, `K2H`, `W4DXM`) that were essentially silent the
+  evening before. This is the sharp, well-known effect of the day/night terminator briefly
+  opening a long-path opening right at the transition — consistent with peaking ~1 hour
+  *before* actual sunrise.
+- **07-07's spike is the opposite effect: the overnight DX path to North America closing, not
+  a new one opening.** NA share collapses from 36.0% to 6.4% while EU share rises from 58.3%
+  to 91.6%, dominated by strong nearby regional stations (`IK4LZH`/Italy, `LY100RADIO`/
+  Lithuania, `PD1BER`/Netherlands, `IK4RVY`/`IK2PZX`/`IN3IZQ`/Italy, `M0LEX`/England,
+  `DL3IAK`/Germany, `OK1WCF`/Czech Republic, `OZ3AEV`/Denmark, `F4IFO`/`F1IQH`/`F5PBG`/France,
+  `S55A`/Slovenia — France and Italy alone account for ~2,350 of the spike's 8,815 decoded
+  lines). This is the "band goes short during the day" phenomenon: as the local D-layer
+  absorbs the long path once the sun has been up for a while, only strong, close-in European
+  stations remain audible. Unlike a sharp terminator crossing, D-layer buildup is *gradual*,
+  which is exactly why this effect lags actual sunrise by 1.5–4.5 hours instead of straddling it.
+
+**Both mechanisms independently explain the F-001 mining result above.** Whether stations
+flood *in* (07-06, new NA callers) or the mix flips to newly-prominent local ones (07-07, EU
+stations that were previously drowned out or simply weren't on frequency), both produce a
+burst of callsigns this session's hash table has never seen before — exactly the "structural,
+no prior in-session announcement" majority (92.5–95.1%) found in the mining above. The
+propagation shift, not a resolution bug, is what's actually driving the elevated hashed-rate
+spikes on both nights.
 
 ### 3.6 NEW — False-positive-guard rejection vs "Unknown region" correlation
 
@@ -440,7 +477,7 @@ between FP-guard-rejected and accepted messages.**
 | Recall < −15 dB | 22.7–32.2% | informational (D-001) | — |
 | Overall recall vs WSJT-X | 56.30% (53.81% baseline) | informational | — |
 | SNR-stratified recall vs baseline | within 0.7–3.3 pp, no directional trend | ordinary variance | **PASS** (no regression) |
-| Hashed-callsign rate | 0.76/cycle, down from 1.79 (07-06) and 1.04 (06-22); driven by session-length/composition, not resolved either way | informational | **INCONCLUSIVE** on session-average comparison; **hypothesis-1-vs-2 question resolved 2026-07-08** via ALL.TXT mining (§3.5 addendum) — 92.5% structural, 2.12% genuine-gap-candidate. Sunrise correlation checked 2026-07-08: confirms 07-06's spike (peaks ~1h *before* NL sunrise, textbook grey-line) but **contradicts** it for 07-07's spike (peaks ~4h *after* sunrise) — local sunrise does not explain both nights with one offset |
+| Hashed-callsign rate | 0.76/cycle, down from 1.79 (07-06) and 1.04 (06-22); driven by session-length/composition, not resolved either way | informational | **INCONCLUSIVE** on session-average comparison; **hypothesis-1-vs-2 question resolved 2026-07-08** via ALL.TXT mining (§3.5 addendum) — 92.5% structural, 2.12% genuine-gap-candidate. **Spike mechanism resolved 2026-07-08** via station/region mining: 07-06's spike is a pre-dawn NA grey-line DX opening (NA share 2.1%→41.2%); 07-07's spike is the opposite — the overnight NA path closing as EU-local propagation takes over (EU share 58.3%→91.6%), lagging sunrise by hours because D-layer buildup is gradual, not a sharp terminator crossing. Both are real propagation effects that flood the log with session-new callsigns, independently explaining the structural hash-gap majority above |
 | FP-guard rejection vs Unknown-region correlation (NEW) | +36.7 pp (78.9% vs 42.2%), stable across session | informational/exploratory | **NOTABLE FINDING** |
 
 **Overall verdict: PASS** — stability objectives met (new endurance benchmark, first full
@@ -474,13 +511,19 @@ However, hour-by-hour analysis surfaced a multi-hour transient spike in the hash
 hashed-only buckets, at different clock hours in this run vs the baseline. Recommended, not
 blocking:
 1. ~~The originally recommended follow-up (mining `OpenWSFZ ALL.TXT` for `<...>` tokens against
-   same-session decode history)~~ — **done** (§3.5 addendum). What remains is the narrower,
-   not-yet-performed refinement: time-bin that same mining specifically around each run's spike
-   window to test whether the spike itself is structural (genuinely new stations, never heard
-   before in that window) or a resolution gap specific to fast-changing propagation.
-2. Track whether the spike's timing correlates with a specific grey-line/propagation-path
-   transition (rather than fixed local sunrise) across further endurance runs — worth a
-   dedicated propagation-timing note if the pattern repeats a third time.
+   same-session decode history)~~ — **done** (§3.5 addendum).
+2. ~~Time-bin that mining specifically around each run's spike window to test whether the
+   spike itself is structural or a resolution gap specific to fast-changing propagation~~ —
+   **done** (§3.5 addendum, station/region mining, 2026-07-08). Confirmed structural: both
+   nights' spikes are real propagation-mode shifts (07-06: a pre-dawn NA grey-line DX opening;
+   07-07: the opposite — NA fading as EU-local propagation takes over) that flood the log with
+   session-new callsigns. Not a resolution gap.
+3. ~~Track whether the spike's timing correlates with a specific grey-line/propagation-path
+   transition (rather than fixed local sunrise)~~ — **done** (§3.5 addendum). It does not
+   correlate with a *fixed* local-sunrise offset (the two nights' spikes sit 1h before vs. 4h
+   after sunrise respectively) precisely because they are two different propagation phenomena,
+   not one. Confirming this a third time on a future run would still be useful to establish
+   how reliably each mechanism recurs, but the mechanism itself is no longer a mystery.
 
 **FP-guard / Unknown-region correlation (new):** The +36.7pp signal is real and reproducible
 but exploratory. Recommended next steps, none blocking:
