@@ -49,6 +49,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private readonly Ft8AudioSynthesiser                        _synthesiser = new();
     private readonly IAdifLogWriter                              _adifLog;
     private readonly IApConstraintSink?                         _decoder;
+    // D-013: live CAT state for resolving the true dial frequency at QSO-completion time
+    // (WebApp.ResolveEffectiveFrequency's tier 1); null means CAT genuinely not wired up.
+    private readonly ICatState?                                  _catState;
 
     // Volatile: readable from the HTTP handler thread without a lock.
     private volatile CallerState _callerState = CallerState.Idle;
@@ -125,7 +128,8 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         IAdifLogWriter              adifLog,
         AudioOffsetEventBus         audioOffsetEventBus,
         ILogger<QsoCallerService>   logger,
-        IApConstraintSink?          decoder = null)
+        IApConstraintSink?          decoder = null,
+        ICatState?                  catState = null)
     {
         _decodeChannel       = decodeChannel;
         _configStore         = configStore;
@@ -135,12 +139,15 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _adifLog             = adifLog;
         _logger              = logger;
         _decoder             = decoder;
+        _catState            = catState;
     }
 
     /// <summary>
     /// Test constructor — allows watchdog duration override, and (f-003-ap-assist-nonstandard-
     /// callsigns) an optional <see cref="IApConstraintSink"/> so tests can verify H6 AP
-    /// constraint arming without waiting through the production watchdog duration.
+    /// constraint arming without waiting through the production watchdog duration. Also accepts
+    /// an optional <see cref="ICatState"/> (D-013) so tests can exercise the live-CAT
+    /// dial-frequency resolution path without waiting through the real watchdog duration.
     /// </summary>
     internal QsoCallerService(
         ChannelReader<DecodeBatch>  decodeChannel,
@@ -151,8 +158,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         AudioOffsetEventBus         audioOffsetEventBus,
         ILogger<QsoCallerService>   logger,
         TimeSpan                    watchdogDurationOverride,
-        IApConstraintSink?          decoder = null)
-        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, decoder)
+        IApConstraintSink?          decoder = null,
+        ICatState?                  catState = null)
+        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, decoder, catState)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
     }
@@ -726,7 +734,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             QsoEndUtc        = Ft8TimeHelper.DeriveFt8CycleStartUtc(DateTime.UtcNow),
             OperatorCallsign = ours,
             OperatorGrid     = tx.Grid,
-            DialFrequencyMHz = _configStore.Current.DecodeLog.DialFrequencyMHz,
+            DialFrequencyMHz = WebApp.ResolveEffectiveFrequency(_catState, _configStore.Current),
         };
 
         // qso-log-dialog: if confirmation is enabled, emit the qsoReview WS event so the
