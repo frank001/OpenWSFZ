@@ -347,6 +347,30 @@ section (whether the 05:00–07:00 UTC transient spike itself is structural or a
 fast-changing-conditions resolution gap) was not separately time-binned in this pass — the
 figures above are whole-session aggregates. That narrower analysis remains open if pursued.
 
+**Grey-line / sunrise correlation check (2026-07-08).** Captain asked whether both nights'
+transient spikes line up with sunrise in the Netherlands. Computed sunrise (Amsterdam,
+52.37°N 4.90°E, NOAA solar-position formula): **2026-07-06 03:25:38 UTC**, **2026-07-07
+03:26:33 UTC** — effectively identical, as expected one day apart in July. Checked each
+session's hourly hashed-rate against its offset from that day's sunrise:
+
+| | Peak hour (UTC) | Offset from sunrise | Rate in the sunrise-containing hour (03:00–04:00) |
+|---|---|---|---|
+| 07-06 baseline | 02:00–03:00 | **−86 to −26 min** (peaks *before* dawn) | 11.5% (elevated) |
+| 07-07 (this run) | 07:00–08:00 | **+213 to +273 min** (peaks ~4 h *after* dawn) | 6.3% (background) |
+
+**Confirmed for one night, not the other.** The 07-06 spike is a clean pre-dawn grey-line
+signature: elevated from ~2.5 h before sunrise, peaking ~1 h before, tapering off within
+~1 h after. The 07-07 spike is not — at the equivalent pre-dawn offset that produced 20.7%
+on 07-06, this session shows only 4.0% (flat background), and the hour containing actual
+sunrise is unremarkable (6.3%). The spike doesn't begin until 93 minutes *after* sunrise and
+peaks nearly 4 hours after — well outside any conventional local-sunrise grey-line window.
+**Local Netherlands sunrise does not explain the 07-07 spike's timing.** If propagation is
+the driver at all, a more defensible hypothesis is that it tracks the terminator crossing
+somewhere else along the specific DX path being worked that hour (a distant correspondent's
+own dawn/dusk, which needn't align with Amsterdam's clock) rather than local sunrise directly
+— but that requires knowing which stations were actually worked in each window, which this
+check did not attempt, and remains open if pursued further.
+
 ### 3.6 NEW — False-positive-guard rejection vs "Unknown region" correlation
 
 This section reports a new, exploratory analysis requested mid-session: whether messages
@@ -416,7 +440,7 @@ between FP-guard-rejected and accepted messages.**
 | Recall < −15 dB | 22.7–32.2% | informational (D-001) | — |
 | Overall recall vs WSJT-X | 56.30% (53.81% baseline) | informational | — |
 | SNR-stratified recall vs baseline | within 0.7–3.3 pp, no directional trend | ordinary variance | **PASS** (no regression) |
-| Hashed-callsign rate | 0.76/cycle, down from 1.79 (07-06) and 1.04 (06-22); driven by session-length/composition, not resolved either way | informational | **INCONCLUSIVE** on session-average comparison; **hypothesis-1-vs-2 question resolved 2026-07-08** via ALL.TXT mining (§3.5 addendum) — 92.5% structural, 2.12% genuine-gap-candidate; spike-window-specific sub-question still open |
+| Hashed-callsign rate | 0.76/cycle, down from 1.79 (07-06) and 1.04 (06-22); driven by session-length/composition, not resolved either way | informational | **INCONCLUSIVE** on session-average comparison; **hypothesis-1-vs-2 question resolved 2026-07-08** via ALL.TXT mining (§3.5 addendum) — 92.5% structural, 2.12% genuine-gap-candidate. Sunrise correlation checked 2026-07-08: confirms 07-06's spike (peaks ~1h *before* NL sunrise, textbook grey-line) but **contradicts** it for 07-07's spike (peaks ~4h *after* sunrise) — local sunrise does not explain both nights with one offset |
 | FP-guard rejection vs Unknown-region correlation (NEW) | +36.7 pp (78.9% vs 42.2%), stable across session | informational/exploratory | **NOTABLE FINDING** |
 
 **Overall verdict: PASS** — stability objectives met (new endurance benchmark, first full
