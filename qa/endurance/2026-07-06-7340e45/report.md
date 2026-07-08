@@ -284,7 +284,8 @@ identity match — `ALL.TXT` is text-only and carries no hash value to check dir
 misclassification in either direction is possible. Repeated with the same script and method on
 the 07-07 session (`qa/endurance/2026-07-07-bb0a1c4/report.md` §3.5) with a consistent result:
 92.5% structural, 2.12% genuine-gap-candidate. Neither night shows F-001 failing on the majority
-of what it is actually capable of resolving.
+of what it is actually capable of resolving. The small residual genuine-gap rate is real,
+consistent across both nights, and worth a closer root-cause look — tracked as GitHub #60.
 
 **This session's own spike (00:00–04:00 UTC), explained (2026-07-08).** Station/region mining
 (`qa/endurance/2026-07-07-bb0a1c4/report.md` §3.5, full detail) found this spike is a genuine

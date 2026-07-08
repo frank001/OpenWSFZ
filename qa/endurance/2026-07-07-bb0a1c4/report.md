@@ -338,7 +338,8 @@ genuine-gap residual is small and consistent in order of magnitude in both (2.12
 there). **This closes the original hypothesis-1-vs-2 question from the 07-06 report to a first
 approximation: F-001 resolves the large majority of what it is actually capable of resolving; a
 small (~2–4%), consistently-ordered gap remains, worth a narrower root-cause look if pursued
-further, but is not the dominant explanation for either session's hashed-rate figures.** Same
+further, but is not the dominant explanation for either session's hashed-rate figures.** Tracked
+as GitHub #60. Same
 proxy caveat as the 07-06 addendum applies — shape-matched correspondent pairing, not a
 confirmed 22-bit hash identity match.
 
