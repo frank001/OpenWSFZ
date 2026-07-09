@@ -169,6 +169,19 @@ specifically covers the split-PR/rename case before changing the script.
 
 ## N6 — `WebSocketHub.BroadcastDecodes`/`BroadcastAudioOffset`/`BroadcastTxState` lack the scope guard `BroadcastCatStatus` already has
 
+**Status: RESOLVED, merged 2026-07-09** (`PR #64`, `c2a8227`). Recurred exactly as predicted
+below — flaked `FR-009` again on the PR #63 merge-to-main run (`ubuntu-latest` this time), which
+prompted implementing the suggested fix rather than deferring again. `DecodeEventBus`,
+`AudioOffsetEventBus`, and `TxEventBus` now carry a shared `appScope` GUID (generated once in
+`Program.cs`, threaded through `WebApp.Create`), and `BroadcastDecodes`/`BroadcastAudioOffset`/
+`BroadcastTxState` scope-filter exactly like `BroadcastCatStatus` already did. Verified with 10
+repeated full `OpenWSFZ.Web.Tests` runs (5 Windows, 5 WSL/Linux — the platform the recurrence
+actually hit) plus full-solution runs on both platforms, all green; CI green on all three
+platforms on the PR. New regression test `Broadcast_FromDifferentAppInstance_DoesNotReachThisFixturesSocket`
+proves the guard directly rather than relying on absence-of-flakiness. Full handoff:
+`dev-tasks/2026-07-09-n6-websocket-broadcast-scope-guard.md`. Kept below for history only, no
+longer an open item.
+
 **Severity:** Low (test-isolation flake only; no production impact — a real daemon process hosts
 exactly one `WebApp` instance, so there is only ever one scope in practice)
 **Source:** found reviewing/merging `f-005-hash-table-saturation-diagnostic` (PR #54, 2026-07-06)
