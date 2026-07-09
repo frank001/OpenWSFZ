@@ -72,7 +72,10 @@ reversal based on real operating experience, not scope creep.
 - `web-frontend`: the three existing decode-table worked-before columns are renamed
   (Ctc/DXCC/Cnt) and two new columns added (CQz/ITz); the rendering logic for all five moves from
   a binary checkmark/empty glyph to a three-state glyph reflecting never-worked /
-  worked-different-band / worked-this-band.
+  worked-different-band / worked-this-band. Additionally (folded in mid-implementation at the
+  Captain's request, task 8): a new **Band** column is inserted between Time and dB, showing the
+  session's current active band for that decode — reuses this change's existing `currentBand`
+  resolution, no new backend logic.
 
 ## Impact
 
@@ -84,10 +87,13 @@ reversal based on real operating experience, not scope creep.
   (CQ Zone/ITU Zone resolution alongside the existing entity/continent resolution in the
   worked-before attachment point), `src/OpenWSFZ.Daemon/AdifLogWriter.cs` (live-registration path
   extended to also register the QSO's band, not just the callsign).
-- **Frontend**: `web/index.html` (`#decodes-table` column headers — 3 renamed, 2 added,
-  `colspan` updates), `web/js/main.js` (tri-state glyph rendering, replacing
-  `makeWorkedBeforeCell`), `web/css/app.css` (styling for the new "worked, different band" glyph
-  state).
+- **Frontend**: `web/index.html` (`#decodes-table` column headers — 3 renamed, 2 added, 1 more
+  inserted for Band, `colspan` updates), `web/js/main.js` (tri-state glyph rendering, replacing
+  `makeWorkedBeforeCell`; Band cell rendering), `web/css/app.css` (styling for the new "worked,
+  different band" glyph state; Band column width/alignment).
+- **Band column (task 8)**: `src/OpenWSFZ.Abstractions/DecodeResult.cs` gains `string? Band = null`
+  (appended last, no positional call-site breakage); `src/OpenWSFZ.Ft8/Ft8Decoder.cs` populates it
+  from the same `currentBand` parameter already resolved for worked-before purposes.
 - **Dependency, already satisfied**: this change relies on `ADIF.log`'s `BAND` field being
   trustworthy going forward, which required D-013 (merged `bbf9420`, PR #63, GitHub issue #62
   closed, 2026-07-09) — `QsoAnswererService`/`QsoCallerService` previously wrote a stale/wrong

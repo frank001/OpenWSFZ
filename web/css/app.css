@@ -364,19 +364,30 @@ label {
   white-space: normal !important;
 }
 
+/* Band column (qso-confirmation-band-awareness capability) — narrow, second column, the
+   session's current active band this decode was made on (e.g. "40m"); nth-child(2). */
+#decodes-table th:nth-child(2),
+#decodes-table td:nth-child(2) {
+  width: 1%;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  text-align: center;
+}
+
 /* Worked-before Ctc/DXCC/Cnt/CQz/ITz columns (qso-confirmation /
    qso-confirmation-band-awareness capabilities) — narrow, rightmost, centred indicator-only
-   cells; nth-child(7..11) = Ctc/DXCC/Cnt/CQz/ITz, the five columns after Region. */
-#decodes-table th:nth-child(7),
+   cells; nth-child(8..12) = Ctc/DXCC/Cnt/CQz/ITz, the five columns after Region (shifted by the
+   Band column inserted as nth-child(2)). */
 #decodes-table th:nth-child(8),
 #decodes-table th:nth-child(9),
 #decodes-table th:nth-child(10),
 #decodes-table th:nth-child(11),
-#decodes-table td:nth-child(7),
+#decodes-table th:nth-child(12),
 #decodes-table td:nth-child(8),
 #decodes-table td:nth-child(9),
 #decodes-table td:nth-child(10),
-#decodes-table td:nth-child(11) {
+#decodes-table td:nth-child(11),
+#decodes-table td:nth-child(12) {
   width: 1%;
   padding-left: 0.4rem;
   padding-right: 0.4rem;

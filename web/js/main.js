@@ -409,7 +409,7 @@ function formatRegion(region) {
  * Prepends one row per result, removes the placeholder row on first decode,
  * and caps the table at MAX_DECODE_ROWS.
  *
- * @param {Array<{time:string, snr:number, dt:number, freqHz:number, message:string, region?:{continent?:string|null, entity:string, synthetic:boolean}|null, workedBefore?:{contact:string, country:string, continent:string, cqZone:string, ituZone:string}|null}>} results
+ * @param {Array<{time:string, snr:number, dt:number, freqHz:number, message:string, band?:string|null, region?:{continent?:string|null, entity:string, synthetic:boolean}|null, workedBefore?:{contact:string, country:string, continent:string, cqZone:string, ituZone:string}|null}>} results
  */
 function handleDecodes(results) {
   if (!results || results.length === 0) return;
@@ -427,6 +427,7 @@ function handleDecodes(results) {
     // characters that are valid HTML (<, >, &, ") and must not be parsed as markup.
     const tr = document.createElement('tr');
     tr.appendChild(makeCell(r.time));
+    tr.appendChild(makeCell(r.band ?? ''));
     tr.appendChild(makeCell(snrStr));
     tr.appendChild(makeCell(dtStr));
     tr.appendChild(makeCell(String(r.freqHz)));

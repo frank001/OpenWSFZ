@@ -24,6 +24,16 @@ namespace OpenWSFZ.Abstractions;
 /// <c>null</c> field identically to <see cref="WorkedBeforeInfo.None"/> (every indicator
 /// empty). Never affects decode acceptance.
 /// </param>
+/// <param name="Band">
+/// The session's current active band this decode was made on (e.g. <c>"40m"</c>), using the
+/// same naming convention as the Settings → Frequencies tab's Description column
+/// (<c>qso-confirmation-band-awareness</c> capability's shared band-name table) — the exact
+/// same value threaded into <see cref="IWorkedBeforeIndex.Resolve"/> as <c>currentBand</c> for
+/// this same decode, so the Band column and the worked-before indicators on one row always
+/// agree. <c>null</c> when the current band cannot be resolved (no CAT, no manual fallback
+/// configured, or the resolved frequency falls outside all known amateur bands) — the frontend
+/// renders <c>null</c> as an empty cell. Never affects decode acceptance.
+/// </param>
 public sealed record DecodeResult(
     string             Time,
     int                Snr,
@@ -31,4 +41,5 @@ public sealed record DecodeResult(
     int                FreqHz,
     string             Message,
     RegionInfo?        Region       = null,
-    WorkedBeforeInfo?  WorkedBefore = null);
+    WorkedBeforeInfo?  WorkedBefore = null,
+    string?            Band         = null);

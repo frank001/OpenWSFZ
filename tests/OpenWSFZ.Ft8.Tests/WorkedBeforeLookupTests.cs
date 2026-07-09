@@ -111,6 +111,44 @@ public sealed class WorkedBeforeLookupTests
         index.ResolvedBands.Should().ContainSingle().Which.Should().Be("20m");
     }
 
+    [Fact(DisplayName = "DecodeAsync attaches currentBand to DecodeResult.Band verbatim (decode-table Band column)")]
+    public async Task DecodeAsync_CurrentBandSupplied_AttachesToDecodeResultBand()
+    {
+        var interop = new FixedResultInterop(
+            new Ft8NativeResult { FreqHz = 1000, Dt = 0.2f, Snr = 5, Message = "CQ Q1ABC FN42" });
+
+        var decoder = new Ft8Decoder(
+            new FakeClock(new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc)),
+            logger: null,
+            interop: interop,
+            grammarStore: FixedCallsignGrammarStore.Default);
+
+        var results = await decoder.DecodeAsync(
+            BuildLoudPcm(), new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc), "20m");
+
+        results.Should().HaveCount(1);
+        results[0].Band.Should().Be("20m",
+            "the decode-table Band column must show exactly the current band used for worked-before resolution");
+    }
+
+    [Fact(DisplayName = "DecodeAsync leaves DecodeResult.Band null when currentBand is unresolvable")]
+    public async Task DecodeAsync_CurrentBandNull_DecodeResultBandNull()
+    {
+        var interop = new FixedResultInterop(
+            new Ft8NativeResult { FreqHz = 1000, Dt = 0.2f, Snr = 5, Message = "CQ Q1ABC FN42" });
+
+        var decoder = new Ft8Decoder(
+            new FakeClock(new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc)),
+            logger: null,
+            interop: interop,
+            grammarStore: FixedCallsignGrammarStore.Default);
+
+        var results = await decoder.DecodeAsync(BuildLoudPcm(), CancellationToken.None);
+
+        results.Should().HaveCount(1);
+        results[0].Band.Should().BeNull("pre-existing call sites that don't pass currentBand must render an empty Band cell");
+    }
+
     [Fact(DisplayName = "4.4: the 3-arg (pcm, cycleStart, ct) overload still compiles and resolves currentBand: null")]
     public async Task DecodeAsync_ThreeArgOverload_ResolvesNullBand()
     {

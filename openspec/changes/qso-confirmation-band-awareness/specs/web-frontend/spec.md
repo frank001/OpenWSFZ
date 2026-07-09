@@ -82,4 +82,41 @@ carried forward unmodified from the prior implementation.
 
 - **WHEN** the decode table has no decodes yet and displays its placeholder row
 - **THEN** the placeholder row's `colspan` SHALL equal the table's total column count, including
-  the five worked-before columns (two more than the prior three-column set)
+  the five worked-before columns (two more than the prior three-column set) and the Band column
+  below
+
+---
+
+### Requirement: Decode table — Band column
+
+`#decodes-table` SHALL display a **Band** column positioned immediately after the Time column
+(before dB), showing the session's current active band that decode was made on (e.g. `"40m"`),
+using the same band-name convention as the Settings → Frequencies tab's Description column. The
+cell SHALL be populated from that row's decode payload `band` field (`qso-confirmation-band-awareness`
+capability — the same value threaded into worked-before resolution as `currentBand` for that
+decode), at row-creation time with no separate network round-trip. When the `band` field is
+absent or `null` (current band unresolvable — no CAT, no manual fallback configured, or the
+resolved frequency falls outside all known amateur bands), the cell SHALL be empty.
+
+#### Scenario: Band column shows the resolved band
+
+- **WHEN** a decode row's payload has `band: "40m"`
+- **THEN** the rendered row SHALL display `"40m"` in the Band column
+
+#### Scenario: Band column is empty when the current band is unresolvable
+
+- **WHEN** a decode row's payload has `band: null`, or the `band` field is absent from the payload
+- **THEN** the rendered row SHALL display an empty Band column cell
+
+#### Scenario: Band column present on every decode row regardless of message type
+
+- **WHEN** any decode is rendered in the decode table (CQ, standard QSO, Type 4 nonstandard
+  literal, or hash-reference message)
+- **THEN** the row SHALL include a Band column cell, defaulting to empty if `band` is absent
+
+#### Scenario: Band column agrees with the worked-before indicators on the same row
+
+- **WHEN** a decode row's payload has `band: "20m"` and `workedBefore.contact: "thisBand"`
+- **THEN** both values originate from the same `currentBand` resolution for that decode cycle —
+  there is no scenario where the Band column shows one band while a `"thisBand"` worked-before
+  indicator on the same row implies a different one

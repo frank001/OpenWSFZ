@@ -389,7 +389,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 FreqHz:       nr.FreqHz,
                 Message:      msg,
                 Region:       region,
-                WorkedBefore: workedBefore));
+                WorkedBefore: workedBefore,
+                Band:         currentBand));
         }
 
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────

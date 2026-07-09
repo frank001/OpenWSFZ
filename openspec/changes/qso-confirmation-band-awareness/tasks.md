@@ -97,3 +97,39 @@
       Captain's real personal log): confirm a station worked on a past band shows
       "different-band" and, after retuning to that same band, flips to "this-band" without a
       daemon restart.
+- [x] 7.5 Post-implementation fix: the Captain's live screenshot after 7.1–7.3 showed every
+      worked-before indicator rendering empty. Root cause: `JsonStringEnumConverter<WorkedBeforeState>`
+      with no explicit naming policy serialises the exact PascalCase member name (`"ThisBand"`),
+      not the lowerCamelCase the frontend compares against (`"thisBand"`) — `AppJsonContext`'s
+      `CamelCase` `PropertyNamingPolicy` only renames JSON *properties*, not enum *values*. Fixed
+      with explicit `[JsonStringEnumMemberName]` per enum member; added
+      `WorkedBeforeJsonSerializationTests` (direct serialize + round-trip) as permanent regression
+      coverage. `dotnet build` (0/0), `dotnet test` (969/969) after the fix.
+
+## 8. Frontend — decode table Band column (folded in mid-implementation, Captain's request)
+
+A small additional requirement, added after tasks 1–7 above were otherwise complete: `#decodes-table`
+gains a **Band** column between Time and dB, showing the session's current active band for that
+decode (e.g. `"40m"`) — the same band-name convention as the Settings → Frequencies tab's
+Description column. Reuses the `currentBand` value this change's task 4 already threads through
+`Ft8Decoder.DecodeAsync` for worked-before resolution, so the Band column and the worked-before
+indicators on one row always agree — no new resolution logic.
+
+- [x] 8.1 `DecodeResult`: add `string? Band = null`, appended as the last positional parameter
+      (after `WorkedBefore`) so no existing positional call site breaks.
+- [x] 8.2 `Ft8Decoder.DecodeAsync`: populate `Band: currentBand` on the constructed `DecodeResult`
+      (the exact same value passed to `_workedBeforeIndex.Resolve`).
+- [x] 8.3 `web/index.html`: insert a `<th>Band</th>` header between Time and dB; bump the
+      placeholder row's `colspan` from 11 to 12.
+- [x] 8.4 `web/js/main.js`: insert `makeCell(r.band ?? '')` between the Time and dB cells in
+      `handleDecodes()`; update the JSDoc payload shape comment to include `band`.
+- [x] 8.5 `web/css/app.css`: narrow/centre the new Band column (`nth-child(2)`); shift the
+      worked-before column selectors from `nth-child(7..11)` to `nth-child(8..12)` to account for
+      the inserted column.
+- [x] 8.6 Unit tests: `DecodeResult.Band` is populated verbatim from `currentBand` when supplied,
+      and stays `null` when `currentBand` is unresolvable/omitted (mirrors task 4.4's degrade
+      posture).
+- [x] 8.7 `dotnet build`/`dotnet test` — 0/0 warnings/errors, full suite green
+      (971/971 after this addition).
+- [ ] 8.8 Manual/screenshot verification: Band column renders the expected value and aligns
+      visually with the existing columns — same manual-check caveat as task 6.4.
