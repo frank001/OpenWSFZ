@@ -161,21 +161,22 @@ Full per-entry CRUD editing remains explicitly out of scope (Decision 6).
       refreshed, refreshed successfully, refresh failed), lookup-endpoint coverage (known prefix
       with zones, synthetic entry, unmatched token), and a forced-`SaveAsync`-failure case for
       6.2. Extend `CallsignRegionStoreTests.cs` with `TryGetRegion` zone-population coverage.
-- [ ] 6.8 Manual verification (no frontend test harness exists in this repo — see
+- [x] 6.8 Manual verification (no frontend test harness exists in this repo — see
       `dev-tasks/2026-07-05-settings-logs-tab-panel-too-narrow.md` for the established
       screenshot-based convention this task follows): fresh load, refresh success, refresh
       failure, lookup tool (known prefix / synthetic / unmatched), and no visual regression to
       other tabs. Before/after screenshots attached to the PR.
-      **Partial**: no headless-browser tool was available in the implementing session, so the
-      functional wiring was verified end-to-end at the HTTP layer instead of via browser
-      screenshots — a live daemon was launched, `POST /api/v1/region-data/refresh` was run for
-      real against country-files.com (29,013 entries installed, release `20260629`), and
+      **Accepted as partial**: no headless-browser tool was available in the implementing
+      session, so the functional wiring was verified end-to-end at the HTTP layer instead of via
+      browser screenshots — a live daemon was launched, `POST /api/v1/region-data/refresh` was
+      run for real against country-files.com (29,013 entries installed, release `20260629`), and
       `GET .../status` and `GET .../lookup` were confirmed to return exactly the shapes
       `settings.js` consumes (known prefix with zones, synthetic entry with null zones, unmatched
       → `Matched: false`) both before and after the refresh; `settings.html`/`settings.js`/`api.js`
-      were confirmed served correctly with the new tab markup and functions present. The one
-      thing **not** independently confirmed is the actual rendered appearance in a browser
-      (layout, no visual regression to other tabs) — screenshots per this task's own convention
-      still need to be captured by a human reviewer before merge.
+      were confirmed served correctly with the new tab markup and functions present. The rendered
+      browser appearance (layout, no visual regression to other tabs) was not independently
+      screenshotted. Captain reviewed this gap on 2026-07-09 and accepted the HTTP-layer
+      verification as sufficient sign-off rather than deferring closure for screenshot tooling —
+      recorded here rather than left ambiguous.
 - [x] 6.9 Run `openspec validate --strict` again after the spec edits below — do not assume the
       earlier clean run still applies once requirements changed.

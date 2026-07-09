@@ -84,11 +84,13 @@ public sealed class AdifLogWriter : IAdifLogWriter
                 DeriveBand(record.DialFrequencyMHz) ?? "unknown",
                 path);
 
-            // qso-confirmation: register the just-logged callsign into the live worked-before
-            // index so the very next decode of this station resolves "worked before" without a
-            // daemon restart or a re-read of ADIF.log (design.md Decision 5). Only reached on a
+            // qso-confirmation: register the just-logged callsign (and the band it was worked
+            // on — already computed above for this record's own BAND tag) into the live
+            // worked-before index so the very next decode of this station resolves "worked
+            // before" without a daemon restart or a re-read of ADIF.log
+            // (qso-confirmation-band-awareness design.md Decision 5). Only reached on a
             // successful write — a failed write below never registers the callsign.
-            _workedBeforeIndex?.Register(record.PartnerCallsign);
+            _workedBeforeIndex?.Register(record.PartnerCallsign, DeriveBand(record.DialFrequencyMHz));
         }
         catch (IOException ex)
         {
@@ -180,27 +182,11 @@ public sealed class AdifLogWriter : IAdifLogWriter
     /// <summary>
     /// Derives the ITU amateur band name from a dial frequency in MHz.
     /// Returns <c>null</c> when the frequency is zero or outside all known ham bands.
+    /// Forwards to the shared <see cref="BandTable"/> (<c>qso-confirmation-band-awareness</c>
+    /// design.md Decision 4) so this writer's own <c>BAND</c> tag and the decode pump's
+    /// "current active band" resolution never drift onto two different tables.
     /// </summary>
-    internal static string? DeriveBand(double freqMHz)
-    {
-        return freqMHz switch
-        {
-            >= 1.800 and < 2.000   => "160m",
-            >= 3.500 and < 4.000   => "80m",
-            >= 5.250 and < 5.450   => "60m",
-            >= 7.000 and < 7.300   => "40m",
-            >= 10.100 and < 10.150 => "30m",
-            >= 14.000 and < 14.350 => "20m",
-            >= 18.068 and < 18.168 => "17m",
-            >= 21.000 and < 21.450 => "15m",
-            >= 24.890 and < 24.990 => "12m",
-            >= 28.000 and < 29.700 => "10m",
-            >= 50.000 and < 54.000 => "6m",
-            >= 144.000 and < 148.000 => "2m",
-            >= 420.000 and < 450.000 => "70cm",
-            _ => null
-        };
-    }
+    internal static string? DeriveBand(double freqMHz) => BandTable.DeriveBand(freqMHz);
 
     // ── Helper ────────────────────────────────────────────────────────────────
 

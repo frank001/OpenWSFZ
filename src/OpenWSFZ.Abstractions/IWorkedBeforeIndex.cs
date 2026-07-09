@@ -27,16 +27,31 @@ public interface IWorkedBeforeIndex
     Task LoadAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Registers a single newly-logged callsign (and its resolved DXCC entity/continent,
-    /// subject to the Unknown/synthetic exclusion — design.md Decision 4) into the live index,
-    /// without requiring a reload of <c>ADIF.log</c>. Called only from a QSO write's success
-    /// path — a failed ADIF write SHALL NOT register the callsign.
+    /// Registers a single newly-logged callsign (and its resolved DXCC entity/continent/CQ-zone/
+    /// ITU-zone, subject to the Unknown/synthetic exclusion — design.md Decision 4) into the live
+    /// index, along with the band it was worked on, without requiring a reload of
+    /// <c>ADIF.log</c>. Called only from a QSO write's success path — a failed ADIF write SHALL
+    /// NOT register the callsign.
     /// </summary>
-    void Register(string callsign);
+    /// <param name="callsign">The just-logged partner callsign.</param>
+    /// <param name="band">
+    /// The band the QSO was worked on (already computed by <c>AdifLogWriter</c> for the record's
+    /// own <c>BAND</c> tag), or <c>null</c> when the band could not be derived — the callsign
+    /// still contributes to the "worked at all" fact but not to any specific band
+    /// (<c>qso-confirmation-band-awareness</c> design.md Decision 5).
+    /// </param>
+    void Register(string callsign, string? band);
 
     /// <summary>
-    /// Resolves worked-before state for <paramref name="callsignToken"/> — the three
-    /// independent booleans described by <see cref="WorkedBeforeInfo"/>.
+    /// Resolves worked-before state for <paramref name="callsignToken"/> — the five independent
+    /// tri-state dimensions described by <see cref="WorkedBeforeInfo"/>.
     /// </summary>
-    WorkedBeforeInfo Resolve(string callsignToken);
+    /// <param name="callsignToken">The decoded callsign-position token to resolve.</param>
+    /// <param name="currentBand">
+    /// The session's current active band (resolved via the live-CAT-aware three-tier frequency
+    /// rule, converted to a band name), or <c>null</c> when it cannot be resolved — every
+    /// dimension that would otherwise resolve <see cref="WorkedBeforeState.ThisBand"/> instead
+    /// resolves <see cref="WorkedBeforeState.DifferentBand"/> (if worked at all).
+    /// </param>
+    WorkedBeforeInfo Resolve(string callsignToken, string? currentBand);
 }

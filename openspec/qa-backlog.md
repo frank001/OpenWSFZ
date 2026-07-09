@@ -212,3 +212,42 @@ thread `appScope` through their call sites (`DecodeEventBus`, `AudioOffsetEventB
 publishing) the same way `WebApp.Create` already does for CAT status. Low priority given no
 production impact, but worth doing before this test flakes again — likely to recur as the Web test
 suite grows more WS-connecting tests sharing the same process.
+
+---
+
+## N7 — possible N6 recurrence: local build/test failed then passed on immediate retry, no code change between runs
+
+**Status:** OPEN, unconfirmed — logged on the Captain's say-so alone; not yet reproduced or
+diagnosed by QA. Recorded per his explicit request ("just record it") rather than investigated in
+the moment.
+**Severity:** Unknown pending investigation (Low if it is in fact N6-shaped, per that item's own
+severity rationale — test-isolation only, no production impact)
+**Source:** Captain, 2026-07-09, on branch `feat/qso-confirmation-band-awareness`, immediately
+after QA's `min-width` CSS fix + `tasks.md` edits for that change (see
+`openspec/changes/qso-confirmation-band-awareness/tasks.md` 6.4/7.4/8.8)
+**File:** unknown — no failing test name, error text, or platform captured
+
+The Captain compiled and ran the test suite locally, it failed, and an immediate retry with no
+intervening code change succeeded. He states this directly correlates with N6 (the
+`WebSocketHub` unscoped-broadcast cross-test-contamination flake, `PR #64`, RESOLVED
+2026-07-09 — see above) — i.e. the same "fail once, pass on identical retry" signature N6 produced
+before its fix.
+
+This is notable because N6 was supposedly closed the same day, verified with 10 repeated full
+`OpenWSFZ.Web.Tests` runs across both Windows and Linux plus a dedicated regression test
+(`Broadcast_FromDifferentAppInstance_DoesNotReachThisFixturesSocket`). If this is a genuine
+recurrence, either that fix has a gap the repeated-run verification didn't hit, or a different,
+as-yet-unscoped broadcast path is producing the same symptom shape. Equally plausible and *not*
+yet ruled out: this branch's own changes at the time were CSS- and Markdown-only (no `.cs` files
+touched), so a genuine N6-shaped test failure caused by this branch's own edits would be
+surprising — QA's own working theory when this was first raised conversationally was mundane
+build-lock contention from two concurrent local `dotnet build`/`dotnet test` invocations (QA's
+review runs and the Captain's own), which produces an unrelated but superficially similar
+"fails, retry succeeds" pattern (MSBuild "file in use") with no relation to WebSocket broadcast
+scoping at all.
+
+**Next step, if/when this recurs:** capture the actual failing test name, exception/assertion
+text, and platform *before* retrying — the retry-and-move-on pattern is exactly what let N6 sit
+undiagnosed across two separate PRs (#54 and #63) before it was finally actioned. Without that
+detail this entry cannot be distinguished from ordinary build-lock contention, nor confirmed as a
+genuine N6 regression.

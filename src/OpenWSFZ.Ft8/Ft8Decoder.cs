@@ -172,13 +172,39 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     // overload (supplied by CycleFramer) in production code.
     /// <inheritdoc/>
     public Task<IReadOnlyList<DecodeResult>> DecodeAsync(float[] pcm, CancellationToken ct = default)
-        => DecodeAsync(pcm, AlignToCycleStart(_clock.UtcNow), ct);
+        => DecodeAsync(pcm, AlignToCycleStart(_clock.UtcNow), currentBand: null, ct);
 
     // ── IModeDecoder — canonical overload (cycleStart from CycleFramer) ───────
+    // Forwards to the richer currentBand-aware overload below with currentBand: null, so this
+    // still satisfies IModeDecoder's exact 3-parameter signature unchanged (design.md Decision 4
+    // — the new parameter is additive, not a breaking change to the interface).
     /// <inheritdoc/>
+    public Task<IReadOnlyList<DecodeResult>> DecodeAsync(
+        float[] pcm, DateTime cycleStart, CancellationToken ct = default)
+        => DecodeAsync(pcm, cycleStart, currentBand: null, ct);
+
+    /// <summary>
+    /// Decodes one 15-second capture window, additionally threading the session's current
+    /// active band into worked-before resolution (<c>qso-confirmation-band-awareness</c>
+    /// design.md Decision 4). Not part of <see cref="IModeDecoder"/> — called directly on the
+    /// concrete <see cref="Ft8Decoder"/> type by <c>Program.cs</c>'s decode pump, which is the
+    /// one place "current band" is resolved.
+    /// </summary>
+    /// <param name="pcm">15 s × 12 000 Hz mono PCM samples.</param>
+    /// <param name="cycleStart">UTC instant the capture window began accumulating (FR-028/R3).</param>
+    /// <param name="currentBand">
+    /// The session's current active band (resolved by the caller via the live-CAT-aware
+    /// three-tier frequency rule, converted to a band name), or <c>null</c> when it cannot be
+    /// resolved. Threaded into <see cref="IWorkedBeforeIndex.Resolve"/> so every worked-before
+    /// dimension that would otherwise resolve <see cref="WorkedBeforeState.ThisBand"/> instead
+    /// degrades to <see cref="WorkedBeforeState.DifferentBand"/> (if worked at all) when the
+    /// current band is unresolvable.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
     public async Task<IReadOnlyList<DecodeResult>> DecodeAsync(
         float[]           pcm,
         DateTime          cycleStart,
+        string?           currentBand,
         CancellationToken ct = default)
     {
         // ── R2: Pre-condition guard ──────────────────────────────────────────
@@ -345,7 +371,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 {
                     var primaryToken = ExtractPrimaryCallsignToken(msg);
                     if (primaryToken is not null)
-                        workedBefore = _workedBeforeIndex.Resolve(primaryToken);
+                        workedBefore = _workedBeforeIndex.Resolve(primaryToken, currentBand);
                 }
                 catch (Exception ex)
                 {
@@ -363,7 +389,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 FreqHz:       nr.FreqHz,
                 Message:      msg,
                 Region:       region,
-                WorkedBefore: workedBefore));
+                WorkedBefore: workedBefore,
+                Band:         currentBand));
         }
 
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────

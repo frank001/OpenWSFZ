@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 The operator currently has no visual cue, while decodes are scrolling past, of whether a

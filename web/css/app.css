@@ -364,28 +364,60 @@ label {
   white-space: normal !important;
 }
 
-/* Worked-before P/C/R columns (qso-confirmation capability) — narrow, rightmost, centred
-   indicator-only cells; nth-child(7/8/9) = P/C/R, the three columns after Region. */
-#decodes-table th:nth-child(7),
+/* Band column (qso-confirmation-band-awareness capability) — narrow, second column, the
+   session's current active band this decode was made on (e.g. "40m"); nth-child(2).
+   min-width is set wide enough that neither the "Band" header nor the longest realistic value
+   ("160m"/"70cm") ever touches the column's own padding — without it, `width: 1%` shrink-wraps
+   so tightly to whichever of header/value is widest that `text-align: center`'s effect on the
+   narrower of the two is only a pixel or two and reads as left-aligned at a glance. */
+#decodes-table th:nth-child(2),
+#decodes-table td:nth-child(2) {
+  width: 1%;
+  min-width: 3.5rem;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  text-align: center;
+}
+
+/* Worked-before Ctc/DXCC/Cnt/CQz/ITz columns (qso-confirmation /
+   qso-confirmation-band-awareness capabilities) — narrow, rightmost, centred indicator-only
+   cells; nth-child(8..12) = Ctc/DXCC/Cnt/CQz/ITz, the five columns after Region (shifted by the
+   Band column inserted as nth-child(2)). */
 #decodes-table th:nth-child(8),
 #decodes-table th:nth-child(9),
-#decodes-table td:nth-child(7),
+#decodes-table th:nth-child(10),
+#decodes-table th:nth-child(11),
+#decodes-table th:nth-child(12),
 #decodes-table td:nth-child(8),
-#decodes-table td:nth-child(9) {
+#decodes-table td:nth-child(9),
+#decodes-table td:nth-child(10),
+#decodes-table td:nth-child(11),
+#decodes-table td:nth-child(12) {
   width: 1%;
   padding-left: 0.4rem;
   padding-right: 0.4rem;
   text-align: center;
 }
 
-/* design.md Decision 7: a disabled checkbox's `accent-color` is suppressed by most browsers
-   regardless of what CSS specifies, which left the checked state illegible against this dark
-   theme (the original Open Question from task 3.4). Replaced with a plain checkmark glyph
-   span (main.js's makeWorkedBeforeCell), styled in the same success colour used elsewhere for
-   positive-state indicators (Call-CQ button, #ws-state.connected::before). */
+/* design.md Decision 7 (adif-qso-confirmation): a disabled checkbox's `accent-color` is
+   suppressed by most browsers regardless of what CSS specifies, which left the checked state
+   illegible against this dark theme. Replaced with a plain glyph span (main.js's
+   makeWorkedBeforeCell) — no `disabled` control, nothing to click.
+   qso-confirmation-band-awareness widens this to a tri-state glyph: the this-band checkmark
+   keeps the original success colour; the different-band glyph uses the warning/amber token so
+   it reads as "partially wanted" rather than "done", visually distinct from both empty and
+   this-band even at a glance while decodes scroll. */
 #decodes-table .worked-before-mark {
-  color: var(--color-success);
   font-weight: 600;
+}
+
+#decodes-table .worked-before-mark-this-band {
+  color: var(--color-success);
+}
+
+#decodes-table .worked-before-mark-different-band {
+  color: var(--color-warning);
+  font-size: 0.7em;
 }
 
 /* ── Audio activity indicator (FR-020) ────────────────────────────────── */

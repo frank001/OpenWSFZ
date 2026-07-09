@@ -45,7 +45,12 @@ public sealed class WorkedBeforeLookupTests
     [Fact(DisplayName = "2.6: DecodeAsync attaches a resolved WorkedBefore to the decode payload")]
     public async Task DecodeAsync_MatchingDecode_AttachesWorkedBeforeToPayload()
     {
-        var index = new FixedWorkedBeforeIndex(new WorkedBeforeInfo(Call: true, Country: true, Region: true));
+        var index = new FixedWorkedBeforeIndex(new WorkedBeforeInfo(
+            Contact: WorkedBeforeState.ThisBand,
+            Country: WorkedBeforeState.ThisBand,
+            Continent: WorkedBeforeState.ThisBand,
+            CqZone: WorkedBeforeState.ThisBand,
+            ItuZone: WorkedBeforeState.ThisBand));
         var interop = new FixedResultInterop(
             new Ft8NativeResult { FreqHz = 1000, Dt = 0.2f, Snr = 5, Message = "CQ Q1ABC FN42" });
 
@@ -60,9 +65,11 @@ public sealed class WorkedBeforeLookupTests
 
         results.Should().HaveCount(1);
         results[0].WorkedBefore.Should().NotBeNull();
-        results[0].WorkedBefore!.Call.Should().BeTrue();
-        results[0].WorkedBefore!.Country.Should().BeTrue();
-        results[0].WorkedBefore!.Region.Should().BeTrue();
+        results[0].WorkedBefore!.Contact.Should().Be(WorkedBeforeState.ThisBand);
+        results[0].WorkedBefore!.Country.Should().Be(WorkedBeforeState.ThisBand);
+        results[0].WorkedBefore!.Continent.Should().Be(WorkedBeforeState.ThisBand);
+        results[0].WorkedBefore!.CqZone.Should().Be(WorkedBeforeState.ThisBand);
+        results[0].WorkedBefore!.ItuZone.Should().Be(WorkedBeforeState.ThisBand);
     }
 
     [Fact(DisplayName = "2.6: DecodeAsync degrades WorkedBefore to null when the index throws, without affecting acceptance")]
@@ -83,6 +90,83 @@ public sealed class WorkedBeforeLookupTests
         results.Should().HaveCount(1, "a worked-before resolution exception must never withhold the decode");
         results[0].WorkedBefore.Should().BeNull(
             "a worked-before resolution exception must degrade to null (every checkbox unchecked), not propagate");
+    }
+
+    [Fact(DisplayName = "4.2: DecodeAsync threads currentBand through to IWorkedBeforeIndex.Resolve")]
+    public async Task DecodeAsync_CurrentBandSupplied_ThreadedToResolve()
+    {
+        var index = new CapturingWorkedBeforeIndex();
+        var interop = new FixedResultInterop(
+            new Ft8NativeResult { FreqHz = 1000, Dt = 0.2f, Snr = 5, Message = "CQ Q1ABC FN42" });
+
+        var decoder = new Ft8Decoder(
+            new FakeClock(new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc)),
+            logger: null,
+            interop: interop,
+            grammarStore: FixedCallsignGrammarStore.Default,
+            workedBeforeIndex: index);
+
+        await decoder.DecodeAsync(BuildLoudPcm(), new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc), "20m");
+
+        index.ResolvedBands.Should().ContainSingle().Which.Should().Be("20m");
+    }
+
+    [Fact(DisplayName = "DecodeAsync attaches currentBand to DecodeResult.Band verbatim (decode-table Band column)")]
+    public async Task DecodeAsync_CurrentBandSupplied_AttachesToDecodeResultBand()
+    {
+        var interop = new FixedResultInterop(
+            new Ft8NativeResult { FreqHz = 1000, Dt = 0.2f, Snr = 5, Message = "CQ Q1ABC FN42" });
+
+        var decoder = new Ft8Decoder(
+            new FakeClock(new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc)),
+            logger: null,
+            interop: interop,
+            grammarStore: FixedCallsignGrammarStore.Default);
+
+        var results = await decoder.DecodeAsync(
+            BuildLoudPcm(), new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc), "20m");
+
+        results.Should().HaveCount(1);
+        results[0].Band.Should().Be("20m",
+            "the decode-table Band column must show exactly the current band used for worked-before resolution");
+    }
+
+    [Fact(DisplayName = "DecodeAsync leaves DecodeResult.Band null when currentBand is unresolvable")]
+    public async Task DecodeAsync_CurrentBandNull_DecodeResultBandNull()
+    {
+        var interop = new FixedResultInterop(
+            new Ft8NativeResult { FreqHz = 1000, Dt = 0.2f, Snr = 5, Message = "CQ Q1ABC FN42" });
+
+        var decoder = new Ft8Decoder(
+            new FakeClock(new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc)),
+            logger: null,
+            interop: interop,
+            grammarStore: FixedCallsignGrammarStore.Default);
+
+        var results = await decoder.DecodeAsync(BuildLoudPcm(), CancellationToken.None);
+
+        results.Should().HaveCount(1);
+        results[0].Band.Should().BeNull("pre-existing call sites that don't pass currentBand must render an empty Band cell");
+    }
+
+    [Fact(DisplayName = "4.4: the 3-arg (pcm, cycleStart, ct) overload still compiles and resolves currentBand: null")]
+    public async Task DecodeAsync_ThreeArgOverload_ResolvesNullBand()
+    {
+        var index = new CapturingWorkedBeforeIndex();
+        var interop = new FixedResultInterop(
+            new Ft8NativeResult { FreqHz = 1000, Dt = 0.2f, Snr = 5, Message = "CQ Q1ABC FN42" });
+
+        var decoder = new Ft8Decoder(
+            new FakeClock(new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc)),
+            logger: null,
+            interop: interop,
+            grammarStore: FixedCallsignGrammarStore.Default,
+            workedBeforeIndex: index);
+
+        await decoder.DecodeAsync(BuildLoudPcm(), new DateTime(2026, 7, 4, 10, 0, 0, DateTimeKind.Utc), CancellationToken.None);
+
+        index.ResolvedBands.Should().ContainSingle().Which.Should().BeNull(
+            "pre-existing call sites that don't pass currentBand must keep degrading to null, never throw or change shape");
     }
 
     [Fact(DisplayName = "2.6: DecodeAsync leaves WorkedBefore null when no index is supplied")]

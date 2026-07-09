@@ -534,7 +534,13 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 // this window — the authoritative cycle timestamp (R3 / FR-028).
                 // dialFreq falls back to the configured value when CAT is absent.
                 var dialFreq = windowDialFreq ?? configStore.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
-                var results  = await ft8Decoder.DecodeAsync(pcmWindow, cycleStart);
+
+                // qso-confirmation-band-awareness: resolve the session's current active band
+                // alongside dialFreq, using the same already-trustworthy (D-013) value — no
+                // second frequency resolution, just a band-name conversion via the shared
+                // BandTable (design.md Decision 4). null when dialFreq is 0.0 (unresolvable).
+                var currentBand = BandTable.DeriveBand(dialFreq);
+                var results     = await ft8Decoder.DecodeAsync(pcmWindow, cycleStart, currentBand);
                 _ = decodeEventBus.Publish(results); // fire-and-forget: do not await WebSocket delivery
                 await allTxtWriter.AppendAsync(cycleStart, dialFreq, results);
 

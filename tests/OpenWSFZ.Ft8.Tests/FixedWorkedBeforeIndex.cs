@@ -11,9 +11,9 @@ internal sealed class FixedWorkedBeforeIndex(WorkedBeforeInfo result) : IWorkedB
 {
     public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-    public void Register(string callsign) { /* not needed for these tests */ }
+    public void Register(string callsign, string? band) { /* not needed for these tests */ }
 
-    public WorkedBeforeInfo Resolve(string callsignToken) => result;
+    public WorkedBeforeInfo Resolve(string callsignToken, string? currentBand) => result;
 }
 
 /// <summary>
@@ -27,9 +27,30 @@ internal sealed class ThrowingWorkedBeforeIndex : IWorkedBeforeIndex
     public Task LoadAsync(CancellationToken cancellationToken = default)
         => throw new InvalidOperationException("Simulated worked-before-index failure.");
 
-    public void Register(string callsign)
+    public void Register(string callsign, string? band)
         => throw new InvalidOperationException("Simulated worked-before-index failure.");
 
-    public WorkedBeforeInfo Resolve(string callsignToken)
+    public WorkedBeforeInfo Resolve(string callsignToken, string? currentBand)
         => throw new InvalidOperationException("Simulated worked-before-index failure.");
+}
+
+/// <summary>
+/// Test double for <see cref="IWorkedBeforeIndex"/> that records every <paramref name="currentBand"/>
+/// value passed to <see cref="Resolve"/> — used to verify <c>Ft8Decoder.DecodeAsync</c> threads
+/// its <c>currentBand</c> parameter through correctly (<c>qso-confirmation-band-awareness</c>,
+/// task 4.2/4.4).
+/// </summary>
+internal sealed class CapturingWorkedBeforeIndex : IWorkedBeforeIndex
+{
+    public List<string?> ResolvedBands { get; } = [];
+
+    public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public void Register(string callsign, string? band) { /* not needed for these tests */ }
+
+    public WorkedBeforeInfo Resolve(string callsignToken, string? currentBand)
+    {
+        ResolvedBands.Add(currentBand);
+        return WorkedBeforeInfo.None;
+    }
 }
