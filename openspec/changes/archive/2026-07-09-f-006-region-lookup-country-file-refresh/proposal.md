@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 The `region-lookup` capability's seed data (`CallsignRegionDefaults.cs`) is a small, hand-curated,
