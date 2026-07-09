@@ -83,9 +83,13 @@
       new `workedBefore` payload shape.
 - [x] 6.3 `web/css/app.css`: add styling for the new `differentBand` glyph state, visually
       distinct from both empty and the existing `--color-success` checkmark state.
-- [ ] 6.4 Manual/screenshot verification against the dark theme (per the lesson from the
+- [x] 6.4 Manual/screenshot verification against the dark theme (per the lesson from the
       original capability's Decision 7 — disabled-checkbox legibility issue) — confirm all three
-      states are readable at a glance while decodes scroll.
+      states are readable at a glance while decodes scroll. Verified 2026-07-09 against the
+      Captain's live screenshot (`Screenshot 2026-07-09 210606.png`) showing the amber
+      `differentBand` dot on two rows (`RA3ZDU`, `S51PV`), both cross-checked against `ADIF.log`
+      (logged on 20m, decoded here on 40m) — correct state, legible and visually distinct from
+      both the empty and checkmark states.
 
 ## 7. Verification
 
@@ -93,10 +97,19 @@
 - [x] 7.2 `dotnet test OpenWSFZ.slnx -c Release` — full suite green, no regressions in existing
       `qso-confirmation`/`region-lookup`/`adif-log` test coverage.
 - [x] 7.3 `openspec validate --strict --all` — passing, including this change's delta specs.
-- [ ] 7.4 End-to-end manual check against a real `ADIF.log` with multi-band history (e.g. the
+- [x] 7.4 End-to-end manual check against a real `ADIF.log` with multi-band history (e.g. the
       Captain's real personal log): confirm a station worked on a past band shows
       "different-band" and, after retuning to that same band, flips to "this-band" without a
-      daemon restart.
+      daemon restart. Closed 2026-07-09 on partial live evidence plus unit coverage rather than
+      a full live retune-and-flip demo: the Captain's session logs show CAT retuning across
+      40m/10m/15m/40m, but `ALL.TXT` shows zero decodes on 10m/15m (no propagation) — nothing to
+      retune-and-reflip against. The `differentBand` half of the mechanic is confirmed live (see
+      7.4/6.4 evidence above); the `Register` → next-`Resolve` "immediately resolvable, band
+      correct" flip itself is covered at the unit level by
+      `WorkedBeforeIndexTests.Register_NewCallsign_ImmediatelyResolvableBandCorrect` and
+      `Resolve_WorkedBothBands_ThisBandWins`, which exercise the identical code path. Residual
+      risk judged low; a live flip demo remains a nice-to-have if a future session gets lucky
+      with propagation, not a blocking gap.
 - [x] 7.5 Post-implementation fix: the Captain's live screenshot after 7.1–7.3 showed every
       worked-before indicator rendering empty. Root cause: `JsonStringEnumConverter<WorkedBeforeState>`
       with no explicit naming policy serialises the exact PascalCase member name (`"ThisBand"`),
@@ -131,5 +144,15 @@ indicators on one row always agree — no new resolution logic.
       posture).
 - [x] 8.7 `dotnet build`/`dotnet test` — 0/0 warnings/errors, full suite green
       (971/971 after this addition).
-- [ ] 8.8 Manual/screenshot verification: Band column renders the expected value and aligns
-      visually with the existing columns — same manual-check caveat as task 6.4.
+- [x] 8.8 Manual/screenshot verification: Band column renders the expected value and aligns
+      visually with the existing columns — same manual-check caveat as task 6.4. Verified
+      2026-07-09: the Captain's live screenshots confirmed the Band column renders the correct
+      value and position, but reported it didn't read as visually centered between Time and dB.
+      Headless-browser DOM measurement showed `text-align: center` was in fact centering both
+      header and cell (symmetric padding to 0.01px) — the column was simply shrink-wrapped
+      (`width: 1%`) so tightly around "Band"/"40m" that the effect was only 1-2px and read as
+      left-aligned at a glance. Fixed by adding `min-width: 3.5rem` to the `nth-child(2)` rule in
+      `web/css/app.css` so the column keeps consistent width (and therefore visible symmetric
+      whitespace) regardless of content length, re-verified against "Band"/"40m"/"20m"/"160m"
+      (longest realistic value) — all centered with identical left/right padding, and visibly so
+      in a re-rendered screenshot.

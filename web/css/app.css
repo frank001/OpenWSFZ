@@ -365,10 +365,15 @@ label {
 }
 
 /* Band column (qso-confirmation-band-awareness capability) — narrow, second column, the
-   session's current active band this decode was made on (e.g. "40m"); nth-child(2). */
+   session's current active band this decode was made on (e.g. "40m"); nth-child(2).
+   min-width is set wide enough that neither the "Band" header nor the longest realistic value
+   ("160m"/"70cm") ever touches the column's own padding — without it, `width: 1%` shrink-wraps
+   so tightly to whichever of header/value is widest that `text-align: center`'s effect on the
+   narrower of the two is only a pixel or two and reads as left-aligned at a glance. */
 #decodes-table th:nth-child(2),
 #decodes-table td:nth-child(2) {
   width: 1%;
+  min-width: 3.5rem;
   padding-left: 0.4rem;
   padding-right: 0.4rem;
   text-align: center;
