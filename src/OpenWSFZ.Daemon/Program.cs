@@ -198,7 +198,13 @@ var ft8Decoder     = new Ft8Decoder(
 var shimVersion = Ft8Decoder.LoadedShimVersion;
 startupLogger.LogInformation("Native FT8 decoder shim ABI version: {ShimVersion}.", shimVersion);
 
-var decodeEventBus = new DecodeEventBus();
+// N6: generated once, up front, so DecodeEventBus (constructed here, before WebApp.Create
+// runs) carries the same app-instance scope as the sockets WebApp.Create will register.
+// Threaded through to WebApp.Create, ITxEventBus, and AudioOffsetEventBus below so all four
+// share one scope rather than each independently minting its own (which would defeat N6's
+// scope-guard fix).
+var appScope = Guid.NewGuid();
+var decodeEventBus = new DecodeEventBus(appScope);
 // AllTxtWriter no longer holds a reference to ICatState; the caller (decode pump) supplies
 // the snapshotted dial frequency for each cycle (defect: dial-freq-snapshot, FR-032).
 var allTxtWriter = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllTxtWriter>());
@@ -336,6 +342,7 @@ startupLogger.LogInformation(
 // Create and configure the web application.
 var app = WebApp.Create(
     port,
+    appScope:                   appScope,
     bindPolicy:                 bindPolicy,
     configStore:                configStore,
     frequencyStore:             frequencyStore,
@@ -411,8 +418,13 @@ var app = WebApp.Create(
 #pragma warning restore CA1416
 
         // QSO controller and ADIF log writer.
-        services.AddSingleton<ITxEventBus, TxEventBus>();
-        services.AddSingleton<AudioOffsetEventBus>();
+        // N6: constructed with the shared appScope (closed over from the outer Program.cs
+        // scope, consistent with allTxtWriter/loggingPipeline/callsignRegionStore etc. below)
+        // rather than letting the DI container default-construct these types, so their
+        // WebSocketHub.Broadcast* calls carry the same scope as decodeEventBus and the
+        // sockets WebApp.Create registers.
+        services.AddSingleton<ITxEventBus>(new TxEventBus(appScope));
+        services.AddSingleton(new AudioOffsetEventBus(appScope));
         services.AddSingleton<AdifLogWriter>();
         services.AddSingleton<IAdifLogWriter>(sp => sp.GetRequiredService<AdifLogWriter>());
 

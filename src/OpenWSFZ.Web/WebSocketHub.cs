@@ -401,10 +401,19 @@ internal static class WebSocketHub
     }
 
     /// <summary>
-    /// Broadcasts a <c>decode</c> event to all currently connected WebSocket clients.
+    /// Broadcasts a <c>decode</c> event to all WebSocket clients connected to the
+    /// <see cref="WebApp"/> instance identified by <paramref name="scope"/>.
     /// Stale connections (those that cannot accept the frame within 1 second) are closed
     /// and removed silently.  Concurrent calls from the decode pump are safe: each socket
     /// has its own send semaphore that serialises overlapping sends.
+    ///
+    /// <para>
+    /// The scope guard matches the pattern already used in <see cref="AbortAll"/> and
+    /// <see cref="BroadcastCatStatus"/> (N6): only sockets whose registered scope equals
+    /// <paramref name="scope"/> receive the frame.  This prevents a test-infrastructure
+    /// app (e.g. a <c>WebApplicationFactory</c>-backed test host) from broadcasting decode
+    /// events into a concurrently-running integration-test server's sockets.
+    /// </para>
     /// </summary>
     /// <returns>
     /// A <see cref="Task"/> that completes when all per-socket sends have finished (or been
@@ -412,7 +421,7 @@ internal static class WebSocketHub
     /// behaviour; test callers should await it to avoid the race between the send completing
     /// and the assertion reading the frame.
     /// </returns>
-    public static Task BroadcastDecodes(IReadOnlyList<DecodeResult> results)
+    public static Task BroadcastDecodes(Guid scope, IReadOnlyList<DecodeResult> results)
     {
         if (ActiveSockets.IsEmpty) return Task.CompletedTask;
 
@@ -422,8 +431,11 @@ internal static class WebSocketHub
         var segment = new ArraySegment<byte>(bytes);
 
         var tasks = new List<Task>(ActiveSockets.Count);
-        foreach (var (ws, _) in ActiveSockets)
+        foreach (var (ws, socketScope) in ActiveSockets)
+        {
+            if (socketScope != scope) continue;   // scope guard — same pattern as BroadcastCatStatus
             tasks.Add(SendWithTimeoutAsync(ws, segment));
+        }
 
         return Task.WhenAll(tasks);
     }
@@ -459,9 +471,17 @@ internal static class WebSocketHub
     }
 
     /// <summary>
-    /// Broadcasts a <c>txState</c> event to all currently connected WebSocket clients (FR-047).
-    /// Mirrors the <see cref="BroadcastDecodes"/> pattern: no scope guard since TX state
-    /// is daemon-global (there is only one QSO controller per process).
+    /// Broadcasts a <c>txState</c> event to all WebSocket clients connected to the
+    /// <see cref="WebApp"/> instance identified by <paramref name="scope"/> (FR-047).
+    ///
+    /// <para>
+    /// The scope guard matches the pattern already used in <see cref="AbortAll"/> and
+    /// <see cref="BroadcastCatStatus"/> (N6): only sockets whose registered scope equals
+    /// <paramref name="scope"/> receive the frame.  Superseded reasoning: TX state is
+    /// daemon-global in production (there is only one QSO controller per process), but the
+    /// unscoped broadcast still reached other <see cref="WebApp"/> instances sharing the same
+    /// static hub within a single test process, causing cross-test WebSocket contamination.
+    /// </para>
     /// </summary>
     /// <param name="state">Raw enum name from <c>QsoState</c> or <c>CallerState</c>.</param>
     /// <param name="role"><c>"answerer"</c> or <c>"caller"</c>.</param>
@@ -470,6 +490,7 @@ internal static class WebSocketHub
     /// Idle pushes. Non-null only for abnormal terminations (FR-UX-002).
     /// </param>
     internal static void BroadcastTxState(
+        Guid    scope,
         string  state,
         string  role,
         string? partner,
@@ -485,17 +506,29 @@ internal static class WebSocketHub
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);
 
-        foreach (var (ws, _) in ActiveSockets)
+        foreach (var (ws, socketScope) in ActiveSockets)
+        {
+            if (socketScope != scope) continue;   // scope guard — same pattern as BroadcastCatStatus
             _ = SendWithTimeoutAsync(ws, segment);
+        }
     }
 
     /// <summary>
-    /// Broadcasts an <c>audioOffset</c> event to all currently connected WebSocket clients.
+    /// Broadcasts an <c>audioOffset</c> event to all WebSocket clients connected to the
+    /// <see cref="WebApp"/> instance identified by <paramref name="scope"/>.
     /// Called when the operator updates the RX/TX cursor positions (via the waterfall or
     /// the <c>POST /api/v1/audio-offset</c> endpoint) or when the QSO answerer
     /// auto-updates the TX cursor (Hold TX = OFF, CQ answered).
+    ///
+    /// <para>
+    /// The scope guard matches the pattern already used in <see cref="AbortAll"/> and
+    /// <see cref="BroadcastCatStatus"/> (N6): only sockets whose registered scope equals
+    /// <paramref name="scope"/> receive the frame.  This prevents a test-infrastructure
+    /// app (e.g. a <c>WebApplicationFactory</c>-backed test host) from broadcasting audio-offset
+    /// events into a concurrently-running integration-test server's sockets.
+    /// </para>
     /// </summary>
-    internal static void BroadcastAudioOffset(int rxHz, int txHz, bool holdTxFreq)
+    internal static void BroadcastAudioOffset(Guid scope, int rxHz, int txHz, bool holdTxFreq)
     {
         if (ActiveSockets.IsEmpty) return;
 
@@ -505,8 +538,11 @@ internal static class WebSocketHub
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);
 
-        foreach (var (ws, _) in ActiveSockets)
+        foreach (var (ws, socketScope) in ActiveSockets)
+        {
+            if (socketScope != scope) continue;   // scope guard — same pattern as BroadcastCatStatus
             _ = SendWithTimeoutAsync(ws, segment);
+        }
     }
 
     /// <summary>
