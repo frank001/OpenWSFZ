@@ -1598,14 +1598,16 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         BuildIsolatedSut(
             TxConfig                  txConfig,
             TimeSpan                  watchdogDuration,
-            IAdifLogWriter?           adifLog = null)
+            IAdifLogWriter?           adifLog = null,
+            ICatState?                catState = null,
+            AppConfig?                appConfig = null)
     {
         var ptt = Substitute.For<IPttController>();
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         var store = Substitute.For<IConfigStore>();
-        store.Current.Returns(new AppConfig() with { Tx = txConfig });
+        store.Current.Returns((appConfig ?? new AppConfig()) with { Tx = txConfig });
         // SaveAsync is called by SafeAbortToIdleAsync (disarm) and AnswerCqAsync (arm);
         // return Task.CompletedTask for both so the service does not stall on a null Task.
         store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>())
@@ -1620,9 +1622,21 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             channel.Reader, store, ptt, eventBus,
             resolvedLog, new AudioOffsetEventBus(),
             NullLogger<QsoAnswererService>.Instance,
-            watchdogDurationOverride: watchdogDuration);
+            watchdogDurationOverride: watchdogDuration,
+            catState: catState);
 
         return (sut, eventBus, resolvedLog, ptt, channel, stopCts);
+    }
+
+    /// <summary>D-013: minimal fixed-frequency <see cref="ICatState"/> test double, mirroring
+    /// the pattern established in <c>DecodeFrequencyGuardTests.StubCatState</c>.</summary>
+    private sealed class StubCatState : ICatState
+    {
+        private readonly double _freq;
+        public StubCatState(double freqMHz) => _freq = freqMHz;
+
+        public double?              DialFrequencyMHz => _freq;
+        public CatConnectionStatus  Status            => CatConnectionStatus.Connected;
     }
 
     [Fact(DisplayName = "FR-UX-002: watchdog expiry publishes Idle with 'Watchdog timeout' abort reason")]
@@ -1867,6 +1881,228 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
         await ptt.DisposeAsync();
+    }
+
+    // ── D-013: QSO records must use the live CAT dial frequency, not the stale ──
+    //           DecodeLog.DialFrequencyMHz config fallback, when CAT is connected ──
+
+    [Fact(DisplayName = "D-013: live CAT frequency differs from config → ADIF record uses live CAT value")]
+    public async Task QsoComplete_LiveCatFrequencyDiffersFromConfig_AdifRecordUsesLiveCatValue()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false,
+        };
+        var appConfig = new AppConfig() with
+        {
+            DecodeLog = new DecodeLogConfig { DialFrequencyMHz = 7.100 }, // stale: 40m
+        };
+        var catState  = new StubCatState(14.074); // live: 20m
+        var mockAdif  = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif,
+            catState: catState, appConfig: appConfig);
+
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // The completed QsoRecord must carry the live CAT frequency, not the stale config value.
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.DialFrequencyMHz == 14.074));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-013: no ICatState wired up → ADIF record falls back to config value (no regression)")]
+    public async Task QsoComplete_NoCatState_FallsBackToConfigValue()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false,
+        };
+        var appConfig = new AppConfig() with
+        {
+            DecodeLog = new DecodeLogConfig { DialFrequencyMHz = 7.100 },
+        };
+        var mockAdif  = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif,
+            catState: null, appConfig: appConfig);
+
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // No CAT wired up (manual-tune operator) — must fall back to the config value unchanged.
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.DialFrequencyMHz == 7.100));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-013: QsoConfirmation=true → qsoReview event also carries the live CAT frequency")]
+    public async Task QsoComplete_QsoConfirmationEnabled_ReviewEventCarriesLiveCatFrequency()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 1,
+            QsoConfirmation = true,
+        };
+        var appConfig = new AppConfig() with
+        {
+            DecodeLog = new DecodeLogConfig { DialFrequencyMHz = 7.100 }, // stale: 40m
+        };
+        var catState  = new StubCatState(14.074); // live: 20m
+        var mockAdif  = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, eventBus, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif,
+            catState: catState, appConfig: appConfig);
+
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // The qsoReview event's record must carry the live CAT frequency, not the stale config value.
+        eventBus.Received(1).PublishQsoReview(
+            Arg.Is<QsoRecord>(r => r.DialFrequencyMHz == 14.074),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-013 AC-4: end-to-end — CAT connected on 20m writes <BAND:3>20m to ADIF.log, not stale 40m")]
+    public async Task QsoComplete_CatConnectedOn20m_AdifFileHasCorrectBand()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "openwsfz-d013-test-" + Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var txCfg = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 3,
+                WatchdogMinutes = 1,
+                QsoConfirmation = false,
+            };
+            var allTxtPath = Path.Combine(tempDir, "ALL.TXT");
+            var appConfig  = new AppConfig() with
+            {
+                DecodeLog = new DecodeLogConfig
+                {
+                    Enabled          = true,
+                    Path             = allTxtPath,
+                    DialFrequencyMHz = 7.100, // stale: 40m — must NOT end up in the file
+                },
+            };
+            var catState  = new StubCatState(14.074); // live: 20m — must end up in the file
+            var store     = Substitute.For<IConfigStore>();
+            store.Current.Returns(appConfig with { Tx = txCfg });
+            store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>())
+                 .Returns(Task.CompletedTask);
+            var realAdifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+
+            var ptt = Substitute.For<IPttController>();
+            ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+            ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+            var channel = Channel.CreateUnbounded<DecodeBatch>();
+            var stopCts = new CancellationTokenSource();
+            var sut = new QsoAnswererService(
+                channel.Reader, store, ptt, new TxEventBus(),
+                realAdifLog, new AudioOffsetEventBus(),
+                NullLogger<QsoAnswererService>.Instance,
+                watchdogDurationOverride: TimeSpan.FromSeconds(30),
+                catState: catState);
+
+            await sut.StartAsync(stopCts.Token);
+
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+            await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+            await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult("12:00:00", +5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+            await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+            await stopCts.CancelAsync();
+            await sut.StopAsync(CancellationToken.None);
+            await ptt.DisposeAsync();
+
+            var adifPath = Path.Combine(tempDir, "ADIF.log");
+            File.Exists(adifPath).Should().BeTrue("the completed QSO must have been written to ADIF.log");
+            var content = await File.ReadAllTextAsync(adifPath);
+            content.Should().Contain("<BAND:3>20m", "the live CAT frequency (20m) must win, not the stale config value");
+            content.Should().NotContain("<BAND:3>40m", "the stale config-frozen band must never be written while CAT is connected");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { /* best-effort */ }
+        }
     }
 
     // ── D-CALLER-013: late-start guard (MaxLateStartSeconds = 1.5 s) ─────────

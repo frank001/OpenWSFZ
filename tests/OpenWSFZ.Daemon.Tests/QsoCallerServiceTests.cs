@@ -29,14 +29,15 @@ public sealed class QsoCallerServiceTests
     private static (QsoCallerService sut, ITxEventBus eventBus, IAdifLogWriter adifLog,
                     IPttController ptt, Channel<DecodeBatch> channel, CancellationTokenSource stopCts)
         BuildIsolatedSut(TxConfig txConfig, TimeSpan? watchdogDuration = null,
-                         IAdifLogWriter? adifLog = null, IApConstraintSink? decoder = null)
+                         IAdifLogWriter? adifLog = null, IApConstraintSink? decoder = null,
+                         ICatState? catState = null, AppConfig? appConfig = null)
     {
         var ptt = Substitute.For<IPttController>();
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         var store = Substitute.For<IConfigStore>();
-        store.Current.Returns(new AppConfig() with { Tx = txConfig });
+        store.Current.Returns((appConfig ?? new AppConfig()) with { Tx = txConfig });
         store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>())
              .Returns(Task.CompletedTask);
 
@@ -51,14 +52,27 @@ public sealed class QsoCallerServiceTests
                 resolvedLog, new AudioOffsetEventBus(),
                 NullLogger<QsoCallerService>.Instance,
                 watchdogDurationOverride: watchdogDuration.Value,
-                decoder: decoder)
+                decoder: decoder,
+                catState: catState)
             : new QsoCallerService(
                 channel.Reader, store, ptt, eventBus,
                 resolvedLog, new AudioOffsetEventBus(),
                 NullLogger<QsoCallerService>.Instance,
-                decoder: decoder);
+                decoder: decoder,
+                catState: catState);
 
         return (sut, eventBus, resolvedLog, ptt, channel, stopCts);
+    }
+
+    /// <summary>D-013: minimal fixed-frequency <see cref="ICatState"/> test double, mirroring
+    /// the pattern established in <c>DecodeFrequencyGuardTests.StubCatState</c>.</summary>
+    private sealed class StubCatState : ICatState
+    {
+        private readonly double _freq;
+        public StubCatState(double freqMHz) => _freq = freqMHz;
+
+        public double?              DialFrequencyMHz => _freq;
+        public CatConnectionStatus  Status            => CatConnectionStatus.Connected;
     }
 
     // ── Wait helpers ──────────────────────────────────────────────────────────
@@ -1041,6 +1055,146 @@ public sealed class QsoCallerServiceTests
         await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(Arg.Any<QsoRecord>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── D-013: QSO records must use the live CAT dial frequency, not the stale ──
+    //           DecodeLog.DialFrequencyMHz config fallback, when CAT is connected ──
+
+    [Fact(DisplayName = "D-013: live CAT frequency differs from config → ADIF record uses live CAT value")]
+    public async Task QsoComplete_LiveCatFrequencyDiffersFromConfig_AdifRecordUsesLiveCatValue()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 1,
+            QsoConfirmation     = false,
+        };
+        var appConfig = new AppConfig() with
+        {
+            DecodeLog = new DecodeLogConfig { DialFrequencyMHz = 7.100 }, // stale: 40m
+        };
+        var catState = new StubCatState(14.074); // live: 20m
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif,
+            catState: catState, appConfig: appConfig);
+
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // The completed QsoRecord must carry the live CAT frequency, not the stale config value.
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.DialFrequencyMHz == 14.074));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-013: no ICatState wired up → ADIF record falls back to config value (no regression)")]
+    public async Task QsoComplete_NoCatState_FallsBackToConfigValue()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 1,
+            QsoConfirmation     = false,
+        };
+        var appConfig = new AppConfig() with
+        {
+            DecodeLog = new DecodeLogConfig { DialFrequencyMHz = 7.100 },
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif,
+            catState: null, appConfig: appConfig);
+
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // No CAT wired up (manual-tune operator) — must fall back to the config value unchanged.
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.DialFrequencyMHz == 7.100));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-013: QsoConfirmation=true → qsoReview event also carries the live CAT frequency")]
+    public async Task QsoComplete_QsoConfirmationEnabled_ReviewEventCarriesLiveCatFrequency()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 1,
+            QsoConfirmation     = true,
+        };
+        var appConfig = new AppConfig() with
+        {
+            DecodeLog = new DecodeLogConfig { DialFrequencyMHz = 7.100 }, // stale: 40m
+        };
+        var catState = new StubCatState(14.074); // live: 20m
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, eventBus, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif,
+            catState: catState, appConfig: appConfig);
+
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // The qsoReview event's record must carry the live CAT frequency, not the stale config value.
+        eventBus.Received(1).PublishQsoReview(
+            Arg.Is<QsoRecord>(r => r.DialFrequencyMHz == 14.074),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
