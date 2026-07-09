@@ -20,10 +20,21 @@ public sealed class RealServerFixture : IAsyncLifetime
     /// <summary>The host/IP Kestrel actually bound to (available after <see cref="InitializeAsync"/>).</summary>
     public string BoundHost { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// App-instance scope (N6) generated for this fixture's <see cref="WebApp"/> and handed
+    /// to <see cref="WebApp.Create"/> so it is the same value tagged onto every socket this
+    /// server accepts. Tests that broadcast directly via <c>DecodeEventBus</c>/<c>TxEventBus</c>
+    /// (rather than through a resolved DI singleton, which this bare
+    /// <c>WebApp.Create(port: 0)</c> fixture does not register) must construct those buses with
+    /// this scope so their broadcasts reach this fixture's sockets and no other concurrently
+    /// running <see cref="WebApp"/> instance's sockets.
+    /// </summary>
+    public Guid AppScope { get; } = Guid.NewGuid();
+
     public async Task InitializeAsync()
     {
         // Port 0 → OS assigns an ephemeral port.
-        _app = OpenWSFZ.Web.WebApp.Create(port: 0);
+        _app = OpenWSFZ.Web.WebApp.Create(port: 0, appScope: AppScope);
         await _app.StartAsync();
 
         // Read back the actual bound address.

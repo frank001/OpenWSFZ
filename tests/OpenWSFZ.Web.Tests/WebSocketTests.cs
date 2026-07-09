@@ -1,7 +1,12 @@
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.DependencyInjection;
 using OpenWSFZ.Abstractions;
 using Xunit;
 
@@ -179,12 +184,27 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         // Inject a decode result via the public DecodeEventBus.
         // Await Publish so the send completes before we call ReadFrameAsync — without this,
         // the fire-and-forget send races against the receive timeout and fails on loaded CI runners.
-        var bus = new DecodeEventBus();
+        // N6: must carry _fixture.AppScope — the scope guard means an unscoped (default) bus
+        // would no longer reach this fixture's socket at all.
+        var bus = new DecodeEventBus(_fixture.AppScope);
         await bus.Publish([new OpenWSFZ.Abstractions.DecodeResult("15:30:00", -12, 0.3, 1234, "Q1AW Q1TTT EN43")]);
 
-        // The decode event must now be in the socket's receive buffer.
-        var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
-        frame.Should().NotBeNull("decode event should be received");
+        // The decode event must now be in the socket's receive buffer. Loop-and-skip any
+        // non-decode frame (e.g. a heartbeat) — same defense-in-depth pattern already used by
+        // WebSocket_HeartbeatDeliveredWithinSixSeconds and
+        // TxState_BroadcastIncludesAutoAnswerEnabledField, as a second line of defense should a
+        // future unscoped broadcast path (BroadcastQsoReview/BroadcastSpectrum) ever interleave
+        // a frame here (N6 §4.3).
+        string? frame = null;
+        var deadline = TimeSpan.FromSeconds(3);
+        while (frame is null)
+        {
+            var candidate = await ReadFrameAsync(ws, timeout: deadline);
+            candidate.Should().NotBeNull("decode event should be received");
+            using var candidateDoc = JsonDocument.Parse(candidate!);
+            if (candidateDoc.RootElement.GetProperty("type").GetString() == "decode")
+                frame = candidate;
+        }
 
         using var doc = JsonDocument.Parse(frame!);
         doc.RootElement.GetProperty("type").GetString().Should().Be("decode");
@@ -208,7 +228,8 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
 
         // Broadcast a txState event via TxEventBus (same path as the daemon uses).
-        var bus = new TxEventBus();
+        // N6: must carry _fixture.AppScope — see WebSocket_DecodeEventReceived_AfterBroadcast.
+        var bus = new TxEventBus(_fixture.AppScope);
         bus.Publish(state: "TxAnswer", role: "answerer", partner: "Q1TST", autoAnswerEnabled: true);
 
         // Read frames until we get a txState (skip heartbeats / decode frames from other tests).
@@ -243,7 +264,8 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));   // drain initial status
 
         // Broadcast a normal (non-abort) txState — abortReason should be absent entirely.
-        var bus = new TxEventBus();
+        // N6: must carry _fixture.AppScope — see WebSocket_DecodeEventReceived_AfterBroadcast.
+        var bus = new TxEventBus(_fixture.AppScope);
         bus.Publish(state: "TxAnswer", role: "answerer", partner: "Q1TST", autoAnswerEnabled: true, abortReason: null);
 
         string? txFrame = null;
@@ -275,7 +297,8 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));   // drain initial status
 
         // Broadcast an abort-transition txState with a reason string.
-        var bus = new TxEventBus();
+        // N6: must carry _fixture.AppScope — see WebSocket_DecodeEventReceived_AfterBroadcast.
+        var bus = new TxEventBus(_fixture.AppScope);
         bus.Publish(state: "Idle", role: "answerer", partner: null, autoAnswerEnabled: false, abortReason: "Watchdog timeout");
 
         string? txFrame = null;
@@ -300,7 +323,74 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }
 
+    // ── N6: cross-instance broadcast scope guard ──────────────────────────────
+
+    [Fact(DisplayName = "N6: a second WebApp instance's decode/audioOffset/txState broadcasts do not reach this fixture's socket")]
+    public async Task Broadcast_FromDifferentAppInstance_DoesNotReachThisFixturesSocket()
+    {
+        // Stand up a second, independent WebApp instance (own Kestrel listener, own
+        // app-instance scope) in the same test process — the exact contamination shape
+        // N6 diagnosed: WebSocketTests' RealServerFixture host running concurrently with
+        // a second in-process WebApp instance sharing the same static WebSocketHub.
+        var otherApp = WebApp.Create(port: 0);
+        await otherApp.StartAsync();
+
+        try
+        {
+            var otherPort = BoundPort(otherApp);
+
+            using var mySocket    = new ClientWebSocket();
+            using var otherSocket = new ClientWebSocket();
+            await mySocket.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+            await otherSocket.ConnectAsync(
+                new Uri($"ws://127.0.0.1:{otherPort}/api/v1/ws"), CancellationToken.None);
+
+            // Drain each socket's initial status frame.
+            await ReadFrameAsync(mySocket, timeout: TimeSpan.FromSeconds(2));
+            await ReadFrameAsync(otherSocket, timeout: TimeSpan.FromSeconds(2));
+
+            // Broadcast a decode event scoped to THIS fixture's app instance.
+            var myBus = new DecodeEventBus(_fixture.AppScope);
+            await myBus.Publish([new DecodeResult("15:30:00", -12, 0.3, 1234, "Q1AW Q1TTT EN43")]);
+
+            // It must arrive on this fixture's socket…
+            var mineFrame = await ReadFrameAsync(mySocket, timeout: TimeSpan.FromSeconds(2));
+            mineFrame.Should().NotBeNull("the scoped broadcast must reach its own instance's socket");
+            using (var doc = JsonDocument.Parse(mineFrame!))
+                doc.RootElement.GetProperty("type").GetString().Should().Be("decode");
+
+            // …but must NOT arrive on the other (differently-scoped) instance's socket.
+            // Note: ReadFrameAsync's deliberate timeout cancels the pending ReceiveAsync via
+            // its CancellationToken, which — per the same behaviour documented in
+            // WebSocketHub.AuthenticateViaFrameAsync — causes ManagedWebSocket to Abort() the
+            // client socket rather than leaving it Open. So otherSocket is expected to end up
+            // Aborted here; only attempt a graceful CloseAsync where the state still allows it.
+            var leakedFrame = await ReadFrameAsync(otherSocket, timeout: TimeSpan.FromSeconds(1));
+            leakedFrame.Should().BeNull(
+                "N6: BroadcastDecodes must not deliver to sockets registered under a different app scope");
+
+            if (mySocket.State == WebSocketState.Open)
+                await mySocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+            if (otherSocket.State == WebSocketState.Open)
+                await otherSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+        }
+        finally
+        {
+            await otherApp.StopAsync();
+            await otherApp.DisposeAsync();
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static int BoundPort(WebApplication app)
+    {
+        var feature = app.Services
+            .GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()!;
+        return new Uri(feature.Addresses.First()).Port;
+    }
+
 
     private Uri WsUri(string path) =>
         new($"ws://127.0.0.1:{_fixture.Port}{path}");

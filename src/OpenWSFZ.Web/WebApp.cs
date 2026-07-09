@@ -52,6 +52,14 @@ public static class WebApp
     /// <c>() =&gt; ft8Decoder.GetHashTableRejectCount()</c>). Defaults to <c>null</c> →
     /// reported as 0 for callers (e.g. minimal test fixtures) that do not wire up the native shim.
     /// </param>
+    /// <param name="appScope">
+    /// App-instance scope GUID to tag every WebSocket connection accepted through this
+    /// instance's <c>/api/v1/ws</c> endpoint (N6). Pass this when a bus that broadcasts
+    /// before <see cref="Create"/> runs (e.g. <c>DecodeEventBus</c>, constructed directly in
+    /// <c>Program.cs</c> ahead of the web host) must carry the same scope as the sockets this
+    /// call will register. Defaults to <c>null</c>, in which case a fresh GUID is minted, as
+    /// before.
+    /// </param>
     public static WebApplication Create(
         int port,
         IBindPolicy?                                        bindPolicy                  = null,
@@ -71,18 +79,23 @@ public static class WebApp
         Func<Task>?                                         restartPipeline             = null,
         Action<IServiceCollection>?                         configureServices           = null,
         int                                                  shimVersion                 = 0,
-        Func<int>?                                           hashTableRejectCountProvider = null)
+        Func<int>?                                           hashTableRejectCountProvider = null,
+        Guid?                                                appScope                    = null)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
-        // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(appScope)
+        // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(scope)
         // only aborts connections belonging to this instance, preventing test-infrastructure
         // apps (e.g. WebApplicationFactory) from aborting sockets owned by a concurrently
         // running integration-test server.
-        var appScope = Guid.NewGuid();
+        //
+        // N6: use the caller-supplied value when given — Program.cs generates one up front
+        // so DecodeEventBus, constructed before WebApp.Create runs, can carry the same scope
+        // as the sockets this call registers — otherwise mint one, as before.
+        var scope = appScope ?? Guid.NewGuid();
 
-        // CatEventBus carries appScope so BroadcastCatStatus only delivers to sockets
+        // CatEventBus carries scope so BroadcastCatStatus only delivers to sockets
         // belonging to this WebApp instance (scope guard — mirrors AbortAll pattern).
-        var catEventBus = new CatEventBus(appScope);
+        var catEventBus = new CatEventBus(scope);
 
         var builder = WebApplication.CreateBuilder();
 
@@ -1424,7 +1437,7 @@ public static class WebApp
         // so it fires first — before the capture pipeline's semaphore wait and teardown.
         // The scope guard ensures that a test-infrastructure app (e.g. WebApplicationFactory)
         // cannot abort sockets owned by a concurrently-running integration-test server.
-        app.Lifetime.ApplicationStopping.Register(() => WebSocketHub.AbortAll(appScope));
+        app.Lifetime.ApplicationStopping.Register(() => WebSocketHub.AbortAll(scope));
 
         // Captured once so the WebSocket handler can gate new connections without
         // closing over the WebApplication reference itself.
@@ -1469,7 +1482,7 @@ public static class WebApp
             await WebSocketHub.HandleAsync(
                 ws, store, audioMonitor, dataFlowMonitor,
                 captureManager, audioWatchdog, catState,
-                wsLogger, appScope, shimVersion,
+                wsLogger, scope, shimVersion,
                 hashTableRejectCountProvider?.Invoke() ?? 0, ctx.RequestAborted);
         });
 
