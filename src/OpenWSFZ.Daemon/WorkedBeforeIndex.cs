@@ -7,22 +7,25 @@ namespace OpenWSFZ.Daemon;
 /// Concrete <see cref="IWorkedBeforeIndex"/> that reads <c>ADIF.log</c> (via
 /// <see cref="AdifReader"/>, sharing its path with <see cref="AdifLogWriter"/> through
 /// <see cref="AdifPathResolver"/>) and resolves each distinct logged callsign's DXCC
-/// entity/continent through <see cref="ICallsignRegionStore"/> (<c>qso-confirmation</c>
-/// capability, design.md Decisions 3–5).
+/// entity/continent/CQ-zone/ITU-zone through <see cref="ICallsignRegionStore"/>
+/// (<c>qso-confirmation</c> capability, design.md Decisions 3–5; band-tracking added by
+/// <c>qso-confirmation-band-awareness</c> design.md Decision 2).
 ///
 /// <para>
-/// Three in-memory sets are maintained: worked callsigns (uppercased, exactly as logged),
-/// worked DXCC entities, and worked continents. A resolution that is a lookup miss or resolves
-/// to the synthetic Q-series region (design.md Decision 4) is excluded from the entity/continent
-/// sets entirely — it can still contribute to the callsign set (the Partner/Call check is a
-/// plain string comparison, independent of region resolution).
+/// Five in-memory dictionaries are maintained, one per worked-before dimension — worked
+/// callsigns, worked DXCC entities, worked continents, worked CQ zones, worked ITU zones — each
+/// mapping a worked value to the set of band names it has been worked on. A resolution that is a
+/// lookup miss or resolves to the synthetic Q-series region (design.md Decision 4) is excluded
+/// from the entity/continent/CQ-zone/ITU-zone dictionaries entirely — it can still contribute to
+/// the callsign dictionary (the Contact/Call check is a plain string comparison, independent of
+/// region resolution).
 /// </para>
 ///
 /// <para>
 /// Thread-safe: <see cref="Register"/> can run concurrently with <see cref="Resolve"/> (a QSO
-/// completing mid-session while a decode cycle is in flight) — all set mutation and lookup is
-/// guarded by a single <c>lock</c>. Data volumes here (hundreds to low thousands of callsigns)
-/// make this a correctness detail, not a performance concern (design.md Risks).
+/// completing mid-session while a decode cycle is in flight) — all dictionary mutation and
+/// lookup is guarded by a single <c>lock</c>. Data volumes here (hundreds to low thousands of
+/// callsigns) make this a correctness detail, not a performance concern (design.md Risks).
 /// </para>
 /// </summary>
 public sealed class WorkedBeforeIndex : IWorkedBeforeIndex
@@ -32,9 +35,15 @@ public sealed class WorkedBeforeIndex : IWorkedBeforeIndex
     private readonly ILogger<WorkedBeforeIndex>?      _logger;
     private readonly object                           _lock = new();
 
-    private readonly HashSet<string> _callsigns = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _entities  = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _continents = new(StringComparer.Ordinal);
+    // Value → set of band names worked on. A value present as a key (regardless of whether its
+    // band set is empty) means "worked at all" — an empty band set means every historical
+    // contribution for that value had no parseable BAND (qso-confirmation-band-awareness
+    // design.md Decision 2).
+    private readonly Dictionary<string, HashSet<string>> _callsignBands  = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, HashSet<string>> _entityBands    = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, HashSet<string>> _continentBands = new(StringComparer.Ordinal);
+    private readonly Dictionary<int, HashSet<string>>    _cqZoneBands    = new();
+    private readonly Dictionary<int, HashSet<string>>    _ituZoneBands   = new();
 
     public WorkedBeforeIndex(
         IConfigStore                configStore,
@@ -49,48 +58,64 @@ public sealed class WorkedBeforeIndex : IWorkedBeforeIndex
     /// <inheritdoc/>
     public Task LoadAsync(CancellationToken cancellationToken = default)
     {
-        var path = AdifPathResolver.Resolve(_configStore);
-        var raw  = AdifReader.ReadCallsigns(path, _logger);
+        var path    = AdifPathResolver.Resolve(_configStore);
+        var entries = AdifReader.ReadEntries(path, _logger);
 
-        // Dedupe before resolving region so each distinct callsign is only ever run through
-        // ICallsignRegionStore.TryGetRegion once (design.md Decision 5).
-        var distinct = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var call in raw)
+        // Group by distinct uppercased callsign, unioning every record's band contribution
+        // (a callsign may have been worked on more than one band across its history) — so
+        // ICallsignRegionStore.TryGetRegion is still only ever run once per distinct callsign
+        // (design.md Decision 5), regardless of how many bands it was worked on.
+        var bandsByCall = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var entry in entries)
         {
-            if (!string.IsNullOrWhiteSpace(call))
-                distinct.Add(call.ToUpperInvariant());
+            if (string.IsNullOrWhiteSpace(entry.Call)) continue;
+
+            var call = entry.Call.ToUpperInvariant();
+            if (!bandsByCall.TryGetValue(call, out var bands))
+            {
+                bands = new HashSet<string>(StringComparer.Ordinal);
+                bandsByCall[call] = bands;
+            }
+            if (entry.Band is not null)
+                bands.Add(entry.Band);
         }
 
         lock (_lock)
         {
-            _callsigns.Clear();
-            _entities.Clear();
-            _continents.Clear();
+            _callsignBands.Clear();
+            _entityBands.Clear();
+            _continentBands.Clear();
+            _cqZoneBands.Clear();
+            _ituZoneBands.Clear();
 
-            foreach (var call in distinct)
-                RegisterUnlocked(call);
+            foreach (var (call, bands) in bandsByCall)
+                RegisterUnlocked(call, bands);
         }
 
         _logger?.LogInformation(
             "qso-confirmation: worked-before index built with {Count} distinct callsign(s) from '{Path}'.",
-            distinct.Count, path);
+            bandsByCall.Count, path);
 
         return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
-    public void Register(string callsign)
+    public void Register(string callsign, string? band)
     {
         if (string.IsNullOrWhiteSpace(callsign)) return;
 
+        var bands = band is not null
+            ? new HashSet<string>(StringComparer.Ordinal) { band }
+            : [];
+
         lock (_lock)
         {
-            RegisterUnlocked(callsign.ToUpperInvariant());
+            RegisterUnlocked(callsign.ToUpperInvariant(), bands);
         }
     }
 
     /// <inheritdoc/>
-    public WorkedBeforeInfo Resolve(string callsignToken)
+    public WorkedBeforeInfo Resolve(string callsignToken, string? currentBand)
     {
         if (string.IsNullOrWhiteSpace(callsignToken)) return WorkedBeforeInfo.None;
 
@@ -106,26 +131,39 @@ public sealed class WorkedBeforeIndex : IWorkedBeforeIndex
             region = null;
         }
 
-        bool callMatch, countryMatch = false, regionMatch = false;
+        WorkedBeforeState contact;
+        WorkedBeforeState country  = WorkedBeforeState.Never;
+        WorkedBeforeState continent = WorkedBeforeState.Never;
+        WorkedBeforeState cqZone   = WorkedBeforeState.Never;
+        WorkedBeforeState ituZone  = WorkedBeforeState.Never;
+
         lock (_lock)
         {
-            callMatch = MatchesAnyLoggedCallsign(token);
+            contact = ResolveCallsignState(token, currentBand);
 
             if (region is not null && !region.Synthetic)
             {
-                countryMatch = _entities.Contains(region.Entity);
-                regionMatch  = region.Continent is not null && _continents.Contains(region.Continent);
+                country = LookupState(_entityBands, region.Entity, currentBand);
+
+                if (region.Continent is not null)
+                    continent = LookupState(_continentBands, region.Continent, currentBand);
+
+                if (region.CqZone is { } cq)
+                    cqZone = LookupState(_cqZoneBands, cq, currentBand);
+
+                if (region.ItuZone is { } itu)
+                    ituZone = LookupState(_ituZoneBands, itu, currentBand);
             }
         }
 
-        return new WorkedBeforeInfo(callMatch, countryMatch, regionMatch);
+        return new WorkedBeforeInfo(contact, country, continent, cqZone, ituZone);
     }
 
     // ── Internals (must be called under _lock) ─────────────────────────────────
 
-    private void RegisterUnlocked(string upperCallsign)
+    private void RegisterUnlocked(string upperCallsign, IReadOnlyCollection<string> bands)
     {
-        _callsigns.Add(upperCallsign);
+        AddOrUnion(_callsignBands, upperCallsign, bands);
 
         RegionInfo? region;
         try
@@ -139,18 +177,57 @@ public sealed class WorkedBeforeIndex : IWorkedBeforeIndex
 
         if (region is null || region.Synthetic) return;
 
-        _entities.Add(region.Entity);
+        AddOrUnion(_entityBands, region.Entity, bands);
+
         if (region.Continent is not null)
-            _continents.Add(region.Continent);
+            AddOrUnion(_continentBands, region.Continent, bands);
+
+        if (region.CqZone is { } cq)
+            AddOrUnion(_cqZoneBands, cq, bands);
+
+        if (region.ItuZone is { } itu)
+            AddOrUnion(_ituZoneBands, itu, bands);
     }
 
-    private bool MatchesAnyLoggedCallsign(string token)
+    private static void AddOrUnion<TKey>(
+        Dictionary<TKey, HashSet<string>> dict, TKey key, IReadOnlyCollection<string> bands)
+        where TKey : notnull
     {
-        foreach (var logged in _callsigns)
+        if (!dict.TryGetValue(key, out var set))
         {
-            if (MatchesCallsign(token, logged)) return true;
+            set = new HashSet<string>(StringComparer.Ordinal);
+            dict[key] = set;
         }
-        return false;
+        if (bands.Count > 0)
+            set.UnionWith(bands);
+    }
+
+    private static WorkedBeforeState LookupState<TKey>(
+        Dictionary<TKey, HashSet<string>> dict, TKey key, string? currentBand)
+        where TKey : notnull
+    {
+        if (!dict.TryGetValue(key, out var bands)) return WorkedBeforeState.Never;
+        if (currentBand is not null && bands.Contains(currentBand)) return WorkedBeforeState.ThisBand;
+        return WorkedBeforeState.DifferentBand;
+    }
+
+    /// <summary>
+    /// Resolves the Contact axis: any logged callsign that matches <paramref name="token"/>
+    /// (exact, or either side a portable-suffixed variant of the other) contributes — a match
+    /// on <paramref name="currentBand"/> from any matching entry wins over a different-band-only
+    /// match, even when other matching entries were only worked on other bands.
+    /// </summary>
+    private WorkedBeforeState ResolveCallsignState(string token, string? currentBand)
+    {
+        bool matched = false;
+        foreach (var (logged, bands) in _callsignBands)
+        {
+            if (!MatchesCallsign(token, logged)) continue;
+            matched = true;
+            if (currentBand is not null && bands.Contains(currentBand))
+                return WorkedBeforeState.ThisBand;
+        }
+        return matched ? WorkedBeforeState.DifferentBand : WorkedBeforeState.Never;
     }
 
     /// <summary>

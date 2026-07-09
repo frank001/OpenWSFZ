@@ -16,12 +16,13 @@ namespace OpenWSFZ.Abstractions;
 /// renders <c>null</c> as <c>"Unknown"</c>. Never affects decode acceptance.
 /// </param>
 /// <param name="WorkedBefore">
-/// Advisory "worked before" state resolved from the message's primary callsign-position
-/// token against the <c>ADIF.log</c> history (<c>qso-confirmation</c> capability), or
-/// <c>null</c> when resolution fails or no <see cref="IWorkedBeforeIndex"/> was supplied to
-/// the decoder — the frontend treats a <c>null</c> field identically to
-/// <see cref="WorkedBeforeInfo.None"/> (every checkbox unchecked). Never affects decode
-/// acceptance.
+/// Advisory, band-aware "worked before" state resolved from the message's primary
+/// callsign-position token against the <c>ADIF.log</c> history
+/// (<c>qso-confirmation</c>/<c>qso-confirmation-band-awareness</c> capabilities) across five
+/// tri-state dimensions, or <c>null</c> when resolution fails or no
+/// <see cref="IWorkedBeforeIndex"/> was supplied to the decoder — the frontend treats a
+/// <c>null</c> field identically to <see cref="WorkedBeforeInfo.None"/> (every indicator
+/// empty). Never affects decode acceptance.
 /// </param>
 public sealed record DecodeResult(
     string             Time,

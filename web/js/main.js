@@ -358,20 +358,33 @@ function makeCell(text) {
 }
 
 /**
- * Creates a readonly indicator cell for the worked-before P/C/R columns
- * (qso-confirmation capability). Renders a green checkmark glyph when `checked` is truthy,
- * or an empty cell otherwise (design.md Decision 7 — a disabled checkbox's browser-suppressed
- * `accent-color` on `:disabled` made the checked state illegible against the dark theme, so a
- * plain `<span>` replaces it; nothing to disable, no click/change handler).
+ * Creates a readonly indicator cell for the worked-before Ctc/DXCC/Cnt/CQz/ITz columns
+ * (qso-confirmation / qso-confirmation-band-awareness capabilities). Renders a tri-state glyph
+ * from the wire value `"never"` / `"differentBand"` / `"thisBand"`:
+ * - `"never"` (or absent/unrecognised) → empty cell.
+ * - `"differentBand"` → a distinct "worked, different band" glyph.
+ * - `"thisBand"` → the green checkmark glyph (unchanged from the prior binary implementation's
+ *   "worked" rendering).
+ * A plain `<span>` — nothing to disable, no click/change handler — carried forward from
+ * design.md Decision 7 (a disabled checkbox's browser-suppressed `accent-color` made the
+ * checked state illegible against the dark theme).
  *
- * @param {boolean} checked
+ * @param {'never'|'differentBand'|'thisBand'|undefined|null} state
  * @returns {HTMLTableCellElement}
  */
-function makeWorkedBeforeCell(checked) {
+function makeWorkedBeforeCell(state) {
   const td = document.createElement('td');
   const span = document.createElement('span');
-  span.className = 'worked-before-mark';
-  span.textContent = checked ? '✓' : '';
+  if (state === 'thisBand') {
+    span.className = 'worked-before-mark worked-before-mark-this-band';
+    span.textContent = '✓';
+  } else if (state === 'differentBand') {
+    span.className = 'worked-before-mark worked-before-mark-different-band';
+    span.textContent = '●';
+  } else {
+    span.className = 'worked-before-mark';
+    span.textContent = '';
+  }
   td.appendChild(span);
   return td;
 }
@@ -396,7 +409,7 @@ function formatRegion(region) {
  * Prepends one row per result, removes the placeholder row on first decode,
  * and caps the table at MAX_DECODE_ROWS.
  *
- * @param {Array<{time:string, snr:number, dt:number, freqHz:number, message:string, region?:{continent?:string|null, entity:string, synthetic:boolean}|null, workedBefore?:{call:boolean, country:boolean, region:boolean}|null}>} results
+ * @param {Array<{time:string, snr:number, dt:number, freqHz:number, message:string, region?:{continent?:string|null, entity:string, synthetic:boolean}|null, workedBefore?:{contact:string, country:string, continent:string, cqZone:string, ituZone:string}|null}>} results
  */
 function handleDecodes(results) {
   if (!results || results.length === 0) return;
@@ -420,12 +433,15 @@ function handleDecodes(results) {
     tr.appendChild(makeCell(r.message));
     tr.appendChild(makeCell(formatRegion(r.region)));
 
-    // Worked-before P/C/R columns (qso-confirmation capability). Default to unchecked
-    // when the field or a given sub-field is absent (never worked before, or unresolved).
+    // Worked-before Ctc/DXCC/Cnt/CQz/ITz columns (qso-confirmation /
+    // qso-confirmation-band-awareness capabilities). Default to empty (never worked before, or
+    // unresolved) when the field or a given sub-field is absent.
     const wb = r.workedBefore;
-    tr.appendChild(makeWorkedBeforeCell(wb?.call));
+    tr.appendChild(makeWorkedBeforeCell(wb?.contact));
     tr.appendChild(makeWorkedBeforeCell(wb?.country));
-    tr.appendChild(makeWorkedBeforeCell(wb?.region));
+    tr.appendChild(makeWorkedBeforeCell(wb?.continent));
+    tr.appendChild(makeWorkedBeforeCell(wb?.cqZone));
+    tr.appendChild(makeWorkedBeforeCell(wb?.ituZone));
 
     // Store cycle-start UTC string as a data attribute for the click handler.
     tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);

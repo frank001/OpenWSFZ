@@ -229,7 +229,8 @@ public sealed class AdifLogWriterTests : IDisposable
         await act.Should().NotThrowAsync();
     }
 
-    // ── Task 2.5/2.6: worked-before index registration (qso-confirmation) ────
+    // ── Task 2.5/2.6/5.1/5.2: worked-before index registration (qso-confirmation,
+    //    qso-confirmation-band-awareness) ───────────────────────────────────────
 
     [Fact(DisplayName = "2.6: AppendQsoAsync registers the partner callsign into the worked-before index on a successful write")]
     public async Task AppendQsoAsync_SuccessfulWrite_RegistersCallsignIntoIndex()
@@ -240,7 +241,35 @@ public sealed class AdifLogWriterTests : IDisposable
 
         await sut.AppendQsoAsync(MakeRecord()); // PartnerCallsign = "Q1TST"
 
-        index.Registered.Should().ContainSingle().Which.Should().Be("Q1TST");
+        index.Registered.Should().ContainSingle().Which.Callsign.Should().Be("Q1TST");
+    }
+
+    [Fact(DisplayName = "5.1: AppendQsoAsync passes the already-computed band into Register")]
+    public async Task AppendQsoAsync_SuccessfulWrite_RegistersBandIntoIndex()
+    {
+        var store = StoreWith(Path.Combine(_tempDir, "ALL.TXT"), dialMhz: 14.074);
+        var index = new SpyWorkedBeforeIndex();
+        var sut   = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance, index);
+
+        await sut.AppendQsoAsync(MakeRecord(dialMhz: 14.074));
+
+        index.Registered.Should().ContainSingle().Which.Band.Should().Be("20m");
+    }
+
+    [Fact(DisplayName = "5.2: a QSO logged with a known band resolves ThisBand on the very next decode of the same station/band")]
+    public async Task AppendQsoAsync_KnownBand_NextResolveIsThisBand()
+    {
+        var store = StoreWith(Path.Combine(_tempDir, "ALL.TXT"), dialMhz: 14.074);
+        var index = new WorkedBeforeIndex(store, new NullRegionStore(), NullLogger<WorkedBeforeIndex>.Instance);
+        await index.LoadAsync(); // empty index — no ADIF.log yet
+        var sut = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance, index);
+
+        await sut.AppendQsoAsync(MakeRecord(dialMhz: 14.074)); // PartnerCallsign = "Q1TST", band "20m"
+
+        index.Resolve("Q1TST", "20m").Contact.Should().Be(WorkedBeforeState.ThisBand,
+            "the very next decode of the same station on the same band must resolve ThisBand without a reload");
+        index.Resolve("Q1TST", "40m").Contact.Should().Be(WorkedBeforeState.DifferentBand,
+            "the same station on a different band must not resolve ThisBand");
     }
 
     [Fact(DisplayName = "2.6: AppendQsoAsync does not register the callsign into the worked-before index when the write fails")]
@@ -256,14 +285,23 @@ public sealed class AdifLogWriterTests : IDisposable
         index.Registered.Should().BeEmpty("a failed write must not register the callsign");
     }
 
-    /// <summary>Records every callsign passed to <see cref="Register"/> — no ADIF/region I/O.</summary>
+    /// <summary>Records every (callsign, band) pair passed to <see cref="Register"/> — no ADIF/region I/O.</summary>
     private sealed class SpyWorkedBeforeIndex : IWorkedBeforeIndex
     {
-        public List<string> Registered { get; } = [];
+        public List<(string Callsign, string? Band)> Registered { get; } = [];
 
         public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public void Register(string callsign) => Registered.Add(callsign);
-        public WorkedBeforeInfo Resolve(string callsignToken) => WorkedBeforeInfo.None;
+        public void Register(string callsign, string? band) => Registered.Add((callsign, band));
+        public WorkedBeforeInfo Resolve(string callsignToken, string? currentBand) => WorkedBeforeInfo.None;
+    }
+
+    /// <summary>Region store with no entries — every callsign is unresolved ("Unknown").</summary>
+    private sealed class NullRegionStore : ICallsignRegionStore
+    {
+        public IReadOnlyList<CallsignRegionEntry> Entries { get; } = [];
+        public RegionInfo? TryGetRegion(string callsignToken) => null;
+        public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     // ── Task 1.3: Optional enrichment fields (qso-log-dialog) ────────────────
