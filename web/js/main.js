@@ -945,7 +945,6 @@ async function startCycleTimerIfEnabled() {
 const wsStateEl        = /** @type {HTMLElement} */ (document.getElementById('ws-state'));
 const audioDeviceEl    = /** @type {HTMLElement} */ (document.getElementById('audio-device'));
 const audioIndicatorEl = /** @type {HTMLElement} */ (document.getElementById('audio-indicator'));
-const decodeBadgeEl    = /** @type {HTMLElement} */ (document.getElementById('decode-badge'));
 const decodeToggleEl   = /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (document.getElementById('decode-toggle')));
 const catBadgeEl       = /** @type {HTMLElement} */ (document.getElementById('cat-badge'));
 
@@ -1083,7 +1082,7 @@ function setAudioActive(active) {
 }
 
 /**
- * Update the decode badge and toggle button to reflect the current pipeline state (FR-017).
+ * Update the merged decode status/toggle control to reflect the current pipeline state (FR-017).
  * @param {boolean} enabled  - Whether decoding is active.
  * @param {boolean} hasDevice - Whether an audio device is configured.
  */
@@ -1091,22 +1090,19 @@ function setDecodingState(enabled, hasDevice) {
   decodingEnabled = enabled;
 
   if (!hasDevice) {
-    decodeBadgeEl.textContent = 'Stopped';
-    decodeBadgeEl.className   = 'decoding-stopped';
     decodeToggleEl.textContent = 'No device';
+    decodeToggleEl.className   = '';
     decodeToggleEl.disabled    = true;
     return;
   }
 
   if (enabled) {
-    decodeBadgeEl.textContent  = 'Decoding';
-    decodeBadgeEl.className    = 'decoding-active';
-    decodeToggleEl.textContent = 'Stop Decoding';
+    decodeToggleEl.textContent = 'DECODING';
+    decodeToggleEl.className   = 'decoding-active';
     decodeToggleEl.disabled    = false;
   } else {
-    decodeBadgeEl.textContent  = 'Stopped';
-    decodeBadgeEl.className    = 'decoding-stopped';
-    decodeToggleEl.textContent = 'Start Decoding';
+    decodeToggleEl.textContent = 'Start decoding';
+    decodeToggleEl.className   = 'decoding-stopped';
     decodeToggleEl.disabled    = false;
   }
 }

@@ -555,33 +555,39 @@ label {
   background: var(--color-muted);
 }
 
-/* ── Decode state badge (FR-017) ──────────────────────────────────────── */
-#decode-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.15rem 0.45rem;
-  border-radius: var(--radius);
-  cursor: default;
-}
-
-#decode-badge.decoding-active {
-  background: var(--color-success);
-  color: #0d1117;
-}
-
-#decode-badge.decoding-stopped {
-  background: transparent;
-  color: var(--color-muted);
-  border: 1px solid var(--color-border);
-}
-
-/* Decode toggle button — compact status-bar sizing (FR-017). */
+/* ── Decode status/toggle control — compact status-bar sizing (FR-017).
+   Single button that is both the state indicator and the click target; see
+   openspec/changes/decode-status-control-merge/design.md Decisions 1-3. ── */
 #decode-toggle {
   padding: 0.2rem 0.6rem;
   font-size: 0.8rem;
+  font-weight: 700;
+  /* No text-transform here, deliberately: the two states use distinct literal casing
+     ("DECODING" vs "Start decoding", see design.md Risk 2) — a CSS uppercase transform
+     would visually flatten that distinction regardless of the underlying textContent. */
 }
+
+#decode-toggle.decoding-active {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #0d1117;
+}
+#decode-toggle.decoding-active:hover:not(:disabled) {
+  background: #56d364;
+  border-color: #56d364;
+}
+
+#decode-toggle.decoding-stopped {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+#decode-toggle.decoding-stopped:hover:not(:disabled) {
+  background: #ff6a61;
+  border-color: #ff6a61;
+}
+/* "No device" (disabled) state intentionally uses no colour override — the base
+   button:disabled rule (neutral opacity dim) applies, matching Decision 3. */
 
 /* ── Cycle countdown timer (FR-018, FR-036) ───────────────────────────── */
 /* FR-036: reserves layout space regardless of enabled state */
