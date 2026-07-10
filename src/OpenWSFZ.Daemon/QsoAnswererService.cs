@@ -64,6 +64,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private volatile QsoState _state   = QsoState.Idle;
     private volatile string?  _partner = null;
 
+    // True only while TransmitAsync is inside its KeyDownAsync call (dev-task
+    // 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A). Volatile for the same
+    // reason as _state/_partner — read from the HTTP handler thread via the Keying property.
+    private volatile bool _keying;
+
     /// <summary>
     /// When <see langword="false"/>, <see cref="HandleIdleAsync"/> returns immediately without
     /// initiating any new QSO session.  Set to <see langword="false"/> by
@@ -205,6 +210,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
     /// <inheritdoc/>
     public QsoRole Role => QsoRole.Answerer;
+
+    /// <inheritdoc/>
+    public bool Keying => _keying;
 
     /// <inheritdoc/>
     public Task SelectResponderAsync(
@@ -1068,12 +1076,43 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
         // Link stoppingToken + _txCts so both watchdog and operator abort interrupt TX.
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _txCts.Token);
-        await _pttController.KeyDownAsync(linked.Token).ConfigureAwait(false);
+
+        // Keying (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A):
+        // bracket the one KeyDownAsync call site with the true/false transitions and their
+        // own broadcast, independent of the Tx*/Wait* state broadcasts around this method.
+        _keying = true;
+        PublishKeyingTransition();
+        try
+        {
+            await _pttController.KeyDownAsync(linked.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            _keying = false;
+            PublishKeyingTransition();
+        }
         // D-007: KeyDownAsync may return normally even when cancelled (audio stops but no exception).
         // Throw here so the abort propagates up through the state machine instead of advancing state.
         linked.Token.ThrowIfCancellationRequested();
 
         _logger.LogDebug("QsoAnswererService: TX complete for \"{Message}\".", message);
+    }
+
+    /// <summary>
+    /// Broadcasts the current <see cref="_state"/>/<see cref="_partner"/> together with the
+    /// just-updated <see cref="_keying"/> value, without advancing <see cref="_state"/> itself.
+    /// Called from <see cref="TransmitAsync"/> immediately before and after the bracketed
+    /// <c>KeyDownAsync</c> call (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md
+    /// item A).
+    /// </summary>
+    private void PublishKeyingTransition()
+    {
+        _txEventBus.Publish(
+            state:             _state.ToString(),
+            role:              "answerer",
+            partner:           _partner,
+            autoAnswerEnabled: true,
+            keying:            _keying);
     }
 
     // ── State transitions ─────────────────────────────────────────────────────
@@ -1088,7 +1127,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             state:             newState.ToString(),
             role:              "answerer",
             partner:           partner,
-            autoAnswerEnabled: true);
+            autoAnswerEnabled: true,
+            keying:            _keying);
     }
 
     /// <summary>
@@ -1181,7 +1221,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             role:              "answerer",
             partner:           null,
             autoAnswerEnabled: false,
-            abortReason:       effectiveReason);
+            abortReason:       effectiveReason,
+            keying:            _keying);
     }
 
     // ── H6 AP decode helper ───────────────────────────────────────────────────

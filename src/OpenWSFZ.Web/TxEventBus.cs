@@ -47,8 +47,9 @@ public sealed class TxEventBus : ITxEventBus
         string  role,
         string? partner,
         bool    autoAnswerEnabled,
-        string? abortReason = null)
-        => WebSocketHub.BroadcastTxState(_appScope, state, role, partner, autoAnswerEnabled, abortReason);
+        string? abortReason = null,
+        bool    keying = false)
+        => WebSocketHub.BroadcastTxState(_appScope, state, role, partner, autoAnswerEnabled, keying, abortReason);
 
     /// <inheritdoc/>
     public void PublishQsoReview(

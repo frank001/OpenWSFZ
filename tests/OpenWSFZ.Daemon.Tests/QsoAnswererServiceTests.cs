@@ -980,10 +980,16 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
         await Task.Delay(50); // let the trailing post-retransmit publish settle
 
+        // Keying (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A) adds
+        // two extra broadcasts bracketing the retransmit's KeyDownAsync call — assert the full,
+        // now-longer sequence rather than the old 2-call one so an accidental keying regression
+        // (e.g. a stuck "true") would also fail this test.
         Received.InOrder(() =>
         {
-            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>());
-            eventBus.Publish("WaitReport", "answerer", PartnerCall, true, Arg.Any<string?>());
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), true);
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+            eventBus.Publish("WaitReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
         });
 
         await stopCts.CancelAsync();
@@ -1024,11 +1030,73 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         await Task.Delay(50); // let the trailing post-retransmit publish settle
 
+        // Keying (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A) adds
+        // two extra broadcasts bracketing the retransmit's KeyDownAsync call — see the WaitReport
+        // retry test above for the same expansion.
         Received.InOrder(() =>
         {
-            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>());
-            eventBus.Publish("WaitRr73", "answerer", PartnerCall, true, Arg.Any<string?>());
+            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>(), true);
+            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+            eventBus.Publish("WaitRr73", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
         });
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── Keying (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A) ──
+
+    [Fact(DisplayName = "Keying: false by construction before any transmission (armed-but-idle default)")]
+    public void Keying_FalseByDefault_BeforeAnyTransmission()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            WatchdogMinutes = 4,
+        };
+        var (sut, _, _, _, _, _) = BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30));
+
+        sut.Keying.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "Keying: TransmitAsync brackets KeyDownAsync with keying=true then keying=false")]
+    public async Task TransmitAsync_BracketsKeyDownAsync_WithKeyingTrueThenFalse()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 0,
+            WatchdogMinutes = 4,
+        };
+        var (sut, eventBus, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        sut.Keying.Should().BeFalse(); // armed-but-idle default before the CQ batch below
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Keying must have flipped true immediately before KeyDownAsync and false immediately
+        // after, bracketing the same TxAnswer broadcast the pre-existing state machine already
+        // makes — this is an additional, independent signal, not a replacement for it.
+        Received.InOrder(() =>
+        {
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), true);
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+            eventBus.Publish("WaitReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+        });
+
+        // By the time WaitReport is reached, KeyDownAsync has returned — Keying is back to false.
+        sut.Keying.Should().BeFalse();
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

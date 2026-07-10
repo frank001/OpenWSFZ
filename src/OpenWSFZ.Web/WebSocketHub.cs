@@ -485,6 +485,12 @@ internal static class WebSocketHub
     /// </summary>
     /// <param name="state">Raw enum name from <c>QsoState</c> or <c>CallerState</c>.</param>
     /// <param name="role"><c>"answerer"</c> or <c>"caller"</c>.</param>
+    /// <param name="keying">
+    /// Current value of <c>IQsoController.Keying</c> — true only while the publishing
+    /// controller is inside its <c>TransmitAsync</c> helper's <c>KeyDownAsync</c> call.
+    /// Drives <c>#tx-enable-btn</c>'s bright-red/dark-red colour (dev-task
+    /// 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A).
+    /// </param>
     /// <param name="abortReason">
     /// Human-readable abort reason, or <c>null</c> for normal QSO completion and routine
     /// Idle pushes. Non-null only for abnormal terminations (FR-UX-002).
@@ -495,13 +501,14 @@ internal static class WebSocketHub
         string  role,
         string? partner,
         bool    autoAnswerEnabled,
+        bool    keying,
         string? abortReason = null)
     {
         if (ActiveSockets.IsEmpty) return;
 
         var msg     = new WsTxStateMessage(Type: "txState", Role: role, State: state,
                                            Partner: partner, AutoAnswerEnabled: autoAnswerEnabled,
-                                           AbortReason: abortReason);
+                                           Keying: keying, AbortReason: abortReason);
         var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsTxStateMessage);
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);

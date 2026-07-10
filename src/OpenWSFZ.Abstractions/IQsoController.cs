@@ -25,6 +25,30 @@ public interface IQsoController
     QsoRole Role { get; }
 
     /// <summary>
+    /// True from the moment this controller's <c>TransmitAsync</c> helper enters
+    /// <c>IPttController.KeyDownAsync</c> until that call returns — normally, via
+    /// cancellation, or via a concurrent <c>KeyUpAsync</c> interrupting it. False at all
+    /// other times, including before the first ever transmission in a session (the
+    /// "armed but idle" default).
+    /// <para>
+    /// Drives <c>#tx-enable-btn</c>'s bright-red/dark-red colour directly (dev-task
+    /// 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A), superseding the
+    /// prior <c>state</c>-string-prefix derivation described by Decision 2 in
+    /// <c>tx-state-indicators/spec.md</c>. Unlike <see cref="State"/>, this signal is
+    /// instrumented at a single choke point per role service (the one call site of
+    /// <c>KeyDownAsync</c> inside <c>TransmitAsync</c>), so it cannot be "forgotten" at a
+    /// future TX call site the way a <c>SetStateAndNotify</c> bracket can.
+    /// </para>
+    /// <para>
+    /// Defaults to <see langword="false"/> via this default interface implementation so
+    /// <see cref="IQsoController"/> stubs that never transmit (test doubles) require no
+    /// change; <c>QsoAnswererService</c> and <c>QsoCallerService</c> override it with the
+    /// real signal, and <c>QsoControllerRouter</c> delegates to whichever is active.
+    /// </para>
+    /// </summary>
+    bool Keying => false;
+
+    /// <summary>
     /// Requests an immediate abort of any in-progress QSO.
     /// Calls <c>IPttController.KeyUpAsync</c> to stop any active TX and resets to
     /// <see cref="QsoState.Idle"/>.  If the service is already in Idle, this is a no-op.

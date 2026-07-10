@@ -161,6 +161,57 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
+    // ── Keying (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A) ──
+
+    [Fact(DisplayName = "Keying: false by construction before any transmission (armed-but-idle default)")]
+    public void Keying_FalseByDefault_BeforeAnyTransmission()
+    {
+        var tx = new TxConfig { AutoAnswer = false, Callsign = OurCallsign, Grid = OurGrid };
+        var (sut, _, _, _, _, _) = BuildIsolatedSut(tx);
+
+        sut.Keying.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "Keying: TransmitAsync brackets KeyDownAsync with keying=true then keying=false")]
+    public async Task TransmitAsync_BracketsKeyDownAsync_WithKeyingTrueThenFalse()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 4,
+        };
+        var (sut, eventBus, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        sut.Keying.Should().BeFalse(); // armed-but-idle default before the CQ batch below
+
+        // Send any batch — triggers CQ transmission from Idle.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Keying must have flipped true immediately before KeyDownAsync and false immediately
+        // after, bracketing the same TxCq broadcast the pre-existing state machine already
+        // makes — this is an additional, independent signal, not a replacement for it.
+        // Partner is null throughout (no responder selected yet at CQ time).
+        Received.InOrder(() =>
+        {
+            eventBus.Publish("TxCq",       "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), false);
+            eventBus.Publish("TxCq",       "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), true);
+            eventBus.Publish("TxCq",       "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), false);
+            eventBus.Publish("WaitAnswer", "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), false);
+        });
+
+        // By the time WaitAnswer is reached, KeyDownAsync has returned — Keying is back to false.
+        sut.Keying.Should().BeFalse();
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── 5.3: WaitAnswer First mode auto-engages ───────────────────────────────
 
     [Fact(DisplayName = "5.3: WaitAnswer First mode — batch with response auto-advances to TxReport")]

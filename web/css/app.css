@@ -656,40 +656,23 @@ label {
 }
 
 /* ── Settings page ─────────────────────────────────────────────────────── */
-/* Base width covers the 6-tab bar (General/Radio hardware/Logging/Advanced/
-   Frequencies/Logs) on one unwrapped row; short-form tabs only get a modest
-   ~180px wider column than the old 520px, since their inputs are width:100%
-   and stretching them further looks worse than the wrap they used to have. */
+/* Unconditional width, regardless of which tab is active (dev-task
+   2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item B): the tab bar now
+   holds seven buttons (General/Radio hardware/Logging/Advanced/Frequencies/Logs/
+   Region data) — 900px is generous enough that the seven-button bar never wraps
+   on a normal desktop window, and min(…, 94vw) still lets it shrink gracefully on
+   a narrow viewport instead of overflowing (same idiom as the QSO log dialog's
+   `width: min(520px, 95vw)` below). This replaces the previous 700px/900px
+   tab-conditional mechanism (see git history), which widened the container only
+   while the Logs or Region-data tab was active — the wrapping bug the Captain
+   reported was in the *tab bar itself*, present on every one of the other five
+   tabs, not just the Logs tab's monospace content the conditional mechanism was
+   originally built for. */
 #settings-page,
 #settings-main {
-  max-width: 700px;
+  max-width: min(900px, 94vw);
   margin: 0 auto;
   padding: 0 1rem;
-}
-
-/* The Logs tab's monospace tail (~90–110 char lines), and the Region data tab's
-   status summary + monospace lookup-result box (same .logs-tail-output class),
-   need more room than the short-form tabs to avoid wrapping two or three times
-   over. Widen the shared container further, but only while one of those tabs
-   is active, so General/Radio hardware/Logging/Advanced/Frequencies keep the
-   narrower column above. Reacts to the existing `.active` class already
-   toggled by settings.js — no JS changes required. */
-body:has(#tab-logs.active) #settings-page,
-body:has(#tab-logs.active) #settings-main,
-body:has(#tab-region-data.active) #settings-page,
-body:has(#tab-region-data.active) #settings-main {
-  max-width: 900px;
-}
-
-/* logs.html (the standalone "full log" page reached via "Open full log in new
-   tab") has no tab bar and no #tab-logs element, so the rule above never
-   matches there — it shows the same monospace daemon log lines (see
-   .logs-full-page below) as the Logs tab's tail, only more of them, so it
-   needs at least the same 900px width. Keyed off #logs-full-output, the one
-   element unique to this page, so settings.html's other tabs are unaffected. */
-body:has(#logs-full-output) #settings-page,
-body:has(#logs-full-output) #settings-main {
-  max-width: 900px;
 }
 
 #settings-page {

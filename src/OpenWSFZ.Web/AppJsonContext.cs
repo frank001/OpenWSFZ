@@ -100,16 +100,26 @@ internal sealed record TuneResponse(double EffectiveFrequencyMHz);
 /// Envelope for <c>txState</c> WebSocket text frames (FR-047).
 /// <para>
 /// Wire format (answerer): <c>{"type":"txState","role":"answerer","state":"TxAnswer",
-/// "partner":"Q1TST","autoAnswerEnabled":true,"abortReason":null}</c>
+/// "partner":"Q1TST","autoAnswerEnabled":true,"keying":true,"abortReason":null}</c>
 /// </para>
 /// <para>
 /// Wire format (caller): <c>{"type":"txState","role":"caller","state":"TxCq",
-/// "partner":null,"autoAnswerEnabled":true}</c>
+/// "partner":null,"autoAnswerEnabled":true,"keying":false}</c>
 /// </para>
 /// <para>
 /// <c>abortReason</c> is non-null only when transitioning to Idle due to an abnormal
 /// termination (watchdog, operator abort, retry exhaustion, partner misbehaviour).
 /// It is null on normal QSO completion and on routine Idle state pushes.
+/// </para>
+/// <para>
+/// <c>keying</c> (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A)
+/// mirrors <c>IQsoController.Keying</c> — true only while the publishing controller is
+/// inside <c>TransmitAsync</c>'s <c>KeyDownAsync</c> call. This supersedes Decision 2 in
+/// <c>tx-state-indicators/spec.md</c> ("derived entirely from existing txState payload
+/// fields... with no additional server-side signal"): <c>keying</c> IS that additional
+/// signal, added deliberately on the Captain's instruction because the <c>state</c>-prefix
+/// derivation under-reported real transmission windows whenever a TX call site retransmitted
+/// without re-broadcasting a <c>Tx*</c> sub-state first.
 /// </para>
 /// </summary>
 internal sealed record WsTxStateMessage(
@@ -118,6 +128,7 @@ internal sealed record WsTxStateMessage(
     string  State,
     string? Partner,
     bool    AutoAnswerEnabled,
+    bool    Keying,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? AbortReason = null);
 
@@ -125,14 +136,18 @@ internal sealed record WsTxStateMessage(
 /// Response body for <c>GET /api/v1/tx/status</c>, <c>POST /api/v1/tx/enable</c>,
 /// <c>POST /api/v1/tx/disable</c>, <c>POST /api/v1/tx/select-responder</c>,
 /// and <c>POST /api/v1/tx/caller-partner-select</c> (FR-047, FR-PILEUP-001).
-/// Wire format: <c>{"state":"Idle","partner":null,"autoAnswerEnabled":false,"role":"answerer","callerPartnerSelect":"First"}</c>
+/// Wire format: <c>{"state":"Idle","partner":null,"autoAnswerEnabled":false,"role":"answerer","callerPartnerSelect":"First","keying":false}</c>
+/// <c>keying</c> mirrors <c>IQsoController.Keying</c> so a freshly-loaded or reconnected tab
+/// gets the correct current value immediately rather than only on the next <c>txState</c>
+/// WS transition (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A).
 /// </summary>
 public sealed record TxStatusResponse(
     string  State,
     string? Partner,
     bool    AutoAnswerEnabled,
     string  Role                = "answerer",
-    string  CallerPartnerSelect = "First");
+    string  CallerPartnerSelect = "First",
+    bool    Keying              = false);
 
 /// <summary>
 /// Payload for <c>audioOffset</c> WebSocket push events.

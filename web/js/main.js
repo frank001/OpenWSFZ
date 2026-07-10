@@ -51,6 +51,16 @@ let currentTxPartner = /** @type {string|null} */ (null);
 let currentAutoAnswerEnabled = false;
 
 /**
+ * Whether the active QSO controller is currently inside its TransmitAsync/KeyDownAsync
+ * bracket (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A).
+ * Mirrors the daemon's IQsoController.Keying signal. Together with
+ * currentAutoAnswerEnabled this drives #tx-enable-btn's bright-red/dark-red colour —
+ * see renderTxPanel. Defaults false ("armed but idle") until the first txState/tx-status
+ * response carries a real value.
+ */
+let currentKeying = false;
+
+/**
  * Current QSO controller role ('answerer' or 'caller').
  * Updated from txState WS events and the initial getTxStatus() response.
  * Controls TX panel message templates and decode-row highlighting.
@@ -107,22 +117,6 @@ function appendTxAbortLog(reason, partner) {
       .join('');
   }
   if (txAbortLogSection) txAbortLogSection.hidden = false;
-}
-
-// ── TX button visual state helpers (f-004-operator-visibility-improvements) ──
-
-/**
- * Returns true when `state` is one of the transmitting sub-states of either
- * `QsoState` (Answerer: TxAnswer/TxReport/Tx73) or `CallerState` (Caller:
- * TxCq/TxReport/TxRr73). Both enums name every transmitting sub-state with a
- * `Tx` prefix and no waiting/idle state with that prefix (design.md Decision 2),
- * so a simple prefix check works uniformly across both roles with no
- * additional server-side signal.
- * @param {string|undefined|null} state
- * @returns {boolean}
- */
-function isTransmittingSubState(state) {
-  return typeof state === 'string' && state.startsWith('Tx');
 }
 
 // ── TX panel render functions (tasks 6.3, 6.4) ───────────────────────────
@@ -205,8 +199,9 @@ function renderMessageRows(partner, state, autoAnswerEnabled, role) {
  * @param {string|null}             partner            - Active partner callsign or null
  * @param {boolean}                 autoAnswerEnabled  - Whether tx.autoAnswer is true
  * @param {'answerer'|'caller'|undefined} [role]       - Controller role; falls back to currentTxRole
+ * @param {boolean|undefined}       [keying]            - IQsoController.Keying; falls back to currentKeying
  */
-function renderTxPanel(state, partner, autoAnswerEnabled, role) {
+function renderTxPanel(state, partner, autoAnswerEnabled, role, keying) {
   // Capture previous state before overwriting — used below for D-CALLER-008 sweep.
   const prevState = currentTxState;
 
@@ -214,6 +209,8 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
   currentTxState           = state;
   currentAutoAnswerEnabled = autoAnswerEnabled;
   if (role) currentTxRole  = role;
+  const effectiveKeying = keying ?? currentKeying;
+  currentKeying = effectiveKeying;
 
   // Track partner for TX panel state display and message row templates.
   currentTxPartner = partner;
@@ -221,7 +218,11 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
   // ── Enable/Disable toggle button ─────────────────────────────────────
   // D-TX-UI-002: label is always "Enable TX"; red background alone signals the armed state.
   // FR-TX-UI-004 (tx-state-indicators): dark red when armed-idle, bright red when armed AND
-  // actively transmitting (state is a Tx* sub-state) — design.md Decision 2.
+  // actively keying (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A
+  // supersedes the prior state-string-prefix derivation, tx-state-indicators spec.md
+  // Decision 2 — Keying is ground truth: true only while the daemon is actually inside its
+  // TransmitAsync/KeyDownAsync bracket, so it can't under-report a retransmit the way the
+  // old state-prefix check could).
   if (txEnableBtnEl) {
     txEnableBtnEl.textContent = 'Enable TX';
     if (autoAnswerEnabled) {
@@ -230,7 +231,7 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role) {
       txEnableBtnEl.classList.remove('tx-btn-armed');
     }
 
-    if (autoAnswerEnabled && isTransmittingSubState(state)) {
+    if (autoAnswerEnabled && effectiveKeying) {
       txEnableBtnEl.classList.add('tx-btn-transmitting');
     } else {
       txEnableBtnEl.classList.remove('tx-btn-transmitting');
@@ -742,7 +743,7 @@ function handleDecodes(results) {
         const cqCycleStartUtc = tr.dataset.cqCycleStartUtc;
         try {
           const status = await postTxAnswerCq(callsign, r.freqHz, cqCycleStartUtc);
-          renderTxPanel(status.state, status.partner, status.autoAnswerEnabled);
+          renderTxPanel(status.state, status.partner, status.autoAnswerEnabled, undefined, status.keying);
           // Delay guard reset to block human double-clicks (~130–185 ms interval).
           // On success the operator does not need to retry; 400 ms is harmless (D-TX-UI-005).
           setTimeout(() => {
@@ -806,7 +807,8 @@ function handleDecodes(results) {
             status.state             ?? currentTxState,
             status.partner           ?? currentTxPartner,
             status.autoAnswerEnabled ?? currentAutoAnswerEnabled,
-            status.role              ?? currentTxRole);
+            status.role              ?? currentTxRole,
+            status.keying            ?? currentKeying);
           setTimeout(() => {
             selectInFlight = false;
             tr.style.pointerEvents = '';
@@ -844,7 +846,8 @@ function handleDecodes(results) {
           status.state             ?? 'Idle',
           status.partner           ?? null,
           status.autoAnswerEnabled ?? false,
-          status.role              ?? currentTxRole);
+          status.role              ?? currentTxRole,
+          status.keying            ?? false);
 
       } catch (err) {
         const code = /** @type {any} */ (err)?.status;
@@ -855,7 +858,7 @@ function handleDecodes(results) {
           console.info('D-CALLER-012: engage-decode not actionable for:', r.message);
           try {
             const s = await getTxStatus();
-            renderTxPanel(s.state, s.partner, s.autoAnswerEnabled, s.role);
+            renderTxPanel(s.state, s.partner, s.autoAnswerEnabled, s.role, s.keying);
           } catch { /* ignore secondary error */ }
 
         } else if (code === 503) {
@@ -1317,7 +1320,8 @@ document.addEventListener('DOMContentLoaded', () => {
       status.state             ?? 'Idle',
       status.partner           ?? null,
       status.autoAnswerEnabled ?? false,
-      status.role              ?? 'answerer');
+      status.role              ?? 'answerer',
+      status.keying            ?? false);
   }).catch(err => {
     // Non-fatal — panel stays in default disarmed / Idle state.
     console.warn('GET /api/v1/tx/status failed on load:', err);
@@ -1334,7 +1338,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTxPanel(
           status.state             ?? currentTxState,
           status.partner           ?? currentTxPartner,
-          status.autoAnswerEnabled ?? false);
+          status.autoAnswerEnabled ?? false,
+          undefined,
+          status.keying            ?? false);
       } catch (err) {
         console.error('TX enable/disable failed:', err);
       } finally {
@@ -1353,7 +1359,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTxPanel(
           status.state             ?? currentTxState,
           status.partner           ?? null,
-          status.autoAnswerEnabled ?? false);
+          status.autoAnswerEnabled ?? false,
+          undefined,
+          status.keying            ?? false);
       } catch (err) {
         console.error('POST /api/v1/tx/abort failed:', err);
       } finally {
@@ -1397,7 +1405,8 @@ document.addEventListener('DOMContentLoaded', () => {
           status.state             ?? currentTxState,
           status.partner           ?? currentTxPartner,
           status.autoAnswerEnabled ?? true,
-          status.role              ?? 'caller');
+          status.role              ?? 'caller',
+          status.keying            ?? false);
         setTimeout(() => {
           callCqInFlight = false;
           // Button re-enable / label driven by renderTxPanel (via WS events).
@@ -1669,7 +1678,8 @@ document.addEventListener('DOMContentLoaded', () => {
         event.state             ?? 'Idle',
         event.partner           ?? null,
         event.autoAnswerEnabled ?? currentAutoAnswerEnabled,
-        event.role              ?? undefined);
+        event.role              ?? undefined,
+        event.keying            ?? currentKeying);
 
       // FR-UX-002: append to abort log when the daemon reports an abort reason.
       if (event.abortReason) {

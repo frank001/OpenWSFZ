@@ -61,6 +61,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private volatile CallerState _callerState = CallerState.Idle;
     private volatile string?     _partner     = null;
 
+    // True only while TransmitAsync is inside its KeyDownAsync call (dev-task
+    // 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A). Volatile for the same
+    // reason as _callerState/_partner — read from the HTTP handler thread via Keying.
+    private volatile bool _keying;
+
     /// <summary>
     /// When <see langword="false"/>, <see cref="HandleIdleAsync"/> returns immediately without
     /// initiating any new CQ session.  Managed by <see cref="QsoControllerRouter"/>; defaults
@@ -205,6 +210,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
     /// <inheritdoc/>
     public QsoRole Role => QsoRole.Caller;
+
+    /// <inheritdoc/>
+    public bool Keying => _keying;
 
     /// <inheritdoc/>
     public async Task AbortAsync(CancellationToken ct = default)
@@ -881,10 +889,41 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _pttController.LoadAudio(samples);
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _txCts.Token);
-        await _pttController.KeyDownAsync(linked.Token).ConfigureAwait(false);
+
+        // Keying (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A):
+        // bracket the one KeyDownAsync call site with the true/false transitions and their
+        // own broadcast, independent of the Tx*/Wait* state broadcasts around this method.
+        _keying = true;
+        PublishKeyingTransition();
+        try
+        {
+            await _pttController.KeyDownAsync(linked.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            _keying = false;
+            PublishKeyingTransition();
+        }
         linked.Token.ThrowIfCancellationRequested();
 
         _logger.LogDebug("QsoCallerService: TX complete for \"{Message}\".", message);
+    }
+
+    /// <summary>
+    /// Broadcasts the current <see cref="_callerState"/>/<see cref="_partner"/> together with
+    /// the just-updated <see cref="_keying"/> value, without advancing <see cref="_callerState"/>
+    /// itself. Called from <see cref="TransmitAsync"/> immediately before and after the
+    /// bracketed <c>KeyDownAsync</c> call (dev-task
+    /// 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A).
+    /// </summary>
+    private void PublishKeyingTransition()
+    {
+        _txEventBus.Publish(
+            state:             _callerState.ToString(),
+            role:              "caller",
+            partner:           _partner,
+            autoAnswerEnabled: true,
+            keying:            _keying);
     }
 
     // ── State transitions ─────────────────────────────────────────────────────
@@ -899,7 +938,8 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             state:              newState.ToString(),
             role:               "caller",
             partner:            partner,
-            autoAnswerEnabled:  true);
+            autoAnswerEnabled:  true,
+            keying:             _keying);
     }
 
     /// <summary>
@@ -979,7 +1019,8 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             role:              "caller",
             partner:           null,
             autoAnswerEnabled: false,
-            abortReason:       effectiveReason);
+            abortReason:       effectiveReason,
+            keying:            _keying);
 
         // Notify the router (if wired) that this service has become idle.
         // The router uses this to revert the active role back to Answerer when

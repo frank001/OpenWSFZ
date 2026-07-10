@@ -94,6 +94,9 @@ public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher
     public string? Partner => ActiveController.Partner;
 
     /// <inheritdoc/>
+    public bool Keying => ActiveController.Keying;
+
+    /// <inheritdoc/>
     public Task AbortAsync(CancellationToken ct = default)
         => ActiveController.AbortAsync(ct);
 
@@ -212,6 +215,7 @@ public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher
             role:              _activeRole.ToString().ToLowerInvariant(),
             partner:           null,
             autoAnswerEnabled: autoAnswerEnabled,
-            abortReason:       null);
+            abortReason:       null,
+            keying:            false); // the caller session just ended — never mid-keying here
     }
 }

@@ -19,12 +19,21 @@ public interface ITxEventBus
     /// <param name="abortReason">
     /// Human-readable abort reason, or <c>null</c> for normal completion and routine Idle pushes.
     /// </param>
+    /// <param name="keying">
+    /// Current value of <see cref="OpenWSFZ.Abstractions.IQsoController.Keying"/> — true only
+    /// while the publishing controller is inside its <c>TransmitAsync</c> helper's
+    /// <c>KeyDownAsync</c> call. Defaults to <see langword="false"/> so existing call sites
+    /// that broadcast a state transition (not a keying transition) need no change. Drives
+    /// <c>#tx-enable-btn</c>'s bright-red/dark-red colour (dev-task
+    /// 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A).
+    /// </param>
     void Publish(
         string  state,
         string  role,
         string? partner,
         bool    autoAnswerEnabled,
-        string? abortReason = null);
+        string? abortReason = null,
+        bool    keying = false);
 
     /// <summary>
     /// Broadcasts a <c>qsoReview</c> event to all connected WebSocket clients,
