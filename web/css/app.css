@@ -186,6 +186,25 @@ label {
   min-width: 0; /* prevent table from forcing the panel wider than available space */
 }
 
+/* Dark-theme scrollbar — otherwise this falls back to the OS/browser default light
+   scrollbar, which reads as a glaring white bar against the app's dark theme. */
+#decodes-panel {
+  scrollbar-color: var(--color-border) var(--color-surface);
+}
+#decodes-panel::-webkit-scrollbar {
+  width: 10px;
+}
+#decodes-panel::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+#decodes-panel::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius);
+}
+#decodes-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
+}
+
 /* ── TX panel (task 5.4) ────────────────────────────────────────────────── */
 #tx-panel {
   flex: 0 0 320px;
