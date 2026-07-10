@@ -431,6 +431,12 @@ label {
   color: var(--color-accent);
 }
 
+/* decode-panel-filtering: bold a filterable header when its axis is currently restricting
+   anything, so the operator can see which columns have an active filter at a glance. */
+#decodes-table th.filterable-col.filter-axis-active {
+  font-weight: 700;
+}
+
 /* decode-panel-filtering: rows hidden by the active filter. The native `hidden` attribute
    already sets `display: none` in every evergreen browser, but table rows in particular have
    historically been an edge case in some UA stylesheets — this rule makes the behaviour

@@ -369,6 +369,24 @@ function reapplyDecodeFilterToRenderedRows() {
     if (!decode) continue; // the placeholder "no data yet" row never carries __decode
     row.hidden = !isDecodeVisible(decode, currentDecodeFilter);
   }
+  updateFilterHeaderStyles();
+}
+
+/**
+ * Bolds each filterable column header whose axis is currently restricting anything (an
+ * attribute allow-list and/or a worked-before tri-state narrower than "everything"), so the
+ * operator can see at a glance which columns have an active filter without opening every popup.
+ * Called from inside `reapplyDecodeFilterToRenderedRows()` so every `currentDecodeFilter`
+ * mutation (local edit or a `decodeFilterChanged` broadcast from another tab) keeps this in sync.
+ */
+function updateFilterHeaderStyles() {
+  for (const axis of Object.values(FILTER_AXES)) {
+    const headerEl = document.getElementById(axis.headerId);
+    if (!headerEl) continue;
+    const active = currentDecodeFilter[axis.statesField] != null ||
+      (axis.attributeField && currentDecodeFilter[axis.attributeField] != null);
+    headerEl.classList.toggle('filter-axis-active', !!active);
+  }
 }
 
 // ── Column-header filter popup ──────────────────────────────────────────────
