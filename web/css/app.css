@@ -644,14 +644,17 @@ label {
   padding: 0 1rem;
 }
 
-/* The Logs tab's monospace tail (~90–110 char lines) needs more room than the
-   short-form tabs to avoid wrapping two or three times over. Widen the shared
-   container further, but only while that tab is active, so General/Radio
-   hardware/Logging/Advanced/Frequencies keep the narrower column above. Reacts
-   to the existing `.active` class already toggled by settings.js — no JS
-   changes required. */
+/* The Logs tab's monospace tail (~90–110 char lines), and the Region data tab's
+   status summary + monospace lookup-result box (same .logs-tail-output class),
+   need more room than the short-form tabs to avoid wrapping two or three times
+   over. Widen the shared container further, but only while one of those tabs
+   is active, so General/Radio hardware/Logging/Advanced/Frequencies keep the
+   narrower column above. Reacts to the existing `.active` class already
+   toggled by settings.js — no JS changes required. */
 body:has(#tab-logs.active) #settings-page,
-body:has(#tab-logs.active) #settings-main {
+body:has(#tab-logs.active) #settings-main,
+body:has(#tab-region-data.active) #settings-page,
+body:has(#tab-region-data.active) #settings-main {
   max-width: 900px;
 }
 
