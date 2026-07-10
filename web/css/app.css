@@ -450,10 +450,14 @@ label {
   color: var(--color-accent);
 }
 
-/* decode-panel-filtering: bold a filterable header when its axis is currently restricting
-   anything, so the operator can see which columns have an active filter at a glance. */
+/* decode-panel-filtering: highlight a filterable header when its axis is currently
+   restricting anything, so the operator can see which columns have an active filter at a
+   glance. NOTE: #decodes-table th is already font-weight: 700 by default (see rule above),
+   so a same-value font-weight override here would be a visual no-op — the accent colour
+   (the same one already used on :hover) is what actually makes this visible, persisting
+   even when the mouse isn't over the header. */
 #decodes-table th.filterable-col.filter-axis-active {
-  font-weight: 700;
+  color: var(--color-accent);
 }
 
 /* decode-panel-filtering: rows hidden by the active filter. The native `hidden` attribute
