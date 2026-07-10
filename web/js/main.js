@@ -12,8 +12,10 @@ import { getConfig, getFrequencies, postTune, postAudioOffset,
          postTxAnswerCq, postTxSelectResponder, postTxCallCq, postTxStopCq,
          postTxCallerPartnerSelect, getApiKey,
          getPropModes, postLogQso,
-         postTxEngageDecode }                                                from './api.js';
+         postTxEngageDecode,
+         getDecodeFilter, postDecodeFilter }                                 from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
+import { isDecodeVisible, UNFILTERED_DECODE_FILTER }                         from './decodeFilter.js';
 
 const MAX_DECODE_ROWS = 200;
 
@@ -339,6 +341,249 @@ function tokenMatchesCallsign(token, callsign) {
   return token === callsign || token.startsWith(callsign + '/');
 }
 
+// ── decode-panel-filtering: filter state and popup UI ───────────────────────
+//
+// `isDecodeVisible` and `UNFILTERED_DECODE_FILTER` live in ./decodeFilter.js (a DOM-free
+// module) so the visibility predicate can be exercised directly by `node --test` without a
+// browser — see decodeFilter.test.js and design.md Decision 2's drift-risk mitigation.
+
+/** @type {import('./decodeFilter.js').DecodeFilterState} */
+let currentDecodeFilter = { ...UNFILTERED_DECODE_FILTER };
+
+// Distinct attribute values seen this session (design.md Decision 4: "session-seen", not just
+// the currently-rendered/MAX_DECODE_ROWS-capped row list — a value that has scrolled off the
+// table is still offered as a filter checkbox).
+const seenEntities   = /** @type {Set<string>} */ (new Set());
+const seenContinents = /** @type {Set<string>} */ (new Set());
+const seenCqZones    = /** @type {Set<number>} */ (new Set());
+const seenItuZones   = /** @type {Set<number>} */ (new Set());
+
+/**
+ * Re-evaluates every currently-rendered decode row against `currentDecodeFilter`, showing or
+ * hiding each one accordingly. Called after any filter change — this tab's own edit or a
+ * `decodeFilterChanged` event from another tab — so already-rendered rows never go stale.
+ */
+function reapplyDecodeFilterToRenderedRows() {
+  for (const row of decodesBody.querySelectorAll('tr')) {
+    const decode = /** @type {any} */ (row).__decode;
+    if (!decode) continue; // the placeholder "no data yet" row never carries __decode
+    row.hidden = !isDecodeVisible(decode, currentDecodeFilter);
+  }
+}
+
+// ── Column-header filter popup ──────────────────────────────────────────────
+
+/**
+ * @typedef {{headerId: string, attributeField: string|null, statesField: string,
+ *            seen: () => Set<string|number>, label: string}} FilterAxisConfig
+ */
+/** @type {Record<string, FilterAxisConfig>} */
+const FILTER_AXES = {
+  ctc:  { headerId: 'col-ctc',  attributeField: null,               statesField: 'contactStates',   seen: () => new Set(),      label: 'Ctc (Contact)' },
+  dxcc: { headerId: 'col-dxcc', attributeField: 'allowedEntities',   statesField: 'countryStates',   seen: () => seenEntities,   label: 'DXCC (Country)' },
+  cnt:  { headerId: 'col-cnt',  attributeField: 'allowedContinents', statesField: 'continentStates', seen: () => seenContinents, label: 'Cnt (Continent)' },
+  cqz:  { headerId: 'col-cqz',  attributeField: 'allowedCqZones',    statesField: 'cqZoneStates',    seen: () => seenCqZones,    label: 'CQz (CQ Zone)' },
+  itz:  { headerId: 'col-itz',  attributeField: 'allowedItuZones',   statesField: 'ituZoneStates',   seen: () => seenItuZones,   label: 'ITz (ITU Zone)' },
+};
+
+const WORKED_BEFORE_OPTIONS = [
+  { value: 'never',         label: 'Never worked' },
+  { value: 'differentBand', label: 'Worked — different band' },
+  { value: 'thisBand',      label: 'Worked — this band' },
+];
+
+const decodeFilterPopupEl = /** @type {HTMLElement} */ (document.getElementById('decode-filter-popup'));
+
+/** Pushes `currentDecodeFilter` to the daemon. Errors are logged, not surfaced to the operator —
+ *  the checkbox state (already applied locally) reflects intent even if the POST fails; the
+ *  next successful GET/broadcast reconciles it. */
+async function commitDecodeFilterChange() {
+  try {
+    await postDecodeFilter(currentDecodeFilter);
+  } catch (err) {
+    console.error('POST /api/v1/decode-filter failed:', err);
+  }
+}
+
+/**
+ * Builds/refreshes the popup body for `axisKey` and shows it anchored under the clicked header.
+ * @param {string} axisKey
+ * @param {HTMLElement} anchorEl
+ */
+function openFilterPopup(axisKey, anchorEl) {
+  const axis = FILTER_AXES[axisKey];
+  decodeFilterPopupEl.innerHTML = '';
+  decodeFilterPopupEl.dataset.axis = axisKey;
+
+  const title = document.createElement('div');
+  title.className = 'decode-filter-popup-title';
+  title.textContent = axis.label;
+  decodeFilterPopupEl.appendChild(title);
+
+  // ── Attribute allow-list section (absent for Ctc — no small enumerable value-set) ──
+  if (axis.attributeField) {
+    const attributeField = axis.attributeField;
+    const section = document.createElement('div');
+    section.className = 'decode-filter-popup-section';
+
+    const values = [...axis.seen()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    if (values.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'decode-filter-popup-empty';
+      empty.textContent = 'No values decoded yet this session.';
+      section.appendChild(empty);
+    } else {
+      const selectRow = document.createElement('div');
+      selectRow.className = 'decode-filter-popup-select-row';
+
+      const selectAllBtn = document.createElement('button');
+      selectAllBtn.type = 'button';
+      selectAllBtn.textContent = 'Select All';
+      selectAllBtn.addEventListener('click', () => {
+        for (const cb of section.querySelectorAll('input[type=checkbox]')) {
+          /** @type {HTMLInputElement} */ (cb).checked = true;
+        }
+        currentDecodeFilter = { ...currentDecodeFilter, [attributeField]: null };
+        reapplyDecodeFilterToRenderedRows();
+        commitDecodeFilterChange();
+      });
+
+      const selectNoneBtn = document.createElement('button');
+      selectNoneBtn.type = 'button';
+      selectNoneBtn.textContent = 'Select None';
+      selectNoneBtn.addEventListener('click', () => {
+        for (const cb of section.querySelectorAll('input[type=checkbox]')) {
+          /** @type {HTMLInputElement} */ (cb).checked = false;
+        }
+        currentDecodeFilter = { ...currentDecodeFilter, [attributeField]: [] };
+        reapplyDecodeFilterToRenderedRows();
+        commitDecodeFilterChange();
+      });
+
+      selectRow.appendChild(selectAllBtn);
+      selectRow.appendChild(selectNoneBtn);
+      section.appendChild(selectRow);
+
+      const currentSet = /** @type {Array<string|number>|null} */ (currentDecodeFilter[attributeField]);
+      for (const value of values) {
+        const row = document.createElement('label');
+        row.className = 'decode-filter-popup-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = currentSet === null || currentSet.includes(value);
+        cb.addEventListener('change', () => {
+          const checkboxes = [...section.querySelectorAll('input[type=checkbox]')];
+          const allChecked = checkboxes.every(c => /** @type {HTMLInputElement} */ (c).checked);
+          currentDecodeFilter = {
+            ...currentDecodeFilter,
+            [attributeField]: allChecked
+              ? null
+              : values.filter((_, i) => /** @type {HTMLInputElement} */ (checkboxes[i]).checked),
+          };
+          reapplyDecodeFilterToRenderedRows();
+          commitDecodeFilterChange();
+        });
+        row.appendChild(cb);
+        row.appendChild(document.createTextNode(' ' + value));
+        section.appendChild(row);
+      }
+    }
+    decodeFilterPopupEl.appendChild(section);
+  }
+
+  // ── Worked-before tri-state section (every axis, including Ctc) ────────────────────
+  {
+    const statesField = axis.statesField;
+    const wbSection = document.createElement('div');
+    wbSection.className = 'decode-filter-popup-section';
+    const wbCurrentSet = /** @type {string[]|null} */ (currentDecodeFilter[statesField]);
+    for (const opt of WORKED_BEFORE_OPTIONS) {
+      const row = document.createElement('label');
+      row.className = 'decode-filter-popup-row';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = wbCurrentSet === null || wbCurrentSet.includes(opt.value);
+      cb.addEventListener('change', () => {
+        const checkboxes = [...wbSection.querySelectorAll('input[type=checkbox]')];
+        const allChecked = checkboxes.every(c => /** @type {HTMLInputElement} */ (c).checked);
+        currentDecodeFilter = {
+          ...currentDecodeFilter,
+          [statesField]: allChecked
+            ? null
+            : WORKED_BEFORE_OPTIONS
+                .filter((_, i) => /** @type {HTMLInputElement} */ (checkboxes[i]).checked)
+                .map(o => o.value),
+        };
+        reapplyDecodeFilterToRenderedRows();
+        commitDecodeFilterChange();
+      });
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode(' ' + opt.label));
+      wbSection.appendChild(row);
+    }
+    decodeFilterPopupEl.appendChild(wbSection);
+  }
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'decode-filter-popup-close';
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', closeFilterPopup);
+  decodeFilterPopupEl.appendChild(closeBtn);
+
+  // Position under the clicked header.
+  const rect = anchorEl.getBoundingClientRect();
+  decodeFilterPopupEl.style.top  = `${rect.bottom + window.scrollY}px`;
+  decodeFilterPopupEl.style.left = `${rect.left + window.scrollX}px`;
+  decodeFilterPopupEl.hidden = false;
+}
+
+function closeFilterPopup() {
+  decodeFilterPopupEl.hidden = true;
+  delete decodeFilterPopupEl.dataset.axis;
+}
+
+/** Re-renders the currently-open popup (if any) so it reflects a filter change from another tab. */
+function refreshOpenFilterPopupIfAny() {
+  const axisKey = decodeFilterPopupEl.dataset.axis;
+  if (!axisKey || decodeFilterPopupEl.hidden) return;
+  const headerEl = document.getElementById(FILTER_AXES[axisKey].headerId);
+  if (headerEl) openFilterPopup(axisKey, headerEl);
+}
+
+/** Wires column-header click handlers and fetches the daemon's current filter state. */
+function initDecodeFilter() {
+  for (const [axisKey, axis] of Object.entries(FILTER_AXES)) {
+    const headerEl = document.getElementById(axis.headerId);
+    if (!headerEl) continue;
+    headerEl.style.cursor = 'pointer';
+    headerEl.addEventListener('click', () => {
+      if (!decodeFilterPopupEl.hidden && decodeFilterPopupEl.dataset.axis === axisKey) {
+        closeFilterPopup();
+      } else {
+        openFilterPopup(axisKey, headerEl);
+      }
+    });
+  }
+
+  // Close on outside click (but not on a header click, which toggles independently above,
+  // or a click inside the popup itself, which drives its own checkbox/close handlers).
+  document.addEventListener('click', (ev) => {
+    if (decodeFilterPopupEl.hidden) return;
+    const target = /** @type {Node} */ (ev.target);
+    if (decodeFilterPopupEl.contains(target)) return;
+    if (target instanceof HTMLElement && target.classList.contains('filterable-col')) return;
+    closeFilterPopup();
+  });
+
+  getDecodeFilter().then(state => {
+    currentDecodeFilter = { ...UNFILTERED_DECODE_FILTER, ...state };
+    reapplyDecodeFilterToRenderedRows();
+  }).catch(err => {
+    console.warn('GET /api/v1/decode-filter failed on load — filtering stays unfiltered:', err);
+  });
+}
+
 // ── Decoded-messages table ────────────────────────────────────────────────
 
 const decodesBody = /** @type {HTMLTableSectionElement} */ (document.getElementById('decodes-body'));
@@ -443,6 +688,19 @@ function handleDecodes(results) {
     tr.appendChild(makeWorkedBeforeCell(wb?.continent));
     tr.appendChild(makeWorkedBeforeCell(wb?.cqZone));
     tr.appendChild(makeWorkedBeforeCell(wb?.ituZone));
+
+    // decode-panel-filtering: track distinct attribute values seen this session (for the
+    // column-header popup's checkbox candidates), retain the raw decode on the row (so
+    // reapplyDecodeFilterToRenderedRows can re-evaluate it later without a server round-trip),
+    // and hide the row now if it fails the currently active filter.
+    if (r.region) {
+      if (r.region.entity)          seenEntities.add(r.region.entity);
+      if (r.region.continent)       seenContinents.add(r.region.continent);
+      if (r.region.cqZone != null)  seenCqZones.add(r.region.cqZone);
+      if (r.region.ituZone != null) seenItuZones.add(r.region.ituZone);
+    }
+    /** @type {any} */ (tr).__decode = r;
+    tr.hidden = !isDecodeVisible(r, currentDecodeFilter);
 
     // Store cycle-start UTC string as a data attribute for the click handler.
     tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
@@ -1031,6 +1289,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Also extracts config.tx.callsign / .grid for message row rendering (task 6.8).
   startCycleTimerIfEnabled();
 
+  // decode-panel-filtering: wire column-header popups and seed the current filter state.
+  initDecodeFilter();
+
   // Task 6.1 / 7.4 — Seed the TX panel with current server state on page load.
   getTxStatus().then(status => {
     // FR-PILEUP-001: initialise pileup mode from the status response if present.
@@ -1404,6 +1665,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (event.type === 'decode') {
       handleDecodes(event.payload);
+      return;
+    }
+
+    // decode-panel-filtering: another client (or this one's own POST) changed the daemon's
+    // filter state — re-evaluate every already-rendered row and refresh an open popup so the
+    // change is reflected immediately, without a page reload.
+    if (event.type === 'decodeFilterChanged' && event.payload) {
+      currentDecodeFilter = { ...UNFILTERED_DECODE_FILTER, ...event.payload };
+      reapplyDecodeFilterToRenderedRows();
+      refreshOpenFilterPopupIfAny();
       return;
     }
 

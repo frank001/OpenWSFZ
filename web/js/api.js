@@ -504,6 +504,38 @@ export function getRegionDataLookup(callsign) {
 }
 
 /**
+ * GET /api/v1/decode-filter
+ * Returns the daemon's current decode-panel filter state (decode-panel-filtering capability).
+ * Every axis is `null` (no restriction) on a freshly-started daemon.
+ * @returns {Promise<{
+ *   allowedEntities: string[]|null, allowedContinents: string[]|null,
+ *   allowedCqZones: number[]|null, allowedItuZones: number[]|null,
+ *   contactStates: string[]|null, countryStates: string[]|null,
+ *   continentStates: string[]|null, cqZoneStates: string[]|null, ituZoneStates: string[]|null
+ * }>}
+ */
+export function getDecodeFilter() {
+  return fetchJson('/api/v1/decode-filter');
+}
+
+/**
+ * POST /api/v1/decode-filter
+ * Whole-object replace of the daemon's decode-panel filter state (decode-panel-filtering
+ * capability). Daemon-owned, ephemeral, and shared across all connected clients — the response
+ * (and the resulting `decodeFilterChanged` WebSocket broadcast) is authoritative for every
+ * connected tab and for both QSO controller services.
+ * @param {object} state  Same shape as {@link getDecodeFilter}'s return value.
+ * @returns {Promise<object>}
+ */
+export function postDecodeFilter(state) {
+  return fetchJson('/api/v1/decode-filter', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(state),
+  });
+}
+
+/**
  * POST /api/v1/tx/log-qso
  * Writes a completed QSO to the ADIF log (qso-log-dialog).
  * @param {{

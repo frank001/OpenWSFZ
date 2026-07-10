@@ -59,6 +59,8 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(RegionRefreshResponse))]
 [JsonSerializable(typeof(RegionDataStatusResponse))]
 [JsonSerializable(typeof(RegionLookupResponse))]
+[JsonSerializable(typeof(DecodeFilterState))]
+[JsonSerializable(typeof(WsDecodeFilterMessage))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -288,6 +290,15 @@ public sealed record RegionLookupResponse(
     int?    CqZone,
     int?    ItuZone,
     bool    Synthetic);
+
+/// <summary>
+/// Envelope for <c>decodeFilterChanged</c> WebSocket text frames
+/// (<c>decode-panel-filtering</c> capability). Pushed on every
+/// <c>POST /api/v1/decode-filter</c> so all connected clients' popups and rendered tables
+/// update immediately, including the client that issued the POST.
+/// Wire format: <c>{"type":"decodeFilterChanged","payload":{"allowedEntities":null,...}}</c>
+/// </summary>
+internal sealed record WsDecodeFilterMessage(string Type, DecodeFilterState Payload);
 
 internal sealed record WsQsoReviewMessage(
     string  Type,

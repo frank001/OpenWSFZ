@@ -55,6 +55,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // D-013: live CAT state for resolving the true dial frequency at QSO-completion time
     // (WebApp.ResolveEffectiveFrequency's tier 1); null means CAT genuinely not wired up.
     private readonly ICatState?                                  _catState;
+    // decode-panel-filtering: consulted once at the CQ-selection decision point in
+    // HandleIdleAsync; null behaves as fully unfiltered (no regression for callers that don't
+    // supply one — mirrors D-013's ICatState? backward-compatibility posture).
+    private readonly IDecodeFilterStore?                         _decodeFilterStore;
 
     // Volatile: readable from the HTTP handler thread without a lock.
     private volatile QsoState _state   = QsoState.Idle;
@@ -149,7 +153,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         AudioOffsetEventBus          audioOffsetEventBus,
         ILogger<QsoAnswererService>  logger,
         IApConstraintSink?           decoder = null,
-        ICatState?                   catState = null)
+        ICatState?                   catState = null,
+        IDecodeFilterStore?          decodeFilterStore = null)
     {
         _decodeChannel       = decodeChannel;
         _configStore         = configStore;
@@ -160,6 +165,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         _logger              = logger;
         _decoder             = decoder;
         _catState            = catState;
+        _decodeFilterStore   = decodeFilterStore;
         _timeProvider        = TimeProvider.System;
     }
 
@@ -180,8 +186,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         ILogger<QsoAnswererService>  logger,
         TimeSpan                     watchdogDurationOverride,
         TimeProvider?                timeProvider = null,
-        ICatState?                   catState = null)
-        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, catState: catState)
+        ICatState?                   catState = null,
+        IDecodeFilterStore?          decodeFilterStore = null)
+        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger,
+               catState: catState, decodeFilterStore: decodeFilterStore)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
         _timeProvider             = timeProvider ?? TimeProvider.System;
@@ -611,23 +619,31 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             return;
         }
 
-        // Scan for the first CQ in the batch (FR-050: auto-answer first decoded CQ).
+        // Scan for the first non-filtered-out CQ in the batch (FR-050: auto-answer first
+        // decoded CQ; decode-panel-filtering: skip any CQ whose callsign is currently
+        // filtered out under the active DecodeFilterState — read once per decision, at the
+        // moment of selecting which CQ to engage, not re-checked later in the QSO's lifecycle).
+        var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+
         DecodeResult? cqResult = null;
         string        partner  = string.Empty;
         string?       cqGrid   = null;
 
         foreach (var r in batch.Results)
         {
-            if (TryParseCq(r.Message, out var callsign, out var grid))
-            {
-                cqResult = r;
-                partner  = callsign;
-                cqGrid   = grid;
-                break;
-            }
+            if (!TryParseCq(r.Message, out var callsign, out var grid))
+                continue;
+
+            if (!DecodeFilterEvaluator.IsVisible(r, filterState))
+                continue; // filtered out — skip entirely, do not deprioritise
+
+            cqResult = r;
+            partner  = callsign;
+            cqGrid   = grid;
+            break;
         }
 
-        if (cqResult is null) return; // no CQ found — stay Idle
+        if (cqResult is null) return; // no non-filtered-out CQ found — stay Idle
 
         _logger.LogInformation(
             "QsoAnswererService: CQ detected from {Partner} at {FreqHz} Hz — answering.",

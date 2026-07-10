@@ -120,6 +120,13 @@ public static class WebApp
         builder.Services.AddSingleton<IPropModeStore>(
             propModeStore ?? new InMemoryPropModeStore());
 
+        // Decode-filter store (decode-panel-filtering): always in-memory, never persisted —
+        // no test/production override parameter exists because there is only ever one kind
+        // of implementation (design.md Decision 3). Registered here, before configureServices
+        // runs, so QsoAnswererService/QsoCallerService factories (added via configureServices
+        // in Program.cs) can resolve IDecodeFilterStore from the same container.
+        builder.Services.AddSingleton<IDecodeFilterStore, DecodeFilterStore>();
+
         // IAdifLogWriter: supplied explicitly by callers that need to capture writes (qso-log-dialog).
         // When null, the endpoint returns 503 (no writer available) — which is the correct behaviour
         // for test instances that do not wire the TX subsystem.
@@ -518,6 +525,41 @@ public static class WebApp
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0));
+        });
+
+        // ── Decode filter endpoints (decode-panel-filtering) ──────────────────
+        //
+        // GET  /api/v1/decode-filter — returns the current daemon-owned filter state.
+        // POST /api/v1/decode-filter — whole-object replace (matches the existing
+        //      POST /api/v1/config convention), then broadcasts decodeFilterChanged to every
+        //      connected client (including the one that issued the POST) so every open tab's
+        //      popup and rendered table update immediately.
+
+        app.MapGet("/api/v1/decode-filter", (IDecodeFilterStore filterStore) =>
+            TypedResults.Ok(filterStore.Current));
+
+        app.MapPost("/api/v1/decode-filter", async (
+            HttpRequest        request,
+            IDecodeFilterStore filterStore,
+            CancellationToken  ct) =>
+        {
+            DecodeFilterState? state;
+            try
+            {
+                state = await request.ReadFromJsonAsync(AppJsonContext.Default.DecodeFilterState, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON.");
+            }
+
+            if (state is null)
+                return Results.BadRequest("Missing or empty request body.");
+
+            filterStore.Set(state);
+            WebSocketHub.BroadcastDecodeFilterChanged(scope, state);
+
+            return TypedResults.Ok(filterStore.Current);
         });
 
         // ── Frequency list endpoints (FR-042) ─────────────────────────────────
@@ -1596,4 +1638,20 @@ internal sealed class InMemoryPropModeStore : IPropModeStore
         _entries = entries.ToList();
         return Task.CompletedTask;
     }
+}
+
+/// <summary>
+/// In-memory <see cref="IDecodeFilterStore"/> — the only implementation this app ever uses
+/// (<c>decode-panel-filtering</c> capability, design.md Decision 3): there is no persisted
+/// variant, unlike <see cref="IConfigStore"/>/<see cref="IFrequencyStore"/>, because the filter
+/// is explicitly never written to disk and always resets to
+/// <see cref="DecodeFilterState.Unfiltered"/> on daemon restart.
+/// </summary>
+internal sealed class DecodeFilterStore : IDecodeFilterStore
+{
+    private volatile DecodeFilterState _current = DecodeFilterState.Unfiltered;
+
+    public DecodeFilterState Current => _current;
+
+    public void Set(DecodeFilterState state) => _current = state;
 }
