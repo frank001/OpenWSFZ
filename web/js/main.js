@@ -1084,7 +1084,8 @@ function setCatStatus(status) {
     return;
   }
   catBadgeEl.hidden     = false;
-  catBadgeEl.textContent = status;
+  catBadgeEl.textContent = 'CAT';
+  catBadgeEl.title       = 'CAT rig connection state: ' + status;
   catBadgeEl.className   = 'cat-badge cat-' + status.toLowerCase();
 }
 
