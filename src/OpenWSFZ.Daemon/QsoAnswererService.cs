@@ -1030,13 +1030,22 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             "QsoAnswererService: no response from {Partner} (retry {Retry}/{Max}) — retransmitting.",
             _partner, _retryCount, maxRetries);
 
+        // Bracket the retransmission with a Tx*/Wait* broadcast pair so #tx-enable-btn shows
+        // bright red for the duration of the retry, mirroring QsoCallerService.RetryOrAbortAsync.
+        // SetStateAndNotify only sets _state and publishes to the event bus — it does NOT call
+        // ResetWatchdog, so this does not reintroduce the watchdog-reset-on-retry problem D-008
+        // guards against (see below); it only fixes what gets broadcast.
+        var waitState = _state; // WaitReport or WaitRr73 — the only states this is called from
+        var txState   = waitState == QsoState.WaitRr73 ? QsoState.TxReport : QsoState.TxAnswer;
+        SetStateAndNotify(txState);
+
         // Retransmit the last TX message.
         await TransmitAsync(_lastTxMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
         _skipNextRetry = true; // A-01: retry TX window also needs its silence cycle skipped
         // D-008: watchdog is NOT reset here — retries are not state transitions.
         // The timer runs uninterrupted across retry cycles; genuine forward transitions
         // (HandleIdleAsync, HandleWaitReportAsync, ExecuteTx73Async) still call ResetWatchdog.
-        // Stay in current state (WaitReport or WaitRr73).
+        SetStateAndNotify(waitState); // back to WaitReport or WaitRr73
     }
 
     // ── TX helper ────────────────────────────────────────────────────────────

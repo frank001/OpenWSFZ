@@ -942,6 +942,99 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
+    // ── GUI polish batch item 2: retry TX-colour under-report ────────────────
+    //
+    // #tx-enable-btn (tx-state-indicators spec) derives its colour from the broadcast `state`
+    // alone. Prior to this fix, a retry retransmission stayed silently inside `WaitReport`/
+    // `WaitRr73` (dark red) even while audio was actively playing. The fix brackets the
+    // retransmission with a `Tx*` broadcast immediately before and the original `Wait*`
+    // broadcast immediately after — mirroring QsoCallerService.RetryOrAbortAsync's WaitAnswer
+    // retry (SetStateAndNotify(TxCq) / retransmit / SetStateAndNotify(WaitAnswer)).
+
+    [Fact(DisplayName = "GUI polish 2: WaitReport retry brackets retransmission with TxAnswer / WaitReport")]
+    public async Task WaitReport_Retry_BracketsRetransmissionWithTxAnswer()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 4,
+        };
+        var (sut, eventBus, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        eventBus.ClearReceivedCalls(); // only interested in the retry's own broadcasts below
+
+        // A-01 skip cycle, then the real retry-triggering cycle.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "CQ Q2NOISE IO91")]));
+        await Task.Delay(150);
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "CQ Q2NOISE IO91")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Task.Delay(50); // let the trailing post-retransmit publish settle
+
+        Received.InOrder(() =>
+        {
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>());
+            eventBus.Publish("WaitReport", "answerer", PartnerCall, true, Arg.Any<string?>());
+        });
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "GUI polish 2: WaitRr73 retry brackets retransmission with TxReport / WaitRr73")]
+    public async Task WaitRr73_Retry_BracketsRetransmissionWithTxReport()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 4,
+        };
+        var (sut, eventBus, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} +05")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        eventBus.ClearReceivedCalls(); // only interested in the retry's own broadcasts below
+
+        // A-01 skip cycle, then the real retry-triggering cycle.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "CQ Q2NOISE IO91")]));
+        await Task.Delay(150);
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "CQ Q2NOISE IO91")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Task.Delay(50); // let the trailing post-retransmit publish settle
+
+        Received.InOrder(() =>
+        {
+            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>());
+            eventBus.Publish("WaitRr73", "answerer", PartnerCall, true, Arg.Any<string?>());
+        });
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── Mutable config store helper (phase-aware pending-target tests) ────────
 
     /// <summary>
