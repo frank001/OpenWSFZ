@@ -1,0 +1,501 @@
+<title>Colour audit — the two TX reds</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<style>
+  :root {
+    --bg:        #f6f8fa;
+    --surface:   #ffffff;
+    --surface-2: #eef1f4;
+    --border:    #d0d7de;
+    --ink:       #1f2328;
+    --muted:     #59636e;
+    --accent:    #0969da;
+
+    /* the actual app tokens under test — never themed, these are the subject */
+    --red-armed-old:    #f85149;
+    --red-armed:        #803030;
+    --red-armed-hover:  #6c2828;
+    --red-tx:           #ff3b30;
+    --red-tx-hover:     #ff5c52;
+    --red-partner:      rgb(180, 40, 40);
+
+    /* fixed dark palette used only inside the "as it renders in the app" frames */
+    --app-bg:      #0d1117;
+    --app-surface: #161b22;
+    --app-border:  #30363d;
+    --app-ink:     #e6edf3;
+    --app-muted:   #8b949e;
+    --radius:      6px;
+
+    --font-ui:   system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface-2: #1c232c;
+      --border:    #30363d;
+      --ink:       #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --surface-2: #1c232c;
+    --border:    #30363d;
+    --ink:       #e6edf3;
+    --muted:     #8b949e;
+    --accent:    #58a6ff;
+  }
+  :root[data-theme="light"] {
+    --bg:        #f6f8fa;
+    --surface:   #ffffff;
+    --surface-2: #eef1f4;
+    --border:    #d0d7de;
+    --ink:       #1f2328;
+    --muted:     #59636e;
+    --accent:    #0969da;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  main {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 2.75rem 1.5rem 5rem;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.6rem;
+  }
+
+  h1 {
+    font-size: 1.7rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.5rem;
+    text-wrap: balance;
+  }
+
+  .lede {
+    color: var(--muted);
+    font-size: 0.98rem;
+    max-width: 38rem;
+    margin: 0 0 0;
+  }
+
+  .lede code { font-family: var(--font-mono); font-size: 0.88em; }
+
+  .callout {
+    margin: 1.75rem 0 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--muted);
+    border-radius: 4px;
+    background: var(--surface);
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+  .callout strong { color: var(--ink); }
+
+  section { margin-top: 3rem; }
+
+  h2 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0 0 0.3rem;
+  }
+  .section-note {
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin: 0 0 1.1rem;
+    max-width: 36rem;
+  }
+
+  /* ── The pair, abutting, full-bleed within the card ── */
+  .pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .pair-swatch {
+    height: 168px;
+    display: flex;
+    align-items: flex-end;
+    padding: 0.7rem 0.85rem;
+  }
+  .pair-swatch .tag {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(255,255,255,0.92);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+  }
+  .swatch-armed     { background: var(--red-armed); }
+  .swatch-armed-old { background: var(--red-armed-old); }
+  .swatch-tx        { background: var(--red-tx); }
+
+  .fixed-badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1a7f37;
+    background: rgba(63, 185, 80, 0.14);
+    border: 1px solid rgba(63, 185, 80, 0.4);
+    border-radius: 4px;
+    padding: 0.15rem 0.5rem;
+    margin-left: 0.6rem;
+    vertical-align: 1px;
+  }
+  @media (prefers-color-scheme: dark) { .fixed-badge { color: #3fb950; } }
+  :root[data-theme="dark"] .fixed-badge { color: #3fb950; }
+  :root[data-theme="light"] .fixed-badge { color: #1a7f37; }
+
+  .before-after-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin: 0.5rem 0 0.15rem;
+  }
+
+  /* ── Data table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+  }
+  caption { caption-side: top; text-align: left; }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+  }
+  thead th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  td.num, th.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .swatch-dot {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 2px;
+    margin-right: 0.5rem;
+    vertical-align: -1px;
+    border: 1px solid rgba(127,127,127,0.35);
+  }
+  .table-scroll { overflow-x: auto; }
+
+  .delta-strip {
+    display: flex;
+    gap: 1.4rem;
+    margin-top: 1.1rem;
+    padding: 0.9rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    flex-wrap: wrap;
+  }
+  .delta-item { min-width: 6.5rem; }
+  .delta-item .val {
+    font-family: var(--font-mono);
+    font-size: 1.3rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .delta-item .lbl {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .verdict {
+    margin-top: 0.9rem;
+    font-size: 0.92rem;
+  }
+  .verdict strong { color: var(--ink); }
+
+  /* ── App-frame mockups: fixed dark, regardless of viewer theme ── */
+  .app-frame {
+    background: var(--app-bg);
+    border: 1px solid var(--app-border);
+    border-radius: 8px;
+    padding: 1.4rem;
+    margin-top: 1rem;
+  }
+  .app-frame-label {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--app-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 0.9rem;
+  }
+  .btn-row {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn-demo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  .btn-demo .btn-caption {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--app-muted);
+  }
+  .tx-btn {
+    font-family: var(--font-ui);
+    font-size: 0.9rem;
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius);
+    color: #fff;
+    font-weight: 700;
+    border: 1px solid transparent;
+  }
+  .tx-btn.armed { background: var(--red-armed); border-color: var(--red-armed); }
+  .tx-btn.tx    { background: var(--red-tx); border-color: var(--red-tx); }
+
+  .decode-row-demo {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--app-ink);
+    display: grid;
+    grid-template-columns: 5rem 1fr;
+    gap: 0.4rem 0.9rem;
+  }
+  .decode-row-demo .row {
+    display: contents;
+  }
+  .decode-row-demo span {
+    padding: 0.35rem 0.5rem;
+    border-radius: 3px;
+  }
+  .row-plain span { background: transparent; }
+  .row-partner span { background: rgba(180, 40, 40, 0.18); }
+
+  .solid-vs-real {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .swatch-block {
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .swatch-block .fill {
+    height: 90px;
+  }
+  .swatch-block .meta {
+    padding: 0.6rem 0.75rem;
+    background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    color: var(--muted);
+  }
+  .fill-partner-solid { background: var(--red-partner); }
+  .fill-partner-real   { background: var(--app-surface);
+                          display: flex; align-items: center; justify-content: center; }
+  .fill-partner-real .chip { background: rgba(180,40,40,0.18); width: 100%; height: 100%; }
+
+  footer {
+    margin-top: 3.5rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  @media (max-width: 30rem) {
+    .pair { grid-template-columns: 1fr; }
+    .solid-vs-real { grid-template-columns: 1fr; }
+  }
+</style>
+
+<main>
+
+  <p class="eyebrow">Colour audit &middot; tx-state-indicators</p>
+  <h1><code>#tx-enable-btn.tx-btn-armed</code> recoloured: <code>#f85149</code> &rarr; <code>#803030</code></h1>
+  <p class="lede">
+    Terminal ANSI escapes don't render in this session's console, so the earlier attempt to show
+    swatches came through as literal <code>[48;2;…m</code> text rather than colour. Below is the
+    proper before/after render, plus the HSL numbers explaining why the old pair was genuinely
+    hard to tell apart &mdash; it wasn't just a rendering problem &mdash; and why the new pair
+    isn't.
+  </p>
+
+  <div class="callout">
+    <strong>Naming, resolved.</strong> <code>web/js/main.js:57</code> itself calls
+    <code>#f85149</code> (armed) the <em>"dark-red"</em> and <code>#ff3b30</code> (actively
+    transmitting) the <em>"bright-red"</em> &mdash; so that pair is what "dark vs. bright red"
+    refers to. A third, unrelated colour (<code>rgb(180,40,40)</code>, the decode-row highlight)
+    is separately called "dark red" in <code>app.css:1016</code> &mdash; a coincidental reuse of
+    the same words for a different element, addressed at the bottom.
+  </div>
+
+  <section>
+    <h2>Before — armed vs. transmitting<span class="fixed-badge">was indistinguishable</span></h2>
+    <p class="section-note">
+      No gap between them &mdash; if a difference was visible at all, it was a seam at the
+      centre, not two clearly different reds.
+    </p>
+    <div class="pair">
+      <div class="pair-swatch swatch-armed-old"><span class="tag">#f85149 — armed (old)</span></div>
+      <div class="pair-swatch swatch-tx"><span class="tag">#ff3b30 — transmitting</span></div>
+    </div>
+
+    <div class="delta-strip">
+      <div class="delta-item"><div class="val">0&deg;</div><div class="lbl">&Delta; hue</div></div>
+      <div class="delta-item"><div class="val">7 pts</div><div class="lbl">&Delta; saturation</div></div>
+      <div class="delta-item"><div class="val">4 pts</div><div class="lbl">&Delta; lightness</div></div>
+      <div class="delta-item"><div class="val">&asymp;34</div><div class="lbl">&Delta; RGB (Euclidean, of 441 max)</div></div>
+    </div>
+    <p class="verdict">
+      <strong>Same hue, both near-maximum saturation.</strong> The only difference was 4 points
+      of lightness &mdash; roughly the gap between "red" and "slightly lighter red." At button
+      size, that gap was close to imperceptible. Not a display or terminal problem &mdash; the
+      colours themselves were this close.
+    </p>
+  </section>
+
+  <section>
+    <h2>After — <code>#f85149</code> &rarr; <code>#803030</code><span class="fixed-badge">fixed</span></h2>
+    <p class="section-note">
+      Scoped to <code>.tx-btn-armed</code> only (<code>app.css:227-236</code>) &mdash; the shared
+      <code>--color-danger</code> token stays <code>#f85149</code> for the WS-disconnected dot,
+      feedback-error text, and CAT-error badge, which weren't part of the complaint.
+    </p>
+    <div class="pair">
+      <div class="pair-swatch swatch-armed"><span class="tag">#803030 — armed (new)</span></div>
+      <div class="pair-swatch swatch-tx"><span class="tag">#ff3b30 — transmitting</span></div>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>State</th><th>Hex</th><th class="num">RGB</th><th class="num">HSL</th><th>Selector</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="swatch-dot" style="background:#803030"></span>Armed (idle, auto-answer on)</td>
+            <td class="num">#803030</td>
+            <td class="num">128, 48, 48</td>
+            <td class="num">0&deg;, 45%, 34%</td>
+            <td class="num">.tx-btn-armed</td>
+          </tr>
+          <tr>
+            <td><span class="swatch-dot" style="background:#ff3b30"></span>Transmitting (Keying = true)</td>
+            <td class="num">#ff3b30</td>
+            <td class="num">255, 59, 48</td>
+            <td class="num">3&deg;, 100%, 59%</td>
+            <td class="num">.tx-btn-transmitting</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="delta-strip">
+      <div class="delta-item"><div class="val">3&deg;</div><div class="lbl">&Delta; hue</div></div>
+      <div class="delta-item"><div class="val">55 pts</div><div class="lbl">&Delta; saturation</div></div>
+      <div class="delta-item"><div class="val">25 pts</div><div class="lbl">&Delta; lightness</div></div>
+      <div class="delta-item"><div class="val">&asymp;128</div><div class="lbl">&Delta; RGB (Euclidean, of 441 max)</div></div>
+    </div>
+    <p class="verdict">
+      <strong>Roughly 3.7&times; the colour distance.</strong> Armed is now a muted, desaturated
+      brick red; transmitting stays the original vivid red. Distinct in hue-neighbourhood feel
+      (dull vs. vivid) as well as raw numbers, not just a lightness nudge.
+    </p>
+  </section>
+
+  <section>
+    <h2>As it now renders on the button</h2>
+    <p class="section-note">
+      Both states still use the identical label ("Enable TX") &mdash; colour remains the only
+      signal that the rig is actively keying right now, which is exactly why the two shades
+      needed to separate this clearly.
+    </p>
+    <div class="app-frame">
+      <p class="app-frame-label">OpenWSFZ &middot; TX panel (dark theme, app has no light mode)</p>
+      <div class="btn-row">
+        <div class="btn-demo">
+          <button class="tx-btn armed" type="button">Enable TX</button>
+          <span class="btn-caption">armed, not transmitting</span>
+        </div>
+        <div class="btn-demo">
+          <button class="tx-btn tx" type="button">Enable TX</button>
+          <span class="btn-caption">armed and transmitting</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The unrelated third red</h2>
+    <p class="section-note">
+      <code>.decode-partner</code> (decode-table row highlight, <code>app.css:1009</code>) is a
+      different colour serving a different purpose &mdash; not a third variant of the button
+      pair above. It's darker, less saturated, and in real use sits at 18% opacity over a dark
+      panel, so it reads as a faint wash, not a solid fill.
+    </p>
+    <div class="solid-vs-real">
+      <div class="swatch-block">
+        <div class="fill fill-partner-solid"></div>
+        <div class="meta">rgb(180,40,40) &middot; hsl(0&deg;,64%,43%) &middot; as authored, full strength</div>
+      </div>
+      <div class="swatch-block">
+        <div class="fill fill-partner-real"><div class="chip"></div></div>
+        <div class="meta">same colour &middot; 18% opacity over #161b22 &middot; as actually rendered</div>
+      </div>
+    </div>
+    <div class="app-frame">
+      <p class="app-frame-label">Decode panel row highlight, in context</p>
+      <div class="decode-row-demo">
+        <div class="row row-plain"><span>13:24:00</span><span>CQ EA1ABC IN80</span></div>
+        <div class="row row-partner"><span>13:24:15</span><span>Q1OFZ EA1ABC JO33 -09</span></div>
+        <div class="row row-plain"><span>13:24:30</span><span>CQ DL2XYZ JO40</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Sources: web/css/app.css:9, 227&ndash;250, 1009&ndash;1016 &middot; web/js/main.js:54&ndash;58, 226&ndash;238
+  </footer>
+
+</main>

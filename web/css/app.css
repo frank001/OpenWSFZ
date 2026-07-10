@@ -223,16 +223,23 @@ label {
   align-items: center;
 }
 
-/* Armed toggle button (task 5.5) */
+/* Armed toggle button (task 5.5).
+   Deliberately NOT var(--color-danger) (#f85149): that token is shared with the
+   WS-disconnected dot, feedback-error text, and CAT-error badge, and at #f85149 it sat
+   only 4 points of HSL lightness below .tx-btn-transmitting's #ff3b30 (same hue, both
+   near-max saturation) — armed and actively-transmitting were nearly indistinguishable
+   at button size. #803030 is a distinct, deliberately darker/desaturated red so the two
+   states read apart at a glance; scoped to this button only, --color-danger's other
+   consumers are unaffected. */
 #tx-enable-btn.tx-btn-armed {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
+  background: #803030;
+  border-color: #803030;
   color: #fff;
   font-weight: 700;
 }
 #tx-enable-btn.tx-btn-armed:hover:not(:disabled) {
-  background: #da3b36;
-  border-color: #da3b36;
+  background: #6c2828;
+  border-color: #6c2828;
 }
 
 /* Armed AND actively transmitting — bright red (FR-TX-UI-004, tx-state-indicators).
