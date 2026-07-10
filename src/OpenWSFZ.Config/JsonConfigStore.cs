@@ -14,6 +14,14 @@ public sealed class JsonConfigStore : IConfigStore
     private readonly ILogger<JsonConfigStore>? _logger;
     private volatile AppConfig                _current;
 
+    // Serializes SaveAsync so concurrent callers (e.g. WebApp.cs's explicit /tx/abort save
+    // racing SafeAbortToIdleAsync's own save, or CatPollingService's independent polling
+    // save) queue instead of both calling File.Move onto the same destination path at once.
+    // Windows transiently denies a second File.Move targeting a path that another
+    // File.Move/replace onto that same path is mid-flight on, throwing
+    // UnauthorizedAccessException — see dev-tasks/2026-07-10-config-store-concurrent-save-race.md.
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+
     /// <param name="path">Resolved config file path (from <see cref="ConfigPathResolver"/>).</param>
     /// <param name="logger">Optional logger.  When <c>null</c> the store operates silently.</param>
     public JsonConfigStore(string path, ILogger<JsonConfigStore>? logger = null)
@@ -39,35 +47,45 @@ public sealed class JsonConfigStore : IConfigStore
 
         Directory.CreateDirectory(dir);
 
-        // Write to a temp file in the same directory, then rename atomically.
-        var tmp = Path.Combine(dir, Path.GetRandomFileName());
+        // Serialize the write-then-rename critical section across concurrent callers.
+        // See _saveLock's declaration for why this is necessary.
+        await _saveLock.WaitAsync(ct);
         try
         {
-            await using (var stream = new FileStream(
-                tmp,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None,
-                bufferSize: 4096,
-                useAsync: true))
+            // Write to a temp file in the same directory, then rename atomically.
+            var tmp = Path.Combine(dir, Path.GetRandomFileName());
+            try
             {
-                await JsonSerializer.SerializeAsync(
-                    stream,
-                    config,
-                    ConfigJsonContext.Default.AppConfig,
-                    ct);
-            }
+                await using (var stream = new FileStream(
+                    tmp,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 4096,
+                    useAsync: true))
+                {
+                    await JsonSerializer.SerializeAsync(
+                        stream,
+                        config,
+                        ConfigJsonContext.Default.AppConfig,
+                        ct);
+                }
 
-            File.Move(tmp, _path, overwrite: true);
-            _current = config;
-            _logger?.LogInformation("Configuration saved to '{Path}'.", _path);
-            OnSaved?.Invoke(config);
+                File.Move(tmp, _path, overwrite: true);
+                _current = config;
+                _logger?.LogInformation("Configuration saved to '{Path}'.", _path);
+                OnSaved?.Invoke(config);
+            }
+            catch
+            {
+                // Clean up the temp file on failure; re-throw so the caller knows.
+                try { File.Delete(tmp); } catch { /* best-effort */ }
+                throw;
+            }
         }
-        catch
+        finally
         {
-            // Clean up the temp file on failure; re-throw so the caller knows.
-            try { File.Delete(tmp); } catch { /* best-effort */ }
-            throw;
+            _saveLock.Release();
         }
     }
 

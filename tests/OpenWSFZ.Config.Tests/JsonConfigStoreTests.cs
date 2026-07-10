@@ -1,6 +1,7 @@
 using FluentAssertions;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Config;
+using System.Linq;
 using System.Text.Json;
 using Xunit;
 
@@ -164,6 +165,42 @@ public sealed class JsonConfigStoreTests
             "only the config file should remain — no temp files left behind");
         System.IO.Path.GetFullPath(files[0]).Should().Be(
             System.IO.Path.GetFullPath(configPath));
+    }
+
+    // ── 2026-07-10 concurrent-save race (dev-tasks/2026-07-10-config-store-concurrent-save-race.md) ──
+
+    [Fact(DisplayName = "Regression: JsonConfigStore.SaveAsync serializes concurrent callers without throwing")]
+    public async Task SaveAsync_ConcurrentCallers_DoNotThrow_AndFileEndsUpValid()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        // Fire many concurrent saves at the same store instance — this reproduces the
+        // WebApp.cs /tx/abort vs. SafeAbortToIdleAsync race (and the CatPollingService
+        // case) where two independent callers both call File.Move onto the same
+        // destination path at roughly the same instant.
+        const int concurrentSaves = 20;
+        var tasks = Enumerable.Range(0, concurrentSaves)
+            .Select(i => store.SaveAsync(new AppConfig(AudioDeviceId: $"Mic{i}", Port: 8080 + i)))
+            .ToArray();
+
+        // Act — must not throw UnauthorizedAccessException (or anything else).
+        var act = async () => await Task.WhenAll(tasks);
+        await act.Should().NotThrowAsync();
+
+        // Assert — exactly one config file remains and it is valid, parseable JSON
+        // reflecting one of the saved values (whichever finished last).
+        var files = Directory.GetFiles(dir.Path);
+        files.Should().ContainSingle(
+            "concurrent saves must not leave orphaned temp files behind");
+
+        var onDisk = JsonSerializer.Deserialize(
+            File.ReadAllText(configPath),
+            ConfigJsonContext.Default.AppConfig);
+        onDisk.Should().NotBeNull();
+        onDisk!.AudioDeviceId.Should().MatchRegex("^Mic\\d+$");
+        onDisk.Port.Should().BeInRange(8080, 8080 + concurrentSaves - 1);
     }
 
     // ── FR-019: configurable log level ────────────────────────────────────────
