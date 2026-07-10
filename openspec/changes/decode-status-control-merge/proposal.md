@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 The main page status bar currently shows two separate elements for decode state:
