@@ -1,0 +1,9 @@
+{
+  "name": "openwsfz-web-js",
+  "private": true,
+  "type": "module",
+  "description": "ESM marker only — no npm dependencies. Lets `node --test` load these ES modules directly. Never installed/built; the browser serves these files as static assets via <script type=\"module\">, which ignores this file entirely.",
+  "scripts": {
+    "test": "node --test *.test.js"
+  }
+}

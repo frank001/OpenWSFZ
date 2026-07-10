@@ -2307,4 +2307,151 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StopAsync(CancellationToken.None);
         await ptt.DisposeAsync();
     }
+
+    // ── decode-panel-filtering: automation gating (tasks 3.2–3.4) ────────────
+
+    /// <summary>Simple mutable <see cref="IDecodeFilterStore"/> test double — no broadcast, just state.</summary>
+    private sealed class MutableDecodeFilterStore : IDecodeFilterStore
+    {
+        public DecodeFilterState Current { get; private set; } = DecodeFilterState.Unfiltered;
+        public void Set(DecodeFilterState state) => Current = state;
+    }
+
+    private static DecodeResult MakeCq(string callsign, string grid, WorkedBeforeState contactState)
+        => new(
+            Time:         "12:00:00",
+            Snr:          -5,
+            Dt:           0.1,
+            FreqHz:       AudioFreqHz,
+            Message:      $"CQ {callsign} {grid}",
+            WorkedBefore: WorkedBeforeInfo.None with { Contact = contactState });
+
+    private async Task<(QsoAnswererService Sut, IPttController Ptt, Channel<DecodeBatch> Channel,
+                         CancellationTokenSource StopCts, MutableDecodeFilterStore FilterStore)>
+        BuildFilteredSutAsync()
+    {
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        });
+        store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var channel     = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog     = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var filterStore = new MutableDecodeFilterStore();
+        var earlyInWindow = new FakeTimeProvider(
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
+                      adifLog, new AudioOffsetEventBus(), NullLogger<QsoAnswererService>.Instance,
+                      watchdogDurationOverride: TimeSpan.FromMinutes(4),
+                      timeProvider: earlyInWindow,
+                      catState: null,
+                      decodeFilterStore: filterStore);
+
+        var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        return (sut, ptt, channel, stopCts, filterStore);
+    }
+
+    [Fact(DisplayName = "decode-panel-filtering: filtered-out CQ is skipped, next non-filtered CQ engaged instead")]
+    public async Task Idle_FilteredOutCq_SkippedInFavourOfNextCq()
+    {
+        var (sut, ptt, channel, stopCts, filterStore) = await BuildFilteredSutAsync();
+
+        // Exclude ThisBand on the Contact axis — Q1TST (ThisBand) is filtered out;
+        // Q2ABC (Never, via WorkedBeforeInfo.None) passes.
+        filterStore.Set(new DecodeFilterState(
+            ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+        [
+            MakeCq(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand),  // filtered out
+            MakeCq("Q2ABC", "KP20", WorkedBeforeState.Never),              // not filtered out
+        ]));
+
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+        sut.Partner.Should().Be("Q2ABC", "the filtered-out CQ must be skipped entirely");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "decode-panel-filtering: all-filtered-out cycle behaves identically to an empty cycle")]
+    public async Task Idle_AllCqsFilteredOut_StaysIdleNoTransmit()
+    {
+        var (sut, ptt, channel, stopCts, filterStore) = await BuildFilteredSutAsync();
+
+        filterStore.Set(new DecodeFilterState(
+            ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+        [
+            MakeCq(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand), // filtered out — only CQ in cycle
+        ]));
+        await Task.Delay(300);
+
+        sut.State.Should().Be(QsoState.Idle,
+            "a cycle where every CQ is filtered out must behave identically to a cycle with no CQs");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "decode-panel-filtering: filter change after engagement does not abort an in-progress QSO")]
+    public async Task WaitReport_FilterChangedAfterEngagement_QsoContinuesUnaffected()
+    {
+        var (sut, ptt, channel, stopCts, filterStore) = await BuildFilteredSutAsync();
+
+        // Unfiltered at engagement time — Q1TST is answered normally.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+        [
+            MakeCq(PartnerCall, PartnerGrid, WorkedBeforeState.Never),
+        ]));
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+        sut.Partner.Should().Be(PartnerCall);
+
+        // Now change the filter so the active partner would be filtered out if re-evaluated.
+        filterStore.Set(new DecodeFilterState(
+            ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
+
+        // Partner sends a signal report — the QSO must proceed exactly as if the filter had
+        // never changed, because the filter is not re-checked once engagement has begun.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [Make($"{OurCallsign} {PartnerCall} -05")]));
+
+        await WaitForStateAsync(sut, QsoState.WaitRr73);
+        sut.Partner.Should().Be(PartnerCall, "an in-progress QSO must not be aborted by a filter change");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "decode-panel-filtering: no IDecodeFilterStore supplied (null) behaves as fully unfiltered")]
+    public async Task Idle_NoFilterStoreSupplied_BehavesAsUnfiltered()
+    {
+        // The shared _sut (InitializeAsync) is constructed without a decodeFilterStore argument.
+        _channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [MakeCq(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand)]));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport);
+        _sut!.Partner.Should().Be(PartnerCall,
+            "a null IDecodeFilterStore must impose no filtering — no regression for callers not yet updated");
+    }
 }

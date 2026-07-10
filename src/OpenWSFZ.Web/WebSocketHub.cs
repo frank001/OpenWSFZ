@@ -546,6 +546,36 @@ internal static class WebSocketHub
     }
 
     /// <summary>
+    /// Broadcasts a <c>decodeFilterChanged</c> event to all WebSocket clients connected to the
+    /// <see cref="WebApp"/> instance identified by <paramref name="scope"/>
+    /// (<c>decode-panel-filtering</c> capability, design.md Decision 3). Pushed whenever
+    /// <c>POST /api/v1/decode-filter</c> replaces the daemon's current
+    /// <see cref="DecodeFilterState"/>, so every connected tab's popup and rendered table can
+    /// update immediately — including the tab that issued the POST.
+    ///
+    /// <para>
+    /// The scope guard matches the pattern already used in <see cref="AbortAll"/> and
+    /// <see cref="BroadcastAudioOffset"/> (N6): only sockets whose registered scope equals
+    /// <paramref name="scope"/> receive the frame.
+    /// </para>
+    /// </summary>
+    internal static void BroadcastDecodeFilterChanged(Guid scope, DecodeFilterState state)
+    {
+        if (ActiveSockets.IsEmpty) return;
+
+        var msg     = new WsDecodeFilterMessage(Type: "decodeFilterChanged", Payload: state);
+        var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsDecodeFilterMessage);
+        var bytes   = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        foreach (var (ws, socketScope) in ActiveSockets)
+        {
+            if (socketScope != scope) continue;   // scope guard — same pattern as BroadcastAudioOffset
+            _ = SendWithTimeoutAsync(ws, segment);
+        }
+    }
+
+    /// <summary>
     /// Broadcasts a <c>qsoReview</c> event to all currently connected WebSocket clients.
     /// Called when the state machine enters <c>Tx73</c> (answerer) or <c>TxRr73</c> (caller)
     /// and <c>tx.qsoConfirmation</c> is <c>true</c>.  The browser opens the confirmation dialog

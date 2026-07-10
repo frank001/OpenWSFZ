@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    decode-panel-filtering: standalone synthesised-signal verification tool.
+
+    Deliberately NOT part of OpenWSFZ.slnx and NOT built/run by `dotnet test OpenWSFZ.slnx`.
+    This is a manually-run console program, not a regression-suite test — it exists to let a
+    human (Captain or QA) verify, on demand, that decode-panel-filtering's automation gate
+    behaves correctly against genuinely synthesised-and-decoded FT8 audio, closing the gap left
+    by openspec/changes/decode-panel-filtering/tasks.md task 6.4 (which was left as a manual,
+    hardware-dependent check) without requiring real audio hardware or a virtual audio cable.
+
+    Run from this directory with:  dotnet run -c Release
+    (or from the repo root:  dotnet run -c Release -p qa/decode-filter-synth-verify)
+    See README.md in this directory for what it does and what it does not cover.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- Not part of the main solution's build/test pipeline by design; see comment above. -->
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
+    <ProjectReference Include="..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
+  </ItemGroup>
+</Project>

@@ -75,11 +75,11 @@
               <th>Freq</th>
               <th>Message</th>
               <th>Region</th>
-              <th title="Contact">Ctc</th>
-              <th title="DXCC (Country)">DXCC</th>
-              <th title="Continent">Cnt</th>
-              <th title="CQ Zone">CQz</th>
-              <th title="ITU Zone">ITz</th>
+              <th id="col-ctc"  class="filterable-col" title="Contact — click to filter">Ctc</th>
+              <th id="col-dxcc" class="filterable-col" title="DXCC (Country) — click to filter">DXCC</th>
+              <th id="col-cnt"  class="filterable-col" title="Continent — click to filter">Cnt</th>
+              <th id="col-cqz"  class="filterable-col" title="CQ Zone — click to filter">CQz</th>
+              <th id="col-itz"  class="filterable-col" title="ITU Zone — click to filter">ITz</th>
             </tr>
           </thead>
           <tbody id="decodes-body">
@@ -89,6 +89,9 @@
           </tbody>
         </table>
       </section>
+
+      <!-- decode-panel-filtering: column-header filter popup (hidden until opened) -->
+      <div id="decode-filter-popup" class="decode-filter-popup" hidden></div>
 
       <!-- TX control panel -->
       <section id="tx-panel" aria-label="TX control">

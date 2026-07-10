@@ -49,6 +49,8 @@ tools/**/obj/
 tools/**/bin/
 tests/**/obj/
 tests/**/bin/
+qa/**/obj/
+qa/**/bin/
 *.user
 
 # Test results and coverage

@@ -52,6 +52,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     // D-013: live CAT state for resolving the true dial frequency at QSO-completion time
     // (WebApp.ResolveEffectiveFrequency's tier 1); null means CAT genuinely not wired up.
     private readonly ICatState?                                  _catState;
+    // decode-panel-filtering: consulted once at the responder-selection decision point in
+    // HandleWaitAnswerAsync and SelectResponderAsync; null behaves as fully unfiltered (no
+    // regression for callers that don't supply one — mirrors D-013's ICatState? posture).
+    private readonly IDecodeFilterStore?                         _decodeFilterStore;
 
     // Volatile: readable from the HTTP handler thread without a lock.
     private volatile CallerState _callerState = CallerState.Idle;
@@ -85,6 +89,15 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private double           _pendingResponderFrequencyHz;
     private bool             _pendingResponderIsAPhase;
     private DateTimeOffset   _pendingResponderSetAt;
+
+    // decode-panel-filtering: the most recently observed DecodeResult for each responder
+    // callsign seen this WaitAnswer session (CallerPartnerSelectMode.None path), keyed by
+    // callsign. Lets SelectResponderAsync — which receives only a callsign, not a DecodeResult
+    // — evaluate the active filter at the moment of operator selection. A callsign absent from
+    // this map (e.g. a caller that bypasses the normal decode-batch path) fails open, matching
+    // every other "unresolved data" case in this feature. Cleared on every return to Idle.
+    private readonly Dictionary<string, DecodeResult> _recentResponderDecodes =
+        new(StringComparer.OrdinalIgnoreCase);
 
     private volatile CancellationTokenSource _txCts = new();
     private volatile bool _operatorAbortRequested;
@@ -129,7 +142,8 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         AudioOffsetEventBus         audioOffsetEventBus,
         ILogger<QsoCallerService>   logger,
         IApConstraintSink?          decoder = null,
-        ICatState?                  catState = null)
+        ICatState?                  catState = null,
+        IDecodeFilterStore?         decodeFilterStore = null)
     {
         _decodeChannel       = decodeChannel;
         _configStore         = configStore;
@@ -140,6 +154,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _logger              = logger;
         _decoder             = decoder;
         _catState            = catState;
+        _decodeFilterStore   = decodeFilterStore;
     }
 
     /// <summary>
@@ -159,8 +174,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         ILogger<QsoCallerService>   logger,
         TimeSpan                    watchdogDurationOverride,
         IApConstraintSink?          decoder = null,
-        ICatState?                  catState = null)
-        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, decoder, catState)
+        ICatState?                  catState = null,
+        IDecodeFilterStore?         decodeFilterStore = null)
+        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, decoder, catState, decodeFilterStore)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
     }
@@ -254,6 +270,17 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         {
             if (_callerState != CallerState.WaitAnswer)
                 return Task.CompletedTask; // Guard: only valid in WaitAnswer
+
+            // decode-panel-filtering: reject a call naming a currently filtered-out callsign —
+            // the filter applies uniformly regardless of partner-selection mode, not only to
+            // the automatic First path. No _pendingResponder is stored and no state transition
+            // occurs. Fails open when the callsign isn't in _recentResponderDecodes.
+            var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+            if (_recentResponderDecodes.TryGetValue(callsign, out var recentDecode) &&
+                !DecodeFilterEvaluator.IsVisible(recentDecode, filterState))
+            {
+                return Task.CompletedTask;
+            }
 
             // The responder answered on phase P → we reply on the opposite phase.
             bool responseIsAPhase          = IsAPhase(responseCycleStart);
@@ -568,35 +595,53 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         }
 
         // ── First mode: auto-engage ───────────────────────────────────────────
+        // decode-panel-filtering: skip any responder whose callsign fails the active filter;
+        // select the first non-filtered-out one. If every response in the cycle is filtered
+        // out, the loop falls through to the retry/watchdog accounting below exactly as if
+        // the cycle had been genuinely empty.
         if (tx.CallerPartnerSelect == CallerPartnerSelectMode.First)
         {
+            var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+
             foreach (var r in batch.Results)
             {
-                if (TryParseResponder(r.Message, ours, out var responder, out var freqHz, _logger))
-                {
-                    _logger.LogInformation(
-                        "QsoCallerService: {Responder} answered our CQ at {FreqHz} Hz — sending report.",
-                        responder, (int)Math.Round(freqHz > 0 ? freqHz : r.FreqHz));
+                if (!TryParseResponder(r.Message, ours, out var responder, out var freqHz, _logger))
+                    continue;
 
-                    _skipNextRetry = false; // matched — clear skip guard
-                    var effectiveFreq = freqHz > 0 ? freqHz : r.FreqHz;
-                    await ExecuteTxReportAsync(responder, effectiveFreq, tx, stoppingToken)
-                        .ConfigureAwait(false);
-                    return;
-                }
+                if (!DecodeFilterEvaluator.IsVisible(r, filterState))
+                    continue; // filtered out — skip entirely, do not deprioritise
+
+                _logger.LogInformation(
+                    "QsoCallerService: {Responder} answered our CQ at {FreqHz} Hz — sending report.",
+                    responder, (int)Math.Round(freqHz > 0 ? freqHz : r.FreqHz));
+
+                _skipNextRetry = false; // matched — clear skip guard
+                var effectiveFreq = freqHz > 0 ? freqHz : r.FreqHz;
+                await ExecuteTxReportAsync(responder, effectiveFreq, tx, stoppingToken)
+                    .ConfigureAwait(false);
+                return;
             }
         }
         // None mode with no pending responder: stay in WaitAnswer if this batch
         // contains at least one response to our CQ — the operator must click a
         // highlighted row.  Only proceed to retry when the batch is genuinely empty
-        // of responses.
+        // of responses. Every recognised responder decode is recorded (regardless of
+        // filter state) so a later SelectResponderAsync call can evaluate the filter at
+        // the moment of operator selection (decode-panel-filtering).
         if (tx.CallerPartnerSelect == CallerPartnerSelectMode.None)
         {
+            var sawResponse = false;
+
             foreach (var r in batch.Results)
             {
-                if (TryParseResponder(r.Message, ours, out _, out _, _logger))
-                    return; // responses present — hold in WaitAnswer
+                if (!TryParseResponder(r.Message, ours, out var responder, out _, _logger))
+                    continue;
+
+                sawResponse = true;
+                lock (_stateLock) { _recentResponderDecodes[responder] = r; }
             }
+
+            if (sawResponse) return; // responses present — hold in WaitAnswer
         }
 
         // No matching message — retry or abort.
@@ -877,6 +922,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             _pendingResponderFrequencyHz = 0.0;
             _pendingResponderIsAPhase    = false;
             _pendingResponderSetAt       = default;
+            // decode-panel-filtering: discard stale per-session responder decode data so a
+            // future WaitAnswer session never evaluates SelectResponderAsync against a
+            // previous session's decode.
+            _recentResponderDecodes.Clear();
         }
 
         var wasPartner = _partner;

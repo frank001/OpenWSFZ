@@ -449,7 +449,8 @@ var app = WebApp.Create(
                 sp.GetRequiredService<AudioOffsetEventBus>(),
                 sp.GetRequiredService<ILogger<QsoAnswererService>>(),
                 sp.GetService<IApConstraintSink>(),
-                sp.GetService<ICatState>());
+                sp.GetService<ICatState>(),
+                sp.GetService<IDecodeFilterStore>());
             // Set IsActive immediately so the service behaves correctly from the first batch.
             svc.IsActive = (txRole == TxRole.Answerer);
             return svc;
@@ -465,7 +466,8 @@ var app = WebApp.Create(
                 sp.GetRequiredService<AudioOffsetEventBus>(),
                 sp.GetRequiredService<ILogger<QsoCallerService>>(),
                 sp.GetService<IApConstraintSink>(),
-                sp.GetService<ICatState>());
+                sp.GetService<ICatState>(),
+                sp.GetService<IDecodeFilterStore>());
             svc.IsActive = (txRole == TxRole.Caller);
             return svc;
         });

@@ -263,6 +263,22 @@ jobs:
           name: test-results-${{ matrix.os }}
           path: TestResults/
 
+      # -----------------------------------------------------------------
+      # JS unit tests: mirrors the C# `DecodeFilterEvaluatorTests` suite
+      # (decode-panel-filtering capability, design.md Decision 2's drift-risk
+      # mitigation — "mirrored unit tests on both sides"). Runs once, Linux
+      # only, like the other single-run gates below — the suite isn't
+      # OS-dependent and GitHub-hosted runners ship Node preinstalled, so no
+      # setup-node/npm-install step is needed (web/js/package.json has zero
+      # dependencies). Added after discovering the suite had never actually
+      # executed in CI (or anywhere) — its own header comment contained a
+      # `**/` glob that silently truncated the file's JSDoc block comment,
+      # making all 21 tests a parse error rather than a pass.
+      # -----------------------------------------------------------------
+      - name: JS unit tests (web/js)
+        if: runner.os == 'Linux'
+        run: node --test web/js/*.test.js
+
       # =================================================================
       # Linux-only gates (G3, G5, and coverage reporting)
       # =================================================================
