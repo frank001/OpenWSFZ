@@ -139,6 +139,12 @@ public sealed class JsonConfigStore : IConfigStore
             if (config.DecodeNoiseSuppression is null)
                 config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
 
+            // "externalReporting" key is absent in config files written before the
+            // gridtracker-udp-reporting change. Same STJ source-gen null-vs-initialiser guard as
+            // "logging"/"decodeLog"/"remoteAccess"/"decodeNoiseSuppression" above.
+            if (config.ExternalReporting is null)
+                config = config with { ExternalReporting = new ExternalReportingConfig() };
+
             // "cat" key is intentionally nullable: absent in config files written before p16.
             // Null is the correct default (CAT disabled); no guard needed — consumers use
             // (config.Cat ?? new CatConfig()) to get a non-null value.
@@ -208,10 +214,11 @@ public sealed class JsonConfigStore : IConfigStore
         var json = JsonSerializer.Serialize(
             new AppConfig() with
             {
-                Cat          = new CatConfig(),
-                Tx           = new TxConfig(),
-                RemoteAccess = new RemoteAccessConfig(),
-                Decoder      = new DecoderConfig(),
+                Cat               = new CatConfig(),
+                Tx                = new TxConfig(),
+                RemoteAccess      = new RemoteAccessConfig(),
+                Decoder           = new DecoderConfig(),
+                ExternalReporting = new ExternalReportingConfig(),
             },
             ConfigJsonContext.Default.AppConfig);
 
