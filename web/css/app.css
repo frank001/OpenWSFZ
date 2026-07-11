@@ -1,16 +1,20 @@
 /* ── Design tokens ─────────────────────────────────────────────────────── */
 :root {
-  --color-bg:       #0d1117;
-  --color-surface:  #161b22;
-  --color-border:   #30363d;
-  --color-text:     #e6edf3;
-  --color-accent:   #58a6ff;
-  --color-success:  #3fb950;
-  --color-danger:   #f85149;
-  --color-warning:  #d4a017;
-  --color-muted:    #8b949e;
-  --radius:         6px;
-  --font-mono:      ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --color-bg:                  #0d1117;
+  --color-surface:             #161b22;
+  --color-border:              #30363d;
+  --color-text:                #e6edf3;
+  --color-accent:              #58a6ff;
+  --color-success:             #3fb950;
+  --color-danger:              #f85149;
+  --color-armed:               #803030;
+  --color-armed-hover:         #6c2828;
+  --color-transmitting:        #ff3b30;
+  --color-transmitting-hover:  #ff5c52;
+  --color-warning:             #d4a017;
+  --color-muted:               #8b949e;
+  --radius:                    6px;
+  --font-mono:                 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────── */
@@ -226,34 +230,35 @@ label {
 /* Armed toggle button (task 5.5).
    Deliberately NOT var(--color-danger) (#f85149): that token is shared with the
    WS-disconnected dot, feedback-error text, and CAT-error badge, and at #f85149 it sat
-   only 4 points of HSL lightness below .tx-btn-transmitting's #ff3b30 (same hue, both
-   near-max saturation) — armed and actively-transmitting were nearly indistinguishable
-   at button size. #803030 is a distinct, deliberately darker/desaturated red so the two
+   only 4 points of HSL lightness below --color-transmitting (same hue, both near-max
+   saturation) — armed and actively-transmitting were nearly indistinguishable at button
+   size. --color-armed is a distinct, deliberately darker/desaturated red so the two
    states read apart at a glance; scoped to this button only, --color-danger's other
    consumers are unaffected. */
 #tx-enable-btn.tx-btn-armed {
-  background: #803030;
-  border-color: #803030;
+  background: var(--color-armed);
+  border-color: var(--color-armed);
   color: #fff;
   font-weight: 700;
 }
 #tx-enable-btn.tx-btn-armed:hover:not(:disabled) {
-  background: #6c2828;
-  border-color: #6c2828;
+  background: var(--color-armed-hover);
+  border-color: var(--color-armed-hover);
 }
 
 /* Armed AND actively transmitting — bright red (FR-TX-UI-004, tx-state-indicators).
-   Takes visual precedence over tx-btn-armed by being a brighter/more saturated red;
-   both classes are applied together (armed is always true whenever transmitting is). */
+   --color-transmitting takes visual precedence over --color-armed by being a
+   brighter/more saturated red; both classes are applied together (armed is always
+   true whenever transmitting is). */
 #tx-enable-btn.tx-btn-transmitting {
-  background: #ff3b30;
-  border-color: #ff3b30;
+  background: var(--color-transmitting);
+  border-color: var(--color-transmitting);
   color: #fff;
   font-weight: 700;
 }
 #tx-enable-btn.tx-btn-transmitting:hover:not(:disabled) {
-  background: #ff5c52;
-  border-color: #ff5c52;
+  background: var(--color-transmitting-hover);
+  border-color: var(--color-transmitting-hover);
 }
 
 /* Call CQ button engaged — steady bright green (tx-state-indicators, design.md Decision 2).
