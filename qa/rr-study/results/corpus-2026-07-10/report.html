@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S6 Corpus Replay — Endurance-Run Repeatability &amp; Reproducibility Re-run (2026-07-11)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="s6-corpus-replay-endurance-run-repeatability-reproducibility-re-run-2026-07-11">S6 Corpus Replay — Endurance-Run Repeatability &amp; Reproducibility Re-run (2026-07-11)</h1>
+<h2 id="1-study-hypothesis">1. Study hypothesis</h2>
+<p><strong>Why this run exists.</strong> The last several endurance reports (<code>qa/endurance/2026-07-06-7340e45</code>,
+<code>qa/endurance/2026-07-07-bb0a1c4</code>) have repeatedly asserted, without direct measurement, that
+<em>"WSJT-X is not an infallible oracle in a live band"</em> whenever OpenWSFZ decodes something WSJT-X
+did not — the excess is inferred to be genuine signal recovery from an OSD false-positive rate
+model (D-009), never checked against either decoder's own repeatability. Separately,
+<code>STUDY-SPEC.md</code> §6.1 already commits to the correct underlying design principle (§2.2, D1:
+<em>"WSJT-X is a co-appraiser, not the gold standard"</em>) but its S6 scenario had only ever been run
+once, on a curated 20 m bench corpus (<code>results/corpus-2026-06-11</code>), and its narrative stated an
+expectation — <em>"both decoders are deterministic in monitor mode… Expected: ~100%"</em> — that was
+never revisited after that first run quietly returned 93.0%/94.7%, not 100%.</p>
+<p>The Captain asked directly: replay a representative sample of WAVs from an existing endurance
+run through both applications a number of times sufficient for statistical significance, and
+report a proper repeatability-and-reproducibility (R&amp;R) analysis of <strong>both</strong> appraisers — not
+only against each other, but against themselves.</p>
+<p><strong>What this run tests, concretely:</strong></p>
+<ul>
+<li><strong>H1 (repeatability — appraiser vs itself):</strong> replayed with bit-identical audio, does each
+  application reproduce its own prior decode decision? (STUDY-SPEC §6.1's within-appraiser
+  consistency metric — the existing harness measurement for this.)</li>
+<li><strong>H2 (reproducibility — appraiser vs appraiser):</strong> do OpenWSFZ and WSJT-X agree with each other
+  on which signals are present, at a level indicating they are measuring "the same thing"
+  (Cohen's κ ≥ 0.70, the AIAG attribute-agreement threshold already ratified in STUDY-SPEC §10)?</li>
+<li><strong>H3 (NEW — continuous ANOVA on SNR):</strong> for signals <em>both</em> appraisers successfully decoded,
+  decompose the SNR measurement variance into Repeatability (EV, an appraiser's own trial-to-trial
+  variance) and Reproducibility (AV + Part×Appraiser interaction, appraiser-to-appraiser variance)
+  using the same two-way crossed Gage R&amp;R ANOVA method already ratified for the synthetic S1
+  scenario (§9.1) — applied here to real off-air parts for the first time. This is the piece that
+  was missing: S6 has only ever reported a scalar mean SNR delta, which cannot distinguish "a
+  constant calibration offset" from "the two decoders disagree differently signal by signal."</li>
+</ul>
+<p>This is the second execution of S6 ever, and the first against material drawn from a live
+endurance-run corpus rather than the original curated bench set, and the first with a continuous
+ANOVA rather than only attribute (κ) and scalar (mean/σ) SNR statistics.</p>
+<h2 id="2-data-summary">2. Data summary</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run date</td>
+<td>2026-07-11 (harness auto-named the results directory by UTC date, 2026-07-10, since the run started shortly before UTC midnight)</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>f5cba9f</code> (main HEAD at run time)</td>
+</tr>
+<tr>
+<td>WSJT-X version</td>
+<td>WSJT-X 2.7.0</td>
+</tr>
+<tr>
+<td><strong>Corpus source</strong></td>
+<td><strong>Stratified sample of 42 of the 4,075 WAVs captured live during the <code>20260706_live_run_2308</code> endurance session</strong> (40 m FT8, 2026-07-06 21:16 UTC – 2026-07-07 14:15 UTC; see <code>qa/endurance/2026-07-07-bb0a1c4/report.md</code>) — <strong>not</strong> the original 20 m bench corpus used by the first S6 run</td>
+</tr>
+<tr>
+<td>Sample method</td>
+<td>Deterministic, seeded stratified sampling across the four time windows that session's own report already established (evening 21–24 UTC, overnight background 00–05, dawn propagation-shift spike 05–08, midday lull 08–15), 12/12/12/6 files respectively, so the sample covers varied band conditions rather than one. <code>qa/rr-study/select_endurance_sample.py</code>; manifest at <code>results/2026-07-11-owsfz-rerun-sample/sample_manifest.md</code></td>
+</tr>
+<tr>
+<td>Runs (K)</td>
+<td>3, independently randomised presentation order per run, crossed design (both apps capture every cycle concurrently via VB-CABLE) — same method as the original S6 (STUDY-SPEC §6.1)</td>
+</tr>
+<tr>
+<td>Signal universe</td>
+<td>Union of all signals decoded by either appraiser in any run</td>
+</tr>
+<tr>
+<td>Total (WAV, signal, run) observations</td>
+<td>3,270</td>
+</tr>
+<tr>
+<td>Variables measured</td>
+<td>Decode decision (binary); SNR (dB, matched pairs only, and — new this run — the full balanced part × appraiser × trial cube for signals decoded by both in all 3 runs)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Operational note:</strong> the harness's pre-flight warm-up step (<code>corpus_replay.py</code>) requires an
+interactive y/n confirmation, which is incompatible with a backgrounded/non-interactive shell (it
+receives EOF and aborts). This run's warm-up was instead verified directly by inspecting both
+<code>ALL.TXT</code> files for the injected warm-up message (<code>CQ Q1ABC FN42</code>, confirmed present in both logs
+at the correct cycle) before clearing the logs and re-launching with <code>--skip-warmup</code>. No data was
+lost; flagged in §5 as a small harness usability gap for future agent-driven runs.</p>
+<p><strong>Acceptance thresholds (STUDY-SPEC §10 / NFR-023) — shown as reference points, not a gate for
+this run.</strong> This execution is an investigative repeatability re-run requested directly by the
+Captain, not a scheduled regression-gate run of S6 against its original bench corpus, so no
+PASS/FAIL verdict is asserted against these thresholds here. The more meaningful comparison for
+this run's actual purpose is against the original 2026-06-11 S6 execution (§3.1), which used the
+same method on different source material.</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Threshold</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Between-appraiser κ</td>
+<td>≥ 0.90 (PASS) / ≥ 0.70 (conditional)</td>
+<td>AIAG attribute study</td>
+</tr>
+<tr>
+<td>Within-appraiser consistency</td>
+<td>≥ 90%</td>
+<td>AIAG attribute study</td>
+</tr>
+<tr>
+<td>SNR bias (mean delta)</td>
+<td>±2.0 dB</td>
+<td>spec §SNR accuracy / D-002</td>
+</tr>
+<tr>
+<td>SNR spread (σ of delta)</td>
+<td>≤ 4.0 dB</td>
+<td>D-004 acceptance criterion</td>
+</tr>
+<tr>
+<td>R&amp;R %Study Variation (new, ANOVA)</td>
+<td>&lt;10% acceptable / 10–30% conditional / &gt;30% needs improvement</td>
+<td>AIAG continuous Gage R&amp;R (§9.1 method)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-results">3. Results</h2>
+<h3 id="31-within-appraiser-consistency-h1-repeatability">3.1 Within-appraiser consistency (H1 — repeatability)</h3>
+<p><em>A (WAV, signal) pair is consistent if the decode decision is identical across all K runs for
+that appraiser. This is the direct test of "does the app reproduce itself."</em></p>
+<table>
+<thead>
+<tr>
+<th>Appraiser</th>
+<th>(WAV, signal) pairs</th>
+<th>Consistent</th>
+<th>% Consistent</th>
+<th>vs. 2026-06-11 bench-corpus run</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X</td>
+<td>1,090</td>
+<td>947</td>
+<td><strong>86.9%</strong></td>
+<td>93.0% (933 pairs)</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td>1,090</td>
+<td>1,007</td>
+<td><strong>92.4%</strong></td>
+<td>94.7% (933 pairs)</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Within-appraiser consistency" src="consistency.png" /></p>
+<p><strong>Neither appraiser is close to the ~100% STUDY-SPEC §6.1 originally expected, and this is now
+confirmed on two independent corpora, five weeks apart, on different bands (20 m bench corpus vs
+40 m live-endurance sample).</strong> WSJT-X is the less self-consistent of the two both times (86.9%
+here, 93.0% originally); OpenWSFZ is more consistent both times (92.4% here, 94.7% originally),
+though still well short of deterministic. <strong>H1 is REJECTED for both appraisers</strong> — replaying
+bit-identical audio through the same analog signal chain three times does not reliably reproduce
+the same decode decision, for either decoder. This is a genuine finding about signals sitting near
+each decoder's detection threshold, not a study-execution defect (see §3.5 — no order effect, so
+it isn't session-state drift).</p>
+<h3 id="32-between-appraiser-agreement-cohens-h2-reproducibility">3.2 Between-appraiser agreement — Cohen's κ (H2 — reproducibility)</h3>
+<p><em>Landis-Koch (1977) scale: &lt; 0.20 Slight, 0.20–0.40 Fair, 0.40–0.60 Moderate, 0.60–0.80
+Substantial, ≥ 0.80 Almost perfect.</em></p>
+<p><strong>κ = 0.0986</strong> (95% CI [0.0619, 0.1353]) — Slight, well below the 0.70 conditional threshold.
+Consistent with the 2026-06-11 run's κ = 0.0839 — the same "Slight" agreement band, on an
+entirely different sample. <strong>H2 is REJECTED</strong>, in line with the already-known D-001 decode gap.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>WSJT-X decoded</th>
+<th>WSJT-X not decoded</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OpenWSFZ decoded</strong></td>
+<td>1,635 (TP)</td>
+<td>184 (FP)</td>
+</tr>
+<tr>
+<td><strong>OpenWSFZ not decoded</strong></td>
+<td>1,171 (FN)</td>
+<td>280 (TN)</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Between-appraiser agreement" src="kappa.png" /></p>
+<h3 id="33-decode-gap-d-001-field-evidence">3.3 Decode gap — D-001 field evidence</h3>
+<p><em>Informational, matches the parent endurance session's own finding.</em></p>
+<p>OpenWSFZ decoded <strong>1,635</strong> of the <strong>2,806</strong> signals WSJT-X found (<strong>58.3%</strong> recall) — closely in
+line with the parent endurance report's session-wide 56.30% overall recall figure
+(<code>qa/endurance/2026-07-07-bb0a1c4/report.md</code> §3.2), confirming the stratified sample is
+representative rather than an outlier draw.</p>
+<h3 id="worst-gap-files-top-10-by-missed-decodes-averaged-over-k-runs">Worst-gap files (top 10 by missed decodes, averaged over K runs)</h3>
+<table>
+<thead>
+<tr>
+<th>WAV</th>
+<th>WSJT-X avg</th>
+<th>OpenWSFZ avg</th>
+<th>Missed avg</th>
+<th>OpenWSFZ rate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>260707_012245.wav</td>
+<td>39.0</td>
+<td>18.7</td>
+<td>21.3</td>
+<td>45%</td>
+</tr>
+<tr>
+<td>260707_054145.wav</td>
+<td>33.0</td>
+<td>17.7</td>
+<td>20.0</td>
+<td>39%</td>
+</tr>
+<tr>
+<td>260707_002700.wav</td>
+<td>35.7</td>
+<td>20.3</td>
+<td>18.7</td>
+<td>48%</td>
+</tr>
+<tr>
+<td>260707_044515.wav</td>
+<td>31.0</td>
+<td>18.7</td>
+<td>15.3</td>
+<td>51%</td>
+</tr>
+<tr>
+<td>260707_014045.wav</td>
+<td>40.3</td>
+<td>26.0</td>
+<td>15.3</td>
+<td>62%</td>
+</tr>
+<tr>
+<td>260707_044145.wav</td>
+<td>33.3</td>
+<td>21.7</td>
+<td>14.7</td>
+<td>56%</td>
+</tr>
+<tr>
+<td>260706_221415.wav</td>
+<td>28.0</td>
+<td>20.0</td>
+<td>13.7</td>
+<td>51%</td>
+</tr>
+<tr>
+<td>260706_212315.wav</td>
+<td>24.7</td>
+<td>11.7</td>
+<td>13.3</td>
+<td>46%</td>
+</tr>
+<tr>
+<td>260707_031115.wav</td>
+<td>32.7</td>
+<td>20.0</td>
+<td>13.3</td>
+<td>59%</td>
+</tr>
+<tr>
+<td>260706_231930.wav</td>
+<td>32.7</td>
+<td>22.3</td>
+<td>13.3</td>
+<td>59%</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Per-WAV decode gap" src="decode_gap.png" /></p>
+<h3 id="34-snr-reporting-mean-delta-scalar-summary">3.4 SNR reporting — mean/σ delta (scalar summary)</h3>
+<p>Mean SNR delta (OpenWSFZ − WSJT-X) = <strong>−3.582 dB</strong>, σ = <strong>5.150 dB</strong>, n = 1,635 matched decode
+pairs. Both outside the ±2.0 dB / ≤4.0 dB reference thresholds, consistent in direction and
+rough magnitude with the parent live-run report's own field SNR bias figure (−10.46 dB mean on
+the full session — different because that figure spans the whole 17-hour session including much
+weaker-signal content; the sign and "wider than synthetic-bench" pattern match). This scalar
+summary is exactly why §3.6 below was built: a mean and σ cannot tell us whether the disagreement
+is one constant offset or something signal-dependent.</p>
+<p><img alt="SNR scatter — OpenWSFZ vs WSJT-X" src="snr_delta.png" /></p>
+<h3 id="35-order-effect-test">3.5 Order-effect test</h3>
+<p>No order effect detected for either appraiser (WSJT-X ρ = −0.0924, p = 0.30; OpenWSFZ ρ = −0.0469,
+p = 0.60) — the §3.1 repeatability shortfall is not session-state drift or warm-up carryover.</p>
+<h3 id="36-new-continuous-gage-rr-anova-on-matched-decode-snr-h3">3.6 NEW — Continuous Gage R&amp;R ANOVA on matched-decode SNR (H3)</h3>
+<p>Two-way crossed ANOVA with interaction (AIAG Gage R&amp;R method, the same method already ratified
+for S1 in STUDY-SPEC §9.1), computed on the subset of signals <strong>both appraisers decoded in every
+one of the 3 runs</strong> — a balanced part × appraiser × trial cube is required for the sum-of-squares
+formulas. 515 of the 1,090 candidate (WAV, signal) parts qualified (47.2%); the rest are excluded
+by construction (a signal missed by either appraiser in any single trial cannot contribute a
+"same-signal repeated-measurement" data point, which is itself just another expression of the
+§3.1 repeatability shortfall).</p>
+<p><strong>ANOVA table:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>SS</th>
+<th>df</th>
+<th>MS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td>284,728.82</td>
+<td>514</td>
+<td>553.947</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td>9,496.40</td>
+<td>1</td>
+<td>9,496.404</td>
+</tr>
+<tr>
+<td>Part × Appraiser</td>
+<td>19,774.43</td>
+<td>514</td>
+<td>38.472</td>
+</tr>
+<tr>
+<td>Repeatability (error)</td>
+<td>578.67</td>
+<td>2,060</td>
+<td>0.281</td>
+</tr>
+<tr>
+<td>Total</td>
+<td>314,578.32</td>
+<td>3,089</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variance-component breakdown:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>SD (dB)</th>
+<th>%Contribution (variance)</th>
+<th>%Study Variation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Repeatability (EV) — appraiser vs itself across trials</td>
+<td>0.530</td>
+<td>0.27%</td>
+<td>5.17%</td>
+</tr>
+<tr>
+<td>Reproducibility (AV) — flat appraiser-to-appraiser offset</td>
+<td>2.474</td>
+<td>5.83%</td>
+<td>24.14%</td>
+</tr>
+<tr>
+<td>Part × Appraiser interaction</td>
+<td>3.568</td>
+<td>12.12%</td>
+<td>34.81%</td>
+</tr>
+<tr>
+<td>Reproducibility (total, AV+interaction)</td>
+<td>4.342</td>
+<td>17.95%</td>
+<td>42.36%</td>
+</tr>
+<tr>
+<td><strong>R&amp;R (Repeatability + Reproducibility combined)</strong></td>
+<td><strong>4.374</strong></td>
+<td><strong>18.21%</strong></td>
+<td><strong>42.68%</strong></td>
+</tr>
+<tr>
+<td>Part-to-part (PV) — genuine signal-to-signal SNR spread</td>
+<td>9.269</td>
+<td>81.79%</td>
+<td>90.44%</td>
+</tr>
+<tr>
+<td>Total variation (TV)</td>
+<td>10.249</td>
+<td>100.00%</td>
+<td>100.00%</td>
+</tr>
+</tbody>
+</table>
+<p>ndc (number of distinct categories) = <strong>2.99</strong>. WSJT-X mean 0.783 dB, OpenWSFZ mean −2.724 dB,
+grand mean −0.971 dB.</p>
+<p><strong>This is the key new result of this run.</strong> Against the AIAG reference bands (&gt;30% "needs
+improvement"), the combined measurement system sits at 42.68% %Study Variation — squarely in
+"needs improvement" territory, consistent with §3.1/§3.2's attribute-level rejection of H1/H2.
+But the <em>decomposition</em> is the informative part: only 5.17% of study variation is pure
+repeatability noise (an appraiser's own trial-to-trial wobble is small and, by itself, would be
+close to acceptable). The dominant term is the <strong>Part × Appraiser interaction (34.81%)</strong>, nearly
+three times the flat appraiser-to-appraiser offset (24.14%). In plain terms: <strong>the two decoders do
+not disagree by a constant calibration offset that could be corrected with a single shim constant
+(that was D-002's premise) — they disagree <em>differently depending on which specific signal is
+being measured</em>.</strong> That is precisely the signature you would expect if each decoder's SNR
+estimate is sensitive, in a signal-dependent way, to exactly the kind of near-threshold,
+co-channel, or waterfall-congestion conditions already implicated in D-001/D-003/D-004 — not
+evidence that one decoder is a clean, stable reference and the other is simply "worse."</p>
+<h2 id="4-summary-verdict-table">4. Summary verdict table</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>This run</th>
+<th>2026-06-11 bench-corpus run</th>
+<th>Verdict (reference thresholds)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Within-appraiser consistency (WSJT-X)</td>
+<td>86.9%</td>
+<td>93.0%</td>
+<td>Below 90% both times</td>
+</tr>
+<tr>
+<td>Within-appraiser consistency (OpenWSFZ)</td>
+<td>92.4%</td>
+<td>94.7%</td>
+<td>Above 90% both times, not deterministic</td>
+</tr>
+<tr>
+<td>Between-appraiser κ</td>
+<td>0.0986</td>
+<td>0.0839</td>
+<td>"Slight" both times, well below 0.70</td>
+</tr>
+<tr>
+<td>OpenWSFZ decode rate vs WSJT-X</td>
+<td>58.3%</td>
+<td>— (not reported that run)</td>
+<td>Matches parent endurance session (56.3%)</td>
+</tr>
+<tr>
+<td>SNR bias (mean delta)</td>
+<td>−3.582 dB</td>
+<td>(S1 synthetic bench: +1.78 dB)</td>
+<td>Outside ±2.0 dB reference</td>
+</tr>
+<tr>
+<td>SNR spread (σ)</td>
+<td>5.150 dB</td>
+<td>—</td>
+<td>Outside ≤4.0 dB reference</td>
+</tr>
+<tr>
+<td><strong>R&amp;R %Study Variation (NEW, ANOVA)</strong></td>
+<td><strong>42.68%</strong></td>
+<td>not previously computed</td>
+<td>"Needs improvement" band; dominated by Part×Appraiser interaction, not flat bias or noise</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall: this run reproduces the 2026-06-11 bench-corpus S6 result on an independent, live-drawn
+40 m sample</strong> — neither appraiser is close to perfectly self-repeatable, and their between-app
+agreement is low, driven mostly by the known D-001 decode gap. The new ANOVA decomposition adds a
+mechanism-level answer that neither the original run nor any endurance report has previously
+produced: the SNR disagreement between the two decoders is not a fixed, correctable offset, it is
+signal-dependent.</p>
+<h2 id="5-recommendations">5. Recommendations</h2>
+<p><strong>Direct answer to the Captain's original question ("is WSJT-X an infallible oracle?"):</strong> No, and
+this is no longer only an inference from an OSD false-positive rate model — it is now measured
+directly. WSJT-X's own within-appraiser repeatability (86.9% this run, 93.0% originally) means it
+does not even reproduce its own decode decisions on identical audio 100% of the time, so it
+structurally cannot serve as ground truth for a live band. OpenWSFZ is not a clean oracle either
+(92.4%/94.7% repeatability, also not 100%). Both are noisy measurement instruments operating near
+their own detection thresholds; the correct framing (already ratified as D1 in STUDY-SPEC §2.2,
+now with direct field evidence rather than only synthetic-study rationale) is that endurance
+reports should stop describing OpenWSFZ-only or WSJT-X-only decodes as presumptively "real" or
+"false" based on which app produced them, and should instead treat any single-decoder-only
+message as unconfirmed pending a truly independent check (e.g. a completed QSO, or third-party
+spot corroboration) if that distinction is ever needed again.</p>
+<ol>
+<li><strong>Correct STUDY-SPEC.md §6.1.</strong> Its stated expectation — <em>"both decoders are deterministic in
+   monitor mode… Expected: ~100%"</em> — is now falsified twice, on two independent corpora five
+   weeks apart. This should be updated to reflect the measured ~87–95% range rather than an
+   unverified ~100% assumption, so a future reader doesn't repeat this run to rediscover the same
+   fact.</li>
+<li><strong>Promote the ANOVA decomposition (§3.6) into S6's standard, regression-tracked output</strong>, not
+   just this one-off re-run. Mean/σ SNR delta alone cannot distinguish a fixable calibration
+   constant from an unfixable signal-dependent disagreement; this run shows the latter dominates,
+   which is materially more useful for prioritising D-002/D-003/D-004 work than the scalar figure
+   alone.</li>
+<li><strong>Fix the harness's interactive warm-up prompt</strong> (<code>corpus_replay.py</code>, <code>_warmup()</code>) to accept a
+   non-interactive confirmation path (e.g. <code>--yes</code>, or auto-detect the warm-up message in both
+   <code>ALL.TXT</code> files instead of asking a human) — it currently EOFs and aborts under any
+   backgrounded/agent-driven invocation, which cost one full restart this run. Low effort, keeps
+   future agent-run S6 executions from needing the same manual workaround used here.</li>
+<li><strong>No new D-001/D-002/D-004 action implied beyond what's already tracked.</strong> The decode-gap and
+   SNR-bias figures in this sample reproduce the parent endurance session's own findings closely
+   (§3.3, §3.4) — this run corroborates existing open issues, it does not surface a new regression.</li>
+<li><strong>Worth a third data point.</strong> Both repeatability figures and both κ figures now agree closely
+   across two independent runs; a third corpus (ideally the opposite extreme — e.g. a
+   weak-signal-dominated or heavily co-channel session) would confirm whether the ~87–95%
+   repeatability range and the interaction-dominated R&amp;R breakdown are general properties of both
+   decoders or specific to these two sample compositions.</li>
+</ol>
+<hr />
+<p><em>Callsigns scrubbed per NFR-021. Real callsigns replaced with <code>[CALL]</code> before commit. Raw
+<code>ALL.TXT</code> snapshots, <code>run_manifest.json</code>, and the sampled WAV corpus copies remain local-only
+(git-ignored) — this report and <code>summary.csv</code>/<code>anova_snr.csv</code>/PNGs contain no message text or
+callsigns.</em></p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
