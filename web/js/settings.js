@@ -8,6 +8,7 @@
  */
 
 import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
+import { resolveUnknownCheckboxDisplay } from './decodeNoiseSuppression.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const outputDeviceSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('output-device-select'));
@@ -86,6 +87,10 @@ const regionDataRefreshBtn    = /** @type {HTMLButtonElement} */ (document.getEl
 const regionDataLookupInput   = /** @type {HTMLInputElement}  */ (document.getElementById('region-data-lookup-input'));
 const regionDataLookupBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('region-data-lookup-btn'));
 const regionDataLookupResult  = /** @type {HTMLElement}       */ (document.getElementById('region-data-lookup-result'));
+
+// decode-noise-suppression: Region data tab's suppression controls.
+const suppressUnknownRegion   = /** @type {HTMLInputElement}  */ (document.getElementById('suppress-unknown-region'));
+const suppressSynthetic       = /** @type {HTMLInputElement}  */ (document.getElementById('suppress-synthetic'));
 
 // Advanced Decoder Settings controls (decoder-settings-page)
 const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-k'));
@@ -231,6 +236,24 @@ let audioOpaqueFields = {};
 // is respected rather than silently reverted.
 deviceSelect.addEventListener('change', () => { audioOpaqueFields = {}; });
 
+// decode-noise-suppression (design.md Decision 3): SuppressUnknownRegion is a tri-state
+// persisted value (null = "operator hasn't decided yet", true/false = explicit). The checkbox
+// itself only ever shows a boolean (the persisted value once explicit, or the live-resolved
+// effective value while still unset — see renderRegionDataStatus below), so a boolean
+// checked/unchecked read alone cannot tell "unset, currently displaying the computed default"
+// apart from "explicitly set to this same value." `_suppressUnknownRegionRaw` tracks the actual
+// tri-state value to send on Save: seeded from the persisted config on load (task 4.2), and only
+// ever promoted from null to an explicit boolean by the 'change' listener below on genuine user
+// interaction (never by the programmatic `.checked =` assignment in renderRegionDataStatus).
+/** @type {boolean|null} */
+let _suppressUnknownRegionRaw = null;
+
+if (suppressUnknownRegion) {
+  suppressUnknownRegion.addEventListener('change', () => {
+    _suppressUnknownRegionRaw = suppressUnknownRegion.checked;
+  });
+}
+
 // ── Dirty-state snapshot (FR-040) ────────────────────────────────────────
 
 /** JSON string of form values captured immediately after a successful page load.
@@ -297,6 +320,13 @@ function snapshotForm() {
       kMinScorePass2:   decoderK.value,
       osdCorrThreshold: decoderCorr.value,
       osdNhardMax:      decoderNhard.value,
+    },
+    // decode-noise-suppression: include both suppression controls in dirty-state snapshot.
+    // suppressUnknownRegion uses the tri-state _suppressUnknownRegionRaw (not the checkbox's
+    // display value) so a live-effective-value display update never registers as a false dirty.
+    decodeNoiseSuppression: {
+      suppressUnknownRegion: _suppressUnknownRegionRaw,
+      suppressSynthetic:     suppressSynthetic?.checked ?? true,
     },
   });
 }
@@ -634,6 +664,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     decoderCorr.value  = String(dec.osdCorrThreshold ?? 0.10);
     decoderNhard.value = String(dec.osdNhardMax      ?? 60);
 
+    // Pre-fill decode-noise-suppression controls (task 4.2). suppressSynthetic is a plain
+    // persisted boolean (task 4.3 — no live-recompute step). suppressUnknownRegion's checkbox
+    // display is handled by renderRegionDataStatus (called separately, below) once the
+    // region-data status fetch resolves; here we only seed the tri-state value to send back on
+    // Save if the operator never touches the control this session.
+    const noise = config.decodeNoiseSuppression ?? {};
+    if (suppressSynthetic) suppressSynthetic.checked = noise.suppressSynthetic ?? true;
+    _suppressUnknownRegionRaw = noise.suppressUnknownRegion ?? null;
+
     // Capture the clean baseline after all fields are fully populated (FR-040).
     _cleanSnapshot = snapshotForm();
 
@@ -898,6 +937,16 @@ saveBtn.addEventListener('click', async () => {
       osdNhardMax:      Number.isFinite(decoderNhardRaw) ? decoderNhardRaw : 60,
     };
 
+    // Collect decode-noise-suppression config (decode-noise-suppression, design.md Decision 3).
+    // suppressUnknownRegion sends the tri-state _suppressUnknownRegionRaw as-is — null while the
+    // operator has never touched the control this session (preserving "auto" across an unrelated
+    // save), or the explicit boolean the moment they have. suppressSynthetic is a plain boolean,
+    // no tri-state (task 4.3).
+    const decodeNoiseSuppression = {
+      suppressUnknownRegion: _suppressUnknownRegionRaw,
+      suppressSynthetic:     suppressSynthetic?.checked ?? true,
+    };
+
     // POST config and frequencies in parallel (FR-043 / FR-007).
     await Promise.all([
       postConfig({
@@ -914,6 +963,7 @@ saveBtn.addEventListener('click', async () => {
         tx,
         remoteAccess,
         decoder,
+        decodeNoiseSuppression,
       }),
       postFrequencies(freqEntries),
     ]);
@@ -1007,10 +1057,24 @@ const tabBtnRegionData = /** @type {HTMLButtonElement} */ (document.getElementBy
  *   lastRefreshUtc: string|null,
  *   lastRefreshSucceeded: boolean|null,
  *   lastReleaseVersion: string|null,
- *   lastErrorMessage: string|null
+ *   lastErrorMessage: string|null,
+ *   effectiveSuppressUnknownRegion: boolean
  * }} status
  */
 function renderRegionDataStatus(status) {
+  // decode-noise-suppression (task 3.4/4.2): reflect the live-resolved effective value while the
+  // operator has never made an explicit choice this session or in the persisted config
+  // (_suppressUnknownRegionRaw still null); once explicit — either from the persisted config on
+  // load, or the instant the operator clicks the control (see the 'change' listener above) —
+  // resolveUnknownCheckboxDisplay (decodeNoiseSuppression.js, DOM-free/unit-tested) returns that
+  // explicit value unchanged instead. Safe to re-run on every status refresh (page load, after a
+  // region-data refresh completes, and on every Region-data tab open) without ever clobbering an
+  // unsaved explicit click.
+  if (suppressUnknownRegion) {
+    suppressUnknownRegion.checked =
+      resolveUnknownCheckboxDisplay(_suppressUnknownRegionRaw, status.effectiveSuppressUnknownRegion);
+  }
+
   if (!regionDataStatusSummary) return;
 
   const count = status.entryCount ?? 0;

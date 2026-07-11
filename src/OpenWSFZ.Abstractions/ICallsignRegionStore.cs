@@ -7,6 +7,15 @@ namespace OpenWSFZ.Abstractions;
 /// malformed file all degrade to "no match" (rendered as <c>"Unknown"</c> by the
 /// frontend) and never affect decode accept/reject decisions
 /// (<c>region-lookup</c> capability).
+/// <para>
+/// Resolution here is unmodified by, and unaware of, the <c>decode-noise-suppression</c>
+/// capability — <see cref="TryGetRegion"/> still resolves and returns exactly as documented below
+/// for every decode. That capability's <c>DecodeNoiseSuppressionFilter</c> is a separate,
+/// operator-opt-in stage layered on <em>after</em> resolution, in the daemon's decode-pump loop,
+/// that may withhold an already-resolved (or already-unresolved) decode from the decode panel and
+/// QSO automation. If a future reader lands here expecting every resolution to always reach the
+/// UI, see that filter's doc comment for the deliberate, operator-controlled exception.
+/// </para>
 /// </summary>
 public interface ICallsignRegionStore
 {

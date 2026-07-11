@@ -133,6 +133,12 @@ public sealed class JsonConfigStore : IConfigStore
             if (config.RemoteAccess is null)
                 config = config with { RemoteAccess = new RemoteAccessConfig() };
 
+            // "decodeNoiseSuppression" key is absent in config files written before the
+            // decode-noise-suppression phase. Same STJ source-gen null-vs-initialiser guard as
+            // "logging"/"decodeLog"/"remoteAccess" above.
+            if (config.DecodeNoiseSuppression is null)
+                config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
+
             // "cat" key is intentionally nullable: absent in config files written before p16.
             // Null is the correct default (CAT disabled); no guard needed — consumers use
             // (config.Cat ?? new CatConfig()) to get a non-null value.

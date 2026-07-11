@@ -362,6 +362,8 @@ public static class WebApp
                 config = config with { Logging = new LoggingConfig() };
             if (config.DecodeLog is null)
                 config = config with { DecodeLog = new DecodeLogConfig() };
+            if (config.DecodeNoiseSuppression is null)
+                config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
 
             // ── CAT config validation (FR-031, FR-034) ─────────────────────────
             if (config.Cat is { } cat)
@@ -727,14 +729,20 @@ public static class WebApp
         // GET /api/v1/region-data/status (f-006 §6.1): operator-facing summary of the active
         // region table and this session's refresh history — no GUI reachability existed for the
         // refresh capability until this endpoint + the "Region data" settings tab were added.
-        app.MapGet("/api/v1/region-data/status", (ICallsignRegionStore regionStore) =>
+        // EffectiveSuppressUnknownRegion (decode-noise-suppression, task 3.4) reuses this same
+        // entry-count check via DecodeNoiseSuppressionDefaults — the single source of truth also
+        // consulted by OpenWSFZ.Daemon's DecodeNoiseSuppressionFilter — so the settings page never
+        // computes or duplicates this logic itself.
+        app.MapGet("/api/v1/region-data/status", (ICallsignRegionStore regionStore, IConfigStore configStore) =>
             TypedResults.Ok(new RegionDataStatusResponse(
                 EntryCount:               regionStore.Entries.Count,
                 HasRefreshedThisSession:  regionRefreshHasRun,
                 LastRefreshUtc:           regionRefreshLastUtc,
                 LastRefreshSucceeded:     regionRefreshLastSucceeded,
                 LastReleaseVersion:       regionRefreshLastVersion,
-                LastErrorMessage:         regionRefreshLastError)));
+                LastErrorMessage:         regionRefreshLastError,
+                EffectiveSuppressUnknownRegion: DecodeNoiseSuppressionDefaults.ResolveEffectiveSuppressUnknownRegion(
+                    configStore.Current.DecodeNoiseSuppression.SuppressUnknownRegion, regionStore))));
 
         // GET /api/v1/region-data/lookup?callsign={token} (f-006 §6.4): read-only diagnostic —
         // resolves a callsign against the active region table using the same longest-prefix-match

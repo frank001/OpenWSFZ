@@ -46,6 +46,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(AnswerCqRequest))]
 [JsonSerializable(typeof(RemoteAccessConfig))]
 [JsonSerializable(typeof(DecoderConfig))]
+[JsonSerializable(typeof(DecodeNoiseSuppressionConfig))]
 [JsonSerializable(typeof(WsAuthFrame))]
 [JsonSerializable(typeof(SelectResponderRequest))]
 [JsonSerializable(typeof(EngageDecodeRequest))]
@@ -278,15 +279,25 @@ public sealed record RegionRefreshResponse(bool Success, int EntryCount, string?
 /// session's</em> refresh history only (no new persistence; they reset on restart, consistent
 /// with "refresh is never automatic").
 /// Wire format: <c>{"entryCount":38,"hasRefreshedThisSession":false,"lastRefreshUtc":null,
-/// "lastRefreshSucceeded":null,"lastReleaseVersion":null,"lastErrorMessage":null}</c>.
+/// "lastRefreshSucceeded":null,"lastReleaseVersion":null,"lastErrorMessage":null,
+/// "effectiveSuppressUnknownRegion":true}</c>.
 /// </summary>
+/// <param name="EffectiveSuppressUnknownRegion">
+/// The live-resolved effective value of
+/// <c>DecodeNoiseSuppressionConfig.SuppressUnknownRegion</c> (<c>decode-noise-suppression</c>
+/// capability, design.md Decision 3/task 3.4) — the persisted value when the operator has made an
+/// explicit choice, otherwise computed from <c>EntryCount &gt; 0</c>. The settings page displays
+/// this rather than the raw persisted field so the operator always sees what's actually being
+/// applied, including the auto-computed default.
+/// </param>
 public sealed record RegionDataStatusResponse(
     int             EntryCount,
     bool            HasRefreshedThisSession,
     DateTimeOffset? LastRefreshUtc,
     bool?           LastRefreshSucceeded,
     string?         LastReleaseVersion,
-    string?         LastErrorMessage);
+    string?         LastErrorMessage,
+    bool            EffectiveSuppressUnknownRegion);
 
 /// <summary>
 /// Response body for <c>GET /api/v1/region-data/lookup?callsign={token}</c>

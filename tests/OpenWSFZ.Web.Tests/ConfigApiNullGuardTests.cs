@@ -79,4 +79,40 @@ public sealed class ConfigApiNullGuardTests : IClassFixture<WebTestFactory>
         loggingElement.ValueKind.Should().NotBe(JsonValueKind.Null,
             "a POST body omitting \"logging\" must never leave IConfigStore.Current.Logging null");
     }
+
+    [Fact(DisplayName = "D-010-class AC-3: POST omitting \"decodeNoiseSuppression\" key does not persist a null DecodeNoiseSuppression")]
+    public async Task PostConfig_OmittingDecodeNoiseSuppressionKey_DoesNotPersistNullDecodeNoiseSuppression()
+    {
+        var client  = _factory.CreateClient();
+        var content = new StringContent(
+            """{ "audioDeviceId": "test-device" }""",
+            Encoding.UTF8, "application/json");
+
+        var postResp = await client.PostAsync("/api/v1/config", content);
+        postResp.StatusCode.Should().Be(HttpStatusCode.OK,
+            "a request body omitting decodeNoiseSuppression must still be accepted");
+
+        var getResp = await client.GetAsync("/api/v1/config");
+        getResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await getResp.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        doc.RootElement.TryGetProperty("decodeNoiseSuppression", out var decodeNoiseSuppressionElement)
+            .Should().BeTrue("GET /api/v1/config must include the decodeNoiseSuppression key");
+        decodeNoiseSuppressionElement.ValueKind.Should().NotBe(JsonValueKind.Null,
+            "a POST body omitting \"decodeNoiseSuppression\" must never leave " +
+            "IConfigStore.Current.DecodeNoiseSuppression null (this class of bug crashes every " +
+            "subsequent DecodeNoiseSuppressionFilter.Apply call in the decode-pump loop before " +
+            "AllTxtWriter.AppendAsync is reached)");
+
+        // Must be default DecodeNoiseSuppressionConfig values, not merely non-null.
+        decodeNoiseSuppressionElement.GetProperty("suppressUnknownRegion").ValueKind.Should().Be(
+            JsonValueKind.Null,
+            "the recovered DecodeNoiseSuppression must be the default DecodeNoiseSuppressionConfig(), " +
+            "i.e. SuppressUnknownRegion unset");
+        decodeNoiseSuppressionElement.GetProperty("suppressSynthetic").GetBoolean().Should().BeTrue(
+            "the recovered DecodeNoiseSuppression must be the default DecodeNoiseSuppressionConfig(), " +
+            "i.e. SuppressSynthetic = true");
+    }
 }
