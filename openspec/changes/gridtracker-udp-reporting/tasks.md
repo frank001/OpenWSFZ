@@ -14,22 +14,23 @@
 
 ## 2. WSJT-X datagram serialisation
 
-- [ ] 2.1 Add internal `WsjtxDatagram` static class in `OpenWSFZ.Daemon` implementing the
+- [x] 2.1 Add internal `WsjtxDatagram` static class in `OpenWSFZ.Daemon` implementing the
       magic-number + schema-version header and big-endian primitive read/write helpers, with no
       dependency on any other OpenWSFZ type.
-- [ ] 2.2 Implement encode for: Heartbeat, Status, Decode, Clear, QSOLogged, Close.
-- [ ] 2.3 Implement decode for: Heartbeat, Reply, Halt Tx, Free Text, Close, and a generic
+- [x] 2.2 Implement encode for: Heartbeat, Status, Decode, Clear, QSOLogged, Close.
+- [x] 2.3 Implement decode for: Heartbeat, Reply, Halt Tx, Free Text, Close, and a generic
       "recognised-but-unsupported-type" path (Replay, Location, Highlight Callsign, Switch
       Configuration, Configure, etc.) that consumes the datagram without error.
-- [ ] 2.4 Decode paths SHALL never throw on malformed input — truncated/garbage buffers become a
+- [x] 2.4 Decode paths SHALL never throw on malformed input — truncated/garbage buffers become a
       discarded-datagram result, not an exception.
-- [ ] 2.5 `OpenWSFZ.Daemon.Tests`: byte-exact encode tests for every outbound type (assert exact
+- [x] 2.5 `OpenWSFZ.Daemon.Tests`: byte-exact encode tests for every outbound type (assert exact
       byte sequence, not just field round-trip) and decode tests for every inbound type, including a
       fuzzed/truncated-buffer test proving no exception escapes.
-- [ ] 2.6 If a real WSJT-X or GridTracker2 wire capture is available (e.g. via Wireshark on a test
-      machine), add at least one captured-bytes fixture and assert our decoder parses it correctly —
-      this is the closest this change gets to an external reference oracle without a live-verify
-      script.
+- [~] 2.6 SKIPPED — no real WSJT-X/GridTracker2 wire capture was available in this environment.
+      **Risk flag:** the field layouts for Status, Decode, QSOLogged, Reply, Halt Tx, and Free Text
+      are implemented from documented protocol knowledge, not verified against a live capture —
+      recommend running this task for real (or task 10.3's manual GridTracker2 sanity check) before
+      relying on this feature in production.
 
 ## 3. Outbound broadcaster
 
