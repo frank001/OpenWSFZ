@@ -183,12 +183,22 @@ each WAV cycle.
 
 1. **Within-appraiser consistency** — for each (WAV, signal) pair, is the decode decision
    (decoded / not-decoded) identical across all K runs? Reported as % consistent per appraiser.
-   Expected: ~100% for both (both decoders are deterministic in monitor mode). Any deviation is
-   a finding warranting investigation.
+   **Empirically measured, not assumed, as of 2026-07-11 (R&R-008, see §16): ~87–95% for both
+   appraisers, not ~100%.** This was originally stated as an *expectation* ("both decoders are
+   deterministic in monitor mode") and never verified; it is now falsified on two independent
+   corpora five weeks apart — 2026-06-11 bench corpus (WSJT-X 93.0%, OpenWSFZ 94.7%) and a
+   2026-07-11 re-run on a stratified live-endurance sample (WSJT-X 86.9%, OpenWSFZ 92.4%).
+   OpenWSFZ was the more self-consistent of the two on both occasions. Neither figure is
+   deterministic enough to treat either appraiser as ground truth in a live band (see §2.2's
+   already-ratified D1 decision, now with direct field evidence rather than only synthetic-study
+   rationale). Any *further* deviation from this now-established ~87–95% range remains a finding
+   warranting investigation.
 
 2. **Between-appraiser Cohen's κ** — per-signal decode agreement between WSJT-X and OpenWSFZ
    across all (WAV × run × signal) instances, where the signal universe per WAV is the union of
    all signals decoded by either appraiser in any run of that WAV. Reported with 95% CI.
+   Empirically: κ = 0.0839 (2026-06-11) and κ = 0.0986 (2026-07-11) — "Slight" agreement both
+   times, well below the §10 conditional threshold, driven mostly by the D-001 decode gap.
 
 3. **SNR delta (D-002 field validation)** — for every (WAV, run, signal) matched by both
    appraisers, `SNR_delta = SNR(OpenWSFZ) − SNR(WSJT-X)`. The mean delta across all matched
@@ -198,6 +208,16 @@ each WAV cycle.
 4. **Order-effect test** — Spearman ρ between WAV presentation rank and per-WAV decode count,
    per appraiser, across all K runs. A p-value < 0.05 flags potential session-state carryover.
 
+5. **Continuous Gage R&R ANOVA on matched-decode SNR (added R&R-008, 2026-07-11)** — for the
+   subset of signals both appraisers decoded in every run (a balanced part × appraiser × trial
+   cube), the two-way crossed ANOVA method already used for S1 (§9.1) decomposes SNR measurement
+   variance into Repeatability (EV), Reproducibility (AV + Part×Appraiser interaction), and
+   Part-to-part (PV) components. This is materially more diagnostic than item 3's scalar mean/σ
+   delta alone: the 2026-07-11 run found only 5.2% of study variation was ordinary repeatability
+   noise, versus 34.8% from a Part×Appraiser interaction term — i.e. the two appraisers'
+   SNR disagreement is signal-dependent, not a fixed calibration offset a shim constant could
+   correct. Reported informationally alongside item 3, not as a replacement for it.
+
 **Verdict:** Informational only. No PASS/FAIL gate. Findings feed into D-001 (co-channel gap)
 characterisation and field validation of D-002.
 
@@ -206,8 +226,12 @@ never committed. Committed artifacts (`report.md`, `summary.csv`, PNG plots) con
 aggregate statistics; any example decode text is Q-prefix-scrubbed by `analyse_corpus.py`
 before writing to the committable path.
 
-**Harness:** `harness/corpus_replay.py` (playback) + `harness/analyse_corpus.py` (analysis).
-Run via `python harness/corpus_replay.py` from `qa/rr-study/`. See RUNBOOK §8.
+**Harness:** `harness/corpus_replay.py` (playback) + `harness/analyse_corpus.py` (attribute
+consistency/κ/SNR-delta/order-effect analysis) + `harness/analyse_corpus_anova.py` (continuous
+Gage R&R ANOVA, added R&R-008). Run via `python harness/corpus_replay.py` from `qa/rr-study/`.
+See RUNBOOK §8. A stratified-sub-sample variant of the corpus can be drawn from any WAV directory
+(e.g. an endurance-run capture folder, not only the original p10 bench corpus) via
+`select_endurance_sample.py` — see R&R-008 (§16) for a worked example.
 
 ### 6.2 S7 rationale — compounding / co-channel overlap
 
@@ -661,6 +685,65 @@ ratified, despite §10's own ratification note already describing worked example
 
 Routine full-suite runtime increases by roughly (120 − 12) × ~15 s ≈ 27 minutes for the S5 part
 alone — accepted as the cost of the routine suite ever producing a real S5 verdict at all.
+
+### S6 empirical repeatability finding + ANOVA extension — R&R-008 — **IMPLEMENTED 2026-07-11**
+(see `results/corpus-2026-07-10/report.md`)
+
+**Trigger.** Endurance reports had repeatedly asserted "WSJT-X is not an infallible oracle in a
+live band" from an OSD false-positive rate model, never from direct measurement. The Captain
+asked for a proper repeatability/reproducibility study: replay a statistically significant
+sample of an existing endurance run through both appraisers, and report both against each other
+and against themselves.
+
+**Method.** S6 had only ever been executed once before (2026-06-11, on the original curated 20 m
+bench corpus). This re-run drew a stratified, deterministically seeded 42-WAV sample from the
+`20260706_live_run_2308` endurance session (40 m, 4,075 WAVs) — 12/12/12/6 files across
+evening/overnight-background/dawn-propagation-spike/midday-lull windows respectively, so the
+sample covers varied band conditions rather than one — and replayed it K=3 through the existing
+`corpus_replay.py` harness.
+
+**Finding — repeatability assumption falsified.** §6.1 item 1 previously stated an *unverified
+expectation* of ~100% within-appraiser consistency. Measured: 86.9% (WSJT-X) / 92.4% (OpenWSFZ)
+this run, closely matching 93.0%/94.7% from the original 2026-06-11 run — confirmed on two
+independent corpora, five weeks and one band apart. §6.1 item 1 is corrected accordingly.
+OpenWSFZ was the more self-consistent appraiser both times; this does not mean OpenWSFZ decodes
+more signals overall (it still recovers only ~58% of WSJT-X's decode volume, the pre-existing
+D-001 gap) — repeatability and recall are different axes and should not be conflated when
+summarising this study.
+
+**New method — continuous ANOVA on SNR (GitHub issue tracking pending).** Built
+`harness/analyse_corpus_anova.py`: a two-way crossed Gage R&R ANOVA (the method already ratified
+for S1, §9.1) applied for the first time to real off-air matched-decode SNR, restricted to the
+515-of-1,090 candidate signals both appraisers decoded in all 3 trials (a balanced part ×
+appraiser × trial cube is required for the sum-of-squares formulas). Result: R&R = 42.68%
+%Study Variation ("needs improvement" on the AIAG reference band), but the decomposition is the
+useful part — only 5.2% of study variation is repeatability noise, versus 34.8% from the
+Part×Appraiser interaction term. The SNR disagreement between the two decoders is signal-
+dependent, not a fixed offset; a single shim constant (D-002's original premise) cannot fully
+correct it. Implementation validated against a synthetic toy dataset with known injected
+bias/noise before use on real data.
+
+**Changes implemented:**
+
+- **§6.1 (this document)** — item 1 corrected from an unverified ~100% expectation to the
+  measured ~87–95% range; item 2 annotated with the measured κ figures; new item 5 describing
+  the ANOVA method; Harness line updated to list `analyse_corpus_anova.py` and
+  `select_endurance_sample.py`.
+- **`harness/analyse_corpus_anova.py`** (new) — continuous Gage R&R ANOVA on matched-decode SNR.
+- **`select_endurance_sample.py`** (new, `qa/rr-study/` root) — deterministic stratified WAV
+  sampling from any corpus directory (not only the original p10 bench set), so S6 can be re-run
+  against endurance-session material.
+- **`results/corpus-2026-07-10/report.md`** — full write-up, including the operational note that
+  `corpus_replay.py`'s interactive warm-up prompt EOFs under a backgrounded/agent-driven shell
+  (worked around this run via `--skip-warmup` after manually confirming the warm-up decode from
+  both `ALL.TXT` files; a `--yes`/non-interactive flag is recommended as a follow-up, not yet
+  implemented).
+
+**Not yet done, left as open follow-ups (report §5):** promote the ANOVA into the routine,
+regression-tracked S6 output (currently a one-off re-run, not wired into `run_study.py`); fix the
+interactive warm-up prompt; a third corpus at the opposite extreme (weak-signal-dominated or
+heavily co-channel) to confirm the ~87–95% repeatability range and interaction-dominated R&R
+breakdown are general properties rather than specific to these two sample compositions.
 
 ---
 
