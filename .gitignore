@@ -124,6 +124,11 @@ logs/
 qa/rr-study/results/corpus-*/raw/
 qa/rr-study/results/corpus-*/run_manifest.json
 
+# S6 corpus replay — raw console transcript of the replay step itself (WAV filenames +
+# timestamps only, no callsigns, so no NFR-021 risk). Pure scratch, fully superseded by the
+# committed report.md once analyse_corpus.py has run — never worth tracking.
+qa/rr-study/results/*/replay_run.log
+
 # D-009 / OSD false-positive evidence — S5 AWGN decode files ALWAYS contain OSD CRC-14
 # coincidences (ITU-assignable callsign patterns) → NFR-021 violation if committed.
 # S7 high-scene-complexity files carry the same risk (noise-floor FPs at −27 dB).
