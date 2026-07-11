@@ -721,16 +721,28 @@ function handleDecodes(results) {
     /** @type {any} */ (tr).__decode = r;
     tr.hidden = !isDecodeVisible(r, currentDecodeFilter);
 
-    // Store cycle-start UTC string as a data attribute for the click handler.
+    // Store cycle-start UTC string as a data attribute for the dblclick handler.
     tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
 
-    // CQ row highlighting and click-to-answer (TX-D01).
+    // CQ row highlighting and double-click-to-answer (TX-D01, cq-row-dblclick-to-answer).
     if (r.message.startsWith('CQ ')) {
       tr.classList.add('decode-cq');
       tr.style.cursor = 'pointer';
 
       let inFlight = false;
-      tr.addEventListener('click', async () => {
+      tr.addEventListener('dblclick', async (event) => {
+        event.preventDefault();                        // best-effort: browsers don't reliably
+                                                          // treat text selection as dblclick's
+                                                          // preventable default action
+        // Explicitly clear whatever the native double-click "select word" behavior just
+        // selected. preventDefault() alone was confirmed insufficient (cq-dblclick-after.mjs,
+        // task 4.3 first pass — a stray "CQ " selection remained). An earlier attempt fixed
+        // this with `user-select: none` on .decode-cq in app.css, but that blocked ALL text
+        // selection on every CQ row permanently — including a deliberate click-and-drag to
+        // copy a callsign, which the Captain reported as a regression. Clearing the selection
+        // here instead only removes what THIS double-click produced, leaving ordinary
+        // click-and-drag selection on CQ rows fully working the rest of the time.
+        window.getSelection()?.removeAllRanges();
         if (inFlight) return;                          // guard already-queued duplicate events
         inFlight = true;
         tr.style.pointerEvents = 'none';               // belt-and-suspenders for mouse
@@ -744,7 +756,7 @@ function handleDecodes(results) {
         try {
           const status = await postTxAnswerCq(callsign, r.freqHz, cqCycleStartUtc);
           renderTxPanel(status.state, status.partner, status.autoAnswerEnabled, undefined, status.keying);
-          // Delay guard reset to block human double-clicks (~130–185 ms interval).
+          // Delay guard reset to block a rapid repeat double-click (~130–185 ms interval).
           // On success the operator does not need to retry; 400 ms is harmless (D-TX-UI-005).
           setTimeout(() => {
             inFlight = false;
@@ -755,7 +767,7 @@ function handleDecodes(results) {
           inFlight = false;
           tr.style.pointerEvents = '';
           if (/** @type {any} */ (err)?.status === 409) {
-            console.warn('TX not Idle — CQ click ignored.');
+            console.warn('TX not Idle — CQ double-click ignored.');
           } else {
             console.error('postTxAnswerCq error:', err);
           }
