@@ -543,13 +543,23 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 // BandTable (design.md Decision 4). null when dialFreq is 0.0 (unresolvable).
                 var currentBand = BandTable.DeriveBand(dialFreq);
                 var results     = await ft8Decoder.DecodeAsync(pcmWindow, cycleStart, currentBand);
-                _ = decodeEventBus.Publish(results); // fire-and-forget: do not await WebSocket delivery
-                await allTxtWriter.AppendAsync(cycleStart, dialFreq, results);
+
+                // decode-noise-suppression: a deliberate, operator-opt-in exception to the
+                // region-lookup capability's "a lookup miss ... SHALL still reach ALL.TXT and the
+                // UI" invariant — see DecodeNoiseSuppressionFilter's doc comment. region-lookup's
+                // own resolution logic above is untouched; only the decode-panel broadcast and the
+                // QSO-controller batches below are gated. ALL.TXT (next line) always receives the
+                // unfiltered `results`.
+                var visibleResults = DecodeNoiseSuppressionFilter.Apply(
+                    results, configStore.Current.DecodeNoiseSuppression, callsignRegionStore);
+
+                _ = decodeEventBus.Publish(visibleResults); // fire-and-forget: do not await WebSocket delivery
+                await allTxtWriter.AppendAsync(cycleStart, dialFreq, results); // unfiltered — ALL.TXT unaffected
 
                 // Fan-out to both QSO controller channels (non-blocking; DropOldest when full).
                 // QsoControllerRouter activates only one service at a time via IsActive flags;
                 // the inactive service's HandleIdleAsync is a no-op, so the extra batches are cheap.
-                var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), results);
+                var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults);
                 qsoAnswererChannel.Writer.TryWrite(batch);
                 qsoCallerChannel.Writer.TryWrite(batch);
             }

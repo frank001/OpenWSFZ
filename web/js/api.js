@@ -459,13 +459,17 @@ export function getPropModes() {
  * (region-lookup-data-refresh operator status view). `lastRefreshUtc`/`lastRefreshSucceeded`/
  * `lastReleaseVersion`/`lastErrorMessage` are all `null` until a refresh has been triggered at
  * least once this session.
+ * `effectiveSuppressUnknownRegion` (decode-noise-suppression) is the live-resolved effective
+ * value of the Unknown-region suppression setting — the persisted value once the operator has
+ * made an explicit choice, otherwise computed from `entryCount > 0`.
  * @returns {Promise<{
  *   entryCount: number,
  *   hasRefreshedThisSession: boolean,
  *   lastRefreshUtc: string|null,
  *   lastRefreshSucceeded: boolean|null,
  *   lastReleaseVersion: string|null,
- *   lastErrorMessage: string|null
+ *   lastErrorMessage: string|null,
+ *   effectiveSuppressUnknownRegion: boolean
  * }>}
  */
 export function getRegionDataStatus() {

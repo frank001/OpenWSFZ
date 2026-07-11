@@ -68,4 +68,13 @@ public sealed record AppConfig(
     /// <c>kMinScorePass2=10</c>, <c>osdCorrThreshold=0.10</c>, <c>osdNhardMax=60</c>).
     /// </summary>
     public DecoderConfig?      Decoder      { get; init; } = null;
+
+    /// <summary>
+    /// Operator-controlled, persisted decode-noise suppression settings
+    /// (<c>decode-noise-suppression</c> capability).
+    /// Always non-null; defaults to <c>SuppressUnknownRegion: null</c> (auto, resolved from
+    /// region-data presence) and <c>SuppressSynthetic: true</c> (R&amp;R-synthetic decodes
+    /// suppressed by default).
+    /// </summary>
+    public DecodeNoiseSuppressionConfig DecodeNoiseSuppression { get; init; } = new();
 }

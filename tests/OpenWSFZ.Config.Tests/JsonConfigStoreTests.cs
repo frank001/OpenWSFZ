@@ -368,4 +368,73 @@ public sealed class JsonConfigStoreTests
         store.Current.Logging.FileEnabled.Should().BeFalse(
             "Logging must default to disabled when the key is absent");
     }
+
+    // ── decode-noise-suppression: DecodeNoiseSuppressionConfig defaults and round-trip ───────
+
+    [Fact(DisplayName = "decode-noise-suppression: AppConfig.DecodeNoiseSuppression defaults on a fresh config")]
+    public void AppConfig_DecodeNoiseSuppression_DefaultsOnFreshConfig()
+    {
+        var config = new AppConfig();
+
+        config.DecodeNoiseSuppression.Should().NotBeNull();
+        config.DecodeNoiseSuppression.SuppressUnknownRegion.Should().BeNull(
+            "the operator has not made an explicit choice on a fresh config");
+        config.DecodeNoiseSuppression.SuppressSynthetic.Should().BeTrue(
+            "R&R-synthetic decodes are suppressed by default out of the box");
+    }
+
+    [Fact(DisplayName = "decode-noise-suppression: AppConfig.DecodeNoiseSuppression defaults when key absent from config file (task 2.2)")]
+    public void AppConfig_DecodeNoiseSuppression_Defaults_WhenAbsentFromFile()
+    {
+        // Simulate a config file written before this section existed (task 2.2's "old-format
+        // config" verification — no migration script needed, matching the Logging/DecodeLog/
+        // RemoteAccess precedent).
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath, """{"audioDeviceId":"mic","port":8080}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.DecodeNoiseSuppression.Should().NotBeNull(
+            "a missing decodeNoiseSuppression key must not deserialise to null (STJ source-gen guard)");
+        store.Current.DecodeNoiseSuppression.SuppressUnknownRegion.Should().BeNull();
+        store.Current.DecodeNoiseSuppression.SuppressSynthetic.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "decode-noise-suppression: AppConfig.DecodeNoiseSuppression round-trips via config file")]
+    public async Task AppConfig_DecodeNoiseSuppression_RoundTrips()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        await store.SaveAsync(new AppConfig
+        {
+            DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig(
+                suppressUnknownRegion: true,
+                suppressSynthetic:     false),
+        });
+
+        var reloaded = new JsonConfigStore(configPath);
+        reloaded.Current.DecodeNoiseSuppression.SuppressUnknownRegion.Should().BeTrue();
+        reloaded.Current.DecodeNoiseSuppression.SuppressSynthetic.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "decode-noise-suppression: DecodeNoiseSuppressionConfig with a partial JSON object still applies documented defaults")]
+    public void DecodeNoiseSuppressionConfig_PartialJsonObject_AppliesDefaults()
+    {
+        // Whole section present but suppressSynthetic omitted: STJ source-gen would deserialise
+        // the CLR zero-default (false) without the [JsonConstructor] parameter-default guard —
+        // confirm the documented default (true) actually wins (Lesson 6 / D-WFC-001 pattern).
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath,
+            """{"audioDeviceId":"mic","port":8080,"decodeNoiseSuppression":{"suppressUnknownRegion":false}}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.DecodeNoiseSuppression.SuppressUnknownRegion.Should().BeFalse();
+        store.Current.DecodeNoiseSuppression.SuppressSynthetic.Should().BeTrue(
+            "suppressSynthetic omitted from a partial object must still resolve to its documented default (true), not the CLR zero-default (false)");
+    }
 }

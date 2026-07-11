@@ -612,6 +612,41 @@
           <pre id="region-data-lookup-result" class="logs-tail-output" aria-live="polite">(no lookup performed yet)</pre>
         </fieldset>
 
+        <fieldset id="decode-noise-suppression-fieldset">
+          <legend>Decode noise suppression</legend>
+
+          <p class="field-hint">
+            Hides suspected decoder false positives and R&amp;R-study test traffic from the live
+            decode panel and from QSO automation — <code>ALL.TXT</code> always records every decode
+            regardless of these settings. Both controls remain interactive at all times, even
+            before any region data has been loaded.
+          </p>
+
+          <div class="field-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="suppress-unknown-region" />
+              Suppress Unknown region/DXCC decodes
+            </label>
+            <p class="field-hint">
+              While region data has never been loaded, this defaults to unchecked (a fresh install
+              showing "Unknown" for every decode is not evidence of a false positive). Once region
+              data is present, it defaults to checked. Your own explicit choice always overrides
+              this default and is never silently reverted.
+            </p>
+          </div>
+
+          <div class="field-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="suppress-synthetic" />
+              Suppress R&amp;R Synthetic decodes
+            </label>
+            <p class="field-hint">
+              Checked by default. Uncheck this to observe an R&amp;R study run's synthetic
+              (Q-prefix) test traffic against this live instance.
+            </p>
+          </div>
+        </fieldset>
+
       </div><!-- /tab-region-data -->
 
       <div class="form-footer">
