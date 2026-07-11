@@ -73,20 +73,25 @@
 
 ## 5. External reply routing
 
-- [ ] 5.1 Add `IExternalReplyTarget` interface in `OpenWSFZ.Web` (alongside `IQsoRoleSwitcher`):
+- [x] 5.1 Add `IExternalReplyTarget` interface in `OpenWSFZ.Web` (alongside `IQsoRoleSwitcher`):
       `Task<bool> TryEngageAsync(string callsign, CancellationToken ct)`.
-- [ ] 5.2 Implement on `QsoControllerRouter`: when active role is Answerer, delegate to the new
-      `QsoAnswererService.TryEngageExternal`; when active role is Caller, delegate to the existing,
-      unmodified `QsoCallerService.SelectResponderAsync`.
-- [ ] 5.3 Add `Task<bool> TryEngageExternal(string callsign, CancellationToken ct = default)` to
+- [x] 5.2 Implement on `QsoControllerRouter`: when active role is Answerer, delegate to the new
+      `QsoAnswererService.TryEngageExternal`; when active role is Caller, delegate to
+      `QsoCallerService.TryEngageExternalResponder` (a thin wrapper that resolves a frequency
+      from recently-observed responder decodes and then calls the existing, unmodified
+      `SelectResponderAsync` seam — see design.md Decision 4; this Caller-role path has no
+      dedicated delta-spec requirement, unlike the Answerer path in task 5.3/5.4).
+- [x] 5.3 Add `Task<bool> TryEngageExternal(string callsign, CancellationToken ct = default)` to
       `QsoAnswererService` per `specs/qso-answerer/spec.md`'s new requirement — reuses the existing
       CQ-matching/`DecodeFilterState`/empty-callsign guards, targets a specific callsign instead of
       "first in batch," and is **not** gated by `tx.autoAnswer`.
-- [ ] 5.4 `OpenWSFZ.Daemon.Tests`: all five new scenarios in `specs/qso-answerer/spec.md` (matching
+- [x] 5.4 `OpenWSFZ.Daemon.Tests`: all five new scenarios in `specs/qso-answerer/spec.md` (matching
       CQ engages, works with `autoAnswer=false`, unknown callsign no-ops, filtered-out callsign
       no-ops, already-engaged no-ops).
 - [ ] 5.5 Wire the inbound Reply handler (§4.3) to call `IExternalReplyTarget.TryEngageAsync`,
-      resolved via DI the same way `WebApp` resolves `IQsoRoleSwitcher` today.
+      resolved via DI the same way `WebApp` resolves `IQsoRoleSwitcher` today. (Deferred to the
+      §3/§4 `ExternalReportingService` implementation, which consumes `IExternalReplyTarget`
+      directly via constructor injection.)
 
 ## 6. Settings — before screenshot
 

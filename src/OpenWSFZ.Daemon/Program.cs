@@ -479,6 +479,9 @@ var app = WebApp.Create(
         services.AddSingleton<QsoControllerRouter>();
         services.AddSingleton<IQsoController>(sp => sp.GetRequiredService<QsoControllerRouter>());
         services.AddSingleton<IQsoRoleSwitcher>(sp => sp.GetRequiredService<QsoControllerRouter>());
+        // IExternalReplyTarget (gridtracker-udp-reporting): the inbound Reply handler in
+        // ExternalReportingService resolves this to route by whichever role is active.
+        services.AddSingleton<IExternalReplyTarget>(sp => sp.GetRequiredService<QsoControllerRouter>());
 
         // Both services run as HostedServices; the inactive one discards batches cheaply.
         services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());

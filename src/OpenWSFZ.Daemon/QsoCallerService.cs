@@ -305,6 +305,56 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// External reply engages a specific responder to our CQ (<c>external-reporting</c>
+    /// capability's inbound Reply command, gridtracker-udp-reporting change). Reuses the
+    /// existing, unmodified <see cref="SelectResponderAsync"/> seam (design.md Decision 4) with
+    /// a frequency resolved from the most recently observed decode of this callsign responding
+    /// to our CQ (<see cref="_recentResponderDecodes"/>, populated by
+    /// <see cref="HandleWaitAnswerAsync"/>'s None-mode responder tracking).
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="QsoAnswererService.TryEngageExternal"/> (which has five dedicated
+    /// scenarios in <c>specs/qso-answerer/spec.md</c>), this Caller-role path is not covered by
+    /// a formal delta-spec requirement — <c>proposal.md</c> describes it only as "reused,
+    /// unmodified." <paramref name="ct"/>'s cancellation cannot itself report a false return
+    /// from <see cref="SelectResponderAsync"/> (which returns <see cref="Task"/>, not
+    /// <see cref="Task{Boolean}"/>) — this method returns <c>true</c> once dispatched to a
+    /// responder observed this session, optimistically, mirroring how the HTTP
+    /// <c>select-responder</c> endpoint already treats the call as fire-and-forget.
+    /// </remarks>
+    internal async Task<bool> TryEngageExternalResponder(string callsign, CancellationToken ct = default)
+    {
+        DecodeResult? recent;
+        lock (_stateLock)
+        {
+            if (_callerState != CallerState.WaitAnswer)
+            {
+                _logger.LogInformation(
+                    "TryEngageExternalResponder: ignoring external reply for '{Callsign}' — not WaitAnswer (state={State}).",
+                    callsign, _callerState);
+                return false;
+            }
+            _recentResponderDecodes.TryGetValue(callsign, out recent);
+        }
+
+        if (recent is null)
+        {
+            _logger.LogInformation(
+                "TryEngageExternalResponder: ignoring external reply — '{Callsign}' has not been observed responding to our CQ.",
+                callsign);
+            return false;
+        }
+
+        // Approximate the response cycle as the most recently completed 15 s FT8 window: the
+        // observed decode was necessarily seen within that window or the current one. Unlike the
+        // HTTP select-responder endpoint (which receives the exact cycle timestamp from the
+        // browser's own WS-delivered decode data), an external command only carries a callsign.
+        var responseCycleStart = RoundDownTo15s(DateTimeOffset.UtcNow) - TimeSpan.FromSeconds(15);
+        await SelectResponderAsync(callsign, recent.FreqHz, responseCycleStart, ct).ConfigureAwait(false);
+        return true;
+    }
+
     /// <inheritdoc/>
     /// <remarks>
     /// Not implemented: <see cref="QsoControllerRouter"/> always delegates

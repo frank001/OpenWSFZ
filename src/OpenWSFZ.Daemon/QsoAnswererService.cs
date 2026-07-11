@@ -88,6 +88,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private bool     _skipNextRetry = false; // A-01: true after entering WaitReport/WaitRr73 — skip the first empty cycle (our own TX window)
     private DateTime _qsoStartUtc   = DateTime.MinValue;
 
+    // gridtracker-udp-reporting: the most recently observed decode batch while Idle, consulted
+    // by TryEngageExternal to validate that an external Reply's callsign is a currently-decoded,
+    // non-filtered-out CQ. Volatile: written on the background loop thread, read from whichever
+    // thread the inbound UDP listener dispatches TryEngageExternal on.
+    private volatile DecodeBatch? _lastIdleDecodeBatch;
+
     // Phase-aware pending-target for AnswerCqAsync (TX-D01).
     // All four fields are read/written under _stateLock; volatile _state is checked inside
     // the lock but may also be read outside (HTTP thread) without a lock as before.
@@ -277,10 +283,113 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     public async Task AnswerCqAsync(
         string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct)
     {
+        if (!ArmPendingTarget(callsign, frequencyHz, cqCycleStart))
+            return;   // HTTP layer already returned 409; this is a safety guard
+
+        // Arm the system — set AutoAnswer so the guard in HandleIdleAsync passes.
+        try
+        {
+            var current = _configStore.Current;
+            var tx      = current.Tx ?? new TxConfig();
+            await _configStore.SaveAsync(
+                current with { Tx = tx with { AutoAnswer = true } }, ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AnswerCqAsync: failed to save autoAnswer=true — ignoring.");
+        }
+    }
+
+    /// <summary>
+    /// External reply engages a specific decoded CQ (<c>external-reporting</c> capability's
+    /// inbound Reply command, gridtracker-udp-reporting change). Reuses the same
+    /// CQ-matching/<see cref="DecodeFilterState"/>/empty-callsign guards as the automatic
+    /// auto-answer path, but targets <paramref name="callsign"/> specifically instead of "first
+    /// CQ in the batch," and is <strong>not</strong> gated by <c>tx.autoAnswer</c> — an explicit
+    /// external reply is a one-shot manual instruction, not automatic behaviour.
+    /// </summary>
+    /// <remarks>Implements <c>specs/qso-answerer/spec.md</c>'s "External reply engages a specific decoded CQ".</remarks>
+    public Task<bool> TryEngageExternal(string callsign, CancellationToken ct = default)
+    {
+        if (_state != QsoState.Idle)
+        {
+            _logger.LogInformation(
+                "TryEngageExternal: ignoring external reply for '{Callsign}' — not Idle (state={State}).",
+                callsign, _state);
+            return Task.FromResult(false);
+        }
+
+        var tx = _configStore.Current.Tx ?? new TxConfig();
+        if (string.IsNullOrWhiteSpace(tx.Callsign) || string.IsNullOrWhiteSpace(tx.Grid))
+        {
+            _logger.LogInformation(
+                "TryEngageExternal: ignoring external reply for '{Callsign}' — operator callsign/grid not configured.",
+                callsign);
+            return Task.FromResult(false);
+        }
+
+        var batch = _lastIdleDecodeBatch;
+        if (batch is null)
+        {
+            _logger.LogInformation(
+                "TryEngageExternal: ignoring external reply for '{Callsign}' — no decode batch received yet.",
+                callsign);
+            return Task.FromResult(false);
+        }
+
+        var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+
+        foreach (var r in batch.Results)
+        {
+            if (!TryParseCq(r.Message, out var parsedCallsign, out _))
+                continue;
+            if (!string.Equals(parsedCallsign, callsign, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!DecodeFilterEvaluator.IsVisible(r, filterState))
+            {
+                _logger.LogInformation(
+                    "TryEngageExternal: ignoring external reply for '{Callsign}' — filtered out under the active decode filter.",
+                    callsign);
+                return Task.FromResult(false);
+            }
+
+            if (!ArmPendingTarget(parsedCallsign, r.FreqHz, batch.CycleStart))
+            {
+                _logger.LogInformation(
+                    "TryEngageExternal: ignoring external reply for '{Callsign}' — state changed concurrently.",
+                    callsign);
+                return Task.FromResult(false);
+            }
+
+            _logger.LogInformation(
+                "TryEngageExternal: engaging '{Callsign}' at {FreqHz} Hz via external reply.",
+                callsign, r.FreqHz);
+            return Task.FromResult(true);
+        }
+
+        _logger.LogInformation(
+            "TryEngageExternal: ignoring external reply — '{Callsign}' is not present as a CQ in the most recent decode batch.",
+            callsign);
+        return Task.FromResult(false);
+    }
+
+    /// <summary>
+    /// Arms the phase-aware pending TX target shared by <see cref="AnswerCqAsync"/> and
+    /// <see cref="TryEngageExternal"/>: computes the opposite phase to
+    /// <paramref name="cqCycleStart"/>, stores it under <see cref="_stateLock"/> (only while
+    /// still <see cref="QsoState.Idle"/>), and pushes a wakeup batch so the background loop can
+    /// fire TX within the current cycle if the call arrives while the correct phase is already
+    /// active (D-TX-UI-007). Returns <c>false</c> without arming anything if the service is not
+    /// <see cref="QsoState.Idle"/>.
+    /// </summary>
+    private bool ArmPendingTarget(string callsign, double frequencyHz, DateTimeOffset cqCycleStart)
+    {
         lock (_stateLock)
         {
             if (_state != QsoState.Idle)
-                return;   // HTTP layer already returned 409; this is a safety guard
+                return false;
 
             // CQ was on phase P → answer on the opposite phase
             bool cqIsAPhase           = IsAPhase(cqCycleStart);
@@ -299,20 +408,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         // evaluated (see HandleIdleAsync phase check below).
         var wakeupCycleStart = RoundDownTo15s(DateTimeOffset.UtcNow) - TimeSpan.FromSeconds(15);
         _wakeupChannel.Writer.TryWrite(new DecodeBatch(wakeupCycleStart, []));
-
-        // Arm the system — set AutoAnswer so the guard in HandleIdleAsync passes.
-        try
-        {
-            var current = _configStore.Current;
-            var tx      = current.Tx ?? new TxConfig();
-            await _configStore.SaveAsync(
-                current with { Tx = tx with { AutoAnswer = true } }, ct)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "AnswerCqAsync: failed to save autoAnswer=true — ignoring.");
-        }
+        return true;
     }
 
     // ── BackgroundService ─────────────────────────────────────────────────────
@@ -457,6 +553,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         TxConfig          tx,
         CancellationToken stoppingToken)
     {
+        // gridtracker-udp-reporting: record this batch regardless of IsActive so an external
+        // Reply arriving shortly after a role switch still has fresh data to validate against.
+        _lastIdleDecodeBatch = batch;
+
         // Router guard: when the active role is Caller, the answerer must not initiate
         // any new QSO session (even if AutoAnswer or a pending target is set).
         if (!IsActive) return;
