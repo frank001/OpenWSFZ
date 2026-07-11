@@ -139,16 +139,26 @@
 
 ## 9. Documentation
 
-- [ ] 9.1 Append new FR entries (FR-052 onward) to `REQUIREMENTS.md` §4.1 covering: the
+- [x] 9.1 Append new FR entries (FR-052 onward) to `REQUIREMENTS.md` §4.1 covering: the
       `externalReporting` config schema, the outbound broadcaster, the inbound listener and its
       trust boundary, and the Settings tab — following the FR-045-style amendment format.
-- [ ] 9.2 Add a row to `REQUIREMENTS.md` §4.3 Integrations table for "GridTracker2 / WSJT-X UDP
+      (FR-052 config schema, FR-053 outbound broadcaster, FR-054 inbound listener + trust
+      boundary + `TryEngageExternal`, FR-055 Settings tab.)
+- [x] 9.2 Add a row to `REQUIREMENTS.md` §4.3 Integrations table for "GridTracker2 / WSJT-X UDP
       protocol" (Outbound + Inbound, Direction: Both), distinct from the still-future "PSK Reporter /
       DX cluster" row.
-- [ ] 9.3 Add a `REQUIREMENTS.md` §10 revision-history row documenting this change, matching the
-      existing row format (see the FR-029/NFR-016 entry for style).
-- [ ] 9.4 Note in this change's own `proposal.md`/commit message that this is a post-v1.0 addition
-      and does not alter any `IMPLEMENTATION_PLAN.md` phase or gate.
+- [x] 9.3 Add a `REQUIREMENTS.md` §10 revision-history row documenting this change, matching the
+      existing row format (see the FR-029/NFR-016 entry for style). Bumped `VERSION` to `0.35`
+      (user-facing: new Settings tab) per the `release-versioning` capability's rule.
+- [x] 9.4 Note in this change's own `proposal.md`/commit message that this is a post-v1.0 addition
+      and does not alter any `IMPLEMENTATION_PLAN.md` phase or gate. (Already present in
+      `proposal.md`'s "Why" section from `opsx:propose`; echoed in the 1.31 revision-history row
+      and in this session's commit messages.)
+      Also: FR-052/053/054 test `DisplayName`s carry their requirement-ID prefixes (traceability
+      gate G3); FR-055 (frontend-only, no xUnit-testable surface) added to `traceability-debt.md`
+      following the exact precedent of FR-035/036/037/040/041/043/044. Verified locally: running
+      `tools/TraceabilityCheck` against the built test assemblies reports
+      `PASS: all requirements are mapped and all references are valid.`
 
 ## 10. Verification
 

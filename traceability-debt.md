@@ -163,3 +163,17 @@ SEC-003  # XSS guard — settings.js appendFreqRow DOM construction.
          # by code review (grep confirms no innerHTML assignment receives server data).
          # Remove when a browser-automation test (e.g. Playwright) asserts that
          # inserting a description containing <script> does not execute JS.
+
+## Pending — gridtracker-udp-reporting (External Programs settings tab)
+
+FR-055  # External Programs settings tab — JS/HTML target-table CRUD (Enabled checkbox,
+        # Name/Host/Port/Enabled/Delete table, Add-target button, Honour-inbound-commands
+        # checkbox); UI-layer only, same class of gap as FR-035/FR-036/FR-037/FR-040/FR-041/
+        # FR-043/FR-044 above. Live-verified end-to-end via an ad hoc Playwright script
+        # against a real running daemon (not committed — qa/uat-tmp/ is gitignored scratch
+        # tooling): tab renders correctly alongside the existing 7 tabs, Save/reload
+        # round-trips enabled/targets/honourInboundCommands, honourInboundCommands persists
+        # independently of enabled, and out-of-range port is rejected client-side. Backend
+        # config schema/persistence is covered by FR-052's automated tests.
+        # Remove when a committed browser-automation test (e.g. Playwright, mirroring the
+        # precedent for SEC-003 above) exercises this tab programmatically.

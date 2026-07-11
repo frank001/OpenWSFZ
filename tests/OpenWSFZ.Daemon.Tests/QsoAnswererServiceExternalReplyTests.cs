@@ -126,7 +126,7 @@ public sealed class QsoAnswererServiceExternalReplyTests
 
     // ── Scenario: matching decoded CQ engages ───────────────────────────────
 
-    [Fact(DisplayName = "External reply engages a matching decoded CQ")]
+    [Fact(DisplayName = "FR-054: External reply engages a matching decoded CQ")]
     public async Task TryEngageExternal_MatchingCq_Engages()
     {
         await using var sut = await CreateSutAsync();

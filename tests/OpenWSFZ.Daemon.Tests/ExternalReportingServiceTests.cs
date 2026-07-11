@@ -88,7 +88,7 @@ public sealed class ExternalReportingServiceTests
 
     // ── Outbound: two simultaneous targets (task 3.7) ───────────────────────
 
-    [Fact(DisplayName = "Two enabled targets both receive a Decode datagram")]
+    [Fact(DisplayName = "FR-053: Two enabled targets both receive a Decode datagram")]
     public async Task TwoEnabledTargets_BothReceiveDecode()
     {
         var port1 = GetFreeUdpPort();
@@ -138,7 +138,7 @@ public sealed class ExternalReportingServiceTests
     private static bool Encoding_UTF8_Contains(byte[] datagram, string needle)
         => System.Text.Encoding.UTF8.GetString(datagram).Contains(needle);
 
-    [Fact(DisplayName = "Disabled target never receives a datagram")]
+    [Fact(DisplayName = "FR-053: Disabled target never receives a datagram")]
     public async Task DisabledTarget_NeverReceives()
     {
         var enabledPort  = GetFreeUdpPort();
@@ -181,7 +181,7 @@ public sealed class ExternalReportingServiceTests
 
     // ── Outbound: QSOLogged (task 3.5/3.7) ──────────────────────────────────
 
-    [Fact(DisplayName = "NotifyQsoLogged sends a QSOLogged datagram to the enabled target")]
+    [Fact(DisplayName = "FR-053: NotifyQsoLogged sends a QSOLogged datagram to the enabled target")]
     public async Task NotifyQsoLogged_SendsQsoLoggedDatagram()
     {
         var port = GetFreeUdpPort();
@@ -229,7 +229,7 @@ public sealed class ExternalReportingServiceTests
 
     // ── Outbound: Close on shutdown (task 3.6) ──────────────────────────────
 
-    [Fact(DisplayName = "StopAsync sends a Close datagram before closing sockets")]
+    [Fact(DisplayName = "FR-053: StopAsync sends a Close datagram before closing sockets")]
     public async Task StopAsync_SendsCloseDatagram()
     {
         var port = GetFreeUdpPort();
@@ -288,7 +288,7 @@ public sealed class ExternalReportingServiceTests
 
     // ── Inbound: malformed datagram resilience (tasks 2.4/4.1/4.6) ──────────
 
-    [Fact(DisplayName = "Inbound listener discards a malformed datagram and keeps accepting well-formed ones")]
+    [Fact(DisplayName = "FR-054: Inbound listener discards a malformed datagram and keeps accepting well-formed ones")]
     public async Task InboundListener_DiscardsMalformed_ContinuesAccepting()
     {
         var port = GetFreeUdpPort();
@@ -338,7 +338,7 @@ public sealed class ExternalReportingServiceTests
 
     // ── Inbound: Halt Tx always honoured regardless of honourInboundCommands ──
 
-    [Theory(DisplayName = "Halt Tx aborts regardless of honourInboundCommands")]
+    [Theory(DisplayName = "FR-054: Halt Tx aborts regardless of honourInboundCommands")]
     [InlineData(false)]
     [InlineData(true)]
     public async Task HaltTx_AlwaysHonoured(bool honourInboundCommands)
@@ -390,7 +390,7 @@ public sealed class ExternalReportingServiceTests
 
     // ── Inbound: Reply gated by honourInboundCommands ───────────────────────
 
-    [Fact(DisplayName = "Reply is ignored when honourInboundCommands is disabled")]
+    [Fact(DisplayName = "FR-054: Reply is ignored when honourInboundCommands is disabled")]
     public async Task Reply_IgnoredWhenOptedOut()
     {
         var port  = GetFreeUdpPort();
@@ -533,7 +533,7 @@ public sealed class ExternalReportingServiceTests
 
     // ── Inbound: Close is logged only, never terminates the daemon ─────────
 
-    [Fact(DisplayName = "Inbound Close is logged only and the listener keeps running afterward")]
+    [Fact(DisplayName = "FR-054: Inbound Close is logged only and the listener keeps running afterward")]
     public async Task InboundClose_DoesNotStopListener()
     {
         var port = GetFreeUdpPort();

@@ -31,7 +31,7 @@ public sealed class ExternalReportingConfigTests
 
     // ── Round-trip ────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ExternalReportingConfig with two targets round-trips via ConfigJsonContext")]
+    [Fact(DisplayName = "FR-052: ExternalReportingConfig with two targets round-trips via ConfigJsonContext")]
     public void ExternalReportingConfig_RoundTrip_PreservesValues()
     {
         var original = new AppConfig() with
@@ -63,7 +63,7 @@ public sealed class ExternalReportingConfigTests
 
     // ── Missing-key defaults ──────────────────────────────────────────────────
 
-    [Fact(DisplayName = "AppConfig without externalReporting key deserialises with fully-inert defaults")]
+    [Fact(DisplayName = "FR-052: AppConfig without externalReporting key deserialises with fully-inert defaults")]
     public void Load_MissingExternalReportingKey_UsesDefaults()
     {
         const string json = """{"port":8080}""";

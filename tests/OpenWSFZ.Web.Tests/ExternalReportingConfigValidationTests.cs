@@ -19,7 +19,7 @@ public sealed class ExternalReportingConfigValidationTests : IClassFixture<WebTe
 
     public ExternalReportingConfigValidationTests(WebTestFactory factory) => _factory = factory;
 
-    [Fact(DisplayName = "POST with target port 70000 returns 400 and does not persist")]
+    [Fact(DisplayName = "FR-052: POST with target port 70000 returns 400 and does not persist")]
     public async Task PostConfig_TargetPortOutOfRange_Returns400()
     {
         var client  = _factory.CreateClient();
