@@ -101,28 +101,41 @@
 
 ## 6. Settings — before screenshot
 
-- [ ] 6.1 Capture a screenshot of the current Settings page tab bar (all six existing tabs) as the
+- [x] 6.1 Capture a screenshot of the current Settings page tab bar (all six existing tabs) as the
       "before" reference, saved under `dev-tasks/screenshots/`, before any markup changes land.
+      (Actual current tab count at time of capture: 7 — General/Radio hardware/Logging/Advanced/
+      Frequencies/Logs/Region data; `gridtracker-before-01-tab-bar.png`.)
 
 ## 7. Settings UI implementation
 
-- [ ] 7.1 Add the "External Programs" tab button and panel to `web/settings.html`, following the
+- [x] 7.1 Add the "External Programs" tab button and panel to `web/settings.html`, following the
       existing `settings-tab-btn`/`settings-tab-panel` pattern (see `tab-region-data` for the most
       recent precedent).
-- [ ] 7.2 Implement the Enabled checkbox, the targets table (Name/Host/Port/Enabled/Delete columns,
+- [x] 7.2 Implement the Enabled checkbox, the targets table (Name/Host/Port/Enabled/Delete columns,
       "Add target" button, empty-state placeholder row matching the Frequencies tab's pattern), and
       the "Honour inbound commands" checkbox with its Halt-Tx-is-always-on explanatory text, in
-      `web/js/settings.js`.
-- [ ] 7.3 Wire the tab's fields into the existing unsaved-changes dirty-check (FR-040) and into the
-      `POST /api/v1/config` payload assembled on Save.
-- [ ] 7.4 Confirm the tab is added to `sessionStorage` tab-persistence handling alongside the
-      existing six tabs.
+      `web/js/settings.js`. (Delete-then-empty-table does not re-show the placeholder row without
+      a reload — verified this matches the pre-existing Frequencies tab's own delete handler
+      exactly, not a new gap introduced here.)
+- [x] 7.3 Wire the tab's fields into the existing unsaved-changes dirty-check (FR-040) and into the
+      `POST /api/v1/config` payload assembled on Save. Also added client-side port-range
+      validation (1–65535) mirroring the daemon's own `POST /api/v1/config` rejection, so the
+      operator gets immediate feedback instead of a round-trip 400.
+- [x] 7.4 Confirm the tab is added to `sessionStorage` tab-persistence handling alongside the
+      existing six tabs. (No code change needed — tab switching/persistence is fully generic,
+      driven by `.settings-tab-btn`/`.settings-tab-panel` + `aria-controls`, confirmed by
+      inspection.) Live-verified end-to-end via Playwright against a real running daemon: Save →
+      reload round-trips `enabled`/`targets`/`honourInboundCommands` correctly, and
+      `honourInboundCommands` persists independently of `enabled` (both
+      `specs/external-reporting/spec.md` scenarios pass for real, not just via unit test).
 
 ## 8. Settings — after screenshot
 
-- [ ] 8.1 Capture a screenshot of the Settings page with the new "External Programs" tab selected
+- [x] 8.1 Capture a screenshot of the Settings page with the new "External Programs" tab selected
       and populated with at least one target row, saved under `dev-tasks/screenshots/`, as the
       "after" reference — compare against 6.1 to confirm the existing tabs are visually unaffected.
+      (`gridtracker-after-01-external-programs-tab.png`, `gridtracker-after-02-tab-bar.png` — all
+      8 tabs render on a single unwrapped row, matching the 7-tab baseline's layout.)
 
 ## 9. Documentation
 
