@@ -162,13 +162,22 @@
 
 ## 10. Verification
 
-- [ ] 10.1 Run the full existing test suite (`dotnet test` across all projects) and confirm no
+- [x] 10.1 Run the full existing test suite (`dotnet test` across all projects) and confirm no
       existing test's assertions changed — this change must be additive-only per design.md's
-      Migration Plan.
-- [ ] 10.2 Run `openspec validate --strict --all` and confirm the delta specs archive cleanly against
-      `configuration` and `qso-answerer`.
+      Migration Plan. All 9 test projects run individually (no root `.sln`): LicenseInventoryCheck
+      24, OpenWSFZ.Audio 19, OpenWSFZ.Config 75, OpenWSFZ.Daemon 383, OpenWSFZ.E2E 2, OpenWSFZ.Ft8
+      289, OpenWSFZ.Rig 35, OpenWSFZ.Web 229, TraceabilityCheck 34 — **1090/1090 passing**, 0
+      failed, 0 skipped. No pre-existing test's assertions were touched.
+- [x] 10.2 Run `openspec validate --strict --all` and confirm the delta specs archive cleanly against
+      `configuration` and `qso-answerer`. **53/53 passed, 0 failed** — includes both
+      `change/gridtracker-udp-reporting` and the unrelated in-flight `change/cat-tx-ptt`.
 - [ ] 10.3 (Optional, not a merge gate per the agreed automated-tests-only verification strategy) If
       a real GridTracker2 install is available to the developer, a one-time manual sanity check —
       enable the feature pointed at GridTracker2's default port, confirm spots appear on its map and
       a Halt Tx click from GridTracker2 aborts an in-progress test QSO — is a valuable extra
-      confidence check but SHALL NOT block merge if unavailable.
+      confidence check but SHALL NOT block merge if unavailable. **Not performed** — no GridTracker2
+      install or real rig available in this environment. Combined with task 2.6's skip, this is the
+      one open risk item in this change: the richer WSJT-X datagram layouts (Status/Decode/
+      QSOLogged/Reply/Halt Tx/Free Text) are implemented from protocol documentation, not verified
+      byte-for-byte against a real capture or a live GridTracker2 session — recommend running this
+      check before relying on the feature operationally.
