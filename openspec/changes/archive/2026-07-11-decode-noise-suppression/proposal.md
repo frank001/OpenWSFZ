@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 Operators sometimes see decodes with implausible callsigns (e.g. `UE1QQU/R`, `YV1QKN/P`,

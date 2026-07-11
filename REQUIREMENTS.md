@@ -1,7 +1,7 @@
 # OpenWSFZ &mdash; Requirements Document
 
-**Version:** 1.27
-**Date:** 2026-07-05
+**Version:** 1.30
+**Date:** 2026-07-11
 **Status:** Draft
 **Prepared by:** Requirements Analyst (AI-assisted)
 **For:** Architecture & Planning Team
@@ -20,7 +20,7 @@ they prefer (Windows, Linux, macOS) and reach it from a local browser.
 work prior to a confirmed QSO; v1.0 is reached when the software can
 make a confirmed two-way contact (RX + CAT control + TX); each
 user-facing feature shipped increments the minor version.
-The current release is v0.33.** The v0.x body of work now covers FT8
+The current release is v0.34.** The v0.x body of work now covers FT8
 receive and transmit, CAT rig control, an automated QSO answerer and
 caller, and a web UI reachable over loopback or a passphrase-protected
 LAN — for a single operator, source-only distribution. v1.0 is reached
@@ -450,3 +450,4 @@ data in v0.x:
 | 1.27    | 2026-07-05 | QA (AI-assisted)                      | Added the **release-versioning** capability (canonical root `VERSION` file as sole version source; `Directory.Build.props` derives `<Version>` from it; cross-surface consistency invariant across build metadata, status API, welcome banner, and doc citations; minor-version-per-user-facing-feature bump rule; OpenSpec `**User-facing:**` proposal marker convention) and gate **G9** (version-governance CI job enforcing doc/VERSION consistency and the mandatory bump on user-facing archive) in **ci-quality-gates**, archiving `adopt-canonical-version-source` (GitHub issue #49). Bumped **VERSION** to **v0.31** per the newly-formalised rule, since this change itself is user-facing (the daemon's runtime version reporting changed from a stale hardcoded `0.1.0` to the canonical, CI-verified source). |
 | 1.28    | 2026-07-09 | QA (AI-assisted)                      | Added the **qso-confirmation** capability (in-memory worked-before index built from `ADIF.log`, resolving each decoded callsign's DXCC entity/continent match against logged QSO history; three new readonly indicator columns — P/C/R — in `#decodes-table`, fully advisory and never affecting decode acceptance). Implemented by `adif-qso-confirmation`, archived 2026-07-09. Backfilled the archived proposal's missing **User-facing:** declaration (predates Gate G9 being consistently enforced at merge time) and bumped **VERSION** to **v0.33** alongside 1.29 below, since both this and `f-006-region-lookup-country-file-refresh` were archived together in one commit without either bump having been applied at the time. |
 | 1.29    | 2026-07-09 | QA (AI-assisted)                      | Added the **region-lookup-data-refresh** capability (operator-triggered "refresh region data" backend operation sourcing DXCC entity/continent/CQ-zone/ITU-zone data live from country-files.com's XML country-file release, converting and overwriting the runtime `callsign-regions.json`; new "Region data" settings-page tab with status summary, refresh button, and a diagnostic callsign lookup tool). Implemented by `f-006-region-lookup-country-file-refresh`, archived 2026-07-09 (GitHub issue #40). Backfilled the archived proposal's missing **User-facing:** declaration alongside 1.28 above — see that row for the shared VERSION-bump rationale. |
+| 1.30    | 2026-07-11 | QA (AI-assisted)                      | Added the **decode-noise-suppression** capability (two persisted, independent Region-data-tab settings — "Suppress Unknown region/DXCC decodes" and "Suppress R&R Synthetic decodes" — gating the decode-panel broadcast and `QsoAnswererService`/`QsoCallerService` eligibility upstream of the existing ephemeral column filter; `ALL.TXT` always unaffected; the Unknown control is always interactive, defaulting from region-data presence until the operator makes an explicit choice, which then persists regardless of subsequent refreshes). Implemented by `decode-noise-suppression`, archived 2026-07-11 (PR #68). Bumped **VERSION** to **v0.34**; also corrected this header's **Version**/**Date** fields, which had lagged at 1.27/2026-07-05 since row 1.27 was added despite the changelog having since reached 1.29. |
