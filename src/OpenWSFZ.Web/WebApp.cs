@@ -364,6 +364,8 @@ public static class WebApp
                 config = config with { DecodeLog = new DecodeLogConfig() };
             if (config.DecodeNoiseSuppression is null)
                 config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
+            if (config.ExternalReporting is null)
+                config = config with { ExternalReporting = new ExternalReportingConfig() };
 
             // ── CAT config validation (FR-031, FR-034) ─────────────────────────
             if (config.Cat is { } cat)

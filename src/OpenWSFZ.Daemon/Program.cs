@@ -232,6 +232,17 @@ var qsoCallerChannel = Channel.CreateBounded<DecodeBatch>(new BoundedChannelOpti
     SingleReader = true,
 });
 
+// Channel 3c: decode pump → ExternalReportingService (bounded, DropOldest — same rationale as
+// the two channels above). Dedicated rather than a DecodeEventBus subscription (design.md
+// originally sketched the latter, but DecodeEventBus is a one-way WebSocket broadcaster with no
+// subscriber surface) — mirrors the existing per-consumer decode-batch-channel pattern exactly.
+var externalReportingChannel = Channel.CreateBounded<DecodeBatch>(new BoundedChannelOptions(2)
+{
+    FullMode     = BoundedChannelFullMode.DropOldest,
+    SingleWriter = true,
+    SingleReader = true,
+});
+
 var framerOutput = Channel.CreateBounded<(float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz)>(new BoundedChannelOptions(2)
 {
     FullMode     = BoundedChannelFullMode.DropOldest,
@@ -426,7 +437,29 @@ var app = WebApp.Create(
         services.AddSingleton<ITxEventBus>(new TxEventBus(appScope));
         services.AddSingleton(new AudioOffsetEventBus(appScope));
         services.AddSingleton<AdifLogWriter>();
-        services.AddSingleton<IAdifLogWriter>(sp => sp.GetRequiredService<AdifLogWriter>());
+
+        // gridtracker-udp-reporting: ExternalReportingService registered unconditionally
+        // (inert by default — opens no sockets until externalReporting.enabled=true with at
+        // least one enabled target). Reads decode batches from its own dedicated channel
+        // (declared above, fed by the decode pump below) and is resolved lazily by
+        // QsoLoggedNotifyingAdifWriter and by IQsoController/IExternalReplyTarget consumers
+        // via IServiceProvider (see ExternalReportingService's class remarks for why this must
+        // be lazy rather than a constructor dependency — it avoids a DI construction cycle
+        // through IAdifLogWriter below).
+        services.AddSingleton(sp => new ExternalReportingService(
+            externalReportingChannel.Reader,
+            sp.GetRequiredService<IConfigStore>(),
+            sp,
+            sp.GetRequiredService<ILogger<ExternalReportingService>>(),
+            sp.GetService<ICatState>()));
+        services.AddHostedService(sp => sp.GetRequiredService<ExternalReportingService>());
+
+        // IAdifLogWriter resolves to a decorator so every ADIF write (direct-write path AND
+        // WebApp's POST /api/v1/tx/log-qso) also emits an outbound QSOLogged datagram — see
+        // QsoLoggedNotifyingAdifWriter's class remarks.
+        services.AddSingleton<IAdifLogWriter>(sp => new QsoLoggedNotifyingAdifWriter(
+            sp.GetRequiredService<AdifLogWriter>(),
+            sp.GetRequiredService<ExternalReportingService>()));
 
         // H6 AP decode (D-001): register the ft8Decoder instance as IApConstraintSink so
         // the active QSO controller can arm/disarm AP constraints during active QSO sessions.
@@ -445,7 +478,7 @@ var app = WebApp.Create(
                 sp.GetRequiredService<IConfigStore>(),
                 sp.GetRequiredService<IPttController>(),
                 sp.GetRequiredService<ITxEventBus>(),
-                sp.GetRequiredService<AdifLogWriter>(),
+                sp.GetRequiredService<IAdifLogWriter>(),
                 sp.GetRequiredService<AudioOffsetEventBus>(),
                 sp.GetRequiredService<ILogger<QsoAnswererService>>(),
                 sp.GetService<IApConstraintSink>(),
@@ -462,7 +495,7 @@ var app = WebApp.Create(
                 sp.GetRequiredService<IConfigStore>(),
                 sp.GetRequiredService<IPttController>(),
                 sp.GetRequiredService<ITxEventBus>(),
-                sp.GetRequiredService<AdifLogWriter>(),
+                sp.GetRequiredService<IAdifLogWriter>(),
                 sp.GetRequiredService<AudioOffsetEventBus>(),
                 sp.GetRequiredService<ILogger<QsoCallerService>>(),
                 sp.GetService<IApConstraintSink>(),
@@ -565,6 +598,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults);
                 qsoAnswererChannel.Writer.TryWrite(batch);
                 qsoCallerChannel.Writer.TryWrite(batch);
+                externalReportingChannel.Writer.TryWrite(batch);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

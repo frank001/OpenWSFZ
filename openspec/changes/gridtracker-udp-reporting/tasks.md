@@ -34,39 +34,45 @@
 
 ## 3. Outbound broadcaster
 
-- [ ] 3.1 Add `ExternalReportingService : IHostedService` in `OpenWSFZ.Daemon`; register
+- [x] 3.1 Add `ExternalReportingService : IHostedService` in `OpenWSFZ.Daemon`; register
       unconditionally in `Program.cs`. No socket opened when inert (§1's defaults).
-- [ ] 3.2 On enable (startup or config-save transition), open one outbound `UdpClient` per enabled
+- [x] 3.2 On enable (startup or config-save transition), open one outbound `UdpClient` per enabled
       target; on config-save, reconcile the target list (open new, close removed) without a daemon
       restart.
-- [ ] 3.3 Wire Heartbeat on a fixed timer; wire Status on a timer plus on-change triggers (dial
+- [x] 3.3 Wire Heartbeat on a fixed timer; wire Status on a timer plus on-change triggers (dial
       frequency, decoding-enabled, TX/transmitting state) sourced from existing `ICatState`/
       `IConfigStore.Current.Tx`/`IPttController` state — no new state tracking duplicated.
-- [ ] 3.4 Subscribe to the existing per-cycle decode batch feed (same one `QsoAnswererService`
-      consumes) for outbound Decode; send Clear at each new cycle boundary before that cycle's
-      Decode datagrams.
-- [ ] 3.5 Hook the existing `ADIF.log` write call site (FR-051) to also emit an outbound QSOLogged
+      (`IQsoController.Keying` used directly for `Transmitting` rather than a separate
+      `IPttController` read — same underlying signal, already the documented "Transmitting" source.)
+- [x] 3.4 Subscribe to the existing per-cycle decode batch feed for outbound Decode; send Clear at
+      each new cycle boundary before that cycle's Decode datagrams. (Via a new dedicated bounded
+      channel fed by the decode pump alongside `qsoAnswererChannel`/`qsoCallerChannel`, not a
+      `DecodeEventBus` subscription — `DecodeEventBus` is a one-way WebSocket broadcaster with no
+      subscriber surface; see `ExternalReportingService`'s class remarks.)
+- [x] 3.5 Hook the existing `ADIF.log` write call site (FR-051) to also emit an outbound QSOLogged
       datagram with the same field values, skipped on watchdog/operator abort exactly as the ADIF
-      write itself already is.
-- [ ] 3.6 Send Close to every enabled target from `ExternalReportingService.StopAsync` before
+      write itself already is. (Via a `QsoLoggedNotifyingAdifWriter : IAdifLogWriter` decorator —
+      the single choke point covering both the direct-write path AND `POST /api/v1/tx/log-qso`,
+      the default `qsoConfirmation=true` path design.md's task didn't originally call out by name.)
+- [x] 3.6 Send Close to every enabled target from `ExternalReportingService.StopAsync` before
       closing sockets.
-- [ ] 3.7 `OpenWSFZ.Daemon.Tests`: bind a real loopback `UdpClient` per test as a fake target,
+- [x] 3.7 `OpenWSFZ.Daemon.Tests`: bind a real loopback `UdpClient` per test as a fake target,
       assert each outbound message type is received with correct parsed fields, and assert delivery
       to two simultaneous targets (per `specs/external-reporting/spec.md`).
 
 ## 4. Inbound listener
 
-- [ ] 4.1 Bind a single inbound `UdpClient` alongside the outbound sockets when enabled; receive
+- [x] 4.1 Bind a single inbound `UdpClient` alongside the outbound sockets when enabled; receive
       loop discards anything that fails to parse (§2.4) and continues.
-- [ ] 4.2 Halt Tx handler: call `IQsoController.AbortAsync` unconditionally (not gated by
+- [x] 4.2 Halt Tx handler: call `IQsoController.AbortAsync` unconditionally (not gated by
       `honourInboundCommands`).
-- [ ] 4.3 Reply and Free Text handlers: check `honourInboundCommands`; when `false`, discard with an
+- [x] 4.3 Reply and Free Text handlers: check `honourInboundCommands`; when `false`, discard with an
       Information log naming the ignored command; when `true`, dispatch (Reply → §5's
       `IExternalReplyTarget`; Free Text → store in memory, no transmission effect).
-- [ ] 4.4 Close handler: Information log only; SHALL NOT terminate the daemon under any
+- [x] 4.4 Close handler: Information log only; SHALL NOT terminate the daemon under any
       circumstance.
-- [ ] 4.5 Any other recognised-but-unsupported inbound type: Debug log only, no state change.
-- [ ] 4.6 `OpenWSFZ.Daemon.Tests`: inject synthetic inbound datagrams (real loopback send from the
+- [x] 4.5 Any other recognised-but-unsupported inbound type: Debug log only, no state change.
+- [x] 4.6 `OpenWSFZ.Daemon.Tests`: inject synthetic inbound datagrams (real loopback send from the
       test into the service's bound port) for every scenario in `specs/external-reporting/spec.md`'s
       inbound requirements, including the malformed-datagram resilience scenario and the
       opt-in-gating scenarios for Reply/Free Text.

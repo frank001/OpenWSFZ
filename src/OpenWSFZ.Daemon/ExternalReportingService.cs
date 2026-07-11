@@ -1,0 +1,643 @@
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading.Channels;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using OpenWSFZ.Abstractions;
+using OpenWSFZ.Web;
+
+namespace OpenWSFZ.Daemon;
+
+/// <summary>
+/// WSJT-X-protocol UDP broadcaster and inbound command listener
+/// (<c>external-reporting</c> capability, gridtracker-udp-reporting change).
+///
+/// <para>
+/// Registered unconditionally as an <see cref="IHostedService"/> (design.md Decision 1). When
+/// <see cref="AppConfig.ExternalReporting"/> is disabled or has no enabled targets, it opens no
+/// sockets and does nothing — "inert by default," matching <c>CatPollingService</c>'s posture
+/// when <c>cat.enabled</c> is <c>false</c>.
+/// </para>
+///
+/// <para>
+/// Outbound: Heartbeat and Status on a periodic timer (plus on-change for Status); Clear+Decode
+/// per decode-batch cycle (fed by a dedicated channel, mirroring
+/// <c>QsoAnswererService</c>/<c>QsoCallerService</c>'s own dedicated decode-batch channels rather
+/// than design.md's originally-sketched <c>DecodeEventBus</c> subscription — <c>DecodeEventBus</c>
+/// is a one-way WebSocket broadcaster with no subscriber surface, so a third dedicated bounded
+/// channel is the simpler, already-precedented mechanism); QSOLogged via
+/// <see cref="NotifyQsoLogged"/>, called by the <see cref="IAdifLogWriter"/> decorator that wraps
+/// every ADIF-write call site; Close on graceful shutdown.
+/// </para>
+///
+/// <para>
+/// Inbound: a single listener bound to the first enabled target's port (WSJT-X convention: the
+/// app listens on the same port it sends to). Halt Tx is always honoured; Reply/Free Text are
+/// gated by <c>externalReporting.honourInboundCommands</c>; Close is logged only and never
+/// terminates the daemon; any other recognised type is discarded at Debug.
+/// </para>
+///
+/// <para>
+/// <see cref="IQsoController"/> and <see cref="IExternalReplyTarget"/> are resolved lazily via
+/// <see cref="IServiceProvider"/> (not taken as constructor parameters) to avoid a DI
+/// construction cycle: both are ultimately implemented by <c>QsoControllerRouter</c>, which
+/// depends on <c>QsoAnswererService</c>/<c>QsoCallerService</c>, which depend on
+/// <see cref="IAdifLogWriter"/> — the very decorator that depends on this service.
+/// </para>
+/// </summary>
+public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
+{
+    private const string AppId = "OpenWSFZ";
+
+    private readonly ChannelReader<DecodeBatch>            _decodeChannel;
+    private readonly IConfigStore                          _configStore;
+    private readonly IServiceProvider                      _serviceProvider;
+    private readonly ICatState?                             _catState;
+    private readonly ILogger<ExternalReportingService>      _logger;
+    private readonly TimeSpan                               _heartbeatInterval;
+    private readonly TimeSpan                               _statusPollInterval;
+
+    // Lazily resolved on first use (see class remarks) — never in the constructor.
+    private IQsoController?      _qsoController;
+    private bool                 _qsoControllerResolved;
+    private IExternalReplyTarget? _replyTarget;
+    private bool                 _replyTargetResolved;
+
+    private IQsoController? QsoController
+    {
+        get
+        {
+            if (!_qsoControllerResolved)
+            {
+                _qsoController         = _serviceProvider.GetService<IQsoController>();
+                _qsoControllerResolved = true;
+            }
+            return _qsoController;
+        }
+    }
+
+    private IExternalReplyTarget? ReplyTarget
+    {
+        get
+        {
+            if (!_replyTargetResolved)
+            {
+                _replyTarget         = _serviceProvider.GetService<IExternalReplyTarget>();
+                _replyTargetResolved = true;
+            }
+            return _replyTarget;
+        }
+    }
+
+    private readonly object _targetsLock = new();
+    private List<(ExternalReportingTarget Target, UdpClient Client)> _outboundClients = [];
+    private UdpClient? _inboundClient;
+    private int         _inboundBoundPort = -1;
+
+    private readonly ConcurrentDictionary<string, bool> _resolutionWarned = new();
+
+    private WsjtxDatagram.StatusFields? _lastStatus;
+    private DateTimeOffset              _lastHeartbeatSentUtc = DateTimeOffset.MinValue;
+    private DateTimeOffset              _lastStatusSentUtc    = DateTimeOffset.MinValue;
+
+    /// <summary>
+    /// Most recently received inbound Free Text, when <c>honourInboundCommands</c> is enabled.
+    /// Accepted and stored per the "Inbound Free Text gated and currently a no-op" requirement —
+    /// no OpenWSFZ TX state machine has a free-message slot to apply it to yet (see design.md).
+    /// </summary>
+    internal string? LastFreeText { get; private set; }
+
+    private CancellationTokenSource? _cts;
+    private Task? _decodeLoopTask;
+    private Task? _timerLoopTask;
+    private Task? _inboundLoopTask;
+
+    /// <summary>Production constructor — all dependencies from DI.</summary>
+    public ExternalReportingService(
+        ChannelReader<DecodeBatch>       decodeChannel,
+        IConfigStore                     configStore,
+        IServiceProvider                 serviceProvider,
+        ILogger<ExternalReportingService> logger,
+        ICatState?                        catState = null)
+        : this(decodeChannel, configStore, serviceProvider, logger, catState,
+               heartbeatInterval: TimeSpan.FromSeconds(15),
+               statusPollInterval: TimeSpan.FromSeconds(1))
+    {
+    }
+
+    /// <summary>Test constructor — allows overriding the timer cadences to avoid multi-second waits.</summary>
+    internal ExternalReportingService(
+        ChannelReader<DecodeBatch>       decodeChannel,
+        IConfigStore                     configStore,
+        IServiceProvider                 serviceProvider,
+        ILogger<ExternalReportingService> logger,
+        ICatState?                        catState,
+        TimeSpan                          heartbeatInterval,
+        TimeSpan                          statusPollInterval)
+    {
+        _decodeChannel      = decodeChannel;
+        _configStore        = configStore;
+        _serviceProvider    = serviceProvider;
+        _logger             = logger;
+        _catState           = catState;
+        _heartbeatInterval  = heartbeatInterval;
+        _statusPollInterval = statusPollInterval;
+    }
+
+    // ── IHostedService ────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _cts = new CancellationTokenSource();
+        // Capture the token in a local now — the three Task.Run lambdas below close over this
+        // local, not the mutable _cts field, so a concurrent StopAsync nulling out _cts (via
+        // Interlocked.Exchange) before the thread pool actually starts running a queued lambda
+        // can never throw a NullReferenceException reading _cts.Token from inside that lambda.
+        var token = _cts.Token;
+        Reconcile(_configStore.Current.ExternalReporting);
+        _configStore.OnSaved += OnConfigSaved;
+
+        _decodeLoopTask  = Task.Run(() => DecodeLoopAsync(token), CancellationToken.None);
+        _timerLoopTask   = Task.Run(() => TimerLoopAsync(token), CancellationToken.None);
+        _inboundLoopTask = Task.Run(() => InboundLoopAsync(token), CancellationToken.None);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _configStore.OnSaved -= OnConfigSaved;
+
+        var cts = Interlocked.Exchange(ref _cts, null);
+        if (cts is null) return;
+
+        // Send Close to every enabled target before closing sockets (task 3.6).
+        await SendCloseToAllAsync().ConfigureAwait(false);
+
+        await cts.CancelAsync().ConfigureAwait(false);
+
+        var tasks = new[] { _decodeLoopTask, _timerLoopTask, _inboundLoopTask }
+            .Where(t => t is not null).Select(t => t!).ToArray();
+        try
+        {
+            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(3), CancellationToken.None)
+                      .ConfigureAwait(false);
+        }
+        catch (TimeoutException) { /* acceptable on shutdown */ }
+        catch (OperationCanceledException) { /* expected */ }
+
+        CloseAllSockets();
+        cts.Dispose();
+    }
+
+    // ── IAsyncDisposable ─────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync(CancellationToken.None).ConfigureAwait(false);
+    }
+
+    // ── Config reconciliation (task 3.2) ────────────────────────────────────
+
+    private void OnConfigSaved(AppConfig config) => Reconcile(config.ExternalReporting);
+
+    /// <summary>
+    /// Opens outbound <see cref="UdpClient"/>s for newly-enabled targets, closes ones for
+    /// targets no longer enabled/present, and (re)binds the single inbound listener to the
+    /// first enabled target's port — all without a daemon restart.
+    /// </summary>
+    /// <param name="config">
+    /// May be <c>null</c> in principle: <c>System.Text.Json</c> source-generation initialises a
+    /// non-nullable init property to <c>null</c> (bypassing its C# property initialiser) when the
+    /// corresponding JSON key is absent, the same quirk documented throughout
+    /// <c>JsonConfigStore.Load</c> for <c>Logging</c>/<c>DecodeLog</c>/<c>RemoteAccess</c>/
+    /// <c>DecodeNoiseSuppression</c>. <c>WebApp</c>'s <c>POST /api/v1/config</c> guards against
+    /// this before saving, but this defensive coalesce keeps <c>Reconcile</c> correct for any
+    /// caller that does not.
+    /// </param>
+    private void Reconcile(ExternalReportingConfig? config)
+    {
+        config ??= new ExternalReportingConfig();
+
+        lock (_targetsLock)
+        {
+            var desiredEnabled = config.Enabled
+                ? config.Targets.Where(t => t.Enabled).ToList()
+                : [];
+
+            var toClose = _outboundClients.Where(c => !desiredEnabled.Contains(c.Target)).ToList();
+            foreach (var c in toClose)
+            {
+                _outboundClients.Remove(c);
+                try { c.Client.Dispose(); } catch { /* best-effort */ }
+            }
+
+            foreach (var target in desiredEnabled)
+            {
+                if (_outboundClients.Any(c => c.Target.Equals(target))) continue;
+                try
+                {
+                    _outboundClients.Add((target, new UdpClient()));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "external-reporting: failed to open outbound socket for target '{Name}'.",
+                        target.Name);
+                }
+            }
+
+            var desiredInboundPort = desiredEnabled.Count > 0 ? desiredEnabled[0].Port : -1;
+            if (desiredInboundPort != _inboundBoundPort)
+            {
+                _inboundClient?.Dispose();
+                _inboundClient    = null;
+                _inboundBoundPort = -1;
+
+                if (desiredInboundPort > 0)
+                {
+                    try
+                    {
+                        _inboundClient    = new UdpClient(new IPEndPoint(IPAddress.Any, desiredInboundPort));
+                        _inboundBoundPort = desiredInboundPort;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "external-reporting: failed to bind inbound listener on port {Port}.",
+                            desiredInboundPort);
+                    }
+                }
+            }
+        }
+    }
+
+    private bool IsOutboundActive
+    {
+        get { lock (_targetsLock) return _outboundClients.Count > 0; }
+    }
+
+    // ── Outbound: decode-batch-driven Clear + Decode (tasks 3.3–3.4) ────────
+
+    private async Task DecodeLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var batch in _decodeChannel.ReadAllAsync(ct).ConfigureAwait(false))
+            {
+                if (!IsOutboundActive) continue;
+
+                await SendToAllEnabledAsync(WsjtxDatagram.EncodeClear(AppId)).ConfigureAwait(false);
+
+                foreach (var r in batch.Results)
+                {
+                    var fields = new WsjtxDatagram.DecodeFields(
+                        New:                    true,
+                        TimeMsSinceMidnightUtc: ParseTimeToMs(r.Time),
+                        SnrDb:                  r.Snr,
+                        DeltaTimeSeconds:       r.Dt,
+                        DeltaFrequencyHz:       (uint)Math.Max(0, r.FreqHz),
+                        Mode:                   "~",
+                        Message:                r.Message,
+                        LowConfidence:          false);
+                    await SendToAllEnabledAsync(WsjtxDatagram.EncodeDecode(AppId, fields)).ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException) { /* shutdown */ }
+    }
+
+    private static uint ParseTimeToMs(string time)
+        => TimeSpan.TryParseExact(time, @"hh\:mm\:ss", null, out var ts)
+            ? (uint)ts.TotalMilliseconds
+            : 0;
+
+    // ── Outbound: Heartbeat + Status timer (task 3.3) ───────────────────────
+
+    private async Task TimerLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            if (IsOutboundActive)
+            {
+                var now = DateTimeOffset.UtcNow;
+
+                if (now - _lastHeartbeatSentUtc >= _heartbeatInterval)
+                {
+                    _lastHeartbeatSentUtc = now;
+                    await SendToAllEnabledAsync(
+                        WsjtxDatagram.EncodeHeartbeat(AppId, 3, AssemblyVersion.Get(), ""))
+                        .ConfigureAwait(false);
+                }
+
+                var status  = BuildStatusFields();
+                var changed = _lastStatus is null || !_lastStatus.Value.Equals(status);
+                if (changed || now - _lastStatusSentUtc >= _heartbeatInterval)
+                {
+                    _lastStatus         = status;
+                    _lastStatusSentUtc  = now;
+                    await SendToAllEnabledAsync(WsjtxDatagram.EncodeStatus(AppId, status)).ConfigureAwait(false);
+                }
+            }
+
+            try
+            {
+                await Task.Delay(_statusPollInterval, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { break; }
+        }
+    }
+
+    private WsjtxDatagram.StatusFields BuildStatusFields()
+    {
+        var config = _configStore.Current;
+        var tx     = config.Tx ?? new TxConfig();
+
+        var dialFreqMHz = WebApp.ResolveEffectiveFrequency(_catState, config);
+        var dialFreqHz  = (ulong)Math.Max(0, Math.Round(dialFreqMHz * 1_000_000.0));
+
+        var qso     = QsoController;
+        var partner = qso?.Partner ?? "";
+        var keying  = qso?.Keying ?? false;
+
+        return new WsjtxDatagram.StatusFields(
+            DialFrequencyHz: dialFreqHz,
+            Mode:            "FT8",
+            DxCall:          partner,
+            Report:          "",
+            TxMode:          "FT8",
+            TxEnabled:       tx.AutoAnswer,
+            Transmitting:    keying,
+            Decoding:        config.DecodingEnabled,
+            RxDeltaFreqHz:   (uint)Math.Max(0, tx.RxAudioOffsetHz),
+            TxDeltaFreqHz:   (uint)Math.Max(0, tx.TxAudioOffsetHz),
+            MyCall:          tx.Callsign,
+            MyGrid:          tx.Grid,
+            // DX grid: not exposed via IQsoController today — left blank (best-effort; the
+            // requirement allows "when known from the decode").
+            DxGrid:          "");
+    }
+
+    // ── Outbound: QSOLogged (task 3.5) ──────────────────────────────────────
+
+    /// <summary>
+    /// Called by the <see cref="IAdifLogWriter"/> decorator immediately after a successful ADIF
+    /// write, from every call site (<c>QsoAnswererService</c>/<c>QsoCallerService</c>'s direct
+    /// write when <c>tx.qsoConfirmation=false</c>, and <c>POST /api/v1/tx/log-qso</c> when
+    /// <c>tx.qsoConfirmation=true</c>, the default). A QSO aborted by watchdog or operator never
+    /// reaches an ADIF write at all, so it correctly never reaches here either (mirrors FR-051's
+    /// own "no record on abort" rule).
+    /// </summary>
+    internal void NotifyQsoLogged(QsoRecord record)
+    {
+        if (!IsOutboundActive) return;
+
+        var fields = new WsjtxDatagram.QsoLoggedFields(
+            QsoStartUtc:    new DateTimeOffset(DateTime.SpecifyKind(record.QsoStartUtc, DateTimeKind.Utc)),
+            QsoEndUtc:      new DateTimeOffset(DateTime.SpecifyKind(record.QsoEndUtc, DateTimeKind.Utc)),
+            DxCall:         record.PartnerCallsign,
+            DxGrid:         record.PartnerGrid ?? "",
+            TxFrequencyHz:  (ulong)Math.Max(0, Math.Round(record.DialFrequencyMHz * 1_000_000.0)),
+            Mode:           "FT8",
+            ReportSent:     record.RstSent,
+            ReportReceived: record.RstRcvd,
+            MyCall:         record.OperatorCallsign,
+            MyGrid:         record.OperatorGrid);
+
+        _ = SendToAllEnabledAsync(WsjtxDatagram.EncodeQsoLogged(AppId, fields));
+    }
+
+    // ── Outbound send + Close-on-shutdown (task 3.6) ────────────────────────
+
+    private async Task SendToAllEnabledAsync(byte[] datagram)
+    {
+        List<(ExternalReportingTarget Target, UdpClient Client)> clients;
+        lock (_targetsLock) clients = [.. _outboundClients];
+
+        foreach (var (target, client) in clients)
+        {
+            try
+            {
+                await client.SendAsync(datagram, datagram.Length, target.Host, target.Port)
+                            .ConfigureAwait(false);
+                _resolutionWarned.TryRemove(TargetKey(target), out _);
+            }
+            catch (Exception ex) when (ex is SocketException or ArgumentException)
+            {
+                if (_resolutionWarned.TryAdd(TargetKey(target), true))
+                {
+                    _logger.LogWarning(ex,
+                        "external-reporting: failed to resolve/send to target '{Name}' ({Host}:{Port}) — " +
+                        "other targets are unaffected; will keep retrying silently.",
+                        target.Name, target.Host, target.Port);
+                }
+            }
+        }
+    }
+
+    private static string TargetKey(ExternalReportingTarget t) => $"{t.Name}|{t.Host}|{t.Port}";
+
+    private async Task SendCloseToAllAsync()
+    {
+        if (!IsOutboundActive) return;
+        try
+        {
+            await SendToAllEnabledAsync(WsjtxDatagram.EncodeClose(AppId)).ConfigureAwait(false);
+        }
+        catch { /* best-effort on shutdown */ }
+    }
+
+    private void CloseAllSockets()
+    {
+        lock (_targetsLock)
+        {
+            foreach (var (_, client) in _outboundClients)
+                try { client.Dispose(); } catch { /* best-effort */ }
+            _outboundClients.Clear();
+
+            _inboundClient?.Dispose();
+            _inboundClient    = null;
+            _inboundBoundPort = -1;
+        }
+    }
+
+    // ── Inbound listener (task 4) ────────────────────────────────────────────
+
+    private async Task InboundLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            UdpClient? client;
+            lock (_targetsLock) client = _inboundClient;
+
+            if (client is null)
+            {
+                try { await Task.Delay(250, ct).ConfigureAwait(false); }
+                catch (OperationCanceledException) { break; }
+                continue;
+            }
+
+            UdpReceiveResult result;
+            try
+            {
+                result = await client.ReceiveAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException)
+            {
+                continue; // rebound/closed concurrently by Reconcile — pick up the new client
+            }
+            catch (SocketException ex)
+            {
+                _logger.LogDebug(ex, "external-reporting: inbound socket error — continuing.");
+                continue;
+            }
+
+            HandleInboundDatagram(result.Buffer);
+        }
+    }
+
+    /// <summary>
+    /// Dispatches a single decoded inbound datagram. Never throws: <see cref="WsjtxDatagram.TryDecode"/>
+    /// already guarantees malformed input becomes a discarded datagram, not an exception
+    /// (task 4.1/2.4), and every handler below is itself exception-safe.
+    /// </summary>
+    private void HandleInboundDatagram(byte[] buffer)
+    {
+        if (!WsjtxDatagram.TryDecode(buffer, out var message) || message is null)
+        {
+            _logger.LogDebug("external-reporting: discarded a malformed inbound datagram.");
+            return;
+        }
+
+        switch (message)
+        {
+            case WsjtxDatagram.InboundMessage.HaltTxMessage:
+                // Halt Tx is ALWAYS honoured — never gated by honourInboundCommands (task 4.2).
+                _logger.LogInformation(
+                    "external-reporting: Halt Tx received — aborting any in-progress transmission.");
+                _ = HandleHaltTxAsync();
+                break;
+
+            case WsjtxDatagram.InboundMessage.ReplyMessage reply:
+                HandleReply(reply);
+                break;
+
+            case WsjtxDatagram.InboundMessage.FreeTextMessage freeText:
+                HandleFreeText(freeText);
+                break;
+
+            case WsjtxDatagram.InboundMessage.CloseMessage:
+                // Logged only — SHALL NOT terminate the daemon under any circumstance (task 4.4).
+                _logger.LogInformation(
+                    "external-reporting: inbound Close received from a client — no action taken.");
+                break;
+
+            case WsjtxDatagram.InboundMessage.HeartbeatMessage:
+                _logger.LogDebug("external-reporting: inbound Heartbeat received.");
+                break;
+
+            case WsjtxDatagram.InboundMessage.UnsupportedMessage unsupported:
+                // task 4.5: any other recognised-but-unsupported type — Debug log only.
+                _logger.LogDebug(
+                    "external-reporting: discarding unsupported inbound type {Type}.", unsupported.Type);
+                break;
+        }
+    }
+
+    private async Task HandleHaltTxAsync()
+    {
+        try
+        {
+            var qso = QsoController;
+            if (qso is not null)
+                await qso.AbortAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "external-reporting: Halt Tx dispatch failed.");
+        }
+    }
+
+    private void HandleReply(WsjtxDatagram.InboundMessage.ReplyMessage reply)
+    {
+        if (!_configStore.Current.ExternalReporting.HonourInboundCommands)
+        {
+            _logger.LogInformation(
+                "external-reporting: Reply received but honourInboundCommands is disabled — ignoring.");
+            return;
+        }
+
+        if (!TryExtractCallsign(reply.Message, out var callsign))
+        {
+            _logger.LogInformation(
+                "external-reporting: Reply received but no callsign could be extracted from '{Message}' — ignoring.",
+                reply.Message);
+            return;
+        }
+
+        var target = ReplyTarget;
+        if (target is null)
+        {
+            _logger.LogWarning(
+                "external-reporting: Reply received for '{Callsign}' but no IExternalReplyTarget is wired up — ignoring.",
+                callsign);
+            return;
+        }
+
+        _ = target.TryEngageAsync(callsign).ContinueWith(t =>
+        {
+            if (t.IsFaulted)
+                _logger.LogWarning(t.Exception, "external-reporting: TryEngageAsync for '{Callsign}' faulted.", callsign);
+        }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// Extracts the target callsign from a Reply datagram's echoed message text. Tries the CQ
+    /// pattern first (the common case: the operator selected a CQ line in GridTracker2); falls
+    /// back to the second whitespace-separated token (<c>"DEST SRC ..."</c> — the source
+    /// callsign of a non-CQ directed message).
+    /// </summary>
+    private static bool TryExtractCallsign(string message, out string callsign)
+    {
+        if (QsoAnswererService.TryParseCq(message, out var cq, out _))
+        {
+            callsign = cq;
+            return true;
+        }
+
+        var parts = message.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            callsign = parts[1];
+            return true;
+        }
+
+        callsign = string.Empty;
+        return false;
+    }
+
+    private void HandleFreeText(WsjtxDatagram.InboundMessage.FreeTextMessage freeText)
+    {
+        if (!_configStore.Current.ExternalReporting.HonourInboundCommands)
+        {
+            _logger.LogInformation(
+                "external-reporting: Free Text received but honourInboundCommands is disabled — ignoring.");
+            return;
+        }
+
+        // Accepted and stored; intentionally has NO transmission effect (see design.md /
+        // "Inbound Free Text gated and currently a no-op").
+        LastFreeText = freeText.Text;
+        _logger.LogInformation(
+            "external-reporting: Free Text received and stored (no transmission effect): '{Text}'.",
+            freeText.Text);
+    }
+}
