@@ -1006,13 +1006,21 @@ select#dial-freq {
 }
 
 /* ── Decode table — CQ row highlight (TX-D01) ───────────────────────────── */
-/* Warm amber accent draws the operator's eye to CQing stations.            */
+/* Deep green accent draws the operator's eye to CQing stations.            */
 .decode-cq {
-  background-color: rgba(200, 150, 50, 0.15);
+  background-color: #103115;
 }
 .decode-cq:hover {
-  background-color: rgba(200, 150, 50, 0.28);
   cursor: pointer;
+}
+/* #decodes-table tr:hover td (below, base table styling) repaints every cell's
+   background to --color-surface on hover, which — because <td> backgrounds paint
+   over their parent <tr>'s background — silently masked this row's hover colour
+   regardless of what background-color was set above. This selector adds the
+   .decode-cq class to match td-for-td, which is strictly more specific than the
+   generic rule, so it wins instead of being overridden by it. */
+#decodes-table tr.decode-cq:hover td {
+  background: #1b5324;
 }
 
 /* ── Decode table — rows addressed to the operator ──────────────────────── */
@@ -1025,13 +1033,16 @@ select#dial-freq {
 /* ── Decode table — responder row highlight (qso-caller) ───────────────── */
 /* Warm teal/green marks rows where a station responded to our CQ            */
 /* (first token === operator callsign) when Caller mode + None select.       */
-/* Clearly distinct from .decode-cq (amber) and .decode-partner (dark red).  */
+/* Clearly distinct from .decode-cq (deep green) and .decode-partner (dark red). */
 .decode-responder {
   background-color: rgba(40, 160, 130, 0.18);
 }
 .decode-responder:hover {
-  background-color: rgba(40, 160, 130, 0.32);
   cursor: pointer;
+}
+/* Same td-repaint-masks-tr issue as .decode-cq:hover above — see that comment. */
+#decodes-table tr.decode-responder:hover td {
+  background: rgba(40, 160, 130, 0.32);
 }
 
 /* ── Pileup-mode toggle row (FR-PILEUP-001) ─────────────────────────────── */
