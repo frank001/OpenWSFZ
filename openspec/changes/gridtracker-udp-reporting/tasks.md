@@ -94,10 +94,11 @@
 - [x] 5.4 `OpenWSFZ.Daemon.Tests`: all five new scenarios in `specs/qso-answerer/spec.md` (matching
       CQ engages, works with `autoAnswer=false`, unknown callsign no-ops, filtered-out callsign
       no-ops, already-engaged no-ops).
-- [ ] 5.5 Wire the inbound Reply handler (§4.3) to call `IExternalReplyTarget.TryEngageAsync`,
-      resolved via DI the same way `WebApp` resolves `IQsoRoleSwitcher` today. (Deferred to the
-      §3/§4 `ExternalReportingService` implementation, which consumes `IExternalReplyTarget`
-      directly via constructor injection.)
+- [x] 5.5 Wire the inbound Reply handler (§4.3) to call `IExternalReplyTarget.TryEngageAsync`,
+      resolved via DI the same way `WebApp` resolves `IQsoRoleSwitcher` today. Done as part of the
+      §3/§4 `ExternalReportingService` implementation (`HandleReply`) — resolved lazily via
+      `IServiceProvider.GetService<IExternalReplyTarget>()`, not constructor injection, to avoid
+      the DI construction cycle documented in `ExternalReportingService`'s class remarks.
 
 ## 6. Settings — before screenshot
 
