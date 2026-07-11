@@ -275,61 +275,65 @@ The Settings page SHALL contain a "Logging" section that allows the operator to 
 
 ---
 
-### Requirement: Decode start/stop toggle button in status bar
+### Requirement: Combined decode status/toggle control in status bar
 
-The main page (`index.html`) status bar SHALL include a `<button id="decode-toggle">` element. The button label SHALL read **"Stop Decoding"** when the pipeline is active and **"Start Decoding"** when it is stopped. Clicking the button SHALL call `POST /api/v1/decode/stop` or `POST /api/v1/decode/start` accordingly and update the UI state on success.
+The main page (`index.html`) status bar SHALL include a single `<button id="decode-toggle">`
+element that serves as both the decode-pipeline state indicator and the start/stop click target —
+replacing the former separate `#decode-badge` display element and `#decode-toggle` button. The
+element SHALL render in exactly one of three states, driven by the same `decodingEnabled` and
+`audioDevice` status fields as before:
 
-The button SHALL be disabled (and labelled **"No device"**) when no audio device is configured (`audioDevice` is null or empty in the status payload), since starting is not possible without a device.
+- **Decoding active** (`decodingEnabled: true`): bright-green background style and label text
+  **"DECODING"** (all capitals).
+- **Decoding stopped** (`decodingEnabled: false`, a device is configured): bright-red background
+  style and label text **"Start decoding"** (sentence case — only the initial "S" capitalised).
+- **No device configured** (`audioDevice` is `null` or `""`): disabled, neutral/muted style,
+  label text **"No device"** — this state takes precedence over the active/stopped styling above,
+  matching the former button's disabled-state precedence.
 
-#### Scenario: Button shows Stop when decoding is active
+The control SHALL be updated whenever a `status` event, heartbeat event, or a successful response
+from `/decode/start` or `/decode/stop` is received — the same update triggers the two predecessor
+elements shared.
 
-- **WHEN** the `status` event is received with `decodingEnabled: true`
-- **THEN** `#decode-toggle` SHALL have label text "Stop Decoding"
+Clicking the control while in the "DECODING" (active) state SHALL call `POST /api/v1/decode/stop`;
+clicking it while in the "Start decoding" (stopped) state SHALL call `POST /api/v1/decode/start`.
+The control SHALL NOT be clickable (browser-native `disabled` behaviour) while in the "No device"
+state.
+
+#### Scenario: Control shows DECODING and bright green when active
+
+- **WHEN** the `status` event is received with `decodingEnabled: true` and a configured
+  `audioDevice`
+- **THEN** `#decode-toggle` SHALL have label text "DECODING"
+- **AND** SHALL render with the bright-green active style
 - **AND** the button SHALL not be disabled
 
-#### Scenario: Button shows Start when decoding is stopped
+#### Scenario: Control shows Start decoding and bright red when stopped
 
-- **WHEN** the `status` event is received with `decodingEnabled: false`
-- **THEN** `#decode-toggle` SHALL have label text "Start Decoding"
-- **AND** the button SHALL not be disabled (assuming a device is configured)
+- **WHEN** the `status` event is received with `decodingEnabled: false` and a configured
+  `audioDevice`
+- **THEN** `#decode-toggle` SHALL have label text "Start decoding"
+- **AND** SHALL render with the bright-red stopped style
+- **AND** the button SHALL not be disabled
 
-#### Scenario: Button is disabled when no device is configured
+#### Scenario: Control is disabled when no device is configured
 
 - **WHEN** the `status` event is received with `audioDevice: null` or `audioDevice: ""`
 - **THEN** `#decode-toggle` SHALL be disabled
 - **AND** the button label SHALL read "No device"
+- **AND** neither the active (bright-green) nor stopped (bright-red) style SHALL apply
 
-#### Scenario: Clicking Stop calls the stop endpoint
+#### Scenario: Clicking while active calls the stop endpoint
 
-- **WHEN** `#decode-toggle` is clicked while in the "Stop Decoding" state
+- **WHEN** `#decode-toggle` is clicked while showing "DECODING"
 - **THEN** a `POST /api/v1/decode/stop` request SHALL be issued
-- **AND** on a 200 response the button SHALL update to "Start Decoding"
+- **AND** on a 200 response the control SHALL update to "Start decoding" / bright-red
 
-#### Scenario: Clicking Start calls the start endpoint
+#### Scenario: Clicking while stopped calls the start endpoint
 
-- **WHEN** `#decode-toggle` is clicked while in the "Start Decoding" state
+- **WHEN** `#decode-toggle` is clicked while showing "Start decoding"
 - **THEN** a `POST /api/v1/decode/start` request SHALL be issued
-- **AND** on a 200 response the button SHALL update to "Stop Decoding"
-
----
-
-### Requirement: Decoding-state badge in status bar
-
-The main page status bar SHALL include a `<span id="decode-badge">` element that displays the current decode state: **"Decoding"** (with a visually distinct active style) when the pipeline is running, and **"Stopped"** (with a neutral/muted style) when it is not.
-
-The badge SHALL be updated whenever a `status` event, heartbeat event, or a successful response from `/decode/start` or `/decode/stop` is received.
-
-#### Scenario: Badge shows Decoding when active
-
-- **WHEN** `decodingEnabled` is `true` in the current status
-- **THEN** `#decode-badge` SHALL display the text "Decoding"
-- **AND** SHALL have the CSS class `decoding-active`
-
-#### Scenario: Badge shows Stopped when inactive
-
-- **WHEN** `decodingEnabled` is `false` in the current status
-- **THEN** `#decode-badge` SHALL display the text "Stopped"
-- **AND** SHALL have the CSS class `decoding-stopped`
+- **AND** on a 200 response the control SHALL update to "DECODING" / bright-green
 
 ### Requirement: Settings page — Frequencies tab
 
@@ -1294,57 +1298,108 @@ as a new column/badge on the row. Rendering SHALL follow these rules:
 
 ---
 
-### Requirement: Decode table — worked-before confirmation columns
+### Requirement: Decode table — band-aware worked-before confirmation columns
 
-`#decodes-table` SHALL display three additional readonly indicator columns, positioned
-immediately after the existing Region column (the rightmost columns in the table): **P**
-(Partner), **C** (Country), **R** (Region). Each column header SHALL display only the single
-letter, with a `title` attribute of `"Partner"`, `"Country"`, and `"Region"` respectively for
-tooltip disclosure. Each column SHALL be styled as narrow as practical (indicator content only,
-no excess padding).
+`#decodes-table` SHALL display five readonly indicator columns, positioned immediately after the
+existing Region column (the rightmost columns in the table, replacing the previous three-column
+P/C/R set): **Ctc** (Contact), **DXCC** (Country), **Cnt** (Continent), **CQz** (CQ Zone), **ITz**
+(ITU Zone). Each column header SHALL display the abbreviated label shown above, with a `title`
+attribute giving the full dimension name (`"Contact"`, `"DXCC (Country)"`, `"Continent"`,
+`"CQ Zone"`, `"ITU Zone"` respectively) for tooltip disclosure. Each column SHALL be styled as
+narrow as practical (indicator content only, no excess padding).
 
-Each cell SHALL contain a non-interactive `<span>` reflecting the corresponding boolean on that
-row's decode payload `workedBefore` field (`call`/`country`/`region` — `qso-confirmation`
-capability), populated at row-creation time with no separate network round-trip, consistent with
-the existing Region column's population timing. When the boolean is `true`, the span SHALL
-display a checkmark glyph styled in the success colour (`--color-success`); when `false` (or the
-field/sub-field is absent), the span SHALL be empty. A `<span>` has no interactive semantics, so
-there is nothing for the operator to click or edit.
+Each cell SHALL contain a non-interactive `<span>` reflecting the corresponding tri-state value on
+that row's decode payload `workedBefore` field (`contact`/`country`/`continent`/`cqZone`/`ituZone`
+— `qso-confirmation` capability), populated at row-creation time with no separate network
+round-trip, consistent with the existing Region column's population timing. Rendering SHALL
+follow these rules:
 
-#### Scenario: All three columns show a checkmark when previously worked
+- `Never` (or the field/sub-field absent) → the span SHALL be empty.
+- `DifferentBand` → the span SHALL display a distinct "worked, different band" glyph, visually
+  differentiated from both the empty state and the `ThisBand` state (exact glyph/colour choice
+  left to the implementing developer, consistent with this codebase's existing `--color-success`
+  token convention for the `ThisBand` state — e.g. an amber/muted variant for `DifferentBand`).
+- `ThisBand` → the span SHALL display the existing checkmark glyph in `--color-success`, unchanged
+  from the prior binary implementation's "worked" rendering.
 
-- **WHEN** a decode row's payload has `workedBefore: { call: true, country: true, region: true }`
-- **THEN** the rendered row SHALL show a green checkmark in all three indicator cells (P, C, R)
+A `<span>` has no interactive semantics, so there is nothing for the operator to click or edit —
+carried forward unmodified from the prior implementation.
 
-#### Scenario: Independent per-column state
+#### Scenario: All five columns show the this-band glyph when worked on the current band
 
-- **WHEN** a decode row's payload has `workedBefore: { call: false, country: true, region: true }`
-  (station never worked, but its country and continent have been)
-- **THEN** the rendered row SHALL show P empty, C and R with a checkmark
+- **WHEN** a decode row's payload has `workedBefore: { contact: "thisBand", country: "thisBand",
+  continent: "thisBand", cqZone: "thisBand", ituZone: "thisBand" }`
+- **THEN** the rendered row SHALL show the this-band checkmark glyph in all five indicator cells
 
-#### Scenario: All three columns empty when never worked before
+#### Scenario: Different-band state renders distinctly from both empty and this-band
 
-- **WHEN** a decode row's payload has `workedBefore: { call: false, country: false, region:
-  false }`, or the `workedBefore` field is absent from the payload
-- **THEN** the rendered row SHALL show all three indicator cells empty
+- **WHEN** a decode row's payload has `workedBefore: { contact: "differentBand", country: "never",
+  continent: "thisBand", cqZone: "never", ituZone: "never" }`
+- **THEN** the rendered row SHALL show Ctc with the different-band glyph, DXCC empty, Cnt with the
+  this-band checkmark glyph, and CQz/ITz empty — three visually distinct states demonstrated across
+  one row
+
+#### Scenario: All five columns empty when never worked before
+
+- **WHEN** a decode row's payload has `workedBefore: { contact: "never", country: "never",
+  continent: "never", cqZone: "never", ituZone: "never" }`, or the `workedBefore` field is absent
+  from the payload
+- **THEN** the rendered row SHALL show all five indicator cells empty
 
 #### Scenario: Indicators are not operator-editable
 
-- **WHEN** an operator attempts to click any of the P/C/R indicator cells on any decode row
+- **WHEN** an operator attempts to click any of the five indicator cells on any decode row
 - **THEN** nothing SHALL happen — the cell contains a plain `<span>`, not an interactive control
 
 #### Scenario: Columns present on every decode row regardless of message type
 
 - **WHEN** any decode is rendered in the decode table (CQ, standard QSO, Type 4 nonstandard
   literal, or hash-reference message)
-- **THEN** the row SHALL include all three P/C/R indicator cells, defaulting to empty if
-  `workedBefore` is absent or a given sub-field cannot be resolved
+- **THEN** the row SHALL include all five indicator cells, defaulting to empty if `workedBefore`
+  is absent or a given sub-field cannot be resolved
 
 #### Scenario: No-data placeholder row spans the full column count
 
 - **WHEN** the decode table has no decodes yet and displays its placeholder row
 - **THEN** the placeholder row's `colspan` SHALL equal the table's total column count, including
-  the three new P/C/R columns
+  the five worked-before columns (two more than the prior three-column set) and the Band column
+  below
+
+---
+
+### Requirement: Decode table — Band column
+
+`#decodes-table` SHALL display a **Band** column positioned immediately after the Time column
+(before dB), showing the session's current active band that decode was made on (e.g. `"40m"`),
+using the same band-name convention as the Settings → Frequencies tab's Description column. The
+cell SHALL be populated from that row's decode payload `band` field (`qso-confirmation-band-awareness`
+capability — the same value threaded into worked-before resolution as `currentBand` for that
+decode), at row-creation time with no separate network round-trip. When the `band` field is
+absent or `null` (current band unresolvable — no CAT, no manual fallback configured, or the
+resolved frequency falls outside all known amateur bands), the cell SHALL be empty.
+
+#### Scenario: Band column shows the resolved band
+
+- **WHEN** a decode row's payload has `band: "40m"`
+- **THEN** the rendered row SHALL display `"40m"` in the Band column
+
+#### Scenario: Band column is empty when the current band is unresolvable
+
+- **WHEN** a decode row's payload has `band: null`, or the `band` field is absent from the payload
+- **THEN** the rendered row SHALL display an empty Band column cell
+
+#### Scenario: Band column present on every decode row regardless of message type
+
+- **WHEN** any decode is rendered in the decode table (CQ, standard QSO, Type 4 nonstandard
+  literal, or hash-reference message)
+- **THEN** the row SHALL include a Band column cell, defaulting to empty if `band` is absent
+
+#### Scenario: Band column agrees with the worked-before indicators on the same row
+
+- **WHEN** a decode row's payload has `band: "20m"` and `workedBefore.contact: "thisBand"`
+- **THEN** both values originate from the same `currentBand` resolution for that decode cycle —
+  there is no scenario where the Band column shows one band while a `"thisBand"` worked-before
+  indicator on the same row implies a different one
 
 ---
 
