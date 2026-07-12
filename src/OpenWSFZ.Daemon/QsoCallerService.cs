@@ -951,6 +951,24 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         }
         finally
         {
+            // dev-task 2026-07-12-cat-tx-ptt-missing-keyup-after-transmit.md: KeyUpAsync
+            // MUST run here, not only from the abort path (AbortAsync/SafeAbortToIdleAsync)
+            // — that path is for operator/watchdog-initiated abort of an in-progress
+            // *session*, this is the ordinary, successful (or cancelled) end of a single
+            // transmission. Every KeyDownAsync must be paired with a KeyUpAsync in the
+            // normal-completion path or PTT relies on the 20 s PttWatchdog failsafe to ever
+            // release, which breaks FT8 slot timing on every single transmission. Use
+            // CancellationToken.None so release still happens even if linked.Token is
+            // already cancelled — both controllers' KeyUpAsync bodies already tolerate being
+            // called when nothing is asserted (a safe no-op).
+            try
+            {
+                await _pttController.KeyUpAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "QsoCallerService: KeyUpAsync threw after TransmitAsync — ignoring.");
+            }
             _keying = false;
             PublishKeyingTransition();
         }

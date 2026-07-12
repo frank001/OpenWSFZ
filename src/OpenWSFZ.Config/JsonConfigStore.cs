@@ -42,6 +42,23 @@ public sealed class JsonConfigStore : IConfigStore
     /// <inheritdoc/>
     public async Task SaveAsync(AppConfig config, CancellationToken ct = default)
     {
+        // Belt-and-braces guard: SaveAsync is the one true chokepoint all persistence
+        // goes through, not just the POST /api/v1/config handler. Mirrors the same
+        // STJ source-gen null-vs-initialiser guard applied at load time (see Load()
+        // below) and at the HTTP write path (WebApp.cs) so that any caller building a
+        // partial AppConfig can never persist (or hand back via Current) a null Ptt.
+        //
+        // Falls back to the already-persisted _current.Ptt rather than a hardcoded
+        // new PttConfig(): web/js/settings.js never sends a "ptt" key at all (no
+        // Settings-page UI exists for it), so a hardcoded default would silently
+        // revert an operator's manually-configured ptt.method (e.g. "CatCommand")
+        // back to "AudioVox" on every ordinary, unrelated Settings-page save — the
+        // exact stuck-on-VOX symptom this guard exists to prevent. Only falls back
+        // further to new PttConfig() if _current.Ptt is itself somehow null, which
+        // should not happen given Load()'s own guard below.
+        if (config.Ptt is null)
+            config = config with { Ptt = _current.Ptt ?? new PttConfig() };
+
         var dir = Path.GetDirectoryName(_path)
             ?? throw new InvalidOperationException($"Cannot determine directory for '{_path}'.");
 
@@ -145,6 +162,14 @@ public sealed class JsonConfigStore : IConfigStore
             if (config.ExternalReporting is null)
                 config = config with { ExternalReporting = new ExternalReportingConfig() };
 
+            // "ptt" key is absent in config files written before the cat-tx-ptt change.
+            // Same STJ source-gen null-vs-initialiser guard as
+            // "logging"/"decodeLog"/"remoteAccess"/"decodeNoiseSuppression"/"externalReporting"
+            // above. Defaulting to new PttConfig() (Method = "AudioVox") preserves today's
+            // VOX-only behaviour exactly (FR-056).
+            if (config.Ptt is null)
+                config = config with { Ptt = new PttConfig() };
+
             // "cat" key is intentionally nullable: absent in config files written before p16.
             // Null is the correct default (CAT disabled); no guard needed — consumers use
             // (config.Cat ?? new CatConfig()) to get a non-null value.
@@ -215,6 +240,7 @@ public sealed class JsonConfigStore : IConfigStore
             new AppConfig() with
             {
                 Cat               = new CatConfig(),
+                Ptt               = new PttConfig(),
                 Tx                = new TxConfig(),
                 RemoteAccess      = new RemoteAccessConfig(),
                 Decoder           = new DecoderConfig(),

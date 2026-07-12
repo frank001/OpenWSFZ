@@ -1,8 +1,6 @@
 #if WASAPI_SUPPORTED
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Audio;
 
@@ -39,9 +37,11 @@ public sealed class AudioOnlyPttController : IPttController
     // The pre-loaded audio buffer.  Null until LoadAudio is called.
     private float[]? _audioSamples;
 
-    // The active WasapiOut instance (non-null only while transmission is in progress).
-    private WasapiOut? _activePlayer;
-    private readonly SemaphoreSlim _playerLock = new(1, 1);
+    // Shared WASAPI device-open/play/stop/dispose helper (cat-tx-ptt, design.md
+    // Decision 3). Only ever touched via the real (non-override) KeyDownAsync path;
+    // unit tests always supply _playerOverride, so this instance's WasapiOut is never
+    // opened during tests — KeyUpAsync/DisposeAsync remain graceful no-ops for them.
+    private readonly WasapiTxPlayer _player;
 
     // ── Constructors ─────────────────────────────────────────────────────────
 
@@ -53,6 +53,7 @@ public sealed class AudioOnlyPttController : IPttController
         _configStore    = configStore;
         _logger         = logger;
         _playerOverride = null;
+        _player         = new WasapiTxPlayer(logger);
     }
 
     /// <summary>
@@ -68,6 +69,7 @@ public sealed class AudioOnlyPttController : IPttController
         _configStore    = configStore;
         _logger         = logger;
         _playerOverride = playerOverride;
+        _player         = new WasapiTxPlayer(logger);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -114,7 +116,7 @@ public sealed class AudioOnlyPttController : IPttController
             return;
         }
 
-        await PlayWasapiAsync(samples, deviceId, ct).ConfigureAwait(false);
+        await _player.PlayAsync(samples, deviceId, ct).ConfigureAwait(false);
 
         _logger.LogInformation("TX KeyDown — playback completed.");
     }
@@ -126,157 +128,10 @@ public sealed class AudioOnlyPttController : IPttController
     public async Task KeyUpAsync(CancellationToken ct = default)
     {
         _logger.LogInformation("TX KeyUp — stopping playback.");
-
-        await _playerLock.WaitAsync(ct).ConfigureAwait(false);
-        try
-        {
-            StopAndReleasePlayer();
-        }
-        finally
-        {
-            _playerLock.Release();
-        }
+        await _player.StopAsync(ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async ValueTask DisposeAsync()
-    {
-        await _playerLock.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            StopAndReleasePlayer();
-        }
-        finally
-        {
-            _playerLock.Release();
-            _playerLock.Dispose();
-        }
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private async Task PlayWasapiAsync(float[] samples, string? deviceId, CancellationToken ct)
-    {
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        await _playerLock.WaitAsync(ct).ConfigureAwait(false);
-        try
-        {
-            // Obtain the output device.
-            using var enumerator = new MMDeviceEnumerator();
-            MMDevice device;
-            if (!string.IsNullOrEmpty(deviceId))
-            {
-                device = enumerator.GetDevice(deviceId);
-                _logger.LogDebug("TX: opened output device '{DeviceId}'.", deviceId);
-            }
-            else
-            {
-                device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                _logger.LogDebug("TX: using default output device.");
-            }
-
-            var waveFormat  = WaveFormat.CreateIeeeFloatWaveFormat(48_000, channels: 1);
-            var provider    = new FloatArraySampleProvider(samples, waveFormat);
-
-            _activePlayer = new WasapiOut(device, AudioClientShareMode.Shared,
-                useEventSync: true, latency: 200);
-
-            _activePlayer.PlaybackStopped += (_, e) =>
-            {
-                if (e.Exception is not null)
-                    tcs.TrySetException(e.Exception);
-                else
-                    tcs.TrySetResult();
-            };
-
-            _activePlayer.Init(provider);
-            _activePlayer.Play();
-        }
-        finally
-        {
-            _playerLock.Release();
-        }
-
-        // Wait outside the lock so KeyUpAsync can acquire it to stop playback.
-        // Register callback is synchronous — await is not available, so KeyUpAsync is
-        // fire-and-forget.  Observe the task to prevent an unhandled exception on the
-        // finaliser thread; StopAndReleasePlayer already catches and logs internally so
-        // a fault here indicates a genuinely unexpected failure.
-        using var reg = ct.Register(() =>
-        {
-            KeyUpAsync(CancellationToken.None).ContinueWith(
-                t => _logger.LogWarning(t.Exception, "KeyUpAsync threw during cancellation — ignoring."),
-                CancellationToken.None,
-                TaskContinuationOptions.OnlyOnFaulted,
-                TaskScheduler.Default);
-            tcs.TrySetCanceled();
-        });
-
-        try
-        {
-            await tcs.Task.ConfigureAwait(false);
-        }
-        catch (TaskCanceledException)
-        {
-            // Cancellation is expected; caller will handle it.
-            throw new OperationCanceledException(ct);
-        }
-    }
-
-    private void StopAndReleasePlayer()
-    {
-        if (_activePlayer is null) return;
-
-        try
-        {
-            _activePlayer.Stop();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "WasapiOut.Stop() threw during TX release — ignoring.");
-        }
-
-        try
-        {
-            _activePlayer.Dispose();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "WasapiOut.Dispose() threw during TX release — ignoring.");
-        }
-
-        _activePlayer = null;
-    }
-
-    // ── Inner helper: ISampleProvider over float[] ────────────────────────────
-
-    /// <summary>
-    /// Thin <see cref="ISampleProvider"/> wrapper over a pre-filled <c>float[]</c> buffer.
-    /// Used to feed the synthesised TX audio to <c>WasapiOut.Init</c>.
-    /// </summary>
-    private sealed class FloatArraySampleProvider : ISampleProvider
-    {
-        private readonly float[] _samples;
-        private          int     _position;
-
-        public FloatArraySampleProvider(float[] samples, WaveFormat waveFormat)
-        {
-            _samples   = samples;
-            WaveFormat = waveFormat;
-        }
-
-        public WaveFormat WaveFormat { get; }
-
-        public int Read(float[] buffer, int offset, int count)
-        {
-            int available = _samples.Length - _position;
-            int toCopy    = Math.Min(available, count);
-            if (toCopy <= 0) return 0;
-            Buffer.BlockCopy(_samples, _position * sizeof(float), buffer, offset * sizeof(float), toCopy * sizeof(float));
-            _position += toCopy;
-            return toCopy;
-        }
-    }
+    public async ValueTask DisposeAsync() => await _player.DisposeAsync().ConfigureAwait(false);
 }
 #endif

@@ -415,14 +415,36 @@ var app = WebApp.Create(
         services.AddSingleton<CatPollingService>();
         services.AddSingleton<ICatTuner>(sp => sp.GetRequiredService<CatPollingService>());
         services.AddSingleton<ICatController>(sp => sp.GetRequiredService<CatPollingService>());
+        // ICatPttGate (task 6.4, FR-056): the narrow seam CatPttController depends on so
+        // PTT commands are always serialised against the poll loop — see CatPollingService's
+        // class remarks and design.md Decision 1 of the cat-tx-ptt change.
+        services.AddSingleton<ICatPttGate>(sp => sp.GetRequiredService<CatPollingService>());
         services.AddHostedService(sp => sp.GetRequiredService<CatPollingService>());
 
-        // PTT controller (task 4.5): AudioOnlyPttController on Windows; NullPttController elsewhere.
-        // CA1416: suppressed — code is only compiled when WASAPI_SUPPORTED is defined,
-        //         which is set exclusively on Windows targets (see .csproj).
+        // PTT controller (task 4.5, extended by cat-tx-ptt task 11.1, FR-056): a three-way
+        // switch on AppConfig.Ptt.Method selects exactly one IPttController implementation
+        // at startup, falling back to AudioOnlyPttController/NullPttController per the
+        // existing WASAPI_SUPPORTED platform gating when WASAPI is unavailable or the
+        // configured Method is unrecognised (design.md Decision 6 — matches the existing
+        // CatConfig.RigModel unknown-value handling, FR-034). A missing ptt config key
+        // defaults to Method = "AudioVox", preserving today's behaviour exactly.
+        // CA1416: suppressed — the CatCommand/SerialRtsDtr branches are only compiled when
+        //         WASAPI_SUPPORTED is defined, which is set exclusively on Windows targets
+        //         (see .csproj) — same rationale as the pre-existing AudioVox branch.
 #pragma warning disable CA1416
 #if WASAPI_SUPPORTED
-        services.AddSingleton<IPttController, AudioOnlyPttController>();
+        switch (PttControllerSelector.Resolve(configStore.Current.Ptt.Method, startupLogger))
+        {
+            case PttControllerKind.CatCommand:
+                services.AddSingleton<IPttController, CatPttController>();
+                break;
+            case PttControllerKind.SerialRtsDtr:
+                services.AddSingleton<IPttController, SerialRtsDtrPttController>();
+                break;
+            default:
+                services.AddSingleton<IPttController, AudioOnlyPttController>();
+                break;
+        }
 #else
         services.AddSingleton<IPttController, NullPttController>();
 #endif

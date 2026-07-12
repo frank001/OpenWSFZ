@@ -150,6 +150,7 @@
           </select>
         </div>
 
+        <div class="hardware-fieldset-row">
         <fieldset id="cat-settings">
           <legend>CAT rig connection</legend>
 
@@ -227,6 +228,90 @@
           </div>
 
         </fieldset>
+
+        <!-- ── PTT Config (cat-tx-ptt, FR-057) ─────────────────────────────── -->
+        <fieldset id="ptt-settings">
+          <legend>PTT Config</legend>
+
+          <div class="field-group">
+            <label for="ptt-method">PTT method</label>
+            <select id="ptt-method">
+              <option value="AudioVox">AudioVox — rig's own VOX keys from TX audio</option>
+              <option value="CatCommand">CatCommand — key via the CAT link</option>
+              <option value="SerialRtsDtr">SerialRtsDtr — key via a raw serial RTS/DTR line</option>
+            </select>
+            <p class="field-hint">
+              Changing this requires Save + restarting the application before it takes effect —
+              <code>ptt.method</code> is read once at startup, not hot-reloaded.
+            </p>
+          </div>
+
+          <!-- Serial RTS/DTR fields (shown when method = SerialRtsDtr) -->
+          <div id="ptt-serial-fields">
+            <div class="field-group">
+              <label for="ptt-serial-port">Serial port</label>
+              <div class="input-with-action">
+                <select id="ptt-serial-port">
+                  <option value="">Loading ports…</option>
+                </select>
+                <button type="button" id="ptt-serial-refresh" title="Refresh port list">↺ Refresh</button>
+              </div>
+              <p class="field-hint">
+                Independent of the CAT serial port above — RTS/DTR PTT wiring is frequently on a
+                different physical interface.
+              </p>
+            </div>
+
+            <div class="field-group">
+              <label for="ptt-serial-line">Serial line</label>
+              <select id="ptt-serial-line">
+                <option value="Rts">RTS</option>
+                <option value="Dtr">DTR</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Timing fields (shown for CatCommand and SerialRtsDtr — hidden for AudioVox,
+               which has nothing to configure) -->
+          <div id="ptt-timing-fields">
+            <div class="field-group">
+              <label for="ptt-lead-time-ms">Lead time (ms)</label>
+              <input type="number" id="ptt-lead-time-ms" min="0" max="5000" step="10" placeholder="50" />
+              <p class="field-hint">Delay after asserting PTT before TX audio playback begins.</p>
+            </div>
+
+            <div class="field-group">
+              <label for="ptt-tail-time-ms">Tail time (ms)</label>
+              <input type="number" id="ptt-tail-time-ms" min="0" max="5000" step="10" placeholder="50" />
+              <p class="field-hint">Delay after TX audio ends before PTT is released.</p>
+            </div>
+
+            <div class="field-group">
+              <label for="ptt-watchdog-timeout-ms">Watchdog timeout (ms)</label>
+              <input type="number" id="ptt-watchdog-timeout-ms" min="1000" max="120000" step="1000" placeholder="20000" />
+              <p class="field-hint">
+                Hard failsafe ceiling — PTT is force-released if not released normally within this
+                time. Default 20000 ms comfortably exceeds one FT8 transmission (12 640 ms).
+              </p>
+            </div>
+          </div>
+
+          <div class="field-group" id="ptt-test-group">
+            <label>Test</label>
+            <div class="input-with-action">
+              <button type="button" id="ptt-test-btn">Test</button>
+              <span id="ptt-test-badge" class="ptt-test-badge ptt-test-idle">Not tested</span>
+            </div>
+            <p class="field-hint">
+              Fires a brief, silent PTT pulse against the currently-running PTT method. Pass means
+              the assert/release commands were accepted — it does <strong>not</strong> confirm the
+              rig visibly keyed. Watch the rig yourself to verify. Unavailable while a real QSO is
+              transmitting, or when the live method is AudioVox (nothing to test).
+            </p>
+          </div>
+
+        </fieldset>
+        </div><!-- /.hardware-fieldset-row -->
 
         <!-- ── Advanced Decoder Settings (decoder-settings-page) ────────────── -->
         <details id="advanced-decoder-settings">

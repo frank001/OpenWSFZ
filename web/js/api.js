@@ -183,6 +183,46 @@ export async function postCatRetry() {
 }
 
 /**
+ * POST /api/v1/ptt/test (cat-tx-ptt, task 17.3/17.6, FR-057)
+ * Fires a brief, silent PTT pulse against the currently-running IPttController.
+ * Unlike the generic fetchJson-based helpers above, this reads the JSON body on a 409
+ * response too (rather than discarding it and throwing a generic "HTTP 409" error) so the
+ * caller can show the operator the actual reason ("a QSO is currently transmitting" /
+ * "PTT method is AudioVox…") rather than a bare status code.
+ * @returns {Promise<{result: 'pass'|'error', message: string|null}>}
+ */
+export async function postPttTest() {
+  const key = getApiKey();
+  const res = await fetch('/api/v1/ptt/test', {
+    method:  'POST',
+    headers: key ? { 'X-Api-Key': key } : {},
+  });
+
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
+
+  if (res.status === 409) {
+    let message = 'PTT test unavailable.';
+    try {
+      const problem = await res.json();
+      message = problem?.detail || problem?.title || message;
+    } catch {
+      // Malformed/absent ProblemDetails body — fall back to the generic message above.
+    }
+    return { result: 'error', message };
+  }
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/ptt/test`);
+  }
+
+  return res.json();
+}
+
+/**
  * GET /api/v1/tx/status
  * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean}>}
  */

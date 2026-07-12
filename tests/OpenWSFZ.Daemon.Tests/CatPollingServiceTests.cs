@@ -231,6 +231,124 @@ public sealed class CatPollingServiceTests
         await svc.StopAsync(CancellationToken.None);
     }
 
+    // ── ICatPttGate (FR-056, task 12.3) ───────────────────────────────────────
+
+    [Fact(DisplayName = "CatTx-Ptt: ICatPttGate.SetPttAsync throws InvalidOperationException when CAT is disabled")]
+    public async Task SetPttAsync_CatDisabled_Throws()
+    {
+        var (svc, _, _) = MakeService(new CatConfig { Enabled = false });
+        ICatPttGate gate = svc;
+
+        var act = () => gate.SetPttAsync(true);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*disabled*");
+    }
+
+    [Fact(DisplayName = "CatTx-Ptt: ICatPttGate.SetPttAsync throws InvalidOperationException when no connection has ever been established")]
+    public async Task SetPttAsync_NoActiveConnection_Throws()
+    {
+        // Enabled but the poll loop was never started — _activeConnection stays null.
+        var (svc, _, _) = MakeService(new CatConfig { Enabled = true });
+        ICatPttGate gate = svc;
+
+        var act = () => gate.SetPttAsync(true);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*not yet connected*");
+    }
+
+    [Fact(DisplayName = "CatTx-Ptt: ICatPttGate.SetPttAsync dispatches to the active IRadioConnection once connected")]
+    public async Task SetPttAsync_Connected_CallsConnectionSetPtt()
+    {
+        var cat   = new CatConfig { Enabled = true, RigModel = "SerialCat" };
+        var store = new StubConfigStore(new AppConfig() with { Cat = cat });
+
+        var connection = Substitute.For<IRadioConnection>();
+        connection.IsConnected.Returns(true);
+        connection.GetDialFrequencyMhzAsync(Arg.Any<CancellationToken>()).Returns(14.074);
+
+        var state = new CatState();
+        var bus   = new CatEventBus(Guid.NewGuid());
+        var svc   = new TestableCatPollingService(
+                        state, store, bus,
+                        NullLogger<CatPollingService>.Instance,
+                        NullLoggerFactory.Instance,
+                        connection);
+        ICatPttGate gate = svc;
+
+        await svc.StartAsync(CancellationToken.None);
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1000);
+        while (DateTime.UtcNow < deadline && state.Status != CatConnectionStatus.Connected)
+            await Task.Delay(20);
+
+        await gate.SetPttAsync(true);
+
+        await svc.StopAsync(CancellationToken.None);
+
+        await connection.Received(1).SetPttAsync(true, Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "CatTx-Ptt: poll loop reads and SetPttAsync commands never overlap on the shared connection")]
+    public async Task SetPttAsync_ConcurrentWithPoll_NeverInterleaves()
+    {
+        // A re-entrancy guard on the mock connection: any overlapping call (poll vs. PTT,
+        // or PTT vs. PTT) increments past 1 and flags a violation — proving the
+        // _connectionLock gate genuinely serialises every call, not just by coincidence
+        // of timing (design.md Decision 1).
+        var cat   = new CatConfig { Enabled = true, RigModel = "SerialCat", PollIntervalSeconds = 1 };
+        var store = new StubConfigStore(new AppConfig() with { Cat = cat });
+
+        var reentrancyGuard = 0;
+        var violation       = false;
+
+        var connection = Substitute.For<IRadioConnection>();
+        connection.IsConnected.Returns(true);
+        connection.GetDialFrequencyMhzAsync(Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                if (Interlocked.Increment(ref reentrancyGuard) != 1) violation = true;
+                await Task.Delay(50);
+                Interlocked.Decrement(ref reentrancyGuard);
+                return 14.074;
+            });
+        connection.SetPttAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                if (Interlocked.Increment(ref reentrancyGuard) != 1) violation = true;
+                await Task.Delay(50);
+                Interlocked.Decrement(ref reentrancyGuard);
+            });
+
+        var state = new CatState();
+        var bus   = new CatEventBus(Guid.NewGuid());
+        var svc   = new TestableCatPollingService(
+                        state, store, bus,
+                        NullLogger<CatPollingService>.Instance,
+                        NullLoggerFactory.Instance,
+                        connection);
+        ICatPttGate gate = svc;
+
+        await svc.StartAsync(CancellationToken.None);
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1000);
+        while (DateTime.UtcNow < deadline && state.Status != CatConnectionStatus.Connected)
+            await Task.Delay(20);
+
+        // Fire several concurrent PTT calls while the poll loop is also ticking
+        // (PollIntervalSeconds = 1, so a poll is likely mid-flight during this window).
+        var pttTasks = Enumerable.Range(0, 5).Select(_ => gate.SetPttAsync(true)).ToArray();
+        await Task.WhenAll(pttTasks);
+
+        await Task.Delay(300); // let another poll cycle also have a chance to overlap
+
+        await svc.StopAsync(CancellationToken.None);
+
+        violation.Should().BeFalse(
+            "the connection lock must prevent any overlap between poll reads and PTT commands");
+    }
+
     // ── Stub IConfigStore ─────────────────────────────────────────────────────
 
     private sealed class StubConfigStore : IConfigStore

@@ -146,4 +146,125 @@ public sealed class ConfigApiNullGuardTests : IClassFixture<WebTestFactory>
         extRepElement.GetProperty("enabled").GetBoolean().Should().BeFalse(
             "the recovered ExternalReporting must be the default ExternalReportingConfig(), i.e. disabled");
     }
+
+    [Fact(DisplayName = "cat-tx-ptt AC-1: POST omitting \"ptt\" key does not persist a null Ptt")]
+    public async Task PostConfig_OmittingPttKey_DoesNotPersistNullPtt()
+    {
+        var client  = _factory.CreateClient();
+        var content = new StringContent(
+            """{ "audioDeviceId": "test-device" }""",
+            Encoding.UTF8, "application/json");
+
+        var postResp = await client.PostAsync("/api/v1/config", content);
+        postResp.StatusCode.Should().Be(HttpStatusCode.OK,
+            "a request body omitting ptt must still be accepted — the Settings page never sends " +
+            "a \"ptt\" key at all (design.md Decision 6: no speculative UI), so every ordinary " +
+            "Settings-page save must not be rejected");
+
+        var getResp = await client.GetAsync("/api/v1/config");
+        getResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await getResp.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        doc.RootElement.TryGetProperty("ptt", out var pttElement).Should().BeTrue(
+            "GET /api/v1/config must include the ptt key");
+        pttElement.ValueKind.Should().NotBe(JsonValueKind.Null,
+            "a POST body omitting \"ptt\" must never leave IConfigStore.Current.Ptt null " +
+            "(silently reverts CAT-command/serial RTS-DTR PTT to VOX with no warning, and risks a " +
+            "stuck-key NullReferenceException in CatPttController/SerialRtsDtrPttController.KeyDownAsync " +
+            "if a CAT/serial controller is already the active singleton)");
+
+        // Freshly-initialised store: Current.Ptt is still the untouched default at this
+        // point, so falling back to it (rather than a hardcoded new PttConfig()) produces
+        // the same observable defaults as before. See the AC-2 test below for the case
+        // that actually distinguishes the two fallbacks — a previously-persisted non-default
+        // Ptt surviving an unrelated save.
+        pttElement.GetProperty("method").GetString().Should().Be("AudioVox");
+        pttElement.GetProperty("serialLine").GetString().Should().Be("Rts");
+        pttElement.GetProperty("leadTimeMs").GetInt32().Should().Be(50);
+        pttElement.GetProperty("tailTimeMs").GetInt32().Should().Be(50);
+        pttElement.GetProperty("watchdogTimeoutMs").GetInt32().Should().Be(20000);
+    }
+
+    [Fact(DisplayName =
+        "cat-tx-ptt AC-2: an unrelated Settings-page save does not revert a previously-persisted " +
+        "non-default ptt.method back to AudioVox")]
+    public async Task PostConfig_UnrelatedSave_PreservesPreviouslyPersistedPtt()
+    {
+        // This is the actual hardware-acceptance symptom (dev-tasks/2026-07-12-cat-tx-ptt-null-
+        // ptt-config-guard.md, "Case A"): a null-guard that falls back to a hardcoded
+        // `new PttConfig()` stops the crash but does NOT stop every ordinary Settings-page
+        // save — even one that has nothing to do with PTT — from silently discarding an
+        // operator's manually-configured "CatCommand"/"SerialRtsDtr" ptt.method, because
+        // web/js/settings.js never sends a "ptt" key in the first place. The fix must fall
+        // back to the already-persisted IConfigStore.Current.Ptt instead, so an omitted
+        // "ptt" key is a true no-op rather than an implicit reset to defaults.
+        var client = _factory.CreateClient();
+
+        try
+        {
+            // Seed a non-default, previously-persisted Ptt section (simulates an operator
+            // having configured CAT-command PTT, whether via a prior POST that did include
+            // "ptt" or a hand-edited config.json picked up at daemon startup).
+            var seedContent = new StringContent(
+                """
+                {
+                  "audioDeviceId": "test-device",
+                  "ptt": {
+                    "method": "CatCommand",
+                    "serialPort": "COM9",
+                    "serialLine": "Dtr",
+                    "leadTimeMs": 75,
+                    "tailTimeMs": 75,
+                    "watchdogTimeoutMs": 15000
+                  }
+                }
+                """,
+                Encoding.UTF8, "application/json");
+            (await client.PostAsync("/api/v1/config", seedContent)).StatusCode
+                .Should().Be(HttpStatusCode.OK);
+
+            // Sanity-check the seed actually took.
+            var seededJson = await (await client.GetAsync("/api/v1/config")).Content.ReadAsStringAsync();
+            using (var seededDoc = JsonDocument.Parse(seededJson))
+            {
+                seededDoc.RootElement.GetProperty("ptt").GetProperty("method").GetString()
+                    .Should().Be("CatCommand", "the seed POST must have taken effect before testing preservation");
+            }
+
+            // Now perform an ordinary, unrelated Settings-page save — a real save always
+            // omits "ptt" entirely, so this reproduces exactly what web/js/settings.js sends.
+            var unrelatedSaveContent = new StringContent(
+                """{ "audioDeviceId": "test-device", "showCycleCountdown": true }""",
+                Encoding.UTF8, "application/json");
+            (await client.PostAsync("/api/v1/config", unrelatedSaveContent)).StatusCode
+                .Should().Be(HttpStatusCode.OK);
+
+            var afterJson = await (await client.GetAsync("/api/v1/config")).Content.ReadAsStringAsync();
+            using var afterDoc = JsonDocument.Parse(afterJson);
+            var pttAfter = afterDoc.RootElement.GetProperty("ptt");
+
+            pttAfter.GetProperty("method").GetString().Should().Be("CatCommand",
+                "an unrelated Settings-page save must not silently revert ptt.method to AudioVox " +
+                "— this is the exact hardware-acceptance symptom (\"the radio never enables TX\") " +
+                "this test guards against");
+            pttAfter.GetProperty("serialPort").GetString().Should().Be("COM9");
+            pttAfter.GetProperty("serialLine").GetString().Should().Be("Dtr");
+            pttAfter.GetProperty("leadTimeMs").GetInt32().Should().Be(75);
+            pttAfter.GetProperty("tailTimeMs").GetInt32().Should().Be(75);
+            pttAfter.GetProperty("watchdogTimeoutMs").GetInt32().Should().Be(15000);
+        }
+        finally
+        {
+            // Restore Current.Ptt to the default before returning control to the shared
+            // WebTestFactory (IClassFixture — one instance for this whole test class), so
+            // this test's seeded state can never leak into AC-1 or any other test in this
+            // class regardless of xUnit's execution order.
+            var resetContent = new StringContent(
+                """{ "audioDeviceId": "test-device", "ptt": { "method": "AudioVox" } }""",
+                Encoding.UTF8, "application/json");
+            await client.PostAsync("/api/v1/config", resetContent);
+        }
+    }
 }

@@ -366,6 +366,20 @@ public static class WebApp
                 config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
             if (config.ExternalReporting is null)
                 config = config with { ExternalReporting = new ExternalReportingConfig() };
+            // Ptt gets a different fallback than the four guards above: web/js/settings.js
+            // never sends a "ptt" key at all (there is deliberately no Settings-page UI for
+            // it — design.md Decision 6), so EVERY Settings-page save hits this branch, not
+            // just a hypothetical missing-key edge case. Defaulting to a fresh new PttConfig()
+            // here would silently revert an operator's manually-edited ptt.method (e.g.
+            // "CatCommand") back to "AudioVox" on the very next unrelated save (toggling
+            // showCycleCountdown, etc.) — reproducing the exact stuck-on-VOX symptom this fix
+            // exists to prevent. Falling back to the already-persisted store.Current.Ptt
+            // instead makes an omitted "ptt" key a true no-op: whatever was on disk before
+            // this save stays there. store.Current.Ptt is itself never null by this point
+            // (JsonConfigStore.Load() and SaveAsync both guard it), so the ?? new PttConfig()
+            // is pure defense-in-depth, not the expected path.
+            if (config.Ptt is null)
+                config = config with { Ptt = store.Current.Ptt ?? new PttConfig() };
 
             // ── CAT config validation (FR-031, FR-034) ─────────────────────────
             if (config.Cat is { } cat)
@@ -794,6 +808,12 @@ public static class WebApp
         // Capture IQsoController (may be null in tests or when the TX subsystem is not wired).
         var qsoController = app.Services.GetService<IQsoController>();
 
+        // Capture IPttController (cat-tx-ptt, task 17.3) — the currently-running singleton
+        // resolved by Program.cs's Ptt.Method switch at DI-registration time. May be null in
+        // test fixtures that don't wire the TX subsystem; POST /api/v1/ptt/test treats that
+        // the same as "nothing to test" (503).
+        var pttController = app.Services.GetService<IPttController>();
+
         // Capture IQsoRoleSwitcher for runtime role switching (Call CQ, task 11.5).
         // Null in tests that register a plain IQsoController stub rather than the full router.
         var qsoRoleSwitcher = app.Services.GetService<IQsoRoleSwitcher>();
@@ -945,6 +965,57 @@ public static class WebApp
 
             catController.TriggerRetry();
             return Results.NoContent();
+        });
+
+        // ── PTT test endpoint (cat-tx-ptt, task 17.3, FR-057) ─────────────────
+        //
+        // Fires a brief (~250 ms), silent (zero-amplitude) software PTT pulse against the
+        // currently-running IPttController singleton: assert → tiny silence buffer → release.
+        // Pass means the assert/release commands were accepted without throwing — it does NOT
+        // mean the rig visibly keyed (IRadioConnection.SetPttAsync defines no read-back; see
+        // its own doc comment). The operator must still watch the rig.
+        //
+        // Safety-critical (design.md Decision 6 amendment): this is a second, independent
+        // caller of the same DI singleton QsoAnswererService/QsoCallerService already drive.
+        // Layer 1 here rejects with 409 while a real QSO is keying; layer 2 (CatPttController/
+        // SerialRtsDtrPttController's own SemaphoreSlim, task 17.2) closes the remaining race
+        // for any request that gets past this check just as a real transmission begins.
+        const int PttTestSampleRate    = 48_000;
+        const int PttTestDurationMs    = 250;
+        var       pttTestSilence       = new float[PttTestSampleRate * PttTestDurationMs / 1000];
+
+        app.MapPost("/api/v1/ptt/test", async (IConfigStore store, CancellationToken ct) =>
+        {
+            if (qsoController?.Keying == true)
+                return Results.Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    detail: "a QSO is currently transmitting");
+
+            var method = store.Current.Ptt?.Method ?? "AudioVox";
+            if (string.Equals(method, "AudioVox", StringComparison.OrdinalIgnoreCase))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    detail: "PTT method is AudioVox — OpenWSFZ never asserts PTT itself in this " +
+                            "mode (the rig's own VOX keys from audio), so there is nothing to test.");
+
+            if (pttController is null)
+                return Results.Problem(
+                    statusCode: StatusCodes.Status503ServiceUnavailable,
+                    detail: "PTT controller is not available.");
+
+            try
+            {
+                pttController.LoadAudio(pttTestSilence);
+                await pttController.KeyDownAsync(ct).ConfigureAwait(false);
+                await pttController.KeyUpAsync(ct).ConfigureAwait(false);
+                return TypedResults.Ok(new PttTestResponse("pass"));
+            }
+            catch (Exception ex)
+            {
+                // Expected, handleable outcome (a real CAT/serial failure) — not a server
+                // error, so HTTP 200 with an error payload rather than a 500 (task 17.3).
+                return TypedResults.Ok(new PttTestResponse("error", ex.Message));
+            }
         });
 
         // ── Audio offset endpoint ─────────────────────────────────────────────

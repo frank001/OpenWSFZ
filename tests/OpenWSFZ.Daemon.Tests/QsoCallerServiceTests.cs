@@ -212,6 +212,139 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
+    // ── dev-task 2026-07-12-cat-tx-ptt-missing-keyup-after-transmit.md ─────────
+
+    [Fact(DisplayName = "dev-task 2026-07-12: normal transmission calls KeyDownAsync immediately followed by KeyUpAsync, with no intervening state transition")]
+    public async Task TransmitAsync_NormalCompletion_KeyUpImmediatelyFollowsKeyDown_NoInterveningStateTransition()
+    {
+        // Regression test: before this fix, TransmitAsync's normal-completion path never
+        // called KeyUpAsync at all — every real TX cycle relied entirely on PttWatchdog's
+        // 20 s failsafe to ever release PTT, which broke FT8 slot timing on every single
+        // transmission (see dev-tasks/2026-07-12-cat-tx-ptt-missing-keyup-after-transmit.md).
+        var tx = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 4,
+        };
+        var (sut, eventBus, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+
+        // Manually record the interleaved call order across both substitutes. NSubstitute's
+        // Received.InOrder does not reliably interleave calls made on two different substitute
+        // instances (verified empirically — it throws CallSequenceNotFoundException even for a
+        // provably valid subsequence), so this hand-rolled recorder is the robust way to assert
+        // strict ordering across ptt and eventBus here.
+        var callOrder = new List<string>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>())
+           .Returns(_ => { callOrder.Add("KeyDownAsync"); return Task.CompletedTask; });
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>())
+           .Returns(_ => { callOrder.Add("KeyUpAsync"); return Task.CompletedTask; });
+        eventBus.When(e => e.Publish(
+                    Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(),
+                    Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<bool>()))
+                .Do(ci => callOrder.Add($"Publish:{ci.ArgAt<string>(0)}:keying={ci.ArgAt<bool>(5)}"));
+
+        await sut.StartAsync(stopCts.Token);
+
+        // Send any batch — triggers CQ transmission from Idle.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5)); // WaitAnswer proxy
+
+        // KeyDownAsync must be immediately followed by KeyUpAsync in the recorded call order —
+        // nothing else intervenes — proving PTT is released inside TransmitAsync's own
+        // normal-completion path, not merely "eventually, from the watchdog".
+        var keyDownIndex = callOrder.IndexOf("KeyDownAsync");
+        keyDownIndex.Should().BeGreaterThanOrEqualTo(0, "KeyDownAsync must have been called");
+        callOrder.Skip(keyDownIndex).Take(2).Should().Equal(
+            ["KeyDownAsync", "KeyUpAsync"],
+            "KeyUpAsync must run immediately after KeyDownAsync, with no intervening state transition");
+
+        // ...and the WaitAnswer state broadcast (TransmitAsync's caller resuming the state
+        // machine) must come strictly after both.
+        var waitAnswerIndex = callOrder.FindIndex(c => c.StartsWith("Publish:WaitAnswer", StringComparison.Ordinal));
+        waitAnswerIndex.Should().BeGreaterThan(keyDownIndex + 1,
+            "the WaitAnswer transition must not be published until after KeyUpAsync has run");
+
+        // Exactly one KeyDownAsync, exactly one KeyUpAsync — no extra calls sneaking in from
+        // an abort path, since none was taken.
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+        await ptt.Received(1).KeyUpAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "dev-task 2026-07-12: KeyUpAsync still runs when the transmission is cancelled mid-KeyDownAsync")]
+    public async Task TransmitAsync_CancelledMidKeyDown_StillCallsKeyUpAsync()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 3,
+            WatchdogMinutes = 4,
+        };
+
+        // KeyDownAsync never completes on its own — it only ends when its token is cancelled,
+        // so this test proves the finally block (and its KeyUpAsync call) is reached via the
+        // cancellation path, not the normal-return path.
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>())
+           .Returns(callInfo => Task.Delay(Timeout.Infinite, callInfo.Arg<CancellationToken>()));
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with { Tx = tx });
+        store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var eventBus = Substitute.For<ITxEventBus>();
+        var channel  = Channel.CreateUnbounded<DecodeBatch>();
+        var stopCts  = new CancellationTokenSource();
+
+        var sut = new QsoCallerService(
+            channel.Reader, store, ptt, eventBus,
+            new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance), new AudioOffsetEventBus(),
+            NullLogger<QsoCallerService>.Instance,
+            watchdogDurationOverride: TimeSpan.FromSeconds(30));
+
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ — the service enters TxCq (proxy: TxAnswer) and blocks inside KeyDownAsync.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
+        sut.Keying.Should().BeTrue();
+
+        await ptt.DidNotReceive().KeyUpAsync(Arg.Any<CancellationToken>());
+
+        // Cancel the token ExecuteAsync was started with — this is the token linked into
+        // TransmitAsync's `linked` CTS alongside `_txCts`, so it interrupts the in-flight
+        // KeyDownAsync directly (deliberately not going through AbortAsync, which has its own,
+        // separate KeyUpAsync cleanup call — this test isolates TransmitAsync's own finally
+        // block). Because stoppingToken.IsCancellationRequested is now true, ExecuteAsync's
+        // `catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)`
+        // branch simply breaks the loop rather than routing through SafeAbortToIdleAsync, so
+        // any KeyUpAsync call observed here can only have come from TransmitAsync's finally.
+        await stopCts.CancelAsync();
+
+        // Poll rather than a fixed delay — the finally block runs asynchronously once the
+        // cancellation propagates through Task.Delay.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (DateTime.UtcNow < deadline && ptt.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "KeyUpAsync") == 0)
+        {
+            await Task.Delay(10);
+        }
+
+        await ptt.Received(1).KeyUpAsync(Arg.Any<CancellationToken>());
+        sut.Keying.Should().BeFalse("the finally block clears keying even on the cancellation path");
+
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── 5.3: WaitAnswer First mode auto-engages ───────────────────────────────
 
     [Fact(DisplayName = "5.3: WaitAnswer First mode — batch with response auto-advances to TxReport")]
@@ -1326,7 +1459,12 @@ public sealed class QsoCallerServiceTests
         await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>()); // exactly one TX — no retransmission
-        await ptt.Received(1).KeyUpAsync(Arg.Any<CancellationToken>());  // SafeAbortToIdleAsync's cleanup call
+        // dev-task 2026-07-12-cat-tx-ptt-missing-keyup-after-transmit.md: TransmitAsync's own
+        // finally block now calls KeyUpAsync once on every normal-completion TX (the fix under
+        // test), and SafeAbortToIdleAsync's unconditional cleanup call fires a second time when
+        // the state machine reaches Idle — both are individually safe no-ops on a controller
+        // with nothing asserted, so two calls is the correct, expected total here.
+        await ptt.Received(2).KeyUpAsync(Arg.Any<CancellationToken>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

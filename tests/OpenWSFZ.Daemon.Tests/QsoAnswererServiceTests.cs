@@ -318,6 +318,67 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await _ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
     }
 
+    // ── dev-task 2026-07-12-cat-tx-ptt-missing-keyup-after-transmit.md ─────────
+
+    [Fact(DisplayName = "dev-task 2026-07-12: normal transmission calls KeyDownAsync immediately followed by KeyUpAsync, with no intervening state transition")]
+    public async Task TransmitAsync_NormalCompletion_KeyUpImmediatelyFollowsKeyDown()
+    {
+        // Regression test: before this fix, TransmitAsync's normal-completion path never
+        // called KeyUpAsync at all — every real TX cycle relied entirely on PttWatchdog's
+        // 20 s failsafe to ever release PTT, which broke FT8 slot timing on every single
+        // transmission (see dev-tasks/2026-07-12-cat-tx-ptt-missing-keyup-after-transmit.md).
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
+
+        await WaitForStateAsync(_sut!, QsoState.WaitReport);
+        _sut!.Partner.Should().Be(PartnerCall);
+
+        // KeyDownAsync immediately followed by KeyUpAsync — no other call intervenes — and
+        // each was called exactly once, proving PTT is released inside TransmitAsync's own
+        // normal-completion path rather than "eventually, from the watchdog".
+        Received.InOrder(() =>
+        {
+            _ptt.KeyDownAsync(Arg.Any<CancellationToken>());
+            _ptt.KeyUpAsync(Arg.Any<CancellationToken>());
+        });
+        await _ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+        await _ptt.Received(1).KeyUpAsync(Arg.Any<CancellationToken>());
+        _sut!.Keying.Should().BeFalse("KeyUpAsync's own finally clears keying once TransmitAsync returns");
+    }
+
+    [Fact(DisplayName = "dev-task 2026-07-12: KeyUpAsync still runs when the transmission is cancelled mid-KeyDownAsync")]
+    public async Task TransmitAsync_CancelledMidKeyDown_StillCallsKeyUpAsync()
+    {
+        // Override the shared fixture's default no-op KeyDownAsync: it now hangs until its
+        // token is cancelled, so this test proves the finally block (and its KeyUpAsync call)
+        // is reached via the cancellation path, not the normal-return path.
+        _ptt.KeyDownAsync(Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.Delay(Timeout.Infinite, callInfo.Arg<CancellationToken>()));
+
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(_sut!, QsoState.TxAnswer);
+        _sut!.Keying.Should().BeTrue();
+
+        await _ptt.DidNotReceive().KeyUpAsync(Arg.Any<CancellationToken>());
+
+        // Cancel the token ExecuteAsync was started with — linked into TransmitAsync's
+        // `linked` CTS alongside `_txCts`, so it interrupts the in-flight KeyDownAsync
+        // directly (deliberately not going through AbortAsync, which has its own, separate
+        // KeyUpAsync cleanup call — this test isolates TransmitAsync's own finally block).
+        await _stopCts!.CancelAsync();
+
+        // Poll rather than a fixed delay — the finally block runs asynchronously once the
+        // cancellation propagates through Task.Delay.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (DateTime.UtcNow < deadline
+               && _ptt.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "KeyUpAsync") == 0)
+        {
+            await Task.Delay(10);
+        }
+
+        await _ptt.Received(1).KeyUpAsync(Arg.Any<CancellationToken>());
+        _sut!.Keying.Should().BeFalse("the finally block clears keying even on the cancellation path");
+    }
+
     // ── Task 6.6: WaitReport ──────────────────────────────────────────────────
 
     [Fact(DisplayName = "6.6: Signal report from partner → TxReport → WaitRr73")]
