@@ -22,4 +22,18 @@
     <ProjectReference Include="..\..\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
   </ItemGroup>
+
+  <!--
+    cat-tx-ptt (task 7.3) fixed defect: this project never mirrored the WASAPI_SUPPORTED
+    conditional block that OpenWSFZ.Daemon.csproj defines on Windows, so every test in
+    AudioOnlyPttControllerTests.cs (and, from this change onward, CatPttControllerTests.cs)
+    — all wrapped in "#if WASAPI_SUPPORTED" — silently compiled to nothing and never ran,
+    on any platform, including Windows CI. Discovered while establishing a pre-refactor
+    baseline for task 7.3 (verify the existing AudioOnlyPttController suite passes
+    unmodified before extracting WasapiTxPlayer): 0 tests were being discovered instead of
+    the ~9 the file defines. Mirrors OpenWSFZ.Daemon.csproj's own block exactly.
+  -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <DefineConstants>$(DefineConstants);WASAPI_SUPPORTED</DefineConstants>
+  </PropertyGroup>
 </Project>

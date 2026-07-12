@@ -1,7 +1,7 @@
 # CAT Rig Control — Operator Guide
 
 **Applies to:** OpenWSFZ v0.16+  
-**Feature:** FR-031 – FR-034 (CAT frequency polling)
+**Feature:** FR-031 – FR-034 (CAT frequency polling), FR-045 (CAT frequency set), FR-056 (PTT-over-CAT and serial RTS/DTR keying)
 
 ---
 
@@ -18,8 +18,15 @@ Without CAT you must set `decodeLog.dialFrequencyMHz` manually.
 With CAT that field becomes a fallback — only used when the rig is
 disconnected or the daemon first starts.
 
-**What CAT does NOT do in this version:** It never sends frequency-set,
-mode-set, or PTT commands. The rig cannot be disturbed.
+CAT can also **tune** the rig (selecting a frequency from the main page's
+frequency dropdown sends a frequency-set command, FR-045) and, if you choose
+`ptt.method = "CatCommand"` in PTT configuration below, **key the
+transmitter** (FR-056). Frequency-set and PTT-set are the only two
+rig-altering commands OpenWSFZ ever sends — no mode-set or any other
+command is defined. See **PTT (Transmit Keying) Configuration** below for
+how to enable transmit keying; it is off by default (`ptt.method` defaults
+to `"AudioVox"`, today's VOX-only behaviour) and nothing changes for an
+operator who never touches those settings.
 
 ---
 
@@ -130,6 +137,106 @@ OpenWSFZ (or WSJT-X) is connected to it.
 3. Leave **rigctld port** as `4532` (unless you started rigctld on a different port).
 4. Check **Enable CAT frequency polling**.
 5. Click **Save**.
+
+---
+
+## PTT (Transmit Keying) Configuration
+
+OpenWSFZ can key your transmitter three different ways, selected via the
+`ptt` block in configuration (`ptt.method`):
+
+| Method | How it works | Requires CAT? |
+|---|---|---|
+| `AudioVox` (default) | TX audio is played out the configured audio output device; your rig's own VOX circuit detects the audio and keys itself. Unchanged from every earlier release. | No |
+| `CatCommand` | OpenWSFZ sends a CAT command (`TX;`/`RX;` for SerialCat, `\set_ptt` for RigCtld) to key/unkey the rig directly, then plays the TX audio. | Yes — CAT must be enabled and connected |
+| `SerialRtsDtr` | OpenWSFZ raises/lowers a raw RTS or DTR line on its own configured serial port to key the rig (e.g. via a soundcard interface's PTT input), then plays the TX audio. | No — works independently of CAT, even with CAT disabled entirely |
+
+**Which one should I use?**
+- If your rig only supports VOX, or you're not sure, leave the default (`AudioVox`) — nothing to configure.
+- If your rig has reliable CAT keying and you already have CAT configured above, `CatCommand` is the simplest option — no extra wiring.
+- If your interface (e.g. a USB-soundcard-with-PTT dongle) keys via RTS or DTR, or you want PTT to work without a CAT link at all, use `SerialRtsDtr`.
+
+### Configuration fields
+
+| Field | Description | Default |
+|---|---|---|
+| `ptt.method` | `AudioVox`, `CatCommand`, or `SerialRtsDtr` (see table above) | `AudioVox` |
+| `ptt.serialPort` | Serial port for `SerialRtsDtr` mode. **Independent of `cat.serialPort`** — in practice these are frequently different physical interfaces (e.g. CAT on a USB-CI-V cable, PTT on a separate USB-serial-to-soundcard adapter). Not used by the other two methods. | Platform default (e.g. `COM7`) |
+| `ptt.serialLine` | Which control line asserts PTT in `SerialRtsDtr` mode: `Rts` or `Dtr` | `Rts` |
+| `ptt.leadTimeMs` | Milliseconds to wait after keying before TX audio starts, giving the rig's PA time to come up cleanly. `CatCommand`/`SerialRtsDtr` only. | `50` |
+| `ptt.tailTimeMs` | Milliseconds to wait after TX audio ends before unkeying, avoiding a clipped last symbol. `CatCommand`/`SerialRtsDtr` only. | `50` |
+| `ptt.watchdogTimeoutMs` | Failsafe ceiling: if PTT has been asserted this long without a normal release, OpenWSFZ forces it off and logs an Error. `CatCommand`/`SerialRtsDtr` only. | `20000` (20 s — comfortably above one 12.64 s FT8 transmission) |
+
+The Settings page → Radio hardware tab has a **PTT Config** box (next to
+"CAT rig connection") exposing every field in the table above, so you no
+longer need to hand-edit the config file to see or change `ptt.method` and
+its related fields. `ptt.method` is only ever read once, at daemon startup,
+so a **full daemon restart is required** for a `ptt` change to take
+effect — unlike `cat`, this section is not hot-reloaded on a Settings-page
+save; the PTT Config box says so directly under the method selector. A
+Settings-page save no longer discards a manually-edited `ptt` section (it
+is preserved as-is on disk and in memory); it simply doesn't apply until
+the next restart. A missing `ptt` key, or an unrecognised
+`method`/`serialLine` value, always falls back safely to today's
+`AudioVox`/`Rts` behaviour with a Warning logged — it never fails to start.
+
+**The Test button.** The PTT Config box includes a **Test** button and a
+result badge (Pass / Error / not-tested). Clicking it fires a brief
+(~250 ms), completely **silent** software PTT pulse — assert → tiny
+silence buffer → release — against whichever `IPttController` the daemon
+is *actually running* (not necessarily the method currently selected in the
+form, if you haven't saved and restarted yet). **Pass means only that the
+assert/release commands were accepted** — a real CAT acknowledgement, or a
+real RTS/DTR line toggle — **it does not mean the rig visibly keyed.**
+`IRadioConnection.SetPttAsync` has no read-back capability, so no software
+component can ever confirm physical keying; you must watch your rig's own
+TX indicator to verify. The button is disabled (with an explanatory
+tooltip) whenever the live, running method is `AudioVox`, since there is
+nothing for OpenWSFZ itself to assert in that mode. The endpoint also
+refuses to fire (HTTP 409, with a clear message) while a real QSO is
+mid-transmission, and both `CatPttController` and `SerialRtsDtrPttController`
+serialise their entire key-down-to-key-up cycle behind an internal lock, so
+a Test click can never interleave with — or prematurely unkey — a real,
+in-progress over-the-air transmission.
+
+**Example — CAT-command keying:**
+```json
+{
+  "ptt": {
+    "method": "CatCommand",
+    "leadTimeMs": 50,
+    "tailTimeMs": 50,
+    "watchdogTimeoutMs": 20000
+  }
+}
+```
+
+**Example — serial RTS keying, independent of CAT:**
+```json
+{
+  "ptt": {
+    "method": "SerialRtsDtr",
+    "serialPort": "COM7",
+    "serialLine": "Rts",
+    "leadTimeMs": 50,
+    "tailTimeMs": 50,
+    "watchdogTimeoutMs": 20000
+  }
+}
+```
+
+### Safety: the failsafe watchdog
+
+`CatCommand` and `SerialRtsDtr` are the first OpenWSFZ features that can key
+a real transmitter under software control. Both run a hard watchdog timer
+the instant PTT is asserted: if it is not released normally within
+`ptt.watchdogTimeoutMs`, OpenWSFZ forces it off immediately and logs an
+Error naming the controller and the elapsed hold time. This should never
+fire during normal operation — only in the event of a genuine bug — but it
+exists specifically so a stuck key-down can never leave your rig
+transmitting indefinitely. `AudioVox` is unaffected (it asserts no
+independent PTT signal — VOX keying is entirely your rig's own
+responsibility).
 
 ---
 
@@ -257,11 +364,12 @@ Then `sudo systemctl enable --now rigctld`.
 
 ---
 
-## Known Limitations (v0.16)
+## Known Limitations
 
 | Limitation | Workaround |
 |---|---|
 | SerialCat mode holds the serial port exclusively | Use RigCtld mode if WSJT-X must run simultaneously |
 | Only VFO-A frequency is read; VFO-B and mode are not polled | None — planned for a future change |
-| No TX / PTT commands in this version | TX control is planned for v1.0 |
+| `ptt.method` changes require a Save + full daemon restart — not hot-reloaded, and the Settings-page Test button reflects the live (running), not the just-saved, method until you restart | Save, restart the daemon, then reload the Settings page before using Test |
+| No mode-set or split support — PTT-over-CAT (FR-056) does not read back rig state to confirm it actually keyed, and neither does the Settings-page Test button (FR-057) | The hardware-acceptance gate for `cat-tx-ptt` requires a human to visually confirm real rig behaviour before this is considered safe to rely on |
 | When the daemon first starts, the status bar briefly shows `0.000 MHz` until the first successful poll | This clears within one poll interval (default 1 second) |

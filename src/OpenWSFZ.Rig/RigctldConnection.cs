@@ -20,7 +20,9 @@ namespace OpenWSFZ.Rig;
 /// reads one decimal-integer Hz line.  <see cref="SetDialFrequencyMhzAsync"/> sends
 /// <c>\set_freq &lt;Hz&gt;\n</c> and reads the <c>RPRT 0</c> acknowledgement that
 /// <c>rigctld</c> sends for every command; an <c>RPRT -N</c> reply throws
-/// <see cref="InvalidOperationException"/>.
+/// <see cref="InvalidOperationException"/>.  <see cref="SetPttAsync"/> sends
+/// <c>\set_ptt 1\n</c> / <c>\set_ptt 0\n</c> (FR-056) and consumes the <c>RPRT</c>
+/// acknowledgement the same way.
 /// </para>
 /// </summary>
 public sealed class RigctldConnection : IRadioConnection, IDisposable
@@ -125,6 +127,28 @@ public sealed class RigctldConnection : IRadioConnection, IDisposable
         if (!ack.Equals("RPRT 0", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
                 $@"rigctld returned error for \set_freq {hz}: '{ack}'");
+    }
+
+    /// <summary>
+    /// Sends <c>\set_ptt 1\n</c> to key the transmitter (<paramref name="transmitting"/> =
+    /// <c>true</c>) or <c>\set_ptt 0\n</c> to unkey it (<paramref name="transmitting"/> =
+    /// <c>false</c>) (FR-056), then reads and validates the <c>RPRT 0</c> acknowledgement
+    /// exactly as <see cref="SetDialFrequencyMhzAsync"/> does for <c>\set_freq</c> — this
+    /// keeps the receive buffer aligned for the next <see cref="GetDialFrequencyMhzAsync"/>
+    /// call (same rationale as F-006 Root A).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <c>rigctld</c> returned a non-zero RPRT code (e.g. <c>RPRT -1</c>).
+    /// </exception>
+    public async Task SetPttAsync(bool transmitting, CancellationToken cancellationToken = default)
+    {
+        var command = $@"\set_ptt {(transmitting ? 1 : 0)}" + "\n";
+        await _tcp.SendAsync(command, cancellationToken).ConfigureAwait(false);
+
+        var ack = (await _tcp.ReceiveLineAsync(cancellationToken).ConfigureAwait(false)).Trim();
+        if (!ack.Equals("RPRT 0", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $@"rigctld returned error for \set_ptt {(transmitting ? 1 : 0)}: '{ack}'");
     }
 
     /// <summary>Closes the TCP connection.</summary>

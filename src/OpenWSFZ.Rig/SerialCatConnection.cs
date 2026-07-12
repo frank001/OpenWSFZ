@@ -33,6 +33,14 @@ namespace OpenWSFZ.Rig;
 /// until the first poll completes) (FR-045).  No read-back is performed; any rig
 /// response is cleared by the next <c>GetDialFrequencyMhzAsync</c> call.
 /// </para>
+///
+/// <para>
+/// PTT set (<see cref="SetPttAsync"/>): sends <c>TX;</c> to key the transmitter or
+/// <c>RX;</c> to unkey it — the same Kenwood/Yaesu-family dialect and no-<c>\r</c>
+/// fire-and-forget convention as <see cref="SetDialFrequencyMhzAsync"/> (FR-056).
+/// No read-back is performed; any rig response is cleared by the next
+/// <c>GetDialFrequencyMhzAsync</c> call, exactly as for a frequency set.
+/// </para>
 /// </summary>
 public sealed class SerialCatConnection : IRadioConnection, IDisposable
 {
@@ -40,6 +48,8 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
     private const int    DefaultFreqWidth = 11;
     private const string CatCommand       = "FA;\r";
     private const string ResponseDelim    = ";";
+    private const string PttOnCommand     = "TX;";
+    private const string PttOffCommand    = "RX;";
 
     private readonly ISerialPort _port;
     private readonly ILogger?    _logger;
@@ -247,6 +257,21 @@ public sealed class SerialCatConnection : IRadioConnection, IDisposable
         var width   = _freqWidth > 0 ? _freqWidth : DefaultFreqWidth;
         var command = $"FA{hz.ToString().PadLeft(width, '0')};";
         _logger?.LogDebug("Serial CAT SET: writing '{Command}'", command);
+        _port.Write(command);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Sends <c>TX;</c> to key the transmitter (<paramref name="transmitting"/> = <c>true</c>)
+    /// or <c>RX;</c> to unkey it (<paramref name="transmitting"/> = <c>false</c>) (FR-056) —
+    /// the same Kenwood/Yaesu-family dialect, and the same no-<c>\r</c> fire-and-forget
+    /// convention, as <see cref="SetDialFrequencyMhzAsync"/>. No read-back is performed;
+    /// any rig response is cleared by the next <see cref="GetDialFrequencyMhzAsync"/> call.
+    /// </summary>
+    public Task SetPttAsync(bool transmitting, CancellationToken cancellationToken = default)
+    {
+        var command = transmitting ? PttOnCommand : PttOffCommand;
+        _logger?.LogDebug("Serial CAT PTT: writing '{Command}'", command);
         _port.Write(command);
         return Task.CompletedTask;
     }

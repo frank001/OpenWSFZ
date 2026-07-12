@@ -45,6 +45,15 @@ public sealed record AppConfig(
     public CatConfig?       Cat       { get; init; } = null;
 
     /// <summary>
+    /// PTT (push-to-talk) keying configuration (FR-056). Always non-null; defaults to
+    /// <c>Method = "AudioVox"</c>, which is byte-for-byte today's pre-<c>cat-tx-ptt</c>
+    /// behaviour. A sibling of <see cref="Cat"/>, not nested inside it — PTT method
+    /// selection is orthogonal to whether CAT is even enabled (an operator can run
+    /// <c>SerialRtsDtr</c> PTT with <c>cat.enabled = false</c>).
+    /// </summary>
+    public PttConfig        Ptt       { get; init; } = new();
+
+    /// <summary>
     /// TX / QSO answerer configuration (FR-046).
     /// Defaults to <c>null</c> so that existing config files without a <c>tx</c> key
     /// deserialise without error.

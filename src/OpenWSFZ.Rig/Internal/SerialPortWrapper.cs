@@ -27,6 +27,18 @@ internal sealed class SerialPortWrapper : ISerialPort
         set => _port.ReadTimeout = value;
     }
 
+    public bool RtsEnable
+    {
+        get => _port.RtsEnable;
+        set => _port.RtsEnable = value;
+    }
+
+    public bool DtrEnable
+    {
+        get => _port.DtrEnable;
+        set => _port.DtrEnable = value;
+    }
+
     public void   Open()                 => _port.Open();
     public void   Write(string text)     => _port.Write(text);
     public string ReadTo(string value)   => _port.ReadTo(value);

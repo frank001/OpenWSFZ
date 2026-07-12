@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
+import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, postPttTest, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
 import { resolveUnknownCheckboxDisplay } from './decodeNoiseSuppression.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
@@ -40,6 +40,19 @@ const catSerialFields    = /** @type {HTMLElement}       */ (document.getElement
 const catRigctldFields   = /** @type {HTMLElement}       */ (document.getElementById('cat-rigctld-fields'));
 const catStatusValue     = /** @type {HTMLElement}       */ (document.getElementById('cat-status-value'));
 const catRetryBtn        = /** @type {HTMLButtonElement} */ (document.getElementById('cat-retry-btn'));
+
+// PTT Config controls (cat-tx-ptt, FR-057).
+const pttMethod            = /** @type {HTMLSelectElement} */ (document.getElementById('ptt-method'));
+const pttSerialFields      = /** @type {HTMLElement}       */ (document.getElementById('ptt-serial-fields'));
+const pttSerialPort        = /** @type {HTMLSelectElement} */ (document.getElementById('ptt-serial-port'));
+const pttSerialRefreshBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('ptt-serial-refresh'));
+const pttSerialLine        = /** @type {HTMLSelectElement} */ (document.getElementById('ptt-serial-line'));
+const pttTimingFields      = /** @type {HTMLElement}       */ (document.getElementById('ptt-timing-fields'));
+const pttLeadTimeMs        = /** @type {HTMLInputElement}  */ (document.getElementById('ptt-lead-time-ms'));
+const pttTailTimeMs        = /** @type {HTMLInputElement}  */ (document.getElementById('ptt-tail-time-ms'));
+const pttWatchdogTimeoutMs = /** @type {HTMLInputElement}  */ (document.getElementById('ptt-watchdog-timeout-ms'));
+const pttTestBtn           = /** @type {HTMLButtonElement} */ (document.getElementById('ptt-test-btn'));
+const pttTestBadge         = /** @type {HTMLElement}       */ (document.getElementById('ptt-test-badge'));
 
 // General tab controls (callsign, grid, watchdog, retry moved from TX fieldset)
 const txCallsign        = /** @type {HTMLInputElement} */ (document.getElementById('general-callsign'));
@@ -157,17 +170,24 @@ if (savedTab && document.getElementById(savedTab)) {
 
 let portsLoaded = false;
 
-async function loadSerialPorts() {
+/**
+ * Populates a serial-port <select> from GET /api/v1/serial/ports, preserving/prepending
+ * its currently-configured value. Shared by the CAT and PTT serial-port fields (cat-tx-ptt
+ * task 17.6) — each field owns its own "loaded" flag and select element, so refreshing one
+ * never touches the other.
+ * @param {HTMLSelectElement} selectEl
+ */
+async function loadSerialPortsInto(selectEl) {
   try {
     const ports      = await getSerialPorts();
-    const configured = catSerialPort.value;
+    const configured = selectEl.value;
 
-    catSerialPort.innerHTML = '';
+    selectEl.innerHTML = '';
     if (ports.length === 0) {
       const opt = document.createElement('option');
       opt.value       = configured || '';
       opt.textContent = configured ? configured : '(no ports found)';
-      catSerialPort.appendChild(opt);
+      selectEl.appendChild(opt);
     } else {
       // If the configured value is not in the list, prepend it.
       const allPorts = ports.includes(configured) || !configured
@@ -178,14 +198,18 @@ async function loadSerialPorts() {
         const opt = document.createElement('option');
         opt.value       = p;
         opt.textContent = p;
-        catSerialPort.appendChild(opt);
+        selectEl.appendChild(opt);
       }
-      catSerialPort.value = configured || ports[0] || '';
+      selectEl.value = configured || ports[0] || '';
     }
-    portsLoaded = true;
   } catch {
     // Best-effort; leave the select with its current content.
   }
+}
+
+async function loadSerialPorts() {
+  await loadSerialPortsInto(catSerialPort);
+  portsLoaded = true;
 }
 
 catRigModel.addEventListener('change', () => {
@@ -198,6 +222,27 @@ catRigModel.addEventListener('change', () => {
 catSerialRefreshBtn.addEventListener('click', () => {
   portsLoaded = false;
   loadSerialPorts();
+});
+
+// ── PTT serial port enumeration (cat-tx-ptt, task 17.6) ──────────────────
+
+let pttPortsLoaded = false;
+
+async function loadPttSerialPorts() {
+  await loadSerialPortsInto(pttSerialPort);
+  pttPortsLoaded = true;
+}
+
+pttMethod.addEventListener('change', () => {
+  updatePttVisibility();
+  if (pttMethod.value === 'SerialRtsDtr' && !pttPortsLoaded) {
+    loadPttSerialPorts();
+  }
+});
+
+pttSerialRefreshBtn.addEventListener('click', () => {
+  pttPortsLoaded = false;
+  loadPttSerialPorts();
 });
 
 // ── Dial frequency lock (FR-037) ──────────────────────────────────────────
@@ -304,6 +349,15 @@ function snapshotForm() {
       rigctldHost:        catRigctldHost.value.trim(),
       rigctldPort:        catRigctldPort.value,
       pollIntervalSeconds: catPollInterval.value,
+    },
+    // cat-tx-ptt (FR-057): include PTT Config in dirty-state comparison (FR-040).
+    ptt: {
+      method:            pttMethod.value,
+      serialPort:        pttSerialPort.value.trim(),
+      serialLine:        pttSerialLine.value,
+      leadTimeMs:        pttLeadTimeMs.value,
+      tailTimeMs:        pttTailTimeMs.value,
+      watchdogTimeoutMs: pttWatchdogTimeoutMs.value,
     },
     tx: {
       callsign:             txCallsign.value.trim(),
@@ -747,6 +801,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadSerialPorts();
     }
 
+    // Pre-fill PTT Config controls (cat-tx-ptt, FR-057).
+    const ptt = config.ptt ?? {};
+    pttMethod.value            = ptt.method            ?? 'AudioVox';
+    pttSerialLine.value        = ptt.serialLine         ?? 'Rts';
+    pttLeadTimeMs.value        = String(ptt.leadTimeMs        ?? 50);
+    pttTailTimeMs.value        = String(ptt.tailTimeMs        ?? 50);
+    pttWatchdogTimeoutMs.value = String(ptt.watchdogTimeoutMs ?? 20000);
+    updatePttVisibility();
+
+    // Pre-populate the PTT serial port select with the configured value so Save can read
+    // it before loadPttSerialPorts() completes (mirrors the CAT serial port pattern above).
+    const configuredPttPort = ptt.serialPort ?? '';
+    pttSerialPort.innerHTML = '';
+    const initialPttOpt = document.createElement('option');
+    initialPttOpt.value       = configuredPttPort;
+    initialPttOpt.textContent = configuredPttPort || 'Loading ports…';
+    pttSerialPort.appendChild(initialPttOpt);
+    pttSerialPort.value = configuredPttPort;
+
+    if (pttMethod.value === 'SerialRtsDtr') {
+      await loadPttSerialPorts();
+    }
+
+    // The Test button reflects the LIVE (just-loaded) method, not the form's current
+    // selection — see _livePttMethodIsAudioVox's own doc comment.
+    _livePttMethodIsAudioVox = (ptt.method ?? 'AudioVox') === 'AudioVox';
+    updatePttTestAvailability();
+    resetPttTestBadge();
+
     // TX auto-answer (ft8-qso-answerer-v1).
     const tx = config.tx ?? {};
     txCallsign.value          = tx.callsign        ?? 'Q1OFZ';
@@ -813,6 +896,42 @@ function updateCatVisibility() {
   catRigctldFields.style.display = (model === 'RigCtld')   ? '' : 'none';
 }
 
+// ── PTT Config visibility + Test button (cat-tx-ptt, task 17.6, FR-057) ──────
+
+/**
+ * True when the LAST GET-loaded (i.e. actually-running) ptt.method is AudioVox — distinct
+ * from pttMethod.value, which reflects the operator's current, possibly-unsaved selection.
+ * The Test button's availability is driven by this, not by the form's live value, because
+ * ptt.method is read once at DI-registration time: an unsaved (or saved-but-not-yet-
+ * restarted) method change must not make Test appear available for a controller that isn't
+ * actually running yet.
+ * @type {boolean}
+ */
+let _livePttMethodIsAudioVox = true;
+
+/** Shows/hides the SerialRtsDtr-only and AudioVox-hidden field groups based on the
+ * operator's currently-selected (not necessarily saved) ptt-method value. */
+function updatePttVisibility() {
+  const method = pttMethod.value;
+  pttSerialFields.style.display = (method === 'SerialRtsDtr') ? '' : 'none';
+  pttTimingFields.style.display = (method === 'AudioVox')     ? 'none' : '';
+}
+
+/** Disables the Test button (with an explanatory tooltip) while the live method is AudioVox. */
+function updatePttTestAvailability() {
+  pttTestBtn.disabled = _livePttMethodIsAudioVox;
+  pttTestBtn.title    = _livePttMethodIsAudioVox
+    ? 'The running PTT method is AudioVox — nothing to test. Select CatCommand or ' +
+      'SerialRtsDtr, Save, and restart the application to enable Test.'
+    : '';
+}
+
+/** Resets the result badge to its idle/untested state (called on page load). */
+function resetPttTestBadge() {
+  pttTestBadge.textContent = 'Not tested';
+  pttTestBadge.className   = 'ptt-test-badge ptt-test-idle';
+}
+
 /**
  * Update the read-only CAT status badge and retry button visibility.
  * @param {string|null} status  'Connected', 'Connecting', 'Error', 'Disabled', or null
@@ -857,6 +976,32 @@ catRetryBtn.addEventListener('click', async () => {
   } finally {
     catRetryBtn.textContent = '↺ Retry';
     catRetryBtn.disabled    = false;
+  }
+});
+
+// ── PTT test (cat-tx-ptt, task 17.6, FR-057) ─────────────────────────────
+
+pttTestBtn.addEventListener('click', async () => {
+  pttTestBtn.disabled      = true;
+  pttTestBadge.textContent = 'Testing…';
+  pttTestBadge.className   = 'ptt-test-badge ptt-test-idle';
+
+  try {
+    const result = await postPttTest();
+    if (result?.result === 'pass') {
+      pttTestBadge.textContent = 'Pass';
+      pttTestBadge.className   = 'ptt-test-badge ptt-test-pass';
+    } else {
+      pttTestBadge.textContent = result?.message ? `Error — ${result.message}` : 'Error';
+      pttTestBadge.className   = 'ptt-test-badge ptt-test-error';
+    }
+  } catch (err) {
+    pttTestBadge.textContent = `Error — ${err.message}`;
+    pttTestBadge.className   = 'ptt-test-badge ptt-test-error';
+  } finally {
+    // Restore to the live-method-derived state rather than unconditionally re-enabling —
+    // the live method hasn't changed just because a test ran.
+    updatePttTestAvailability();
   }
 });
 
@@ -1017,6 +1162,17 @@ saveBtn.addEventListener('click', async () => {
     pollIntervalSeconds: Math.max(1, Math.min(60, parseInt(catPollInterval.value, 10) || 1)),
   };
 
+  // cat-tx-ptt (FR-057): collect PTT Config — the first time settings.js has ever sent a
+  // "ptt" key (previously deliberately omitted per design.md Decision 6's original scope).
+  const ptt = {
+    method:            pttMethod.value,
+    serialPort:        pttSerialPort.value.trim() || 'COM7',
+    serialLine:        pttSerialLine.value,
+    leadTimeMs:        parseInt(pttLeadTimeMs.value, 10)        || 50,
+    tailTimeMs:        parseInt(pttTailTimeMs.value, 10)        || 50,
+    watchdogTimeoutMs: parseInt(pttWatchdogTimeoutMs.value, 10) || 20000,
+  };
+
   // p9: collect decode log config.
   const decodeLog = {
     enabled:          decodeLogEnabled.checked,
@@ -1105,6 +1261,7 @@ saveBtn.addEventListener('click', async () => {
         decodeLog,
         logging,
         cat,
+        ptt,
         tx,
         remoteAccess,
         decoder,

@@ -172,4 +172,44 @@ public sealed class RigctldConnectionTests
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*RPRT -1*");
     }
+
+    // ── SetPttAsync (FR-056, task 12.2) ───────────────────────────────────────
+
+    [Fact(DisplayName = "CatTx-Ptt: SetPttAsync(true) sends set_ptt 1 and reads the RPRT 0 acknowledgement")]
+    public async Task SetPttAsync_True_SendsCommandAndReadsAck()
+    {
+        var tcp = Substitute.For<ITcpConnection>();
+        tcp.ReceiveLineAsync(Arg.Any<CancellationToken>()).Returns("RPRT 0");
+        var sut = new RigctldConnection(Host, Port, tcp);
+
+        await sut.SetPttAsync(true);
+
+        await tcp.Received(1).SendAsync(@"\set_ptt 1" + "\n", Arg.Any<CancellationToken>());
+        await tcp.Received(1).ReceiveLineAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "CatTx-Ptt: SetPttAsync(false) sends set_ptt 0 and reads the RPRT 0 acknowledgement")]
+    public async Task SetPttAsync_False_SendsCommandAndReadsAck()
+    {
+        var tcp = Substitute.For<ITcpConnection>();
+        tcp.ReceiveLineAsync(Arg.Any<CancellationToken>()).Returns("RPRT 0");
+        var sut = new RigctldConnection(Host, Port, tcp);
+
+        await sut.SetPttAsync(false);
+
+        await tcp.Received(1).SendAsync(@"\set_ptt 0" + "\n", Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "CatTx-Ptt: SetPttAsync throws InvalidOperationException on non-zero RPRT code")]
+    public async Task SetPttAsync_ThrowsOnNonZeroRprt()
+    {
+        var tcp = Substitute.For<ITcpConnection>();
+        tcp.ReceiveLineAsync(Arg.Any<CancellationToken>()).Returns("RPRT -1");
+        var sut = new RigctldConnection(Host, Port, tcp);
+
+        var act = () => sut.SetPttAsync(true);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*RPRT -1*");
+    }
 }

@@ -31,8 +31,18 @@ namespace OpenWSFZ.Daemon.Cat;
 /// sends a frequency-set command on the currently active connection and updates
 /// <see cref="CatState"/> optimistically.
 /// </para>
+///
+/// <para>
+/// Also implements <see cref="ICatPttGate"/> (FR-056): <see cref="ICatPttGate.SetPttAsync"/>
+/// sends a PTT-set command on the currently active connection, serialised through the
+/// same <see cref="_connectionLock"/> gate the poll loop and <see cref="SetDialFrequencyAsync"/>
+/// already use, so poll reads, tune commands, and PTT commands can never interleave bytes
+/// on the wire (design.md Decision 1 of the <c>cat-tx-ptt</c> change). This is the only
+/// component outside <c>CatPollingService</c> permitted to key PTT via CAT — no other
+/// component holds a direct reference to the shared <see cref="IRadioConnection"/>.
+/// </para>
 /// </summary>
-public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner, ICatController
+public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner, ICatController, ICatPttGate
 {
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
 
@@ -220,6 +230,52 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner, IC
             _catState.Update(frequencyMHz, _catState.Status);
             _lastBroadcastFreq = frequencyMHz;
             _catEventBus.Publish(_catState.Status, frequencyMHz);
+        }
+        finally
+        {
+            _connectionLock.Release();
+        }
+    }
+
+    // ── ICatPttGate ───────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Acquires the same <see cref="_connectionLock"/> gate the poll loop and
+    /// <see cref="SetDialFrequencyAsync"/> use, so a PTT command can never interleave
+    /// bytes on the wire with an in-flight poll read or tune command (FR-056,
+    /// design.md Decision 1). Throws before ever touching the lock when CAT is
+    /// disabled or no connection has ever been established, so a misconfigured
+    /// CAT-command PTT controller fails fast rather than silently doing nothing.
+    /// </remarks>
+    public async Task SetPttAsync(bool transmitting, CancellationToken cancellationToken = default)
+    {
+        if (!(_configStore.Current.Cat?.Enabled ?? false))
+            throw new InvalidOperationException(
+                "Cannot key PTT via CAT — CAT is disabled (AppConfig.Cat.Enabled = false).");
+
+        var conn = _activeConnection
+            ?? throw new InvalidOperationException(
+                "No active rig connection — CAT is not yet connected.");
+
+        await _connectionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // Re-check after lock acquisition: _activeConnection may have been
+            // nulled by the poll loop's error handler between the fast pre-check
+            // above and here (TOCTOU guard) — same pattern as SetDialFrequencyAsync.
+            conn = _activeConnection
+                ?? throw new InvalidOperationException(
+                    "No active rig connection — CAT is not yet connected.");
+
+            _logger.LogInformation(
+                "CAT: dispatching PTT command — transmitting={Transmitting} via {ConnType}.",
+                transmitting, conn.GetType().Name);
+
+            await conn.SetPttAsync(transmitting, cancellationToken).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "CAT: PTT command sent — transmitting={Transmitting}.", transmitting);
         }
         finally
         {

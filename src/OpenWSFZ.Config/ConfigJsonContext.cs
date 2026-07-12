@@ -16,6 +16,7 @@ namespace OpenWSFZ.Config;
 [JsonSerializable(typeof(LoggingConfig))]
 [JsonSerializable(typeof(DecodeLogConfig))]
 [JsonSerializable(typeof(CatConfig))]
+[JsonSerializable(typeof(PttConfig))]
 [JsonSerializable(typeof(TxConfig))]
 [JsonSerializable(typeof(RemoteAccessConfig))]
 [JsonSerializable(typeof(DecoderConfig))]

@@ -880,6 +880,44 @@ label {
 .cat-error      { background: var(--color-danger);  border-color: var(--color-danger);  color: #fff; }
 .cat-disabled   { /* inherits the transparent default above */ }
 
+/* ── CAT rig connection / PTT Config side-by-side layout (cat-tx-ptt, task 17.4) ──
+   Follows this page's existing intrinsic flex-wrap pattern (see .settings-tabs
+   above) rather than a fixed @media breakpoint — settings.html has none today, so
+   both fieldsets simply wrap onto their own row once the container is too narrow
+   to hold both at their minimum width. */
+.hardware-fieldset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+.hardware-fieldset-row > fieldset {
+  flex: 1 1 380px;
+  min-width: 0; /* allow children (selects, inputs) to shrink below their intrinsic width */
+}
+
+/* ── PTT Config Test badge (cat-tx-ptt, task 17.4, FR-057) ───────────────────
+   #ptt-settings gets no bespoke border/padding rule, matching #cat-settings —
+   neither fieldset has one; the browser's default fieldset chrome plus
+   .hardware-fieldset-row's gap keeps both boxes visually identical. */
+.ptt-test-badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius);
+  cursor: default;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+  background: transparent;
+}
+
+.ptt-test-pass  { background: var(--color-success); border-color: var(--color-success); color: #0d1117; }
+.ptt-test-error { background: var(--color-danger);  border-color: var(--color-danger);  color: #fff; }
+.ptt-test-idle  { /* inherits the transparent default above */ }
+
 /* ── Frequencies table (FR-043) ─────────────────────────────────────────── */
 .freq-table {
   width: 100%;

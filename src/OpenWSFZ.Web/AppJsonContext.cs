@@ -65,6 +65,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(ExternalReportingConfig))]
 [JsonSerializable(typeof(ExternalReportingTarget))]
 [JsonSerializable(typeof(List<ExternalReportingTarget>))]
+[JsonSerializable(typeof(PttTestResponse))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -328,6 +329,22 @@ public sealed record RegionLookupResponse(
 /// Wire format: <c>{"type":"decodeFilterChanged","payload":{"allowedEntities":null,...}}</c>
 /// </summary>
 internal sealed record WsDecodeFilterMessage(string Type, DecodeFilterState Payload);
+
+/// <summary>
+/// Response body for <c>POST /api/v1/ptt/test</c> (cat-tx-ptt, task 17.3, FR-057).
+/// <c>Result</c> is <c>"pass"</c> when the assert/release commands were accepted without
+/// throwing (a real CAT ACK or a real RTS/DTR line toggle happened) — this confirms only
+/// that the <em>command</em> was accepted, never that the rig physically keyed, since
+/// <see cref="OpenWSFZ.Abstractions.IRadioConnection.SetPttAsync"/> defines no read-back.
+/// <c>Result</c> is <c>"error"</c> with a non-null <c>Message</c> when the pulse itself threw
+/// (e.g. a CAT write failure, a serial port error) — always returned with HTTP 200, since this
+/// is an expected, handleable outcome, not a server error. The 409-Conflict cases (a real QSO
+/// is currently keying; the running method is <c>AudioVox</c>) are surfaced as HTTP 409
+/// ProblemDetails responses instead, not through this record.
+/// Wire format: <c>{"result":"pass","message":null}</c> or
+/// <c>{"result":"error","message":"port in use"}</c>.
+/// </summary>
+public sealed record PttTestResponse(string Result, string? Message = null);
 
 internal sealed record WsQsoReviewMessage(
     string  Type,

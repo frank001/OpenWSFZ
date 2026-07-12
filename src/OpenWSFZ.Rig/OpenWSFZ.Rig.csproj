@@ -19,6 +19,15 @@
   <ItemGroup>
     <!-- Expose internal types (ISerialPort, ITcpConnection wrappers) to test project. -->
     <InternalsVisibleTo Include="OpenWSFZ.Rig.Tests" />
+    <!--
+      cat-tx-ptt (FR-056): SerialRtsDtrPttController lives in OpenWSFZ.Daemon and opens its
+      own ISerialPort instance (design.md Decision 5) independent of CatPollingService, so it
+      reuses this same internal abstraction rather than duplicating a second serial-port seam.
+      OpenWSFZ.Daemon.Tests needs the same visibility to inject the fake ISerialPort test
+      double (task 3.3) into SerialRtsDtrPttController's unit tests.
+    -->
+    <InternalsVisibleTo Include="OpenWSFZ.Daemon" />
+    <InternalsVisibleTo Include="OpenWSFZ.Daemon.Tests" />
     <!-- Allow NSubstitute's Castle DynamicProxy to generate proxies for internal interfaces. -->
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>

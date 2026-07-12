@@ -326,4 +326,39 @@ public sealed class SerialCatConnectionTests
         // ReadTo must never be called — the method is fire-and-forget.
         port.DidNotReceive().ReadTo(Arg.Any<string>());
     }
+
+    // ── SetPttAsync (FR-056, task 12.1) ───────────────────────────────────────
+
+    [Fact(DisplayName = "CatTx-Ptt: SetPttAsync(true) writes TX; to the serial port")]
+    public async Task SetPttAsync_True_WritesTxCommand()
+    {
+        var port = Substitute.For<ISerialPort>();
+        var sut  = new SerialCatConnection(port);
+
+        await sut.SetPttAsync(true);
+
+        port.Received(1).Write("TX;");
+    }
+
+    [Fact(DisplayName = "CatTx-Ptt: SetPttAsync(false) writes RX; to the serial port")]
+    public async Task SetPttAsync_False_WritesRxCommand()
+    {
+        var port = Substitute.For<ISerialPort>();
+        var sut  = new SerialCatConnection(port);
+
+        await sut.SetPttAsync(false);
+
+        port.Received(1).Write("RX;");
+    }
+
+    [Fact(DisplayName = "CatTx-Ptt: SetPttAsync does not read back a confirmation")]
+    public async Task SetPttAsync_DoesNotReadBack()
+    {
+        var port = Substitute.For<ISerialPort>();
+        var sut  = new SerialCatConnection(port);
+
+        await sut.SetPttAsync(true);
+
+        port.DidNotReceive().ReadTo(Arg.Any<string>());
+    }
 }
