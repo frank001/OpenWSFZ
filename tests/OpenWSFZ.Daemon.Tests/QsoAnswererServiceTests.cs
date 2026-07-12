@@ -119,6 +119,27 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             $"Expected state {expected} but was {svc!.State} after {(timeout ?? TimeSpan.FromSeconds(3)).TotalSeconds:F1} s.");
     }
 
+    /// <summary>
+    /// Polls <see cref="QsoAnswererService.Keying"/> until it reaches <paramref name="expected"/>
+    /// or times out. <c>State</c> and <c>Keying</c> are two independent fields set by two
+    /// separate lines of production code (<c>SetStateAndNotify</c> runs before
+    /// <c>TransmitAsync</c>'s <c>_keying = true</c>) with no atomicity between them — a single
+    /// immediate check right after <see cref="WaitForStateAsync"/> returns is a genuine race
+    /// (observed failing on CI's Linux runner, not locally) rather than a fixed-order guarantee.
+    /// Poll here the same way <see cref="WaitForStateAsync"/> already polls <c>State</c>.
+    /// </summary>
+    private static async Task WaitForKeyingAsync(
+        QsoAnswererService svc, bool expected, TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
+        while (DateTime.UtcNow < deadline)
+        {
+            if (svc.Keying == expected) return;
+            await Task.Delay(10);
+        }
+        svc.Keying.Should().Be(expected, $"keying should reach {expected} within timeout");
+    }
+
     // ── Task 6.2: initial state ───────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-050: QsoAnswererService starts in Idle state with null partner")]
@@ -356,7 +377,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
         await WaitForStateAsync(_sut!, QsoState.TxAnswer);
-        _sut!.Keying.Should().BeTrue();
+        await WaitForKeyingAsync(_sut!, expected: true, timeout: TimeSpan.FromSeconds(5));
 
         await _ptt.DidNotReceive().KeyUpAsync(Arg.Any<CancellationToken>());
 

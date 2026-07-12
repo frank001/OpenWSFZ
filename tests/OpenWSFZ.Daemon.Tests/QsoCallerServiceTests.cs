@@ -112,6 +112,27 @@ public sealed class QsoCallerServiceTests
         svc.State.Should().Be(expected, $"state should reach {expected} within timeout");
     }
 
+    /// <summary>
+    /// Polls <see cref="QsoCallerService.Keying"/> until it reaches <paramref name="expected"/>
+    /// or times out. <c>State</c> and <c>Keying</c> are two independent fields set by two
+    /// separate lines of production code (<c>SetStateAndNotify</c> runs before
+    /// <c>TransmitAsync</c>'s <c>_keying = true</c>) with no atomicity between them — a single
+    /// immediate check right after <see cref="WaitForStateAsync"/> returns is a genuine race
+    /// (observed failing on CI's Linux runner, not locally) rather than a fixed-order guarantee.
+    /// Poll here the same way <see cref="WaitForStateAsync"/> already polls <c>State</c>.
+    /// </summary>
+    private static async Task WaitForKeyingAsync(
+        QsoCallerService svc, bool expected, TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
+        while (DateTime.UtcNow < deadline)
+        {
+            if (svc.Keying == expected) return;
+            await Task.Delay(10);
+        }
+        svc.Keying.Should().Be(expected, $"keying should reach {expected} within timeout");
+    }
+
     private static DecodeResult Make(string msg, int freqHz = AudioFreqHz)
         => new(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: freqHz, Message: msg);
 
@@ -316,7 +337,7 @@ public sealed class QsoCallerServiceTests
         // Trigger CQ — the service enters TxCq (proxy: TxAnswer) and blocks inside KeyDownAsync.
         Send(channel, Make("CQ Q2NOISE JO00"));
         await WaitForStateAsync(sut, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
-        sut.Keying.Should().BeTrue();
+        await WaitForKeyingAsync(sut, expected: true, timeout: TimeSpan.FromSeconds(5));
 
         await ptt.DidNotReceive().KeyUpAsync(Arg.Any<CancellationToken>());
 
