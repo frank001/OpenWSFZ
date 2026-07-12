@@ -264,5 +264,6 @@ same branch, no new OpenSpec change proposal (per the dev-task's own instruction
       no-live-GridTracker2 caveat, not fixed in this change. Full `OpenWSFZ.Daemon.Tests` suite
       re-run locally: **391/391 passing** (unchanged count — one test's assertion mechanism
       changed, no test added/removed), so task 10.1's figures above stand as-is. Pushed to PR #70
-      for CI confirmation on all three platforms (`windows-latest`/`macos-latest`/`ubuntu-latest`)
-      plus Gate G9 before requesting re-review — see the PR's own CI status for the final word.
+      and confirmed green on the PR's own CI, both duplicate runs, all three platforms
+      (`windows-latest`/`macos-latest`/`ubuntu-latest`) plus Gate G9 — `gh pr checks 70` exits 0,
+      no pending/failing checks remain.

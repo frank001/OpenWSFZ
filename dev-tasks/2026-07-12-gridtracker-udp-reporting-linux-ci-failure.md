@@ -103,14 +103,26 @@ is exactly one socket for the OS to deliver to.
 
 ## 5. Acceptance Criteria
 
-- [ ] Root cause of the Linux failure understood and documented (either "confirmed test-only
-      artifact of same-process contention" or "genuine Linux delivery-ambiguity risk," with
-      `design.md` Decision 7 updated accordingly in the latter case).
-- [ ] `OutboundToPrimaryTarget_UsesSharedInboundPort` (or its replacement) passes reliably on all
-      three CI platforms — verify by pushing and checking the PR's own CI, not local-only.
-- [ ] No other existing test regressed.
-- [ ] `tasks.md` 10.1's test-count figure updated if the test count changes.
-- [ ] PR #70's CI is fully green (all `Build & Test` jobs + Gate G9) before requesting re-review.
+- [x] Root cause of the Linux failure understood and documented — concluded **genuine Linux
+      delivery-ambiguity risk**, not a pure test artifact: reasoned from documented Linux
+      `SO_REUSEADDR` UDP semantics (historically last-bind-wins, vs. Windows' first-bind-wins)
+      that OpenWSFZ's own outbound send to a same-host peer on the shared port could be delivered
+      back to OpenWSFZ's own `_inboundClient` instead of reaching the peer, since OpenWSFZ binds
+      second in the realistic startup order. Not confirmed against a real two-process Linux run
+      (no live GridTracker2/second peer available in this environment) — logged as an open,
+      unconfirmed-on-real-hardware risk in `design.md` Decision 7's new "Linux addendum," carried
+      forward alongside the existing tasks 2.6/10.3 no-live-GridTracker2 caveat rather than fixed
+      in this pass.
+- [x] `OutboundToPrimaryTarget_UsesSharedInboundPort` (or its replacement) passes reliably on all
+      three CI platforms — verified via `gh pr checks 70` after pushing: all three `Build & Test`
+      jobs pass on both duplicate CI runs, plus Gate G9; no pending/failing checks.
+- [x] No other existing test regressed — full `OpenWSFZ.Daemon.Tests` suite re-run locally:
+      391/391 passing (same count as before this fix).
+- [x] `tasks.md` 10.1's test-count figure updated if the test count changes — not needed, count
+      unchanged (391); added a new task 10.4 instead documenting this fix's own investigation and
+      verification.
+- [x] PR #70's CI is fully green (all `Build & Test` jobs + Gate G9) before requesting re-review —
+      confirmed, `gh pr checks 70` exits 0.
 
 ## 6. References
 
