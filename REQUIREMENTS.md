@@ -20,7 +20,7 @@ they prefer (Windows, Linux, macOS) and reach it from a local browser.
 work prior to a confirmed QSO; v1.0 is reached when the software can
 make a confirmed two-way contact (RX + CAT control + TX); each
 user-facing feature shipped increments the minor version.
-The current release is v0.34.** The v0.x body of work now covers FT8
+The current release is v0.35.** The v0.x body of work now covers FT8
 receive and transmit, CAT rig control, an automated QSO answerer and
 caller, and a web UI reachable over loopback or a passphrase-protected
 LAN — for a single operator, source-only distribution. v1.0 is reached
