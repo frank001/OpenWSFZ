@@ -36,6 +36,22 @@ public sealed class ExternalReportingServiceTests
         }
     }
 
+    /// <summary>
+    /// Fully-controllable <see cref="ICallsignRegionStore"/> test double for the absolute-
+    /// exclusion (Tier 2) tests — an unmapped callsign resolves to <c>null</c> ("unknown region"),
+    /// matching <see cref="CallsignRegionStore"/>'s own lookup-miss contract.
+    /// </summary>
+    private sealed class FakeCallsignRegionStore : ICallsignRegionStore
+    {
+        private readonly Dictionary<string, RegionInfo?> _map = new(StringComparer.OrdinalIgnoreCase);
+        public IReadOnlyList<CallsignRegionEntry> Entries => [];
+        public void Set(string callsign, RegionInfo? region) => _map[callsign] = region;
+        public RegionInfo? TryGetRegion(string callsignToken)
+            => _map.TryGetValue(callsignToken, out var region) ? region : null;
+        public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken ct = default)
+            => Task.CompletedTask;
+    }
+
     private static int GetFreeUdpPort()
     {
         using var probe = new UdpClient(0, AddressFamily.InterNetwork);
@@ -54,6 +70,7 @@ public sealed class ExternalReportingServiceTests
     private static ExternalReportingService CreateSut(
         IConfigStore configStore, ChannelReader<DecodeBatch> channelReader,
         IServiceProvider? serviceProvider = null,
+        ICallsignRegionStore? regionStore = null,
         TimeSpan? heartbeatInterval = null, TimeSpan? statusPollInterval = null)
         => new(
             channelReader,
@@ -61,6 +78,7 @@ public sealed class ExternalReportingServiceTests
             serviceProvider ?? BuildServiceProvider(),
             NullLogger<ExternalReportingService>.Instance,
             catState: null,
+            regionStore: regionStore,
             heartbeatInterval:  heartbeatInterval  ?? TimeSpan.FromSeconds(30),
             statusPollInterval: statusPollInterval ?? TimeSpan.FromMilliseconds(50));
 
@@ -114,8 +132,13 @@ public sealed class ExternalReportingServiceTests
         await sut.StartAsync(cts.Token);
         try
         {
+            // Region set to a resolvable, non-synthetic entry — this test is about delivery
+            // mechanics (two targets), not the absolute exclusion filter; an unset (null) Region
+            // would now be unconditionally suppressed as "unknown region" (see the dedicated
+            // exclusion tests below) and never reach either target.
             channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
-                [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22")]));
+                [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22",
+                    Region: new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false))]));
 
             // The timer loop also fires an immediate Heartbeat+Status burst on start (heartbeat
             // interval is 30 s in CreateSut, but the FIRST tick always fires since
@@ -331,6 +354,291 @@ public sealed class ExternalReportingServiceTests
         }
     }
 
+    // ── Absolute exclusion of synthetic/unknown-region traffic (no exceptions) ──
+    //
+    // dev-tasks/2026-07-12-gridtracker-udp-reporting-review-fixes.md §4. Every test in this
+    // section runs with DecodeNoiseSuppressionConfig.SuppressUnknownRegion=false AND
+    // SuppressSynthetic=false — the exact condition that lets unknown/synthetic decodes reach
+    // this service's inbound channel today — to prove the exclusion inside
+    // ExternalReportingService itself is unconditional and does not depend on that operator
+    // setting remaining on.
+
+    [Fact(DisplayName = "AC-3: unknown-region and synthetic decodes are never sent, even with suppression off")]
+    public async Task Decode_UnknownRegionAndSynthetic_NeverSentEvenWithSuppressionOff()
+    {
+        var port = GetFreeUdpPort();
+        using var listener = new UdpClient(port);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)]),
+            DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig
+            {
+                SuppressUnknownRegion = false,
+                SuppressSynthetic     = false,
+            },
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [
+                new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1NORM JO22",
+                    Region: new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false)),
+                new DecodeResult(Time: "12:00:00", Snr: -6, Dt: 0.1, FreqHz: 1600, Message: "CQ Q9UNK JO22",
+                    Region: null),
+                new DecodeResult(Time: "12:00:00", Snr: -7, Dt: 0.1, FreqHz: 1700, Message: "CQ Q1SYN JO22",
+                    Region: new RegionInfo(Continent: null, Entity: "Synthetic (R&R Study)", Synthetic: true)),
+            ]));
+
+            var recv = await ReceiveAllAsync(listener, 4, TimeSpan.FromSeconds(3));
+
+            var decodeDatagrams = recv.Where(d => ReadMessageType(d) == WsjtxDatagram.MessageType.Decode).ToList();
+            decodeDatagrams.Should().HaveCount(1, "only the normal (resolvable, non-synthetic) decode may be sent");
+            Encoding_UTF8_Contains(decodeDatagrams[0], "Q1NORM").Should().BeTrue();
+            recv.Should().NotContain(d => Encoding_UTF8_Contains(d, "Q9UNK"));
+            recv.Should().NotContain(d => Encoding_UTF8_Contains(d, "Q1SYN"));
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName = "AC-3: a batch of only unknown/synthetic decodes still sends Clear")]
+    public async Task Decode_AllResultsSuppressed_StillSendsClear()
+    {
+        var port = GetFreeUdpPort();
+        using var listener = new UdpClient(port);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)]),
+            DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig
+            {
+                SuppressUnknownRegion = false,
+                SuppressSynthetic     = false,
+            },
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [
+                new DecodeResult(Time: "12:00:00", Snr: -6, Dt: 0.1, FreqHz: 1600, Message: "CQ Q9UNK JO22", Region: null),
+                new DecodeResult(Time: "12:00:00", Snr: -7, Dt: 0.1, FreqHz: 1700, Message: "CQ Q1SYN JO22",
+                    Region: new RegionInfo(Continent: null, Entity: "Synthetic (R&R Study)", Synthetic: true)),
+            ]));
+
+            var recv = await ReceiveAllAsync(listener, 3, TimeSpan.FromSeconds(3));
+
+            recv.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Clear,
+                "Clear must still fire every cycle regardless of how many decodes the exclusion filter removes");
+            recv.Should().NotContain(d => ReadMessageType(d) == WsjtxDatagram.MessageType.Decode,
+                "every decode in this batch is unknown-region or synthetic — none may be sent");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName = "AC-4: Status blanks DxCall/DxGrid for a synthetic active partner")]
+    public async Task Status_SyntheticPartner_DxCallAndGridBlanked()
+    {
+        var port = GetFreeUdpPort();
+        using var listener = new UdpClient(port);
+
+        var qso = Substitute.For<IQsoController>();
+        qso.Partner.Returns("Q1SYN");
+        qso.Keying.Returns(true);
+
+        var regionStore = new FakeCallsignRegionStore();
+        regionStore.Set("Q1SYN", new RegionInfo(Continent: null, Entity: "Synthetic (R&R Study)", Synthetic: true));
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)]),
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader,
+            BuildServiceProvider(qso: qso), regionStore: regionStore,
+            heartbeatInterval: TimeSpan.FromSeconds(30), statusPollInterval: TimeSpan.FromMilliseconds(50));
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            var recv = await ReceiveAllAsync(listener, 2, TimeSpan.FromSeconds(3));
+
+            var statusDatagrams = recv.Where(d => ReadMessageType(d) == WsjtxDatagram.MessageType.Status).ToList();
+            statusDatagrams.Should().NotBeEmpty();
+            statusDatagrams.Should().NotContain(d => Encoding_UTF8_Contains(d, "Q1SYN"),
+                "DxCall must never name a synthetic partner, even while an active QSO with it is in progress");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName = "AC-4 regression: Status still populates DxCall for a normal, resolvable partner")]
+    public async Task Status_NormalPartner_DxCallPopulated()
+    {
+        var port = GetFreeUdpPort();
+        using var listener = new UdpClient(port);
+
+        var qso = Substitute.For<IQsoController>();
+        qso.Partner.Returns("Q1NORM");
+        qso.Keying.Returns(false);
+
+        var regionStore = new FakeCallsignRegionStore();
+        regionStore.Set("Q1NORM", new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false));
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)]),
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader,
+            BuildServiceProvider(qso: qso), regionStore: regionStore,
+            heartbeatInterval: TimeSpan.FromSeconds(30), statusPollInterval: TimeSpan.FromMilliseconds(50));
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            var recv = await ReceiveAllAsync(listener, 2, TimeSpan.FromSeconds(3));
+
+            var statusDatagrams = recv.Where(d => ReadMessageType(d) == WsjtxDatagram.MessageType.Status).ToList();
+            statusDatagrams.Should().Contain(d => Encoding_UTF8_Contains(d, "Q1NORM"),
+                "a real, resolvable partner callsign must still appear in DxCall as before");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName = "AC-4: NotifyQsoLogged never sends for a synthetic or unknown-region partner")]
+    public async Task NotifyQsoLogged_SyntheticOrUnknownPartner_NeverSent()
+    {
+        var port = GetFreeUdpPort();
+        using var listener = new UdpClient(port);
+
+        var regionStore = new FakeCallsignRegionStore();
+        regionStore.Set("Q1SYN", new RegionInfo(Continent: null, Entity: "Synthetic (R&R Study)", Synthetic: true));
+        // "Q9UNK" left unmapped — resolves to null ("unknown region"), matching a lookup miss.
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)]),
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, regionStore: regionStore);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            QsoRecord MakeRecord(string partner) => new()
+            {
+                PartnerCallsign  = partner,
+                PartnerGrid      = "JO22",
+                RstSent          = "+05",
+                RstRcvd          = "-03",
+                QsoStartUtc      = new DateTime(2026, 7, 12, 14, 29, 15, DateTimeKind.Utc),
+                QsoEndUtc        = new DateTime(2026, 7, 12, 14, 30, 0, DateTimeKind.Utc),
+                OperatorCallsign = "Q1OFZ",
+                OperatorGrid     = "JO33",
+                DialFrequencyMHz = 14.074,
+            };
+
+            sut.NotifyQsoLogged(MakeRecord("Q1SYN"));
+            sut.NotifyQsoLogged(MakeRecord("Q9UNK"));
+
+            // Give both sends a chance to arrive if they were (incorrectly) not suppressed.
+            var recv = await ReceiveAllAsync(listener, 4, TimeSpan.FromMilliseconds(800));
+
+            recv.Should().NotContain(d => ReadMessageType(d) == WsjtxDatagram.MessageType.QsoLogged,
+                "no QSOLogged datagram may ever be sent for a synthetic or unknown-region partner");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName = "AC-4 regression: NotifyQsoLogged still sends for a normal, resolvable partner")]
+    public async Task NotifyQsoLogged_NormalPartner_StillSent()
+    {
+        var port = GetFreeUdpPort();
+        using var listener = new UdpClient(port);
+
+        var regionStore = new FakeCallsignRegionStore();
+        regionStore.Set("Q1NORM", new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false));
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)]),
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, regionStore: regionStore);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            sut.NotifyQsoLogged(new QsoRecord
+            {
+                PartnerCallsign  = "Q1NORM",
+                PartnerGrid      = "JO22",
+                RstSent          = "+05",
+                RstRcvd          = "-03",
+                QsoStartUtc      = new DateTime(2026, 7, 12, 14, 29, 15, DateTimeKind.Utc),
+                QsoEndUtc        = new DateTime(2026, 7, 12, 14, 30, 0, DateTimeKind.Utc),
+                OperatorCallsign = "Q1OFZ",
+                OperatorGrid     = "JO33",
+                DialFrequencyMHz = 14.074,
+            });
+
+            var recv = await ReceiveAllAsync(listener, 3, TimeSpan.FromSeconds(3));
+
+            recv.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.QsoLogged);
+            recv.Should().Contain(d => Encoding_UTF8_Contains(d, "Q1NORM"));
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
     // ── Outbound: QSOLogged (task 3.5/3.7) ──────────────────────────────────
 
     [Fact(DisplayName = "FR-053: NotifyQsoLogged sends a QSOLogged datagram to the enabled target")]
@@ -347,7 +655,13 @@ public sealed class ExternalReportingServiceTests
         };
         var store   = new MutableConfigStore(config);
         var channel = Channel.CreateBounded<DecodeBatch>(2);
-        var sut     = CreateSut(store, channel.Reader);
+        // Region store resolves the partner to a non-synthetic entity — this test is about
+        // delivery mechanics, not the absolute exclusion filter; an unmapped (null-resolving)
+        // partner would now be unconditionally suppressed (see the dedicated exclusion tests
+        // below).
+        var regionStore = new FakeCallsignRegionStore();
+        regionStore.Set("Q1TST", new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false));
+        var sut = CreateSut(store, channel.Reader, regionStore: regionStore);
 
         using var cts = new CancellationTokenSource();
         await sut.StartAsync(cts.Token);

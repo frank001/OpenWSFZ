@@ -446,12 +446,17 @@ var app = WebApp.Create(
         // via IServiceProvider (see ExternalReportingService's class remarks for why this must
         // be lazy rather than a constructor dependency — it avoids a DI construction cycle
         // through IAdifLogWriter below).
+        // ICallsignRegionStore is passed so the absolute, non-configurable synthetic/unknown-
+        // region exclusion (Captain's directive — see ExternalReportingService's class remarks)
+        // can resolve a bare partner callsign's region for Status/QSOLogged, which (unlike
+        // outbound Decode) carry only a callsign string with no pre-resolved DecodeResult.Region.
         services.AddSingleton(sp => new ExternalReportingService(
             externalReportingChannel.Reader,
             sp.GetRequiredService<IConfigStore>(),
             sp,
             sp.GetRequiredService<ILogger<ExternalReportingService>>(),
-            sp.GetService<ICatState>()));
+            sp.GetService<ICatState>(),
+            sp.GetService<ICallsignRegionStore>()));
         services.AddHostedService(sp => sp.GetRequiredService<ExternalReportingService>());
 
         // IAdifLogWriter resolves to a decorator so every ADIF write (direct-write path AND

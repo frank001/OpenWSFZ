@@ -46,6 +46,19 @@ namespace OpenWSFZ.Daemon;
 /// depends on <c>QsoAnswererService</c>/<c>QsoCallerService</c>, which depend on
 /// <see cref="IAdifLogWriter"/> — the very decorator that depends on this service.
 /// </para>
+///
+/// <para>
+/// <strong>Absolute, non-configurable exclusion (no exceptions):</strong> R&amp;R-study synthetic
+/// signals (NFR-021 Q-prefix convention) and unresolved (unknown-region) callsigns SHALL NEVER
+/// reach an external program via this service, regardless of the operator's
+/// <c>DecodeNoiseSuppressionConfig</c> settings — that filter gates the decode panel and QSO
+/// automation only and can be disabled by the operator; this is a second, unconditional, hard
+/// filter inside this class itself (<see cref="IsSuppressedCallsign"/>, applied in
+/// <see cref="DecodeLoopAsync"/>, <see cref="BuildStatusFields"/>, and
+/// <see cref="NotifyQsoLogged"/>) so the guarantee survives regardless of upstream config and
+/// cannot be turned off. See design.md's "Absolute exclusion of synthetic/unknown-region traffic"
+/// decision.
+/// </para>
 /// </summary>
 public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
 {
@@ -55,6 +68,7 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     private readonly IConfigStore                          _configStore;
     private readonly IServiceProvider                      _serviceProvider;
     private readonly ICatState?                             _catState;
+    private readonly ICallsignRegionStore?                  _regionStore;
     private readonly ILogger<ExternalReportingService>      _logger;
     private readonly TimeSpan                               _heartbeatInterval;
     private readonly TimeSpan                               _statusPollInterval;
@@ -133,8 +147,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         IConfigStore                     configStore,
         IServiceProvider                 serviceProvider,
         ILogger<ExternalReportingService> logger,
-        ICatState?                        catState = null)
-        : this(decodeChannel, configStore, serviceProvider, logger, catState,
+        ICatState?                        catState = null,
+        ICallsignRegionStore?             regionStore = null)
+        : this(decodeChannel, configStore, serviceProvider, logger, catState, regionStore,
                heartbeatInterval: TimeSpan.FromSeconds(15),
                statusPollInterval: TimeSpan.FromSeconds(1))
     {
@@ -147,6 +162,7 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         IServiceProvider                 serviceProvider,
         ILogger<ExternalReportingService> logger,
         ICatState?                        catState,
+        ICallsignRegionStore?             regionStore,
         TimeSpan                          heartbeatInterval,
         TimeSpan                          statusPollInterval)
     {
@@ -155,8 +171,31 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         _serviceProvider    = serviceProvider;
         _logger             = logger;
         _catState           = catState;
+        _regionStore        = regionStore;
         _heartbeatInterval  = heartbeatInterval;
         _statusPollInterval = statusPollInterval;
+    }
+
+    /// <summary>
+    /// Absolute, non-configurable exclusion gate (Captain's directive, no exceptions — see
+    /// design.md's "Absolute exclusion of synthetic/unknown-region traffic" decision): returns
+    /// <c>true</c> when <paramref name="callsign"/> resolves to an R&amp;R-study synthetic entry
+    /// or cannot be resolved at all. A <c>null</c> <see cref="_regionStore"/> (not wired up) is
+    /// treated the same as an unresolved callsign — deliberately fails <em>closed</em> (suppress),
+    /// not open, unlike most other optional-dependency null-checks in this codebase: this is a
+    /// data-integrity floor, not a convenience feature, and "cannot verify" must never be treated
+    /// as "verified real."
+    /// </summary>
+    private bool IsSuppressedCallsign(string? callsign)
+    {
+        if (string.IsNullOrWhiteSpace(callsign)) return false; // nothing to suppress
+
+        var token = callsign.Trim();
+        var slashPos = token.IndexOf('/');
+        if (slashPos >= 0) token = token[..slashPos]; // strip portable suffix (/P, /M, ...)
+
+        var region = _regionStore?.TryGetRegion(token);
+        return region is null || region.Synthetic;
     }
 
     // ── IHostedService ────────────────────────────────────────────────────────
@@ -357,6 +396,24 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
 
                 foreach (var r in batch.Results)
                 {
+                    // Absolute guarantee (Captain's directive, no exceptions) — NOT gated by
+                    // DecodeNoiseSuppressionConfig, NOT configurable, NOT an opt-out via any
+                    // Settings-page control. R&R-synthetic and unknown-region decodes SHALL NEVER
+                    // be broadcast to any external program, regardless of what the operator has
+                    // chosen for the decode panel or the QSO controllers upstream — this is a
+                    // second, unconditional filter inside the class that actually emits UDP
+                    // traffic, independent of DecodeNoiseSuppressionFilter's own operator-toggleable
+                    // gate on the shared decode-pump channel (which this service's inbound batches
+                    // have already passed through and could, if the operator has disabled both
+                    // suppression settings, still contain unknown-region/synthetic entries).
+                    if (r.Region is null || r.Region.Synthetic)
+                    {
+                        _logger.LogDebug(
+                            "external-reporting: suppressed outbound Decode for '{Message}' — {Reason}.",
+                            r.Message, r.Region is null ? "unknown region" : "synthetic (R&R study)");
+                        continue;
+                    }
+
                     var fields = new WsjtxDatagram.DecodeFields(
                         New:                    true,
                         TimeMsSinceMidnightUtc: ParseTimeToMs(r.Time),
@@ -426,6 +483,19 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         var partner = qso?.Partner ?? "";
         var keying  = qso?.Keying ?? false;
 
+        // Absolute guarantee, Tier 2 (no exceptions): an active QSO with a synthetic or
+        // unresolved partner must never name that callsign to an external program in real time.
+        // Only DxCall/DxGrid are withheld — the rest of Status (frequency, TX/RX state,
+        // decoding-enabled) must keep flowing normally; its own "at least once per heartbeat
+        // interval" requirement is independent of who (if anyone) we're currently working.
+        if (IsSuppressedCallsign(partner))
+        {
+            _logger.LogDebug(
+                "external-reporting: suppressed DxCall/DxGrid in outbound Status for synthetic/unknown-region partner '{Partner}'.",
+                partner);
+            partner = "";
+        }
+
         return new WsjtxDatagram.StatusFields(
             DialFrequencyHz: dialFreqHz,
             Mode:            "FT8",
@@ -457,6 +527,17 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     internal void NotifyQsoLogged(QsoRecord record)
     {
         if (!IsOutboundActive) return;
+
+        // Absolute guarantee, Tier 2 (no exceptions): a completed QSO with a synthetic or
+        // unresolved partner must never be reported to an external program as a real logged
+        // contact — mirrors the existing early-return-on-abort pattern immediately above.
+        if (IsSuppressedCallsign(record.PartnerCallsign))
+        {
+            _logger.LogInformation(
+                "external-reporting: suppressed outbound QSOLogged for synthetic/unknown-region partner '{Partner}'.",
+                record.PartnerCallsign);
+            return;
+        }
 
         var fields = new WsjtxDatagram.QsoLoggedFields(
             QsoStartUtc:    new DateTimeOffset(DateTime.SpecifyKind(record.QsoStartUtc, DateTimeKind.Utc)),
