@@ -142,7 +142,7 @@ public sealed class PttTestEndpointTests : IClassFixture<PttTestFixture>
         _fixture.PttController.ThrowOnKeyUp   = null;
     }
 
-    [Fact(DisplayName = "cat-tx-ptt 17.7: POST /api/v1/ptt/test returns 409 when the running method is AudioVox")]
+    [Fact(DisplayName = "FR-057: cat-tx-ptt 17.7, POST /api/v1/ptt/test returns 409 when the running method is AudioVox")]
     public async Task PostPttTest_AudioVoxMethod_Returns409()
     {
         await _fixture.ConfigStore.SaveAsync(new AppConfig { Ptt = new PttConfig { Method = "AudioVox" } });
@@ -154,7 +154,7 @@ public sealed class PttTestEndpointTests : IClassFixture<PttTestFixture>
             "AudioVox has nothing to test — the controller must never be touched");
     }
 
-    [Fact(DisplayName = "cat-tx-ptt 17.7: POST /api/v1/ptt/test returns 409 while a real QSO is keying")]
+    [Fact(DisplayName = "FR-057: cat-tx-ptt 17.7, POST /api/v1/ptt/test returns 409 while a real QSO is keying")]
     public async Task PostPttTest_WhileKeying_Returns409()
     {
         await _fixture.ConfigStore.SaveAsync(new AppConfig { Ptt = new PttConfig { Method = "CatCommand" } });
@@ -171,7 +171,7 @@ public sealed class PttTestEndpointTests : IClassFixture<PttTestFixture>
             "singleton — this is the regression guard for the safety finding behind task 17.2");
     }
 
-    [Fact(DisplayName = "cat-tx-ptt 17.7: POST /api/v1/ptt/test returns pass and pulses PTT when the method is testable")]
+    [Fact(DisplayName = "FR-057: cat-tx-ptt 17.7, POST /api/v1/ptt/test returns pass and pulses PTT when the method is testable")]
     public async Task PostPttTest_TestableMethod_ReturnsPassAndPulsesPtt()
     {
         await _fixture.ConfigStore.SaveAsync(new AppConfig { Ptt = new PttConfig { Method = "CatCommand" } });
@@ -187,7 +187,7 @@ public sealed class PttTestEndpointTests : IClassFixture<PttTestFixture>
             "the endpoint must load a (silent) buffer, assert, then release — in that order");
     }
 
-    [Fact(DisplayName = "cat-tx-ptt 17.7: POST /api/v1/ptt/test returns error (HTTP 200) when the pulse throws")]
+    [Fact(DisplayName = "FR-057: cat-tx-ptt 17.7, POST /api/v1/ptt/test returns error (HTTP 200) when the pulse throws")]
     public async Task PostPttTest_ControllerThrows_ReturnsErrorWithHttp200()
     {
         await _fixture.ConfigStore.SaveAsync(new AppConfig { Ptt = new PttConfig { Method = "SerialRtsDtr" } });
