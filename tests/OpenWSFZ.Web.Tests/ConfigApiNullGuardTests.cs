@@ -115,4 +115,35 @@ public sealed class ConfigApiNullGuardTests : IClassFixture<WebTestFactory>
             "the recovered DecodeNoiseSuppression must be the default DecodeNoiseSuppressionConfig(), " +
             "i.e. SuppressSynthetic = true");
     }
+
+    [Fact(DisplayName = "gridtracker-udp-reporting: POST omitting \"externalReporting\" key does not persist a null ExternalReporting")]
+    public async Task PostConfig_OmittingExternalReportingKey_DoesNotPersistNullExternalReporting()
+    {
+        var client  = _factory.CreateClient();
+        var content = new StringContent(
+            """{ "audioDeviceId": "test-device" }""",
+            Encoding.UTF8, "application/json");
+
+        var postResp = await client.PostAsync("/api/v1/config", content);
+        postResp.StatusCode.Should().Be(HttpStatusCode.OK,
+            "a request body omitting externalReporting must still be accepted");
+
+        var getResp = await client.GetAsync("/api/v1/config");
+        getResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await getResp.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        doc.RootElement.TryGetProperty("externalReporting", out var extRepElement).Should().BeTrue(
+            "GET /api/v1/config must include the externalReporting key");
+        extRepElement.ValueKind.Should().NotBe(JsonValueKind.Null,
+            "a POST body omitting \"externalReporting\" must never leave " +
+            "IConfigStore.Current.ExternalReporting null (this class of bug crashes " +
+            "ExternalReportingService.Reconcile, called synchronously from IConfigStore.OnSaved " +
+            "on every subsequent POST /api/v1/config)");
+
+        // Must be default ExternalReportingConfig values, not merely non-null.
+        extRepElement.GetProperty("enabled").GetBoolean().Should().BeFalse(
+            "the recovered ExternalReporting must be the default ExternalReportingConfig(), i.e. disabled");
+    }
 }

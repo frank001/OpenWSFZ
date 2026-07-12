@@ -77,4 +77,13 @@ public sealed record AppConfig(
     /// suppressed by default).
     /// </summary>
     public DecodeNoiseSuppressionConfig DecodeNoiseSuppression { get; init; } = new();
+
+    /// <summary>
+    /// GridTracker2/WSJT-X-compatible UDP reporting configuration
+    /// (<c>external-reporting</c> capability, gridtracker-udp-reporting change).
+    /// Always non-null; defaults to <c>Enabled = false</c>, <c>Targets = []</c> so that
+    /// existing config files without an <c>externalReporting</c> key deserialise without
+    /// error and remain fully inert (no sockets opened) until an operator opts in.
+    /// </summary>
+    public ExternalReportingConfig ExternalReporting { get; init; } = new();
 }

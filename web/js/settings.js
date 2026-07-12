@@ -92,6 +92,12 @@ const regionDataLookupResult  = /** @type {HTMLElement}       */ (document.getEl
 const suppressUnknownRegion   = /** @type {HTMLInputElement}  */ (document.getElementById('suppress-unknown-region'));
 const suppressSynthetic       = /** @type {HTMLInputElement}  */ (document.getElementById('suppress-synthetic'));
 
+// External Programs tab controls (gridtracker-udp-reporting).
+const extRepEnabled        = /** @type {HTMLInputElement}         */ (document.getElementById('ext-rep-enabled'));
+const extRepTbody          = /** @type {HTMLTableSectionElement}  */ (document.getElementById('ext-rep-tbody'));
+const addExtRepTargetBtn   = /** @type {HTMLButtonElement}        */ (document.getElementById('add-ext-rep-target-btn'));
+const extRepHonourInbound  = /** @type {HTMLInputElement}         */ (document.getElementById('ext-rep-honour-inbound'));
+
 // Advanced Decoder Settings controls (decoder-settings-page)
 const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-k'));
 const decoderCorr  = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-corr'));
@@ -328,6 +334,12 @@ function snapshotForm() {
       suppressUnknownRegion: _suppressUnknownRegionRaw,
       suppressSynthetic:     suppressSynthetic?.checked ?? true,
     },
+    // gridtracker-udp-reporting: include the External Programs tab in dirty-state comparison.
+    externalReporting: {
+      enabled:               extRepEnabled?.checked ?? false,
+      targets:                collectExtRepTargets(),
+      honourInboundCommands: extRepHonourInbound?.checked ?? false,
+    },
   });
 }
 
@@ -483,6 +495,112 @@ addFreqBtn.addEventListener('click', () => {
   appendFreqRow('FT8', 0.000, '');
   syncDirtyUI();  // FR-040: adding a row marks the form dirty
 });
+
+// ── External Programs tab (gridtracker-udp-reporting) ───────────────────
+
+/**
+ * Read the current external-reporting target table rows as an array of target objects.
+ * @returns {Array<{name: string, host: string, port: number, enabled: boolean}>}
+ */
+function collectExtRepTargets() {
+  if (!extRepTbody) return [];
+  const rows = /** @type {NodeListOf<HTMLTableRowElement>} */ (
+    extRepTbody.querySelectorAll('tr[data-ext-rep-row]')
+  );
+  return Array.from(rows).map(row => ({
+    name:    /** @type {HTMLInputElement} */ (row.querySelector('.ext-rep-name')).value.trim(),
+    host:    /** @type {HTMLInputElement} */ (row.querySelector('.ext-rep-host')).value.trim() || '127.0.0.1',
+    port:    parseInt(/** @type {HTMLInputElement} */ (row.querySelector('.ext-rep-port')).value, 10) || 0,
+    enabled: /** @type {HTMLInputElement} */ (row.querySelector('.ext-rep-target-enabled')).checked,
+  }));
+}
+
+/**
+ * Build and append a single external-reporting target table row.
+ * @param {string}  name
+ * @param {string}  host
+ * @param {number}  port
+ * @param {boolean} enabled
+ */
+function appendExtRepRow(name, host, port, enabled) {
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-ext-rep-row', '');
+
+  // SEC-003: build the row via DOM APIs so no server-derived value is ever assigned to innerHTML.
+
+  /** @param {string} type @param {string} cls @param {string} val */
+  function makeInputCell(type, cls, val) {
+    const td  = tr.insertCell();
+    const inp = document.createElement('input');
+    inp.type      = type;
+    inp.className = cls;
+    inp.value     = val;
+    if (type === 'number') {
+      inp.step = '1';
+      inp.min  = '1';
+      inp.max  = '65535';
+    }
+    td.appendChild(inp);
+    return inp;
+  }
+
+  makeInputCell('text',   'ext-rep-name', name);
+  makeInputCell('text',   'ext-rep-host', host);
+  makeInputCell('number', 'ext-rep-port', String(port));
+
+  const tdEnabled = tr.insertCell();
+  const enabledCb = document.createElement('input');
+  enabledCb.type      = 'checkbox';
+  enabledCb.className = 'ext-rep-target-enabled';
+  enabledCb.checked   = enabled;
+  tdEnabled.appendChild(enabledCb);
+
+  const tdDel = tr.insertCell();
+  const btn   = document.createElement('button');
+  btn.type        = 'button';
+  btn.className   = 'freq-delete-btn';
+  btn.setAttribute('aria-label', 'Delete row');
+  btn.textContent = '✕';
+  btn.addEventListener('click', () => {
+    tr.remove();
+    syncDirtyUI();  // FR-040: deleting a row marks the form dirty
+  });
+  tdDel.appendChild(btn);
+
+  extRepTbody.appendChild(tr);
+}
+
+/**
+ * Render the full external-reporting target table from an array of entries.
+ * Clears any existing rows (including the placeholder).
+ * @param {Array<{name: string, host: string, port: number, enabled: boolean}>} entries
+ */
+function renderExtRepTable(entries) {
+  if (!extRepTbody) return;
+  extRepTbody.innerHTML = '';
+
+  if (entries.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="5" class="freq-placeholder"><em>No targets configured — click Add target to begin</em></td>';
+    extRepTbody.appendChild(tr);
+    return;
+  }
+
+  for (const t of entries) {
+    appendExtRepRow(t.name ?? '', t.host ?? '127.0.0.1', t.port ?? 2237, t.enabled ?? true);
+  }
+}
+
+if (addExtRepTargetBtn) {
+  addExtRepTargetBtn.addEventListener('click', () => {
+    // Remove the placeholder row if present.
+    const placeholder = extRepTbody.querySelector('.freq-placeholder');
+    if (placeholder) placeholder.closest('tr').remove();
+
+    appendExtRepRow('', '127.0.0.1', 2237, true);
+    syncDirtyUI();  // FR-040: adding a row marks the form dirty
+  });
+}
 
 // ── Load config and devices ───────────────────────────────────────────────
 
@@ -672,6 +790,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const noise = config.decodeNoiseSuppression ?? {};
     if (suppressSynthetic) suppressSynthetic.checked = noise.suppressSynthetic ?? true;
     _suppressUnknownRegionRaw = noise.suppressUnknownRegion ?? null;
+
+    // Pre-fill External Programs tab controls (gridtracker-udp-reporting).
+    const extRep = config.externalReporting ?? {};
+    if (extRepEnabled) extRepEnabled.checked = extRep.enabled ?? false;
+    if (extRepHonourInbound) extRepHonourInbound.checked = extRep.honourInboundCommands ?? false;
+    renderExtRepTable(Array.isArray(extRep.targets) ? extRep.targets : []);
 
     // Capture the clean baseline after all fields are fully populated (FR-040).
     _cleanSnapshot = snapshotForm();
@@ -867,6 +991,20 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
+  // gridtracker-udp-reporting: mirror the daemon's own port-range validation client-side so
+  // the operator gets immediate feedback instead of a round-trip 400.
+  const extRepTargetsForValidation = collectExtRepTargets();
+  const badExtRepTarget = extRepTargetsForValidation.find(t => t.port < 1 || t.port > 65535);
+  if (badExtRepTarget) {
+    showFeedback(
+      `External Programs target '${badExtRepTarget.name || badExtRepTarget.host}' has an invalid port ` +
+      `(${badExtRepTarget.port}) — must be between 1 and 65535.`,
+      'error'
+    );
+    saveBtn.disabled = false;
+    return;
+  }
+
   // p16: collect CAT config — carry forward opaque server-managed fields (FR-039).
   const cat = {
     ...catOpaqueFields,          // ← carry forward server-managed fields
@@ -947,6 +1085,13 @@ saveBtn.addEventListener('click', async () => {
       suppressSynthetic:     suppressSynthetic?.checked ?? true,
     };
 
+    // Collect External Programs config (gridtracker-udp-reporting).
+    const externalReporting = {
+      enabled:               extRepEnabled?.checked ?? false,
+      targets:               extRepTargetsForValidation,
+      honourInboundCommands: extRepHonourInbound?.checked ?? false,
+    };
+
     // POST config and frequencies in parallel (FR-043 / FR-007).
     await Promise.all([
       postConfig({
@@ -964,6 +1109,7 @@ saveBtn.addEventListener('click', async () => {
         remoteAccess,
         decoder,
         decodeNoiseSuppression,
+        externalReporting,
       }),
       postFrequencies(freqEntries),
     ]);

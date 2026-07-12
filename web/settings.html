@@ -54,6 +54,10 @@
                 role="tab" aria-selected="false" aria-controls="tab-region-data" id="tab-btn-region-data">
           Region data
         </button>
+        <button type="button" class="settings-tab-btn"
+                role="tab" aria-selected="false" aria-controls="tab-external-programs" id="tab-btn-external-programs">
+          External Programs
+        </button>
       </div>
 
       <!-- ── Tab 0: General ────────────────────────────────────────────────── -->
@@ -648,6 +652,62 @@
         </fieldset>
 
       </div><!-- /tab-region-data -->
+
+      <!-- ── Tab 7: External Programs (gridtracker-udp-reporting) ─────────── -->
+      <div id="tab-external-programs" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-external-programs">
+
+        <p class="field-hint">
+          Speaks the WSJT-X UDP network protocol so third-party programs (GridTracker2, JTAlert,
+          N1MM+, Log4OM, …) can see this station's spots and log completed QSOs exactly as they do
+          for WSJT-X today. Fully inert until enabled below — no network traffic leaves this
+          machine otherwise.
+        </p>
+
+        <div class="field-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="ext-rep-enabled" />
+            Enabled
+          </label>
+        </div>
+
+        <table id="ext-rep-table" class="freq-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Host</th>
+              <th>Port</th>
+              <th>Enabled</th>
+              <th>Delete</th>
+            </tr>
+          </thead>
+          <tbody id="ext-rep-tbody">
+            <!-- rows populated by settings.js -->
+          </tbody>
+        </table>
+
+        <div class="field-group" style="margin-top:0.75rem">
+          <button id="add-ext-rep-target-btn" type="button">Add target</button>
+        </div>
+
+        <fieldset id="ext-rep-inbound-fieldset">
+          <legend>Inbound commands</legend>
+
+          <div class="field-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="ext-rep-honour-inbound" />
+              Honour inbound commands (Reply / Free Text)
+            </label>
+            <p class="field-hint">
+              When checked, a third-party program can select a decoded station for this daemon to
+              engage (Reply) or send a free-text message (currently stored only — no transmission
+              effect yet). <strong>Halt Tx is always honoured regardless of this setting</strong> —
+              a third-party program can always stop an in-progress transmission as a safety
+              backstop, but starting one requires this explicit opt-in.
+            </p>
+          </div>
+        </fieldset>
+
+      </div><!-- /tab-external-programs -->
 
       <div class="form-footer">
         <button id="save-btn" type="button" class="primary">Save</button>

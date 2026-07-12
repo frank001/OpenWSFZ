@@ -28,7 +28,7 @@ namespace OpenWSFZ.Daemon;
 /// <see cref="SwitchToCallerAsync"/>.
 /// </para>
 /// </summary>
-public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher
+public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher, IExternalReplyTarget
 {
     private readonly QsoAnswererService           _answerer;
     private readonly QsoCallerService             _caller;
@@ -141,6 +141,20 @@ public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher
 
         return _answerer.EngageAtAsync(partnerCallsign, frequencyHz, theirCycleStart, point, ct);
     }
+
+    // ── IExternalReplyTarget (external-reporting, gridtracker-udp-reporting) ──────
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Routes by the currently ACTIVE role (not the configured role), consistent with
+    /// <see cref="Role"/>'s own remarks: when the active role is Answerer, delegates to
+    /// <see cref="QsoAnswererService.TryEngageExternal"/>; when Caller, delegates to
+    /// <see cref="QsoCallerService.TryEngageExternalResponder"/>.
+    /// </remarks>
+    public Task<bool> TryEngageAsync(string callsign, CancellationToken ct = default)
+        => _activeRole == QsoRole.Caller
+            ? _caller.TryEngageExternalResponder(callsign, ct)
+            : _answerer.TryEngageExternal(callsign, ct);
 
     // ── Router-specific ───────────────────────────────────────────────────────
 

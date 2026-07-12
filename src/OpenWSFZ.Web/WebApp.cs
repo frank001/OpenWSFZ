@@ -364,6 +364,8 @@ public static class WebApp
                 config = config with { DecodeLog = new DecodeLogConfig() };
             if (config.DecodeNoiseSuppression is null)
                 config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
+            if (config.ExternalReporting is null)
+                config = config with { ExternalReporting = new ExternalReportingConfig() };
 
             // ── CAT config validation (FR-031, FR-034) ─────────────────────────
             if (config.Cat is { } cat)
@@ -470,6 +472,22 @@ public static class WebApp
 
                 if (!ReferenceEquals(sanitisedDecoder, decoderIn))
                     config = config with { Decoder = sanitisedDecoder };
+            }
+
+            // ── External reporting config validation (gridtracker-udp-reporting) ────
+            // Any target with a port outside 1–65535 is rejected outright (HTTP 400, no
+            // partial persistence) — unlike CAT/TX/Decoder above, which clamp with a warning.
+            if (config.ExternalReporting is { } extRep)
+            {
+                foreach (var target in extRep.Targets)
+                {
+                    if (target.Port is < 1 or > 65535)
+                    {
+                        return Results.BadRequest(
+                            $"externalReporting target '{target.Name}' has port {target.Port}, " +
+                            "which is outside the valid range 1-65535.");
+                    }
+                }
             }
 
             // ── Remote access config validation (SEC-001 / D-LAN-006) ──────────────
