@@ -179,6 +179,158 @@ public sealed class ExternalReportingServiceTests
         }
     }
 
+    // ── D-014: inbound bind coexists with a peer already on the target port ─
+
+    /// <summary>
+    /// Binds a "fake peer" <see cref="UdpClient"/> to <paramref name="port"/> with
+    /// <c>ReuseAddress</c> set — mirroring the real WSJT-X-protocol reference behaviour (Qt's
+    /// <c>ShareAddress | ReuseAddressHint</c> bind option, which every WSJT-X-protocol client
+    /// including GridTracker2 uses) so this test double is a faithful stand-in for "GridTracker2
+    /// is already running and bound to this port before OpenWSFZ starts" — the realistic
+    /// real-world startup order D-014 was found against.
+    /// </summary>
+    private static UdpClient CreateFakePeer(int port)
+    {
+        var client = new UdpClient(AddressFamily.InterNetwork);
+        client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        client.Client.Bind(new IPEndPoint(IPAddress.Any, port));
+        return client;
+    }
+
+    /// <summary>
+    /// Reads the private <c>_inboundClient</c> field via reflection to assert the bind's own
+    /// success/failure directly, independent of the OS's delivery semantics for a shared port
+    /// (see the class-level remarks on the two D-014 tests below for why delivery itself is not
+    /// asserted while a peer remains bound to the same port).
+    /// </summary>
+    private static UdpClient? GetInboundClient(ExternalReportingService sut)
+    {
+        var field = typeof(ExternalReportingService).GetField(
+            "_inboundClient", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (UdpClient?)field!.GetValue(sut);
+    }
+
+    /// <remarks>
+    /// <para>
+    /// <strong>Windows platform note:</strong> empirically probed while writing this test (see
+    /// dev-tasks/2026-07-12-gridtracker-udp-reporting-review-fixes.md §3 for the review that
+    /// found D-014): when two <see cref="UdpClient"/>s share one local port via
+    /// <c>SO_REUSEADDR</c>, Windows delivers an incoming unicast datagram to only the
+    /// <em>first-bound</em> socket — never both, and (unlike Linux <c>SO_REUSEPORT</c>) with no
+    /// load-balancing fan-out. This is a real, pre-existing OS/platform limitation, not something
+    /// this fix's `ReuseAddress` call can or is scoped to solve — true concurrent multi-listener
+    /// delivery on one port on one machine would need UDP multicast, which design.md's own "Open
+    /// Questions" section already defers as unimplemented, out of scope here.
+    /// </para>
+    /// <para>
+    /// What D-014 Part A actually fixes, and what this test actually proves, is narrower and
+    /// still the entire point of the defect: before the fix, the bind <em>throws</em> when a peer
+    /// already owns the port, the exception is swallowed, and <c>_inboundClient</c> stays
+    /// permanently <c>null</c> — no message of any kind, from any sender, at any later time,
+    /// would ever reach the daemon, because nothing ever retries the bind outside of a config
+    /// save. This test proves the bind no longer fails that way: it binds successfully (directly
+    /// verified via <c>_inboundClient</c>) despite a peer having already claimed the port at
+    /// daemon-startup time, and a Halt Tx sent after that peer disconnects <em>is</em> received —
+    /// which could only happen if the original bind actually succeeded, since <c>Reconcile</c> is
+    /// never called again in this test to retry it.
+    /// </para>
+    /// </remarks>
+    [Fact(DisplayName = "D-014 AC-1: inbound listener binds successfully when a peer already owns the target port at startup")]
+    public async Task InboundBind_SucceedsWhenTargetPortAlreadyBoundByPeer()
+    {
+        var port = GetFreeUdpPort();
+
+        var qso = Substitute.For<IQsoController>();
+        qso.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("GridTracker2", "127.0.0.1", port, true)])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, BuildServiceProvider(qso: qso));
+
+        using var cts = new CancellationTokenSource();
+
+        // The peer (e.g. GridTracker2) is already running and bound to this port BEFORE the
+        // daemon starts — the normal real-world case D-014 was found against. Pre-fix, this
+        // alone was enough to leave the daemon's inbound listener permanently unbound.
+        var fakePeer = CreateFakePeer(port);
+        try
+        {
+            await sut.StartAsync(cts.Token);
+            await Task.Delay(200); // let Reconcile attempt the bind
+
+            GetInboundClient(sut).Should().NotBeNull(
+                "the bind must succeed (via ReuseAddress) even though a peer already owns the port " +
+                "at daemon-startup time — D-014's exact defect was this staying permanently null");
+        }
+        finally
+        {
+            fakePeer.Dispose(); // release the port so the reply step below is unambiguous (see remarks)
+        }
+
+        try
+        {
+            using var sender = new UdpClient();
+            var haltTx = BuildHaltTxDatagram();
+            await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
+
+            await Task.Delay(500);
+            await qso.Received(1).AbortAsync(Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName = "D-014 AC-2: outbound sends to the primary target originate from the shared inbound port")]
+    public async Task OutboundToPrimaryTarget_UsesSharedInboundPort()
+    {
+        var port = GetFreeUdpPort();
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("GridTracker2", "127.0.0.1", port, true)])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader);
+
+        // Bind the observer BEFORE the daemon starts — on Windows the first-bound socket of a
+        // ReuseAddress-shared port wins unicast delivery (see the AC-1 remarks above), so this
+        // ordering is what makes the observer able to see the daemon's own outbound sends here.
+        using var fakePeer = CreateFakePeer(port);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22")]));
+
+            // Receive an outbound datagram (Heartbeat/Status/Clear/Decode — any of them proves
+            // the point) and record the SOURCE port the daemon actually sent it from.
+            using var recvCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            var result = await fakePeer.ReceiveAsync(recvCts.Token);
+
+            result.RemoteEndPoint.Port.Should().Be(port,
+                "the primary target's outbound sends must originate from the shared bound inbound " +
+                "port, not a separate ephemeral socket, so a peer's reply-to-sender-port semantics " +
+                "(e.g. GridTracker2 replying to whatever port it last saw traffic from) reach us");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
     // ── Outbound: QSOLogged (task 3.5/3.7) ──────────────────────────────────
 
     [Fact(DisplayName = "FR-053: NotifyQsoLogged sends a QSOLogged datagram to the enabled target")]

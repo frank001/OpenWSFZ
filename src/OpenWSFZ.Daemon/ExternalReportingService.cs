@@ -92,7 +92,20 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     }
 
     private readonly object _targetsLock = new();
+
+    // Secondary targets only — index 1+ of the enabled target list. Each keeps its own
+    // dedicated, outbound-only, ephemeral-port UdpClient exactly as before D-014.
     private List<(ExternalReportingTarget Target, UdpClient Client)> _outboundClients = [];
+
+    // Primary target (index 0 of the enabled target list) — D-014 Part B. Its outbound sends go
+    // through the shared _inboundClient socket (so a peer's reply-to-sender-port semantics work,
+    // per design.md's "GridTracker2 replies from the same port it received on" rationale) rather
+    // than a separate ephemeral client. _primaryFallbackClient is used only when _inboundClient
+    // failed to bind (or isn't configured), so outbound delivery to the primary target is never
+    // lost — only the source port it's sent from changes.
+    private ExternalReportingTarget? _primaryTarget;
+    private UdpClient?               _primaryFallbackClient;
+
     private UdpClient? _inboundClient;
     private int         _inboundBoundPort = -1;
 
@@ -206,9 +219,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     private void OnConfigSaved(AppConfig config) => Reconcile(config.ExternalReporting);
 
     /// <summary>
-    /// Opens outbound <see cref="UdpClient"/>s for newly-enabled targets, closes ones for
-    /// targets no longer enabled/present, and (re)binds the single inbound listener to the
-    /// first enabled target's port — all without a daemon restart.
+    /// Opens outbound <see cref="UdpClient"/>s for newly-enabled secondary targets, closes ones
+    /// for targets no longer enabled/present, and (re)binds the single inbound listener to the
+    /// primary (index 0) enabled target's port — all without a daemon restart.
     /// </summary>
     /// <param name="config">
     /// May be <c>null</c> in principle: <c>System.Text.Json</c> source-generation initialises a
@@ -229,14 +242,18 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                 ? config.Targets.Where(t => t.Enabled).ToList()
                 : [];
 
-            var toClose = _outboundClients.Where(c => !desiredEnabled.Contains(c.Target)).ToList();
+            var newPrimary       = desiredEnabled.Count > 0 ? desiredEnabled[0] : null;
+            var secondaryTargets = desiredEnabled.Count > 1 ? desiredEnabled.Skip(1).ToList() : [];
+
+            // ── Secondary targets (index 1+): each keeps its own dedicated ephemeral client ──
+            var toClose = _outboundClients.Where(c => !secondaryTargets.Contains(c.Target)).ToList();
             foreach (var c in toClose)
             {
                 _outboundClients.Remove(c);
                 try { c.Client.Dispose(); } catch { /* best-effort */ }
             }
 
-            foreach (var target in desiredEnabled)
+            foreach (var target in secondaryTargets)
             {
                 if (_outboundClients.Any(c => c.Target.Equals(target))) continue;
                 try
@@ -251,7 +268,22 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                 }
             }
 
-            var desiredInboundPort = desiredEnabled.Count > 0 ? desiredEnabled[0].Port : -1;
+            // ── Primary target (index 0): drop the stale fallback client on any target change —
+            //    re-evaluated below against the (possibly newly re-bound) inbound socket. ──
+            if (!Equals(_primaryTarget, newPrimary))
+            {
+                _primaryTarget = newPrimary;
+                _primaryFallbackClient?.Dispose();
+                _primaryFallbackClient = null;
+            }
+
+            // ── Inbound listener: bind to the primary target's port with ReuseAddress so it
+            //    coexists with a peer (e.g. GridTracker2, which itself binds with Qt's
+            //    ShareAddress|ReuseAddressHint) already bound there (D-014 Part A). Without this,
+            //    the bind throws whenever the operator's mapping tool is already running — the
+            //    normal real-world case — and Halt Tx/Reply/Free Text become silently
+            //    unreachable. ──
+            var desiredInboundPort = newPrimary?.Port ?? -1;
             if (desiredInboundPort != _inboundBoundPort)
             {
                 _inboundClient?.Dispose();
@@ -262,23 +294,53 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                 {
                     try
                     {
-                        _inboundClient    = new UdpClient(new IPEndPoint(IPAddress.Any, desiredInboundPort));
+                        var client = new UdpClient(AddressFamily.InterNetwork);
+                        client.Client.SetSocketOption(
+                            SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                        client.Client.Bind(new IPEndPoint(IPAddress.Any, desiredInboundPort));
+                        _inboundClient    = client;
                         _inboundBoundPort = desiredInboundPort;
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning(ex,
-                            "external-reporting: failed to bind inbound listener on port {Port}.",
+                            "external-reporting: failed to bind inbound listener on port {Port} — " +
+                            "Halt Tx/Reply/Free Text will be unreachable until this is resolved; " +
+                            "outbound delivery to the primary target continues via a fallback socket.",
                             desiredInboundPort);
                     }
                 }
+            }
+
+            // ── D-014 Part B: outbound sends to the primary target go through the shared bound
+            //    _inboundClient socket, so a peer's reply-to-sender-port semantics reach our
+            //    inbound listener. Only fall back to a dedicated ephemeral outbound-only client
+            //    when the shared bind is unavailable, so outbound delivery is never lost — only
+            //    the source port it's sent from changes. ──
+            if (newPrimary is not null && _inboundClient is null && _primaryFallbackClient is null)
+            {
+                try
+                {
+                    _primaryFallbackClient = new UdpClient();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "external-reporting: failed to open fallback outbound socket for primary target '{Name}'.",
+                        newPrimary.Name);
+                }
+            }
+            else if ((newPrimary is null || _inboundClient is not null) && _primaryFallbackClient is not null)
+            {
+                _primaryFallbackClient.Dispose();
+                _primaryFallbackClient = null;
             }
         }
     }
 
     private bool IsOutboundActive
     {
-        get { lock (_targetsLock) return _outboundClients.Count > 0; }
+        get { lock (_targetsLock) return _outboundClients.Count > 0 || _primaryTarget is not null; }
     }
 
     // ── Outbound: decode-batch-driven Clear + Decode (tasks 3.3–3.4) ────────
@@ -416,7 +478,19 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     private async Task SendToAllEnabledAsync(byte[] datagram)
     {
         List<(ExternalReportingTarget Target, UdpClient Client)> clients;
-        lock (_targetsLock) clients = [.. _outboundClients];
+        lock (_targetsLock)
+        {
+            clients = [.. _outboundClients];
+
+            // D-014 Part B: the primary target sends through the shared inbound socket when
+            // bound, falling back to the dedicated ephemeral client otherwise.
+            if (_primaryTarget is { } primary)
+            {
+                var primaryClient = _inboundClient ?? _primaryFallbackClient;
+                if (primaryClient is not null)
+                    clients.Add((primary, primaryClient));
+            }
+        }
 
         foreach (var (target, client) in clients)
         {
@@ -426,8 +500,11 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                             .ConfigureAwait(false);
                 _resolutionWarned.TryRemove(TargetKey(target), out _);
             }
-            catch (Exception ex) when (ex is SocketException or ArgumentException)
+            catch (Exception ex) when (ex is SocketException or ArgumentException or ObjectDisposedException)
             {
+                // ObjectDisposedException: the shared _inboundClient can be disposed and
+                // rebound concurrently by Reconcile (D-014 Part B) — treat exactly like any
+                // other per-target send failure; the next tick resolves the current socket fresh.
                 if (_resolutionWarned.TryAdd(TargetKey(target), true))
                 {
                     _logger.LogWarning(ex,
@@ -458,6 +535,10 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
             foreach (var (_, client) in _outboundClients)
                 try { client.Dispose(); } catch { /* best-effort */ }
             _outboundClients.Clear();
+
+            _primaryTarget = null;
+            _primaryFallbackClient?.Dispose();
+            _primaryFallbackClient = null;
 
             _inboundClient?.Dispose();
             _inboundClient    = null;
