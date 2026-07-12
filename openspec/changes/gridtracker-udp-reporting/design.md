@@ -228,6 +228,39 @@ genuinely originate from the shared bound port. This is the same category of cav
 GridTracker2 session is the place to confirm actual bidirectional coexistence before relying on this
 operationally.
 
+**Linux addendum (2026-07-12, found via PR #70's `ubuntu-latest` CI failure — see
+dev-tasks/2026-07-12-gridtracker-udp-reporting-linux-ci-failure.md):** the Windows finding above is
+about *inbound* delivery (which of two listeners receives a datagram sent *to* the shared port).
+Linux's `SO_REUSEADDR` semantics for UDP are documented (and generally observed, kernel/version
+dependent) to differ from Windows in a way that creates the mirror-image risk on the *outbound* side:
+rather than first-bind-wins, unicast delivery to a `SO_REUSEADDR`-shared UDP port on Linux has
+historically gone to the **last-bound** socket. In the realistic startup order this feature targets
+(GridTracker2 already running and bound to the shared port first; OpenWSFZ's `_inboundClient` binds
+second, inside `Reconcile`), a datagram OpenWSFZ sends from its primary-target outbound path to
+`127.0.0.1:port` — i.e. addressed to GridTracker2's port on the same host — could, on a Linux kernel
+exhibiting last-bind-wins behaviour, be delivered back to OpenWSFZ's own `_inboundClient`/
+`InboundLoopAsync` instead of ever reaching GridTracker2's socket. If so, Heartbeat/Status/Clear/
+Decode/QSOLogged would silently never arrive at GridTracker2 on Linux in the exact
+peer-started-first scenario this whole feature is built for, while inbound Halt Tx/Reply/Free Text
+(GridTracker2 → OpenWSFZ, a genuinely different socket pair since GridTracker2's *own* send
+originates from GridTracker2's process, not from a second local bind) are unaffected.
+
+This was not exercised by a real two-process Linux test — no live GridTracker2 (or second real
+peer process) was available to confirm it end-to-end; the finding is reasoned from documented
+kernel behaviour plus the CI symptom (`OutboundToPrimaryTarget_UsesSharedInboundPort` timing out
+with `fakePeer` receiving nothing, which is consistent with, though not exclusive proof of, the
+daemon's own send looping back to itself). Given the plaintext-loopback nature of this feature and
+that Decision 7's existing verification-status caveat already flags true simultaneous two-listener
+coexistence as unguaranteed on Windows too, this is logged as an **open risk carried forward, not
+fixed in this change**: the shared-socket send optimisation (routing the primary target's outbound
+through `_inboundClient` rather than a dedicated ephemeral client, so reply-to-sender-port semantics
+work) is kept as-is, since reverting it would sacrifice the Windows-side benefit it exists for and
+the risk is unconfirmed on real hardware either way. A real Linux deployment with GridTracker2 (or a
+packet capture on a Linux box) is needed to confirm or rule this out before treating Linux delivery
+as solid; tracked as a follow-up verification item alongside tasks 2.6/10.3's existing "no live
+GridTracker2" caveat, not a new Open Question line item since it is a refinement of the same
+unresolved multicast/multi-listener question already below.
+
 ## Risks / Trade-offs
 
 - **[Risk] Plaintext, unauthenticated UDP to an operator-configured host** → Mitigation: this is

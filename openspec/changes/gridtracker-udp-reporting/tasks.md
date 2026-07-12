@@ -245,3 +245,24 @@ same branch, no new OpenSpec change proposal (per the dev-task's own instruction
       QSOLogged/Reply/Halt Tx/Free Text) are implemented from protocol documentation, not verified
       byte-for-byte against a real capture or a live GridTracker2 session — recommend running this
       check before relying on the feature operationally.
+- [x] 10.4 **Linux CI fix (2026-07-12, PR #70)** — `ubuntu-latest`'s `Build & Test` job was failing
+      on `OutboundToPrimaryTarget_UsesSharedInboundPort` (D-014 AC-2): the test raced a second
+      same-port-bound socket to observe the daemon's own outbound send over the wire, relying on
+      the Windows first-bind-wins delivery semantics documented on the sibling AC-1 test — which do
+      not hold on Linux (last-bind-wins, kernel/version-dependent), so the observer socket never
+      saw the datagram and the 3-second receive window timed out. Per
+      dev-tasks/2026-07-12-gridtracker-udp-reporting-linux-ci-failure.md: rewrote the test to assert
+      the *sending* socket's own local port directly (via the existing `GetInboundClient` reflection
+      helper) instead of racing OS delivery arbitration — deterministic on every platform. Also
+      investigated whether this is a genuine cross-platform production risk, not just a test
+      artifact: reasoned from documented Linux `SO_REUSEADDR` UDP behaviour that it likely is — see
+      design.md Decision 7's new "Linux addendum," which documents the mirror-image risk to the
+      existing Windows finding (OpenWSFZ's own outbound send to a peer on the shared loopback port
+      could be delivered back to OpenWSFZ's own `_inboundClient` instead of reaching the peer,
+      since OpenWSFZ binds second in the realistic startup order) and logs it as an open,
+      unconfirmed-on-real-hardware risk carried forward alongside the existing tasks 2.6/10.3
+      no-live-GridTracker2 caveat, not fixed in this change. Full `OpenWSFZ.Daemon.Tests` suite
+      re-run locally: **391/391 passing** (unchanged count — one test's assertion mechanism
+      changed, no test added/removed), so task 10.1's figures above stand as-is. Pushed to PR #70
+      for CI confirmation on all three platforms (`windows-latest`/`macos-latest`/`ubuntu-latest`)
+      plus Gate G9 before requesting re-review — see the PR's own CI status for the final word.

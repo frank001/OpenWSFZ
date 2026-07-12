@@ -311,6 +311,28 @@ public sealed class ExternalReportingServiceTests
         }
     }
 
+    /// <remarks>
+    /// <strong>Linux platform note (2026-07-12 CI failure fix):</strong> this test originally
+    /// proved the point by racing a second socket (<c>fakePeer</c>) bound to the same shared port
+    /// to receive the daemon's own outbound send over the wire — reasoning that, per the Windows
+    /// finding documented on <see cref="InboundBind_SucceedsWhenTargetPortAlreadyBoundByPeer"/>,
+    /// the first-bound socket wins delivery. That does not generalise: on Linux, unicast delivery
+    /// to a <c>SO_REUSEADDR</c>-shared UDP port has historically gone to the <em>last</em>-bound
+    /// socket, not the first — and in this test the daemon's own <c>_inboundClient</c> binds
+    /// second (inside <c>Reconcile</c>, after <c>fakePeer</c>). If that Linux behaviour applies,
+    /// the daemon's own outbound send back to <c>127.0.0.1:port</c> is delivered to the daemon's
+    /// own <c>_inboundClient</c>/<c>InboundLoopAsync</c> rather than to <c>fakePeer</c>, which is
+    /// exactly what made this test time out on <c>ubuntu-latest</c> (see
+    /// dev-tasks/2026-07-12-gridtracker-udp-reporting-linux-ci-failure.md and design.md Decision 7's
+    /// Linux addendum). Racing OS-specific same-host delivery arbitration is inherently unportable,
+    /// so this test now asserts the *sending* socket's own local port directly instead — deterministic
+    /// on every platform, and still exactly what AC-2 requires: proof that the primary target's
+    /// outbound sends originate from the shared bound inbound port, since
+    /// <see cref="ExternalReportingService"/>'s own <c>SendToAllEnabledAsync</c> resolves the
+    /// primary target's client as <c>_inboundClient ?? _primaryFallbackClient</c> — a bound,
+    /// non-null <c>_inboundClient</c> on the target's port is exactly the condition under which
+    /// that fallback expression selects the shared socket.
+    /// </remarks>
     [Fact(DisplayName = "D-014 AC-2: outbound sends to the primary target originate from the shared inbound port")]
     public async Task OutboundToPrimaryTarget_UsesSharedInboundPort()
     {
@@ -326,24 +348,31 @@ public sealed class ExternalReportingServiceTests
         var channel = Channel.CreateBounded<DecodeBatch>(2);
         var sut     = CreateSut(store, channel.Reader);
 
-        // Bind the observer BEFORE the daemon starts — on Windows the first-bound socket of a
-        // ReuseAddress-shared port wins unicast delivery (see the AC-1 remarks above), so this
-        // ordering is what makes the observer able to see the daemon's own outbound sends here.
+        // A peer (e.g. GridTracker2) already bound to the port before the daemon starts — the
+        // realistic startup order D-014 targets. It is never used to observe delivery here (see
+        // the remarks above for why that's no longer safe); it exists only so the shared-bind
+        // assertion below is exercised under the same contended-port condition as production.
         using var fakePeer = CreateFakePeer(port);
 
         using var cts = new CancellationTokenSource();
         await sut.StartAsync(cts.Token);
         try
         {
+            await Task.Delay(200); // let Reconcile attempt the bind
+
             channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
                 [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22")]));
 
-            // Receive an outbound datagram (Heartbeat/Status/Clear/Decode — any of them proves
-            // the point) and record the SOURCE port the daemon actually sent it from.
-            using var recvCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            var result = await fakePeer.ReceiveAsync(recvCts.Token);
-
-            result.RemoteEndPoint.Port.Should().Be(port,
+            // Assert the SENDING socket's own local port directly, rather than inferring it by
+            // racing a second socket to receive the packet over the wire (platform-dependent —
+            // see the remarks above). A bound _inboundClient on the target's port is exactly the
+            // condition under which SendToAllEnabledAsync's own `_inboundClient ??
+            // _primaryFallbackClient` resolution picks the shared socket for the primary target.
+            var inboundClient = GetInboundClient(sut);
+            inboundClient.Should().NotBeNull(
+                "the shared inbound socket must be bound so the primary target's outbound sends " +
+                "route through it — D-014 Part B's entire point");
+            ((IPEndPoint)inboundClient!.Client.LocalEndPoint!).Port.Should().Be(port,
                 "the primary target's outbound sends must originate from the shared bound inbound " +
                 "port, not a separate ephemeral socket, so a peer's reply-to-sender-port semantics " +
                 "(e.g. GridTracker2 replying to whatever port it last saw traffic from) reach us");
