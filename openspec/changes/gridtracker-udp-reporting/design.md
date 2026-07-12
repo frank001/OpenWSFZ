@@ -156,6 +156,78 @@ small, self-contained, and exhaustively unit-testable (encode a known message, a
 decode known captured bytes, assert exact fields) without dragging in decode-pipeline or config-store
 mocking for what is fundamentally a serialisation problem.
 
+### 6. Absolute exclusion of synthetic/unknown-region traffic — hard-coded, not configurable
+
+**Decision:** `ExternalReportingService` unconditionally withholds any decode, Status partner
+identity, or QSOLogged record whose associated callsign resolves to an R&R-study synthetic entry
+(NFR-021's Q-prefix convention) or fails to resolve to any region at all (`Region: null`). This is
+implemented as a *second*, hard-coded filter inside the class that actually emits UDP traffic —
+`DecodeLoopAsync` checks `DecodeResult.Region` directly; `BuildStatusFields`/`NotifyQsoLogged` use a
+new `IsSuppressedCallsign` helper backed by an optional `ICallsignRegionStore` — entirely
+independent of, and layered *after*, the existing operator-toggleable
+`DecodeNoiseSuppressionConfig.SuppressUnknownRegion`/`SuppressSynthetic` settings that gate the
+decode panel and QSO automation upstream. It is not exposed as, and SHALL NOT be exposed as, any
+Settings-page control or config field — there is no way for an operator to turn it off.
+
+**Why:** Directed by the Captain in the plainest possible terms (dev-tasks/2026-07-12-gridtracker-
+udp-reporting-review-fixes.md §4): R&R synthetic signals are not real amateur-radio traffic, and
+GridTracker2 may itself relay spots onward to a real map, a real logbook, or another real-world
+tool this project has no authority over — letting synthetic or unverified traffic leak into that
+chain would contaminate systems outside this application's control. Unknown-region decodes are
+unverified/likely-noisy and get the same treatment for the same reason: this is a data-integrity/
+privacy floor, not a preference, so it cannot depend on upstream config staying a particular way
+(an operator who has disabled both `DecodeNoiseSuppressionConfig` settings — a legitimate, supported
+choice for the decode panel — must not thereby also leak synthetic/unknown traffic externally; the
+two concerns are deliberately decoupled).
+
+**Fail-closed, not fail-open:** unlike most optional-dependency (`Foo?`) patterns elsewhere in this
+codebase, which fail *open* when the dependency is absent (e.g. a `null` `IDecodeFilterStore` means
+"unfiltered"), `IsSuppressedCallsign` treats a `null` `ICallsignRegionStore` exactly like a lookup
+miss — suppressed. "Cannot verify" must never be silently treated as "verified real."
+
+**Alternatives considered:**
+- *Rely on `DecodeNoiseSuppressionConfig` defaulting to suppress-on* — rejected: defaults are
+  overridable by the operator for a legitimate, unrelated reason (wanting to see synthetic/unknown
+  traffic on the decode panel during an R&R study run), and this exclusion must hold regardless.
+- *A new, dedicated `externalReporting` config flag for this* — rejected: the Captain's directive is
+  explicit that this is "not gated by, not overridable through, any operator setting." A flag,
+  however defaulted, is still a flag an operator could theoretically flip.
+
+### 7. Inbound bind uses `SO_REUSEADDR`; primary target's outbound sends share that same socket (D-014)
+
+**Decision:** Amends Decision 1's inbound bind. The inbound `UdpClient` sets
+`SocketOptionName.ReuseAddress` before binding — mirroring Qt's
+`ShareAddress | ReuseAddressHint`, the bind option every WSJT-X-protocol peer (GridTracker2
+included) uses — so the bind succeeds even when a peer already owns the port at daemon-startup
+time. Separately, the *primary* target (index 0 of the enabled target list, whose port the inbound
+listener binds to) has its outbound sends routed through that same shared socket rather than a
+separate ephemeral `UdpClient`, falling back to an ephemeral client only if the shared bind is
+unavailable. Secondary targets (index 1+) are unaffected — each still gets its own dedicated
+outbound-only client.
+
+**Why:** Found during pre-merge review (D-014): without `ReuseAddress`, the bind threw whenever the
+operator's mapping tool was already running — the normal real-world case, not an edge case — and the
+exception was swallowed and logged at Warning only, leaving Halt Tx/Reply/Free Text silently and
+*permanently* unreachable (nothing retries the bind outside of a config save). The shared-socket
+send additionally makes Decision 1's own stated rationale ("GridTracker2 replies from the same port
+it received on") actually true: without it, the primary target's sends went out from a separate
+ephemeral port, so a peer's reply-to-sender-port semantics would arrive at the wrong place.
+
+**Verification status — read before trusting this in production:** empirically probed on Windows
+while implementing D-014's regression tests: when two `UdpClient`s share one local port via
+`SO_REUSEADDR`, Windows delivers an incoming unicast datagram to only the *first-bound* socket —
+never both, and (unlike Linux `SO_REUSEPORT`) with no load-balancing fan-out. This means true
+*simultaneous* two-listener coexistence on one port on one machine (OpenWSFZ and GridTracker2 both
+genuinely receiving their own inbound traffic at the same time) is **not guaranteed by this fix
+alone** on Windows — it would need UDP multicast, which the Open Questions section below already
+identifies as unimplemented, deliberately out of scope for this change. What this fix does
+guarantee, and what its regression tests actually prove: the bind no longer fails/stays permanently
+`null` when a peer already owns the port at startup, and the primary target's outbound sends
+genuinely originate from the shared bound port. This is the same category of caveat as tasks 2.6/
+10.3 (no live GridTracker2 available to verify the richer message layouts byte-for-byte) — a real
+GridTracker2 session is the place to confirm actual bidirectional coexistence before relying on this
+operationally.
+
 ## Risks / Trade-offs
 
 - **[Risk] Plaintext, unauthenticated UDP to an operator-configured host** → Mitigation: this is
@@ -201,4 +273,8 @@ mocking for what is fundamentally a serialisation problem.
   sends the same full outbound stream to every enabled target uniformly.
 - Multicast support (WSJT-X optionally supports a multicast group instead of unicast per-target) is
   not included — every target in `externalReporting.targets` is a unicast UDP destination. Worth
-  revisiting if a real multi-listener-on-one-machine use case surfaces.
+  revisiting if a real multi-listener-on-one-machine use case surfaces. **Updated relevance (D-014,
+  see Decision 7):** this is no longer purely hypothetical — Windows' single-winner delivery
+  semantics for a `SO_REUSEADDR`-shared unicast port mean genuine simultaneous inbound coexistence
+  with a same-machine peer (e.g. GridTracker2) may specifically require multicast to guarantee, not
+  just "worth revisiting."

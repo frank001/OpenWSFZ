@@ -161,17 +161,80 @@
       `tools/TraceabilityCheck` against the built test assemblies reports
       `PASS: all requirements are mapped and all references are valid.`
 
+## 11. Pre-merge review fixes (dev-tasks/2026-07-12-gridtracker-udp-reporting-review-fixes.md)
+
+Amendments to this in-flight, unmerged change following QA's pre-merge review — continued on the
+same branch, no new OpenSpec change proposal (per the dev-task's own instruction).
+
+- [x] 11.1 **D-014 Part A** — set `SocketOptionName.ReuseAddress` before binding the inbound
+      listener in `ExternalReportingService.Reconcile`, so the bind no longer throws (and silently,
+      permanently fails) whenever a peer (e.g. GridTracker2) already owns the configured port at
+      daemon-startup time — the normal real-world case, not an edge case.
+- [x] 11.2 **D-014 Part B** — route the primary target's (index 0 of the enabled list) outbound
+      sends through the same shared, bound inbound socket rather than a separate ephemeral
+      `UdpClient`, so a peer's reply-to-sender-port semantics (design.md's "GridTracker2 replies
+      from the same port it received on" rationale) actually reach us. Falls back to a dedicated
+      ephemeral client if the shared bind is unavailable, so outbound delivery is never lost.
+      Secondary targets (index 1+) unaffected.
+- [x] 11.3 **D-014 tests** — `InboundBind_SucceedsWhenTargetPortAlreadyBoundByPeer` (bind succeeds,
+      directly verified, despite a peer already owning the port at startup; Halt Tx sent after that
+      peer disconnects is received — proving the bind didn't silently fail) and
+      `OutboundToPrimaryTarget_UsesSharedInboundPort` (the primary target's outbound sends
+      genuinely originate from the shared bound port, verified via a real loopback peer's own
+      `RemoteEndPoint`). **Platform finding, documented in design.md Decision 7:** Windows delivers
+      shared-port UDP unicast to only the first-bound socket (no Linux-style `SO_REUSEPORT`
+      fan-out) — true simultaneous two-listener coexistence isn't guaranteed by this fix alone and
+      would need multicast (design.md's existing, unimplemented Open Question); the tests prove
+      what's actually fixed (bind success, correct source port), not simultaneous coexistence.
+- [x] 11.4 **Absolute exclusion, Tier 1** — `ExternalReportingService.DecodeLoopAsync` unconditionally
+      skips any `DecodeResult` with `Region: null` or `Region.Synthetic: true` before encoding an
+      outbound Decode datagram, independent of `DecodeNoiseSuppressionConfig` and not exposed as any
+      Settings-page control. Clear still fires every cycle regardless of how many decodes survive.
+- [x] 11.5 **Absolute exclusion, Tier 2** — added an optional `ICallsignRegionStore?` constructor
+      parameter (wired in `Program.cs`) and a private `IsSuppressedCallsign` helper (fails *closed*
+      on a lookup miss or a `null` store — deliberately the opposite of most optional-dependency
+      null-checks elsewhere in this codebase, since this is a data-integrity floor). Applied in
+      `BuildStatusFields` (blanks `DxCall`/`DxGrid` for a synthetic/unknown active partner; the rest
+      of Status keeps flowing normally) and `NotifyQsoLogged` (returns early, mirroring the existing
+      no-record-on-abort pattern, before building/sending the datagram).
+- [x] 11.6 **Exclusion tests** — `Decode_UnknownRegionAndSynthetic_NeverSentEvenWithSuppressionOff`,
+      `Decode_AllResultsSuppressed_StillSendsClear`, `Status_SyntheticPartner_DxCallAndGridBlanked`,
+      `Status_NormalPartner_DxCallPopulated` (regression), `NotifyQsoLogged_SyntheticOrUnknownPartner_NeverSent`,
+      `NotifyQsoLogged_NormalPartner_StillSent` (regression) — all run with
+      `DecodeNoiseSuppressionConfig.SuppressUnknownRegion`/`SuppressSynthetic` both `false`, the
+      exact condition that would otherwise let excluded traffic through, to prove the exclusion is
+      genuinely unconditional. Also fixed two pre-existing tests
+      (`TwoEnabledTargets_BothReceiveDecode`, `NotifyQsoLogged_SendsQsoLoggedDatagram`) whose
+      NFR-021 Q-prefix synthetic test callsigns were now spuriously suppressed by the new filter —
+      gave them a resolvable, non-synthetic `Region`/region-store mapping so they keep testing what
+      they were meant to test (delivery mechanics, not the exclusion feature); added a
+      `FakeCallsignRegionStore` test double.
+- [x] 11.7 **Documentation** — amended `specs/external-reporting/spec.md`'s "Outbound Decode
+      message", "Outbound Status message", and "Outbound QSOLogged message" requirements with the
+      absolute-exclusion clause and new scenarios; added design.md Decision 6 (absolute exclusion,
+      hard-coded and non-configurable) and Decision 7 (D-014 `ReuseAddress`/shared-socket fix, with
+      the Windows platform-limitation finding); amended the Open Questions multicast bullet;
+      appended the exclusion clause to `REQUIREMENTS.md` FR-053 and folded a note into the existing
+      1.31 revision-history row (this change had not yet merged to `main`, so no new row).
+
 ## 10. Verification
 
 - [x] 10.1 Run the full existing test suite (`dotnet test` across all projects) and confirm no
       existing test's assertions changed — this change must be additive-only per design.md's
       Migration Plan. All 9 test projects run individually (no root `.sln`): LicenseInventoryCheck
-      24, OpenWSFZ.Audio 19, OpenWSFZ.Config 75, OpenWSFZ.Daemon 383, OpenWSFZ.E2E 2, OpenWSFZ.Ft8
-      289, OpenWSFZ.Rig 35, OpenWSFZ.Web 229, TraceabilityCheck 34 — **1090/1090 passing**, 0
-      failed, 0 skipped. No pre-existing test's assertions were touched.
+      24, OpenWSFZ.Audio 19, OpenWSFZ.Config 75, OpenWSFZ.Daemon 391, OpenWSFZ.E2E 2, OpenWSFZ.Ft8
+      289, OpenWSFZ.Rig 35, OpenWSFZ.Web 229, TraceabilityCheck 34 — **1098/1098 passing**, 0
+      failed, 0 skipped. **Updated 2026-07-12 per the review-fixes dev-task (§11 above)** — the
+      OpenWSFZ.Daemon count rose from 383 to 391 (+8: 2 D-014 regression tests, 6 absolute-
+      exclusion tests); two pre-existing tests were fixed, not broken, by the exclusion filter
+      (see task 11.6) — their assertions were preserved, only their fixture data changed so they
+      keep testing what they were meant to test. `dotnet build` across all `src/` projects: **zero
+      warnings, zero errors** (AC-9). `tools/TraceabilityCheck` re-run locally: still
+      `PASS: all requirements are mapped and all references are valid.`
 - [x] 10.2 Run `openspec validate --strict --all` and confirm the delta specs archive cleanly against
       `configuration` and `qso-answerer`. **53/53 passed, 0 failed** — includes both
-      `change/gridtracker-udp-reporting` and the unrelated in-flight `change/cat-tx-ptt`.
+      `change/gridtracker-udp-reporting` and the unrelated in-flight `change/cat-tx-ptt`. Re-run
+      2026-07-12 after the §11 spec.md amendments — still 53/53.
 - [ ] 10.3 (Optional, not a merge gate per the agreed automated-tests-only verification strategy) If
       a real GridTracker2 install is available to the developer, a one-time manual sanity check —
       enable the feature pointed at GridTracker2's default port, confirm spots appear on its map and

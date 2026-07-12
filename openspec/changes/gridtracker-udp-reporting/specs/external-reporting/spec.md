@@ -70,7 +70,12 @@ interval regardless of change, containing: dial frequency (Hz), mode (`"FT8"`), 
 partner, empty when idle), report, TX mode, `TxEnabled`, `Transmitting` (true only while
 `IPttController` has an active key-down), `Decoding` (mirrors the existing decode start/stop control,
 FR-017), RX/TX audio offsets (Hz), `MyCall` (`tx.callsign`), `MyGrid` (`tx.grid`), and DX grid (active
-partner's grid, when known from the decode).
+partner's grid, when known from the decode). **Absolute exclusion, no exceptions:** when the active
+partner resolves to an R&R-study synthetic entry or an unresolved (unknown) region, `DXCall` and DX
+grid SHALL be sent empty instead of naming that partner — not gated by, and not overridable through,
+`DecodeNoiseSuppressionConfig` or any other operator setting. The rest of the Status datagram (dial
+frequency, TX/RX state, `Decoding`) SHALL continue to be sent normally; only the partner identity is
+withheld.
 
 #### Scenario: Status reflects an active QSO
 
@@ -82,6 +87,14 @@ partner's grid, when known from the decode).
 - **WHEN** `IPttController.KeyDownAsync` is active
 - **THEN** the next Status datagram SHALL carry `Transmitting = true`
 
+#### Scenario: Status blanks DxCall/DxGrid for a synthetic or unresolved active partner
+
+- **WHEN** the active QSO partner resolves to an R&R-study synthetic entry (or does not resolve to
+  any region at all), **and** `DecodeNoiseSuppressionConfig.SuppressSynthetic`/
+  `SuppressUnknownRegion` are both `false` (the operator has not opted in to hiding it anywhere else)
+- **THEN** the next Status datagram SHALL carry `DXCall = ""` and DX grid `""`, while dial frequency,
+  `TxEnabled`, `Transmitting`, and `Decoding` SHALL continue to reflect the real, current state
+
 ---
 
 ### Requirement: Outbound Decode message
@@ -92,11 +105,34 @@ carrying: UTC time, SNR, delta-time, delta-frequency (Hz), mode (`"~"` for FT8, 
 convention), the decoded message text, and the low-confidence flag. The `New` flag SHALL be `true`
 (this service does not replay historical decodes).
 
+**Absolute exclusion, no exceptions:** a `DecodeResult` whose `Region` is `null` (unresolved/unknown)
+or whose `Region.Synthetic` is `true` (R&R-study synthetic entry, NFR-021 Q-prefix convention) SHALL
+NEVER produce an outbound Decode datagram, to any target, under any circumstance. This exclusion is
+enforced unconditionally inside `ExternalReportingService` itself, independent of
+`DecodeNoiseSuppressionConfig.SuppressUnknownRegion`/`SuppressSynthetic` (which gate only the decode
+panel and QSO automation and can be disabled by the operator) — it is not exposed as, and SHALL NOT
+be exposed as, any Settings-page control or config field. This is a data-integrity/privacy floor:
+nothing this application cannot vouch for as real, resolved amateur-radio traffic may leave the
+machine via this channel, regardless of what the operator has configured elsewhere.
+
 #### Scenario: One decode produces one Decode datagram per enabled target
 
-- **WHEN** a decode cycle yields exactly one `DecodeResult`
+- **WHEN** a decode cycle yields exactly one `DecodeResult` with a resolved, non-synthetic `Region`
 - **THEN** exactly one Decode datagram carrying that result's fields SHALL be sent to each enabled
   target
+
+#### Scenario: Unknown-region and synthetic decodes are never broadcast, even with suppression disabled
+
+- **WHEN** `DecodeNoiseSuppressionConfig.SuppressUnknownRegion` and `SuppressSynthetic` are both
+  `false` (the exact condition that lets such decodes reach this service's inbound channel), and a
+  decode cycle contains a `DecodeResult` with `Region: null` and another with `Region.Synthetic: true`
+- **THEN** neither `DecodeResult` SHALL produce an outbound Decode datagram to any target
+
+#### Scenario: A cycle with only excluded decodes still sends Clear
+
+- **WHEN** every `DecodeResult` in a decode cycle is unknown-region or synthetic
+- **THEN** the Clear datagram for that cycle SHALL still be sent to every enabled target, unaffected
+  by how many (or how few) Decode datagrams follow it
 
 ---
 
@@ -122,9 +158,16 @@ record: partner call, partner grid, TX/RX RST, QSO date/time on and off (UTC), o
 grid, mode, and — when non-zero per FR-051 — frequency and band. No QSOLogged datagram SHALL be sent
 for a QSO aborted by watchdog or operator (mirroring FR-051's own "no record on abort" rule).
 
+**Absolute exclusion, no exceptions:** when the partner callsign resolves to an R&R-study synthetic
+entry or an unresolved (unknown) region, no QSOLogged datagram SHALL be sent for that QSO, under any
+circumstance — not gated by, and not overridable through, `DecodeNoiseSuppressionConfig` or any other
+operator setting. A completed QSO with such a partner SHALL NOT be reported to any external program
+as a real logged contact.
+
 #### Scenario: QSOLogged sent alongside ADIF record
 
-- **WHEN** a QSO reaches `QsoComplete` and an `ADIF.log` record is written
+- **WHEN** a QSO reaches `QsoComplete`, its partner resolves to a real (non-synthetic, resolved-
+  region) callsign, and an `ADIF.log` record is written
 - **THEN** a QSOLogged datagram carrying the same partner call, grid, and QSO date/time SHALL be sent
   to every enabled target
 
@@ -132,6 +175,13 @@ for a QSO aborted by watchdog or operator (mirroring FR-051's own "no record on 
 
 - **WHEN** a QSO is aborted by the watchdog (per `qso-answerer`'s existing watchdog-abort behaviour)
 - **THEN** no QSOLogged datagram SHALL be sent
+
+#### Scenario: No QSOLogged datagram for a synthetic or unknown-region partner
+
+- **WHEN** a QSO reaches `QsoComplete` and its partner callsign resolves to an R&R-study synthetic
+  entry, or resolves to no region at all
+- **THEN** no QSOLogged datagram SHALL be sent to any target, even though the local `ADIF.log` record
+  is still written normally (this exclusion applies only to the external channel)
 
 ---
 
