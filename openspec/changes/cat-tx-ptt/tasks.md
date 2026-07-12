@@ -244,6 +244,23 @@ implementation defect, not a behaviour change to `qso-caller`/`qso-answerer`.
 
 ## 19. Housekeeping
 
-- [ ] 19.1 Commit all changes with `feat(cat-tx-ptt): key the transmitter via CAT command or serial RTS/DTR`
-- [ ] 19.2 Push and confirm CI green (all quality gates, including G9 version governance — this is user-facing, VERSION bump required)
-- [ ] 19.3 Open PR to `main`; request QA gate review
+- [x] 19.1 Commit all changes with `feat(cat-tx-ptt): key the transmitter via CAT command or serial RTS/DTR`
+- [x] 19.2 Push and confirm CI green (all quality gates, including G9 version governance)
+- [x] 19.3 Open PR to `main`; request QA gate review
+
+**Status as of 2026-07-12: 19.1–19.3 complete.** `PR #71` merged to `main` at `1ab245b`
+(`feat(cat-tx-ptt): key the transmitter via CAT command or serial RTS/DTR`, branch
+`feat/cat-tx-ptt`). All three platforms (`ubuntu-latest`, `windows-latest`, `macos-latest`)
+passed `Build & Test`; `Gate G9 — Version governance` passed without requiring a `VERSION`
+bump at merge time — per this project's established convention (see `REQUIREMENTS.md`
+changelog rows 1.27–1.31), the mandatory bump for a user-facing change is enforced at
+**archive**, not at merge, and `cat-tx-ptt` has not been archived (correctly — §14/§15/§18.6
+below remain outstanding real-hardware gates). QA independently re-verified the merged fix
+for `dev-tasks/2026-07-12-cat-tx-ptt-missing-keyup-after-transmit.md` post-merge: full suite
+1174/1174 (after clearing an unrelated stray daemon process contaminating 3 tests),
+`openspec validate --strict --all` 54/54, and the raw session logs
+(`openswfz-20260712T162611Z.log`, `...T164315Z.log`) directly confirm every `KeyDown` is
+followed by a `KeyUp` with zero watchdog-forced releases. **Do not tick §18.6 or archive this
+change until Gate 14 and Gates 15.2–15.4 are genuinely run on real hardware** — merging this
+PR closed out the code-review/regression-test side of the defect, not the hardware-acceptance
+side.
