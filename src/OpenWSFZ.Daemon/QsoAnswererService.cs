@@ -133,10 +133,18 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
     /// <summary>
     /// Maximum number of seconds into a 15-second FT8 window that TX may still be started.
-    /// An FT8 signal is 12.64 s; starting later than this causes overrun into the next window.
-    /// A 1.5 s threshold leaves ~0.86 s margin (15 - 12.64 - 1.5 = 0.86 s).
+    /// An FT8 signal is 12.64 s; the true physical ceiling is 15 - 12.64 = 2.36 s — starting any
+    /// later overruns into the next window and can prevent the far station from decoding cleanly.
+    /// D-CALLER-013 originally set this to 1.5 s, leaving only ~0.8-1.0 s of realistic click budget
+    /// after decode processing (0.4-0.7 s observed) — in practice this meant almost every manual
+    /// click (openswfz-20260712T211150Z.log: 1.9 s and 3.7 s observed) missed its window and was
+    /// deferred a full 30 s (phase alternates every 15 s, so the next matching-phase window is
+    /// always two cycles away, never one — see D-CALLER-016). 2.0 s leaves a 0.36 s hard safety
+    /// margin against overrun, comfortably covering the ~50-90 ms KeyDown/device-open jitter observed
+    /// in production logs, while catching realistic decode-to-click latency instead of nearly always
+    /// missing it.
     /// </summary>
-    private const double MaxLateStartSeconds = 1.5;
+    private const double MaxLateStartSeconds = 2.0;
 
     /// <summary>
     /// Written by <see cref="AnswerCqAsync"/> immediately after setting the pending target,
@@ -256,6 +264,24 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// <inheritdoc/>
     public async Task AbortAsync(CancellationToken ct = default)
     {
+        // D-CALLER-018: unconditionally clear any armed-but-not-yet-fired pending target or
+        // jump-in, regardless of current _state. A target armed by AnswerCqAsync / EngageAtAsync /
+        // TryEngageExternal fires independently of _state (it is specifically checked while Idle —
+        // see HandleIdleAsync). Previously this method returned immediately whenever _state was
+        // already Idle, which meant an armed target could NOT be cancelled by the operator once the
+        // service returned to Idle — it fired regardless, up to ~30 s later, no matter how many times
+        // Abort was clicked. Abort must be an unconditional hard stop: nothing may re-engage after it
+        // until the operator explicitly requests it again. See
+        // dev-tasks/2026-07-12-answerer-abort-hard-stop-and-reengage-timing.md.
+        lock (_stateLock)
+        {
+            _pendingTargetCallsign    = null;
+            _pendingTargetFrequencyHz = 0.0;
+            _pendingTargetIsAPhase    = false;
+            _pendingTargetSetAt       = default;
+            _jumpPartner              = null;
+        }
+
         if (_state == QsoState.Idle) return;
 
         _logger.LogInformation(

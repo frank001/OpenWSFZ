@@ -58,8 +58,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        // D-CALLER-013: inject a FakeTimeProvider at the start of an A-phase window
-        // (second = 0 → 0 s into the window ≤ MaxLateStartSeconds = 1.5 s) so the
+        // D-CALLER-013/016: inject a FakeTimeProvider at the start of an A-phase window
+        // (second = 0 → 0 s into the window ≤ MaxLateStartSeconds = 2.0 s) so the
         // late-start guard always passes for the shared SUT.
         // Tests that determine phase from the real clock (D-TX-UI-007 wakeup tests)
         // use DateTimeOffset.UtcNow directly inside AnswerCqAsync — they are not
@@ -2348,7 +2348,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         }
     }
 
-    // ── D-CALLER-013: late-start guard (MaxLateStartSeconds = 1.5 s) ─────────
+    // ── D-CALLER-013/016: late-start guard (MaxLateStartSeconds = 2.0 s) ─────
 
     /// <summary>
     /// Controllable <see cref="TimeProvider"/> used by D-CALLER-013 tests so the late-start
@@ -2403,7 +2403,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     public async Task PendingTarget_LateStart_IsDeferred_ThenFiresNextCycle()
     {
         // FakeTime = 5 s into the :00 A-phase window (17:30:05).
-        // RoundDownTo15s(17:30:05) = 17:30:00 → secondsIntoWindow = 5.0 > 1.5 → late.
+        // RoundDownTo15s(17:30:05) = 17:30:00 → secondsIntoWindow = 5.0 > 2.0 (D-CALLER-016) → late.
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero));
         var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
@@ -2427,7 +2427,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
 
         // Advance FakeTime to 0.5 s into the next A-phase window (17:30:30.5).
-        // 0.5 s ≤ 1.5 s → guard passes → TX must fire.
+        // 0.5 s ≤ 2.0 s → guard passes → TX must fire.
         fakeTime.UtcNow = new DateTimeOffset(2026, 6, 27, 17, 30, 30, 500, TimeSpan.Zero);
 
         // Batch 2: CycleStart :15 (B-phase) → +15 s = :30 A-phase ✓ (same phase, next occurrence).
@@ -2447,7 +2447,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     public async Task PendingTarget_TimelyStart_FiresImmediately()
     {
         // FakeTime = 0.5 s into the :00 A-phase window.
-        // 0.5 s ≤ 1.5 s → guard does not defer → TX fires on the first correct-phase batch.
+        // 0.5 s ≤ 2.0 s → guard does not defer → TX fires on the first correct-phase batch.
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 0, 500, TimeSpan.Zero));
         var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
@@ -2476,7 +2476,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     [Fact(DisplayName = "D-CALLER-013 C: Jump-in — late double-click (5 s in) is deferred; fires at next occurrence")]
     public async Task JumpIn_LateStart_IsDeferred_ThenFiresNextCycle()
     {
-        // FakeTime = 5 s into the :00 A-phase window → late for A-phase TX.
+        // FakeTime = 5 s into the :00 A-phase window → late for A-phase TX (> 2.0 s, D-CALLER-016).
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero));
         var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
@@ -2522,7 +2522,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     public async Task JumpIn_TimelyStart_FiresImmediately()
     {
         // FakeTime = 0.2 s into the :00 A-phase window.
-        // 0.2 s ≤ 1.5 s → guard does not defer → TX fires on the first correct-phase batch.
+        // 0.2 s ≤ 2.0 s → guard does not defer → TX fires on the first correct-phase batch.
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 0, 200, TimeSpan.Zero));
         var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
@@ -2545,6 +2545,103 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // Jump-in at SendReport: transmit R+00, enter WaitRr73.
         await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
         await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── D-CALLER-018: AbortAsync must be a hard stop, even while already Idle ────
+
+    [Fact(DisplayName = "D-CALLER-018 AC-1: AbortAsync while Idle with a deferred pending CQ target clears it — no subsequent TX")]
+    public async Task AbortAsync_WhileIdleWithDeferredPendingTarget_ClearsTarget_NoSubsequentTx()
+    {
+        // Reproduces the exact production sequence from
+        // dev-tasks/2026-07-12-answerer-abort-hard-stop-and-reengage-timing.md §1.1: a target is
+        // armed, its first opportunity is a late start (deferred to the next matching-phase
+        // occurrence, per D-CALLER-013/016), and — critically — while it sits Idle waiting for that
+        // next occurrence, the operator clicks Abort. Before the D-CALLER-018 fix, AbortAsync
+        // no-opped whenever _state was already Idle, so the deferred target fired anyway ~30 s later
+        // regardless of the abort (the log showed 14 Abort clicks, all no-ops, followed by TX firing).
+        // This test proves it no longer does.
+        var fakeTime = new FakeTimeProvider(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero)); // 5 s into A-phase window → late
+        var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+
+        await sut.AnswerCqAsync(PartnerCall, AudioFreqHz,
+            new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero),
+            CancellationToken.None);
+        sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
+
+        // First matching-phase batch: late-start guard defers (target remains armed for the next
+        // occurrence — this is the "quietly waiting" state the bug exploited).
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+        await Task.Delay(300);
+        sut.State.Should().Be(QsoState.Idle, "late-start guard defers TX but leaves the service Idle");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        // Operator clicks Abort while sitting Idle with the deferred target still armed.
+        await sut.AbortAsync();
+
+        // Advance to a timely point in the next matching-phase window — absent the fix, this is
+        // exactly where the deferred target would fire (see "D-CALLER-013 A" above).
+        fakeTime.UtcNow = new DateTimeOffset(2026, 6, 27, 17, 30, 30, 500, TimeSpan.Zero);
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+        await Task.Delay(300);
+
+        sut.State.Should().Be(QsoState.Idle,
+            "Abort must be a hard stop — no TX may fire after an Idle-state abort");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-CALLER-018 AC-2: AbortAsync while Idle with a deferred jump-in target clears it — no subsequent TX")]
+    public async Task AbortAsync_WhileIdleWithDeferredJumpInTarget_ClearsTarget_NoSubsequentTx()
+    {
+        // Same scenario as AC-1 but for a jump-in target armed via EngageAtAsync (double-click on a
+        // directed report/RR73/73 row) rather than a pending CQ target armed via AnswerCqAsync.
+        var fakeTime = new FakeTimeProvider(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero)); // 5 s into A-phase window → late
+        var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+
+        await sut.EngageAtAsync(
+            PartnerCall, AudioFreqHz,
+            new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero), // their B-phase decode
+            EngagePoint.SendReport,
+            CancellationToken.None);
+        sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
+
+        // First matching-phase batch: late-start guard defers.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+        await Task.Delay(300);
+        sut.State.Should().Be(QsoState.Idle, "late-start guard defers jump-in TX but leaves the service Idle");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        // Operator clicks Abort while sitting Idle with the deferred jump-in target still armed.
+        await sut.AbortAsync();
+
+        // Advance to a timely point in the next matching-phase window — absent the fix, this is
+        // exactly where the deferred jump-in would fire (see "D-CALLER-013 C" above).
+        fakeTime.UtcNow = new DateTimeOffset(2026, 6, 27, 17, 30, 30, 300, TimeSpan.Zero);
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+        await Task.Delay(300);
+
+        sut.State.Should().Be(QsoState.Idle,
+            "Abort must be a hard stop — no jump-in TX may fire after an Idle-state abort");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
