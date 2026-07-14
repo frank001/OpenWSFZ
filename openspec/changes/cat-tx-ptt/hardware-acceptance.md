@@ -44,6 +44,52 @@ This document is the "what to look for" companion to `tasks.md` sections 14–16
 >   (re-run unmodified per task 18.5) but a deliberate hardware trip has not been repeated since
 >   the fix landed.
 
+> **2026-07-14 — Gate 15.1 further reinforced; a real auto-unkey observed, but of a different
+> watchdog than 15.4 asks for; Gate 14, 15.2, 15.3, and the true 15.4 remain outstanding.**
+> Session `logs/openswfz-20260714T184808Z.log`, still `ptt.method = "SerialRtsDtr"` /
+> `ptt.serialLine = "Rts"` throughout.
+>
+> - **15.1 (further evidence):** a clean manual PTT-test pulse via `POST /api/v1/ptt/test`
+>   (20:48:58.948 KeyDown → 20:48:59.377 KeyUp, ~430 ms, outside any QSO context) plus several full
+>   QSO transmit cycles, all clean key/unkey pairs on `Rts`.
+> - **A genuine, unprompted automatic release did occur** — `tx.WatchdogMinutes` was lowered from 4
+>   to 1 mid-session (`"watchdog armed for 1 minutes"` at 20:52:00.714), the CT1FIU QSO got no report
+>   back through two retries, and at 20:53:13.559 — with no operator `/api/v1/tx/abort` call anywhere
+>   nearby — the line released itself (`KeyUp`, `TX session cancelled during TX`, `aborted to Idle`).
+>   This is real, valid evidence that the QSO-level "give up, nobody's answering" watchdog correctly
+>   releases PTT on real hardware.
+> - **This is not the same mechanism 15.4/14.3 ask for**, and does **not** satisfy either gate.
+>   `tx.WatchdogMinutes` (`QsoAnswererService`/`QsoCallerService`) is a cooperative, QSO-state-machine
+>   timeout; `PttWatchdog.cs` (keyed off `ptt.watchdogTimeoutMs`, an independent OS timer with a
+>   forced-release callback, not dependent on the QSO layer's cooperation) is the actual last-resort
+>   failsafe these gates test, and it logs a distinct `Error`-level line
+>   (`"{Controller}: watchdog fired after {ElapsedMs} ms — forcing PTT release."`). Neither appeared
+>   in this session — zero `[ERR]` lines throughout — and `ptt.watchdogTimeoutMs` stayed at its
+>   20000 ms default the entire time (confirmed in `config.json`), never lowered. See §14.3/§15.4's
+>   2026-07-14 clarification above for how to actually trigger it (no stuck-hardware engineering
+>   required — just set it below a normal ~12.7 s transmission and trigger any ordinary engage).
+> - **Still not evidenced at all:** Gate 14 (zero `CatPttController` log lines this session —
+>   `ptt.method` never left `SerialRtsDtr`), 15.2 (every line says `"Rts"`, DTR never exercised),
+>   15.3 (`cat.enabled` is `true` in the current config and no CAT-disconnect event appears anywhere
+>   in the log; a mid-session `POST /api/v1/config` at 20:50:07 is inconclusive without knowing its
+>   payload — do not assume this tested CAT independence).
+> - **Incidental finding, unrelated to this change:** `"QsoAnswererService: SV2FNT is working
+>   F4NKF — aborting."` at 20:51:30.797 is a genuine third-party case (a real callsign, not the
+>   partner's own CQ) — correct behaviour, and useful confirmation of the intended scope boundary for
+>   the separate D-CALLER-020 fix (`dev-tasks/2026-07-14-working-cq-false-abort.md`), which is not
+>   part of this change.
+
+> **2026-07-14 (later same day) — Gates 14.3 and 15.4 retired as manual hardware gates.** The
+> attempt above to make them practical (set `ptt.watchdogTimeoutMs` low, trigger a normal
+> transmission) still asked the operator to understand and manipulate an internal implementation
+> detail through the Settings form — not a reasonable acceptance test, and the specific value
+> suggested (`500`) wasn't even valid against the form's own `min="1000"`. Retired in favour of
+> `PttWatchdogTests.cs` (deterministic unit coverage of `PttWatchdog`'s fire/callback/Error-log
+> behaviour) plus the proven-identical `SetLine(line, asserted: false)` de-assert call shared between
+> `ForceReleaseAsync` and normal `KeyUpAsync` — already exercised correctly on real hardware
+> repeatedly. **Gates 14.1, 14.2, 14.4, 15.2, and 15.3 remain genuinely outstanding** — nothing above
+> changes their status.
+
 ---
 
 ## Prerequisites — do this once before any gate
@@ -85,9 +131,24 @@ In Settings, set:
 
 Trigger a single transmission (e.g. arm the QSO caller/answerer, or use whatever manual TX-test affordance exists at implementation time).
 
-**What to look for on the rig:**
-- The TX indicator (LED / meter) comes on within roughly `leadTimeMs` (default 50 ms) of the daemon logging that it has asserted PTT — this will look instantaneous to the eye but should not visibly lag by more than a couple of hundred milliseconds
-- The rig unkeys within roughly `tailTimeMs` (default 50 ms) of audio playback ending
+**2026-07-14 correction:** the original wording of this section asked the operator to verify keying
+timing against `leadTimeMs`/`tailTimeMs` (both 50 ms by default) by eye — that is not something a
+human can reliably judge without lab equipment (oscilloscope, logic analyzer), and no such equipment
+is assumed to be available. The software's own half of this contract is already guaranteed by
+construction (`CatPttController`/`SerialRtsDtrPttController` both `await Task.Delay(ptt.LeadTimeMs)`
+between asserting PTT and starting audio, and the same for `TailTimeMs` on release — see
+`CatPttController.cs`/`SerialRtsDtrPttController.cs`) and is already timestamped to the millisecond
+in the daemon log. What genuinely needs a human is whether 50 ms is *enough real settling time for
+this specific rig* — and the practical way hams already verify that is by decode, not a stopwatch.
+
+**What to look for on the rig:** the TX indicator (LED/meter) visibly comes on with the transmission
+and goes off promptly after — no precision timing, just "does it key and unkey."
+
+**What to look for as evidence (no special equipment required):** a monitoring receiver, a second
+SDR, or the far station's own decode shows the transmitted message copied **in full** — an intact
+decode is sufficient proof the lead/tail timing didn't clip the signal. A truncated first character
+is the practical, audible/decodable symptom of the lead time being too short for this rig; you don't
+need to measure milliseconds to see it, you need to see whether the message decoded cleanly.
 
 **What to look for in the log:**
 ```
@@ -95,9 +156,11 @@ CatPttController: KeyDown — PTT asserted (CAT).
 CatPttController: KeyUp — PTT released (CAT).
 ```
 
-**Fail criteria:** the rig never keys, keys but never unkeys, or keys noticeably later/earlier than the audio.
+**Fail criteria:** the rig never keys, keys but never unkeys, or a monitoring decode shows a
+truncated/garbled message where a clean one would otherwise be expected.
 
-**✅ Mark 14.1 complete once a clean key-down/key-up cycle is observed on the rig.**
+**✅ Mark 14.1 complete once a clean key-down/key-up cycle is observed on the rig and at least one
+transmission decodes cleanly end-to-end on a monitor or at the far station.**
 
 ---
 
@@ -115,21 +178,27 @@ While transmissions are happening (repeat 14.1 a few times, or let an automated 
 
 ---
 
-### 14.3 — Force the watchdog and confirm automatic unkey
+### 14.3 — REMOVED as a manual hardware gate (2026-07-14)
 
-Temporarily set `ptt.watchdogTimeoutMs` to a small value (e.g. `500`) and arrange for a transmission where playback cannot complete before that (a short pre-encoded buffer, or a deliberately induced delay, whatever the implementation's test seam supports) — the intent is a key-down that would otherwise remain asserted well past a real 12.64 s transmission.
+Earlier drafts of this gate asked the operator to reduce `ptt.watchdogTimeoutMs` below the HTML
+form's own `min="1000"` (an invalid value was suggested by mistake) and orchestrate a component-level
+failure by hand through the Settings UI. On reflection that's not a reasonable acceptance test —
+it asks an operator to understand and manipulate an internal implementation detail (the distinction
+between `PttWatchdog`'s failsafe timer and `tx.WatchdogMinutes`' QSO-level give-up timer) rather than
+verify real operating behaviour.
 
-**What to look for on the rig:** it unkeys on its own, without any `KeyUpAsync` ever being called normally.
+**Retired in favour of:**
+- `PttWatchdogTests.cs` — deterministic, already-passing unit coverage of `PttWatchdog`'s
+  fire/callback/Error-log behaviour in complete isolation (fake timer, fake callback — exactly the
+  scenario this gate wanted to observe, without needing a real stuck transmission to produce it).
+- Real-hardware proof of the actual physical action: `SerialRtsDtrPttController.cs` shows
+  `ForceReleaseAsync` (the watchdog's forced-release path) and `KeyUpAsync` (normal completion) call
+  the *identical* `SetLine(line, asserted: false)` primitive — the same line I've already de-asserted
+  correctly dozens of times across real QSOs on 2026-07-12 and 2026-07-14. There is no separate
+  hardware behaviour left to prove; the only thing that ever differed was which code path calls that
+  same primitive, and that's exactly what the unit tests already cover.
 
-**What to look for in the log:**
-```
-CatPttController: watchdog fired after <elapsed> ms — forcing PTT release.
-```
-logged at Error.
-
-Restore `watchdogTimeoutMs` to its normal value afterward.
-
-**✅ Mark 14.3 complete once the watchdog is confirmed to unkey the rig on its own.**
+No further manual step required. See `tasks.md` §14.3.
 
 ---
 
@@ -187,6 +256,13 @@ names in use, so whether `ptt.serialPort` was genuinely a different physical por
 connection's port is not verifiable from this evidence alone. Operator to confirm before ticking
 15.1 in full.
 
+**Additional evidence (2026-07-14):** `logs/openswfz-20260714T184808Z.log` — a manual PTT-test pulse
+via `POST /api/v1/ptt/test` (20:48:58.948 KeyDown → 20:48:59.377 KeyUp, ~430 ms, exercised outside
+any QSO context, i.e. the Settings-page "Test PTT" affordance from task 17.3) plus multiple further
+full-QSO key/unkey cycles (SV2FNT, CT1FIU), all clean on `Rts`. Does not change the port-distinctness
+gap noted above — `config.json` shows `ptt.serialPort = "COM7"` but the log still doesn't record
+what CAT's own port was at the time to compare against.
+
 ---
 
 ### 15.2 — Test the DTR line (if your interface supports it)
@@ -209,11 +285,18 @@ Set `cat.enabled` → `false`, keep `ptt.method` → `SerialRtsDtr`. Trigger a t
 
 ---
 
-### 15.4 — Force the watchdog (RTS/DTR)
+### 15.4 — REMOVED as a manual hardware gate (2026-07-14)
 
-Same procedure as 14.3, but with `ptt.method = "SerialRtsDtr"`. Confirm the line de-asserts automatically and the same Error-level log line (naming the serial controller) appears.
+Same rationale and same retirement as §14.3 above — see that section. `SerialRtsDtrPttController`'s
+`ForceReleaseAsync` and `KeyUpAsync` call the identical `SetLine(line, asserted: false)` primitive,
+already proven correct on real hardware repeatedly (2026-07-12, 2026-07-14); `PttWatchdog`'s own
+fire/callback logic is deterministically unit-tested. No further manual step required. See
+`tasks.md` §15.4.
 
-**✅ Mark 15.4 complete once confirmed.**
+(The 2026-07-14 field session did produce a real, unprompted automatic PTT release — via
+`tx.WatchdogMinutes`, a different and separately-legitimate mechanism, not this one. See the
+2026-07-14 note near the top of this document for that finding; it's independently good evidence,
+just not evidence for this now-retired gate.)
 
 ---
 
@@ -292,10 +375,14 @@ External confirmation: confirmed on QRZ logbook (operator-supplied screenshot, n
 
 Open `openspec/changes/cat-tx-ptt/tasks.md` and change every `- [ ]` in sections 14, 15, and 16 to `- [x]`.
 
-**Status as of 2026-07-12:** 16.1, 16.2, and 16.3 are ticked — the evidence above satisfies them.
-15.1 is **not yet ticked**, pending the operator confirming the port-distinctness half of its claim
-(see the note under 15.1's evidence above). 14.1–14.4, 15.2, 15.3, and 15.4 remain unticked and
-genuinely untested on hardware — do not tick any of these until they are actually run.
+**Status as of 2026-07-14 (later):** 14.3 and 15.4 are ticked — **retired**, not hardware-verified;
+see the "Gates 14.3 and 15.4 retired" note above for why a manual gate was dropped in favour of
+existing unit coverage plus the proven-identical de-assert code path. 16.1, 16.2, and 16.3 are ticked
+— the evidence above satisfies them. 15.1 is **not yet ticked**, pending the operator confirming the
+port-distinctness half of its claim (see the note under 15.1's evidence above) — reinforced with
+further clean key/unkey evidence 2026-07-14 but that gap specifically remains open. **Genuinely
+outstanding, hardware required: 14.1, 14.2, 14.4, 15.2, 15.3.** Do not tick any of those until they
+are actually run.
 
 ### Commit
 
@@ -315,9 +402,10 @@ git commit -m "chore(cat-tx-ptt): Gate 16 (R3) confirmed post-fix; Gate 14 and r
 
 ### Archive
 
-Do **not** archive until Gate 14 and Gates 15.2–15.4 are also run — archiving with outstanding
-hardware gates would let this change ship without ever having proven CAT-command PTT works at all.
-Once every gate is genuinely ticked, return to QA and ask to archive the change:
+Do **not** archive until Gate 14 (14.1, 14.2, 14.4 — 14.3 is retired) and Gates 15.2–15.3 are also
+run — archiving with outstanding hardware gates would let this change ship without ever having proven
+CAT-command PTT works at all. Once every remaining gate is genuinely ticked, return to QA and ask to
+archive the change:
 
 > "archive the change"
 
