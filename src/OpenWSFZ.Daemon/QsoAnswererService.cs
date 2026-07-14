@@ -1027,8 +1027,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                 }
             }
 
-            // ── Partner is working another station — abort ──
-            if (fromPartner && !toUs)
+            // ── Partner working another station — abort. Distinguish this from the partner simply
+            // still calling CQ (dest == "CQ"), which is not evidence they've moved on — see D-CALLER-020. ──
+            if (fromPartner && !toUs && !dest.Equals("CQ", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogInformation(
                     "QsoAnswererService: {Partner} is working {OtherDest} — aborting.",
