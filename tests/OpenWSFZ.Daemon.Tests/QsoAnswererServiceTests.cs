@@ -456,6 +456,38 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             timeout: TimeSpan.FromSeconds(3));
     }
 
+    [Fact(DisplayName = "D-CALLER-020: Partner re-transmitting own CQ in WaitReport does not abort — retries then exhausts")]
+    public async Task WaitReport_PartnerStillCallingCq_DoesNotAbort_RetriesInstead()
+    {
+        // Reach WaitReport.
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(_sut!, QsoState.WaitReport);
+
+        // Partner re-transmits their own CQ instead of answering us. This must NOT be treated
+        // as "partner is working another station" — they simply haven't decoded us yet.
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
+        await Task.Delay(200);
+        _sut!.State.Should().Be(QsoState.WaitReport,
+            "the partner still calling CQ is not evidence they've moved on (D-CALLER-020) — must not abort");
+
+        // The repeated CQ must fall through to the same "no matching message" retry path as
+        // genuine silence — drive the identical retry-exhaustion sequence as the noise-based
+        // test below (tx.RetryCount = 2; pattern: [skip] [retry1] [skip] [retry2] [skip] [abort])
+        // to prove the existing RetryOrAbortAsync backstop — not a same-cycle snap decision —
+        // is what eventually ends a truly one-sided QSO.
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 2: retry 1 TX
+        await Task.Delay(150);
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 3: skip — retry 1 TX window
+        await Task.Delay(150);
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 4: retry 2 TX
+        await Task.Delay(150);
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 5: skip — retry 2 TX window
+        await Task.Delay(150);
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 6: retry count exhausted → abort
+        await WaitForStateAsync(_sut!, QsoState.Idle,
+            timeout: TimeSpan.FromSeconds(5));
+    }
+
     [Fact(DisplayName = "6.6: No matching decode in WaitReport → retry; after max retries → Idle")]
     public async Task WaitReport_NoResponse_RetriesThenAborts()
     {

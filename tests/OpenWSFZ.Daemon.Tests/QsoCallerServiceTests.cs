@@ -730,6 +730,63 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
+    // ── D-CALLER-020: Partner still calling CQ in WaitRr73 must not abort ────
+
+    [Fact(DisplayName = "D-CALLER-020: HandleWaitRr73Async — partner re-transmitting own CQ does not abort — retries then exhausts")]
+    public async Task WaitRr73_PartnerStillCallingCq_DoesNotAbort_RetriesInstead()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 2,
+            WatchdogMinutes     = 4,
+        };
+        var (sut, eventBus, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        // Partner re-transmits their own CQ instead of RR73 — must NOT be treated as "partner is
+        // working another station"; they simply haven't decoded our report yet.
+        Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}"));
+        await Task.Delay(200);
+        sut.State.Should().Be(QsoState.WaitRr73,
+            "the partner still calling CQ is not evidence they've moved on (D-CALLER-020) — must not abort");
+
+        // The repeated CQ must fall through to the same "no matching message" retry path as
+        // genuine silence — drive the identical retry-exhaustion sequence as the answerer-side
+        // test (tx.RetryCount = 2; pattern: [skip] [retry1] [skip] [retry2] [skip] [abort]) to
+        // prove the existing RetryOrAbortAsync backstop is what eventually ends a one-sided QSO.
+        Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 2: retry 1 TX
+        await Task.Delay(150);
+        Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 3: skip — retry 1 TX window
+        await Task.Delay(150);
+        Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 4: retry 2 TX
+        await Task.Delay(150);
+        Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 5: skip — retry 2 TX window
+        await Task.Delay(150);
+        Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 6: retry count exhausted → abort
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        eventBus.Received().Publish(
+            "Idle",
+            "caller",
+            Arg.Any<string?>(),
+            false,
+            $"No response from {PartnerCall} after 2 retries");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── 5.10: Retry logic ─────────────────────────────────────────────────────
 
     [Fact(DisplayName = "5.10: WaitAnswer no response — retransmits CQ; exhausted aborts with CQ-retry reason")]
