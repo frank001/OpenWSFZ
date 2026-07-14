@@ -9,7 +9,7 @@
 import { connect }                                                          from './ws.js';
 import { getConfig, getFrequencies, postTune, postAudioOffset,
          getTxStatus, postTxEnable, postTxDisable, postTxAbort,
-         postTxAnswerCq, postTxSelectResponder, postTxCallCq, postTxStopCq,
+         postTxSelectResponder, postTxCallCq, postTxStopCq,
          postTxCallerPartnerSelect, getApiKey,
          getPropModes, postLogQso,
          postTxEngageDecode,
@@ -724,55 +724,15 @@ function handleDecodes(results) {
     // Store cycle-start UTC string as a data attribute for the dblclick handler.
     tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
 
-    // CQ row highlighting and double-click-to-answer (TX-D01, cq-row-dblclick-to-answer).
+    // CQ row highlighting (TX-D01). The double-click-to-answer gesture itself is handled
+    // exclusively by the D-CALLER-012 engage-decode listener below (D-CALLER-019 removed the
+    // redundant legacy postTxAnswerCq dblclick handler that used to live here — it always lost
+    // the race against engage-decode's own abort-then-dispatch and produced a guaranteed
+    // spurious 409 on every double-click; see
+    // dev-tasks/2026-07-12-answerer-abort-hard-stop-and-reengage-timing.md).
     if (r.message.startsWith('CQ ')) {
       tr.classList.add('decode-cq');
       tr.style.cursor = 'pointer';
-
-      let inFlight = false;
-      tr.addEventListener('dblclick', async (event) => {
-        event.preventDefault();                        // best-effort: browsers don't reliably
-                                                          // treat text selection as dblclick's
-                                                          // preventable default action
-        // Explicitly clear whatever the native double-click "select word" behavior just
-        // selected. preventDefault() alone was confirmed insufficient (cq-dblclick-after.mjs,
-        // task 4.3 first pass — a stray "CQ " selection remained). An earlier attempt fixed
-        // this with `user-select: none` on .decode-cq in app.css, but that blocked ALL text
-        // selection on every CQ row permanently — including a deliberate click-and-drag to
-        // copy a callsign, which the Captain reported as a regression. Clearing the selection
-        // here instead only removes what THIS double-click produced, leaving ordinary
-        // click-and-drag selection on CQ rows fully working the rest of the time.
-        window.getSelection()?.removeAllRanges();
-        if (inFlight) return;                          // guard already-queued duplicate events
-        inFlight = true;
-        tr.style.pointerEvents = 'none';               // belt-and-suspenders for mouse
-        const callsign = extractCqCallsign(r.message);
-        if (!callsign) {
-          inFlight = false;
-          tr.style.pointerEvents = '';
-          return;
-        }
-        const cqCycleStartUtc = tr.dataset.cqCycleStartUtc;
-        try {
-          const status = await postTxAnswerCq(callsign, r.freqHz, cqCycleStartUtc);
-          renderTxPanel(status.state, status.partner, status.autoAnswerEnabled, undefined, status.keying);
-          // Delay guard reset to block a rapid repeat double-click (~130–185 ms interval).
-          // On success the operator does not need to retry; 400 ms is harmless (D-TX-UI-005).
-          setTimeout(() => {
-            inFlight = false;
-            tr.style.pointerEvents = '';
-          }, 400);
-        } catch (err) {
-          // On error, reset immediately so the operator can retry.
-          inFlight = false;
-          tr.style.pointerEvents = '';
-          if (/** @type {any} */ (err)?.status === 409) {
-            console.warn('TX not Idle — CQ double-click ignored.');
-          } else {
-            console.error('postTxAnswerCq error:', err);
-          }
-        }
-      });
     }
 
     // Highlight any row addressed to the operator's callsign in red.
@@ -844,7 +804,15 @@ function handleDecodes(results) {
     // The dblclick then calls engage-decode which performs the abort + re-engage
     // atomically on the server.
     let engageInFlight = false;
-    tr.addEventListener('dblclick', async () => {
+    tr.addEventListener('dblclick', async (event) => {
+      event.preventDefault();                          // best-effort: browsers don't reliably
+                                                          // treat text selection as dblclick's
+                                                          // preventable default action
+      // D-CALLER-019: this listener is now the only dblclick handler on CQ rows (the redundant
+      // legacy postTxAnswerCq handler was removed above). Carry forward its stray-selection
+      // cleanup so double-clicking still doesn't leave a "CQ " text selection behind — see the
+      // history this cleanup used to live under, above the removed block.
+      window.getSelection()?.removeAllRanges();
       if (engageInFlight) return;
       engageInFlight = true;
 
