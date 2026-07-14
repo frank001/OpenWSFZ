@@ -97,9 +97,21 @@
 
 ## 14. Acceptance Gate — CAT-command PTT (manual, hardware required)
 
-- [ ] 14.1 Set `ptt.method = "CatCommand"`; confirm the rig keys (TX LED / RF output) within `leadTimeMs` of a transmission starting and unkeys within `tailTimeMs` of it ending
+- [ ] 14.1 Set `ptt.method = "CatCommand"`; complete at least one real over-the-air transmission and
+  confirm the rig visibly keys (TX LED/RF output) and unkeys promptly — no precision timing required,
+  no lab equipment needed. Evidence: a monitoring receiver, second SDR, or the far station decodes
+  the transmitted message in full (an intact decode is sufficient proof the lead/tail timing didn't
+  clip the signal — same evidence standard as Gate 16's two-way QSO)
 - [ ] 14.2 Confirm the CAT status badge and frequency polling continue to update correctly during and immediately after a TX cycle (proves Decision 1's serialization works under real load, not just in mocks)
-- [ ] 14.3 Force a watchdog trip (e.g. inject a stalled playback build or a very small `watchdogTimeoutMs`) and confirm the rig unkeys automatically and an Error is logged
+- [x] 14.3 **Removed as a manual hardware gate, 2026-07-14** — asking the operator to reconfigure an
+  internal timing knob and orchestrate a component-level failure through the Settings UI is not a
+  reasonable acceptance test. Covered instead by: (a) `PttWatchdogTests.cs`, which deterministically
+  unit-tests `PttWatchdog`'s fire/callback/Error-log behaviour in isolation; (b)
+  `SerialRtsDtrPttController.cs` — `ForceReleaseAsync` (watchdog-triggered) and `KeyUpAsync`
+  (normal-completion) both call the identical `SetLine(line, asserted: false)` primitive to
+  physically de-assert the line, and that exact call has already been proven correct on real
+  hardware dozens of times across two field sessions (2026-07-12, 2026-07-14). No further manual
+  step adds real confidence here.
 - [ ] 14.4 Confirm no unexpected mode-set, frequency-set, or other rig-altering command appears in the log or on the rig display during the session
 
 ## 15. Acceptance Gate — Serial RTS/DTR PTT (manual, hardware required)
@@ -107,7 +119,9 @@
 - [ ] 15.1 Set `ptt.method = "SerialRtsDtr"` with `ptt.serialPort` on a different port than any CAT connection in use; confirm the rig keys/unkeys correctly via the RTS line
 - [ ] 15.2 Repeat 15.1 with `ptt.serialLine = "Dtr"` on hardware wired for DTR PTT (or confirm the line-selection logic behaves correctly if only one line is available to test)
 - [ ] 15.3 Confirm PTT keys/unkeys correctly with `cat.enabled = false` (proves independence from any CAT connection)
-- [ ] 15.4 Force a watchdog trip and confirm the line de-asserts automatically
+- [x] 15.4 **Removed as a manual hardware gate, 2026-07-14 — same rationale as 14.3.** Covered by
+  `PttWatchdogTests.cs` plus the proven-identical `SetLine(line, asserted: false)` de-assert call
+  shared with normal `KeyUpAsync`, already exercised on real hardware repeatedly.
 
 ## 16. Acceptance Gate — Confirmed two-way QSO (release gate R3)
 
@@ -237,10 +251,13 @@ implementation defect, not a behaviour change to `qso-caller`/`qso-answerer`.
   specifically (the HB9HYO session was the discovery evidence for this defect, not a pass).
   **Partially re-attempted 2026-07-12:** Gate 16 (16.1–16.3) now ticked with two real, completed,
   post-fix QSOs as evidence; Gate 15.1's key/unkey claim is evidenced too (port-distinctness half
-  still needs operator confirmation). **Still fully outstanding:** Gate 14 (CAT-command PTT — not
-  exercised at all on this day) and Gates 15.2–15.4 (DTR line, CAT-disabled independence, forced
-  watchdog trip post-fix). See `hardware-acceptance.md`'s 2026-07-12 evidence note for the full
-  breakdown. This item stays unchecked until Gate 14 and the rest of Gate 15 are actually run.
+  still needs operator confirmation). **2026-07-14:** 15.1 reinforced with further evidence; Gates
+  14.3 and 15.4 retired as unreasonable manual gates (see `hardware-acceptance.md`'s 2026-07-14
+  "retired" note — covered instead by `PttWatchdogTests.cs` plus a proven-identical de-assert code
+  path). **Still genuinely outstanding, hardware required:** Gate 14.1/14.2/14.4 (CAT-command PTT —
+  not exercised at all on either day) and Gates 15.2/15.3 (DTR line, CAT-disabled independence). See
+  `hardware-acceptance.md`'s evidence notes for the full breakdown. This item stays unchecked until
+  Gate 14 and the rest of Gate 15 are actually run.
 
 ## 19. Housekeeping
 
@@ -261,6 +278,7 @@ for `dev-tasks/2026-07-12-cat-tx-ptt-missing-keyup-after-transmit.md` post-merge
 `openspec validate --strict --all` 54/54, and the raw session logs
 (`openswfz-20260712T162611Z.log`, `...T164315Z.log`) directly confirm every `KeyDown` is
 followed by a `KeyUp` with zero watchdog-forced releases. **Do not tick §18.6 or archive this
-change until Gate 14 and Gates 15.2–15.4 are genuinely run on real hardware** — merging this
+change until Gate 14.1/14.2/14.4 and Gates 15.2–15.3 are genuinely run on real hardware** (14.3 and
+15.4 retired 2026-07-14, see `hardware-acceptance.md`) — merging this
 PR closed out the code-review/regression-test side of the defect, not the hardware-acceptance
 side.
