@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 Two settings already shipped this year — `ptt.method` (`cat-tx-ptt`) and `RemoteAccess.Enabled`/bind
