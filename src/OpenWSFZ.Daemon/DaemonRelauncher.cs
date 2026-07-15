@@ -27,7 +27,17 @@ internal sealed class DaemonRelauncher : IDaemonRelauncher
             return false;
         }
 
+        // IL3000: Assembly.Location always returns "" for a single-file AOT-published
+        // executable (which this project ships — OpenWSFZ.Daemon.csproj sets PublishAot=true
+        // whenever a RuntimeIdentifier is supplied). That is harmless here: the resolved value
+        // is only *consulted* by DaemonRelaunch.ResolveCommand when Environment.ProcessPath's
+        // file name is "dotnet" (a framework-dependent dotnet-run/dotnet-exec launch,
+        // design.md Decision 2) — a condition that can never be true for a process that is
+        // itself the AOT-compiled single-file executable, so an empty string here is simply
+        // never used on that code path.
+#pragma warning disable IL3000
         var entryAssemblyLocation = Assembly.GetEntryAssembly()?.Location ?? string.Empty;
+#pragma warning restore IL3000
 
         // GetCommandLineArgs()[0] is the executable path itself — skip it, matching the
         // `args` this process's own Main/top-level statements received.
