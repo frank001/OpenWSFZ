@@ -15,13 +15,21 @@ public sealed class DaemonRelaunchTests
     [Fact(DisplayName = "remote-daemon-restart 3.2: dotnet-muxer launch prepends the entry assembly location")]
     public void ResolveCommand_DotnetMuxer_PrependsEntryAssemblyLocation()
     {
+        // processPath is deliberately a bare filename with no directory component: this
+        // project's test suite runs cross-platform (ubuntu-latest/macos-latest/windows-latest
+        // CI matrix), and Path.GetFileNameWithoutExtension only treats '\' as a directory
+        // separator on Windows — a hardcoded Windows-style directory prefix here (as this test
+        // originally had) silently fails the muxer-filename detection on Linux/macOS, which is
+        // a test-portability artifact, not a real scenario: production always calls this with
+        // Environment.ProcessPath, which is already OS-natively formatted by the runtime it's
+        // actually running on.
         var cmd = DaemonRelaunch.ResolveCommand(
-            processPath:            @"C:\Program Files\dotnet\dotnet.exe",
+            processPath:            "dotnet.exe",
             originalArgs:           ["--port", "8080"],
             entryAssemblyLocation:  @"C:\app\OpenWSFZ.Daemon.dll",
             currentPid:             4242);
 
-        cmd.FileName.Should().Be(@"C:\Program Files\dotnet\dotnet.exe",
+        cmd.FileName.Should().Be("dotnet.exe",
             "the dotnet muxer itself must be relaunched, not the managed assembly directly");
         cmd.Arguments.Should().Equal(
             @"C:\app\OpenWSFZ.Daemon.dll", "--port", "8080", "--relaunched-from", "4242");
