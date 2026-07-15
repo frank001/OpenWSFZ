@@ -324,6 +324,8 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
 // Read RemoteAccessConfig from the loaded config and register the appropriate
 // IBindPolicy and IAuthPolicy singletons before WebApp.Create is called (D6).
 // The bind address is set once at Kestrel startup and cannot change without a restart.
+// remote-daemon-restart: that restart no longer requires physical/console access — see
+// POST /api/v1/system/restart and the Settings → Advanced "Restart Daemon" action.
 
 var remoteAccess = configStore.Current.RemoteAccess;
 
@@ -431,6 +433,10 @@ var app = WebApp.Create(
         // CA1416: suppressed — the CatCommand/SerialRtsDtr branches are only compiled when
         //         WASAPI_SUPPORTED is defined, which is set exclusively on Windows targets
         //         (see .csproj) — same rationale as the pre-existing AudioVox branch.
+        // Changing Ptt.Method takes effect only on the next daemon restart (this switch runs
+        // once, before the host is built) — remote-daemon-restart: that restart no longer
+        // requires physical/console access, see POST /api/v1/system/restart and the
+        // Settings → Advanced "Restart Daemon" action.
 #pragma warning disable CA1416
 #if WASAPI_SUPPORTED
         switch (PttControllerSelector.Resolve(configStore.Current.Ptt.Method, startupLogger))
@@ -449,6 +455,11 @@ var app = WebApp.Create(
         services.AddSingleton<IPttController, NullPttController>();
 #endif
 #pragma warning restore CA1416
+
+        // IDaemonRelauncher (remote-daemon-restart, task 4.x): the narrow seam
+        // POST /api/v1/system/restart depends on so it can trigger a self re-exec without
+        // OpenWSFZ.Web depending on the Daemon assembly (mirrors ICatController above).
+        services.AddSingleton<IDaemonRelauncher, DaemonRelauncher>();
 
         // QSO controller and ADIF log writer.
         // N6: constructed with the shared appScope (closed over from the outer Program.cs
@@ -554,6 +565,12 @@ app.Lifetime.ApplicationStarted.Register(() =>
 {
     WelcomeBannerEmitter.Emit(port);
     startupLogger.LogInformation("OpenWSFZ started on port {Port}.", port);
+
+    // remote-daemon-restart (task 3.3, daemon-host spec: "Startup with the flag is logged") —
+    // this instance was spawned to replace another as part of an API-initiated restart.
+    if (options.RelaunchedFromPid is { } replacedPid)
+        startupLogger.LogInformation(
+            "This instance was started as a relaunch, replacing PID {ReplacedPid}.", replacedPid);
 
     // ── Apply initial decoder parameters before the first decode cycle (task 5.2) ─
     // Null decoder key in config is treated as calibrated defaults (new DecoderConfig()).
@@ -800,7 +817,22 @@ await callsignRegionStore.LoadAsync();
 // already loaded (entity/continent resolution for each logged callsign).
 await workedBeforeIndex.LoadAsync();
 
-await app.RunAsync();
+// remote-daemon-restart (task 3.4): a relaunched instance retries a bind conflict while the
+// instance it is replacing finishes its own graceful shutdown; an ordinary cold start (no
+// --relaunched-from) fails immediately on a bind conflict, exactly as before this change.
+if (options.RelaunchedFromPid is not null)
+{
+    var started = await DaemonStartup.StartWithBindRetryAsync(
+        () => app.StartAsync(), port, startupLogger);
+    if (!started)
+        return 1;
+
+    await app.WaitForShutdownAsync();
+}
+else
+{
+    await app.RunAsync();
+}
 return 0;
 
 // ── Helper methods ───────────────────────────────────────────────────────────

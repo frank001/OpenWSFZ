@@ -35,7 +35,10 @@ public sealed record RemoteAccessConfig
     /// <summary>
     /// When <c>true</c>, Kestrel binds to <c>0.0.0.0</c> (all IPv4 interfaces)
     /// instead of <c>127.0.0.1</c>, making the web interface reachable from
-    /// other devices on the local network. Requires a daemon restart to take effect.
+    /// other devices on the local network. Requires a daemon restart to take effect —
+    /// since <c>remote-daemon-restart</c>, that no longer requires physical/console access:
+    /// see <c>POST /api/v1/system/restart</c> and the Settings → Advanced "Restart Daemon"
+    /// action.
     /// Default: <c>false</c>.
     /// </summary>
     public bool    Enabled    { get; init; } = false;

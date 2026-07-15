@@ -241,8 +241,10 @@
               <option value="SerialRtsDtr">SerialRtsDtr — key via a raw serial RTS/DTR line</option>
             </select>
             <p class="field-hint">
-              Changing this requires Save + restarting the application before it takes effect —
-              <code>ptt.method</code> is read once at startup, not hot-reloaded.
+              Changing this requires Save, then
+              <a href="#" id="ptt-method-restart-link">Settings → Advanced → Restart Daemon</a>
+              before it takes effect — <code>ptt.method</code> is read once at startup, not
+              hot-reloaded.
             </p>
           </div>
 
@@ -573,7 +575,8 @@
           <!-- Restart-required warning (only visible when enabled) -->
           <div id="remote-access-restart-warning" class="settings-warning" style="display:none"
                role="alert" aria-live="polite">
-            ⚠ A restart is required for binding changes to take effect.
+            ⚠ A restart is required for binding changes to take effect —
+            <a href="#" id="remote-access-restart-link">Settings → Advanced → Restart Daemon</a>.
           </div>
 
           <!-- Legal disclaimer (only visible when enabled) -->
@@ -608,6 +611,24 @@
           </div>
 
         </fieldset><!-- /remote-access-settings -->
+
+        <!-- ── Restart Daemon (remote-daemon-restart) ────────────────────── -->
+        <fieldset id="restart-daemon-settings">
+          <legend>Restart Daemon</legend>
+
+          <div class="field-group">
+            <button type="button" id="restart-daemon-btn">Restart Daemon</button>
+            <p class="field-hint">
+              Restarts the daemon process — required for <code>ptt.method</code> and Remote
+              Access binding-address changes to take effect. Briefly disconnects every
+              connected browser, including other operators on the local network, while the
+              daemon restarts. Works whether the daemon was started via <code>dotnet run</code>
+              or a published executable.
+            </p>
+            <div id="restart-daemon-status" class="settings-warning" style="display:none"
+                 role="alert" aria-live="polite"></div>
+          </div>
+        </fieldset><!-- /restart-daemon-settings -->
 
       </div><!-- /tab-advanced -->
 
