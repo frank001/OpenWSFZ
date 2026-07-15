@@ -811,8 +811,16 @@ public static class WebApp
         // Capture IPttController (cat-tx-ptt, task 17.3) — the currently-running singleton
         // resolved by Program.cs's Ptt.Method switch at DI-registration time. May be null in
         // test fixtures that don't wire the TX subsystem; POST /api/v1/ptt/test treats that
-        // the same as "nothing to test" (503).
+        // the same as "nothing to test" (503). A newly-selected ptt.method only takes effect
+        // after a daemon restart (remote-daemon-restart: no longer requires physical/console
+        // access — see POST /api/v1/system/restart below).
         var pttController = app.Services.GetService<IPttController>();
+
+        // Capture IDaemonRelauncher (remote-daemon-restart) — the narrow seam
+        // POST /api/v1/system/restart spawns a replacement process through. Null in test
+        // fixtures that don't register one; the endpoint logs and refuses to proceed rather
+        // than throwing, exactly like the pttController/qsoController null-guards above.
+        var daemonRelauncher = app.Services.GetService<IDaemonRelauncher>();
 
         // Capture IQsoRoleSwitcher for runtime role switching (Call CQ, task 11.5).
         // Null in tests that register a plain IQsoController stub rather than the full router.
@@ -1016,6 +1024,49 @@ public static class WebApp
                 // error, so HTTP 200 with an error payload rather than a 500 (task 17.3).
                 return TypedResults.Ok(new PttTestResponse("error", ex.Message));
             }
+        });
+
+        // ── System restart endpoint (remote-daemon-restart) ──────────────────
+        //
+        // Restarts the daemon process in place: spawns a fresh instance of itself (same
+        // executable/args, tagged --relaunched-from — see IDaemonRelauncher), then gracefully
+        // stops the current instance via the existing, unmodified ApplicationStopping shutdown
+        // chain so the new instance can bind the listening port. Refuses with 409 while a real
+        // QSO is transmitting (design.md Decision 5) — same guard, same message style as
+        // /api/v1/ptt/test above. Responds 202 immediately; the actual spawn-then-stop runs on
+        // a fire-and-forget delayed task (design.md Decision 3) so the HTTP response has time
+        // to flush to the client before the connection is torn down.
+        var systemRestartLogger = app.Services.GetRequiredService<ILoggerFactory>()
+                                              .CreateLogger("OpenWSFZ.Web.SystemRestartApi");
+        const int RestartFlushDelayMs = 500;
+
+        app.MapPost("/api/v1/system/restart", () =>
+        {
+            if (qsoController?.Keying == true)
+                return Results.Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    detail: "a QSO is currently transmitting");
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(RestartFlushDelayMs).ConfigureAwait(false);
+
+                if (daemonRelauncher is null)
+                {
+                    systemRestartLogger.LogError(
+                        "POST /api/v1/system/restart: no IDaemonRelauncher is registered — " +
+                        "cannot restart.");
+                    return;
+                }
+
+                // Spawn-before-stop ordering (design.md Decision 3): only stop the current
+                // instance once the replacement has been confirmed to start, so the daemon is
+                // never left with zero running instances.
+                if (daemonRelauncher.TrySpawnReplacement())
+                    app.Lifetime.StopApplication();
+            });
+
+            return Results.Accepted(uri: (string?)null, value: new SystemRestartResponse("restarting"));
         });
 
         // ── Audio offset endpoint ─────────────────────────────────────────────

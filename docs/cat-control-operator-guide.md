@@ -364,12 +364,41 @@ Then `sudo systemctl enable --now rigctld`.
 
 ---
 
+## Restarting the daemon remotely
+
+Two settings on this page only take effect after a full daemon restart: `ptt.method` (above)
+and the Remote Access bind address. Historically the only way to apply either was physical or
+console access to the machine running the daemon — inconvenient at best, and impossible if
+you're managing the box from another device on your local network via Remote Access.
+
+**Settings → Advanced → Restart Daemon** removes that requirement. Clicking it:
+
+1. Shows a confirmation dialog — unlike every other button on this page, a restart is
+   disruptive enough to warrant one. It drops the WebSocket connection, interrupts the current
+   decode cycle, and briefly disconnects **every** connected browser, including other operators
+   on the LAN — confirm only when that's acceptable right now.
+2. Refuses with a clear message, and does nothing else, if a QSO is currently transmitting.
+   The daemon never interrupts an in-progress over-the-air transmission to satisfy a restart
+   request — let the QSO finish (or abort it yourself) and try again.
+3. Otherwise, spawns a fresh copy of the daemon process with the current configuration, then
+   gracefully shuts the old one down. This works identically whether the daemon was started via
+   `dotnet run` (the default development workflow) or a published, self-contained executable —
+   no separate Windows Service, systemd unit, or other process supervisor is required.
+4. The browser shows a "reconnecting…" state and automatically resumes normal operation once
+   the new instance is up — no manual page reload needed.
+
+A restart is a real, if brief (typically well under a second, up to a 20-second worst case),
+outage for every connected client — there is no seamless handoff. Reserve it for when you've
+actually changed something that needs it.
+
+---
+
 ## Known Limitations
 
 | Limitation | Workaround |
 |---|---|
 | SerialCat mode holds the serial port exclusively | Use RigCtld mode if WSJT-X must run simultaneously |
 | Only VFO-A frequency is read; VFO-B and mode are not polled | None — planned for a future change |
-| `ptt.method` changes require a Save + full daemon restart — not hot-reloaded, and the Settings-page Test button reflects the live (running), not the just-saved, method until you restart | Save, restart the daemon, then reload the Settings page before using Test |
+| `ptt.method` changes require a Save + full daemon restart — not hot-reloaded, and the Settings-page Test button reflects the live (running), not the just-saved, method until you restart | Save, then use Settings → Advanced → Restart Daemon (no physical/console access required — see [Restarting the daemon remotely](#restarting-the-daemon-remotely) below), then reload the Settings page before using Test |
 | No mode-set or split support — PTT-over-CAT (FR-056) does not read back rig state to confirm it actually keyed, and neither does the Settings-page Test button (FR-057) | The hardware-acceptance gate for `cat-tx-ptt` requires a human to visually confirm real rig behaviour before this is considered safe to rely on |
 | When the daemon first starts, the status bar briefly shows `0.000 MHz` until the first successful poll | This clears within one poll interval (default 1 second) |

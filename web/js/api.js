@@ -223,6 +223,46 @@ export async function postPttTest() {
 }
 
 /**
+ * POST /api/v1/system/restart (remote-daemon-restart)
+ * Restarts the daemon process in place: spawns a fresh instance of itself, then gracefully
+ * stops the current one. Refuses with 409 while a real QSO is transmitting. Like
+ * {@link postPttTest}, reads the JSON body on a 409 response too (rather than throwing a
+ * generic "HTTP 409" error) so the caller can show the operator the actual reason.
+ * @returns {Promise<{status: 'restarting'|'refused', message: string|null}>}
+ */
+export async function postSystemRestart() {
+  const key = getApiKey();
+  const res = await fetch('/api/v1/system/restart', {
+    method:  'POST',
+    headers: key ? { 'X-Api-Key': key } : {},
+  });
+
+  if (res.status === 401) {
+    sessionStorage.removeItem(API_KEY_SESSION_KEY);
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
+
+  if (res.status === 409) {
+    let message = 'Restart unavailable.';
+    try {
+      const problem = await res.json();
+      message = problem?.detail || problem?.title || message;
+    } catch {
+      // Malformed/absent ProblemDetails body — fall back to the generic message above.
+    }
+    return { status: 'refused', message };
+  }
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} — /api/v1/system/restart`);
+  }
+
+  const body = await res.json();
+  return { status: body?.status ?? 'restarting', message: null };
+}
+
+/**
  * GET /api/v1/tx/status
  * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean}>}
  */

@@ -66,6 +66,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(ExternalReportingTarget))]
 [JsonSerializable(typeof(List<ExternalReportingTarget>))]
 [JsonSerializable(typeof(PttTestResponse))]
+[JsonSerializable(typeof(SystemRestartResponse))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -345,6 +346,15 @@ internal sealed record WsDecodeFilterMessage(string Type, DecodeFilterState Payl
 /// <c>{"result":"error","message":"port in use"}</c>.
 /// </summary>
 public sealed record PttTestResponse(string Result, string? Message = null);
+
+/// <summary>
+/// Response body for <c>POST /api/v1/system/restart</c> (remote-daemon-restart). Returned with
+/// HTTP 202 immediately, before the actual spawn-and-stop sequence runs on a short delay
+/// (design.md Decision 3) — the operator-facing "reconnecting…" UX is driven by the frontend
+/// polling <c>GET /api/v1/status</c>, not by this body's contents.
+/// Wire format: <c>{"status":"restarting"}</c>.
+/// </summary>
+public sealed record SystemRestartResponse(string Status);
 
 internal sealed record WsQsoReviewMessage(
     string  Type,

@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, postPttTest, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
+import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, postPttTest, postSystemRestart, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
 import { resolveUnknownCheckboxDisplay } from './decodeNoiseSuppression.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
@@ -53,6 +53,12 @@ const pttTailTimeMs        = /** @type {HTMLInputElement}  */ (document.getEleme
 const pttWatchdogTimeoutMs = /** @type {HTMLInputElement}  */ (document.getElementById('ptt-watchdog-timeout-ms'));
 const pttTestBtn           = /** @type {HTMLButtonElement} */ (document.getElementById('ptt-test-btn'));
 const pttTestBadge         = /** @type {HTMLElement}       */ (document.getElementById('ptt-test-badge'));
+const pttMethodRestartLink = /** @type {HTMLAnchorElement} */ (document.getElementById('ptt-method-restart-link'));
+
+// Restart Daemon action (remote-daemon-restart).
+const restartDaemonBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('restart-daemon-btn'));
+const restartDaemonStatus  = /** @type {HTMLElement}       */ (document.getElementById('restart-daemon-status'));
+const remoteAccessRestartLink = /** @type {HTMLAnchorElement} */ (document.getElementById('remote-access-restart-link'));
 
 // General tab controls (callsign, grid, watchdog, retry moved from TX fieldset)
 const txCallsign        = /** @type {HTMLInputElement} */ (document.getElementById('general-callsign'));
@@ -1002,6 +1008,83 @@ pttTestBtn.addEventListener('click', async () => {
     // Restore to the live-method-derived state rather than unconditionally re-enabling —
     // the live method hasn't changed just because a test ran.
     updatePttTestAvailability();
+  }
+});
+
+// ── Restart Daemon (remote-daemon-restart) ────────────────────────────────
+
+/**
+ * Switches to the Advanced tab and scrolls the Restart Daemon action into view — used by the
+ * restart-required notices next to ptt.method and the Remote Access bind controls, which link
+ * to this single action rather than each growing their own restart control.
+ * @param {Event} event
+ */
+function goToRestartDaemonAction(event) {
+  event.preventDefault();
+  activateTab('tab-advanced');
+  restartDaemonBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  restartDaemonBtn.focus();
+}
+
+pttMethodRestartLink.addEventListener('click', goToRestartDaemonAction);
+remoteAccessRestartLink.addEventListener('click', goToRestartDaemonAction);
+
+/**
+ * Polls GET /api/v1/status on a short interval until it succeeds again, indicating the
+ * relaunched instance is up and serving. No fixed client-side timeout — the daemon's own
+ * bind-retry budget (20 s) is the real upper bound on how long a restart can take before it
+ * gives up and the operator has to investigate.
+ */
+async function pollUntilReconnected() {
+  const pollIntervalMs = 500;
+  // Give the old instance a moment to actually go down first — avoids a spurious
+  // "already reconnected" false-positive answered by the still-shutting-down old process.
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  for (;;) {
+    try {
+      await getStatus();
+      return;
+    } catch {
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+  }
+}
+
+restartDaemonBtn.addEventListener('click', async () => {
+  const confirmed = window.confirm(
+    'Restart the daemon now?\n\n' +
+    'This will briefly disconnect this browser and any other connected operators on the ' +
+    'local network. The page will reconnect automatically once the new instance is ready.'
+  );
+  if (!confirmed) return;
+
+  restartDaemonBtn.disabled         = true;
+  restartDaemonStatus.style.display = 'none';
+  restartDaemonStatus.textContent   = '';
+
+  try {
+    const result = await postSystemRestart();
+
+    if (result.status === 'refused') {
+      // No reconnecting state — no restart is in progress.
+      restartDaemonStatus.textContent   = result.message || 'Restart was refused.';
+      restartDaemonStatus.style.display = '';
+      return;
+    }
+
+    restartDaemonStatus.textContent   = '⏳ Restarting — reconnecting…';
+    restartDaemonStatus.style.display = '';
+
+    await pollUntilReconnected();
+
+    restartDaemonStatus.style.display = 'none';
+    restartDaemonStatus.textContent   = '';
+  } catch (err) {
+    restartDaemonStatus.textContent   = `Restart request failed — ${err.message}`;
+    restartDaemonStatus.style.display = '';
+  } finally {
+    restartDaemonBtn.disabled = false;
   }
 });
 
