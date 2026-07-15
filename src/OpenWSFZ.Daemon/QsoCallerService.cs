@@ -47,6 +47,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private readonly AudioOffsetEventBus                        _audioOffsetEventBus;
     private readonly ILogger<QsoCallerService>                  _logger;
     private readonly Ft8AudioSynthesiser                        _synthesiser = new();
+    // D-CALLER-021: used by TransmitAsync's window-boundary truncation. Defaults to
+    // TimeProvider.System (production behaviour identical to DateTimeOffset.UtcNow); only
+    // overridden by the internal test constructor so tests can control "seconds into window"
+    // deterministically, mirroring QsoAnswererService's identical _timeProvider field.
+    private readonly TimeProvider                                _timeProvider;
     private readonly IAdifLogWriter                              _adifLog;
     private readonly IApConstraintSink?                         _decoder;
     // D-013: live CAT state for resolving the true dial frequency at QSO-completion time
@@ -160,6 +165,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _decoder             = decoder;
         _catState            = catState;
         _decodeFilterStore   = decodeFilterStore;
+        _timeProvider        = TimeProvider.System;
     }
 
     /// <summary>
@@ -167,7 +173,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     /// callsigns) an optional <see cref="IApConstraintSink"/> so tests can verify H6 AP
     /// constraint arming without waiting through the production watchdog duration. Also accepts
     /// an optional <see cref="ICatState"/> (D-013) so tests can exercise the live-CAT
-    /// dial-frequency resolution path without waiting through the real watchdog duration.
+    /// dial-frequency resolution path without waiting through the real watchdog duration, and an
+    /// optional <see cref="TimeProvider"/> override (D-CALLER-021) so tests can exercise
+    /// <c>TransmitAsync</c>'s window-boundary truncation deterministically.
     /// </summary>
     internal QsoCallerService(
         ChannelReader<DecodeBatch>  decodeChannel,
@@ -180,10 +188,12 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         TimeSpan                    watchdogDurationOverride,
         IApConstraintSink?          decoder = null,
         ICatState?                  catState = null,
-        IDecodeFilterStore?         decodeFilterStore = null)
+        IDecodeFilterStore?         decodeFilterStore = null,
+        TimeProvider?               timeProvider = null)
         : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, decoder, catState, decodeFilterStore)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
+        _timeProvider             = timeProvider ?? TimeProvider.System;
     }
 
     // ── IQsoController ───────────────────────────────────────────────────────
@@ -937,6 +947,22 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         Ft8Encoder.EncodeMessage(message, tones);
 
         var samples = _synthesiser.Synthesise(tones, freqHz);
+
+        // D-CALLER-021: the pending-responder path already fires unconditionally once the
+        // phase check passes, however late into its window that happens — so the transmission
+        // itself must never key past the current window's boundary. Truncate to whatever fits.
+        var sampleCount = Ft8TimeHelper.ClampSampleCountToWindowBoundary(
+            _timeProvider.GetUtcNow(), samples.Length, Ft8AudioSynthesiser.SampleRateHz);
+        if (sampleCount == 0)
+        {
+            _logger.LogDebug(
+                "QsoCallerService: window already closed — skipping transmission of \"{Message}\".",
+                message);
+            return;
+        }
+        if (sampleCount < samples.Length)
+            samples = samples[..sampleCount];
+
         _pttController.LoadAudio(samples);
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _txCts.Token);

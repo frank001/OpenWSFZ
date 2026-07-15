@@ -58,9 +58,10 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        // D-CALLER-013/016: inject a FakeTimeProvider at the start of an A-phase window
-        // (second = 0 → 0 s into the window ≤ MaxLateStartSeconds = 2.0 s) so the
-        // late-start guard always passes for the shared SUT.
+        // D-CALLER-021: inject a FakeTimeProvider at the start of an A-phase window
+        // (second = 0 → 0 s into the window) so TransmitAsync's window-boundary truncation
+        // (Ft8TimeHelper.ClampSampleCountToWindowBoundary) always sees a full 15 s remaining
+        // and never truncates the shared SUT's transmissions.
         // Tests that determine phase from the real clock (D-TX-UI-007 wakeup tests)
         // use DateTimeOffset.UtcNow directly inside AnswerCqAsync — they are not
         // affected by this override.
@@ -1429,7 +1430,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         var channel = Channel.CreateUnbounded<DecodeBatch>();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        // D-CALLER-013: FakeTimeProvider at second=0 so the late-start guard always passes.
+        // D-CALLER-021: FakeTimeProvider at second=0 so TransmitAsync sees a full window and
+        // never truncates.
         var earlyInWindow = new FakeTimeProvider(
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
@@ -1699,7 +1701,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         var channel = Channel.CreateUnbounded<DecodeBatch>();
         var adifLog = new AdifLogWriter(slowStore, NullLogger<AdifLogWriter>.Instance);
-        // D-CALLER-013: FakeTimeProvider at second=0 so the late-start guard passes.
+        // D-CALLER-021: FakeTimeProvider at second=0 so TransmitAsync sees a full window and
+        // never truncates.
         var earlyInWindow = new FakeTimeProvider(
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var sut     = new QsoAnswererService(channel.Reader, slowStore, ptt, new TxEventBus(),
@@ -2380,11 +2383,12 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         }
     }
 
-    // ── D-CALLER-013/016: late-start guard (MaxLateStartSeconds = 2.0 s) ─────
+    // ── D-CALLER-021: manual engage fires unconditionally within a correct-phase window ──
 
     /// <summary>
-    /// Controllable <see cref="TimeProvider"/> used by D-CALLER-013 tests so the late-start
-    /// guard can be exercised without sleeping through real 15-second FT8 windows.
+    /// Controllable <see cref="TimeProvider"/> so both the (former) late-start guard tests and
+    /// the D-CALLER-021 window-boundary-truncation tests can be exercised deterministically,
+    /// without sleeping through real 15-second FT8 windows.
     /// </summary>
     private sealed class FakeTimeProvider(DateTimeOffset initial) : TimeProvider
     {
@@ -2398,7 +2402,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     /// </summary>
     private static (QsoAnswererService sut, IPttController ptt,
                     Channel<DecodeBatch> channel, CancellationTokenSource stopCts)
-        BuildLateStartSut(FakeTimeProvider fakeTime)
+        BuildTimeControlledSut(FakeTimeProvider fakeTime, int retryCount = 2)
     {
         var ptt = Substitute.For<IPttController>();
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -2412,7 +2416,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
                 AutoAnswer      = true,
                 Callsign        = OurCallsign,
                 Grid            = OurGrid,
-                RetryCount      = 2,
+                RetryCount      = retryCount,
                 WatchdogMinutes = 4,
             }
         });
@@ -2431,14 +2435,15 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         return (sut, ptt, channel, new CancellationTokenSource());
     }
 
-    [Fact(DisplayName = "D-CALLER-013 A: Pending target — late click (5 s in) is deferred; fires at next occurrence")]
-    public async Task PendingTarget_LateStart_IsDeferred_ThenFiresNextCycle()
+    [Fact(DisplayName = "D-CALLER-021 A: Pending target — late click (5 s in) fires immediately in the same window")]
+    public async Task PendingTarget_LateStart_FiresImmediatelyInSameWindow()
     {
-        // FakeTime = 5 s into the :00 A-phase window (17:30:05).
-        // RoundDownTo15s(17:30:05) = 17:30:00 → secondsIntoWindow = 5.0 > 2.0 (D-CALLER-016) → late.
+        // FakeTime = 5 s into the :00 A-phase window (17:30:05). Under the old MaxLateStartSeconds
+        // model this would have been deferred a full cycle; D-CALLER-021 fires it immediately and
+        // lets TransmitAsync's boundary truncation (tested separately below) shorten the audio.
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero));
-        var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
         await sut.StartAsync(stopCts.Token);
 
         // Arm pending target: CQ at B-phase (:15) → answer phase is A (:00/:30).
@@ -2446,25 +2451,18 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero),
             CancellationToken.None);
         sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup to prevent early fire
+        // The wakeup pushed by AnswerCqAsync/EngageAtAsync is computed from REAL wall-clock time
+        // (ArmPendingTarget uses DateTimeOffset.UtcNow, not the injected FakeTimeProvider), so it
+        // races the background loop's own concurrent read of the same channel. Settle briefly so
+        // any such stray wakeup is fully processed (or confirmed drained) before this test's
+        // deliberately-timed batches are written — matching the precedent in
+        // QsoCallerServiceTests.SelectResponderAsync_PhaseSemanticsCorrect.
+        await Task.Delay(50);
 
-        // Batch 1: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ (phase check passes).
-        // FakeTime is 5 s into the A-phase window → late-start guard fires → defer.
+        // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ (phase check passes).
+        // FakeTime is 5 s into the A-phase window — must fire in THIS cycle, not be deferred.
         channel.Writer.TryWrite(new DecodeBatch(
             new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
-            Array.Empty<DecodeResult>()));
-        await Task.Delay(300);
-
-        sut.State.Should().Be(QsoState.Idle,
-            "late-start guard must defer TX and leave state Idle");
-        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
-
-        // Advance FakeTime to 0.5 s into the next A-phase window (17:30:30.5).
-        // 0.5 s ≤ 2.0 s → guard passes → TX must fire.
-        fakeTime.UtcNow = new DateTimeOffset(2026, 6, 27, 17, 30, 30, 500, TimeSpan.Zero);
-
-        // Batch 2: CycleStart :15 (B-phase) → +15 s = :30 A-phase ✓ (same phase, next occurrence).
-        channel.Writer.TryWrite(new DecodeBatch(
-            new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
 
         await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
@@ -2475,14 +2473,13 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "D-CALLER-013 B: Pending target — timely click (0.5 s in) fires immediately")]
+    [Fact(DisplayName = "D-CALLER-021 B: Pending target — timely click (0.5 s in) fires immediately")]
     public async Task PendingTarget_TimelyStart_FiresImmediately()
     {
-        // FakeTime = 0.5 s into the :00 A-phase window.
-        // 0.5 s ≤ 2.0 s → guard does not defer → TX fires on the first correct-phase batch.
+        // FakeTime = 0.5 s into the :00 A-phase window — the common case, unaffected by this change.
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 0, 500, TimeSpan.Zero));
-        var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
         await sut.StartAsync(stopCts.Token);
 
         // Arm pending target: CQ at B-phase (:15) → answer phase is A (:00/:30).
@@ -2490,9 +2487,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero),
             CancellationToken.None);
         sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
+        await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
 
-        // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓.
-        // FakeTime is 0.5 s in → guard passes → TX fires immediately.
+        // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ → TX fires immediately.
         channel.Writer.TryWrite(new DecodeBatch(
             new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
@@ -2505,13 +2502,57 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "D-CALLER-013 C: Jump-in — late double-click (5 s in) is deferred; fires at next occurrence")]
-    public async Task JumpIn_LateStart_IsDeferred_ThenFiresNextCycle()
+    [Fact(DisplayName = "D-CALLER-021 E: Pending target — wrong-phase cycle still waits for the next matching-phase window")]
+    public async Task PendingTarget_WrongPhase_StillWaitsForNextMatchingPhase()
     {
-        // FakeTime = 5 s into the :00 A-phase window → late for A-phase TX (> 2.0 s, D-CALLER-016).
+        // The phase check itself is unaffected by D-CALLER-021 — only the (now-removed)
+        // lateness rejection changed. This is a distinct case from "late-but-correct-phase-now-
+        // fires" above, protecting the phase-check coverage that used to sit alongside the
+        // late-start guard in this same test region (task 4.2).
+        //
+        // Uses TestSetPendingTarget (not AnswerCqAsync) so no wakeup batch is pushed: the
+        // production wakeup path computes its phase from real DateTimeOffset.UtcNow (not the
+        // FakeTimeProvider here), which would otherwise race the background loop's own concurrent
+        // read of the same channel and intermittently pre-empt this test's own controlled batches
+        // — mirrors QsoCallerServiceTests' identical rationale for TestSetPendingResponder.
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero));
-        var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+
+        // Pending target armed for A-phase (as if a CQ had been heard at B-phase, :15).
+        sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
+
+        // Wrong-phase batch: CycleStart :30 (A-phase) → +15 s = :45 B-phase ≠ A-phase pending.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 30, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+        await Task.Delay(300);
+
+        sut.State.Should().Be(QsoState.Idle,
+            "a wrong-phase cycle must retain the pending target and NOT fire");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        // Correct-phase batch now fires it.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-CALLER-021 C: Jump-in — late double-click (6 s in) fires immediately in the same window")]
+    public async Task JumpIn_LateStart_FiresImmediatelyInSameWindow()
+    {
+        // FakeTime = 6 s into the :00 A-phase window — well past the old MaxLateStartSeconds = 2.0 s
+        // ceiling. D-CALLER-021 fires it immediately regardless.
+        var fakeTime = new FakeTimeProvider(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 6, TimeSpan.Zero));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
         await sut.StartAsync(stopCts.Token);
 
         // EngageAtAsync: partner decoded at B-phase (:15) → _jumpIsAPhase = !B = A.
@@ -2521,24 +2562,11 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             EngagePoint.SendReport,
             CancellationToken.None);
         sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
+        await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
 
-        // Batch 1: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ (phase check passes).
-        // FakeTime is 5 s into the A-phase window → late-start guard fires → defer.
+        // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ — must fire in THIS cycle.
         channel.Writer.TryWrite(new DecodeBatch(
             new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
-            Array.Empty<DecodeResult>()));
-        await Task.Delay(300);
-
-        sut.State.Should().Be(QsoState.Idle,
-            "late-start guard must defer jump-in TX and leave state Idle");
-        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
-
-        // Advance FakeTime to 0.3 s into the next A-phase window.
-        fakeTime.UtcNow = new DateTimeOffset(2026, 6, 27, 17, 30, 30, 300, TimeSpan.Zero);
-
-        // Batch 2: same phase, next occurrence → guard passes → TX fires.
-        channel.Writer.TryWrite(new DecodeBatch(
-            new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
 
         // Jump-in at SendReport enters WaitRr73 (transmits R+00 then waits for RR73).
@@ -2550,14 +2578,12 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "D-CALLER-013 D: Jump-in — timely double-click (0.2 s in) fires immediately")]
+    [Fact(DisplayName = "D-CALLER-021 D: Jump-in — timely double-click (0.2 s in) fires immediately")]
     public async Task JumpIn_TimelyStart_FiresImmediately()
     {
-        // FakeTime = 0.2 s into the :00 A-phase window.
-        // 0.2 s ≤ 2.0 s → guard does not defer → TX fires on the first correct-phase batch.
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 0, 200, TimeSpan.Zero));
-        var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
         await sut.StartAsync(stopCts.Token);
 
         // EngageAtAsync: partner decoded at B-phase (:15) → _jumpIsAPhase = A.
@@ -2567,9 +2593,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             EngagePoint.SendReport,
             CancellationToken.None);
         sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
+        await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
 
-        // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓.
-        // FakeTime is 0.2 s in → guard passes → TX fires immediately.
+        // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ → TX fires immediately.
         channel.Writer.TryWrite(new DecodeBatch(
             new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
@@ -2583,46 +2609,207 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
-    // ── D-CALLER-018: AbortAsync must be a hard stop, even while already Idle ────
-
-    [Fact(DisplayName = "D-CALLER-018 AC-1: AbortAsync while Idle with a deferred pending CQ target clears it — no subsequent TX")]
-    public async Task AbortAsync_WhileIdleWithDeferredPendingTarget_ClearsTarget_NoSubsequentTx()
+    [Fact(DisplayName = "D-CALLER-021 F: Jump-in — wrong-phase cycle still waits for the next matching-phase window")]
+    public async Task JumpIn_WrongPhase_StillWaitsForNextMatchingPhase()
     {
-        // Reproduces the exact production sequence from
-        // dev-tasks/2026-07-12-answerer-abort-hard-stop-and-reengage-timing.md §1.1: a target is
-        // armed, its first opportunity is a late start (deferred to the next matching-phase
-        // occurrence, per D-CALLER-013/016), and — critically — while it sits Idle waiting for that
-        // next occurrence, the operator clicks Abort. Before the D-CALLER-018 fix, AbortAsync
-        // no-opped whenever _state was already Idle, so the deferred target fired anyway ~30 s later
-        // regardless of the abort (the log showed 14 Abort clicks, all no-ops, followed by TX firing).
-        // This test proves it no longer does.
+        // No dedicated jump-in wrong-phase test previously existed alongside the removed
+        // late-start-guard region (only the pending-target side had one, elsewhere in this file)
+        // — added per task 4.2 so this phase-check coverage is not lost.
+        //
+        // Uses TestSetJumpTarget (not EngageAtAsync) — see PendingTarget_WrongPhase's identical
+        // rationale above (avoids the racy real-time-based wakeup push).
         var fakeTime = new FakeTimeProvider(
-            new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero)); // 5 s into A-phase window → late
-        var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
+            new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
         await sut.StartAsync(stopCts.Token);
 
-        await sut.AnswerCqAsync(PartnerCall, AudioFreqHz,
-            new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero),
-            CancellationToken.None);
-        sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
+        sut.TestSetJumpTarget(PartnerCall, AudioFreqHz, EngagePoint.SendReport, isAPhase: true);
 
-        // First matching-phase batch: late-start guard defers (target remains armed for the next
-        // occurrence — this is the "quietly waiting" state the bug exploited).
+        // Wrong-phase batch: CycleStart :30 (A-phase) → +15 s = :45 B-phase ≠ A-phase jump target.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 30, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+        await Task.Delay(300);
+
+        sut.State.Should().Be(QsoState.Idle,
+            "a wrong-phase cycle must retain the jump-in target and NOT fire");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        // Correct-phase batch now fires it.
         channel.Writer.TryWrite(new DecodeBatch(
             new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
-        await Task.Delay(300);
-        sut.State.Should().Be(QsoState.Idle, "late-start guard defers TX but leaves the service Idle");
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── D-CALLER-021: window-boundary transmission truncation (tasks 5.1–5.4) ────
+
+    [Fact(DisplayName = "D-CALLER-021 G: TransmitAsync — late in window (8 s in) truncates the buffer to the remaining 7 s")]
+    public async Task TransmitAsync_LateInWindow_TruncatesBufferToRemainingTime()
+    {
+        // FakeTime = 8 s into the :00 A-phase window → 7.0 s remain until the :15 boundary →
+        // 7.0 s × 48 000 Hz = 336 000 samples exactly (FakeTimeProvider is fixed, not real-clock
+        // jittery, so this is deterministic).
+        var fakeTime = new FakeTimeProvider(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 8, TimeSpan.Zero));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+
+        // TestSetPendingTarget (not AnswerCqAsync) — avoids the racy real-time-based wakeup push;
+        // see PendingTarget_WrongPhase_StillWaitsForNextMatchingPhase for the full rationale.
+        sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 336_000));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-CALLER-021 H: TransmitAsync — on-time (0 s in) loads the full, untruncated buffer")]
+    public async Task TransmitAsync_OnTime_LoadsFullUntruncatedBuffer()
+    {
+        var fakeTime = new FakeTimeProvider(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 0, TimeSpan.Zero));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+
+        // TestSetPendingTarget (not AnswerCqAsync) — avoids the racy real-time-based wakeup push;
+        // see PendingTarget_WrongPhase_StillWaitsForNextMatchingPhase for the full rationale.
+        sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == Ft8AudioSynthesiser.TotalSampleCount));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-CALLER-021 I: TransmitAsync — zero remaining time skips transmission without throwing")]
+    public async Task TransmitAsync_ZeroRemainingTime_SkipsTransmissionWithoutThrowing()
+    {
+        // 1 tick (100 ns) before the :15 boundary of the :00 A-phase window: remaining ≈ 100 ns,
+        // which truncates to 0 samples at 48 000 Hz — the "computed remaining-sample count is
+        // zero" case from task 2.2, reached via integer truncation rather than a literally
+        // negative TimeSpan (the floor-based boundary calculation cannot itself go negative).
+        var fakeTime = new FakeTimeProvider(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero).AddTicks(-1));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+
+        // TestSetPendingTarget (not AnswerCqAsync) — avoids the racy real-time-based wakeup push;
+        // see PendingTarget_WrongPhase_StillWaitsForNextMatchingPhase for the full rationale.
+        sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        // ExecuteTxAnswerAsync's SetStateAndNotify(WaitReport) runs unconditionally after
+        // TransmitAsync returns — the skip must not throw or otherwise abort the state machine.
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        ptt.DidNotReceive().LoadAudio(Arg.Any<float[]>());
         await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
 
-        // Operator clicks Abort while sitting Idle with the deferred target still armed.
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-CALLER-021 J: A truncated transmission that goes unanswered still counts toward the retry budget")]
+    public async Task TruncatedTransmission_Unanswered_StillCountsTowardRetryBudget()
+    {
+        // Same 8-s-in truncation as test G above, but this time drive the standard A-01
+        // skip-then-retry silence pattern (established by "A-01 2.2" elsewhere in this file) to
+        // prove the truncated initial TX participates in retry accounting exactly like a
+        // full-length one would.
+        var fakeTime = new FakeTimeProvider(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 8, TimeSpan.Zero));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+
+        // TestSetPendingTarget (not AnswerCqAsync) — avoids the racy real-time-based wakeup push;
+        // see PendingTarget_WrongPhase_StillWaitsForNextMatchingPhase for the full rationale.
+        sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 336_000)); // confirms truncated
+
+        // First silence cycle: skipped by the A-01 guard (no retry yet).
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow, Array.Empty<DecodeResult>()));
+        await Task.Delay(150);
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+
+        // Second consecutive silence cycle: retry must fire — proving the truncated TX above
+        // was counted, exactly like a full-length one, toward the "was this cycle answered" check.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow, Array.Empty<DecodeResult>()));
+        await Task.Delay(300);
+        await ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>());
+        sut.State.Should().Be(QsoState.WaitReport, "one retry should not exhaust the retry budget");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── D-CALLER-018: AbortAsync must be a hard stop, even while already Idle ────
+
+    [Fact(DisplayName = "D-CALLER-018 AC-1: AbortAsync while Idle with a wrong-phase-retained pending CQ target clears it — no subsequent TX")]
+    public async Task AbortAsync_WhileIdleWithRetainedPendingTarget_ClearsTarget_NoSubsequentTx()
+    {
+        // Reproduces the spirit of the production sequence from
+        // dev-tasks/2026-07-12-answerer-abort-hard-stop-and-reengage-timing.md §1.1: a target is
+        // armed, its first opportunity does not fire, and — critically — while it sits Idle
+        // waiting for the next matching-phase occurrence, the operator clicks Abort. Originally
+        // reproduced via the late-start guard (D-CALLER-013/016); that guard no longer exists
+        // (D-CALLER-021), so this is now reproduced via a wrong-phase cycle instead — the only
+        // remaining way for an armed target to sit Idle without firing. Before the D-CALLER-018
+        // fix, AbortAsync no-opped whenever _state was already Idle, so the retained target fired
+        // anyway at its next matching-phase window regardless of the abort.
+        var fakeTime = new FakeTimeProvider(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 0, 500, TimeSpan.Zero));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+
+        // TestSetPendingTarget (not AnswerCqAsync) — avoids the racy real-time-based wakeup push;
+        // see PendingTarget_WrongPhase_StillWaitsForNextMatchingPhase for the full rationale.
+        sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
+
+        // Wrong-phase batch: target remains armed for the next matching-phase occurrence — this
+        // is the "quietly waiting" state the D-CALLER-018 bug exploited.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 30, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+        await Task.Delay(300);
+        sut.State.Should().Be(QsoState.Idle, "a wrong-phase cycle retains the target but leaves the service Idle");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        // Operator clicks Abort while sitting Idle with the retained target still armed.
         await sut.AbortAsync();
 
-        // Advance to a timely point in the next matching-phase window — absent the fix, this is
-        // exactly where the deferred target would fire (see "D-CALLER-013 A" above).
-        fakeTime.UtcNow = new DateTimeOffset(2026, 6, 27, 17, 30, 30, 500, TimeSpan.Zero);
+        // Advance to the next matching-phase window — absent the fix, this is exactly where the
+        // retained target would fire (see "D-CALLER-021 A/B" above).
         channel.Writer.TryWrite(new DecodeBatch(
-            new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero),
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
         await Task.Delay(300);
 
@@ -2635,39 +2822,34 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "D-CALLER-018 AC-2: AbortAsync while Idle with a deferred jump-in target clears it — no subsequent TX")]
-    public async Task AbortAsync_WhileIdleWithDeferredJumpInTarget_ClearsTarget_NoSubsequentTx()
+    [Fact(DisplayName = "D-CALLER-018 AC-2: AbortAsync while Idle with a wrong-phase-retained jump-in target clears it — no subsequent TX")]
+    public async Task AbortAsync_WhileIdleWithRetainedJumpInTarget_ClearsTarget_NoSubsequentTx()
     {
         // Same scenario as AC-1 but for a jump-in target armed via EngageAtAsync (double-click on a
         // directed report/RR73/73 row) rather than a pending CQ target armed via AnswerCqAsync.
         var fakeTime = new FakeTimeProvider(
-            new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero)); // 5 s into A-phase window → late
-        var (sut, ptt, channel, stopCts) = BuildLateStartSut(fakeTime);
+            new DateTimeOffset(2026, 6, 27, 17, 30, 0, 200, TimeSpan.Zero));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
         await sut.StartAsync(stopCts.Token);
 
-        await sut.EngageAtAsync(
-            PartnerCall, AudioFreqHz,
-            new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero), // their B-phase decode
-            EngagePoint.SendReport,
-            CancellationToken.None);
-        sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
+        // TestSetJumpTarget (not EngageAtAsync) — avoids the racy real-time-based wakeup push.
+        sut.TestSetJumpTarget(PartnerCall, AudioFreqHz, EngagePoint.SendReport, isAPhase: true);
 
-        // First matching-phase batch: late-start guard defers.
+        // Wrong-phase batch: jump-in target remains armed for the next matching-phase occurrence.
         channel.Writer.TryWrite(new DecodeBatch(
-            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            new DateTimeOffset(2026, 6, 27, 17, 29, 30, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
         await Task.Delay(300);
-        sut.State.Should().Be(QsoState.Idle, "late-start guard defers jump-in TX but leaves the service Idle");
+        sut.State.Should().Be(QsoState.Idle, "a wrong-phase cycle retains the jump-in target but leaves the service Idle");
         await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
 
-        // Operator clicks Abort while sitting Idle with the deferred jump-in target still armed.
+        // Operator clicks Abort while sitting Idle with the retained jump-in target still armed.
         await sut.AbortAsync();
 
-        // Advance to a timely point in the next matching-phase window — absent the fix, this is
-        // exactly where the deferred jump-in would fire (see "D-CALLER-013 C" above).
-        fakeTime.UtcNow = new DateTimeOffset(2026, 6, 27, 17, 30, 30, 300, TimeSpan.Zero);
+        // Advance to the next matching-phase window — absent the fix, this is exactly where the
+        // retained jump-in would fire (see "D-CALLER-021 C/D" above).
         channel.Writer.TryWrite(new DecodeBatch(
-            new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero),
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
         await Task.Delay(300);
 
