@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 Field evidence from 2026-07-14 (`logs/openswfz-20260714T171230Z.log`) shows that even after
