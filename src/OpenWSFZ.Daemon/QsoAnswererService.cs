@@ -132,21 +132,6 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // ── Timing constants ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// Maximum number of seconds into a 15-second FT8 window that TX may still be started.
-    /// An FT8 signal is 12.64 s; the true physical ceiling is 15 - 12.64 = 2.36 s — starting any
-    /// later overruns into the next window and can prevent the far station from decoding cleanly.
-    /// D-CALLER-013 originally set this to 1.5 s, leaving only ~0.8-1.0 s of realistic click budget
-    /// after decode processing (0.4-0.7 s observed) — in practice this meant almost every manual
-    /// click (openswfz-20260712T211150Z.log: 1.9 s and 3.7 s observed) missed its window and was
-    /// deferred a full 30 s (phase alternates every 15 s, so the next matching-phase window is
-    /// always two cycles away, never one — see D-CALLER-016). 2.0 s leaves a 0.36 s hard safety
-    /// margin against overrun, comfortably covering the ~50-90 ms KeyDown/device-open jitter observed
-    /// in production logs, while catching realistic decode-to-click latency instead of nearly always
-    /// missing it.
-    /// </summary>
-    private const double MaxLateStartSeconds = 2.0;
-
-    /// <summary>
     /// Written by <see cref="AnswerCqAsync"/> immediately after setting the pending target,
     /// so the background loop wakes up and can fire TX within the current FT8 cycle window
     /// without waiting for the next regular <see cref="_decodeChannel"/> batch (D-TX-UI-007).
@@ -437,6 +422,44 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         return true;
     }
 
+    /// <summary>
+    /// Test-only: arms the pending-target fields directly under <see cref="_stateLock"/> without
+    /// going through <see cref="AnswerCqAsync"/>'s <c>ArmPendingTarget</c> path — in particular,
+    /// without pushing a wakeup batch. <c>ArmPendingTarget</c>'s wakeup is computed from real
+    /// <see cref="DateTimeOffset.UtcNow"/> (not the injectable <see cref="_timeProvider"/>), so it
+    /// races the background loop's own concurrent read of <see cref="_wakeupChannel"/>; tests that
+    /// need fully deterministic phase-controlled arming (no such race) should use this instead.
+    /// Mirrors <c>QsoCallerService.TestSetPendingResponder</c>.
+    /// </summary>
+    internal void TestSetPendingTarget(
+        string callsign, double frequencyHz, bool isAPhase, DateTimeOffset? setAt = null)
+    {
+        lock (_stateLock)
+        {
+            _pendingTargetCallsign    = callsign;
+            _pendingTargetFrequencyHz = frequencyHz;
+            _pendingTargetIsAPhase    = isAPhase;
+            _pendingTargetSetAt       = setAt ?? DateTimeOffset.UtcNow;
+        }
+    }
+
+    /// <summary>
+    /// Test-only: arms the jump-in target fields directly under <see cref="_stateLock"/> without
+    /// going through <see cref="EngageAtAsync"/> — see <see cref="TestSetPendingTarget"/> for why.
+    /// </summary>
+    internal void TestSetJumpTarget(
+        string callsign, double freqHz, EngagePoint point, bool isAPhase, DateTimeOffset? setAt = null)
+    {
+        lock (_stateLock)
+        {
+            _jumpPoint    = point;
+            _jumpPartner  = callsign;
+            _jumpFreqHz   = freqHz;
+            _jumpIsAPhase = isAPhase;
+            _jumpSetAt    = setAt ?? DateTimeOffset.UtcNow;
+        }
+    }
+
     // ── BackgroundService ─────────────────────────────────────────────────────
 
     /// <inheritdoc/>
@@ -623,25 +646,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                 if (nextCycleIsAPhase != jumpIsAPhase)
                     return; // wrong phase — wait for next cycle
 
-                // Late-start guard (D-CALLER-013): if we are more than MaxLateStartSeconds into
-                // the target window the 12.64-second FT8 signal would overrun into the adjacent
-                // window.  Defer to the next occurrence of the correct phase (~30 s later).
-                // _jumpPartner is NOT cleared here — the 60-second expiry at the top of this
-                // block handles stale entries.
-                {
-                    var jumpNow           = _timeProvider.GetUtcNow();
-                    var jumpWindowStart   = RoundDownTo15s(jumpNow);
-                    var jumpSecondsIn     = (jumpNow - jumpWindowStart).TotalSeconds;
-                    if (jumpSecondsIn > MaxLateStartSeconds)
-                    {
-                        _logger.LogDebug(
-                            "QsoAnswererService: jump-in '{Partner}' — late start ({SecondsIn:F1} s into window); deferring to next occurrence.",
-                            jumpPartner, jumpSecondsIn);
-                        return; // Retain _jumpPartner; fires at next correct-phase window (~30 s later).
-                    }
-                }
-
-                // Correct phase, timely start — consume the jump-in and execute.
+                // Correct phase — consume the jump-in and execute, regardless of how many
+                // seconds into the window this cycle is (D-CALLER-021: no lateness rejection;
+                // TransmitAsync truncates the audio buffer to fit the remaining window instead).
                 lock (_stateLock) { _jumpPartner = null; }
 
                 _logger.LogInformation(
@@ -707,25 +714,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                 return;
             }
 
-            // Late-start guard (D-CALLER-013): if we are more than MaxLateStartSeconds into
-            // the target window the 12.64-second FT8 signal would overrun into the adjacent
-            // window.  Skip this occurrence and wait for the next cycle with the correct phase
-            // (~30 s later).  _pendingTargetSetAt is NOT reset — the 60-second expiry continues
-            // to run from the original click time so stale targets are still discarded promptly.
-            {
-                var pendNow         = _timeProvider.GetUtcNow();
-                var pendWindowStart = RoundDownTo15s(pendNow);
-                var pendSecondsIn   = (pendNow - pendWindowStart).TotalSeconds;
-                if (pendSecondsIn > MaxLateStartSeconds)
-                {
-                    _logger.LogDebug(
-                        "QsoAnswererService: pending target '{Callsign}' — late start ({SecondsIn:F1} s into window); deferring to next occurrence.",
-                        pendingCallsign, pendSecondsIn);
-                    return; // Retain _pendingTargetCallsign; fires at next correct-phase window (~30 s later).
-                }
-            }
-
-            // Correct phase, timely start — clear the pending target and fire TX.
+            // Correct phase — clear the pending target and fire TX, regardless of how many
+            // seconds into the window this cycle is (D-CALLER-021: no lateness rejection;
+            // TransmitAsync truncates the audio buffer to fit the remaining window instead).
             _logger.LogInformation(
                 "QsoAnswererService: pending CQ target '{Callsign}' at {FreqHz} Hz — answering at {Phase} phase.",
                 pendingCallsign, (int)Math.Round(pendingFrequencyHz),
@@ -1199,6 +1190,22 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         Ft8Encoder.EncodeMessage(message, tones);
 
         var samples = _synthesiser.Synthesise(tones, freqHz);
+
+        // D-CALLER-021: a manual engage now fires unconditionally once the phase check passes,
+        // however late into its window that happens — so the transmission itself must never key
+        // past the current window's boundary. Truncate the buffer to whatever fits.
+        var sampleCount = Ft8TimeHelper.ClampSampleCountToWindowBoundary(
+            _timeProvider.GetUtcNow(), samples.Length, Ft8AudioSynthesiser.SampleRateHz);
+        if (sampleCount == 0)
+        {
+            _logger.LogDebug(
+                "QsoAnswererService: window already closed — skipping transmission of \"{Message}\".",
+                message);
+            return;
+        }
+        if (sampleCount < samples.Length)
+            samples = samples[..sampleCount];
+
         _pttController.LoadAudio(samples);
 
         // Link stoppingToken + _txCts so both watchdog and operator abort interrupt TX.
