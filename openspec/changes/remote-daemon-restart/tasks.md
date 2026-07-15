@@ -49,4 +49,4 @@
 
 ## 9. Housekeeping
 
-- [ ] 9.1 Commit all changes with `feat(remote-daemon-restart): restart the daemon from the Settings page without physical access`
+- [x] 9.1 Commit all changes with `feat(remote-daemon-restart): restart the daemon from the Settings page without physical access`
