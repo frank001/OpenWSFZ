@@ -65,6 +65,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     // Volatile: readable from the HTTP handler thread without a lock.
     private volatile CallerState _callerState = CallerState.Idle;
     private volatile string?     _partner     = null;
+    // Partner's grid, captured from the CQ-answer message that engaged them (First-mode) or
+    // re-derived from the recorded decode at selection time (None-mode). Null when the
+    // responder answered with a bare signal report instead of a grid — normal FT8 behaviour,
+    // not a gap. Written to ADIF.log's GRIDSQUARE field via QsoRecord.PartnerGrid.
+    private string?              _partnerGrid = null;
 
     // True only while TransmitAsync is inside its KeyDownAsync call (dev-task
     // 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A). Volatile for the same
@@ -99,6 +104,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private double           _pendingResponderFrequencyHz;
     private bool             _pendingResponderIsAPhase;
     private DateTimeOffset   _pendingResponderSetAt;
+    // Grid recovered from the responder's original CQ-answer message (re-derived from
+    // _recentResponderDecodes at selection time — see SelectResponderAsync). Null when the
+    // responder answered with a bare signal report instead of a grid (normal FT8 behaviour).
+    private string?          _pendingResponderGrid;
 
     // decode-panel-filtering: the most recently observed DecodeResult for each responder
     // callsign seen this WaitAnswer session (CallerPartnerSelectMode.None path), keyed by
@@ -300,11 +309,24 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 return Task.CompletedTask;
             }
 
+            // Re-derive the partner's grid (if any) from the raw decode already recorded for
+            // this responder — TryParseResponder already validated this exact message once
+            // when it was recorded into _recentResponderDecodes; re-running it here costs a
+            // little redundant parsing but avoids a second parallel cache structure. `grid`
+            // stays null (safe default) if the lookup misses or the message no longer parses.
+            string? grid = null;
+            if (recentDecode is not null)
+            {
+                var ours = _configStore.Current.Tx?.Callsign ?? string.Empty;
+                TryParseResponder(recentDecode.Message, ours, out _, out _, out grid);
+            }
+
             // The responder answered on phase P → we reply on the opposite phase.
             bool responseIsAPhase          = IsAPhase(responseCycleStart);
             _pendingResponderCallsign      = callsign;
             _pendingResponderFrequencyHz   = frequencyHz;
             _pendingResponderIsAPhase      = !responseIsAPhase;   // opposite phase
+            _pendingResponderGrid          = grid;
             _pendingResponderSetAt         = DateTimeOffset.UtcNow;
         }
 
@@ -385,13 +407,15 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     /// responder state machine; production code must always use <see cref="SelectResponderAsync"/>.
     /// </summary>
     internal void TestSetPendingResponder(
-        string callsign, double freqHz, bool isAPhase, DateTimeOffset? setAt = null)
+        string callsign, double freqHz, bool isAPhase, DateTimeOffset? setAt = null,
+        string? grid = null)
     {
         lock (_stateLock)
         {
             _pendingResponderCallsign    = callsign;
             _pendingResponderFrequencyHz = freqHz;
             _pendingResponderIsAPhase    = isAPhase;
+            _pendingResponderGrid        = grid;
             _pendingResponderSetAt       = setAt ?? DateTimeOffset.UtcNow;
         }
     }
@@ -576,6 +600,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
         // Initialise session.
         _partner     = null;
+        _partnerGrid = null;
         _retryCount  = 0;
         _rstRcvd     = "+00";
         _qsoStartUtc = DateTime.UtcNow;
@@ -619,6 +644,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         string?        pendingCallsign;
         double         pendingFrequencyHz;
         bool           pendingIsAPhase;
+        string?        pendingGrid;
         DateTimeOffset pendingSetAt;
 
         lock (_stateLock)
@@ -626,6 +652,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             pendingCallsign    = _pendingResponderCallsign;
             pendingFrequencyHz = _pendingResponderFrequencyHz;
             pendingIsAPhase    = _pendingResponderIsAPhase;
+            pendingGrid        = _pendingResponderGrid;
             pendingSetAt       = _pendingResponderSetAt;
         }
 
@@ -637,7 +664,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 _logger.LogWarning(
                     "QsoCallerService: pending responder '{Callsign}' expired after 60 s — discarding.",
                     pendingCallsign);
-                lock (_stateLock) { _pendingResponderCallsign = null; }
+                lock (_stateLock) { _pendingResponderCallsign = null; _pendingResponderGrid = null; }
             }
             else
             {
@@ -653,10 +680,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 _logger.LogInformation(
                     "QsoCallerService: pending responder '{Callsign}' at {FreqHz} Hz — sending report at {Phase} phase.",
                     pendingCallsign, (int)Math.Round(pendingFrequencyHz), pendingIsAPhase ? "A" : "B");
-                lock (_stateLock) { _pendingResponderCallsign = null; }
+                lock (_stateLock) { _pendingResponderCallsign = null; _pendingResponderGrid = null; }
 
                 _skipNextRetry = false; // responding — clear skip guard
-                await ExecuteTxReportAsync(pendingCallsign, pendingFrequencyHz, tx, stoppingToken)
+                await ExecuteTxReportAsync(pendingCallsign, pendingFrequencyHz, pendingGrid, tx, stoppingToken)
                     .ConfigureAwait(false);
                 return;
             }
@@ -673,7 +700,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
             foreach (var r in batch.Results)
             {
-                if (!TryParseResponder(r.Message, ours, out var responder, out var freqHz, _logger))
+                if (!TryParseResponder(r.Message, ours, out var responder, out var freqHz, out var grid, _logger))
                     continue;
 
                 if (!DecodeFilterEvaluator.IsVisible(r, filterState))
@@ -685,7 +712,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
                 _skipNextRetry = false; // matched — clear skip guard
                 var effectiveFreq = freqHz > 0 ? freqHz : r.FreqHz;
-                await ExecuteTxReportAsync(responder, effectiveFreq, tx, stoppingToken)
+                await ExecuteTxReportAsync(responder, effectiveFreq, grid, tx, stoppingToken)
                     .ConfigureAwait(false);
                 return;
             }
@@ -702,7 +729,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
             foreach (var r in batch.Results)
             {
-                if (!TryParseResponder(r.Message, ours, out var responder, out _, _logger))
+                if (!TryParseResponder(r.Message, ours, out var responder, out _, out _, _logger))
                     continue;
 
                 sawResponse = true;
@@ -723,6 +750,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private async Task ExecuteTxReportAsync(
         string            partner,
         double            frequencyHz,
+        string?           partnerGrid,
         TxConfig          tx,
         CancellationToken stoppingToken)
     {
@@ -733,6 +761,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         }
 
         _partner     = partner;
+        _partnerGrid = partnerGrid;
         _retryCount  = 0;
 
         // Adopt the responder's frequency (HoldTxFreq semantics mirror the answerer).
@@ -841,7 +870,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         var record = new QsoRecord
         {
             PartnerCallsign  = partner,
-            PartnerGrid      = null,        // caller does not capture partner's grid in WaitRr73
+            // Captured from the CQ-answer message that engaged this responder (First-mode) or
+            // re-derived from the recorded decode at selection time (None-mode). Null here is
+            // normal/expected when the responder's first message to us was a bare signal report
+            // rather than a grid — not a gap.
+            PartnerGrid      = _partnerGrid,
             RstSent          = "+00",       // fixed report (TX-D04 deferred)
             RstRcvd          = _rstRcvd,
             QsoStartUtc      = _qsoStartUtc,
@@ -1056,6 +1089,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             _pendingResponderCallsign    = null;
             _pendingResponderFrequencyHz = 0.0;
             _pendingResponderIsAPhase    = false;
+            _pendingResponderGrid        = null;
             _pendingResponderSetAt       = default;
             // decode-panel-filtering: discard stale per-session responder decode data so a
             // future WaitAnswer session never evaluates SelectResponderAsync against a
@@ -1065,6 +1099,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
         var wasPartner = _partner;
         _partner       = null;
+        _partnerGrid   = null;
         _skipNextRetry = false;
 
         // Clear H6 AP constraints.
@@ -1213,10 +1248,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     /// </summary>
     internal static bool TryParseResponder(
         string msg, string ourCallsign, out string partner, out double freqHz,
-        ILogger? logger = null)
+        out string? grid, ILogger? logger = null)
     {
         partner = string.Empty;
         freqHz  = 0.0;
+        grid    = null;
 
         var parts = msg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 3)
@@ -1246,6 +1282,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             return false;
 
         partner = parts[1];
+        grid    = isGrid ? thirdToken : null;
 
         logger?.LogDebug(
             "QsoCallerService TryParseResponder: msg='{Msg}' ourCallsign='{Ours}' → match={Match}",

@@ -1,76 +1,86 @@
 ## 1. Branch
 
-- [ ] 1.1 Create and check out branch `fix/adif-partner-grid-capture` from `main`.
+- [x] 1.1 Create and check out branch `fix/adif-partner-grid-capture` from `main`.
 
 ## 2. TryParseResponder — surface the grid it already parses
 
-- [ ] 2.1 Extend `QsoCallerService.TryParseResponder`'s signature
+- [x] 2.1 Extend `QsoCallerService.TryParseResponder`'s signature
   (`QsoCallerService.cs:1187-1228`) with a new `out string? grid` parameter, set as
   `grid = isGrid ? thirdToken : null;` right where `isGrid` is already computed — no new
   parsing logic.
-- [ ] 2.2 Update the `None`-mode auto-track call site (`QsoCallerService.cs:695`, which only
+- [x] 2.2 Update the `None`-mode auto-track call site (`QsoCallerService.cs:695`, which only
   records into `_recentResponderDecodes` and doesn't need the grid) to pass `out _` for the new
   parameter, matching the existing pattern for `freqHz`.
 
 ## 3. Thread the grid through the `First`-mode auto-engage path
 
-- [ ] 3.1 At the `CallerPartnerSelectMode.First` call site (`QsoCallerService.cs:666-680`),
+- [x] 3.1 At the `CallerPartnerSelectMode.First` call site (`QsoCallerService.cs:666-680`),
   capture the new `grid` out-param and pass it through to `ExecuteTxReportAsync`.
 
 ## 4. Thread the grid through the `None`-mode manual-select path
 
-- [ ] 4.1 Add a new `_pendingResponderGrid` field alongside the existing
+- [x] 4.1 Add a new `_pendingResponderGrid` field alongside the existing
   `_pendingResponderCallsign`/`_pendingResponderFrequencyHz`/`_pendingResponderIsAPhase` fields.
-- [ ] 4.2 In `SelectResponderAsync` (`QsoCallerService.cs:274-306`), after looking up
+- [x] 4.2 In `SelectResponderAsync` (`QsoCallerService.cs:274-306`), after looking up
   `_recentResponderDecodes.TryGetValue(callsign, out var recentDecode)`, re-run
   `TryParseResponder` (or a small shared token-3-is-a-grid helper, to avoid re-validating the
   callsign match) against `recentDecode.Message` to recover the grid, and store it in
   `_pendingResponderGrid` (set at `QsoCallerService.cs:295-298`).
-- [ ] 4.3 Update `TestSetPendingResponder` (`QsoCallerService.cs:377-387`) to also accept/set
+- [x] 4.3 Update `TestSetPendingResponder` (`QsoCallerService.cs:377-387`) to also accept/set
   `_pendingResponderGrid`, so test setup stays consistent with the real path.
-- [ ] 4.4 Thread `_pendingResponderGrid` into the pending-responder-fire call to
+- [x] 4.4 Thread `_pendingResponderGrid` into the pending-responder-fire call to
   `ExecuteTxReportAsync` (`QsoCallerService.cs:649`).
 
 ## 5. Capture and emit the grid on the final QsoRecord
 
-- [ ] 5.1 Add a `string? partnerGrid` parameter to `ExecuteTxReportAsync`
+- [x] 5.1 Add a `string? partnerGrid` parameter to `ExecuteTxReportAsync`
   (`QsoCallerService.cs:713-766`) and set `_partnerGrid = partnerGrid;` alongside the existing
   `_partner = partner;` assignment.
-- [ ] 5.2 At `QsoCallerService.cs:833`, change `PartnerGrid = null, // caller does not capture
+- [x] 5.2 At `QsoCallerService.cs:833`, change `PartnerGrid = null, // caller does not capture
   partner's grid in WaitRr73` to `PartnerGrid = _partnerGrid,` and remove the now-inaccurate
   comment (optionally replace with a short note that `null` here is normal/expected when the
   responder's first message was a bare signal report, not a gap).
 
 ## 6. Tests
 
-- [ ] 6.1 `QsoCallerServiceTests.cs`: add a case confirming a CQ-answer message containing a
+- [x] 6.1 `QsoCallerServiceTests.cs`: add a case confirming a CQ-answer message containing a
   grid (e.g. `"Q1OFZ Q2NOISE IO91"`) results in the final `QsoRecord.PartnerGrid` being
   populated with that grid once the QSO completes, for the `CallerPartnerSelectMode.First` path.
-- [ ] 6.2 `QsoCallerServiceTests.cs`: add a second case for the `None`-mode manual-select path
+- [x] 6.2 `QsoCallerServiceTests.cs`: add a second case for the `None`-mode manual-select path
   (`SelectResponderAsync` / `TestSetPendingResponder`) proving the same grid capture works there
   too.
-- [ ] 6.3 `QsoCallerServiceTests.cs`: add a case confirming a CQ-answer message that skips the
+- [x] 6.3 `QsoCallerServiceTests.cs`: add a case confirming a CQ-answer message that skips the
   grid and goes straight to a signal report (e.g. `"Q1OFZ Q2NOISE -05"`) still correctly yields
   `PartnerGrid = null` — the fix must not invent a grid where none was sent.
-- [ ] 6.4 Re-run `QsoAnswererServiceTests.cs`'s existing jump-in coverage unmodified — confirm no
+- [x] 6.4 Re-run `QsoAnswererServiceTests.cs`'s existing jump-in coverage unmodified — confirm no
   assertion there changes (Part 2 of the original defect analysis is explicitly out of scope).
-- [ ] 6.5 Re-run `AdifLogWriterTests.cs` unmodified — confirm no change expected
+- [x] 6.5 Re-run `AdifLogWriterTests.cs` unmodified — confirm no change expected
   (`AdifLogWriter.BuildAdifRecord` already correctly conditions `GRIDSQUARE` on `PartnerGrid`).
 
 ## 7. Verification
 
-- [ ] 7.1 `dotnet build` — clean build, no new warnings.
-- [ ] 7.2 `dotnet test` — full suite green; unchanged pass counts plus the new grid-capture
-  tests from Section 6.
-- [ ] 7.3 `openspec validate --strict --all` — expect the new `qso-caller` requirement to
-  validate cleanly and overall pass count to increase by exactly the new requirement's
-  scenarios; no other spec text changed.
-- [ ] 7.4 `python3 tools/pre_merge_check.py` — run before declaring this ready for merge (Gate
-  G9a, Release build, full test suite, Gate G3 traceability, Gate G8 validate --strict --all,
-  AOT publish) per HK-006.
+- [x] 7.1 `dotnet build` — clean build, no new warnings. (Daemon project and test project both
+  built clean, 0 warnings/0 errors.)
+- [x] 7.2 `dotnet test` — full suite green; unchanged pass counts plus the new grid-capture
+  tests from Section 6. (1246 tests across all assemblies passed; one unrelated
+  `JsonConfigStoreTests.SaveAsync_ConcurrentCallers_DoNotThrow_AndFileEndsUpValid` failure under
+  full-solution parallel load — confirmed pre-existing Windows file-lock flake, passes in
+  isolation, same class of flake already documented in `cat-tx-ptt`'s tasks.md §18.6; not caused
+  by this change.)
+- [x] 7.3 `openspec validate --strict --all` — 56/56, unchanged from before the delta spec was
+  added (the new `qso-caller` requirement validates cleanly; no other spec text changed).
+- [x] 7.4 `python3 tools/pre_merge_check.py` — **PASS WITH WARNINGS**. G9a, Release build, full
+  test suite, Gate G3 traceability, and Gate G8 (`openspec validate --strict --all`) all PASS.
+  AOT publish WARN: local machine is missing the MSVC native-linker toolchain (`vswhere.exe`
+  not on PATH) — a local-environment gap unrelated to this change (touches only
+  `QsoCallerService.cs` and its test file; no AOT/native-interop surface). CI's Windows runner
+  has the full toolchain and is expected to pass this gate normally.
 - [ ] 7.5 Manual/hardware (optional but recommended): complete one more real QSO where the
   partner answers our CQ with a grid included, and confirm `ADIF.log`'s new record includes a
-  populated `GRIDSQUARE` tag matching the grid visible in `ALL.TXT`.
+  populated `GRIDSQUARE` tag matching the grid visible in `ALL.TXT`. **Deferred** — no hardware
+  session available in this session; left for the Captain to run opportunistically, not
+  blocking merge (severity is Minor per the dev-task doc, and full unit coverage already proves
+  the fix).
 
 ## 8. Housekeeping
 
