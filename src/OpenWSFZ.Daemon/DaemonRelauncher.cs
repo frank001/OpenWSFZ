@@ -14,7 +14,17 @@ internal sealed class DaemonRelauncher : IDaemonRelauncher
 {
     private readonly ILogger<DaemonRelauncher> _logger;
 
-    public DaemonRelauncher(ILogger<DaemonRelauncher> logger) => _logger = logger;
+    // daemon-background-mode (task 6.2): captured once at construction — the current instance's
+    // own IsBackgroundWorker flag, so every TrySpawnReplacement() call (i.e. every future
+    // POST /api/v1/system/restart on this instance) propagates detached status to its
+    // replacement, satisfying "background status persists across restarts by default".
+    private readonly bool _isBackgroundWorker;
+
+    public DaemonRelauncher(ILogger<DaemonRelauncher> logger, bool isBackgroundWorker = false)
+    {
+        _logger              = logger;
+        _isBackgroundWorker  = isBackgroundWorker;
+    }
 
     public bool TrySpawnReplacement()
     {
@@ -44,7 +54,8 @@ internal sealed class DaemonRelauncher : IDaemonRelauncher
         var originalArgs = Environment.GetCommandLineArgs()[1..];
 
         var cmd = DaemonRelaunch.ResolveCommand(
-            processPath, originalArgs, entryAssemblyLocation, Environment.ProcessId);
+            processPath, originalArgs, entryAssemblyLocation, Environment.ProcessId,
+            propagateBackgroundWorker: _isBackgroundWorker);
 
         _logger.LogInformation(
             "Relaunching daemon: {FileName} {Arguments}",

@@ -66,4 +66,81 @@ public sealed class WelcomeBannerEmitterTests
             Console.SetOut(originalOut);
         }
     }
+
+    // ── daemon-background-mode 4.3/4.4 ──────────────────────────────────────────
+
+    [Fact(DisplayName = "daemon-background-mode 4.3: isBackgroundWorker: false (default) still writes the banner")]
+    public void Emit_NotBackgroundWorker_StillWritesBanner()
+    {
+        var originalOut = Console.Out;
+        try
+        {
+            using var writer = new StringWriter();
+            Console.SetOut(writer);
+
+            WelcomeBannerEmitter.Emit(8080, isBackgroundWorker: false);
+
+            writer.ToString().Should().Contain("http://127.0.0.1:8080");
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact(DisplayName = "daemon-background-mode 4.3: isBackgroundWorker: true writes nothing to stdout")]
+    public void Emit_BackgroundWorker_WritesNothing()
+    {
+        var originalOut = Console.Out;
+        try
+        {
+            using var writer = new StringWriter();
+            Console.SetOut(writer);
+
+            WelcomeBannerEmitter.Emit(8080, isBackgroundWorker: true);
+
+            writer.ToString().Should().BeEmpty(
+                "a background worker has no console guaranteed valid to write to — the banner " +
+                "must be skipped entirely, not attempted");
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact(DisplayName =
+        "daemon-background-mode 4.4: isBackgroundWorker: true does not throw even when stdout would fail")]
+    public void Emit_BackgroundWorker_DoesNotThrow_EvenWhenStdoutWouldFail()
+    {
+        var originalOut = Console.Out;
+        try
+        {
+            // Simulates stdout being in a state that would otherwise fail a raw Console.Write
+            // (design.md Decision 6 — Console.Out/Error point at invalid handles once
+            // FreeConsole() has run on Windows). The guarded call site must never reach this
+            // writer at all when isBackgroundWorker is true.
+            Console.SetOut(new ThrowingTextWriter());
+
+            var act = () => WelcomeBannerEmitter.Emit(8080, isBackgroundWorker: true);
+
+            act.Should().NotThrow();
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    /// <summary>A <see cref="TextWriter"/> that throws on any write — see the test above.</summary>
+    private sealed class ThrowingTextWriter : TextWriter
+    {
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
+
+        public override void Write(string? value) =>
+            throw new InvalidOperationException("Simulated invalid console handle.");
+
+        public override void WriteLine(string? value) =>
+            throw new InvalidOperationException("Simulated invalid console handle.");
+    }
 }

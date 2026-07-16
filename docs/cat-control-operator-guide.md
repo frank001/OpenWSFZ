@@ -391,6 +391,32 @@ A restart is a real, if brief (typically well under a second, up to a 20-second 
 outage for every connected client — there is no seamless handoff. Reserve it for when you've
 actually changed something that needs it.
 
+### Running the daemon detached from a console (`--background`)
+
+By default, the daemon (however started — `dotnet run` or a published executable) stays attached
+to whatever console/terminal launched it: closing that window kills the process, including a
+replacement spawned by **Restart Daemon** above (a restart hands the shell back but the new
+instance still inherits the same console).
+
+Pass `--background` at startup — `dotnet run -- --background`, or `./OpenWSFZ.Daemon --background`
+for a published build — to run detached instead:
+
+1. The daemon spawns a detached copy of itself, waits up to 5 seconds confirming it's answering
+   `GET /api/v1/status`, then prints that copy's process ID and log file path and exits, handing
+   the shell straight back.
+2. The detached copy survives its originating console/terminal closing — on Windows it calls
+   `FreeConsole()` on itself; on Linux/macOS it ignores `SIGHUP`, the same mechanism `nohup` uses.
+3. Because a background instance has no console for you to read output from, file logging is
+   guaranteed on for that process (forced on in memory only — your saved `logging.fileEnabled`
+   setting in `config.json` is never overwritten) and no console sink is configured at all.
+4. **Restarting a background instance keeps it background**: triggering **Restart Daemon** (or
+   `POST /api/v1/system/restart`) on an instance that is running detached spawns its replacement
+   detached too, automatically — you never need to pass `--background` again after the first
+   cold start.
+
+`--background` is purely a launch-time choice with no persisted state of its own; an ordinary
+cold start or restart without it is completely unaffected.
+
 ---
 
 ## Known Limitations

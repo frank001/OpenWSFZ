@@ -21,6 +21,13 @@
     <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+    <!--
+      daemon-background-mode (task 3.3): SigHupProbe is a standalone helper exe, not a library
+      this test project calls into directly — referenced purely so its build output
+      (dll/deps.json/runtimeconfig.json) is copied alongside this project's own output,
+      letting ConsoleDetacherTests spawn it as a real subprocess with no separate publish step.
+    -->
+    <ProjectReference Include="..\..\tools\SigHupProbe\SigHupProbe.csproj" />
   </ItemGroup>
 
   <!--

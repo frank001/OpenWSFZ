@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      Minimal standalone helper process for daemon-background-mode's SIGHUP-ignore
+      integration test (tasks.md 3.3, tests/OpenWSFZ.Daemon.Tests/ConsoleDetacherTests.cs).
+      Not part of the shipped product — referenced only as a ProjectReference from
+      OpenWSFZ.Daemon.Tests so its build output (dll/deps.json/runtimeconfig.json) lands
+      alongside the test assembly, ready to spawn as a real subprocess with no separate
+      publish step.
+    -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

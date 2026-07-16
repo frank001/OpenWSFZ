@@ -308,6 +308,59 @@ public sealed class LoggingPipelineTests : IDisposable
             "the newest (lexicographically last) file must be the one retained");
     }
 
+    // ── daemon-background-mode 7.3 ───────────────────────────────────────────
+
+    [Fact(DisplayName = "daemon-background-mode 7.3: suppressConsoleSink: false (default) configures a console sink")]
+    public void Apply_SuppressConsoleSinkFalse_ConsoleSinkConfigured()
+    {
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = false, Directory = _tempDir };
+
+        pipeline.Apply(config);
+
+        pipeline.ConsoleSinkConfigured.Should().BeTrue(
+            "existing (non-background) behaviour must be unaffected — a console sink is " +
+            "always configured unless suppressConsoleSink is explicitly requested");
+    }
+
+    [Fact(DisplayName = "daemon-background-mode 7.3/7.1: suppressConsoleSink: true never configures a console sink")]
+    public void Apply_SuppressConsoleSinkTrue_NoConsoleSinkConfigured()
+    {
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = true, Directory = _tempDir };
+
+        pipeline.Apply(config, suppressConsoleSink: true);
+
+        pipeline.ConsoleSinkConfigured.Should().BeFalse(
+            "a background worker must never have a console sink configured — asserted via " +
+            "LoggingPipeline's own public surface, not by capturing real console output");
+    }
+
+    [Fact(DisplayName =
+        "daemon-background-mode 7.3: file logging still works normally when suppressConsoleSink is true")]
+    public async Task Apply_SuppressConsoleSinkTrue_FileLoggingStillWorks()
+    {
+        using var pipeline = new LoggingPipeline();
+        var config = new LoggingConfig { FileEnabled = true, Directory = _tempDir };
+
+        pipeline.Apply(config, suppressConsoleSink: true);
+        Serilog.Log.Information("logged-event-with-console-sink-suppressed");
+
+        var files = Directory.GetFiles(_tempDir, "openswfz-*.log");
+        files.Should().HaveCount(1);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
+        string content;
+        do
+        {
+            content = ReadWithSharing(files[0]);
+            if (content.Contains("logged-event-with-console-sink-suppressed")) break;
+            await Task.Delay(20);
+        } while (DateTime.UtcNow < deadline);
+
+        content.Should().Contain("logged-event-with-console-sink-suppressed",
+            "suppressing the console sink must not affect the file sink's own behaviour");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private void CreateLogFiles(params string[] names)

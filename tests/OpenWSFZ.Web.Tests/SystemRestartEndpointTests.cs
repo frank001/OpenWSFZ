@@ -34,6 +34,36 @@ internal sealed class TestDaemonRelauncher : IDaemonRelauncher
 }
 
 /// <summary>
+/// daemon-background-mode (task 6.4): records the argument list a relaunch would carry,
+/// mirroring the shape of the real <c>DaemonRelauncher</c>/<c>DaemonRelaunch.ResolveCommand</c>
+/// contract (<c>OpenWSFZ.Daemon</c>, unit-tested directly in
+/// <c>OpenWSFZ.Daemon.Tests/DaemonRelaunchTests.cs</c>) without spawning a process or reaching
+/// into that assembly's internals — this test project has no <c>InternalsVisibleTo</c> access
+/// to it, only to the public <see cref="IDaemonRelauncher"/> seam. Constructed with the same
+/// <c>isBackgroundWorker</c> flag <c>Program.cs</c>'s DI factory captures for the real
+/// <c>DaemonRelauncher</c> (task 6.2), proving the Web-layer wiring: whichever flag the
+/// relauncher was built with ends up reflected in the recorded command.
+/// </summary>
+internal sealed class RecordingDaemonRelauncher : IDaemonRelauncher
+{
+    private readonly bool _isBackgroundWorker;
+
+    public RecordingDaemonRelauncher(bool isBackgroundWorker) => _isBackgroundWorker = isBackgroundWorker;
+
+    public List<string>? LastArguments { get; private set; }
+
+    public bool TrySpawnReplacement()
+    {
+        var args = new List<string> { "--relaunched-from", "1" };
+        if (_isBackgroundWorker)
+            args.Add("--background-worker");
+
+        LastArguments = args;
+        return true;
+    }
+}
+
+/// <summary>
 /// Fixture that wires a <see cref="TestKeyingQsoController"/>-equivalent and a
 /// <see cref="TestDaemonRelauncher"/> into a live Kestrel instance (mirrors
 /// <c>PttTestFixture</c>'s pattern) so <c>POST /api/v1/system/restart</c> tests can control
@@ -181,6 +211,59 @@ public sealed class SystemRestartEndpointTests : IClassFixture<SystemRestartFixt
             await app.StopAsync();
             await app.DisposeAsync();
         }
+    }
+
+    // ── daemon-background-mode 6.4 ──────────────────────────────────────────────────────
+
+    [Fact(DisplayName =
+        "daemon-background-mode 6.4: a relauncher constructed with IsBackgroundWorker: true produces a command including --background-worker")]
+    public async Task PostSystemRestart_RelauncherIsBackgroundWorkerTrue_CommandIncludesBackgroundWorker()
+    {
+        var relauncher = new RecordingDaemonRelauncher(isBackgroundWorker: true);
+        await using var app = await StartAppWithRelauncherAsync(relauncher);
+        using var client = MakeClient(app);
+
+        await client.PostAsync("/api/v1/system/restart", content: null);
+        await Task.Delay(700); // the spawn happens on a fire-and-forget task (design.md Decision 3)
+
+        relauncher.LastArguments.Should().NotBeNull("the restart must have invoked the relauncher");
+        relauncher.LastArguments!.Should().Contain("--background-worker");
+    }
+
+    [Fact(DisplayName =
+        "daemon-background-mode 6.4: a relauncher constructed with IsBackgroundWorker: false produces a command without --background-worker")]
+    public async Task PostSystemRestart_RelauncherIsBackgroundWorkerFalse_CommandExcludesBackgroundWorker()
+    {
+        var relauncher = new RecordingDaemonRelauncher(isBackgroundWorker: false);
+        await using var app = await StartAppWithRelauncherAsync(relauncher);
+        using var client = MakeClient(app);
+
+        await client.PostAsync("/api/v1/system/restart", content: null);
+        await Task.Delay(700);
+
+        relauncher.LastArguments.Should().NotBeNull("the restart must have invoked the relauncher");
+        relauncher.LastArguments!.Should().NotContain("--background-worker");
+    }
+
+    private static async Task<Microsoft.AspNetCore.Builder.WebApplication> StartAppWithRelauncherAsync(
+        IDaemonRelauncher relauncher)
+    {
+        var app = WebApp.Create(
+            port:              0,
+            configureServices: services => services.AddSingleton(relauncher));
+
+        await app.StartAsync();
+        return app;
+    }
+
+    private static HttpClient MakeClient(Microsoft.AspNetCore.Builder.WebApplication app)
+    {
+        var addr = app.Services
+            .GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()!
+            .Addresses.First();
+
+        return new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{new Uri(addr).Port}") };
     }
 
     /// <summary>Local copy of AuthMiddlewareTests's RemoteIpSpoofFilter — internal types are

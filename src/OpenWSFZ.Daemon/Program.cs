@@ -19,13 +19,80 @@ using System.Runtime.Versioning;
 // Parse CLI options before building the host.
 var options = LaunchOptions.Parse(args);
 
+// daemon-background-mode (task 4.1): a background worker detaches from its inherited
+// console/controlling terminal before any other startup work — config load, logging pipeline
+// construction, host building — per design.md Decision 1. This must run before the
+// Console.Error line immediately below, since on Windows that line would otherwise be the
+// very thing that fails once FreeConsole() has run (design.md Decision 6).
+if (options.IsBackgroundWorker)
+    ConsoleDetacher.Detach();
+
 // Resolve the config file path (CLI flag → env var → platform default).
 var (configPath, configSource) = ConfigPathResolver.Resolve(options.ConfigPath);
-Console.Error.WriteLine($"[OpenWSFZ] Config: {configSource} → {configPath}");
+// daemon-background-mode (task 4.2, design.md Decision 6): ConfigPathAnnouncer itself skips
+// this direct Console.Error write for a background worker (already detached from its console
+// above) — see its doc comment for why that's safe.
+ConfigPathAnnouncer.Announce(configSource, configPath, options.IsBackgroundWorker);
 
 // Load (or create) the config file.
 // Note: constructed before the logger exists (bootstrap phase).
 var configStore = new JsonConfigStore(configPath);
+
+// daemon-background-mode (task 5.1, defect fix): an ordinary interactive cold start
+// requesting detachment (--background present, --background-worker/--relaunched-from both
+// absent) — spawn a detached --background-worker replacement, confirm it started, then return
+// immediately without doing any of the real startup work below (audio capture, decode
+// pipeline, web host, AND — crucially — the logging pipeline bootstrap further down); the
+// spawned replacement does all of that instead.
+//
+// This branch must run BEFORE "── Logging setup ──" below, not after: the orchestrator
+// (this short-lived --background invocation) has nothing worth logging to a file and exits
+// within a couple of seconds — placing it after logging setup (as originally implemented)
+// meant every --background invocation created its own throwaway log file via
+// loggingPipeline.Apply(), wrote exactly three lines to it, then abandoned it forever the
+// moment this branch returned, orphaning a permanently-stopped file in the log directory on
+// every single invocation (reported by the Captain during the manual acceptance gate — see
+// e.g. openswfz-20260716T152335Z.log/openswfz-20260716T152603Z.log, both 3-line orchestrator
+// artifacts, versus openswfz-20260716T152501Z.log, the actual --background-worker child's own
+// log, which was always logging correctly). JsonConfigStore's constructor loads Current
+// synchronously (see its doc comment), so configStore.Current.Port/.Logging are already valid
+// here with no async load required.
+if (options.Background && !options.IsBackgroundWorker && options.RelaunchedFromPid is null)
+{
+    var coldStartPort = options.Port ?? configStore.Current.Port;
+
+    var processPath = Environment.ProcessPath;
+    if (processPath is null)
+    {
+        Console.Error.WriteLine(
+            "[OpenWSFZ] --background: cannot spawn a detached replacement — " +
+            "Environment.ProcessPath is null.");
+        return 1;
+    }
+
+    // IL3000: same rationale as DaemonRelauncher.TrySpawnReplacement — only consulted on the
+    // dotnet-muxer branch of DaemonRelaunch.ResolveCommand, which can never be true for a
+    // process that is itself the AOT-compiled single-file executable.
+#pragma warning disable IL3000
+    var entryAssemblyLocation = System.Reflection.Assembly.GetEntryAssembly()?.Location ?? string.Empty;
+#pragma warning restore IL3000
+
+    var relaunchCmd = DaemonRelaunch.ResolveCommand(
+        processPath, args, entryAssemblyLocation, Environment.ProcessId,
+        propagateBackgroundWorker: true);
+
+    var coldStartLogDirectory = (configStore.Current.Logging ?? new LoggingConfig()).Directory;
+
+    var result = await BackgroundColdStart.SpawnAndConfirmAsync(
+        relaunchCmd.FileName, relaunchCmd.Arguments, coldStartPort, coldStartLogDirectory);
+
+    if (result.SpawnSucceeded)
+        Console.Out.WriteLine($"[OpenWSFZ] {result.Message}");
+    else
+        Console.Error.WriteLine($"[OpenWSFZ] {result.Message}");
+
+    return result.ExitCode;
+}
 
 // Resolve the frequencies.json path — same data directory as app.json (FR-042).
 var frequenciesPath = Path.Combine(
@@ -66,10 +133,35 @@ var logLevel = Enum.TryParse<LogLevel>(configStore.Current.LogLevel, ignoreCase:
 // (whichever is more restrictive) so they don't pollute the operator log.
 var frameworkLevel = logLevel > LogLevel.Warning ? logLevel : LogLevel.Warning;
 
+// daemon-background-mode (task 7.2, design.md Decision 4): a background worker must guarantee
+// file logging is active regardless of the persisted logging.fileEnabled value — forced on in
+// memory only for this process; config.json itself is never rewritten (BackgroundLoggingOverride
+// returns a distinct in-memory record — see its doc comment), so a subsequent normal
+// (non-background) start reverts to exactly whatever was there before.
+var loggingOverride = BackgroundLoggingOverride.Resolve(
+    configStore.Current.Logging ?? new LoggingConfig(), options.IsBackgroundWorker);
+
 // Bootstrap the Serilog pipeline before any loggerFactory is created so that
 // CaptureManager / CycleFramer / Ft8Decoder startup logs reach the file sink.
+// daemon-background-mode (task 7.1): suppressConsoleSink is true for a background worker —
+// ConsoleDetacher.Detach() has already run by this point (task 4.1), so Console.Out/Error may
+// already point at invalid handles (Windows); the console sink is skipped entirely rather than
+// configured and left to fail against them.
 var loggingPipeline = new LoggingPipeline();
-loggingPipeline.Apply(configStore.Current.Logging ?? new LoggingConfig(), consoleLevel: logLevel);
+loggingPipeline.Apply(
+    loggingOverride.EffectiveConfig, consoleLevel: logLevel,
+    suppressConsoleSink: options.IsBackgroundWorker);
+
+// daemon-background-mode (task 7.2): logged once, immediately after the pipeline above installs
+// the (now guaranteed-active) file sink, naming the resolved log file path — the one-time
+// notice the operator would otherwise have no way to discover, since logging.fileEnabled was
+// false in their saved config.
+if (loggingOverride.ForcedFileLoggingOn)
+    Log.Warning(
+        "daemon-background-mode: logging.fileEnabled was false in the persisted configuration — " +
+        "forced on in memory for this background-worker process only (config.json is " +
+        "unchanged). Log file: {LogFilePath}",
+        loggingPipeline.CurrentLogFilePath);
 
 // Standalone logger factory delegates to Log.Logger (set above).
 // Pass null so the factory resolves Log.Logger dynamically at each emit, rather than
@@ -101,6 +193,8 @@ startupLogger.LogInformation("Config: {Source} → {Path}", configSource, config
 startupLogger.LogInformation("Log level: {Level}", logLevel);
 
 // CLI --port wins; fall back to the persisted config value.
+// (The --background cold-start branch above already computed its own copy of this — options
+// and configStore are both immutable/already-loaded by that point — before logging existed.)
 var port = options.Port ?? configStore.Current.Port;
 
 // region-lookup-data-refresh (f-006): fetch/convert components for the operator-triggered
@@ -459,7 +553,13 @@ var app = WebApp.Create(
         // IDaemonRelauncher (remote-daemon-restart, task 4.x): the narrow seam
         // POST /api/v1/system/restart depends on so it can trigger a self re-exec without
         // OpenWSFZ.Web depending on the Daemon assembly (mirrors ICatController above).
-        services.AddSingleton<IDaemonRelauncher, DaemonRelauncher>();
+        // daemon-background-mode (task 6.2): constructed via a factory (rather than the plain
+        // AddSingleton<IDaemonRelauncher, DaemonRelauncher>() this replaces) so the current
+        // instance's own options.IsBackgroundWorker — closed over from the outer Program.cs
+        // scope, same style as authPolicy/catState/etc. above — is captured once and threaded
+        // through to every TrySpawnReplacement() call.
+        services.AddSingleton<IDaemonRelauncher>(sp => new DaemonRelauncher(
+            sp.GetRequiredService<ILogger<DaemonRelauncher>>(), options.IsBackgroundWorker));
 
         // QSO controller and ADIF log writer.
         // N6: constructed with the shared appScope (closed over from the outer Program.cs
@@ -563,7 +663,13 @@ var app = WebApp.Create(
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {
-    WelcomeBannerEmitter.Emit(port);
+    // daemon-background-mode (task 4.3, design.md Decision 6 / daemon-host's modified
+    // "Welcome banner on startup" requirement): a background worker has no console to write
+    // to (stdout is not guaranteed valid after detachment) — WelcomeBannerEmitter itself skips
+    // the write when isBackgroundWorker is true, relying on the Information-level log line
+    // immediately below, which for a background worker reaches the forced-on file sink
+    // (task 7.x) instead.
+    WelcomeBannerEmitter.Emit(port, options.IsBackgroundWorker);
     startupLogger.LogInformation("OpenWSFZ started on port {Port}.", port);
 
     // remote-daemon-restart (task 3.3, daemon-host spec: "Startup with the flag is logged") —
@@ -688,7 +794,16 @@ configStore.OnSaved += newConfig =>
     {
         lastLoggingConfig   = newLoggingConfig;
         lastLogConsoleLevel = newConsoleLevel;
-        loggingPipeline.Apply(newLoggingConfig, consoleLevel: newConsoleLevel);
+        // daemon-background-mode: this hot-reload path is a second call site to Apply() beyond
+        // the bootstrap one above — options.IsBackgroundWorker must be propagated here too, or a
+        // background worker's console sink (deliberately never configured at startup, task 7.1)
+        // gets silently reconfigured the moment ANY logging-related setting is saved (including
+        // just the console log-level dropdown, unrelated to file logging), reintroducing exactly
+        // the invalid-Console-handle risk (post-FreeConsole() on Windows) design.md Decision 4
+        // exists to avoid.
+        loggingPipeline.Apply(
+            newLoggingConfig, consoleLevel: newConsoleLevel,
+            suppressConsoleSink: options.IsBackgroundWorker);
     }
 
     var newDevice  = newConfig.AudioDeviceId;

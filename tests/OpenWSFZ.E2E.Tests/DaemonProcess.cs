@@ -69,7 +69,13 @@ public sealed class DaemonProcess : IAsyncDisposable
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static string ResolveBinaryPath()
+    /// <summary>
+    /// Resolves the published binary path (internal rather than private so
+    /// <c>BackgroundColdStartE2ETests</c> can spawn it directly with custom CLI arguments,
+    /// e.g. <c>--background</c>, rather than via <see cref="StartAsync"/>'s
+    /// no-arguments/wait-for-welcome-banner shape).
+    /// </summary>
+    internal static string ResolveBinaryPath()
     {
         // Published binary lives at:
         // src/OpenWSFZ.Daemon/bin/Release/net10.0/<rid>/publish/OpenWSFZ.Daemon[.exe]

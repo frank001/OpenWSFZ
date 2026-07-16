@@ -29,6 +29,12 @@
     <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!--
+      Required by the LibraryImportGenerator source generator (ConsoleDetacher.FreeConsole,
+      daemon-background-mode, design.md Decision 1) — SYSLIB1062. The generated marshalling stub
+      itself uses unsafe code; this project's own hand-written code does not.
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
