@@ -1569,7 +1569,7 @@ public sealed class QsoCallerServiceTests
 
     // ── fix-adif-partner-grid-capture: partner grid capture for ADIF logging ──
 
-    [Fact(DisplayName = "FR-adif-partner-grid: First-mode auto-engage captures partner grid into QsoRecord.PartnerGrid")]
+    [Fact(DisplayName = "D-015: First-mode auto-engage captures partner grid into QsoRecord.PartnerGrid")]
     public async Task ExecuteTxReportAsync_FirstMode_CapturesPartnerGridIntoQsoRecord()
     {
         var tx = new TxConfig
@@ -1610,7 +1610,7 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "FR-adif-partner-grid: None-mode manual select (SelectResponderAsync) captures partner grid into QsoRecord.PartnerGrid")]
+    [Fact(DisplayName = "D-015: None-mode manual select (SelectResponderAsync) captures partner grid into QsoRecord.PartnerGrid")]
     public async Task SelectResponderAsync_NoneMode_CapturesPartnerGridIntoQsoRecord()
     {
         var tx = new TxConfig
@@ -1671,7 +1671,7 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "FR-adif-partner-grid: bare signal-report answer (no grid sent) yields QsoRecord.PartnerGrid = null, not fabricated")]
+    [Fact(DisplayName = "D-015: bare signal-report answer (no grid sent) yields QsoRecord.PartnerGrid = null, not fabricated")]
     public async Task ExecuteTxReportAsync_NoGridSent_YieldsNullPartnerGrid()
     {
         var tx = new TxConfig
