@@ -23,5 +23,6 @@
     <Project Path="tools/GenerateFt8Fixture/GenerateFt8Fixture.csproj" />
     <Project Path="tools/LicenseInventoryCheck/LicenseInventoryCheck.csproj" />
     <Project Path="tools/TraceabilityCheck/TraceabilityCheck.csproj" />
+    <Project Path="tools/SigHupProbe/SigHupProbe.csproj" />
   </Folder>
 </Solution>

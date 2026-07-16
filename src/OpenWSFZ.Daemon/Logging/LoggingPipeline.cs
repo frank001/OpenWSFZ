@@ -63,12 +63,34 @@ internal sealed class LoggingPipeline : IDisposable, ILogFileSource
     public string? CurrentLogFilePath { get; private set; }
 
     /// <summary>
+    /// Whether the most recent <see cref="Apply"/> call configured a console output sink
+    /// (daemon-background-mode, task 7.3) — <see langword="false"/> whenever that call passed
+    /// <c>suppressConsoleSink: true</c>. Exposed as a testable public seam so tests can assert
+    /// "no console sink was configured" without capturing real console output.
+    /// </summary>
+    public bool ConsoleSinkConfigured { get; private set; }
+
+    /// <summary>
     /// (Re-)builds the Serilog logger from config. On the first call, installs
     /// <see cref="_reconfigurableLogger"/> as <see cref="Log.Logger"/>; on every subsequent call,
     /// swaps only its inner target (see <see cref="_reconfigurableLogger"/>'s remarks) and
     /// flushes/disposes the previous inner logger.
     /// </summary>
-    public void Apply(LoggingConfig config, LogLevel consoleLevel = LogLevel.Information)
+    /// <param name="config">The logging configuration to apply.</param>
+    /// <param name="consoleLevel">The minimum level for the console sink (ignored when
+    /// <paramref name="suppressConsoleSink"/> is <see langword="true"/>).</param>
+    /// <param name="suppressConsoleSink">
+    /// When <see langword="true"/> (daemon-background-mode, design.md Decision 4), the console
+    /// sink is skipped entirely rather than configured — a background worker has already
+    /// detached from its inherited console by this point, and <c>Console.Out</c>/<c>Error</c>
+    /// may point at invalid handles (Windows). Not configuring the sink at all is strictly
+    /// safer than configuring it and relying on Serilog's sink-dispatch layer to swallow a
+    /// misbehaving sink's exceptions. Defaults to <see langword="false"/> so existing
+    /// callers/tests are unaffected.
+    /// </param>
+    public void Apply(
+        LoggingConfig config, LogLevel consoleLevel = LogLevel.Information,
+        bool suppressConsoleSink = false)
     {
         _config       = config;
         _consoleLevel = consoleLevel;
@@ -78,11 +100,16 @@ internal sealed class LoggingPipeline : IDisposable, ILogFileSource
                              ?? LogEventLevel.Information;
 
         // Global minimum must be the less-restrictive of the two sink thresholds.
-        var globalMin = consoleSerilog <= fileSerilog ? consoleSerilog : fileSerilog;
+        // When the console sink is suppressed, the file sink alone determines the global floor.
+        var globalMin = suppressConsoleSink
+            ? fileSerilog
+            : (consoleSerilog <= fileSerilog ? consoleSerilog : fileSerilog);
 
-        var loggerCfg = new LoggerConfiguration()
-            .MinimumLevel.Is(globalMin)
-            .WriteTo.Console(restrictedToMinimumLevel: consoleSerilog);
+        var loggerCfg = new LoggerConfiguration().MinimumLevel.Is(globalMin);
+        if (!suppressConsoleSink)
+            loggerCfg = loggerCfg.WriteTo.Console(restrictedToMinimumLevel: consoleSerilog);
+
+        ConsoleSinkConfigured = !suppressConsoleSink;
 
         // Reset before recomputing — if file logging is disabled or file creation fails
         // below, CurrentLogFilePath must reflect that (null), not a stale path from a
