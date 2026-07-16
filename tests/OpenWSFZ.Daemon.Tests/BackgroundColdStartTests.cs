@@ -15,7 +15,7 @@ public sealed class BackgroundColdStartTests
     private const int TestPort = 59321; // arbitrary — the fake statusProbe never actually connects.
 
     [Fact(DisplayName =
-        "daemon-background-mode 5.4: confirmed within the budget reports success and exits 0")]
+        "FR-059: daemon-background-mode 5.4: confirmed within the budget reports success and exits 0")]
     public async Task SpawnAndConfirmAsync_ConfirmedWithinBudget_ReportsSuccessAndExitsZero()
     {
         var result = await BackgroundColdStart.SpawnAndConfirmAsync(
@@ -34,7 +34,7 @@ public sealed class BackgroundColdStartTests
     }
 
     [Fact(DisplayName =
-        "daemon-background-mode 5.4: budget exhausted (never confirmed) reports the caveat but still exits 0")]
+        "FR-059: daemon-background-mode 5.4: budget exhausted (never confirmed) reports the caveat but still exits 0")]
     public async Task SpawnAndConfirmAsync_BudgetExhausted_ReportsCaveat_StillExitsZero()
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -60,7 +60,7 @@ public sealed class BackgroundColdStartTests
     }
 
     [Fact(DisplayName =
-        "daemon-background-mode 5.4: a resolved executable that does not exist fails the spawn and exits non-zero without a false success")]
+        "FR-059: daemon-background-mode 5.4: a resolved executable that does not exist fails the spawn and exits non-zero without a false success")]
     public async Task SpawnAndConfirmAsync_SpawnFailure_ExitsNonZero_NoFalseSuccess()
     {
         var result = await BackgroundColdStart.SpawnAndConfirmAsync(

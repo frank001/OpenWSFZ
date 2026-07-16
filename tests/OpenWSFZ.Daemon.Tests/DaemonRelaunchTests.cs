@@ -92,7 +92,7 @@ public sealed class DaemonRelaunchTests
     // (see ResolveCommand_DotnetMuxer_PrependsEntryAssemblyLocation's comment above).
 
     [Fact(DisplayName =
-        "daemon-background-mode 6.3: propagateBackgroundWorker: true appends --background-worker on the dotnet-muxer branch")]
+        "FR-059: daemon-background-mode 6.3: propagateBackgroundWorker: true appends --background-worker on the dotnet-muxer branch")]
     public void ResolveCommand_PropagateBackgroundWorkerTrue_AppendsOnDotnetMuxerBranch()
     {
         var cmd = DaemonRelaunch.ResolveCommand(
@@ -107,7 +107,7 @@ public sealed class DaemonRelaunchTests
     }
 
     [Fact(DisplayName =
-        "daemon-background-mode 6.3: propagateBackgroundWorker: true appends --background-worker on the apphost branch")]
+        "FR-059: daemon-background-mode 6.3: propagateBackgroundWorker: true appends --background-worker on the apphost branch")]
     public void ResolveCommand_PropagateBackgroundWorkerTrue_AppendsOnApphostBranch()
     {
         var cmd = DaemonRelaunch.ResolveCommand(

@@ -216,7 +216,7 @@ public sealed class SystemRestartEndpointTests : IClassFixture<SystemRestartFixt
     // ── daemon-background-mode 6.4 ──────────────────────────────────────────────────────
 
     [Fact(DisplayName =
-        "daemon-background-mode 6.4: a relauncher constructed with IsBackgroundWorker: true produces a command including --background-worker")]
+        "FR-059: daemon-background-mode 6.4: a relauncher constructed with IsBackgroundWorker: true produces a command including --background-worker")]
     public async Task PostSystemRestart_RelauncherIsBackgroundWorkerTrue_CommandIncludesBackgroundWorker()
     {
         var relauncher = new RecordingDaemonRelauncher(isBackgroundWorker: true);
@@ -231,7 +231,7 @@ public sealed class SystemRestartEndpointTests : IClassFixture<SystemRestartFixt
     }
 
     [Fact(DisplayName =
-        "daemon-background-mode 6.4: a relauncher constructed with IsBackgroundWorker: false produces a command without --background-worker")]
+        "FR-059: daemon-background-mode 6.4: a relauncher constructed with IsBackgroundWorker: false produces a command without --background-worker")]
     public async Task PostSystemRestart_RelauncherIsBackgroundWorkerFalse_CommandExcludesBackgroundWorker()
     {
         var relauncher = new RecordingDaemonRelauncher(isBackgroundWorker: false);

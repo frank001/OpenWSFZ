@@ -323,7 +323,7 @@ public sealed class LoggingPipelineTests : IDisposable
             "always configured unless suppressConsoleSink is explicitly requested");
     }
 
-    [Fact(DisplayName = "daemon-background-mode 7.3/7.1: suppressConsoleSink: true never configures a console sink")]
+    [Fact(DisplayName = "FR-059: daemon-background-mode 7.3/7.1: suppressConsoleSink: true never configures a console sink")]
     public void Apply_SuppressConsoleSinkTrue_NoConsoleSinkConfigured()
     {
         using var pipeline = new LoggingPipeline();

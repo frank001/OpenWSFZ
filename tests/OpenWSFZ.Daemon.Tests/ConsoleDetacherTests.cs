@@ -30,7 +30,7 @@ namespace OpenWSFZ.Daemon.Tests;
 [Trait("Category", "Integration")]
 public sealed class ConsoleDetacherTests
 {
-    [Fact(DisplayName = "daemon-background-mode 3.3: Detach() does not throw when called from a test process")]
+    [Fact(DisplayName = "FR-059: daemon-background-mode 3.3: Detach() does not throw when called from a test process")]
     public void Detach_DoesNotThrow_OnCurrentPlatform()
     {
         var act = () => ConsoleDetacher.Detach();
@@ -39,7 +39,7 @@ public sealed class ConsoleDetacherTests
     }
 
     [Fact(DisplayName =
-        "daemon-background-mode 3.3: a real subprocess with SIGHUP ignored survives a real SIGHUP; " +
+        "FR-059: daemon-background-mode 3.3: a real subprocess with SIGHUP ignored survives a real SIGHUP; " +
         "a control subprocess without the handler does not")]
     public async Task PosixSigHupIgnore_RealSubprocessSurvivesSigHup_ControlWithoutHandlerDoesNotSurvive()
     {

@@ -58,7 +58,7 @@ public sealed class LaunchOptionsTests
 
     // ── daemon-background-mode 2.2 ──────────────────────────────────────────────
 
-    [Fact(DisplayName = "daemon-background-mode 2.2: --background present sets Background true")]
+    [Fact(DisplayName = "FR-059: daemon-background-mode 2.2: --background present sets Background true")]
     public void Parse_BackgroundPresent_SetsBackgroundTrue()
     {
         var options = LaunchOptions.Parse(["--background"]);
@@ -67,7 +67,7 @@ public sealed class LaunchOptionsTests
         options.IsBackgroundWorker.Should().BeFalse();
     }
 
-    [Fact(DisplayName = "daemon-background-mode 2.2: --background-worker present sets IsBackgroundWorker true")]
+    [Fact(DisplayName = "FR-059: daemon-background-mode 2.2: --background-worker present sets IsBackgroundWorker true")]
     public void Parse_BackgroundWorkerPresent_SetsIsBackgroundWorkerTrue()
     {
         var options = LaunchOptions.Parse(["--background-worker"]);

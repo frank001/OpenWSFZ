@@ -19,7 +19,7 @@ namespace OpenWSFZ.Daemon.Tests;
 public sealed class BackgroundLoggingOverrideTests
 {
     [Fact(DisplayName =
-        "daemon-background-mode 7.3: background worker + persisted FileEnabled=false forces it on in the effective config")]
+        "FR-059: daemon-background-mode 7.3: background worker + persisted FileEnabled=false forces it on in the effective config")]
     public void Resolve_BackgroundWorkerWithFileDisabled_ForcesFileEnabledOn()
     {
         var persisted = new LoggingConfig { FileEnabled = false };
