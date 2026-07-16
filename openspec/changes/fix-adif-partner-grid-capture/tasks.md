@@ -84,10 +84,13 @@
 
 ## 8. Housekeeping
 
-- [ ] 8.1 Commit all changes with a clear message (e.g. `fix(qso-caller): capture partner grid
-  for ADIF logging on caller-initiated QSOs`).
-- [ ] 8.2 Push and confirm CI green on all platforms.
-- [ ] 8.3 Open PR to `main`; request QA gate review.
+- [x] 8.1 Commit all changes with a clear message (e.g. `fix(qso-caller): capture partner grid
+  for ADIF logging on caller-initiated QSOs`). (`08b3046`)
+- [ ] 8.2 Push and confirm CI green on all platforms. Pushed to `origin/fix/adif-partner-grid-capture`;
+  CI queued on PR #80 (`Build & Test` on ubuntu-latest/windows-latest/macos-latest, `Gate G9`) —
+  not yet confirmed green as of this checkpoint.
+- [x] 8.3 Open PR to `main`; request QA gate review. `PR #80`:
+  https://github.com/frank001/OpenWSFZ/pull/80
 - [ ] 8.4 After merge, run `/opsx:archive` for this change (sync `qso-caller`'s delta spec into
   `openspec/specs/qso-caller/spec.md`, confirm `openspec validate --strict --all` before/after).
 - [ ] 8.5 Update `dev-tasks/2026-07-12-adif-partner-grid-not-captured.md` status to Closed,
