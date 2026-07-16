@@ -1369,7 +1369,7 @@ public sealed class QsoCallerServiceTests
         // "PD2FZ/P Q1ABC JO22" — destination token is the full compound callsign.
         var result = QsoCallerService.TryParseResponder(
             "PD2FZ/P Q1ABC JO22", "PD2FZ/P",
-            out var partner, out _);
+            out var partner, out _, out _);
 
         result.Should().BeTrue();
         partner.Should().Be("Q1ABC");
@@ -1382,7 +1382,7 @@ public sealed class QsoCallerServiceTests
         // TryParseResponder must still accept this as a valid response to our CQ.
         var result = QsoCallerService.TryParseResponder(
             "PD2FZ Q1ABC JO22", "PD2FZ/P",
-            out var partner, out _);
+            out var partner, out _, out _);
 
         result.Should().BeTrue();
         partner.Should().Be("Q1ABC");
@@ -1394,7 +1394,7 @@ public sealed class QsoCallerServiceTests
         // First token is a completely different callsign — must return false.
         var result = QsoCallerService.TryParseResponder(
             "Q9ZZZ Q1ABC JO22", "PD2FZ/P",
-            out var partner, out _);
+            out var partner, out _, out _);
 
         result.Should().BeFalse();
         partner.Should().BeEmpty();
@@ -1409,7 +1409,7 @@ public sealed class QsoCallerServiceTests
         // "PD2FZ/P Q1ABC +32" must be accepted; partner must be "Q1ABC".
         var result = QsoCallerService.TryParseResponder(
             "PD2FZ/P Q1ABC +32", "PD2FZ/P",
-            out var partner, out _);
+            out var partner, out _, out _);
 
         result.Should().BeTrue();
         partner.Should().Be("Q1ABC");
@@ -1420,7 +1420,7 @@ public sealed class QsoCallerServiceTests
     {
         var result = QsoCallerService.TryParseResponder(
             "PD2FZ Q1ABC -05", "PD2FZ",
-            out var partner, out _);
+            out var partner, out _, out _);
 
         result.Should().BeTrue();
         partner.Should().Be("Q1ABC");
@@ -1431,7 +1431,7 @@ public sealed class QsoCallerServiceTests
     {
         var result = QsoCallerService.TryParseResponder(
             "PD2FZ/P Q1ABC R+33", "PD2FZ/P",
-            out var partner, out _);
+            out var partner, out _, out _);
 
         result.Should().BeTrue();
         partner.Should().Be("Q1ABC");
@@ -1443,7 +1443,7 @@ public sealed class QsoCallerServiceTests
         // "73" is a QSO termination message — must NOT be mistaken for a CQ response.
         var result = QsoCallerService.TryParseResponder(
             "PD2FZ/P Q1ABC 73", "PD2FZ/P",
-            out var partner, out _);
+            out var partner, out _, out _);
 
         result.Should().BeFalse();
         partner.Should().BeEmpty();
@@ -1561,6 +1561,150 @@ public sealed class QsoCallerServiceTests
         await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(Arg.Any<QsoRecord>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── fix-adif-partner-grid-capture: partner grid capture for ADIF logging ──
+
+    [Fact(DisplayName = "D-015: First-mode auto-engage captures partner grid into QsoRecord.PartnerGrid")]
+    public async Task ExecuteTxReportAsync_FirstMode_CapturesPartnerGridIntoQsoRecord()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 1,
+            QsoConfirmation     = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        // CQ → WaitAnswer (WaitReport) → TxReport → WaitRr73 → TxRr73 → Idle.
+        // The CQ-answer message includes the partner's grid (Q1TST JO22) — TryParseResponder
+        // must surface it and the fix must thread it all the way to the final QsoRecord.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.PartnerGrid == PartnerGrid));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-015: None-mode manual select (SelectResponderAsync) captures partner grid into QsoRecord.PartnerGrid")]
+    public async Task SelectResponderAsync_NoneMode_CapturesPartnerGridIntoQsoRecord()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.None,
+            RetryCount          = 0,
+            WatchdogMinutes     = 4,
+            QsoConfirmation     = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        // Drive to WaitAnswer.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // None-mode auto-track: this batch does NOT auto-advance, but records the responder's
+        // raw decode (including the grid) into _recentResponderDecodes — this is what
+        // SelectResponderAsync must re-parse to recover the grid, since it receives only a
+        // callsign/frequency/cycle-start, not the original decoded message.
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await Task.Delay(150);
+        sut.State.Should().Be(QsoState.WaitReport, "None mode must not auto-advance");
+
+        // Drain any wakeup written while draining the above.
+        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
+
+        // Operator selects the responder. responseCycleStart at :15 → B-phase response →
+        // A-phase answer (:00 or :30), mirroring the 5.5 phase-semantics pattern.
+        var bPhaseResponse = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
+        await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponse, CancellationToken.None);
+        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
+        await Task.Delay(50);
+
+        // Feed an A-phase batch (correct phase: CycleStart :45 → next cycle :00 = A-phase) to
+        // fire the pending responder.
+        var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
+        SendAt(channel, correctPhaseCycleStart, Make("CQ Q2NOISE JO00")); // content irrelevant — pending-responder path fires on phase alone
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        sut.Partner.Should().Be(PartnerCall);
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.PartnerGrid == PartnerGrid));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "D-015: bare signal-report answer (no grid sent) yields QsoRecord.PartnerGrid = null, not fabricated")]
+    public async Task ExecuteTxReportAsync_NoGridSent_YieldsNullPartnerGrid()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 1,
+            QsoConfirmation     = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Partner answers with a bare signal report instead of a grid — valid FT8 behaviour.
+        // The fix must not invent a grid where none was sent.
+        Send(channel, Make($"{OurCallsign} {PartnerCall} -05"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.PartnerGrid == null));
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
