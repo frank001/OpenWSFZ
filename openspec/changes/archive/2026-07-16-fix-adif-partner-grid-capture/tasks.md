@@ -86,13 +86,20 @@
 
 - [x] 8.1 Commit all changes with a clear message (e.g. `fix(qso-caller): capture partner grid
   for ADIF logging on caller-initiated QSOs`). (`08b3046`)
-- [ ] 8.2 Push and confirm CI green on all platforms. Pushed to `origin/fix/adif-partner-grid-capture`;
-  CI queued on PR #80 (`Build & Test` on ubuntu-latest/windows-latest/macos-latest, `Gate G9`) —
-  not yet confirmed green as of this checkpoint.
+- [x] 8.2 Push and confirm CI green on all platforms. Pushed to `origin/fix/adif-partner-grid-capture`;
+  PR #80 checks all green (`Build & Test` on ubuntu-latest/windows-latest/macos-latest, `Gate G9`),
+  and post-merge push to `main` (run `29526215957`, commit `b098b2e`) also completed green.
 - [x] 8.3 Open PR to `main`; request QA gate review. `PR #80`:
   https://github.com/frank001/OpenWSFZ/pull/80
-- [ ] 8.4 After merge, run `/opsx:archive` for this change (sync `qso-caller`'s delta spec into
+- [x] 8.4 After merge, run `/opsx:archive` for this change (sync `qso-caller`'s delta spec into
   `openspec/specs/qso-caller/spec.md`, confirm `openspec validate --strict --all` before/after).
-- [ ] 8.5 Update `dev-tasks/2026-07-12-adif-partner-grid-not-captured.md` status to Closed,
+  Synced the "Partner grid capture for ADIF logging" requirement (3 scenarios) into
+  `openspec/specs/qso-caller/spec.md` after `TxRr73`, before `Repeat-CQ retry logic`.
+  `openspec validate --strict --all`: 57/57 before sync, 57/57 after sync+before archive-move,
+  56/56 after archive-move (expected drop — one fewer active change's delta spec to validate).
+- [x] 8.5 Update `dev-tasks/2026-07-12-adif-partner-grid-not-captured.md` status to Closed,
   referencing the merged PR, or remove it if the project convention is to delete closed
-  dev-tasks rather than mark them closed in place.
+  dev-tasks rather than mark them closed in place. **Captain's call: left the file untouched.**
+  Checked git history — no prior dev-task doc has ever been edited-in-place after merge (all
+  "Awaiting developer action" headers stay as originally written); resolution is tracked in
+  MEMORY.md instead, consistent with that established convention.
