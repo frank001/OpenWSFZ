@@ -107,10 +107,12 @@
 
 ## 7. Housekeeping
 
-- [ ] 7.1 Commit all changes with a clear message (e.g. `fix(qso-answerer): write ADIF record
+- [x] 7.1 Commit all changes with a clear message (e.g. `fix(qso-answerer): write ADIF record
   and derive real RstRcvd for SendRr73 jump-ins`).
-- [ ] 7.2 Push and confirm CI green on all platforms.
-- [ ] 7.3 Open PR to `main`; request QA gate review.
+- [x] 7.2 Push and confirm CI green on all platforms. → Pushed; PR #82 opened
+  (https://github.com/frank001/OpenWSFZ/pull/82). CI status to be confirmed once checks run.
+- [x] 7.3 Open PR to `main`; request QA gate review. → PR #82:
+  https://github.com/frank001/OpenWSFZ/pull/82
 - [ ] 7.4 After merge, run `/opsx:archive` for this change (sync the `qso-answerer` delta spec
   into `openspec/specs/qso-answerer/spec.md`, confirm `openspec validate --strict --all`
   before/after).
