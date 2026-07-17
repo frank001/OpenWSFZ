@@ -34,8 +34,10 @@ public sealed class DecodeNoiseSuppressionFilterTests
         public List<CallsignRegionEntry> EntryList { get; } = [];
 
         public IReadOnlyList<CallsignRegionEntry> Entries => EntryList;
+        public bool IsSeedData => false;
 
         public RegionInfo? TryGetRegion(string callsignToken) => throw new NotSupportedException();
+        public CallsignRegionMatch? TryMatchPrefix(string callsignToken) => throw new NotSupportedException();
 
         public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

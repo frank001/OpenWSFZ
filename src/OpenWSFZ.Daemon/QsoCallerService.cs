@@ -61,6 +61,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     // HandleWaitAnswerAsync and SelectResponderAsync; null behaves as fully unfiltered (no
     // regression for callers that don't supply one — mirrors D-013's ICatState? posture).
     private readonly IDecodeFilterStore?                         _decodeFilterStore;
+    // engagement-target-validation: consulted in the First-mode auto-engage responder loop in
+    // HandleWaitAnswerAsync before treating a reply as the active partner; null behaves as
+    // always-Allowed (no regression for callers that don't supply one).
+    private readonly IEngagementTargetValidator?                 _engagementValidator;
 
     // Volatile: readable from the HTTP handler thread without a lock.
     private volatile CallerState _callerState = CallerState.Idle;
@@ -162,7 +166,8 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         ILogger<QsoCallerService>   logger,
         IApConstraintSink?          decoder = null,
         ICatState?                  catState = null,
-        IDecodeFilterStore?         decodeFilterStore = null)
+        IDecodeFilterStore?         decodeFilterStore = null,
+        IEngagementTargetValidator? engagementValidator = null)
     {
         _decodeChannel       = decodeChannel;
         _configStore         = configStore;
@@ -174,6 +179,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _decoder             = decoder;
         _catState            = catState;
         _decodeFilterStore   = decodeFilterStore;
+        _engagementValidator = engagementValidator;
         _timeProvider        = TimeProvider.System;
     }
 
@@ -198,8 +204,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         IApConstraintSink?          decoder = null,
         ICatState?                  catState = null,
         IDecodeFilterStore?         decodeFilterStore = null,
-        TimeProvider?               timeProvider = null)
-        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, decoder, catState, decodeFilterStore)
+        TimeProvider?               timeProvider = null,
+        IEngagementTargetValidator? engagementValidator = null)
+        : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger, decoder, catState, decodeFilterStore, engagementValidator)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
         _timeProvider             = timeProvider ?? TimeProvider.System;
@@ -705,6 +712,18 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
                 if (!DecodeFilterEvaluator.IsVisible(r, filterState))
                     continue; // filtered out — skip entirely, do not deprioritise
+
+                // engagement-target-validation: hard-skip a responder the region-anchored
+                // grammar check rejects — no operator is looking at this specific decode, so
+                // there is no override path (design.md Decision 4). Continue scanning.
+                var validation = _engagementValidator?.Validate(responder) ?? EngagementValidationResult.Allowed;
+                if (!validation.IsAllowed)
+                {
+                    _logger.LogInformation(
+                        "QsoCallerService: skipping responder candidate {Responder} — {Reason}",
+                        responder, validation.RejectionReason);
+                    continue;
+                }
 
                 _logger.LogInformation(
                     "QsoCallerService: {Responder} answered our CQ at {FreqHz} Hz — sending report.",

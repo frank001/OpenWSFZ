@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using OpenWSFZ.Abstractions;
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Xunit;
@@ -30,14 +31,41 @@ internal sealed class TrackingMockQsoController : IQsoController
     /// </summary>
     public (string Partner, double FrequencyHz, EngagePoint Point)? LastEngageAtCall { get; private set; }
 
-    /// <summary>Clears <see cref="LastEngageAtCall"/> so each test starts from a known state.</summary>
-    public void ResetTracking() => LastEngageAtCall = null;
+    /// <summary>
+    /// Set to the callsign on each <see cref="AnswerCqAsync"/> call (engagement-target-validation,
+    /// task 4.4 — lets tests assert a rejected CQ-row target never reaches this call);
+    /// <c>null</c> until the first call or after <see cref="ResetTracking"/>.
+    /// </summary>
+    public string? LastAnswerCqCallsign { get; private set; }
 
-    public Task AbortAsync(CancellationToken ct = default) => Task.CompletedTask;
+    /// <summary>
+    /// Incremented on each <see cref="AbortAsync"/> call (Finding F, dev-task
+    /// 2026-07-17-engagement-target-validation-qa-review-findings — lets tests assert a rejected
+    /// engagement target's prior in-progress QSO is never aborted before the operator confirms);
+    /// <c>0</c> until the first call or after <see cref="ResetTracking"/>.
+    /// </summary>
+    public int AbortCallCount { get; private set; }
+
+    /// <summary>Clears all tracked calls so each test starts from a known state.</summary>
+    public void ResetTracking()
+    {
+        LastEngageAtCall     = null;
+        LastAnswerCqCallsign = null;
+        AbortCallCount       = 0;
+    }
+
+    public Task AbortAsync(CancellationToken ct = default)
+    {
+        AbortCallCount++;
+        return Task.CompletedTask;
+    }
 
     public Task AnswerCqAsync(
         string callsign, double frequencyHz, DateTimeOffset cqCycleStart, CancellationToken ct)
-        => Task.CompletedTask;
+    {
+        LastAnswerCqCallsign = callsign;
+        return Task.CompletedTask;
+    }
 
     public Task SelectResponderAsync(
         string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct)
@@ -52,6 +80,20 @@ internal sealed class TrackingMockQsoController : IQsoController
     }
 }
 
+/// <summary>
+/// Test double for <see cref="IEngagementTargetValidator"/> (engagement-target-validation, task
+/// 4.4) whose verdict is fully test-controlled via <see cref="Rule"/>. Defaults to allowing every
+/// candidate — same as <c>NullEngagementTargetValidator</c> — so tests that don't set
+/// <see cref="Rule"/> see today's fully permissive behaviour unchanged.
+/// </summary>
+internal sealed class FakeEngagementTargetValidator : IEngagementTargetValidator
+{
+    public Func<string, EngagementValidationResult>? Rule { get; set; }
+
+    public EngagementValidationResult Validate(string callsignToken)
+        => Rule?.Invoke(callsignToken) ?? EngagementValidationResult.Allowed;
+}
+
 // ── Fixture ───────────────────────────────────────────────────────────────────
 
 /// <summary>
@@ -61,8 +103,9 @@ internal sealed class TrackingMockQsoController : IQsoController
 /// </summary>
 public sealed class EngageDecodeFixture : IAsyncLifetime
 {
-    internal readonly TestConfigStore             ConfigStore   = new();
-    internal readonly TrackingMockQsoController   QsoController = new();
+    internal readonly TestConfigStore                 ConfigStore         = new();
+    internal readonly TrackingMockQsoController       QsoController       = new();
+    internal readonly FakeEngagementTargetValidator   EngagementValidator = new();
 
     private Microsoft.AspNetCore.Builder.WebApplication? _app;
     public  HttpClient Client { get; private set; } = null!;
@@ -80,7 +123,12 @@ public sealed class EngageDecodeFixture : IAsyncLifetime
             port:              0,
             configStore:       ConfigStore,
             configureServices: services =>
-                services.AddSingleton<IQsoController>(QsoController));
+            {
+                services.AddSingleton<IQsoController>(QsoController);
+                // engagement-target-validation (task 4.4): overrides WebApp.Create's default
+                // pass-through registration so tests can drive Rejected/Allowed per test.
+                services.AddSingleton<IEngagementTargetValidator>(EngagementValidator);
+            });
 
         await _app.StartAsync();
 
@@ -123,9 +171,9 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
         _client  = fixture.Client;
     }
 
-    private static StringContent EngageBody(string message, double freqHz = 500.0)
+    private static StringContent EngageBody(string message, double freqHz = 500.0, bool confirm = false)
         => new(
-            $$"""{"message":"{{message}}","frequencyHz":{{freqHz}},"cycleStartUtc":"{{CycleStart}}"}""",
+            $$"""{"message":"{{message}}","frequencyHz":{{freqHz}},"cycleStartUtc":"{{CycleStart}}","confirm":{{(confirm ? "true" : "false")}}}""",
             Encoding.UTF8, "application/json");
 
     // ── Test A — 4-character Maidenhead grid square ───────────────────────────
@@ -135,6 +183,7 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
     {
         // Arrange
         _fixture.QsoController.ResetTracking();
+        _fixture.EngagementValidator.Rule = null; // engagement-target-validation: allow-all baseline
         _fixture.QsoController.State = QsoState.Idle;
 
         // Act  — "Q1ABC Q9XYZ JO33": partner Q9XYZ answers our CQ with 4-char grid JO33
@@ -161,6 +210,7 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
     {
         // Arrange
         _fixture.QsoController.ResetTracking();
+        _fixture.EngagementValidator.Rule = null; // engagement-target-validation: allow-all baseline
         _fixture.QsoController.State = QsoState.Idle;
 
         // Act — 6-character extended grid square (e.g. JO33aa)
@@ -185,6 +235,7 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
     {
         // Arrange
         _fixture.QsoController.ResetTracking();
+        _fixture.EngagementValidator.Rule = null; // engagement-target-validation: allow-all baseline
         _fixture.QsoController.State = QsoState.Idle;
 
         // "BLAH" — four letters, does not satisfy IsGridSquare (no digit at [2]).
@@ -207,6 +258,7 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
     {
         // Arrange
         _fixture.QsoController.ResetTracking();
+        _fixture.EngagementValidator.Rule = null; // engagement-target-validation: allow-all baseline
         _fixture.QsoController.State = QsoState.Idle;
 
         // Act — existing plain-SNR case; must not be disturbed by the new grid branch
@@ -222,5 +274,160 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
         _fixture.QsoController.LastEngageAtCall!.Value.Point.Should().Be(EngagePoint.SendReport,
             "plain SNR in Case B must dispatch EngageAt(SendReport)");
         _fixture.QsoController.LastEngageAtCall!.Value.Partner.Should().Be("Q9XYZ");
+    }
+
+    // ── Tests E/F — engagement-target-validation (task 4.4) ───────────────────
+
+    [Fact(DisplayName = "engagement-target-validation 4.4: rejected CQ-row target returns 409 with requiresConfirmation and does not call AnswerCqAsync")]
+    public async Task EngageDecode_CqRow_RejectedTarget_Returns409AndDoesNotEngage()
+    {
+        // Arrange
+        _fixture.QsoController.ResetTracking();
+        _fixture.QsoController.State = QsoState.Idle;
+        _fixture.EngagementValidator.Rule =
+            callsign => callsign == "Q6KERBOGUS"
+                ? EngagementValidationResult.Rejected("implausible callsign shape")
+                : EngagementValidationResult.Allowed;
+
+        // Act — "CQ Q6KERBOGUS JO22": a CQ row whose callsign the validator rejects.
+        var response = await _client.PostAsync(
+            "/api/v1/tx/engage-decode", EngageBody("CQ Q6KERBOGUS JO22"));
+
+        // Assert HTTP 409 with the confirmation-required body.
+        ((int)response.StatusCode).Should().Be(409,
+            "a rejected engagement target must be a soft block, not silently proceed or 500");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("requiresConfirmation").GetBoolean().Should().BeTrue();
+        body.GetProperty("reason").GetString().Should().Contain("implausible callsign shape");
+
+        // Assert AnswerCqAsync was never called for the rejected target.
+        _fixture.QsoController.LastAnswerCqCallsign.Should().BeNull(
+            "a rejected CQ-row target must never reach AnswerCqAsync");
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 4.4: confirmed retry after a 409 proceeds and calls EngageAtAsync")]
+    public async Task EngageDecode_DirectedMessage_RejectedThenConfirmed_ProceedsAndEngages()
+    {
+        // Arrange
+        _fixture.QsoController.ResetTracking();
+        _fixture.QsoController.State = QsoState.Idle;
+        _fixture.EngagementValidator.Rule =
+            callsign => callsign == "Q6KERBOGUS"
+                ? EngagementValidationResult.Rejected("implausible callsign shape")
+                : EngagementValidationResult.Allowed;
+
+        // Act 1 — first request without confirm: expect 409, no engagement.
+        var firstResponse = await _client.PostAsync(
+            "/api/v1/tx/engage-decode", EngageBody("Q1ABC Q6KERBOGUS +07"));
+
+        ((int)firstResponse.StatusCode).Should().Be(409);
+        _fixture.QsoController.LastEngageAtCall.Should().BeNull(
+            "the first, unconfirmed request must not arm or transmit");
+
+        // Act 2 — repeat with confirm:true: expect 200 and EngageAtAsync(SendReport) called.
+        _fixture.QsoController.State = QsoState.Idle; // engage-decode aborts first if not Idle
+        var secondResponse = await _client.PostAsync(
+            "/api/v1/tx/engage-decode", EngageBody("Q1ABC Q6KERBOGUS +07", confirm: true));
+
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.OK,
+            "a confirmed retry must proceed exactly as an Allowed target would");
+        _fixture.QsoController.LastEngageAtCall.Should().NotBeNull();
+        _fixture.QsoController.LastEngageAtCall!.Value.Partner.Should().Be("Q6KERBOGUS");
+        _fixture.QsoController.LastEngageAtCall!.Value.Point.Should().Be(EngagePoint.SendReport);
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 4.4: an Allowed target is unaffected — 200 and EngageAtAsync called as before")]
+    public async Task EngageDecode_AllowedTarget_Unaffected()
+    {
+        // Arrange
+        _fixture.QsoController.ResetTracking();
+        _fixture.QsoController.State = QsoState.Idle;
+        _fixture.EngagementValidator.Rule = _ => EngagementValidationResult.Allowed;
+
+        // Act
+        var response = await _client.PostAsync(
+            "/api/v1/tx/engage-decode", EngageBody("Q1ABC Q9XYZ +07"));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _fixture.QsoController.LastEngageAtCall.Should().NotBeNull();
+        _fixture.QsoController.LastEngageAtCall!.Value.Partner.Should().Be("Q9XYZ");
+    }
+
+    // ── Finding F — dev-task 2026-07-17-engagement-target-validation-qa-review-findings ───────
+    //
+    // A rejected engagement target must never abort a prior in-progress QSO before the operator
+    // has a chance to see the confirmation prompt. Both regression tests below start the fixture
+    // from a non-Idle state with an active partner — the gap this finding identified had no
+    // coverage anywhere in the existing suite, since every other test in this file starts from Idle.
+
+    [Fact(DisplayName = "engagement-target-validation Finding F: rejected CQ-row target leaves an active in-progress QSO completely untouched")]
+    public async Task EngageDecode_CqRow_RejectedTarget_NonIdleStart_DoesNotAbortActiveQso()
+    {
+        // Arrange — an active QSO already in progress with a different partner.
+        _fixture.QsoController.ResetTracking();
+        _fixture.QsoController.State   = QsoState.WaitReport;
+        _fixture.QsoController.Partner = "Q1EXISTING";
+        _fixture.EngagementValidator.Rule =
+            callsign => callsign == "Q6KERBOGUS"
+                ? EngagementValidationResult.Rejected("implausible callsign shape")
+                : EngagementValidationResult.Allowed;
+
+        // Act — "CQ Q6KERBOGUS JO22": a CQ row whose callsign the validator rejects, no confirm.
+        var response = await _client.PostAsync(
+            "/api/v1/tx/engage-decode", EngageBody("CQ Q6KERBOGUS JO22"));
+
+        // Assert HTTP 409.
+        ((int)response.StatusCode).Should().Be(409);
+
+        // Assert the prior in-progress QSO was never touched: AbortAsync must not have been
+        // called, and state/partner must be exactly what they were before the request.
+        _fixture.QsoController.AbortCallCount.Should().Be(0,
+            "a rejected, unconfirmed engagement target must not abort a prior in-progress QSO — " +
+            "the operator hasn't seen the confirmation prompt yet");
+        _fixture.QsoController.State.Should().Be(QsoState.WaitReport,
+            "the active QSO's state must be unchanged by a rejected engagement attempt");
+        _fixture.QsoController.Partner.Should().Be("Q1EXISTING",
+            "the active QSO's partner must be unchanged by a rejected engagement attempt");
+        _fixture.QsoController.LastAnswerCqCallsign.Should().BeNull(
+            "a rejected CQ-row target must never reach AnswerCqAsync");
+
+        // Cleanup so subsequent tests in this shared fixture start from a known state.
+        _fixture.QsoController.State   = QsoState.Idle;
+        _fixture.QsoController.Partner = null;
+    }
+
+    [Fact(DisplayName = "engagement-target-validation Finding F: rejected directed-message target leaves an active in-progress QSO completely untouched")]
+    public async Task EngageDecode_DirectedMessage_RejectedTarget_NonIdleStart_DoesNotAbortActiveQso()
+    {
+        // Arrange — an active QSO already in progress with a different partner.
+        _fixture.QsoController.ResetTracking();
+        _fixture.QsoController.State   = QsoState.WaitRr73;
+        _fixture.QsoController.Partner = "Q1EXISTING";
+        _fixture.EngagementValidator.Rule =
+            callsign => callsign == "Q6KERBOGUS"
+                ? EngagementValidationResult.Rejected("implausible callsign shape")
+                : EngagementValidationResult.Allowed;
+
+        // Act — "Q1ABC Q6KERBOGUS +07": a directed first-exchange row whose target is rejected.
+        var response = await _client.PostAsync(
+            "/api/v1/tx/engage-decode", EngageBody("Q1ABC Q6KERBOGUS +07"));
+
+        // Assert HTTP 409.
+        ((int)response.StatusCode).Should().Be(409);
+
+        // Assert the prior in-progress QSO was never touched.
+        _fixture.QsoController.AbortCallCount.Should().Be(0,
+            "a rejected, unconfirmed engagement target must not abort a prior in-progress QSO");
+        _fixture.QsoController.State.Should().Be(QsoState.WaitRr73,
+            "the active QSO's state must be unchanged by a rejected engagement attempt");
+        _fixture.QsoController.Partner.Should().Be("Q1EXISTING",
+            "the active QSO's partner must be unchanged by a rejected engagement attempt");
+        _fixture.QsoController.LastEngageAtCall.Should().BeNull(
+            "a rejected directed-message target must never reach EngageAtAsync");
+
+        // Cleanup so subsequent tests in this shared fixture start from a known state.
+        _fixture.QsoController.State   = QsoState.Idle;
+        _fixture.QsoController.Partner = null;
     }
 }

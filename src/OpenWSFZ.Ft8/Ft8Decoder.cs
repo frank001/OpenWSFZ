@@ -849,25 +849,19 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 _              => null,
             };
             return candidate is not null && IsCandidateCallsignToken(candidate)
-                ? StripPortableSuffix(candidate)
+                ? CallsignTokenHelpers.StripPortableSuffix(candidate)
                 : null;
         }
 
         if (tokens.Length >= 2 && IsCandidateCallsignToken(tokens[1]))
-            return StripPortableSuffix(tokens[1]);
+            return CallsignTokenHelpers.StripPortableSuffix(tokens[1]);
 
         if (tokens.Length >= 1 && IsCandidateCallsignToken(tokens[0]))
-            return StripPortableSuffix(tokens[0]);
+            return CallsignTokenHelpers.StripPortableSuffix(tokens[0]);
 
         return null;
     }
 
     private static bool IsCandidateCallsignToken(string token)
         => token.Length > 0 && token[0] != '<' && token is not ("RRR" or "73" or "RR73");
-
-    private static string StripPortableSuffix(string token)
-    {
-        int slashPos = token.IndexOf('/');
-        return slashPos >= 0 ? token[..slashPos] : token;
-    }
 }

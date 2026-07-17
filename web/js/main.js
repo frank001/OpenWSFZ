@@ -817,10 +817,40 @@ function handleDecodes(results) {
       engageInFlight = true;
 
       try {
-        const status = await postTxEngageDecode(
-          r.message,
-          r.freqHz,
-          tr.dataset.cqCycleStartUtc);
+        let status;
+        try {
+          status = await postTxEngageDecode(
+            r.message,
+            r.freqHz,
+            tr.dataset.cqCycleStartUtc);
+        } catch (err) {
+          const code = /** @type {any} */ (err)?.status;
+
+          // engagement-target-validation: soft block — ask the operator to confirm before
+          // retrying with confirm:true. A cancelled prompt leaves the QSO aborted-but-idle,
+          // exactly like the 422 "not actionable" case below.
+          if (code === 409 && /** @type {any} */ (err)?.requiresConfirmation) {
+            const reason = /** @type {any} */ (err)?.reason || 'This callsign looks implausible.';
+            const proceed = window.confirm(
+              `${reason}\n\nTransmit to this target anyway?`);
+            if (!proceed) {
+              console.info('D-CALLER-012: engagement rejected, operator declined to override:', r.message);
+              try {
+                const s = await getTxStatus();
+                renderTxPanel(s.state, s.partner, s.autoAnswerEnabled, s.role, s.keying);
+              } catch { /* ignore secondary error */ }
+              return;
+            }
+
+            status = await postTxEngageDecode(
+              r.message,
+              r.freqHz,
+              tr.dataset.cqCycleStartUtc,
+              /* confirm */ true);
+          } else {
+            throw err;
+          }
+        }
 
         renderTxPanel(
           status.state             ?? 'Idle',

@@ -23,9 +23,24 @@ internal sealed partial class CallsignJsonContext : JsonSerializerContext { }
 
 /// <summary>
 /// DTO representing the on-disk <c>callsign-regions.json</c> format:
-/// <c>{ "entries": [...] }</c> — mirrors <c>FrequenciesFile</c>.
+/// <c>{ "entries": [...], "isSeedData": bool }</c> — mirrors <c>FrequenciesFile</c>.
 /// </summary>
 internal sealed class CallsignRegionsFile
 {
     public List<CallsignRegionEntry> Entries { get; set; } = [];
+
+    /// <summary>
+    /// Persisted provenance marker (engagement-target-validation, dev-task
+    /// 2026-07-17-engagement-target-validation-qa-review-findings, Finding E):
+    /// <c>true</c> when this file was written by <see cref="CallsignRegionStore.LoadAsync"/>'s
+    /// file-absent seed-write branch; <c>false</c> when written by
+    /// <see cref="CallsignRegionStore.SaveAsync"/> (an operator-triggered refresh). Without this
+    /// marker, the mere <em>existence</em> of the file on a second daemon launch was
+    /// indistinguishable from a genuine refresh — every restart after the very first run silently
+    /// flipped <see cref="ICallsignRegionStore.IsSeedData"/> to <c>false</c> regardless of whether
+    /// an operator had ever refreshed. A pre-existing file from before this marker existed
+    /// deserialises this as <c>false</c> (the JSON default for a missing property) — deliberately:
+    /// see <see cref="CallsignRegionStore.LoadAsync"/>'s remarks for the migration reasoning.
+    /// </summary>
+    public bool IsSeedData { get; set; }
 }

@@ -17,6 +17,14 @@ public sealed class CallsignRegionStore : ICallsignRegionStore
     private readonly ILogger<CallsignRegionStore>?  _logger;
     private readonly SemaphoreSlim                  _saveLock = new(1, 1);
     private volatile IReadOnlyList<CallsignRegionEntry> _entries;
+    // engagement-target-validation (design.md Decision 2): starts true; flips to false once a
+    // SaveAsync (refresh) succeeds, or once an on-disk callsign-regions.json is loaded whose own
+    // persisted "isSeedData" marker says false — never flips back to true from an in-session read.
+    // A malformed-file or write-failure fallback to the seed table does NOT count as "loaded real
+    // data", so IsSeedData correctly stays true in those cases. (Finding E, dev-task
+    // 2026-07-17-engagement-target-validation-qa-review-findings: provenance must come from the
+    // file's own content, not merely from the file existing — see LoadAsync's remarks.)
+    private volatile bool _isSeedData = true;
 
     /// <param name="path">Resolved path to <c>callsign-regions.json</c>.</param>
     /// <param name="logger">Optional logger for diagnostics.</param>
@@ -31,7 +39,13 @@ public sealed class CallsignRegionStore : ICallsignRegionStore
     public IReadOnlyList<CallsignRegionEntry> Entries => _entries;
 
     /// <inheritdoc/>
-    public RegionInfo? TryGetRegion(string callsignToken)
+    public bool IsSeedData => _isSeedData;
+
+    /// <inheritdoc/>
+    public RegionInfo? TryGetRegion(string callsignToken) => TryMatchPrefix(callsignToken)?.Region;
+
+    /// <inheritdoc/>
+    public CallsignRegionMatch? TryMatchPrefix(string callsignToken)
     {
         if (string.IsNullOrEmpty(callsignToken)) return null;
 
@@ -54,9 +68,10 @@ public sealed class CallsignRegionStore : ICallsignRegionStore
                 best = entry;
         }
 
-        return best is null
-            ? null
-            : new RegionInfo(best.Continent, best.Entity, best.Synthetic, best.CqZone, best.ItuZone);
+        if (best is null) return null;
+
+        var region = new RegionInfo(best.Continent, best.Entity, best.Synthetic, best.CqZone, best.ItuZone);
+        return new CallsignRegionMatch(region, best.PrefixStart.Length);
     }
 
     /// <inheritdoc/>
@@ -90,8 +105,11 @@ public sealed class CallsignRegionStore : ICallsignRegionStore
         await _saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await WriteAsync(toWrite, cancellationToken);
-            _entries = toWrite;
+            await WriteAsync(toWrite, isSeedData: false, cancellationToken);
+            _entries     = toWrite;
+            // engagement-target-validation: a successful operator-triggered refresh is real data,
+            // regardless of what was loaded at startup.
+            _isSeedData  = false;
             _logger?.LogInformation(
                 "Saved {Count} region entr{Ies} to '{Path}'.",
                 toWrite.Count, toWrite.Count == 1 ? "y" : "ies", _path);
@@ -121,7 +139,7 @@ public sealed class CallsignRegionStore : ICallsignRegionStore
                 "callsign-regions.json not found at '{Path}' — writing seed region data.", _path);
             try
             {
-                await WriteAsync(CallsignRegionDefaults.Entries, cancellationToken);
+                await WriteAsync(CallsignRegionDefaults.Entries, isSeedData: true, cancellationToken);
                 _entries = CallsignRegionDefaults.Entries;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -148,7 +166,17 @@ public sealed class CallsignRegionStore : ICallsignRegionStore
                 return;
             }
 
-            _entries = dto.Entries;
+            _entries    = dto.Entries;
+            // engagement-target-validation (design.md Decision 2; corrected per Finding E, dev-task
+            // 2026-07-17-engagement-target-validation-qa-review-findings): provenance comes from
+            // the file's own persisted marker, not from the mere fact that a file exists on disk —
+            // the seed-write branch above writes this same file, so its mere existence on a
+            // second-or-later launch does not by itself mean an operator ever refreshed. A
+            // pre-existing file from before this marker existed deserialises IsSeedData as `false`
+            // (missing-property JSON default) — a deliberate migration choice: an operator who has
+            // been running the daemon long enough to have a pre-existing file is more likely to
+            // have refreshed at least once than not, and there is no way to tell retroactively.
+            _isSeedData = dto.IsSeedData;
             _logger?.LogInformation(
                 "Loaded {Count} region entr{Ies} from '{Path}'.",
                 _entries.Count, _entries.Count == 1 ? "y" : "ies", _path);
@@ -164,14 +192,15 @@ public sealed class CallsignRegionStore : ICallsignRegionStore
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private async Task WriteAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken)
+    private async Task WriteAsync(
+        IReadOnlyList<CallsignRegionEntry> entries, bool isSeedData, CancellationToken cancellationToken)
     {
         var dir = Path.GetDirectoryName(_path)
             ?? throw new InvalidOperationException($"Cannot determine directory for '{_path}'.");
 
         Directory.CreateDirectory(dir);
 
-        var dto = new CallsignRegionsFile { Entries = [.. entries] };
+        var dto = new CallsignRegionsFile { Entries = [.. entries], IsSeedData = isSeedData };
         var tmp = Path.Combine(dir, Path.GetRandomFileName());
         try
         {

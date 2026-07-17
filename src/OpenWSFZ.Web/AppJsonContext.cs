@@ -50,6 +50,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(WsAuthFrame))]
 [JsonSerializable(typeof(SelectResponderRequest))]
 [JsonSerializable(typeof(EngageDecodeRequest))]
+[JsonSerializable(typeof(EngagementRejectedResponse))]
 [JsonSerializable(typeof(CallerPartnerSelectRequest))]
 [JsonSerializable(typeof(PropModeEntry))]
 [JsonSerializable(typeof(List<PropModeEntry>))]
@@ -195,11 +196,25 @@ internal sealed record WsAuthFrame(
 /// <summary>
 /// Request body for <c>POST /api/v1/tx/engage-decode</c> (D-CALLER-012).
 /// Wire format: <c>{"message":"PD2FZ W1ABC -07","frequencyHz":1234.0,"cycleStartUtc":"2026-06-27T10:00:15Z"}</c>
+/// <c>confirm</c> (engagement-target-validation, default <c>false</c>): when a prior request
+/// against this same target callsign was rejected by the region-anchored grammar check (HTTP 409,
+/// <see cref="EngagementRejectedResponse"/>), a repeat request with <c>confirm: true</c> proceeds
+/// despite that rejection — the operator's explicit override (design.md Decision 4).
 /// </summary>
 internal sealed record EngageDecodeRequest(
     string Message,
     double FrequencyHz,
-    string CycleStartUtc);
+    string CycleStartUtc,
+    bool   Confirm = false);
+
+/// <summary>
+/// Error response body for <c>POST /api/v1/tx/engage-decode</c> (HTTP 409) when the target
+/// callsign is rejected by the <c>engagement-target-validation</c> region-anchored grammar check.
+/// <c>RequiresConfirmation</c> is always <c>true</c> — the frontend should surface a confirmation
+/// prompt and, on operator acceptance, re-issue the request with <c>confirm: true</c>.
+/// Wire format: <c>{"reason":"...","requiresConfirmation":true}</c>.
+/// </summary>
+internal sealed record EngagementRejectedResponse(string Reason, bool RequiresConfirmation = true);
 
 /// <summary>
 /// Request body for <c>POST /api/v1/tx/select-responder</c> (qso-caller).

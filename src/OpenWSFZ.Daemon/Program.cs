@@ -490,6 +490,11 @@ var app = WebApp.Create(
         services.AddSingleton<ICallsignGrammarStore>(callsignGrammarStore);
         services.AddSingleton<ICallsignRegionStore>(callsignRegionStore);
 
+        // engagement-target-validation: gates TX-engagement targets (manual engage-decode,
+        // auto-answer arming, responder matching) against the region-anchored grammar check.
+        // Reuses the two stores just registered above — no separate configuration.
+        services.AddSingleton<IEngagementTargetValidator, EngagementTargetValidator>();
+
         // Worked-before index DI wiring (qso-confirmation). AdifLogWriter picks this up via
         // constructor injection to register newly-logged QSOs into the live index.
         services.AddSingleton<IWorkedBeforeIndex>(workedBeforeIndex);
@@ -621,7 +626,8 @@ var app = WebApp.Create(
                 sp.GetRequiredService<ILogger<QsoAnswererService>>(),
                 sp.GetService<IApConstraintSink>(),
                 sp.GetService<ICatState>(),
-                sp.GetService<IDecodeFilterStore>());
+                sp.GetService<IDecodeFilterStore>(),
+                sp.GetService<IEngagementTargetValidator>());
             // Set IsActive immediately so the service behaves correctly from the first batch.
             svc.IsActive = (txRole == TxRole.Answerer);
             return svc;
@@ -638,7 +644,8 @@ var app = WebApp.Create(
                 sp.GetRequiredService<ILogger<QsoCallerService>>(),
                 sp.GetService<IApConstraintSink>(),
                 sp.GetService<ICatState>(),
-                sp.GetService<IDecodeFilterStore>());
+                sp.GetService<IDecodeFilterStore>(),
+                sp.GetService<IEngagementTargetValidator>());
             svc.IsActive = (txRole == TxRole.Caller);
             return svc;
         });
