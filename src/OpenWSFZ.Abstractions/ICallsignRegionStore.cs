@@ -34,6 +34,33 @@ public interface ICallsignRegionStore
     RegionInfo? TryGetRegion(string callsignToken);
 
     /// <summary>
+    /// Resolves the longest matching region-store prefix for <paramref name="callsignToken"/>,
+    /// returning both the matched <see cref="RegionInfo"/> and the length of the matched prefix
+    /// range. <see cref="TryGetRegion"/> is a thin wrapper over this method
+    /// (<c>TryMatchPrefix(token)?.Region</c>) — there is exactly one longest-prefix-match
+    /// implementation, so the two methods can never disagree on which entry matched.
+    /// <c>engagement-target-validation</c> uses the matched-prefix length to determine where a
+    /// match ends within the token, so the remainder can be validated against
+    /// <see cref="ICallsignGrammarStore"/>'s digit-run/suffix rules.
+    /// </summary>
+    /// <returns>
+    /// The matched <see cref="CallsignRegionMatch"/>, or <c>null</c> on a lookup miss — identical
+    /// miss semantics to <see cref="TryGetRegion"/>.
+    /// </returns>
+    CallsignRegionMatch? TryMatchPrefix(string callsignToken);
+
+    /// <summary>
+    /// <c>true</c> when <see cref="Entries"/> still holds only the compiled-in seed table
+    /// (<c>CallsignRegionDefaults.Entries</c>) — i.e. no on-disk <c>callsign-regions.json</c> has
+    /// ever been successfully loaded at startup, and no operator-triggered region-data refresh
+    /// (<see cref="SaveAsync"/>) has ever succeeded this session. <c>false</c> once either happens.
+    /// Consulted by <c>engagement-target-validation</c> so its gate no-ops entirely while only
+    /// seed data is loaded — the seed table is intentionally partial (39 entries) and must never
+    /// itself become a source of engagement rejections.
+    /// </summary>
+    bool IsSeedData { get; }
+
+    /// <summary>
     /// Replaces the in-memory region table and persists the new list to
     /// <c>callsign-regions.json</c> atomically (write-to-temp-then-rename), without requiring a
     /// daemon restart (region-lookup-data-refresh capability). Mirrors

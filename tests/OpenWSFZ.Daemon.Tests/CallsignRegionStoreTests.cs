@@ -320,4 +320,175 @@ public sealed class CallsignRegionStoreTests : IDisposable
         store2.Entries.Should().HaveCount(2);
         store2.Entries.Should().Contain(e => e.Entity == "Fictional Land");
     }
+
+    // ── TryMatchPrefix / IsSeedData (engagement-target-validation, task 1.5) ──
+
+    [Fact(DisplayName = "engagement-target-validation 1.5: TryMatchPrefix returns the same RegionInfo as TryGetRegion")]
+    public async Task TryMatchPrefix_ReturnsSameRegionAsTryGetRegion()
+    {
+        var store = MakeStore();
+        await store.LoadAsync();
+
+        var viaMatch  = store.TryMatchPrefix("3A2XYZ");
+        var viaLegacy = store.TryGetRegion("3A2XYZ");
+
+        viaMatch.Should().NotBeNull();
+        viaMatch!.Region.Should().Be(viaLegacy);
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 1.5: TryMatchPrefix reports the matched prefix length")]
+    public async Task TryMatchPrefix_ReportsMatchedPrefixLength()
+    {
+        var customJson = """
+            {
+              "entries": [
+                { "prefixStart": "V",  "prefixEnd": "V",  "entity": "Generic V-block", "continent": null, "cqZone": null, "ituZone": null, "synthetic": false },
+                { "prefixStart": "VK", "prefixEnd": "VK", "entity": "Australia",       "continent": "OC", "cqZone": null, "ituZone": null, "synthetic": false }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(FilePath(), customJson);
+
+        var store = MakeStore();
+        await store.LoadAsync();
+
+        var match = store.TryMatchPrefix("VK9AA");
+
+        match.Should().NotBeNull();
+        match!.Region.Entity.Should().Be("Australia");
+        match.MatchedPrefixLength.Should().Be(2, "the more specific 'VK' (length 2) must win over 'V' (length 1)");
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 1.5: TryMatchPrefix returns null on a lookup miss, identical to TryGetRegion")]
+    public async Task TryMatchPrefix_UnmatchedPrefix_ReturnsNull()
+    {
+        var store = MakeStore();
+        await store.LoadAsync();
+
+        store.TryMatchPrefix("ZZ1ABC").Should().BeNull();
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData is true on a fresh, never-loaded store")]
+    public void IsSeedData_FreshStore_IsTrue()
+    {
+        var store = MakeStore();
+
+        store.IsSeedData.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData stays true after LoadAsync writes the seed table (no on-disk file existed)")]
+    public async Task IsSeedData_FileAbsent_StaysTrueAfterSeedWrite()
+    {
+        var store = MakeStore();
+
+        await store.LoadAsync();
+
+        store.IsSeedData.Should().BeTrue("writing the compiled-in seed defaults is not the same as loading real operator-supplied data");
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData becomes false after loading a real on-disk file")]
+    public async Task IsSeedData_RealFileLoaded_BecomesFalse()
+    {
+        var customJson = """
+            {
+              "entries": [
+                { "prefixStart": "3A", "prefixEnd": "3A", "entity": "Monaco", "continent": "EU", "cqZone": 14, "ituZone": 27, "synthetic": false }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(FilePath(), customJson);
+
+        var store = MakeStore();
+        await store.LoadAsync();
+
+        store.IsSeedData.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData stays true when the on-disk file is malformed (fallback to Unknown-only is not real data)")]
+    public async Task IsSeedData_MalformedFile_StaysTrue()
+    {
+        await File.WriteAllTextAsync(FilePath(), "{ this is not valid json }");
+
+        var store = MakeStore();
+        await store.LoadAsync();
+
+        store.IsSeedData.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData becomes false after a successful SaveAsync")]
+    public async Task IsSeedData_AfterSuccessfulSave_BecomesFalse()
+    {
+        var store = MakeStore();
+        await store.LoadAsync();
+        store.IsSeedData.Should().BeTrue("baseline: only seed data loaded so far");
+
+        await store.SaveAsync([new("Q9", "Q9", "Fictional Land", "EU", 40, 41, Synthetic: false)]);
+
+        store.IsSeedData.Should().BeFalse();
+    }
+
+    // ── IsSeedData restart-sequence provenance (Finding E, dev-task
+    // 2026-07-17-engagement-target-validation-qa-review-findings) ────────────
+
+    [Fact(DisplayName = "engagement-target-validation Finding E: IsSeedData stays true after a simulated daemon restart with no operator action in between")]
+    public async Task IsSeedData_RestartAfterSeedWrite_StaysTrue()
+    {
+        // First-ever run: no file exists, LoadAsync writes the seed table to disk.
+        var firstRunStore = MakeStore();
+        await firstRunStore.LoadAsync();
+        firstRunStore.IsSeedData.Should().BeTrue("baseline: first-ever run, nothing but the seed write has happened");
+
+        // Simulated restart: a brand-new store instance (as a real process restart would create)
+        // loads the same on-disk file the first run's seed-write produced. No operator refresh
+        // happened in between — IsSeedData must still be true, not silently flip to false purely
+        // because the file now exists on disk.
+        var restartedStore = MakeStore();
+        await restartedStore.LoadAsync();
+
+        restartedStore.IsSeedData.Should().BeTrue(
+            "a daemon that has only ever written its own seed table (never had an operator " +
+            "refresh) must still report IsSeedData == true after any number of restarts");
+    }
+
+    [Fact(DisplayName = "engagement-target-validation Finding E: IsSeedData is false after a simulated refresh-then-restart sequence")]
+    public async Task IsSeedData_RefreshThenRestart_ReportsFalse()
+    {
+        var store = MakeStore();
+        await store.LoadAsync();
+
+        // Operator-triggered refresh.
+        await store.SaveAsync([new("3A", "3A", "Monaco", "EU", 14, 27, Synthetic: false)]);
+        store.IsSeedData.Should().BeFalse("baseline: refresh just succeeded");
+
+        // Simulated restart: a fresh store instance reloads the now-refreshed on-disk file.
+        var restartedStore = MakeStore();
+        await restartedStore.LoadAsync();
+
+        restartedStore.IsSeedData.Should().BeFalse(
+            "a daemon restarted after a genuine operator refresh must correctly report " +
+            "IsSeedData == false");
+    }
+
+    [Fact(DisplayName = "engagement-target-validation Finding E: a pre-existing file with no persisted isSeedData marker (predates this capability) migrates to IsSeedData == false")]
+    public async Task IsSeedData_PreExistingFileWithoutMarker_MigratesToFalse()
+    {
+        // No "isSeedData" property at all — the on-disk shape from before Finding E's fix existed.
+        var preExistingJson = """
+            {
+              "entries": [
+                { "prefixStart": "3A", "prefixEnd": "3A", "entity": "Monaco", "continent": "EU", "cqZone": 14, "ituZone": 27, "synthetic": false }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(FilePath(), preExistingJson);
+
+        var store = MakeStore();
+        await store.LoadAsync();
+
+        store.IsSeedData.Should().BeFalse(
+            "a pre-existing file with no persisted provenance marker defaults to 'not seed data' " +
+            "(documented migration choice: an operator running the daemon long enough to have a " +
+            "pre-existing file is more likely to have refreshed at least once than not, and there " +
+            "is no way to tell retroactively)");
+    }
 }

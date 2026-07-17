@@ -3008,4 +3008,105 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         _sut!.Partner.Should().Be(PartnerCall,
             "a null IDecodeFilterStore must impose no filtering — no regression for callers not yet updated");
     }
+
+    // ── engagement-target-validation (task 5.3) ────────────────────────────────
+
+    [Fact(DisplayName = "engagement-target-validation 5.3: a Rejected CQ candidate is never armed — no TX, no AP constraints")]
+    public async Task Idle_RejectedCqCandidate_NeverArmed()
+    {
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        });
+
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var decoder   = Substitute.For<IApConstraintSink>();
+        var validator = Substitute.For<IEngagementTargetValidator>();
+        validator.Validate(PartnerCall)
+            .Returns(EngagementValidationResult.Rejected("implausible callsign shape"));
+
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt,
+                          new TxEventBus(), adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance, decoder: decoder,
+                          engagementValidator: validator);
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [Make($"CQ {PartnerCall} {PartnerGrid}")]));
+
+        await Task.Delay(300);
+
+        sut.State.Should().Be(QsoState.Idle, "a rejected candidate must never be armed as a TX target");
+        sut.Partner.Should().BeNull();
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+        decoder.DidNotReceive().SetApConstraints(Arg.Any<Ft8ApConstraints>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 5.3: a Rejected candidate is skipped while scanning continues to an Allowed candidate in the same batch")]
+    public async Task Idle_RejectedCandidateFollowedByAllowed_ScansToAllowedCandidate()
+    {
+        const string RejectedCall = "Q9BAD";
+
+        var store = Substitute.For<IConfigStore>();
+        store.Current.Returns(new AppConfig() with
+        {
+            Tx = new TxConfig
+            {
+                AutoAnswer      = true,
+                Callsign        = OurCallsign,
+                Grid            = OurGrid,
+                RetryCount      = 2,
+                WatchdogMinutes = 4,
+            }
+        });
+
+        var ptt = Substitute.For<IPttController>();
+        ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var validator = Substitute.For<IEngagementTargetValidator>();
+        validator.Validate(RejectedCall)
+            .Returns(EngagementValidationResult.Rejected("implausible callsign shape"));
+        validator.Validate(PartnerCall).Returns(EngagementValidationResult.Allowed);
+
+        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        var sut     = new QsoAnswererService(channel.Reader, store, ptt,
+                          new TxEventBus(), adifLog, new AudioOffsetEventBus(),
+                          NullLogger<QsoAnswererService>.Instance,
+                          engagementValidator: validator);
+
+        using var stopCts = new CancellationTokenSource();
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [Make($"CQ {RejectedCall} JO11"), Make($"CQ {PartnerCall} {PartnerGrid}", freqHz: 1100)]));
+
+        await WaitForStateAsync(sut, QsoState.WaitReport);
+        sut.Partner.Should().Be(PartnerCall,
+            "the rejected candidate must be skipped and scanning must continue to the next candidate");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
 }

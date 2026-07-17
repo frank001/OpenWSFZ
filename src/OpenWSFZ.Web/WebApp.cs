@@ -127,6 +127,14 @@ public static class WebApp
         // in Program.cs) can resolve IDecodeFilterStore from the same container.
         builder.Services.AddSingleton<IDecodeFilterStore, DecodeFilterStore>();
 
+        // engagement-target-validation: default pass-through registered here (before
+        // configureServices below), so any caller that doesn't wire up
+        // ICallsignRegionStore/ICallsignGrammarStore (test fixtures, minimal hosts) still gets a
+        // resolvable IEngagementTargetValidator that behaves exactly like today (no rejections) —
+        // mirrors the IAuthPolicy/NullAuthPolicy default-then-override pattern below. Daemon's
+        // Program.cs overrides this via configureServices with the real, store-backed validator.
+        builder.Services.AddSingleton<IEngagementTargetValidator, NullEngagementTargetValidator>();
+
         // IAdifLogWriter: supplied explicitly by callers that need to capture writes (qso-log-dialog).
         // When null, the endpoint returns 503 (no writer available) — which is the correct behaviour
         // for test instances that do not wire the TX subsystem.
@@ -1299,9 +1307,13 @@ public static class WebApp
         //   OURS PARTNER 73        → abort only (QSO already done)
         //   Any other pattern      → 422 Unprocessable Entity
 
+        var engageDecodeLogger = app.Services.GetRequiredService<ILoggerFactory>()
+                                             .CreateLogger("OpenWSFZ.Web.EngageDecodeApi");
+
         app.MapPost("/api/v1/tx/engage-decode", async (
             HttpRequest   request,
             IConfigStore  store,
+            IEngagementTargetValidator engagementValidator,
             CancellationToken ct) =>
         {
             if (qsoController is null)
@@ -1330,30 +1342,42 @@ public static class WebApp
                 return Results.BadRequest("cycleStartUtc is not a valid ISO 8601 date-time.");
             }
 
-            // ── Step 1: Abort if not Idle ─────────────────────────────────────────
-            if (qsoController.State != QsoState.Idle)
+            // ── Abort-if-not-Idle helper ───────────────────────────────────────────
+            //
+            // dev-task 2026-07-17-engagement-target-validation-qa-review-findings (Finding F):
+            // this used to run unconditionally as "Step 1", ahead of engagement-target-validation's
+            // check below — so a rejected target's prior in-progress QSO was aborted for nothing
+            // before the operator even saw the confirmation prompt. Now called only once a target
+            // is known Allowed (or explicitly confirmed), immediately before the dispatch that
+            // actually consumes the abort. The 73/not-addressed-to-us paths below don't validate a
+            // target at all, so they still abort unconditionally, same as before.
+            async Task<IResult?> AbortIfNotIdleAsync()
             {
-                await qsoController.AbortAsync(ct).ConfigureAwait(false);
-
-                // SafeAbortToIdleAsync runs on the background service thread; poll until
-                // the state propagates.  2-second deadline is generous: in practice
-                // KeyUpAsync completes in <100 ms.
-                var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
-                while (qsoController.State != QsoState.Idle
-                       && DateTimeOffset.UtcNow < deadline)
-                {
-                    await Task.Delay(10, ct).ConfigureAwait(false);
-                }
-
                 if (qsoController.State != QsoState.Idle)
                 {
-                    return Results.Problem(
-                        "QSO did not abort in time; please retry.",
-                        statusCode: 503);
+                    await qsoController.AbortAsync(ct).ConfigureAwait(false);
+
+                    // SafeAbortToIdleAsync runs on the background service thread; poll until
+                    // the state propagates.  2-second deadline is generous: in practice
+                    // KeyUpAsync completes in <100 ms.
+                    var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+                    while (qsoController.State != QsoState.Idle
+                           && DateTimeOffset.UtcNow < deadline)
+                    {
+                        await Task.Delay(10, ct).ConfigureAwait(false);
+                    }
+
+                    if (qsoController.State != QsoState.Idle)
+                    {
+                        return Results.Problem(
+                            "QSO did not abort in time; please retry.",
+                            statusCode: 503);
+                    }
                 }
+                return null;
             }
 
-            // ── Step 2: Parse message and dispatch ────────────────────────────────
+            // ── Parse message and dispatch ────────────────────────────────────────
 
             var txConfig     = store.Current.Tx ?? new TxConfig();
             var ourCallsign  = txConfig.Callsign ?? string.Empty;
@@ -1372,6 +1396,30 @@ public static class WebApp
                 // CQ DX PARTNER    →  partner = tokens[2]
                 // CQ modifier PARTNER [GRID]  →  partner = tokens[2]
                 var partnerCallsign = tokens.Length >= 4 ? tokens[2] : tokens[1];
+
+                // engagement-target-validation: soft block with explicit operator override
+                // (design.md Decision 4) — a human is looking at this specific row. Validated
+                // BEFORE any abort (Finding F) — a rejected target must leave a prior in-progress
+                // QSO completely untouched.
+                var cqValidation = engagementValidator.Validate(partnerCallsign);
+                if (!cqValidation.IsAllowed && !req.Confirm)
+                {
+                    // dev-task 2026-07-17-engagement-target-validation-live-verification-findings
+                    // (Finding B): logged so a live rejection is diagnosable from the daemon log
+                    // alone — the reason previously only reached the HTTP response body, which
+                    // ASP.NET Core's request logging never captures.
+                    engageDecodeLogger.LogInformation(
+                        "engage-decode: rejecting CQ-row engagement target '{Callsign}' — {Reason}",
+                        partnerCallsign, cqValidation.RejectionReason);
+                    return Results.Json(
+                        new EngagementRejectedResponse(cqValidation.RejectionReason ?? "Rejected."),
+                        AppJsonContext.Default.EngagementRejectedResponse,
+                        statusCode: StatusCodes.Status409Conflict);
+                }
+
+                var abortResult = await AbortIfNotIdleAsync().ConfigureAwait(false);
+                if (abortResult is not null)
+                    return abortResult;
 
                 await qsoController.AnswerCqAsync(
                     partnerCallsign, req.FrequencyHz, cycleStart, ct).ConfigureAwait(false);
@@ -1404,45 +1452,80 @@ public static class WebApp
 
                 if (info.Equals("73", StringComparison.OrdinalIgnoreCase))
                 {
-                    // QSO already complete — abort only (already done above).  Return Idle.
-                }
-                else if (info.Equals("RR73", StringComparison.OrdinalIgnoreCase))
-                {
-                    await qsoController.EngageAtAsync(
-                        partner, req.FrequencyHz, cycleStart, EngagePoint.Send73, ct)
-                        .ConfigureAwait(false);
-                }
-                else if (info.Equals("RRR", StringComparison.OrdinalIgnoreCase) || IsRReport(info))
-                {
-                    await qsoController.EngageAtAsync(
-                        partner, req.FrequencyHz, cycleStart, EngagePoint.SendRr73, ct)
-                        .ConfigureAwait(false);
-                }
-                else if (IsPlainSnr(info))
-                {
-                    await qsoController.EngageAtAsync(
-                        partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, ct)
-                        .ConfigureAwait(false);
-                }
-                else if (IsGridSquare(info))
-                {
-                    // OURCALL PARTNER GRID: partner is answering our CQ with their grid square.
-                    // Semantically equivalent to a plain-SNR first exchange — respond with our report.
-                    await qsoController.EngageAtAsync(
-                        partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, ct)
-                        .ConfigureAwait(false);
+                    // QSO already complete — abort only.  Return Idle.  No transmission on this
+                    // path — engagement-target-validation does not apply, so no target to validate
+                    // before aborting.
+                    var abortResult = await AbortIfNotIdleAsync().ConfigureAwait(false);
+                    if (abortResult is not null)
+                        return abortResult;
                 }
                 else
                 {
-                    // Unrecognised payload (e.g. CQ or free-text bleed-through).
-                    return Results.UnprocessableEntity();
+                    // Every remaining recognised-payload branch below transmits — validate the
+                    // target once, up front (design.md Decision 4: soft block with explicit
+                    // operator override, since a human is looking at this specific row), BEFORE any
+                    // abort (Finding F) — same rationale as the CQ-row branch above.
+                    var directedValidation = engagementValidator.Validate(partner);
+                    if (!directedValidation.IsAllowed && !req.Confirm)
+                    {
+                        // See the CQ-row branch above — same rationale (Finding B).
+                        engageDecodeLogger.LogInformation(
+                            "engage-decode: rejecting directed-message engagement target '{Callsign}' — {Reason}",
+                            partner, directedValidation.RejectionReason);
+                        return Results.Json(
+                            new EngagementRejectedResponse(directedValidation.RejectionReason ?? "Rejected."),
+                            AppJsonContext.Default.EngagementRejectedResponse,
+                            statusCode: StatusCodes.Status409Conflict);
+                    }
+
+                    var abortResult = await AbortIfNotIdleAsync().ConfigureAwait(false);
+                    if (abortResult is not null)
+                        return abortResult;
+
+                    if (info.Equals("RR73", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await qsoController.EngageAtAsync(
+                            partner, req.FrequencyHz, cycleStart, EngagePoint.Send73, ct)
+                            .ConfigureAwait(false);
+                    }
+                    else if (info.Equals("RRR", StringComparison.OrdinalIgnoreCase) || IsRReport(info))
+                    {
+                        await qsoController.EngageAtAsync(
+                            partner, req.FrequencyHz, cycleStart, EngagePoint.SendRr73, ct)
+                            .ConfigureAwait(false);
+                    }
+                    else if (IsPlainSnr(info))
+                    {
+                        await qsoController.EngageAtAsync(
+                            partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, ct)
+                            .ConfigureAwait(false);
+                    }
+                    else if (IsGridSquare(info))
+                    {
+                        // OURCALL PARTNER GRID: partner is answering our CQ with their grid square.
+                        // Semantically equivalent to a plain-SNR first exchange — respond with our report.
+                        await qsoController.EngageAtAsync(
+                            partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, ct)
+                            .ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        // Unrecognised payload (e.g. CQ or free-text bleed-through). Already
+                        // aborted above (this is not a validated-target rejection — the abort here
+                        // matches this endpoint's pre-existing behaviour for malformed payloads).
+                        return Results.UnprocessableEntity();
+                    }
                 }
             }
 
             // ── Case C: Message not addressed to us ───────────────────────────────
             else
             {
-                // Abort already done.  Return 422 so the JS can show a console note.
+                // No target to validate on this path — abort unconditionally, same as before.
+                var abortResult = await AbortIfNotIdleAsync().ConfigureAwait(false);
+                if (abortResult is not null)
+                    return abortResult;
+
                 return Results.UnprocessableEntity();
             }
 

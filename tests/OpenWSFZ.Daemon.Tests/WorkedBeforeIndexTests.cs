@@ -298,6 +298,7 @@ public sealed class WorkedBeforeIndexTests : IDisposable
     private sealed class FixedRegionStore : ICallsignRegionStore
     {
         public IReadOnlyList<CallsignRegionEntry> Entries { get; } = [];
+        public bool IsSeedData => false;
 
         public RegionInfo? TryGetRegion(string callsignToken)
         {
@@ -311,6 +312,9 @@ public sealed class WorkedBeforeIndexTests : IDisposable
                 return new RegionInfo(null, "Synthetic (R&R Study)", Synthetic: true);
             return null;
         }
+
+        public CallsignRegionMatch? TryMatchPrefix(string callsignToken)
+            => TryGetRegion(callsignToken) is { } region ? new CallsignRegionMatch(region, 2) : null;
 
         public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();

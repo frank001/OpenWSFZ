@@ -62,3 +62,17 @@ public sealed record RegionInfo(
     bool    Synthetic,
     int?    CqZone  = null,
     int?    ItuZone = null);
+
+/// <summary>
+/// A resolved region-store prefix match, pairing the matched <see cref="RegionInfo"/> with the
+/// length of the prefix range that matched (<c>engagement-target-validation</c> capability).
+/// Needed alongside <see cref="RegionInfo"/> so a consumer can determine exactly where the match
+/// ends within the original token — <see cref="RegionInfo"/> alone carries no positional
+/// information.
+/// </summary>
+/// <param name="Region">The matched region, identical to what <see cref="ICallsignRegionStore.TryGetRegion"/> would return.</param>
+/// <param name="MatchedPrefixLength">
+/// The length, in characters, of the matched <see cref="CallsignRegionEntry.PrefixStart"/> range —
+/// i.e. the index into the original token immediately following the matched prefix.
+/// </param>
+public sealed record CallsignRegionMatch(RegionInfo Region, int MatchedPrefixLength);

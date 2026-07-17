@@ -32,7 +32,8 @@ public sealed class QsoCallerServiceTests
                          IAdifLogWriter? adifLog = null, IApConstraintSink? decoder = null,
                          ICatState? catState = null, AppConfig? appConfig = null,
                          IDecodeFilterStore? decodeFilterStore = null,
-                         TimeProvider? timeProvider = null)
+                         TimeProvider? timeProvider = null,
+                         IEngagementTargetValidator? engagementValidator = null)
     {
         var ptt = Substitute.For<IPttController>();
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -57,14 +58,16 @@ public sealed class QsoCallerServiceTests
                 decoder: decoder,
                 catState: catState,
                 decodeFilterStore: decodeFilterStore,
-                timeProvider: timeProvider)
+                timeProvider: timeProvider,
+                engagementValidator: engagementValidator)
             : new QsoCallerService(
                 channel.Reader, store, ptt, eventBus,
                 resolvedLog, new AudioOffsetEventBus(),
                 NullLogger<QsoCallerService>.Instance,
                 decoder: decoder,
                 catState: catState,
-                decodeFilterStore: decodeFilterStore);
+                decodeFilterStore: decodeFilterStore,
+                engagementValidator: engagementValidator);
 
         return (sut, eventBus, resolvedLog, ptt, channel, stopCts);
     }
@@ -2220,6 +2223,91 @@ public sealed class QsoCallerServiceTests
         sut.State.Should().Be(QsoState.WaitReport,
             "SelectResponderAsync naming a filtered-out callsign must be rejected outright");
         sut.Partner.Should().BeNull();
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── engagement-target-validation (task 5.3) ────────────────────────────────
+
+    [Fact(DisplayName = "engagement-target-validation 5.3: a Rejected responder is never armed — stays in WaitAnswer, no report sent")]
+    public async Task WaitAnswer_FirstMode_RejectedResponder_NeverArmed()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+
+        var validator = Substitute.For<IEngagementTargetValidator>();
+        validator.Validate(PartnerCall)
+            .Returns(EngagementValidationResult.Rejected("implausible callsign shape"));
+
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), engagementValidator: validator);
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ → WaitAnswer.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Feed a response from the rejected candidate.
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await Task.Delay(300);
+
+        sut.State.Should().Be(QsoState.WaitReport,
+            "a rejected responder must never be treated as the active partner");
+        sut.Partner.Should().BeNull();
+        // Only the initial CQ TX — no second KeyDownAsync for a report to the rejected responder.
+        await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "engagement-target-validation 5.3: a Rejected responder is skipped while scanning continues to an Allowed responder in the same batch")]
+    public async Task WaitAnswer_FirstMode_RejectedResponderFollowedByAllowed_ScansToAllowedResponder()
+    {
+        const string RejectedCall = "Q9BAD";
+
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+
+        var validator = Substitute.For<IEngagementTargetValidator>();
+        validator.Validate(RejectedCall)
+            .Returns(EngagementValidationResult.Rejected("implausible callsign shape"));
+        validator.Validate(PartnerCall).Returns(EngagementValidationResult.Allowed);
+
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), engagementValidator: validator);
+        await sut.StartAsync(stopCts.Token);
+
+        // Trigger CQ → WaitAnswer.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Both a rejected and an allowed responder in the same batch — the rejected one must be
+        // skipped and scanning must continue to the allowed one.
+        Send(channel,
+            Make($"{OurCallsign} {RejectedCall} JO11"),
+            Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        sut.Partner.Should().Be(PartnerCall,
+            "the rejected responder must be skipped and scanning must continue to the next candidate");
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

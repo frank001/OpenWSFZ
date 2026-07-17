@@ -59,6 +59,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // HandleIdleAsync; null behaves as fully unfiltered (no regression for callers that don't
     // supply one — mirrors D-013's ICatState? backward-compatibility posture).
     private readonly IDecodeFilterStore?                         _decodeFilterStore;
+    // engagement-target-validation: consulted in the CQ auto-answer scan in HandleIdleAsync
+    // before arming a candidate; null behaves as always-Allowed (no regression for callers that
+    // don't supply one — same backward-compatibility posture as the fields above).
+    private readonly IEngagementTargetValidator?                 _engagementValidator;
 
     // Volatile: readable from the HTTP handler thread without a lock.
     private volatile QsoState _state   = QsoState.Idle;
@@ -158,7 +162,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         ILogger<QsoAnswererService>  logger,
         IApConstraintSink?           decoder = null,
         ICatState?                   catState = null,
-        IDecodeFilterStore?          decodeFilterStore = null)
+        IDecodeFilterStore?          decodeFilterStore = null,
+        IEngagementTargetValidator?  engagementValidator = null)
     {
         _decodeChannel       = decodeChannel;
         _configStore         = configStore;
@@ -170,6 +175,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         _decoder             = decoder;
         _catState            = catState;
         _decodeFilterStore   = decodeFilterStore;
+        _engagementValidator = engagementValidator;
         _timeProvider        = TimeProvider.System;
     }
 
@@ -191,9 +197,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         TimeSpan                     watchdogDurationOverride,
         TimeProvider?                timeProvider = null,
         ICatState?                   catState = null,
-        IDecodeFilterStore?          decodeFilterStore = null)
+        IDecodeFilterStore?          decodeFilterStore = null,
+        IEngagementTargetValidator?  engagementValidator = null)
         : this(decodeChannel, configStore, pttController, txEventBus, adifLog, audioOffsetEventBus, logger,
-               catState: catState, decodeFilterStore: decodeFilterStore)
+               catState: catState, decodeFilterStore: decodeFilterStore, engagementValidator: engagementValidator)
     {
         _watchdogDurationOverride = watchdogDurationOverride;
         _timeProvider             = timeProvider ?? TimeProvider.System;
@@ -761,6 +768,18 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
             if (!DecodeFilterEvaluator.IsVisible(r, filterState))
                 continue; // filtered out — skip entirely, do not deprioritise
+
+            // engagement-target-validation: hard-skip a candidate the region-anchored grammar
+            // check rejects — no operator is looking at this specific decode, so there is no
+            // override path (design.md Decision 4). Continue scanning the rest of the batch.
+            var validation = _engagementValidator?.Validate(callsign) ?? EngagementValidationResult.Allowed;
+            if (!validation.IsAllowed)
+            {
+                _logger.LogInformation(
+                    "QsoAnswererService: skipping auto-answer CQ candidate {Callsign} — {Reason}",
+                    callsign, validation.RejectionReason);
+                continue;
+            }
 
             cqResult = r;
             partner  = callsign;

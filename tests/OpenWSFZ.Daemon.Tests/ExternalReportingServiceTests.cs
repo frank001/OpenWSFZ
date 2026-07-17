@@ -45,9 +45,12 @@ public sealed class ExternalReportingServiceTests
     {
         private readonly Dictionary<string, RegionInfo?> _map = new(StringComparer.OrdinalIgnoreCase);
         public IReadOnlyList<CallsignRegionEntry> Entries => [];
+        public bool IsSeedData => false;
         public void Set(string callsign, RegionInfo? region) => _map[callsign] = region;
         public RegionInfo? TryGetRegion(string callsignToken)
             => _map.TryGetValue(callsignToken, out var region) ? region : null;
+        public CallsignRegionMatch? TryMatchPrefix(string callsignToken)
+            => TryGetRegion(callsignToken) is { } region ? new CallsignRegionMatch(region, 0) : null;
         public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken ct = default)
             => Task.CompletedTask;
     }

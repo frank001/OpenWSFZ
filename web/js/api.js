@@ -309,12 +309,19 @@ export function postTxAbort() {
  * (not addressed to us, or unknown format).  In that case the abort has still
  * been performed; the caller should refresh TX status.
  *
+ * Returns HTTP 409 Conflict (engagement-target-validation) if the target callsign is
+ * rejected by the region-anchored grammar check and `confirm` was not set — the thrown
+ * error carries `.reason` and `.requiresConfirmation` so the caller can prompt the
+ * operator and, on acceptance, retry with `confirm: true`.
+ *
  * @param {string} message       Full FT8 message text (e.g. "PD2FZ W1ABC -07").
  * @param {number} frequencyHz   Audio frequency of the decode, in Hz.
  * @param {string} cycleStartUtc ISO 8601 UTC cycle-start (e.g. "2026-06-27T10:00:15Z").
+ * @param {boolean} [confirm]    Operator has already confirmed a prior engagement-target
+ *                               rejection for this same target — proceed regardless.
  * @returns {Promise<{state:string, partner:string|null, autoAnswerEnabled:boolean, role:string}>}
  */
-export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc) {
+export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc, confirm = false) {
   const key = getApiKey();
   const res = await fetch('/api/v1/tx/engage-decode', {
     method:  'POST',
@@ -322,7 +329,7 @@ export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc) {
       'Content-Type': 'application/json',
       ...(key ? { 'X-Api-Key': key } : {}),
     },
-    body: JSON.stringify({ message, frequencyHz, cycleStartUtc }),
+    body: JSON.stringify({ message, frequencyHz, cycleStartUtc, confirm }),
   });
   if (res.status === 401) {
     sessionStorage.removeItem(API_KEY_SESSION_KEY);
@@ -331,6 +338,14 @@ export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc) {
   }
   const err = new Error(`engage-decode: ${res.status}`);
   /** @type {any} */ (err).status = res.status;
+  if (res.status === 409) {
+    // engagement-target-validation: body is { reason, requiresConfirmation }.
+    try {
+      const body = await res.json();
+      /** @type {any} */ (err).reason               = body?.reason ?? null;
+      /** @type {any} */ (err).requiresConfirmation  = body?.requiresConfirmation ?? true;
+    } catch { /* malformed/empty body — leave reason unset */ }
+  }
   if (!res.ok) throw err;
   return res.json();
 }

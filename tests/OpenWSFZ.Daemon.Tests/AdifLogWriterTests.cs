@@ -299,7 +299,9 @@ public sealed class AdifLogWriterTests : IDisposable
     private sealed class NullRegionStore : ICallsignRegionStore
     {
         public IReadOnlyList<CallsignRegionEntry> Entries { get; } = [];
+        public bool IsSeedData => false;
         public RegionInfo? TryGetRegion(string callsignToken) => null;
+        public CallsignRegionMatch? TryMatchPrefix(string callsignToken) => null;
         public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
     }

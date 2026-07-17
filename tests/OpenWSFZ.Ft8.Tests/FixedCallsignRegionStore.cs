@@ -11,11 +11,30 @@ internal sealed class FixedCallsignRegionStore : ICallsignRegionStore
 {
     private IReadOnlyList<CallsignRegionEntry> _entries;
 
+    /// <summary>
+    /// engagement-target-validation: defaults to <c>false</c> (real data) since every existing
+    /// caller of this constructor is explicitly supplying a fixed entry list, not the compiled-in
+    /// seed table — matches this double's overall "caller controls exactly what's loaded" contract.
+    /// Settable via <see cref="IsSeedData"/>'s init-only-by-convention backing field through the
+    /// second constructor overload for tests that specifically need to exercise the seed-data no-op.
+    /// </summary>
+    private bool _isSeedData;
+
     public FixedCallsignRegionStore(IReadOnlyList<CallsignRegionEntry> entries) => _entries = entries;
+
+    public FixedCallsignRegionStore(IReadOnlyList<CallsignRegionEntry> entries, bool isSeedData)
+    {
+        _entries    = entries;
+        _isSeedData = isSeedData;
+    }
 
     public IReadOnlyList<CallsignRegionEntry> Entries => _entries;
 
-    public RegionInfo? TryGetRegion(string callsignToken)
+    public bool IsSeedData => _isSeedData;
+
+    public RegionInfo? TryGetRegion(string callsignToken) => TryMatchPrefix(callsignToken)?.Region;
+
+    public CallsignRegionMatch? TryMatchPrefix(string callsignToken)
     {
         if (string.IsNullOrEmpty(callsignToken)) return null;
         var token = callsignToken.ToUpperInvariant();
@@ -36,7 +55,9 @@ internal sealed class FixedCallsignRegionStore : ICallsignRegionStore
                 best = entry;
         }
 
-        return best is null ? null : new RegionInfo(best.Continent, best.Entity, best.Synthetic, best.CqZone, best.ItuZone);
+        if (best is null) return null;
+        var region = new RegionInfo(best.Continent, best.Entity, best.Synthetic, best.CqZone, best.ItuZone);
+        return new CallsignRegionMatch(region, best.PrefixStart.Length);
     }
 
     /// <summary>
@@ -46,7 +67,8 @@ internal sealed class FixedCallsignRegionStore : ICallsignRegionStore
     /// </summary>
     public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default)
     {
-        _entries = entries;
+        _entries    = entries;
+        _isSeedData = false; // engagement-target-validation: a successful save is real data.
         return Task.CompletedTask;
     }
 }
@@ -60,7 +82,12 @@ internal sealed class ThrowingCallsignRegionStore : ICallsignRegionStore
 {
     public IReadOnlyList<CallsignRegionEntry> Entries => [];
 
+    public bool IsSeedData => false;
+
     public RegionInfo? TryGetRegion(string callsignToken)
+        => throw new InvalidOperationException("Simulated region-lookup failure.");
+
+    public CallsignRegionMatch? TryMatchPrefix(string callsignToken)
         => throw new InvalidOperationException("Simulated region-lookup failure.");
 
     public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default)

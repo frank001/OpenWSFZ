@@ -64,8 +64,11 @@ internal sealed class TestCallsignRegionStore : ICallsignRegionStore
 
     public IReadOnlyList<CallsignRegionEntry> Entries { get; private set; }
     public int SaveAsyncCallCount { get; private set; }
+    public bool IsSeedData { get; private set; }
 
-    public RegionInfo? TryGetRegion(string callsignToken)
+    public RegionInfo? TryGetRegion(string callsignToken) => TryMatchPrefix(callsignToken)?.Region;
+
+    public CallsignRegionMatch? TryMatchPrefix(string callsignToken)
     {
         if (string.IsNullOrEmpty(callsignToken)) return null;
         var token = callsignToken.ToUpperInvariant();
@@ -86,15 +89,16 @@ internal sealed class TestCallsignRegionStore : ICallsignRegionStore
                 best = entry;
         }
 
-        return best is null
-            ? null
-            : new RegionInfo(best.Continent, best.Entity, best.Synthetic, best.CqZone, best.ItuZone);
+        if (best is null) return null;
+        var region = new RegionInfo(best.Continent, best.Entity, best.Synthetic, best.CqZone, best.ItuZone);
+        return new CallsignRegionMatch(region, best.PrefixStart.Length);
     }
 
     public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default)
     {
         SaveAsyncCallCount++;
-        Entries = entries;
+        Entries      = entries;
+        IsSeedData   = false; // engagement-target-validation: a successful save is real data.
         return Task.CompletedTask;
     }
 }
@@ -107,8 +111,10 @@ internal sealed class TestCallsignRegionStore : ICallsignRegionStore
 internal sealed class FailingSaveCallsignRegionStore : ICallsignRegionStore
 {
     public IReadOnlyList<CallsignRegionEntry> Entries => [];
+    public bool IsSeedData => true;
 
     public RegionInfo? TryGetRegion(string callsignToken) => null;
+    public CallsignRegionMatch? TryMatchPrefix(string callsignToken) => null;
 
     public Task SaveAsync(IReadOnlyList<CallsignRegionEntry> entries, CancellationToken cancellationToken = default)
         => throw new IOException("simulated disk write failure");
