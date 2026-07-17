@@ -46,7 +46,7 @@ internal sealed class MockQsoController : IQsoController
 
     public Task EngageAtAsync(
         string partnerCallsign, double frequencyHz, DateTimeOffset theirCycleStart,
-        EngagePoint point, CancellationToken ct)
+        EngagePoint point, string rawPayload, CancellationToken ct)
         => Task.CompletedTask;
 }
 

@@ -1485,19 +1485,19 @@ public static class WebApp
                     if (info.Equals("RR73", StringComparison.OrdinalIgnoreCase))
                     {
                         await qsoController.EngageAtAsync(
-                            partner, req.FrequencyHz, cycleStart, EngagePoint.Send73, ct)
+                            partner, req.FrequencyHz, cycleStart, EngagePoint.Send73, info, ct)
                             .ConfigureAwait(false);
                     }
                     else if (info.Equals("RRR", StringComparison.OrdinalIgnoreCase) || IsRReport(info))
                     {
                         await qsoController.EngageAtAsync(
-                            partner, req.FrequencyHz, cycleStart, EngagePoint.SendRr73, ct)
+                            partner, req.FrequencyHz, cycleStart, EngagePoint.SendRr73, info, ct)
                             .ConfigureAwait(false);
                     }
                     else if (IsPlainSnr(info))
                     {
                         await qsoController.EngageAtAsync(
-                            partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, ct)
+                            partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, info, ct)
                             .ConfigureAwait(false);
                     }
                     else if (IsGridSquare(info))
@@ -1505,7 +1505,7 @@ public static class WebApp
                         // OURCALL PARTNER GRID: partner is answering our CQ with their grid square.
                         // Semantically equivalent to a plain-SNR first exchange — respond with our report.
                         await qsoController.EngageAtAsync(
-                            partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, ct)
+                            partner, req.FrequencyHz, cycleStart, EngagePoint.SendReport, info, ct)
                             .ConfigureAwait(false);
                     }
                     else

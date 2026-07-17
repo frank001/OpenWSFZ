@@ -115,6 +115,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private double         _jumpFreqHz;
     private bool           _jumpIsAPhase;       // false = B-phase, i.e. opposite of their decode
     private DateTimeOffset _jumpSetAt;
+    // fix-jump-in-rr73-adif-capture: the exact decoded payload text that triggered this jump-in
+    // (e.g. "R-05" or "RRR"), forwarded from the engage-decode HTTP handler. Consumed only by
+    // ExecuteJumpInAsync's EngagePoint.SendRr73 case to derive a real RstRcvd.
+    private string?        _jumpRawPayload;
 
     // Cancellation for the active TX session; cancelled on watchdog expiry or operator abort.
     // Volatile reference so AbortAsync (HTTP thread) can safely read and cancel the current CTS.
@@ -231,6 +235,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         double         frequencyHz,
         DateTimeOffset theirCycleStart,
         EngagePoint    point,
+        string         rawPayload,
         CancellationToken ct)
     {
         lock (_stateLock)
@@ -239,11 +244,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             if (_state != QsoState.Idle)
                 return Task.CompletedTask;
 
-            _jumpPoint    = point;
-            _jumpPartner  = partnerCallsign;
-            _jumpFreqHz   = frequencyHz;
-            _jumpIsAPhase = !IsAPhase(theirCycleStart);  // TX in the opposite slot
-            _jumpSetAt    = DateTimeOffset.UtcNow;
+            _jumpPoint      = point;
+            _jumpPartner    = partnerCallsign;
+            _jumpFreqHz     = frequencyHz;
+            _jumpIsAPhase   = !IsAPhase(theirCycleStart);  // TX in the opposite slot
+            _jumpSetAt      = DateTimeOffset.UtcNow;
+            _jumpRawPayload = rawPayload;
         }
 
         // Push a wakeup so the background loop fires within the current cycle window,
@@ -455,15 +461,17 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// going through <see cref="EngageAtAsync"/> — see <see cref="TestSetPendingTarget"/> for why.
     /// </summary>
     internal void TestSetJumpTarget(
-        string callsign, double freqHz, EngagePoint point, bool isAPhase, DateTimeOffset? setAt = null)
+        string callsign, double freqHz, EngagePoint point, bool isAPhase, DateTimeOffset? setAt = null,
+        string? rawPayload = null)
     {
         lock (_stateLock)
         {
-            _jumpPoint    = point;
-            _jumpPartner  = callsign;
-            _jumpFreqHz   = freqHz;
-            _jumpIsAPhase = isAPhase;
-            _jumpSetAt    = setAt ?? DateTimeOffset.UtcNow;
+            _jumpPoint      = point;
+            _jumpPartner    = callsign;
+            _jumpFreqHz     = freqHz;
+            _jumpIsAPhase   = isAPhase;
+            _jumpSetAt      = setAt ?? DateTimeOffset.UtcNow;
+            _jumpRawPayload = rawPayload;
         }
     }
 
@@ -626,14 +634,16 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             double         jumpFreqHz;
             bool           jumpIsAPhase;
             DateTimeOffset jumpSetAt;
+            string?        jumpRawPayload;
 
             lock (_stateLock)
             {
-                jumpPoint    = _jumpPoint;
-                jumpPartner  = _jumpPartner;
-                jumpFreqHz   = _jumpFreqHz;
-                jumpIsAPhase = _jumpIsAPhase;
-                jumpSetAt    = _jumpSetAt;
+                jumpPoint      = _jumpPoint;
+                jumpPartner    = _jumpPartner;
+                jumpFreqHz     = _jumpFreqHz;
+                jumpIsAPhase   = _jumpIsAPhase;
+                jumpSetAt      = _jumpSetAt;
+                jumpRawPayload = _jumpRawPayload;
             }
 
             if (jumpPartner is not null)
@@ -662,7 +672,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                     "QsoAnswererService: jump-in to {Point} with partner {Partner} at {FreqHz} Hz.",
                     jumpPoint, jumpPartner, (int)Math.Round(jumpFreqHz));
 
-                await ExecuteJumpInAsync(jumpPartner, jumpFreqHz, jumpPoint, tx, stoppingToken)
+                await ExecuteJumpInAsync(
+                    jumpPartner, jumpFreqHz, jumpPoint, jumpRawPayload ?? string.Empty, tx, stoppingToken)
                     .ConfigureAwait(false);
                 return;
             }
@@ -893,6 +904,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         string        partner,
         double        freqHz,
         EngagePoint   point,
+        string        rawPayload,
         TxConfig      tx,
         CancellationToken stoppingToken)
     {
@@ -907,8 +919,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         _partner      = partner;
         _partnerGrid  = null;        // not available in mid-exchange jump-in
         _retryCount   = 0;
-        _rstRcvd      = "+00";
         _qsoStartUtc  = DateTime.UtcNow;
+        // fix-jump-in-rr73-adif-capture: _rstRcvd is no longer reset to a fixed "+00" placeholder
+        // here — SendReport and Send73 don't consume it at jump-in entry, and the SendRr73 case
+        // below derives a real value from rawPayload instead.
 
         // Determine TX frequency (mirrors ExecuteTxAnswerAsync HoldTxFreq logic).
         int txFreqHz;
@@ -960,11 +974,28 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
             case EngagePoint.SendRr73:
             {
-                // They sent RRR or R±NN → we reply RR73 → QsoComplete (no ADIF — partial QSO).
+                // They sent RRR or R±NN → we reply RR73 → QsoComplete, writing an ADIF record via
+                // the shared helper (fix-jump-in-rr73-adif-capture — this path used to abort
+                // without ever writing a QsoRecord, treating a genuinely completed QSO as if it
+                // were partial; see dev-tasks/2026-07-16-jump-in-sendrr73-no-adif-record.md).
+                // RstRcvd is derived from the actual decoded payload rather than a fabricated
+                // placeholder: strip a leading R from a roger report ("R-05" → "-05"), or use a
+                // bare "RRR" as-is.
+                _rstRcvd = QsoCallerService.IsRogerReport(rawPayload)
+                    ? rawPayload[1..]
+                    : rawPayload;
+
                 var msg = $"{partner} {tx.Callsign} RR73";
                 _lastTxMessage = msg;
                 SetStateAndNotify(QsoState.Tx73);    // nearest proxy; UI shows as final TX
                 await TransmitAsync(msg, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
+
+                // QSO complete.
+                SetStateAndNotify(QsoState.QsoComplete);
+                _logger.LogInformation("QsoAnswererService: QSO with {Partner} complete!", partner);
+
+                await BuildAndWriteQsoRecordAsync(tx, partner, stoppingToken).ConfigureAwait(false);
+
                 await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
                 break;
             }
@@ -1109,11 +1140,43 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         // Note: no ResetWatchdog call here — SafeAbortToIdleAsync (below) unconditionally
         // replaces _txCts with a fresh CTS, so any timeout-armed CTS would be immediately
         // discarded. Resetting the watchdog at QSO completion serves no purpose.
-        // Build the QSO record (used for both qsoReview event and ADIF write).
+        SetStateAndNotify(QsoState.Tx73);
+        await TransmitAsync(msg73, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
+
+        // QSO complete.
+        SetStateAndNotify(QsoState.QsoComplete);
+        _logger.LogInformation(
+            "QsoAnswererService: QSO with {Partner} complete!", partner);
+
+        // Build and write the QSO record (task 4.1/4.2, fix-jump-in-rr73-adif-capture — extracted
+        // into a shared helper so the SendRr73 jump-in case can reuse it identically; failures are
+        // logged as Warning inside AppendQsoAsync, never throw).
+        await BuildAndWriteQsoRecordAsync(tx, partner, stoppingToken).ConfigureAwait(false);
+
+        // Return to Idle.
+        await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Builds a <see cref="QsoRecord"/> for the just-completed QSO with <paramref name="partner"/>
+    /// and writes it via the confirmation-gated path: publishes it through
+    /// <see cref="ITxEventBus.PublishQsoReview"/> if <c>tx.QsoConfirmation</c> is enabled (the
+    /// browser calls <c>POST /api/v1/tx/log-qso</c> once the operator confirms), otherwise writes
+    /// it directly to the ADIF log. Never both — qso-log-dialog D3's double-entry prevention.
+    /// </summary>
+    /// <remarks>
+    /// Extracted (fix-jump-in-rr73-adif-capture, task 4.1) from <see cref="ExecuteTx73Async"/>'s
+    /// former inlined record-build-and-write block so <c>ExecuteJumpInAsync</c>'s
+    /// <see cref="EngagePoint.SendRr73"/> case can reuse it identically — both call sites need the
+    /// same fixed <c>RstSent = "R+00"</c> (the report this daemon always sends) and the same
+    /// <see cref="QsoState.Tx73"/> state ahead of it.
+    /// </remarks>
+    private async Task BuildAndWriteQsoRecordAsync(TxConfig tx, string partner, CancellationToken ct)
+    {
         var record = new QsoRecord
         {
             PartnerCallsign  = partner,
-            PartnerGrid      = _partnerGrid,       // captured from the CQ decode
+            PartnerGrid      = _partnerGrid,       // captured from the CQ decode; null on a jump-in
             RstSent          = "R+00",
             RstRcvd          = _rstRcvd,
             QsoStartUtc      = _qsoStartUtc,
@@ -1125,7 +1188,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
 
         // qso-log-dialog: if confirmation is enabled, emit the qsoReview WS event so the
         // browser opens the confirmation dialog.  The browser is responsible for calling
-        // POST /api/v1/tx/log-qso once the operator clicks OK.
+        // POST /api/v1/tx/log-qso once the operator clicks OK. Otherwise, write directly —
+        // never both (double-entry prevention — qso-log-dialog D3).
         if (tx.QsoConfirmation)
         {
             _txEventBus.PublishQsoReview(
@@ -1134,25 +1198,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                 retainedComment:  tx.RetainedComment,
                 retainedPropMode: tx.RetainedPropMode);
         }
-
-        SetStateAndNotify(QsoState.Tx73);
-        await TransmitAsync(msg73, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
-
-        // QSO complete.
-        SetStateAndNotify(QsoState.QsoComplete);
-        _logger.LogInformation(
-            "QsoAnswererService: QSO with {Partner} complete!", partner);
-
-        // Write ADIF log entry (task 7.6 — failures are logged as Warning; never throw).
-        // When qsoConfirmation is enabled the browser sends the record via POST /api/v1/tx/log-qso;
-        // the daemon must NOT also write it here (double-entry prevention — qso-log-dialog D3).
-        if (!tx.QsoConfirmation)
+        else
         {
             await _adifLog.AppendQsoAsync(record).ConfigureAwait(false);
         }
-
-        // Return to Idle.
-        await SafeAbortToIdleAsync(stoppingToken).ConfigureAwait(false);
     }
 
     // ── Retry / abort ─────────────────────────────────────────────────────────

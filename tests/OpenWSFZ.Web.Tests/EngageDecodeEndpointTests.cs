@@ -26,10 +26,12 @@ internal sealed class TrackingMockQsoController : IQsoController
     public QsoRole  Role    { get; set; } = QsoRole.Answerer;
 
     /// <summary>
-    /// Set to (Partner, FrequencyHz, Point) on each <see cref="EngageAtAsync"/> call;
-    /// <c>null</c> until the first call or after <see cref="ResetTracking"/>.
+    /// Set to (Partner, FrequencyHz, Point, RawPayload) on each <see cref="EngageAtAsync"/> call;
+    /// <c>null</c> until the first call or after <see cref="ResetTracking"/>. <c>RawPayload</c>
+    /// added by fix-jump-in-rr73-adif-capture (task 5.5) so tests can confirm the matched decode
+    /// payload text is forwarded through to <see cref="EngageAtAsync"/>.
     /// </summary>
-    public (string Partner, double FrequencyHz, EngagePoint Point)? LastEngageAtCall { get; private set; }
+    public (string Partner, double FrequencyHz, EngagePoint Point, string RawPayload)? LastEngageAtCall { get; private set; }
 
     /// <summary>
     /// Set to the callsign on each <see cref="AnswerCqAsync"/> call (engagement-target-validation,
@@ -73,9 +75,9 @@ internal sealed class TrackingMockQsoController : IQsoController
 
     public Task EngageAtAsync(
         string partnerCallsign, double frequencyHz, DateTimeOffset theirCycleStart,
-        EngagePoint point, CancellationToken ct)
+        EngagePoint point, string rawPayload, CancellationToken ct)
     {
-        LastEngageAtCall = (partnerCallsign, frequencyHz, point);
+        LastEngageAtCall = (partnerCallsign, frequencyHz, point, rawPayload);
         return Task.CompletedTask;
     }
 }
@@ -274,6 +276,55 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
         _fixture.QsoController.LastEngageAtCall!.Value.Point.Should().Be(EngagePoint.SendReport,
             "plain SNR in Case B must dispatch EngageAt(SendReport)");
         _fixture.QsoController.LastEngageAtCall!.Value.Partner.Should().Be("Q9XYZ");
+    }
+
+    // ── Test G — fix-jump-in-rr73-adif-capture (task 5.5) ──────────────────────
+
+    [Fact(DisplayName = "fix-jump-in-rr73-adif-capture 5.5: OURCALL PARTNER R-05 dispatches EngageAt(SendRr73) forwarding the matched payload as rawPayload")]
+    public async Task EngageDecode_RogerReport_DispatchesSendRr73AndForwardsRawPayload()
+    {
+        // Arrange
+        _fixture.QsoController.ResetTracking();
+        _fixture.EngagementValidator.Rule = null; // engagement-target-validation: allow-all baseline
+        _fixture.QsoController.State = QsoState.Idle;
+
+        // Act — "Q1ABC Q9XYZ R-05": partner sends a roger report; we jump straight to RR73.
+        var response = await _client.PostAsync(
+            "/api/v1/tx/engage-decode", EngageBody("Q1ABC Q9XYZ R-05"));
+
+        // Assert HTTP 200
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "OURCALL PARTNER R±NN is a valid roger-report row — must return 200");
+
+        // Assert EngageAtAsync(SendRr73) was called with the exact matched payload text forwarded
+        // as rawPayload (WebApp.cs's `info` variable) — previously discarded entirely.
+        _fixture.QsoController.LastEngageAtCall.Should().NotBeNull(
+            "EngageAtAsync must be invoked for a roger-report row");
+        _fixture.QsoController.LastEngageAtCall!.Value.Point.Should().Be(EngagePoint.SendRr73,
+            "a roger report (R±NN) means the exchange is complete — we reply with RR73");
+        _fixture.QsoController.LastEngageAtCall!.Value.Partner.Should().Be("Q9XYZ");
+        _fixture.QsoController.LastEngageAtCall!.Value.RawPayload.Should().Be("R-05",
+            "the matched payload text must be forwarded unchanged so RstRcvd can be derived from it");
+    }
+
+    [Fact(DisplayName = "fix-jump-in-rr73-adif-capture 5.5: OURCALL PARTNER RRR dispatches EngageAt(SendRr73) forwarding \"RRR\" as rawPayload")]
+    public async Task EngageDecode_BareRrr_DispatchesSendRr73AndForwardsRawPayload()
+    {
+        // Arrange
+        _fixture.QsoController.ResetTracking();
+        _fixture.EngagementValidator.Rule = null; // engagement-target-validation: allow-all baseline
+        _fixture.QsoController.State = QsoState.Idle;
+
+        // Act — "Q1ABC Q9XYZ RRR": bare RRR, no numeric report.
+        var response = await _client.PostAsync(
+            "/api/v1/tx/engage-decode", EngageBody("Q1ABC Q9XYZ RRR"));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _fixture.QsoController.LastEngageAtCall.Should().NotBeNull();
+        _fixture.QsoController.LastEngageAtCall!.Value.Point.Should().Be(EngagePoint.SendRr73);
+        _fixture.QsoController.LastEngageAtCall!.Value.RawPayload.Should().Be("RRR",
+            "a bare RRR must be forwarded as-is, not normalised or dropped");
     }
 
     // ── Tests E/F — engagement-target-validation (task 4.4) ───────────────────

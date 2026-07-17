@@ -141,6 +141,25 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         svc.Keying.Should().Be(expected, $"keying should reach {expected} within timeout");
     }
 
+    /// <summary>
+    /// Polls <paramref name="ptt"/> until at least one <c>KeyDownAsync</c> call has been recorded,
+    /// or throws on timeout. Used by tests that jump-in directly to a terminal state
+    /// (fix-jump-in-rr73-adif-capture's SendRr73 tests) where the service starts and ends at
+    /// <see cref="QsoState.Idle"/> — <see cref="WaitForStateAsync"/> would return immediately
+    /// without ever observing the jump-in fire, since Idle is also the starting state.
+    /// </summary>
+    private static async Task WaitForKeyDownAsync(IPttController ptt, TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
+        while (DateTime.UtcNow < deadline)
+        {
+            if (ptt.ReceivedCalls().Any(c => c.GetMethodInfo().Name == nameof(IPttController.KeyDownAsync)))
+                return;
+            await Task.Delay(10);
+        }
+        throw new TimeoutException("Expected KeyDownAsync but none was received within timeout.");
+    }
+
     // ── Task 6.2: initial state ───────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-050: QsoAnswererService starts in Idle state with null partner")]
@@ -2560,6 +2579,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             PartnerCall, AudioFreqHz,
             new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero), // their B-phase decode
             EngagePoint.SendReport,
+            "+07",
             CancellationToken.None);
         sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
         await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
@@ -2591,6 +2611,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             PartnerCall, AudioFreqHz,
             new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero),
             EngagePoint.SendReport,
+            "+07",
             CancellationToken.None);
         sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
         await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
@@ -2856,6 +2877,182 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         sut.State.Should().Be(QsoState.Idle,
             "Abort must be a hard stop — no jump-in TX may fire after an Idle-state abort");
         await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── fix-jump-in-rr73-adif-capture: SendRr73 jump-in ADIF capture (tasks 5.1–5.4) ──────────
+    //
+    // Previously, EngagePoint.SendRr73's jump-in case transmitted RR73 and aborted to Idle
+    // without ever writing a QsoRecord — even though the exchange it completes is a real,
+    // finished QSO (dev-tasks/2026-07-16-jump-in-sendrr73-no-adif-record.md). These tests drive
+    // the jump-in via TestSetJumpTarget (not EngageAtAsync — see the D-CALLER-018 AC-2 rationale
+    // above: avoids the racy real-time-based wakeup push) with an explicit batch CycleStart/phase
+    // pairing, so no FakeTimeProvider is required — the phase check is driven entirely by the
+    // batch's own CycleStart, not wall-clock time.
+
+    [Fact(DisplayName = "fix-jump-in-rr73-adif-capture 5.1: SendRr73 jump-in with a numeric roger report writes ADIF with a real RstRcvd")]
+    public async Task ExecuteJumpInAsync_SendRr73_NumericRogerReport_WritesAdifWithRealRstRcvd()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false, // exercise the direct-ADIF-write branch, not the default true
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        sut.TestSetJumpTarget(
+            PartnerCall, AudioFreqHz, EngagePoint.SendRr73, isAPhase: true, rawPayload: "R-05");
+
+        // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ — fires immediately.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        // The service starts (and, once the jump-in completes, ends) at Idle — WaitForStateAsync
+        // would return immediately without observing the fire, so wait for the TX itself, then
+        // give the short synchronous post-transmit chain (SetStateAndNotify/BuildAndWriteQso
+        // RecordAsync/SafeAbortToIdleAsync) time to finish.
+        await WaitForKeyDownAsync(ptt);
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r =>
+                r.PartnerCallsign == PartnerCall &&
+                r.RstRcvd         == "-05" &&
+                r.PartnerGrid     == null));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "fix-jump-in-rr73-adif-capture 5.2: SendRr73 jump-in with a bare RRR writes ADIF with RstRcvd=\"RRR\", not a fabricated numeric value")]
+    public async Task ExecuteJumpInAsync_SendRr73_BareRrr_WritesAdifWithRrrRstRcvd()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false, // exercise the direct-ADIF-write branch, not the default true
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        sut.TestSetJumpTarget(
+            PartnerCall, AudioFreqHz, EngagePoint.SendRr73, isAPhase: true, rawPayload: "RRR");
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await WaitForKeyDownAsync(ptt);
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r =>
+                r.PartnerCallsign == PartnerCall &&
+                r.RstRcvd         == "RRR"));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "fix-jump-in-rr73-adif-capture 5.3: SendRr73 jump-in ADIF record still has a null PartnerGrid — a mid-exchange jump-in never saw the original CQ")]
+    public async Task ExecuteJumpInAsync_SendRr73_PartnerGridStaysNull()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false, // exercise the direct-ADIF-write branch, not the default true
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        sut.TestSetJumpTarget(
+            PartnerCall, AudioFreqHz, EngagePoint.SendRr73, isAPhase: true, rawPayload: "R-05");
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await WaitForKeyDownAsync(ptt);
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerGrid == null));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "fix-jump-in-rr73-adif-capture 5.4: SendRr73 jump-in with QsoConfirmation=true publishes QsoReview instead of writing ADIF directly")]
+    public async Task ExecuteJumpInAsync_SendRr73_QsoConfirmationEnabled_PublishesQsoReviewNotAdif()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 1,
+            QsoConfirmation = true,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, eventBus, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        sut.TestSetJumpTarget(
+            PartnerCall, AudioFreqHz, EngagePoint.SendRr73, isAPhase: true, rawPayload: "R-05");
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await WaitForKeyDownAsync(ptt);
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        eventBus.Received(1).PublishQsoReview(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstRcvd == "-05"),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>());
+        await mockAdif.DidNotReceive().AppendQsoAsync(Arg.Any<QsoRecord>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
