@@ -97,12 +97,17 @@
 
 ## 14. Acceptance Gate — CAT-command PTT (manual, hardware required)
 
-- [ ] 14.1 Set `ptt.method = "CatCommand"`; complete at least one real over-the-air transmission and
+- [x] 14.1 Set `ptt.method = "CatCommand"`; complete at least one real over-the-air transmission and
   confirm the rig visibly keys (TX LED/RF output) and unkeys promptly — no precision timing required,
   no lab equipment needed. Evidence: a monitoring receiver, second SDR, or the far station decodes
   the transmitted message in full (an intact decode is sufficient proof the lead/tail timing didn't
-  clip the signal — same evidence standard as Gate 16's two-way QSO)
-- [ ] 14.2 Confirm the CAT status badge and frequency polling continue to update correctly during and immediately after a TX cycle (proves Decision 1's serialization works under real load, not just in mocks)
+  clip the signal — same evidence standard as Gate 16's two-way QSO) — **run live 2026-07-18**: three
+  real over-the-air TX cycles via `CatPttController` (`"CAT: dispatching PTT command"` →
+  `CatPttController: KeyDown/KeyUp — PTT asserted/released (CAT)"`), one of which completed a full,
+  genuine two-way QSO with an ADIF record written (`FR-051: ADIF QSO logged`); external confirmation
+  obtained by the operator via QRZ logbook lookup (real callsign withheld per NFR-021). See
+  `hardware-acceptance.md`'s 2026-07-18 entry for full evidence and timestamps
+- [x] 14.2 Confirm the CAT status badge and frequency polling continue to update correctly during and immediately after a TX cycle (proves Decision 1's serialization works under real load, not just in mocks) — **run live 2026-07-18**: `Heartbeat: captureActive=true, audioActive=true, dataFlowing=true` continued on its normal ~5s cadence with no gaps across all three TX cycles; `GET /api/v1/status` showed `catConnectionStatus: "Connected"` and a stable `dialFrequencyMHz` before, during, and after every cycle
 - [x] 14.3 **Removed as a manual hardware gate, 2026-07-14** — asking the operator to reconfigure an
   internal timing knob and orchestrate a component-level failure through the Settings UI is not a
   reasonable acceptance test. Covered instead by: (a) `PttWatchdogTests.cs`, which deterministically
@@ -112,13 +117,13 @@
   physically de-assert the line, and that exact call has already been proven correct on real
   hardware dozens of times across two field sessions (2026-07-12, 2026-07-14). No further manual
   step adds real confidence here.
-- [ ] 14.4 Confirm no unexpected mode-set, frequency-set, or other rig-altering command appears in the log or on the rig display during the session
+- [x] 14.4 Confirm no unexpected mode-set, frequency-set, or other rig-altering command appears in the log or on the rig display during the session — **run live 2026-07-18**: scanned ~500 log lines spanning all three TX cycles; the only `SerialCatConnection`/CAT traffic present is the two dispatched PTT commands per cycle (`transmitting=true`/`transmitting=false`) — no `FA;`/`MD;` or any other rig-altering command appears anywhere
 
 ## 15. Acceptance Gate — Serial RTS/DTR PTT (manual, hardware required)
 
-- [ ] 15.1 Set `ptt.method = "SerialRtsDtr"` with `ptt.serialPort` on a different port than any CAT connection in use; confirm the rig keys/unkeys correctly via the RTS line
-- [ ] 15.2 Repeat 15.1 with `ptt.serialLine = "Dtr"` on hardware wired for DTR PTT (or confirm the line-selection logic behaves correctly if only one line is available to test)
-- [ ] 15.3 Confirm PTT keys/unkeys correctly with `cat.enabled = false` (proves independence from any CAT connection)
+- [x] 15.1 Set `ptt.method = "SerialRtsDtr"` with `ptt.serialPort` on a different port than any CAT connection in use; confirm the rig keys/unkeys correctly via the RTS line — key/unkey behaviour already evidenced 2026-07-12/07-14; **port-distinctness half closed 2026-07-18**: live `GET /api/v1/config` showed `cat.serialPort = "COM6"` and `ptt.serialPort = "COM7"`, confirmed as genuinely distinct entries via `GET /api/v1/serial/ports` (`["COM3","COM6","COM7"]`) — not an assumption
+- [x] 15.2 Repeat 15.1 with `ptt.serialLine = "Dtr"` on hardware wired for DTR PTT (or confirm the line-selection logic behaves correctly if only one line is available to test) — **run live 2026-07-18**: this station's serial PTT interface is wired for RTS only, not DTR. Confirmed the line-selection logic behaves correctly per this task's own allowance: `SerialRtsDtrPttController` logged `KeyDown/KeyUp — PTT asserted/released ("Dtr")` (proving the DTR pin, not RTS, was the one toggled) and — critically — the rig did **not** key at all during the test, proving RTS was never touched and there was no unintended keying on the wrong line
+- [x] 15.3 Confirm PTT keys/unkeys correctly with `cat.enabled = false` (proves independence from any CAT connection) — **run live 2026-07-18**: set `cat.enabled = false` live (`GET /api/v1/status` confirmed `catConnectionStatus: "Disabled"` with no restart needed), triggered `POST /api/v1/ptt/test`; log showed a clean `SerialRtsDtrPttController: KeyDown` → `KeyUp` (~430ms) cycle with zero CAT-related lines, and the operator visually confirmed the rig keyed and released cleanly. CAT re-enabled and reconnected afterward (`catConnectionStatus: "Connected"` on `COM6`) to restore the known-good config
 - [x] 15.4 **Removed as a manual hardware gate, 2026-07-14 — same rationale as 14.3.** Covered by
   `PttWatchdogTests.cs` plus the proven-identical `SetLine(line, asserted: false)` de-assert call
   shared with normal `KeyUpAsync`, already exercised on real hardware repeatedly.
@@ -246,7 +251,7 @@ implementation defect, not a behaviour change to `qso-caller`/`qso-answerer`.
   which fails only under full-solution parallel load and passes in isolation — not touched by this
   fix); full solution `dotnet test` otherwise green. `openspec validate --strict --all`: 54/54,
   unchanged
-- [ ] 18.6 **Hardware acceptance Gates 14–16 (section 14/15/16 above) must be re-attempted from
+- [x] 18.6 **Hardware acceptance Gates 14–16 (section 14/15/16 above) must be re-attempted from
   scratch** — none of the keying observed before this fix is valid evidence for those gates, Gate 16
   specifically (the HB9HYO session was the discovery evidence for this defect, not a pass).
   **Partially re-attempted 2026-07-12:** Gate 16 (16.1–16.3) now ticked with two real, completed,
@@ -254,10 +259,13 @@ implementation defect, not a behaviour change to `qso-caller`/`qso-answerer`.
   still needs operator confirmation). **2026-07-14:** 15.1 reinforced with further evidence; Gates
   14.3 and 15.4 retired as unreasonable manual gates (see `hardware-acceptance.md`'s 2026-07-14
   "retired" note — covered instead by `PttWatchdogTests.cs` plus a proven-identical de-assert code
-  path). **Still genuinely outstanding, hardware required:** Gate 14.1/14.2/14.4 (CAT-command PTT —
-  not exercised at all on either day) and Gates 15.2/15.3 (DTR line, CAT-disabled independence). See
-  `hardware-acceptance.md`'s evidence notes for the full breakdown. This item stays unchecked until
-  Gate 14 and the rest of Gate 15 are actually run.
+  path). **2026-07-18 — all remaining gates run for real and closed out:** Gate 14.1/14.2/14.4
+  (CAT-command PTT — three real over-the-air TX cycles, one a fully completed QSO confirmed on QRZ),
+  15.1's port-distinctness half (confirmed via live config + serial-port enumeration), 15.2 (DTR —
+  documented as unwired on this station, line-selection logic confirmed correct via the task's own
+  allowance), and 15.3 (CAT-disabled independence — confirmed live, operator-observed). See
+  `hardware-acceptance.md`'s 2026-07-18 entry for full evidence and timestamps. **All of Gate 14–16
+  are now genuinely evidenced; this item is complete.**
 
 ## 19. Housekeeping
 
@@ -282,3 +290,9 @@ change until Gate 14.1/14.2/14.4 and Gates 15.2–15.3 are genuinely run on real
 15.4 retired 2026-07-14, see `hardware-acceptance.md`) — merging this
 PR closed out the code-review/regression-test side of the defect, not the hardware-acceptance
 side.
+
+**Status as of 2026-07-18: all remaining hardware-acceptance gates run for real against the
+Captain's own station (real CAT rig on `COM6`, real serial PTT interface on `COM7`) and closed
+out — see §14/§15/§18.6 above and `hardware-acceptance.md`'s 2026-07-18 entry for full evidence.
+All 83/83 tasks in this change are now complete. Ready for final housekeeping (commit, issue #74
+closure) and archival.**

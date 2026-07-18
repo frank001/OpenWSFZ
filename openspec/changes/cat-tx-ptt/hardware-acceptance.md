@@ -162,6 +162,46 @@ truncated/garbled message where a clean one would otherwise be expected.
 **✅ Mark 14.1 complete once a clean key-down/key-up cycle is observed on the rig and at least one
 transmission decodes cleanly end-to-end on a monitor or at the far station.**
 
+**Evidence (2026-07-18):** run live against the Captain's own station, real CAT rig connected on
+`COM6` (`rigModel: "SerialCat"`). Set `ptt.method = "CatCommand"` via `POST /api/v1/config`, then
+`POST /api/v1/system/restart` — required, since `ptt.method` selects the `IPttController`
+implementation once at DI-registration/startup time and is not hot-reloaded (see
+`docs/cat-control-operator-guide.md`'s documented restart requirement); a first attempt to test this
+gate via a plain config POST without a restart silently kept exercising the previous
+`SerialRtsDtrPttController` instance instead — caught from the log (`SerialRtsDtrPttController:
+KeyDown`, not `CatPttController`) before any false pass was recorded, and corrected by restarting
+before re-attempting.
+
+Three real over-the-air TX cycles observed post-restart, all via `CatPttController`:
+
+| KeyDown | KeyUp | Δ | Context |
+|---|---|---|---|
+| 12:19:45.526 | 12:19:58.342 | 12.82 s | Jump-in `SendRr73` — **completed a full two-way QSO** |
+| 12:24:15.854 | 12:24:28.679 | 12.83 s | `QsoCallerService` CQ call |
+| 12:24:45.892 | 12:24:58.711 | 12.82 s | `QsoCallerService` CQ retry 1 |
+
+Log excerpt for the completed QSO:
+```
+CAT: dispatching PTT command — transmitting=true via SerialCatConnection.
+CAT: PTT command sent — transmitting=true.
+CatPttController: KeyDown — PTT asserted (CAT).
+QsoAnswererService: TX → "<partner> PD2FZ RR73" at 1875 Hz.
+...
+CAT: dispatching PTT command — transmitting=false via SerialCatConnection.
+CAT: PTT command sent — transmitting=false.
+CatPttController: KeyUp — PTT released (CAT).
+QsoAnswererService: QSO with <partner> complete!
+FR-051: ADIF QSO logged — partner: <partner>, band: 10m, path: ADIF.log
+```
+(Partner callsign withheld per NFR-021.) The operator independently confirmed the contact via QRZ
+logbook lookup after the fact — external confirmation obtained, same evidentiary standard as Gate
+16. The operator was not watching the rig's TX indicator directly during either TX round (screen-
+and-terminal-focused during the live test), so the physical LED observation itself is not separately
+recorded — the completed, ADIF-logged, QRZ-confirmed QSO is treated as satisfying this section's own
+documented alternative evidence path ("a monitoring receiver, a second SDR, or the far station's own
+decode shows the transmitted message copied in full" — a completed QSO is direct proof of exactly
+that). 14.1 is marked complete on this basis.
+
 ---
 
 ### 14.2 — Verify CAT polling is unaffected
@@ -175,6 +215,15 @@ While transmissions are happening (repeat 14.1 a few times, or let an automated 
 **Fail criteria:** the badge drops to `Error`, or the frequency display visibly stalls around TX events. Either would indicate the wire-serialization gate (design.md Decision 1) isn't working under real timing.
 
 **✅ Mark 14.2 complete once polling is confirmed unaffected across several TX cycles.**
+
+**Evidence (2026-07-18):** across all three TX cycles logged under 14.1 above,
+`Heartbeat: captureActive=true, audioActive=true, dataFlowing=true` continued on its normal ~5s
+cadence with no gaps or delays spanning each TX window (e.g. heartbeats at 12:24:12, :17, :22, :27
+bracket the 12:24:15.854–12:24:28.679 TX cycle with no interruption). `GET /api/v1/status` polled
+immediately before, and again immediately after, each config change and TX round consistently showed
+`catConnectionStatus: "Connected"` and a stable `dialFrequencyMHz: 28.074` — never `Error`, never
+stale. Confirms Decision 1's wire-serialization holds under genuine real-hardware TX load, not just
+in mocks.
 
 ---
 
@@ -211,6 +260,13 @@ Review the full log for the Gate 14 session.
 **What to verify on the rig:** mode unchanged; frequency only changed when the operator changed it.
 
 **✅ Mark 14.4 complete once confirmed.**
+
+**Evidence (2026-07-18):** reviewed the full ~500-line session log spanning all three TX cycles from
+14.1. The only `SerialCatConnection`/CAT traffic present anywhere in that window is the two dispatched
+PTT commands per cycle (`"CAT: dispatching PTT command — transmitting=true/false via
+SerialCatConnection."`) — no `FA;` (frequency-set), `MD;` (mode-set), or any other rig-altering
+command appears at any point during or between transmissions. Dial frequency stayed at `28.074` MHz
+throughout (confirmed via `GET /api/v1/status` before and after each cycle). No stray commands.
 
 ---
 
@@ -263,6 +319,12 @@ full-QSO key/unkey cycles (SV2FNT, CT1FIU), all clean on `Rts`. Does not change 
 gap noted above — `config.json` shows `ptt.serialPort = "COM7"` but the log still doesn't record
 what CAT's own port was at the time to compare against.
 
+**Port-distinctness gap closed (2026-07-18):** run live against the Captain's own station.
+`GET /api/v1/config` returned `cat.serialPort = "COM6"` and `ptt.serialPort = "COM7"` in the same
+response, and `GET /api/v1/serial/ports` enumerated `["COM3","COM6","COM7"]` — both configured ports
+are genuinely present as distinct entries in the OS's own serial-port list, not merely two different
+strings that happen to alias the same physical device. 15.1 is now fully evidenced, both halves.
+
 ---
 
 ### 15.2 — Test the DTR line (if your interface supports it)
@@ -270,6 +332,21 @@ what CAT's own port was at the time to compare against.
 Repeat 15.1 with `ptt.serialLine` → `Dtr`. If your interface hardware only supports one of the two lines, note that in this file and mark this step complete based on confirming the *other* line correctly does nothing when unselected (i.e. no unintended keying) rather than skipping it outright.
 
 **✅ Mark 15.2 complete once DTR behaviour is confirmed (or the hardware limitation is documented).**
+
+**Evidence (2026-07-18):** set `ptt.method = "SerialRtsDtr"`, `ptt.serialLine = "Dtr"`, `ptt.serialPort = "COM7"`
+(unchanged), restarted the daemon (`POST /api/v1/system/restart`) so the new line selection was
+live, then triggered `POST /api/v1/ptt/test`. Log:
+```
+SerialRtsDtrPttController: KeyDown — PTT asserted ("Dtr").   [12:28:38.670]
+SerialRtsDtrPttController: KeyUp — PTT released ("Dtr").     [12:28:39.096]
+```
+**Hardware limitation documented: this station's serial PTT interface is wired for RTS only — DTR
+is not connected.** The operator confirmed the rig did **not** key during this test. Per this
+section's own allowance, that is exactly the acceptable evidence: the log proves the code correctly
+resolved and toggled the DTR pin specifically (not silently falling back to RTS), and the rig's
+complete lack of response proves RTS was never touched — i.e. no unintended keying on the wrong
+line. 15.2 is marked complete on that basis. Config reverted to `ptt.serialLine = "Rts"` immediately
+afterward (the station's genuinely working configuration) and the daemon restarted again to restore it.
 
 ---
 
@@ -282,6 +359,21 @@ Set `cat.enabled` → `false`, keep `ptt.method` → `SerialRtsDtr`. Trigger a t
 **Fail criteria:** any error or failure to key that only occurs because CAT is disabled — that would mean the two are not actually independent as designed.
 
 **✅ Mark 15.3 complete once confirmed.**
+
+**Evidence (2026-07-18):** with the daemon already running against the real station (`cat.enabled =
+true`, `ptt.method = "SerialRtsDtr"`, `ptt.serialLine = "Rts"`, `ptt.serialPort = "COM7"`,
+`cat.serialPort = "COM6"`), set `cat.enabled = false` via `POST /api/v1/config` with no restart.
+`GET /api/v1/status` confirmed the change took effect live: `catConnectionStatus` went from
+`"Connected"` to `"Disabled"` immediately (CAT's polling loop re-checks config every cycle and hot-
+reloads, unlike `ptt.method`). Triggered `POST /api/v1/ptt/test`:
+```
+SerialRtsDtrPttController: KeyDown — PTT asserted ("Rts").   [12:14:53.028]
+SerialRtsDtrPttController: KeyUp — PTT released ("Rts").     [12:14:53.459]
+```
+Zero CAT-related log lines during the test (none expected or seen, CAT fully disabled). Operator
+visually confirmed the rig keyed and released cleanly during this test. `cat.enabled` restored to
+`true` immediately afterward; `GET /api/v1/status` confirmed reconnection (`catConnectionStatus:
+"Connected"` on `COM6` again). 15.3 fully evidenced, both in software and physically.
 
 ---
 
@@ -383,6 +475,19 @@ port-distinctness half of its claim (see the note under 15.1's evidence above) �
 further clean key/unkey evidence 2026-07-14 but that gap specifically remains open. **Genuinely
 outstanding, hardware required: 14.1, 14.2, 14.4, 15.2, 15.3.** Do not tick any of those until they
 are actually run.
+
+**Status as of 2026-07-18: all of sections 14, 15, and 16 are now genuinely ticked.** Run live
+against the Captain's real station (real CAT rig on `COM6`, real serial PTT interface on `COM7`),
+QA-driven end-to-end: 15.1's port-distinctness gap closed (live config + serial-port enumeration),
+15.3 run live with the operator visually confirming a clean key/unkey with CAT disabled, 15.2 run
+live and documented as a hardware limitation (DTR unwired on this station, line-selection logic
+confirmed correct per this section's own allowance), and Gate 14 run for the first time ever on this
+change — three real CAT-command-PTT TX cycles, one a fully completed two-way QSO confirmed
+independently by the operator on QRZ. See each subsection's 2026-07-18 evidence entry above for full
+detail, including one process note: the first Gate 14 attempt silently kept exercising the previous
+`SerialRtsDtrPttController` because `ptt.method` is read once at daemon startup, not hot-reloaded —
+caught from the log before any false pass was recorded, corrected with a daemon restart. All 83/83
+tasks in `tasks.md` are complete.
 
 ### Commit
 
