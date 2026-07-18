@@ -357,3 +357,49 @@ each independently tested against real hardware. Not scheduled — only worth pu
 AOT's specific benefits (no bundled .NET runtime, smaller install, faster cold start) become an
 actual goal, e.g. as part of future installer polish, since the self-contained non-AOT binary
 already ships a fully working, distributable deliverable today.
+
+---
+
+## N10 — TX-D04: every transmitted signal report is still the `+00`/`R+00` placeholder, not the real measured SNR
+
+**Status:** OPEN — Captain's explicit instruction (2026-07-18): "This is a real issue that needs to
+be raised, the application is able to measure the snr, it should report the correct value." Promoted
+from the accepted-risk language in `qso-caller`'s original `design.md` to an active fix.
+**Severity:** Medium (protocol correctness — every partner this daemon works logs a fabricated `+00`
+signal report in their own ADIF, regardless of actual conditions; not merge-blocking historically
+only because it was accepted as a named v1 trade-off, which the Captain has now withdrawn)
+**Source:** QA, live-run log review, `logs/openswfz-20260718T185751Z.log` — ten real over-the-air
+QSOs in one session, one hundred percent of them `+00`/`R+00`, cross-checked against `ALL.TXT`
+showing the daemon had genuine decoded SNR values available in the same cycle.
+**File:** `src/OpenWSFZ.Daemon/QsoCallerService.cs` (lines 818, 984, 898),
+`src/OpenWSFZ.Daemon/QsoAnswererService.cs` (lines 965, 1056, 1180)
+
+**Suggested fix:** full write-up already exists —
+`dev-tasks/2026-07-18-live-run-tx-report-snr-and-reengagement-workflow.md` §2. Thread the matched
+`DecodeResult.Snr` (already computed every cycle, already used for `ALL.TXT`/WSJT-X UDP reporting)
+through to all four TX-composition sites and the two `QsoRecord.RstSent` ADIF fields; persist the
+chosen value for retry-retransmission rather than recomputing it.
+
+---
+
+## N11 — D-CALLER-022: no lightweight way to confirm an already-worked partner actually received the final message
+
+**Status:** OPEN — investigation/design task, not yet scoped to a diff. Captain's framing (2026-07-18):
+"it is a regular thing to pursue a correct QSO," i.e. this is a recurring operator need, not a one-off.
+**Severity:** Medium (no data-integrity impact — the confirmation-dialog gate correctly prevented any
+duplicate ADIF entries — but real RF went out four times to an already-logged partner with no
+purpose-built, lighter-weight action available for "make sure they got it")
+**Source:** QA, same live-run log review; Captain confirmed intent when asked (re-engaging PA7D
+because the partner did not seem to have received the RR73, cancelling each resulting confirmation
+dialog since it wasn't new information).
+**File:** `src/OpenWSFZ.Daemon/QsoAnswererService.cs` (`ExecuteJumpInAsync`, `D-CALLER-012` jump-in
+path, reused here as the only available mechanism), `web/js/main.js` (decode-panel row
+affordances/worked-before visibility)
+
+**Suggested fix:** none prescribed — full evidence and candidate directions (a dedicated
+lighter-weight resend action; stronger worked-before UI cues on a still-active row; whether the
+protocol's own "partner still calling CQ/working someone else" signal already answers the operator's
+underlying question without a new TX action at all) are laid out in
+`dev-tasks/2026-07-18-live-run-tx-report-snr-and-reengagement-workflow.md` §3. Bring a short design
+note back before implementing — this must also not regress `D-CALLER-018`'s abort-is-a-hard-stop
+guarantee.
