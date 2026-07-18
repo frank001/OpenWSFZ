@@ -96,7 +96,7 @@
       version per the project's existing user-facing-feature rule).
 - [ ] 6.3 Run `python3 tools/pre_merge_check.py` and resolve every FAIL/WARN before declaring this
       ready for review — do not rely on reading `REQUIREMENTS.md`/`tasks.md` content alone (HK-006).
-- [ ] 6.4 Run `openspec validate --strict --all` and confirm a clean pass.
+- [x] 6.4 Run `openspec validate --strict --all` and confirm a clean pass.
 
 ## 7. QA re-review
 

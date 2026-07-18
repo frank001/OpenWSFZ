@@ -49,6 +49,11 @@ public sealed class QsoAnswererServiceExternalReplyTests
     {
         public DecodeFilterState Current { get; private set; } = DecodeFilterState.Unfiltered;
         public void Set(DecodeFilterState state) => Current = state;
+
+        // fix-decode-filter-new-value-admission: this test double never narrows an axis, so
+        // there is nothing to admit into — real AdmitNewValues coverage lives in
+        // DecodeFilterStoreAdmitNewValuesTests (OpenWSFZ.Web.Tests) against the real store.
+        public DecodeFilterState? AdmitNewValues(DecodeResult decode) => null;
     }
 
     private sealed record Sut(
