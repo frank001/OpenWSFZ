@@ -3208,7 +3208,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
     // ── engagement-target-validation (task 5.3) ────────────────────────────────
 
-    [Fact(DisplayName = "engagement-target-validation 5.3: a Rejected CQ candidate is never armed — no TX, no AP constraints")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 5.3: a Rejected CQ candidate is never armed — no TX, no AP constraints")]
     public async Task Idle_RejectedCqCandidate_NeverArmed()
     {
         var store = Substitute.For<IConfigStore>();
@@ -3258,7 +3258,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "engagement-target-validation 5.3: a Rejected candidate is skipped while scanning continues to an Allowed candidate in the same batch")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 5.3: a Rejected candidate is skipped while scanning continues to an Allowed candidate in the same batch")]
     public async Task Idle_RejectedCandidateFollowedByAllowed_ScansToAllowedCandidate()
     {
         const string RejectedCall = "Q9BAD";

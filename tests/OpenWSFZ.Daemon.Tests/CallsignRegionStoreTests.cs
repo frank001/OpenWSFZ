@@ -323,7 +323,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
 
     // ── TryMatchPrefix / IsSeedData (engagement-target-validation, task 1.5) ──
 
-    [Fact(DisplayName = "engagement-target-validation 1.5: TryMatchPrefix returns the same RegionInfo as TryGetRegion")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 1.5: TryMatchPrefix returns the same RegionInfo as TryGetRegion")]
     public async Task TryMatchPrefix_ReturnsSameRegionAsTryGetRegion()
     {
         var store = MakeStore();
@@ -336,7 +336,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
         viaMatch!.Region.Should().Be(viaLegacy);
     }
 
-    [Fact(DisplayName = "engagement-target-validation 1.5: TryMatchPrefix reports the matched prefix length")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 1.5: TryMatchPrefix reports the matched prefix length")]
     public async Task TryMatchPrefix_ReportsMatchedPrefixLength()
     {
         var customJson = """
@@ -359,7 +359,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
         match.MatchedPrefixLength.Should().Be(2, "the more specific 'VK' (length 2) must win over 'V' (length 1)");
     }
 
-    [Fact(DisplayName = "engagement-target-validation 1.5: TryMatchPrefix returns null on a lookup miss, identical to TryGetRegion")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 1.5: TryMatchPrefix returns null on a lookup miss, identical to TryGetRegion")]
     public async Task TryMatchPrefix_UnmatchedPrefix_ReturnsNull()
     {
         var store = MakeStore();
@@ -368,7 +368,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
         store.TryMatchPrefix("ZZ1ABC").Should().BeNull();
     }
 
-    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData is true on a fresh, never-loaded store")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 1.5: IsSeedData is true on a fresh, never-loaded store")]
     public void IsSeedData_FreshStore_IsTrue()
     {
         var store = MakeStore();
@@ -376,7 +376,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
         store.IsSeedData.Should().BeTrue();
     }
 
-    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData stays true after LoadAsync writes the seed table (no on-disk file existed)")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 1.5: IsSeedData stays true after LoadAsync writes the seed table (no on-disk file existed)")]
     public async Task IsSeedData_FileAbsent_StaysTrueAfterSeedWrite()
     {
         var store = MakeStore();
@@ -386,7 +386,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
         store.IsSeedData.Should().BeTrue("writing the compiled-in seed defaults is not the same as loading real operator-supplied data");
     }
 
-    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData becomes false after loading a real on-disk file")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 1.5: IsSeedData becomes false after loading a real on-disk file")]
     public async Task IsSeedData_RealFileLoaded_BecomesFalse()
     {
         var customJson = """
@@ -404,7 +404,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
         store.IsSeedData.Should().BeFalse();
     }
 
-    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData stays true when the on-disk file is malformed (fallback to Unknown-only is not real data)")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 1.5: IsSeedData stays true when the on-disk file is malformed (fallback to Unknown-only is not real data)")]
     public async Task IsSeedData_MalformedFile_StaysTrue()
     {
         await File.WriteAllTextAsync(FilePath(), "{ this is not valid json }");
@@ -415,7 +415,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
         store.IsSeedData.Should().BeTrue();
     }
 
-    [Fact(DisplayName = "engagement-target-validation 1.5: IsSeedData becomes false after a successful SaveAsync")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 1.5: IsSeedData becomes false after a successful SaveAsync")]
     public async Task IsSeedData_AfterSuccessfulSave_BecomesFalse()
     {
         var store = MakeStore();
@@ -430,7 +430,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
     // ── IsSeedData restart-sequence provenance (Finding E, dev-task
     // 2026-07-17-engagement-target-validation-qa-review-findings) ────────────
 
-    [Fact(DisplayName = "engagement-target-validation Finding E: IsSeedData stays true after a simulated daemon restart with no operator action in between")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation Finding E: IsSeedData stays true after a simulated daemon restart with no operator action in between")]
     public async Task IsSeedData_RestartAfterSeedWrite_StaysTrue()
     {
         // First-ever run: no file exists, LoadAsync writes the seed table to disk.
@@ -450,7 +450,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
             "refresh) must still report IsSeedData == true after any number of restarts");
     }
 
-    [Fact(DisplayName = "engagement-target-validation Finding E: IsSeedData is false after a simulated refresh-then-restart sequence")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation Finding E: IsSeedData is false after a simulated refresh-then-restart sequence")]
     public async Task IsSeedData_RefreshThenRestart_ReportsFalse()
     {
         var store = MakeStore();
@@ -469,7 +469,7 @@ public sealed class CallsignRegionStoreTests : IDisposable
             "IsSeedData == false");
     }
 
-    [Fact(DisplayName = "engagement-target-validation Finding E: a pre-existing file with no persisted isSeedData marker (predates this capability) migrates to IsSeedData == false")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation Finding E: a pre-existing file with no persisted isSeedData marker (predates this capability) migrates to IsSeedData == false")]
     public async Task IsSeedData_PreExistingFileWithoutMarker_MigratesToFalse()
     {
         // No "isSeedData" property at all — the on-disk shape from before Finding E's fix existed.

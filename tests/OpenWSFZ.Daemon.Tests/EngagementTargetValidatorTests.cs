@@ -17,7 +17,7 @@ public sealed class EngagementTargetValidatorTests
         IReadOnlyList<CallsignRegionEntry> entries, bool isSeedData = false)
         => new(new FixedRegionStore(entries, isSeedData), new FixedGrammarStore());
 
-    [Fact(DisplayName = "engagement-target-validation 3.4: real prefix with a valid remainder is Allowed")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 3.4: real prefix with a valid remainder is Allowed")]
     public void Validate_RealPrefixValidRemainder_Allowed()
     {
         var validator = MakeValidator([new("DL", "DL", "Germany", "EU", null, null)]);
@@ -37,7 +37,7 @@ public sealed class EngagementTargetValidatorTests
     // engage attempt because the original algorithm unconditionally required the remainder to
     // itself start with a digit — see EngagementTargetValidator.RemainderFitsGrammar's remarks.
 
-    [Fact(DisplayName = "engagement-target-validation regression: matched prefix already carrying the call-area digit (EC5) is Allowed with a letters-only remainder")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation regression: matched prefix already carrying the call-area digit (EC5) is Allowed with a letters-only remainder")]
     public void Validate_MatchedPrefixContainsDigit_LettersOnlyRemainder_Allowed()
     {
         var validator = MakeValidator([new("EC5", "EC5", "Spain", "EU", null, null)]);
@@ -50,7 +50,7 @@ public sealed class EngagementTargetValidatorTests
         result.RejectionReason.Should().BeNull();
     }
 
-    [Fact(DisplayName = "engagement-target-validation regression: matched prefix containing the digit still rejects a remainder that isn't letters-only")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation regression: matched prefix containing the digit still rejects a remainder that isn't letters-only")]
     public void Validate_MatchedPrefixContainsDigit_RemainderWithDigit_Rejected()
     {
         var validator = MakeValidator([new("EC5", "EC5", "Spain", "EU", null, null)]);
@@ -62,7 +62,7 @@ public sealed class EngagementTargetValidatorTests
         result.IsAllowed.Should().BeFalse();
     }
 
-    [Fact(DisplayName = "engagement-target-validation regression: matched prefix containing the digit still enforces SuffixLengthMax on the remainder")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation regression: matched prefix containing the digit still enforces SuffixLengthMax on the remainder")]
     public void Validate_MatchedPrefixContainsDigit_RemainderTooLong_Rejected()
     {
         var validator = MakeValidator([new("EC5", "EC5", "Spain", "EU", null, null)]);
@@ -73,7 +73,7 @@ public sealed class EngagementTargetValidatorTests
         result.IsAllowed.Should().BeFalse();
     }
 
-    [Fact(DisplayName = "engagement-target-validation regression: an exact match against a digit-carrying prefix (empty remainder) is Allowed")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation regression: an exact match against a digit-carrying prefix (empty remainder) is Allowed")]
     public void Validate_MatchedPrefixContainsDigit_EmptyRemainder_Allowed()
     {
         var validator = MakeValidator([new("EC5", "EC5", "Spain", "EU", null, null)]);
@@ -93,7 +93,7 @@ public sealed class EngagementTargetValidatorTests
     // rejected this shape outright, because it assumed a prefix digit always meant the whole
     // call-area digit had already been consumed.
 
-    [Fact(DisplayName = "engagement-target-validation regression: matched prefix's digit is only part of the entity identifier (3A/Monaco) — remainder still supplies the real call-area digit and is Allowed")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation regression: matched prefix's digit is only part of the entity identifier (3A/Monaco) — remainder still supplies the real call-area digit and is Allowed")]
     public void Validate_MatchedPrefixContainsDigit_RemainderSuppliesRealCallAreaDigit_Allowed()
     {
         var validator = MakeValidator([new("3A", "3A", "Monaco", "EU", null, null)]);
@@ -107,7 +107,7 @@ public sealed class EngagementTargetValidatorTests
         result.RejectionReason.Should().BeNull();
     }
 
-    [Fact(DisplayName = "engagement-target-validation regression: matched prefix's digit-run boundary lands inside the callsign's true digit-run (TM1/hypothetical) — remainder is still Allowed")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation regression: matched prefix's digit-run boundary lands inside the callsign's true digit-run (TM1/hypothetical) — remainder is still Allowed")]
     public void Validate_MatchedPrefixDigitRunBoundaryInsideTrueDigitRun_Allowed()
     {
         // Illustrative shape from the live-verification dev-task's "structural hypothesis": a
@@ -122,7 +122,7 @@ public sealed class EngagementTargetValidatorTests
             "prefix 'TM1' already contains a digit of its own");
     }
 
-    [Fact(DisplayName = "engagement-target-validation regression: digit-carrying prefix with a remainder that fits neither shape is still Rejected")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation regression: digit-carrying prefix with a remainder that fits neither shape is still Rejected")]
     public void Validate_MatchedPrefixContainsDigit_RemainderFitsNeitherShape_Rejected()
     {
         // Same shape as the original 6KER05BPPBQ incident: matched prefix contains a digit, and
@@ -137,7 +137,7 @@ public sealed class EngagementTargetValidatorTests
             "digit-run+suffix shape");
     }
 
-    [Fact(DisplayName = "engagement-target-validation 3.4: real prefix '6K' with an invalid remainder (live incident shape) is Rejected")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 3.4: real prefix '6K' with an invalid remainder (live incident shape) is Rejected")]
     public void Validate_RealPrefixInvalidRemainder_Rejected()
     {
         // "6K" = Republic of Korea, a genuine entry — confirmed live against country-files.com data.
@@ -150,7 +150,7 @@ public sealed class EngagementTargetValidatorTests
         result.RejectionReason.Should().NotBeNullOrEmpty();
     }
 
-    [Fact(DisplayName = "engagement-target-validation 3.4: no prefix match at all is Allowed (absence is not evidence of invalidity)")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 3.4: no prefix match at all is Allowed (absence is not evidence of invalidity)")]
     public void Validate_NoPrefixMatch_Allowed()
     {
         var validator = MakeValidator([new("DL", "DL", "Germany", "EU", null, null)]);
@@ -160,7 +160,7 @@ public sealed class EngagementTargetValidatorTests
         result.IsAllowed.Should().BeTrue();
     }
 
-    [Fact(DisplayName = "engagement-target-validation 3.4: IsSeedData true allows any token unconditionally")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 3.4: IsSeedData true allows any token unconditionally")]
     public void Validate_SeedDataLoaded_AllowsAnyToken()
     {
         var validator = MakeValidator(
@@ -171,7 +171,7 @@ public sealed class EngagementTargetValidatorTests
         result.IsAllowed.Should().BeTrue("the gate must no-op entirely while only seed data is loaded");
     }
 
-    [Fact(DisplayName = "engagement-target-validation 3.4: a portable-suffix token is validated on the base callsign only")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 3.4: a portable-suffix token is validated on the base callsign only")]
     public void Validate_PortableSuffixToken_ValidatesBaseCallOnly()
     {
         var validator = MakeValidator([new("DL", "DL", "Germany", "EU", null, null)]);
@@ -183,7 +183,7 @@ public sealed class EngagementTargetValidatorTests
         result.IsAllowed.Should().BeTrue();
     }
 
-    [Fact(DisplayName = "engagement-target-validation 3.4: a portable-suffix token with an invalid base call is still Rejected")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 3.4: a portable-suffix token with an invalid base call is still Rejected")]
     public void Validate_PortableSuffixToken_InvalidBaseCall_Rejected()
     {
         var validator = MakeValidator([new("6K", "6K", "Republic of Korea", "AS", null, null)]);

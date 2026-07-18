@@ -21,7 +21,7 @@ public sealed class EngagementTargetValidationRegressionTests
 {
     private const string IncidentToken = "6KER05BPPBQ";
 
-    [Fact(DisplayName = "engagement-target-validation 6.2a: the incident token is still decode-accepted — ALL.TXT/decode-panel visibility is completely unaffected")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 6.2a: the incident token is still decode-accepted — ALL.TXT/decode-panel visibility is completely unaffected")]
     public void IncidentToken_DecodeAcceptance_Unaffected()
     {
         // Same shape check callsign-structure-validation already applies to every decode —
@@ -32,7 +32,7 @@ public sealed class EngagementTargetValidationRegressionTests
             "acceptance — the token was genuinely decoded and displayed on the night of the incident");
     }
 
-    [Fact(DisplayName = "engagement-target-validation 6.2b: the incident token is rejected for engagement once real region data is loaded")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 6.2b: the incident token is rejected for engagement once real region data is loaded")]
     public void IncidentToken_EngagementValidation_Rejected()
     {
         // "6K" = Republic of Korea — a genuine entry, confirmed live against the loaded

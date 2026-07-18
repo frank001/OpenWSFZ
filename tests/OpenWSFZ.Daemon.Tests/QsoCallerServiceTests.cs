@@ -2231,7 +2231,7 @@ public sealed class QsoCallerServiceTests
 
     // ── engagement-target-validation (task 5.3) ────────────────────────────────
 
-    [Fact(DisplayName = "engagement-target-validation 5.3: a Rejected responder is never armed — stays in WaitAnswer, no report sent")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 5.3: a Rejected responder is never armed — stays in WaitAnswer, no report sent")]
     public async Task WaitAnswer_FirstMode_RejectedResponder_NeverArmed()
     {
         var tx = new TxConfig
@@ -2271,7 +2271,7 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "engagement-target-validation 5.3: a Rejected responder is skipped while scanning continues to an Allowed responder in the same batch")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 5.3: a Rejected responder is skipped while scanning continues to an Allowed responder in the same batch")]
     public async Task WaitAnswer_FirstMode_RejectedResponderFollowedByAllowed_ScansToAllowedResponder()
     {
         const string RejectedCall = "Q9BAD";

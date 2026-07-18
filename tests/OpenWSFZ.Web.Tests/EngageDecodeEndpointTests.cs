@@ -329,7 +329,7 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
 
     // ── Tests E/F — engagement-target-validation (task 4.4) ───────────────────
 
-    [Fact(DisplayName = "engagement-target-validation 4.4: rejected CQ-row target returns 409 with requiresConfirmation and does not call AnswerCqAsync")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 4.4: rejected CQ-row target returns 409 with requiresConfirmation and does not call AnswerCqAsync")]
     public async Task EngageDecode_CqRow_RejectedTarget_Returns409AndDoesNotEngage()
     {
         // Arrange
@@ -356,7 +356,7 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
             "a rejected CQ-row target must never reach AnswerCqAsync");
     }
 
-    [Fact(DisplayName = "engagement-target-validation 4.4: confirmed retry after a 409 proceeds and calls EngageAtAsync")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 4.4: confirmed retry after a 409 proceeds and calls EngageAtAsync")]
     public async Task EngageDecode_DirectedMessage_RejectedThenConfirmed_ProceedsAndEngages()
     {
         // Arrange
@@ -387,7 +387,7 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
         _fixture.QsoController.LastEngageAtCall!.Value.Point.Should().Be(EngagePoint.SendReport);
     }
 
-    [Fact(DisplayName = "engagement-target-validation 4.4: an Allowed target is unaffected — 200 and EngageAtAsync called as before")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation 4.4: an Allowed target is unaffected — 200 and EngageAtAsync called as before")]
     public async Task EngageDecode_AllowedTarget_Unaffected()
     {
         // Arrange
@@ -412,7 +412,7 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
     // from a non-Idle state with an active partner — the gap this finding identified had no
     // coverage anywhere in the existing suite, since every other test in this file starts from Idle.
 
-    [Fact(DisplayName = "engagement-target-validation Finding F: rejected CQ-row target leaves an active in-progress QSO completely untouched")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation Finding F: rejected CQ-row target leaves an active in-progress QSO completely untouched")]
     public async Task EngageDecode_CqRow_RejectedTarget_NonIdleStart_DoesNotAbortActiveQso()
     {
         // Arrange — an active QSO already in progress with a different partner.
@@ -448,7 +448,7 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
         _fixture.QsoController.Partner = null;
     }
 
-    [Fact(DisplayName = "engagement-target-validation Finding F: rejected directed-message target leaves an active in-progress QSO completely untouched")]
+    [Fact(DisplayName = "FR-060: engagement-target-validation Finding F: rejected directed-message target leaves an active in-progress QSO completely untouched")]
     public async Task EngageDecode_DirectedMessage_RejectedTarget_NonIdleStart_DoesNotAbortActiveQso()
     {
         // Arrange — an active QSO already in progress with a different partner.

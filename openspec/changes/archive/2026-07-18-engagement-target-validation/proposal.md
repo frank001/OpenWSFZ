@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 Live testing on 2026-07-16 (`logs/openswfz-20260716T194057Z.log:686-761`) engaged and transmitted twice
