@@ -17,7 +17,7 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.39**. v0.x scope: FT8 receive and transmit,
+> The current release is **v0.40**. v0.x scope: FT8 receive and transmit,
 > CAT rig control, a web UI (loopback or passphrase-protected LAN),
 > single operator.
 > v1.0 is reached when the software can complete a confirmed two-way contact
