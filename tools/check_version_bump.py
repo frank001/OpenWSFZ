@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 check_version_bump.py — enforce the "one user-facing feature = one minor bump"
-rule at merge time.
+rule at the point a change's proposal FIRST enters `main`'s history — i.e.
+pre-merge, not deferred to a later archiving pull request.
 
 Usage:
   python3 tools/check_version_bump.py <base_ref>
@@ -12,24 +13,36 @@ Usage:
 This is the mandatory-bump half of CI gate G9 (see .github/workflows/ci.yml).
 It inspects the pull request's diff against <base_ref> and enforces:
 
-  1. Every proposal.md newly added under openspec/changes/archive/ by this PR
-     SHALL declare `**User-facing:**` as exactly `yes` or `no`. Missing or
-     malformed → fail.
-  2. If any such newly-archived proposal declares `yes`, VERSION SHALL differ
-     from its content on <base_ref>. Unchanged → fail.
+  1. Every `proposal.md` newly added anywhere under `openspec/changes/` by this
+     PR — whether at the active `openspec/changes/<name>/` path or directly
+     under `openspec/changes/archive/<date>-<name>/` — SHALL declare
+     `**User-facing:**` as exactly `yes` or `no`. Missing or malformed → fail.
+  2. If any such newly-introduced proposal declares `yes`, VERSION SHALL
+     differ from its content on <base_ref>.
 
-Only files the PR itself *adds* under the archive path are inspected (git diff
---diff-filter=A), so history archived before gate G9 existed is never
-retroactively checked (design.md Non-Goals).
+Corrected 2026-07-18 (see openspec/changes/fix-version-bump-gate-timing):
+previously this script only looked under `openspec/changes/archive/`, which
+meant the bump was enforced at archive time. In practice this project almost
+always merges a fully (or partially) implemented change and archives it in a
+*separate*, later pull request — so the archive-only check let a user-facing
+feature merge to `main` with no VERSION bump for days, only caught whenever
+someone got around to archiving it. The Captain's directive: the bump is only
+acceptable pre-merge. This version checks BOTH the active and archived path
+for a *first-time introduction* of a given change's proposal.md, and
+explicitly exempts a later pull request that merely relocates an
+already-introduced change from the active path to the archive path (ordinary
+archiving) — that change was already checked when it first appeared, and
+re-checking it here would spuriously demand a second bump for one feature.
 
 Follows the style of tools/check_native_version.py: clear stdout progress
 lines, a specific actionable stderr message on failure, explicit exit codes.
 
 Exit codes
-  0  compliant (no user-facing archive, or user-facing archive + VERSION bump)
+  0  compliant (no newly-introduced user-facing proposal, or one + a VERSION bump)
   1  a rule was violated (missing/malformed declaration, or missing bump)
   2  usage / git error
 """
+import os
 import re
 import subprocess
 import sys
@@ -44,9 +57,19 @@ DECL_RE = re.compile(r"\*\*User-facing:\*\*\s*(\w+)", re.IGNORECASE)
 # stray comment above it doesn't break the check.
 SCAN_LINES = 15
 
+# openspec/changes/<name>/proposal.md — the active (not-yet-archived) path.
+ACTIVE_RE = re.compile(r"^openspec/changes/(?!archive/)([^/]+)/proposal\.md$")
 
-def _git(args, base_ref=None):
-    """Run a git command, returning (exit_code, stdout). Raises on git error."""
+# openspec/changes/archive/<date>-<name>/proposal.md — the archived path.
+# The archived directory name is conventionally "<YYYY-MM-DD>-<change-name>";
+# strip that date prefix to recover the bare change name for comparison
+# against an active-path directory name.
+ARCHIVE_RE = re.compile(r"^openspec/changes/archive/([^/]+)/proposal\.md$")
+DATE_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-(.+)$")
+
+
+def _git(args):
+    """Run a git command, returning (exit_code, stdout, stderr)."""
     result = subprocess.run(
         ["git"] + args,
         capture_output=True,
@@ -55,12 +78,13 @@ def _git(args, base_ref=None):
     return result.returncode, result.stdout, result.stderr
 
 
-def _added_proposals(base_ref):
-    """List proposal.md paths newly added under the archive dir in this diff."""
+def _added_proposal_paths(base_ref):
+    """List every proposal.md path newly added anywhere under openspec/changes/
+    in this diff (active or archived)."""
     code, out, err = _git([
         "diff", "--name-only", "--diff-filter=A",
         f"{base_ref}...HEAD",
-        "--", "openspec/changes/archive/**/proposal.md",
+        "--", "openspec/changes/**/proposal.md",
     ])
     if code != 0:
         print(f"ERROR: git diff failed: {err.strip()}", file=sys.stderr)
@@ -68,9 +92,34 @@ def _added_proposals(base_ref):
     return [line for line in out.splitlines() if line.strip()]
 
 
+def _file_at_ref(ref, path):
+    code, out, _ = _git(["show", f"{ref}:{path}"])
+    return out if code == 0 else None
+
+
 def _file_at_head(path):
-    code, out, _ = _git(["show", f"HEAD:{path}"])
-    return out if code == 0 else ""
+    return _file_at_ref("HEAD", path) or ""
+
+
+def _change_name(path):
+    """Return the derived change name for a newly-added proposal.md path, or
+    None if the path doesn't match either the active or archived shape."""
+    m = ACTIVE_RE.match(path)
+    if m:
+        return m.group(1)
+    m = ARCHIVE_RE.match(path)
+    if m:
+        archived_dir = m.group(1)
+        date_m = DATE_PREFIX_RE.match(archived_dir)
+        return date_m.group(1) if date_m else archived_dir
+    return None
+
+
+def _already_introduced_at_base(name, base_ref):
+    """True if openspec/changes/<name>/proposal.md already existed at
+    base_ref — i.e. this change was already on main at the active path before
+    this PR, so an archive-path addition here is a pure relocation."""
+    return _file_at_ref(base_ref, f"openspec/changes/{name}/proposal.md") is not None
 
 
 def _version_changed(base_ref):
@@ -103,18 +152,43 @@ def main() -> int:
     base_ref = sys.argv[1]
     print(f"Base ref : {base_ref}")
 
-    proposals = _added_proposals(base_ref)
-    if not proposals:
-        print("Result : OK — this PR archives no new OpenSpec changes; "
+    added_paths = _added_proposal_paths(base_ref)
+    if not added_paths:
+        print("Result : OK — this PR introduces no new OpenSpec change proposals; "
               "no version bump required.")
         return 0
 
-    print(f"Newly-archived proposals ({len(proposals)}):")
+    # Filter out archive-path additions that are really just a relocation of a
+    # change already introduced (at the active path) before this PR.
+    checked = []  # (path, name)
+    skipped_relocations = []
+    for path in added_paths:
+        name = _change_name(path)
+        if name is None:
+            # Not a recognised proposal.md shape — ignore defensively rather
+            # than crash on an unexpected path.
+            continue
+        if ARCHIVE_RE.match(path) and _already_introduced_at_base(name, base_ref):
+            skipped_relocations.append(path)
+            continue
+        checked.append((path, name))
 
-    malformed = []   # proposals missing/with a bad declaration
+    for path in skipped_relocations:
+        print(f"  (skip) {path}: already introduced at the active path before "
+              f"this PR — ordinary archiving relocation, not re-checked")
+
+    if not checked:
+        print("Result : OK — every newly-added proposal.md in this PR is an "
+              "ordinary archiving relocation of an already-introduced change; "
+              "no version bump required.")
+        return 0
+
+    print(f"Newly-introduced proposals ({len(checked)}):")
+
+    malformed = []    # proposals missing/with a bad declaration
     user_facing = []  # proposals declaring yes
 
-    for path in proposals:
+    for path, name in checked:
         decl = _declaration(_file_at_head(path))
         if decl is None:
             print(f"  - {path}: MISSING/MALFORMED **User-facing:** line",
@@ -127,7 +201,7 @@ def main() -> int:
 
     if malformed:
         print("", file=sys.stderr)
-        print("Result : FAIL — a newly-archived proposal is missing a valid "
+        print("Result : FAIL — a newly-introduced proposal is missing a valid "
               "user-facing declaration.", file=sys.stderr)
         print("Every proposal.md SHALL declare, before its `## Why` heading, "
               "exactly one of:", file=sys.stderr)
@@ -138,23 +212,24 @@ def main() -> int:
         return 1
 
     if not user_facing:
-        print("Result : OK — all newly-archived changes declare "
+        print("Result : OK — all newly-introduced changes declare "
               "User-facing = no; no version bump required.")
         return 0
 
-    print(f"User-facing changes archived: {len(user_facing)}")
+    print(f"User-facing changes newly introduced: {len(user_facing)}")
     if _version_changed(base_ref):
         print(f"VERSION differs from {base_ref} — bump present.")
-        print("Result : OK — user-facing change(s) archived with a VERSION "
-              "bump.")
+        print("Result : OK — user-facing change(s) introduced with a VERSION "
+              "bump in this same pull request.")
         return 0
 
-    # User-facing archive with no bump — the exact failure mode issue #49 exists
-    # to prevent.
+    # User-facing change merged with no bump — the exact failure mode this
+    # gate exists to prevent (originally issue #49; timing corrected by
+    # fix-version-bump-gate-timing so it fires pre-merge, not at archive).
     print("", file=sys.stderr)
-    print("Result : FAIL — a user-facing OpenSpec change is being archived "
-          "without a VERSION bump.", file=sys.stderr)
-    print("The following newly-archived change(s) declare **User-facing:** yes:",
+    print("Result : FAIL — a user-facing OpenSpec change is being merged to "
+          "main without a VERSION bump.", file=sys.stderr)
+    print("The following newly-introduced change(s) declare **User-facing:** yes:",
           file=sys.stderr)
     for path in user_facing:
         print(f"  - {path}", file=sys.stderr)

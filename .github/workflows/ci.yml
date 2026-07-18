@@ -567,8 +567,13 @@ jobs:
   # Enforces the canonical-version invariant on every PR targeting main:
   #   (a) the version cited in README.md / REQUIREMENTS.md matches VERSION
   #       (tools/check_version_docs.py), and
-  #   (b) any PR that archives a `**User-facing:** yes` OpenSpec change also
-  #       bumps VERSION relative to main (tools/check_version_bump.py).
+  #   (b) any PR that first introduces a `**User-facing:** yes` OpenSpec
+  #       change's proposal.md into main's history (active or archived path)
+  #       also bumps VERSION relative to main (tools/check_version_bump.py).
+  #       Enforced pre-merge, at first introduction — not deferred to a later
+  #       archiving PR (corrected 2026-07-18 by fix-version-bump-gate-timing;
+  #       an ordinary archiving PR that only relocates an already-introduced
+  #       change is not re-checked).
   # Implements: ci-quality-gates spec (gate G9), release-versioning capability.
   #
   # Runs only on pull_request events — a direct push has no base ref to diff
@@ -590,7 +595,7 @@ jobs:
       - name: G9a — Doc/VERSION consistency
         run: python3 tools/check_version_docs.py
 
-      - name: G9b — Mandatory bump on user-facing archive
+      - name: G9b — Mandatory bump on user-facing merge
         run: python3 tools/check_version_bump.py "origin/${{ github.base_ref }}"
 
   # -----------------------------------------------------------------
