@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using FluentAssertions;
 using OpenWSFZ.Abstractions;
 using Xunit;
@@ -158,30 +157,53 @@ public sealed class DecodeFilterStoreAdmitNewValuesTests
         store.Set(DecodeFilterState.Unfiltered with { AllowedEntities = new HashSet<string> { "Seed" } });
 
         var expectedEntities = Enumerable.Range(0, 200).Select(i => $"Entity{i}").ToList();
-        var seenUpdates = new ConcurrentBag<DecodeFilterState>();
 
         var admitTasks = expectedEntities.Select(entity => Task.Run(() =>
         {
-            var region  = new RegionInfo(Continent: "EU", Entity: entity, Synthetic: false, CqZone: 14, ItuZone: 27);
-            var updated = store.AdmitNewValues(MakeDecode(region));
-            if (updated is not null)
-                seenUpdates.Add(updated);
+            var region = new RegionInfo(Continent: "EU", Entity: entity, Synthetic: false, CqZone: 14, ItuZone: 27);
+            store.AdmitNewValues(MakeDecode(region));
         }));
 
-        // Interleave a handful of concurrent Set() calls that don't touch AllowedEntities, to
-        // exercise the same lock from the other writer without disturbing the assertion below.
-        var setTasks = Enumerable.Range(0, 20).Select(i => Task.Run(() =>
-        {
-            var current = store.Current;
-            store.Set(current with { AllowedItuZones = new HashSet<int> { i } });
-        }));
-
-        await Task.WhenAll(admitTasks.Concat(setTasks));
+        await Task.WhenAll(admitTasks);
 
         store.Current.AllowedEntities.Should().NotBeNull();
         store.Current.AllowedEntities!.Should().Contain(expectedEntities);
         store.Current.AllowedEntities.Should().Contain("Seed");
         store.Current.AllowedEntities!.Count.Should().Be(expectedEntities.Count + 1,
-            "no admission may be lost and no duplicate/corrupted entry may appear under concurrency");
+            "no admission may be lost and no duplicate/corrupted entry may appear under concurrent AdmitNewValues calls");
+    }
+
+    [Fact(DisplayName = "FR-061: 3.6: concurrent Set calls racing AdmitNewValues never throw or corrupt internal state")]
+    public async Task ConcurrentSetCallsRacingAdmitNewValues_NeverThrowOrCorruptState()
+    {
+        // Set() is a whole-object replace — last-write-wins by design, the same accepted
+        // contract already covering concurrent multi-tab POSTs (design.md Decision 3's Risks/
+        // Trade-offs: "same category of risk... last write wins, no corruption"). A Set() call
+        // that reads a live store.Current snapshot outside the lock and later writes it back
+        // can legitimately clobber an admission that landed in between — that is accepted
+        // behaviour, not a bug, so these Set calls deliberately do NOT read-modify-write off a
+        // live snapshot (unlike the test above's pure-AdmitNewValues concurrency, where no
+        // admission may ever be lost). This test only proves AdmitNewValues and Set can run
+        // concurrently against the same lock without throwing or leaving a corrupted/torn
+        // HashSet behind — not that every admission survives an arbitrary racing Set.
+        var store = new DecodeFilterStore();
+        store.Set(DecodeFilterState.Unfiltered with { AllowedEntities = new HashSet<string> { "Seed" } });
+
+        var admitTasks = Enumerable.Range(0, 100).Select(i => Task.Run(() =>
+        {
+            var region = new RegionInfo(Continent: "EU", Entity: $"Entity{i}", Synthetic: false, CqZone: 14, ItuZone: 27);
+            store.AdmitNewValues(MakeDecode(region));
+        }));
+
+        var setTasks = Enumerable.Range(0, 20).Select(i => Task.Run(() =>
+            store.Set(DecodeFilterState.Unfiltered with { AllowedItuZones = new HashSet<int> { i } })));
+
+        await Task.WhenAll(admitTasks.Concat(setTasks));
+
+        // No exception propagated from any task above (xUnit would already have failed this
+        // test if one had). Whichever writer's state landed last is a fully valid, internally
+        // consistent DecodeFilterState — never a torn/partial HashSet.
+        store.Current.Should().NotBeNull();
+        store.Current.AllowedItuZones.Should().NotBeNull().And.HaveCount(1);
     }
 }
