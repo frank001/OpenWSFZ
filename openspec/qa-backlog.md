@@ -256,8 +256,27 @@ genuine N6 regression.
 
 ## N8 — `DecodeFilterStoreAdmitNewValuesTests`' 3.6 concurrency test asserts an invariant the production code never promised
 
-**Status:** OPEN — found 2026-07-18 on the `qso-transcript-panel` (PR #85) merge-to-main CI run;
-not yet fixed.
+**Status: RESOLVED, merged 2026-07-18** (`PR #86`, `16afb37`). Test-only fix, exactly as scoped in
+the handoff — `ConcurrentSetCallsRacingAdmitNewValues_NeverThrowOrCorruptState`'s final assertion
+now requires `AllowedItuZones` non-null, non-empty, and a subset of `{0..19} ∪ {27}`, instead of an
+exact count of 1. `DecodeFilterStore`/`Set`/`AdmitNewValues`/`AdmitOne` in `WebApp.cs` untouched, as
+required (AC-2) — confirmed via diff, the only file changed is the test. QA independently re-derived
+the lock-serialisation argument for why `NotBeEmpty()` is a provable invariant, not a hopeful
+loosening: since `_lock` totally orders all 120 racing critical sections, if the temporally-last one
+belongs to an `AdmitNewValues` call, all 20 `Set()` calls have already committed before it (by
+definition of "last"), so `AllowedItuZones` is guaranteed non-null at that point. Verified
+independently before merge: 12 additional consecutive local runs of the isolated test (green, on
+top of the developer's own 15), a full local `dotnet test OpenWSFZ.slnx -c Release` run (1297/1297
+green), a clean `tools/pre_merge_check.py` run (G9a/build/G3/G8 all PASS, AOT WARN is the known
+local `vswhere.exe` toolchain gap, unrelated), and CI green on all three platforms on PR #86. One
+transient, non-reproducing "Full test suite (Release) FAIL" was observed on QA's *first*
+`pre_merge_check.py` run (detail lost to an incidental `tail -80` truncation) but did not recur on
+immediate rerun or on the separate manual full-suite run — attributed to an unrelated flake
+elsewhere in the suite, not this diff, given the change is scoped to a single file in one test
+project that passed clean both in isolation and in-suite. Original entry retained below for the
+root-cause record.
+
+**~~Status: OPEN~~ — found 2026-07-18 on the `qso-transcript-panel` (PR #85) merge-to-main CI run.**
 **Severity:** Low (test-only defect; the underlying `DecodeFilterStore` behaviour it misjudges is
 already documented, accepted, race-safe production behaviour — no production impact)
 **Source:** QA, merge-to-main CI run for PR #85 (`feat/qso-transcript-panel`, unrelated change —
