@@ -117,6 +117,13 @@ public interface IQsoController
     /// <c>RstRcvd</c> for the ADIF record instead of a fabricated placeholder
     /// (fix-jump-in-rr73-adif-capture). Not consumed by the other two jump-in cases.
     /// </param>
+    /// <param name="snr">
+    /// The real measured <c>DecodeResult.Snr</c> of the decode that triggered this jump-in, as
+    /// forwarded by the browser from the same decode-row data used to compute
+    /// <paramref name="frequencyHz"/>. Used by the <see cref="EngagePoint.SendReport"/> jump-in
+    /// case to compose a real signal report for the ADIF <c>RstSent</c> field instead of a fixed
+    /// placeholder (TX-D04). Not consumed by the other two jump-in cases.
+    /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <remarks>
     /// The service MUST already be in <see cref="QsoState.Idle"/> when this is called.
@@ -129,5 +136,6 @@ public interface IQsoController
         DateTimeOffset theirCycleStart,
         EngagePoint point,
         string rawPayload,
+        int snr,
         CancellationToken ct);
 }

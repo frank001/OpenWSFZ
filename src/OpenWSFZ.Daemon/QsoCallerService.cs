@@ -97,6 +97,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     // Per-session TX state.
     private int      _lastTxFreqHz  = 0;
     private string   _rstRcvd       = "+00";
+    // TX-D04: the real formatted report last transmitted (e.g. "-07"), persisted so the WaitRr73
+    // retry path (RetryOrAbortAsync) and the ADIF RstSent field reuse the exact value chosen at
+    // ExecuteTxReportAsync time rather than recomputing (or fabricating) a new one.
+    private string   _rstSent       = "+00";
     private int      _retryCount    = 0;
     private bool     _skipNextRetry = false;
     private DateTime _qsoStartUtc   = DateTime.MinValue;
@@ -112,6 +116,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     // _recentResponderDecodes at selection time — see SelectResponderAsync). Null when the
     // responder answered with a bare signal report instead of a grid (normal FT8 behaviour).
     private string?          _pendingResponderGrid;
+    // TX-D04: the responder's real measured Snr, re-derived from _recentResponderDecodes at the
+    // same selection point as _pendingResponderGrid above (sibling field, identical pattern).
+    // Null only if the responder's decode was somehow never recorded — see SelectResponderAsync.
+    private int?             _pendingResponderSnr;
 
     // decode-panel-filtering: the most recently observed DecodeResult for each responder
     // callsign seen this WaitAnswer session (CallerPartnerSelectMode.None path), keyed by
@@ -334,6 +342,8 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             _pendingResponderFrequencyHz   = frequencyHz;
             _pendingResponderIsAPhase      = !responseIsAPhase;   // opposite phase
             _pendingResponderGrid          = grid;
+            // TX-D04: re-derived from the same recorded decode as `grid` above — no new lookup.
+            _pendingResponderSnr           = recentDecode?.Snr;
             _pendingResponderSetAt         = DateTimeOffset.UtcNow;
         }
 
@@ -405,6 +415,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         DateTimeOffset theirCycleStart,
         EngagePoint point,
         string rawPayload,
+        int snr,
         CancellationToken ct)
         => Task.CompletedTask;
 
@@ -416,7 +427,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     /// </summary>
     internal void TestSetPendingResponder(
         string callsign, double freqHz, bool isAPhase, DateTimeOffset? setAt = null,
-        string? grid = null)
+        string? grid = null, int? snr = null)
     {
         lock (_stateLock)
         {
@@ -424,6 +435,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             _pendingResponderFrequencyHz = freqHz;
             _pendingResponderIsAPhase    = isAPhase;
             _pendingResponderGrid        = grid;
+            _pendingResponderSnr         = snr;
             _pendingResponderSetAt       = setAt ?? DateTimeOffset.UtcNow;
         }
     }
@@ -611,6 +623,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _partnerGrid = null;
         _retryCount  = 0;
         _rstRcvd     = "+00";
+        _rstSent     = "+00";
         _qsoStartUtc = DateTime.UtcNow;
 
         // HoldTxFreq semantics — identical to QsoAnswererService's ExecuteTxAnswerAsync.
@@ -653,6 +666,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         double         pendingFrequencyHz;
         bool           pendingIsAPhase;
         string?        pendingGrid;
+        int?           pendingSnr;
         DateTimeOffset pendingSetAt;
 
         lock (_stateLock)
@@ -661,6 +675,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             pendingFrequencyHz = _pendingResponderFrequencyHz;
             pendingIsAPhase    = _pendingResponderIsAPhase;
             pendingGrid        = _pendingResponderGrid;
+            pendingSnr         = _pendingResponderSnr;
             pendingSetAt       = _pendingResponderSetAt;
         }
 
@@ -672,7 +687,12 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 _logger.LogWarning(
                     "QsoCallerService: pending responder '{Callsign}' expired after 60 s — discarding.",
                     pendingCallsign);
-                lock (_stateLock) { _pendingResponderCallsign = null; _pendingResponderGrid = null; }
+                lock (_stateLock)
+                {
+                    _pendingResponderCallsign = null;
+                    _pendingResponderGrid     = null;
+                    _pendingResponderSnr      = null;
+                }
             }
             else
             {
@@ -688,10 +708,18 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 _logger.LogInformation(
                     "QsoCallerService: pending responder '{Callsign}' at {FreqHz} Hz — sending report at {Phase} phase.",
                     pendingCallsign, (int)Math.Round(pendingFrequencyHz), pendingIsAPhase ? "A" : "B");
-                lock (_stateLock) { _pendingResponderCallsign = null; _pendingResponderGrid = null; }
+                lock (_stateLock)
+                {
+                    _pendingResponderCallsign = null;
+                    _pendingResponderGrid     = null;
+                    _pendingResponderSnr      = null;
+                }
 
                 _skipNextRetry = false; // responding — clear skip guard
-                await ExecuteTxReportAsync(pendingCallsign, pendingFrequencyHz, pendingGrid, tx, stoppingToken)
+                // TX-D04: pendingSnr is null only if the responder's decode was somehow never
+                // recorded in _recentResponderDecodes; 0 dB is a safe, honest fallback (formats
+                // to "+00" — the same value this path always sent before this fix).
+                await ExecuteTxReportAsync(pendingCallsign, pendingFrequencyHz, pendingGrid, pendingSnr ?? 0, tx, stoppingToken)
                     .ConfigureAwait(false);
                 return;
             }
@@ -732,7 +760,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
                 _skipNextRetry = false; // matched — clear skip guard
                 var effectiveFreq = freqHz > 0 ? freqHz : r.FreqHz;
-                await ExecuteTxReportAsync(responder, effectiveFreq, grid, tx, stoppingToken)
+                await ExecuteTxReportAsync(responder, effectiveFreq, grid, r.Snr, tx, stoppingToken)
                     .ConfigureAwait(false);
                 return;
             }
@@ -771,6 +799,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         string            partner,
         double            frequencyHz,
         string?           partnerGrid,
+        int               snr,
         TxConfig          tx,
         CancellationToken stoppingToken)
     {
@@ -815,7 +844,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         // Arm H6 AP decode (D-001).
         ApplyApConstraints(tx.Callsign, partner);
 
-        var reportMessage = $"{partner} {tx.Callsign} +00";
+        // TX-D04: real measured report of the triggering decode, not a fixed placeholder.
+        // Persisted as _rstSent so the WaitRr73 retry branch and the ADIF RstSent field reuse
+        // this exact value rather than recomputing (or fabricating) a new one.
+        _rstSent = FormatSnrReport(snr);
+        var reportMessage = $"{partner} {tx.Callsign} {_rstSent}";
         SetStateAndNotify(CallerState.TxReport);
         await TransmitAsync(reportMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
 
@@ -895,7 +928,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             // normal/expected when the responder's first message to us was a bare signal report
             // rather than a grid — not a gap.
             PartnerGrid      = _partnerGrid,
-            RstSent          = "+00",       // fixed report (TX-D04 deferred)
+            RstSent          = _rstSent,    // TX-D04: real measured report, not a fixed placeholder
             RstRcvd          = _rstRcvd,
             QsoStartUtc      = _qsoStartUtc,
             QsoEndUtc        = Ft8TimeHelper.DeriveFt8CycleStartUtc(DateTime.UtcNow),
@@ -981,7 +1014,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 "QsoCallerService: no response from {Partner} (retry {Retry}/{Max}) — retransmitting report.",
                 _partner, _retryCount, maxRetries);
 
-            var reportMessage = $"{_partner} {tx.Callsign} +00";
+            // TX-D04: resend the exact report chosen at ExecuteTxReportAsync time (_rstSent),
+            // not a freshly recomputed or fabricated value — there may be no fresh decode of the
+            // partner available on a retry, which is the entire point of retrying.
+            var reportMessage = $"{_partner} {tx.Callsign} {_rstSent}";
             SetStateAndNotify(CallerState.TxReport);
             await TransmitAsync(reportMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
             _skipNextRetry = true;
@@ -1110,6 +1146,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             _pendingResponderFrequencyHz = 0.0;
             _pendingResponderIsAPhase    = false;
             _pendingResponderGrid        = null;
+            _pendingResponderSnr         = null;
             _pendingResponderSetAt       = default;
             // decode-panel-filtering: discard stale per-session responder decode data so a
             // future WaitAnswer session never evaluates SelectResponderAsync against a
@@ -1333,4 +1370,21 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         => payload.Length >= 3 &&
            payload.StartsWith("R", StringComparison.OrdinalIgnoreCase) &&
            IsSignalReport(payload);
+
+    /// <summary>
+    /// Formats <paramref name="snr"/> (dB, relative to the 2500 Hz noise floor —
+    /// <see cref="DecodeResult.Snr"/>) as a standard two-digit signed FT8 signal report
+    /// (<c>"+07"</c>, <c>"-13"</c>, <c>"+00"</c>), clamped to the FT8/WSJT-X range of
+    /// <c>±30</c> (TX-D04: replaces the fixed <c>"+00"</c>/<c>"R+00"</c> placeholder previously
+    /// sent regardless of the real measured signal quality). Callers needing the answerer's
+    /// <c>R</c>-prefixed roger-report form prepend <c>"R"</c> themselves — this method is
+    /// prefix-agnostic, matching the existing protocol-position split between
+    /// <see cref="QsoCallerService"/> (bare report) and <c>QsoAnswererService</c> (roger report).
+    /// </summary>
+    internal static string FormatSnrReport(int snr)
+    {
+        var clamped = Math.Clamp(snr, -30, 30);
+        var sign    = clamped < 0 ? '-' : '+';
+        return $"{sign}{Math.Abs(clamped):00}";
+    }
 }

@@ -319,9 +319,13 @@ export function postTxAbort() {
  * @param {string} cycleStartUtc ISO 8601 UTC cycle-start (e.g. "2026-06-27T10:00:15Z").
  * @param {boolean} [confirm]    Operator has already confirmed a prior engagement-target
  *                               rejection for this same target — proceed regardless.
+ * @param {number} [snr]         Real measured SNR of the double-clicked decode row (TX-D04) —
+ *                               used only when the jump-in resolves to a SendReport response, so
+ *                               the transmitted report reflects the real signal quality instead of
+ *                               a fixed placeholder.
  * @returns {Promise<{state:string, partner:string|null, autoAnswerEnabled:boolean, role:string}>}
  */
-export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc, confirm = false) {
+export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc, confirm = false, snr = 0) {
   const key = getApiKey();
   const res = await fetch('/api/v1/tx/engage-decode', {
     method:  'POST',
@@ -329,7 +333,7 @@ export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc, co
       'Content-Type': 'application/json',
       ...(key ? { 'X-Api-Key': key } : {}),
     },
-    body: JSON.stringify({ message, frequencyHz, cycleStartUtc, confirm }),
+    body: JSON.stringify({ message, frequencyHz, cycleStartUtc, confirm, snr }),
   });
   if (res.status === 401) {
     sessionStorage.removeItem(API_KEY_SESSION_KEY);

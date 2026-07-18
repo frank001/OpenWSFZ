@@ -1719,6 +1719,153 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
+    // ── TX-D04: real measured SNR replaces the fixed "+00" report placeholder ──
+
+    [Fact(DisplayName = "TX-D04: First-mode TxReport composes and logs the real measured SNR, not a fixed +00")]
+    public async Task ExecuteTxReportAsync_FirstMode_UsesRealMeasuredSnr()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 1,
+            QsoConfirmation     = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Responder's CQ-answer decode, Snr = -5 (this file's Make() default) — proves the report
+        // reflects the triggering decode's real Snr, not a coincidental "+00".
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "-05"));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "TX-D04: None-mode SelectResponderAsync pending-responder report also uses the real measured SNR")]
+    public async Task SelectResponderAsync_NoneMode_UsesRealMeasuredSnr()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.None,
+            RetryCount          = 0,
+            WatchdogMinutes     = 4,
+            QsoConfirmation     = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // A distinct, non-default Snr (+11, vs. this file's Make() default of -5) — proves the
+        // real value from THIS decode flows through, not a coincidental match on the default.
+        var responderDecode = new DecodeResult(
+            Time: "12:00:00", Snr: 11, Dt: 0.1, FreqHz: AudioFreqHz,
+            Message: $"{OurCallsign} {PartnerCall} {PartnerGrid}");
+        Send(channel, responderDecode);
+        await Task.Delay(150);
+        sut.State.Should().Be(QsoState.WaitReport, "None mode must not auto-advance");
+        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
+
+        var bPhaseResponse = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
+        await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponse, CancellationToken.None);
+        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
+        await Task.Delay(50);
+
+        var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
+        SendAt(channel, correctPhaseCycleStart, Make("CQ Q2NOISE JO00")); // content irrelevant — fires on phase alone
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "+11"));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "TX-D04: a WaitRr73 retry resends the same report value chosen at TxReport time, and the final ADIF record still reflects it")]
+    public async Task RetryOrAbortAsync_WaitRr73Retry_ResendsSamePersistedReportValue()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 2,
+            WatchdogMinutes     = 4,
+            QsoConfirmation     = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}")); // Snr = -5 (Make default)
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>()); // CQ + TxReport
+
+        // A-01 skip-then-retry silence pattern: first silence cycle is skipped, second fires retry.
+        Send(channel, Make("Q2NOISE Q3NOISE -10"));
+        await Task.Delay(150);
+        await ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>()); // no retry yet — skip guard
+
+        Send(channel, Make("Q2NOISE Q3NOISE -10"));
+        await Task.Delay(300);
+        await ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>()); // retry fired
+        sut.State.Should().Be(QsoState.WaitRr73, "one retry must not exhaust the retry budget");
+
+        // Complete the QSO — the final ADIF record must still carry the value chosen at the
+        // original TxReport, not a value clobbered/reset by the intervening retry.
+        Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "-05"));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── D-013: QSO records must use the live CAT dial frequency, not the stale ──
     //           DecodeLog.DialFrequencyMHz config fallback, when CAT is connected ──
 

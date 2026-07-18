@@ -87,6 +87,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private string   _lastTxMessage = string.Empty;
     private int      _lastTxFreqHz  = 0;
     private string   _rstRcvd       = "+00"; // signal report received from partner
+    // TX-D04: the real formatted report last transmitted (e.g. "R-07"), persisted so
+    // BuildAndWriteQsoRecordAsync's ADIF RstSent field reflects the exact value actually sent
+    // rather than a fixed placeholder. The generic RetryOrAbortAsync retransmits _lastTxMessage
+    // verbatim, so no separate retry-path fix is needed here (unlike QsoCallerService).
+    private string   _rstSent       = "R+00";
     private string?  _partnerGrid   = null;  // grid extracted from the CQ; written to ADIF
     private int      _retryCount    = 0;
     private bool     _skipNextRetry = false; // A-01: true after entering WaitReport/WaitRr73 — skip the first empty cycle (our own TX window)
@@ -119,6 +124,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     // (e.g. "R-05" or "RRR"), forwarded from the engage-decode HTTP handler. Consumed only by
     // ExecuteJumpInAsync's EngagePoint.SendRr73 case to derive a real RstRcvd.
     private string?        _jumpRawPayload;
+    // TX-D04: the real measured Snr of the decode that triggered this jump-in, forwarded from
+    // the engage-decode HTTP handler (itself forwarded by the browser from the same decode-row
+    // data used to compute freqHz). Consumed only by ExecuteJumpInAsync's EngagePoint.SendReport
+    // case to compose a real signal report instead of a fixed placeholder.
+    private int            _jumpSnr;
 
     // Cancellation for the active TX session; cancelled on watchdog expiry or operator abort.
     // Volatile reference so AbortAsync (HTTP thread) can safely read and cancel the current CTS.
@@ -236,6 +246,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         DateTimeOffset theirCycleStart,
         EngagePoint    point,
         string         rawPayload,
+        int            snr,
         CancellationToken ct)
     {
         lock (_stateLock)
@@ -250,6 +261,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             _jumpIsAPhase   = !IsAPhase(theirCycleStart);  // TX in the opposite slot
             _jumpSetAt      = DateTimeOffset.UtcNow;
             _jumpRawPayload = rawPayload;
+            _jumpSnr        = snr;
         }
 
         // Push a wakeup so the background loop fires within the current cycle window,
@@ -462,7 +474,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// </summary>
     internal void TestSetJumpTarget(
         string callsign, double freqHz, EngagePoint point, bool isAPhase, DateTimeOffset? setAt = null,
-        string? rawPayload = null)
+        string? rawPayload = null, int snr = 0)
     {
         lock (_stateLock)
         {
@@ -472,6 +484,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             _jumpIsAPhase   = isAPhase;
             _jumpSetAt      = setAt ?? DateTimeOffset.UtcNow;
             _jumpRawPayload = rawPayload;
+            _jumpSnr        = snr;
         }
     }
 
@@ -635,6 +648,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             bool           jumpIsAPhase;
             DateTimeOffset jumpSetAt;
             string?        jumpRawPayload;
+            int            jumpSnr;
 
             lock (_stateLock)
             {
@@ -644,6 +658,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                 jumpIsAPhase   = _jumpIsAPhase;
                 jumpSetAt      = _jumpSetAt;
                 jumpRawPayload = _jumpRawPayload;
+                jumpSnr        = _jumpSnr;
             }
 
             if (jumpPartner is not null)
@@ -673,7 +688,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                     jumpPoint, jumpPartner, (int)Math.Round(jumpFreqHz));
 
                 await ExecuteJumpInAsync(
-                    jumpPartner, jumpFreqHz, jumpPoint, jumpRawPayload ?? string.Empty, tx, stoppingToken)
+                    jumpPartner, jumpFreqHz, jumpPoint, jumpRawPayload ?? string.Empty, jumpSnr, tx, stoppingToken)
                     .ConfigureAwait(false);
                 return;
             }
@@ -837,6 +852,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         _partnerGrid = partnerGrid;
         _retryCount  = 0;
         _rstRcvd     = "+00";
+        // TX-D04: reset to the honest placeholder — genuinely accurate only if this session's
+        // WaitReport is skipped entirely via the "early RR73" branch (HandleWaitReportAsync),
+        // which jumps straight to ExecuteTx73Async without ever composing a report. The normal
+        // report-composition site overwrites this with the real value before it matters.
+        _rstSent     = "R+00";
         _qsoStartUtc = DateTime.UtcNow;
 
         // Task 4.1 / 4.2 — Determine TX frequency.
@@ -905,6 +925,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         double        freqHz,
         EngagePoint   point,
         string        rawPayload,
+        int           snr,
         TxConfig      tx,
         CancellationToken stoppingToken)
     {
@@ -923,6 +944,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         // fix-jump-in-rr73-adif-capture: _rstRcvd is no longer reset to a fixed "+00" placeholder
         // here — SendReport and Send73 don't consume it at jump-in entry, and the SendRr73 case
         // below derives a real value from rawPayload instead.
+        // TX-D04: _rstSent IS reset here, to the honest "R+00" placeholder — genuinely accurate
+        // only for the SendRr73/Send73 cases below, which never compose a report of their own
+        // this session (mid-exchange jump-in never observed the original exchange). The
+        // SendReport case overwrites this with the real formatted value a few lines below.
+        _rstSent      = "R+00";
 
         // Determine TX frequency (mirrors ExecuteTxAnswerAsync HoldTxFreq logic).
         int txFreqHz;
@@ -961,8 +987,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         {
             case EngagePoint.SendReport:
             {
-                // They sent us a plain SNR → we reply R+00 → enter WaitRr73.
-                var msg = $"{partner} {tx.Callsign} R+00";
+                // They sent us a plain SNR → we reply with our real measured report of them
+                // (TX-D04) → enter WaitRr73.
+                _rstSent = "R" + QsoCallerService.FormatSnrReport(snr);
+                var msg = $"{partner} {tx.Callsign} {_rstSent}";
                 _lastTxMessage = msg;
                 SetStateAndNotify(QsoState.TxReport);
                 await TransmitAsync(msg, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
@@ -1052,8 +1080,12 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
                         "QsoAnswererService: received report {Report} from {Partner}.",
                         payload, partner);
 
-                    // TxReport: PARTNER OURS R+00
-                    var reportMessage = $"{partner} {ours} R+00";
+                    // TxReport: PARTNER OURS R±NN — TX-D04: real measured report of the
+                    // triggering decode, not a fixed placeholder. Persisted as _rstSent so the
+                    // ADIF RstSent field reflects the same real value.
+                    var formattedReport = QsoCallerService.FormatSnrReport(r.Snr);
+                    _rstSent = "R" + formattedReport;
+                    var reportMessage = $"{partner} {ours} {_rstSent}";
                     _lastTxMessage = reportMessage;
 
                     // D-007: ResetWatchdog moved to AFTER TransmitAsync so AbortAsync cannot
@@ -1167,9 +1199,13 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// <remarks>
     /// Extracted (fix-jump-in-rr73-adif-capture, task 4.1) from <see cref="ExecuteTx73Async"/>'s
     /// former inlined record-build-and-write block so <c>ExecuteJumpInAsync</c>'s
-    /// <see cref="EngagePoint.SendRr73"/> case can reuse it identically — both call sites need the
-    /// same fixed <c>RstSent = "R+00"</c> (the report this daemon always sends) and the same
-    /// <see cref="QsoState.Tx73"/> state ahead of it.
+    /// <see cref="EngagePoint.SendRr73"/> case can reuse it identically — both call sites use the
+    /// same <see cref="QsoState.Tx73"/> state ahead of it. <c>RstSent</c> (TX-D04) reflects the
+    /// real measured report actually sent this session (<see cref="_rstSent"/>) when one was
+    /// composed (normal <c>WaitReport</c> reply, or a <see cref="EngagePoint.SendReport"/>
+    /// jump-in); it remains the honest <c>"R+00"</c> placeholder for sessions that genuinely never
+    /// composed a report (the "early RR73" skip-to-73 path, or a <see cref="EngagePoint.SendRr73"/>
+    /// / <see cref="EngagePoint.Send73"/> jump-in that entered mid-exchange).
     /// </remarks>
     private async Task BuildAndWriteQsoRecordAsync(TxConfig tx, string partner, CancellationToken ct)
     {
@@ -1177,7 +1213,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         {
             PartnerCallsign  = partner,
             PartnerGrid      = _partnerGrid,       // captured from the CQ decode; null on a jump-in
-            RstSent          = "R+00",
+            RstSent          = _rstSent,           // TX-D04: real report when one was sent this session
             RstRcvd          = _rstRcvd,
             QsoStartUtc      = _qsoStartUtc,
             QsoEndUtc        = Ft8TimeHelper.DeriveFt8CycleStartUtc(DateTime.UtcNow),

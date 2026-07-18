@@ -26,12 +26,14 @@ internal sealed class TrackingMockQsoController : IQsoController
     public QsoRole  Role    { get; set; } = QsoRole.Answerer;
 
     /// <summary>
-    /// Set to (Partner, FrequencyHz, Point, RawPayload) on each <see cref="EngageAtAsync"/> call;
-    /// <c>null</c> until the first call or after <see cref="ResetTracking"/>. <c>RawPayload</c>
+    /// Set to (Partner, FrequencyHz, Point, RawPayload, Snr) on each <see cref="EngageAtAsync"/>
+    /// call; <c>null</c> until the first call or after <see cref="ResetTracking"/>. <c>RawPayload</c>
     /// added by fix-jump-in-rr73-adif-capture (task 5.5) so tests can confirm the matched decode
-    /// payload text is forwarded through to <see cref="EngageAtAsync"/>.
+    /// payload text is forwarded through to <see cref="EngageAtAsync"/>. <c>Snr</c> added by
+    /// fix-tx-report-real-snr (TX-D04) so tests can confirm the browser-forwarded decode-row SNR
+    /// is forwarded through to <see cref="EngageAtAsync"/>.
     /// </summary>
-    public (string Partner, double FrequencyHz, EngagePoint Point, string RawPayload)? LastEngageAtCall { get; private set; }
+    public (string Partner, double FrequencyHz, EngagePoint Point, string RawPayload, int Snr)? LastEngageAtCall { get; private set; }
 
     /// <summary>
     /// Set to the callsign on each <see cref="AnswerCqAsync"/> call (engagement-target-validation,
@@ -75,9 +77,9 @@ internal sealed class TrackingMockQsoController : IQsoController
 
     public Task EngageAtAsync(
         string partnerCallsign, double frequencyHz, DateTimeOffset theirCycleStart,
-        EngagePoint point, string rawPayload, CancellationToken ct)
+        EngagePoint point, string rawPayload, int snr, CancellationToken ct)
     {
-        LastEngageAtCall = (partnerCallsign, frequencyHz, point, rawPayload);
+        LastEngageAtCall = (partnerCallsign, frequencyHz, point, rawPayload, snr);
         return Task.CompletedTask;
     }
 }
@@ -173,9 +175,10 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
         _client  = fixture.Client;
     }
 
-    private static StringContent EngageBody(string message, double freqHz = 500.0, bool confirm = false)
+    private static StringContent EngageBody(
+        string message, double freqHz = 500.0, bool confirm = false, int snr = 0)
         => new(
-            $$"""{"message":"{{message}}","frequencyHz":{{freqHz}},"cycleStartUtc":"{{CycleStart}}","confirm":{{(confirm ? "true" : "false")}}}""",
+            $$"""{"message":"{{message}}","frequencyHz":{{freqHz}},"cycleStartUtc":"{{CycleStart}}","confirm":{{(confirm ? "true" : "false")}},"snr":{{snr}}}""",
             Encoding.UTF8, "application/json");
 
     // ── Test A — 4-character Maidenhead grid square ───────────────────────────
@@ -276,6 +279,32 @@ public sealed class EngageDecodeEndpointTests : IClassFixture<EngageDecodeFixtur
         _fixture.QsoController.LastEngageAtCall!.Value.Point.Should().Be(EngagePoint.SendReport,
             "plain SNR in Case B must dispatch EngageAt(SendReport)");
         _fixture.QsoController.LastEngageAtCall!.Value.Partner.Should().Be("Q9XYZ");
+    }
+
+    // ── Test F — fix-tx-report-real-snr (TX-D04, task 5.9) ─────────────────────
+
+    [Fact(DisplayName = "TX-D04: a non-zero snr in the request body is forwarded through to EngageAtAsync for the SendReport branch")]
+    public async Task EngageDecode_PlainSnr_ForwardsRequestSnrToEngageAtAsync()
+    {
+        // Arrange
+        _fixture.QsoController.ResetTracking();
+        _fixture.EngagementValidator.Rule = null; // engagement-target-validation: allow-all baseline
+        _fixture.QsoController.State = QsoState.Idle;
+
+        // Act — the browser forwards the double-clicked decode row's own real measured SNR
+        // (distinct from the token embedded in `message`, which only carries the report the
+        // *partner* sent us, not the SNR we measured of them).
+        var response = await _client.PostAsync(
+            "/api/v1/tx/engage-decode", EngageBody("Q1ABC Q9XYZ +07", snr: 13));
+
+        // Assert HTTP 200
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Assert EngageAtAsync(SendReport) was called with the request's snr forwarded through.
+        _fixture.QsoController.LastEngageAtCall.Should().NotBeNull();
+        _fixture.QsoController.LastEngageAtCall!.Value.Point.Should().Be(EngagePoint.SendReport);
+        _fixture.QsoController.LastEngageAtCall!.Value.Snr.Should().Be(13,
+            "the browser-supplied decode-row snr must reach EngageAtAsync unchanged");
     }
 
     // ── Test G — fix-jump-in-rr73-adif-capture (task 5.5) ──────────────────────
