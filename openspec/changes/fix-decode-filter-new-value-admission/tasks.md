@@ -67,6 +67,15 @@
       re-evaluates every rendered row" behavior already picks up a daemon-driven auto-admission
       with no code change — confirms the "no delta needed for `web-frontend`" claim in
       proposal.md is actually true, not just assumed.
+  - **Blocked on human action, not code:** this repo has no browser-automation tooling (no
+    Playwright/Selenium/WebDriver anywhere), so this can't be driven by the implementer. Partial
+    substitute evidence gathered instead: (a) code inspection of `main.js`'s `decodeFilterChanged`
+    WS handler shows it merges `event.payload` into `currentDecodeFilter` and calls
+    `reapplyDecodeFilterToRenderedRows()`/`refreshOpenFilterPopupIfAny()` unconditionally, with no
+    branch on what triggered the event; (b) the existing
+    `DecodeFilterWebSocketBroadcastTests.PostDecodeFilter_BroadcastsDecodeFilterChangedEvent`
+    integration test proves the exact frame shape a daemon-driven admission broadcast also uses.
+    Genuinely open — Captain to click through in a real browser before archiving.
 
 ## 5. Live verification (standing policy)
 
@@ -96,14 +105,40 @@
       will now keep seeing/engaging brand-new entities/zones they haven't yet explicitly excluded
       — a real behavior change from today's silent-hide) and bump **VERSION** accordingly (minor
       version per the project's existing user-facing-feature rule).
-- [ ] 6.3 Run `python3 tools/pre_merge_check.py` and resolve every FAIL/WARN before declaring this
+- [x] 6.3 Run `python3 tools/pre_merge_check.py` and resolve every FAIL/WARN before declaring this
       ready for review — do not rely on reading `REQUIREMENTS.md`/`tasks.md` content alone (HK-006).
+      Result: PASS on G9a, Solution build (Release), full test suite (1296 tests, 0 failed),
+      G3 traceability, G8 openspec validate. One WARN: AOT publish — local `vswhere.exe`/MSVC
+      linker toolchain missing on this machine, flagged by the script itself as an environment
+      gap, not a code regression (this change touches no AOT/native-interop code). Not resolved
+      — a toolchain install is outside this change's scope; flagged to the Captain.
 - [x] 6.4 Run `openspec validate --strict --all` and confirm a clean pass.
 
 ## 7. QA re-review
 
-- [ ] 7.1 QA confirms: the `IDecodeFilterStore.AdmitNewValues` unit tests actually exercise the
+- [x] 7.1 QA confirms: the `IDecodeFilterStore.AdmitNewValues` unit tests actually exercise the
       lock/copy-on-write path (not just single-threaded happy paths), the decode-pump hook fires
       before the QSO-controller fan-out (not after), the explicit-empty-axis exception is real and
       tested, `live_verify_9_axes.py`'s new scenario passes against real hardware, and FR-061 plus
       the changelog/VERSION bump are present before this is archived.
+  - Confirmed: `DecodeFilterStoreAdmitNewValuesTests.ParallelAdmitNewValuesAndSetCalls_...`
+    (tests/OpenWSFZ.Web.Tests) fires 200 concurrent `AdmitNewValues` calls interleaved with 20
+    concurrent `Set` calls via `Task.WhenAll`, then asserts all 200 distinct entities landed with
+    no loss/corruption — genuinely exercises the lock/copy-on-write path, not just single-threaded
+    happy paths.
+  - Confirmed: `Program.cs`'s `AdmitNewValues` loop runs immediately after
+    `DecodeNoiseSuppressionFilter.Apply`/`decodeEventBus.Publish`/`allTxtWriter.AppendAsync` and
+    strictly before `qsoAnswererChannel.Writer.TryWrite(batch)` /
+    `qsoCallerChannel.Writer.TryWrite(batch)` — same-cycle admission before fan-out, as required.
+  - Confirmed: `FirstSeenValue_ExplicitlyEmptyAxis_IsNotAdmitted` (test 3.3) and the requirement
+    spec's "An explicit empty axis never auto-admits" scenario both exist and pass.
+  - Confirmed: `live_verify_9_axes.py`'s Phase 7 ran against a real isolated daemon + VB-CABLE —
+    PASS, report `qa/decode-filter-synth-verify/live-reports/2026-07-18T113345Z-6ba513e.md`.
+  - Confirmed: FR-061 (REQUIREMENTS.md), changelog row 1.40, and VERSION v0.41 are all present
+    and Gate G9a/G3/G8 all pass per `tools/pre_merge_check.py` (task 6.3).
+  - **Not confirmed, flagged to Captain:** task 4.2's real-browser click-through — this
+    environment has no browser-automation tooling (no Playwright/Selenium anywhere in the repo),
+    so it could only be verified by code-inspection (the `decodeFilterChanged` WS handler in
+    `main.js` treats every frame identically regardless of origin) plus the existing
+    `DecodeFilterWebSocketBroadcastTests` integration test, not by literally watching a browser
+    tab update. Genuinely open before archive.
