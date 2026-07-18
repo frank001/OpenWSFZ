@@ -2,12 +2,21 @@
 
 **Date:** 2026-07-19
 **Prepared by:** QA engineer (Captain report + source review, on top of `656bd7e`)
-**Status:** Awaiting developer action
+**Status:** OpenSpec change proposed and complete — ready for implementation (`/opsx:apply`)
 **Defect ID:** TX-D05 (new — direct consequence of TX-D04 shipping; same feature family, next number
 in that sequence since the Captain already knows it by that name)
 **Severity:** Medium (display-only — no protocol, ADIF, or over-the-air content is wrong; the
 operator cannot trust what the screen shows during/after a live QSO, which matters for exactly the
 kind of "did they get it" judgement call raised in D-CALLER-022)
+
+**Implementation ready — start here:** `openspec/changes/fix-tx-transcript-real-message/`, branch
+`fix/tx-d05-transcript-real-message` (base: `origin/main` at `092c42a`, TX-D04 already merged),
+proposal commit `a16436d`. `proposal.md`/`design.md`/`specs/**`/`tasks.md` are all complete —
+`openspec status --change fix-tx-transcript-real-message` reports `isComplete: true`;
+`openspec validate --strict --all` is 56/56 with this change included. Section 2 below is the
+*original* rough sketch of a fix, superseded by `design.md`'s actual decisions (concrete API shape,
+frontend caching strategy) and `tasks.md`'s 38 numbered tasks — read this section for the "why"/
+evidence, but implement from `design.md`/`tasks.md`, not from the sketch below.
 
 ---
 
@@ -92,7 +101,9 @@ leaves the daemon process today for either role.
 
 ---
 
-## 2. Suggested fix (not prescribed in full — design call for the Developer)
+## 2. Original rough sketch (superseded — see `design.md`/`tasks.md` for the actual plan)
+
+This section is kept for history/context only; do not implement from it directly.
 
 **Backend:**
 - Add a `_lastTxMessage` field to `QsoCallerService`, mirroring `QsoAnswererService`'s existing one —
@@ -122,6 +133,24 @@ report transmission with a non-zero SNR, the polled `TxStatusResponse` (or WS pu
 non-`+00` value — this is the gap that let TX-D05 ship invisibly alongside TX-D04 in the first place;
 a test at the seam between "backend composes real value" and "frontend can see it" would have caught
 this before the Captain had to.
+
+This sketch turned out to be right in direction but incomplete on one point: it doesn't say what
+happens once the state moves *past* a row (e.g. from `TxReport` to `TxRr73`) — if the backend only
+ever exposes "the single last transmitted message," a naive frontend read of that one field would
+lose row 2's real text the moment row 3 is sent. `design.md`'s actual decision resolves this: the
+frontend caches the real text per row locally, at the moment each transition fires, rather than
+re-deriving history from the backend — see `design.md`'s "Decisions" section for the full reasoning
+and the alternatives considered (a three-field backend, an event-sourced push) and why they were
+rejected in favour of this one-field-plus-client-cache approach.
+
+## 2a. Actual plan — see the OpenSpec change
+
+Read, in order: `openspec/changes/fix-tx-transcript-real-message/proposal.md` (what/why),
+`design.md` (the real design — API shape, frontend caching decision, risks/trade-offs, all with
+alternatives considered), `specs/{qso-caller,qso-answerer,qso-controller,web-frontend}/spec.md`
+(the testable contract each capability must satisfy), `tasks.md` (38 numbered, dependency-ordered
+tasks, from the `IQsoController.LastTxMessage` property through to frontend row-caching and
+regression tests). Run `/opsx:apply` against this change, or work through `tasks.md` directly.
 
 ---
 
