@@ -200,12 +200,19 @@ internal sealed record WsAuthFrame(
 /// against this same target callsign was rejected by the region-anchored grammar check (HTTP 409,
 /// <see cref="EngagementRejectedResponse"/>), a repeat request with <c>confirm: true</c> proceeds
 /// despite that rejection — the operator's explicit override (design.md Decision 4).
+/// <c>snr</c> (TX-D04, default <c>0</c>): the real measured <c>DecodeResult.Snr</c> of the decode
+/// row the operator double-clicked, forwarded by the browser from the same row data used to
+/// compute <c>frequencyHz</c>. Consumed only by the <c>EngagePoint.SendReport</c> jump-in case to
+/// compose a real signal report instead of a fixed placeholder. Defaults to <c>0</c> (formats to
+/// <c>"+00"</c> — today's existing placeholder behaviour) so an older cached frontend bundle that
+/// omits the field degrades gracefully rather than failing to deserialise.
 /// </summary>
 internal sealed record EngageDecodeRequest(
     string Message,
     double FrequencyHz,
     string CycleStartUtc,
-    bool   Confirm = false);
+    bool   Confirm = false,
+    int    Snr     = 0);
 
 /// <summary>
 /// Error response body for <c>POST /api/v1/tx/engage-decode</c> (HTTP 409) when the target

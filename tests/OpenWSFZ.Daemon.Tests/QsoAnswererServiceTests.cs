@@ -912,6 +912,19 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         QsoAnswererService.IsSignalReport(payload).Should().Be(expected);
     }
 
+    [Theory(DisplayName = "TX-D04: FormatSnrReport formats and clamps to the FT8 ±30 report range")]
+    [InlineData(0,    "+00")]
+    [InlineData(7,    "+07")]
+    [InlineData(-13,  "-13")]
+    [InlineData(30,   "+30")]
+    [InlineData(-30,  "-30")]
+    [InlineData(42,   "+30")]  // clamped
+    [InlineData(-42,  "-30")]  // clamped
+    public void FormatSnrReport_VariousValues_FormatsAndClamps(int snr, string expected)
+    {
+        QsoCallerService.FormatSnrReport(snr).Should().Be(expected);
+    }
+
     // ── D-007: abort during TX must not advance state or write ADIF ───────────
 
     [Fact(DisplayName = "D-007: AbortAsync during TX stops state machine at Idle; no ADIF written")]
@@ -2580,6 +2593,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero), // their B-phase decode
             EngagePoint.SendReport,
             "+07",
+            7,
             CancellationToken.None);
         sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
         await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
@@ -2612,6 +2626,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero),
             EngagePoint.SendReport,
             "+07",
+            7,
             CancellationToken.None);
         sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
         await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
@@ -3053,6 +3068,134 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             Arg.Any<string>(),
             Arg.Any<string>());
         await mockAdif.DidNotReceive().AppendQsoAsync(Arg.Any<QsoRecord>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── TX-D04: real measured SNR replaces the fixed "R+00" report placeholder ──
+
+    [Fact(DisplayName = "TX-D04: normal WaitReport reply composes and logs the real measured SNR, not a fixed R+00")]
+    public async Task HandleWaitReportAsync_NormalReply_UsesRealMeasuredSnr()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Partner's signal report of us, Snr = +13 — a value distinct from every other decode in
+        // this test, so a passing assertion proves it is THIS decode's Snr being used, not a
+        // coincidental match.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", 13, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} -09")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // Also covers TX-D04 task 5.8 (BuildAndWriteQsoRecordAsync's RstSent on the normal-
+        // completion path) — same call site as the jump-in cases below.
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "R+13"));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "TX-D04: SendReport jump-in composes and logs the real measured SNR, not a fixed R+00")]
+    public async Task ExecuteJumpInAsync_SendReport_UsesRealMeasuredSnr()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        sut.TestSetJumpTarget(
+            PartnerCall, AudioFreqHz, EngagePoint.SendReport, isAPhase: true, rawPayload: "-09", snr: 9);
+
+        // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ — fires immediately.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        // Complete the QSO normally so the ADIF write is reachable for inspection.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} RR73")]));
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "R+09"));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "TX-D04: SendRr73 jump-in keeps the RstSent placeholder — no report was composed this session")]
+    public async Task ExecuteJumpInAsync_SendRr73_KeepsRstSentPlaceholder()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false, // exercise the direct-ADIF-write branch, not the default true
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        sut.TestSetJumpTarget(
+            PartnerCall, AudioFreqHz, EngagePoint.SendRr73, isAPhase: true, rawPayload: "R-05");
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await WaitForKeyDownAsync(ptt);
+        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        await mockAdif.Received(1).AppendQsoAsync(
+            Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "R+00"));
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

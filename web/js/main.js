@@ -889,7 +889,9 @@ function handleDecodes(results) {
           status = await postTxEngageDecode(
             r.message,
             r.freqHz,
-            tr.dataset.cqCycleStartUtc);
+            tr.dataset.cqCycleStartUtc,
+            /* confirm */ false,
+            r.snr);
         } catch (err) {
           const code = /** @type {any} */ (err)?.status;
 
@@ -913,7 +915,8 @@ function handleDecodes(results) {
               r.message,
               r.freqHz,
               tr.dataset.cqCycleStartUtc,
-              /* confirm */ true);
+              /* confirm */ true,
+              r.snr);
           } else {
             throw err;
           }
