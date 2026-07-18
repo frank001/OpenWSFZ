@@ -53,6 +53,17 @@
 - [x] 3.6 Concurrency: parallel `AdmitNewValues`/`Set` calls from multiple threads do not corrupt
       the underlying `HashSet<T>` instances or lose an admission (e.g. `Task.WhenAll` over many
       concurrent calls, then assert final state contains every expected value).
+  - **Flake found and fixed post-merge-prep** (Captain caught it live): the original single test
+    interleaved 20 `Set()` calls built as `store.Set(store.Current with { ... })` — an unlocked
+    read-modify-write. Since `Set()` is a documented whole-object replace (last-write-wins,
+    design.md Decision 3's Risks/Trade-offs), a `Set()` call that captured a stale snapshot could
+    silently overwrite concurrently-landed `AdmitNewValues` admissions. Reproduced deterministically
+    (failed on iteration 0 of a 40x in-process stress loop, `count=198` vs. expected `201`) — this
+    was a bug in the test's assertion, not in `DecodeFilterStore`. Split into two tests: pure
+    `AdmitNewValues` concurrency (no admission may ever be lost — asserted and stress-verified 40x
+    with zero failures) and `AdmitNewValues`-racing-`Set()` (asserts no throw/corruption only, not
+    survival of every admission, matching the documented last-write-wins contract) — also
+    stress-verified 40x with zero failures. Full solution suite green afterward (1297 tests).
 - [x] 3.7 Give every new test's `[Fact]`/`[Theory]` a `DisplayName` (or method name, per this
       project's existing convention — check `DecodeFilterEvaluatorTests.cs` for the pattern used)
       leading with `"FR-061: "` (Gate G3 — see §6.1 below for the new requirement ID).
