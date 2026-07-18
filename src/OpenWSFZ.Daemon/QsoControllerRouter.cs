@@ -127,6 +127,7 @@ public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher, IExt
         double frequencyHz,
         DateTimeOffset theirCycleStart,
         EngagePoint point,
+        string rawPayload,
         CancellationToken ct)
     {
         // Switch to answerer if currently active as caller.
@@ -139,7 +140,7 @@ public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher, IExt
             _activeRole        = QsoRole.Answerer;
         }
 
-        return _answerer.EngageAtAsync(partnerCallsign, frequencyHz, theirCycleStart, point, ct);
+        return _answerer.EngageAtAsync(partnerCallsign, frequencyHz, theirCycleStart, point, rawPayload, ct);
     }
 
     // ── IExternalReplyTarget (external-reporting, gridtracker-udp-reporting) ──────

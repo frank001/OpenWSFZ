@@ -404,6 +404,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         double frequencyHz,
         DateTimeOffset theirCycleStart,
         EngagePoint point,
+        string rawPayload,
         CancellationToken ct)
         => Task.CompletedTask;
 

@@ -110,6 +110,13 @@ public interface IQsoController
     /// <param name="frequencyHz">Audio frequency of the decoded message, in Hz.</param>
     /// <param name="theirCycleStart">UTC cycle-start of the decode batch.</param>
     /// <param name="point">Which exchange message to transmit next.</param>
+    /// <param name="rawPayload">
+    /// The exact decoded payload text that triggered this jump-in (e.g. <c>"R-05"</c> or
+    /// <c>"RRR"</c>), as matched at the <c>POST /api/v1/tx/engage-decode</c> call site.
+    /// Used by the <see cref="EngagePoint.SendRr73"/> jump-in case to derive a real
+    /// <c>RstRcvd</c> for the ADIF record instead of a fabricated placeholder
+    /// (fix-jump-in-rr73-adif-capture). Not consumed by the other two jump-in cases.
+    /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <remarks>
     /// The service MUST already be in <see cref="QsoState.Idle"/> when this is called.
@@ -121,5 +128,6 @@ public interface IQsoController
         double frequencyHz,
         DateTimeOffset theirCycleStart,
         EngagePoint point,
+        string rawPayload,
         CancellationToken ct);
 }
