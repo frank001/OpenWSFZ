@@ -1892,9 +1892,86 @@ internal sealed class InMemoryPropModeStore : IPropModeStore
 /// </summary>
 internal sealed class DecodeFilterStore : IDecodeFilterStore
 {
+    // ── fix-decode-filter-new-value-admission, design.md Decision 2/3 ──────────
+    // Daemon-side "seen this session" tracking, independent of any connected browser tab
+    // (mirrors web/js/main.js's seenEntities/seenContinents/seenCqZones/seenItuZones, but
+    // authoritative). Guards both _current and the four seen-sets under one lock so Set and
+    // AdmitNewValues never race each other (Decision 3).
+    private readonly object _lock = new();
+    private readonly HashSet<string> _seenEntities   = new();
+    private readonly HashSet<string> _seenContinents = new();
+    private readonly HashSet<int>    _seenCqZones    = new();
+    private readonly HashSet<int>    _seenItuZones   = new();
+
     private volatile DecodeFilterState _current = DecodeFilterState.Unfiltered;
 
     public DecodeFilterState Current => _current;
 
-    public void Set(DecodeFilterState state) => _current = state;
+    public void Set(DecodeFilterState state)
+    {
+        lock (_lock)
+            _current = state;
+    }
+
+    public DecodeFilterState? AdmitNewValues(DecodeResult decode)
+    {
+        var region = decode.Region;
+        if (region is null)
+            return null;
+
+        lock (_lock)
+        {
+            var state    = _current;
+            var changed  = false;
+
+            var allowedEntities = AdmitOne(region.Entity, _seenEntities, state.AllowedEntities, ref changed);
+            var allowedContinents = region.Continent is { } continent
+                ? AdmitOne(continent, _seenContinents, state.AllowedContinents, ref changed)
+                : state.AllowedContinents;
+            var allowedCqZones = region.CqZone is { } cqZone
+                ? AdmitOne(cqZone, _seenCqZones, state.AllowedCqZones, ref changed)
+                : state.AllowedCqZones;
+            var allowedItuZones = region.ItuZone is { } ituZone
+                ? AdmitOne(ituZone, _seenItuZones, state.AllowedItuZones, ref changed)
+                : state.AllowedItuZones;
+
+            if (!changed)
+                return null;
+
+            var updated = state with
+            {
+                AllowedEntities   = allowedEntities,
+                AllowedContinents = allowedContinents,
+                AllowedCqZones    = allowedCqZones,
+                AllowedItuZones   = allowedItuZones,
+            };
+            _current = updated;
+            return updated;
+        }
+    }
+
+    /// <summary>
+    /// Records <paramref name="value"/> as seen on one axis and, if the axis is currently
+    /// narrowed-but-non-empty and the value is newly seen, admits it into a **new**
+    /// <see cref="HashSet{T}"/> (copy-on-write — design.md Decision 3, never mutates
+    /// <paramref name="currentAllowList"/> in place, which may be read concurrently by
+    /// <c>DecodeFilterEvaluator.IsVisible</c> off another thread). Must be called under
+    /// <see cref="_lock"/>.
+    /// </summary>
+    private static HashSet<T>? AdmitOne<T>(
+        T value, HashSet<T> seen, HashSet<T>? currentAllowList, ref bool changed) where T : notnull
+    {
+        var alreadySeen = !seen.Add(value);
+        if (alreadySeen)
+            return currentAllowList;
+
+        // Never admit into a null (unrestricted) axis — no-op, matches existing default.
+        // Never admit into an explicitly empty axis — Decision 5, "Select None" stays absolute.
+        if (currentAllowList is null || currentAllowList.Count == 0)
+            return currentAllowList;
+
+        var updated = new HashSet<T>(currentAllowList) { value };
+        changed = true;
+        return updated;
+    }
 }

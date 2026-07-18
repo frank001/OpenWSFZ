@@ -354,6 +354,13 @@ let currentDecodeFilter = { ...UNFILTERED_DECODE_FILTER };
 // Distinct attribute values seen this session (design.md Decision 4: "session-seen", not just
 // the currently-rendered/MAX_DECODE_ROWS-capped row list — a value that has scrolled off the
 // table is still offered as a filter checkbox).
+//
+// fix-decode-filter-new-value-admission: this client-side tracking is for popup checkbox
+// candidates ONLY — it is NOT load-bearing for filter correctness. The daemon is authoritative
+// for admitting a previously-unseen value into a narrowed axis (IDecodeFilterStore.AdmitNewValues,
+// design.md Decision 1/2 of that change) and pushes the corrected DecodeFilterState to every tab
+// via the existing `decodeFilterChanged` WebSocket event, regardless of what this tab's own
+// seen-sets happen to contain (or whether any tab is even open — the daemon can run headless).
 const seenEntities   = /** @type {Set<string>} */ (new Set());
 const seenContinents = /** @type {Set<string>} */ (new Set());
 const seenCqZones    = /** @type {Set<number>} */ (new Set());
@@ -396,6 +403,9 @@ function updateFilterHeaderStyles() {
  * @typedef {{headerId: string, attributeField: string|null, statesField: string,
  *            seen: () => Set<string|number>, label: string}} FilterAxisConfig
  */
+// Each axis's `seen` set only populates this tab's popup checkbox candidate list — it plays no
+// role in whether a value is admitted into `currentDecodeFilter`'s allow-list (see the
+// fix-decode-filter-new-value-admission note above `seenEntities`).
 /** @type {Record<string, FilterAxisConfig>} */
 const FILTER_AXES = {
   ctc:  { headerId: 'col-ctc',  attributeField: null,               statesField: 'contactStates',   seen: () => new Set(),      label: 'Ctc (Contact)' },

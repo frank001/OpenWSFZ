@@ -637,6 +637,12 @@ internal static class Program
     {
         public DecodeFilterState Current { get; private set; } = DecodeFilterState.Unfiltered;
         public void Set(DecodeFilterState state) => Current = state;
+
+        // fix-decode-filter-new-value-admission: this in-process synth-verify tool exercises
+        // DecodeFilterEvaluator/the nine-axis matrix directly, not daemon-side admission — real
+        // AdmitNewValues coverage lives in DecodeFilterStoreAdmitNewValuesTests (OpenWSFZ.Web.Tests)
+        // and in live_verify_9_axes.py's Phase 7 (real isolated daemon).
+        public DecodeFilterState? AdmitNewValues(DecodeResult decode) => null;
     }
 
     private sealed class SimpleConfigStore(AppConfig current) : IConfigStore
