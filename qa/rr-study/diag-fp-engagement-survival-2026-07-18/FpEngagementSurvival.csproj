@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    QA diagnostic (not part of OpenWSFZ.slnx / not shipped) — see report.md in this
+    directory. Reuses the real production IEngagementTargetValidator implementation
+    and its region/grammar store dependencies verbatim (ProjectReference below) rather
+    than reimplementing the grammar-check algorithm a second time, so this diagnostic
+    can never silently drift from what the shipped daemon actually does.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>FpEngagementSurvival</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Avoid dragging in the daemon's own AOT/publish configuration; this is dotnet-run only. -->
+    <PublishAot>false</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
+  </ItemGroup>
+
+</Project>

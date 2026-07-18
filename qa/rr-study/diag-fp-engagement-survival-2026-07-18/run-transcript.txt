@@ -1,0 +1,54 @@
+Region store: 29013 entries, IsSeedData=False
+Grammar: DigitRunMax=3, SuffixLengthMax=6, TotalLengthMax=11
+
+Source           Token            Verdict    Reason / matched message
+----------------------------------------------------------------------------------------------------
+A-pregating      X20KEB           ALLOWED    X20KEB ZQ8LRC DE15
+A-pregating      ZQ8LRC           ALLOWED    X20KEB ZQ8LRC DE15
+A-pregating      HR4VDR           ALLOWED    HR4VDR A27DFI NG38
+A-pregating      A27DFI           ALLOWED    HR4VDR A27DFI NG38
+A-pregating      KR9NHK/P         ALLOWED    KR9NHK/P MR1I O/P QG94
+A-pregating      MR1I             REJECTED   'MR1I' matched region prefix 'M' (England) but the remainder 'R1I' is not a valid digit-run+suffix.
+A-pregating      0N4KV            ALLOWED    0N4KV 7F4VSB JK98
+A-pregating      7F4VSB           ALLOWED    0N4KV 7F4VSB JK98
+A-pregating      JT6KU            ALLOWED    JT6KU EH2AOE/R R OH76
+A-pregating      EH2AOE/R         ALLOWED    JT6KU EH2AOE/R R OH76
+A-pregating      8H2LOJ           ALLOWED    8H2LOJ JL0NTD/R JI99
+A-pregating      JL0NTD/R         ALLOWED    8H2LOJ JL0NTD/R JI99
+A-pregating      WH8EYF/P         ALLOWED    WH8EYF/P LC8WMR R EQ48
+A-pregating      LC8WMR           ALLOWED    WH8EYF/P LC8WMR R EQ48
+A-pregating      K60IFO/R         ALLOWED    K60IFO/R 9O5GEL/R R CH00
+A-pregating      9O5GEL/R         ALLOWED    K60IFO/R 9O5GEL/R R CH00
+A-pregating      H34INX           ALLOWED    H34INX SZ9DTT/P LB12
+A-pregating      SZ9DTT/P         ALLOWED    H34INX SZ9DTT/P LB12
+A-pregating      IU7WEX/P         ALLOWED    IU7WEX/P 6N8XOX R EO10
+A-pregating      6N8XOX           ALLOWED    IU7WEX/P 6N8XOX R EO10
+B-shipped-n300   KOWQ8MGEQVT      REJECTED   'KOWQ8MGEQVT' matched region prefix 'K' (United States) but the remainder 'OWQ8MGEQVT' is not a valid digit-run+suffix.
+B-shipped-n300   VN6NY/R          ALLOWED    VN6NY/R K69IGM/R CA05
+B-shipped-n300   K69IGM/R         ALLOWED    VN6NY/R K69IGM/R CA05
+B-shipped-n300   3W3ZAJ/R         ALLOWED    <...> 3W3ZAJ/R RM02
+B-shipped-n300   HL5QRM/R         ALLOWED    <...> HL5QRM/R ML60
+B-shipped-n300   HA3YSR           ALLOWED    HA3YSR 1D2QID/R EB40
+B-shipped-n300   1D2QID/R         ALLOWED    HA3YSR 1D2QID/R EB40
+B-shipped-n300   C4QM             ALLOWED    C4QM 2F1SJJ/R HK20
+B-shipped-n300   2F1SJJ/R         ALLOWED    C4QM 2F1SJJ/R HK20
+B-shipped-n300   N0LMJ/R          ALLOWED    N0LMJ/R WO9TMN GK96
+B-shipped-n300   WO9TMN           ALLOWED    N0LMJ/R WO9TMN GK96
+B-shipped-n300   RHLI8VWMXMG      REJECTED   'RHLI8VWMXMG' matched region prefix 'R' (European Russia) but the remainder 'HLI8VWMXMG' is not a valid digit-run+suffix.
+C-shipped-n120   GI1HYT/P         ALLOWED    GI1HYT/P IU7FFH AO93
+C-shipped-n120   IU7FFH           ALLOWED    GI1HYT/P IU7FFH AO93
+C-shipped-n120   XT6VA            ALLOWED    XT6VA CU4VET CG52
+C-shipped-n120   CU4VET           ALLOWED    XT6VA CU4VET CG52
+C-shipped-n120   6Q3FWF/R         ALLOWED    6Q3FWF/R 3Q4WUB RM21
+C-shipped-n120   3Q4WUB           ALLOWED    6Q3FWF/R 3Q4WUB RM21
+C-shipped-n120   WA7CTO           ALLOWED    <...> WA7CTO RA99
+C-shipped-n120   NZP10KAK/9J      REJECTED   'NZP10KAK/9J' matched region prefix 'N' (United States) but the remainder 'ZP10KAK' is not a valid digit-run+suffix.
+C-shipped-n120   ZY2HCA           ALLOWED    ZY2HCA 16TDH/P QD32
+C-shipped-n120   16TDH/P          ALLOWED    ZY2HCA 16TDH/P QD32
+C-shipped-n120   LV3MFZ           ALLOWED    <...> LV3MFZ KK73
+
+A-pregating      total= 20  allowed(survives)= 19  rejected(caught)=  1  survival=  95.0%
+B-shipped-n300   total= 12  allowed(survives)= 10  rejected(caught)=  2  survival=  83.3%
+C-shipped-n120   total= 11  allowed(survives)= 10  rejected(caught)=  1  survival=  90.9%
+
+OVERALL total=43  allowed(survives)=39  rejected(caught)=4  survival=90.7%
