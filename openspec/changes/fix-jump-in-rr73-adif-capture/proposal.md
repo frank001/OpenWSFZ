@@ -7,8 +7,8 @@ and only lost the exchange to its own watchdog before the partner's `RRR`/`R±NN
 This was a deliberate, documented Phase-1 tradeoff when `D-CALLER-012` shipped (see AC-4, "No
 ADIF write (partial QSO — expected)"), but that framing conflated "we don't have a grid square"
 (true) with "this isn't a real, completed QSO" (not true). Found 2026-07-16 by QA against a real,
-Captain-confirmed completed QSO with G7LHK that silently never appeared in `ADIF.log`
-(`dev-tasks/2026-07-16-jump-in-sendrr73-no-adif-record.md`).
+Captain-confirmed completed QSO with a partner station that silently never appeared in
+`ADIF.log` (`dev-tasks/2026-07-16-jump-in-sendrr73-no-adif-record.md`).
 
 A second, smaller data-quality defect lives in the same code path: `ExecuteJumpInAsync`
 hardcodes `_rstRcvd = "+00"` regardless of what the partner actually sent. Fixing the ADIF gap

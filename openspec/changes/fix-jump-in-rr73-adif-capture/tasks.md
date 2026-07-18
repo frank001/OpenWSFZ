@@ -55,7 +55,12 @@
   otherwise `_adifLog.AppendQsoAsync` directly — never both).
 - [x] 4.2 Update `ExecuteTx73Async` to call the new helper in place of its inlined block, with no
   behavior change (pure refactor — same fields, same branch, same ordering relative to
-  `SetStateAndNotify(QsoState.QsoComplete)` and the completion log line).
+  `SetStateAndNotify(QsoState.QsoComplete)` and the completion log line). → **Correction
+  (post-implementation QA review):** the record-build-and-write call moved to *after*
+  `TransmitAsync`/`SetStateAndNotify(QsoState.QsoComplete)` instead of before, for the
+  `tx.QsoConfirmation=true` branch specifically — see design.md's Risks/Trade-offs section for
+  the detail. Not a regression (no test or client-side code depended on the old ordering), but
+  this task's "no behavior change" framing was inaccurate.
 - [x] 4.3 In the `EngagePoint.SendRr73` jump-in case (`:961-970`), after `TransmitAsync`
   completes, call the new helper, then move the "QSO with {Partner} complete!" log line and
   `SetStateAndNotify(QsoState.QsoComplete)` in ahead of `SafeAbortToIdleAsync`, matching
@@ -105,7 +110,7 @@
   `qa/jump-in-rr73-adif-capture-live-verify/live_verify_jumpin_rr73_adif.py` — **PASS**. Phase 1
   recreated the precondition faithfully (real Caller CQ session, real 1-minute watchdog expiry,
   caller-side abort with `abortReason: "Watchdog timeout"`, router auto-reverted to
-  Answerer/Idle). Phase 2a repeated the *exact* payload shape from the original G7LHK incident (a
+  Answerer/Idle). Phase 2a repeated the *exact* payload shape from the original incident (a
   bare `"RRR"`, matching `dev-tasks/2026-07-16-jump-in-sendrr73-no-adif-record.md`'s evidence log)
   via `POST /api/v1/tx/engage-decode`: real RR73 transmitted, real ADIF write —
   `<CALL:5>Q7GHK<RST_SENT:4>R+00<RST_RCVD:3>RRR...<EOR>`, no fabricated `+00`, no `GRIDSQUARE`.

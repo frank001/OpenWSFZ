@@ -76,9 +76,18 @@ worth reconsidering; not now.
 
 - **[Risk]** Extracting the shared helper touches `ExecuteTx73Async`, a well-tested existing
   method, increasing the diff's blast radius slightly beyond the minimal "add an ADIF write to
-  one case" framing. → **Mitigation**: the extraction is a pure refactor (move the existing block
-  into a helper, call it from the existing call site) with zero behavior change; the full
-  existing `ExecuteTx73Async` test suite re-runs unmodified as the regression guard.
+  one case" framing. → **Mitigation**: the extraction moves the existing record-build-and-write
+  block into a helper, called from the existing call site, with the full existing
+  `ExecuteTx73Async` test suite re-running unmodified as the regression guard.
+  **Correction (post-implementation QA review):** this is not, in fact, a zero-behavior-change
+  refactor — moving the block into `BuildAndWriteQsoRecordAsync` and calling it *after*
+  `TransmitAsync`/`SetStateAndNotify(QsoState.QsoComplete)` changes the `tx.QsoConfirmation=true`
+  ordering: `PublishQsoReview` previously fired *before* the RR73/73 transmission even began, and
+  now fires only after it completes and the state is `QsoComplete`. No test asserted the old
+  ordering and the browser's `qsoReview` handler (`main.js`) has no ordering dependency on it, so
+  this is not a regression — arguably a latent-bug fix, since the browser no longer gets asked to
+  confirm a QSO before the daemon has actually finished transmitting the closing message. Flagged
+  here so the "zero behavior change" claim above isn't taken at face value by a future reader.
 - **[Risk]** Forwarding `rawPayload` through four layers (`WebApp.cs` → `IQsoController` →
   `QsoControllerRouter` → `QsoAnswererService`/`QsoCallerService`) is mechanical but touches a
   public interface signature. → **Mitigation**: `IQsoController.EngageAtAsync` is internal to this
