@@ -362,7 +362,15 @@ already ships a fully working, distributable deliverable today.
 
 ## N10 — TX-D04: every transmitted signal report is still the `+00`/`R+00` placeholder, not the real measured SNR
 
-**Status:** OPEN — Captain's explicit instruction (2026-07-18): "This is a real issue that needs to
+**Status: RESOLVED, merged 2026-07-19** (`656bd7e`, `fix-tx-report-real-snr`). Real
+`DecodeResult.Snr` now threaded through all four TX-composition sites and both ADIF `RstSent`
+fields; confirmed by QA reading the diff and by the Captain's own live QSO — ADIF now shows real
+values (`RST_SENT:-03`, not `+00`). Verifying this fix is exactly what surfaced **N12/TX-D05**
+below (the on-screen TX message rows/Transcript panel were never wired to real data and now show a
+stale template) — a display-only follow-on, not a defect in this fix itself. Original entry kept
+below for history.
+
+**Status (historical):** OPEN — Captain's explicit instruction (2026-07-18): "This is a real issue that needs to
 be raised, the application is able to measure the snr, it should report the correct value." Promoted
 from the accepted-risk language in `qso-caller`'s original `design.md` to an active fix.
 **Severity:** Medium (protocol correctness — every partner this daemon works logs a fabricated `+00`
@@ -403,3 +411,34 @@ underlying question without a new TX action at all) are laid out in
 `dev-tasks/2026-07-18-live-run-tx-report-snr-and-reengagement-workflow.md` §3. Bring a short design
 note back before implementing — this must also not regress `D-CALLER-018`'s abort-is-a-hard-stop
 guarantee.
+
+---
+
+## N12 — TX-D05: TX message rows and QSO Transcript show a hardcoded `+00`/`R+00` template, not the real report TX-D04 now sends
+
+**Status:** OPEN — found immediately by the Captain making a real QSO right after `656bd7e`
+(TX-D04) merged: ADIF showed real `-03`/`-15`, on-screen Transcript still showed `+00` throughout.
+**Severity:** Medium (display-only — no protocol/ADIF/over-the-air content is wrong, confirmed by
+reading the TX-D04 diff; but the operator cannot trust the live screen during a QSO, which matters
+for exactly the "did they get it" judgement call in N11/D-CALLER-022 above)
+**Source:** Captain, 2026-07-19, live QSO with EB3JT immediately after TX-D04 shipped; QA traced
+root cause via source read of `web/js/main.js` and `web/js/qsoTranscript.js` against `656bd7e`.
+**File:** `web/js/main.js` (`renderMessageRows`, lines ~187–232 — hardcoded `+00`/`R+00` template
+strings, reused verbatim by the Transcript's `appendTranscriptEntry('sent', ...)` call);
+`src/OpenWSFZ.Web/AppJsonContext.cs` (`TxStatusResponse`, `WsTxStateMessage` — carry no message
+text or SNR field, so the frontend has no channel to read the real value from even if it wanted to);
+`src/OpenWSFZ.Daemon/QsoCallerService.cs` (no persisted last-sent-message field at all, unlike
+`QsoAnswererService`'s existing but unexposed `_lastTxMessage`).
+
+Root cause: the TX message rows / Transcript panel were always a client-side template keyed off
+`txState` alone (`qso-transcript-panel`'s own `design.md` says as much), which happened to match
+reality only because the real value really was always `+00` before TX-D04. Fixing TX-D04 on the
+backend made the template stale; nothing in that fix (correctly scoped to backend/ADIF only) was
+asked to touch the display layer.
+
+**Suggested fix:** full write-up already exists —
+`dev-tasks/2026-07-19-tx-d05-transcript-and-message-rows-show-stale-template.md`. Persist a real
+last-sent-message field on `QsoCallerService` (mirroring `QsoAnswererService`'s existing one),
+surface it through `TxStatusResponse`/`WsTxStateMessage`, and have both `renderMessageRows` and the
+Transcript's sent-entry logging prefer that real value over the template for any row already
+transmitted this session.
