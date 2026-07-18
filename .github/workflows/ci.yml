@@ -240,6 +240,30 @@ jobs:
           if-no-files-found: error
 
       # -----------------------------------------------------------------
+      # Self-contained (non-AOT) publish — dev-tasks/2026-07-18-self-contained-
+      # non-aot-working-binary.md. OpenWSFZ.Daemon.csproj switches PublishAot on
+      # for ANY RID-targeted publish, self-contained or not (see the AOT publish
+      # step above) — but NAudio's [ComImport] WASAPI COM activation is
+      # incompatible with Native AOT and crashes real capture hardware on
+      # Windows. This step overrides PublishAot at the command line (global
+      # properties beat the project file's conditional PropertyGroup) and
+      # publishes to a SEPARATE output directory (publish-selfcontained/, not
+      # publish/) so it can never clobber the AOT binary the existing E2E tests
+      # above depend on. SelfContainedNonAotE2ETests (in the dotnet test step
+      # below) launches this binary and hits the audio-device endpoints to
+      # prove the WASAPI COM-activation path doesn't crash — the exact failure
+      # mode this task fixes.
+      # -----------------------------------------------------------------
+      - name: Self-contained (non-AOT) publish (Daemon)
+        run: >
+          dotnet publish src/OpenWSFZ.Daemon
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained
+          -p:PublishAot=false
+          -o src/OpenWSFZ.Daemon/bin/Release/net10.0/${{ matrix.rid }}/publish-selfcontained/
+
+      # -----------------------------------------------------------------
       # Gate G1: Build-and-test — all matrix legs
       # Gate G6: Decoder-correctness — real-signal fixture integration test
       #          (FR-029 / NFR-016). G6 runs inside the G1 dotnet test step

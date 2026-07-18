@@ -4,7 +4,7 @@ pre_merge_check.py — run every locally-runnable CI gate in one command before
 declaring a change "ready for merge."
 
 Usage:
-  python3 tools/pre_merge_check.py [--skip-aot] [--skip-tests] [--skip-openspec]
+  python3 tools/pre_merge_check.py [--skip-aot] [--skip-selfcontained] [--skip-tests] [--skip-openspec]
 
 Background (HK-006, see the QA memory note this script exists to satisfy):
 `daemon-background-mode` (PR #78) was declared "ready for merge" after only
@@ -31,11 +31,31 @@ What this runs, in order:
      clang), this step is reported as INCONCLUSIVE rather than FAIL — that is
      an environment gap, not a code regression — but it is never silently
      skipped by default; you have to pass --skip-aot to skip it outright.
+     IMPORTANT — PASS here means only that the AOT toolchain compiled the
+     binary; it says NOTHING about whether the binary is functionally
+     correct. Windows WASAPI audio is known-broken under Native AOT (NAudio's
+     [ComImport] COM activation throws "Common Language Runtime detected an
+     invalid program" — see dev-tasks/2026-07-18-aot-comwrappers-audio-
+     migration.md, the deferred real fix). Do not read an AOT-publish PASS as
+     "the standalone binary works" — see step 7 below for the gate that
+     actually proves that.
+  7. A self-contained NON-AOT publish for the local platform
+     (dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md)
+     — proves the one standalone binary this project can currently ship that
+     doesn't carry the AOT/WASAPI defect above still compiles and publishes
+     cleanly, to its own separate output directory (publish-selfcontained/,
+     never clobbering the AOT publish's publish/ directory step 6 uses).
+     Implementation choice made for this gate: it confirms the PUBLISH
+     succeeds locally; the functional proof — banner, /api/v1/status 200, and
+     both audio-device endpoints 200 against the actual non-AOT binary — is
+     left to CI's SelfContainedNonAotE2ETests, which has the full three-OS
+     matrix. Same INCONCLUSIVE-on-missing-toolchain handling as step 6.
 
 Flags:
   --skip-aot        Skip step 6 entirely (no INCONCLUSIVE/FAIL distinction —
                      just not run). Use when you know the local toolchain is
                      unavailable and don't want the noise.
+  --skip-selfcontained  Skip step 7 entirely, same semantics as --skip-aot.
   --skip-tests       Skip step 3 (the full test suite). Rarely appropriate.
   --skip-openspec     Skip step 5. Only appropriate for a PR that touches no
                      openspec/ content.
@@ -184,6 +204,10 @@ def step_aot():
     ])
     if code == 0:
         result.status = "PASS"
+        result.detail = (
+            "compiles only — does NOT verify Windows WASAPI audio works under AOT "
+            "(known-broken; see dev-tasks/2026-07-18-aot-comwrappers-audio-migration.md). "
+            "See the self-contained non-AOT gate below for the binary that actually works.")
         return result
 
     lowered = output.lower()
@@ -200,9 +224,52 @@ def step_aot():
     return result
 
 
+def step_selfcontained():
+    """
+    Self-contained NON-AOT publish gate (dev-tasks/2026-07-18-self-contained-non-aot-
+    working-binary.md). Mirrors step_aot() above, but overrides PublishAot=false at the
+    command line and publishes to a separate publish-selfcontained/ output directory so
+    it can never clobber the AOT publish's output. This is the one standalone binary
+    this project currently ships that doesn't carry the AOT/WASAPI COM-activation defect
+    (see step_aot()'s PASS-meaning note above).
+
+    Scope of this gate, deliberately: confirms the PUBLISH succeeds locally. It does not
+    re-run the functional (banner / /api/v1/status / audio-device-endpoints) proof —
+    that's CI's SelfContainedNonAotE2ETests, which has the full three-OS matrix this
+    single local machine can't provide.
+    """
+    result = GateResult("Self-contained non-AOT publish (local platform)")
+    rid = _local_rid()
+    if rid is None:
+        result.status = "INCONCLUSIVE"
+        result.detail = f"unrecognised platform ({platform.system()}/{platform.machine()})"
+        return result
+
+    code, output = _run([sys.executable, os.path.join("tools", "publish_selfcontained.py"), "--rid", rid])
+    if code == 0:
+        result.status = "PASS"
+        result.detail = (
+            "publish succeeded locally; the functional proof (banner, /api/v1/status, "
+            "both audio-device endpoints against this binary) runs in CI, not here.")
+        return result
+
+    lowered = output.lower()
+    if any(sig.lower() in lowered for sig in _TOOLCHAIN_MISSING_SIGNATURES):
+        result.status = "INCONCLUSIVE"
+        result.detail = (
+            "the local native linker toolchain appears to be missing — this is an "
+            "environment gap, not necessarily a code regression. Fix the toolchain "
+            "or re-run with --skip-selfcontained once you've confirmed the failure is "
+            "toolchain-related, not code-related.")
+    else:
+        result.status = "FAIL"
+    return result
+
+
 def main():
     args = sys.argv[1:]
     skip_aot = "--skip-aot" in args
+    skip_selfcontained = "--skip-selfcontained" in args
     skip_tests = "--skip-tests" in args
     skip_openspec = "--skip-openspec" in args
 
@@ -246,6 +313,14 @@ def main():
         results.append(skipped)
     else:
         results.append(step_aot())
+
+    if skip_selfcontained:
+        skipped = GateResult("Self-contained non-AOT publish (local platform)")
+        skipped.status = "SKIPPED"
+        skipped.detail = "--skip-selfcontained"
+        results.append(skipped)
+    else:
+        results.append(step_selfcontained())
 
     print("\n" + "=" * 72)
     print("PRE-MERGE CHECK SUMMARY")

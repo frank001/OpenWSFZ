@@ -257,11 +257,19 @@ location (`%APPDATA%\OpenWSFZ\config.json` on Windows,
 
 ### Running the E2E tests
 
-The end-to-end tests launch the daemon as a real subprocess and require a
-self-contained published binary to be present first. Run this once before
-`dotnet test`, substituting your target runtime identifier:
+The end-to-end tests launch the daemon as a real subprocess and require
+published binaries to be present first — **two separate ones**, published to
+two separate output directories, because `OpenWSFZ.Daemon.csproj` turns on
+Native AOT (`<PublishAot Condition="'$(RuntimeIdentifier)'!=''">true</PublishAot>`)
+for **any** RID-targeted publish unless explicitly overridden, and NAudio's
+`[ComImport]` WASAPI COM activation does not work under Native AOT (it throws
+`"Common Language Runtime detected an invalid program"` the instant real
+WASAPI code runs). Run both once before `dotnet test`, substituting your
+target runtime identifier:
 
 ```bash
+# 1. AOT publish — consumed by DaemonE2ETests / BackgroundColdStartE2ETests
+#    (FR-002, FR-007). Publishes to the default bin/Release/net10.0/<rid>/publish/.
 # Windows
 dotnet publish src/OpenWSFZ.Daemon -c Release -r win-x64 --self-contained
 
@@ -270,11 +278,30 @@ dotnet publish src/OpenWSFZ.Daemon -c Release -r linux-x64 --self-contained
 
 # macOS (Apple Silicon)
 dotnet publish src/OpenWSFZ.Daemon -c Release -r osx-arm64 --self-contained
+
+# 2. Self-contained, NON-AOT publish — consumed by SelfContainedNonAotE2ETests.
+#    Overrides PublishAot=false at the command line (global properties beat the
+#    project file's conditional) and publishes to a SEPARATE output directory
+#    (publish-selfcontained/, never publish/) so it can never clobber #1's
+#    binary. This is the one standalone binary this project currently ships
+#    that doesn't carry the AOT/WASAPI defect above — see
+#    dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md. A single
+#    script wraps the command so README, CI, and tools/pre_merge_check.py stay
+#    in sync:
+python3 tools/publish_selfcontained.py --rid win-x64    # or linux-x64 / osx-arm64
 ```
 
 `dotnet test` without a prior publish will still succeed for all unit and
-integration tests; only the two E2E tests (`FR-002`, `FR-007`) will fail with a
-`FileNotFoundException` indicating the missing binary.
+integration tests; only the E2E tests (`FR-002`, `FR-007`, and the
+`SelfContainedNonAotE2ETests` suite) will fail with a `FileNotFoundException`
+indicating the missing binary.
+
+Native AOT itself remains deferred (see
+`dev-tasks/2026-07-18-aot-comwrappers-audio-migration.md`) — an AOT-publish
+PASS proves only that the toolchain compiled the binary, not that Windows
+audio works under it. Do not run `dotnet publish ... --self-contained` alone
+and expect a working standalone `.exe` on Windows; use the `-p:PublishAot=false`
+publish above for that.
 
 ## Cross-platform verification
 
