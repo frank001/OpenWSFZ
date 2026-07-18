@@ -317,3 +317,43 @@ last-write-wins-under-one-lock behaviour is the intentional, already-documented 
 `DecodeFilterStoreAdmitNewValuesTests.cs:179-188`'s own comment and design.md Decision 3 for
 `fix-decode-filter-new-value-admission`); changing it would be solving a problem that doesn't
 exist and risks masking a real future regression behind an artificially loosened guard.
+
+---
+
+## N9 — Native AOT publish is structurally broken for Windows WASAPI audio (NAudio `[ComImport]` incompatible with NativeAOT COM stripping)
+
+**Status:** OPEN, deferred — not scheduled. Full write-up already exists; this entry exists so the
+item is tracked in the one place QA backlog items live, not just in a standalone dev-task file.
+**Severity:** Low (no production impact — the binary this project actually ships is a
+self-contained, non-AOT publish; Native AOT itself is not used for anything user-facing today)
+**Source:** QA, 2026-07-18, diagnosing a Captain-reported crash when running the published `.exe`
+standalone (root-caused and fixed for the immediate case via PR #87, `24baf6d`)
+**File:** `src/OpenWSFZ.Audio/WasapiAudioDeviceProvider.cs`, `WasapiAudioOutputDeviceProvider.cs`,
+`WasapiAudioSource.cs`, `src/OpenWSFZ.Daemon/WasapiTxPlayer.cs` (COM-activation call sites);
+`src/OpenWSFZ.Daemon/OpenWSFZ.Daemon.csproj` (`PublishAot` conditional)
+
+NAudio's `MMDeviceEnumerator`/`WasapiCapture`/`WasapiOut` activate via classic `[ComImport]` COM
+interop. NativeAOT compiles with `BuiltInComInterop.IsSupported=false`, stripping that activation
+machinery from the native image; the CLR then rejects the resulting method body as "invalid
+program" the instant real WASAPI code runs (`MMDeviceEnumeratorComObject..ctor()`). Independently
+confirmed by the ILC compiler's own output during a real AOT publish: `ILC: Method
+'...MMDeviceEnumeratorComObject..ctor()' will always throw because: Invalid IL or CLR metadata`.
+
+This was known and accepted back in `2026-05-21-p4-audio-pipeline` (the AOT-published binary was
+always a "structural prove-out only," never the operational binary) but resurfaced when the
+Captain ran a real AOT-published `.exe` standalone and hit the crash directly. The immediate
+problem is fixed — a working standalone binary now ships via a self-contained non-AOT publish to
+the default `bin/Release/net10.0/<rid>/publish/` (PR #87) — without touching Native AOT itself,
+which remains structurally broken for this and is now deliberately isolated to a secondary
+`publish-aot/` output consumed by nothing but its own toolchain-compile-check gate.
+
+**Suggested fix:** full write-up already exists —
+`dev-tasks/2026-07-18-aot-comwrappers-audio-migration.md`. Two-phase: (A) a bounded spike (~1–2
+days) to check whether upstream NAudio has already solved this since this project's `2.2.1` pin,
+and if not, prototype a minimal hand-rolled `ComWrappers`-based WASAPI binding for the handful of
+interfaces actually used (`IMMDeviceEnumerator`, `IMMDevice`, `IPropertyStore`, `IAudioClient`,
+`IAudioCaptureClient`, `IAudioRenderClient`); (B) swap the four call sites over, one at a time,
+each independently tested against real hardware. Not scheduled — only worth pursuing if Native
+AOT's specific benefits (no bundled .NET runtime, smaller install, faster cold start) become an
+actual goal, e.g. as part of future installer polish, since the self-contained non-AOT binary
+already ships a fully working, distributable deliverable today.
