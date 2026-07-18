@@ -1089,11 +1089,22 @@ select#dial-freq {
   font-size: 0.875rem;
 }
 
-/* ── TX abort reason history (FR-UX-002) ───────────────────────────────── */
-.tx-abort-log-title { font-size: 0.78rem; font-weight: 600; margin: 8px 0 2px; opacity: 0.8; }
-.tx-abort-log-list  { font-size: 0.75rem; font-family: monospace; margin: 0; padding-left: 1.4em; }
-.tx-abort-log-list li { margin-bottom: 2px; }
-.tx-abort-ts        { opacity: 0.65; }
+/* ── QSO Transcript (FR-062) ─────────────────────────────────────────────
+   Unified sent/received/abort/partner-change log, superseding the prior abort-only "TX
+   History" (FR-UX-002) section this replaced. Direction-only colorization (design.md
+   Decision 6): sent/received reuse existing --color-* tokens rather than introducing new raw
+   hex values — --color-accent already marks the operator's own active transmission elsewhere
+   in this panel (.tx-msg-active), so 'sent' reuses it for the same "this is us" association;
+   'received' uses --color-success (green) to read as clearly distinct at a glance; abort/
+   partner-change entries are deliberately left unstyled by direction (--color-muted). */
+.tx-transcript-title  { font-size: 0.78rem; font-weight: 600; margin: 8px 0 2px; opacity: 0.8; }
+.tx-transcript-list   { font-size: 0.75rem; font-family: monospace; margin: 0; padding-left: 1.4em; }
+.tx-transcript-list li { margin-bottom: 2px; }
+.tx-transcript-ts     { opacity: 0.65; }
+
+.transcript-sent      { color: var(--color-accent); }
+.transcript-received  { color: var(--color-success); }
+.transcript-event     { color: var(--color-muted); }
 
 /* ── QSO Log Confirmation Dialog (qso-log-dialog) ───────────────────────── */
 

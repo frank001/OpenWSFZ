@@ -177,3 +177,24 @@ FR-055  # External Programs settings tab — JS/HTML target-table CRUD (Enabled 
         # config schema/persistence is covered by FR-052's automated tests.
         # Remove when a committed browser-automation test (e.g. Playwright, mirroring the
         # precedent for SEC-003 above) exercises this tab programmatically.
+
+## Pending — qso-transcript-panel (TX panel QSO Transcript section)
+
+FR-062  # TX panel — QSO Transcript section — JS/HTML unified sent/received/abort/
+        # partner-change log; UI-layer only, same class of gap as FR-035/FR-036/FR-037/
+        # FR-040/FR-041/FR-043/FR-044/FR-055 above. The pure matching/aggregation logic
+        # (shouldCaptureDecode, buildTranscriptEntry, pushTranscriptEntry,
+        # hasEnteredNewActiveTxState) IS covered by 20 automated node --test cases in
+        # web/js/qsoTranscript.test.js — but per design.md Decision 7, node --test names
+        # are structurally invisible to TraceabilityCheck (it scans compiled xUnit
+        # DisplayNames only), so this ID still needs a debt entry despite real automated
+        # coverage existing. DOM wiring live-verified end-to-end via an ad hoc Playwright
+        # script against a real running daemon (not committed — qa/uat-tmp/ is gitignored
+        # scratch tooling, per the FR-055 precedent): sent-message capture fires once per
+        # genuine txState transition (no duplicate on a repeated push of the same state),
+        # received-message capture survives a real decode-panel-filtering column-filter
+        # change that hides the same decode's row in #decodes-table, partner-change
+        # separators appear in the correct chronological position, newest-on-top ordering
+        # holds throughout.
+        # Remove when a committed browser-automation test (e.g. Playwright, mirroring the
+        # precedent for SEC-003/FR-055 above) exercises the DOM wiring programmatically.

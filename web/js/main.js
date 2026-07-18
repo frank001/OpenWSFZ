@@ -16,6 +16,8 @@ import { getConfig, getFrequencies, postTune, postAudioOffset,
          getDecodeFilter, postDecodeFilter }                                 from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
 import { isDecodeVisible, UNFILTERED_DECODE_FILTER }                         from './decodeFilter.js';
+import { shouldCaptureDecode, buildTranscriptEntry, pushTranscriptEntry,
+         hasEnteredNewActiveTxState, TRANSCRIPT_LOG_MAX }                    from './qsoTranscript.js';
 
 const MAX_DECODE_ROWS = 200;
 
@@ -87,36 +89,58 @@ const txMsg1El       = /** @type {HTMLElement} */ (document.getElementById('tx-m
 const txMsg2El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-2'));
 const txMsg3El       = /** @type {HTMLElement} */ (document.getElementById('tx-msg-3'));
 
-// TX abort reason history (FR-UX-002)
-const txAbortLogSection = /** @type {HTMLElement} */ (document.getElementById('tx-abort-log-section'));
-const txAbortLogEl      = /** @type {HTMLOListElement} */ (document.getElementById('tx-abort-log'));
+// QSO Transcript (FR-062) — unified sent/received/abort/partner-change log, superseding the
+// prior abort-only "TX History" (FR-UX-002) section it replaced.
+const txTranscriptSection = /** @type {HTMLElement} */ (document.getElementById('tx-transcript-section'));
+const txTranscriptLogEl   = /** @type {HTMLOListElement} */ (document.getElementById('tx-transcript-log'));
 
 // Pileup-mode toggle (FR-PILEUP-001)
 const pileupModeRowEl    = /** @type {HTMLElement} */ (document.getElementById('pileup-mode-row'));
 const pileupAutoSelectEl = /** @type {HTMLInputElement} */ (/** @type {unknown} */ (document.getElementById('pileup-auto-select')));
 
-/** @type {Array<{isoTs: string, reason: string, partner: string|null}>} */
-const txAbortLog = [];
-const TX_ABORT_LOG_MAX = 10;
+/** @type {import('./qsoTranscript.js').TranscriptEntry[]} */
+const txTranscriptLog = [];
+
+/** Maps a transcript entry kind to its direction-colorization CSS class (design.md Decision 6). */
+const TRANSCRIPT_KIND_CLASS = {
+  sent:            'transcript-sent',
+  received:        'transcript-received',
+  abort:           'transcript-event',
+  'partner-change': 'transcript-event',
+};
 
 /**
- * Appends an entry to the TX abort log (newest on top) and refreshes the DOM list.
- * Capped at TX_ABORT_LOG_MAX entries; oldest entries are dropped.
- * @param {string}      reason   - Human-readable abort reason.
- * @param {string|null} partner  - Partner callsign at time of abort, or null.
+ * Appends an entry to the QSO Transcript (newest on top) and refreshes the DOM list.
+ * Capped at TRANSCRIPT_LOG_MAX entries; oldest entries are dropped (design.md Decision 5).
+ * Folds the prior abort-only log (FR-UX-002) and the new sent/received/partner-change kinds
+ * into one unified, chronological list (design.md Decision 4).
+ * @param {import('./qsoTranscript.js').TranscriptEntryKind} kind
+ * @param {string}      text     - Message text, abort reason, or partner-change note.
+ * @param {string|null} partner  - Partner callsign at the time of the entry, or null.
  */
-function appendTxAbortLog(reason, partner) {
-  const isoTs = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-  txAbortLog.unshift({ isoTs, reason, partner });
-  if (txAbortLog.length > TX_ABORT_LOG_MAX)
-    txAbortLog.length = TX_ABORT_LOG_MAX;
+function appendTranscriptEntry(kind, text, partner) {
+  const entry = buildTranscriptEntry(kind, text, partner);
+  pushTranscriptEntry(txTranscriptLog, entry, TRANSCRIPT_LOG_MAX);
 
-  if (txAbortLogEl) {
-    txAbortLogEl.innerHTML = txAbortLog
-      .map(e => `<li><span class="tx-abort-ts">${e.isoTs}</span> — ${e.reason}</li>`)
-      .join('');
+  if (txTranscriptLogEl) {
+    // Use textContent throughout, not innerHTML — a 'received' entry's text is a raw FT8
+    // message and, per handleDecodes' own Type-5 free-text caveat, may legally contain
+    // characters that are valid HTML (<, >, &, ") and must never be parsed as markup.
+    txTranscriptLogEl.innerHTML = '';
+    for (const e of txTranscriptLog) {
+      const li = document.createElement('li');
+      li.className = TRANSCRIPT_KIND_CLASS[e.kind];
+
+      const ts = document.createElement('span');
+      ts.className   = 'tx-transcript-ts';
+      ts.textContent = e.isoTs;
+
+      li.appendChild(ts);
+      li.appendChild(document.createTextNode(' — ' + e.text));
+      txTranscriptLogEl.appendChild(li);
+    }
   }
-  if (txAbortLogSection) txAbortLogSection.hidden = false;
+  if (txTranscriptSection) txTranscriptSection.hidden = false;
 }
 
 // ── TX panel render functions (tasks 6.3, 6.4) ───────────────────────────
@@ -137,12 +161,21 @@ function appendTxAbortLog(reason, partner) {
  *   Row 2 — TxReport:                        {partner} {callsign} +00
  *   Row 3 — TxRr73 (mapped to Tx73 proxy):   {partner} {callsign} RR73
  *
+ * qso-transcript-panel (FR-062): also logs a 'sent' transcript entry exactly once per actual
+ * transmission step — when `state` differs from `prevState` AND is a member of the role's
+ * `activeStates` (design.md Decision 2). `prevState` defaults to `state` itself (no-op: no
+ * entry logged) for callers that are merely re-rendering the current state rather than
+ * reacting to a genuine `txState` transition (e.g. the post-config-load refresh in
+ * `startCycleTimerIfEnabled`).
+ *
  * @param {string|null}      partner
  * @param {string}           state
  * @param {boolean}          autoAnswerEnabled
  * @param {'answerer'|'caller'} [role]
+ * @param {string}           [prevState]  - The state immediately prior to this render; defaults
+ *                                          to `state` (no transition, so no entry is logged).
  */
-function renderMessageRows(partner, state, autoAnswerEnabled, role) {
+function renderMessageRows(partner, state, autoAnswerEnabled, role, prevState = state) {
   const effectiveRole = role ?? currentTxRole;
   const p = partner ?? '———';
 
@@ -190,6 +223,13 @@ function renderMessageRows(partner, state, autoAnswerEnabled, role) {
       row.classList.add('tx-msg-muted');
     }
   });
+
+  // qso-transcript-panel (FR-062): log the sent message exactly once per actual transmission
+  // step (design.md Decision 2) — including a caller's initial partner-less "CQ …" (Tx 1).
+  if (hasEnteredNewActiveTxState(prevState, state, activeStates)) {
+    const activeIndex = activeStates.indexOf(state);
+    appendTranscriptEntry('sent', texts[activeIndex], currentTxPartner);
+  }
 }
 
 /**
@@ -202,8 +242,10 @@ function renderMessageRows(partner, state, autoAnswerEnabled, role) {
  * @param {boolean|undefined}       [keying]            - IQsoController.Keying; falls back to currentKeying
  */
 function renderTxPanel(state, partner, autoAnswerEnabled, role, keying) {
-  // Capture previous state before overwriting — used below for D-CALLER-008 sweep.
-  const prevState = currentTxState;
+  // Capture previous state/partner before overwriting — used below for the D-CALLER-008 sweep
+  // and the qso-transcript-panel (FR-062) sent-message/partner-change detection respectively.
+  const prevState   = currentTxState;
+  const prevPartner = currentTxPartner;
 
   // Persist for subsequent partial updates (e.g. WS txState without config change).
   currentTxState           = state;
@@ -214,6 +256,13 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role, keying) {
 
   // Track partner for TX panel state display and message row templates.
   currentTxPartner = partner;
+
+  // qso-transcript-panel (FR-062): partner-change separator, appended before any
+  // sent/received entry for the new partner in this same event-handling pass (design.md
+  // Decision 5 / task 4.7).
+  if (partner != null && partner !== prevPartner) {
+    appendTranscriptEntry('partner-change', partner, partner);
+  }
 
   // ── Enable/Disable toggle button ─────────────────────────────────────
   // D-TX-UI-002: label is always "Enable TX"; red background alone signals the armed state.
@@ -282,7 +331,7 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role, keying) {
   }
 
   // ── Message rows ─────────────────────────────────────────────────────
-  renderMessageRows(partner, state, autoAnswerEnabled, role ?? currentTxRole);
+  renderMessageRows(partner, state, autoAnswerEnabled, role ?? currentTxRole, prevState);
 
   // D-CALLER-008: Sweep stale decode-responder rows when WaitAnswer begins.
   // Rows from prior WaitAnswer sessions carry the decode-responder class but
@@ -728,6 +777,14 @@ function handleDecodes(results) {
       if (r.region.cqZone != null)  seenCqZones.add(r.region.cqZone);
       if (r.region.ituZone != null) seenItuZones.add(r.region.ituZone);
     }
+    // qso-transcript-panel (FR-062): capture a received-message transcript entry for any
+    // decode belonging to the operator's own tracked conversation, sourced from the raw
+    // decode feed *before* decode-panel-filtering/decode-noise-suppression gating is applied,
+    // and independent of currentDecodeFilter (design.md Decisions 1 and 3).
+    if (shouldCaptureDecode(r.message, txCallsign, currentTxPartner)) {
+      appendTranscriptEntry('received', r.message, currentTxPartner);
+    }
+
     /** @type {any} */ (tr).__decode = r;
     tr.hidden = !isDecodeVisible(r, currentDecodeFilter);
 
@@ -1701,9 +1758,11 @@ document.addEventListener('DOMContentLoaded', () => {
         event.role              ?? undefined,
         event.keying            ?? currentKeying);
 
-      // FR-UX-002: append to abort log when the daemon reports an abort reason.
+      // qso-transcript-panel (FR-062): append an abort entry, folded inline into the unified
+      // transcript, when the daemon reports an abort reason (superseding the prior FR-UX-002
+      // abort-only log this section replaced).
       if (event.abortReason) {
-        appendTxAbortLog(event.abortReason, event.partner ?? null);
+        appendTranscriptEntry('abort', event.abortReason, event.partner ?? null);
       }
       return;
     }
