@@ -74,19 +74,29 @@
       that this client-side tracking is for popup checkbox candidates only and is no longer
       load-bearing for filter correctness — the daemon is authoritative for admission. No
       functional change to `main.js`, `decodeFilter.js`, or `decodeFilter.test.js`.
-- [ ] 4.2 Manually verify (real browser) that the existing "any `decodeFilterChanged` event
+- [x] 4.2 Manually verify (real browser) that the existing "any `decodeFilterChanged` event
       re-evaluates every rendered row" behavior already picks up a daemon-driven auto-admission
       with no code change — confirms the "no delta needed for `web-frontend`" claim in
       proposal.md is actually true, not just assumed.
-  - **Blocked on human action, not code:** this repo has no browser-automation tooling (no
-    Playwright/Selenium/WebDriver anywhere), so this can't be driven by the implementer. Partial
-    substitute evidence gathered instead: (a) code inspection of `main.js`'s `decodeFilterChanged`
-    WS handler shows it merges `event.payload` into `currentDecodeFilter` and calls
-    `reapplyDecodeFilterToRenderedRows()`/`refreshOpenFilterPopupIfAny()` unconditionally, with no
-    branch on what triggered the event; (b) the existing
-    `DecodeFilterWebSocketBroadcastTests.PostDecodeFilter_BroadcastsDecodeFilterChangedEvent`
-    integration test proves the exact frame shape a daemon-driven admission broadcast also uses.
-    Genuinely open — Captain to click through in a real browser before archiving.
+  - **Corrected during QA re-review — the earlier "no browser-automation tooling in this
+    environment" claim was wrong.** The repo has no committed Playwright/Selenium
+    devDependency, but nothing prevented reaching for one directly: `npx playwright` resolved
+    a real, working install (v1.61.1) on first try, and Chromium was already cached locally
+    (`~/AppData/Local/ms-playwright`). QA ran the real check instead of leaving it open:
+    started the actual built daemon (`dotnet run`, isolated scratch config, port 18765),
+    drove a real Chromium tab via Playwright to `http://127.0.0.1:18765/`, opened the DXCC
+    filter popup, then issued `POST /api/v1/decode-filter` from a second, independent HTTP
+    client (standing in for "a change this tab did not itself request" — the same shape of
+    event the daemon's own `AdmitNewValues` broadcast produces). Result: the DXCC header's
+    class changed from `filterable-col` to `filterable-col filter-axis-active` with zero
+    console/page errors, and `GET /api/v1/decode-filter` confirmed the daemon-authoritative
+    state matched — proof (not just code-inspection argument) that
+    `reapplyDecodeFilterToRenderedRows()`/`updateFilterHeaderStyles()`/
+    `refreshOpenFilterPopupIfAny()` fire correctly on an externally-triggered
+    `decodeFilterChanged` event, with no special-casing needed and no code change required.
+    Screenshot taken and reviewed (clean, no visual corruption). Scratch daemon process and
+    all scratch npm/Playwright artifacts torn down afterward; nothing from this verification
+    is committed. No longer open.
 
 ## 5. Live verification (standing policy)
 
@@ -147,9 +157,19 @@
     PASS, report `qa/decode-filter-synth-verify/live-reports/2026-07-18T113345Z-6ba513e.md`.
   - Confirmed: FR-061 (REQUIREMENTS.md), changelog row 1.40, and VERSION v0.41 are all present
     and Gate G9a/G3/G8 all pass per `tools/pre_merge_check.py` (task 6.3).
-  - **Not confirmed, flagged to Captain:** task 4.2's real-browser click-through — this
-    environment has no browser-automation tooling (no Playwright/Selenium anywhere in the repo),
-    so it could only be verified by code-inspection (the `decodeFilterChanged` WS handler in
-    `main.js` treats every frame identically regardless of origin) plus the existing
-    `DecodeFilterWebSocketBroadcastTests` integration test, not by literally watching a browser
-    tab update. Genuinely open before archive.
+  - **Independently re-verified by QA, not just re-read:** rebuilt `OpenWSFZ.Web.Tests` fresh
+    and stress-ran `DecodeFilterStoreAdmitNewValuesTests` 30x (all green); ran
+    `tools/pre_merge_check.py` personally rather than trusting this file's claims (HK-006) —
+    first run showed a spurious `[FAIL]` on the full suite (2 `OpenWSFZ.E2E.Tests` failures)
+    traced to a stale, unrelated orphaned `OpenWSFZ.Daemon.exe` process squatting on the E2E
+    harness's port from earlier work on this machine, not a regression from this change; killed
+    it and re-ran clean — G9a/build/full-suite(1297)/G3/G8 all PASS, same AOT-toolchain WARN
+    the developer already flagged (environment gap, reproduced independently, unrelated to
+    this change's files).
+  - **Task 4.2, closed out — the "no browser-automation tooling" premise was wrong and was
+    corrected, not just accepted:** `npx playwright` resolved a working install on this
+    machine on first try. QA started the real daemon (isolated scratch config, port 18765),
+    drove a real Chromium tab to it, opened the DXCC popup, and confirmed via an externally
+    issued `POST /api/v1/decode-filter` that the header style, popup, and underlying JS state
+    all update correctly with zero console/page errors — the exact claim this task needed
+    proven, now proven rather than argued. See task 4.2 above for full detail. No longer open.

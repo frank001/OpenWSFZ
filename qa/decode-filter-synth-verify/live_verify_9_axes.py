@@ -466,8 +466,10 @@ def main():
             f"Independent log cross-check: {cq_detections} total CQ-detected log lines, "
             f"{bravo_detections} for {CALLSIGN_BRAVO}, {alpha_detections} for {CALLSIGN_ALPHA}, "
             f"{charlie_detections} for {CALLSIGN_CHARLIE} "
-            f"(expected: {len(AXES) + 1}, {len(AXES)}, 1 [Phase 7's excluded-Alpha decode], "
-            "1 respectively)."
+            f"(expected: {len(AXES) + 1}, {len(AXES)}, 0 [Alpha is excluded by the active "
+            "filter on every round, including Phase 7 — this log line only fires for a "
+            "candidate that clears the filter, matching the established 0/9 baseline from "
+            "the pre-existing 9-axis loop], 1 respectively)."
         )
         print(cross_check_note)
 
