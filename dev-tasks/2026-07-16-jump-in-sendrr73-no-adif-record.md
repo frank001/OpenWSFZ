@@ -8,7 +8,7 @@ against an already-merged, already-archived feature (`D-CALLER-012`, GitHub cont
 `dev-tasks/2026-06-27-d-caller-012-dblclick-engage.md`), not new scope — treat as a standalone
 bugfix change, or fold into whichever change next touches the jump-in path.
 **Branch:** none yet — not started.
-**Status:** New. Found by QA while diagnosing why the Captain's real QSO with G7LHK (2026-07-16,
+**Status:** New. Found by QA while diagnosing why the Captain's real QSO with Q7GHK (2026-07-16,
 ~21:20–21:23 local) never appeared in `ADIF.log`. Confirmed with the Captain that the exchange was
 genuinely completed and should have been logged.
 **Found by:** QA, reading `logs/openswfz-20260716T190223Z.log` end-to-end and cross-referencing
@@ -17,6 +17,11 @@ against `QsoAnswererService.cs`/`QsoCallerService.cs`/`WebApp.cs` source.
 completed QSOs from the log with no warning to the operator — the daemon returns `200 OK` from
 `engage-decode` and transmits RR73 as if everything is normal; nothing tells the Captain the contact
 won't be logged.
+
+**Note (added retroactively during `fix-jump-in-rr73-adif-capture` QA review):** the partner
+callsign throughout this document was originally the real, third-party call from that night's
+QSO, in violation of NFR-021 (no real/assignable callsign in VCS). Redacted repo-wide to the
+synthetic `Q7GHK` stand-in; no other content changed.
 
 ---
 
@@ -30,29 +35,29 @@ only, no code change requested.**
 
 ## Finding A (real defect) — `EngagePoint.SendRr73` jump-in skips ADIF entirely
 
-### Evidence — tonight's G7LHK QSO
+### Evidence — tonight's Q7GHK QSO
 
 ```
 21:15:56  QsoControllerRouter: active role switched to Caller.
-21:20:15  QsoCallerService TryParseResponder: msg='PD2FZ G7LHK IO92' → match=true
-21:20:15  QsoCallerService: G7LHK answered our CQ at 1500 Hz — sending report.
-21:20:15  QsoCallerService: TX → "G7LHK PD2FZ +00" at 1500 Hz.
+21:20:15  QsoCallerService TryParseResponder: msg='PD2FZ Q7GHK IO92' → match=true
+21:20:15  QsoCallerService: Q7GHK answered our CQ at 1500 Hz — sending report.
+21:20:15  QsoCallerService: TX → "Q7GHK PD2FZ +00" at 1500 Hz.
 21:20:28  QsoCallerService: watchdog reset for 1 minutes.        (armed to expire 21:21:28)
-21:20:45  QsoCallerService: no response from G7LHK (retry 1/3) — retransmitting report.
-21:21:15  QsoCallerService: no response from G7LHK (retry 2/3) — retransmitting report.
+21:20:45  QsoCallerService: no response from Q7GHK (retry 1/3) — retransmitting report.
+21:21:15  QsoCallerService: no response from Q7GHK (retry 2/3) — retransmitting report.
 21:21:28  QsoCallerService: TX session cancelled during TX (state: "TxReport").   <- watchdog fires
-21:21:28  QsoCallerService: aborted to Idle (was: "TxReport", partner: G7LHK).
+21:21:28  QsoCallerService: aborted to Idle (was: "TxReport", partner: Q7GHK).
 21:21:28  QsoControllerRouter: caller QSO ended — reverting active role to "Answerer".
 ...
-21:22:48  POST /api/v1/tx/engage-decode  (Captain double-clicked G7LHK's reply in the decode panel)
-21:22:48  QsoAnswererService: jump-in to "SendRr73" with partner G7LHK at 1500 Hz.
-21:22:48  QsoAnswererService: TX → "G7LHK PD2FZ RR73" at 1500 Hz.
-21:23:00  QsoAnswererService: TX complete for "G7LHK PD2FZ RR73".
-21:23:00  QsoAnswererService: aborted to Idle (was: "Tx73", partner: G7LHK).
-21:23:15  (Captain re-engaged once more — G7LHK apparently repeated, same jump-in, same TX, same result)
+21:22:48  POST /api/v1/tx/engage-decode  (Captain double-clicked Q7GHK's reply in the decode panel)
+21:22:48  QsoAnswererService: jump-in to "SendRr73" with partner Q7GHK at 1500 Hz.
+21:22:48  QsoAnswererService: TX → "Q7GHK PD2FZ RR73" at 1500 Hz.
+21:23:00  QsoAnswererService: TX complete for "Q7GHK PD2FZ RR73".
+21:23:00  QsoAnswererService: aborted to Idle (was: "Tx73", partner: Q7GHK).
+21:23:15  (Captain re-engaged once more — Q7GHK apparently repeated, same jump-in, same TX, same result)
 ```
 
-G7LHK's reply arrived ~80 seconds after the original report — just outside the caller-side watchdog
+Q7GHK's reply arrived ~80 seconds after the original report — just outside the caller-side watchdog
 window (see Finding B for why that expiry is correct behaviour, not the bug). The Captain manually
 recovered the QSO by double-clicking the decode row, which fired `POST /api/v1/tx/engage-decode` →
 `EngagePoint.SendRr73` → `QsoAnswererService.ExecuteJumpInAsync`. The Captain has confirmed this was
@@ -185,7 +190,7 @@ attempt to fix this as part of this task** — there is nothing to recover.
 
 ## Finding B (investigated, **not a defect** — no code change requested)
 
-QA's first read of tonight's log suspected the watchdog was wrongly cutting the G7LHK caller session
+QA's first read of tonight's log suspected the watchdog was wrongly cutting the Q7GHK caller session
 short before its configured 3 retries could run (watchdog reset once at `QsoCallerService.cs:802`,
 armed for `WatchdogMinutes` = 1 minute per the Captain's current settings; three retries at the FT8
 15 s cadence take noticeably longer than 60 s in practice, exactly as observed tonight at 21:21:28).
@@ -212,7 +217,7 @@ relative to `RetryCount`, but that is a nice-to-have, not part of this task.
 
 ---
 
-## Note on tonight's specific G7LHK contact
+## Note on tonight's specific Q7GHK contact
 
 The Captain has decided not to hand-patch `ADIF.log` for this one contact — this task is scoped to
 the code fix only, so this class of QSO is logged correctly going forward. No data-recovery action
@@ -241,4 +246,4 @@ is included here.
 - `tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:978-1030` — existing D-008 regression
   test; re-run unmodified, do not touch.
 - `logs/openswfz-20260716T190223Z.log` — tonight's incident log (lines ~2753-4021 cover the whole
-  Caller→Answerer role-switch sequence and both G7LHK sessions).
+  Caller→Answerer role-switch sequence and both Q7GHK sessions).

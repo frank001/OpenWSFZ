@@ -1,3 +1,5 @@
+**User-facing:** no
+
 ## Why
 
 `QsoCallerService` parses the partner's Maidenhead grid out of every CQ-answer message it
