@@ -299,6 +299,10 @@ startupLogger.LogInformation("Native FT8 decoder shim ABI version: {ShimVersion}
 // scope-guard fix).
 var appScope = Guid.NewGuid();
 var decodeEventBus = new DecodeEventBus(appScope);
+// fix-decode-filter-new-value-admission, design.md Decision 4: broadcasts a daemon-driven
+// DecodeFilterState change (new-value auto-admission) to every connected client, mirroring
+// POST /api/v1/decode-filter's existing broadcast. Same appScope as decodeEventBus (N6).
+var decodeFilterEventBus = new DecodeFilterEventBus(appScope);
 // AllTxtWriter no longer holds a reference to ICatState; the caller (decode pump) supplies
 // the snapshotted dial frequency for each cycle (defect: dial-freq-snapshot, FR-032).
 var allTxtWriter = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllTxtWriter>());
@@ -701,6 +705,10 @@ app.Lifetime.ApplicationStarted.Register(() =>
     // A3: pass the application stopping token so ReadAllAsync exits promptly on
     // shutdown rather than waiting for the current DecodeAsync to finish.
     var stoppingToken = app.Lifetime.ApplicationStopping;
+    // fix-decode-filter-new-value-admission, design.md Decision 1/4: resolved once here (not
+    // per-cycle) — the decode pump calls AdmitNewValues per decode, before the QSO-controller
+    // fan-out, so automation benefits from admission on the same cycle it occurred.
+    var decodeFilterStore = app.Services.GetRequiredService<IDecodeFilterStore>();
     _ = Task.Run(async () =>
     {
         await foreach (var (pcmWindow, cycleStart, windowDialFreq) in
@@ -748,6 +756,24 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
                 _ = decodeEventBus.Publish(visibleResults); // fire-and-forget: do not await WebSocket delivery
                 await allTxtWriter.AppendAsync(cycleStart, dialFreq, results); // unfiltered — ALL.TXT unaffected
+
+                // fix-decode-filter-new-value-admission, design.md Decision 4: admit any
+                // previously-unseen attribute value (DXCC entity/Continent/CQ Zone/ITU Zone) on a
+                // narrowed-but-non-empty axis BEFORE the QSO-controller fan-out below, so this
+                // same decode cycle's engagement decision sees the already-corrected filter state
+                // — not one cycle later. Runs unconditionally (no WebSocketHub.HasClients gate):
+                // admission must happen identically whether or not a browser tab is attached,
+                // including fully headless (--background) operation. Coalesced to at most one
+                // broadcast per batch, not once per admitted value.
+                DecodeFilterState? admittedState = null;
+                foreach (var r in visibleResults)
+                {
+                    var updated = decodeFilterStore.AdmitNewValues(r);
+                    if (updated is not null)
+                        admittedState = updated;
+                }
+                if (admittedState is not null)
+                    decodeFilterEventBus.Publish(admittedState);
 
                 // Fan-out to both QSO controller channels (non-blocking; DropOldest when full).
                 // QsoControllerRouter activates only one service at a time via IsActive flags;

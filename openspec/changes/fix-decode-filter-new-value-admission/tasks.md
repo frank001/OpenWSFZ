@@ -1,12 +1,12 @@
 ## 1. `IDecodeFilterStore` — admission API and internal tracking
 
-- [ ] 1.1 Add `DecodeFilterState? AdmitNewValues(DecodeResult decode)` to
+- [x] 1.1 Add `DecodeFilterState? AdmitNewValues(DecodeResult decode)` to
       `src/OpenWSFZ.Abstractions/IDecodeFilterStore.cs`, documented per design.md Decision 1.
-- [ ] 1.2 In `DecodeFilterStore` (`src/OpenWSFZ.Web/WebApp.cs`), add four private
+- [x] 1.2 In `DecodeFilterStore` (`src/OpenWSFZ.Web/WebApp.cs`), add four private
       `HashSet<T>` fields tracking entities/continents/CQ-zones/ITU-zones seen this session
       (design.md Decision 2), plus a private `readonly object _lock` guarding both `Set` and the
       new method.
-- [ ] 1.3 Implement `AdmitNewValues`: for each of the decode's four resolved attribute values not
+- [x] 1.3 Implement `AdmitNewValues`: for each of the decode's four resolved attribute values not
       yet in that axis's "seen" set, record it as seen; if the axis's current allow-list is
       non-null AND non-empty, build a **new** `HashSet<T>` (copy + add — never mutate the
       referenced set in place, design.md Decision 3) and stage a `with`-updated
@@ -14,46 +14,46 @@
       explicitly empty (`[]`) axis (design.md Decision 5). Return the updated state only if at
       least one axis actually changed; otherwise return `null`. All reads/writes of `_current`
       and the seen-sets happen under `_lock`.
-- [ ] 1.4 Confirm (do not modify) that `DecodeFilterEvaluator.IsVisible` / `isDecodeVisible` and
+- [x] 1.4 Confirm (do not modify) that `DecodeFilterEvaluator.IsVisible` / `isDecodeVisible` and
       `DecodeFilterState`'s wire shape are untouched by this change.
 
 ## 2. Daemon wiring — decode pump hook and broadcast
 
-- [ ] 2.1 Add `DecodeFilterEventBus` (`src/OpenWSFZ.Web/DecodeFilterEventBus.cs`), mirroring
+- [x] 2.1 Add `DecodeFilterEventBus` (`src/OpenWSFZ.Web/DecodeFilterEventBus.cs`), mirroring
       `DecodeEventBus`'s shape exactly (`appScope`-guarded façade over
       `WebSocketHub.BroadcastDecodeFilterChanged`).
-- [ ] 2.2 In `src/OpenWSFZ.Daemon/Program.cs`, construct
+- [x] 2.2 In `src/OpenWSFZ.Daemon/Program.cs`, construct
       `var decodeFilterEventBus = new DecodeFilterEventBus(appScope);` alongside the existing
       `decodeEventBus` (near line 301), before `WebApp.Create`.
-- [ ] 2.3 Resolve `IDecodeFilterStore` inside the `ApplicationStarted` callback that starts the
+- [x] 2.3 Resolve `IDecodeFilterStore` inside the `ApplicationStarted` callback that starts the
       decode pump (alongside where `stoppingToken` is captured, ~line 703), via
       `app.Services.GetRequiredService<IDecodeFilterStore>()`.
-- [ ] 2.4 In the decode pump's `await foreach` loop, after computing `visibleResults` and before
+- [x] 2.4 In the decode pump's `await foreach` loop, after computing `visibleResults` and before
       the `qsoAnswererChannel`/`qsoCallerChannel`/`externalReportingChannel` fan-out (~line
       752–758): call `decodeFilterStore.AdmitNewValues(r)` for each `r` in `visibleResults`,
       track the last non-null returned state, and if any admission occurred, call
       `decodeFilterEventBus.Publish(finalState)` **once** per batch (coalesced, not once per
       admitted value or per decode — design.md Decision 4 / Risks).
-- [ ] 2.5 Confirm this hook runs identically whether or not any browser tab is connected
+- [x] 2.5 Confirm this hook runs identically whether or not any browser tab is connected
       (no conditional on `WebSocketHub.HasClients` gating the admission decision itself — only
       the broadcast is a no-op with zero clients, admission must still happen).
 
 ## 3. Unit tests (`OpenWSFZ.Web.Tests`)
 
-- [ ] 3.1 First-seen value on a narrowed-but-non-empty axis is admitted (all four attribute axes,
+- [x] 3.1 First-seen value on a narrowed-but-non-empty axis is admitted (all four attribute axes,
       independently).
-- [ ] 3.2 First-seen value on an untouched (`null`) axis is a no-op: `AdmitNewValues` returns
+- [x] 3.2 First-seen value on an untouched (`null`) axis is a no-op: `AdmitNewValues` returns
       `null`, axis remains `null`.
-- [ ] 3.3 First-seen value on an explicitly empty (`[]`) axis is NOT admitted: axis remains `[]`,
+- [x] 3.3 First-seen value on an explicitly empty (`[]`) axis is NOT admitted: axis remains `[]`,
       `AdmitNewValues` returns `null` for that axis's contribution (design.md Decision 5 /
       Requirement Scenario "An explicitly empty axis never auto-admits").
-- [ ] 3.4 An already-seen, already-excluded value is never re-admitted on a later decode.
-- [ ] 3.5 A decode touching multiple axes simultaneously (e.g. new entity AND new CQ zone in one
+- [x] 3.4 An already-seen, already-excluded value is never re-admitted on a later decode.
+- [x] 3.5 A decode touching multiple axes simultaneously (e.g. new entity AND new CQ zone in one
       `DecodeResult`) admits both in a single call, returning one combined updated state.
-- [ ] 3.6 Concurrency: parallel `AdmitNewValues`/`Set` calls from multiple threads do not corrupt
+- [x] 3.6 Concurrency: parallel `AdmitNewValues`/`Set` calls from multiple threads do not corrupt
       the underlying `HashSet<T>` instances or lose an admission (e.g. `Task.WhenAll` over many
       concurrent calls, then assert final state contains every expected value).
-- [ ] 3.7 Give every new test's `[Fact]`/`[Theory]` a `DisplayName` (or method name, per this
+- [x] 3.7 Give every new test's `[Fact]`/`[Theory]` a `DisplayName` (or method name, per this
       project's existing convention — check `DecodeFilterEvaluatorTests.cs` for the pattern used)
       leading with `"FR-061: "` (Gate G3 — see §6.1 below for the new requirement ID).
 
