@@ -1,13 +1,16 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 
 namespace OpenWSFZ.E2E.Tests;
 
 /// <summary>
-/// Launches the AOT-published <c>OpenWSFZ.Daemon</c> binary as a subprocess,
-/// waits for the welcome banner on stdout, and exposes the bound port for tests.
-/// Disposes the process (with SIGKILL / Kill) in a <see langword="finally"/> block.
+/// Launches the self-contained, non-AOT <c>OpenWSFZ.Daemon</c> binary (the default
+/// <c>publish/</c> output — see dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md)
+/// as a subprocess, waits for the welcome banner on stdout, and exposes the bound port for
+/// tests. Disposes the process (with SIGKILL / Kill) in a <see langword="finally"/> block.
 /// </summary>
 public sealed class DaemonProcess : IAsyncDisposable
 {
@@ -26,12 +29,41 @@ public sealed class DaemonProcess : IAsyncDisposable
     /// Resolves the published binary path for the current RID, starts the process,
     /// and waits up to <paramref name="startupTimeout"/> for the welcome banner.
     /// </summary>
+    /// <param name="startupTimeout">How long to wait for the welcome banner before failing.</param>
+    /// <param name="ct">Cancellation token for the banner wait.</param>
+    /// <param name="publishSubdir">
+    /// Which publish output to launch — defaults to <c>"publish"</c> (the self-contained,
+    /// non-AOT binary this project actually ships; see
+    /// dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md). Pass
+    /// <c>"publish-aot"</c> to launch the Native AOT structural-prove-out binary instead —
+    /// a distinct output directory so the two publishes never clobber each other. The AOT
+    /// binary is known-broken for Windows WASAPI audio (see
+    /// dev-tasks/2026-07-18-aot-comwrappers-audio-migration.md, deferred); no current E2E
+    /// test launches it, this option exists for completeness/future use.
+    /// </param>
+    /// <param name="explicitPort">
+    /// Explicit <c>--port</c> to pass the daemon, or <see langword="null"/> to let it fall back
+    /// to the persisted config value (the default). Pass an ephemeral port (see
+    /// <see cref="ReserveEphemeralPort"/>) whenever a test's daemon must not collide with
+    /// another test class's daemon — xUnit runs different test classes in separate
+    /// collections, which may execute concurrently (see <see cref="SelfContainedNonAotE2ETests"/>,
+    /// which shares no collection with <c>DaemonE2ETests</c> and would otherwise race it for the
+    /// same default port and default config file).
+    /// </param>
+    /// <param name="configPath">
+    /// Explicit <c>--config</c> path, or <see langword="null"/> to use the platform default
+    /// config location. Pass an isolated temp path alongside a non-null
+    /// <paramref name="explicitPort"/> for the same cross-test-class isolation reason.
+    /// </param>
     public static async Task<DaemonProcess> StartAsync(
         TimeSpan? startupTimeout = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string publishSubdir = "publish",
+        int? explicitPort = null,
+        string? configPath = null)
     {
         var timeout = startupTimeout ?? TimeSpan.FromSeconds(10);
-        var binaryPath = ResolveBinaryPath();
+        var binaryPath = ResolveBinaryPath(publishSubdir);
 
         var psi = new ProcessStartInfo(binaryPath)
         {
@@ -39,6 +71,16 @@ public sealed class DaemonProcess : IAsyncDisposable
             RedirectStandardError  = true,
             UseShellExecute        = false,
         };
+        if (explicitPort is not null)
+        {
+            psi.ArgumentList.Add("--port");
+            psi.ArgumentList.Add(explicitPort.Value.ToString());
+        }
+        if (configPath is not null)
+        {
+            psi.ArgumentList.Add("--config");
+            psi.ArgumentList.Add(configPath);
+        }
 
         var process = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start process: {binaryPath}");
@@ -75,10 +117,19 @@ public sealed class DaemonProcess : IAsyncDisposable
     /// e.g. <c>--background</c>, rather than via <see cref="StartAsync"/>'s
     /// no-arguments/wait-for-welcome-banner shape).
     /// </summary>
-    internal static string ResolveBinaryPath()
+    /// <param name="publishSubdir">
+    /// Publish output directory name under <c>&lt;rid&gt;/</c> — <c>"publish"</c> for the
+    /// self-contained, non-AOT binary (default, matches
+    /// <see cref="BackgroundColdStartE2ETests"/>'s no-arguments call), or
+    /// <c>"publish-aot"</c> for the Native AOT structural-prove-out binary. See
+    /// dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md — the two publish
+    /// outputs are kept in separate directories deliberately so one publish can never
+    /// silently clobber the other's binary.
+    /// </param>
+    internal static string ResolveBinaryPath(string publishSubdir = "publish")
     {
         // Published binary lives at:
-        // src/OpenWSFZ.Daemon/bin/Release/net10.0/<rid>/publish/OpenWSFZ.Daemon[.exe]
+        // src/OpenWSFZ.Daemon/bin/Release/net10.0/<rid>/<publishSubdir>/OpenWSFZ.Daemon[.exe]
         var rid = GetRid();
         var repoRoot = FindRepoRoot();
         var exeName  = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -86,17 +137,38 @@ public sealed class DaemonProcess : IAsyncDisposable
             : "OpenWSFZ.Daemon";
 
         var path = Path.Combine(
-            repoRoot, "src", "OpenWSFZ.Daemon", "bin", "Release", "net10.0", rid, "publish", exeName);
+            repoRoot, "src", "OpenWSFZ.Daemon", "bin", "Release", "net10.0", rid, publishSubdir, exeName);
 
         if (!File.Exists(path))
         {
+            var publishCommand = publishSubdir == "publish-aot"
+                ? "dotnet publish src/OpenWSFZ.Daemon -c Release -r <rid> --self-contained -p:PublishAot=true " +
+                  $"-o src/OpenWSFZ.Daemon/bin/Release/net10.0/<rid>/{publishSubdir}/"
+                : "python3 tools/publish_selfcontained.py --rid <rid> before running E2E tests.";
+
             throw new FileNotFoundException(
-                $"Published binary not found at '{path}'. " +
-                "Run: dotnet publish src/OpenWSFZ.Daemon -c Release -r <rid> --self-contained before running E2E tests.",
+                $"Published binary not found at '{path}'. Run: {publishCommand}",
                 path);
         }
 
         return path;
+    }
+
+    /// <summary>
+    /// Reserves a free TCP port on loopback and immediately releases it, for tests that need to
+    /// pass an explicit <c>--port</c> so their daemon doesn't collide with another concurrently
+    /// running test class's daemon on the shared default port. Mirrors
+    /// <c>BackgroundColdStartE2ETests.ReserveEphemeralPort</c> (kept as a separate private copy
+    /// there rather than refactored to call this one, to avoid touching an already-passing test
+    /// file for this change).
+    /// </summary>
+    internal static int ReserveEphemeralPort()
+    {
+        using var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        return port;
     }
 
     private static string FindRepoRoot()

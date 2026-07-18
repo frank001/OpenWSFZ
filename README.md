@@ -258,23 +258,45 @@ location (`%APPDATA%\OpenWSFZ\config.json` on Windows,
 ### Running the E2E tests
 
 The end-to-end tests launch the daemon as a real subprocess and require a
-self-contained published binary to be present first. Run this once before
-`dotnet test`, substituting your target runtime identifier:
+published binary to be present first. Run this once before `dotnet test`,
+substituting your target runtime identifier — this publishes to the default
+`bin/Release/net10.0/<rid>/publish/` and is the one standalone binary this
+project actually ships and expects people to run:
 
 ```bash
-# Windows
-dotnet publish src/OpenWSFZ.Daemon -c Release -r win-x64 --self-contained
-
-# Linux
-dotnet publish src/OpenWSFZ.Daemon -c Release -r linux-x64 --self-contained
-
-# macOS (Apple Silicon)
-dotnet publish src/OpenWSFZ.Daemon -c Release -r osx-arm64 --self-contained
+python3 tools/publish_selfcontained.py --rid win-x64    # or linux-x64 / osx-arm64
 ```
 
+This overrides `PublishAot=false` at the command line (global properties beat
+the project file's conditional `<PublishAot Condition="'$(RuntimeIdentifier)'!=''">
+true</PublishAot>`), because NAudio's `[ComImport]` WASAPI COM activation does
+not work under Native AOT — it throws `"Common Language Runtime detected an
+invalid program"` the instant real WASAPI code runs. **Do not** run
+`dotnet publish src/OpenWSFZ.Daemon -c Release -r <rid> --self-contained`
+directly without this override and expect a working standalone `.exe` on
+Windows — that produces an AOT binary with broken audio. Consumed by
+`DaemonE2ETests`, `BackgroundColdStartE2ETests` (`FR-002`, `FR-007`), and
+`SelfContainedNonAotE2ETests`.
+
 `dotnet test` without a prior publish will still succeed for all unit and
-integration tests; only the two E2E tests (`FR-002`, `FR-007`) will fail with a
+integration tests; only those E2E tests will fail with a
 `FileNotFoundException` indicating the missing binary.
+
+Native AOT itself remains deferred (see
+`dev-tasks/2026-07-18-aot-comwrappers-audio-migration.md`). A separate,
+secondary publish exists purely as a toolchain compile-check, to a
+deliberately out-of-the-way output directory so it can never clobber the
+binary above:
+
+```bash
+dotnet publish src/OpenWSFZ.Daemon -c Release -r win-x64 --self-contained \
+  -p:PublishAot=true -o src/OpenWSFZ.Daemon/bin/Release/net10.0/win-x64/publish-aot/
+```
+
+A PASS from this command proves only that the AOT toolchain compiled the
+binary — it says nothing about whether the binary works. No E2E test launches
+it; nothing needs it unless you're specifically working on the deferred
+ComWrappers migration.
 
 ## Cross-platform verification
 
