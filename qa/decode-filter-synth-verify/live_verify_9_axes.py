@@ -20,11 +20,15 @@ WHAT IT DOES, for real, against a real running daemon (not in-process, not a moc
      Q-prefix per NFR-021 — this is an isolated-instance-only override, never touching
      the shared production region data).
   4. Starts the real daemon against that isolated config.
-  5. Synthesises two clean FT8 CQ signals fresh via qa/rr-study/synth_wav.py (freq apart,
+  5. Synthesises three clean FT8 CQ signals fresh via qa/rr-study/synth_wav.py (freq apart,
      never a stale fixture) and plays them, summed, into the cable's input side, timed to
      the real FT8 15-second cycle boundary — once per axis (9 rounds), each preceded by
      POST /api/v1/decode-filter for that axis and POST /api/v1/tx/abort + /tx/enable to
-     return to a clean Idle/armed state.
+     return to a clean Idle/armed state, plus one further round (Phase 7,
+     fix-decode-filter-new-value-admission) that narrows AllowedEntities to exclude an
+     already-seen entity, then decodes a third, genuinely never-before-seen entity on that
+     same narrowed-but-non-empty axis and confirms the daemon auto-admits and engages it on
+     the same decode cycle.
   6. Polls the real GET /api/v1/tx/status after each round and independently greps the
      daemon's own log for "CQ detected from ..." to cross-check the API result.
   7. Writes a timestamped Markdown report to qa/decode-filter-synth-verify/live-reports/,
@@ -72,6 +76,13 @@ CALLSIGN_ALPHA, CALLSIGN_BRAVO = "Q1AAA", "Q1BBB"
 ENTITY_ALPHA, ENTITY_BRAVO = "Testland Alpha", "Testland Bravo"
 CQ_MESSAGE_ALPHA = f"CQ {CALLSIGN_ALPHA} JO22"
 CQ_MESSAGE_BRAVO = f"CQ {CALLSIGN_BRAVO} KP20"
+
+# fix-decode-filter-new-value-admission: a third station, deliberately never sent during the
+# 9-axis loop above, so it is genuinely never-before-seen this session when it first appears in
+# the new-value-admission phase below (Phase 7).
+CALLSIGN_CHARLIE = "Q1CCC"
+ENTITY_CHARLIE = "Testland Charlie"
+CQ_MESSAGE_CHARLIE = f"CQ {CALLSIGN_CHARLIE} RE78"
 
 AXES = [
     ("AllowedEntities",   {"allowedEntities":   [ENTITY_BRAVO]}),
@@ -292,6 +303,9 @@ def main():
                 {"prefixStart": CALLSIGN_BRAVO, "prefixEnd": CALLSIGN_BRAVO,
                  "entity": ENTITY_BRAVO, "continent": "NA", "cqZone": 33, "ituZone": 10,
                  "synthetic": False},
+                {"prefixStart": CALLSIGN_CHARLIE, "prefixEnd": CALLSIGN_CHARLIE,
+                 "entity": ENTITY_CHARLIE, "continent": "AS", "cqZone": 24, "ituZone": 44,
+                 "synthetic": False},
                 {"prefixStart": "Q", "prefixEnd": "Q", "entity": "Synthetic (R&R Study)",
                  "continent": None, "cqZone": None, "ituZone": None, "synthetic": True},
             ]
@@ -336,21 +350,27 @@ def main():
         # Sanity-check region resolution before spending any cycles on it.
         lookup_a = http_get(f"/api/v1/region-data/lookup?callsign={CALLSIGN_ALPHA}")
         lookup_b = http_get(f"/api/v1/region-data/lookup?callsign={CALLSIGN_BRAVO}")
-        if lookup_a.get("entity") != ENTITY_ALPHA or lookup_b.get("entity") != ENTITY_BRAVO:
+        lookup_c = http_get(f"/api/v1/region-data/lookup?callsign={CALLSIGN_CHARLIE}")
+        if (lookup_a.get("entity") != ENTITY_ALPHA or lookup_b.get("entity") != ENTITY_BRAVO
+                or lookup_c.get("entity") != ENTITY_CHARLIE):
             note = (f"Region override did not take effect as expected: "
-                     f"{CALLSIGN_ALPHA} -> {lookup_a}, {CALLSIGN_BRAVO} -> {lookup_b}.")
+                     f"{CALLSIGN_ALPHA} -> {lookup_a}, {CALLSIGN_BRAVO} -> {lookup_b}, "
+                     f"{CALLSIGN_CHARLIE} -> {lookup_c}.")
             fname, _ = write_report([], environment_note=note)
             print(f"SETUP FAILED — report written to {fname}")
             return 1
 
-        # ── Phase 5: synthesise the two CQ signals fresh ─────────────────────
+        # ── Phase 5: synthesise the CQ signals fresh ─────────────────────────
         alpha_wav = scratch / "cq_alpha.wav"
         bravo_wav = scratch / "cq_bravo.wav"
+        charlie_wav = scratch / "cq_charlie.wav"
         synth_wav(python_exe, CQ_MESSAGE_ALPHA, 800, 1, alpha_wav)
         synth_wav(python_exe, CQ_MESSAGE_BRAVO, 1800, 2, bravo_wav)
+        synth_wav(python_exe, CQ_MESSAGE_CHARLIE, 2800, 3, charlie_wav)
         alpha_pcm, rate_a = load_wav_float(alpha_wav)
         bravo_pcm, rate_b = load_wav_float(bravo_wav)
-        assert rate_a == rate_b and len(alpha_pcm) == len(bravo_pcm)
+        charlie_pcm, rate_c = load_wav_float(charlie_wav)
+        assert rate_a == rate_b == rate_c and len(alpha_pcm) == len(bravo_pcm) == len(charlie_pcm)
         combined = alpha_pcm + bravo_pcm
 
         # ── Phase 6: the 9-axis loop ─────────────────────────────────────────
@@ -384,6 +404,55 @@ def main():
             results.append((axis_name, ok, partner, state))
             print(f"[{axis_name}] partner={partner} state={state} {'OK' if ok else 'FAIL'}")
 
+        # ── Phase 7: fix-decode-filter-new-value-admission ───────────────────
+        # Narrow AllowedEntities to a set that EXCLUDES the already-seen ENTITY_ALPHA (Alpha
+        # was decoded on every one of the nine axis-loop cycles above, so it is unambiguously
+        # "seen this session"). Then decode CALLSIGN_CHARLIE — an entity that has never once
+        # appeared this run — summed with a repeat CQ from the still-excluded CALLSIGN_ALPHA.
+        # Confirms, against the real daemon: (a) Alpha stays excluded, exactly as the earlier
+        # AllowedEntities scenario already proved, and (b) Charlie — brand-new on this
+        # narrowed-but-non-empty axis — is auto-admitted by the daemon and engaged on the very
+        # same decode cycle it first appears in, not one cycle later. This is the defect this
+        # change fixes: previously Charlie would have been silently and permanently excluded.
+        http_post("/api/v1/tx/abort")
+        time.sleep(0.5)
+        http_post("/api/v1/tx/enable")
+        http_post("/api/v1/decode-filter", {"allowedEntities": [ENTITY_BRAVO]})
+
+        admission_combined = alpha_pcm + charlie_pcm
+        boundary_ts = next_cycle_boundary()
+        wait_for_cycle(boundary_ts)
+        sd.play(admission_combined, samplerate=rate_a, device=playback_device_idx, blocking=False)
+        sd.wait()
+
+        deadline = time.time() + 8
+        status = {}
+        while time.time() < deadline:
+            status = http_get("/api/v1/tx/status")
+            if status.get("partner"):
+                break
+            time.sleep(0.3)
+
+        partner = status.get("partner")
+        state = status.get("state")
+        admission_engage_ok = partner == CALLSIGN_CHARLIE
+        results.append(("NewValueAdmission(Engaged)", admission_engage_ok, partner, state))
+        print(f"[NewValueAdmission(Engaged)] partner={partner} state={state} "
+              f"{'OK' if admission_engage_ok else 'FAIL'}")
+
+        # Independent confirmation: the daemon's own decode-filter state must now list
+        # Charlie's entity in AllowedEntities — proof the admission actually mutated
+        # IDecodeFilterStore, not just that this one decode happened to slip through.
+        filter_after = http_get("/api/v1/decode-filter")
+        admitted_entities = filter_after.get("allowedEntities") or []
+        admission_state_ok = ENTITY_CHARLIE in admitted_entities and ENTITY_ALPHA not in admitted_entities
+        results.append((
+            "NewValueAdmission(FilterStateUpdated)", admission_state_ok,
+            ENTITY_CHARLIE if admission_state_ok else "(not admitted)",
+            json.dumps(admitted_entities)))
+        print(f"[NewValueAdmission(FilterStateUpdated)] admitted={admission_state_ok} "
+              f"allowedEntities={admitted_entities}")
+
         http_post("/api/v1/tx/abort")
         http_post("/api/v1/decode-filter", {})
 
@@ -392,10 +461,13 @@ def main():
         cq_detections = log_text.count("QsoAnswererService: CQ detected from")
         bravo_detections = log_text.count(f"CQ detected from {CALLSIGN_BRAVO}")
         alpha_detections = log_text.count(f"CQ detected from {CALLSIGN_ALPHA}")
+        charlie_detections = log_text.count(f"CQ detected from {CALLSIGN_CHARLIE}")
         cross_check_note = (
             f"Independent log cross-check: {cq_detections} total CQ-detected log lines, "
-            f"{bravo_detections} for {CALLSIGN_BRAVO}, {alpha_detections} for {CALLSIGN_ALPHA} "
-            f"(expected: {len(AXES)}, {len(AXES)}, 0 respectively)."
+            f"{bravo_detections} for {CALLSIGN_BRAVO}, {alpha_detections} for {CALLSIGN_ALPHA}, "
+            f"{charlie_detections} for {CALLSIGN_CHARLIE} "
+            f"(expected: {len(AXES) + 1}, {len(AXES)}, 1 [Phase 7's excluded-Alpha decode], "
+            "1 respectively)."
         )
         print(cross_check_note)
 
@@ -404,9 +476,12 @@ def main():
             extra_notes=cross_check_note + (
                 "\n\nIsolated region override (this run only, never touching production "
                 f"`callsign-regions.json`): `{CALLSIGN_ALPHA}` -> `{ENTITY_ALPHA}` (EU/14/27), "
-                f"`{CALLSIGN_BRAVO}` -> `{ENTITY_BRAVO}` (NA/33/10). Isolated ADIF pre-seed: one "
-                f"prior QSO for `{CALLSIGN_ALPHA}` so the worked-before axes have something real "
-                "to filter on."
+                f"`{CALLSIGN_BRAVO}` -> `{ENTITY_BRAVO}` (NA/33/10), "
+                f"`{CALLSIGN_CHARLIE}` -> `{ENTITY_CHARLIE}` (AS/24/44). Isolated ADIF pre-seed: "
+                f"one prior QSO for `{CALLSIGN_ALPHA}` so the worked-before axes have something "
+                "real to filter on. Phase 7 (fix-decode-filter-new-value-admission): "
+                f"`{CALLSIGN_CHARLIE}` is never decoded before Phase 7, proving genuine "
+                "never-before-seen-this-session admission, not a pre-warmed seen-set."
             ))
         print(f"Report written to {fname}")
         return 0 if all_ok else 1

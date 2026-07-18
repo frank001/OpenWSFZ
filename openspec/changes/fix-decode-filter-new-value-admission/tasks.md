@@ -59,7 +59,7 @@
 
 ## 4. Frontend — comment/doc cleanup only (no behavioral change)
 
-- [ ] 4.1 Update `web/js/main.js`'s `FILTER_AXES`/`seenEntities`-adjacent comments to state plainly
+- [x] 4.1 Update `web/js/main.js`'s `FILTER_AXES`/`seenEntities`-adjacent comments to state plainly
       that this client-side tracking is for popup checkbox candidates only and is no longer
       load-bearing for filter correctness — the daemon is authoritative for admission. No
       functional change to `main.js`, `decodeFilter.js`, or `decodeFilter.test.js`.
@@ -70,7 +70,7 @@
 
 ## 5. Live verification (standing policy)
 
-- [ ] 5.1 Add a new scenario to `qa/decode-filter-synth-verify/live_verify_9_axes.py`: narrow a
+- [x] 5.1 Add a new scenario to `qa/decode-filter-synth-verify/live_verify_9_axes.py`: narrow a
       DXCC-entity (or continent/CQz/ITz) axis to exclude at least one already-seen value, then
       inject a synthetic decode for a station resolving to an entity/continent/zone never before
       seen this run, and assert it is (a) visible in the decode table and (b) still engageable by
@@ -81,7 +81,7 @@
 
 ## 6. Requirements, version, and gate compliance
 
-- [ ] 6.1 Add **FR-061** to `REQUIREMENTS.md` describing daemon-side auto-admission of
+- [x] 6.1 Add **FR-061** to `REQUIREMENTS.md` describing daemon-side auto-admission of
       previously-unseen attribute values into a narrowed-but-non-empty `DecodeFilterState` axis,
       including the explicit-empty-axis exception (design.md Decision 5), following the exact
       table-row format of neighboring FR entries (e.g. FR-060).
@@ -89,7 +89,7 @@
     without their required `**User-facing:**` declaration or VERSION bump and had to be
     corrected post-merge (see `fix-jump-in-rr73-adif-capture` and
     `engagement-target-validation` in project history). Do it here, first, not as a follow-up.
-- [ ] 6.2 Add a changelog row to `REQUIREMENTS.md`'s version-history table describing this fix,
+- [x] 6.2 Add a changelog row to `REQUIREMENTS.md`'s version-history table describing this fix,
       with an explicit `**User-facing:** yes` (an operator narrowing a decode-panel filter axis
       will now keep seeing/engaging brand-new entities/zones they haven't yet explicitly excluded
       — a real behavior change from today's silent-hide) and bump **VERSION** accordingly (minor
