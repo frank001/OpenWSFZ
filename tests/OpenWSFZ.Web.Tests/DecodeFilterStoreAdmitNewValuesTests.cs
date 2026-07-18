@@ -202,8 +202,20 @@ public sealed class DecodeFilterStoreAdmitNewValuesTests
 
         // No exception propagated from any task above (xUnit would already have failed this
         // test if one had). Whichever writer's state landed last is a fully valid, internally
-        // consistent DecodeFilterState — never a torn/partial HashSet.
+        // consistent DecodeFilterState — never a torn/partial HashSet. Exact membership is
+        // intentionally NOT asserted beyond that: AllowedItuZones may legitimately end up as a
+        // single-item set from the last Set() to run, or a two-item set if the one
+        // AdmitNewValues call that wins the race to admit ItuZone 27 (see AdmitOne,
+        // WebApp.cs:1961) happens to land after that last Set() — both are correct, race-safe
+        // outcomes under DecodeFilterStore's documented last-write-wins-under-one-lock contract
+        // (design.md Decision 3, fix-decode-filter-new-value-admission). See N8,
+        // openspec/qa-backlog.md, for the full analysis of why a stricter assertion here is
+        // wrong, not merely flaky.
         store.Current.Should().NotBeNull();
-        store.Current.AllowedItuZones.Should().NotBeNull().And.HaveCount(1);
+        var finalItuZones = store.Current.AllowedItuZones;
+        finalItuZones.Should().NotBeNull();
+        finalItuZones!.Should().NotBeEmpty();
+        finalItuZones.Should().BeSubsetOf(Enumerable.Range(0, 20).Append(27),
+            "every member must be either a value some Set() call wrote or the one admitted ItuZone (27) — never a corrupted/unrelated value");
     }
 }
