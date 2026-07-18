@@ -219,17 +219,23 @@ jobs:
         run: dotnet build -c Release --no-restore
 
       # -----------------------------------------------------------------
-      # AOT publish — must run BEFORE dotnet test so the E2E tests can
-      # find the published binary at bin/Release/net10.0/<rid>/publish/.
-      # Also exercises the AOT toolchain on each OS (build-pipeline spec).
+      # Self-contained (non-AOT) publish — dev-tasks/2026-07-18-self-contained-
+      # non-aot-working-binary.md. Must run BEFORE dotnet test so the E2E
+      # tests can find the published binary at the DEFAULT
+      # bin/Release/net10.0/<rid>/publish/. OpenWSFZ.Daemon.csproj switches
+      # PublishAot on for ANY RID-targeted publish, self-contained or not, but
+      # NAudio's [ComImport] WASAPI COM activation is incompatible with Native
+      # AOT and crashes real capture hardware on Windows. This step overrides
+      # PublishAot at the command line (global properties beat the project
+      # file's conditional PropertyGroup) via tools/publish_selfcontained.py
+      # — this is the one standalone binary this project actually ships.
+      # DaemonE2ETests, BackgroundColdStartE2ETests, and
+      # SelfContainedNonAotE2ETests (the last of which also hits the
+      # audio-device endpoints to prove the WASAPI COM-activation path
+      # doesn't crash) all launch this same binary.
       # -----------------------------------------------------------------
-      - name: AOT publish (Daemon)
-        run: >
-          dotnet publish src/OpenWSFZ.Daemon
-          -c Release
-          -r ${{ matrix.rid }}
-          --self-contained
-          -p:PublishAot=true
+      - name: Self-contained (non-AOT) publish (Daemon)
+        run: python3 tools/publish_selfcontained.py --rid ${{ matrix.rid }}
 
       - name: Upload Linux daemon binary
         if: runner.os == 'Linux'
@@ -240,28 +246,23 @@ jobs:
           if-no-files-found: error
 
       # -----------------------------------------------------------------
-      # Self-contained (non-AOT) publish — dev-tasks/2026-07-18-self-contained-
-      # non-aot-working-binary.md. OpenWSFZ.Daemon.csproj switches PublishAot on
-      # for ANY RID-targeted publish, self-contained or not (see the AOT publish
-      # step above) — but NAudio's [ComImport] WASAPI COM activation is
-      # incompatible with Native AOT and crashes real capture hardware on
-      # Windows. This step overrides PublishAot at the command line (global
-      # properties beat the project file's conditional PropertyGroup) and
-      # publishes to a SEPARATE output directory (publish-selfcontained/, not
-      # publish/) so it can never clobber the AOT binary the existing E2E tests
-      # above depend on. SelfContainedNonAotE2ETests (in the dotnet test step
-      # below) launches this binary and hits the audio-device endpoints to
-      # prove the WASAPI COM-activation path doesn't crash — the exact failure
-      # mode this task fixes.
+      # Native AOT structural prove-out — deliberately secondary. Publishes
+      # to a SEPARATE output directory (publish-aot/, never the default
+      # publish/ the step above uses) so it can never clobber the working
+      # binary. Exercises the AOT toolchain on each OS (build-pipeline spec)
+      # and is consumed by nothing else — Windows WASAPI audio is
+      # known-broken under it (see dev-tasks/2026-07-18-aot-comwrappers-
+      # audio-migration.md, the deferred real fix). Not launched by any E2E
+      # test; a compile-check only.
       # -----------------------------------------------------------------
-      - name: Self-contained (non-AOT) publish (Daemon)
+      - name: AOT publish (Daemon)
         run: >
           dotnet publish src/OpenWSFZ.Daemon
           -c Release
           -r ${{ matrix.rid }}
           --self-contained
-          -p:PublishAot=false
-          -o src/OpenWSFZ.Daemon/bin/Release/net10.0/${{ matrix.rid }}/publish-selfcontained/
+          -p:PublishAot=true
+          -o src/OpenWSFZ.Daemon/bin/Release/net10.0/${{ matrix.rid }}/publish-aot/
 
       # -----------------------------------------------------------------
       # Gate G1: Build-and-test — all matrix legs

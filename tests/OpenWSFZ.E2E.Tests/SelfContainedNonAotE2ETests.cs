@@ -6,10 +6,10 @@ using Xunit;
 namespace OpenWSFZ.E2E.Tests;
 
 /// <summary>
-/// End-to-end tests that launch the <b>self-contained, non-AOT</b> published daemon binary as a
-/// subprocess — a distinct publish output from the AOT-published binary
-/// <see cref="DaemonE2ETests"/> exercises (see
-/// dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md).
+/// End-to-end tests that launch the same self-contained, non-AOT published daemon binary as
+/// <see cref="DaemonE2ETests"/> (the default <c>publish/</c> output — see
+/// dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md), specifically to exercise the
+/// audio-device endpoints as a targeted regression guard.
 ///
 /// <para>
 /// Root cause this guards against: <c>OpenWSFZ.Daemon.csproj</c> switches on
@@ -18,15 +18,18 @@ namespace OpenWSFZ.E2E.Tests;
 /// <c>"Common Language Runtime detected an invalid program"</c> from
 /// <c>MMDeviceEnumeratorComObject..ctor()</c> the instant real WASAPI code runs in an
 /// AOT-compiled binary. The audio-device endpoint calls below are the check that actually
-/// matters: they force the WASAPI COM-activation path to run against the non-AOT binary,
-/// proving it doesn't crash — the exact failure mode reported the night this task was written.
+/// matters: they force the WASAPI COM-activation path to run, proving it doesn't crash — the
+/// exact failure mode reported the night this task was written. The Native AOT structural
+/// prove-out binary (a separate <c>publish-aot/</c> output — see
+/// dev-tasks/2026-07-18-aot-comwrappers-audio-migration.md, deferred) is known-broken for this
+/// and is deliberately never launched by any E2E test.
 /// </para>
 ///
 /// <para>
-/// Each test spawns its daemon on a reserved ephemeral port with its own isolated temp config
-/// file (<see cref="DaemonProcess.ReserveEphemeralPort"/> + a per-test temp directory), rather
-/// than the shared default port/config <see cref="DaemonE2ETests"/> uses. xUnit runs different
-/// test classes in separate collections that may execute concurrently — this class and
+/// Each test spawns its own daemon on a reserved ephemeral port with its own isolated temp
+/// config file (<see cref="DaemonProcess.ReserveEphemeralPort"/> + a per-test temp directory),
+/// rather than the shared default port/config <see cref="DaemonE2ETests"/> uses. xUnit runs
+/// different test classes in separate collections that may execute concurrently — this class and
 /// <see cref="DaemonE2ETests"/> both spawn a live daemon, and without isolation they raced each
 /// other for the same default port and the same default config file, causing spurious welcome
 /// banner timeouts when the full suite ran (`dotnet test OpenWSFZ.slnx`) despite each class
@@ -36,8 +39,6 @@ namespace OpenWSFZ.E2E.Tests;
 [Trait("Category", "E2E")]
 public sealed class SelfContainedNonAotE2ETests
 {
-    private const string PublishSubdir = "publish-selfcontained";
-
     [Fact(DisplayName =
         "self-contained non-AOT publish: welcome banner appears on stdout within 10 seconds")]
     public async Task WelcomeBanner_AppearsOnStdoutWithinTimeout()
@@ -115,7 +116,6 @@ public sealed class SelfContainedNonAotE2ETests
 
             return DaemonProcess.StartAsync(
                 startupTimeout: TimeSpan.FromSeconds(10),
-                publishSubdir: PublishSubdir,
                 explicitPort: port,
                 configPath: configPath);
         }

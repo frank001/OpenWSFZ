@@ -7,9 +7,10 @@ using System.Text;
 namespace OpenWSFZ.E2E.Tests;
 
 /// <summary>
-/// Launches the AOT-published <c>OpenWSFZ.Daemon</c> binary as a subprocess,
-/// waits for the welcome banner on stdout, and exposes the bound port for tests.
-/// Disposes the process (with SIGKILL / Kill) in a <see langword="finally"/> block.
+/// Launches the self-contained, non-AOT <c>OpenWSFZ.Daemon</c> binary (the default
+/// <c>publish/</c> output — see dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md)
+/// as a subprocess, waits for the welcome banner on stdout, and exposes the bound port for
+/// tests. Disposes the process (with SIGKILL / Kill) in a <see langword="finally"/> block.
 /// </summary>
 public sealed class DaemonProcess : IAsyncDisposable
 {
@@ -31,11 +32,14 @@ public sealed class DaemonProcess : IAsyncDisposable
     /// <param name="startupTimeout">How long to wait for the welcome banner before failing.</param>
     /// <param name="ct">Cancellation token for the banner wait.</param>
     /// <param name="publishSubdir">
-    /// Which publish output to launch — defaults to <c>"publish"</c> (the AOT-published
-    /// binary). Pass <c>"publish-selfcontained"</c> to launch the self-contained, non-AOT
-    /// binary instead (see dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md and
-    /// <see cref="SelfContainedNonAotE2ETests"/>) — a distinct output directory so the two
-    /// publishes never clobber each other.
+    /// Which publish output to launch — defaults to <c>"publish"</c> (the self-contained,
+    /// non-AOT binary this project actually ships; see
+    /// dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md). Pass
+    /// <c>"publish-aot"</c> to launch the Native AOT structural-prove-out binary instead —
+    /// a distinct output directory so the two publishes never clobber each other. The AOT
+    /// binary is known-broken for Windows WASAPI audio (see
+    /// dev-tasks/2026-07-18-aot-comwrappers-audio-migration.md, deferred); no current E2E
+    /// test launches it, this option exists for completeness/future use.
     /// </param>
     /// <param name="explicitPort">
     /// Explicit <c>--port</c> to pass the daemon, or <see langword="null"/> to let it fall back
@@ -115,10 +119,11 @@ public sealed class DaemonProcess : IAsyncDisposable
     /// </summary>
     /// <param name="publishSubdir">
     /// Publish output directory name under <c>&lt;rid&gt;/</c> — <c>"publish"</c> for the
-    /// AOT-published binary (default, matches <see cref="BackgroundColdStartE2ETests"/>'s
-    /// no-arguments call), or <c>"publish-selfcontained"</c> for the self-contained non-AOT
-    /// binary. See dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md — the two
-    /// publish outputs are kept in separate directories deliberately so one publish can never
+    /// self-contained, non-AOT binary (default, matches
+    /// <see cref="BackgroundColdStartE2ETests"/>'s no-arguments call), or
+    /// <c>"publish-aot"</c> for the Native AOT structural-prove-out binary. See
+    /// dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md — the two publish
+    /// outputs are kept in separate directories deliberately so one publish can never
     /// silently clobber the other's binary.
     /// </param>
     internal static string ResolveBinaryPath(string publishSubdir = "publish")
@@ -136,10 +141,10 @@ public sealed class DaemonProcess : IAsyncDisposable
 
         if (!File.Exists(path))
         {
-            var publishCommand = publishSubdir == "publish-selfcontained"
-                ? "dotnet publish src/OpenWSFZ.Daemon -c Release -r <rid> --self-contained -p:PublishAot=false " +
+            var publishCommand = publishSubdir == "publish-aot"
+                ? "dotnet publish src/OpenWSFZ.Daemon -c Release -r <rid> --self-contained -p:PublishAot=true " +
                   $"-o src/OpenWSFZ.Daemon/bin/Release/net10.0/<rid>/{publishSubdir}/"
-                : "dotnet publish src/OpenWSFZ.Daemon -c Release -r <rid> --self-contained before running E2E tests.";
+                : "python3 tools/publish_selfcontained.py --rid <rid> before running E2E tests.";
 
             throw new FileNotFoundException(
                 $"Published binary not found at '{path}'. Run: {publishCommand}",

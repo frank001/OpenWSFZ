@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 publish_selfcontained.py — publish OpenWSFZ.Daemon self-contained WITHOUT
-Native AOT, to a distinct output directory from the AOT publish.
+Native AOT, to the default publish output directory.
 
 Background (dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md):
 `OpenWSFZ.Daemon.csproj` sets `<PublishAot Condition="'$(RuntimeIdentifier)'!=''">
@@ -14,10 +14,18 @@ Windows binary is this non-AOT self-contained publish, produced by overriding
 PublishAot at the command line (global properties beat the project file's
 conditional PropertyGroup).
 
-This script is the single source of truth for that command — README.md, CI
-(.github/workflows/ci.yml), and tools/pre_merge_check.py all either call this
-script directly or document the identical command line, so there is exactly
-one place to update if the command ever needs to change.
+This is the primary, default publish output — `bin/Release/net10.0/<rid>/publish/`
+— the one binary this project ships and expects people to actually run. The
+Native AOT build is the secondary, deliberately out-of-the-way one (see
+`tools/pre_merge_check.py`'s `step_aot()` and CI's "AOT publish (Daemon)" step,
+both of which publish to a separate `publish-aot/` directory instead) — it
+exists only as a toolchain compile-check for the deferred ComWrappers work, not
+as something anyone should run.
+
+This script is the single source of truth for the working-binary command —
+README.md, CI (.github/workflows/ci.yml), and tools/pre_merge_check.py all
+either call this script directly or document the identical command line, so
+there is exactly one place to update if the command ever needs to change.
 
 Usage:
   python3 tools/publish_selfcontained.py [--rid <rid>]
@@ -26,10 +34,9 @@ Usage:
                 osx-arm64, ...). Defaults to the local platform's RID if
                 omitted.
 
-Output directory (deliberately distinct from the AOT publish's default
-`bin/Release/net10.0/<rid>/publish/`, so this publish can never silently
-clobber the AOT binary the existing E2E tests expect):
-  src/OpenWSFZ.Daemon/bin/Release/net10.0/<rid>/publish-selfcontained/
+Output directory (the standard MSBuild default for this project/config/RID —
+no -o override, deliberately, since this is now the canonical publish output):
+  src/OpenWSFZ.Daemon/bin/Release/net10.0/<rid>/publish/
 
 Exit codes
   0  publish succeeded
@@ -44,7 +51,6 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DAEMON_PROJECT = os.path.join("src", "OpenWSFZ.Daemon")
-PUBLISH_SUBDIR = "publish-selfcontained"
 
 
 def local_rid():
@@ -60,15 +66,12 @@ def local_rid():
 
 
 def publish(rid):
-    out_dir = os.path.join(
-        DAEMON_PROJECT, "bin", "Release", "net10.0", rid, PUBLISH_SUBDIR) + os.sep
     cmd = [
         "dotnet", "publish", DAEMON_PROJECT,
         "-c", "Release",
         "-r", rid,
         "--self-contained",
         "-p:PublishAot=false",
-        "-o", out_dir,
     ]
     print(f"$ {' '.join(cmd)}")
     return subprocess.call(cmd, cwd=REPO_ROOT)
