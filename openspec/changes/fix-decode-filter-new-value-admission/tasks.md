@@ -75,9 +75,11 @@
       inject a synthetic decode for a station resolving to an entity/continent/zone never before
       seen this run, and assert it is (a) visible in the decode table and (b) still engageable by
       the active QSO controller service — not silently excluded.
-- [ ] 5.2 Re-run `qa/decode-filter-synth-verify/live_verify_9_axes.py` in full (real isolated
+- [x] 5.2 Re-run `qa/decode-filter-synth-verify/live_verify_9_axes.py` in full (real isolated
       daemon, real virtual-audio-cable injection, real native decoder, real API) per the standing
       `decode-panel-filtering` live-verification policy. Attach the report.
+      Result: **PASS**, all 11 scenarios (9 axes + 2 new-value-admission checks). Report:
+      `qa/decode-filter-synth-verify/live-reports/2026-07-18T113345Z-6ba513e.md`.
 
 ## 6. Requirements, version, and gate compliance
 
