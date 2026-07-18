@@ -251,3 +251,50 @@ text, and platform *before* retrying — the retry-and-move-on pattern is exactl
 undiagnosed across two separate PRs (#54 and #63) before it was finally actioned. Without that
 detail this entry cannot be distinguished from ordinary build-lock contention, nor confirmed as a
 genuine N6 regression.
+
+---
+
+## N8 — `DecodeFilterStoreAdmitNewValuesTests`' 3.6 concurrency test asserts an invariant the production code never promised
+
+**Status:** OPEN — found 2026-07-18 on the `qso-transcript-panel` (PR #85) merge-to-main CI run;
+not yet fixed.
+**Severity:** Low (test-only defect; the underlying `DecodeFilterStore` behaviour it misjudges is
+already documented, accepted, race-safe production behaviour — no production impact)
+**Source:** QA, merge-to-main CI run for PR #85 (`feat/qso-transcript-panel`, unrelated change —
+see below), `ubuntu-latest`, run
+[29649266618](https://github.com/frank001/OpenWSFZ/actions/runs/29649266618)
+**File:** `tests/OpenWSFZ.Web.Tests/DecodeFilterStoreAdmitNewValuesTests.cs:176` — `FR-061: 3.6:
+concurrent Set calls racing AdmitNewValues never throw or corrupt internal state`
+
+Confirmed unrelated to PR #85's own changes — that PR touches zero `.cs` files, and this test
+belongs to `fix-decode-filter-new-value-admission` (**FR-061**, PR #83), which merged to `main`
+five hours earlier with this exact test green on all three platforms, both on its own PR checks
+and its archive-commit run. The test simply lost a timing race it was always exposed to.
+
+**Failure observed:**
+```
+Expected store.Current.AllowedItuZones to contain 1 item(s), but found 2: {0, 27}.
+```
+
+**Root cause:** the test seeds `AllowedEntities = {"Seed"}`, fires 100 concurrent
+`AdmitNewValues` calls (each `Entity{i}`, all sharing `ItuZone: 27`) against 20 concurrent
+`Set()` calls (each a whole-object replace to `AllowedItuZones = {i}`). `DecodeFilterStore.Set`
+and `.AdmitNewValues` (`src/OpenWSFZ.Web/WebApp.cs:1910`/`1916`) share one lock, so there is
+never torn/corrupted state — the test's own headline claim holds. But its final assertion
+(`store.Current.AllowedItuZones` must have exactly 1 item) assumes the *last* `Set()` call to run
+is authoritative. That assumption is false whenever the single successful admission of `ItuZone
+27` (only one of the 100 racing tasks wins `_seenItuZones.Add(27)` — `WebApp.cs:1964`) happens to
+acquire the lock *after* the last `Set()`, which is a legal interleaving under `Task.WhenAll` with
+no ordering guarantee between the two task groups. The test's own preceding comment
+(`DecodeFilterStoreAdmitNewValuesTests.cs:184-188`) already disclaims this outcome — "not that
+every admission survives an arbitrary racing Set" — while the assertion two lines later
+contradicts it. `{0, 27}` is a fully valid, uncorrupted `DecodeFilterState`; the test is simply
+asserting a stronger guarantee than the code (correctly) provides.
+
+**Suggested fix:** loosen the assertion to match what the test's own comment already says it is
+proving — e.g. assert `AllowedItuZones` is non-null, non-empty, and a subset of `{0..19} ∪ {27}`,
+rather than an exact count of 1. Do **not** "fix" `DecodeFilterStore` itself — its current
+last-write-wins-under-one-lock behaviour is the intentional, already-documented contract (see
+`DecodeFilterStoreAdmitNewValuesTests.cs:179-188`'s own comment and design.md Decision 3 for
+`fix-decode-filter-new-value-admission`); changing it would be solving a problem that doesn't
+exist and risks masking a real future regression behind an artificially loosened guard.
