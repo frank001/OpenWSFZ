@@ -1,3 +1,5 @@
+**User-facing:** no
+
 ## Why
 
 `QsoAnswererService.ExecuteJumpInAsync`'s `EngagePoint.SendRr73` case transmits RR73 and aborts

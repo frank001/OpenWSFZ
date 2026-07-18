@@ -124,11 +124,19 @@
 - [x] 7.2 Push and confirm CI green on all platforms. → Pushed; PR #82 opened
   (https://github.com/frank001/OpenWSFZ/pull/82). CI status to be confirmed once checks run.
 - [x] 7.3 Open PR to `main`; request QA gate review. → PR #82:
-  https://github.com/frank001/OpenWSFZ/pull/82
-- [ ] 7.4 After merge, run `/opsx:archive` for this change (sync the `qso-answerer` delta spec
+  https://github.com/frank001/OpenWSFZ/pull/82. QA review found and fixed three issues before
+  approval: a Gate G9b violation inherited from an unpushed `main` commit (`b2cef04`'s archived
+  `fix-adif-partner-grid-capture` proposal was missing its `**User-facing:**` declaration — fixed
+  directly on `main`, commit `312849e`), a real third-party callsign (`G7LHK`) in this change's own
+  `proposal.md`/`tasks.md` and in the pre-existing `dev-tasks/2026-07-16-jump-in-sendrr73-no-adif-
+  record.md` (NFR-021 — redacted to the synthetic `Q7GHK` stand-in, commits `6e6e22e`/`312849e`),
+  and an inaccurate "zero behavior change" claim about the `BuildAndWriteQsoRecordAsync` extraction
+  (corrected inline in `design.md`/this file's task 4.2 — see there for detail). Merged as
+  `dc32a3f`.
+- [x] 7.4 After merge, run `/opsx:archive` for this change (sync the `qso-answerer` delta spec
   into `openspec/specs/qso-answerer/spec.md`, confirm `openspec validate --strict --all`
   before/after).
-- [ ] 7.5 Update `dev-tasks/2026-07-16-jump-in-sendrr73-no-adif-record.md`'s status to reflect
+- [x] 7.5 Update `dev-tasks/2026-07-16-jump-in-sendrr73-no-adif-record.md`'s status to reflect
   the merged fix, consistent with this project's established convention of leaving dev-task docs
   as originally written and tracking resolution in `MEMORY.md` instead (see prior precedent:
-  `fix-adif-partner-grid-capture` task 8.5).
+  `fix-adif-partner-grid-capture` task 8.5). Resolution tracked in `MEMORY.md`.
