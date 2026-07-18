@@ -97,13 +97,20 @@
   (a known environmental hazard, not a code issue — confirm by checking for a process already
   bound to the configured port before assuming a regression), note that explicitly rather than
   treating it as a defect.
-- [ ] 6.5 Manual/hardware (recommended, given the source defect was found via a real QSO):
+- [x] 6.5 Manual/hardware (recommended, given the source defect was found via a real QSO):
   recreate the shape of the original incident — let a caller-side session's retry/watchdog cycle
   expire mid-QSO, then double-click the partner's subsequent `RRR`/`R±NN` reply in the decode
   panel — and confirm `ADIF.log` gains a well-formed record with a real (non-placeholder)
-  `RST_RCVD`. → DEFERRED: requires live hardware/real FT8 traffic and Captain's presence; not
-  reproducible in this environment. Tracked as a follow-up acceptance step for the Captain before
-  or shortly after merge, not a blocker for the automated gates above.
+  `RST_RCVD`. → DONE, live hardware-in-the-loop, real Release daemon + real audio output device:
+  `qa/jump-in-rr73-adif-capture-live-verify/live_verify_jumpin_rr73_adif.py` — **PASS**. Phase 1
+  recreated the precondition faithfully (real Caller CQ session, real 1-minute watchdog expiry,
+  caller-side abort with `abortReason: "Watchdog timeout"`, router auto-reverted to
+  Answerer/Idle). Phase 2a repeated the *exact* payload shape from the original G7LHK incident (a
+  bare `"RRR"`, matching `dev-tasks/2026-07-16-jump-in-sendrr73-no-adif-record.md`'s evidence log)
+  via `POST /api/v1/tx/engage-decode`: real RR73 transmitted, real ADIF write —
+  `<CALL:5>Q7GHK<RST_SENT:4>R+00<RST_RCVD:3>RRR...<EOR>`, no fabricated `+00`, no `GRIDSQUARE`.
+  Phase 2b repeated with a numeric roger report (`"R-05"`) confirming `RST_RCVD:-05` (leading `R`
+  stripped). Report: `qa/jump-in-rr73-adif-capture-live-verify/live-reports/2026-07-18T001228Z-bb18cb3.md`.
 
 ## 7. Housekeeping
 
