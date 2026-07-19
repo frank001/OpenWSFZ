@@ -805,9 +805,12 @@ public sealed class ExternalReportingServiceTests
         await sut.StopAsync(CancellationToken.None);
 
         // A Heartbeat/Status may or may not have raced ahead of the immediate StopAsync (timer
-        // loop scheduling is not deterministic) — assert Close is present, not that it's the
-        // only datagram.
-        var recv = await ReceiveAllAsync(listener, 3, TimeSpan.FromSeconds(3));
+        // loop scheduling is not deterministic), and StopAsync itself now sends Clear ahead of
+        // Close (fix-external-reporting-clear-and-reply-filter, task 1.2) — so up to 4 datagrams
+        // (Heartbeat, Status, Clear, Close) may arrive. Capturing only 3 here previously truncated
+        // Close off the end on a slower/differently-scheduled runner (observed on ubuntu-latest
+        // CI); assert Close is present, not that it's the only or the Nth datagram.
+        var recv = await ReceiveAllAsync(listener, 4, TimeSpan.FromSeconds(3));
         recv.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Close);
     }
 
