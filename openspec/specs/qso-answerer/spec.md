@@ -87,6 +87,26 @@ regression and SHALL NOT be treated as one.
 
 ---
 
+### Requirement: QsoAnswererService exposes its last transmitted message via IQsoController
+
+`QsoAnswererService` SHALL expose its existing internal `_lastTxMessage` field externally through
+`IQsoController.LastTxMessage`, with no change to how or when the field itself is set. That field
+is already set at every TX-composition site: the initial answer, the signal report reply (both the
+normal `WaitReport` reply and the `SendReport` mid-exchange jump-in case), and the final `73`.
+
+#### Scenario: LastTxMessage reflects the real transmitted report reply
+
+- **WHEN** `HandleWaitReportAsync` transmits `"Q1ABC PD2FZ R-13"` (the real measured report, per
+  `fix-tx-report-real-snr`)
+- **THEN** `LastTxMessage` SHALL be `"Q1ABC PD2FZ R-13"`
+
+#### Scenario: LastTxMessage is null before any transmission
+
+- **WHEN** `QsoAnswererService` has just started and has not yet transmitted anything
+- **THEN** `LastTxMessage` SHALL be `null`
+
+---
+
 ### Requirement: Auto-answer first decoded CQ
 
 While in `Idle` with `tx.autoAnswer = true`, the service SHALL inspect each decode batch for FT8 messages matching the CQ pattern (`CQ <callsign> <grid>`), skipping any CQ whose callsign is not currently visible/engageable under the active `DecodeFilterState` (`decode-panel-filtering` capability). On the first matching, non-filtered-out CQ, the service SHALL:
