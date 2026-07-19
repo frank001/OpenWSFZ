@@ -811,6 +811,20 @@
               backstop, but starting one requires this explicit opt-in.
             </p>
           </div>
+
+          <div class="field-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="ext-rep-restrict-replies-to-filter" />
+              Restrict external Reply to the current decode-panel filter
+            </label>
+            <p class="field-hint">
+              Unchecked (default): a third-party program can Reply to any currently decoded
+              station, regardless of what your own decode-panel filter is hiding. Checked: an
+              external Reply naming a filtered-out station is ignored, matching the decode panel's
+              own visibility exactly. Only applies while "Honour inbound commands" above is also
+              checked.
+            </p>
+          </div>
         </fieldset>
 
       </div><!-- /tab-external-programs -->

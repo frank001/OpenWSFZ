@@ -74,13 +74,15 @@ public sealed record ExternalReportingConfig
     /// </summary>
     [JsonConstructor]
     public ExternalReportingConfig(
-        bool                                    enabled               = false,
-        IReadOnlyList<ExternalReportingTarget>? targets               = null,
-        bool                                    honourInboundCommands = false)
+        bool                                    enabled                                = false,
+        IReadOnlyList<ExternalReportingTarget>? targets                                = null,
+        bool                                    honourInboundCommands                  = false,
+        bool                                    restrictExternalRepliesToDecodeFilter  = false)
     {
-        Enabled               = enabled;
-        Targets               = targets ?? [];
-        HonourInboundCommands = honourInboundCommands;
+        Enabled                                = enabled;
+        Targets                                = targets ?? [];
+        HonourInboundCommands                  = honourInboundCommands;
+        RestrictExternalRepliesToDecodeFilter  = restrictExternalRepliesToDecodeFilter;
     }
 
     /// <summary>
@@ -103,4 +105,20 @@ public sealed record ExternalReportingConfig
     /// it <em>on</em> requires explicit operator consent). Default: <c>false</c>.
     /// </summary>
     public bool HonourInboundCommands { get; init; } = false;
+
+    /// <summary>
+    /// When <c>false</c> (the default), an inbound Reply naming a callsign that is currently
+    /// hidden under the operator's decode-panel filter (<c>DecodeFilterState</c>) is still
+    /// honoured — an explicit external command is treated as authoritative regardless of what the
+    /// operator happens to have filtered from their own view. When <c>true</c>, the pre-existing
+    /// stricter behaviour is preserved: a filtered-out callsign is rejected exactly as an
+    /// unrecognised one would be. Only meaningful when <see cref="HonourInboundCommands"/> is also
+    /// <c>true</c> — Reply is discarded entirely before this flag is ever consulted otherwise.
+    /// Applies symmetrically to both the Answerer (<c>QsoAnswererService.TryEngageExternal</c>) and
+    /// Caller (<c>QsoCallerService.TryEngageExternalResponder</c>) external-reply engagement paths;
+    /// never affects the manual/browser engagement paths or the internal auto-answer/auto-call
+    /// automation scans, both of which continue to respect the decode-panel filter unconditionally
+    /// regardless of this flag (fix-external-reporting-clear-and-reply-filter change).
+    /// </summary>
+    public bool RestrictExternalRepliesToDecodeFilter { get; init; } = false;
 }

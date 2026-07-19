@@ -316,21 +316,50 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     public Task SelectResponderAsync(
         string callsign, double frequencyHz, DateTimeOffset responseCycleStart, CancellationToken ct)
     {
+        DecodeResult? recentDecode;
         lock (_stateLock)
         {
             if (_callerState != CallerState.WaitAnswer)
                 return Task.CompletedTask; // Guard: only valid in WaitAnswer
 
             // decode-panel-filtering: reject a call naming a currently filtered-out callsign —
-            // the filter applies uniformly regardless of partner-selection mode, not only to
-            // the automatic First path. No _pendingResponder is stored and no state transition
-            // occurs. Fails open when the callsign isn't in _recentResponderDecodes.
+            // unconditional for this entry point (the manual/browser call path — double-click,
+            // POST /api/v1/tx/select-responder), regardless of
+            // externalReporting.restrictExternalRepliesToDecodeFilter. That flag applies only to
+            // TryEngageExternalResponder's own, separate, conditional check below — never to this
+            // manual seam (fix-external-reporting-clear-and-reply-filter, design.md Decision 3).
+            // The filter applies uniformly regardless of partner-selection mode, not only to the
+            // automatic First path. Fails open when the callsign isn't in _recentResponderDecodes.
             var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
-            if (_recentResponderDecodes.TryGetValue(callsign, out var recentDecode) &&
-                !DecodeFilterEvaluator.IsVisible(recentDecode, filterState))
-            {
+            _recentResponderDecodes.TryGetValue(callsign, out recentDecode);
+            if (recentDecode is not null && !DecodeFilterEvaluator.IsVisible(recentDecode, filterState))
                 return Task.CompletedTask;
-            }
+        }
+
+        SelectResponderCore(callsign, frequencyHz, responseCycleStart, recentDecode);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Shared state-transition core for arming the pending responder — extracted from
+    /// <see cref="SelectResponderAsync"/> (fix-external-reporting-clear-and-reply-filter,
+    /// design.md Decision 3) so both the manual/browser entry point (via
+    /// <see cref="SelectResponderAsync"/>, which always applies the decode-panel filter first)
+    /// and the external-reply entry point (via <see cref="TryEngageExternalResponder"/>, which
+    /// applies its own, separately-configurable filter check) share exactly one implementation of
+    /// "arm the pending responder and wake the service," rather than duplicating it. Re-checks
+    /// <see cref="CallerState.WaitAnswer"/> under the lock — mirroring
+    /// <c>QsoAnswererService.ArmPendingTarget</c>'s identical pattern — since both callers only
+    /// verified state in an earlier, separate lock acquisition; returns <c>false</c> if state
+    /// changed concurrently, in which case no field is written and no wakeup is posted.
+    /// </summary>
+    private bool SelectResponderCore(
+        string callsign, double frequencyHz, DateTimeOffset responseCycleStart, DecodeResult? recentDecode)
+    {
+        lock (_stateLock)
+        {
+            if (_callerState != CallerState.WaitAnswer)
+                return false;
 
             // Re-derive the partner's grid (if any) from the raw decode already recorded for
             // this responder — TryParseResponder already validated this exact message once
@@ -358,29 +387,31 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         // Wake the service so it can fire TX within the current cycle window.
         var wakeupCycleStart = RoundDownTo15s(DateTimeOffset.UtcNow) - TimeSpan.FromSeconds(15);
         _wakeupChannel.Writer.TryWrite(new DecodeBatch(wakeupCycleStart, []));
-
-        return Task.CompletedTask;
+        return true;
     }
 
     /// <summary>
     /// External reply engages a specific responder to our CQ (<c>external-reporting</c>
-    /// capability's inbound Reply command, gridtracker-udp-reporting change). Reuses the
-    /// existing, unmodified <see cref="SelectResponderAsync"/> seam (design.md Decision 4) with
-    /// a frequency resolved from the most recently observed decode of this callsign responding
-    /// to our CQ (<see cref="_recentResponderDecodes"/>, populated by
-    /// <see cref="HandleWaitAnswerAsync"/>'s None-mode responder tracking).
+    /// capability's inbound Reply command, gridtracker-udp-reporting change; updated by
+    /// fix-external-reporting-clear-and-reply-filter). Calls the shared
+    /// <see cref="SelectResponderCore"/> directly — rather than through
+    /// <see cref="SelectResponderAsync"/> as originally implemented — with a frequency resolved
+    /// from the most recently observed decode of this callsign responding to our CQ
+    /// (<see cref="_recentResponderDecodes"/>, populated by <see cref="HandleWaitAnswerAsync"/>'s
+    /// None-mode responder tracking), because this path now applies its own,
+    /// separately-configurable decode-panel-filter check (see below) instead of
+    /// <see cref="SelectResponderAsync"/>'s unconditional one.
     /// </summary>
     /// <remarks>
-    /// Unlike <see cref="QsoAnswererService.TryEngageExternal"/> (which has five dedicated
-    /// scenarios in <c>specs/qso-answerer/spec.md</c>), this Caller-role path is not covered by
-    /// a formal delta-spec requirement — <c>proposal.md</c> describes it only as "reused,
-    /// unmodified." <paramref name="ct"/>'s cancellation cannot itself report a false return
-    /// from <see cref="SelectResponderAsync"/> (which returns <see cref="Task"/>, not
-    /// <see cref="Task{Boolean}"/>) — this method returns <c>true</c> once dispatched to a
-    /// responder observed this session, optimistically, mirroring how the HTTP
-    /// <c>select-responder</c> endpoint already treats the call as fire-and-forget.
+    /// Whether a filtered-out responder may still be engaged here depends on
+    /// <c>externalReporting.restrictExternalRepliesToDecodeFilter</c>: default <c>false</c>
+    /// bypasses the filter (an explicit external command is authoritative); opt-in <c>true</c>
+    /// restores the same rejection <see cref="SelectResponderAsync"/> always applies to the
+    /// manual/browser path. This flag has no effect on <see cref="SelectResponderAsync"/> itself
+    /// or on the <c>CallerPartnerSelect = First</c> automatic-selection path — both continue to
+    /// respect the active <see cref="DecodeFilterState"/> unconditionally.
     /// </remarks>
-    internal async Task<bool> TryEngageExternalResponder(string callsign, CancellationToken ct = default)
+    internal Task<bool> TryEngageExternalResponder(string callsign, CancellationToken ct = default)
     {
         DecodeResult? recent;
         lock (_stateLock)
@@ -390,7 +421,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 _logger.LogInformation(
                     "TryEngageExternalResponder: ignoring external reply for '{Callsign}' — not WaitAnswer (state={State}).",
                     callsign, _callerState);
-                return false;
+                return Task.FromResult(false);
             }
             _recentResponderDecodes.TryGetValue(callsign, out recent);
         }
@@ -400,7 +431,21 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             _logger.LogInformation(
                 "TryEngageExternalResponder: ignoring external reply — '{Callsign}' has not been observed responding to our CQ.",
                 callsign);
-            return false;
+            return Task.FromResult(false);
+        }
+
+        var restrictToFilter =
+            _configStore.Current.ExternalReporting?.RestrictExternalRepliesToDecodeFilter ?? false;
+        if (restrictToFilter)
+        {
+            var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+            if (!DecodeFilterEvaluator.IsVisible(recent, filterState))
+            {
+                _logger.LogInformation(
+                    "TryEngageExternalResponder: ignoring external reply for '{Callsign}' — filtered out under the active decode filter.",
+                    callsign);
+                return Task.FromResult(false);
+            }
         }
 
         // Approximate the response cycle as the most recently completed 15 s FT8 window: the
@@ -408,8 +453,14 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         // HTTP select-responder endpoint (which receives the exact cycle timestamp from the
         // browser's own WS-delivered decode data), an external command only carries a callsign.
         var responseCycleStart = RoundDownTo15s(DateTimeOffset.UtcNow) - TimeSpan.FromSeconds(15);
-        await SelectResponderAsync(callsign, recent.FreqHz, responseCycleStart, ct).ConfigureAwait(false);
-        return true;
+        var armed = SelectResponderCore(callsign, recent.FreqHz, responseCycleStart, recent);
+        if (!armed)
+        {
+            _logger.LogInformation(
+                "TryEngageExternalResponder: ignoring external reply for '{Callsign}' — state changed concurrently.",
+                callsign);
+        }
+        return Task.FromResult(armed);
     }
 
     /// <inheritdoc/>

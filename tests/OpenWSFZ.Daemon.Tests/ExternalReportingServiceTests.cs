@@ -146,9 +146,10 @@ public sealed class ExternalReportingServiceTests
             // The timer loop also fires an immediate Heartbeat+Status burst on start (heartbeat
             // interval is 30 s in CreateSut, but the FIRST tick always fires since
             // _lastHeartbeatSentUtc starts at DateTimeOffset.MinValue) — capture enough
-            // datagrams to see past that burst to the Clear+Decode pair.
-            var recv1 = await ReceiveAllAsync(listener1, 4, TimeSpan.FromSeconds(3));
-            var recv2 = await ReceiveAllAsync(listener2, 4, TimeSpan.FromSeconds(3));
+            // datagrams to see past that burst to the Decode datagram (no Clear is sent per cycle;
+            // see fix-external-reporting-clear-and-reply-filter).
+            var recv1 = await ReceiveAllAsync(listener1, 3, TimeSpan.FromSeconds(3));
+            var recv2 = await ReceiveAllAsync(listener2, 3, TimeSpan.FromSeconds(3));
 
             recv1.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Decode);
             recv2.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Decode);
@@ -444,8 +445,8 @@ public sealed class ExternalReportingServiceTests
         }
     }
 
-    [Fact(DisplayName = "AC-3: a batch of only unknown/synthetic decodes still sends Clear")]
-    public async Task Decode_AllResultsSuppressed_StillSendsClear()
+    [Fact(DisplayName = "fix-external-reporting-clear-and-reply-filter: no Clear is ever sent from the decode loop")]
+    public async Task Decode_AllResultsSuppressed_NeverSendsClear()
     {
         var port = GetFreeUdpPort();
         using var listener = new UdpClient(port);
@@ -476,10 +477,16 @@ public sealed class ExternalReportingServiceTests
                     Region: new RegionInfo(Continent: null, Entity: "Synthetic (R&R Study)", Synthetic: true)),
             ]));
 
-            var recv = await ReceiveAllAsync(listener, 3, TimeSpan.FromSeconds(3));
+            // No Clear datagram is ever sent from the decode loop (fix-external-reporting-clear-
+            // and-reply-filter) — only the initial Heartbeat+Status burst is expected here, so a
+            // short timeout requesting more datagrams than will ever arrive is deliberate: it
+            // proves absence rather than timing out waiting for a message that will never come.
+            var recv = await ReceiveAllAsync(listener, 3, TimeSpan.FromSeconds(1));
 
-            recv.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Clear,
-                "Clear must still fire every cycle regardless of how many decodes the exclusion filter removes");
+            recv.Should().NotContain(d => ReadMessageType(d) == WsjtxDatagram.MessageType.Clear,
+                "Clear must never be sent from the per-cycle decode loop, regardless of how many " +
+                "decodes the exclusion filter removes — real WSJT-X only sends Clear on an operator " +
+                "erase action or graceful shutdown");
             recv.Should().NotContain(d => ReadMessageType(d) == WsjtxDatagram.MessageType.Decode,
                 "every decode in this batch is unknown-region or synthetic — none may be sent");
         }
@@ -487,6 +494,55 @@ public sealed class ExternalReportingServiceTests
         {
             await sut.StopAsync(CancellationToken.None);
         }
+    }
+
+    [Fact(DisplayName = "fix-external-reporting-clear-and-reply-filter: StopAsync sends Clear to every enabled target")]
+    public async Task StopAsync_SendsClearToEveryEnabledTarget()
+    {
+        var port1 = GetFreeUdpPort();
+        var port2 = GetFreeUdpPort();
+        using var listener1 = new UdpClient(port1);
+        using var listener2 = new UdpClient(port2);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets:
+                [
+                    new ExternalReportingTarget("A", "127.0.0.1", port1, true),
+                    new ExternalReportingTarget("B", "127.0.0.1", port2, true),
+                ])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+
+        // Give the initial Heartbeat+Status burst a moment to go out before stopping — not a
+        // drain-to-an-exact-count (that was flaky: under xUnit's parallel run of other test
+        // classes competing for the thread pool, a slow/delayed leftover burst datagram could
+        // arrive just after an exact-count drain "finished," then crowd Close out of the
+        // post-stop receive's own exact cap). Instead, capture ONE generous batch spanning both
+        // the initial burst and the stop-time Clear/Close, and assert with Should().Contain —
+        // robust to extra noise, matching every other test in this file (e.g.
+        // TwoEnabledTargets_BothReceiveDecode above).
+        await Task.Delay(150);
+        await sut.StopAsync(CancellationToken.None);
+
+        var recv1 = await ReceiveAllAsync(listener1, 6, TimeSpan.FromSeconds(3));
+        var recv2 = await ReceiveAllAsync(listener2, 6, TimeSpan.FromSeconds(3));
+
+        recv1.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Clear,
+            "graceful shutdown SHALL send Clear to every enabled target");
+        recv1.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Close,
+            "graceful shutdown SHALL send Close alongside Clear, as before");
+        recv2.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Clear,
+            "graceful shutdown SHALL send Clear to every enabled target");
+        recv2.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Close,
+            "graceful shutdown SHALL send Close alongside Clear, as before");
     }
 
     [Fact(DisplayName = "AC-4: Status blanks DxCall/DxGrid for a synthetic active partner")]
