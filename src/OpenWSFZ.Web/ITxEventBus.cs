@@ -27,13 +27,20 @@ public interface ITxEventBus
     /// <c>#tx-enable-btn</c>'s bright-red/dark-red colour (dev-task
     /// 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A).
     /// </param>
+    /// <param name="lastTxMessage">
+    /// Current value of <see cref="OpenWSFZ.Abstractions.IQsoController.LastTxMessage"/> — the
+    /// exact text of the most recently transmitted message, or <c>null</c> if nothing has been
+    /// transmitted yet. Defaults to <see langword="null"/> so existing call sites need no
+    /// change (fix-tx-transcript-real-message, TX-D05).
+    /// </param>
     void Publish(
         string  state,
         string  role,
         string? partner,
         bool    autoAnswerEnabled,
         string? abortReason = null,
-        bool    keying = false);
+        bool    keying = false,
+        string? lastTxMessage = null);
 
     /// <summary>
     /// Broadcasts a <c>qsoReview</c> event to all connected WebSocket clients,

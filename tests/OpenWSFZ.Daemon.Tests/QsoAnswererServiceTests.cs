@@ -1133,10 +1133,10 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // (e.g. a stuck "true") would also fail this test.
         Received.InOrder(() =>
         {
-            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false);
-            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), true);
-            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false);
-            eventBus.Publish("WaitReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false, Arg.Any<string?>());
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), true, Arg.Any<string?>());
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false, Arg.Any<string?>());
+            eventBus.Publish("WaitReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false, Arg.Any<string?>());
         });
 
         await stopCts.CancelAsync();
@@ -1182,10 +1182,10 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // retry test above for the same expansion.
         Received.InOrder(() =>
         {
-            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
-            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>(), true);
-            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
-            eventBus.Publish("WaitRr73", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false, Arg.Any<string?>());
+            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>(), true,  Arg.Any<string?>());
+            eventBus.Publish("TxReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false, Arg.Any<string?>());
+            eventBus.Publish("WaitRr73", "answerer", PartnerCall, true, Arg.Any<string?>(), false, Arg.Any<string?>());
         });
 
         await stopCts.CancelAsync();
@@ -1236,10 +1236,10 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // makes — this is an additional, independent signal, not a replacement for it.
         Received.InOrder(() =>
         {
-            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false);
-            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), true);
-            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false);
-            eventBus.Publish("WaitReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false);
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false, Arg.Any<string?>());
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), true, Arg.Any<string?>());
+            eventBus.Publish("TxAnswer",   "answerer", PartnerCall, true, Arg.Any<string?>(), false, Arg.Any<string?>());
+            eventBus.Publish("WaitReport", "answerer", PartnerCall, true, Arg.Any<string?>(), false, Arg.Any<string?>());
         });
 
         // By the time WaitReport is reached, KeyDownAsync has returned — Keying is back to false.
@@ -1979,7 +1979,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             "answerer",
             Arg.Any<string?>(),
             false,
-            "Watchdog timeout");
+            "Watchdog timeout",
+            false,
+            Arg.Any<string?>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -2017,7 +2019,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             "answerer",
             Arg.Any<string?>(),
             false,
-            "Operator abort");
+            "Operator abort",
+            false,
+            Arg.Any<string?>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -2060,7 +2064,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             "answerer",
             Arg.Any<string?>(),
             false,
-            Arg.Is<string?>(r => r == null));
+            Arg.Is<string?>(r => r == null),
+            false,
+            Arg.Any<string?>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -3196,6 +3202,89 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         await mockAdif.Received(1).AppendQsoAsync(
             Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "R+00"));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── fix-tx-transcript-real-message (TX-D05): LastTxMessage externally observable ──
+
+    [Fact(DisplayName = "TX-D05: LastTxMessage reflects the real composed report reply after a normal WaitReport reply")]
+    public async Task LastTxMessage_ReflectsComposedReportReply_AfterNormalWaitReportReply()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        sut.LastTxMessage.Should().Be($"{PartnerCall} {OurCallsign} {OurGrid}",
+            "row 1 (answer) must also be tracked, not just the report row");
+
+        // Partner's signal report of us, Snr = +13 — distinct from every other decode in this
+        // test, so a passing assertion proves it is THIS decode's Snr being used.
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [new DecodeResult("12:00:00", 13, 0.1, AudioFreqHz, $"{OurCallsign} {PartnerCall} -09")]));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        sut.LastTxMessage.Should().Be($"{PartnerCall} {OurCallsign} R+13",
+            "must reflect the real composed report reply, not a stale answer or fixed R+00 placeholder");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "TX-D05: LastTxMessage reflects the real composed report reply after an EngagePoint.SendReport jump-in")]
+    public async Task LastTxMessage_ReflectsComposedReportReply_AfterSendReportJumpIn()
+    {
+        var txCfg = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            RetryCount      = 2,
+            WatchdogMinutes = 1,
+            QsoConfirmation = false,
+        };
+        var mockAdif = Substitute.For<IAdifLogWriter>();
+        mockAdif.AppendQsoAsync(Arg.Any<QsoRecord>()).Returns(Task.CompletedTask);
+
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(txCfg, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+
+        await sut.StartAsync(stopCts.Token);
+
+        sut.LastTxMessage.Should().BeNull("nothing has been transmitted yet this process lifetime");
+
+        sut.TestSetJumpTarget(
+            PartnerCall, AudioFreqHz, EngagePoint.SendReport, isAPhase: true, rawPayload: "-09", snr: 9);
+
+        // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ — fires immediately.
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
+            Array.Empty<DecodeResult>()));
+
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        sut.LastTxMessage.Should().Be($"{PartnerCall} {OurCallsign} R+09",
+            "the jump-in reply must be tracked exactly like the normal WaitReport reply path");
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

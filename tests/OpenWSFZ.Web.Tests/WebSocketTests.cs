@@ -323,6 +323,76 @@ public sealed class WebSocketTests : IClassFixture<RealServerFixture>
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
     }
 
+    // ── fix-tx-transcript-real-message (TX-D05): lastTxMessage wire format ────
+
+    [Fact(DisplayName = "TX-D05: lastTxMessage is included in txState frame when non-null")]
+    public async Task TxState_LastTxMessageIncludedWhenNonNull()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+        await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));   // drain initial status
+
+        // N6: must carry _fixture.AppScope — see WebSocket_DecodeEventReceived_AfterBroadcast.
+        var bus = new TxEventBus(_fixture.AppScope);
+        bus.Publish(
+            state: "TxReport", role: "caller", partner: "Q1TST", autoAnswerEnabled: true,
+            lastTxMessage: "Q1TST Q1OFZ -05");
+
+        string? txFrame = null;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (txFrame is null && DateTime.UtcNow < deadline)
+        {
+            var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+            if (frame is null) break;
+            using var doc = JsonDocument.Parse(frame);
+            if (doc.RootElement.GetProperty("type").GetString() == "txState")
+                txFrame = frame;
+        }
+
+        txFrame.Should().NotBeNull("txState frame must be received within the deadline");
+
+        using var txDoc = JsonDocument.Parse(txFrame!);
+        txDoc.RootElement.TryGetProperty("lastTxMessage", out var prop)
+            .Should().BeTrue("lastTxMessage must be present in the wire frame when non-null");
+        prop.GetString().Should().Be("Q1TST Q1OFZ -05",
+            "lastTxMessage must carry the exact real transmitted text");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "TX-D05: lastTxMessage is omitted from txState frame when null")]
+    public async Task TxState_LastTxMessageOmittedWhenNull()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(WsUri("/api/v1/ws"), CancellationToken.None);
+        await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));   // drain initial status
+
+        // N6: must carry _fixture.AppScope — see WebSocket_DecodeEventReceived_AfterBroadcast.
+        var bus = new TxEventBus(_fixture.AppScope);
+        bus.Publish(
+            state: "TxCq", role: "caller", partner: null, autoAnswerEnabled: true,
+            lastTxMessage: null);
+
+        string? txFrame = null;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (txFrame is null && DateTime.UtcNow < deadline)
+        {
+            var frame = await ReadFrameAsync(ws, timeout: TimeSpan.FromSeconds(2));
+            if (frame is null) break;
+            using var doc = JsonDocument.Parse(frame);
+            if (doc.RootElement.GetProperty("type").GetString() == "txState")
+                txFrame = frame;
+        }
+
+        txFrame.Should().NotBeNull("txState frame must be received within the deadline");
+
+        using var txDoc = JsonDocument.Parse(txFrame!);
+        txDoc.RootElement.TryGetProperty("lastTxMessage", out _)
+            .Should().BeFalse("lastTxMessage must be absent from the wire frame when null (WhenWritingNull policy)");
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
     // ── N6: cross-instance broadcast scope guard ──────────────────────────────
 
     [Fact(DisplayName = "N6: a second WebApp instance's decode/audioOffset/txState broadcasts do not reach this fixture's socket")]

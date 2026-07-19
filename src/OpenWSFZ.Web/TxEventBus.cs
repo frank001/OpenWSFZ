@@ -48,8 +48,10 @@ public sealed class TxEventBus : ITxEventBus
         string? partner,
         bool    autoAnswerEnabled,
         string? abortReason = null,
-        bool    keying = false)
-        => WebSocketHub.BroadcastTxState(_appScope, state, role, partner, autoAnswerEnabled, keying, abortReason);
+        bool    keying = false,
+        string? lastTxMessage = null)
+        => WebSocketHub.BroadcastTxState(
+            _appScope, state, role, partner, autoAnswerEnabled, keying, abortReason, lastTxMessage);
 
     /// <inheritdoc/>
     public void PublishQsoReview(

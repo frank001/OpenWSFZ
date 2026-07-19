@@ -264,7 +264,7 @@ export async function postSystemRestart() {
 
 /**
  * GET /api/v1/tx/status
- * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean}>}
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean, lastTxMessage?: string|null}>}
  */
 export function getTxStatus() {
   return fetchJson('/api/v1/tx/status');
@@ -273,7 +273,7 @@ export function getTxStatus() {
 /**
  * POST /api/v1/tx/enable
  * Sets tx.autoAnswer = true and returns the current TX status.
- * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean}>}
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean, lastTxMessage?: string|null}>}
  */
 export function postTxEnable() {
   return fetchJson('/api/v1/tx/enable', { method: 'POST' });
@@ -283,7 +283,7 @@ export function postTxEnable() {
  * POST /api/v1/tx/disable
  * Sets tx.autoAnswer = false and returns the current TX status.
  * Does NOT abort any in-progress QSO.
- * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean}>}
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean, lastTxMessage?: string|null}>}
  */
 export function postTxDisable() {
   return fetchJson('/api/v1/tx/disable', { method: 'POST' });
@@ -293,7 +293,7 @@ export function postTxDisable() {
  * POST /api/v1/tx/abort
  * Aborts any in-progress QSO and disarms TX (sets autoAnswer = false).
  * Returns the updated TX status.
- * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean}>}
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean, lastTxMessage?: string|null}>}
  */
 export function postTxAbort() {
   return fetchJson('/api/v1/tx/abort', { method: 'POST' });
@@ -323,7 +323,7 @@ export function postTxAbort() {
  *                               used only when the jump-in resolves to a SendReport response, so
  *                               the transmitted report reflects the real signal quality instead of
  *                               a fixed placeholder.
- * @returns {Promise<{state:string, partner:string|null, autoAnswerEnabled:boolean, role:string}>}
+ * @returns {Promise<{state:string, partner:string|null, autoAnswerEnabled:boolean, role:string, lastTxMessage?:string|null}>}
  */
 export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc, confirm = false, snr = 0) {
   const key = getApiKey();
@@ -362,7 +362,7 @@ export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc, co
  * @param {string} callsign         Callsign of the CQ station.
  * @param {number} frequencyHz      Audio frequency of the CQ decode, in Hz.
  * @param {string} cqCycleStartUtc  ISO 8601 UTC cycle-start, e.g. "2026-06-22T17:29:15Z".
- * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean}>}
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, keying: boolean, lastTxMessage?: string|null}>}
  */
 export async function postTxAnswerCq(callsign, frequencyHz, cqCycleStartUtc) {
   const key = getApiKey();
@@ -397,7 +397,7 @@ export async function postTxAnswerCq(callsign, frequencyHz, cqCycleStartUtc) {
  * @param {string} callsign               Callsign of the responding station.
  * @param {number} frequencyHz            Audio frequency of the response decode, in Hz.
  * @param {string} responseCycleStartUtc  ISO 8601 UTC cycle-start of the response, e.g. "2026-06-25T14:29:15Z".
- * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string, keying: boolean}>}
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string, keying: boolean, lastTxMessage?: string|null}>}
  */
 export async function postTxSelectResponder(callsign, frequencyHz, responseCycleStartUtc) {
   const key = getApiKey();
@@ -429,7 +429,7 @@ export async function postTxSelectResponder(callsign, frequencyHz, responseCycle
  * if the daemon was started in Answerer mode, the active role switches at runtime
  * and reverts automatically after the CQ QSO completes or is aborted.
  * Returns HTTP 409 (Conflict) if a QSO is already in progress.
- * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string, keying: boolean}>}
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string, keying: boolean, lastTxMessage?: string|null}>}
  */
 export async function postTxCallCq() {
   const key = getApiKey();
@@ -491,7 +491,7 @@ export async function getLogsFull() {
  * this does not immediately kill audio. The caller should not re-render the TX panel
  * from this response directly — wait for the subsequent txState WebSocket event
  * (state: 'Idle') instead, consistent with how Abort TX is already handled.
- * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string, keying: boolean}>}
+ * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean, role: string, keying: boolean, lastTxMessage?: string|null}>}
  */
 export function postTxStopCq() {
   return fetchJson('/api/v1/tx/stop-cq', { method: 'POST' });
@@ -502,7 +502,8 @@ export function postTxStopCq() {
  * Persists the caller partner-select mode to config (FR-PILEUP-001).
  * @param {'First'|'None'} mode
  * @returns {Promise<{state: string, partner: string|null, autoAnswerEnabled: boolean,
- *                    role: string, callerPartnerSelect: string, keying: boolean}>}
+ *                    role: string, callerPartnerSelect: string, keying: boolean,
+ *                    lastTxMessage?: string|null}>}
  */
 export async function postTxCallerPartnerSelect(mode) {
   const key = getApiKey();

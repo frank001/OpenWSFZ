@@ -229,6 +229,16 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     public string?  Partner => _partner;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <c>_lastTxMessage</c> defaults to <see cref="string.Empty"/> and is never reset between
+    /// QSOs (unlike <see cref="QsoCallerService"/>'s equivalent field) — it genuinely tracks
+    /// the last transmission for the life of the process. Translated to <see langword="null"/>
+    /// here so a fresh process (nothing transmitted yet) reports <see langword="null"/>, matching
+    /// the documented contract and letting the frontend's <c>?? template</c> fallback engage.
+    /// </remarks>
+    public string? LastTxMessage => string.IsNullOrEmpty(_lastTxMessage) ? null : _lastTxMessage;
+
+    /// <inheritdoc/>
     public QsoRole Role => QsoRole.Answerer;
 
     /// <inheritdoc/>
@@ -1368,7 +1378,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             role:              "answerer",
             partner:           _partner,
             autoAnswerEnabled: true,
-            keying:            _keying);
+            keying:            _keying,
+            lastTxMessage:     LastTxMessage);
     }
 
     // ── State transitions ─────────────────────────────────────────────────────
@@ -1384,7 +1395,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             role:              "answerer",
             partner:           partner,
             autoAnswerEnabled: true,
-            keying:            _keying);
+            keying:            _keying,
+            lastTxMessage:     LastTxMessage);
     }
 
     /// <summary>
@@ -1478,7 +1490,8 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             partner:           null,
             autoAnswerEnabled: false,
             abortReason:       effectiveReason,
-            keying:            _keying);
+            keying:            _keying,
+            lastTxMessage:     LastTxMessage);
     }
 
     // ── H6 AP decode helper ───────────────────────────────────────────────────

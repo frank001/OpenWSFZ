@@ -17,7 +17,8 @@ import { getConfig, getFrequencies, postTune, postAudioOffset,
 import { WaterfallRenderer }                                                 from './spectrum.js';
 import { isDecodeVisible, UNFILTERED_DECODE_FILTER }                         from './decodeFilter.js';
 import { shouldCaptureDecode, buildTranscriptEntry, pushTranscriptEntry,
-         hasEnteredNewActiveTxState, TRANSCRIPT_LOG_MAX }                    from './qsoTranscript.js';
+         hasEnteredNewActiveTxState, cacheRealRowText, pickRowText,
+         TRANSCRIPT_LOG_MAX }                                               from './qsoTranscript.js';
 
 const MAX_DECODE_ROWS = 200;
 
@@ -48,6 +49,20 @@ let currentTxState = 'Idle';
 
 /** Current active partner callsign, or null when Idle. */
 let currentTxPartner = /** @type {string|null} */ (null);
+
+/**
+ * fix-tx-transcript-real-message (TX-D05): the real transmitted text for each of the three
+ * TX message rows (index 0 = row 1/CQ-or-Answer, 1 = row 2/Report, 2 = row 3/RR73-or-73),
+ * cached client-side the moment each row's `lastTxMessage` is first seen (design.md
+ * "Decisions" — the daemon only ever exposes the single most recent transmission, so the
+ * frontend remembers per-row history locally rather than asking the backend for it).
+ * `null` for a row not yet reached this session — `renderMessageRows` falls back to the
+ * static per-state template in that case. Reset to all-null whenever the tracked partner
+ * changes or the state returns to Idle (see `renderTxPanel`), so a fresh QSO never inherits
+ * a prior session's real report text.
+ * @type {(string|null)[]}
+ */
+let realRowText = [null, null, null];
 
 /** Whether tx.autoAnswer is enabled (mirrors the config flag). */
 let currentAutoAnswerEnabled = false;
@@ -174,8 +189,13 @@ function appendTranscriptEntry(kind, text, partner) {
  * @param {'answerer'|'caller'} [role]
  * @param {string}           [prevState]  - The state immediately prior to this render; defaults
  *                                          to `state` (no transition, so no entry is logged).
+ * @param {string|null}      [lastTxMessage] - fix-tx-transcript-real-message (TX-D05): the real
+ *                                          text of the most recently transmitted message
+ *                                          (`IQsoController.LastTxMessage`, threaded through the
+ *                                          `txState` WS push / `tx/status` response), or `null`/
+ *                                          absent if nothing has been transmitted yet.
  */
-function renderMessageRows(partner, state, autoAnswerEnabled, role, prevState = state) {
+function renderMessageRows(partner, state, autoAnswerEnabled, role, prevState = state, lastTxMessage = null) {
   const effectiveRole = role ?? currentTxRole;
   const p = partner ?? '———';
 
@@ -200,14 +220,23 @@ function renderMessageRows(partner, state, autoAnswerEnabled, role, prevState = 
     activeStates = ['TxAnswer', 'TxReport', 'Tx73'];
   }
 
+  const enteredNewActiveState = hasEnteredNewActiveTxState(prevState, state, activeStates);
+
+  // fix-tx-transcript-real-message (TX-D05): cache the real transmitted text for whichever row
+  // just became active, before rendering rows below, so this same render call already shows it
+  // instead of the stale/generic template (design.md "Decisions" — frontend-cached, per-row).
+  // Pure logic lives in qsoTranscript.js (DOM-free, unit-testable) — this is DOM rendering only.
+  realRowText = cacheRealRowText(realRowText, prevState, state, activeStates, lastTxMessage);
+
   const rows = [txMsg1El, txMsg2El, txMsg3El];
 
   rows.forEach((row, i) => {
     if (!row) return;
 
-    // Update text content
+    // Update text content — prefer the real transmitted text once we've seen one for this
+    // row this session; fall back to the template for a row not yet reached (TX-D05).
     const textSpan = row.querySelector('.tx-msg-text');
-    if (textSpan) textSpan.textContent = texts[i];
+    if (textSpan) textSpan.textContent = pickRowText(realRowText, texts, i);
 
     // Active row highlight
     if (state === activeStates[i]) {
@@ -226,9 +255,11 @@ function renderMessageRows(partner, state, autoAnswerEnabled, role, prevState = 
 
   // qso-transcript-panel (FR-062): log the sent message exactly once per actual transmission
   // step (design.md Decision 2) — including a caller's initial partner-less "CQ …" (Tx 1).
-  if (hasEnteredNewActiveTxState(prevState, state, activeStates)) {
+  // TX-D05: logs the real transmitted text (same value now driving the row's own display)
+  // once available, instead of the unconditional static template.
+  if (enteredNewActiveState) {
     const activeIndex = activeStates.indexOf(state);
-    appendTranscriptEntry('sent', texts[activeIndex], currentTxPartner);
+    appendTranscriptEntry('sent', pickRowText(realRowText, texts, activeIndex), currentTxPartner);
   }
 }
 
@@ -240,8 +271,10 @@ function renderMessageRows(partner, state, autoAnswerEnabled, role, prevState = 
  * @param {boolean}                 autoAnswerEnabled  - Whether tx.autoAnswer is true
  * @param {'answerer'|'caller'|undefined} [role]       - Controller role; falls back to currentTxRole
  * @param {boolean|undefined}       [keying]            - IQsoController.Keying; falls back to currentKeying
+ * @param {string|null|undefined}   [lastTxMessage]     - IQsoController.LastTxMessage (TX-D05);
+ *                                                        `null`/undefined if nothing transmitted yet.
  */
-function renderTxPanel(state, partner, autoAnswerEnabled, role, keying) {
+function renderTxPanel(state, partner, autoAnswerEnabled, role, keying, lastTxMessage) {
   // Capture previous state/partner before overwriting — used below for the D-CALLER-008 sweep
   // and the qso-transcript-panel (FR-062) sent-message/partner-change detection respectively.
   const prevState   = currentTxState;
@@ -256,6 +289,13 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role, keying) {
 
   // Track partner for TX panel state display and message row templates.
   currentTxPartner = partner;
+
+  // fix-tx-transcript-real-message (TX-D05): clear any real per-row text cached from a prior
+  // QSO before a fresh one starts (new partner arriving, or a return to Idle), so a new session
+  // never shows a stale report left over from whichever partner/exchange came before.
+  if ((partner != null && partner !== prevPartner) || (state === 'Idle' && prevState !== 'Idle')) {
+    realRowText = [null, null, null];
+  }
 
   // qso-transcript-panel (FR-062): partner-change separator, appended before any
   // sent/received entry for the new partner in this same event-handling pass (design.md
@@ -331,7 +371,7 @@ function renderTxPanel(state, partner, autoAnswerEnabled, role, keying) {
   }
 
   // ── Message rows ─────────────────────────────────────────────────────
-  renderMessageRows(partner, state, autoAnswerEnabled, role ?? currentTxRole, prevState);
+  renderMessageRows(partner, state, autoAnswerEnabled, role ?? currentTxRole, prevState, lastTxMessage ?? null);
 
   // D-CALLER-008: Sweep stale decode-responder rows when WaitAnswer begins.
   // Rows from prior WaitAnswer sessions carry the decode-responder class but
@@ -847,7 +887,8 @@ function handleDecodes(results) {
             status.partner           ?? currentTxPartner,
             status.autoAnswerEnabled ?? currentAutoAnswerEnabled,
             status.role              ?? currentTxRole,
-            status.keying            ?? currentKeying);
+            status.keying            ?? currentKeying,
+            status.lastTxMessage     ?? null);
           setTimeout(() => {
             selectInFlight = false;
             tr.style.pointerEvents = '';
@@ -906,7 +947,7 @@ function handleDecodes(results) {
               console.info('D-CALLER-012: engagement rejected, operator declined to override:', r.message);
               try {
                 const s = await getTxStatus();
-                renderTxPanel(s.state, s.partner, s.autoAnswerEnabled, s.role, s.keying);
+                renderTxPanel(s.state, s.partner, s.autoAnswerEnabled, s.role, s.keying, s.lastTxMessage);
               } catch { /* ignore secondary error */ }
               return;
             }
@@ -927,7 +968,8 @@ function handleDecodes(results) {
           status.partner           ?? null,
           status.autoAnswerEnabled ?? false,
           status.role              ?? currentTxRole,
-          status.keying            ?? false);
+          status.keying            ?? false,
+          status.lastTxMessage     ?? null);
 
       } catch (err) {
         const code = /** @type {any} */ (err)?.status;
@@ -938,7 +980,7 @@ function handleDecodes(results) {
           console.info('D-CALLER-012: engage-decode not actionable for:', r.message);
           try {
             const s = await getTxStatus();
-            renderTxPanel(s.state, s.partner, s.autoAnswerEnabled, s.role, s.keying);
+            renderTxPanel(s.state, s.partner, s.autoAnswerEnabled, s.role, s.keying, s.lastTxMessage);
           } catch { /* ignore secondary error */ }
 
         } else if (code === 503) {
@@ -1401,7 +1443,8 @@ document.addEventListener('DOMContentLoaded', () => {
       status.partner           ?? null,
       status.autoAnswerEnabled ?? false,
       status.role              ?? 'answerer',
-      status.keying            ?? false);
+      status.keying            ?? false,
+      status.lastTxMessage     ?? null);
   }).catch(err => {
     // Non-fatal — panel stays in default disarmed / Idle state.
     console.warn('GET /api/v1/tx/status failed on load:', err);
@@ -1420,7 +1463,8 @@ document.addEventListener('DOMContentLoaded', () => {
           status.partner           ?? currentTxPartner,
           status.autoAnswerEnabled ?? false,
           undefined,
-          status.keying            ?? false);
+          status.keying            ?? false,
+          status.lastTxMessage     ?? null);
       } catch (err) {
         console.error('TX enable/disable failed:', err);
       } finally {
@@ -1441,7 +1485,8 @@ document.addEventListener('DOMContentLoaded', () => {
           status.partner           ?? null,
           status.autoAnswerEnabled ?? false,
           undefined,
-          status.keying            ?? false);
+          status.keying            ?? false,
+          status.lastTxMessage     ?? null);
       } catch (err) {
         console.error('POST /api/v1/tx/abort failed:', err);
       } finally {
@@ -1486,7 +1531,8 @@ document.addEventListener('DOMContentLoaded', () => {
           status.partner           ?? currentTxPartner,
           status.autoAnswerEnabled ?? true,
           status.role              ?? 'caller',
-          status.keying            ?? false);
+          status.keying            ?? false,
+          status.lastTxMessage     ?? null);
         setTimeout(() => {
           callCqInFlight = false;
           // Button re-enable / label driven by renderTxPanel (via WS events).
@@ -1759,7 +1805,8 @@ document.addEventListener('DOMContentLoaded', () => {
         event.partner           ?? null,
         event.autoAnswerEnabled ?? currentAutoAnswerEnabled,
         event.role              ?? undefined,
-        event.keying            ?? currentKeying);
+        event.keying            ?? currentKeying,
+        event.lastTxMessage     ?? null);
 
       // qso-transcript-panel (FR-062): append an abort entry, folded inline into the unified
       // transcript, when the daemon reports an abort reason (superseding the prior FR-UX-002

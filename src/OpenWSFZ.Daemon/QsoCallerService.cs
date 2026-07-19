@@ -101,6 +101,11 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     // retry path (RetryOrAbortAsync) and the ADIF RstSent field reuse the exact value chosen at
     // ExecuteTxReportAsync time rather than recomputing (or fabricating) a new one.
     private string   _rstSent       = "+00";
+    // fix-tx-transcript-real-message (TX-D05): the exact text of the last message actually
+    // passed to TransmitAsync (CQ, signal report, or RR73), mirroring QsoAnswererService's
+    // existing _lastTxMessage. Surfaced externally via LastTxMessage so the frontend can show
+    // the real transmitted content instead of its static per-state template.
+    private string?  _lastTxMessage = null;
     private int      _retryCount    = 0;
     private bool     _skipNextRetry = false;
     private DateTime _qsoStartUtc   = DateTime.MinValue;
@@ -241,6 +246,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
     /// <inheritdoc/>
     public string? Partner => _partner;
+
+    /// <inheritdoc/>
+    public string? LastTxMessage => _lastTxMessage;
 
     /// <inheritdoc/>
     public QsoRole Role => QsoRole.Caller;
@@ -619,12 +627,13 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         }
 
         // Initialise session.
-        _partner     = null;
-        _partnerGrid = null;
-        _retryCount  = 0;
-        _rstRcvd     = "+00";
-        _rstSent     = "+00";
-        _qsoStartUtc = DateTime.UtcNow;
+        _partner       = null;
+        _partnerGrid   = null;
+        _retryCount    = 0;
+        _rstRcvd       = "+00";
+        _rstSent       = "+00";
+        _lastTxMessage = null; // fix-tx-transcript-real-message (TX-D05): clear stale text from any prior QSO
+        _qsoStartUtc   = DateTime.UtcNow;
 
         // HoldTxFreq semantics — identical to QsoAnswererService's ExecuteTxAnswerAsync.
         int txFreqHz;
@@ -644,6 +653,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         StartWatchdog(tx);
 
         var cqMessage = $"CQ {tx.Callsign} {tx.Grid}";
+        _lastTxMessage = cqMessage;
         SetStateAndNotify(CallerState.TxCq);
         await TransmitAsync(cqMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
 
@@ -849,6 +859,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         // this exact value rather than recomputing (or fabricating) a new one.
         _rstSent = FormatSnrReport(snr);
         var reportMessage = $"{partner} {tx.Callsign} {_rstSent}";
+        _lastTxMessage = reportMessage; // fix-tx-transcript-real-message (TX-D05)
         SetStateAndNotify(CallerState.TxReport);
         await TransmitAsync(reportMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
 
@@ -918,6 +929,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         var partner = _partner!;
 
         var rr73Message = $"{partner} {ours} RR73";
+        _lastTxMessage = rr73Message; // fix-tx-transcript-real-message (TX-D05)
 
         // Build the QSO record (used for both qsoReview event and ADIF write).
         var record = new QsoRecord
@@ -992,6 +1004,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
             // Retransmit CQ.
             var cqMessage = $"CQ {tx.Callsign} {tx.Grid}";
+            _lastTxMessage = cqMessage; // fix-tx-transcript-real-message (TX-D05)
             SetStateAndNotify(CallerState.TxCq);
             await TransmitAsync(cqMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
             _skipNextRetry = true;
@@ -1018,6 +1031,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             // not a freshly recomputed or fabricated value — there may be no fresh decode of the
             // partner available on a retry, which is the entire point of retrying.
             var reportMessage = $"{_partner} {tx.Callsign} {_rstSent}";
+            _lastTxMessage = reportMessage; // fix-tx-transcript-real-message (TX-D05)
             SetStateAndNotify(CallerState.TxReport);
             await TransmitAsync(reportMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
             _skipNextRetry = true;
@@ -1107,7 +1121,8 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             role:              "caller",
             partner:           _partner,
             autoAnswerEnabled: true,
-            keying:            _keying);
+            keying:            _keying,
+            lastTxMessage:     _lastTxMessage);
     }
 
     // ── State transitions ─────────────────────────────────────────────────────
@@ -1123,7 +1138,8 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             role:               "caller",
             partner:            partner,
             autoAnswerEnabled:  true,
-            keying:             _keying);
+            keying:             _keying,
+            lastTxMessage:      _lastTxMessage);
     }
 
     /// <summary>
@@ -1207,7 +1223,8 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             partner:           null,
             autoAnswerEnabled: false,
             abortReason:       effectiveReason,
-            keying:            _keying);
+            keying:            _keying,
+            lastTxMessage:     _lastTxMessage);
 
         // Notify the router (if wired) that this service has become idle.
         // The router uses this to revert the active role back to Answerer when

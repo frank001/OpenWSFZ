@@ -20,6 +20,27 @@ public interface IQsoController
     string? Partner { get; }
 
     /// <summary>
+    /// The exact text of the most recently transmitted message this session (e.g. the
+    /// composed CQ, signal-report, or RR73/73 line actually passed to <c>TransmitAsync</c>),
+    /// or <c>null</c> if nothing has been transmitted yet.
+    /// <para>
+    /// Surfaces the real over-the-air content so the frontend can replace its static
+    /// per-state message template (<c>renderMessageRows</c>) with what was actually sent
+    /// once a message has gone out (fix-tx-transcript-real-message, TX-D05) — previously
+    /// this value existed only as an internal field (<c>QsoAnswererService._lastTxMessage</c>)
+    /// with no external accessor, and <c>QsoCallerService</c> had no equivalent field at all.
+    /// </para>
+    /// <para>
+    /// Defaults to <see langword="null"/> via this default interface implementation, the same
+    /// pattern used by <see cref="Keying"/>, so <see cref="IQsoController"/> test doubles that
+    /// never transmit require no change; <c>QsoAnswererService</c> and <c>QsoCallerService</c>
+    /// override it with the real tracked value, and <c>QsoControllerRouter</c> delegates to
+    /// whichever is active.
+    /// </para>
+    /// </summary>
+    string? LastTxMessage => null;
+
+    /// <summary>
     /// The role this controller implements.
     /// </summary>
     QsoRole Role { get; }

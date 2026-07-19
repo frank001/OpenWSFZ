@@ -416,12 +416,20 @@ guarantee.
 
 ## N12 — TX-D05: TX message rows and QSO Transcript show a hardcoded `+00`/`R+00` template, not the real report TX-D04 now sends
 
-**Status:** OPEN — found immediately by the Captain making a real QSO right after `656bd7e`
-(TX-D04) merged: ADIF showed real `-03`/`-15`, on-screen Transcript still showed `+00` throughout.
+**Status:** CLOSED, implemented — `openspec/changes/fix-tx-transcript-real-message/` (branch
+`fix/tx-d05-transcript-real-message`, implementation commit `8965c0a`, 26/26 tasks) shipped
+`IQsoController.LastTxMessage`, threaded through `TxStatusResponse`/`WsTxStateMessage` and
+consumed by the frontend's new `cacheRealRowText`/`pickRowText` per-row caching. QA pre-merge
+review found and fixed a missed Gate G9b VERSION bump (REQUIREMENTS.md row 1.43, `VERSION` →
+`v0.44`) before this branch's PR was opened — see that row for full detail. Live-verified against
+a real running daemon (HTTP+WebSocket client and a real Chromium/Playwright tab) —
+`qa/tx-transcript-real-message-live-verify/`. Found immediately by the Captain making a real QSO
+right after `656bd7e` (TX-D04) merged: ADIF showed real `-03`/`-15`, on-screen Transcript still
+showed `+00` throughout.
 **Severity:** Medium (display-only — no protocol/ADIF/over-the-air content is wrong, confirmed by
 reading the TX-D04 diff; but the operator cannot trust the live screen during a QSO, which matters
 for exactly the "did they get it" judgement call in N11/D-CALLER-022 above)
-**Source:** Captain, 2026-07-19, live QSO with EB3JT immediately after TX-D04 shipped; QA traced
+**Source:** Captain, 2026-07-19, live QSO with a partner station immediately after TX-D04 shipped; QA traced
 root cause via source read of `web/js/main.js` and `web/js/qsoTranscript.js` against `656bd7e`.
 **File:** `web/js/main.js` (`renderMessageRows`, lines ~187–232 — hardcoded `+00`/`R+00` template
 strings, reused verbatim by the Transcript's `appendTranscriptEntry('sent', ...)` call);
@@ -436,9 +444,10 @@ reality only because the real value really was always `+00` before TX-D04. Fixin
 backend made the template stale; nothing in that fix (correctly scoped to backend/ADIF only) was
 asked to touch the display layer.
 
-**Suggested fix:** full write-up already exists —
-`dev-tasks/2026-07-19-tx-d05-transcript-and-message-rows-show-stale-template.md`. Persist a real
-last-sent-message field on `QsoCallerService` (mirroring `QsoAnswererService`'s existing one),
-surface it through `TxStatusResponse`/`WsTxStateMessage`, and have both `renderMessageRows` and the
-Transcript's sent-entry logging prefer that real value over the template for any row already
-transmitted this session.
+**Suggested fix:** implement per `openspec/changes/fix-tx-transcript-real-message/design.md` and
+`tasks.md` (evidence/history in `dev-tasks/2026-07-19-tx-d05-transcript-and-message-rows-show-stale-template.md`).
+Summary: persist a real last-sent-message field on `QsoCallerService` (mirroring
+`QsoAnswererService`'s existing one), surface it through `TxStatusResponse`/`WsTxStateMessage` as a
+single `LastTxMessage` field (not one per row), and have the frontend cache that value per row
+locally at the moment each transition fires — falling back to the existing template for any row not
+yet transmitted this session, and clearing the cache on partner-change/Idle.

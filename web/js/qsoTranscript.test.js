@@ -13,6 +13,8 @@ import {
   buildTranscriptEntry,
   pushTranscriptEntry,
   hasEnteredNewActiveTxState,
+  cacheRealRowText,
+  pickRowText,
   TRANSCRIPT_LOG_MAX,
 } from './qsoTranscript.js';
 
@@ -125,4 +127,67 @@ test('fires again on a retried transmission (re-entering an active state from a 
 test('fires for the caller role\'s activeStates set too', () => {
   const callerActiveStates = ['TxCq', 'TxReport', 'TxRr73'];
   assert.equal(hasEnteredNewActiveTxState('Idle', 'TxCq', callerActiveStates), true);
+});
+
+// ── cacheRealRowText / pickRowText (fix-tx-transcript-real-message, TX-D05) ──
+//
+// renderMessageRows (web/js/main.js) delegates its per-row real-text caching to these two
+// DOM-free functions and handles only DOM rendering — covers task 6.5's behavioural contract
+// without needing a DOM/jsdom harness for main.js itself (no precedent for that in this
+// codebase; every other main.js TX-panel behaviour is likewise verified only via its
+// extracted qsoTranscript.js logic, per this file's own header).
+
+const callerActiveStates = ['TxCq', 'TxReport', 'TxRr73'];
+
+test('cacheRealRowText: caches the real text at the newly-entered row\'s index', () => {
+  const before = [null, null, null];
+  const after = cacheRealRowText(before, 'Idle', 'TxCq', callerActiveStates, 'CQ Q1OFZ JO33');
+  assert.deepEqual(after, ['CQ Q1OFZ JO33', null, null]);
+});
+
+test('cacheRealRowText: does not mutate the array passed in (returns a new array)', () => {
+  const before = [null, null, null];
+  const after = cacheRealRowText(before, 'Idle', 'TxCq', callerActiveStates, 'CQ Q1OFZ JO33');
+  assert.deepEqual(before, [null, null, null], 'input array must be left untouched');
+  assert.notEqual(after, before);
+});
+
+test('cacheRealRowText: leaves the array unchanged when lastTxMessage is null (nothing transmitted yet for this row)', () => {
+  const before = [null, null, null];
+  const after = cacheRealRowText(before, 'Idle', 'TxCq', callerActiveStates, null);
+  assert.equal(after, before, 'must return the same reference — a true no-op');
+});
+
+test('cacheRealRowText: leaves the array unchanged on a repeated render of the same state (no transition)', () => {
+  const before = ['CQ Q1OFZ JO33', null, null];
+  const after = cacheRealRowText(before, 'TxCq', 'TxCq', callerActiveStates, 'CQ Q1OFZ JO33');
+  assert.equal(after, before);
+});
+
+test('cacheRealRowText: advancing to a later row keeps the earlier row\'s cached real text (task 6.5)', () => {
+  let rows = [null, null, null];
+  rows = cacheRealRowText(rows, 'Idle', 'TxCq', callerActiveStates, 'CQ Q1OFZ JO33');
+  rows = cacheRealRowText(rows, 'TxCq', 'WaitAnswer', callerActiveStates, 'CQ Q1OFZ JO33'); // not an active state — no-op
+  rows = cacheRealRowText(rows, 'WaitAnswer', 'TxReport', callerActiveStates, 'Q1TST Q1OFZ -05');
+  assert.deepEqual(rows, ['CQ Q1OFZ JO33', 'Q1TST Q1OFZ -05', null],
+    'row 1\'s real text must survive the transition into row 2 — only the newly-active index updates');
+});
+
+test('cacheRealRowText: a retried transmission re-caches the same (or updated) value for that row', () => {
+  let rows = ['CQ Q1OFZ JO33', 'Q1TST Q1OFZ -05', null];
+  rows = cacheRealRowText(rows, 'WaitRr73', 'TxReport', callerActiveStates, 'Q1TST Q1OFZ -05'); // retry
+  assert.deepEqual(rows, ['CQ Q1OFZ JO33', 'Q1TST Q1OFZ -05', null]);
+});
+
+test('pickRowText: prefers the cached real text when present', () => {
+  const rows = ['CQ Q1OFZ JO33', null, null];
+  const texts = ['CQ Q1OFZ JO33', 'Q1TST Q1OFZ +00', 'Q1TST Q1OFZ RR73'];
+  assert.equal(pickRowText(rows, texts, 0), 'CQ Q1OFZ JO33');
+});
+
+test('pickRowText: falls back to the static template for a row not yet reached', () => {
+  const rows = ['CQ Q1OFZ JO33', null, null];
+  const texts = ['CQ Q1OFZ JO33', 'Q1TST Q1OFZ +00', 'Q1TST Q1OFZ RR73'];
+  assert.equal(pickRowText(rows, texts, 1), 'Q1TST Q1OFZ +00',
+    'row 2 has no real text cached yet — the +00 template is still correct/honest here');
 });
