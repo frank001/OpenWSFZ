@@ -2485,6 +2485,139 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
+    // ── fix-external-reporting-clear-and-reply-filter (task 4.5): TryEngageExternalResponder ──
+
+    [Fact(DisplayName = "fix-external-reporting-clear-and-reply-filter: default config — external reply to a filtered-out responder still engages")]
+    public async Task TryEngageExternalResponder_FilteredOutResponder_DefaultEngagesAnyway()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.None,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+        var filterStore = new MutableDecodeFilterStore();
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), decodeFilterStore: filterStore,
+            appConfig: new AppConfig() with
+            {
+                ExternalReporting = new ExternalReportingConfig(), // restrict flag defaults to false
+            });
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        // Exclude ThisBand so the responder decode is genuinely filtered out.
+        filterStore.Set(new DecodeFilterState(
+            ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
+
+        Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand));
+        await Task.Delay(200); // let HandleWaitAnswerAsync record the decode into _recentResponderDecodes
+
+        var engaged = await sut.TryEngageExternalResponder(PartnerCall);
+
+        engaged.Should().BeTrue("restrictExternalRepliesToDecodeFilter defaults to false — an explicit " +
+            "external command is authoritative regardless of the operator's own decode-panel filter");
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        sut.Partner.Should().Be(PartnerCall);
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "fix-external-reporting-clear-and-reply-filter: restrict-to-filter opted in — external reply to a filtered-out responder is a no-op")]
+    public async Task TryEngageExternalResponder_FilteredOutResponder_RestrictOptedIn_NoOp()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.None,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+        var filterStore = new MutableDecodeFilterStore();
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), decodeFilterStore: filterStore,
+            appConfig: new AppConfig() with
+            {
+                ExternalReporting = new ExternalReportingConfig(restrictExternalRepliesToDecodeFilter: true),
+            });
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        filterStore.Set(new DecodeFilterState(
+            ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
+
+        Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand));
+        await Task.Delay(200);
+
+        var engaged = await sut.TryEngageExternalResponder(PartnerCall);
+
+        engaged.Should().BeFalse("Q1TST's responder decode is filtered out and " +
+            "restrictExternalRepliesToDecodeFilter is true");
+        await Task.Delay(200);
+        sut.State.Should().Be(QsoState.WaitReport);
+        sut.Partner.Should().BeNull();
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "fix-external-reporting-clear-and-reply-filter: SelectResponderAsync (manual path) still rejects a filtered-out callsign even when restrictExternalRepliesToDecodeFilter is false")]
+    public async Task SelectResponderAsync_ManualPath_UnaffectedByRestrictFlagDefault()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.None,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+        var filterStore = new MutableDecodeFilterStore();
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), decodeFilterStore: filterStore,
+            appConfig: new AppConfig() with
+            {
+                // restrictExternalRepliesToDecodeFilter=false (default) must have NO bearing on
+                // the manual/browser entry point — SelectResponderAsync always filters.
+                ExternalReporting = new ExternalReportingConfig(),
+            });
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        filterStore.Set(new DecodeFilterState(
+            ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
+
+        Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand));
+        await Task.Delay(200);
+
+        var bPhaseResponse = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
+        await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponse, CancellationToken.None);
+
+        await Task.Delay(200);
+        sut.State.Should().Be(QsoState.WaitReport,
+            "the manual/browser path must keep filtering unconditionally regardless of the new flag's default");
+        sut.Partner.Should().BeNull();
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── engagement-target-validation (task 5.3) ────────────────────────────────
 
     [Fact(DisplayName = "FR-060: engagement-target-validation 5.3: a Rejected responder is never armed — stays in WaitAnswer, no report sent")]

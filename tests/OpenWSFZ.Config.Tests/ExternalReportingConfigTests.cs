@@ -43,7 +43,8 @@ public sealed class ExternalReportingConfigTests
                     new ExternalReportingTarget(name: "GridTracker2", host: "127.0.0.1", port: 2237, enabled: true),
                     new ExternalReportingTarget(name: "JTAlert",      host: "127.0.0.1", port: 2238, enabled: false),
                 ],
-                honourInboundCommands: true)
+                honourInboundCommands: true,
+                restrictExternalRepliesToDecodeFilter: true)
         };
 
         var json   = JsonSerializer.Serialize(original, ConfigJsonContext.Default.AppConfig);
@@ -52,6 +53,7 @@ public sealed class ExternalReportingConfigTests
         loaded.ExternalReporting.Should().NotBeNull();
         loaded.ExternalReporting.Enabled.Should().BeTrue();
         loaded.ExternalReporting.HonourInboundCommands.Should().BeTrue();
+        loaded.ExternalReporting.RestrictExternalRepliesToDecodeFilter.Should().BeTrue();
         loaded.ExternalReporting.Targets.Should().HaveCount(2);
         loaded.ExternalReporting.Targets[0].Name.Should().Be("GridTracker2");
         loaded.ExternalReporting.Targets[0].Port.Should().Be(2237);
@@ -59,6 +61,20 @@ public sealed class ExternalReportingConfigTests
 
         json.Should().Contain("\"externalReporting\"");
         json.Should().Contain("\"honourInboundCommands\"");
+        json.Should().Contain("\"restrictExternalRepliesToDecodeFilter\"");
+    }
+
+    [Fact(DisplayName = "fix-external-reporting-clear-and-reply-filter: missing restrictExternalRepliesToDecodeFilter key on an existing externalReporting object defaults to false")]
+    public void Load_MissingRestrictExternalRepliesToDecodeFilterKey_DefaultsFalse()
+    {
+        const string json = """
+            {"port":8080,"externalReporting":{"enabled":true,"targets":[],"honourInboundCommands":true}}
+            """;
+        var config = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        config.ExternalReporting.RestrictExternalRepliesToDecodeFilter.Should().BeFalse(
+            "a pre-existing config file written before this field existed must preserve the new " +
+            "default (external Reply honoured regardless of the decode-panel filter)");
     }
 
     // ── Missing-key defaults ──────────────────────────────────────────────────

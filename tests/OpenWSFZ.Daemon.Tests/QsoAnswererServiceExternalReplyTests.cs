@@ -70,7 +70,8 @@ public sealed class QsoAnswererServiceExternalReplyTests
     }
 
     private static async Task<Sut> CreateSutAsync(
-        IDecodeFilterStore? filterStore = null, bool autoAnswer = false)
+        IDecodeFilterStore? filterStore = null, bool autoAnswer = false,
+        ExternalReportingConfig? externalReporting = null)
     {
         var config = new AppConfig() with
         {
@@ -81,7 +82,8 @@ public sealed class QsoAnswererServiceExternalReplyTests
                 Grid            = OurGrid,
                 RetryCount      = 2,
                 WatchdogMinutes = 4,
-            }
+            },
+            ExternalReporting = externalReporting ?? new ExternalReportingConfig(),
         };
         var store = new MutableConfigStore(config);
         var ptt   = Substitute.For<IPttController>();
@@ -109,12 +111,12 @@ public sealed class QsoAnswererServiceExternalReplyTests
     /// (consulted by <c>TryEngageExternal</c>). Since <c>autoAnswer=false</c>, the batch is never
     /// auto-consumed — no race with the auto-answer path.
     /// </summary>
-    private static async Task SeedCqBatchAsync(Sut sut, string cqCallsign = PartnerCall)
+    private static async Task SeedCqBatchAsync(Sut sut, string cqCallsign = PartnerCall, RegionInfo? region = null)
     {
         sut.Channel.Writer.TryWrite(new DecodeBatch(
             DateTimeOffset.UtcNow,
             [new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
-                Message: $"CQ {cqCallsign} JO22")]));
+                Message: $"CQ {cqCallsign} JO22", Region: region)]));
 
         // Give the background loop a moment to process the batch into _lastIdleDecodeBatch.
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
@@ -172,13 +174,15 @@ public sealed class QsoAnswererServiceExternalReplyTests
         await sut.Ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
     }
 
-    // ── Scenario: filtered-out callsign is a no-op ──────────────────────────
+    // ── Scenario: filtered-out callsign — restrict-to-filter opted in ───────
 
-    [Fact(DisplayName = "External reply to a filtered-out callsign is a no-op")]
-    public async Task TryEngageExternal_FilteredOutCallsign_NoOp()
+    [Fact(DisplayName = "Restrict-to-filter opted in: external reply to a filtered-out callsign is a no-op")]
+    public async Task TryEngageExternal_FilteredOutCallsign_RestrictOptedIn_NoOp()
     {
         var filterStore = new MutableDecodeFilterStore();
-        await using var sut = await CreateSutAsync(filterStore: filterStore);
+        await using var sut = await CreateSutAsync(
+            filterStore: filterStore,
+            externalReporting: new ExternalReportingConfig(restrictExternalRepliesToDecodeFilter: true));
         await SeedCqBatchAsync(sut);
 
         // Attribute allow-list axes (AllowedEntities etc.) fail OPEN when Region is unresolved
@@ -190,9 +194,58 @@ public sealed class QsoAnswererServiceExternalReplyTests
 
         var engaged = await sut.Service.TryEngageExternal(PartnerCall);
 
-        engaged.Should().BeFalse("Q1TST's CQ is present but filtered out under the active DecodeFilterState");
+        engaged.Should().BeFalse("Q1TST's CQ is present but filtered out under the active DecodeFilterState, " +
+            "and restrictExternalRepliesToDecodeFilter is true");
         sut.Service.State.Should().Be(QsoState.Idle);
         await sut.Ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    // ── Scenario: filtered-out callsign — default config bypasses the filter ─
+
+    [Fact(DisplayName = "Default config: external reply to a filtered-out callsign still engages")]
+    public async Task TryEngageExternal_FilteredOutCallsign_DefaultEngagesAnyway()
+    {
+        var filterStore = new MutableDecodeFilterStore();
+        await using var sut = await CreateSutAsync(filterStore: filterStore); // restrict flag defaults to false
+        await SeedCqBatchAsync(sut);
+
+        // Same "genuinely filters out" setup as the restrict-opted-in scenario above.
+        filterStore.Set(new DecodeFilterState(ContactStates: []));
+
+        var engaged = await sut.Service.TryEngageExternal(PartnerCall);
+
+        engaged.Should().BeTrue("restrictExternalRepliesToDecodeFilter defaults to false — an explicit " +
+            "external command is authoritative regardless of the operator's own decode-panel filter");
+        sut.Service._wakeupChannel.Reader.TryRead(out _);
+    }
+
+    // ── Note: synthetic/unknown-region reachability is governed entirely by the pre-existing,
+    // upstream DecodeNoiseSuppressionFilter (Program.cs's decode-pump loop), not by any check
+    // inside TryEngageExternal itself — identically to the internal auto-answer path
+    // (HandleIdleAsync), which has the same characteristic today. Confirmed with the Captain
+    // (fix-external-reporting-clear-and-reply-filter task 3.2.3): this is not a gap introduced by
+    // the new restrictExternalRepliesToDecodeFilter flag, and no redundant region check is added
+    // to this method. This test pins down and documents that intentional boundary, and confirms
+    // the new flag has no bearing on it either way.
+
+    [Fact(DisplayName = "TryEngageExternal has no region check of its own — a synthetic-region CQ that " +
+        "reaches the decode batch engages identically regardless of restrictExternalRepliesToDecodeFilter")]
+    public async Task TryEngageExternal_SyntheticRegionCq_NoOwnRegionGate()
+    {
+        await using var sut = await CreateSutAsync();
+        await SeedCqBatchAsync(sut,
+            region: new RegionInfo(Continent: null, Entity: "Synthetic (R&R Study)", Synthetic: true));
+
+        var engaged = await sut.Service.TryEngageExternal(PartnerCall);
+
+        engaged.Should().BeTrue(
+            "TryEngageExternal performs no Region-based exclusion of its own; the absolute " +
+            "synthetic/unknown-region exclusion lives in ExternalReportingService's outbound path " +
+            "and in the upstream DecodeNoiseSuppressionFilter (which, under its default " +
+            "SuppressSynthetic=true, would have prevented this decode from ever reaching this " +
+            "method's batch in the first place — this test simulates the batch already containing " +
+            "one, matching how this test file already bypasses that upstream stage throughout)");
+        sut.Service._wakeupChannel.Reader.TryRead(out _);
     }
 
     // ── Scenario: already engaged is a no-op ────────────────────────────────

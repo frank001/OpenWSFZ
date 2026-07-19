@@ -350,10 +350,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// <summary>
     /// External reply engages a specific decoded CQ (<c>external-reporting</c> capability's
     /// inbound Reply command, gridtracker-udp-reporting change). Reuses the same
-    /// CQ-matching/<see cref="DecodeFilterState"/>/empty-callsign guards as the automatic
-    /// auto-answer path, but targets <paramref name="callsign"/> specifically instead of "first
-    /// CQ in the batch," and is <strong>not</strong> gated by <c>tx.autoAnswer</c> — an explicit
-    /// external reply is a one-shot manual instruction, not automatic behaviour.
+    /// CQ-matching/empty-callsign guards as the automatic auto-answer path, but targets
+    /// <paramref name="callsign"/> specifically instead of "first CQ in the batch," and is
+    /// <strong>not</strong> gated by <c>tx.autoAnswer</c> — an explicit external reply is a
+    /// one-shot manual instruction, not automatic behaviour. Whether the active
+    /// <see cref="DecodeFilterState"/> still applies to this path is itself configurable via
+    /// <c>externalReporting.restrictExternalRepliesToDecodeFilter</c> (default <c>false</c> —
+    /// bypasses the filter; see fix-external-reporting-clear-and-reply-filter), unlike the
+    /// automatic auto-answer path, which always applies it unconditionally.
     /// </summary>
     /// <remarks>Implements <c>specs/qso-answerer/spec.md</c>'s "External reply engages a specific decoded CQ".</remarks>
     public Task<bool> TryEngageExternal(string callsign, CancellationToken ct = default)
@@ -384,7 +388,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             return Task.FromResult(false);
         }
 
-        var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+        var filterState  = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+        var restrictToFilter =
+            _configStore.Current.ExternalReporting?.RestrictExternalRepliesToDecodeFilter ?? false;
 
         foreach (var r in batch.Results)
         {
@@ -393,7 +399,13 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             if (!string.Equals(parsedCallsign, callsign, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (!DecodeFilterEvaluator.IsVisible(r, filterState))
+            // Whether a filtered-out CQ may still be engaged via an external Reply depends on
+            // externalReporting.restrictExternalRepliesToDecodeFilter — default false (bypass,
+            // external command is authoritative); opt-in true restores the pre-existing stricter
+            // behaviour (fix-external-reporting-clear-and-reply-filter change). This is the ONLY
+            // conditional filter check in this class: the internal auto-answer scan
+            // (HandleIdleAsync) always applies the filter unconditionally, unaffected by this flag.
+            if (restrictToFilter && !DecodeFilterEvaluator.IsVisible(r, filterState))
             {
                 _logger.LogInformation(
                     "TryEngageExternal: ignoring external reply for '{Callsign}' — filtered out under the active decode filter.",

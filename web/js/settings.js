@@ -116,6 +116,7 @@ const extRepEnabled        = /** @type {HTMLInputElement}         */ (document.g
 const extRepTbody          = /** @type {HTMLTableSectionElement}  */ (document.getElementById('ext-rep-tbody'));
 const addExtRepTargetBtn   = /** @type {HTMLButtonElement}        */ (document.getElementById('add-ext-rep-target-btn'));
 const extRepHonourInbound  = /** @type {HTMLInputElement}         */ (document.getElementById('ext-rep-honour-inbound'));
+const extRepRestrictReplies = /** @type {HTMLInputElement}        */ (document.getElementById('ext-rep-restrict-replies-to-filter'));
 
 // Advanced Decoder Settings controls (decoder-settings-page)
 const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-k'));
@@ -396,9 +397,10 @@ function snapshotForm() {
     },
     // gridtracker-udp-reporting: include the External Programs tab in dirty-state comparison.
     externalReporting: {
-      enabled:               extRepEnabled?.checked ?? false,
-      targets:                collectExtRepTargets(),
-      honourInboundCommands: extRepHonourInbound?.checked ?? false,
+      enabled:                                extRepEnabled?.checked ?? false,
+      targets:                                collectExtRepTargets(),
+      honourInboundCommands:                  extRepHonourInbound?.checked ?? false,
+      restrictExternalRepliesToDecodeFilter:  extRepRestrictReplies?.checked ?? false,
     },
   });
 }
@@ -884,6 +886,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const extRep = config.externalReporting ?? {};
     if (extRepEnabled) extRepEnabled.checked = extRep.enabled ?? false;
     if (extRepHonourInbound) extRepHonourInbound.checked = extRep.honourInboundCommands ?? false;
+    if (extRepRestrictReplies) extRepRestrictReplies.checked = extRep.restrictExternalRepliesToDecodeFilter ?? false;
+    updateExtRepRestrictRepliesVisibility();
     renderExtRepTable(Array.isArray(extRep.targets) ? extRep.targets : []);
 
     // Capture the clean baseline after all fields are fully populated (FR-040).
@@ -1172,6 +1176,19 @@ function updateLoggingVisibility() {
 loggingFileEnabled.addEventListener('change', updateLoggingVisibility);
 loggingSchedule.addEventListener('change',    updateLoggingVisibility);
 
+// ── Visibility helper: External Programs "restrict external Reply" checkbox ───────────────
+// fix-external-reporting-clear-and-reply-filter, task 5.3 (optional): the restrict-to-filter
+// checkbox has no effect unless "Honour inbound commands" is also checked — grey it out in that
+// state to avoid a confusing "why doesn't this do anything" moment. Not a hard requirement, but
+// cheap to add alongside the other dependent-field visibility helpers in this file.
+
+function updateExtRepRestrictRepliesVisibility() {
+  if (!extRepRestrictReplies) return;
+  extRepRestrictReplies.disabled = !(extRepHonourInbound?.checked ?? false);
+}
+
+if (extRepHonourInbound) extRepHonourInbound.addEventListener('change', updateExtRepRestrictRepliesVisibility);
+
 // ── Save ──────────────────────────────────────────────────────────────────
 
 saveBtn.addEventListener('click', async () => {
@@ -1326,9 +1343,10 @@ saveBtn.addEventListener('click', async () => {
 
     // Collect External Programs config (gridtracker-udp-reporting).
     const externalReporting = {
-      enabled:               extRepEnabled?.checked ?? false,
-      targets:               extRepTargetsForValidation,
-      honourInboundCommands: extRepHonourInbound?.checked ?? false,
+      enabled:                                extRepEnabled?.checked ?? false,
+      targets:                                extRepTargetsForValidation,
+      honourInboundCommands:                  extRepHonourInbound?.checked ?? false,
+      restrictExternalRepliesToDecodeFilter:  extRepRestrictReplies?.checked ?? false,
     };
 
     // POST config and frequencies in parallel (FR-043 / FR-007).

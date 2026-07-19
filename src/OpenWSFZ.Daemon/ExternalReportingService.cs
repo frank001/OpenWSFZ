@@ -22,14 +22,17 @@ namespace OpenWSFZ.Daemon;
 /// </para>
 ///
 /// <para>
-/// Outbound: Heartbeat and Status on a periodic timer (plus on-change for Status); Clear+Decode
-/// per decode-batch cycle (fed by a dedicated channel, mirroring
+/// Outbound: Heartbeat and Status on a periodic timer (plus on-change for Status); Decode per
+/// decode-batch cycle (fed by a dedicated channel, mirroring
 /// <c>QsoAnswererService</c>/<c>QsoCallerService</c>'s own dedicated decode-batch channels rather
 /// than design.md's originally-sketched <c>DecodeEventBus</c> subscription — <c>DecodeEventBus</c>
 /// is a one-way WebSocket broadcaster with no subscriber surface, so a third dedicated bounded
 /// channel is the simpler, already-precedented mechanism); QSOLogged via
 /// <see cref="NotifyQsoLogged"/>, called by the <see cref="IAdifLogWriter"/> decorator that wraps
-/// every ADIF-write call site; Close on graceful shutdown.
+/// every ADIF-write call site; Clear and Close on graceful shutdown only — <em>not</em> per decode
+/// cycle, matching real WSJT-X's own trigger for Clear (fix-external-reporting-clear-and-reply-
+/// filter change; sending Clear every cycle was a protocol-conformance defect that caused
+/// consumers such as GridTracker2 to discard their whole accumulated decode history every ~15s).
 /// </para>
 ///
 /// <para>
@@ -226,7 +229,12 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         var cts = Interlocked.Exchange(ref _cts, null);
         if (cts is null) return;
 
-        // Send Close to every enabled target before closing sockets (task 3.6).
+        // Send Clear, then Close, to every enabled target before closing sockets — matching
+        // WSJT-X's own "Clear sent on graceful shutdown" trigger (design.md Decision 1; fix-
+        // external-reporting-clear-and-reply-filter task 1.2). Clear is deliberately sent first so
+        // a consumer's "history discarded" bookkeeping is updated before the connection-teardown
+        // signal.
+        await SendClearToAllAsync().ConfigureAwait(false);
         await SendCloseToAllAsync().ConfigureAwait(false);
 
         await cts.CancelAsync().ConfigureAwait(false);
@@ -391,8 +399,6 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
             await foreach (var batch in _decodeChannel.ReadAllAsync(ct).ConfigureAwait(false))
             {
                 if (!IsOutboundActive) continue;
-
-                await SendToAllEnabledAsync(WsjtxDatagram.EncodeClear(AppId)).ConfigureAwait(false);
 
                 foreach (var r in batch.Results)
                 {
@@ -598,6 +604,24 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     }
 
     private static string TargetKey(ExternalReportingTarget t) => $"{t.Name}|{t.Host}|{t.Port}";
+
+    /// <summary>
+    /// Sends a Clear datagram to every enabled target — invoked only on graceful shutdown
+    /// (<see cref="StopAsync"/>), matching real WSJT-X's own "Clear on shutdown" trigger. The
+    /// per-decode-cycle Clear send this class previously performed was a protocol-conformance
+    /// defect (it caused consumers such as GridTracker2 to discard their entire accumulated
+    /// decode history every ~15 seconds) and has been removed from <see cref="DecodeLoopAsync"/>
+    /// entirely — see design.md Decision 1.
+    /// </summary>
+    private async Task SendClearToAllAsync()
+    {
+        if (!IsOutboundActive) return;
+        try
+        {
+            await SendToAllEnabledAsync(WsjtxDatagram.EncodeClear(AppId)).ConfigureAwait(false);
+        }
+        catch { /* best-effort on shutdown */ }
+    }
 
     private async Task SendCloseToAllAsync()
     {
