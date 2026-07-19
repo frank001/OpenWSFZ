@@ -240,10 +240,10 @@ public sealed class QsoCallerServiceTests
         // Partner is null throughout (no responder selected yet at CQ time).
         Received.InOrder(() =>
         {
-            eventBus.Publish("TxCq",       "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), false);
-            eventBus.Publish("TxCq",       "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), true);
-            eventBus.Publish("TxCq",       "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), false);
-            eventBus.Publish("WaitAnswer", "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), false);
+            eventBus.Publish("TxCq",       "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), false, Arg.Any<string?>());
+            eventBus.Publish("TxCq",       "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), true,  Arg.Any<string?>());
+            eventBus.Publish("TxCq",       "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), false, Arg.Any<string?>());
+            eventBus.Publish("WaitAnswer", "caller", Arg.Any<string?>(), true, Arg.Any<string?>(), false, Arg.Any<string?>());
         });
 
         // By the time WaitAnswer is reached, KeyDownAsync has returned — Keying is back to false.
@@ -285,7 +285,7 @@ public sealed class QsoCallerServiceTests
            .Returns(_ => { callOrder.Add("KeyUpAsync"); return Task.CompletedTask; });
         eventBus.When(e => e.Publish(
                     Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(),
-                    Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<bool>()))
+                    Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<string?>()))
                 .Do(ci => callOrder.Add($"Publish:{ci.ArgAt<string>(0)}:keying={ci.ArgAt<bool>(5)}"));
 
         await sut.StartAsync(stopCts.Token);
@@ -956,7 +956,9 @@ public sealed class QsoCallerServiceTests
             "caller",
             Arg.Any<string?>(),   // partner is null; Arg.Any avoids NSubstitute arg-matcher ordering issue
             false,
-            $"Partner {PartnerCall} is working another station");
+            $"Partner {PartnerCall} is working another station",
+            false,                // keying — explicit positional (named-arg skip mis-orders Arg.Any matchers)
+            Arg.Any<string?>());  // lastTxMessage — not under test here
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -1013,7 +1015,9 @@ public sealed class QsoCallerServiceTests
             "caller",
             Arg.Any<string?>(),
             false,
-            $"No response from {PartnerCall} after 2 retries");
+            $"No response from {PartnerCall} after 2 retries",
+            false,
+            Arg.Any<string?>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -1072,7 +1076,9 @@ public sealed class QsoCallerServiceTests
             "caller",
             Arg.Any<string?>(),
             false,
-            "No response after 2 CQ retries");
+            "No response after 2 CQ retries",
+            false,
+            Arg.Any<string?>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -1152,6 +1158,8 @@ public sealed class QsoCallerServiceTests
             "Idle",
             "caller",
             Arg.Any<string?>(),   // partner is null; Arg.Any avoids NSubstitute arg-matcher ordering issue
+            false,
+            Arg.Any<string?>(),
             false,
             Arg.Any<string?>());
 
@@ -1866,6 +1874,97 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
+    // ── fix-tx-transcript-real-message (TX-D05): LastTxMessage externally observable ──
+
+    [Fact(DisplayName = "TX-D05: LastTxMessage is null before any transmission")]
+    public void LastTxMessage_NullByDefault_BeforeAnyTransmission()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer      = true,
+            Callsign        = OurCallsign,
+            Grid            = OurGrid,
+            WatchdogMinutes = 4,
+        };
+        var (sut, _, _, _, _, _) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+
+        sut.LastTxMessage.Should().BeNull();
+    }
+
+    [Fact(DisplayName = "TX-D05: LastTxMessage reflects the real composed CQ and report messages as each is transmitted")]
+    public async Task LastTxMessage_ReflectsComposedMessages_AsEachIsTransmitted()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        sut.LastTxMessage.Should().Be($"CQ {OurCallsign} {OurGrid}",
+            "row 1 (CQ) must also be tracked, not just the report row");
+
+        // Responder's CQ-answer decode, Snr = -5 (this file's Make() default).
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        sut.LastTxMessage.Should().Be($"{PartnerCall} {OurCallsign} -05",
+            "must reflect the real composed report, not a stale CQ or fixed +00 placeholder");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "TX-D05: LastTxMessage reflects the retransmitted report value after a WaitRr73 retry")]
+    public async Task LastTxMessage_ReflectsRetransmittedValue_AfterWaitRr73Retry()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 2,
+            WatchdogMinutes     = 4,
+        };
+        var (sut, _, _, ptt, channel, stopCts) =
+            BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}")); // Snr = -5 (Make default)
+        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        var expectedReport = $"{PartnerCall} {OurCallsign} -05";
+        sut.LastTxMessage.Should().Be(expectedReport);
+
+        // A-01 skip-then-retry silence pattern (mirrors
+        // RetryOrAbortAsync_WaitRr73Retry_ResendsSamePersistedReportValue above).
+        Send(channel, Make("Q2NOISE Q3NOISE -10"));
+        await Task.Delay(150);
+        Send(channel, Make("Q2NOISE Q3NOISE -10"));
+        await Task.Delay(300);
+        sut.State.Should().Be(QsoState.WaitRr73, "one retry must not exhaust the retry budget");
+
+        sut.LastTxMessage.Should().Be(expectedReport,
+            "the retry retransmits the exact same persisted report value, not a freshly recomputed one");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── D-013: QSO records must use the live CAT dial frequency, not the stale ──
     //           DecodeLog.DialFrequencyMHz config fallback, when CAT is connected ──
 
@@ -2300,7 +2399,12 @@ public sealed class QsoCallerServiceTests
         // Idle, so assert the transient QsoComplete broadcast directly via the event bus to
         // confirm the QSO reached normal completion (not an abort) with the original partner.
         await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
-        eventBus.Received(1).Publish("QsoComplete", "caller", PartnerCall, true, null);
+        // NSubstitute note: abortReason must be an explicit Arg.Is matcher, not a literal `null`
+        // — mixing a bare-null literal with the Arg.Any<string?>() lastTxMessage matcher below
+        // makes NSubstitute misattribute the queued matcher to the wrong (null-valued) position.
+        eventBus.Received(1).Publish(
+            "QsoComplete", "caller", PartnerCall, true,
+            Arg.Is<string?>(r => r == null), false, Arg.Any<string?>());
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);

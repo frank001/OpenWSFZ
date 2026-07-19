@@ -111,3 +111,46 @@ export function pushTranscriptEntry(log, entry, maxLen) {
 export function hasEnteredNewActiveTxState(prevState, newState, activeStates) {
   return newState !== prevState && activeStates.includes(newState);
 }
+
+/**
+ * fix-tx-transcript-real-message (TX-D05): computes the updated per-row cache of real
+ * transmitted text (design.md "Decisions" — the daemon exposes only the single most recent
+ * transmission, so the frontend remembers "the real text I was told for row N" locally rather
+ * than asking the backend for history).
+ *
+ * Returns a new array with `realRowText[activeIndex]` set to `lastTxMessage` when the state
+ * machine has just entered a new active row (`hasEnteredNewActiveTxState`) AND a real value is
+ * available; otherwise returns `realRowText` unchanged (same reference — no-op), e.g. for a
+ * re-render of the current state, a transition to a state outside `activeStates`, or before
+ * anything has actually been transmitted for the newly-entered row yet.
+ *
+ * @param {(string|null)[]} realRowText   Current per-row cache (index 0 = row 1, 1 = row 2, 2 = row 3).
+ * @param {string}          prevState     The state immediately prior to this render.
+ * @param {string}          state         The state as of this render.
+ * @param {string[]}        activeStates  The role's three active-state names, in row order.
+ * @param {string|null}     [lastTxMessage] The real transmitted text reported for this render, if any.
+ * @returns {(string|null)[]}
+ */
+export function cacheRealRowText(realRowText, prevState, state, activeStates, lastTxMessage = null) {
+  if (lastTxMessage == null || !hasEnteredNewActiveTxState(prevState, state, activeStates)) {
+    return realRowText;
+  }
+  const activeIndex = activeStates.indexOf(state);
+  const updated = realRowText.slice();
+  updated[activeIndex] = lastTxMessage;
+  return updated;
+}
+
+/**
+ * fix-tx-transcript-real-message (TX-D05): picks the text to render/log for row `index` — the
+ * real transmitted text if one has ever been cached for that row this session, otherwise the
+ * static per-state template (still correct and honest for a row not yet reached).
+ *
+ * @param {(string|null)[]} realRowText
+ * @param {string[]}        texts
+ * @param {number}          index
+ * @returns {string}
+ */
+export function pickRowText(realRowText, texts, index) {
+  return realRowText[index] ?? texts[index];
+}

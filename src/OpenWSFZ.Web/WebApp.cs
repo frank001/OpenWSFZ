@@ -1130,7 +1130,8 @@ public static class WebApp
             var role                 = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
             var callerPartnerSelect  = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             var keying               = qsoController?.Keying ?? false;
-            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, autoAnswerEnabled, role, callerPartnerSelect, keying));
+            var lastTxMessage        = qsoController?.LastTxMessage;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, autoAnswerEnabled, role, callerPartnerSelect, keying, lastTxMessage));
         });
 
         app.MapPost("/api/v1/tx/enable", async (IConfigStore store, CancellationToken ct) =>
@@ -1142,7 +1143,8 @@ public static class WebApp
             var role                = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
             var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             var keying              = qsoController?.Keying ?? false;
-            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: true, Role: role, CallerPartnerSelect: callerPartnerSelect, Keying: keying));
+            var lastTxMessage       = qsoController?.LastTxMessage;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: true, Role: role, CallerPartnerSelect: callerPartnerSelect, Keying: keying, LastTxMessage: lastTxMessage));
         });
 
         app.MapPost("/api/v1/tx/disable", async (IConfigStore store, CancellationToken ct) =>
@@ -1154,7 +1156,8 @@ public static class WebApp
             var role                = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
             var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             var keying              = qsoController?.Keying ?? false;
-            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role, CallerPartnerSelect: callerPartnerSelect, Keying: keying));
+            var lastTxMessage       = qsoController?.LastTxMessage;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role, CallerPartnerSelect: callerPartnerSelect, Keying: keying, LastTxMessage: lastTxMessage));
         });
 
         app.MapPost("/api/v1/tx/abort", async (IConfigStore store, CancellationToken ct) =>
@@ -1172,7 +1175,8 @@ public static class WebApp
             var role                = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
             var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             var keying              = qsoController?.Keying ?? false;
-            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role, CallerPartnerSelect: callerPartnerSelect, Keying: keying));
+            var lastTxMessage       = qsoController?.LastTxMessage;
+            return TypedResults.Ok(new TxStatusResponse(state.ToString(), partner, AutoAnswerEnabled: false, Role: role, CallerPartnerSelect: callerPartnerSelect, Keying: keying, LastTxMessage: lastTxMessage));
         });
 
         // ── POST /api/v1/tx/stop-cq (qso-controller — Call CQ graceful stop) ──
@@ -1196,8 +1200,9 @@ public static class WebApp
             var role                = qsoController.Role.ToString().ToLowerInvariant();
             var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             var keying              = qsoController.Keying;
+            var lastTxMessage       = qsoController.LastTxMessage;
             return TypedResults.Ok(new TxStatusResponse(
-                state.ToString(), partner, autoAnswerEnabled, role, callerPartnerSelect, keying));
+                state.ToString(), partner, autoAnswerEnabled, role, callerPartnerSelect, keying, lastTxMessage));
         });
 
         // ── POST /api/v1/tx/answer-cq (TX-D01 phase-aware CQ answer) ──────────
@@ -1242,7 +1247,8 @@ public static class WebApp
             var txRole              = qsoController.Role.ToString().ToLowerInvariant();
             var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             var keying              = qsoController.Keying;
-            return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole, CallerPartnerSelect: callerPartnerSelect, Keying: keying));
+            var lastTxMessage       = qsoController.LastTxMessage;
+            return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole, CallerPartnerSelect: callerPartnerSelect, Keying: keying, LastTxMessage: lastTxMessage));
         });
 
         // ── POST /api/v1/tx/select-responder (qso-caller, None mode) ─────────
@@ -1292,7 +1298,8 @@ public static class WebApp
             var txRole              = qsoController.Role.ToString().ToLowerInvariant();
             var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             var keying              = qsoController.Keying;
-            return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole, CallerPartnerSelect: callerPartnerSelect, Keying: keying));
+            var lastTxMessage       = qsoController.LastTxMessage;
+            return TypedResults.Ok(new TxStatusResponse(txState.ToString(), txPartner, AutoAnswerEnabled: true, Role: txRole, CallerPartnerSelect: callerPartnerSelect, Keying: keying, LastTxMessage: lastTxMessage));
         });
 
         // ── POST /api/v1/tx/engage-decode (D-CALLER-012) ─────────────────────────────
@@ -1536,6 +1543,7 @@ public static class WebApp
             var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             var autoAnswer          = store.Current.Tx?.AutoAnswer ?? false;
             var keying               = qsoController.Keying;
+            var lastTxMessage        = qsoController.LastTxMessage;
 
             return TypedResults.Ok(new TxStatusResponse(
                 state.ToString(),
@@ -1543,7 +1551,8 @@ public static class WebApp
                 AutoAnswerEnabled: autoAnswer,
                 Role:              role,
                 CallerPartnerSelect: callerPartnerSelect,
-                Keying:            keying));
+                Keying:            keying,
+                LastTxMessage:     lastTxMessage));
         });
 
         // ── POST /api/v1/tx/call-cq (Call CQ button — runtime role switch) ────
@@ -1576,9 +1585,10 @@ public static class WebApp
             var newPartner          = qsoController.Partner;
             var callerPartnerSelect = store.Current.Tx?.CallerPartnerSelect.ToString() ?? "First";
             var keying              = qsoController.Keying;
+            var lastTxMessage       = qsoController.LastTxMessage;
             return TypedResults.Ok(new TxStatusResponse(
                 newState.ToString(), newPartner, AutoAnswerEnabled: true, Role: "caller",
-                CallerPartnerSelect: callerPartnerSelect, Keying: keying));
+                CallerPartnerSelect: callerPartnerSelect, Keying: keying, LastTxMessage: lastTxMessage));
         });
 
         // ── POST /api/v1/tx/caller-partner-select (FR-PILEUP-001) ────────────
@@ -1614,12 +1624,14 @@ public static class WebApp
             var partner = qsoController?.Partner;
             var role    = qsoController?.Role.ToString().ToLowerInvariant() ?? "answerer";
             var keying  = qsoController?.Keying ?? false;
+            var lastTxMessage = qsoController?.LastTxMessage;
             return TypedResults.Ok(new TxStatusResponse(
                 state.ToString(), partner,
                 AutoAnswerEnabled: store.Current.Tx?.AutoAnswer ?? false,
                 Role: role,
                 CallerPartnerSelect: body.Mode,
-                Keying: keying));
+                Keying: keying,
+                LastTxMessage: lastTxMessage));
         });
 
         // ── POST /api/v1/tx/log-qso (qso-log-dialog) ─────────────────────────

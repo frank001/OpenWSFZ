@@ -495,6 +495,11 @@ internal static class WebSocketHub
     /// Human-readable abort reason, or <c>null</c> for normal QSO completion and routine
     /// Idle pushes. Non-null only for abnormal terminations (FR-UX-002).
     /// </param>
+    /// <param name="lastTxMessage">
+    /// Current value of <c>IQsoController.LastTxMessage</c> — the exact text of the most
+    /// recently transmitted message, or <c>null</c> if nothing has been transmitted yet
+    /// (fix-tx-transcript-real-message, TX-D05).
+    /// </param>
     internal static void BroadcastTxState(
         Guid    scope,
         string  state,
@@ -502,13 +507,15 @@ internal static class WebSocketHub
         string? partner,
         bool    autoAnswerEnabled,
         bool    keying,
-        string? abortReason = null)
+        string? abortReason = null,
+        string? lastTxMessage = null)
     {
         if (ActiveSockets.IsEmpty) return;
 
         var msg     = new WsTxStateMessage(Type: "txState", Role: role, State: state,
                                            Partner: partner, AutoAnswerEnabled: autoAnswerEnabled,
-                                           Keying: keying, AbortReason: abortReason);
+                                           Keying: keying, AbortReason: abortReason,
+                                           LastTxMessage: lastTxMessage);
         var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsTxStateMessage);
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);

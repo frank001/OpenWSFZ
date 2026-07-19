@@ -128,6 +128,13 @@ internal sealed record TuneResponse(double EffectiveFrequencyMHz);
 /// derivation under-reported real transmission windows whenever a TX call site retransmitted
 /// without re-broadcasting a <c>Tx*</c> sub-state first.
 /// </para>
+/// <para>
+/// <c>lastTxMessage</c> (fix-tx-transcript-real-message, TX-D05) mirrors
+/// <c>IQsoController.LastTxMessage</c> — the exact text of the most recently transmitted
+/// message this process lifetime, or omitted/absent when nothing has been transmitted yet.
+/// Lets the frontend show the real transmitted content instead of its static per-state
+/// message template once a row has actually been sent.
+/// </para>
 /// </summary>
 internal sealed record WsTxStateMessage(
     string  Type,
@@ -137,7 +144,9 @@ internal sealed record WsTxStateMessage(
     bool    AutoAnswerEnabled,
     bool    Keying,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    string? AbortReason = null);
+    string? AbortReason = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? LastTxMessage = null);
 
 /// <summary>
 /// Response body for <c>GET /api/v1/tx/status</c>, <c>POST /api/v1/tx/enable</c>,
@@ -147,6 +156,8 @@ internal sealed record WsTxStateMessage(
 /// <c>keying</c> mirrors <c>IQsoController.Keying</c> so a freshly-loaded or reconnected tab
 /// gets the correct current value immediately rather than only on the next <c>txState</c>
 /// WS transition (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A).
+/// <c>lastTxMessage</c> (fix-tx-transcript-real-message, TX-D05) mirrors
+/// <c>IQsoController.LastTxMessage</c>, <c>null</c> when nothing has been transmitted yet.
 /// </summary>
 public sealed record TxStatusResponse(
     string  State,
@@ -154,7 +165,8 @@ public sealed record TxStatusResponse(
     bool    AutoAnswerEnabled,
     string  Role                = "answerer",
     string  CallerPartnerSelect = "First",
-    bool    Keying              = false);
+    bool    Keying              = false,
+    string? LastTxMessage       = null);
 
 /// <summary>
 /// Payload for <c>audioOffset</c> WebSocket push events.

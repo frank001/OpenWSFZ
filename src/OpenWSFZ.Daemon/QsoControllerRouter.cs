@@ -94,6 +94,9 @@ public sealed class QsoControllerRouter : IQsoController, IQsoRoleSwitcher, IExt
     public string? Partner => ActiveController.Partner;
 
     /// <inheritdoc/>
+    public string? LastTxMessage => ActiveController.LastTxMessage;
+
+    /// <inheritdoc/>
     public bool Keying => ActiveController.Keying;
 
     /// <inheritdoc/>

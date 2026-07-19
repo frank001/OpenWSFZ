@@ -23,6 +23,14 @@ internal sealed class MockQsoController : IQsoController
     public QsoRole  Role    { get; set; } = QsoRole.Answerer;
 
     /// <summary>
+    /// fix-tx-transcript-real-message (TX-D05): settable so tests can confirm
+    /// <c>IQsoController.LastTxMessage</c> is threaded through into the various
+    /// <c>TxStatusResponse</c>-returning endpoints. Defaults to null (nothing
+    /// transmitted yet), matching <see cref="IQsoController.LastTxMessage"/>'s own default.
+    /// </summary>
+    public string? LastTxMessage { get; set; }
+
+    /// <summary>
     /// Number of times <see cref="GracefulStopAsync"/> has been called
     /// (f-004-operator-visibility-improvements — POST /api/v1/tx/stop-cq tests).
     /// </summary>
@@ -439,6 +447,40 @@ public sealed class TxAnswerCqEndpointTests : IClassFixture<TxAnswerCqFixture>
         // Restore defaults for other tests.
         _fixture.QsoController.Role  = QsoRole.Answerer;
         _fixture.QsoController.State = QsoState.Idle;
+    }
+
+    // ── fix-tx-transcript-real-message (TX-D05): lastTxMessage field ─────────
+
+    [Fact(DisplayName = "TX-D05: GET /api/v1/tx/status includes lastTxMessage reflecting the active controller's value")]
+    public async Task GetTxStatus_ReturnsLastTxMessage_ReflectingActiveController()
+    {
+        _fixture.QsoController.LastTxMessage = "Q1TST Q1OFZ -05";
+
+        var response = await _client.GetAsync("/api/v1/tx/status");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("lastTxMessage").GetString()
+            .Should().Be("Q1TST Q1OFZ -05");
+
+        // Restore default for other tests.
+        _fixture.QsoController.LastTxMessage = null;
+    }
+
+    [Fact(DisplayName = "TX-D05: GET /api/v1/tx/status omits/nulls lastTxMessage when nothing has been transmitted yet")]
+    public async Task GetTxStatus_ReturnsNullLastTxMessage_WhenNothingTransmittedYet()
+    {
+        _fixture.QsoController.LastTxMessage = null;
+
+        var response = await _client.GetAsync("/api/v1/tx/status");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        var prop = doc.RootElement.GetProperty("lastTxMessage");
+        prop.ValueKind.Should().Be(JsonValueKind.Null,
+            "TxStatusResponse.LastTxMessage has no [JsonIgnore(WhenWritingNull)] like WsTxStateMessage — it is always present, null when unset");
     }
 }
 
