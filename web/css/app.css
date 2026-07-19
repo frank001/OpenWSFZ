@@ -157,7 +157,7 @@ label {
 }
 
 #waterfall-panel {
-  flex: 0 0 40%;
+  flex: 0 0 30%;
   background: #000;
   overflow: hidden;
   border-bottom: 1px solid var(--color-border);
