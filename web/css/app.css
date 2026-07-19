@@ -191,21 +191,34 @@ label {
 }
 
 /* Dark-theme scrollbar — otherwise this falls back to the OS/browser default light
-   scrollbar, which reads as a glaring white bar against the app's dark theme. */
-#decodes-panel {
+   scrollbar, which reads as a glaring white bar against the app's dark theme.
+   Covers every element with overflow-y: auto that can actually grow a scrollbar:
+   #decodes-panel (main decode table), #tx-panel (TX/QSO transcript column), and
+   .decode-filter-popup (column-header filter dropdowns). */
+#decodes-panel,
+#tx-panel,
+.decode-filter-popup {
   scrollbar-color: var(--color-border) var(--color-surface);
 }
-#decodes-panel::-webkit-scrollbar {
+#decodes-panel::-webkit-scrollbar,
+#tx-panel::-webkit-scrollbar,
+.decode-filter-popup::-webkit-scrollbar {
   width: 10px;
 }
-#decodes-panel::-webkit-scrollbar-track {
+#decodes-panel::-webkit-scrollbar-track,
+#tx-panel::-webkit-scrollbar-track,
+.decode-filter-popup::-webkit-scrollbar-track {
   background: var(--color-surface);
 }
-#decodes-panel::-webkit-scrollbar-thumb {
+#decodes-panel::-webkit-scrollbar-thumb,
+#tx-panel::-webkit-scrollbar-thumb,
+.decode-filter-popup::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: var(--radius);
 }
-#decodes-panel::-webkit-scrollbar-thumb:hover {
+#decodes-panel::-webkit-scrollbar-thumb:hover,
+#tx-panel::-webkit-scrollbar-thumb:hover,
+.decode-filter-popup::-webkit-scrollbar-thumb:hover {
   background: var(--color-muted);
 }
 
