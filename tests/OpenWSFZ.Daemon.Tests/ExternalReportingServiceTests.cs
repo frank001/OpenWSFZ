@@ -147,7 +147,9 @@ public sealed class ExternalReportingServiceTests
             // interval is 30 s in CreateSut, but the FIRST tick always fires since
             // _lastHeartbeatSentUtc starts at DateTimeOffset.MinValue) — capture enough
             // datagrams to see past that burst to the Decode datagram (no Clear is sent per cycle;
-            // see fix-external-reporting-clear-and-reply-filter).
+            // see fix-external-reporting-clear-and-reply-filter). margin: 3 = Heartbeat + Status +
+            // Decode, the current maximum for this path — bump this if DecodeLoopAsync ever sends
+            // one more datagram type ahead of Decode (see tools/check_udp_capture_margin.py).
             var recv1 = await ReceiveAllAsync(listener1, 3, TimeSpan.FromSeconds(3));
             var recv2 = await ReceiveAllAsync(listener2, 3, TimeSpan.FromSeconds(3));
 
@@ -528,7 +530,8 @@ public sealed class ExternalReportingServiceTests
         // post-stop receive's own exact cap). Instead, capture ONE generous batch spanning both
         // the initial burst and the stop-time Clear/Close, and assert with Should().Contain —
         // robust to extra noise, matching every other test in this file (e.g.
-        // TwoEnabledTargets_BothReceiveDecode above).
+        // TwoEnabledTargets_BothReceiveDecode above). margin: 6 requested against a maximum of 4
+        // ever sent (Heartbeat, Status, Clear, Close) — 2 slots of deliberate headroom.
         await Task.Delay(150);
         await sut.StopAsync(CancellationToken.None);
 
@@ -716,6 +719,8 @@ public sealed class ExternalReportingServiceTests
                 DialFrequencyMHz = 14.074,
             });
 
+            // margin: 3 = Heartbeat + Status + QsoLogged, the current maximum for this path
+            // (StopAsync is never called here, so no Clear/Close compete for the capture window).
             var recv = await ReceiveAllAsync(listener, 3, TimeSpan.FromSeconds(3));
 
             recv.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.QsoLogged);
@@ -769,7 +774,8 @@ public sealed class ExternalReportingServiceTests
             });
 
             // The timer loop also fires an immediate Heartbeat+Status burst on start — capture
-            // enough datagrams to see past it to the QSOLogged datagram.
+            // enough datagrams to see past it to the QSOLogged datagram. margin: 3 = Heartbeat +
+            // Status + QsoLogged, the current maximum for this path (no StopAsync call here).
             var recv = await ReceiveAllAsync(listener, 3, TimeSpan.FromSeconds(3));
 
             recv.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.QsoLogged);
@@ -807,10 +813,14 @@ public sealed class ExternalReportingServiceTests
         // A Heartbeat/Status may or may not have raced ahead of the immediate StopAsync (timer
         // loop scheduling is not deterministic), and StopAsync itself now sends Clear ahead of
         // Close (fix-external-reporting-clear-and-reply-filter, task 1.2) — so up to 4 datagrams
-        // (Heartbeat, Status, Clear, Close) may arrive. Capturing only 3 here previously truncated
-        // Close off the end on a slower/differently-scheduled runner (observed on ubuntu-latest
-        // CI); assert Close is present, not that it's the only or the Nth datagram.
-        var recv = await ReceiveAllAsync(listener, 4, TimeSpan.FromSeconds(3));
+        // (Heartbeat, Status, Clear, Close) may arrive. Capturing exactly 3 here previously
+        // truncated Close off the end on a slower/differently-scheduled runner (observed on
+        // ubuntu-latest CI, fixed in PR #91 by bumping to 4 — still zero headroom against that
+        // same maximum, so widened again here). margin: 6 requested against a maximum of 4 —
+        // matching StopAsync_SendsClearToEveryEnabledTarget's own established headroom above, so
+        // one more datagram type added to StopAsync doesn't immediately re-break this test too;
+        // assert Close is present, not that it's the only or the Nth datagram.
+        var recv = await ReceiveAllAsync(listener, 6, TimeSpan.FromSeconds(3));
         recv.Select(ReadMessageType).Should().Contain(WsjtxDatagram.MessageType.Close);
     }
 

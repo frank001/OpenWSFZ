@@ -345,6 +345,23 @@ jobs:
           path: licence-inventory.md
 
       # -----------------------------------------------------------------
+      # Lint: UDP capture margin check
+      # Flags a ReceiveAllAsync(listener, N, ...) call in the external-
+      # reporting UDP tests that asserts a specific WSJT-X datagram type is
+      # present without a comment documenting why N was chosen. Added
+      # 2026-07-19 after PR #90 added a Clear datagram send ahead of Close
+      # in ExternalReportingService.StopAsync, and a pre-existing test's
+      # fixed 3-datagram capture window silently truncated Close off the
+      # end on this exact runner (ubuntu-latest) — see PR #91's fix and
+      # tools/check_udp_capture_margin.py's own module docstring for the
+      # full incident. Pure text scan — runs once (Linux only), same
+      # rationale as G3/G5/G8 not being triplicated across the OS matrix.
+      # -----------------------------------------------------------------
+      - name: Lint — UDP capture margin check
+        if: runner.os == 'Linux'
+        run: python3 tools/check_udp_capture_margin.py
+
+      # -----------------------------------------------------------------
       # Gate G7: Secrets scan — gitleaks
       # Scans the full commit history for secrets, credentials, private
       # keys, and other sensitive material. Any finding fails the build.
