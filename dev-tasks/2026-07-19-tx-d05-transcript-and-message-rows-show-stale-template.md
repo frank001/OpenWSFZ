@@ -2,7 +2,9 @@
 
 **Date:** 2026-07-19
 **Prepared by:** QA engineer (Captain report + source review, on top of `656bd7e`)
-**Status:** OpenSpec change proposed and complete — ready for implementation (`/opsx:apply`)
+**Status:** Implemented (`8965c0a`, 26/26 tasks) and QA-reviewed pre-merge; see
+`openspec/qa-backlog.md` N12 for the closing summary, including a Gate G9b VERSION-bump gap QA
+found and fixed before this branch's PR was opened.
 **Defect ID:** TX-D05 (new — direct consequence of TX-D04 shipping; same feature family, next number
 in that sequence since the Captain already knows it by that name)
 **Severity:** Medium (display-only — no protocol, ADIF, or over-the-air content is wrong; the
@@ -24,7 +26,7 @@ evidence, but implement from `design.md`/`tasks.md`, not from the sketch below.
 
 After `fix-tx-report-real-snr` (TX-D04, `656bd7e`) shipped, the Captain made a real QSO and reported:
 
-> on screen snr reporting is still 0 db [screenshot of QSO Transcript, showing `EB3JT PD2FZ +00`
+> on screen snr reporting is still 0 db [screenshot of QSO Transcript, showing `Q6DX PD2FZ +00`
 > repeated across every "sent report" line] . adif log is
 > `<RST_SENT:3>-03<RST_RCVD:3>-15...` . what is real?
 

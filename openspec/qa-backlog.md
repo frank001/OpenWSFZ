@@ -416,17 +416,20 @@ guarantee.
 
 ## N12 — TX-D05: TX message rows and QSO Transcript show a hardcoded `+00`/`R+00` template, not the real report TX-D04 now sends
 
-**Status:** OPEN, proposal complete — `openspec/changes/fix-tx-transcript-real-message/` (branch
-`fix/tx-d05-transcript-real-message`, proposal commit `a16436d`) has full `proposal.md`/`design.md`/
-delta specs (`qso-caller`, `qso-answerer`, `qso-controller`, `web-frontend`)/`tasks.md` (38 tasks),
-`isComplete: true`, `openspec validate --strict --all` 56/56 with this change included. Ready for
-`/opsx:apply`; not yet implemented. Found immediately by the Captain making a real QSO right after
-`656bd7e` (TX-D04) merged: ADIF showed real `-03`/`-15`, on-screen Transcript still showed `+00`
-throughout.
+**Status:** CLOSED, implemented — `openspec/changes/fix-tx-transcript-real-message/` (branch
+`fix/tx-d05-transcript-real-message`, implementation commit `8965c0a`, 26/26 tasks) shipped
+`IQsoController.LastTxMessage`, threaded through `TxStatusResponse`/`WsTxStateMessage` and
+consumed by the frontend's new `cacheRealRowText`/`pickRowText` per-row caching. QA pre-merge
+review found and fixed a missed Gate G9b VERSION bump (REQUIREMENTS.md row 1.43, `VERSION` →
+`v0.44`) before this branch's PR was opened — see that row for full detail. Live-verified against
+a real running daemon (HTTP+WebSocket client and a real Chromium/Playwright tab) —
+`qa/tx-transcript-real-message-live-verify/`. Found immediately by the Captain making a real QSO
+right after `656bd7e` (TX-D04) merged: ADIF showed real `-03`/`-15`, on-screen Transcript still
+showed `+00` throughout.
 **Severity:** Medium (display-only — no protocol/ADIF/over-the-air content is wrong, confirmed by
 reading the TX-D04 diff; but the operator cannot trust the live screen during a QSO, which matters
 for exactly the "did they get it" judgement call in N11/D-CALLER-022 above)
-**Source:** Captain, 2026-07-19, live QSO with EB3JT immediately after TX-D04 shipped; QA traced
+**Source:** Captain, 2026-07-19, live QSO with a partner station immediately after TX-D04 shipped; QA traced
 root cause via source read of `web/js/main.js` and `web/js/qsoTranscript.js` against `656bd7e`.
 **File:** `web/js/main.js` (`renderMessageRows`, lines ~187–232 — hardcoded `+00`/`R+00` template
 strings, reused verbatim by the Transcript's `appendTranscriptEntry('sent', ...)` call);
