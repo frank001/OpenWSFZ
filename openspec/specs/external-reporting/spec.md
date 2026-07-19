@@ -143,25 +143,33 @@ machine via this channel, regardless of what the operator has configured elsewhe
   decode cycle contains a `DecodeResult` with `Region: null` and another with `Region.Synthetic: true`
 - **THEN** neither `DecodeResult` SHALL produce an outbound Decode datagram to any target
 
-#### Scenario: A cycle with only excluded decodes still sends Clear
-
-- **WHEN** every `DecodeResult` in a decode cycle is unknown-region or synthetic
-- **THEN** the Clear datagram for that cycle SHALL still be sent to every enabled target, unaffected
-  by how many (or how few) Decode datagrams follow it
-
 ---
 
 ### Requirement: Outbound Clear message
 
-The service SHALL send a WSJT-X-protocol Clear datagram whenever the decode pipeline's own decode
-window is cleared (mirroring whatever internal event already signals a fresh decode window began,
-per the existing decode pipeline).
+The service SHALL send a WSJT-X-protocol Clear datagram only when the daemon shuts down gracefully
+(`ExternalReportingService.StopAsync`), sent alongside the existing Close datagram before the
+outbound sockets close. The service SHALL NOT send a Clear datagram on any other cadence — in
+particular, it SHALL NOT send one at the start of every decode cycle. This corrects a defect
+present since this capability's original implementation: real WSJT-X (per its own
+`NetworkMessage.hpp` protocol documentation) sends Clear only on an explicit operator
+"erase Band Activity window" action or on its own graceful shutdown — never on its ordinary decode
+cadence, which is identical to this service's. A third-party consumer (GridTracker2, JTAlert, ...)
+treats Clear as "discard everything accumulated from this source"; sending it every ~15-second
+decode cycle caused such a consumer's own accumulated state (e.g. a spot map) to be wiped every
+cycle instead of persisting across a session, in stark contrast to a real WSJT-X source.
 
-#### Scenario: Clear sent on new decode cycle boundary
+#### Scenario: No Clear datagram is sent during ordinary decode-cycle operation
 
-- **WHEN** a new 15-second decode cycle begins
-- **THEN** a Clear datagram SHALL be sent to every enabled target before that cycle's Decode
-  datagrams
+- **WHEN** the service is running with at least one enabled target and successive decode cycles
+  produce Decode datagrams, regardless of how many (or how few) decodes each cycle contains
+- **THEN** no Clear datagram SHALL be sent at any point during this ordinary operation
+
+#### Scenario: Clear sent on graceful shutdown
+
+- **WHEN** the daemon receives a shutdown signal and `ExternalReportingService.StopAsync` runs
+- **THEN** a Clear datagram SHALL be sent to every enabled target, alongside the existing Close
+  datagram, before the outbound sockets close
 
 ---
 
@@ -316,12 +324,17 @@ The Settings page SHALL gain a new tab labelled **"External Programs"**, followi
 pattern (FR-035, FR-043). The tab SHALL display: an **Enabled** checkbox bound to
 `externalReporting.enabled`; an editable table of targets (columns: Name, Host, Port, Enabled,
 Delete) with an **"Add target"** button that appends a blank row (`name = ""`, `host = "127.0.0.1"`,
-`port = 2237`, `enabled = true`); and a separate **"Honour inbound commands (Reply / Free Text)"**
-checkbox bound to `externalReporting.honourInboundCommands`, with adjacent explanatory text stating
-that Halt Tx is always honoured regardless of this setting. All changes SHALL participate in the
-existing unsaved-changes flow (FR-040) and SHALL be posted via `POST /api/v1/config` on Save. Per
-FR-016, this tab SHALL ship only once the backend round-trip (config persistence and the running
-`ExternalReportingService`) is fully implemented and testable end-to-end.
+`port = 2237`, `enabled = true`); a **"Honour inbound commands (Reply / Free Text)"** checkbox bound
+to `externalReporting.honourInboundCommands`, with adjacent explanatory text stating that Halt Tx is
+always honoured regardless of this setting; and a **"Restrict external Reply to the current
+decode-panel filter"** checkbox bound to `externalReporting.restrictExternalRepliesToDecodeFilter`,
+nested under/beside the "Honour inbound commands" control since it has no effect unless that one is
+also checked, with adjacent explanatory text stating that unchecked (the default) allows a
+third-party program to Reply to any currently decoded station regardless of the operator's own
+decode-panel filter. All changes SHALL participate in the existing unsaved-changes flow (FR-040) and
+SHALL be posted via `POST /api/v1/config` on Save. Per FR-016, this tab SHALL ship only once the
+backend round-trip (config persistence and the running `ExternalReportingService`) is fully
+implemented and testable end-to-end.
 
 #### Scenario: Adding a target row
 
@@ -333,3 +346,11 @@ FR-016, this tab SHALL ship only once the backend round-trip (config persistence
 
 - **WHEN** the operator checks "Honour inbound commands" and saves, with `Enabled` already `true`
 - **THEN** `POST /api/v1/config` SHALL include `externalReporting.honourInboundCommands: true`
+
+#### Scenario: Restrict-external-replies checkbox defaults unchecked and persists when set
+
+- **WHEN** the operator opens the External Programs tab on a config with no prior
+  `restrictExternalRepliesToDecodeFilter` value
+- **THEN** the checkbox SHALL render unchecked (matching the `false` default), and if the operator
+  checks it and saves, `POST /api/v1/config` SHALL include
+  `externalReporting.restrictExternalRepliesToDecodeFilter: true`

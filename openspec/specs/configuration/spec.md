@@ -593,6 +593,11 @@ directory by default, data-directory override when set).
   bool }`; `name` is a free-text operator label (e.g. `"GridTracker2"`), not used on the wire
 - `honourInboundCommands` (bool, default `false`) — whether inbound Reply/Free Text datagrams are
   acted upon; Halt Tx is unaffected by this flag (see `external-reporting` capability)
+- `restrictExternalRepliesToDecodeFilter` (bool, default `false`) — when `false` (default), an
+  inbound Reply naming a callsign currently hidden under the operator's decode-panel filter
+  (`DecodeFilterState`) is still honoured by `qso-answerer`/`qso-caller`'s external-reply engagement
+  paths; when `true`, such a Reply is rejected, matching the decode panel's own visibility exactly.
+  Only meaningful when `honourInboundCommands` is also `true` (see `external-reporting` capability).
 
 An entry with `port` outside `1`–`65535` SHALL be rejected on save with the same validation-error
 pattern used elsewhere in `POST /api/v1/config` (HTTP 400, no partial persistence).
@@ -601,12 +606,12 @@ pattern used elsewhere in `POST /api/v1/config` (HTTP 400, no partial persistenc
 
 - **WHEN** the config file has no `externalReporting` key
 - **THEN** `AppConfig.ExternalReporting.Enabled` SHALL be `false` and `Targets` SHALL be an empty
-  list
+  list, and `RestrictExternalRepliesToDecodeFilter` SHALL be `false`
 
 #### Scenario: externalReporting object round-trips correctly
 
 - **WHEN** a config file contains an `externalReporting` object with `enabled: true`, two target
-  entries, and `honourInboundCommands: true`
+  entries, `honourInboundCommands: true`, and `restrictExternalRepliesToDecodeFilter: true`
 - **THEN** `GET /api/v1/config` SHALL return those exact values and a subsequent `POST
   /api/v1/config` with a modified target list SHALL persist the change
 
@@ -621,6 +626,15 @@ pattern used elsewhere in `POST /api/v1/config` (HTTP 400, no partial persistenc
 - **THEN** the written file SHALL include an `externalReporting` object with at minimum
   `"enabled": false, "targets": []`
 
+#### Scenario: Missing restrictExternalRepliesToDecodeFilter key on an existing externalReporting object defaults to false
+
+- **WHEN** a config file contains an `externalReporting` object from before this field existed
+  (e.g. `{ "enabled": true, "targets": [...], "honourInboundCommands": true }` with no
+  `restrictExternalRepliesToDecodeFilter` key)
+- **THEN** `AppConfig.ExternalReporting.RestrictExternalRepliesToDecodeFilter` SHALL deserialise to
+  `false`, preserving the new default (external Reply honoured regardless of the decode-panel
+  filter) for any pre-existing installation
+
 ---
 
 ### Requirement: externalReporting configuration exposed via Settings REST API
@@ -631,14 +645,14 @@ request and response bodies alongside the existing config fields.
 #### Scenario: GET /api/v1/config includes externalReporting section
 
 - **WHEN** a client sends `GET /api/v1/config`
-- **THEN** the response SHALL include an `externalReporting` object with `enabled`, `targets`, and
-  `honourInboundCommands` fields
+- **THEN** the response SHALL include an `externalReporting` object with `enabled`, `targets`,
+  `honourInboundCommands`, and `restrictExternalRepliesToDecodeFilter` fields
 
 #### Scenario: POST /api/v1/config with a new target persists and takes effect
 
 - **WHEN** a client sends `POST /api/v1/config` with `{ "externalReporting": { "enabled": true,
   "targets": [{ "name": "GridTracker2", "host": "127.0.0.1", "port": 2237, "enabled": true }],
-  "honourInboundCommands": false } }`
+  "honourInboundCommands": false, "restrictExternalRepliesToDecodeFilter": false } }`
 - **THEN** the daemon SHALL persist the change and `ExternalReportingService` SHALL begin sending
   outbound datagrams to `127.0.0.1:2237` without requiring a daemon restart
 
