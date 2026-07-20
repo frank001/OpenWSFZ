@@ -30,77 +30,47 @@ pattern, not itself risky, but still a currently-matching site that must be trac
 the whole helper method it lives in is deleted.
 
 
-### `tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs` (8)
+### `tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs` — MIGRATED, 6 permanent justified exceptions remain
 
-tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs:28: Task.Delay(2000)
-tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs:33: Task.Delay(20)
-tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs:54: Task.Delay(30)
-tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs:58: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs:81: Task.Delay(2000)
-tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs:94: Task.Delay(20)
-tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs:105: Task.Delay(2000)
-tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs:108: Task.Delay(600)
+52 of the original 58 sites migrated onto `Poll`/`WaitForBatchDrainedAsync` (a private per-file
+helper polling `_channel.Reader.Count == 0`, since the decode channel is specific to this test
+class, not something the shared `OpenWSFZ.TestSupport` library should know about). Full local
+regression: 5/5 consecutive clean runs of the whole file, all 106 tests, after migration.
 
-### `tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs` (58)
+**Design correction found during migration:** the two `WaitReport_SilenceAfterRetry_IsSkipped` /
+`WaitRr73_SilenceAfterRetry_IsSkipped` tests initially failed (2/106) when migrated to
+`WaitForBatchDrainedAsync` alone — `Channel<T>.Reader.Count == 0` proves a batch was *dequeued* by
+`QsoAnswererService.ExecuteAsync`'s loop, not that `ProcessBatchAsync` (including any retry-TX
+transmit work) has *finished* acting on it; the next cycle's batch could race ahead of the current
+one's still-in-flight retry, corrupting the skip/retry cycle count. Fixed by waiting for the
+specific, precise signal each cycle actually produces instead: `Poll.WaitForCallCountAsync` on
+`KeyUpAsync`'s count for cycles expected to fire a retry (TransmitAsync's `finally` always calls
+`KeyUpAsync` immediately after `KeyDownAsync` on normal completion — the strongest available proof
+a transmit-and-release sequence is fully done), and `WaitForBatchDrainedAsync` only for genuine
+skip cycles (which have no observable side effect to poll for at all).
 
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:117: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:139: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:158: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:166: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:181: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:230: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:273: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:379: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:440: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:513: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:523: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:525: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:527: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:529: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:546: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:548: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:550: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:552: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:554: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:571: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:588: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:592: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:611: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:631: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:635: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:651: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:655: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:659: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:668: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:685: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:689: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:693: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:701: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:732: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1095: Task.Delay(10, feedCts.Token)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1148: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1201: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1396: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1467: Task.Delay(400)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1529: Task.Delay(400)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1656: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1852: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1856: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1915: Task.Delay(10, feedCts.Token)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2528: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2558: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2598: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2635: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2668: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2704: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2831: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2837: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2874: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2886: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2914: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2926: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:3423: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:3516: Task.Delay(300)
+The 6 remaining sites are two distinct, deliberately **not** migrated shapes — no polling helper
+fits either, and forcing one would be worse than the fixed delay it replaces:
+
+- **Background feeder throttle** (2 sites, `Task.Delay(10, feedCts.Token)`, lines ~1065 and 1891):
+  a `Task.Run` loop continuously feeding synthetic noise decodes every 10ms until cancelled, to
+  keep retries cycling without pause while a watchdog-timeout race is proven. The 10ms *is* the
+  feed rate — a deliberate test-load parameter, not a guess at how long something takes.
+- **Wall-clock stray-wakeup settle** (4 sites, `Task.Delay(50)`, lines ~2504, 2534, 2613, 2646,
+  each already preceded by `sut._wakeupChannel.Reader.TryRead(out _)`): `AnswerCqAsync`/
+  `EngageAtAsync`'s wakeup push is computed from real `DateTimeOffset.UtcNow`, not the test's
+  injected `FakeTimeProvider`, so it races the background loop's own concurrent read of the same
+  internal channel. There is no externally observable condition to poll for this internal race
+  (see each site's own inline comment); this is a deliberate, documented wall-clock margin, not a
+  synchronization-barrier guess about production behavior — same rationale already accepted at the
+  precedent this file itself cites (`QsoCallerServiceTests`).
+
+tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1065: Task.Delay(10, feedCts.Token)
+tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1891: Task.Delay(10, feedCts.Token)
+tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2504: Task.Delay(50)
+tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2534: Task.Delay(50)
+tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2613: Task.Delay(50)
+tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2646: Task.Delay(50)
 
 ### `tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs` (45)
 

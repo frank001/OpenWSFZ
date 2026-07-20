@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+    <ProjectReference Include="..\OpenWSFZ.TestSupport\OpenWSFZ.TestSupport.csproj" />
     <!--
       daemon-background-mode (task 3.3): SigHupProbe is a standalone helper exe, not a library
       this test project calls into directly — referenced purely so its build output

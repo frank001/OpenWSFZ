@@ -62,15 +62,27 @@
 
 ## 2. Phase 1 — Live flake fix + the two dominant files (Answerer/Caller)
 
-- [ ] 2.1 Fix `PttWatchdogTests.Disarm_BeforeTimeout_CallbackNeverInvoked`
+- [x] 2.1 Fix `PttWatchdogTests.Disarm_BeforeTimeout_CallbackNeverInvoked`
   (`tests/OpenWSFZ.Daemon.Tests/PttWatchdogTests.cs`) and its 7 sibling `Task.Delay` sites in the
   same file, using the shared library. Remove these sites from `test-delay-debt.md`.
-- [ ] 2.2 Migrate `tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs`'s 58 audited sites to the
+  (Root cause: a fixed 30ms delay between `Arm(200, ...)` and `Disarm()` raced the watchdog's own
+  200ms timer under CI load. Fixed by removing the injected gap — `Disarm()` now runs back-to-back
+  with `Arm()` — plus converting the "must never fire" trailing waits to the
+  poll-and-expect-timeout idiom via `Poll.WaitForEqualAsync`/`ThrowAsync<TimeoutException>`.)
+- [x] 2.2 Migrate `tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs`'s 58 audited sites to the
   shared library. Delete the file's private `WaitForStateAsync`/`WaitForKeyingAsync`/
   `WaitForKeyDownAsync`/`WaitForPublishCountAsync` methods and replace call sites with the shared
   `OpenWSFZ.TestSupport` equivalents (design.md Decision 1 — these four already match the shared
   wrappers' shapes exactly, this is close to a mechanical rename plus import). Remove these sites
   from `test-delay-debt.md`.
+  (52/58 migrated; 6 left as permanent, justified debt-file exceptions — a background feeder-loop
+  throttle (2 sites) and a wall-clock stray-wakeup settle margin with no observable condition to
+  poll for (4 sites), neither of which is a synchronization-barrier guess. Also added a private
+  per-file `WaitForBatchDrainedAsync` helper (polls `_channel.Reader.Count == 0`) for the ~50
+  "pace between decode-batch sends" sites that aren't one of the four helper-call shapes. Found and
+  fixed a real regression during migration: two skip/retry cycle-sequencing tests need the precise
+  `KeyUpAsync`-count signal, not channel-drain alone — see test-delay-debt.md's note on this file
+  for the full root-cause writeup. 106/106 tests, 5/5 consecutive clean runs.)
 - [ ] 2.3 Migrate `tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs`'s 45 audited sites the same
   way, deleting its own independently-duplicated `WaitForStateAsync`/`WaitForKeyingAsync`. Remove
   these sites from `test-delay-debt.md`.
