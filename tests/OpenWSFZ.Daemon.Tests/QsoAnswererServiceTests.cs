@@ -160,6 +160,30 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         throw new TimeoutException("Expected KeyDownAsync but none was received within timeout.");
     }
 
+    /// <summary>
+    /// Polls <paramref name="eventBus"/> until at least <paramref name="expectedCount"/> calls to
+    /// <see cref="ITxEventBus.Publish"/> have been recorded, or throws on timeout. Replaces a bare
+    /// <c>Task.Delay(50)</c> that assumed a retransmission's trailing broadcasts would always land
+    /// within a fixed window — that assumption isn't safe under CI load (dev-task
+    /// 2026-07-20-flaky-waitreport-retry-delay-sync.md), the same class of race
+    /// <see cref="WaitForKeyingAsync"/> was already written to avoid. Polling the actual call count
+    /// removes the race while still keeping <c>Received.InOrder(...)</c> as the final assertion.
+    /// </summary>
+    private static async Task WaitForPublishCountAsync(
+        ITxEventBus eventBus, int expectedCount, TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
+        while (DateTime.UtcNow < deadline)
+        {
+            var count = eventBus.ReceivedCalls()
+                .Count(c => c.GetMethodInfo().Name == nameof(ITxEventBus.Publish));
+            if (count >= expectedCount) return;
+            await Task.Delay(10);
+        }
+        throw new TimeoutException(
+            $"Expected at least {expectedCount} Publish call(s) but did not observe them within timeout.");
+    }
+
     // ── Task 6.2: initial state ───────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-050: QsoAnswererService starts in Idle state with null partner")]
@@ -1125,7 +1149,10 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
             [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "CQ Q2NOISE IO91")]));
         await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
-        await Task.Delay(50); // let the trailing post-retransmit publish settle
+        // Poll for the trailing post-retransmit publish to settle rather than a bare delay
+        // (dev-task 2026-07-20-flaky-waitreport-retry-delay-sync.md) — 4 calls expected:
+        // TxAnswer(false) / TxAnswer(true) / TxAnswer(false) / WaitReport(false).
+        await WaitForPublishCountAsync(eventBus, expectedCount: 4, timeout: TimeSpan.FromSeconds(5));
 
         // Keying (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A) adds
         // two extra broadcasts bracketing the retransmit's KeyDownAsync call — assert the full,
@@ -1175,7 +1202,10 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
             [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, "CQ Q2NOISE IO91")]));
         await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
-        await Task.Delay(50); // let the trailing post-retransmit publish settle
+        // Poll for the trailing post-retransmit publish to settle rather than a bare delay
+        // (dev-task 2026-07-20-flaky-waitreport-retry-delay-sync.md) — 4 calls expected:
+        // TxReport(false) / TxReport(true) / TxReport(false) / WaitRr73(false).
+        await WaitForPublishCountAsync(eventBus, expectedCount: 4, timeout: TimeSpan.FromSeconds(5));
 
         // Keying (dev-task 2026-07-10-tx-btn-live-verify-and-settings-tab-wrap.md item A) adds
         // two extra broadcasts bracketing the retransmit's KeyDownAsync call — see the WaitReport
