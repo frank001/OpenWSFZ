@@ -534,13 +534,20 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
         await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
 
-        // First cycle: skipped by the A-01 guard.
+        // First cycle: skipped by the A-01 guard. No new TX expected; channel-drain is the best
+        // available proxy (no observable side effect a skip produces).
         Send(Make("CQ Q2NOISE IO91"));
         await WaitForBatchDrainedAsync();
 
-        // Second cycle: retry must fire.
+        // Second cycle: retry must fire. Wait for the matching KeyUpAsync count, not just
+        // channel-drain — channel-drain alone was proven insufficient for this exact shape (see
+        // WaitReport_SilenceAfterRetry_IsSkipped's note): it only proves the batch was dequeued,
+        // not that the retry's transmit-and-release sequence has finished, which raced and failed
+        // this exact test under WSL Debian's CPU-contention profile during migration even though
+        // 13 consecutive local Windows runs never reproduced it.
         Send(Make("CQ Q2NOISE IO91"));
-        await WaitForBatchDrainedAsync();
+        await Poll.WaitForCallCountAsync(() => _ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 2,
+            timeout: TimeSpan.FromSeconds(3));
 
         // TxAnswer (1) + retry TX (1) = 2 total.
         await _ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>());
@@ -577,13 +584,15 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         Send(Make($"{OurCallsign} {PartnerCall} +05"));
         await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
 
-        // First cycle: skipped.
+        // First cycle: skipped. No new TX expected; channel-drain is the best available proxy.
         Send(Make("CQ Q2NOISE IO91"));
         await WaitForBatchDrainedAsync();
 
-        // Second cycle: retry must fire.
+        // Second cycle: retry must fire. Same KeyUpAsync-count barrier as
+        // WaitReport_SecondEmptyCycle_FiresRetry — channel-drain alone was proven insufficient.
         Send(Make("CQ Q2NOISE IO91"));
-        await WaitForBatchDrainedAsync();
+        await Poll.WaitForCallCountAsync(() => _ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 3,
+            timeout: TimeSpan.FromSeconds(3));
 
         // TxAnswer (1) + TxReport (1) + retry TX (1) = 3 total.
         await _ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>());

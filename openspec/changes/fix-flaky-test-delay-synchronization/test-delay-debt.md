@@ -72,53 +72,36 @@ tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2534: Task.Delay(50)
 tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2613: Task.Delay(50)
 tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2646: Task.Delay(50)
 
-### `tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs` (45)
+### `tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs` — MIGRATED, 5 permanent justified exceptions remain
 
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:131: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:152: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:380: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:505: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:508: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:550: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:556: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:613: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:875: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:879: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:994: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1003: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1005: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1007: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1009: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1056: Task.Delay(120)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1110: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1118: Task.Delay(100)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1122: Task.Delay(100)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1235: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1239: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1280: Task.Delay(100, (CancellationToken)c.Args()[0])
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1305: Task.Delay(250)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1350: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1354: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1365: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1659: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1670: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1802: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1809: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1856: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1860: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1955: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1957: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2246: Task.Delay(100)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2282: Task.Delay(100)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2353: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2472: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2478: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2519: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2561: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2567: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2606: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2611: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:2650: Task.Delay(300)
+40 of the original 45 sites migrated onto `Poll`/a per-file `WaitForBatchDrainedAsync(Channel<DecodeBatch>,
+TimeSpan?)` helper (this file has no class-level `_channel` field — every SUT is built per-test via
+`BuildIsolatedSut`/inline construction — so the helper takes the channel explicitly rather than
+defaulting to an instance field the way `QsoAnswererServiceTests`' sibling helper does). Full local
+regression: 8/8 consecutive clean runs of the whole file, all 64 tests, after migration — deliberately
+run more than Answerer's 5x given this file shares the exact same skip/retry cycle-sequencing shape
+that broke once during the Answerer migration (see that file's debt-file note); no repeat of that
+failure surfaced here, but the extra runs were worth the few seconds given the precedent.
+
+The 5 remaining sites are the same two categories already established and justified in
+`QsoAnswererServiceTests.cs` above — no polling helper fits either:
+
+- **Wall-clock stray-wakeup settle** (4 sites, `Task.Delay(50)`, lines ~524, 1338, 1643, 1782, each
+  already preceded by `sut._wakeupChannel.Reader.TryRead(out _)`): identical rationale to
+  `QsoAnswererServiceTests`' equivalent sites — `SelectResponderAsync`'s wakeup push is computed
+  from real wall-clock time, racing the background loop's own concurrent read of the same internal
+  channel, with no externally observable condition to poll for.
+- **Simulated KeyDownAsync latency** (1 site, line ~1253, `.Returns(c => Task.Delay(100,
+  (CancellationToken)c.Args()[0]))`): a mock configuration, not a test synchronization wait — see
+  `HandleWaitAnswer_NoneMode_RetriesWhenNoBatchResponder`'s own XML doc comment: without this,
+  `KeyDownAsync` returns instantly and the `TxCq`/`TxAnswer` state window is too narrow for any
+  poller (shared library or otherwise) to ever observe.
+
+tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:524: Task.Delay(50)
+tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1253: Task.Delay(100, (CancellationToken)c.Args()[0])
+tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1338: Task.Delay(50)
+tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1643: Task.Delay(50)
+tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1782: Task.Delay(50)
 
 
 ## Phase 2 — External reporting and CAT polling/PTT files

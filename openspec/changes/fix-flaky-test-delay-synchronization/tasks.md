@@ -83,14 +83,32 @@
   fixed a real regression during migration: two skip/retry cycle-sequencing tests need the precise
   `KeyUpAsync`-count signal, not channel-drain alone — see test-delay-debt.md's note on this file
   for the full root-cause writeup. 106/106 tests, 5/5 consecutive clean runs.)
-- [ ] 2.3 Migrate `tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs`'s 45 audited sites the same
+- [x] 2.3 Migrate `tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs`'s 45 audited sites the same
   way, deleting its own independently-duplicated `WaitForStateAsync`/`WaitForKeyingAsync`. Remove
   these sites from `test-delay-debt.md`.
-- [ ] 2.4 Full local regression: `dotnet test tests/OpenWSFZ.Daemon.Tests -c Release`, 10 consecutive
+  (40/45 migrated; 5 left as permanent, justified debt-file exceptions — same two categories
+  already established in QsoAnswererServiceTests.cs: 4 wall-clock stray-wakeup settle sites, 1
+  simulated-mock-latency configuration. Added a per-file `WaitForBatchDrainedAsync(Channel<
+  DecodeBatch>, TimeSpan?)` helper, mirroring Answerer's. 64/64 tests, 8/8 consecutive clean runs
+  — run more than Answerer's 5x given this file shares the exact skip/retry cycle-sequencing shape
+  that broke once during the Answerer migration; no repeat surfaced here.)
+- [x] 2.4 Full local regression: `dotnet test tests/OpenWSFZ.Daemon.Tests -c Release`, 10 consecutive
   clean runs (matching the bar set by `f-003-ap-assist-flaky-decode-test.md`), before considering
   Phase 1 done.
-- [ ] 2.5 Run `python3 tools/pre_merge_check.py` clean.
-- [ ] 2.6 Ship Phase 1 as its own PR.
+  (10/10 clean, 567/567 tests passing every run.)
+- [x] 2.5 Run `python3 tools/pre_merge_check.py` clean.
+  (PASS WITH WARNINGS — only the pre-existing local AOT/vswhere.exe toolchain gap. Found and fixed a
+  real, WSL-Debian-only regression along the way: `WaitReport_SecondEmptyCycle_FiresRetry` and
+  `WaitRr73_SecondEmptyCycle_FiresRetry` raced on a plain `WaitForBatchDrainedAsync` the same way the
+  two already-fixed tests had — 13 consecutive local Windows runs never reproduced it, but WSL
+  Debian's different CPU-contention profile did, on the first run. Audited both files exhaustively
+  for the same drain-then-exact-call-count shape; found and fixed 4 total sites (2 per file); the
+  "count stays the same" (skip-cycle) sites are provably safe and needed no change. Re-ran WSL Debian
+  clean after the fix.)
+- [x] 2.6 Ship Phase 1 as its own PR.
+  (Per the Captain's direction to stack Phase 1 on the same branch as Phase 0 for now, this shipped
+  as additional commits on the same open PR #95 / `fix/flaky-test-delay-synchronization` branch,
+  not a separate PR — revisit the PR boundary once Phase 0 is reviewed.)
 
 ## 3. Phase 2 — External reporting and CAT polling/PTT files
 
