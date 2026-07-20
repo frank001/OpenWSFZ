@@ -94,42 +94,48 @@
       <!-- TX control panel -->
       <section id="tx-panel" aria-label="TX control">
 
-        <!-- Armed/disarmed toggle + abort button -->
-        <div class="tx-controls-row">
-          <button id="tx-enable-btn" type="button">Enable TX</button>
-          <button id="tx-call-cq-btn" type="button" class="tx-btn">Call CQ</button>
-          <button id="tx-abort-btn" type="button">Abort TX</button>
+        <!-- TX controls: fixed at top, never scrolls (feat/qso-transcript-own-section) -->
+        <div id="tx-controls-section">
+
+          <!-- Armed/disarmed toggle + abort button -->
+          <div class="tx-controls-row">
+            <button id="tx-enable-btn" type="button">Enable TX</button>
+            <button id="tx-call-cq-btn" type="button" class="tx-btn">Call CQ</button>
+            <button id="tx-abort-btn" type="button">Abort TX</button>
+          </div>
+
+          <!-- Pileup mode toggle (caller role only) — shown/hidden by JS (FR-PILEUP-001) -->
+          <div id="pileup-mode-row" class="tx-pileup-row" hidden>
+            <label class="checkbox-label waterfall-hold-label">
+              <input type="checkbox" id="pileup-auto-select">
+              Auto-answer first responder
+            </label>
+          </div>
+
+          <!-- Current QSO state / partner display -->
+          <div class="tx-state-row">
+            <span class="tx-state-label">State</span>
+            <span id="tx-state-display" class="tx-state-idle">Idle</span>
+          </div>
+
+          <!-- Standard FT8 message rows (Tx 1–3) -->
+          <div id="tx-msg-1" class="tx-msg-row tx-msg-muted">
+            <span class="tx-msg-text">——— Q1OFZ JO33</span>
+            <span class="tx-msg-label">Tx 1</span>
+          </div>
+          <div id="tx-msg-2" class="tx-msg-row tx-msg-muted">
+            <span class="tx-msg-text">——— Q1OFZ R+00</span>
+            <span class="tx-msg-label">Tx 2</span>
+          </div>
+          <div id="tx-msg-3" class="tx-msg-row tx-msg-muted">
+            <span class="tx-msg-text">——— Q1OFZ 73</span>
+            <span class="tx-msg-label">Tx 3</span>
+          </div>
+
         </div>
 
-        <!-- Pileup mode toggle (caller role only) — shown/hidden by JS (FR-PILEUP-001) -->
-        <div id="pileup-mode-row" class="tx-pileup-row" hidden>
-          <label class="checkbox-label waterfall-hold-label">
-            <input type="checkbox" id="pileup-auto-select">
-            Auto-answer first responder
-          </label>
-        </div>
-
-        <!-- Current QSO state / partner display -->
-        <div class="tx-state-row">
-          <span class="tx-state-label">State</span>
-          <span id="tx-state-display" class="tx-state-idle">Idle</span>
-        </div>
-
-        <!-- Standard FT8 message rows (Tx 1–3) -->
-        <div id="tx-msg-1" class="tx-msg-row tx-msg-muted">
-          <span class="tx-msg-text">——— Q1OFZ JO33</span>
-          <span class="tx-msg-label">Tx 1</span>
-        </div>
-        <div id="tx-msg-2" class="tx-msg-row tx-msg-muted">
-          <span class="tx-msg-text">——— Q1OFZ R+00</span>
-          <span class="tx-msg-label">Tx 2</span>
-        </div>
-        <div id="tx-msg-3" class="tx-msg-row tx-msg-muted">
-          <span class="tx-msg-text">——— Q1OFZ 73</span>
-          <span class="tx-msg-label">Tx 3</span>
-        </div>
-
-        <!-- QSO Transcript (FR-062) — populated by JS; hidden until first entry -->
+        <!-- QSO Transcript (FR-062) — own scrollable section, separate from TX controls
+             (feat/qso-transcript-own-section). Populated by JS; hidden until first entry. -->
         <div id="tx-transcript-section" hidden>
           <p class="tx-transcript-title">QSO Transcript</p>
           <ol id="tx-transcript-log" class="tx-transcript-list"></ol>
