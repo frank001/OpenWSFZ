@@ -56,8 +56,9 @@
   the full pre-existing debt file in place and fails when a throwaway untracked
   `Task.Delay(999)` is temporarily added to a test file (manual negative-path check, then revert the
   throwaway line before committing).
-- [ ] 1.11 Ship Phase 0 as its own PR. Per design.md's Migration Plan, this is safe to merge alone —
-  it blocks only new regressions, not the existing tracked debt.
+- [x] 1.11 Ship Phase 0 as its own PR. Per design.md's Migration Plan, this is safe to merge alone —
+  it blocks only new regressions, not the existing tracked debt. (PR #95, branch
+  `fix/flaky-test-delay-synchronization`.)
 
 ## 2. Phase 1 — Live flake fix + the two dominant files (Answerer/Caller)
 
