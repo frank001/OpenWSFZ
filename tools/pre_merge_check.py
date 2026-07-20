@@ -34,6 +34,13 @@ What this runs, in order:
      nothing forced whoever wrote (or later touched) that capture count to
      account for headroom above the observed minimum.
   6. Gate G8  — OpenSpec strict validation       (openspec validate --strict --all)
+  6b. Gate G10 — test-delay-synchronization lint (tools/check_test_delay_sync.py)
+     — added 2026-07-20 (fix-flaky-test-delay-synchronization). Flags a bare
+     Task.Delay(<numeric literal>) synchronization barrier in test code that
+     isn't already tracked as pre-existing migration debt (see that change's
+     test-delay-debt.md). Pure text scan over test source files — same
+     placement style as the UDP capture-margin lint (doesn't depend on the
+     build having succeeded, runs unconditionally and early).
   7. A self-contained, non-AOT publish for the local platform
      (dev-tasks/2026-07-18-self-contained-non-aot-working-binary.md)
      — publishes to the DEFAULT output directory
@@ -284,6 +291,13 @@ def step_udp_capture_margin():
     return result
 
 
+def step_g10():
+    result = GateResult("G10 — test-delay-synchronization lint")
+    code, _ = _run([sys.executable, os.path.join("tools", "check_test_delay_sync.py")])
+    result.status = "PASS" if code == 0 else "FAIL"
+    return result
+
+
 def step_g8():
     result = GateResult("G8 — OpenSpec strict validation")
     # shutil.which (not a bare "openspec" argv) because a global npm install puts
@@ -497,6 +511,7 @@ def main():
     # Pure text scan over test source files — doesn't depend on the build having
     # succeeded, so it runs unconditionally and early (fails fast, cheaply).
     results.append(step_udp_capture_margin())
+    results.append(step_g10())
 
     if build_result.status != "PASS":
         print("\nBuild failed — skipping every step that depends on it "

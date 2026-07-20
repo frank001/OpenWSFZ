@@ -1,40 +1,58 @@
 ## 1. Phase 0 — Shared polling library and Gate G10 infrastructure
 
-- [ ] 1.1 Create `tests/OpenWSFZ.TestSupport/OpenWSFZ.TestSupport.csproj` — plain
+- [x] 1.1 Create `tests/OpenWSFZ.TestSupport/OpenWSFZ.TestSupport.csproj` — plain
   `Microsoft.NET.Sdk` class library, `net10.0`, `Nullable=enable`, `TreatWarningsAsErrors=true`,
   matching the style of `src/OpenWSFZ.Abstractions/OpenWSFZ.Abstractions.csproj`. **No**
   `Microsoft.NET.Test.Sdk` reference (must not become `IsTestProject=true`, per design.md Decision 2).
   Add `NSubstitute` as a `PackageReference` (version already centrally pinned in
   `Directory.Packages.props`). Add the project to `OpenWSFZ.slnx` under the `/tests/` folder.
-- [ ] 1.2 Implement `Poll.UntilAsync` (the core primitive, design.md Decision 1) in
+- [x] 1.2 Implement `Poll.UntilAsync` (the core primitive, design.md Decision 1) in
   `tests/OpenWSFZ.TestSupport/Poll.cs`.
-- [ ] 1.3 Implement the three convenience wrappers (`WaitForEqualAsync<T>`, `WaitForCallAsync`,
+- [x] 1.3 Implement the three convenience wrappers (`WaitForEqualAsync<T>`, `WaitForCallAsync`,
   `WaitForCallCountAsync`) built on `Poll.UntilAsync`, in the same project.
-- [ ] 1.4 Create `tests/OpenWSFZ.TestSupport.Tests/OpenWSFZ.TestSupport.Tests.csproj` — a genuine
+  (Amended during implementation: `WaitForCallAsync`/`WaitForCallCountAsync` take a
+  `Func<IEnumerable<ICall>>` factory, not a plain `IEnumerable<ICall>` — see design.md Decision 1's
+  "Correction" note, found and empirically verified before any code was written.)
+- [x] 1.4 Create `tests/OpenWSFZ.TestSupport.Tests/OpenWSFZ.TestSupport.Tests.csproj` — a genuine
   `IsTestProject`, matching the standard test-project template used elsewhere in `tests/`. Add it to
   `OpenWSFZ.slnx`.
-- [ ] 1.5 Write `Poll.UntilAsync`'s own deterministic tests (design.md Decision 3): a
+- [x] 1.5 Write `Poll.UntilAsync`'s own deterministic tests (design.md Decision 3): a
   returns-promptly-on-success case and a times-out-on-never-true case, neither relying on an
   unrelated fixed delay to determine pass/fail. Cover the `test-synchronization-reliability`
   capability's "Primitive returns as soon as its condition becomes true" and "Primitive times out on
-  a condition that never becomes true" scenarios.
-- [ ] 1.6 Audit and finalize the ~150-site inventory: re-run
+  a condition that never becomes true" scenarios. (9 tests total: also covers `WaitForEqualAsync`
+  and, as regression coverage for the Decision-1 correction, `WaitForCallAsync`/`WaitForCallCountAsync`
+  observing calls made after polling has already started.)
+- [x] 1.6 Audit and finalize the ~150-site inventory: re-run
   `grep -rn "Task\.Delay([0-9]" tests/ --include="*.cs"` against current `main` (line numbers may
   have drifted since the original audit) and write the confirmed list to
   `openspec/changes/fix-flaky-test-delay-synchronization/test-delay-debt.md`, one `file:line` entry
   per site (excluding the ~20 already-safe polling-loop sites), grouped by the phase that will
   migrate them (Phase 1 / Phase 2 / Phase 3, per design.md Decision 5).
-- [ ] 1.7 Implement `tools/check_test_delay_sync.py` (Gate G10 lint): scans `tests/**/*.cs` excluding
+  (Corrected during implementation: re-audit found 172 sites, zero line-count drift from the
+  original audit's totals per file. The ~20 already-safe polling-loop-internal sites — the existing
+  `WaitForStateAsync`/`WaitForKeyingAsync`/`WaitForKeyDownAsync`/`WaitForPublishCountAsync` helpers'
+  own `await Task.Delay(10);` lines — are included in the debt file after all, not excluded: Gate
+  G10 (task 1.7) matches mechanically on any bare-delay text regardless of whether it sits inside an
+  already-correct poll loop, so excluding them would make G10 fail immediately on Phase 0 landing,
+  before Phase 1 ever deletes the helper methods that contain them. Tracked under the Phase 1
+  section with a note explaining why. Also added: 3 sites in the new `PollTests.cs` (permanently
+  exempt by construction, design.md Decision 3, tracked in their own section) and 1 comment-text
+  false-positive in `CatPollingServiceTests.cs:224` (a code comment mentioning `Task.Delay(0, ...)`,
+  not real code) — both handled via the same debt-file mechanism rather than special-cased in the
+  script.)
+- [x] 1.7 Implement `tools/check_test_delay_sync.py` (Gate G10 lint): scans `tests/**/*.cs` excluding
   `tests/OpenWSFZ.TestSupport/**`, matches bare `Task\.Delay\(\s*\d` literals, fails on any match
   whose `file:line`-or-matching-text is not present in `test-delay-debt.md`, matching
   `traceability-debt.md`'s tolerance for line-number drift (design.md Decision 4, Risk mitigation).
   Exit non-zero with a clear message listing every offending, untracked site on failure.
-- [ ] 1.8 Wire `check_test_delay_sync.py` into `tools/pre_merge_check.py` as a new gate step
+  (Matching is by (file, matched-call-text) count, not file:line — see the script's own docstring.)
+- [x] 1.8 Wire `check_test_delay_sync.py` into `tools/pre_merge_check.py` as a new gate step
   (`G10 — test-delay-synchronization lint`), same placement style as the existing UDP-capture-margin
   lint.
-- [ ] 1.9 Wire the same script into `.github/workflows/ci.yml` on the Linux matrix leg only, matching
+- [x] 1.9 Wire the same script into `.github/workflows/ci.yml` on the Linux matrix leg only, matching
   G3/G5/G7/G8's existing placement.
-- [ ] 1.10 Run `python3 tools/pre_merge_check.py` clean (per HK-006) and confirm Gate G10 passes with
+- [x] 1.10 Run `python3 tools/pre_merge_check.py` clean (per HK-006) and confirm Gate G10 passes with
   the full pre-existing debt file in place and fails when a throwaway untracked
   `Task.Delay(999)` is temporarily added to a test file (manual negative-path check, then revert the
   throwaway line before committing).

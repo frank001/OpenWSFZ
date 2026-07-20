@@ -362,6 +362,24 @@ jobs:
         run: python3 tools/check_udp_capture_margin.py
 
       # -----------------------------------------------------------------
+      # Gate G10: test-delay-synchronization lint
+      # Flags a bare Task.Delay(<numeric literal>) synchronization barrier in
+      # test code that isn't already tracked as pre-existing migration debt.
+      # Added 2026-07-20 (fix-flaky-test-delay-synchronization) after four
+      # confirmed CI flakes traced to this exact pattern (N8; WaitReport/
+      # WaitRr73 retry-bracket, PR #94; PttWatchdogTests.Disarm_BeforeTimeout_
+      # CallbackNeverInvoked). Blocking from the moment it lands — but only on
+      # NEW/untracked sites, not the pre-existing backlog enumerated in
+      # openspec/changes/fix-flaky-test-delay-synchronization/test-delay-debt.md
+      # (same debt-file mechanism as Gate G3/traceability-debt.md). Pure text
+      # scan, runs once (Linux only), same rationale as G3/G5/G8 and the UDP
+      # capture-margin lint above not being triplicated across the OS matrix.
+      # -----------------------------------------------------------------
+      - name: Gate G10 — test-delay-synchronization lint
+        if: runner.os == 'Linux'
+        run: python3 tools/check_test_delay_sync.py
+
+      # -----------------------------------------------------------------
       # Gate G7: Secrets scan — gitleaks
       # Scans the full commit history for secrets, credentials, private
       # keys, and other sensitive material. Any finding fails the build.
