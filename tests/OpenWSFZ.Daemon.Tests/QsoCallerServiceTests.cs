@@ -1933,10 +1933,15 @@ public sealed class QsoCallerServiceTests
 
         // A-01 skip-then-retry silence pattern (mirrors
         // RetryOrAbortAsync_WaitRr73Retry_ResendsSamePersistedReportValue above).
+        // First silence cycle is skipped (skip guard), second fires the retry. Gate on the
+        // retry's completed PTT cycle (KeyUpAsync count 3), not just channel-drain — draining
+        // proves the batch was dequeued but not that the retransmit + WaitRr73 transition has
+        // landed, which races on ubuntu-latest scheduling.
         Send(channel, Make("Q2NOISE Q3NOISE -10"));
         await WaitForBatchDrainedAsync(channel);
         Send(channel, Make("Q2NOISE Q3NOISE -10"));
-        await WaitForBatchDrainedAsync(channel);
+        await Poll.WaitForCallCountAsync(() => ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 3,
+            timeout: TimeSpan.FromSeconds(3));
         sut.State.Should().Be(QsoState.WaitRr73, "one retry must not exhaust the retry budget");
 
         sut.LastTxMessage.Should().Be(expectedReport,
