@@ -91,7 +91,17 @@
   simulated-mock-latency configuration. Added a per-file `WaitForBatchDrainedAsync(Channel<
   DecodeBatch>, TimeSpan?)` helper, mirroring Answerer's. 64/64 tests, 8/8 consecutive clean runs
   — run more than Answerer's 5x given this file shares the exact skip/retry cycle-sequencing shape
-  that broke once during the Answerer migration; no repeat surfaced here.)
+  that broke once during the Answerer migration; no repeat surfaced here.
+  **Correction (found after this task was marked done):** "no repeat surfaced here" held for 8/8
+  local Windows runs but not for real ubuntu-latest CI scheduling — PR #95 went red on Linux only
+  after this commit, on `LastTxMessage_ReflectsRetransmittedValue_AfterWaitRr73Retry`, which copied
+  its sibling `RetryOrAbortAsync_WaitRr73Retry_ResendsSamePersistedReportValue`'s *pre-fix* shape
+  (drain-then-assert-WaitRr73 instead of gating on the `KeyUpAsync` count). Fixed in follow-up commit
+  `de2b522` by applying the identical `Poll.WaitForCallCountAsync(KeyUpAsync, 3)` barrier the sibling
+  already used. This was the actual 5th and final instance of the drain-race, not the 4th — see
+  task 2.5's note, whose "4 total sites" count is superseded by this one. QA's own live-CI-triage
+  handoff for this instance, `dev-tasks/2026-07-20-tx-d05-waitrr73-retry-drain-race.md`, has since
+  been retired now that the fix is applied, verified on ubuntu-latest CI, and recorded here.)
 - [x] 2.4 Full local regression: `dotnet test tests/OpenWSFZ.Daemon.Tests -c Release`, 10 consecutive
   clean runs (matching the bar set by `f-003-ap-assist-flaky-decode-test.md`), before considering
   Phase 1 done.
@@ -102,7 +112,9 @@
   `WaitRr73_SecondEmptyCycle_FiresRetry` raced on a plain `WaitForBatchDrainedAsync` the same way the
   two already-fixed tests had — 13 consecutive local Windows runs never reproduced it, but WSL
   Debian's different CPU-contention profile did, on the first run. Audited both files exhaustively
-  for the same drain-then-exact-call-count shape; found and fixed 4 total sites (2 per file); the
+  for the same drain-then-exact-call-count shape; found and fixed 4 total sites (2 per file) —
+  **superseded, see task 2.3's correction note: a 5th site was missed by this same audit and only
+  surfaced later via ubuntu-latest CI, fixed in follow-up commit `de2b522`.** The
   "count stays the same" (skip-cycle) sites are provably safe and needed no change. Re-ran WSL Debian
   clean after the fix.)
 - [x] 2.6 Ship Phase 1 as its own PR.
