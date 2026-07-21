@@ -124,15 +124,41 @@
 
 ## 3. Phase 2 — External reporting and CAT polling/PTT files
 
-- [ ] 3.1 Migrate `tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs` (18 sites). Remove
+- [x] 3.1 Migrate `tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs` (18 sites). Remove
   from `test-delay-debt.md`.
-- [ ] 3.2 Migrate `tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs` (14 sites) and
+  (All 18 migrated. "Let Reconcile bind" delays → a new per-file `WaitForInboundBoundAsync` helper
+  polling the service's `_inboundClient`; "wait then assert AbortAsync/TryEngageAsync/LastFreeText"
+  → `Poll.WaitForCallAsync`/`WaitForEqualAsync`; the opted-out-reply negative → poll-and-expect-
+  timeout; two between-sends pacing delays removed (FIFO delivery on the single inbound socket
+  already orders them); the StopAsync-Clear/Close test now waits for the initial burst to be
+  received before stopping. Also repositioned the `margin: 6` comment on the recv1/recv2 capture so
+  the UDP-capture-margin lint (check_udp_capture_margin.py) still finds it within its 6-line window.)
+- [x] 3.2 Migrate `tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs` (14 sites) and
   `CatPollingServiceFreqPersistTests.cs` (3 sites). Remove from `test-delay-debt.md`.
-- [ ] 3.3 Migrate `tests/OpenWSFZ.Daemon.Tests/CatPttControllerTests.cs` (4 sites). Remove from
+  (FreqPersist: all 3 migrated (SaveCount / status→Connected / logger.WarningCount). CatPolling:
+  12/14 migrated onto `Poll.WaitForEqualAsync`/`WaitForCallCountAsync`/`UntilAsync`; the old-line-224
+  comment-text false-positive reworded away; 2 permanent justified exceptions remain — simulated
+  mock connection I/O latency in `SetPttAsync_ConcurrentWithPoll_NeverInterleaves`, the same
+  "simulated-mock-latency" category already accepted in `QsoCallerServiceTests.cs`, without which the
+  re-entrancy guard has no window to observe an overlap. Kept in test-delay-debt.md with rationale.)
+- [x] 3.3 Migrate `tests/OpenWSFZ.Daemon.Tests/CatPttControllerTests.cs` (4 sites). Remove from
   `test-delay-debt.md`.
-- [ ] 3.4 Full local regression on the affected files, 10 consecutive clean runs.
-- [ ] 3.5 Run `python3 tools/pre_merge_check.py` clean.
-- [ ] 3.6 Ship Phase 2 as its own PR.
+  (All 4 migrated: PTT-assert barrier → wait for `SetPttAsync` call; two existing hand-written poll
+  loops → `Poll.WaitForCallCountAsync`/`UntilAsync`; the "caller #2 stays blocked" negative wait →
+  poll-and-expect-timeout on `callCount == 2`. Windows-only file, `#if WASAPI_SUPPORTED`.)
+- [x] 3.4 Full local regression on the affected files, 10 consecutive clean runs.
+  (10/10 clean on Windows (46 tests) and, since the flake class this whole change chases is Linux-
+  only, additionally 4/4 clean under WSL Debian Release (34 tests — CatPtt excluded as Windows-only).)
+- [x] 3.5 Run `python3 tools/pre_merge_check.py` clean.
+  (G9a/Release build/G10/Full-test-suite-Release/G3/G8 all PASS; Self-contained publish PASS. The
+  WSL-Debian and AOT gates FAIL/WARN on pre-existing environment gaps only — the WSL failures are all
+  E2E self-contained-publish, WASAPI-COM-on-Linux, and daemon-background-mode tests, none of which
+  this phase touched, and the migrated Daemon.Tests classes pass cleanly under WSL directly (3.4).
+  AOT WARN is the known local MSVC/vswhere.exe toolchain gap. CI ubuntu-latest is the authoritative
+  Linux gate, per the fix-flaky change's own precedent.)
+- [x] 3.6 Ship Phase 2 as its own PR.
+  (Branch `phase2-external-cat-migration`, stacked on PR #95's branch so the review diff is Phase 2
+  only; retarget/rebase onto main once #95 merges.)
 
 ## 4. Phase 3 — Remaining files across all four affected test projects
 

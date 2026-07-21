@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Daemon.Cat;
+using OpenWSFZ.TestSupport;
 using OpenWSFZ.Web;
 using Xunit;
 
@@ -43,7 +44,8 @@ public sealed class CatPollingServiceFreqPersistTests
 
         // Act
         await svc.StartAsync(CancellationToken.None);
-        await Task.Delay(300);   // allow at least one poll
+        // Wait for the ≥ 1 Hz change to be persisted rather than guessing a fixed poll window.
+        await Poll.UntilAsync(() => store.SaveCount >= 1, timeout: TimeSpan.FromSeconds(5));
         await svc.StopAsync(CancellationToken.None);
 
         // Assert
@@ -79,11 +81,15 @@ public sealed class CatPollingServiceFreqPersistTests
         connection.ConnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         connection.GetDialFrequencyMhzAsync(Arg.Any<CancellationToken>()).Returns(polledMHz);
 
-        var (svc, _) = MakeService(store, connection);
+        var (svc, state) = MakeService(store, connection);
 
         // Act
         await svc.StartAsync(CancellationToken.None);
-        await Task.Delay(300);
+        // Wait for evidence at least one poll completed (status → Connected). The within-1 Hz
+        // change means SaveAsync is never invoked, so there is no positive save signal to await —
+        // a completed poll is the strongest available proof the save branch was evaluated.
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected,
+            timeout: TimeSpan.FromSeconds(5));
         await svc.StopAsync(CancellationToken.None);
 
         // Assert — save must NOT have been called; no churn
@@ -121,7 +127,9 @@ public sealed class CatPollingServiceFreqPersistTests
 
         // Act — the service must continue running even after the save fails.
         await svc.StartAsync(CancellationToken.None);
-        await Task.Delay(400);
+        // Wait for the failing save to be attempted and logged at Warning, rather than
+        // guessing a fixed settle window.
+        await Poll.UntilAsync(() => logger.WarningCount >= 1, timeout: TimeSpan.FromSeconds(5));
         await svc.StopAsync(CancellationToken.None);
 
         // Assert — the loop kept running (state reflects latest poll).
