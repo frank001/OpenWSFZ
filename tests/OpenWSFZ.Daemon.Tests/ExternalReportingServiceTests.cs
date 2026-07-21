@@ -56,6 +56,18 @@ public sealed class ExternalReportingServiceTests
             => Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Probes for a free UDP port by binding, reading the assigned port back, and releasing it —
+    /// only safe to use where the returned number is never re-bound by a listener in this process
+    /// (a real, observed CI flake: releasing then re-binding by number races anything else on the
+    /// box that might claim the same just-freed ephemeral port in between). Test methods that need
+    /// to actually receive on the port must NOT use this — bind directly to port 0 and read
+    /// <c>LocalEndPoint</c> off that same live socket instead (see e.g. <c>StopAsync_SendsCloseDatagram</c>),
+    /// so there is no release-then-rebind gap at all. The remaining <c>GetFreeUdpPort()</c> call
+    /// sites below hand the number to the SUT as a target/config port with no test-side bind of
+    /// their own (or, for the D-014 port-contention tests, are deliberately racing a fake peer on
+    /// purpose — that's the scenario under test, not a bug).
+    /// </summary>
     private static int GetFreeUdpPort()
     {
         using var probe = new UdpClient(0, AddressFamily.InterNetwork);
@@ -113,10 +125,10 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "FR-053: Two enabled targets both receive a Decode datagram")]
     public async Task TwoEnabledTargets_BothReceiveDecode()
     {
-        var port1 = GetFreeUdpPort();
-        var port2 = GetFreeUdpPort();
-        using var listener1 = new UdpClient(port1);
-        using var listener2 = new UdpClient(port2);
+        using var listener1 = new UdpClient(0, AddressFamily.InterNetwork);
+        var port1 = ((IPEndPoint)listener1.Client.LocalEndPoint!).Port;
+        using var listener2 = new UdpClient(0, AddressFamily.InterNetwork);
+        var port2 = ((IPEndPoint)listener2.Client.LocalEndPoint!).Port;
 
         var config = new AppConfig() with
         {
@@ -171,10 +183,10 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "FR-053: Disabled target never receives a datagram")]
     public async Task DisabledTarget_NeverReceives()
     {
-        var enabledPort  = GetFreeUdpPort();
-        var disabledPort = GetFreeUdpPort();
-        using var enabledListener  = new UdpClient(enabledPort);
-        using var disabledListener = new UdpClient(disabledPort);
+        using var enabledListener  = new UdpClient(0, AddressFamily.InterNetwork);
+        var enabledPort = ((IPEndPoint)enabledListener.Client.LocalEndPoint!).Port;
+        using var disabledListener = new UdpClient(0, AddressFamily.InterNetwork);
+        var disabledPort = ((IPEndPoint)disabledListener.Client.LocalEndPoint!).Port;
 
         var config = new AppConfig() with
         {
@@ -413,8 +425,8 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "AC-3: unknown-region and synthetic decodes are never sent, even with suppression off")]
     public async Task Decode_UnknownRegionAndSynthetic_NeverSentEvenWithSuppressionOff()
     {
-        var port = GetFreeUdpPort();
-        using var listener = new UdpClient(port);
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
 
         var config = new AppConfig() with
         {
@@ -462,8 +474,8 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "fix-external-reporting-clear-and-reply-filter: no Clear is ever sent from the decode loop")]
     public async Task Decode_AllResultsSuppressed_NeverSendsClear()
     {
-        var port = GetFreeUdpPort();
-        using var listener = new UdpClient(port);
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
 
         var config = new AppConfig() with
         {
@@ -513,10 +525,10 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "fix-external-reporting-clear-and-reply-filter: StopAsync sends Clear to every enabled target")]
     public async Task StopAsync_SendsClearToEveryEnabledTarget()
     {
-        var port1 = GetFreeUdpPort();
-        var port2 = GetFreeUdpPort();
-        using var listener1 = new UdpClient(port1);
-        using var listener2 = new UdpClient(port2);
+        using var listener1 = new UdpClient(0, AddressFamily.InterNetwork);
+        var port1 = ((IPEndPoint)listener1.Client.LocalEndPoint!).Port;
+        using var listener2 = new UdpClient(0, AddressFamily.InterNetwork);
+        var port2 = ((IPEndPoint)listener2.Client.LocalEndPoint!).Port;
 
         var config = new AppConfig() with
         {
@@ -566,8 +578,8 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "AC-4: Status blanks DxCall/DxGrid for a synthetic active partner")]
     public async Task Status_SyntheticPartner_DxCallAndGridBlanked()
     {
-        var port = GetFreeUdpPort();
-        using var listener = new UdpClient(port);
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
 
         var qso = Substitute.For<IQsoController>();
         qso.Partner.Returns("Q1SYN");
@@ -608,8 +620,8 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "AC-4 regression: Status still populates DxCall for a normal, resolvable partner")]
     public async Task Status_NormalPartner_DxCallPopulated()
     {
-        var port = GetFreeUdpPort();
-        using var listener = new UdpClient(port);
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
 
         var qso = Substitute.For<IQsoController>();
         qso.Partner.Returns("Q1NORM");
@@ -649,8 +661,8 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "AC-4: NotifyQsoLogged never sends for a synthetic or unknown-region partner")]
     public async Task NotifyQsoLogged_SyntheticOrUnknownPartner_NeverSent()
     {
-        var port = GetFreeUdpPort();
-        using var listener = new UdpClient(port);
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
 
         var regionStore = new FakeCallsignRegionStore();
         regionStore.Set("Q1SYN", new RegionInfo(Continent: null, Entity: "Synthetic (R&R Study)", Synthetic: true));
@@ -701,8 +713,8 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "AC-4 regression: NotifyQsoLogged still sends for a normal, resolvable partner")]
     public async Task NotifyQsoLogged_NormalPartner_StillSent()
     {
-        var port = GetFreeUdpPort();
-        using var listener = new UdpClient(port);
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
 
         var regionStore = new FakeCallsignRegionStore();
         regionStore.Set("Q1NORM", new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false));
@@ -752,8 +764,8 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "FR-053: NotifyQsoLogged sends a QSOLogged datagram to the enabled target")]
     public async Task NotifyQsoLogged_SendsQsoLoggedDatagram()
     {
-        var port = GetFreeUdpPort();
-        using var listener = new UdpClient(port);
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
 
         var config = new AppConfig() with
         {
@@ -807,8 +819,8 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "FR-053: StopAsync sends a Close datagram before closing sockets")]
     public async Task StopAsync_SendsCloseDatagram()
     {
-        var port = GetFreeUdpPort();
-        using var listener = new UdpClient(port);
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
 
         var config = new AppConfig() with
         {
@@ -844,8 +856,8 @@ public sealed class ExternalReportingServiceTests
     [Fact(DisplayName = "Disabled config opens no outbound socket — nothing is sent")]
     public async Task Disabled_OpensNoSocket()
     {
-        var port = GetFreeUdpPort();
-        using var listener = new UdpClient(port);
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
 
         var config = new AppConfig(); // ExternalReporting defaults: Enabled=false
         var store   = new MutableConfigStore(config);
