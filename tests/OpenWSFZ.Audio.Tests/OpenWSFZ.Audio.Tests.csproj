@@ -23,5 +23,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj" />
+    <ProjectReference Include="..\OpenWSFZ.TestSupport\OpenWSFZ.TestSupport.csproj" />
   </ItemGroup>
 </Project>

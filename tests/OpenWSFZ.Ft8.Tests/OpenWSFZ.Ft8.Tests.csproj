@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
+    <ProjectReference Include="..\OpenWSFZ.TestSupport\OpenWSFZ.TestSupport.csproj" />
   </ItemGroup>
 
   <!-- Synthetic FT8 WAV fixtures and their answer-key subsets (FR-029).

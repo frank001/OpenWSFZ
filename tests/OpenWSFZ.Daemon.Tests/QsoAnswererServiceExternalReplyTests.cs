@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Daemon;
+using OpenWSFZ.TestSupport;
 using OpenWSFZ.Web;
 using Xunit;
 
@@ -118,17 +119,15 @@ public sealed class QsoAnswererServiceExternalReplyTests
             [new DecodeResult(Time: "17:30:15", Snr: -5, Dt: 0.1, FreqHz: AudioFreqHz,
                 Message: $"CQ {cqCallsign} JO22", Region: region)]));
 
-        // Give the background loop a moment to process the batch into _lastIdleDecodeBatch.
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (DateTime.UtcNow < deadline)
-        {
-            if (sut.Service.State == QsoState.Idle)
-            {
-                await Task.Delay(50); // let HandleIdleAsync actually run past the CQ scan
-                return;
-            }
-            await Task.Delay(10);
-        }
+        // Wait for the background loop to record the seeded batch as the most recent Idle-time
+        // decode — the exact volatile field TryEngageExternal consults — rather than a fixed
+        // settle delay. Reflection mirrors this file's existing _state/_partner access pattern.
+        var lastIdleField = typeof(QsoAnswererService).GetField(
+            "_lastIdleDecodeBatch",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        await Poll.UntilAsync(() => lastIdleField!.GetValue(sut.Service) is not null,
+            timeout: TimeSpan.FromSeconds(2),
+            timeoutMessage: () => "background loop never recorded the seeded CQ batch");
     }
 
     // ── Scenario: matching decoded CQ engages ───────────────────────────────
