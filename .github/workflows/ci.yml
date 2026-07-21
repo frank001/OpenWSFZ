@@ -370,8 +370,8 @@ jobs:
       # WaitRr73 retry-bracket, PR #94; PttWatchdogTests.Disarm_BeforeTimeout_
       # CallbackNeverInvoked). Blocking from the moment it lands — but only on
       # NEW/untracked sites, not the pre-existing backlog enumerated in
-      # openspec/changes/fix-flaky-test-delay-synchronization/test-delay-debt.md
-      # (same debt-file mechanism as Gate G3/traceability-debt.md). Pure text
+      # test-delay-debt.md (at the repo root, alongside traceability-debt.md;
+      # same debt-file mechanism as Gate G3/traceability-debt.md). Pure text
       # scan, runs once (Linux only), same rationale as G3/G5/G8 and the UDP
       # capture-margin lint above not being triplicated across the OS matrix.
       # -----------------------------------------------------------------
