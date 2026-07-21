@@ -13,7 +13,7 @@ long an asynchronous effect takes to land.
 This gate is blocking from the moment it lands (design.md Decision 4) — but it only blocks
 REGRESSIONS, not the pre-existing migration backlog. It works exactly like Gate G3's
 `traceability-debt.md` mechanism: every currently-known bare-delay site is enumerated up front in a
-companion debt file (`openspec/changes/fix-flaky-test-delay-synchronization/test-delay-debt.md`);
+companion debt file (`test-delay-debt.md`, at the repo root alongside `traceability-debt.md`);
 anything in that file passes; anything NOT in that file is a hard failure, including on files that
 haven't been migrated yet, if a genuinely NEW instance is added to them.
 
@@ -36,8 +36,8 @@ explicitly-justified exception (see that file's own header).
 Usage:
   python3 tools/check_test_delay_sync.py [--debt-file PATH] [--list]
 
-  --debt-file PATH   Path to the debt file (default: the standard location under this change's
-                     openspec folder — see DEFAULT_DEBT_FILE below).
+  --debt-file PATH   Path to the debt file (default: test-delay-debt.md at the repo root,
+                     alongside traceability-debt.md — see DEFAULT_DEBT_FILE below).
   --list             Print every currently-matching (file, line, text) site and exit 0, without
                      comparing against the debt file. Used to (re-)generate the debt file's
                      contents — not part of the gate's normal pass/fail run.
@@ -54,8 +54,7 @@ import sys
 from collections import Counter
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_DEBT_FILE = os.path.join(
-    REPO_ROOT, "openspec", "changes", "fix-flaky-test-delay-synchronization", "test-delay-debt.md")
+DEFAULT_DEBT_FILE = os.path.join(REPO_ROOT, "test-delay-debt.md")
 
 # Matches a bare fixed-duration delay call whose argument list starts with a numeric literal, in
 # any of four equivalent shapes:
