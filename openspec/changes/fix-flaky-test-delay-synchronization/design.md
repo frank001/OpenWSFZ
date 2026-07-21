@@ -178,6 +178,16 @@ nothing extra to build since the debt-file mechanism already exists as a templat
 central debt file. Rejected in favor of one mechanism (matches G3's precedent) rather than two
 different suppression conventions in the same repo.
 
+**2026-07-21 addendum — regex scope widened.** Step 1's original `Task\.Delay\(\s*\d` pattern only
+matched a bare numeric literal as the call's first argument, so it never matched the equivalent
+`Task.Delay(TimeSpan.FromSeconds(1))` shape — the outer call's first token is `TimeSpan`, not a
+digit. A QA audit found two live, untracked sites in that exact shape in `ConsoleDetacherTests.cs`,
+passing G10 silently. The regex now also matches `Task\.Delay\(\s*TimeSpan\.From\w+\(\s*\d...\)` (the
+`TimeSpan.From*` factory's own argument must itself be a numeric literal, preserving the same
+"literal guess, not a parameter" philosophy) and `Thread\.Sleep\(\s*\d...\)` (the synchronous-code
+equivalent, pre-emptively — no live sites existed, but nothing else was stopping one). See
+`test-delay-debt.md`'s matching addendum for the one site this newly caught and how it was resolved.
+
 ### Decision 5 — Migration order
 
 Ordered by concentration and by what's already proven:

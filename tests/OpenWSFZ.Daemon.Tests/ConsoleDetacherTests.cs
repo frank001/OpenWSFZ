@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using FluentAssertions;
+using OpenWSFZ.TestSupport;
 using Xunit;
 
 namespace OpenWSFZ.Daemon.Tests;
@@ -53,7 +54,13 @@ public sealed class ConsoleDetacherTests
         {
             await SendSigHupAsync(treated.Process.Id);
 
-            // Give the signal a moment to be delivered and (if unhandled) take effect.
+            // Fixed-duration wait, deliberately not migrated onto Poll (test-delay-debt.md,
+            // "SIGHUP-survival window"): this proves an *absence* — the process must NOT exit —
+            // and there is no positive condition to poll for a negative outcome. A poll loop can
+            // only confirm "it exited" faster than a fixed wait; it cannot confirm "it is still
+            // running and will stay that way" any sooner than just waiting out the window and
+            // then checking once. Same rationale as the wall-clock stray-wakeup and simulated-mock
+            // -latency exceptions already accepted for QsoAnswererServiceTests/QsoCallerServiceTests.
             await Task.Delay(TimeSpan.FromSeconds(1));
 
             treated.Process.HasExited.Should().BeFalse(
@@ -65,7 +72,14 @@ public sealed class ConsoleDetacherTests
         {
             await SendSigHupAsync(control.Process.Id);
 
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            // Unlike the treatment case above, this waits for a real positive signal (process
+            // exit), so it polls instead of guessing a fixed duration.
+            await Poll.UntilAsync(
+                () => control.Process.HasExited,
+                timeout: TimeSpan.FromSeconds(5),
+                timeoutMessage: () => "Expected the unhandled-SIGHUP control process to exit " +
+                    "within 5s, but it was still running — default SIGHUP disposition should " +
+                    "terminate a process with no handler registered.");
 
             control.Process.HasExited.Should().BeTrue(
                 "without a handler, SIGHUP's default disposition must terminate the process — " +
