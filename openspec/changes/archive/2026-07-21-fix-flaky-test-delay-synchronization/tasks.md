@@ -222,7 +222,10 @@
   (Verified on `main` at `77a24fa`: shared library `tests/OpenWSFZ.TestSupport/Poll.cs` + its
   deterministic `PollTests.cs`; Gate G10 `tools/check_test_delay_sync.py` wired into
   `pre_merge_check.py` and `.github/workflows/ci.yml`; debt file present and honoured. Live gate run
-  green — 19 tracked sites, 0 untracked, exit 0.)
+  green — 20 tracked sites, 0 untracked, exit 0. Count is 20, not the 19 as of Phase 3 §4.5/§4.6
+  above, because a post-Phase-3 QA review (before this closeout landed) widened G10's regex to also
+  catch `TimeSpan.From*`/`Thread.Sleep` shapes and found one further permanent exception in
+  `ConsoleDetacherTests.cs` — see `test-delay-debt.md`'s own note on this.)
 - [x] 5.2 `openspec validate --strict --all` passes.
   (56 passed, 0 failed.)
 - [x] 5.3 Draft a short retrospective note (dev-tasks or memory) confirming the four originally
@@ -235,7 +238,9 @@
   archive would move it out from under the hard-coded default path and break G10 (exit 2) on every
   future PR. Moved to the repo root alongside `traceability-debt.md` (G3's precedent) and updated
   `DEFAULT_DEBT_FILE` + docstring in `check_test_delay_sync.py` and the CI comment. NOTE: the design's
-  "complete when the debt file is empty" ideal was refined in practice — 19 legitimate entries remain
-  (simulated mock/IO latencies, real `DaemonStartup` timing, the `PollTests` primitive's own delays),
-  tracked intentionally per Decision 4's safety valve; these are correct-by-design, not backlog.
+  "complete when the debt file is empty" ideal was refined in practice — 20 legitimate entries remain
+  (simulated mock/IO latencies, real `DaemonStartup` timing, the `PollTests` primitive's own delays,
+  and the `ConsoleDetacherTests.cs` "prove an absence" exception from the post-Phase-3 scope
+  widening), tracked intentionally per Decision 4's safety valve; these are correct-by-design, not
+  backlog.
 - [x] 5.4 Archive this change per the standard `/opsx:archive` workflow.

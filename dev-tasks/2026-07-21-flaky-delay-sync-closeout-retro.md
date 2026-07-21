@@ -27,12 +27,23 @@ library's own implementation), tolerating a pre-enumerated debt backlog exactly 
 
 ## Gate G10 health
 
-Green (no untracked-debt failures) since Phase 0 landed. At closeout the debt file holds **19
+Green (no untracked-debt failures) since Phase 0 landed. At closeout the debt file holds **20
 tracked entries** — all legitimate and permanent, NOT residual backlog: simulated mock/IO latencies
 inside test feeds (`Task.Delay(10, feedCts.Token)` etc.), real `DaemonStartup` timing (300/250 ms),
-and the `PollTests` primitive's own deterministic delays (20–30 ms). The design's "complete when the
-debt file is empty" wording was an idealization; Decision 4 already provided the safety valve for
-intentional tracked exceptions, which is what these are.
+the `PollTests` primitive's own deterministic delays (20–30 ms), and one `ConsoleDetacherTests.cs`
+"prove an absence" exception (see below). The design's "complete when the debt file is empty" wording
+was an idealization; Decision 4 already provided the safety valve for intentional tracked exceptions,
+which is what these are.
+
+**Post-Phase-3 scope widening (2026-07-21, before this closeout landed):** a QA review found G10's
+regex only matched a bare numeric-literal `Task.Delay(...)`, so `Task.Delay(TimeSpan.FromSeconds(1))`
+passed silently — two live, untracked sites turned up in `ConsoleDetacherTests.cs`. Widened the regex
+to also catch `Task.Delay(TimeSpan.From*(...))` and `Thread.Sleep(...)` in both the bare-literal and
+TimeSpan-wrapped forms; migrated the one site with a real positive condition onto `Poll.UntilAsync`
+and tracked the other (proves an absence — no positive condition to poll for) as the 20th debt entry.
+`design.md` Decision 4 and the `ci-quality-gates` delta spec both carry a dated addendum for this;
+`openspec/specs/ci-quality-gates/spec.md` reflects the widened requirement, not the original
+Task.Delay-only wording, since that's the shape the gate actually enforces as of this closeout.
 
 ## Closeout gotcha (worth remembering)
 
