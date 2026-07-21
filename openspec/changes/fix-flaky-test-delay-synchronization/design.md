@@ -85,10 +85,22 @@ Four typed convenience wrappers cover every shape actually observed in the audit
 speculative API surface beyond what's proven needed:
 - `WaitForEqualAsync<T>(Func<T> actual, T expected, ...)` — generalizes `WaitForStateAsync`/
   `WaitForKeyingAsync` (state-equality and boolean-flag polling are the same shape).
-- `WaitForCallAsync(IEnumerable<NSubstitute.Core.ICall> calls, string methodName, ...)` —
+- `WaitForCallAsync(Func<IEnumerable<NSubstitute.Core.ICall>> calls, string methodName, ...)` —
   generalizes `WaitForKeyDownAsync` ("at least one call").
-- `WaitForCallCountAsync(IEnumerable<NSubstitute.Core.ICall> calls, string methodName, int
+- `WaitForCallCountAsync(Func<IEnumerable<NSubstitute.Core.ICall>> calls, string methodName, int
   expectedCount, ...)` — generalizes `WaitForPublishCountAsync` ("at least N calls").
+
+**Correction (found during Phase 0 implementation, before any code was written):** both call-count
+wrappers take a `Func<IEnumerable<ICall>>` factory, **not** a plain `IEnumerable<ICall>` as
+originally drafted here. Verified empirically (throwaway probe project, not committed):
+`NSubstitute`'s `ReceivedCalls()` returns a snapshot at call time, not a live view over the
+substitute's growing call log — capturing `sub.ReceivedCalls()` once, before entering a poll loop,
+freezes the list at zero calls and the wrapper would poll that frozen snapshot forever, always
+timing out. This is exactly *why* the existing hand-written `WaitForKeyDownAsync`/
+`WaitForPublishCountAsync` call `ptt.ReceivedCalls()` / `eventBus.ReceivedCalls()` **fresh, inside**
+the `while` loop, every iteration — not once outside it. The factory shape lets the wrapper
+re-invoke `ReceivedCalls()` on each poll tick, matching that already-correct pattern. Callers pass a
+lambda: `WaitForCallAsync(() => ptt.ReceivedCalls(), nameof(IPttController.KeyDownAsync))`.
 
 All three wrappers are one-line implementations calling `Poll.UntilAsync` — the value is in not
 re-deriving the deadline-loop-timeout boilerplate at each of the ~150 call sites, not in a large

@@ -5,6 +5,7 @@ using NSubstitute;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Daemon;
 using OpenWSFZ.Ft8;
+using OpenWSFZ.TestSupport;
 using OpenWSFZ.Web;
 using Xunit;
 
@@ -115,45 +116,6 @@ public sealed class QsoCallerServiceTests
         public CatConnectionStatus  Status            => CatConnectionStatus.Connected;
     }
 
-    // ── Wait helpers ──────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Polls <see cref="IQsoController.State"/> on a <see cref="QsoCallerService"/>
-    /// (mapped via design.md D8) until it reaches <paramref name="expected"/> or times out.
-    /// </summary>
-    private static async Task WaitForStateAsync(
-        QsoCallerService svc, QsoState expected, TimeSpan? timeout = null)
-    {
-        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
-        while (DateTime.UtcNow < deadline)
-        {
-            if (svc.State == expected) return;
-            await Task.Delay(10);
-        }
-        svc.State.Should().Be(expected, $"state should reach {expected} within timeout");
-    }
-
-    /// <summary>
-    /// Polls <see cref="QsoCallerService.Keying"/> until it reaches <paramref name="expected"/>
-    /// or times out. <c>State</c> and <c>Keying</c> are two independent fields set by two
-    /// separate lines of production code (<c>SetStateAndNotify</c> runs before
-    /// <c>TransmitAsync</c>'s <c>_keying = true</c>) with no atomicity between them — a single
-    /// immediate check right after <see cref="WaitForStateAsync"/> returns is a genuine race
-    /// (observed failing on CI's Linux runner, not locally) rather than a fixed-order guarantee.
-    /// Poll here the same way <see cref="WaitForStateAsync"/> already polls <c>State</c>.
-    /// </summary>
-    private static async Task WaitForKeyingAsync(
-        QsoCallerService svc, bool expected, TimeSpan? timeout = null)
-    {
-        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
-        while (DateTime.UtcNow < deadline)
-        {
-            if (svc.Keying == expected) return;
-            await Task.Delay(10);
-        }
-        svc.Keying.Should().Be(expected, $"keying should reach {expected} within timeout");
-    }
-
     private static DecodeResult Make(string msg, int freqHz = AudioFreqHz)
         => new(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: freqHz, Message: msg);
 
@@ -162,6 +124,23 @@ public sealed class QsoCallerServiceTests
 
     private static void SendAt(Channel<DecodeBatch> ch, DateTimeOffset cycleStart, params DecodeResult[] results)
         => ch.Writer.TryWrite(new DecodeBatch(cycleStart, results));
+
+    /// <summary>
+    /// Polls until <paramref name="channel"/> has been drained by the service's background loop,
+    /// replacing a fixed "wait N ms, assume the batch was processed" delay between two
+    /// <see cref="Send"/>/<see cref="SendAt"/> calls (fix-flaky-test-delay-synchronization).
+    /// Mirrors <c>QsoAnswererServiceTests.WaitForBatchDrainedAsync</c> — see that method's doc
+    /// comment for the full rationale and its known residual gap (proves the batch was
+    /// *dequeued* by <c>QsoCallerService.ExecuteAsync</c>'s fully-sequential
+    /// <c>await ProcessBatchAsync(...)</c> loop, not that every consequence of processing it has
+    /// landed — accepted here for the same reason: in practice this file's batches only trigger
+    /// mocked, non-blocking work). Where a specific call count is the actual thing a test cares
+    /// about (e.g. a cycle expected to fire a retry TX), prefer polling that count directly via
+    /// <see cref="Poll.WaitForCallCountAsync"/> instead of this generic drain check — draining
+    /// alone was proven insufficient for that shape during the Answerer migration.
+    /// </summary>
+    private static async Task WaitForBatchDrainedAsync(Channel<DecodeBatch> channel, TimeSpan? timeout = null)
+        => await Poll.UntilAsync(() => channel.Reader.Count == 0, timeout: timeout ?? TimeSpan.FromSeconds(2));
 
     // ── 5.13: Role property ───────────────────────────────────────────────────
 
@@ -192,7 +171,7 @@ public sealed class QsoCallerServiceTests
         // Send any batch — triggers CQ transmission from Idle.
         Send(channel, Make("CQ Q2NOISE JO00"));
 
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Should have KeyDownAsync'd once (the CQ TX).
         await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>());
@@ -232,7 +211,7 @@ public sealed class QsoCallerServiceTests
 
         // Send any batch — triggers CQ transmission from Idle.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Keying must have flipped true immediately before KeyDownAsync and false immediately
         // after, bracketing the same TxCq broadcast the pre-existing state machine already
@@ -292,7 +271,7 @@ public sealed class QsoCallerServiceTests
 
         // Send any batch — triggers CQ transmission from Idle.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5)); // WaitAnswer proxy
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5)); // WaitAnswer proxy
 
         // KeyDownAsync must be immediately followed by KeyUpAsync in the recorded call order —
         // nothing else intervenes — proving PTT is released inside TransmitAsync's own
@@ -357,8 +336,8 @@ public sealed class QsoCallerServiceTests
 
         // Trigger CQ — the service enters TxCq (proxy: TxAnswer) and blocks inside KeyDownAsync.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
-        await WaitForKeyingAsync(sut, expected: true, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.Keying, true, timeout: TimeSpan.FromSeconds(5));
 
         await ptt.DidNotReceive().KeyUpAsync(Arg.Any<CancellationToken>());
 
@@ -374,11 +353,8 @@ public sealed class QsoCallerServiceTests
 
         // Poll rather than a fixed delay — the finally block runs asynchronously once the
         // cancellation propagates through Task.Delay.
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
-        while (DateTime.UtcNow < deadline && ptt.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "KeyUpAsync") == 0)
-        {
-            await Task.Delay(10);
-        }
+        await Poll.WaitForCallAsync(() => ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync),
+            timeout: TimeSpan.FromSeconds(5));
 
         await ptt.Received(1).KeyUpAsync(Arg.Any<CancellationToken>());
         sut.Keying.Should().BeFalse("the finally block clears keying even on the cancellation path");
@@ -406,13 +382,13 @@ public sealed class QsoCallerServiceTests
 
         // Trigger CQ → WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Feed a response: {ourCall} {partner} {partnerGrid}.
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
 
         // Should advance through TxReport → WaitRr73.
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         sut.Partner.Should().Be(PartnerCall);
 
@@ -444,13 +420,13 @@ public sealed class QsoCallerServiceTests
 
         // Trigger CQ → WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Feed a response from a nonstandard/compound callsign.
         Send(channel, Make($"{OurCallsign} {nonstandardPartner} {PartnerGrid}"));
 
         // Should advance through TxReport → WaitRr73, arming AP constraints along the way.
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().Be(nonstandardPartner);
 
         // NOTE: this calls Ft8CallsignPacker.Pack28 — the very function under test in
@@ -495,17 +471,15 @@ public sealed class QsoCallerServiceTests
 
         // Trigger CQ → WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Push 3 batches with matching response — A-01 guard + 2 real batches.
         // In None mode none of them should auto-advance.
         for (int i = 0; i < 3; i++)
         {
             Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-            await Task.Delay(50);
+            await WaitForBatchDrainedAsync(channel);
         }
-
-        await Task.Delay(200); // give time for processing
 
         // Still in WaitAnswer (WaitReport proxy).
         sut.State.Should().Be(QsoState.WaitReport);
@@ -535,7 +509,7 @@ public sealed class QsoCallerServiceTests
 
         // Drive to WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Drain any wakeup written during the CQ → WaitAnswer transition.
         while (sut._wakeupChannel.Reader.TryRead(out _)) { }
@@ -553,7 +527,7 @@ public sealed class QsoCallerServiceTests
         // A batch whose next cycle is B-phase: CycleStart at :30 → next cycle = :45, which is B-phase.
         var wrongPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 30, TimeSpan.Zero);
         SendAt(channel, wrongPhaseCycleStart, Make("CQ Q2NOISE JO00")); // arbitrary content
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
 
         // Should still be in WaitAnswer.
         sut.State.Should().Be(QsoState.WaitReport);
@@ -563,7 +537,7 @@ public sealed class QsoCallerServiceTests
         SendAt(channel, correctPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
 
         // Should advance to WaitRr73 (TxReport then WaitRr73).
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().Be(PartnerCall);
 
         await stopCts.CancelAsync();
@@ -598,7 +572,7 @@ public sealed class QsoCallerServiceTests
 
         // Drive to WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Arm a pending responder with a timestamp 61 s in the past (simulate timeout).
         // Using TestSetPendingResponder so no wakeup batch is pushed — no race.
@@ -610,7 +584,7 @@ public sealed class QsoCallerServiceTests
         // true (A-01 guard set after the initial CQ), the batch falls through to the A-01 skip.
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await Task.Delay(200);
+        await WaitForBatchDrainedAsync(channel);
 
         // Must remain in WaitAnswer (not have fired TxReport).
         sut.State.Should().Be(QsoState.WaitReport,
@@ -649,14 +623,14 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Arm pending responder without wakeup so the service stays blocked in Task.WhenAny.
         sut.TestSetPendingResponder(PartnerCall, AudioFreqHz, isAPhase: true);
 
         // Abort — must interrupt the blocking wait and clear pending state.
         await sut.AbortAsync();
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         // Stop before sending anything to prevent a new CQ from firing (AutoAnswer stays true
         // in the mock config store which doesn't persist SaveAsync calls).
@@ -701,7 +675,7 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // TestSetPendingResponder bypasses SelectResponderAsync's wakeup push — no race (5.6/5.7's
         // rationale). setAt backdated 6 s to represent "selected 6 s into its window."
@@ -713,7 +687,7 @@ public sealed class QsoCallerServiceTests
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
 
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
         sut.Partner.Should().Be(PartnerCall);
 
         await stopCts.CancelAsync();
@@ -747,7 +721,7 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         fakeTime.UtcNow = new DateTimeOffset(2026, 6, 25, 14, 30, 9, TimeSpan.Zero);
         sut.TestSetPendingResponder(PartnerCall, AudioFreqHz, isAPhase: true);
@@ -755,7 +729,7 @@ public sealed class QsoCallerServiceTests
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
 
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
         ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 288_000));
 
         await stopCts.CancelAsync();
@@ -781,14 +755,14 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         sut.TestSetPendingResponder(PartnerCall, AudioFreqHz, isAPhase: true);
 
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
 
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
         // Both the initial CQ and the pending-responder TX fire under the same fixed "0 s in"
         // fakeTime, so both legitimately load the full untruncated buffer — 2 matching calls.
         ptt.Received(2).LoadAudio(Arg.Is<float[]>(s => s.Length == Ft8AudioSynthesiser.TotalSampleCount));
@@ -819,7 +793,7 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         sut.TestSetPendingResponder(PartnerCall, AudioFreqHz, isAPhase: true);
 
@@ -828,7 +802,7 @@ public sealed class QsoCallerServiceTests
 
         // ExecuteTxReportAsync-equivalent flow still advances to WaitRr73 even though TransmitAsync
         // skipped the actual keying — the skip must not throw or otherwise abort the state machine.
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
 
         ptt.DidNotReceive().LoadAudio(Arg.Any<float[]>());
         await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
@@ -858,25 +832,31 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         fakeTime.UtcNow = new DateTimeOffset(2026, 6, 25, 14, 30, 9, TimeSpan.Zero);
         sut.TestSetPendingResponder(PartnerCall, AudioFreqHz, isAPhase: true);
 
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
         ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 288_000)); // confirms truncated
 
         // A-01 skip-then-retry silence pattern (same convention as QsoAnswererServiceTests' J case
         // and this file's own 6.5/6.6-style retry-exhaustion tests): first silence cycle is
         // skipped, second consecutive one fires a retry.
         SendAt(channel, new DateTimeOffset(2026, 6, 25, 14, 30, 15, TimeSpan.Zero));
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
         await ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>()); // CQ + TxReport, no retry yet
 
+        // Retry cycle: wait for the matching KeyUpAsync count, not just channel-drain — proven
+        // insufficient for this shape (see QsoAnswererServiceTests.WaitReport_SecondEmptyCycle_
+        // FiresRetry's note: channel-drain only proves dequeue, not that the retry's
+        // transmit-and-release sequence has finished, which raced under WSL Debian's CPU-contention
+        // profile).
         SendAt(channel, new DateTimeOffset(2026, 6, 25, 14, 30, 30, TimeSpan.Zero));
-        await Task.Delay(300);
+        await Poll.WaitForCallCountAsync(() => ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 3,
+            timeout: TimeSpan.FromSeconds(3));
         await ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>()); // retry fired
         sut.State.Should().Be(QsoState.WaitRr73, "one retry should not exhaust the retry budget");
 
@@ -904,16 +884,16 @@ public sealed class QsoCallerServiceTests
 
         // CQ → WaitAnswer → TxReport → WaitRr73.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         // Feed R+07 from partner to us.
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
 
         // Should advance through TxRr73 → Idle (QsoComplete → SafeAbortToIdle).
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         // KeyDownAsync: CQ + report + RR73 = 3 transmissions.
         await ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>());
@@ -941,15 +921,15 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         // Partner sends a message addressed to someone else.
         Send(channel, Make($"Q2OTHER {PartnerCall} -10"));
 
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         eventBus.Received().Publish(
             "Idle",
@@ -983,15 +963,15 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         // Partner re-transmits their own CQ instead of RR73 — must NOT be treated as "partner is
         // working another station"; they simply haven't decoded our report yet.
         Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}"));
-        await Task.Delay(200);
+        await WaitForBatchDrainedAsync(channel);
         sut.State.Should().Be(QsoState.WaitRr73,
             "the partner still calling CQ is not evidence they've moved on (D-CALLER-020) — must not abort");
 
@@ -1000,15 +980,15 @@ public sealed class QsoCallerServiceTests
         // test (tx.RetryCount = 2; pattern: [skip] [retry1] [skip] [retry2] [skip] [abort]) to
         // prove the existing RetryOrAbortAsync backstop is what eventually ends a one-sided QSO.
         Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 2: retry 1 TX
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
         Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 3: skip — retry 1 TX window
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
         Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 4: retry 2 TX
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
         Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 5: skip — retry 2 TX window
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
         Send(channel, Make($"CQ {PartnerCall} {PartnerGrid}")); // cycle 6: retry count exhausted → abort
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         eventBus.Received().Publish(
             "Idle",
@@ -1046,14 +1026,14 @@ public sealed class QsoCallerServiceTests
 
         // Arm → CQ → WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // 3 rounds: (retry 1), (retry 2), (abort).
         for (int i = 0; i < 3; i++)
         {
             // A-01 skip batch (the window right after our own CQ TX).
             Send(channel);
-            await Task.Delay(120); // allow service to process the skip
+            await WaitForBatchDrainedAsync(channel);
 
             // Retry/abort-triggering batch.
             Send(channel);
@@ -1061,12 +1041,12 @@ public sealed class QsoCallerServiceTests
             if (i < 2)
             {
                 // Expect re-entry into WaitAnswer after CQ retransmit.
-                await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+                await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
             }
             else
             {
                 // 3rd trigger: retryCount=3 > 2 → abort.
-                await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+                await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
             }
         }
 
@@ -1103,25 +1083,24 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // A-01 guard: first empty batch after entering WaitAnswer should NOT count as retry.
         Send(channel); // A-01 skip
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
 
         // Service should still be in WaitAnswer (not aborted after just 1 empty cycle).
         sut.State.Should().Be(QsoState.WaitReport);
 
         // Second empty batch → 1 retry fires (retransmits CQ). Goes back to WaitAnswer.
         Send(channel);
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
-        await Task.Delay(100);
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Third empty batch (after A-01 of the retry) → abort.
         Send(channel); // A-01 of the retry CQ
-        await Task.Delay(100);
+        await WaitForBatchDrainedAsync(channel);
         Send(channel); // real empty → abort
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -1147,11 +1126,11 @@ public sealed class QsoCallerServiceTests
 
         // Start a CQ session.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Abort the session.
         await sut.AbortAsync();
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
 
         // The Idle broadcast must carry autoAnswerEnabled=false.
         eventBus.Received().Publish(
@@ -1228,15 +1207,15 @@ public sealed class QsoCallerServiceTests
 
         // Arm service → CQ TX → WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // A-01 skip: first empty cycle after entering WaitAnswer is always skipped.
         Send(channel);
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
 
         // Batch WITH a responder addressed to our callsign — service must hold in WaitAnswer.
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await Task.Delay(200);
+        await WaitForBatchDrainedAsync(channel);
 
         sut.State.Should().Be(QsoState.WaitReport,
             "None mode should hold in WaitAnswer when the batch contains a response to our CQ");
@@ -1298,19 +1277,19 @@ public sealed class QsoCallerServiceTests
 
         // Arm service → CQ TX → WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // A-01 skip.
         Send(channel);
-        await Task.Delay(250); // ample time for A-01 batch to be processed
+        await WaitForBatchDrainedAsync(channel);
 
         // Empty batch (no message addresses our callsign): RetryOrAbortAsync should fire.
         Send(channel);
 
         // With 100 ms KeyDown delay, TxCq is visible for ~100 ms — catch the transition.
-        await WaitForStateAsync(sut, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
         // Then wait for the retry CQ to complete and return to WaitAnswer.
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Two KeyDownAsync calls: initial CQ + retry CQ.
         await ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>());
@@ -1343,15 +1322,15 @@ public sealed class QsoCallerServiceTests
 
         // Arm service → CQ TX → WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // A-01 skip.
         Send(channel);
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
 
         // Batch WITH responder — service holds in WaitAnswer.
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await Task.Delay(200);
+        await WaitForBatchDrainedAsync(channel);
         sut.State.Should().Be(QsoState.WaitReport, "service should hold in WaitAnswer");
 
         // Operator clicks the highlighted decode-table row.
@@ -1369,7 +1348,7 @@ public sealed class QsoCallerServiceTests
         SendAt(channel, aPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
 
         // Service fires TxReport then enters WaitRr73.
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().Be(PartnerCall);
 
         await stopCts.CancelAsync();
@@ -1490,13 +1469,13 @@ public sealed class QsoCallerServiceTests
 
         // CQ → WaitAnswer (WaitReport) → TxReport → WaitRr73 → TxRr73 → Idle.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         eventBus.Received(1).PublishQsoReview(
             Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall),
@@ -1531,13 +1510,13 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.DidNotReceive().AppendQsoAsync(Arg.Any<QsoRecord>());
 
@@ -1568,13 +1547,13 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(Arg.Any<QsoRecord>());
 
@@ -1610,13 +1589,13 @@ public sealed class QsoCallerServiceTests
         // The CQ-answer message includes the partner's grid (Q1TST JO22) — TryParseResponder
         // must surface it and the fix must thread it all the way to the final QsoRecord.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(
             Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.PartnerGrid == PartnerGrid));
@@ -1649,14 +1628,14 @@ public sealed class QsoCallerServiceTests
 
         // Drive to WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // None-mode auto-track: this batch does NOT auto-advance, but records the responder's
         // raw decode (including the grid) into _recentResponderDecodes — this is what
         // SelectResponderAsync must re-parse to recover the grid, since it receives only a
         // callsign/frequency/cycle-start, not the original decoded message.
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
         sut.State.Should().Be(QsoState.WaitReport, "None mode must not auto-advance");
 
         // Drain any wakeup written while draining the above.
@@ -1673,11 +1652,11 @@ public sealed class QsoCallerServiceTests
         // fire the pending responder.
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make("CQ Q2NOISE JO00")); // content irrelevant — pending-responder path fires on phase alone
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().Be(PartnerCall);
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(
             Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.PartnerGrid == PartnerGrid));
@@ -1709,15 +1688,15 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Partner answers with a bare signal report instead of a grid — valid FT8 behaviour.
         // The fix must not invent a grid where none was sent.
         Send(channel, Make($"{OurCallsign} {PartnerCall} -05"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(
             Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.PartnerGrid == null));
@@ -1751,15 +1730,15 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Responder's CQ-answer decode, Snr = -5 (this file's Make() default) — proves the report
         // reflects the triggering decode's real Snr, not a coincidental "+00".
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(
             Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "-05"));
@@ -1791,7 +1770,7 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // A distinct, non-default Snr (+11, vs. this file's Make() default of -5) — proves the
         // real value from THIS decode flows through, not a coincidental match on the default.
@@ -1799,7 +1778,7 @@ public sealed class QsoCallerServiceTests
             Time: "12:00:00", Snr: 11, Dt: 0.1, FreqHz: AudioFreqHz,
             Message: $"{OurCallsign} {PartnerCall} {PartnerGrid}");
         Send(channel, responderDecode);
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
         sut.State.Should().Be(QsoState.WaitReport, "None mode must not auto-advance");
         while (sut._wakeupChannel.Reader.TryRead(out _)) { }
 
@@ -1810,10 +1789,10 @@ public sealed class QsoCallerServiceTests
 
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make("CQ Q2NOISE JO00")); // content irrelevant — fires on phase alone
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(
             Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "+11"));
@@ -1845,26 +1824,29 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}")); // Snr = -5 (Make default)
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         await ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>()); // CQ + TxReport
 
         // A-01 skip-then-retry silence pattern: first silence cycle is skipped, second fires retry.
         Send(channel, Make("Q2NOISE Q3NOISE -10"));
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
         await ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>()); // no retry yet — skip guard
 
+        // Retry cycle: wait for the matching KeyUpAsync count, not just channel-drain — same
+        // rationale as TruncatedTransmission_Unanswered_StillCountsTowardRetryBudget above.
         Send(channel, Make("Q2NOISE Q3NOISE -10"));
-        await Task.Delay(300);
+        await Poll.WaitForCallCountAsync(() => ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 3,
+            timeout: TimeSpan.FromSeconds(3));
         await ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>()); // retry fired
         sut.State.Should().Be(QsoState.WaitRr73, "one retry must not exhaust the retry budget");
 
         // Complete the QSO — the final ADIF record must still carry the value chosen at the
         // original TxReport, not a value clobbered/reset by the intervening retry.
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await mockAdif.Received(1).AppendQsoAsync(
             Arg.Is<QsoRecord>(r => r.PartnerCallsign == PartnerCall && r.RstSent == "-05"));
@@ -1908,14 +1890,14 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         sut.LastTxMessage.Should().Be($"CQ {OurCallsign} {OurGrid}",
             "row 1 (CQ) must also be tracked, not just the report row");
 
         // Responder's CQ-answer decode, Snr = -5 (this file's Make() default).
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         sut.LastTxMessage.Should().Be($"{PartnerCall} {OurCallsign} -05",
             "must reflect the real composed report, not a stale CQ or fixed +00 placeholder");
@@ -1942,19 +1924,24 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}")); // Snr = -5 (Make default)
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         var expectedReport = $"{PartnerCall} {OurCallsign} -05";
         sut.LastTxMessage.Should().Be(expectedReport);
 
         // A-01 skip-then-retry silence pattern (mirrors
         // RetryOrAbortAsync_WaitRr73Retry_ResendsSamePersistedReportValue above).
+        // First silence cycle is skipped (skip guard), second fires the retry. Gate on the
+        // retry's completed PTT cycle (KeyUpAsync count 3), not just channel-drain — draining
+        // proves the batch was dequeued but not that the retransmit + WaitRr73 transition has
+        // landed, which races on ubuntu-latest scheduling.
         Send(channel, Make("Q2NOISE Q3NOISE -10"));
-        await Task.Delay(150);
+        await WaitForBatchDrainedAsync(channel);
         Send(channel, Make("Q2NOISE Q3NOISE -10"));
-        await Task.Delay(300);
+        await Poll.WaitForCallCountAsync(() => ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 3,
+            timeout: TimeSpan.FromSeconds(3));
         sut.State.Should().Be(QsoState.WaitRr73, "one retry must not exhaust the retry budget");
 
         sut.LastTxMessage.Should().Be(expectedReport,
@@ -1996,13 +1983,13 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         // The completed QsoRecord must carry the live CAT frequency, not the stale config value.
         await mockAdif.Received(1).AppendQsoAsync(
@@ -2040,13 +2027,13 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         // No CAT wired up (manual-tune operator) — must fall back to the config value unchanged.
         await mockAdif.Received(1).AppendQsoAsync(
@@ -2085,13 +2072,13 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} R+07"));
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         // The qsoReview event's record must carry the live CAT frequency, not the stale config value.
         eventBus.Received(1).PublishQsoReview(
@@ -2141,7 +2128,7 @@ public sealed class QsoCallerServiceTests
 
         // Trigger CQ — the service enters TxCq (proxy: TxAnswer) and blocks on KeyDownAsync.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.TxAnswer, timeout: TimeSpan.FromSeconds(5));
 
         // Request a graceful stop while the CQ sample is still "transmitting".
         await sut.GracefulStopAsync();
@@ -2157,7 +2144,7 @@ public sealed class QsoCallerServiceTests
 
         // The service must proceed through its normal post-TX transition and then, because a
         // graceful stop was requested, go straight to Idle without transmitting again.
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await ptt.Received(1).KeyDownAsync(Arg.Any<CancellationToken>()); // exactly one TX — no retransmission
         // dev-task 2026-07-12-cat-tx-ptt-missing-keyup-after-transmit.md: TransmitAsync's own
@@ -2184,13 +2171,13 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5)); // WaitAnswer proxy
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5)); // WaitAnswer proxy
 
         // No further batch is sent — the wakeup channel (not the decode channel) must be
         // what carries this request to the state machine promptly.
         await sut.GracefulStopAsync();
 
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -2215,15 +2202,15 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
 
         // No further batch is sent — relies entirely on WaitRr73 now being wakeup-eligible.
         await sut.GracefulStopAsync();
 
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().BeNull("SafeAbortToIdleAsync clears the partner on return to Idle");
 
         await stopCts.CancelAsync();
@@ -2242,8 +2229,12 @@ public sealed class QsoCallerServiceTests
 
         await sut.GracefulStopAsync();
 
-        // Give the background loop a brief window to (incorrectly) react, then assert nothing did.
-        await Task.Delay(100);
+        // Give the background loop a brief window to (incorrectly) react, then assert nothing did —
+        // proven directly by polling for a KeyDownAsync call and expecting the poll to time out,
+        // rather than waiting a fixed delay and hoping nothing happened in that window.
+        var act = () => Poll.WaitForCallAsync(() => ptt.ReceivedCalls(),
+            nameof(IPttController.KeyDownAsync), timeout: TimeSpan.FromMilliseconds(100));
+        await act.Should().ThrowAsync<TimeoutException>();
         sut.State.Should().Be(QsoState.Idle);
         await ptt.DidNotReceive().KeyUpAsync(Arg.Any<CancellationToken>());
         await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
@@ -2265,7 +2256,7 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Two requests back-to-back — neither call itself may throw, and the service must
         // still land on Idle exactly once (not double-transition, not error).
@@ -2276,10 +2267,12 @@ public sealed class QsoCallerServiceTests
         };
         await act.Should().NotThrowAsync();
 
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
 
-        // Settle briefly and confirm it stays Idle rather than oscillating.
-        await Task.Delay(100);
+        // Confirm it stays Idle rather than oscillating: poll for a departure from Idle and
+        // expect the poll to time out.
+        var act2 = () => Poll.UntilAsync(() => sut.State != QsoState.Idle, timeout: TimeSpan.FromMilliseconds(100));
+        await act2.Should().ThrowAsync<TimeoutException>();
         sut.State.Should().Be(QsoState.Idle);
 
         await stopCts.CancelAsync();
@@ -2307,7 +2300,7 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Exclude ThisBand on the Contact axis — Q1TST (ThisBand) is filtered out;
         // Q2ABC (Never, via WorkedBeforeInfo.None) passes.
@@ -2318,7 +2311,7 @@ public sealed class QsoCallerServiceTests
             MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand),  // filtered out
             MakeResponse("Q2ABC", "KP20", WorkedBeforeState.Never));             // not filtered out
 
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().Be("Q2ABC", "the filtered-out responder must be skipped entirely");
 
         await stopCts.CancelAsync();
@@ -2344,13 +2337,13 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         filterStore.Set(new DecodeFilterState(
             ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
 
         Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand)); // filtered out
-        await Task.Delay(300);
+        await WaitForBatchDrainedAsync(channel);
 
         sut.State.Should().Be(QsoState.WaitReport,
             "a cycle where every response is filtered out must behave identically to a cycle with no responses");
@@ -2379,11 +2372,11 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Unfiltered at engagement time — the partner is engaged normally.
         Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.Never));
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().Be(PartnerCall);
 
         // Now change the filter so the active partner would be filtered out if re-evaluated.
@@ -2398,7 +2391,7 @@ public sealed class QsoCallerServiceTests
         // QsoAnswererService) — by the time polling observes State it has already advanced to
         // Idle, so assert the transient QsoComplete broadcast directly via the event bus to
         // confirm the QSO reached normal completion (not an abort) with the original partner.
-        await WaitForStateAsync(sut, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
         // NSubstitute note: abortReason must be an explicit Arg.Is matcher, not a literal `null`
         // — mixing a bare-null literal with the Arg.Any<string?>() lastTxMessage matcher below
         // makes NSubstitute misattribute the queued matcher to the wrong (null-valued) position.
@@ -2428,11 +2421,11 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand));
 
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().Be(PartnerCall,
             "a null IDecodeFilterStore must impose no filtering — no regression for callers not yet updated");
 
@@ -2459,7 +2452,7 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Exclude ThisBand so the upcoming responder decode is filtered out.
         filterStore.Set(new DecodeFilterState(
@@ -2469,13 +2462,15 @@ public sealed class QsoCallerServiceTests
         // evaluate against — None mode records every recognised responder decode regardless
         // of filter state (highlighting is a frontend concern; this backend gate is separate).
         Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand));
-        await Task.Delay(200); // let HandleWaitAnswerAsync record the decode
+        await WaitForBatchDrainedAsync(channel);
 
         var bPhaseResponse = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
         await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponse, CancellationToken.None);
 
         // No state transition, no pending responder armed — the call must have been rejected.
-        await Task.Delay(200);
+        // Poll for a departure from WaitReport and expect the poll to time out.
+        var act = () => Poll.UntilAsync(() => sut.State != QsoState.WaitReport, timeout: TimeSpan.FromMilliseconds(200));
+        await act.Should().ThrowAsync<TimeoutException>();
         sut.State.Should().Be(QsoState.WaitReport,
             "SelectResponderAsync naming a filtered-out callsign must be rejected outright");
         sut.Partner.Should().BeNull();
@@ -2509,20 +2504,20 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Exclude ThisBand so the responder decode is genuinely filtered out.
         filterStore.Set(new DecodeFilterState(
             ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
 
         Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand));
-        await Task.Delay(200); // let HandleWaitAnswerAsync record the decode into _recentResponderDecodes
+        await WaitForBatchDrainedAsync(channel);
 
         var engaged = await sut.TryEngageExternalResponder(PartnerCall);
 
         engaged.Should().BeTrue("restrictExternalRepliesToDecodeFilter defaults to false — an explicit " +
             "external command is authoritative regardless of the operator's own decode-panel filter");
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().Be(PartnerCall);
 
         await stopCts.CancelAsync();
@@ -2552,19 +2547,20 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         filterStore.Set(new DecodeFilterState(
             ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
 
         Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand));
-        await Task.Delay(200);
+        await WaitForBatchDrainedAsync(channel);
 
         var engaged = await sut.TryEngageExternalResponder(PartnerCall);
 
         engaged.Should().BeFalse("Q1TST's responder decode is filtered out and " +
             "restrictExternalRepliesToDecodeFilter is true");
-        await Task.Delay(200);
+        var act = () => Poll.UntilAsync(() => sut.State != QsoState.WaitReport, timeout: TimeSpan.FromMilliseconds(200));
+        await act.Should().ThrowAsync<TimeoutException>();
         sut.State.Should().Be(QsoState.WaitReport);
         sut.Partner.Should().BeNull();
 
@@ -2597,18 +2593,19 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         filterStore.Set(new DecodeFilterState(
             ContactStates: new HashSet<WorkedBeforeState> { WorkedBeforeState.Never, WorkedBeforeState.DifferentBand }));
 
         Send(channel, MakeResponse(PartnerCall, PartnerGrid, WorkedBeforeState.ThisBand));
-        await Task.Delay(200);
+        await WaitForBatchDrainedAsync(channel);
 
         var bPhaseResponse = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
         await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponse, CancellationToken.None);
 
-        await Task.Delay(200);
+        var act = () => Poll.UntilAsync(() => sut.State != QsoState.WaitReport, timeout: TimeSpan.FromMilliseconds(200));
+        await act.Should().ThrowAsync<TimeoutException>();
         sut.State.Should().Be(QsoState.WaitReport,
             "the manual/browser path must keep filtering unconditionally regardless of the new flag's default");
         sut.Partner.Should().BeNull();
@@ -2643,11 +2640,11 @@ public sealed class QsoCallerServiceTests
 
         // Trigger CQ → WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Feed a response from the rejected candidate.
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await Task.Delay(300);
+        await WaitForBatchDrainedAsync(channel);
 
         sut.State.Should().Be(QsoState.WaitReport,
             "a rejected responder must never be treated as the active partner");
@@ -2686,7 +2683,7 @@ public sealed class QsoCallerServiceTests
 
         // Trigger CQ → WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
-        await WaitForStateAsync(sut, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         // Both a rejected and an allowed responder in the same batch — the rejected one must be
         // skipped and scanning must continue to the allowed one.
@@ -2694,7 +2691,7 @@ public sealed class QsoCallerServiceTests
             Make($"{OurCallsign} {RejectedCall} JO11"),
             Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
 
-        await WaitForStateAsync(sut, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
         sut.Partner.Should().Be(PartnerCall,
             "the rejected responder must be skipped and scanning must continue to the next candidate");
 

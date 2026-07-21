@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using OpenWSFZ.TestSupport;
 using Xunit;
 
 namespace OpenWSFZ.Daemon.Tests;
@@ -25,15 +26,16 @@ public sealed class PttWatchdogTests
             return Task.CompletedTask;
         });
 
-        var completed = await Task.WhenAny(released.Task, Task.Delay(2000));
-        completed.Should().Be(released.Task, "the watchdog must force a release when never disarmed");
+        await Poll.WaitForEqualAsync(() => released.Task.IsCompleted, true,
+            timeout: TimeSpan.FromSeconds(2), what: "the forced-release callback");
 
-        // Give the log call (which happens just before invoking the callback) a moment
-        // to land — same thread, so this is a formality rather than a real race.
-        await Task.Delay(20);
-        logger.Entries.Should().Contain(e =>
-            e.Level == LogLevel.Error && e.Message.Contains("watchdog fired"),
-            "the watchdog must log at Error including 'watchdog fired'");
+        // Poll for the log entry to land instead of assuming a fixed delay is enough —
+        // logging happens just before the callback runs, on the same callback invocation,
+        // so this settles almost immediately in practice, but polling removes any assumption
+        // about exactly how immediately.
+        await Poll.UntilAsync(
+            () => logger.Entries.Any(e => e.Level == LogLevel.Error && e.Message.Contains("watchdog fired")),
+            timeout: TimeSpan.FromSeconds(1));
         logger.Entries.Should().Contain(e => e.Message.Contains("TestController"),
             "the log line must name the owning controller");
     }
@@ -51,13 +53,23 @@ public sealed class PttWatchdogTests
             return Task.CompletedTask;
         });
 
-        await Task.Delay(30);
+        // Disarm back-to-back with Arm — deliberately no delay in between. The original test
+        // inserted a fixed 30-millisecond delay here to simulate "PTT held briefly", racing it
+        // against the watchdog's own 200ms timer. Under CI load that delay could itself overrun
+        // past 200ms (thread-pool contention/GC pauses), letting the watchdog fire before
+        // Disarm() ever ran — this exact mechanism is the confirmed flake this task fixes
+        // (dev-tasks/2026-07-20-flaky-waitreport-retry-delay-sync.md's sibling case). Removing
+        // the artificial gap removes the race: Arm() and Disarm() now execute as two adjacent
+        // statements with nothing in between for the scheduler to exploit.
         watchdog.Disarm();
 
-        // Wait well past the original timeout to prove it never fires late.
-        await Task.Delay(300);
+        // Prove it never fires, even well past the original 200ms timeout. Polling for "fired
+        // becomes true" and asserting the poll times out is the shared library's idiom for a
+        // "this must never happen" assertion (see OpenWSFZ.TestSupport.Tests.PollTests, which
+        // proves Poll.UntilAsync's own timeout behavior the same way).
+        var act = () => Poll.WaitForEqualAsync(() => fired, true, timeout: TimeSpan.FromMilliseconds(300));
+        await act.Should().ThrowAsync<TimeoutException>();
 
-        fired.Should().BeFalse("Disarm before the timeout must prevent the forced-release callback");
         logger.Entries.Should().NotContain(e => e.Level == LogLevel.Error);
     }
 
@@ -78,9 +90,9 @@ public sealed class PttWatchdogTests
         });
 
         // Never call Disarm() — simulates KeyDownAsync/playback hanging indefinitely.
-        var completed = await Task.WhenAny(callbackRan.Task, Task.Delay(2000));
-        completed.Should().Be(callbackRan.Task,
-            "the watchdog must fire on elapsed time alone, regardless of what it is guarding");
+        await Poll.WaitForEqualAsync(() => callbackRan.Task.IsCompleted, true,
+            timeout: TimeSpan.FromSeconds(2),
+            what: "the watchdog firing on elapsed time alone, regardless of what it is guarding");
     }
 
     [Fact(DisplayName = "CatTx-Ptt: re-arming an already-armed watchdog replaces the pending timer")]
@@ -91,9 +103,12 @@ public sealed class PttWatchdogTests
         var fireCount = 0;
 
         watchdog.Arm(500, () => { Interlocked.Increment(ref fireCount); return Task.CompletedTask; });
-        await Task.Delay(20);
 
-        // Re-arm with a much shorter timeout — only the second timer should ever fire.
+        // Re-arm back-to-back with the first Arm — no delay in between (same rationale as
+        // Disarm_BeforeTimeout_CallbackNeverInvoked above: a fixed delay here would race
+        // against the first timer's own 500ms window under CI load, for no benefit — the test
+        // only cares that re-arming replaces the pending timer, not that any particular amount
+        // of it elapsed first).
         var secondFired = new TaskCompletionSource();
         watchdog.Arm(30, () =>
         {
@@ -102,10 +117,12 @@ public sealed class PttWatchdogTests
             return Task.CompletedTask;
         });
 
-        var completed = await Task.WhenAny(secondFired.Task, Task.Delay(2000));
-        completed.Should().Be(secondFired.Task);
+        await Poll.WaitForEqualAsync(() => secondFired.Task.IsCompleted, true, timeout: TimeSpan.FromSeconds(2));
 
-        await Task.Delay(600); // past the original (replaced) 500 ms timer too
+        // Prove the original (replaced) 500ms timer never also fires — same
+        // wait-for-it-to-happen-and-assert-timeout idiom as the Disarm test above.
+        var act = () => Poll.WaitForEqualAsync(() => fireCount, 2, timeout: TimeSpan.FromMilliseconds(600));
+        await act.Should().ThrowAsync<TimeoutException>();
         fireCount.Should().Be(1, "only the most recent Arm() call should ever fire");
     }
 

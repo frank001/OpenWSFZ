@@ -1,0 +1,27 @@
+<!--
+  Deliberately a plain Microsoft.NET.Sdk class library, NOT a test project — no
+  Microsoft.NET.Test.Sdk package reference, so IsTestProject is never set and
+  `dotnet test`/VSTest never touch it. Its name deliberately does not end in
+  ".Tests" for two concrete reasons (see design.md Decision 2):
+    1. Gate G3 (tools/TraceabilityCheck) globs **/bin/Release/net10.0/*.Tests.dll
+       to discover assemblies to check. A ".Tests"-suffixed shared library would be
+       pulled into traceability scanning and (having no [Fact]s carrying
+       "FR-###:"/"NFR-###:" prefixes) would need spurious debt-file entries.
+    2. pre_merge_check.py's own test-assembly discovery uses the same glob.
+       Keeping this library outside it means it's built via ordinary `dotnet build`
+       project-reference resolution, with no special-casing needed anywhere.
+  Lives under /tests/ in OpenWSFZ.slnx purely conceptually — it only exists to
+  serve test projects — not because it is itself a test project.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NSubstitute" />
+  </ItemGroup>
+</Project>
