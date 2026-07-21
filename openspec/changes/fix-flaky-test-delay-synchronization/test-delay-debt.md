@@ -1,10 +1,19 @@
 # Test-Delay Synchronization Debt
 
-Entries here are bare `Task.Delay(<numeric literal>)` synchronization-barrier call sites,
+Entries here are bare fixed-duration synchronization-barrier call sites — `Task.Delay(<numeric
+literal>)`, `Task.Delay(TimeSpan.From*(<numeric literal>))`, or `Thread.Sleep(<numeric literal>)` —
 explicitly acknowledged as pending migration onto the shared `OpenWSFZ.TestSupport` polling library
 (`Poll.UntilAsync` and its typed wrappers — see design.md Decision 1). They are excluded from Gate
 **G10**'s (`tools/check_test_delay_sync.py`) untracked-bare-delay check until the phase that covers
 them lands.
+
+**2026-07-21 scope widening:** the `TimeSpan.From*`/`Thread.Sleep` shapes were added to G10's regex
+after a QA audit found two live, untracked `Task.Delay(TimeSpan.FromSeconds(1))` sites in
+`ConsoleDetacherTests.cs` — the exact anti-pattern this gate exists to catch, missed only because
+the original regex required the call's argument to start with a digit, and `TimeSpan.From...(1)`
+starts with `T`. One site was migrated onto `Poll.UntilAsync`; the other was a genuine "prove an
+absence" case with no positive condition to poll for, so it's tracked below instead (see its own
+entry for why).
 
 **Format:** `path:line: matched-text` — one entry per currently-known site, seeded via
 `python3 tools/check_test_delay_sync.py --list` (guaranteeing the initial inventory matches exactly
@@ -197,6 +206,24 @@ not a synchronization-barrier guess about how long an async operation takes.
 
 tests/OpenWSFZ.Daemon.Tests/DaemonStartupTests.cs:79: Task.Delay(300)
 tests/OpenWSFZ.Daemon.Tests/DaemonStartupTests.cs:134: Task.Delay(250)
+
+
+## G10 scope-widening find — `ConsoleDetacherTests.cs` (1 permanent justified exception)
+
+Found during the 2026-07-21 audit that prompted the scope widening described above, not part of
+the original Phase 1–3 migration. Two sites existed; one is now migrated, one remains:
+
+- **Migrated** (control case, line ~68 pre-migration): waited a fixed second for a SIGHUP-killed
+  process to exit, then asserted `HasExited == true`. A real positive condition to poll for —
+  replaced with `Poll.UntilAsync(() => control.Process.HasExited, timeout: 5s)`.
+- **Remaining, justified** (treatment case): proves the *absence* of exit — a process with the
+  SIGHUP-ignore handler registered must survive a real SIGHUP. There is no positive condition to
+  poll for a negative outcome; polling faster than a fixed wait only helps confirm something
+  *happened* sooner, not that something *won't* happen. Same rationale as the wall-clock
+  stray-wakeup and simulated-mock-latency exceptions already accepted above for
+  `QsoAnswererServiceTests`/`QsoCallerServiceTests`.
+
+tests/OpenWSFZ.Daemon.Tests/ConsoleDetacherTests.cs:64: Task.Delay(TimeSpan.FromSeconds(1))
 
 
 ## Permanent exemption — `Poll.UntilAsync`'s own test fixtures

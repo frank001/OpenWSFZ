@@ -57,12 +57,26 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DEBT_FILE = os.path.join(
     REPO_ROOT, "openspec", "changes", "fix-flaky-test-delay-synchronization", "test-delay-debt.md")
 
-# Matches a bare Task.Delay(...) call whose argument list starts with a numeric literal, e.g.
-# Task.Delay(150), Task.Delay(10, feedCts.Token) — but not Task.Delay(interval) or Task.Delay(x)
-# (a variable/parameter, the correct shape once migrated onto Poll.UntilAsync internally). The
-# alternation tolerates one level of nested parens within the argument list (e.g. a cast like
+# Matches a bare fixed-duration delay call whose argument list starts with a numeric literal, in
+# any of three equivalent shapes:
+#   1. Task.Delay(150), Task.Delay(10, feedCts.Token) — a plain literal millisecond count.
+#   2. Task.Delay(TimeSpan.FromSeconds(1)) — the same fixed-duration guess spelled via a TimeSpan
+#      factory. Originally missed entirely (2026-07-21 G10 audit found two live, untracked sites in
+#      ConsoleDetacherTests.cs): the outer call doesn't start with a digit, so pattern 1 alone never
+#      matched it, and it silently passed the gate as if it didn't exist. The TimeSpan factory's own
+#      argument must itself start with a digit — Task.Delay(TimeSpan.FromMilliseconds(interval)) is
+#      deliberately NOT matched, same as Task.Delay(interval) isn't under pattern 1: a
+#      variable/parameter is already the correct post-migration shape, not a literal guess.
+#   3. Thread.Sleep(500) — the synchronous-code equivalent anti-pattern. No live sites existed at
+#      audit time, but nothing stops a future test from introducing one; covered pre-emptively
+#      rather than waiting for a second embarrassment like pattern 2's.
+# Each alternative tolerates one level of nested parens within its argument list (e.g. a cast like
 # Task.Delay(100, (CancellationToken)c.Args()[0])) without needing a full balanced-paren parser.
-DELAY_RE = re.compile(r"Task\.Delay\(\s*\d(?:[^()]|\([^()]*\))*\)")
+DELAY_RE = re.compile(
+    r"Task\.Delay\(\s*\d(?:[^()]|\([^()]*\))*\)"
+    r"|Task\.Delay\(\s*TimeSpan\.From\w+\(\s*\d(?:[^()]|\([^()]*\))*\)(?:[^()]|\([^()]*\))*\)"
+    r"|Thread\.Sleep\(\s*\d(?:[^()]|\([^()]*\))*\)"
+)
 
 # The shared library's own implementation — the one legitimate place a literal poll-interval delay
 # lives (design.md Decision 1/2). Deliberately NOT tests/OpenWSFZ.TestSupport.Tests/** — see module
