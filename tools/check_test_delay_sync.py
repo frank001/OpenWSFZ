@@ -58,7 +58,7 @@ DEFAULT_DEBT_FILE = os.path.join(
     REPO_ROOT, "openspec", "changes", "fix-flaky-test-delay-synchronization", "test-delay-debt.md")
 
 # Matches a bare fixed-duration delay call whose argument list starts with a numeric literal, in
-# any of three equivalent shapes:
+# any of four equivalent shapes:
 #   1. Task.Delay(150), Task.Delay(10, feedCts.Token) — a plain literal millisecond count.
 #   2. Task.Delay(TimeSpan.FromSeconds(1)) — the same fixed-duration guess spelled via a TimeSpan
 #      factory. Originally missed entirely (2026-07-21 G10 audit found two live, untracked sites in
@@ -70,12 +70,18 @@ DEFAULT_DEBT_FILE = os.path.join(
 #   3. Thread.Sleep(500) — the synchronous-code equivalent anti-pattern. No live sites existed at
 #      audit time, but nothing stops a future test from introducing one; covered pre-emptively
 #      rather than waiting for a second embarrassment like pattern 2's.
+#   4. Thread.Sleep(TimeSpan.FromSeconds(1)) — pattern 3's TimeSpan-wrapped twin, added in the same
+#      pass as pattern 2 (2026-07-21 review) rather than left as a residual blind spot: Thread.Sleep
+#      has the identical TimeSpan-accepting overload Task.Delay does, so closing pattern 2 without
+#      also closing this one would just be pattern 2's original gap recreated on the sync-code side.
+#      No live sites exist for this shape either, same pre-emptive rationale as pattern 3.
 # Each alternative tolerates one level of nested parens within its argument list (e.g. a cast like
 # Task.Delay(100, (CancellationToken)c.Args()[0])) without needing a full balanced-paren parser.
 DELAY_RE = re.compile(
     r"Task\.Delay\(\s*\d(?:[^()]|\([^()]*\))*\)"
     r"|Task\.Delay\(\s*TimeSpan\.From\w+\(\s*\d(?:[^()]|\([^()]*\))*\)(?:[^()]|\([^()]*\))*\)"
     r"|Thread\.Sleep\(\s*\d(?:[^()]|\([^()]*\))*\)"
+    r"|Thread\.Sleep\(\s*TimeSpan\.From\w+\(\s*\d(?:[^()]|\([^()]*\))*\)(?:[^()]|\([^()]*\))*\)"
 )
 
 # The shared library's own implementation — the one legitimate place a literal poll-interval delay
