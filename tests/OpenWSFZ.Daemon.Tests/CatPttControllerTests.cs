@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
+using OpenWSFZ.TestSupport;
 using Xunit;
 
 namespace OpenWSFZ.Daemon.Tests;
@@ -145,8 +146,10 @@ public sealed class CatPttControllerTests
         using var cts = new CancellationTokenSource();
         var keyDownTask = sut.KeyDownAsync(cts.Token);
 
-        // Give KeyDownAsync time to assert PTT and reach the (infinitely) blocked player.
-        await Task.Delay(50);
+        // Wait until KeyDownAsync has asserted PTT — the SetPttAsync(true) call precedes
+        // entering the (infinitely) blocked player — rather than guessing a fixed settle delay.
+        await Poll.WaitForCallAsync(() => gate.ReceivedCalls(), nameof(ICatPttGate.SetPttAsync),
+            timeout: TimeSpan.FromSeconds(2));
 
         await sut.DisposeAsync();
 
@@ -190,14 +193,10 @@ public sealed class CatPttControllerTests
         // own — the watchdog must force a release regardless.
         _ = sut.KeyDownAsync();
 
-        // Poll for the forced release rather than a single fixed delay, to keep this
-        // robust under slow CI runners.
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (DateTime.UtcNow < deadline &&
-               gate.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(ICatPttGate.SetPttAsync)) < 2)
-        {
-            await Task.Delay(20);
-        }
+        // Poll for the forced release — both SetPttAsync calls (initial assert + watchdog
+        // release) — rather than a single fixed delay, to keep this robust under slow CI runners.
+        await Poll.WaitForCallCountAsync(() => gate.ReceivedCalls(), nameof(ICatPttGate.SetPttAsync), 2,
+            timeout: TimeSpan.FromSeconds(2));
 
         await gate.Received(1).SetPttAsync(true, Arg.Any<CancellationToken>());
         await gate.Received(1).SetPttAsync(false, Arg.Any<CancellationToken>());
@@ -227,18 +226,21 @@ public sealed class CatPttControllerTests
         // the test explicitly lets it finish below.
         var firstKeyDown = sut.KeyDownAsync();
 
-        // Give caller #1 time to acquire the lock, assert PTT, and enter the player.
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (DateTime.UtcNow < deadline && callCount < 1)
-            await Task.Delay(10);
+        // Wait for caller #1 to acquire the lock, assert PTT, and enter the player.
+        await Poll.UntilAsync(() => callCount >= 1, timeout: TimeSpan.FromSeconds(2));
         callCount.Should().Be(1, "caller #1 must have started its playback by now");
 
         // Caller #2 — simulates a Settings-page Test click racing the real transmission —
         // starts concurrently while #1 is still mid-transmission.
         var secondKeyDown = Task.Run(() => sut.KeyDownAsync());
 
-        // Give caller #2 a chance to (incorrectly) race ahead if the lock were missing.
-        await Task.Delay(100);
+        // Give caller #2 a chance to (incorrectly) race ahead if the lock were missing: poll
+        // for the forbidden second playback and require it never appears within the window,
+        // instead of a bare fixed delay (fix-flaky-test-delay-synchronization). If the lock were
+        // broken, callCount would reach 2 promptly and this poll would return without throwing.
+        var raceAhead = async () => await Poll.WaitForEqualAsync(() => callCount, 2,
+            timeout: TimeSpan.FromMilliseconds(100));
+        await raceAhead.Should().ThrowAsync<TimeoutException>();
         callCount.Should().Be(1,
             "caller #2 must remain blocked behind caller #1's still-open KeyUpAsync — it must " +
             "not be able to assert PTT again (and, worse, later de-assert it) while caller #1's " +

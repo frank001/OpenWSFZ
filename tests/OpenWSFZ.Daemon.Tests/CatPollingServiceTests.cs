@@ -5,6 +5,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Daemon.Cat;
+using OpenWSFZ.TestSupport;
 using OpenWSFZ.Web;
 using Xunit;
 
@@ -40,7 +41,8 @@ public sealed class CatPollingServiceTests
         var (svc, state, _) = MakeService(new CatConfig { Enabled = false });
 
         await svc.StartAsync(CancellationToken.None);
-        await Task.Delay(150);  // let the loop tick once
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Disabled,
+            timeout: TimeSpan.FromSeconds(5));
         await svc.StopAsync(CancellationToken.None);
 
         state.Status.Should().Be(CatConnectionStatus.Disabled);
@@ -71,7 +73,8 @@ public sealed class CatPollingServiceTests
         var (svc, state, _) = MakeService(cat);
 
         await svc.StartAsync(CancellationToken.None);
-        await Task.Delay(150);
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Disabled,
+            timeout: TimeSpan.FromSeconds(5));
         await svc.StopAsync(CancellationToken.None);
 
         state.Status.Should().Be(CatConnectionStatus.Disabled);
@@ -105,12 +108,21 @@ public sealed class CatPollingServiceTests
 
         // Act
         await svc.StartAsync(CancellationToken.None);
-        await Task.Delay(200);   // let the service attempt connection and suspend
+        // Wait for the connect attempt to fail and polling to suspend (status → Error).
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Error,
+            timeout: TimeSpan.FromSeconds(5));
 
         var callsAtSuspend = connection.ReceivedCalls()
             .Count(c => c.GetMethodInfo().Name == nameof(IRadioConnection.ConnectAsync));
 
-        await Task.Delay(300);   // wait; suspension means no further calls should occur
+        // Suspension must hold: poll for a (forbidden) second connect attempt and require it
+        // never lands within the window, instead of a bare fixed delay. A broken suspension
+        // would retry within ~2 idle ticks (200 ms each), well inside this window.
+        var secondAttempt = async () => await Poll.UntilAsync(
+            () => connection.ReceivedCalls()
+                .Count(c => c.GetMethodInfo().Name == nameof(IRadioConnection.ConnectAsync)) > callsAtSuspend,
+            timeout: TimeSpan.FromMilliseconds(500));
+        await secondAttempt.Should().ThrowAsync<TimeoutException>();
 
         await svc.StopAsync(CancellationToken.None);
 
@@ -159,7 +171,9 @@ public sealed class CatPollingServiceTests
                         connection);
 
         await svc.StartAsync(CancellationToken.None);
-        await Task.Delay(150);   // first attempt fails → suspended
+        // First attempt fails → suspended (status → Error).
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Error,
+            timeout: TimeSpan.FromSeconds(5));
 
         // Simulate operator changing the serial port in config (clears suspension).
         await store.SaveAsync(
@@ -169,9 +183,8 @@ public sealed class CatPollingServiceTests
             });
 
         // Poll for Connected — avoids a hard-coded delay that can fail on slow CI runners.
-        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1000);
-        while (DateTime.UtcNow < deadline && state.Status != CatConnectionStatus.Connected)
-            await Task.Delay(20);
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected,
+            timeout: TimeSpan.FromSeconds(1));
 
         await svc.StopAsync(CancellationToken.None);
 
@@ -214,16 +227,18 @@ public sealed class CatPollingServiceTests
                         connection);
 
         await svc.StartAsync(CancellationToken.None);
-        await Task.Delay(250);   // first attempt fails → suspended (increased for slow CI runners)
+        // First attempt fails → suspended (status → Error).
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Error,
+            timeout: TimeSpan.FromSeconds(5));
 
         // Signal a manual retry (ICatController) — no config change required.
         svc.TriggerRetry();
 
-        // 600 ms: worst case is ~200 ms remaining in the suspended-idle sleep, plus retry overhead.
-        // Assert BEFORE StopAsync — StopAsync cancels the poll loop, which can race with the
-        // final Connected status update (Task.Delay(0, cancelledCt) throws OCE mid-connect,
-        // leaving status as Connecting rather than Connected).
-        await Task.Delay(600);
+        // Poll for the reconnect rather than a fixed delay. Assert BEFORE StopAsync — StopAsync
+        // cancels the poll loop, which can race with the final Connected status update (a
+        // cancelled-token delay throws OCE mid-connect, leaving status as Connecting).
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected,
+            timeout: TimeSpan.FromSeconds(2), what: "CAT status after TriggerRetry");
 
         state.Status.Should().Be(CatConnectionStatus.Connected,
             "TriggerRetry must clear the failure suspension so the poll loop reconnects");
@@ -279,9 +294,8 @@ public sealed class CatPollingServiceTests
 
         await svc.StartAsync(CancellationToken.None);
 
-        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1000);
-        while (DateTime.UtcNow < deadline && state.Status != CatConnectionStatus.Connected)
-            await Task.Delay(20);
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected,
+            timeout: TimeSpan.FromSeconds(1));
 
         await gate.SetPttAsync(true);
 
@@ -332,16 +346,21 @@ public sealed class CatPollingServiceTests
 
         await svc.StartAsync(CancellationToken.None);
 
-        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1000);
-        while (DateTime.UtcNow < deadline && state.Status != CatConnectionStatus.Connected)
-            await Task.Delay(20);
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected,
+            timeout: TimeSpan.FromSeconds(1));
 
         // Fire several concurrent PTT calls while the poll loop is also ticking
         // (PollIntervalSeconds = 1, so a poll is likely mid-flight during this window).
         var pttTasks = Enumerable.Range(0, 5).Select(_ => gate.SetPttAsync(true)).ToArray();
         await Task.WhenAll(pttTasks);
 
-        await Task.Delay(300); // let another poll cycle also have a chance to overlap
+        // Let at least one more poll cycle run (and be overlap-checked by the re-entrancy guard)
+        // after the PTT burst — wait for the next completed poll read rather than a blind delay.
+        var readsAfterBurst = connection.ReceivedCalls()
+            .Count(c => c.GetMethodInfo().Name == nameof(IRadioConnection.GetDialFrequencyMhzAsync));
+        await Poll.WaitForCallCountAsync(() => connection.ReceivedCalls(),
+            nameof(IRadioConnection.GetDialFrequencyMhzAsync), readsAfterBurst + 1,
+            timeout: TimeSpan.FromSeconds(2));
 
         await svc.StopAsync(CancellationToken.None);
 

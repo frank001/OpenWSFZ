@@ -106,57 +106,52 @@ tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1782: Task.Delay(50)
 
 ## Phase 2 — External reporting and CAT polling/PTT files
 
+All four files migrated onto `Poll`/`WaitForInboundBoundAsync` (a per-file helper in
+`ExternalReportingServiceTests` polling the service's bound `_inboundClient`). Full local
+regression: 5/5 consecutive clean runs of the four affected classes (46 tests) after migration.
 
-### `tests/OpenWSFZ.Daemon.Tests/CatPollingServiceFreqPersistTests.cs` (3)
 
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceFreqPersistTests.cs:46: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceFreqPersistTests.cs:86: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceFreqPersistTests.cs:124: Task.Delay(400)
+### `tests/OpenWSFZ.Daemon.Tests/CatPollingServiceFreqPersistTests.cs` — MIGRATED, no exceptions
 
-### `tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs` (14)
+All 3 sites migrated: the ≥ 1 Hz persist waits on `SpyConfigStore.SaveCount`; the within-1 Hz
+no-save case waits on `CatState.Status == Connected` (a completed poll proves the save branch was
+evaluated — the within-threshold change means no save signal ever appears to poll for); the
+failing-save case waits on the spy logger's `WarningCount`.
 
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:43: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:74: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:108: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:113: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:162: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:174: Task.Delay(20)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:217: Task.Delay(250)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:224: Task.Delay(0, cancelledCt)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:226: Task.Delay(600)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:284: Task.Delay(20)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:312: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:320: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:337: Task.Delay(20)
-tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:344: Task.Delay(300)
+### `tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs` — MIGRATED, 2 permanent justified exceptions remain
 
-### `tests/OpenWSFZ.Daemon.Tests/CatPttControllerTests.cs` (4)
+12 of the 14 sites migrated onto `Poll.WaitForEqualAsync`/`WaitForCallCountAsync`/`UntilAsync`
+(status transitions; failure-suspension holds proven via poll-and-expect-timeout; reconnect and
+PTT paths). The comment-text false-positive at the old line 224 (`Task.Delay(0, cancelledCt)`,
+inside a code comment, never real code) was reworded away.
 
-tests/OpenWSFZ.Daemon.Tests/CatPttControllerTests.cs:149: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/CatPttControllerTests.cs:199: Task.Delay(20)
-tests/OpenWSFZ.Daemon.Tests/CatPttControllerTests.cs:233: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/CatPttControllerTests.cs:241: Task.Delay(100)
+The 2 remaining sites are **simulated connection I/O latency** inside the mock `IRadioConnection`
+in `SetPttAsync_ConcurrentWithPoll_NeverInterleaves` — the same "simulated-mock-latency" category
+already justified in `QsoCallerServiceTests.cs` (line ~1253). Each `await Task.Delay(50)` makes a
+mocked `GetDialFrequencyMhzAsync`/`SetPttAsync` call take measurable time so the re-entrancy guard
+has a window in which to observe any overlap; without them both calls return instantly and the
+test can never detect a serialisation violation. This is mock-input simulation, not a
+test-synchronization barrier, so no polling helper applies.
 
-### `tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs` (18)
+tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:326: Task.Delay(50)
+tests/OpenWSFZ.Daemon.Tests/CatPollingServiceTests.cs:334: Task.Delay(50)
 
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:294: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:311: Task.Delay(500)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:367: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:535: Task.Delay(150)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:881: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:886: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:897: Task.Delay(500)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:933: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:938: Task.Delay(500)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:983: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:988: Task.Delay(500)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:1020: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:1025: Task.Delay(500)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:1079: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:1092: Task.Delay(500)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:1125: Task.Delay(200)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:1129: Task.Delay(300)
-tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:1134: Task.Delay(500)
+### `tests/OpenWSFZ.Daemon.Tests/CatPttControllerTests.cs` — MIGRATED, no exceptions
+
+All 4 sites migrated: the PTT-assert barrier waits on `SetPttAsync` being called; the two existing
+hand-written poll loops became `Poll.WaitForCallCountAsync`/`UntilAsync`; the concurrency
+"caller #2 stays blocked" negative wait became a poll-and-expect-timeout on `callCount == 2`.
+
+### `tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs` — MIGRATED, no exceptions
+
+All 18 sites migrated: "let Reconcile bind" delays became `WaitForInboundBoundAsync` (polls the
+bound `_inboundClient` — sending an inbound datagram before the socket is bound silently drops
+it); "wait then assert AbortAsync/TryEngageAsync/LastFreeText" delays became
+`Poll.WaitForCallAsync`/`WaitForEqualAsync`; the opted-out reply negative became a
+poll-and-expect-timeout; the two between-sends pacing delays were removed (FIFO delivery on the
+single inbound socket already orders them, and the trailing barrier proves processing); and the
+StopAsync-Clear/Close test now waits for the initial Heartbeat+Status burst to actually be
+received before stopping.
 
 
 ## Phase 3 — Remaining files across all four affected test projects

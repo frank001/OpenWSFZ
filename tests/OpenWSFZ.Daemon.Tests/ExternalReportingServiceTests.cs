@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Daemon;
+using OpenWSFZ.TestSupport;
 using OpenWSFZ.Web;
 using Xunit;
 
@@ -239,6 +240,16 @@ public sealed class ExternalReportingServiceTests
         return (UdpClient?)field!.GetValue(sut);
     }
 
+    /// <summary>
+    /// Polls until <c>Reconcile</c> has bound the inbound UDP socket, replacing the fixed
+    /// "let Reconcile attempt the bind" delays that used to precede sending an inbound datagram
+    /// (fix-flaky-test-delay-synchronization). Sending before the socket is bound would silently
+    /// drop the datagram; the bound <c>_inboundClient</c> is the real, observable barrier.
+    /// </summary>
+    private static Task WaitForInboundBoundAsync(ExternalReportingService sut)
+        => Poll.UntilAsync(() => GetInboundClient(sut) is not null, timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: () => "inbound UDP socket was never bound by Reconcile");
+
     /// <remarks>
     /// <para>
     /// <strong>Windows platform note:</strong> empirically probed while writing this test (see
@@ -291,7 +302,7 @@ public sealed class ExternalReportingServiceTests
         try
         {
             await sut.StartAsync(cts.Token);
-            await Task.Delay(200); // let Reconcile attempt the bind
+            await WaitForInboundBoundAsync(sut);
 
             GetInboundClient(sut).Should().NotBeNull(
                 "the bind must succeed (via ReuseAddress) even though a peer already owns the port " +
@@ -308,7 +319,8 @@ public sealed class ExternalReportingServiceTests
             var haltTx = BuildHaltTxDatagram();
             await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
 
-            await Task.Delay(500);
+            await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
+                timeout: TimeSpan.FromSeconds(5));
             await qso.Received(1).AbortAsync(Arg.Any<CancellationToken>());
         }
         finally
@@ -364,7 +376,7 @@ public sealed class ExternalReportingServiceTests
         await sut.StartAsync(cts.Token);
         try
         {
-            await Task.Delay(200); // let Reconcile attempt the bind
+            await WaitForInboundBoundAsync(sut);
 
             channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
                 [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22")]));
@@ -523,18 +535,21 @@ public sealed class ExternalReportingServiceTests
         using var cts = new CancellationTokenSource();
         await sut.StartAsync(cts.Token);
 
-        // Give the initial Heartbeat+Status burst a moment to go out before stopping — not a
-        // drain-to-an-exact-count (that was flaky: under xUnit's parallel run of other test
-        // classes competing for the thread pool, a slow/delayed leftover burst datagram could
-        // arrive just after an exact-count drain "finished," then crowd Close out of the
-        // post-stop receive's own exact cap). Instead, capture ONE generous batch spanning both
-        // the initial burst and the stop-time Clear/Close, and assert with Should().Contain —
-        // robust to extra noise, matching every other test in this file (e.g.
-        // TwoEnabledTargets_BothReceiveDecode above). margin: 6 requested against a maximum of 4
-        // ever sent (Heartbeat, Status, Clear, Close) — 2 slots of deliberate headroom.
-        await Task.Delay(150);
+        // Wait for the initial Heartbeat+Status burst to actually be sent (proving the send loop
+        // initialized) before stopping, rather than a blind fixed delay. Consuming these datagrams
+        // from listener1 is safe — the assertions below only require Clear+Close, and listener2's
+        // own buffered burst is untouched.
+        (await ReceiveAllAsync(listener1, 2, TimeSpan.FromSeconds(3)))
+            .Should().NotBeEmpty("the initial Heartbeat+Status burst must be sent before stop");
         await sut.StopAsync(CancellationToken.None);
 
+        // Capture ONE generous batch spanning any residual initial-burst datagrams and the
+        // stop-time Clear/Close, and assert with Should().Contain — robust to extra noise, matching
+        // every other test in this file (e.g. TwoEnabledTargets_BothReceiveDecode above). Not a
+        // drain-to-an-exact-count (that was flaky: a slow/delayed leftover burst datagram could
+        // arrive just after an exact-count drain "finished," then crowd Close out of the receive's
+        // own exact cap). margin: 6 requested against a maximum of 4 ever sent (Heartbeat, Status,
+        // Clear, Close) — 2 slots of deliberate headroom.
         var recv1 = await ReceiveAllAsync(listener1, 6, TimeSpan.FromSeconds(3));
         var recv2 = await ReceiveAllAsync(listener2, 6, TimeSpan.FromSeconds(3));
 
@@ -878,14 +893,15 @@ public sealed class ExternalReportingServiceTests
         await sut.StartAsync(cts.Token);
         try
         {
-            await Task.Delay(200); // let Reconcile bind the inbound socket
+            await WaitForInboundBoundAsync(sut);
 
             // 1) Garbage — must not crash the listener.
             var garbage = new byte[] { 0x01, 0x02, 0x03 };
             await sender.SendAsync(garbage, garbage.Length, "127.0.0.1", port);
-            await Task.Delay(200);
 
-            // 2) A well-formed Halt Tx afterward must still be processed.
+            // 2) A well-formed Halt Tx afterward must still be processed. FIFO delivery on the
+            // single inbound socket means it is read after the garbage above with no pacing delay;
+            // the final AbortAsync barrier proves the listener survived the garbage and processed it.
             var haltTx = new byte[16];
             BinaryPrimitives.WriteUInt32BigEndian(haltTx.AsSpan(0), WsjtxDatagram.Magic);
             BinaryPrimitives.WriteUInt32BigEndian(haltTx.AsSpan(4), WsjtxDatagram.SchemaVersion);
@@ -894,7 +910,8 @@ public sealed class ExternalReportingServiceTests
             BinaryPrimitives.WriteUInt32BigEndian(haltTx.AsSpan(12), 0);
             await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
 
-            await Task.Delay(500);
+            await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
+                timeout: TimeSpan.FromSeconds(5));
             await qso.Received(1).AbortAsync(Arg.Any<CancellationToken>());
         }
         finally
@@ -930,12 +947,13 @@ public sealed class ExternalReportingServiceTests
         await sut.StartAsync(cts.Token);
         try
         {
-            await Task.Delay(200);
+            await WaitForInboundBoundAsync(sut);
 
             var haltTx = BuildHaltTxDatagram();
             await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
 
-            await Task.Delay(500);
+            await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
+                timeout: TimeSpan.FromSeconds(5));
             await qso.Received(1).AbortAsync(Arg.Any<CancellationToken>());
         }
         finally
@@ -980,12 +998,16 @@ public sealed class ExternalReportingServiceTests
         await sut.StartAsync(cts.Token);
         try
         {
-            await Task.Delay(200);
+            await WaitForInboundBoundAsync(sut);
 
             var datagram = BuildReplyDatagram("CQ Q1TST JO22");
             await sender.SendAsync(datagram, datagram.Length, "127.0.0.1", port);
 
-            await Task.Delay(500);
+            // Poll for the (forbidden) engage and require it never happens within the window,
+            // instead of a bare fixed delay — the datagram is delivered on loopback well inside it.
+            var engaged = async () => await Poll.WaitForCallAsync(() => reply.ReceivedCalls(),
+                nameof(IExternalReplyTarget.TryEngageAsync), timeout: TimeSpan.FromMilliseconds(500));
+            await engaged.Should().ThrowAsync<TimeoutException>();
             await reply.DidNotReceive().TryEngageAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         }
         finally
@@ -1017,12 +1039,13 @@ public sealed class ExternalReportingServiceTests
         await sut.StartAsync(cts.Token);
         try
         {
-            await Task.Delay(200);
+            await WaitForInboundBoundAsync(sut);
 
             var datagram = BuildReplyDatagram("CQ Q1TST JO22");
             await sender.SendAsync(datagram, datagram.Length, "127.0.0.1", port);
 
-            await Task.Delay(500);
+            await Poll.WaitForCallAsync(() => reply.ReceivedCalls(),
+                nameof(IExternalReplyTarget.TryEngageAsync), timeout: TimeSpan.FromSeconds(5));
             await reply.Received(1).TryEngageAsync("Q1TST", Arg.Any<CancellationToken>());
         }
         finally
@@ -1076,7 +1099,7 @@ public sealed class ExternalReportingServiceTests
         await sut.StartAsync(cts.Token);
         try
         {
-            await Task.Delay(200);
+            await WaitForInboundBoundAsync(sut);
 
             var buf = new List<byte>();
             void U32(uint v) { Span<byte> b = stackalloc byte[4]; BinaryPrimitives.WriteUInt32BigEndian(b, v); buf.AddRange(b.ToArray()); }
@@ -1089,7 +1112,8 @@ public sealed class ExternalReportingServiceTests
             buf.Add(1);
             await sender.SendAsync(buf.ToArray(), buf.Count, "127.0.0.1", port);
 
-            await Task.Delay(500);
+            await Poll.WaitForEqualAsync(() => sut.LastFreeText, "TEST MSG",
+                timeout: TimeSpan.FromSeconds(5));
             sut.LastFreeText.Should().Be("TEST MSG");
         }
         finally
@@ -1122,16 +1146,17 @@ public sealed class ExternalReportingServiceTests
         await sut.StartAsync(cts.Token);
         try
         {
-            await Task.Delay(200);
+            await WaitForInboundBoundAsync(sut);
 
             var closeDatagram = WsjtxDatagram.EncodeClose("GridTracker2");
             await sender.SendAsync(closeDatagram, closeDatagram.Length, "127.0.0.1", port);
-            await Task.Delay(300);
 
-            // The listener must still be alive: a subsequent Halt Tx is still processed.
+            // The listener must still be alive: a subsequent Halt Tx is still processed. FIFO
+            // delivery means the Halt Tx below is read after this Close with no pacing delay.
             var haltTx = BuildHaltTxDatagram();
             await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
-            await Task.Delay(500);
+            await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
+                timeout: TimeSpan.FromSeconds(5));
 
             await qso.Received(1).AbortAsync(Arg.Any<CancellationToken>());
         }
