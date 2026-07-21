@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Audio;
+using OpenWSFZ.TestSupport;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Xunit;
@@ -133,11 +134,7 @@ public sealed class CaptureManagerTests
         await cm.StopAsync();
 
         // Allow the capture task to settle after cancellation.
-        var deadline = Task.Delay(TimeSpan.FromSeconds(5));
-        while (cm.IsCapturing)
-        {
-            if (await Task.WhenAny(Task.Delay(10), deadline) == deadline) break;
-        }
+        await Poll.UntilAsync(() => !cm.IsCapturing, timeout: TimeSpan.FromSeconds(5));
 
         // Assert — exactly one termination entry at Information that names the device.
         logger.Entries.Should().Contain(
@@ -158,11 +155,7 @@ public sealed class CaptureManagerTests
         await cm.StartAsync("mic-002");
 
         // Wait for the capture task to complete.
-        var deadline = Task.Delay(TimeSpan.FromSeconds(5));
-        while (cm.IsCapturing)
-        {
-            if (await Task.WhenAny(Task.Delay(10), deadline) == deadline) break;
-        }
+        await Poll.UntilAsync(() => !cm.IsCapturing, timeout: TimeSpan.FromSeconds(5));
 
         // Assert — a Warning entry must appear that names the device.
         logger.Entries.Should().Contain(
@@ -209,11 +202,7 @@ public sealed class CaptureManagerTests
         await cm.StartAsync("mic-003");
 
         // Allow the capture task to reach the catch block.
-        var deadline = Task.Delay(TimeSpan.FromSeconds(5));
-        while (cm.IsCapturing)
-        {
-            if (await Task.WhenAny(Task.Delay(10), deadline) == deadline) break;
-        }
+        await Poll.UntilAsync(() => !cm.IsCapturing, timeout: TimeSpan.FromSeconds(5));
 
         // Assert — an Error entry must appear with the original exception attached.
         logger.Entries.Should().Contain(
@@ -237,12 +226,7 @@ public sealed class CaptureManagerTests
 
         // Allow the capture task to drain the finite source and reach its finally block.
         // Poll with a 5-second deadline so the test fails clearly rather than hanging.
-        var deadline = Task.Delay(TimeSpan.FromSeconds(5));
-        while (cm.IsCapturing)
-        {
-            if (await Task.WhenAny(Task.Delay(10), deadline) == deadline)
-                break;
-        }
+        await Poll.UntilAsync(() => !cm.IsCapturing, timeout: TimeSpan.FromSeconds(5));
 
         // Assert — once the source ends naturally, IsCapturing must be false.
         cm.IsCapturing.Should().BeFalse(

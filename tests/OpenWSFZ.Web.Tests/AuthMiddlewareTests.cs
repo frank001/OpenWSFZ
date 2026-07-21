@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using OpenWSFZ.Abstractions;
+using OpenWSFZ.TestSupport;
 using OpenWSFZ.Web;
 using Xunit;
 
@@ -380,8 +381,14 @@ public sealed class AuthMiddlewareTests : IAsyncLifetime
         await ws.SendAsync(authFrame, System.Net.WebSockets.WebSocketMessageType.Text,
             endOfMessage: true, CancellationToken.None);
 
-        // Allow the server time to process the auth frame and send the initial status event.
-        await Task.Delay(500);
+        // The connection must STAY open (a wrong key would close it with 4001). Poll for a
+        // non-Open state and require it never occurs within the window, instead of a bare fixed
+        // delay (fix-flaky-test-delay-synchronization) — equivalent to the original "wait, then
+        // assert still Open" check but bounded by a real condition.
+        var closed = async () => await Poll.UntilAsync(
+            () => ws.State != System.Net.WebSockets.WebSocketState.Open,
+            timeout: TimeSpan.FromMilliseconds(500));
+        await closed.Should().ThrowAsync<TimeoutException>();
 
         ws.State.Should().Be(System.Net.WebSockets.WebSocketState.Open,
             "a correct auth frame from a non-loopback origin must keep the connection open");

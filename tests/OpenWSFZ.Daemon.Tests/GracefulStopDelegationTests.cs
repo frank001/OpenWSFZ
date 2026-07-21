@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
+using OpenWSFZ.TestSupport;
 using OpenWSFZ.Web;
 using Xunit;
 
@@ -109,18 +110,16 @@ public sealed class GracefulStopDelegationTests
             DateTimeOffset.UtcNow,
             [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q2NOISE JO00")]));
 
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
-        while (DateTime.UtcNow < deadline && router.State != QsoState.WaitReport)
-            await Task.Delay(10);
+        await Poll.WaitForEqualAsync(() => router.State, QsoState.WaitReport,
+            timeout: TimeSpan.FromSeconds(5));
         router.State.Should().Be(QsoState.WaitReport,
             "router.State must proxy the active (Caller) controller's state");
 
         // Act — call GracefulStopAsync on the ROUTER, not on the caller directly.
         await router.GracefulStopAsync();
 
-        deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
-        while (DateTime.UtcNow < deadline && router.State != QsoState.Idle)
-            await Task.Delay(10);
+        await Poll.WaitForEqualAsync(() => router.State, QsoState.Idle,
+            timeout: TimeSpan.FromSeconds(5));
 
         router.State.Should().Be(QsoState.Idle,
             "QsoControllerRouter.GracefulStopAsync must forward to the active controller's " +

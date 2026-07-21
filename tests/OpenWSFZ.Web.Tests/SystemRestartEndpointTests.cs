@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using OpenWSFZ.Abstractions;
+using OpenWSFZ.TestSupport;
 using System.Net;
 using System.Text.Json;
 using Xunit;
@@ -145,9 +146,12 @@ public sealed class SystemRestartEndpointTests : IClassFixture<SystemRestartFixt
         body.Should().Contain("transmitting",
             "the 409 response must explain why — a real QSO is currently transmitting");
 
-        // Give any (incorrectly-scheduled) fire-and-forget task a chance to run, then confirm
-        // the relauncher was never touched — a refused restart must never spawn a replacement.
-        await Task.Delay(700);
+        // Confirm the relauncher is never touched — a refused restart must never spawn a
+        // replacement. Poll for the (forbidden) call and require it never lands within the window,
+        // instead of a bare fixed delay (fix-flaky-test-delay-synchronization).
+        var spawned = async () => await Poll.UntilAsync(() => _fixture.Relauncher.CallCount >= 1,
+            timeout: TimeSpan.FromMilliseconds(700));
+        await spawned.Should().ThrowAsync<TimeoutException>();
         _fixture.Relauncher.CallCount.Should().Be(0,
             "a restart refused for a transmitting QSO must never reach the relaunch mechanism");
     }
@@ -168,7 +172,9 @@ public sealed class SystemRestartEndpointTests : IClassFixture<SystemRestartFixt
         // was invoked exactly once. This fixture's WebApp instance is never itself stopped
         // by this test (TestDaemonRelauncher never touches app.Lifetime), so the shared
         // fixture remains usable by the rest of this class regardless of test order.
-        await Task.Delay(700);
+        await Poll.UntilAsync(() => _fixture.Relauncher.CallCount >= 1,
+            timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: () => "a successful (not-keying) restart request must invoke the relauncher");
         _fixture.Relauncher.CallCount.Should().Be(1,
             "a successful (not-keying) restart request must invoke the relauncher exactly once");
     }
@@ -224,7 +230,10 @@ public sealed class SystemRestartEndpointTests : IClassFixture<SystemRestartFixt
         using var client = MakeClient(app);
 
         await client.PostAsync("/api/v1/system/restart", content: null);
-        await Task.Delay(700); // the spawn happens on a fire-and-forget task (design.md Decision 3)
+        // The spawn happens on a fire-and-forget task (design.md Decision 3) — poll for it.
+        await Poll.UntilAsync(() => relauncher.LastArguments is not null,
+            timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: () => "the restart must have invoked the relauncher");
 
         relauncher.LastArguments.Should().NotBeNull("the restart must have invoked the relauncher");
         relauncher.LastArguments!.Should().Contain("--background-worker");
@@ -239,7 +248,10 @@ public sealed class SystemRestartEndpointTests : IClassFixture<SystemRestartFixt
         using var client = MakeClient(app);
 
         await client.PostAsync("/api/v1/system/restart", content: null);
-        await Task.Delay(700);
+        // The spawn happens on a fire-and-forget task (design.md Decision 3) — poll for it.
+        await Poll.UntilAsync(() => relauncher.LastArguments is not null,
+            timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: () => "the restart must have invoked the relauncher");
 
         relauncher.LastArguments.Should().NotBeNull("the restart must have invoked the relauncher");
         relauncher.LastArguments!.Should().NotContain("--background-worker");
