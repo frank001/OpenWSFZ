@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
+using OpenWSFZ.TestSupport;
 using Xunit;
 
 namespace OpenWSFZ.Daemon.Tests;
@@ -185,7 +186,9 @@ public sealed class SerialRtsDtrPttControllerTests
         using var cts = new CancellationTokenSource();
         var keyDownTask = sut.KeyDownAsync(cts.Token);
 
-        await Task.Delay(50); // let KeyDownAsync assert the line and reach the hung player
+        // Wait until KeyDownAsync has asserted the line — before it reaches the hung player —
+        // rather than guessing a fixed settle delay.
+        await Poll.UntilAsync(() => fakePort.RtsEnable, timeout: TimeSpan.FromSeconds(2));
         fakePort.RtsEnable.Should().BeTrue();
 
         await sut.DisposeAsync();
@@ -257,17 +260,20 @@ public sealed class SerialRtsDtrPttControllerTests
         // transmission — begins and stays "mid-transmission" until released below.
         var firstKeyDown = sut.KeyDownAsync();
 
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (DateTime.UtcNow < deadline && callCount < 1)
-            await Task.Delay(10);
+        await Poll.UntilAsync(() => callCount >= 1, timeout: TimeSpan.FromSeconds(2));
         callCount.Should().Be(1, "caller #1 must have started its playback by now");
         fakePort.RtsEnable.Should().BeTrue("caller #1 must have asserted PTT by now");
 
         // Caller #2 — simulates a Settings-page Test click racing the real transmission.
         var secondKeyDown = Task.Run(() => sut.KeyDownAsync());
 
-        // Give caller #2 a chance to (incorrectly) race ahead if the lock were missing.
-        await Task.Delay(100);
+        // Give caller #2 a chance to (incorrectly) race ahead if the lock were missing: poll for
+        // the forbidden second playback and require it never appears within the window, instead of
+        // a bare fixed delay (fix-flaky-test-delay-synchronization). A broken lock would push
+        // callCount to 2 promptly and this poll would return without throwing.
+        var raceAhead = async () => await Poll.WaitForEqualAsync(() => callCount, 2,
+            timeout: TimeSpan.FromMilliseconds(100));
+        await raceAhead.Should().ThrowAsync<TimeoutException>();
         callCount.Should().Be(1,
             "caller #2 must remain blocked behind caller #1's still-open KeyUpAsync — it must " +
             "not be able to assert (and, worse, later de-assert) the line while caller #1's real " +

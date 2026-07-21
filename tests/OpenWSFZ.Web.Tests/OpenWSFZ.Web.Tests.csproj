@@ -23,6 +23,7 @@
       The Daemon is the composition root; tests exercise the composed stack.
     -->
     <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
+    <ProjectReference Include="..\OpenWSFZ.TestSupport\OpenWSFZ.TestSupport.csproj" />
   </ItemGroup>
 
   <ItemGroup>

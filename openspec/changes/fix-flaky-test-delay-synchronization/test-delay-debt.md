@@ -156,56 +156,47 @@ received before stopping.
 
 ## Phase 3 — Remaining files across all four affected test projects
 
-`CaptureManagerTests.cs` (`Task.WhenAny(Task.Delay(10), deadline)` shape) is reviewed
-case-by-case per design.md's Open Questions — its entries stay tracked here until task 4.4
-resolves whether it needs migration or is a materially different, already-safe pattern.
+All remaining files migrated onto `Poll`. `OpenWSFZ.TestSupport` `ProjectReference`s were added to
+`OpenWSFZ.Web.Tests`, `OpenWSFZ.Ft8.Tests`, and `OpenWSFZ.Audio.Tests`. Full local regression:
+10/10 consecutive clean runs across all four affected test projects after migration.
 
+Fully migrated, no exceptions:
+- `GracefulStopDelegationTests.cs` (2) — router state → `Poll.WaitForEqualAsync`.
+- `QsoAnswererServiceExternalReplyTests.cs` (2) — the `SeedCqBatchAsync` helper now polls the
+  service's own volatile `_lastIdleDecodeBatch` (the exact field `TryEngageExternal` consults) via
+  reflection, instead of a State-poll-plus-fixed-settle.
+- `SerialRtsDtrPttControllerTests.cs` (3) — line-assert barrier, callCount poll, and a
+  poll-and-expect-timeout negative (mirrors `CatPttControllerTests`).
+- `LoggingPipelineTests.cs` (3) — file-content `do/while` polls → `Poll.UntilAsync` with the
+  original assertion text carried into `timeoutMessage`.
+- `SystemRestartEndpointTests.cs` (4) — fire-and-forget relaunch waits → `Poll.UntilAsync`; the
+  refused-restart negative → poll-and-expect-timeout.
+- `AuthMiddlewareTests.cs` (1) — "WS stays open" → poll-and-expect-timeout on the socket state.
+- `CaptureManagerTests.cs`: the four `Task.WhenAny(Task.Delay(10), deadline)` hand-rolled
+  `IsCapturing` polls (resolving design.md's Open Question — they are the same poll shape the shared
+  library exists to replace, not a materially different pattern) → `Poll.UntilAsync(() =>
+  !cm.IsCapturing, …)`. Sound because `CaptureManager` writes its termination log **before** the
+  `finally` clears `_isCapturing`, so `IsCapturing == false` guarantees the asserted log is present.
 
-### `tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs` (5)
+### `tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs` — MIGRATED, 1 permanent justified exception
 
-tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs:28: Task.Delay(10, ct)
-tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs:139: Task.Delay(10)
-tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs:164: Task.Delay(10)
-tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs:215: Task.Delay(10)
-tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs:243: Task.Delay(10)
+The one remaining site is **simulated audio-capture chunk rate** inside the `InfiniteAudioSource`
+test double (`await Task.Delay(10, ct)` between yielded chunks) — the double's data-production
+cadence, not a test-synchronization barrier. Same "simulated feed rate" category as
+`QsoAnswererServiceTests`' background-feeder throttle.
 
-### `tests/OpenWSFZ.Daemon.Tests/DaemonStartupTests.cs` (2)
+tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs:29: Task.Delay(10, ct)
+
+### `tests/OpenWSFZ.Daemon.Tests/DaemonStartupTests.cs` — MIGRATED, 2 permanent justified exceptions
+
+Both remaining sites are a **simulated delayed port release** inside a `Task.Run` background task
+(`await Task.Delay(300)` / `await Task.Delay(250)` before `blocker.Stop()`) that defines the test
+scenario "the old daemon instance releases the port after N ms." The retry loop under test has a
+multi-second budget, so this is a deliberate scenario-timeline parameter well inside that budget —
+not a synchronization-barrier guess about how long an async operation takes.
 
 tests/OpenWSFZ.Daemon.Tests/DaemonStartupTests.cs:79: Task.Delay(300)
 tests/OpenWSFZ.Daemon.Tests/DaemonStartupTests.cs:134: Task.Delay(250)
-
-### `tests/OpenWSFZ.Daemon.Tests/GracefulStopDelegationTests.cs` (2)
-
-tests/OpenWSFZ.Daemon.Tests/GracefulStopDelegationTests.cs:114: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/GracefulStopDelegationTests.cs:123: Task.Delay(10)
-
-### `tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceExternalReplyTests.cs` (2)
-
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceExternalReplyTests.cs:127: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceExternalReplyTests.cs:130: Task.Delay(10)
-
-### `tests/OpenWSFZ.Daemon.Tests/SerialRtsDtrPttControllerTests.cs` (3)
-
-tests/OpenWSFZ.Daemon.Tests/SerialRtsDtrPttControllerTests.cs:188: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/SerialRtsDtrPttControllerTests.cs:262: Task.Delay(10)
-tests/OpenWSFZ.Daemon.Tests/SerialRtsDtrPttControllerTests.cs:270: Task.Delay(100)
-
-### `tests/OpenWSFZ.Ft8.Tests/LoggingPipelineTests.cs` (3)
-
-tests/OpenWSFZ.Ft8.Tests/LoggingPipelineTests.cs:141: Task.Delay(20)
-tests/OpenWSFZ.Ft8.Tests/LoggingPipelineTests.cs:180: Task.Delay(20)
-tests/OpenWSFZ.Ft8.Tests/LoggingPipelineTests.cs:357: Task.Delay(20)
-
-### `tests/OpenWSFZ.Web.Tests/AuthMiddlewareTests.cs` (1)
-
-tests/OpenWSFZ.Web.Tests/AuthMiddlewareTests.cs:384: Task.Delay(500)
-
-### `tests/OpenWSFZ.Web.Tests/SystemRestartEndpointTests.cs` (4)
-
-tests/OpenWSFZ.Web.Tests/SystemRestartEndpointTests.cs:150: Task.Delay(700)
-tests/OpenWSFZ.Web.Tests/SystemRestartEndpointTests.cs:171: Task.Delay(700)
-tests/OpenWSFZ.Web.Tests/SystemRestartEndpointTests.cs:227: Task.Delay(700)
-tests/OpenWSFZ.Web.Tests/SystemRestartEndpointTests.cs:242: Task.Delay(700)
 
 
 ## Permanent exemption — `Poll.UntilAsync`'s own test fixtures

@@ -150,26 +150,57 @@
 
 ## 4. Phase 3 — Remaining files across all four affected test projects
 
-- [ ] 4.1 Migrate the small `Daemon.Tests` remainder: `SerialRtsDtrPttControllerTests.cs` (3),
+- [x] 4.1 Migrate the small `Daemon.Tests` remainder: `SerialRtsDtrPttControllerTests.cs` (3),
   `DaemonStartupTests.cs` (2), `QsoAnswererServiceExternalReplyTests.cs` (2),
   `GracefulStopDelegationTests.cs` (2). Remove from `test-delay-debt.md`.
-- [ ] 4.2 Migrate `tests/OpenWSFZ.Web.Tests/SystemRestartEndpointTests.cs` (4) and
+  (Serial (3): line-assert barrier + callCount poll + poll-and-expect-timeout, mirroring
+  CatPttControllerTests. ExternalReply (2): `SeedCqBatchAsync` now polls the service's own volatile
+  `_lastIdleDecodeBatch` via reflection — the exact field `TryEngageExternal` reads. GracefulStop
+  (2): `Poll.WaitForEqualAsync` on router state. DaemonStartup (2): NOT migrated — both are a
+  simulated delayed port release inside a `Task.Run`, a scenario-timeline parameter well within the
+  retry loop's multi-second budget, kept as justified exceptions in the debt file.)
+- [x] 4.2 Migrate `tests/OpenWSFZ.Web.Tests/SystemRestartEndpointTests.cs` (4) and
   `AuthMiddlewareTests.cs` (1) — add `OpenWSFZ.TestSupport` as a `ProjectReference` to
   `OpenWSFZ.Web.Tests.csproj`. Remove from `test-delay-debt.md`.
-- [ ] 4.3 Migrate `tests/OpenWSFZ.Ft8.Tests/LoggingPipelineTests.cs` (3) — add `OpenWSFZ.TestSupport`
+  (SystemRestart (4): fire-and-forget relaunch waits → `Poll.UntilAsync`; refused-restart negative →
+  poll-and-expect-timeout. AuthMiddleware (1): "WS stays open" → poll-and-expect-timeout on socket
+  state. ProjectReference added.)
+- [x] 4.3 Migrate `tests/OpenWSFZ.Ft8.Tests/LoggingPipelineTests.cs` (3) — add `OpenWSFZ.TestSupport`
   as a `ProjectReference` to `OpenWSFZ.Ft8.Tests.csproj`. Remove from `test-delay-debt.md`.
-- [ ] 4.4 Review `tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs` (5 sites, `Task.WhenAny
+  (3 file-content `do/while` polls → `Poll.UntilAsync` with the assertion text carried into
+  `timeoutMessage`. ProjectReference added.)
+- [x] 4.4 Review `tests/OpenWSFZ.Audio.Tests/CaptureManagerTests.cs` (5 sites, `Task.WhenAny
   (Task.Delay(N), otherTask)` shape) case-by-case per design.md's Open Questions — migrate to the
   shared library if it's the same synchronization-barrier risk, or document in
   `test-delay-debt.md`'s resolution notes why it's a materially different (safer) pattern that
   doesn't need migration. Either way, this file's status must be explicitly resolved, not silently
   left ambiguous. Add `OpenWSFZ.TestSupport` as a `ProjectReference` to `OpenWSFZ.Audio.Tests.csproj`
   if migration is needed.
-- [ ] 4.5 Confirm `test-delay-debt.md` is now empty (or contains only explicitly-justified,
+  (RESOLVED: the four `Task.WhenAny(Task.Delay(10), deadline)` sites are hand-rolled `IsCapturing`
+  polls — the same poll shape the shared library exists to replace, NOT a materially different
+  pattern — migrated to `Poll.UntilAsync(() => !cm.IsCapturing, …)`. Sound because CaptureManager
+  logs before the `finally` clears `_isCapturing`. The 5th site (`Task.Delay(10, ct)` inside the
+  `InfiniteAudioSource` test double) is a simulated chunk-production rate, kept as a justified
+  exception. ProjectReference added.)
+- [x] 4.5 Confirm `test-delay-debt.md` is now empty (or contains only explicitly-justified,
   reviewed exceptions per design.md's suppression-mechanism decision — not silent leftovers).
-- [ ] 4.6 Full local regression across all four affected test projects, 10 consecutive clean runs.
-- [ ] 4.7 Run `python3 tools/pre_merge_check.py` clean.
-- [ ] 4.8 Ship Phase 3 as its own PR.
+  (19 sites remain across 6 files, ALL explicitly-justified exceptions: Phase 1's 11 (feeder
+  throttle / wall-clock stray-wakeup settle / simulated mock latency), Phase 2's 2 (simulated mock
+  I/O latency), Phase 3's 3 (simulated port release ×2, simulated chunk rate), and the 3 permanently-
+  exempt `PollTests` fixtures. G10 green.)
+- [x] 4.6 Full local regression across all four affected test projects, 10 consecutive clean runs.
+  (10/10 clean on Windows across all four projects; additionally all affected classes pass under WSL
+  Debian Release — Web 5, Daemon 13 (GracefulStop 2 + ExternalReply/DaemonStartup 11), Ft8 16, Audio
+  8; SerialRtsDtr excluded as Windows-only.)
+- [x] 4.7 Run `python3 tools/pre_merge_check.py` clean.
+  (All code gates PASS: G9a, Release build, UDP capture margin, G10, Full-test-suite-Release, G3, G8,
+  self-contained publish. Same pre-existing environment-only FAIL/WARN as Phase 2 — the 7 WSL
+  E2E-publish / WASAPI-COM-on-Linux / daemon-background-mode tests (none touched here; the migrated
+  classes pass under WSL directly, 4.6) and the AOT MSVC toolchain gap. CI ubuntu-latest is the
+  authoritative Linux gate.)
+- [x] 4.8 Ship Phase 3 as its own PR.
+  (Branch `phase3-remaining-files`, stacked on the Phase 2 branch; retarget/rebase down the stack as
+  #95 → #96 → this land.)
 
 ## 5. Closeout
 

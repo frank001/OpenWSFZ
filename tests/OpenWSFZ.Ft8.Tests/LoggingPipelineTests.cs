@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Daemon.Logging;
+using OpenWSFZ.TestSupport;
 using Xunit;
 
 namespace OpenWSFZ.Ft8.Tests;
@@ -132,19 +133,12 @@ public sealed class LoggingPipelineTests : IDisposable
         // meaningful delay, since writes are no longer buffered.
         var files = Directory.GetFiles(_tempDir, "openswfz-*.log");
         files.Should().HaveCount(1);
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
-        string content;
-        do
-        {
-            content = ReadWithSharing(files[0]);
-            if (content.Contains("logged-event-must-reach-disk-without-dispose")) break;
-            await Task.Delay(20);
-        } while (DateTime.UtcNow < deadline);
-
-        content.Should().Contain("logged-event-must-reach-disk-without-dispose",
-            "unbuffered writes must reach disk immediately — an operator polling " +
-            "GET /api/v1/logs/tail must not have to wait for the daemon to shut down " +
-            "(or a buffer to fill) before new log content becomes visible");
+        await Poll.UntilAsync(
+            () => ReadWithSharing(files[0]).Contains("logged-event-must-reach-disk-without-dispose"),
+            timeout: TimeSpan.FromSeconds(1),
+            timeoutMessage: () => "unbuffered writes must reach disk immediately — an operator polling " +
+                "GET /api/v1/logs/tail must not have to wait for the daemon to shut down " +
+                "(or a buffer to fill) before new log content becomes visible");
     }
 
     [Fact(DisplayName = "log-viewer: a logged event still reaches disk after a SECOND Apply() (e.g. operator enables file logging at runtime)")]
@@ -171,20 +165,13 @@ public sealed class LoggingPipelineTests : IDisposable
 
         var files = Directory.GetFiles(_tempDir, "openswfz-*.log");
         files.Should().HaveCount(1);
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
-        string content;
-        do
-        {
-            content = ReadWithSharing(files[0]);
-            if (content.Contains("logged-event-must-reach-disk-after-second-apply")) break;
-            await Task.Delay(20);
-        } while (DateTime.UtcNow < deadline);
-
-        content.Should().Contain("logged-event-must-reach-disk-after-second-apply",
-            "unbuffered writes must reach disk immediately whether the file sink was built on " +
-            "the first Apply() call or a later one — an operator enabling file logging " +
-            "mid-session must see the same live-tail behaviour as one who started with it " +
-            "already enabled");
+        await Poll.UntilAsync(
+            () => ReadWithSharing(files[0]).Contains("logged-event-must-reach-disk-after-second-apply"),
+            timeout: TimeSpan.FromSeconds(1),
+            timeoutMessage: () => "unbuffered writes must reach disk immediately whether the file sink was built on " +
+                "the first Apply() call or a later one — an operator enabling file logging " +
+                "mid-session must see the same live-tail behaviour as one who started with it " +
+                "already enabled");
     }
 
     // ── f-004-operator-visibility-improvements (log-viewer): CurrentLogFilePath ──
@@ -348,17 +335,10 @@ public sealed class LoggingPipelineTests : IDisposable
 
         var files = Directory.GetFiles(_tempDir, "openswfz-*.log");
         files.Should().HaveCount(1);
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(1);
-        string content;
-        do
-        {
-            content = ReadWithSharing(files[0]);
-            if (content.Contains("logged-event-with-console-sink-suppressed")) break;
-            await Task.Delay(20);
-        } while (DateTime.UtcNow < deadline);
-
-        content.Should().Contain("logged-event-with-console-sink-suppressed",
-            "suppressing the console sink must not affect the file sink's own behaviour");
+        await Poll.UntilAsync(
+            () => ReadWithSharing(files[0]).Contains("logged-event-with-console-sink-suppressed"),
+            timeout: TimeSpan.FromSeconds(1),
+            timeoutMessage: () => "suppressing the console sink must not affect the file sink's own behaviour");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
