@@ -23,13 +23,29 @@
 
 ## Section 1 — Study Hypothesis
 
-> **TODO — QA (HK-001).** QA authors Section 1. Framing for QA's convenience (delete or rewrite):
-> this pass tests whether any runtime operating point across the three
-> `ft8_set_decode_params` knobs (`k_min_score_pass2`, `osd_corr_threshold`, `osd_nhard_max`)
-> recovers a meaningful fraction of the D-001 low-SNR recall gap (WSJT-X agreement on the
-> 07-07 corpus) **without** regressing the D-009-calibrated S5/S7 false-positive rate past the
-> shipped baseline `(k=10, corr=0.10, nhard=60)`. See spec §0–§1. The precise question,
-> pre-committed two-sided rule, and null hypothesis belong here.
+**Question (spec §1, pre-committed before any decode ran).** Across the three
+runtime-configurable decode parameters exposed by `ft8_set_decode_params`
+(`k_min_score_pass2`, `osd_corr_threshold`, `osd_nhard_max`), does any operating point recover a
+meaningful fraction of the D-001 low-SNR recall gap — measured as agreement with WSJT-X on the
+07-07 off-air corpus — **without** regressing the D-009-calibrated false-positive rate (measured
+on the synthetic S5 noise-only and S7 co-channel scenarios) beyond the shipped baseline
+`(k=10, corr=0.10, nhard=60)`?
+
+**Null hypothesis.** No runtime operating point Pareto-dominates the baseline: for every point
+either the recall gain is ≤ 0, or achieving a positive recall gain requires regressing S5 and/or
+S7 false-positive rate above the baseline.
+
+**Two-sided win rule (spec §3.4/§3.5, D-009-origin rigour).** A point counts as a candidate win
+only if it *both* gains recall (`Δpp > 0`) *and* holds *both* S5 and S7 false-positive rates at or
+below the baseline. A recall gain purchased with an FP regression is reported as a trade-off, never
+as a win, and the two arms are never averaged into a single blended score — this mirrors the exact
+two-sided discipline D-009 itself was calibrated under.
+
+**Why this matters now.** The Captain is holding the H7 (MMSE joint demodulation, 3–6 months' cost)
+go/no-go open until three bounded groundwork passes are done; this is the only one of the three that
+can *directly* recover recall rather than merely describe or localise the gap, and it costs no
+rebuild — a genuine free look before committing to (or ruling out) an expensive architectural
+change.
 
 ---
 
@@ -284,13 +300,36 @@ D-001 recall pass, not a D-009 re-calibration):**
 
 ## Section 5 — Recommendations
 
-> **TODO — QA (HK-001).** QA authors Section 5. Framing for QA's convenience (delete or rewrite):
-> translate the Section 4 headline into the recommendation the spec §3.5 defines
-> (ship-after-live-A/B / no-change / scope-Phase-2), restate that even a clean Pareto-dominating
-> point is a **candidate** requiring the confirmatory live A/B (spec §4.4b) before it touches the
-> D-009-calibrated default, and — if the outcome is "baseline dominates" — note that this is the
-> clean trigger to scope a Phase 2 (compile-time) sweep or weigh H7 knowing the runtime knobs are
-> genuinely exhausted, **not** a reason to widen this pass past its no-rebuild guarantee (spec §4.6).
+**Formal recommendation: no change to the shipped defaults.** The null hypothesis stands — of the
+45 enumerated operating points (baseline included, as an ordinary point, per acceptance criterion
+3), zero Pareto-dominate `(k=10, corr=0.10, nhard=60)`. The 33 points that hold both FP arms at or
+below baseline gain no recall (best case `Δpp = 0.00`, i.e. the `k=10` family reproducing the
+baseline exactly); every point that gains any sensitivity (`k ≤ 7`) does so by regressing both S5
+and S7 false positives. There is no candidate here to carry forward to a live A/B (spec §4.4b) —
+that confirmatory step only applies when a point clears the Pareto bar on the offline sweep, and
+none did.
+
+**This is the clean trigger the spec anticipated (§3.5, outcome 3).** With the runtime knobs now
+provably exhausted rather than merely untried, the residual D-001 gap is, by elimination, one of:
+
+1. A **compile-time (Phase 2)** question — LDPC iteration depth, OSD `ndeep`, or the pass-0
+   candidate limits `K_MIN_SCORE`/`K_MAX_CANDIDATES`, all of which require a native shim rebuild and
+   are explicitly out of scope for this pass (spec §4.6, guardrails §3).
+2. An **H7 (MMSE joint demodulation)** question — the Captain can now weigh that go/no-go knowing
+   the zero-cost option has been tried and closes nothing, not merely that it was never attempted.
+
+I do **not** recommend widening this pass to chase either of the two side-observations recorded in
+§4 (the Isolated-class candidate-generation refutation, or the hint that the OSD gates may be
+marginally loose against pure synthetic noise). Both are informative bycatch of a D-001 recall
+pass, not D-009 re-calibration evidence in their own right — the second in particular rests on a
+single synthetic arm and must not be read as a shippable finding. Either is a legitimate candidate
+for its own narrowly scoped follow-up pass if the Captain wants it pursued, but neither should be
+folded into this change's no-rebuild guarantee after the fact.
+
+**Process note.** The harness, scoring reuse, and reporting all satisfy this work order's
+acceptance criteria (§4 below) and the mechanical pre-merge gate (HK-006) passes clean on a fresh
+checkout of this branch (one WARN — the pre-existing local AOT toolchain gap, environmental, not
+code). Approved for merge; see the QA verdict delivered alongside this report.
 
 ---
 

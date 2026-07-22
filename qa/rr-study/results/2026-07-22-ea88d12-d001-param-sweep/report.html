@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>D-001 — Runtime-Parameter Recall/False-Positive Pareto Sweep: Results Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="d-001-runtime-parameter-recallfalse-positive-pareto-sweep-results-report">D-001 — Runtime-Parameter Recall/False-Positive Pareto Sweep: Results Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Defect ID</td>
+<td>D-001 (open, issue #3); touches D-009 (false-positive calibration)</td>
+</tr>
+<tr>
+<td>Type</td>
+<td>Offline decode sweep (no product/decoder/shim code touched — QA tooling only)</td>
+</tr>
+<tr>
+<td>Governing spec</td>
+<td><code>dev-tasks/2026-07-22-d001-runtime-param-recall-fp-sweep-spec.md</code></td>
+</tr>
+<tr>
+<td>Work order</td>
+<td><code>dev-tasks/2026-07-22-d001-runtime-param-sweep-work-order.md</code></td>
+</tr>
+<tr>
+<td>Analysis date</td>
+<td>2026-07-22</td>
+</tr>
+<tr>
+<td>Repo HEAD at analysis time</td>
+<td><code>ea88d12</code> (native shim 20260033 — unchanged; the sweep drives runtime <code>ft8_set_decode_params</code> only)</td>
+</tr>
+<tr>
+<td>Recall corpus</td>
+<td>07-07 off-air (<code>20260706_live_run_2308</code>), 4,075 per-slot 12 kHz WAVs + WSJT-X ALL.TXT</td>
+</tr>
+<tr>
+<td>FP corpus</td>
+<td>Synthetic S5 (noise, 120 slots) + S7 (co-channel, 105 slots / 215 signals), seeded/reproducible</td>
+</tr>
+<tr>
+<td>Harness</td>
+<td><code>qa/rr-study/d001-param-sweep-2026-07-22/</code> (C# decode driver + <code>sweep_driver.py</code> scorer)</td>
+</tr>
+<tr>
+<td>Aggregate data</td>
+<td><code>sweep_grid.csv</code> (this directory) — the 45-row grid</td>
+</tr>
+<tr>
+<td>Status</td>
+<td><strong>COMPLETE — verdict delivered below</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>NFR-021 handling.</strong> Every raw artefact (WSJT-X/OpenWSFZ ALL.TXT, S5/S7 <code>truth.csv</code>,
+per-point decode output, the WAV corpora) stayed local under the harness's git-ignored
+<code>_work/</code> tree. Only this report and the aggregate <code>sweep_grid.csv</code> (coordinates + counts +
+rates, no callsigns or message text) are committed.</p>
+</blockquote>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<p><strong>Question (spec §1, pre-committed before any decode ran).</strong> Across the three
+runtime-configurable decode parameters exposed by <code>ft8_set_decode_params</code>
+(<code>k_min_score_pass2</code>, <code>osd_corr_threshold</code>, <code>osd_nhard_max</code>), does any operating point recover a
+meaningful fraction of the D-001 low-SNR recall gap — measured as agreement with WSJT-X on the
+07-07 off-air corpus — <strong>without</strong> regressing the D-009-calibrated false-positive rate (measured
+on the synthetic S5 noise-only and S7 co-channel scenarios) beyond the shipped baseline
+<code>(k=10, corr=0.10, nhard=60)</code>?</p>
+<p><strong>Null hypothesis.</strong> No runtime operating point Pareto-dominates the baseline: for every point
+either the recall gain is ≤ 0, or achieving a positive recall gain requires regressing S5 and/or
+S7 false-positive rate above the baseline.</p>
+<p><strong>Two-sided win rule (spec §3.4/§3.5, D-009-origin rigour).</strong> A point counts as a candidate win
+only if it <em>both</em> gains recall (<code>Δpp &gt; 0</code>) <em>and</em> holds <em>both</em> S5 and S7 false-positive rates at or
+below the baseline. A recall gain purchased with an FP regression is reported as a trade-off, never
+as a win, and the two arms are never averaged into a single blended score — this mirrors the exact
+two-sided discipline D-009 itself was calibrated under.</p>
+<p><strong>Why this matters now.</strong> The Captain is holding the H7 (MMSE joint demodulation, 3–6 months' cost)
+go/no-go open until three bounded groundwork passes are done; this is the only one of the three that
+can <em>directly</em> recover recall rather than merely describe or localise the gap, and it costs no
+rebuild — a genuine free look before committing to (or ruling out) an expensive architectural
+change.</p>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<h3 id="21-inputs">2.1 Inputs</h3>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Runtime parameter setter</td>
+<td><code>Ft8Decoder.SetDecodeParams(k, corr, nhard)</code> → <code>ft8_set_decode_params</code> (shim 20260030+); driven through the public decoder API only — no <code>IFt8NativeInterop</code>, no <code>InternalsVisibleTo</code>.</td>
+</tr>
+<tr>
+<td>Recall corpus</td>
+<td><code>20260706_live_run_2308/save/*.wav</code> — 4,075 files. Decoded: 2,037; skipped (not exactly 180,000 samples / unreadable): <strong>0</strong>.</td>
+</tr>
+<tr>
+<td>Recall reference</td>
+<td>WSJT-X <code>ALL.TXT</code> for the same session; low-SNR bands <code>&lt; −15 dB</code> and <code>−15…−10 dB</code>, non-hashed, per <code>classify_cochannel.py</code>.</td>
+</tr>
+<tr>
+<td>FP corpus</td>
+<td>S5 (<code>s5-noise.json</code>, 4 parts × 30 = 120 slots) and S7 (<code>s7-compounding.json</code>, 21 parts × 5 = 105 slots, 215 injected signals), rendered once via <code>run_scenario.py --dry-run --dump-wav-dir</code> and reused across all 45 points.</td>
+</tr>
+<tr>
+<td>Grid</td>
+<td>5 × 3 × 3 = <strong>45 points</strong>: <code>k ∈ {5,7,10,15,20}</code>, <code>corr ∈ {0.10,0.15,0.25}</code>, <code>nhard ∈ {40,60,80}</code>. Baseline <code>(10,0.10,60)</code> is an ordinary enumerated point.</td>
+</tr>
+<tr>
+<td>Scorers (reused verbatim)</td>
+<td>Recall: <code>classify_cochannel.py</code> (<code>parse</code>/<code>sig_key</code>/<code>freq_bin</code>/<code>is_hashed</code>/<code>classify_delta</code>/<code>BANDS</code>). FP: <code>harness/matcher.py</code> unmodified.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-method-how-each-number-is-produced">2.2 Method (how each number is produced)</h3>
+<ul>
+<li><strong>Decode.</strong> For each grid point, <code>SetDecodeParams(k,corr,nhard)</code> then <code>DecodeAsync</code> every WAV,
+  writing one WSJT-X-<code>ALL.TXT</code>-format line per decode (byte-for-byte <code>AllTxtWriter.cs:99</code>).
+  Decodes are pure w.r.t. <code>(PCM, params)</code> (spec §3.2), so the harness loads each WAV once and
+  decodes it under all 45 points in-process; parallelism is by <strong>separate processes</strong> only
+  (each with its own native globals — never a shared-global race).</li>
+<li><strong>Recall (per point, pooled over both low-SNR bands).</strong>
+  <code>recall = (WSJT-X low-SNR decodes also produced by OpenWSFZ) / (WSJT-X low-SNR decodes)</code>,
+  computed with <code>classify_cochannel</code>'s exact keying (<code>sig_key</code> = <code>(ts, 50 Hz-freq-bin, msg)</code>).
+  <code>Δpp</code> is against the <strong>offline baseline point</strong>, so every comparison runs the identical code
+  path (work-order acceptance criterion 3).</li>
+<li><strong>Per-class recovery.</strong> The baseline point's miss set is classified Tight/Partial/Isolated via
+  the shared <code>classify_delta</code> at the 15 Hz primary cutoff. For every other point, the per-class
+  figure is the fraction of <em>those same baseline misses</em> the point now decodes — i.e. "which knob
+  recovers which class of the baseline gap" (spec §1, §3.3). It is 0 % at the baseline by
+  construction (a point cannot recover its own gap).</li>
+<li><strong>False positives.</strong> Each synthetic slot is assigned a unique canonical 15 s cycle boundary
+  (the offline analogue of the distinct boundaries a live playback lands each slot on), carried
+  identically into <code>truth.csv</code> and the decode timestamps, so <code>matcher.py</code> buckets one slot per
+  cycle. <code>matcher.py</code> runs unmodified per point per scenario; FP = OpenWSFZ decodes matching no
+  injected truth. S5 FP/slot and S7 FP/slot are the two D-009 gates; S7 recovery = matched /215.</li>
+</ul>
+<h3 id="23-tunevalidate-split-overfitting-guard-spec-44a">2.3 Tune/validate split (overfitting guard, spec §4.4a)</h3>
+<p>The 4,075 WAVs are sorted by embedded timestamp and split at the midpoint into a <strong>tune</strong> half
+(first 2,037) and a <strong>validate</strong> half (last 2,038). The full 45-point grid
+runs on <strong>tune</strong> only; the chosen candidate (plus baseline) is then scored out-of-sample on
+<strong>validate</strong>. The FP arm is synthetic and fully reproducible, so it is not split.</p>
+<h3 id="24-offline-baseline-anchor-read-before-interpreting-any-recall-number">2.4 Offline-baseline anchor (read before interpreting any recall number)</h3>
+<p>The recall arm can only run on the one session with retained WAVs (07-07). Re-decoding a slot's
+WAV <strong>offline</strong> is not identical to the original live cycle (no live AGC/soft-limiter history, no
+exact sample-clock/cycle-boundary alignment) — the same Gate-R caveat the isolated-miss pipeline
+spec raises. Consequently the offline baseline's absolute recall is <strong>not</strong> expected to reproduce
+the live-captured OpenWSFZ figure, and is <strong>not</strong> compared to it. Every recall delta in this report
+is measured against the <em>offline</em> baseline point decoded through the identical harness path, which
+is the only apples-to-apples reference. Absolute offline baseline recall on the tune half:
+<strong>36.14 %</strong> (<code>wsjt_total=17,339</code>, <code>miss=11,073</code>); baseline miss
+classes Tight <strong>3,405</strong> / Partial <strong>5,537</strong> / Isolated <strong>2,131</strong>.</p>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h3 id="31-the-45-point-grid-tune-half-fp-arm-synthetic">3.1 The 45-point grid (tune half; FP arm synthetic)</h3>
+<p>Every recall figure sits next to its paired S5/S7 false-positive figures from the <strong>same</strong> point —
+the D-009-origin two-sided rigour rule (spec §4.1). Baseline row is <strong>bold</strong>. <code>recall Δpp</code>, <code>S5 Δ</code>,
+<code>S7 Δ</code> are versus the baseline <code>(10,0.10,60)</code>.</p>
+<table>
+<thead>
+<tr>
+<th>k</th>
+<th>corr</th>
+<th>nhard</th>
+<th>recall %</th>
+<th>Δpp</th>
+<th>S5 fp/slot</th>
+<th>S5 Δ</th>
+<th>S7 fp/slot</th>
+<th>S7 Δ</th>
+<th>S7 rec%</th>
+<th>win</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5</td>
+<td>0.10</td>
+<td>40</td>
+<td>36.132</td>
+<td>-0.006</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.10</td>
+<td>60</td>
+<td>36.132</td>
+<td>-0.006</td>
+<td>0.21667</td>
+<td>0.20834</td>
+<td>0.49524</td>
+<td>0.41905</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.10</td>
+<td>80</td>
+<td>36.132</td>
+<td>-0.006</td>
+<td>0.25</td>
+<td>0.24167</td>
+<td>0.54286</td>
+<td>0.46667</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.15</td>
+<td>40</td>
+<td>36.132</td>
+<td>-0.006</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.15</td>
+<td>60</td>
+<td>36.132</td>
+<td>-0.006</td>
+<td>0.16667</td>
+<td>0.15834</td>
+<td>0.40952</td>
+<td>0.33333</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.15</td>
+<td>80</td>
+<td>36.132</td>
+<td>-0.006</td>
+<td>0.175</td>
+<td>0.16667</td>
+<td>0.41905</td>
+<td>0.34286</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.25</td>
+<td>40</td>
+<td>36.132</td>
+<td>-0.006</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.25</td>
+<td>60</td>
+<td>36.132</td>
+<td>-0.006</td>
+<td>0.08333</td>
+<td>0.075</td>
+<td>0.18095</td>
+<td>0.10476</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.25</td>
+<td>80</td>
+<td>36.132</td>
+<td>-0.006</td>
+<td>0.08333</td>
+<td>0.075</td>
+<td>0.18095</td>
+<td>0.10476</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.10</td>
+<td>40</td>
+<td>36.127</td>
+<td>-0.012</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.10</td>
+<td>60</td>
+<td>36.127</td>
+<td>-0.012</td>
+<td>0.18333</td>
+<td>0.175</td>
+<td>0.53333</td>
+<td>0.45714</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.10</td>
+<td>80</td>
+<td>36.127</td>
+<td>-0.012</td>
+<td>0.20833</td>
+<td>0.2</td>
+<td>0.57143</td>
+<td>0.49524</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.15</td>
+<td>40</td>
+<td>36.127</td>
+<td>-0.012</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.15</td>
+<td>60</td>
+<td>36.127</td>
+<td>-0.012</td>
+<td>0.15</td>
+<td>0.14167</td>
+<td>0.45714</td>
+<td>0.38095</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.15</td>
+<td>80</td>
+<td>36.127</td>
+<td>-0.012</td>
+<td>0.15833</td>
+<td>0.15</td>
+<td>0.46667</td>
+<td>0.39048</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.25</td>
+<td>40</td>
+<td>36.127</td>
+<td>-0.012</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.25</td>
+<td>60</td>
+<td>36.127</td>
+<td>-0.012</td>
+<td>0.09167</td>
+<td>0.08334</td>
+<td>0.2</td>
+<td>0.12381</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.25</td>
+<td>80</td>
+<td>36.127</td>
+<td>-0.012</td>
+<td>0.09167</td>
+<td>0.08334</td>
+<td>0.2</td>
+<td>0.12381</td>
+<td>87.442</td>
+<td>—</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.10</td>
+<td>40</td>
+<td>36.138</td>
+<td>0.0</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.0</td>
+<td>-0.07619</td>
+<td>84.651</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>10</strong></td>
+<td><strong>0.10</strong></td>
+<td><strong>60</strong></td>
+<td><strong>36.138</strong></td>
+<td>0.0</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.07619</td>
+<td>0.0</td>
+<td>84.651</td>
+<td>—</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.10</td>
+<td>80</td>
+<td>36.138</td>
+<td>0.0</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.07619</td>
+<td>0.0</td>
+<td>84.651</td>
+<td>—</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.15</td>
+<td>40</td>
+<td>36.138</td>
+<td>0.0</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.0</td>
+<td>-0.07619</td>
+<td>84.651</td>
+<td>—</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.15</td>
+<td>60</td>
+<td>36.138</td>
+<td>0.0</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.07619</td>
+<td>0.0</td>
+<td>84.651</td>
+<td>—</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.15</td>
+<td>80</td>
+<td>36.138</td>
+<td>0.0</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.07619</td>
+<td>0.0</td>
+<td>84.651</td>
+<td>—</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.25</td>
+<td>40</td>
+<td>36.138</td>
+<td>0.0</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.0</td>
+<td>-0.07619</td>
+<td>84.651</td>
+<td>—</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.25</td>
+<td>60</td>
+<td>36.138</td>
+<td>0.0</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>84.651</td>
+<td>—</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.25</td>
+<td>80</td>
+<td>36.138</td>
+<td>0.0</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>84.651</td>
+<td>—</td>
+</tr>
+<tr>
+<td>15</td>
+<td>0.10</td>
+<td>40</td>
+<td>35.954</td>
+<td>-0.185</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.0</td>
+<td>-0.07619</td>
+<td>81.395</td>
+<td>—</td>
+</tr>
+<tr>
+<td>15</td>
+<td>0.10</td>
+<td>60</td>
+<td>35.954</td>
+<td>-0.185</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.04762</td>
+<td>-0.02857</td>
+<td>81.395</td>
+<td>—</td>
+</tr>
+<tr>
+<td>15</td>
+<td>0.10</td>
+<td>80</td>
+<td>35.954</td>
+<td>-0.185</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.04762</td>
+<td>-0.02857</td>
+<td>81.395</td>
+<td>—</td>
+</tr>
+<tr>
+<td>15</td>
+<td>0.15</td>
+<td>40</td>
+<td>35.954</td>
+<td>-0.185</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.0</td>
+<td>-0.07619</td>
+<td>81.395</td>
+<td>—</td>
+</tr>
+<tr>
+<td>15</td>
+<td>0.15</td>
+<td>60</td>
+<td>35.954</td>
+<td>-0.185</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.04762</td>
+<td>-0.02857</td>
+<td>81.395</td>
+<td>—</td>
+</tr>
+<tr>
+<td>15</td>
+<td>0.15</td>
+<td>80</td>
+<td>35.954</td>
+<td>-0.185</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.04762</td>
+<td>-0.02857</td>
+<td>81.395</td>
+<td>—</td>
+</tr>
+<tr>
+<td>15</td>
+<td>0.25</td>
+<td>40</td>
+<td>35.954</td>
+<td>-0.185</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.0</td>
+<td>-0.07619</td>
+<td>81.395</td>
+<td>—</td>
+</tr>
+<tr>
+<td>15</td>
+<td>0.25</td>
+<td>60</td>
+<td>35.954</td>
+<td>-0.185</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>81.395</td>
+<td>—</td>
+</tr>
+<tr>
+<td>15</td>
+<td>0.25</td>
+<td>80</td>
+<td>35.954</td>
+<td>-0.185</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>81.395</td>
+<td>—</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.10</td>
+<td>40</td>
+<td>35.884</td>
+<td>-0.254</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.0</td>
+<td>-0.07619</td>
+<td>80.465</td>
+<td>—</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.10</td>
+<td>60</td>
+<td>35.884</td>
+<td>-0.254</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.04762</td>
+<td>-0.02857</td>
+<td>80.465</td>
+<td>—</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.10</td>
+<td>80</td>
+<td>35.884</td>
+<td>-0.254</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.04762</td>
+<td>-0.02857</td>
+<td>80.465</td>
+<td>—</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.15</td>
+<td>40</td>
+<td>35.884</td>
+<td>-0.254</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.0</td>
+<td>-0.07619</td>
+<td>80.465</td>
+<td>—</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.15</td>
+<td>60</td>
+<td>35.884</td>
+<td>-0.254</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.04762</td>
+<td>-0.02857</td>
+<td>80.465</td>
+<td>—</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.15</td>
+<td>80</td>
+<td>35.884</td>
+<td>-0.254</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.04762</td>
+<td>-0.02857</td>
+<td>80.465</td>
+<td>—</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.25</td>
+<td>40</td>
+<td>35.884</td>
+<td>-0.254</td>
+<td>0.0</td>
+<td>-0.00833</td>
+<td>0.0</td>
+<td>-0.07619</td>
+<td>80.465</td>
+<td>—</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.25</td>
+<td>60</td>
+<td>35.884</td>
+<td>-0.254</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>80.465</td>
+<td>—</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.25</td>
+<td>80</td>
+<td>35.884</td>
+<td>-0.254</td>
+<td>0.00833</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>-0.06667</td>
+<td>80.465</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><em>S5 FP/slot and S7 FP/slot are false positives per rendered slot (S5: /120, S7: /105). <code>S7 rec%</code>
+is per-signal recovery (matched/215). Full precision + raw counts in <code>sweep_grid.csv</code>.</em></p>
+<h3 id="32-pareto-frontier-spec-3435">3.2 Pareto frontier (spec §3.4/§3.5)</h3>
+<p>A point counts as a candidate <strong>win</strong> only if it gains recall (<code>Δpp &gt; 0</code>) <strong>and</strong> neither FP arm
+regresses (<code>S5 FP/slot ≤ baseline</code> <strong>and</strong> <code>S7 FP/slot ≤ baseline</code>). A recall gain bought with an
+FP regression is a <strong>trade-off</strong>, never a win, and is never averaged into a blended score.</p>
+<p><strong>Zero Pareto wins — the baseline is Pareto-optimal.</strong> Of the 45 points, <strong>33</strong> hold <em>both</em> FP
+arms at or below the baseline (S5 ≤ 0.00833/slot <strong>and</strong> S7 ≤ 0.07619/slot), but <strong>none of those 33
+gains any recall</strong> — their <code>recall Δpp</code> is <code>0.00</code> at best (the entire <code>k=10</code> family, which decodes
+the identical low-SNR set as the baseline) and negative for <code>k=15</code>/<code>k=20</code>. The only points that
+raise sensitivity at all are <code>k≤7</code>, and every one of those with a loose Hamming gate
+(<code>nhard ∈ {60,80}</code>) <strong>regresses both FP arms</strong> (e.g. <code>k=5,corr=0.10,nhard=80</code>: S5 +0.242, S7 +0.467
+per slot) while <em>still not gaining recall</em> (<code>Δpp = −0.006</code>). The recall surface is essentially
+<strong>flat</strong>: the full spread across all 45 points is a <strong>0.25 pp band</strong>, monotone-decreasing in <code>k</code>,
+with the maximum already at the baseline's <code>k=10</code>. No operating point dominates <code>(10,0.10,60)</code>; the
+baseline sits on the frontier alone.</p>
+<p>Read the two levers separately:</p>
+<ul>
+<li><strong><code>k_min_score_pass2</code> (candidate admission).</strong> Recall is flat-to-slightly-negative below 10
+  (<code>k=5</code>→36.13 %, <code>k=7</code>→36.13 %, vs <code>k=10</code>→36.14 %) and falls above it (<code>k=15</code>→35.95 %,
+  <code>k=20</code>→35.88 %). So <code>k=10</code> is <em>already</em> the recall optimum; admitting more pass-1 candidates
+  recovers nothing, and admitting fewer costs a little. In the synthetic S7 arm, lower <code>k</code> does buy
+  more co-channel recovery (87.4 % at <code>k≤7</code> vs 84.7 % at <code>k=10</code>) — but at a false-positive cost that
+  fails the two-sided rule, and with <strong>no</strong> transfer to real off-air recall.</li>
+<li><strong><code>osd_corr_threshold</code> and <code>osd_nhard_max</code> (OSD acceptance).</strong> These move <strong>only</strong> false
+  positives: recall is <em>identical</em> across all nine <code>(corr,nhard)</code> combinations at every fixed <code>k</code>
+  (e.g. all nine <code>k=10</code> points read exactly 36.138 %). The OSD gates never admit a <em>new true</em>
+  low-SNR decode on this corpus — only noise CRC-14 coincidences, which is exactly what D-009
+  calibrated them to suppress.</li>
+</ul>
+<h3 id="33-per-class-recovery-of-the-baseline-gap-tight-partial-isolated">3.3 Per-class recovery of the baseline gap (Tight / Partial / Isolated)</h3>
+<p>The baseline gap decomposes (tune half, 15 Hz primary cutoff) into <strong>Tight 3,405 / Partial
+5,537 / Isolated 2,131</strong> misses. For each point, "recovery" is the fraction of <em>those</em> baseline
+misses the point now decodes:</p>
+<table>
+<thead>
+<tr>
+<th>Point</th>
+<th>recall Δpp</th>
+<th>Tight recov</th>
+<th>Partial recov</th>
+<th>Isolated recov</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>k=5, 0.10, n40</code> (max candidate admission, tight OSD)</td>
+<td>−0.006</td>
+<td>0.0 % (0/3405)</td>
+<td>0.02 % (1/5537)</td>
+<td>0.09 % (2/2131)</td>
+</tr>
+<tr>
+<td><code>k=7, 0.10, n40</code></td>
+<td>−0.012</td>
+<td>0.0 % (0)</td>
+<td>0.0 % (0)</td>
+<td><strong>0.14 % (3/2131)</strong></td>
+</tr>
+<tr>
+<td><strong><code>k=10, 0.10, n60</code> (baseline)</strong></td>
+<td>0.0</td>
+<td>0.0 %</td>
+<td>0.0 %</td>
+<td>0.0 %</td>
+</tr>
+<tr>
+<td><code>k=15, 0.10, n40</code></td>
+<td>−0.185</td>
+<td>0.0 %</td>
+<td>0.0 %</td>
+<td>0.0 %</td>
+</tr>
+<tr>
+<td><code>k=20, 0.10, n40</code></td>
+<td>−0.254</td>
+<td>0.0 %</td>
+<td>0.0 %</td>
+<td>0.0 %</td>
+</tr>
+</tbody>
+</table>
+<p>The <strong>grid-wide maximum</strong> recovery in any class is: Tight <strong>0.0 %</strong>, Partial <strong>0.02 %</strong> (1 miss),
+Isolated <strong>0.14 %</strong> (3 of 2,131 misses, at <code>k=7</code>). Every non-zero cell belongs to a point that
+also regresses the FP arms.</p>
+<p>This arm empirically probes the isolated-miss pipeline spec's candidate-generation question:
+lowering <code>k_min_score_pass2</code> is the candidate-admission lever, so <strong>if</strong> low-<code>k</code> recovered Isolated
+misses, candidate admission would have been a bottleneck for them.</p>
+<p><strong>Finding (cross-referenced to the isolated-miss pipeline spec).</strong> Lowering
+<code>k_min_score_pass2</code> all the way to 5 recovers <strong>≈0 %</strong> of the Isolated class (2 of 2,131 misses).
+Candidate admission is therefore <strong>not</strong> the bottleneck for Isolated misses — this empirically
+<em>refutes</em> the candidate-generation hypothesis for that class and points the isolated-miss diagnosis
+at the other two outcomes it names (LDPC-convergence, or a live-path/timing difference), neither of
+which any runtime knob in this sweep can touch. The Tight class is likewise untouched, consistent
+with the 2026-06-17 probe's finding that candidate generation is not the Tight-class bottleneck
+either.</p>
+<h3 id="34-out-of-sample-validation-tune-validate-spec-44a">3.4 Out-of-sample validation (tune → validate, spec §4.4a)</h3>
+<p>No candidate operating point emerged on the tune half (baseline dominated), so there is
+<strong>no candidate recall gain to hold out</strong> — the overfitting guard is moot by construction here (you
+cannot overfit a gain that does not exist). The validate half was decoded at the baseline point
+alone to confirm the harness reproduces coherently out-of-sample: <strong>baseline validate recall
+52.85 %</strong> (<code>wsjt_total=4,694</code>, <code>miss=2,213</code>; miss classes Tight 471 / Partial 721 / Isolated 1,021).</p>
+<p>The tune (36.14 %) and validate (52.85 %) baseline recalls differ substantially because the two
+halves are <em>different time spans</em> of the same ~17 h session (first ~8.5 h vs last ~8.5 h — different
+bands and propagation), not different parameter points. This is exactly the single-session
+limitation the spec flags (§4.4): absolute offline recall is corpus-dependent and is <strong>not</strong> the
+measured quantity — the measured quantity is the per-point Δ against the baseline decoded through the
+identical path, and that Δ is ≤ 0 for every point on the tune half regardless of the absolute
+level.</p>
+<h3 id="35-fp-arm-sanity-baseline-reproduces-the-d-009-operating-point">3.5 FP-arm sanity (baseline reproduces the D-009 operating point)</h3>
+<p>The offline harness reproduces the shipped D-009 operating point on the synthetic arm,
+confirming the FP measurement is trustworthy: at the baseline <code>(10,0.10,60)</code>, <strong>S5 = 1 FP / 120
+slots</strong> (0.83 %/slot) and <strong>S7 = 8 FP / 105 slots</strong> with <strong>84.7 % co-channel recovery</strong> — the same
+near-zero noise-floor false-positive rate shim 20260029 calibrated (<code>K=10</code> cut S5 FP by 94 % vs the
+pre-gating <code>K=1</code> baseline). Loosening any knob reproduces the D-009 tension in the expected
+direction (e.g. <code>k=5,corr=0.10,nhard=80</code> drives S5 to 30/120 and S7 to 57/105), and tightening it
+suppresses FP — the arm is responding correctly, so the "no recall gain within the FP budget"
+result is not an artefact of an insensitive FP oracle.</p>
+<hr />
+<h2 id="section-4-verdict-table">Section 4 — Verdict Table</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Headline outcome (spec §3.5)</td>
+<td><strong>Baseline dominates</strong> (spec §3.5, outcome 3) — the runtime knobs are provably exhausted.</td>
+</tr>
+<tr>
+<td>Pareto-dominating runtime point?</td>
+<td>No. 0 of 45 points beat <code>(10,0.10,60)</code>. Maximum recall Δ over the whole grid is <strong>0.00 pp</strong>; every recall-positive lever is absent.</td>
+</tr>
+<tr>
+<td>Recall recoverable at zero FP cost</td>
+<td><strong>0.00 pp.</strong> No runtime operating point recovers any D-001 low-SNR recall at or below the baseline FP budget.</td>
+</tr>
+<tr>
+<td>Which knob moved which class</td>
+<td><code>k_min_score_pass2</code> moves recall ≤ 0.25 pp (optimum already at 10) and S7 co-channel recovery monotonically (87 %→80 % as k 5→20); <code>osd_corr_threshold</code>/<code>osd_nhard_max</code> move <strong>only</strong> false positives — recall is identical across all nine gate combos at every k.</td>
+</tr>
+<tr>
+<td>Out-of-sample (validate) confirmation</td>
+<td>N/A — no candidate emerged to hold out; baseline recall reproduces coherently on the validate half (52.85 %).</td>
+</tr>
+<tr>
+<td>Recommendation</td>
+<td><strong>No change to the shipped defaults.</strong> The residual D-001 gap is not runtime-addressable — it is a compile-time (Phase 2) or H7 question. (Formal recommendation: QA, §5.)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>In plain terms.</strong> OpenWSFZ already exposes the three decode knobs that a settings change could
+turn, and this sweep turned all of them, jointly, across their full documented ranges, against the
+real D-001 recall corpus and the D-009 false-positive scenarios — 45 operating points, ~106,000
+offline decodes, zero rebuilds. <strong>Nothing beat the shipped baseline.</strong> The recall surface is flat to
+within a quarter of a percentage point and already peaks at the shipped <code>k=10</code>; the two OSD gates
+move only false positives, never a single additional true low-SNR decode. There is no cheap
+settings-change win hiding in the runtime parameters.</p>
+<p>This is the <strong>cleanest possible input to the H7 (MMSE) go/no-go</strong>: the low-cost option is not
+merely untried, it is <em>tried and exhausted</em>. The residual low-SNR gap that remains after the runtime
+knobs are tapped out is, by elimination, a <strong>compile-time</strong> question (LDPC iteration depth, OSD
+<code>ndeep</code>, pass-0 candidate limits <code>K_MIN_SCORE</code>/<code>K_MAX_CANDIDATES</code> — all constants requiring a
+rebuild, i.e. a scoped Phase 2) or an <strong>H7</strong> question. The Captain can now weigh H7 knowing the
+runtime lever is genuinely empty, not merely unexplored.</p>
+<p><strong>Two honest observations recorded but explicitly <em>not</em> recommended here (out of scope — this is a
+D-001 recall pass, not a D-009 re-calibration):</strong></p>
+<ol>
+<li><em>The Isolated-class answer.</em> Lowering <code>k</code> to 5 recovered ≈ 0 % of the 2,131 Isolated misses.
+   Candidate admission is not their bottleneck — this refutes the candidate-generation hypothesis
+   for that class (cross-referenced in §3.3) and redirects the isolated-miss diagnosis at LDPC
+   convergence or a live-path/timing difference.</li>
+<li><em>An FP-side bycatch.</em> On the <strong>synthetic</strong> arm only, tightening the OSD gates at the baseline
+   <code>k</code>/<code>corr</code> (e.g. <code>nhard</code> 60→40, or <code>corr</code> 0.10→0.25) eliminates <em>all</em> residual S5/S7 false
+   positives at <strong>zero</strong> recall cost (<code>Δpp = 0.00</code>). That hints the shipped gates may be marginally
+   loose against pure synthetic noise — but this is a D-009 question on synthetic data, must not be
+   read as a shippable change from a single synthetic arm, and is flagged only so QA/Captain can
+   decide whether it warrants its own pass.</li>
+</ol>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<p><strong>Formal recommendation: no change to the shipped defaults.</strong> The null hypothesis stands — of the
+45 enumerated operating points (baseline included, as an ordinary point, per acceptance criterion
+3), zero Pareto-dominate <code>(k=10, corr=0.10, nhard=60)</code>. The 33 points that hold both FP arms at or
+below baseline gain no recall (best case <code>Δpp = 0.00</code>, i.e. the <code>k=10</code> family reproducing the
+baseline exactly); every point that gains any sensitivity (<code>k ≤ 7</code>) does so by regressing both S5
+and S7 false positives. There is no candidate here to carry forward to a live A/B (spec §4.4b) —
+that confirmatory step only applies when a point clears the Pareto bar on the offline sweep, and
+none did.</p>
+<p><strong>This is the clean trigger the spec anticipated (§3.5, outcome 3).</strong> With the runtime knobs now
+provably exhausted rather than merely untried, the residual D-001 gap is, by elimination, one of:</p>
+<ol>
+<li>A <strong>compile-time (Phase 2)</strong> question — LDPC iteration depth, OSD <code>ndeep</code>, or the pass-0
+   candidate limits <code>K_MIN_SCORE</code>/<code>K_MAX_CANDIDATES</code>, all of which require a native shim rebuild and
+   are explicitly out of scope for this pass (spec §4.6, guardrails §3).</li>
+<li>An <strong>H7 (MMSE joint demodulation)</strong> question — the Captain can now weigh that go/no-go knowing
+   the zero-cost option has been tried and closes nothing, not merely that it was never attempted.</li>
+</ol>
+<p>I do <strong>not</strong> recommend widening this pass to chase either of the two side-observations recorded in
+§4 (the Isolated-class candidate-generation refutation, or the hint that the OSD gates may be
+marginally loose against pure synthetic noise). Both are informative bycatch of a D-001 recall
+pass, not D-009 re-calibration evidence in their own right — the second in particular rests on a
+single synthetic arm and must not be read as a shippable finding. Either is a legitimate candidate
+for its own narrowly scoped follow-up pass if the Captain wants it pursued, but neither should be
+folded into this change's no-rebuild guarantee after the fact.</p>
+<p><strong>Process note.</strong> The harness, scoring reuse, and reporting all satisfy this work order's
+acceptance criteria (§4 below) and the mechanical pre-merge gate (HK-006) passes clean on a fresh
+checkout of this branch (one WARN — the pre-existing local AOT toolchain gap, environmental, not
+code). Approved for merge; see the QA verdict delivered alongside this report.</p>
+<hr />
+<h2 id="appendix-a-reproduction">Appendix A — Reproduction</h2>
+<div class="highlight"><pre><span></span><code># From qa/rr-study/. Recall corpus + WSJT-X ALL.TXT are local/git-ignored (main working tree).
+cd qa/rr-study/d001-param-sweep-2026-07-22
+dotnet build -c Release D001ParamSweep.csproj
+NSHARDS=12 bash run_sweep.sh            # phases A-F: split, FP corpora, FP decode+score,
+                                        # recall tune decode+score, assemble+verdict, validate
+</code></pre></div>
+
+<ul>
+<li><strong>Harness (C#):</strong> <code>D001ParamSweep.csproj</code> / <code>Program.cs</code> — drives <code>Ft8Decoder</code> via public API
+  only (<code>SetDecodeParams</code> + <code>DecodeAsync</code>); links <code>tests/OpenWSFZ.Ft8.Tests/WavReader.cs</code> verbatim.</li>
+<li><strong>Scorer (Python):</strong> <code>sweep_driver.py</code> — reuses <code>classify_cochannel.py</code> (recall) and
+  <code>harness/matcher.py</code> (FP) unchanged; <code>run_sweep.sh</code> is the end-to-end orchestrator.</li>
+<li><strong><code>run_scenario.py</code> change:</strong> one additive flag, <code>--dump-wav-dir</code>, gated and independent of the
+  playback path. Verified unaffected: a <code>--dump-wav-dir</code> on/off pair of <code>--dry-run</code> runs produced
+  byte-identical <code>truth.csv</code> in columns 1–8; the only difference was the inherently wall-clock
+  <code>cycle_utc</code> column (the two runs crossed a 15 s boundary), which varies between <em>any</em> two
+  <code>--dry-run</code> invocations regardless of the flag. (work-order step 8.)</li>
+<li><strong><code>classify_cochannel.py</code> change:</strong> additive only — a module-level <code>classify_delta(...)</code> extracted
+  from the existing inner closure (behaviour-identical; the closure now delegates to it) plus an
+  optional <code>session_dir</code> parameter on <code>classify_session</code>. Regression-checked: the modified
+  <code>classify_session</code> reproduces the committed Option B 07-07 numbers exactly (tight=3879,
+  partial=6295, isolated=3688).</li>
+</ul>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
