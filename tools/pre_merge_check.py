@@ -127,6 +127,21 @@ import sys
 import glob
 import tempfile
 
+# CPython only auto-flushes stdout line-by-line when it's attached to an
+# interactive terminal; the moment it's redirected to a file or a pipe (a
+# background run, `| tee`, a log capture — exactly how this script gets run
+# by anything other than a human typing it directly) it silently switches to
+# full block buffering (~8KB). Every step in this script streams its
+# subprocess output incrementally already (see _run() below), but without
+# this, none of it would actually reach a redirected destination until the
+# whole process exits — the live feedback during the (often slow) WSL and
+# test-suite steps would silently vanish for any non-interactive invocation.
+# Confirmed with a standalone repro (2026-07-21, Captain's request after
+# reporting "no feedback" while WSL was running): identical script, same
+# print() calls, redirected to a file — nothing appears until process exit
+# without this line; each line appears in real time with it.
+sys.stdout.reconfigure(line_buffering=True)
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Toolchain-missing signatures we recognise in a failed AOT publish's output —
@@ -207,9 +222,21 @@ class GateResult:
 def _run(cmd, cwd=None):
     """Runs cmd, streaming output live, and returns (exit_code, combined_output)."""
     print(f"$ {' '.join(cmd)}")
+    # Every command run through here (dotnet build/test, wsl.exe, openspec.cmd,
+    # the publish steps) is non-interactive and already has stdout/stderr fully
+    # redirected to a pipe below — but on Windows, a console-subsystem child
+    # process that doesn't cleanly inherit an existing console from this
+    # process's own ancestry gets a brand-new, empty console window allocated
+    # for it by default (Captain's report, 2026-07-21: "a terminal window
+    # opens, sometimes several in sequence, but I never see any output" — the
+    # window is empty by construction, since the real output goes through the
+    # pipe instead; CREATE_NO_WINDOW stops it from being allocated at all).
+    popen_kwargs = {}
+    if platform.system() == "Windows":
+        popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     proc = subprocess.Popen(
         cmd, cwd=cwd or REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1)
+        text=True, bufsize=1, **popen_kwargs)
     lines = []
     for line in proc.stdout:
         print(line, end="")
