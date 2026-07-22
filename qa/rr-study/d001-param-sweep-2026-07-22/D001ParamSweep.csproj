@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    QA analysis harness (not part of OpenWSFZ.slnx / not shipped) — see report.md in
+    qa/rr-study/results/2026-07-22-<sha>-d001-param-sweep/. Drives the real production
+    OpenWSFZ.Ft8.Ft8Decoder in-process (ProjectReference below) via its PUBLIC API only
+    (IModeDecoder.DecodeAsync + Ft8Decoder.SetDecodeParams) so the sweep exercises the same
+    decode path the daemon does — no InternalsVisibleTo, no reach into IFt8NativeInterop.
+
+    D-001 runtime-parameter recall/false-positive Pareto sweep
+    (dev-tasks/2026-07-22-d001-runtime-param-sweep-work-order.md).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>D001ParamSweep</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- dotnet-run only; do not drag in the daemon's AOT/publish configuration. -->
+    <PublishAot>false</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
+    <ProjectReference Include="..\..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Reuse the test project's validated 12 kHz/mono/16-bit WAV reader verbatim rather than
+      reimplementing it (work-order step 4). Linked by <Compile Include>, not copied — the
+      one true reader stays a single source. It is `internal` in namespace OpenWSFZ.Ft8.Tests;
+      compiling the source directly into this assembly makes it callable here with no
+      InternalsVisibleTo grant.
+    -->
+    <Compile Include="..\..\..\tests\OpenWSFZ.Ft8.Tests\WavReader.cs" Link="WavReader.cs" />
+  </ItemGroup>
+
+</Project>

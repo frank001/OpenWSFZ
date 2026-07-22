@@ -1,0 +1,3 @@
+# run_sweep.sh is a bash script — force LF so it stays runnable under Git Bash on Windows
+# (repo core.autocrlf=true would otherwise check it out with CRLF and break bash).
+*.sh text eol=lf
