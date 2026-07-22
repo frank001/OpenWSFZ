@@ -86,8 +86,28 @@ def is_hashed(msg: str) -> bool:
     return bool(HASH_TOKEN_RE.search(msg))
 
 
-def classify_session(session_label: str, dirname: str) -> dict | None:
-    session_dir = ARTEFACTS / dirname
+def classify_delta(delta, cutoff, partial_cutoff: int = PARTIAL_CUTOFF) -> str:
+    """Classify a miss by its nearest-same-slot-neighbour Δf (Hz) into
+    ``"tight"`` / ``"partial"`` / ``"isolated"``.
+
+    Extracted verbatim from ``classify_session``'s inner ``classify`` closure so
+    downstream tooling reuses the single agreement algorithm rather than
+    reimplementing it (D-001 runtime-param sweep, work-order step 13). The closure
+    below now delegates here, so the two can never drift.
+    """
+    if delta is None or delta > partial_cutoff:
+        return "isolated"
+    if delta <= cutoff:
+        return "tight"
+    return "partial"
+
+
+def classify_session(session_label: str, dirname: str,
+                     session_dir: Path | None = None) -> dict | None:
+    # session_dir override (additive, default preserves every existing call site):
+    # lets a caller with its own per-point directory layout reuse this scorer against
+    # a directory other than ARTEFACTS/<dirname> (D-001 param sweep, work-order step 13).
+    session_dir = session_dir if session_dir is not None else (ARTEFACTS / dirname)
     owsfz_file = session_dir / "OpenWSFZ ALL.TXT"
     wsjt_file = session_dir / "WSJT-X ALL.TXT"
     if not owsfz_file.exists() or not wsjt_file.exists():
@@ -143,13 +163,10 @@ def classify_session(session_label: str, dirname: str) -> dict | None:
                 if best_delta <= PRIMARY_TIGHT_CUTOFF:
                     capture_deltas.append(best_neighbour["snr"] - miss_row["snr"])
 
-        # Classification at primary cutoff + sweep
+        # Classification at primary cutoff + sweep (delegates to the module-level
+        # classify_delta so the sweep tooling and this report share one algorithm).
         def classify(delta, cutoff):
-            if delta is None or delta > PARTIAL_CUTOFF:
-                return "isolated"
-            if delta <= cutoff:
-                return "tight"
-            return "partial"
+            return classify_delta(delta, cutoff)
 
         sweep = {}
         for cutoff in TIGHT_CUTOFFS:

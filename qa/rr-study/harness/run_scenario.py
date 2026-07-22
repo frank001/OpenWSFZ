@@ -536,6 +536,52 @@ def _finalize_playback_samples(samples: "numpy.ndarray") -> "numpy.ndarray":
     return samples
 
 
+# ---------------------------------------------------------------------------
+# --dump-wav-dir: persist rendered slots as 12 kHz mono WAVs (D-001 param sweep)
+# ---------------------------------------------------------------------------
+
+# The offline FT8 decoder (OpenWSFZ.Ft8.Ft8Decoder) requires exactly 12 kHz mono
+# 16-bit PCM, 180 000 samples/slot (15 s × 12 000 Hz). Rendered slots are 48 kHz
+# (DEFAULT_SAMPLE_RATE_HZ), so each dumped slot is decimated 48 → 12 kHz with an
+# anti-aliasing polyphase filter before writing.
+_DUMP_SAMPLE_RATE_HZ = 12_000
+_DUMP_SLOT_SAMPLES = _DUMP_SAMPLE_RATE_HZ * SLOT_SECONDS  # 180 000
+
+
+def _dump_slot_wav(dump_dir: str, scenario_id: str, part_index: int,
+                   trial_index: int, seed: int,
+                   samples: "numpy.ndarray") -> None:
+    """Write one rendered slot's PCM to ``dump_dir`` as a 12 kHz mono int16 WAV.
+
+    The filename encodes (scenario, part, trial, seed) verbatim from the truth.csv
+    key columns (``_append_truth`` writes the same fields) so each WAV pairs back to
+    its truth row(s) with no separate index. Purely additive side effect — the caller
+    still plays/does whatever it would have with ``samples`` unchanged.
+    """
+    import numpy as np
+    from scipy.io import wavfile
+    from scipy.signal import resample_poly
+
+    out_dir = Path(dump_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 48 kHz → 12 kHz (down=4) with the polyphase anti-alias FIR resample_poly applies.
+    twelve = resample_poly(np.asarray(samples, dtype="float64"), up=1, down=4)
+
+    # Guarantee the decoder's exact-length contract (pad tail with zeros / truncate).
+    if len(twelve) < _DUMP_SLOT_SAMPLES:
+        twelve = np.concatenate([twelve, np.zeros(_DUMP_SLOT_SAMPLES - len(twelve))])
+    elif len(twelve) > _DUMP_SLOT_SAMPLES:
+        twelve = twelve[:_DUMP_SLOT_SAMPLES]
+
+    # Float [-1, 1] → int16, matching WavReader.cs's (s / 32768.0f) inverse.
+    clipped = np.clip(twelve, -1.0, 1.0)
+    pcm16 = np.round(clipped * 32767.0).astype("<i2")
+
+    name = f"{scenario_id}_p{part_index:03d}_t{trial_index:03d}_s{seed}.wav"
+    wavfile.write(str(out_dir / name), _DUMP_SAMPLE_RATE_HZ, pcm16)
+
+
 def _play_samples(samples: "numpy.ndarray", args: argparse.Namespace,
                   device_idx, label: str) -> None:
     """Wait is the CALLER's job (cycle alignment); this only renders/plays.
@@ -905,6 +951,15 @@ def _run(args: argparse.Namespace) -> None:
                 _fade_env = (0.5 * (1.0 + np.cos(np.pi * _t))).astype("float32")
                 samples[-_n_fade:] *= _fade_env
 
+            # --dump-wav-dir (D-001 param sweep, additive; gated behind the new flag).
+            # Persist this rendered slot's PCM as a 12 kHz mono 16-bit WAV so an offline
+            # decoder can re-decode it. Purely additive: it neither consumes nor alters
+            # `samples`, `cycle_utc`, or truth.csv, so the live-playback path below is
+            # byte-for-byte unaffected when the flag is unset (work-order step 8).
+            if args.dump_wav_dir:
+                _dump_slot_wav(args.dump_wav_dir, scenario_id, part_index,
+                               trial_index, seed, samples)
+
             # Cycle boundary alignment (skipped in dry-run mode)
             if args.dry_run:
                 # In dry-run, use the current time snapped to the nearest past boundary
@@ -1018,6 +1073,18 @@ def main() -> None:
         "--dry-run",
         action="store_true",
         help="Render audio and write truth.csv but skip actual playback",
+    )
+    parser.add_argument(
+        "--dump-wav-dir",
+        default=None,
+        metavar="DIR",
+        help=(
+            "Additionally write each rendered slot's PCM to DIR as a 12 kHz mono "
+            "16-bit WAV named <scenario>_p<part>_t<trial>_s<seed>.wav (D-001 offline "
+            "param sweep). Additive and independent of --dry-run: it does not alter "
+            "truth.csv or the playback path. Combine with --dry-run to generate a WAV "
+            "corpus + truth.csv without playing anything."
+        ),
     )
     parser.add_argument(
         "--parts",
