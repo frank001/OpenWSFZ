@@ -1,0 +1,859 @@
+{
+  "scenario_id": "D001-ISO",
+  "over_draw_per_stratum": 60,
+  "target_per_stratum": 20,
+  "population_totals": {
+    "total": 3688,
+    "with_wav": 3688,
+    "by_band": {
+      "< -15 dB": 2477,
+      "-15..-10 dB": 1211
+    }
+  },
+  "samples": {
+    "< -15 dB": [
+      {
+        "ts": "260707_050630",
+        "freq_hz": 845,
+        "wsjt_snr_db": -22,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_043400",
+        "freq_hz": 2408,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_051645",
+        "freq_hz": 2231,
+        "wsjt_snr_db": -21,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_040200",
+        "freq_hz": 2289,
+        "wsjt_snr_db": -21,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_025615",
+        "freq_hz": 2421,
+        "wsjt_snr_db": -23,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_071015",
+        "freq_hz": 758,
+        "wsjt_snr_db": -19,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_020900",
+        "freq_hz": 801,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_122845",
+        "freq_hz": 677,
+        "wsjt_snr_db": -18,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_060045",
+        "freq_hz": 1507,
+        "wsjt_snr_db": -16,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_012845",
+        "freq_hz": 1197,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_092915",
+        "freq_hz": 2185,
+        "wsjt_snr_db": -20,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_012530",
+        "freq_hz": 942,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_085800",
+        "freq_hz": 720,
+        "wsjt_snr_db": -16,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_112300",
+        "freq_hz": 1043,
+        "wsjt_snr_db": -20,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_055730",
+        "freq_hz": 2096,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_004245",
+        "freq_hz": 1742,
+        "wsjt_snr_db": -16,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_233015",
+        "freq_hz": 498,
+        "wsjt_snr_db": -19,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_042515",
+        "freq_hz": 1170,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_002000",
+        "freq_hz": 1193,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_041600",
+        "freq_hz": 1583,
+        "wsjt_snr_db": -18,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_002130",
+        "freq_hz": 1740,
+        "wsjt_snr_db": -18,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_004830",
+        "freq_hz": 2574,
+        "wsjt_snr_db": -22,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_042815",
+        "freq_hz": 2705,
+        "wsjt_snr_db": -22,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_110300",
+        "freq_hz": 895,
+        "wsjt_snr_db": -16,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_032900",
+        "freq_hz": 1649,
+        "wsjt_snr_db": -19,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_022830",
+        "freq_hz": 2718,
+        "wsjt_snr_db": -21,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_055745",
+        "freq_hz": 1558,
+        "wsjt_snr_db": -23,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_094300",
+        "freq_hz": 1932,
+        "wsjt_snr_db": -17,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_091130",
+        "freq_hz": 2642,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_221115",
+        "freq_hz": 753,
+        "wsjt_snr_db": -20,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_004630",
+        "freq_hz": 748,
+        "wsjt_snr_db": -16,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_053000",
+        "freq_hz": 914,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_222600",
+        "freq_hz": 1085,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_014830",
+        "freq_hz": 555,
+        "wsjt_snr_db": -18,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_083830",
+        "freq_hz": 2641,
+        "wsjt_snr_db": -19,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_001830",
+        "freq_hz": 1105,
+        "wsjt_snr_db": -19,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_021100",
+        "freq_hz": 2526,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_234730",
+        "freq_hz": 2632,
+        "wsjt_snr_db": -21,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_005000",
+        "freq_hz": 2573,
+        "wsjt_snr_db": -19,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_022145",
+        "freq_hz": 1508,
+        "wsjt_snr_db": -20,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_012115",
+        "freq_hz": 821,
+        "wsjt_snr_db": -21,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_230100",
+        "freq_hz": 1047,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_022830",
+        "freq_hz": 1901,
+        "wsjt_snr_db": -19,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_041845",
+        "freq_hz": 2745,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_043530",
+        "freq_hz": 2239,
+        "wsjt_snr_db": -17,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_212215",
+        "freq_hz": 2312,
+        "wsjt_snr_db": -20,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_005315",
+        "freq_hz": 1479,
+        "wsjt_snr_db": -20,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_043845",
+        "freq_hz": 1757,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_231545",
+        "freq_hz": 1729,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_070230",
+        "freq_hz": 1245,
+        "wsjt_snr_db": -20,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_040730",
+        "freq_hz": 794,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_010030",
+        "freq_hz": 2872,
+        "wsjt_snr_db": -16,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_055900",
+        "freq_hz": 718,
+        "wsjt_snr_db": -21,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_095700",
+        "freq_hz": 781,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_033730",
+        "freq_hz": 1206,
+        "wsjt_snr_db": -21,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_234400",
+        "freq_hz": 1188,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_071830",
+        "freq_hz": 1764,
+        "wsjt_snr_db": -18,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_075530",
+        "freq_hz": 2376,
+        "wsjt_snr_db": -21,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_075800",
+        "freq_hz": 1349,
+        "wsjt_snr_db": -24,
+        "band": "< -15 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_134315",
+        "freq_hz": 1904,
+        "wsjt_snr_db": -16,
+        "band": "< -15 dB",
+        "has_wav": true
+      }
+    ],
+    "-15..-10 dB": [
+      {
+        "ts": "260707_033830",
+        "freq_hz": 2420,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_131645",
+        "freq_hz": 397,
+        "wsjt_snr_db": -11,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_212230",
+        "freq_hz": 1059,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_083630",
+        "freq_hz": 537,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_040145",
+        "freq_hz": 2424,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_090115",
+        "freq_hz": 398,
+        "wsjt_snr_db": -11,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_221545",
+        "freq_hz": 2296,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_121845",
+        "freq_hz": 399,
+        "wsjt_snr_db": -11,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_140245",
+        "freq_hz": 1895,
+        "wsjt_snr_db": -11,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_081330",
+        "freq_hz": 1901,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_013915",
+        "freq_hz": 2293,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_113115",
+        "freq_hz": 1016,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_120615",
+        "freq_hz": 677,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_041930",
+        "freq_hz": 687,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_120630",
+        "freq_hz": 1377,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_075230",
+        "freq_hz": 1349,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_135845",
+        "freq_hz": 1896,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_133645",
+        "freq_hz": 1039,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_110645",
+        "freq_hz": 1093,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_140815",
+        "freq_hz": 1460,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_134130",
+        "freq_hz": 825,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_113730",
+        "freq_hz": 1247,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_045115",
+        "freq_hz": 1317,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_032815",
+        "freq_hz": 122,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_121630",
+        "freq_hz": 1377,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_031615",
+        "freq_hz": 787,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_085445",
+        "freq_hz": 2185,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_043445",
+        "freq_hz": 2097,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_133445",
+        "freq_hz": 1192,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_082200",
+        "freq_hz": 1974,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_021845",
+        "freq_hz": 2886,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_081515",
+        "freq_hz": 2501,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_042045",
+        "freq_hz": 569,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_003300",
+        "freq_hz": 1845,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_014500",
+        "freq_hz": 1389,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_131815",
+        "freq_hz": 678,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_062445",
+        "freq_hz": 583,
+        "wsjt_snr_db": -11,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_024045",
+        "freq_hz": 1795,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_012415",
+        "freq_hz": 687,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_011800",
+        "freq_hz": 2295,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_102930",
+        "freq_hz": 894,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_213200",
+        "freq_hz": 1802,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_213815",
+        "freq_hz": 2843,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_071915",
+        "freq_hz": 1245,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_121700",
+        "freq_hz": 1377,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_044100",
+        "freq_hz": 1582,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_031400",
+        "freq_hz": 1582,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_104500",
+        "freq_hz": 1953,
+        "wsjt_snr_db": -12,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_040430",
+        "freq_hz": 400,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_134115",
+        "freq_hz": 1905,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_022445",
+        "freq_hz": 2567,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_112515",
+        "freq_hz": 963,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260706_231800",
+        "freq_hz": 2489,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_060830",
+        "freq_hz": 1491,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_024000",
+        "freq_hz": 2652,
+        "wsjt_snr_db": -14,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_051045",
+        "freq_hz": 1559,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_032600",
+        "freq_hz": 2414,
+        "wsjt_snr_db": -11,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_101630",
+        "freq_hz": 2178,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_045800",
+        "freq_hz": 1559,
+        "wsjt_snr_db": -15,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      },
+      {
+        "ts": "260707_002200",
+        "freq_hz": 400,
+        "wsjt_snr_db": -13,
+        "band": "-15..-10 dB",
+        "has_wav": true
+      }
+    ]
+  }
+}

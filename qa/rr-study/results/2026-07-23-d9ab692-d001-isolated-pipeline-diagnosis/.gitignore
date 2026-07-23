@@ -1,0 +1,6 @@
+# Local working area — NFR-021: full per-miss population (includes message text, needed
+# only for this pass's own Gate R reproduction check at replay time), the live daemon's
+# scratch config/logs/ALL.TXT from the replay session, and the reference-decode sample
+# stay local, never committed. Matches the convention established by the sibling
+# d001-param-sweep-2026-07-22/.gitignore.
+_work/
