@@ -10,7 +10,7 @@
 | Session analysed | 07-07 (`20260706_live_run_2308`) — the only session with retained per-slot WAV audio |
 | Scripts | `materialise_isolated_sample.py` (§3.1), `run_isolated_replay.py` (§3.2–§3.4), both this directory |
 | Numeric results | `isolated_sample_candidates.json`, `isolated_replay_results.json` (this directory) |
-| Status | **COMPLETE — pilot (n=40 reproduced) verdict delivered below** |
+| Status | **COMPLETE — pilot (n=40 reproduced) verdict delivered below**; see the **§3.1 CORRECTION** (2026-07-23, post-merge) on the pooled Decoded-on-replay figure |
 
 ---
 
@@ -97,6 +97,40 @@ Both strata reached their 20-reproduced-miss target well within the 60-try over-
 | `-15..-10 dB` | 16 / 36 | **44.4%** | [29.5%, 60.4%] |
 | **Combined** | **19 / 59** | **32.2%** | [21.7%, 44.9%] |
 
+> ### ⚠ CORRECTION (added 2026-07-23, post-merge — QA architecture review)
+>
+> **The "Combined 32.2%" row above is a pooled *sample* rate and must not be read as a
+> population estimate for the Isolated class. The per-stratum rows are correct and unaffected.**
+>
+> This pass drew until **20 misses per stratum reproduced** as genuine misses (§2.2). Try
+> counts therefore depend on the outcome being measured: more tries were needed in the
+> `-15..-10 dB` stratum (36) than in `< -15 dB` (23) *precisely because* more of them decoded
+> on replay. The resulting sample mix is inverted relative to the population:
+>
+> | | `< -15 dB` | `-15..-10 dB` |
+> |---|---:|---:|
+> | Population (07-07 Isolated) | 2,477 — **67.2%** | 1,211 — **32.8%** |
+> | This sample (tried) | 23 — **39.0%** | 36 — **61.0%** |
+> | Decoded-on-replay | 13.0% | 44.4% |
+>
+> Weighting each stratum by its true population share gives a decoded-on-replay estimate of
+> **≈23.4%**, not 32.2% — the pooled figure overstates the effect by ~8.8 pp by over-weighting
+> the high-reproduction stratum by nearly 2×. The combined **95% Wilson CI [21.7%, 44.9%] is
+> likewise invalid**: it is arithmetically correct for a simple binomial on n=59, but this is a
+> stratified design with outcome-dependent stopping, which that estimator does not model.
+>
+> **What does not change:** every per-stratum figure (13.0% / 44.4% and their CIs), the Tier 1
+> result (100% Ambiguous), the null-hypothesis rejection, and §5's redirection toward a
+> live-path/gain-staging investigation. The effect remains first-order under either framing —
+> this correction adjusts its magnitude and the estimator used to express it, not its direction
+> or the recommendation that follows from it.
+>
+> **Preferred citation going forward:** quote the two strata separately (13.0% / 44.4%), with
+> ≈23.4% as the population-weighted single number where one is needed.
+>
+> Carried into the Captain-facing brief at
+> `dev-tasks/2026-07-23-d001-h7-go-no-go-summary.md` §2.3.
+
 **This is the headline finding.** Per spec §3.3's own pre-committed reading: a high
 Decoded-on-replay fraction is a first-order finding in its own right, pointing at a
 **live-path / timing / gain-staging difference** rather than a raw decoder-sensitivity gap —
@@ -162,9 +196,10 @@ as an observation; it plays no role in the classification, which turns on candid
 
 | Question | Answer |
 |---|---|
-| Decoded-on-replay fraction (combined) | **32.2%** (95% CI [21.7%, 44.9%]) — high enough to be a first-order finding, not noise |
 | Decoded-on-replay fraction, `-15..-10 dB` | **44.4%** (95% CI [29.5%, 60.4%]) |
 | Decoded-on-replay fraction, `< -15 dB` | 13.0% (95% CI [4.5%, 32.1%]) |
+| Decoded-on-replay, population-weighted | **≈23.4%** — high enough to be a first-order finding, not noise (see §3.1 CORRECTION) |
+| ~~Decoded-on-replay fraction (combined)~~ | ~~32.2% (95% CI [21.7%, 44.9%])~~ — **superseded**, pooled sample rate over a stratified design; see §3.1 CORRECTION |
 | CG-vs-LDPC split (of the 40 reproduced misses) | **100% Ambiguous** — current instrumentation cannot resolve this question on this corpus |
 | Null hypothesis (clean reproduction + clean CG/LDPC split) | **Rejected on both counts** |
 
@@ -176,7 +211,9 @@ as an observation; it plays no role in the classification, which turns on candid
 
 The dominant, best-supported finding from this pilot is **not** a CG-vs-LDPC signal — the
 existing instrumentation cannot deliver one on this corpus, exactly as anticipated — it is the
-**32.2% (44.4% in the higher-SNR stratum) Decoded-on-replay rate**. Per the spec's own
+**Decoded-on-replay rate: 44.4% in the `-15..-10 dB` stratum, 13.0% in `< -15 dB`, ≈23.4%
+population-weighted** (per the §3.1 CORRECTION; the pooled 32.2% originally headlined here is
+a sample rate, not a population estimate). Per the spec's own
 pre-committed reading, this redirects the investigation away from both `ftx_find_candidates`
 tuning and OSD-depth tuning, toward a **live-path / timing / gain-staging investigation**: some
 combination of AGC warm-up state, cycle-boundary/sample-clock alignment, or adjacent-cycle
