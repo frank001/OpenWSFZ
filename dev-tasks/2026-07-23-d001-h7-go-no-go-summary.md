@@ -8,7 +8,10 @@
 decision, which recommended **Option B: resolve the caveat first**)
 **Status:** Option B and the three follow-up groundwork passes it prompted are now complete and
 merged to `main`. This document synthesises them into a single decision brief. **This is a decision
-point, not a handoff — no code, no OpenSpec proposal, no H7 commitment is made here.**
+point, not a handoff — no code, no OpenSpec proposal, no H7 commitment is made here.** The Captain
+has since selected **Option D**; its first step (matched Tight-class replay) is complete and closes
+the open risk §3.1 flagged — **see the §3.1 ADDENDUM** — without altering the underlying A-vs-C
+cost/benefit call in §§2/4.
 
 ---
 
@@ -206,6 +209,36 @@ ones**, to measure directly whether the live-path effect is class-independent. I
 cost/benefit changes materially. If it is not, the current ceiling stands and Option D reverts
 to the orthogonal, additive lead described above. Either result is worth having before a 3–6
 month commitment.
+
+> ### ✅ ADDENDUM (added 2026-07-23, same day — Captain selected Option D, matched Tight-class
+> ### replay executed)
+>
+> The Captain selected **Option D**. Its first concrete step — the matched Tight-class replay
+> this section itself proposed — has been run:
+> `dev-tasks/2026-07-23-d001-option-d-tight-class-replay-spec.md` /
+> `qa/rr-study/results/2026-07-23-d001-tight-class-replay/report.md`.
+>
+> **Answer: the live-path effect is not class-independent, and the ≤18.4pp ceiling does not
+> need correcting.** Tight-class Decoded-on-replay rate was **4.8% in both SNR bands**
+> (2/42 tried, population-weighted), against Isolated's 13.0%/44.4%. The `-15..-10 dB`
+> comparison is statistically decisive (Fisher's exact p = 0.0020, Tight far lower); the
+> `< -15 dB` comparison trends the same direction but is underpowered to confirm on its own
+> (p = 0.61, n=21/23). Reading the two together: no evidence the live-path effect operates on
+> Tight-class misses anywhere near the magnitude it operates on Isolated-class ones — plausibly
+> because a Tight-class miss already has a real, un-removed co-channel interferer in the
+> replayed audio, whose effect on candidate generation/LDPC convergence isolating the playback
+> from live AGC/timing state does little to fix.
+>
+> **What this changes:** the risk flagged above — that the H7 ceiling silently double-counts a
+> live-path-recoverable fraction — is not supported by this evidence. The A-vs-C decision can
+> proceed on the figures already in §2 without a further open discount pending. Option D
+> reverts to being the additive, orthogonal lead PR #103's own report described: a genuinely
+> good idea for recovering ≈23.4% of the Isolated class (which H7 cannot address either way),
+> but no longer a precondition for pricing Option A.
+>
+> **What this does not change:** F is still 29.6%/mixed, the runtime lever is still exhausted,
+> and the root-cause mechanism behind the Isolated-class live-path effect is still undiagnosed.
+> None of §§1–2 above needed correction — only this section's own open risk is now closed.
 
 ---
 
