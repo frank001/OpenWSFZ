@@ -89,3 +89,18 @@ dev-task) if either of these is observed:
 - The same failure signature turns up in a *different* store's `SaveAsync` test (e.g.
   `FrequencyStoreTests`), which would corroborate the "shared write-then-rename helper" theory
   rather than something specific to `CallsignRegionStore`.
+
+## Re-open trigger hit (2026-07-23)
+
+The second bullet above fired: `FR-025: AudioDeviceFriendlyName round-trips via config file`
+(`JsonConfigStoreTests`, `JsonConfigStore.SaveAsync`) failed in a full-suite local gate run on
+Windows, passed in isolation, passed WSL — same profile, different store, same
+write-temp-then-`File.Move`-with-no-retry shape. See
+`dev-tasks/2026-07-23-flaky-fr025-audiodevicefriendlyname-roundtrip.md` for the full write-up
+and the confirmed five-store scope of the shared pattern. Escalating to the Captain per the
+condition set below rather than unilaterally scoping the retry-wrapper fix.
+
+**Captain's decision (2026-07-23):** continue monitoring, no code change yet — see
+"Captain's decision" section in the FR-025 file for full reasoning. Re-open condition is now
+a **third** occurrence (any store) or a captured exception, not just a second. Status remains
+OPEN, monitor only.
