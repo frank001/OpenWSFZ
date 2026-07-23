@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>D-001 Option D, Step 1 — Tight-Class Replay (Class-Independence Test) — Results Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="d-001-option-d-step-1-tight-class-replay-class-independence-test-results-report">D-001 Option D, Step 1 — Tight-Class Replay (Class-Independence Test) — Results Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Defect ID</td>
+<td>D-001 (open, issue #3)</td>
+</tr>
+<tr>
+<td>Type</td>
+<td>Live local-replay diagnostic (no product/decoder code touched — instrumentation reuse only)</td>
+</tr>
+<tr>
+<td>Governing spec</td>
+<td><code>dev-tasks/2026-07-23-d001-option-d-tight-class-replay-spec.md</code></td>
+</tr>
+<tr>
+<td>Decision context</td>
+<td><code>dev-tasks/2026-07-23-d001-h7-go-no-go-summary.md</code> §3.1 — the Captain selected <strong>Option D</strong>; this pass answers the specific extension §3.1 asked for: is the live-path/gain-staging effect PR #103 found in the Isolated class class-independent?</td>
+</tr>
+<tr>
+<td>Analysis date</td>
+<td>2026-07-23</td>
+</tr>
+<tr>
+<td>Session analysed</td>
+<td>07-07 (<code>20260706_live_run_2308</code>) — same session as PR #103, the only one with retained per-slot WAV audio</td>
+</tr>
+<tr>
+<td>Scripts</td>
+<td><code>materialise_tight_sample.py</code> (§3.1), <code>run_tight_replay.py</code> (§3.2–§3.3), both this directory</td>
+</tr>
+<tr>
+<td>Numeric results</td>
+<td><code>tight_sample_candidates.json</code>, <code>tight_replay_results.json</code> (this directory)</td>
+</tr>
+<tr>
+<td>Status</td>
+<td><strong>COMPLETE</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<h3 id="11-what-this-pass-answers">1.1 What this pass answers</h3>
+<blockquote>
+<p>For Tight-class low-SNR misses (WSJT-X decoded, OpenWSFZ did not, a same-slot neighbour
+within 15 Hz exists — the class the ≤18.4pp H7 ceiling is built on), what fraction decode
+successfully when the identical historical audio is replayed in isolation? Is that rate
+consistent with Isolated's (13.0% / 44.4% per band, PR #103), or materially lower?</p>
+</blockquote>
+<p>PR #103 found that a large, first-order fraction of <strong>Isolated</strong>-class misses (no same-slot
+neighbour within 50 Hz — not H7's target) decode on isolated replay despite failing live,
+pointing at a live-path/gain-staging effect (AGC warm-up, cycle-boundary/sample-clock
+alignment, adjacent-cycle state). The go/no-go brief's §3.1 flagged that nothing about those
+candidate mechanisms is obviously specific to Isolated-class signals — if the same effect costs
+decodes in the <strong>Tight</strong> class too, some fraction of the 9,956 Tight-class misses underpinning
+the H7 ceiling are the live-path fix's to recover, not H7's, and the ≤18.4pp figure overstates
+what H7 could actually buy. This pass measures that directly, reusing PR #103's method
+unchanged apart from which population is sampled.</p>
+<h3 id="12-method-summary-full-detail-in-the-governing-spec">1.2 Method summary (full detail in the governing spec)</h3>
+<ol>
+<li><strong>§3.1 (offline, safe):</strong> extend <code>classify_cochannel.py</code>'s <code>classify_delta</code> (used verbatim,
+   unmodified) to retain <code>(ts, freq_hz, wsjt_snr, band, neighbour_delta_hz)</code> for every 07-07
+   miss classified <strong>Tight</strong> at the primary 15 Hz cutoff — the identical cutoff Option B and
+   PR #103 both use, so the three populations (Tight/Partial/Isolated) can never disagree with
+   Option B's own classification. Stratified, seeded (<code>D001-TIGHT</code>, independent of PR #103's
+   <code>D001-ISO</code> seed), over-drawn sample (60/stratum) via <code>compute_seed</code>.</li>
+<li><strong>§3.2 (live):</strong> identical throwaway-daemon / VB-CABLE-loopback / boundary-aligned replay
+   harness as PR #103, distinct port (8098) to avoid any collision. Each Tight-class WAV
+   necessarily contains a real neighbour within 15 Hz (that is what makes it Tight) — it is
+   played as-is; this measures whether the target decodes on replay <em>despite</em> that neighbour
+   still being present, not whether the neighbour is removed.</li>
+<li><strong>§3.3 (Gate R only):</strong> does the target message reappear among OpenWSFZ's decodes on replay?
+   Unlike PR #103, no Tier-1 CG-vs-LDPC split is attempted — that instrumentation already
+   proved unable to resolve anything on this corpus (100% Ambiguous in PR #103) and would not
+   answer a new question here. Candidate count is recorded per cycle for descriptive
+   completeness only.</li>
+</ol>
+<h3 id="13-pre-committed-decision-thresholds">1.3 Pre-committed decision thresholds</h3>
+<p><strong>None</strong>, per the governing spec — this is a direct measurement compared against PR #103's
+already-published rates via a two-proportion test (Fisher's exact), not a go/no-go gate the
+way Option B's F was. The spec pre-registered two possible readings (§1): a rate comparable to
+Isolated's would argue the H7 ceiling needs correcting downward; a rate near zero / clearly
+distinguishable would mean the effect is Isolated-class-specific and the ceiling stands.</p>
+<h3 id="14-null-hypothesis">1.4 Null hypothesis</h3>
+<p>The Tight-class decoded-on-replay rate is statistically indistinguishable from the Isolated-
+class rate in both bands (i.e., the live-path effect is class-independent). <strong>Rejected in the
+<code>−15..−10 dB</code> stratum (p = 0.0020); not rejected at conventional significance in the
+<code>&lt; −15 dB</code> stratum (p = 0.61), though the point estimate trends the same direction</strong> (Section 3).</p>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<h3 id="21-inputs-spec-2-gate-0-reconfirmed-2026-07-23">2.1 Inputs (spec §2 Gate 0 — reconfirmed 2026-07-23)</h3>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tight-class miss list, 07-07 session</td>
+<td>Materialised fresh — <strong>3,879</strong> misses (15 Hz primary cutoff), a comparable order of magnitude to PR #103's Isolated population (3,688) from the same session</td>
+</tr>
+<tr>
+<td>Per-slot WAV audio, 07-07</td>
+<td><strong>100% coverage</strong> — all 3,879 Tight-class misses have an on-disk same-named <code>save/*.wav</code>, matching PR #103's Isolated-class coverage</td>
+</tr>
+<tr>
+<td>Replay harness</td>
+<td>Reused from PR #103 unchanged apart from population/port; smoke-tested (<code>--target-per-stratum 2 --max-tries-per-stratum 4</code>) before the full run</td>
+</tr>
+<tr>
+<td>Local binary used for replay</td>
+<td>Same self-contained <code>OpenWSFZ.Daemon.exe</code> publish build as PR #103</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-sample-composition">2.2 Sample composition</h3>
+<table>
+<thead>
+<tr>
+<th>Band</th>
+<th style="text-align: right;">Population</th>
+<th style="text-align: right;">Drawn (over-draw)</th>
+<th style="text-align: right;">Tried</th>
+<th style="text-align: right;">Reproduced (Gate R fail)</th>
+<th style="text-align: right;">Decoded-on-replay</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt; -15 dB</code></td>
+<td style="text-align: right;">1,797</td>
+<td style="text-align: right;">60</td>
+<td style="text-align: right;">21</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td><code>-15..-10 dB</code></td>
+<td style="text-align: right;">2,082</td>
+<td style="text-align: right;">60</td>
+<td style="text-align: right;">21</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td><strong>Combined</strong></td>
+<td style="text-align: right;"><strong>3,879</strong></td>
+<td style="text-align: right;"><strong>120</strong></td>
+<td style="text-align: right;"><strong>42</strong></td>
+<td style="text-align: right;"><strong>40</strong></td>
+<td style="text-align: right;"><strong>2</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Both strata reached their 20-reproduced-miss target within 21 tries (well inside the 60-try
+over-draw budget) — no re-seeding needed. Live session wall time: <strong>17:45:40Z – 18:17:21Z</strong>
+(~31.7 minutes), inside the spec's own "a few hours" estimate and faster than PR #103's own
+~44.5-minute run (fewer Decoded-on-replay hits meant fewer wasted draws against the 20-per-
+stratum target).</p>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h3 id="31-tight-class-decoded-on-replay-rate-and-direct-comparison-to-isolated-pr-103">3.1 Tight-class Decoded-on-replay rate, and direct comparison to Isolated (PR #103)</h3>
+<table>
+<thead>
+<tr>
+<th>Band</th>
+<th>Tight (this pass)</th>
+<th>Isolated (PR #103)</th>
+<th>Fisher's exact (Tight vs Isolated)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt; -15 dB</code></td>
+<td>1/21 = <strong>4.8%</strong>, 95% CI [0.8%, 22.7%]</td>
+<td>3/23 = 13.0%, 95% CI [4.5%, 32.1%]</td>
+<td>odds ratio 0.33, <strong>p = 0.61</strong></td>
+</tr>
+<tr>
+<td><code>-15..-10 dB</code></td>
+<td>1/21 = <strong>4.8%</strong>, 95% CI [0.8%, 22.7%]</td>
+<td>16/36 = 44.4%, 95% CI [29.5%, 60.4%]</td>
+<td>odds ratio 0.06, <strong>p = 0.0020</strong></td>
+</tr>
+<tr>
+<td><strong>Population-weighted pooled</strong></td>
+<td><strong>≈4.8%</strong> (weights: Tight-class population, 1,797/2,082 — computed correctly from the start, not retrofitted)</td>
+<td>≈23.4% (PR #103, corrected post-merge)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><em>(Naive tried-weighted pooled figure, reported per spec §3.3 for transparency and labelled
+explicitly as a sample rate, not the headline: Tight 2/42 = 4.8%. In this particular run the
+naive and population-weighted figures for Tight happen to coincide, because both strata drew
+identical 1/21 rates — this is a small-n coincidence, not evidence the weighting correction is
+unnecessary in general; PR #103's own experience is the reason this pass computed the weighted
+figure deliberately rather than assuming the naive one would do.)</em></p>
+<p><strong>This is the headline finding, and it points the opposite direction from what §3.1 of the
+go/no-go brief flagged as the risk to check.</strong> The Tight-class Decoded-on-replay rate (4.8% in
+both bands) is <strong>far below</strong> the Isolated-class rate in the <code>-15..-10 dB</code> stratum — where
+Isolated's effect was largest (44.4%) — and the difference is statistically decisive (Fisher's
+exact p = 0.0020, odds ratio 0.06). In the <code>&lt; -15 dB</code> stratum the point estimate is also lower
+(4.8% vs 13.0%) and trends the same direction, but at n=21/23 the confidence intervals overlap
+substantially and the difference is not statistically distinguishable from chance (p = 0.61) —
+consistent with the governing spec's own rigour-control caveat (§4.4) that a clean read might
+not be achievable at pilot size in every stratum.</p>
+<p><strong>Reading the two strata together:</strong> the one stratum with enough signal to resolve the
+comparison decisively (<code>-15..-10 dB</code>) says clearly that the live-path effect is <strong>not</strong>
+operating on Tight-class misses anywhere near the magnitude it operates on Isolated-class
+misses. The other stratum (<code>&lt; -15 dB</code>) is directionally consistent with the same conclusion
+but underpowered to confirm it on its own.</p>
+<h3 id="32-an-expected-not-surprising-mechanism-stated-so-the-finding-isnt-over-read">3.2 An expected, not surprising, mechanism — stated so the finding isn't over-read</h3>
+<p>This does not mean "there is no live-path effect at all" for Tight-class signals — it means
+this pilot did not detect one anywhere close to Isolated's magnitude. The natural explanation,
+consistent with what Tight-class misses <em>are</em> by construction: a Tight-class miss already has
+a real co-channel interferer within 15 Hz <strong>present in the replayed audio, unremoved</strong> (§1.2
+point 2) — its failure mode is plausibly dominated by that interferer's effect on candidate
+generation/LDPC convergence, which isolating the playback from live AGC/timing state does
+little to fix. That is the co-channel mechanism Option B/PR #102 already evidenced (the
+Partial-class capture-effect signature), not a new one. This pilot cannot fully rule out a
+smaller live-path effect being masked by the dominant co-channel failure mode, but it gives no
+evidence for one at anywhere near the size that would materially discount the H7 ceiling.</p>
+<h3 id="33-caveats">3.3 Caveats</h3>
+<ul>
+<li><strong>n=42 tried (21/stratum) is a pilot, not a precision estimate</strong> — same caveat as PR #103.
+  The <code>&lt; -15 dB</code> comparison in particular is underpowered; a materially larger sample would be
+  needed to either confirm or rule out a smaller Tight-class live-path effect in that stratum.</li>
+<li><strong>Single session (07-07), same limitation as PR #103</strong> — the only session with retained WAV
+  audio; not corroborated across band conditions.</li>
+<li><strong>This pilot answers the class-independence question, not the root-cause mechanism
+  question.</strong> <em>Why</em> the live-path effect exists at all for Isolated-class misses remains
+  undiagnosed (unchanged from PR #103's own Section 5 caveats) — this pass only establishes
+  that whatever it is, it does not transfer to the Tight class at a similar magnitude.</li>
+<li><strong>Candidate counts remain saturated in most reproduced Tight-class cycles</strong> (median at or
+  near the 340-candidate shim ceiling in most tries, same signature PR #103 observed) —
+  reported descriptively (§2.2/raw JSON) but, per spec §3.2, no CG-vs-LDPC split was attempted
+  on this data; that question was already answered (unresolvable on this corpus) by PR #103 and
+  re-asking it here would not add information.</li>
+</ul>
+<hr />
+<h2 id="section-4-verdict-table">Section 4 — Verdict Table</h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tight-class Decoded-on-replay, <code>&lt; -15 dB</code></td>
+<td>4.8% (95% CI [0.8%, 22.7%]) vs Isolated 13.0% — not statistically distinguishable (p = 0.61)</td>
+</tr>
+<tr>
+<td>Tight-class Decoded-on-replay, <code>-15..-10 dB</code></td>
+<td>4.8% (95% CI [0.8%, 22.7%]) vs Isolated 44.4% — <strong>statistically distinguishable, Tight far lower</strong> (p = 0.0020)</td>
+</tr>
+<tr>
+<td>Tight-class Decoded-on-replay, population-weighted</td>
+<td><strong>≈4.8%</strong>, computed correctly from the start (cf. PR #103's post-merge correction)</td>
+</tr>
+<tr>
+<td>Is the live-path effect class-independent?</td>
+<td><strong>No — not at a similar magnitude.</strong> The decisive stratum rejects it; the underpowered stratum is directionally consistent with the same rejection.</td>
+</tr>
+<tr>
+<td>Effect on the ≤18.4pp H7 ceiling (go/no-go brief §3.1)</td>
+<td><strong>No correction indicated by this evidence.</strong> The risk §3.1 flagged — that the ceiling silently double-counts a live-path-recoverable fraction — is not supported for the Tight class at the magnitude that would matter.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<h3 id="51-one-paragraph-recommendation-to-architect-and-captain">5.1 One-paragraph recommendation to Architect and Captain</h3>
+<p><strong>This pass resolves the specific risk the go/no-go brief's §3.1 flagged, and resolves it in
+the direction that does <em>not</em> require revising the H7 ceiling.</strong> The go/no-go brief warned that
+the live-path effect found in the Isolated class might silently be eating into the same
+Tight-class misses the ≤18.4pp H7 ceiling is priced against, which would make Option A cheaper
+than stated. This pass measured that directly: the Tight-class Decoded-on-replay rate (4.8% in
+both bands) is far below the Isolated-class rate, decisively so in the <code>-15..-10 dB</code> stratum
+(p = 0.0020) and directionally consistent (though not independently significant) in <code>&lt; -15 dB</code>.
+<strong>The ≤18.4pp ceiling stands, uncorrected by this finding.</strong> Option D — the live-path/gain-
+staging investigation — reverts to being the additive, orthogonal lead PR #103's own report
+originally framed it as: worth pursuing on its own merits for the ~23.4% of Isolated-class
+misses it can still recover, but <strong>not</strong> a precondition for pricing Option A. The A-vs-C
+decision the Captain still has to make is therefore back to resting on the evidence the go/no-go
+brief itself already laid out (F=29.6%, F′=75.5%, runtime lever exhausted), without a further
+open discount to account for.</p>
+<h3 id="52-what-this-pass-does-not-authorise">5.2 What this pass does NOT authorise</h3>
+<ul>
+<li><strong>Not</strong> a re-run or reopening of Option B's F=29.6% verdict, the histogram addendum, or the
+  runtime-parameter sweep.</li>
+<li><strong>Not</strong> a root-cause diagnosis of the live-path effect itself — still open, still Isolated-
+  class scoped, per PR #103 §5.3.</li>
+<li><strong>Not</strong> proof that zero live-path effect exists for Tight-class misses — only that this
+  pilot found none at a comparable magnitude, with the <code>&lt; -15 dB</code> stratum underpowered to fully
+  exclude a smaller one.</li>
+<li><strong>Not</strong> a decoder or product code change of any kind.</li>
+<li><strong>Not</strong> the A-vs-C H7 decision itself — this closes one specific open question the brief
+  flagged; the underlying cost/benefit call remains the Captain's.</li>
+</ul>
+<h3 id="53-suggested-next-steps-in-priority-order">5.3 Suggested next steps, in priority order</h3>
+<ol>
+<li><strong>Update <code>dev-tasks/2026-07-23-d001-h7-go-no-go-summary.md</code> §3.1</strong> to record this pass's
+   answer (done alongside this report — see the brief's addendum).</li>
+<li><strong>The A-vs-C H7 decision itself</strong> can now proceed without an open live-path discount
+   pending — the Captain has what §3.1 was missing.</li>
+<li><strong>The live-path/gain-staging root-cause investigation</strong> (Isolated-class-scoped, per PR #103
+   §5.3) remains a reasonable, cheap, independent follow-up — its priority relative to A/C is
+   now a plain cost/benefit call (≈23.4% of Isolated-class misses, a class H7 cannot address
+   either way), not a blocking dependency of the H7 decision.</li>
+</ol>
+<hr />
+<h2 id="appendix-a-reproduction">Appendix A — Reproduction</h2>
+<ul>
+<li><code>python materialise_tight_sample.py</code> — regenerates the local population (<code>_work/</code>,
+  git-ignored) and the committed candidate-sample skeleton (<code>tight_sample_candidates.json</code>,
+  msg-stripped per NFR-021).</li>
+<li><code>python run_tight_replay.py</code> — runs the full live pilot (target 20/stratum, over-draw
+  60/stratum; pass <code>--target-per-stratum N --max-tries-per-stratum M</code> for a smaller smoke
+  test). Requires: the self-contained <code>OpenWSFZ.Daemon.exe</code> publish output present, VB-Audio
+  Virtual Cable installed (<code>CABLE Input</code>/<code>CABLE Output</code>), and <code>requests</code>/<code>sounddevice</code>/<code>numpy</code>/
+  <code>scipy</code> importable. Produces <code>tight_replay_results.json</code> (committed, ts/freq/snr/band/
+  neighbour-delta/candidate-count/LLR only — no callsigns, no message text, per NFR-021).</li>
+<li>Total live session wall time for this run: <strong>2026-07-23 17:45:40Z – 18:17:21Z</strong> (~31.7 min).</li>
+</ul>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

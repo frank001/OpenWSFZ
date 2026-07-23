@@ -1,0 +1,6 @@
+# Local working area — NFR-021: full per-miss Tight-class population (includes message text,
+# needed only for this pass's own Gate R reproduction check at replay time) and the live
+# daemon's scratch config/logs/ALL.TXT from the replay session stay local, never committed.
+# Matches the convention established by the sibling
+# 2026-07-23-d9ab692-d001-isolated-pipeline-diagnosis/.gitignore.
+_work/
