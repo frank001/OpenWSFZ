@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>D-001 Option B Addendum — Partial-Bucket Δf Structure (Fine-Grained Histogram)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="d-001-option-b-addendum-partial-bucket-f-structure-fine-grained-histogram">D-001 Option B Addendum — Partial-Bucket Δf Structure (Fine-Grained Histogram)</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Defect ID</td>
+<td>D-001 (open, issue #3)</td>
+</tr>
+<tr>
+<td>Type</td>
+<td>Descriptive re-analysis of Option B's own retained per-miss data — no new inputs, no new session, no product/decoder code touched</td>
+</tr>
+<tr>
+<td>Governing spec</td>
+<td><code>dev-tasks/2026-07-22-d001-partial-bucket-delta-histogram-spec.md</code></td>
+</tr>
+<tr>
+<td>Refines</td>
+<td><code>report.md</code> (this directory) — Option B, §3.2 window sweep / §3.4 capture-effect</td>
+</tr>
+<tr>
+<td>Analysis date</td>
+<td>2026-07-23</td>
+</tr>
+<tr>
+<td>Sessions analysed</td>
+<td>Identical to Option B: 07-07 (<code>20260706_live_run_2308</code>) · 07-06 (<code>20260706_live_run</code>) · 06-22 (<code>20260622_live run</code>)</td>
+</tr>
+<tr>
+<td>Script</td>
+<td><code>classify_cochannel_delta_histogram.py</code> (this directory, a copy of Option B's committed <code>classify_cochannel.py</code>)</td>
+</tr>
+<tr>
+<td>Numeric results</td>
+<td><code>cochannel_delta_histogram_results.json</code> (this directory)</td>
+</tr>
+<tr>
+<td>Status</td>
+<td><strong>COMPLETE — descriptive detail only; Option B's F = 29.6% / mixed verdict is unchanged and not reopened</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="1-what-this-adds-and-what-it-does-not">1. What this adds, and what it does not</h2>
+<p>Option B's §3.2 sweep showed F climbing 22.1% → 24.9% → 29.6% → 37.1% → 44.7% across the 10–25 Hz
+cutoffs it tested, with no data points between the 25 Hz sweep ceiling and the 50 Hz Partial
+boundary, and no visibility into whether the 15,428-miss Partial bucket is a smooth spectral skirt
+(one mechanism, weakening with distance) or has internal structure. This addendum answers that
+using only Option B's own <code>min_deltas</code> per-miss data, re-binned at 5 Hz resolution instead of three
+coarse buckets, plus the window sweep extended to 30/35/40/45 Hz, plus the Tight-class
+capture-effect sub-check (§3.4 of Option B) repeated for Partial.</p>
+<p>It does <strong>not</strong> propose new thresholds, does not re-run the classification decision, and does not
+change F, F′, or the mixed verdict Option B delivered. Per spec §3.4, this is reported, not
+re-decided.</p>
+<p><strong>Self-check (spec §3.1 point 2):</strong> the histogram's Isolated bin sums to <strong>8,236</strong> and the 0–50 Hz
+numeric bins sum to <strong>25,384</strong> — both exact matches to Option B's combined Isolated and
+Tight+Partial counts. The script asserts this and fails loudly on any mismatch; it passed. The
+extended sweep also reproduces Option B's own 10/12/15/20/25 Hz figures verbatim (22.1% / 24.9% /
+29.6% / 37.1% / 44.7%), confirming this decomposition has not diverged from the classification it
+refines.</p>
+<hr />
+<h2 id="2-fine-grained-histogram-5-hz-bins-050-hz-pooled-across-both-snr-bands">2. Fine-grained histogram (5 Hz bins, 0–50 Hz, pooled across both SNR bands)</h2>
+<table>
+<thead>
+<tr>
+<th>Bin (Hz)</th>
+<th style="text-align: right;">07-07</th>
+<th style="text-align: right;">07-06</th>
+<th style="text-align: right;">06-22</th>
+<th style="text-align: right;"><strong>Combined</strong></th>
+<th style="text-align: right;">% of numeric mass</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0–5</td>
+<td style="text-align: right;">1,677</td>
+<td style="text-align: right;">1,552</td>
+<td style="text-align: right;">975</td>
+<td style="text-align: right;"><strong>4,204</strong></td>
+<td style="text-align: right;">16.6%</td>
+</tr>
+<tr>
+<td>5–10</td>
+<td style="text-align: right;">1,041</td>
+<td style="text-align: right;">1,002</td>
+<td style="text-align: right;">586</td>
+<td style="text-align: right;"><strong>2,629</strong></td>
+<td style="text-align: right;">10.4%</td>
+</tr>
+<tr>
+<td>10–15</td>
+<td style="text-align: right;">984</td>
+<td style="text-align: right;">1,023</td>
+<td style="text-align: right;">597</td>
+<td style="text-align: right;"><strong>2,604</strong></td>
+<td style="text-align: right;">10.3%</td>
+</tr>
+<tr>
+<td>15–20</td>
+<td style="text-align: right;">963</td>
+<td style="text-align: right;">935</td>
+<td style="text-align: right;">729</td>
+<td style="text-align: right;"><strong>2,627</strong></td>
+<td style="text-align: right;">10.3%</td>
+</tr>
+<tr>
+<td>20–25</td>
+<td style="text-align: right;">1,111</td>
+<td style="text-align: right;">860</td>
+<td style="text-align: right;">531</td>
+<td style="text-align: right;"><strong>2,502</strong></td>
+<td style="text-align: right;">9.9%</td>
+</tr>
+<tr>
+<td>25–30</td>
+<td style="text-align: right;">898</td>
+<td style="text-align: right;">751</td>
+<td style="text-align: right;">478</td>
+<td style="text-align: right;"><strong>2,127</strong></td>
+<td style="text-align: right;">8.4%</td>
+</tr>
+<tr>
+<td>30–35</td>
+<td style="text-align: right;">992</td>
+<td style="text-align: right;">783</td>
+<td style="text-align: right;">568</td>
+<td style="text-align: right;"><strong>2,343</strong></td>
+<td style="text-align: right;">9.2%</td>
+</tr>
+<tr>
+<td>35–40</td>
+<td style="text-align: right;">894</td>
+<td style="text-align: right;">800</td>
+<td style="text-align: right;">612</td>
+<td style="text-align: right;"><strong>2,306</strong></td>
+<td style="text-align: right;">9.1%</td>
+</tr>
+<tr>
+<td>40–45</td>
+<td style="text-align: right;">825</td>
+<td style="text-align: right;">760</td>
+<td style="text-align: right;">534</td>
+<td style="text-align: right;"><strong>2,119</strong></td>
+<td style="text-align: right;">8.3%</td>
+</tr>
+<tr>
+<td>45–50</td>
+<td style="text-align: right;">789</td>
+<td style="text-align: right;">654</td>
+<td style="text-align: right;">480</td>
+<td style="text-align: right;"><strong>1,923</strong></td>
+<td style="text-align: right;">7.6%</td>
+</tr>
+<tr>
+<td><em>(Isolated)</em></td>
+<td style="text-align: right;">3,688</td>
+<td style="text-align: right;">2,591</td>
+<td style="text-align: right;">1,957</td>
+<td style="text-align: right;"><strong>8,236</strong></td>
+<td style="text-align: right;"><em>(not part of the 25,384 base)</em></td>
+</tr>
+</tbody>
+</table>
+<p><em>(numeric-mass % is each bin's share of the 25,384 Tight+Partial total, not of the grand total
+including Isolated.)</em></p>
+<h3 id="21-shape-not-a-smooth-skirt">2.1 Shape: not a smooth skirt</h3>
+<p>Two features stand out, and both are consistent across all three independent sessions rather than
+an artefact of pooling:</p>
+<ol>
+<li><strong>A front-loaded peak, not an exponential decay.</strong> The 0–5 Hz bin (16.6%) is roughly 1.6–2× any
+   other bin, consistent with Option B's working hypothesis — a real co-channel/capture mechanism
+   concentrated near-zero Δf. But the decline from there is not smooth: bins from 5 Hz out to 45 Hz
+   sit in a comparatively narrow 7.6–10.4% band, i.e. the mass does not keep falling toward the
+   Partial boundary the way a single fading mechanism would predict — it flattens into a long,
+   fairly level tail.</li>
+<li><strong>A consistent local dip-then-rise at 25–35 Hz.</strong> All three sessions show the same pattern: the
+   25–30 Hz bin is a local minimum, and the 30–35 Hz bin ticks back <strong>up</strong> from it (07-07: 898 →
+   992; 07-06: 751 → 783; 06-22: 478 → 568). This is not large in absolute terms (roughly +5–19% per
+   session) and could still be sampling noise at these bin populations, but the fact that the same
+   dip-then-uptick shows up independently in all three sessions — rather than only in the pooled
+   total — is worth flagging as it argues against "one smooth mechanism, monotonically weakening
+   with distance" as the complete picture. It does not, on its own, establish a second distinct
+   mechanism; it is a data shape worth keeping in view if H7 scoping returns to this question.</li>
+</ol>
+<p><strong>Per rigour control §4.3:</strong> the shape is broadly consistent session-to-session (same front-load,
+same 25–35 Hz wobble in all three), unlike being pooled-only artefact. This is reported as
+observation, not elevated to a new classification boundary.</p>
+<hr />
+<h2 id="3-extended-window-sensitivity-sweep-combined-pooled-bands">3. Extended window-sensitivity sweep (combined, pooled bands)</h2>
+<table>
+<thead>
+<tr>
+<th>Tight cutoff</th>
+<th style="text-align: right;">Tight</th>
+<th style="text-align: right;">Partial</th>
+<th style="text-align: right;">Isolated</th>
+<th style="text-align: right;"><strong>F</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10 Hz</td>
+<td style="text-align: right;">7,435</td>
+<td style="text-align: right;">17,949</td>
+<td style="text-align: right;">8,236</td>
+<td style="text-align: right;">22.1%</td>
+</tr>
+<tr>
+<td>12 Hz</td>
+<td style="text-align: right;">8,370</td>
+<td style="text-align: right;">17,014</td>
+<td style="text-align: right;">8,236</td>
+<td style="text-align: right;">24.9%</td>
+</tr>
+<tr>
+<td><strong>15 Hz (primary)</strong></td>
+<td style="text-align: right;"><strong>9,956</strong></td>
+<td style="text-align: right;"><strong>15,428</strong></td>
+<td style="text-align: right;"><strong>8,236</strong></td>
+<td style="text-align: right;"><strong>29.6%</strong></td>
+</tr>
+<tr>
+<td>20 Hz</td>
+<td style="text-align: right;">12,467</td>
+<td style="text-align: right;">12,917</td>
+<td style="text-align: right;">8,236</td>
+<td style="text-align: right;">37.1%</td>
+</tr>
+<tr>
+<td>25 Hz</td>
+<td style="text-align: right;">15,021</td>
+<td style="text-align: right;">10,363</td>
+<td style="text-align: right;">8,236</td>
+<td style="text-align: right;">44.7%</td>
+</tr>
+<tr>
+<td>30 Hz</td>
+<td style="text-align: right;">17,229</td>
+<td style="text-align: right;">8,155</td>
+<td style="text-align: right;">8,236</td>
+<td style="text-align: right;">50.9%</td>
+</tr>
+<tr>
+<td>35 Hz</td>
+<td style="text-align: right;">19,461</td>
+<td style="text-align: right;">5,923</td>
+<td style="text-align: right;">8,236</td>
+<td style="text-align: right;">57.9%</td>
+</tr>
+<tr>
+<td>40 Hz</td>
+<td style="text-align: right;">21,825</td>
+<td style="text-align: right;">3,559</td>
+<td style="text-align: right;">8,236</td>
+<td style="text-align: right;">64.9%</td>
+</tr>
+<tr>
+<td>45 Hz</td>
+<td style="text-align: right;">23,860</td>
+<td style="text-align: right;">1,524</td>
+<td style="text-align: right;">8,236</td>
+<td style="text-align: right;">70.9%</td>
+</tr>
+<tr>
+<td>50 Hz (= F′)</td>
+<td style="text-align: right;">25,384</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">8,236</td>
+<td style="text-align: right;">75.5%</td>
+</tr>
+</tbody>
+</table>
+<p>The 10–25 Hz rows reproduce Option B's own table exactly. The new 30–45 Hz rows complete a
+monotonic curve to the 50 Hz boundary, where — as the spec anticipated — F(50 Hz) equals F′(50 Hz)
+= 75.5% <strong>by construction</strong>, since every Hz the cutoff advances simply reclassifies whatever
+histogram mass sits in that slice from Partial to Tight. <strong>This sweep is the cumulative integral
+of §2's histogram; it is not independent evidence of anything the histogram doesn't already show.</strong>
+It is reported per spec §3.2 for completeness, but §2 (the histogram) and §4 below (the
+capture-effect split) are where the actual finding is.</p>
+<hr />
+<h2 id="4-capture-effect-check-tight-vs-partial">4. Capture-effect check: Tight vs. Partial</h2>
+<p>Option B's §3.4 found 36.4% of Tight-class misses show a ≥10 dB SNR delta to their nearest
+same-slot neighbour (the "captured by a much stronger partner" signature). Repeating that same
+check for the Partial class (delta = neighbour SNR − miss SNR, evaluated in the
+<code>15 Hz &lt; best_delta ≤ 50 Hz</code> branch):</p>
+<table>
+<thead>
+<tr>
+<th>Session</th>
+<th style="text-align: right;">Tight capture ≥10 dB</th>
+<th style="text-align: right;">Partial capture ≥10 dB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>07-07</td>
+<td style="text-align: right;">36.2% (n=3,879)</td>
+<td style="text-align: right;"><strong>40.8%</strong> (n=6,295)</td>
+</tr>
+<tr>
+<td>07-06</td>
+<td style="text-align: right;">36.4% (n=3,747)</td>
+<td style="text-align: right;"><strong>36.9%</strong> (n=5,373)</td>
+</tr>
+<tr>
+<td>06-22</td>
+<td style="text-align: right;">36.7% (n=2,330)</td>
+<td style="text-align: right;"><strong>44.2%</strong> (n=3,760)</td>
+</tr>
+<tr>
+<td><strong>Combined</strong></td>
+<td style="text-align: right;"><strong>36.4%</strong> (n=9,956)</td>
+<td style="text-align: right;"><strong>40.3%</strong> (n=15,428)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>This is the addendum's headline finding.</strong> Per spec §3.3's own interpretation guide: the
+physically expected default is a <em>falling</em> ≥10 dB fraction from Tight to Partial (adjacent-signal
+rejection gets easier as Δf grows, so capture should look less like capture and more like
+background noise the further out you look). What is observed instead is <strong>flat-or-rising in all
+three sessions</strong> — Partial's capture-effect fraction matches or exceeds Tight's every time, and
+combined it is 3.9 percentage points <em>higher</em> (40.3% vs 36.4%). Per the spec's own pre-stated
+reading of this result: <strong>this is evidence the same capture/near-collision mechanism extends past
+15 Hz, and F′ (not F) is the more honest read of where the recoverable ceiling actually sits</strong> —
+not because the Partial bucket is noise, but because a comparable fraction of it carries the same
+stronger-neighbour signature that corroborates the Tight bucket.</p>
+<p>This does not overturn Option B's F = 29.6% verdict or its locked thresholds — it sharpens what the
+18.4pp recoverable-recall ceiling is made of, for the £-per-point conversation the report already
+flagged as unresolved.</p>
+<hr />
+<h2 id="5-caveats-restated-not-re-derived-per-spec-4">5. Caveats (restated, not re-derived, per spec §4)</h2>
+<ul>
+<li><strong>Same error-direction bias as Option B (§3.3 there).</strong> A miss classed at any Δf can only ever
+  see <em>decoded</em> neighbours — an undecoded co-channel interferer is invisible to this method. The
+  fine histogram inherits this downward bias unchanged; if anything, real Δf mass near 0 Hz may be
+  under-represented relative to what is shown here.</li>
+<li><strong>No re-running of the classification decision.</strong> Every number in this addendum is a
+  decomposition of Option B's existing 9,956 / 15,428 / 8,236 split, self-checked against it and
+  matching exactly.</li>
+<li><strong>Not a substitute for the isolated-miss pipeline diagnosis</strong> offered alongside this spec
+  (<code>dev-tasks/2026-07-22-d001-isolated-miss-pipeline-diagnosis-spec.md</code>) — that is a different
+  question (why isolated misses fail) using different inputs (retained audio).</li>
+</ul>
+<hr />
+<h2 id="6-verdict-unchanged">6. Verdict (unchanged)</h2>
+<p>Option B's mixed verdict at F = 29.6% stands, Captain-locked, unchanged. This addendum's
+contribution is descriptive: the Partial bucket is not simply "the same mechanism fading to
+nothing" — its capture-effect signature is at least as strong as Tight's, and its Δf mass does not
+decay smoothly to the 50 Hz boundary but flattens into a broad, slightly-wobbling tail. Both
+observations point the same way: <strong>F′ (75.5%) is not a loose upper bound to be discounted — it is
+closer to the honest picture of how much of the Partial bucket plausibly shares Tight's mechanism
+than F (29.6%) alone conveys.</strong> This is offered as additional resolution for the Captain's H7
+cost/benefit weighing, not as a reason to reopen it.</p>
+<hr />
+<h2 id="7-references">7. References</h2>
+<table>
+<thead>
+<tr>
+<th>Reference</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dev-tasks/2026-07-22-d001-partial-bucket-delta-histogram-spec.md</code></td>
+<td>Governing spec for this addendum</td>
+</tr>
+<tr>
+<td><code>report.md</code> (this directory)</td>
+<td>Option B — the verdict and sweep table this addendum adds resolution underneath</td>
+</tr>
+<tr>
+<td><code>classify_cochannel.py</code> (this directory)</td>
+<td>Option B's committed script (unmodified)</td>
+</tr>
+<tr>
+<td><code>classify_cochannel_delta_histogram.py</code> (this directory)</td>
+<td>This addendum's script (copy + extensions)</td>
+</tr>
+<tr>
+<td><code>cochannel_delta_histogram_results.json</code> (this directory)</td>
+<td>Aggregate numeric output (no callsigns, no message text — NFR-021)</td>
+</tr>
+<tr>
+<td><code>dev-tasks/2026-07-07-d001-b-cochannel-attribution-spec.md</code> §5</td>
+<td>Original rigour controls this addendum extends</td>
+</tr>
+</tbody>
+</table>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
