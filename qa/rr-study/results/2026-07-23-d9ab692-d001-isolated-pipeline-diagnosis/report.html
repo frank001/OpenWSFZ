@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>D-001 Isolated-Miss Pipeline-Stage Diagnosis — Results Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="d-001-isolated-miss-pipeline-stage-diagnosis-results-report">D-001 Isolated-Miss Pipeline-Stage Diagnosis — Results Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Defect ID</td>
+<td>D-001 (open, issue #3)</td>
+</tr>
+<tr>
+<td>Type</td>
+<td>Offline log-analysis + live local-replay diagnostic (no product/decoder code touched — instrumentation reuse only)</td>
+</tr>
+<tr>
+<td>Governing spec</td>
+<td><code>dev-tasks/2026-07-22-d001-isolated-miss-pipeline-diagnosis-spec.md</code></td>
+</tr>
+<tr>
+<td>Decision context</td>
+<td><code>qa/rr-study/results/2026-07-07-b4bdf88-d001-cochannel-attribution/report.md</code> (Option B) — left the 8,236-miss (24.5%) Isolated class entirely undiagnosed at the pipeline-stage level</td>
+</tr>
+<tr>
+<td>Analysis date</td>
+<td>2026-07-23</td>
+</tr>
+<tr>
+<td>Session analysed</td>
+<td>07-07 (<code>20260706_live_run_2308</code>) — the only session with retained per-slot WAV audio</td>
+</tr>
+<tr>
+<td>Scripts</td>
+<td><code>materialise_isolated_sample.py</code> (§3.1), <code>run_isolated_replay.py</code> (§3.2–§3.4), both this directory</td>
+</tr>
+<tr>
+<td>Numeric results</td>
+<td><code>isolated_sample_candidates.json</code>, <code>isolated_replay_results.json</code> (this directory)</td>
+</tr>
+<tr>
+<td>Status</td>
+<td><strong>COMPLETE — pilot (n=40 reproduced) verdict delivered below</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<h3 id="11-what-this-pass-answers">1.1 What this pass answers</h3>
+<blockquote>
+<p>Of the Isolated-class low-SNR misses (WSJT-X decoded, OpenWSFZ did not, no plausible
+co-channel interferer within 50 Hz), what fraction failed because OpenWSFZ's candidate
+search never proposed the signal — versus failed because a candidate was found but LDPC
+could not converge on it?</p>
+</blockquote>
+<p>Option B (F=29.6%, mixed verdict) answered the co-channel question but left the mirror
+question — the 24.5% of misses it classified <strong>Isolated</strong> — undiagnosed. Isolated misses are,
+by construction, not something H7 (MMSE joint demodulation) can fix; this pass asks <em>which</em>
+sensitivity question they actually are, reusing instrumentation and audio that already exist
+(the always-on candidate-count/LLR diagnostic, and the 07-07 session's retained per-slot WAV
+audio) — no new capture, no product code change.</p>
+<h3 id="12-method-summary-full-detail-in-the-governing-spec">1.2 Method summary (full detail in the governing spec)</h3>
+<ol>
+<li><strong>§3.1 (offline, safe):</strong> extend <code>classify_cochannel.py</code>'s per-band loop (copy, not
+   modified) to retain <code>(ts, freq_hz, wsjt_snr, band)</code> for every 07-07 miss classified
+   Isolated at the primary 15 Hz cutoff, then draw a stratified, seeded, over-drawn sample
+   (60/stratum) via <code>compute_seed</code>.</li>
+<li><strong>§3.2 (live):</strong> launch a throwaway local OpenWSFZ.Daemon instance (isolated
+   <code>--config</code>/<code>--port</code>, never touching the operator's real config), configured via its own
+   HTTP API for Debug file logging + ALL.TXT decode logging + VB-CABLE (<code>CABLE Output</code>)
+   capture. Replay each candidate's retained <code>save/*.wav</code> slot, boundary-aligned to the FT8
+   15 s cycle grid, preceded by a disposable noise "pre-roll" cycle for AGC settling.</li>
+<li><strong>§3.3 (classification):</strong> Gate R first — does the target message reappear on replay? If
+   yes, the miss did not reproduce (tallied separately, Tier 0). If no, classify the cycle's
+   Debug candidate-count/LDPC-fail-stats lines per the spec's table (candidate-generation
+   failure / LDPC-convergence failure / Ambiguous).</li>
+<li><strong>§3.4:</strong> report both tiers; this is a <strong>pilot (n=40 reproduced target)</strong>, not a precision
+   estimate, and pre-commits no new decision threshold — only Option B's existing F/mixed
+   verdict stands as the Captain-locked reference.</li>
+</ol>
+<h3 id="13-pre-committed-decision-thresholds">1.3 Pre-committed decision thresholds</h3>
+<p><strong>None.</strong> Per spec §4 rigour control 4, this is exploratory groundwork to determine <em>whether</em>
+a dominant failure mode exists worth chasing — not a go/no-go gate the way Option B's F was.</p>
+<h3 id="14-null-hypothesis">1.4 Null hypothesis</h3>
+<p>Isolated misses reproduce reliably on replay (low Decoded-on-replay fraction) and split
+cleanly toward one of candidate-generation-failure or LDPC-convergence-failure (low Ambiguous
+fraction) — i.e., the existing pass-level diagnostic is sufficient to attribute the failure
+mode without further instrumentation. <strong>Rejected on both counts</strong> (Section 3).</p>
+<hr />
+<h2 id="section-2-data-summary">Section 2 — Data Summary</h2>
+<h3 id="21-inputs-spec-2-gate-0-reconfirmed-2026-07-23">2.1 Inputs (spec §2 Gate 0 — reconfirmed 2026-07-23)</h3>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Isolated-class miss list, 07-07 session</td>
+<td>Materialised fresh (not previously computed anywhere) — <strong>3,688</strong> misses, matching Option B's own per-session Isolated count for 07-07 exactly (cross-check)</td>
+</tr>
+<tr>
+<td>Per-slot WAV audio, 07-07</td>
+<td><strong>100% coverage</strong> — all 3,688 Isolated misses have an on-disk same-named <code>save/*.wav</code> (better than the spec's own caveat anticipated; no capture-gap losses)</td>
+</tr>
+<tr>
+<td>Candidate-count/LLR diagnostic</td>
+<td>Confirmed always-on in <code>Ft8Decoder.cs</code>; enabled via <code>Logging.FileEnabled=true</code> / <code>FileLogLevel=Debug</code>, no code change</td>
+</tr>
+<tr>
+<td>Local binary used for replay</td>
+<td><code>src/OpenWSFZ.Daemon/bin/Release/net10.0/win-x64/publish/OpenWSFZ.Daemon.exe</code> (self-contained, non-AOT) — smoke-tested independently before the full run (banner, <code>/api/v1/status</code>, <code>/api/v1/audio/devices</code> all confirmed functional)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-sample-composition">2.2 Sample composition</h3>
+<table>
+<thead>
+<tr>
+<th>Band</th>
+<th style="text-align: right;">Population</th>
+<th style="text-align: right;">Drawn (over-draw)</th>
+<th style="text-align: right;">Tried</th>
+<th style="text-align: right;">Reproduced (Gate R)</th>
+<th style="text-align: right;">Decoded-on-replay</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt; -15 dB</code></td>
+<td style="text-align: right;">2,477</td>
+<td style="text-align: right;">60</td>
+<td style="text-align: right;">23</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td><code>-15..-10 dB</code></td>
+<td style="text-align: right;">1,211</td>
+<td style="text-align: right;">60</td>
+<td style="text-align: right;">36</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">16</td>
+</tr>
+<tr>
+<td><strong>Combined</strong></td>
+<td style="text-align: right;"><strong>3,688</strong></td>
+<td style="text-align: right;"><strong>120</strong></td>
+<td style="text-align: right;"><strong>59</strong></td>
+<td style="text-align: right;"><strong>40</strong></td>
+<td style="text-align: right;"><strong>19</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Both strata reached their 20-reproduced-miss target well within the 60-try over-draw budget
+(23 and 36 tries respectively) — no re-seeding was needed.</p>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h3 id="31-tier-0-reproduction-gate-r">3.1 Tier 0 — Reproduction (Gate R)</h3>
+<table>
+<thead>
+<tr>
+<th>Band</th>
+<th style="text-align: right;">Decoded-on-replay</th>
+<th style="text-align: right;">Fraction</th>
+<th style="text-align: right;">95% Wilson CI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt; -15 dB</code></td>
+<td style="text-align: right;">3 / 23</td>
+<td style="text-align: right;">13.0%</td>
+<td style="text-align: right;">[4.5%, 32.1%]</td>
+</tr>
+<tr>
+<td><code>-15..-10 dB</code></td>
+<td style="text-align: right;">16 / 36</td>
+<td style="text-align: right;"><strong>44.4%</strong></td>
+<td style="text-align: right;">[29.5%, 60.4%]</td>
+</tr>
+<tr>
+<td><strong>Combined</strong></td>
+<td style="text-align: right;"><strong>19 / 59</strong></td>
+<td style="text-align: right;"><strong>32.2%</strong></td>
+<td style="text-align: right;">[21.7%, 44.9%]</td>
+</tr>
+</tbody>
+</table>
+<p><strong>This is the headline finding.</strong> Per spec §3.3's own pre-committed reading: a high
+Decoded-on-replay fraction is a first-order finding in its own right, pointing at a
+<strong>live-path / timing / gain-staging difference</strong> rather than a raw decoder-sensitivity gap —
+and this is not a marginal effect. In the <code>-15..-10 dB</code> stratum, <strong>nearly half</strong> (44.4%,
+95% CI up to 60.4%) of misses that Option B classified Isolated and that this pass confirmed
+have no same-slot neighbour, decoded successfully the moment they were replayed in isolation
+through a clean VB-CABLE loopback — with none of whatever was different about the original
+live capture (AGC history, cycle-boundary/sample-clock alignment, adjacent-cycle state,
+possibly real contemporaneous band conditions the recording cannot fully reproduce). The
+<code>&lt; -15 dB</code> stratum shows the same direction at a lower rate (13.0%), consistent with a
+live-path effect that matters more once a signal is already only weakly capturable — a signal
+9 dB further into the noise floor has less margin for a live-path handicap to still allow a
+decode, so the reproduction fraction should be expected to fall as SNR drops, which is exactly
+what is observed.</p>
+<h3 id="32-tier-1-cg-vs-ldpc-split-within-the-40-reproduced-misses">3.2 Tier 1 — CG vs. LDPC split (within the 40 reproduced misses)</h3>
+<table>
+<thead>
+<tr>
+<th>Verdict</th>
+<th style="text-align: right;"><code>&lt; -15 dB</code> (n=20)</th>
+<th style="text-align: right;"><code>-15..-10 dB</code> (n=20)</th>
+<th style="text-align: right;">Combined (n=40)</th>
+<th style="text-align: right;">95% Wilson CI (combined)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Candidate-generation failure (0 candidates)</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>LDPC-convergence failure (≤3 candidates, low LLR)</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td><strong>Ambiguous</strong> (&gt;3 candidates)</td>
+<td style="text-align: right;"><strong>20</strong></td>
+<td style="text-align: right;"><strong>20</strong></td>
+<td style="text-align: right;"><strong>40</strong></td>
+<td style="text-align: right;"><strong>[91.2%, 100.0%]</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Every single reproduced miss landed in Ambiguous.</strong> This is exactly the outcome the spec's
+own §3.3 "power caveat" pre-registered as the likely result: the reused diagnostic is
+pass-level and passband-wide, and the 07-07 session's real recorded band was consistently busy
+enough that a clean CG-vs-LDPC attribution was never possible. Total-candidate counts per
+reproduced-miss cycle ranged from 22 to 340 (median 340 in <code>&lt; -15 dB</code>, 317 in <code>-15..-10 dB</code>) —
+<strong>340 is not a natural count, it is the native shim's hard candidate-buffer ceiling</strong>
+(<code>K_MAX_CANDIDATES</code> (140, pass 0) + <code>K_MAX_CANDIDATES_PASS2</code> (200, pass 1) = 340,
+<code>ft8_shim.c</code>), and it was hit exactly in 12/20 (<code>&lt; -15 dB</code>) and 9/20 (<code>-15..-10 dB</code>) of the
+reproduced-miss cycles. In those cases the true candidate density may be even higher than
+reported — the diagnostic saturated, not merely "found many." This reinforces, rather than
+merely meets, the ≤3-candidate threshold's opposite conclusion: the passband genuinely was
+busy, not borderline.</p>
+<p>Because no reproduced miss ever had ≤3 total candidates, the reference meanAbsLLR baseline run
+(spec §4 rigour control 1) was correctly skipped by the driver's own conditional logic — there
+was nothing to compare against. (For the record, meanAbsLLR across all 40 Ambiguous cycles
+clustered tightly at 3.9–4.2 regardless of candidate count, 22 to 340 alike — mentioned only
+as an observation; it plays no role in the classification, which turns on candidate <em>count</em>.)</p>
+<h3 id="33-caveats">3.3 Caveats</h3>
+<ul>
+<li><strong>n=40 is a pilot, not a precision estimate</strong> (spec §4 rigour control 4) — the CIs above are
+  wide, particularly for the <code>&lt; -15 dB</code> Decoded-on-replay fraction (95% CI spans 4.5–32.1%).</li>
+<li><strong>Single session.</strong> All data is from 07-07 only, the one session with retained WAV audio.
+  The finding that the passband is "always busy enough to trigger Ambiguous" is a property of
+  this specific real band-opening, not a general claim about every possible isolated miss.</li>
+<li><strong>Same downward-bias caveat as Option B, restated not re-derived:</strong> this pass cannot see
+  candidates OpenWSFZ never proposed at all as distinct from ones it proposed and rejected —
+  the pass-level diagnostic cannot attribute any candidate to a specific frequency (§3.3 power
+  caveat), which is precisely why Tier 1 saturated to Ambiguous.</li>
+<li><strong>Replay fidelity is not perfect live-air fidelity.</strong> The 0.5 s cycle-boundary prewarm
+  (mirroring <code>run_h6_probe.py</code>'s own convention) means playback begins fractionally before the
+  daemon's own capture window opens and ends fractionally before the window's nominal close —
+  a sub-second effect against a 15 s slot, expected to be negligible for FT8 decode, but noted
+  for completeness.</li>
+</ul>
+<hr />
+<h2 id="section-4-verdict-table">Section 4 — Verdict Table</h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Decoded-on-replay fraction (combined)</td>
+<td><strong>32.2%</strong> (95% CI [21.7%, 44.9%]) — high enough to be a first-order finding, not noise</td>
+</tr>
+<tr>
+<td>Decoded-on-replay fraction, <code>-15..-10 dB</code></td>
+<td><strong>44.4%</strong> (95% CI [29.5%, 60.4%])</td>
+</tr>
+<tr>
+<td>Decoded-on-replay fraction, <code>&lt; -15 dB</code></td>
+<td>13.0% (95% CI [4.5%, 32.1%])</td>
+</tr>
+<tr>
+<td>CG-vs-LDPC split (of the 40 reproduced misses)</td>
+<td><strong>100% Ambiguous</strong> — current instrumentation cannot resolve this question on this corpus</td>
+</tr>
+<tr>
+<td>Null hypothesis (clean reproduction + clean CG/LDPC split)</td>
+<td><strong>Rejected on both counts</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<h3 id="51-one-paragraph-recommendation-to-architect-and-captain">5.1 One-paragraph recommendation to Architect and Captain</h3>
+<p>The dominant, best-supported finding from this pilot is <strong>not</strong> a CG-vs-LDPC signal — the
+existing instrumentation cannot deliver one on this corpus, exactly as anticipated — it is the
+<strong>32.2% (44.4% in the higher-SNR stratum) Decoded-on-replay rate</strong>. Per the spec's own
+pre-committed reading, this redirects the investigation away from both <code>ftx_find_candidates</code>
+tuning and OSD-depth tuning, toward a <strong>live-path / timing / gain-staging investigation</strong>: some
+combination of AGC warm-up state, cycle-boundary/sample-clock alignment, or adjacent-cycle
+history present during live capture but absent from an isolated WAV replay is materially
+affecting decode success for a meaningful fraction of what Option B labelled Isolated misses.
+This is a cheaper, more directly actionable, and — given the effect size — probably
+higher-value next step than commissioning the §4.5 per-candidate-frequency shim.</p>
+<h3 id="52-what-this-pass-does-not-authorise">5.2 What this pass does NOT authorise</h3>
+<ul>
+<li><strong>Not</strong> a re-run of Option B's classification or its F=29.6%/mixed verdict — unchanged.</li>
+<li><strong>Not</strong> a conclusion that the Isolated class is "solved" or "explained" — 67.8% of tried
+  cases still reproduced as genuine misses, and of those, 100% remain pipeline-stage-unresolved
+  (Ambiguous).</li>
+<li><strong>Not</strong> a decoder or product code change of any kind.</li>
+<li><strong>Not</strong> a precision measurement — n=40 pilot, single session.</li>
+</ul>
+<h3 id="53-suggested-next-steps-in-priority-order">5.3 Suggested next steps, in priority order</h3>
+<ol>
+<li><strong>Live-path/gain-staging investigation</strong> (new, higher priority than originally scoped) —
+   instrument or manually compare AGC/soft-limiter state, cycle-boundary timing, and
+   adjacent-cycle history between a genuine live capture and an isolated WAV replay of the
+   same historical slot, for a handful of the 19 Decoded-on-replay cases identified here (their
+   <code>ts</code>/<code>freq_hz</code> are in <code>isolated_replay_results.json</code>... actually excluded from that
+   committed file by design — re-derive via a fresh, small, explicitly-scoped follow-up rather
+   than reusing this pass's already-discarded per-candidate message data).</li>
+<li><strong>§4.5 per-candidate-frequency shim</strong> — still the only route to a decisive CG-vs-LDPC
+   answer for whatever fraction of Isolated misses turn out <strong>not</strong> to be a live-path artifact,
+   once (1) has been investigated. Bounded, instrumentation-only, no decode-behaviour change,
+   as originally scoped.</li>
+<li><strong>A larger confirmatory sample</strong> of this same pilot design — only if (1) does not fully
+   explain the reproduction gap and a more precise Decoded-on-replay estimate is wanted before
+   committing to (2).</li>
+</ol>
+<hr />
+<h2 id="appendix-a-reproduction">Appendix A — Reproduction</h2>
+<ul>
+<li><code>python materialise_isolated_sample.py</code> — regenerates the local population (<code>_work/</code>,
+  git-ignored) and the committed candidate-sample skeleton (<code>isolated_sample_candidates.json</code>,
+  msg-stripped per NFR-021).</li>
+<li><code>python run_isolated_replay.py</code> — runs the full live pilot (target 20/stratum, over-draw
+  60/stratum; pass <code>--target-per-stratum N --max-tries-per-stratum M</code> for a smaller smoke
+  test). Requires: the self-contained <code>OpenWSFZ.Daemon.exe</code> publish output present, VB-Audio
+  Virtual Cable installed (<code>CABLE Input</code>/<code>CABLE Output</code>), and <code>requests</code>/<code>sounddevice</code>/<code>numpy</code>/
+  <code>scipy</code> importable. Produces <code>isolated_replay_results.json</code> (committed, ts/freq/snr/band/
+  candidate-count/LLR/verdict only — no callsigns, no message text, per NFR-021).</li>
+<li>Total live session wall time for this run: <strong>2026-07-23 15:05:46Z – 15:50:21Z</strong> (~44.5 min),
+  well inside the spec's own "a few hours" effort estimate.</li>
+</ul>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
