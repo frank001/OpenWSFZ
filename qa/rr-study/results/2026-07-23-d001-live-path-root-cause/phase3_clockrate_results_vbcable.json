@@ -1,0 +1,13 @@
+{
+  "device": "CABLE Output (VB-Audio Virtual Cable)",
+  "device_index": 97,
+  "nominal_rate_hz": 48000,
+  "measured_rate_hz": 47999.99891950873,
+  "ppm_error": -0.022510234733393496,
+  "predicted_drift_s_per_hr": -8.103684504021658e-05,
+  "phase1_observed_drift_s_per_hr": -0.171,
+  "fit_rmse_samples": 35.172839698059775,
+  "duration_s": 300.0,
+  "n_callbacks": 29999,
+  "total_samples": 14399520
+}

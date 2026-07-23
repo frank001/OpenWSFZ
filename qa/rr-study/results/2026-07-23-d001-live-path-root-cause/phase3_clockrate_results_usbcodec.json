@@ -1,0 +1,13 @@
+{
+  "device": "Microphone (2- USB Audio CODEC )",
+  "device_index": 95,
+  "nominal_rate_hz": 48000,
+  "measured_rate_hz": 47997.96427546759,
+  "ppm_error": -42.41092775858609,
+  "predicted_drift_s_per_hr": -0.15267933993090993,
+  "phase1_observed_drift_s_per_hr": -0.171,
+  "fit_rmse_samples": 30.879573422312646,
+  "duration_s": 300.0,
+  "n_callbacks": 29997,
+  "total_samples": 14398560
+}
