@@ -103,3 +103,13 @@ Re-open condition carried forward unchanged from FR-060, now watching for a **th
 independent occurrence (any store, any test, same write-temp-then-`File.Move` signature) or a
 captured `.trx`/exception confirming the AV/indexer-handle hypothesis — either should trigger
 scoping the retry-wrapper as a proper dev-task rather than deferring further.
+
+## Third occurrence + captured exception, both at once (2026-07-23, same day)
+
+`FR-042: SaveAsync updates in-memory list and persists to file` (`FrequencyStoreTests`) failed
+in a later full-suite gate run the same day — the third store, and the first of the three
+occurrences with a surviving exception capture (`System.UnauthorizedAccessException` on
+`File.Move`). Confirmed Windows-only via 3/3 clean WSL Debian runs. See
+`dev-tasks/2026-07-23-flaky-fr042-frequencystore-saveasync.md`. Both conditions above are now
+met simultaneously. **Captain's decision:** continue monitoring, no code change yet. Status
+remains OPEN, monitor only.

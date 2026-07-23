@@ -104,3 +104,18 @@ condition set below rather than unilaterally scoping the retry-wrapper fix.
 "Captain's decision" section in the FR-025 file for full reasoning. Re-open condition is now
 a **third** occurrence (any store) or a captured exception, not just a second. Status remains
 OPEN, monitor only.
+
+## Third occurrence, exactly as predicted (2026-07-23, same day)
+
+The first bullet above fired too, later the same day: `FR-042: SaveAsync updates in-memory
+list and persists to file` (`FrequencyStoreTests`, `FrequencyStore.SaveAsync`) — the *exact*
+store this file's second bullet named as a hypothetical — failed in a full-suite local gate
+run on Windows, passed in isolation (1/1), passed WSL Debian (3/3 consecutive runs). This time
+a full exception capture survived: `System.UnauthorizedAccessException` on the `File.Move`
+call, the most specific evidence yet for the AV/indexer-handle hypothesis. See
+`dev-tasks/2026-07-23-flaky-fr042-frequencystore-saveasync.md` for the full write-up.
+
+This clears both conditions the Captain set (third store, and a captured exception)
+simultaneously. **Captain's decision (2026-07-23):** log it, continue monitoring, no code
+change at this time — same disposition as the first two occurrences. Status remains OPEN,
+monitor only.
