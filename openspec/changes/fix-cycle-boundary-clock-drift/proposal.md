@@ -1,3 +1,5 @@
+**User-facing:** no
+
 ## Why
 
 QA's live-path root-cause investigation (`qa/rr-study/results/2026-07-23-d001-live-path-root-cause/report.md`,
