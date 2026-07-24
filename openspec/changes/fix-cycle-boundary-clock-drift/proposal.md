@@ -27,8 +27,12 @@ than carrying indefinitely as an unexplained gap.
   that threshold-crossing persists across several consecutive checks in the same direction
   without shrinking** (design.md Decision 4 — added after live pre-merge evidence showed a real
   capture pipeline's own recurring scheduling latency, not genuine device drift, was triggering a
-  correction on every single cycle), it corrects the next window's sample count by a small
-  bounded amount and re-anchors `cycleStart` to the true wall-clock value. Confined to
+  correction on every single cycle), it corrects the next window's sample count by the full
+  confirmed accumulated deviation — bounded only by a much larger sanity ceiling that guards
+  solely against a pathological `IClock` reading, not by a small fixed quantum (design.md
+  Decision 5 — added after a live endurance re-test found the original small fixed cap absorbing
+  as little as 0.3% of confirmed deviation per firing) — and re-anchors `cycleStart` to the true
+  wall-clock value. Confined to
   `CycleFramer` — the one platform-agnostic point downstream of all three capture
   implementations — not the platform-specific capture/resampler layer (see `design.md`
   Decision 1 for why that alternative was rejected).

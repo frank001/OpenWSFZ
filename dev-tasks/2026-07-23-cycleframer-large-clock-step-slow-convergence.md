@@ -1,7 +1,14 @@
 # Follow-up: `CycleFramer` drift correction has no fast-path for an implausible one-off clock step
 
-**Status:** deferred, not blocking `fix-cycle-boundary-clock-drift`. Captain sign-off (2026-07-23):
-ship the correction as implemented; track this for later.
+**Status:** largely resolved as a side effect of `dev-tasks/2026-07-24-cycleframer-correction-sizing-fix.md`
+(design.md Decision 5, landed `1cebf81`) — convergence time for the 5-minute-step scenario below
+drops from the Addendum's ~39.1 days to roughly 15 minutes (see new Addendum below). Still no
+dedicated "detect and skip an implausible single reading" fast-path, and 15 minutes of
+Information-level resync logging every 3 cycles is still not what Decision 2's "rare,
+operationally significant" framing had in mind — so the *possible future work* below remains
+undone and this file stays open, but the severity that justified deferring it has changed
+materially. Not re-litigated for a merge decision here; flagging for the Captain's awareness,
+same as the first Addendum did.
 
 ## Context
 
@@ -77,6 +84,42 @@ optional "detect an implausible deviation and treat it differently from ordinary
 readings" mitigation was outside what this implementation pass was scoped to do (see the
 live-evidence dev-task's implementation notes), and remains deferred pending an explicit
 decision, same as before.
+
+## Addendum 2 (2026-07-24): the correction-sizing fix cuts convergence from ~39 days to ~15 minutes
+
+`dev-tasks/2026-07-24-cycleframer-correction-sizing-fix.md` (a separate, blocking finding from a
+live 7h54m endurance run — the persistence gate was firing correctly but the fixed 48-sample cap
+was absorbing as little as 0.3% of confirmed deviation per firing) replaced the fixed
+`MaxCorrectionSamples` quantum with absorption of the full confirmed deviation, bounded only by a
+much larger `CorrectionSanityCeilingSamples` (one full 15 s cycle = 180,000 samples) that exists
+purely as a backstop against a pathological `IClock` reading (`design.md` Decision 5, landed
+`1cebf81`).
+
+This lands squarely on *this* file's scenario, and this time for the better. Re-computing the same
+5-minute-step example this file and Addendum 1 both used
+(`step_samples / ceiling_samples * cycles_per_event * 15 s`), with the persistence-gate's
+3-cycles-per-firing cadence unchanged from Addendum 1:
+
+- Addendum 1 (post-persistence-gate, pre-sizing-fix): 48-sample cap, 1 correction per 3 cycles →
+  **~39.1 days**.
+- Now (post-sizing-fix): 3,600,000 samples / 180,000-sample ceiling per firing = 20 firings; each
+  firing still needs a fresh 3-reading streak (Decision 4 unchanged) → 60 cycles × 15 s =
+  **~900 s (~15 minutes)** — roughly a **3,750x** improvement over Addendum 1's estimate, and
+  still convergent with no oscillation (same hand-traceable arithmetic as before: residual shrinks
+  monotonically by exactly the correction applied each firing).
+
+Fifteen minutes of Information-level resync logging (one line per 3 cycles, ~20 lines total) is a
+materially different operational picture than Addendum 1's fortnight-plus of continuous per-cycle
+logging — much closer to Decision 2's original "rare, operationally significant" framing, even
+though it is not literally the single-event fast-path design.md's optional mitigation described.
+This is why the file's status above reads "largely resolved" rather than "resolved": the
+*possible future work* items below (a dedicated implausible-deviation fast-path, log
+rate-limiting, a direct multi-cycle-convergence unit test for a one-off step specifically) remain
+unimplemented, and the sizing fix was not designed with this scenario as its target — this
+improvement is a documented side effect (`design.md` Decision 5's "Interaction with the
+large-clock-step slow-convergence gap" section), not a deliberate fix of it. Re-litigating whether
+the remaining gap still warrants dedicated work is left to the Captain, same as both addenda
+before it.
 
 ## Why deferred rather than blocking
 

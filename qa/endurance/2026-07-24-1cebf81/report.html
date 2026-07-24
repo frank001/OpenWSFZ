@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Endurance Test Report — 2026-07-24 (sizing-fix live re-confirmation)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="endurance-test-report-2026-07-24-sizing-fix-live-re-confirmation">Endurance Test Report — 2026-07-24 (sizing-fix live re-confirmation)</h1>
+<h2 id="1-study-hypothesis">1. Study hypothesis</h2>
+<p><strong>What is this run testing?</strong></p>
+<p>This run is the live-hardware re-confirmation step for <code>fix-cycle-boundary-clock-drift</code>
+(<code>openspec/changes/fix-cycle-boundary-clock-drift/</code>, <code>tasks.md</code> item <strong>7.6</strong>), following the
+correction-sizing fix (<code>design.md</code> Decision 5, landed <code>1cebf81</code>,
+<code>dev-tasks/2026-07-24-cycleframer-correction-sizing-fix.md</code>). The prior live endurance run
+(<code>qa/endurance/2026-07-24-ce13e30/</code>) found the persistence gate (Decision 4) working correctly
+but the fixed 48-sample correction cap absorbing as little as 0.3% of confirmed deviation per
+firing, leaving a residual drift rate matching the original unfixed D-001 defect. Decision 5
+replaced that cap with full absorption of the confirmed deviation, bounded only by a much larger
+<code>CorrectionSanityCeilingSamples</code> (180,000 samples, one full cycle) intended as a pathological-input
+backstop only. A new unit test (<code>RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections</code>)
+confirmed the revised sizing keeps residual bounded near the noise floor in simulation. This run's
+purpose, per the dev-task's own Validation plan step 3, was to confirm real-hardware behaviour
+matches that simulation before checking off <code>tasks.md</code> 6.6/7.6 and reconsidering the HK-011
+merge hold.</p>
+<p><strong>Build under test:</strong> <code>src/OpenWSFZ.Ft8/CycleFramer.cs</code> at git HEAD <code>1cebf81</code> (persistence-gated
+correction, <code>RequiredConsecutiveReadings = 3</code>, full-absorption sizing,
+<code>CorrectionSanityCeilingSamples = 180,000</code>). Two docs-only, zero-<code>src/</code> changes were made in the
+working tree during this session (<code>proposal.md</code> content-drift fix, a status update to
+<code>dev-tasks/2026-07-23-cycleframer-large-clock-step-slow-convergence.md</code>) — neither touches
+<code>src/</code>, so they do not affect the build under test.</p>
+<p><strong>Null hypotheses:</strong></p>
+<ul>
+<li><strong>H₀-1 (stability):</strong> OpenWSFZ completes the session without crash, audio dropout, or
+  unrecoverable gap.</li>
+<li><strong>H₀-2 (sizing correctness):</strong> Once the persistence gate fires, the applied correction matches
+  the full confirmed deviation (not a smaller fixed quantum), and never saturates the much larger
+  sanity ceiling under ordinary operation — i.e., Decision 5 is implemented and behaving as
+  designed.</li>
+<li><strong>H₀-3 (bounded residual — the property the simulation predicted):</strong> After each correction
+  fires, the measured deviation on the next check drops back near zero (a small multiple of
+  <code>DriftThresholdSamples</code>, 24) and stays there barring fresh drift accumulating from that point —
+  i.e., the fix actually achieves the change's Goal of bounding cycle-boundary drift over a
+  long-running session, not just of sizing each individual correction "correctly" in isolation.</li>
+</ul>
+<p><strong>Defects under observation:</strong> <code>fix-cycle-boundary-clock-drift</code> (open, <code>tasks.md</code> 6.6/7.6 both
+still unchecked pending this run). Cross-referenced: <code>qa/endurance/2026-07-24-ce13e30/report.md</code>
+(the sizing defect this fix targets) and <code>dev-tasks/2026-07-24-cycleframer-correction-sizing-fix.md</code>
+(the fix this run re-tests).</p>
+<p><strong>What constitutes a meaningful result?</strong></p>
+<ul>
+<li>Stability: zero crashes, zero unrecoverable gaps, clean shutdown.</li>
+<li>Sizing: every fired correction's magnitude matches its logged confirmed deviation to the
+  sample, with zero corrections hitting the sanity ceiling.</li>
+<li>Bounded residual: the drift-check reading immediately following each correction should be
+  small (tens of samples, consistent with one fresh cycle's worth of noise/drift), not comparable
+  in magnitude to the deviation that was just corrected.</li>
+</ul>
+<hr />
+<h2 id="2-data-summary">2. Data summary</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Date</td>
+<td>2026-07-24 UTC (local 10:20:55 → 16:37:04 CEST)</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>1cebf81</code> (HEAD) + two uncommitted, zero-<code>src/</code> docs changes (see above)</td>
+</tr>
+<tr>
+<td>ft8_lib shim</td>
+<td>20260033</td>
+</tr>
+<tr>
+<td>Session start (UTC)</td>
+<td>2026-07-24 08:20:55.638 (daemon start; this session was already running when QA began monitoring)</td>
+</tr>
+<tr>
+<td>Monitoring window (UTC)</td>
+<td>08:26:03 → 14:30:09 (two consecutive <code>Monitor</code> watches, no gap between them) — daemon itself ran further, to graceful stop below</td>
+</tr>
+<tr>
+<td>Session end (UTC)</td>
+<td>2026-07-24 14:37:04.058 (graceful, operator-initiated <code>POST</code> capture-stop; log continued running with capture idle afterwards)</td>
+</tr>
+<tr>
+<td>Duration (daemon log, start to graceful capture stop)</td>
+<td>6h16m8s</td>
+</tr>
+<tr>
+<td>Total 15-second cycles (windows emitted)</td>
+<td>1,502</td>
+</tr>
+<tr>
+<td>Total decodes (OpenWSFZ)</td>
+<td>19,077 (mean 12.7/cycle)</td>
+</tr>
+<tr>
+<td>Band</td>
+<td>20 m (14.074 MHz FT8) — <strong>note:</strong> the prior <code>ce13e30</code> baseline used 40 m (7.074 MHz). Band is not expected to matter for this mechanism (<code>CycleFramer</code>'s drift correction operates purely on capture timing, not decoded signal content), but is recorded for the record since exact reproduction was not attempted.</td>
+</tr>
+<tr>
+<td>Audio device</td>
+<td>USB Audio CODEC (<code>d451e08c-82b5-446e-a5f1-1bdd8fceeac2</code>), WASAPI — same physical device as <code>ce13e30</code> and the Phase 3 ~-42 ppm measurement</td>
+</tr>
+<tr>
+<td>WSJT-X</td>
+<td>Running in parallel throughout, saving 15 s WAV files and appending to <code>ALL.TXT</code> — full <code>delta_dt</code>/recall comparison against OpenWSFZ was <strong>not</strong> performed this run (out of scope for this validation step; see §5)</td>
+</tr>
+<tr>
+<td>Daemon log file</td>
+<td><code>openswfz-20260724T082055Z.log</code> (20,835+ lines) — copied into <code>artefacts/20260724_live_run_0821/</code> (see §2.1)</td>
+</tr>
+<tr>
+<td>Shutdown</td>
+<td>Graceful (<code>RecordingStopped (graceful)</code>; <code>Capture stopped ... (operator-stopped). Chunks received: 363,867</code>)</td>
+</tr>
+<tr>
+<td>Cycle-boundary resyncs fired</td>
+<td>10 (Information level)</td>
+</tr>
+<tr>
+<td>Cycle-boundary drift checks logged</td>
+<td>1,502 (one per window, Debug level)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="21-artefacts">2.1 Artefacts</h3>
+<p>All raw artefacts for this run are gathered under <code>artefacts/20260724_live_run_0821/</code> at the
+repo root (git-ignored per the repo's existing <code>artefacts/</code> rule — NFR-021/GDPR, real
+third-party callsigns — local only, never committed). Originally placed under this report's own
+directory (<code>qa/endurance/2026-07-24-1cebf81/artefacts/</code>); relocated to the repo-root
+<code>artefacts/</code> convention already used by prior live runs (e.g. <code>20260723_live_run_2223</code>,
+<code>20260706_live_run</code>) — the nested location tripped <code>tools/pre_merge_check.py</code>:</p>
+<table>
+<thead>
+<tr>
+<th>File / folder</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>artefacts/20260724_live_run_0821/openswfz-20260724T082055Z.log</code></td>
+<td>Full OpenWSFZ daemon log for the session under test</td>
+</tr>
+<tr>
+<td><code>artefacts/20260724_live_run_0821/ALL.TXT</code></td>
+<td>WSJT-X's cumulative decode log (all-time; today's session is the <code>260724_*</code> prefixed lines, 39,336 of them)</td>
+</tr>
+<tr>
+<td><code>artefacts/20260724_live_run_0821/wav/</code></td>
+<td>All 1,501 WSJT-X-saved 15 s WAV files for this session (<code>260724_082145.wav</code> … <code>260724_143645.wav</code>), ~522 MB total</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Acceptance thresholds (this run):</strong></p>
+<ul>
+<li>Stability: 0 crashes, 0 unrecoverable gaps, 0 log ERR/FTL entries.</li>
+<li>Sizing: every correction's magnitude matches <code>round(confirmed deviation)</code> exactly; 0 ceiling
+  saturations.</li>
+<li>Bounded residual: post-correction reading should fall to within roughly one order of magnitude
+  below the pre-correction value at minimum, ideally near the noise floor (tens of samples).</li>
+</ul>
+<hr />
+<h2 id="3-results">3. Results</h2>
+<h3 id="31-stability-h0-1-confirmed">3.1 Stability — H₀-1 CONFIRMED</h3>
+<p>OpenWSFZ ran cleanly for 6h16m8s (1,502 decoded cycles) with no crash and a clean, graceful,
+operator-initiated shutdown.</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Log ERR entries</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>Log WRN entries</td>
+<td><strong>1</strong> — a WebSocket send-timeout/dropped-connection at 10:22:13 local, unrelated to <code>CycleFramer</code>, before the monitored window's first event</td>
+</tr>
+<tr>
+<td>Log FTL entries</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>Heartbeat <code>captureActive</code>/<code>audioActive</code>/<code>dataFlowing</code> false readings</td>
+<td>6, all in the first minute of daemon startup (warm-up); <strong>zero</strong> false readings for the remaining 6+ hours, including through the largest gap between corrections (checked specifically, see §3.2)</td>
+</tr>
+<tr>
+<td>Daemon process identity</td>
+<td>Single PID throughout (no restart)</td>
+</tr>
+<tr>
+<td>Shutdown</td>
+<td>Graceful (<code>Capture stopped ... (operator-stopped)</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>H₀-1: CONFIRMED</strong> — zero failures, clean session, no stability concern with the build under
+test.</p>
+<h3 id="32-correction-sizing-h0-2-confirmed">3.2 Correction sizing — H₀-2 CONFIRMED</h3>
+<p>All 10 corrections fired matched their logged confirmed deviation exactly (rounded), and none
+came close to the 180,000-sample sanity ceiling:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Time (UTC)</th>
+<th>Gap from prior</th>
+<th>Confirmed deviation</th>
+<th>Correction applied</th>
+<th>% of ceiling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>08:26:30.106</td>
+<td>—</td>
+<td>1,264.5 samples (105.37 ms)</td>
+<td>1,264</td>
+<td>0.70%</td>
+</tr>
+<tr>
+<td>2</td>
+<td>09:12:00.343</td>
+<td>45m30s</td>
+<td>2,849.1 samples (237.43 ms)</td>
+<td>2,849</td>
+<td>1.58%</td>
+</tr>
+<tr>
+<td>3</td>
+<td>09:36:00.631</td>
+<td>24m0s</td>
+<td>3,454.9 samples (287.91 ms)</td>
+<td>3,455</td>
+<td>1.92%</td>
+</tr>
+<tr>
+<td>4</td>
+<td>09:48:45.979</td>
+<td>12m45s</td>
+<td>4,173.9 samples (347.83 ms)</td>
+<td>4,174</td>
+<td>2.32%</td>
+</tr>
+<tr>
+<td>5</td>
+<td>10:20:31.408</td>
+<td>31m45s</td>
+<td>5,151.6 samples (429.30 ms)</td>
+<td>5,152</td>
+<td>2.86%</td>
+</tr>
+<tr>
+<td>6</td>
+<td>13:30:32.395</td>
+<td>3h10m1s</td>
+<td>11,842.0 samples (986.83 ms)</td>
+<td>11,842</td>
+<td>6.58%</td>
+</tr>
+<tr>
+<td>7</td>
+<td>14:11:48.501</td>
+<td>41m16s</td>
+<td>13,268.6 samples (1,105.71 ms)</td>
+<td>13,269</td>
+<td>7.37%</td>
+</tr>
+<tr>
+<td>8</td>
+<td>14:13:34.618</td>
+<td>1m46s</td>
+<td>13,403.0 samples (1,116.91 ms)</td>
+<td>13,403</td>
+<td>7.45%</td>
+</tr>
+<tr>
+<td>9</td>
+<td>14:18:50.704</td>
+<td>5m16s</td>
+<td>13,037.0 samples (1,086.42 ms)</td>
+<td>13,037</td>
+<td>7.24%</td>
+</tr>
+<tr>
+<td>10</td>
+<td>14:29:51.854</td>
+<td>11m1s</td>
+<td>13,801.5 samples (1,150.12 ms)</td>
+<td>13,801</td>
+<td>7.67%</td>
+</tr>
+</tbody>
+</table>
+<p>Total samples absorbed across all 10 corrections: <strong>82,246</strong> (all positive/discard corrections —
+zero replay-direction corrections this run). Every correction is, to the sample, the rounded
+confirmed deviation logged at fire time — <strong>no capping, no under-correction, exactly what
+Decision 5 specifies.</strong></p>
+<p><strong>H₀-2: CONFIRMED</strong> — the sizing fix is implemented and firing exactly as designed against
+whatever deviation value the persistence gate confirms.</p>
+<h3 id="33-bounded-residual-h0-3-rejected-blocking-finding">3.3 Bounded residual — H₀-3 REJECTED (BLOCKING FINDING)</h3>
+<p>This is where the run diverges sharply from what the simulated unit test predicted. If a
+correction genuinely absorbed the confirmed deviation, the very next drift-check reading (one
+cycle, ~15 s of real time, later) should show only a small residual — fresh drift/noise
+accumulated in that single cycle, not a value comparable to what was just corrected.</p>
+<p><strong>Every one of the 10 corrections shows the opposite:</strong></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Deviation at fire</th>
+<th>Very next reading (~15 s later)</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>1,264.5</td>
+<td>1,286.1</td>
+<td><strong>+1.71%</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>2,849.1</td>
+<td>2,807.3</td>
+<td>−1.47%</td>
+</tr>
+<tr>
+<td>3</td>
+<td>3,454.9</td>
+<td>3,565.6</td>
+<td><strong>+3.20%</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>4,173.9</td>
+<td>4,196.8</td>
+<td><strong>+0.55%</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>5,151.6</td>
+<td>5,289.7</td>
+<td><strong>+2.68%</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td>11,842.0</td>
+<td>11,777.3</td>
+<td>−0.55%</td>
+</tr>
+<tr>
+<td>7</td>
+<td>13,268.6</td>
+<td>13,256.8</td>
+<td>−0.09%</td>
+</tr>
+<tr>
+<td>8</td>
+<td>13,403.0</td>
+<td>13,141.8</td>
+<td>−1.95%</td>
+</tr>
+<tr>
+<td>9</td>
+<td>13,037.0</td>
+<td>13,035.0</td>
+<td>−0.02%</td>
+</tr>
+<tr>
+<td>10</td>
+<td>13,801.5</td>
+<td>13,252.9</td>
+<td>−3.97%</td>
+</tr>
+</tbody>
+</table>
+<p>At every scale from 1,200 to 13,800 samples, the post-correction reading lands within ±4% of the
+pre-correction value. The persistence-streak counter does correctly reset each time (3/3 → 1/3,
+confirming <code>driftStreakCount = 0</code> fires as coded — this part of Decision 4 is not in question),
+but the deviation quantity itself is not converging toward zero; it re-establishes at essentially
+the same magnitude one cycle later, every single time.</p>
+<p><strong>Session-wide trend, independent of correction timing</strong> (sampled every ~37 minutes across the
+whole session, deliberately offset from correction events):</p>
+<table>
+<thead>
+<tr>
+<th>Time (UTC)</th>
+<th>Deviation reading</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>08:21:30</td>
+<td>989.9 samples</td>
+</tr>
+<tr>
+<td>08:59:00</td>
+<td>2,152.8 samples</td>
+</tr>
+<tr>
+<td>09:36:30</td>
+<td>3,425.2 samples</td>
+</tr>
+<tr>
+<td>10:14:01</td>
+<td>5,091.7 samples</td>
+</tr>
+<tr>
+<td>10:51:31</td>
+<td>6,321.1 samples</td>
+</tr>
+<tr>
+<td>11:29:02</td>
+<td>7,352.4 samples</td>
+</tr>
+<tr>
+<td>12:06:32</td>
+<td>8,904.9 samples</td>
+</tr>
+<tr>
+<td>12:44:02</td>
+<td>9,805.5 samples</td>
+</tr>
+<tr>
+<td>13:21:32</td>
+<td>11,655.6 samples</td>
+</tr>
+<tr>
+<td>13:59:03</td>
+<td>12,182.8 samples</td>
+</tr>
+<tr>
+<td>14:36:37</td>
+<td>13,483.2 samples</td>
+</tr>
+</tbody>
+</table>
+<p>A steady, roughly monotonic climb across the entire 6h+ session, largely independent of the 10
+corrections that fired along the way.</p>
+<p><strong>Ruled out:</strong></p>
+<ul>
+<li><strong>Device/capture instability.</strong> Checked directly for the run's largest gap (3h10m before
+  correction #6) and the session as a whole: zero false <code>captureActive</code>/<code>audioActive</code>/
+  <code>dataFlowing</code> heartbeat readings after the first minute of startup (§3.1). An initial broad
+  <code>grep -i false</code> search returned 968 hits that looked alarming but turned out to be almost
+  entirely <code>[DBG]</code> "filtered implausible message (false-positive guard)" decoder lines —
+  unrelated to capture health — not heartbeat flapping; re-checked scoped specifically to
+  heartbeat lines and found clean.</li>
+<li><strong><code>IClock</code> implementation artefact.</strong> <code>SystemClock.cs</code> is a bare <code>DateTime.UtcNow</code> passthrough
+  with no caching or smoothing that could produce a "sticky" reading.</li>
+<li><strong>Genuine device clock-rate error at this magnitude.</strong> The first correction alone (105 ms
+  deviation accumulated in well under 5 minutes of runtime) implies a clock-rate error on the
+  order of thousands of ppm if attributed to the capture device — roughly two orders of magnitude
+  above the ~42 ppm independently measured for this exact device
+  (<code>qa/rr-study/results/2026-07-23-d001-live-path-root-cause/phase3_clockrate_results_usbcodec.json</code>).
+  A hardware clock-rate error is also a fixed property of a crystal oscillator; it does not grow
+  over the course of a single session the way the sampled trend above does.</li>
+</ul>
+<p><strong>Working hypothesis (not confirmed, flagged for Developer-session investigation):</strong> what
+<code>CycleFramer</code>'s drift check is measuring may not be genuine capture-device clock-rate drift at
+all in this regime, but a processing/scheduling delay — <code>CycleFramer</code>'s own loop (or something
+upstream feeding it) falling behind true wall-clock, plausibly correlated with growing CPU/memory
+load from the native decoder's accumulating internal state over a long session. Circumstantial
+support: decode <code>elapsed=</code> time grew from a first-100-cycle average of 508 ms to a last-100-cycle
+average of 607 ms (+19.6%), and <code>hashTableRejectCount</code> grew roughly 17x (≈1,374 → 23,527) over
+the session (sampled informally via <code>/api/v1/status</code>, not systematically logged — noted as a
+limitation). <strong>This is the opposite of what the prior <code>ce13e30</code> run found</strong> — that run explicitly
+ruled out decode-side slowdown as an explanation (elapsed times stayed flat 300–600 ms there) and
+attributed its growth to genuine accumulating drift. This run's data points the other way,
+which is itself worth the Developer session's attention: the two runs may be seeing different
+underlying phenomena, not necessarily the same one.</p>
+<p>If this hypothesis is correct, it means: a correction cannot fix a scheduling delay — it can only
+change which raw samples map to a window — so re-anchoring <code>nominalCycleStart</code> to a reading that
+reflects processing delay rather than sample-rate mismatch just re-baselines against a moving
+target that reappears on the next check, exactly as observed. It would also mean each of these 10
+corrections discarded real captured audio (all 10 were positive/discard corrections; 82,246
+samples ≈ 6.9 seconds of real audio removed across the session) in response to something the
+mechanism cannot actually correct.</p>
+<p><strong>H₀-3: REJECTED.</strong> The fix, as sized by Decision 5, does not achieve bounded residual drift on
+this real-hardware session — a materially different failure mode than <code>ce13e30</code>'s under-sizing,
+and one the synthetic <code>RateClock</code>/<code>StepClock</code> unit tests could not have caught (they model a
+clean constant-rate or one-off-step clock, not a scheduling-delay-driven signal).</p>
+<h3 id="34-decode-volume-context-only-not-analysed-further-this-run">3.4 Decode volume (context only, not analysed further this run)</h3>
+<p>19,077 total decodes across 1,502 cycles (mean 12.7/cycle) — no anomaly observed here in
+isolation. WSJT-X ran in parallel throughout (artefacts gathered, §2.1) but the full
+WSJT-X-vs-OpenWSFZ <code>delta_dt</code>/recall comparison was intentionally not performed this run, for the
+same reason <code>ce13e30</code> gave: that comparison is only meaningful once the drift-correction
+mechanism is confirmed sound, which §3.3 shows it is not yet.</p>
+<hr />
+<h2 id="4-summary-verdict-table">4. Summary verdict table</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+<th>Threshold</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stability — no crash</td>
+<td>0 crashes, graceful stop</td>
+<td>0</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Stability — no log ERR/FTL</td>
+<td>0/0</td>
+<td>0</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Duration</td>
+<td>6h16m8s</td>
+<td>—</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Correction sizing matches confirmed deviation (Decision 5)</td>
+<td>10/10 corrections match logged deviation exactly; 0 ceiling saturations (max 7.67% of ceiling)</td>
+<td>correction = round(deviation), no capping</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Correction bounds residual deviation session-over-session</td>
+<td>10/10 corrections left the next reading within ±4% of the pre-correction value; session-wide reading climbed ~990 → ~13,500 samples largely independent of corrections firing</td>
+<td>post-correction reading should drop near the noise floor</td>
+<td><strong>FAIL — BLOCKING</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: FAIL (blocking).</strong> Stability is clean and the sizing formula itself is
+implemented exactly per Decision 5 — this is not a repeat of <code>ce13e30</code>'s under-sizing defect.
+But this run demonstrates that, on real hardware over a multi-hour session, firing a
+correctly-sized correction does not bring the measured deviation back down — it re-establishes at
+essentially the same magnitude on the very next check, every time. Recommend <strong><code>tasks.md</code> 6.6 and
+7.6 both remain unchecked</strong> and the HK-011 merge hold <strong>stays in place</strong>.</p>
+<hr />
+<h2 id="5-recommendations">5. Recommendations</h2>
+<p><strong>Primary recommendation — this needs root-cause instrumentation, not another sizing tweak.</strong>
+§3.2 confirms the sizing formula itself is correct; the problem is upstream of it. Before any
+further change to <code>CycleFramer</code>'s correction logic, the Developer session should establish what
+is actually being measured as "deviation" under sustained live load:</p>
+<ol>
+<li>Instrument (or reason precisely from existing telemetry about) where the gap between
+   <code>_clock.UtcNow</code> and the arithmetic nominal sequence actually originates — genuine capture-rate
+   mismatch (chunks arriving from the audio layer at the wrong long-run rate) versus
+   <code>CycleFramer</code>'s own loop iteration being scheduled late relative to when data was actually
+   captured (CPU/thread-pool contention, GC pressure, channel backpressure).</li>
+<li>If it is scheduling delay rather than sample-rate mismatch, reconsider whether "discard/replay
+   raw samples" is the right remedy at all for that class of deviation — it may need a different
+   mechanism entirely, or the drift check may need to measure something closer to genuine capture
+   throughput rather than wall-clock-at-loop-iteration.</li>
+<li>Reconcile this run's decode-elapsed-time growth (+19.6%) and <code>hashTableRejectCount</code> growth
+   (~17x) against <code>ce13e30</code>'s explicit finding of flat elapsed times — worth checking whether that
+   difference reflects two genuinely different sessions/loads, or something that changed between
+   the two builds under test.</li>
+<li>Add systematic sampling of <code>hashTableRejectCount</code>/decode elapsed time over a session (this run
+   relied on ad hoc <code>/api/v1/status</code> polling) if session-length CPU/memory load turns out to be a
+   real factor — currently a gap in what gets logged.</li>
+</ol>
+<p><strong>Not blocking, but worth folding into the same follow-up:</strong> the WSJT-X-vs-OpenWSFZ <code>delta_dt</code>
+comparison remains deferred until a revised mechanism is re-validated with another run like this
+one, for the same reason given in <code>ce13e30</code> and the live-evidence dev-task before it.</p>
+<p><strong>Artefacts preserved for that follow-up:</strong> the full daemon log, WSJT-X <code>ALL.TXT</code>, and all 1,501
+WAV files for this session are gathered under <code>artefacts/20260724_live_run_0821/</code> (§2.1)
+specifically so the Developer session doesn't need to reproduce this run from scratch to start
+root-cause work.</p>
+<p><strong>Next endurance run:</strong> should be a re-run of this same setup once a revised mechanism (or
+diagnostic instrumentation) comes out of the recommendation above, checked specifically for
+whether the post-correction reading actually drops near the noise floor rather than
+re-establishing at the same magnitude, which is the property this run shows failing.</p>
+<hr />
+<h2 id="appendix-a-reproduction">Appendix A — Reproduction</h2>
+<ul>
+<li>Build under test: git <code>1cebf81</code>.</li>
+<li>Daemon already running (PID 5564) when QA began monitoring; capture device USB Audio CODEC
+  (<code>d451e08c-82b5-446e-a5f1-1bdd8fceeac2</code>), 20 m (14.074 MHz FT8), WSJT-X running in parallel.</li>
+<li>Monitoring method: two consecutive background log-tail watches
+  (<code>tail -n0 -F &lt;log&gt; | grep -E "Cycle boundary resync|\[ERR\]|\[WRN\]|\[FTL\]"</code>), 08:26:03 →
+  14:30:09 UTC, no gap between them.</li>
+<li>Post-hoc analysis: direct <code>grep</code>/<code>awk</code> extraction of <code>Cycle boundary resync</code> and
+  <code>Cycle boundary drift check</code> lines from the full daemon log, cross-checked against
+  <code>/api/v1/status</code> polls and heartbeat log lines for stability confirmation.</li>
+<li>Full commands used for the §3.2/§3.3 tables are reproducible directly against
+  <code>artefacts/20260724_live_run_0821/openswfz-20260724T082055Z.log</code>.</li>
+</ul>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

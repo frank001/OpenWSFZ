@@ -216,5 +216,59 @@ the dev-task; chosen approach and full rationale are recorded as `design.md` Dec
       re-run against the same device/setup as `qa/endurance/2026-07-24-ce13e30/report.md`, to
       confirm real-hardware behaviour matches the simulated long-session test above, before
       committing to another full overnight/multi-hour session. Only after that re-validation
-      should 6.6 be checked off and the HK-011 merge hold be reconsidered. **Not yet run — needs
-      live audio hardware and session time, outside QA-scoped/dev-session tooling.**
+      should 6.6 be checked off and the HK-011 merge hold be reconsidered.
+      **Run 2026-07-24 — BLOCKING finding, still open, remains unchecked:**
+      `qa/endurance/2026-07-24-1cebf81/report.md` (6h16m live session, same device family, 20 m).
+      The sizing formula itself fired exactly per Decision 5 — all 10 corrections matched their
+      confirmed deviation to the sample, none within an order of magnitude of the sanity ceiling —
+      but every single correction left the very next drift-check reading within ±4% of the
+      pre-correction value (at scales from 1,200 to 13,800 samples), and the underlying reading
+      climbed steadily across the whole session largely independent of when corrections fired.
+      The fix is sized correctly but does not converge on real hardware — see the report's
+      §3.2–3.3/§5 and the follow-on dev-task for the full analysis, ruled-out explanations, and a
+      working hypothesis (processing/scheduling delay rather than genuine capture-clock drift).
+      **Superseded by section 8's root-cause instrumentation below** — 6.6/7.6 cannot be checked
+      off until that investigation lands and this same live setup is re-run against its outcome.
+
+## 8. Root-cause instrumentation: correction is sized correctly but does not converge on real hardware (dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md)
+
+Follow-up to 7.6's live re-confirmation finding above. Unlike sections 6 and 7, this is not yet a
+known fix to implement — the dev-task's own conclusion is that the proximate cause is not
+isolated, and re-tuning `CorrectionSanityCeilingSamples`/`DriftThresholdSamples`/
+`RequiredConsecutiveReadings` again without isolating it first is explicitly discouraged (dev-task
+Recommended next steps, item 3). This section tracks the investigation, not a pre-chosen
+implementation.
+
+- [ ] 8.1 Instrument each relevant pipeline stage with timestamps — WASAPI `DataAvailable` firing
+      time, `Channel<float[]>` enqueue/dequeue instants, and `CycleFramer`'s own processing
+      instant relative to when it reads `_clock.UtcNow` — to isolate where the measured
+      "deviation" actually originates: genuine capture-rate mismatch vs. `CycleFramer`'s own
+      loop-scheduling delay vs. something else. This is the same instrumentation recommended and
+      not yet done in `dev-tasks/2026-07-23-cycleframer-correction-fires-every-cycle-live-evidence.md`
+      Recommended Next Step 1 (deferred there as a scope expansion beyond `CycleFramer.cs` —
+      touching `WasapiAudioSource.cs` needs its own scope decision, a `proposal.md` amendment or
+      follow-on change, same as noted at 6.3). Two independent live runs (that dev-task's session
+      and this one) now motivate it.
+- [ ] 8.2 Reconcile against `qa/endurance/2026-07-24-ce13e30/report.md`'s decode-elapsed-time
+      finding specifically: that run explicitly ruled out decode-side slowdown (elapsed times flat
+      300–600 ms across its whole session), while `qa/endurance/2026-07-24-1cebf81/report.md`
+      found elapsed times growing +19.6% (508 ms → 607 ms, first-100 vs last-100 cycles) alongside
+      `hashTableRejectCount` growing ~17x. Re-check `ce13e30`'s raw log with the same first-N/last-N
+      method used in the newer report before treating either "ruled out"/"contributing factor"
+      conclusion as settled — the two runs' evidence currently disagrees on a checkable point, not
+      just on interpretation.
+- [ ] 8.3 Only after 8.1–8.2 land: decide on a fix shape. Do not adjust
+      `CorrectionSanityCeilingSamples`, `DriftThresholdSamples`, or `RequiredConsecutiveReadings`
+      before root cause is isolated — `qa/endurance/2026-07-24-1cebf81/report.md` §3.2 already
+      shows Decision 5's sizing math itself is not where the problem lives.
+- [ ] 8.4 Add systematic logging for `hashTableRejectCount` and decode elapsed time at a regular
+      cadence (both were only available via ad hoc `/api/v1/status` polling in the 2026-07-24 run)
+      if 8.2 finds session-length CPU/memory load is a real contributing factor.
+- [ ] 8.5 Re-run `python3 tools/pre_merge_check.py` (HK-006) against whatever this section
+      produces before calling the change ready for merge again.
+- [ ] 8.6 Live re-confirmation: re-run the same live setup (same device, same technique) used in
+      6.6/7.6 against the outcome of 8.1–8.4, checked specifically for whether the post-correction
+      reading actually drops near the noise floor rather than re-establishing at the same
+      magnitude — the property `qa/endurance/2026-07-24-1cebf81/report.md` found failing, and the
+      one any fix needs to demonstrate. Only after this passes should 6.6/7.6 be checked off and
+      the HK-011 merge hold be reconsidered.
