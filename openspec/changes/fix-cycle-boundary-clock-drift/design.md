@@ -152,6 +152,67 @@ instrumenting `WasapiAudioSource`/the capture layer itself is outside that state
 would need its own scope decision (a proposal.md amendment or a follow-on change) — tracked as
 an open follow-up in `tasks.md`, not done silently here.
 
+### Decision 5: Once the persistence gate fires, absorb the full confirmed deviation — the per-event cap becomes a sanity ceiling, not a slew quantum
+
+**Added post-implementation, from live evidence** (`dev-tasks/2026-07-24-cycleframer-correction-sizing-fix.md`,
+following the fresh live endurance re-test at `qa/endurance/2026-07-24-ce13e30/report.md` that
+validated Decision 4's persistence gate but found the *sizing* still wrong). Over a 7h54m21s live
+session, the persistence gate worked exactly as designed — zero false-positive corrections in the
+first ~9 minutes despite every reading exceeding threshold — but once genuine drift was confirmed,
+20 corrections fired, every one saturating the (then-)48-sample cap, while accumulated deviation
+climbed from 964 to 17,119 samples (net +16,155). The 20 corrections removed only 960 samples
+total — about 6% of the growth — leaving a residual drift rate (≈0.171 s/hour) the same order of
+magnitude as the original, unfixed D-001 defect this whole change exists to eliminate.
+
+**Root cause.** `MaxCorrectionSamples` (Decisions 2–4) was sized reasoning about the persistence
+gate's *delay* before a single threshold-crossing gets acted on, not about how large the
+*confirmed, accumulated* deviation actually is by the time three consecutive non-decreasing
+readings satisfy the gate. In the endurance run, deviation-at-fire-time ranged from ~1,700 to
+~17,400 samples — the 48-sample cap absorbed as little as 0.3% of what had already been confirmed
+genuine.
+
+**Chosen.** Once `driftStreakCount >= RequiredConsecutiveReadings`, correct by the (rounded) full
+accumulated deviation, not a small fixed quantum. The renamed `CorrectionSanityCeilingSamples`
+(one full 15 s cycle = 180,000 samples) still clamps the applied correction, but purely as a
+backstop against a truly pathological `IClock` reading (a `DateTime` overflow, a multi-day
+misconfigured system clock) — not as a mechanism for slowly chipping away at ordinary confirmed
+drift. This ceiling sits roughly an order of magnitude above any deviation-at-fire observed in the
+endurance run (max 17,438 samples) and well below the ~3,600,000 samples a 5-minute host clock
+step would produce, so a genuinely pathological step still slews over several corrections rather
+than landing as one 15-second jump, while ordinary confirmed drift (of any magnitude actually seen
+in practice) is now fully absorbed in the single event that confirms it.
+
+**Why this is still consistent with the change's Goal of *bounding* drift, even though individual
+corrections may now be materially larger than 48 samples:** the goal was always to bound
+*accumulated* deviation from true UTC over an arbitrarily long session, not to bound the size of
+any single correction event. Decision 2's "small, bounded... slew, not a step" framing was written
+to justify *why a cap exists at all* (protecting against a single unconfirmed, possibly-implausible
+reading) — but once `RequiredConsecutiveReadings` has already confirmed three consecutive
+same-sign, non-decreasing readings, that protection has already been served by the persistence gate
+itself. Capping the correction at that point no longer guards against anything; it only throttles
+the fix's own remedy below the rate needed to keep up with confirmed reality, which is exactly the
+defect this decision fixes. A correction sized to the full confirmed deviation is, if anything, a
+*more* faithful reading of "bounded" than the old fixed quantum: the corrected residual is bounded
+near zero after every firing, rather than growing without bound across a session as the endurance
+run demonstrated.
+
+**Interaction with the large-clock-step slow-convergence gap**
+(`dev-tasks/2026-07-23-cycleframer-large-clock-step-slow-convergence.md`, previously
+Captain-accepted as deferred): this fix substantially improves that scenario as a side effect,
+without having been designed specifically for it. A confirmed one-off step now either lands within
+`CorrectionSanityCeilingSamples` in a single event (if the step is smaller than the ceiling) or
+slews over far fewer follow-on events than before (a 5-minute step: ~20 events of 180,000 samples
+each, versus the ~39 days of 48-sample slews the old cap would have needed). Worth revisiting that
+dev-task's status once this fix lands, but it is not re-litigated here.
+
+**Alternative considered — no cap at all (rejected in favour of a generous ceiling).** Simpler, and
+arguably still correct (by definition, if the persistence gate fired, the deviation is already
+confirmed genuine, not a single anomalous reading), but removing the backstop entirely gives up a
+cheap, deliberate defence against a truly pathological `IClock` reading (Decision 2's original
+Risks-section intent) for no real benefit — a ceiling sized several orders of magnitude above any
+plausible drift or clock-step scenario costs nothing in the common case while still catching
+genuinely broken input.
+
 ## Risks / Trade-offs
 
 - **[Risk] A large, one-time system clock step (operator changes system time, host NTP client

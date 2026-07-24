@@ -166,4 +166,55 @@ mechanism.
       order-of-magnitude matching the original unfixed D-001 figure this change exists to
       eliminate. See the report's §3.2/§5 for the full analysis and a proposed design direction
       (size the correction to the confirmed deviation once persistence fires, not a small flat
-      cap). Do not un-hold the merge on this run's evidence.
+      cap). Do not un-hold the merge on this run's evidence. **Superseded by section 7's sizing
+      fix below** — 6.6's live re-run must be repeated against that revised code before this item
+      can be checked off.
+
+## 7. Correction-sizing fix: persistence gate confirms correctly but under-corrects (dev-tasks/2026-07-24-cycleframer-correction-sizing-fix.md)
+
+Follow-up to 6.6's endurance re-test finding above. Full root cause, options, and rationale are in
+the dev-task; chosen approach and full rationale are recorded as `design.md` Decision 5.
+
+- [x] 7.1 `design.md`: add Decision 5 documenting the corrected sizing rationale — the
+      persistence gate's confirmation, not a fixed quantum, now determines how much is corrected;
+      the renamed `CorrectionSanityCeilingSamples` exists only as a backstop against pathological
+      input, not as a slow-slew mechanism for confirmed drift. **Done.**
+- [x] 7.2 `specs/ft8-decoder/spec.md`: update the "correction fires once accumulated deviation
+      persists above threshold" and "single implausibly large deviation" scenarios to reflect
+      that the correction now matches the confirmed deviation, bounded only by the revised sanity
+      ceiling. **Done.**
+- [x] 7.3 `src/OpenWSFZ.Ft8/CycleFramer.cs`: replace the `Math.Clamp(..., -MaxCorrectionSamples,
+      MaxCorrectionSamples)` cap in the `driftStreakCount >= RequiredConsecutiveReadings` block
+      with a clamp against a renamed `CorrectionSanityCeilingSamples` constant, sized to one full
+      15 s cycle (180,000 samples @ 12 kHz) — roughly an order of magnitude above the endurance
+      run's max observed deviation-at-fire (17,438 samples) and well below the ~3,600,000 samples
+      a 5-minute host clock step would produce, so genuine drift/step scenarios are unaffected by
+      the ceiling while a truly pathological reading still cannot produce an unbounded jump.
+      Updated the class-level `<summary>` and the constant-derivation comment block to match.
+      **Done.**
+- [x] 7.4 `tests/OpenWSFZ.Ft8.Tests/CycleFramerTests.cs`: updated
+      `RunAsync_ConstantRateOffset_BoundedCorrectionFiresAtThreshold` (wording only — the test's
+      48-sample scenario stays well under the new ceiling, so it still fully absorbs and the
+      numeric assertion is unchanged) and renamed/revised
+      `RunAsync_OneOffLargeClockStep_CorrectionStaysWithinCap` →
+      `RunAsync_OneOffLargeClockStep_CorrectionStaysWithinSanityCeiling` (now asserts against the
+      much larger `CorrectionSanityCeilingSamples`, still well below the simulated 5-minute step).
+      Added `RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections`: a
+      24-window simulated session (~8 correction events at an exaggerated 5 ms/cycle offset)
+      asserting residual deviation from the true `IClock`-derived boundary stays bounded near the
+      noise floor after every firing, and that the late-session peak residual is not meaningfully
+      larger than the early-session peak — the property the endurance run found failing and the
+      earlier single-correction-event tests could not have caught. **Done** — all 17 tests in the
+      file pass (16 pre-existing + 1 new).
+- [x] 7.5 Re-run `python3 tools/pre_merge_check.py` (HK-006) against this section's changes
+      before calling the change ready for merge again.
+      **Done:** all gates PASS — G9a doc/VERSION, Release build, UDP-margin lint, G10 lint, full
+      test suite (all projects, incl. 299/299 `OpenWSFZ.Ft8.Tests` — up one from section 6's run),
+      G3 traceability, WSL Debian compile+test, G8 openspec strict validation, self-contained
+      publish, AOT publish. Result: READY.
+- [ ] 7.6 Live re-confirmation: per the dev-task's Validation plan, a shorter (1-2 hour) live
+      re-run against the same device/setup as `qa/endurance/2026-07-24-ce13e30/report.md`, to
+      confirm real-hardware behaviour matches the simulated long-session test above, before
+      committing to another full overnight/multi-hour session. Only after that re-validation
+      should 6.6 be checked off and the HK-011 merge hold be reconsidered. **Not yet run — needs
+      live audio hardware and session time, outside QA-scoped/dev-session tooling.**
