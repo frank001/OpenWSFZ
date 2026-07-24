@@ -308,9 +308,14 @@ implementation.
       produces before calling the change ready for merge again.
       **Done:** all gates PASS — G9a doc/VERSION, Release build, UDP-margin lint, G10 lint, full
       test suite (all projects, incl. 300/300 `OpenWSFZ.Ft8.Tests` — up one from section 7's run —
-      and 17/17 `OpenWSFZ.Audio.Tests` — up one), G3 traceability, WSL Debian compile+test, G8
-      openspec strict validation (57/57, incl. this change's Decision-6-revised design.md/
+      and 20/20 `OpenWSFZ.Audio.Tests` — up one from 19), G3 traceability, WSL Debian compile+test,
+      G8 openspec strict validation (57/57, incl. this change's Decision-6-revised design.md/
       proposal.md), self-contained publish, AOT publish. Result: READY.
+      **Erratum (QA review, 2026-07-24):** this item originally read "17/17
+      `OpenWSFZ.Audio.Tests`" — incorrect on both the total and the delta; independently
+      re-run and confirmed as 20/20 (up from 19, one new test:
+      `StartAsync_AfterManyChunks_LogsPeriodicCadenceDebug`), consistent with 8.1's own
+      correct count two sections above. All other gate results in this item stand unchanged.
 - [ ] 8.6 Live re-confirmation: re-run the same live setup (same device, same technique) used in
       6.6/7.6 against the outcome of 8.1–8.4, checked specifically for whether the post-correction
       reading actually drops near the noise floor rather than re-establishing at the same
