@@ -206,3 +206,22 @@ fix shape, given H₀-3's result changes which explanations are still live.
 `qa/endurance/2026-07-24-1cebf81/report.md` (the two prior runs against this change);
 `qa/endurance/2026-07-24-29041f7/run-notes.md` (this run's raw working notes, timestamped as
 gathered).
+
+---
+
+## Appendix: reproduction
+
+- Report: this file (+ rendered `report.html`).
+- Artefacts: `artefacts/20260724_live_run_1607/` — `ALL.TXT` (WSJT-X's cumulative decode log,
+  cleared before this run started), `owsfx ALL.TXT` (OpenWSFZ's own ALL.TXT, same format,
+  also cleared beforehand), `openswfz-20260724T160705Z.log` (full daemon log, 32m4s, 323 KB),
+  `wav/` (all 126 session WAV files, ~47 MB, `260724_160730.wav` through `260724_163845.wav`).
+  Git-ignored (NFR-021/GDPR), local only — not reproducible from the repo alone; use these files
+  directly rather than re-running live.
+- Git state at time of this run: `HEAD = 5bcad5c` at time of artefact collection (this report +
+  `tasks.md` 8.6 update, committed after the run completed) on top of `29041f7` (instrumentation
+  under test) + `82469ca` (docs-only test-count fix, no `src/` change).
+- Evidence figures reproduced via direct `grep`/`awk` extraction of `Cycle boundary drift check`,
+  `Cycle boundary resync`, and `Cycle boundary pipeline timing` lines from
+  `artefacts/20260724_live_run_1607/openswfz-20260724T160705Z.log`; the live monitoring script
+  used during the run itself is preserved at `qa/endurance/2026-07-24-29041f7/monitor.sh`.

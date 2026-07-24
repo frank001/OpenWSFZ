@@ -635,6 +635,24 @@ fix shape, given H₀-3's result changes which explanations are still live.</p>
 <code>qa/endurance/2026-07-24-1cebf81/report.md</code> (the two prior runs against this change);
 <code>qa/endurance/2026-07-24-29041f7/run-notes.md</code> (this run's raw working notes, timestamped as
 gathered).</p>
+<hr />
+<h2 id="appendix-reproduction">Appendix: reproduction</h2>
+<ul>
+<li>Report: this file (+ rendered <code>report.html</code>).</li>
+<li>Artefacts: <code>artefacts/20260724_live_run_1607/</code> — <code>ALL.TXT</code> (WSJT-X's cumulative decode log,
+  cleared before this run started), <code>owsfx ALL.TXT</code> (OpenWSFZ's own ALL.TXT, same format,
+  also cleared beforehand), <code>openswfz-20260724T160705Z.log</code> (full daemon log, 32m4s, 323 KB),
+  <code>wav/</code> (all 126 session WAV files, ~47 MB, <code>260724_160730.wav</code> through <code>260724_163845.wav</code>).
+  Git-ignored (NFR-021/GDPR), local only — not reproducible from the repo alone; use these files
+  directly rather than re-running live.</li>
+<li>Git state at time of this run: <code>HEAD = 5bcad5c</code> at time of artefact collection (this report +
+  <code>tasks.md</code> 8.6 update, committed after the run completed) on top of <code>29041f7</code> (instrumentation
+  under test) + <code>82469ca</code> (docs-only test-count fix, no <code>src/</code> change).</li>
+<li>Evidence figures reproduced via direct <code>grep</code>/<code>awk</code> extraction of <code>Cycle boundary drift check</code>,
+  <code>Cycle boundary resync</code>, and <code>Cycle boundary pipeline timing</code> lines from
+  <code>artefacts/20260724_live_run_1607/openswfz-20260724T160705Z.log</code>; the live monitoring script
+  used during the run itself is preserved at <code>qa/endurance/2026-07-24-29041f7/monitor.sh</code>.</li>
+</ul>
   </div>
   <script>
     // Colour verdict cells: PASS / FAIL / MARGINAL / informational
