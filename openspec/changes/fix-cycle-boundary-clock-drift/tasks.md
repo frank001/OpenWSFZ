@@ -364,6 +364,26 @@ implementation.
       is real. **Superseded-pending:** a longer follow-up run, once 8.4 lands and/or 8.3 needs
       stronger confidence specifically on the pipeline-timing correlation — not committed to by
       default.
+      **Run 2026-07-24 evening (short, ~39 min, by design) — still open, remains unchecked:**
+      `qa/endurance/2026-07-24-f57fa4d/report.md`, the first live run with 8.4's
+      `hashTableRejectCount` logging and 8.7's confirmed mechanism in the build under test (8.7
+      itself confirmed via isolated unit tests, not re-tested live here). Non-convergence
+      reproduces again: 3 corrections fired (mixed next-reading direction, 2 decreases/1
+      increase — not the clean `1cebf81` failure pattern, but not convergence either), and the
+      session-wide oscillation band still climbed ~2.2x (1,122.3 -> 2,469.0 samples avg,
+      first-10 vs last-10 readings) at ≈35.3 samples/min — the third session in a row
+      (`ce13e30` ≈34.1/min, `29041f7` ≈31.6/min) to show a consistent rate despite differing
+      length/band/correction-cadence, itself the strongest cross-run evidence yet of one stable
+      underlying mechanism. 8.4's logging confirmed working correctly under real sustained load
+      (0 -> 2,394 `hashTableRejectCount` over the session, harmless). **New finding, not
+      previously gathered by any run against this change:** a manual DT comparison against
+      WSJT-X (one cycle, 11 matched decodes) found OpenWSFZ's DT running a flat ~+0.5 to +0.6s
+      higher than WSJT-X's throughout — larger and flatter than the ~0.1-0.2s `deviation` the
+      drift-check instrumentation itself reported at that point, suggesting (hypothesis, not
+      yet confirmed) a possibly separate, time-invariant measurement-reference offset distinct
+      from the session-scale drift this change targets. Flagged as the report's top follow-up
+      recommendation — not yet checked against any prior baseline characterization, and based
+      on a single cycle, not a session-wide comparison.
 
 - [x] 8.7 Candidate mechanism identified from 8.6's own artefacts (no new live run) — a discard
       ("lengthen"/positive) correction requires waiting to receive the discarded samples at the
