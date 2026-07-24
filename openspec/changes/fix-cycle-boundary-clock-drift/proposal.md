@@ -73,12 +73,22 @@ change to capture, resampling, or correction behaviour on any platform.
   itself); this amendment widens only the diagnostic-instrumentation scope, needed because a live
   endurance re-test found the (correctly-sized, per Decision 5) correction firing exactly as
   designed yet still not converging, and isolating why requires visibility into the capture
-  pipeline stages upstream of `CycleFramer`, not just `CycleFramer` itself.
+  pipeline stages upstream of `CycleFramer`, not just `CycleFramer` itself. As of `tasks.md` 8.4
+  (design.md Decision 7): `src/OpenWSFZ.Ft8/Ft8Decoder.cs` — one new Information-level log line
+  per cycle (`hashTableRejectCount`), same cadence as the existing spec-mandated decode-elapsed
+  line it sits beside; no change to decode logic, decode results, or any other behaviour.
 - **Tests:** new coverage using a fake/injectable `IClock` in `CycleFramer` tests, asserting
   (a) no correction fires absent drift, (b) a bounded correction fires once accumulated
   deviation exceeds threshold, (c) a single implausibly large deviation does not produce an
   unbounded jump; plus Debug-log-assertion coverage in `CycleFramerTests.cs` and
-  `CaptureManagerTests.cs` for the diagnostic instrumentation above.
+  `CaptureManagerTests.cs` for the diagnostic instrumentation above. As of `tasks.md` 8.7 (design.md
+  Decision 7): two isolated, rate-limited-source tests in `CycleFramerTests.cs`
+  (`RunAsync_DiscardCorrectionOnRateLimitedSource_CostsProportionalRealTime`,
+  `RunAsync_ReplayCorrectionOnRateLimitedSource_DoesNotCostExtraRealTime`) confirming the
+  discard-costs-real-time/replay-does-not asymmetry under a controlled, confound-free source. As
+  of `tasks.md` 8.4: two new tests in `HashTableRejectCountLoggingTests.cs` asserting the new
+  `Ft8Decoder` log line fires every cycle, at Information level, with the correct value (including
+  the zero case).
 - **Validation:** re-running the Tight/Isolated replay pilots
   (`qa/rr-study/results/2026-07-23-d9ab692-d001-isolated-pipeline-diagnosis/` and
   `qa/rr-study/results/2026-07-23-d001-tight-class-replay/` harnesses) against a corrected build

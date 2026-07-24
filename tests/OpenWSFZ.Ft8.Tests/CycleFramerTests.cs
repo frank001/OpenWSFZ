@@ -837,6 +837,162 @@ public sealed class CycleFramerTests
             "and chunk-dequeue-gap stats to isolate where accumulated deviation originates");
     }
 
+    // ── tasks.md 8.7: discard-vs-replay real-time-cost falsification test ────
+    //
+    // Tests the candidate mechanism identified from qa/endurance/2026-07-24-29041f7's own
+    // artefacts (dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md,
+    // "continued" addendum): a discard ("lengthen"/positive) correction cannot reclaim real
+    // wall-clock time — RunAsync's loop only advances by reading chunks off _source, which in
+    // production is rate-limited by the real capture device, so discarding `correction` extra
+    // raw samples means WAITING to receive them first, at whatever rate the source delivers. A
+    // replay ("shorten"/negative) correction, by contrast, reuses already-buffered tail samples
+    // immediately and should cost no extra real time at all — the asymmetry this pair of tests
+    // exists to check.
+    //
+    // Neither existing feed helper (FeedExactSamples/FeedSamples) can exercise this: both write
+    // to an unbounded Channel<float[]> with no delay between chunks, so RunAsync never actually
+    // waits on the source — by design, so the tests above run in milliseconds and are immune to
+    // real-timing flakiness. FeedSamplesAtRealRate below deliberately reintroduces a real,
+    // measurable per-chunk delay so the mechanism under test can manifest, but every assertion
+    // below is a RELATIVE ratio against this same run's own measured baseline chunk timing —
+    // never a hardcoded millisecond threshold — per this project's own flaky-test-delay lessons
+    // (test-delay-debt.md, Gate G10): the ratio self-calibrates against whatever the actual
+    // Task.Delay/OS-timer granularity turns out to be on the machine running the test, rather
+    // than assuming a specific one.
+    //
+    // Both tests use a large, exaggerated 1.25 s/cycle clock offset (15 000 samples/cycle @
+    // 12 kHz) — not tied to any measured real-world drift rate — purely so the persistence gate
+    // fires after exactly 3 checks with a clean, chunk-aligned 45 000-sample correction (10x the
+    // 4 500-sample RealRateChunkSize), making the affected window's real-time cost a clean,
+    // easily-distinguished 10 extra/fewer chunks relative to an ordinary window's 40.
+
+    private const int RealRateChunkSize = 4_500; // SamplesPerCycle / 40 — exact, no remainder
+    private static readonly TimeSpan RealRateChunkDelay = TimeSpan.FromMilliseconds(10);
+
+    private static async Task FeedSamplesAtRealRate(
+        ChannelWriter<float[]> writer, int totalSamples, int samplesPerChunk,
+        TimeSpan perChunkDelay, float fillValue = 0.5f)
+    {
+        int sent = 0;
+        while (sent < totalSamples)
+        {
+            int take = Math.Min(samplesPerChunk, totalSamples - sent);
+            await Task.Delay(perChunkDelay); // the real-time cost under test — deliberate, not incidental
+            var chunk = new float[take];
+            Array.Fill(chunk, fillValue);
+            await writer.WriteAsync(chunk);
+            sent += take;
+        }
+    }
+
+    [Fact(DisplayName = "tasks.md 8.7 falsification test 1: a discard correction costs real time proportional to its own size")]
+    public async Task RunAsync_DiscardCorrectionOnRateLimitedSource_CostsProportionalRealTime()
+    {
+        var startTime = new DateTime(2026, 7, 24, 12, 0, 0, DateTimeKind.Utc);
+        // +1.25 s/cycle offset -> 15 000 samples/cycle deviation growth (device "running slow" ->
+        // positive deviation -> discard branch). Persistence gate fires at check 3 (45 000
+        // samples), affecting window 3's accumulation with a +45 000-sample discard.
+        var clock  = new RateClock(startTime, TimeSpan.FromSeconds(CycleDurationSecs) + TimeSpan.FromSeconds(1.25));
+        var source = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<(float[], DateTime, double?)>();
+        var framer = new CycleFramer(source.Reader, clock);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var framerTask = Task.Run(() => framer.RunAsync(output.Writer, cts.Token));
+
+        const int windowCount = 4;
+        const int correction  = 45_000;
+        // Windows 0-2 need exactly SamplesPerCycle raw samples each; window 3 additionally needs
+        // `correction` raw samples discarded before it can close.
+        int totalSamples = SamplesPerCycle * (windowCount - 1) + (SamplesPerCycle + correction);
+        var feedTask = FeedSamplesAtRealRate(source.Writer, totalSamples, RealRateChunkSize, RealRateChunkDelay);
+
+        var windowCloseUtc = new List<DateTime>();
+        for (int i = 0; i < windowCount; i++)
+        {
+            await output.Reader.ReadAsync(cts.Token);
+            windowCloseUtc.Add(DateTime.UtcNow);
+        }
+        await feedTask;
+
+        cts.Cancel();
+        try { await framerTask; } catch { /* cancelled */ }
+
+        // Two uncorrected intervals (window0->1, window1->2) establish this run's own baseline
+        // real time for an ordinary, uncorrected 40-chunk window; window2->3 spans the +45 000
+        // discard correction (10 extra chunks, 50 total).
+        var interval01 = (windowCloseUtc[1] - windowCloseUtc[0]).TotalSeconds;
+        var interval12 = (windowCloseUtc[2] - windowCloseUtc[1]).TotalSeconds;
+        var interval23 = (windowCloseUtc[3] - windowCloseUtc[2]).TotalSeconds;
+        var baseline    = (interval01 + interval12) / 2.0;
+
+        // Theoretical ratio is exactly 50/40 = 1.25 (10 extra chunks over an ordinary 40); the
+        // band below is deliberately generous around that (not pinned to it) to absorb
+        // Task.Delay/OS-timer jitter while still clearly distinguishing "costs real time" (this
+        // assertion) from "costs nothing" (ratio ~= 1.0, which would fail the lower bound).
+        double ratio = interval23 / baseline;
+        ratio.Should().BeInRange(1.10, 1.60,
+            "a discard correction requires waiting for the discarded samples to actually arrive at " +
+            "the source's delivery rate before the next window can close, so the window spanning the " +
+            "correction should take measurably longer (theoretically ~1.25x an ordinary window here) " +
+            "than an ordinary, uncorrected window in the same run — not the same or less");
+    }
+
+    [Fact(DisplayName = "tasks.md 8.7 falsification test 2: a replay correction does not cost extra real time (asymmetry check)")]
+    public async Task RunAsync_ReplayCorrectionOnRateLimitedSource_DoesNotCostExtraRealTime()
+    {
+        var startTime = new DateTime(2026, 7, 24, 12, 0, 0, DateTimeKind.Utc);
+        // -1.25 s/cycle offset -> -15 000 samples/cycle deviation growth (device "running fast" ->
+        // negative deviation -> replay branch). Persistence gate fires at check 3 (-45 000
+        // samples), affecting window 3 with a -45 000-sample replay (already-buffered tail
+        // samples reused, no new raw samples needed for that portion).
+        var clock  = new RateClock(startTime, TimeSpan.FromSeconds(CycleDurationSecs) - TimeSpan.FromSeconds(1.25));
+        var source = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<(float[], DateTime, double?)>();
+        var framer = new CycleFramer(source.Reader, clock);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var framerTask = Task.Run(() => framer.RunAsync(output.Writer, cts.Token));
+
+        const int windowCount = 4;
+        const int correction  = 45_000;
+        // Windows 0-2 need exactly SamplesPerCycle raw samples each; window 3 needs `correction`
+        // FEWER raw samples, since the replay branch pre-fills it from the previous window's
+        // already-captured tail instead of consuming new source samples for that portion.
+        int totalSamples = SamplesPerCycle * (windowCount - 1) + (SamplesPerCycle - correction);
+        var feedTask = FeedSamplesAtRealRate(source.Writer, totalSamples, RealRateChunkSize, RealRateChunkDelay);
+
+        var windowCloseUtc = new List<DateTime>();
+        for (int i = 0; i < windowCount; i++)
+        {
+            await output.Reader.ReadAsync(cts.Token);
+            windowCloseUtc.Add(DateTime.UtcNow);
+        }
+        await feedTask;
+
+        cts.Cancel();
+        try { await framerTask; } catch { /* cancelled */ }
+
+        var interval01 = (windowCloseUtc[1] - windowCloseUtc[0]).TotalSeconds;
+        var interval12 = (windowCloseUtc[2] - windowCloseUtc[1]).TotalSeconds;
+        var interval23 = (windowCloseUtc[3] - windowCloseUtc[2]).TotalSeconds;
+        var baseline    = (interval01 + interval12) / 2.0;
+
+        // Theoretical ratio is exactly 30/40 = 0.75 (10 fewer chunks than an ordinary 40) — the
+        // asymmetry this test exists to check: a replay correction should take LESS real time
+        // than an ordinary window, never more, unlike the discard branch above. Band is
+        // deliberately generous around that for the same Task.Delay/OS-timer-jitter reasons as
+        // the discard test, but the upper bound (0.95) is the load-bearing assertion — anything
+        // at or above ~1.0 would mean replay also costs real time, refuting the mechanism as
+        // stated (see the dev-task's "What a result would mean").
+        double ratio = interval23 / baseline;
+        ratio.Should().BeInRange(0.55, 0.95,
+            "a replay correction reuses already-captured tail samples immediately and needs fewer " +
+            "new raw samples from the source, so the window spanning the correction should take " +
+            "measurably LESS real time (theoretically ~0.75x an ordinary window here) than an " +
+            "ordinary, uncorrected window in the same run — not the same or more");
+    }
+
     /// <summary>
     /// <see cref="ILogger{T}"/> that records every log entry for assertion — local to this
     /// file rather than shared, mirroring OpenWSFZ.Audio.Tests' equivalent test double.

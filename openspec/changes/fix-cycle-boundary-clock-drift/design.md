@@ -269,6 +269,58 @@ compromise.
 dev-task must wait until this instrumentation has actually run live and 8.1/8.2's findings are in
 hand — this decision adds the instrumentation only, not a fix.
 
+### Decision 7: Widen scope to `Ft8Decoder.cs` for systematic `hashTableRejectCount` logging (tasks.md 8.4); add an isolated, confound-free unit test for the Decision-6-era self-inflicted-delay mechanism (tasks.md 8.7)
+
+**Added post-implementation, from a dev-task addendum** (`dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md`,
+"continued" addendum). Re-reading `qa/endurance/2026-07-24-29041f7/report.md`'s own artefacts
+(no new live run) found that every discard correction observed live is followed, one cycle later,
+by a real-inter-window-elapsed excess matching the correction's own size (89-114%, avg 98.5%,
+n=8) — a candidate mechanism: the discard branch cannot reclaim real wall-clock time, only spend
+more of it, because it waits for the discarded samples to actually arrive at the source's real
+delivery rate before the next window can close. That addendum explicitly stopped short of calling
+this confirmed (live-only confounds — the resync `LogInformation` call, a concurrent decode
+kickoff — were not individually ruled out) and proposed two isolated, deterministic unit tests as
+the next step, plus separately reiterated 8.4's still-open systematic-logging gap
+(`hashTableRejectCount`, only ever sampled ad hoc via `/api/v1/status` polling, unlike decode
+elapsed time which the 8.2 reconciliation confirmed is already logged every cycle and needed no
+new instrumentation).
+
+**Chosen — both items, same Captain-authorized Developer-session pass:**
+- **8.7:** `RunAsync_DiscardCorrectionOnRateLimitedSource_CostsProportionalRealTime` and
+  `RunAsync_ReplayCorrectionOnRateLimitedSource_DoesNotCostExtraRealTime` in `CycleFramerTests.cs`
+  — a new `FeedSamplesAtRealRate` test helper reintroduces genuine per-chunk `Task.Delay` (absent
+  from every other feed helper in that file by design, so those stay immune to real-timing
+  flakiness) to make the source genuinely rate-limited, then asserts a *relative ratio* against
+  the same run's own measured baseline chunk timing — never a hardcoded millisecond threshold, per
+  `test-delay-debt.md`/Gate G10. **Result: both tests confirmed the mechanism, cleanly, across 5
+  consecutive runs** — a materially stronger evidence class than the live-only correlational data,
+  since the two confounds the addendum flagged are structurally absent from an isolated test. This
+  does not touch `src/` (tests-only) and needed no `proposal.md` Impact amendment — the existing
+  "new coverage using a fake/injectable `IClock`" Tests line already covers it.
+- **8.4:** `Ft8Decoder.DecodeAsync` (`src/OpenWSFZ.Ft8/Ft8Decoder.cs`) now logs
+  `hashTableRejectCount` at Information level once per cycle, immediately alongside the existing
+  spec-mandated "Cycle {Time}: {Count} decode(s) found, elapsed={Elapsed} ms" line — same cadence,
+  same level, so a future live run's raw log can reconstruct a session-long
+  `hashTableRejectCount` trend the way it already can for decode elapsed time, without needing ad
+  hoc endpoint polling mid-session. This **does** widen scope beyond `CycleFramer.cs` — same
+  situation as Decision 6, same resolution: `proposal.md`'s Impact section is amended in place
+  rather than silently expanded.
+
+**Why `Ft8Decoder.cs` is the right place, not `CycleFramer.cs` or the daemon status endpoint.**
+`GetHashTableRejectCount()` is only reachable through the decoder (`Ft8Decoder`/`IFt8NativeInterop`)
+— `CycleFramer` has no access to it and no reason to acquire one just to log a value it doesn't
+own. The existing `GET /api/v1/status` exposure (`hashTableRejectCountProvider` in
+`WebApp`/`Program.cs`) remains unchanged and still useful for live, on-demand checks; this adds a
+second, passive channel (the daemon log) for after-the-fact session analysis, which is what both
+8.2's reconciliation gap and this Decision exist to close.
+
+**Why this is safe to add without a full risk/mitigation write-up like Decisions 1-5.** Same
+reasoning as Decision 6: read-only (the counter's own contract — `GetHashTableRejectCount`'s doc
+comment already states reads have no side effects and do not reset it), Information level (matches
+the existing elapsed-time line it sits beside, not a new noisier tier), and does not touch, gate,
+or condition on the drift-correction logic itself — it is pure observability, added at the one
+place upstream of that logic that already computes a per-cycle summary line.
+
 ## Risks / Trade-offs
 
 - **[Risk] A large, one-time system clock step (operator changes system time, host NTP client

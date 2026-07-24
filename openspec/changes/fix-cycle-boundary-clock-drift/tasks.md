@@ -289,21 +289,44 @@ implementation.
       `CorrectionSanityCeilingSamples`, `DriftThresholdSamples`, or `RequiredConsecutiveReadings`
       before root cause is isolated — `qa/endurance/2026-07-24-1cebf81/report.md` §3.2 already
       shows Decision 5's sizing math itself is not where the problem lives.
-      **Still blocked:** 8.1's instrumentation exists but has not run live yet (needs 8.6); 8.2's
-      reconciliation removed decode-elapsed-time growth as reliable supporting evidence for
-      Evidence 5's working hypothesis rather than confirming it either way. No live data yet to
-      isolate genuine capture-rate mismatch vs. pipeline-scheduling delay vs. something else — do
-      not start this until 8.6 produces that data.
-- [ ] 8.4 Add systematic logging for `hashTableRejectCount` and decode elapsed time at a regular
+      **Updated 2026-07-24 — root cause now has direct isolated-test confirmation, fix shape
+      still not decided:** 8.7's two falsification tests (above) confirmed the discard-costs-
+      real-time mechanism under a controlled, confound-free rate-limited source — a materially
+      stronger evidence class than 8.6's live-only correlational data (which could not rule out
+      the resync-log-call/concurrent-decode confounds 8.7 was specifically designed to eliminate
+      by construction). This narrows 8.3 considerably: the leading candidate is no longer "genuine
+      capture-rate mismatch vs. pipeline-scheduling delay vs. something else" (8.6 already
+      de-prioritized the scheduling-delay-at-the-three-instrumented-stages half) but specifically
+      "the discard branch's relabel/skip is not actually free in real time." **Still not
+      decided:** what fix shape follows from that — e.g., whether to size the *discard* correction
+      differently, redefine what deviation is measured against so a self-inflicted wait isn't
+      re-counted as fresh drift, or something else; each is a design.md-level decision, not
+      something to pick without the Captain/Architect's sign-off given HK-011's session-separation
+      intent for exactly this kind of call. 8.6's live re-confirmation (using 8.1's instrumentation
+      against a fix, once one exists) is still the acceptance test before 6.6/7.6/8.6 can be
+      checked off.
+- [x] 8.4 Add systematic logging for `hashTableRejectCount` and decode elapsed time at a regular
       cadence (both were only available via ad hoc `/api/v1/status` polling in the 2026-07-24 run)
       if 8.2 finds session-length CPU/memory load is a real contributing factor.
-      **Not done — premise not met, but strengthened, not weakened:** 8.2 didn't find a clean
-      "session-length CPU/memory load is a real contributing factor" result (neither run shows a
-      robust monotonic elapsed-time trend), but it did show ad hoc endpoint sampling (first-100
-      vs. last-100) produced a misleading headline in both directions — a stronger argument for
-      regular-cadence logging over ad hoc polling than the original conditional anticipated. Worth
-      doing regardless of 8.3's eventual fix shape; not yet done here since it's not on 8.1/8.2's
-      critical path.
+      **Done 2026-07-24, per Captain's explicit sign-off to treat this session as Developer.**
+      Narrowed by 8.2's own finding before implementation: decode elapsed time already has
+      systematic per-cycle logging (the existing spec-mandated "Cycle {Time}: {Count} decode(s)
+      found, elapsed={Elapsed} ms" line in `Ft8Decoder.cs` — that's how 8.2's reconciliation
+      pulled it from both raw logs in the first place), so only `hashTableRejectCount` had the gap
+      8.2 confirmed ("neither raw log contains it... confirming 8.4's premise"). Added one new
+      Information-level log line in `Ft8Decoder.DecodeAsync`
+      (`src/OpenWSFZ.Ft8/Ft8Decoder.cs`, design.md Decision 7), immediately after the existing
+      elapsed-time line, same cadence and level: `"Cycle {Time}: hashTableRejectCount={Count}
+      (process-lifetime cumulative)."`. `proposal.md`'s Impact section amended (Decision 7,
+      mirroring how Decision 6 handled the same kind of scope widening). New coverage:
+      `HashTableRejectCountLoggingTests.cs` (`DecodeAsync_EveryCycle_LogsHashTableRejectCountAtInformation`,
+      `DecodeAsync_ZeroRejectCount_LogsZeroExplicitly`) using the existing `IFt8NativeInterop`
+      fake-injection seam (no native DLL load, independent of `HashTableRejectCountTests`'s
+      real-shim run-order constraints) — both pass. `hashTableRejectCount` remains a
+      process-lifetime cumulative counter (unchanged contract); logging it every cycle still lets
+      a raw-log analysis derive cycle-over-cycle deltas or a whole-session trend, same as the
+      elapsed-time reconciliation already does. Does not touch, gate, or condition on the
+      drift-correction logic itself — pure observability.
 - [x] 8.5 Re-run `python3 tools/pre_merge_check.py` (HK-006) against whatever this section
       produces before calling the change ready for merge again.
       **Done:** all gates PASS — G9a doc/VERSION, Release build, UDP-margin lint, G10 lint, full
@@ -342,7 +365,7 @@ implementation.
       stronger confidence specifically on the pipeline-timing correlation — not committed to by
       default.
 
-- [ ] 8.7 Candidate mechanism identified from 8.6's own artefacts (no new live run) — a discard
+- [x] 8.7 Candidate mechanism identified from 8.6's own artefacts (no new live run) — a discard
       ("lengthen"/positive) correction requires waiting to receive the discarded samples at the
       real device delivery rate before the next window can close, so it spends real wall-clock
       time rather than reclaiming any; the next drift check then re-measures that self-inflicted
@@ -357,6 +380,43 @@ implementation.
       **Explicitly not a root-cause confirmation:** code-consistent and empirically corroborated,
       but not the result of an isolated/controlled test — confounds sharing the same timing window
       (the resync log call, a concurrent decode kickoff) have not been individually ruled out.
-      **Not implemented here, per HK-011** — the proposed test lives in `tests/`, which is
-      Developer-session territory same as `src/` for this change; QA's role stops at the
-      specification. 8.3 remains blocked on this test's outcome, not just on this addendum.
+      **Implemented and run 2026-07-24, per Captain's explicit sign-off to treat this session as
+      Developer for this item** (supersedes the "not implemented here" note below, which
+      described the state before that sign-off): `RunAsync_DiscardCorrectionOnRateLimitedSource_CostsProportionalRealTime`
+      and `RunAsync_ReplayCorrectionOnRateLimitedSource_DoesNotCostExtraRealTime` in
+      `CycleFramerTests.cs`, following the dev-task's proposed spec essentially verbatim (a new
+      `FeedSamplesAtRealRate` helper reintroducing genuine per-chunk `Task.Delay`, deliberately
+      absent from every other feed helper in this file so those stay immune to real-timing
+      flakiness). Both engineer a clean, chunk-aligned 45 000-sample correction (10x a
+      4 500-sample chunk) via a large exaggerated 1.25 s/cycle `RateClock` offset, and assert a
+      *relative ratio* against this run's own measured baseline chunk timing (never a hardcoded
+      millisecond threshold — per `test-delay-debt.md`/Gate G10) so the test self-calibrates
+      against whatever the actual Task.Delay/OS-timer granularity is on the machine running it.
+      **Result: CONFIRMED, both tests, clean pass across 5 consecutive runs (no flake).** Test 1:
+      the window spanning a discard correction took ~1.10-1.60x an ordinary window's real time
+      (theoretical 1.25x); Test 2: the window spanning a replay correction took ~0.55-0.95x an
+      ordinary window's real time (theoretical 0.75x) — the predicted asymmetry holds under a
+      controlled, confound-free rate-limited source, with the specific confounds this addendum
+      flagged as not-yet-ruled-out (the resync `LogInformation` call, a concurrent decode kickoff)
+      absent entirely from this test. Per the dev-task's own "What a result would mean": this is
+      strong support for treating the discard-costs-real-time mechanism as 8.3's root cause — the
+      fix shape needs to address that the discard branch's premise (relabelling/skipping raw
+      samples is "free") is false, not just re-tune constants again. **This unblocks 8.3's
+      root-cause question but does not by itself decide a fix shape or re-open 8.3** — that
+      remains a separate design decision.
+      **Original note (state before the above sign-off, kept for the record):** not implemented
+      here, per HK-011 — the proposed test lives in `tests/`, which is Developer-session territory
+      same as `src/` for this change; QA's role stops at the specification.
+
+- [x] 8.8 Re-run `python3 tools/pre_merge_check.py` (HK-006) against 8.4's and 8.7's combined
+      changes before calling this pass done.
+      **Done 2026-07-24:** all gates PASS — G9a doc/VERSION, Release build, UDP-margin lint, G10
+      lint, full test suite (all projects, incl. 304/304 `OpenWSFZ.Ft8.Tests` — up 4 from 8.5's
+      300/300: the 2 new 8.7 falsification tests + the 2 new 8.4
+      `HashTableRejectCountLoggingTests`; `OpenWSFZ.Audio.Tests` unchanged at 20/20, no changes in
+      that project this pass), G3 traceability, WSL Debian compile+test, G8 openspec strict
+      validation (57/57, incl. this change's Decision-7-revised `design.md`/`proposal.md`), G9b
+      self-contained publish, AOT publish. Result: READY (on the mechanical gates only — this is
+      **not** a merge-readiness claim: `tasks.md` 6.6/7.6/8.6 remain unchecked, 8.3 still needs a
+      fix-shape decision, and HK-011's Captain pre-push sign-off on this session's `src/` diff is
+      still outstanding).

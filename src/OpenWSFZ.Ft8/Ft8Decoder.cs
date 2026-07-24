@@ -427,6 +427,25 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
             "Cycle {Time}: {Count} decode(s) found, elapsed={Elapsed} ms.",
             timeStr, results.Count, sw.ElapsedMilliseconds);
 
+        // ── tasks.md 8.4 (fix-cycle-boundary-clock-drift): systematic hashTableRejectCount
+        // logging at a regular (once-per-cycle) cadence ──────────────────────────────────
+        // Prior to this, hashTableRejectCount (see GetHashTableRejectCount's doc comment) was
+        // only observable via ad hoc GET /api/v1/status polling — a live endurance run
+        // (dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md, Evidence
+        // 5) sampled it informally that way to check whether it grows alongside the session's
+        // non-converging cycle-boundary drift, but the resulting reading couldn't be reconciled
+        // against the raw daemon log after the fact — unlike decode elapsed time immediately
+        // above, which the same investigation confirmed IS already logged every cycle and could
+        // be reconciled that way. Logging it here, at the same per-cycle cadence and Information
+        // level as the elapsed-time line above, closes that gap for future live runs without
+        // needing ad hoc endpoint polling during the session. This is process-lifetime
+        // cumulative (GetHashTableRejectCount's own contract), not a per-cycle delta — logging it
+        // every cycle still lets a raw-log analysis compute cycle-over-cycle deltas or a
+        // whole-session trend, same as the elapsed-time reconciliation already does.
+        _logger?.LogInformation(
+            "Cycle {Time}: hashTableRejectCount={HashTableRejectCount} (process-lifetime cumulative).",
+            timeStr, _interop.GetHashTableRejectCount());
+
         // ── D-003 noise-floor diagnostic ─────────────────────────────────────
         // Log the histogram-median noise floor returned by ft8_get_last_noise_floor_db.
         // If D-003 (intermittent ~15 dB SNR under-report) is caused by a noise-floor
