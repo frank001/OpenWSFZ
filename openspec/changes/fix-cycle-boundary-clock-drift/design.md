@@ -321,7 +321,70 @@ the existing elapsed-time line it sits beside, not a new noisier tier), and does
 or condition on the drift-correction logic itself — it is pure observability, added at the one
 place upstream of that logic that already computes a per-cycle summary line.
 
-## Risks / Trade-offs
+### Decision 8: tasks.md 8.3's chosen fix shape — correct the deviation baseline for a correction's own real-time cost, rather than changing the correction architecture itself
+
+**Chosen by the Captain, 2026-07-24 evening**, from three candidate shapes presented after 8.7's
+mechanism confirmation (a live-confirmation run the same evening, `qa/endurance/2026-07-24-f57fa4d/report.md`,
+reproduced the same non-convergence pattern a fourth time, at a rate — ≈35.3 samples/min —
+consistent with `ce13e30`/`29041f7`'s independently-measured rates, reinforcing that one stable
+mechanism is responsible):
+
+1. **Fix the deviation-accounting math, keep the existing correction architecture.** *(Chosen.)*
+2. Replace periodic large corrections with continuous small-quantum rate-tracking (estimate the
+   device's real ppm error and nudge every window's sample target slightly, so no single
+   correction is ever large enough to cost measurable real time).
+3. Reopen Decision 1's scope boundary and correct the genuine device clock-rate error at the
+   resampler/capture layer, upstream of `CycleFramer` entirely.
+
+**Why (1), not (2) or (3):** smallest change, most directly targeted at exactly what 8.7 confirmed
+(not a broader architectural response to the general problem class), and cheapest to falsify with
+an isolated unit test before ever needing another live endurance run. (2) and (3) remain available
+if (1) proves insufficient — recorded here so that fallback path doesn't need re-deriving from
+scratch.
+
+**The precise mechanism, traced to exact lines in `CycleFramer.RunAsync` (as of `f57fa4d`):**
+`nominalCycleStart` — the purely-arithmetic reference deviation is measured against — is advanced
+by a flat `CycleDurationSecs` (15.000 s) every window (`nominalCycleStart =
+nominalCycleStart.AddSeconds(CycleDurationSecs)`), with no exception for the window immediately
+following a correction. But that window's *actual* real-world fill time is **not** 15.000 s by
+construction: a discard (`pendingSkipSamples > 0`) genuinely must wait to receive
+`correction` extra raw samples from the real, rate-limited capture source before it can even start
+accumulating; a replay pre-fills `filled = replay` samples from the already-captured previous
+window's tail, so it needs `replay` *fewer* new raw samples and completes correspondingly sooner.
+Concretely, using tonight's correction #3 (18:39:45.453Z, 2020-sample discard): the window that
+consumes those 2020 samples takes ~168 ms *longer* than 15.000 s to fill in real wall-clock time —
+but `nominalCycleStart`'s advance for that window is still a flat 15.000 s. So when that window
+closes, `deviation = _clock.UtcNow − nominalCycleStart` reads the ~168 ms the correction itself
+cost as fresh, apparently-genuine drift — reproducing almost exactly the size of the correction
+that supposedly just fixed it. This is precisely what 8.7's isolated tests measured (discard ≈
+1.10-1.60x an ordinary window's real time, replay ≈ 0.55-0.95x) and precisely what every live
+endurance run's "next reading" data has shown since `1cebf81`.
+
+**The fix:** at the moment a correction fires, record a one-shot pending time adjustment —
+`pendingNominalAdjustSeconds = correction / (double)SampleRate` — representing the genuine
+extra-or-reduced real time the *next* window (the one that actually consumes/reduces raw samples
+because of this correction) will take to fill. Apply that adjustment to `nominalCycleStart`'s
+*next* advance only (`nominalCycleStart.AddSeconds(CycleDurationSecs + pendingNominalAdjustSeconds)`
+instead of the flat `CycleDurationSecs`), then clear it back to zero so it does not persist beyond
+that one window. This makes the deviation baseline correctly anticipate the one window whose
+real-time cost is known in advance (because we ourselves just imposed it), so the following
+deviation check measures against a fair expectation instead of re-billing the correction's own
+necessary cost as new drift. `cycleStart` (the reported, decoder-facing timestamp) is unaffected —
+this only changes the internal reference `nominalCycleStart` is compared against, not what gets
+reported or what audio content lands in which window.
+
+**Acceptance criterion (tasks.md 9.3):** reuse 8.7's `FeedSamplesAtRealRate` rate-limited-source
+test harness. After a correction fires under a genuinely rate-limited source (both discard and
+replay directions), assert that the deviation reading on the window *immediately following* the
+corrected one lands near the noise floor — not near the correction's own magnitude. This
+operationalizes, as a fast isolated unit test, the exact property every live endurance run so far
+has checked for and found failing (`1cebf81`'s report first named it: "does the post-correction
+reading actually drop near the noise floor, or re-establish at the same magnitude").
+
+**Scope:** `src/OpenWSFZ.Ft8/CycleFramer.cs` only — no change to `Ft8Decoder.cs`,
+`WasapiAudioSource.cs`, or `CaptureManager.cs`. Per HK-011, implementation is a separate
+Developer-session concern; this Decision documents the *what* and *why* so that session does not
+need to re-derive the mechanism from the live-run reports.
 
 - **[Risk] A large, one-time system clock step (operator changes system time, host NTP client
   steps the clock) could be misread as accumulated device drift and trigger a correction.**

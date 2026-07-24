@@ -285,7 +285,7 @@ implementation.
       Net effect: decode-elapsed-time growth should not be leaned on as supporting evidence for
       Evidence 5's working hypothesis in either direction without better data (8.4). Does not
       resolve non-convergence; narrows what 8.3 can safely assume.
-- [ ] 8.3 Only after 8.1–8.2 land: decide on a fix shape. Do not adjust
+- [x] 8.3 Only after 8.1–8.2 land: decide on a fix shape. Do not adjust
       `CorrectionSanityCeilingSamples`, `DriftThresholdSamples`, or `RequiredConsecutiveReadings`
       before root cause is isolated — `qa/endurance/2026-07-24-1cebf81/report.md` §3.2 already
       shows Decision 5's sizing math itself is not where the problem lives.
@@ -305,6 +305,14 @@ implementation.
       intent for exactly this kind of call. 8.6's live re-confirmation (using 8.1's instrumentation
       against a fix, once one exists) is still the acceptance test before 6.6/7.6/8.6 can be
       checked off.
+      **Decided 2026-07-24 evening, by the Captain:** fix the deviation-accounting math (design.md
+      Decision 8) — keep the existing threshold/persistence-gate/size-to-confirmed-deviation
+      architecture, but stop measuring the window immediately after a correction against a flat
+      15.000 s expectation when its genuine real-time cost is `15.000 s ± correction/SampleRate`
+      by construction. Chosen over (a) continuous small-quantum rate-tracking instead of periodic
+      corrections, and (b) reopening Decision 1 to fix at the resampler/capture layer — both
+      remain available as fallbacks if this proves insufficient, per design.md Decision 8. See
+      section 9 below for the implementation/verification tasks this decision unblocks.
 - [x] 8.4 Add systematic logging for `hashTableRejectCount` and decode elapsed time at a regular
       cadence (both were only available via ad hoc `/api/v1/status` polling in the 2026-07-24 run)
       if 8.2 finds session-length CPU/memory load is a real contributing factor.
@@ -440,3 +448,47 @@ implementation.
       **not** a merge-readiness claim: `tasks.md` 6.6/7.6/8.6 remain unchecked, 8.3 still needs a
       fix-shape decision, and HK-011's Captain pre-push sign-off on this session's `src/` diff is
       still outstanding).
+
+## 9. Deviation-accounting fix: correct for a correction's own real-time cost (design.md Decision 8, tasks.md 8.3's decided fix shape)
+
+- [ ] 9.1 `src/OpenWSFZ.Ft8/CycleFramer.cs`: at the moment a correction fires (inside the
+      `driftStreakCount >= RequiredConsecutiveReadings` branch), record
+      `pendingNominalAdjustSeconds = correction / (double)SampleRate` — a one-shot value
+      representing the genuine extra-or-reduced real time the *next* window will take to fill
+      because of this correction (positive for a discard/lengthen, negative for a replay/shorten).
+      Apply it to `nominalCycleStart`'s *next* advance only — change the unconditional
+      `nominalCycleStart = nominalCycleStart.AddSeconds(CycleDurationSecs)` (currently at the top
+      of the per-window block, alongside `cycleStart`'s own advance) to
+      `nominalCycleStart = nominalCycleStart.AddSeconds(CycleDurationSecs + pendingNominalAdjustSeconds)`,
+      then reset `pendingNominalAdjustSeconds` to 0 immediately after that one use so it does not
+      persist beyond the single window it applies to. `cycleStart` itself (the reported,
+      decoder-facing timestamp) is unaffected — this only changes the internal reference
+      `nominalCycleStart` is compared against. See design.md Decision 8 for the full mechanism
+      trace and rationale. **`src/` change — Developer-session territory per HK-011; QA's role
+      stops at this specification unless the Captain explicitly grants a session-treat-as-Developer
+      exception, as was done for 8.4/8.7.**
+- [ ] 9.2 Confirm this does not change behaviour for the no-correction-fires path (the vast
+      majority of windows): `pendingNominalAdjustSeconds` must default to/settle at exactly 0 when
+      no correction has just fired, so `nominalCycleStart`'s advance is the unchanged flat
+      `CycleDurationSecs` in that case — existing tests asserting "no correction fires absent
+      drift" and "cycleStart advances by exactly 15 seconds" must continue to pass unmodified.
+- [ ] 9.3 Unit test (extends 8.7's `FeedSamplesAtRealRate` rate-limited-source harness in
+      `CycleFramerTests.cs`): after a correction fires under a genuinely rate-limited source (both
+      discard and replay directions, mirroring 8.7's two tests), assert that the **deviation
+      reading** on the window immediately following the corrected one lands near the noise floor —
+      not near the correction's own magnitude. This operationalizes, as a fast isolated test, the
+      exact property every live endurance run so far has checked for and found failing
+      (`1cebf81`'s report: "does the post-correction reading actually drop near the noise floor,
+      or re-establish at the same magnitude"). This is the acceptance criterion for whether 9.1
+      actually fixes non-convergence, independent of any live run.
+- [ ] 9.4 Re-run `python3 tools/pre_merge_check.py` (HK-006) against 9.1-9.3's combined changes.
+- [ ] 9.5 Live re-confirmation: same live setup as 6.6/7.6/8.6 (same device, same technique),
+      checked specifically for whether the post-correction deviation reading now actually drops
+      near the noise floor across a real session, not just in the isolated unit test (9.3). This
+      is the actual gate before the HK-011 merge hold can be reconsidered — 6.6/7.6/8.6 remain
+      historical markers of the three prior (failed) fix attempts and are not retroactively
+      satisfied by this section; 9.5 is this fix's own live acceptance test.
+- [ ] 9.6 Once 9.5 passes: reconsider the HK-011 merge hold with the Captain. If 9.5 does not
+      converge either, escalate to fallback fix shapes 2 or 3 recorded in design.md Decision 8
+      (continuous rate-tracking, or reopening Decision 1's scope boundary) rather than re-tuning
+      9.1's constants in isolation.
