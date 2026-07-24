@@ -322,3 +322,22 @@ implementation.
       magnitude — the property `qa/endurance/2026-07-24-1cebf81/report.md` found failing, and the
       one any fix needs to demonstrate. Only after this passes should 6.6/7.6 be checked off and
       the HK-011 merge hold be reconsidered.
+      **Run 2026-07-24 (short, ~32 min, by design — see below) — still open, remains
+      unchecked:** `qa/endurance/2026-07-24-29041f7/report.md`. Non-convergence reproduces
+      exactly as `1cebf81` found (8 corrections fired, none produced a next-reading drop toward
+      the noise floor; net deviation growth ≈31.6 samples/min, closely matching `ce13e30`'s
+      whole-session ≈34.1 samples/min despite the sessions differing >14x in length) — expected,
+      since no fix has landed since `1cebf81`. The actual new result: 8.1's pipeline-timing
+      instrumentation stayed completely flat throughout (real inter-window elapsed 14.970-15.287 s
+      around nominal 15.000 s; chunk-dequeue-gap and WASAPI/`CaptureManager` cadence stats
+      unchanged all session) across a ~40% rise in deviation-at-fire — a real negative result
+      that de-prioritizes the "scheduling delay visible at these three stages" half of the
+      dev-task's Evidence 5 hypothesis, narrowing what 8.3 has left to consider. Session length
+      was an explicit, Captain-confirmed choice (short-first, extend only if evidence motivates
+      it, per 7.6's own original plan) and a mid-run stop-or-continue check-in found the flat
+      instrumentation signal gave no reason to extend. Scope limits stated in the report: 32
+      minutes cannot rule out an hours-only-emerging correlation (8.4's `hashTableRejectCount`
+      logging gap still open), nor confirm whether the last-4-corrections' ~3,380-3,470 plateau
+      is real. **Superseded-pending:** a longer follow-up run, once 8.4 lands and/or 8.3 needs
+      stronger confidence specifically on the pipeline-timing correlation — not committed to by
+      default.

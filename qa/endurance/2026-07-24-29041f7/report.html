@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Endurance Test Report — 2026-07-24 (short session)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="endurance-test-report-2026-07-24-short-session">Endurance Test Report — 2026-07-24 (short session)</h1>
+<h2 id="1-study-hypothesis">1. Study hypothesis</h2>
+<p><strong>What is this run testing?</strong></p>
+<p>This is the live-hardware run for <code>openspec/changes/fix-cycle-boundary-clock-drift/</code>
+<code>tasks.md</code> item <strong>8.6</strong>, the step that gathers real-hardware data for item <strong>8.3</strong>'s
+fix-shape decision. Unlike the two prior endurance runs against this change
+(<code>qa/endurance/2026-07-24-ce13e30/report.md</code>, <code>qa/endurance/2026-07-24-1cebf81/report.md</code>), this
+run does <strong>not</strong> test a new correction mechanism — the correction logic itself is unchanged
+since <code>1cebf81</code>. It tests whether <code>tasks.md</code> 8.1's newly added Debug-level pipeline-timing
+instrumentation (<code>design.md</code> Decision 6;
+<code>dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md</code>'s Recommended
+Next Step 1) reveals <em>where</em> the still-growing "deviation" originates: genuine capture-rate
+mismatch, <code>CycleFramer</code>'s own loop-scheduling delay, or something the instrumented stages don't
+see at all.</p>
+<p><strong>Build under test:</strong> <code>29041f7</code> (root-cause pipeline-timing instrumentation:
+<code>WasapiAudioSource.cs</code>, <code>CaptureManager.cs</code>, <code>CycleFramer.cs</code>) plus <code>82469ca</code> (docs-only
+test-count correction, no <code>src/</code> change) on top, branch
+<code>docs/propose-fix-cycle-boundary-clock-drift</code>, open PR #108. Reviewed pre-push per HK-011
+before this run (see this session's earlier code review) — approved, with the merge hold
+explicitly unaffected (8.3/8.4/8.6 remained open going into this run).</p>
+<p><strong>Session length, and why it's short by this change's own precedent:</strong> ~32 minutes, against
+<code>ce13e30</code>'s 7h54m and <code>1cebf81</code>'s 6h16m. This was an explicit, discussed choice, not a shortcut:
+per <code>tasks.md</code> 7.6's own original plan (a short session first, extend only if the data motivates
+it — the multi-hour length of the prior two runs was a <em>consequence</em> of what they found, not the
+starting intent), and confirmed directly with the Captain at the start of this run. A mid-session
+check-in (see §3.2) found the new instrumentation already giving a clean, consistent signal with
+no indication more time would change it, so the session was stopped rather than extended by
+default. This is stated plainly as a scope limit, not hidden: 32 minutes cannot rule out an
+effect that only emerges after hours (see §5).</p>
+<p><strong>Null hypotheses:</strong></p>
+<ul>
+<li><strong>H₀-1 (stability):</strong> OpenWSFZ completes the session without crash, audio dropout, or
+  unrecoverable gap.</li>
+<li><strong>H₀-2 (drift bounded) — carried over, not re-tested by new logic:</strong> the correction keeps
+  accumulated deviation small and non-trending. Already rejected twice (<code>ce13e30</code>, <code>1cebf81</code>);
+  not expected to pass here either, since nothing about the correction itself changed. Included
+  for continuity, not as this run's point.</li>
+<li><strong>H₀-3 (pipeline-timing correlation) — this run's actual question:</strong> the growing accumulated
+  deviation correlates with growing real inter-window elapsed time (would support genuine
+  capture-rate mismatch) and/or growing chunk-dequeue-gap statistics (would support upstream
+  capture-pipeline scheduling delay/backpressure). If neither correlates, that rules out both
+  explanations <em>at the three instrumented stages</em>, narrowing — not yet answering — 8.3's
+  root-cause question.</li>
+</ul>
+<p><strong>Defects under observation:</strong> <code>fix-cycle-boundary-clock-drift</code> (open, PR #108, not merged;
+merge hold per HK-011 stands regardless of this run's outcome — 8.3/8.4 are still open even if
+H₀-3 is refuted).</p>
+<hr />
+<h2 id="2-data-summary">2. Data summary</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Date</td>
+<td>2026-07-24 (local CEST, UTC+2)</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>29041f7</code> + <code>82469ca</code> (docs-only) on <code>docs/propose-fix-cycle-boundary-clock-drift</code></td>
+</tr>
+<tr>
+<td>ft8_lib shim</td>
+<td>20260033 (unchanged)</td>
+</tr>
+<tr>
+<td>Session start</td>
+<td>2026-07-24 18:07:05.369 local (16:07:05.369 UTC)</td>
+</tr>
+<tr>
+<td>Session end</td>
+<td>2026-07-24 18:39:09.804 local (16:39:09.804 UTC)</td>
+</tr>
+<tr>
+<td>Duration</td>
+<td>32 minutes 4.4 seconds</td>
+</tr>
+<tr>
+<td>Total 15-second cycles (windows emitted)</td>
+<td>127</td>
+</tr>
+<tr>
+<td>Total decodes (OpenWSFZ)</td>
+<td>2,466 (mean 19.4/cycle)</td>
+</tr>
+<tr>
+<td>Band</td>
+<td>20 m (14.074 MHz FT8)</td>
+</tr>
+<tr>
+<td>Audio device</td>
+<td>USB Audio CODEC (<code>d451e08c-82b5-446e-a5f1-1bdd8fceeac2</code>), WASAPI, 48000 Hz → 12000 Hz — same device family as <code>ce13e30</code>/<code>1cebf81</code></td>
+</tr>
+<tr>
+<td>WSJT-X</td>
+<td>Running in parallel throughout; ALL.TXT cleared before this run; capturing session WAV files</td>
+</tr>
+<tr>
+<td>Daemon log file</td>
+<td><code>logs/openswfz-20260724T160705Z.log</code> (git-ignored, local only, NFR-021)</td>
+</tr>
+<tr>
+<td>Shutdown</td>
+<td>Graceful (operator-initiated <code>POST /api/v1/decode/stop</code> at 18:39:06; <code>RecordingStopped (graceful)</code>; <code>Capture stopped ... (operator-stopped). Chunks received: 30778</code>)</td>
+</tr>
+<tr>
+<td>Cycle-boundary drift checks logged</td>
+<td>127 (one per window, Debug level)</td>
+</tr>
+<tr>
+<td>Cycle-boundary resyncs fired</td>
+<td>8 (Information level)</td>
+</tr>
+<tr>
+<td>Hash table reject count (session end)</td>
+<td>1,783 (F-005 metric; not comparable across runs of different length without a rate calculation — not attempted this run, see §5/tasks.md 8.4)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Confirmed before monitoring began:</strong> the running binary actually included 8.1's
+instrumentation (not a stale pre-instrumentation build) — <code>WASAPI capture cadence</code>,
+<code>Capture pipeline cadence</code>, and <code>Cycle boundary pipeline timing</code> Debug lines were all present
+in the live log from the first cycle onward.</p>
+<hr />
+<h2 id="3-results">3. Results</h2>
+<h3 id="31-stability">3.1 Stability</h3>
+<p>OpenWSFZ ran cleanly for 32m4s (127 decoded cycles) with no crash or decode gap.</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Log ERR entries</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>Log FTL entries</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>Heartbeat count</td>
+<td>384</td>
+</tr>
+<tr>
+<td>Heartbeat <code>=false</code> readings</td>
+<td>3 total — 2 at 18:07:13/18:07:18 (before <code>CycleFramer started</code> at 18:07:19.210; benign startup transient, same pattern already documented in <code>ce13e30</code>'s report) and 1 at 18:39:08 (<code>captureActive=false</code>, <code>audioActive=true</code>, <code>dataFlowing=true</code> — logged 2 seconds after the operator-initiated stop at 18:39:06, i.e. the expected shutdown transition, not a fault)</td>
+</tr>
+<tr>
+<td>Daemon process identity</td>
+<td>Single PID (38336) throughout, no restart</td>
+</tr>
+<tr>
+<td>Shutdown</td>
+<td>Graceful (operator API call)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>H₀-1: CONFIRMED</strong> — zero failures; the only non-<code>true</code> heartbeat readings are fully accounted
+for by startup and operator-initiated shutdown, not a mid-session fault.</p>
+<h3 id="32-cycle-boundary-drift-correction-and-pipeline-timing-instrumentation-non-convergence-reproduces-immediately-new-instrumentation-gives-a-clean-negative-result">3.2 Cycle-boundary drift correction and pipeline-timing instrumentation — non-convergence reproduces immediately; new instrumentation gives a clean negative result</h3>
+<p><strong>H₀-2: REJECTED again, as expected.</strong> The same non-convergent pattern <code>1cebf81</code> found
+reproduced within the first 5 minutes of this run: 8 corrections fired (18:12:00, 18:13:30,
+18:15:30, 18:25:15, 18:31:46, 18:32:46, 18:33:46, 18:38:47), each sized exactly to its confirmed
+deviation, and none produced a next-reading drop toward the noise floor. First drift-check
+reading (18:07:30): 2,385.8 samples. Last (18:39:02): 3,382.1 samples — net growth +996.3
+samples over 31.53 minutes ≈ <strong>31.6 samples/min</strong>, remarkably close to <code>ce13e30</code>'s whole-session
+net rate of ≈34.1 samples/min (+16,155 samples over 474.35 minutes) despite the two sessions
+differing in length by more than 14x and in band (20 m here, 40 m there). That consistency is
+itself worth noting: it suggests the same underlying mechanism at a comparable rate, not a
+different or session-length-dependent phenomenon.</p>
+<p><strong>H₀-3: REFUTED — the pipeline-timing instrumentation shows no correlation with the growing
+deviation, at any of the three instrumented stages, across this session:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Instrumented signal</th>
+<th>Observed range</th>
+<th>Trend</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Real inter-window elapsed (<code>CycleFramer</code>)</td>
+<td>min 14.970 s, max 15.287 s, avg 15.017 s (n=126)</td>
+<td>Flat — the one high outlier (15.287 s) coincides with the operator-stop transition at 18:39:02, not a mid-session event</td>
+</tr>
+<tr>
+<td>Chunk-dequeue-gap avg/max (<code>CycleFramer</code>, per window)</td>
+<td>avg consistently ~61.9-62.3 ms, max consistently ~63-64 ms</td>
+<td>Flat throughout</td>
+</tr>
+<tr>
+<td>WASAPI <code>DataAvailable</code> inter-arrival avg/max</td>
+<td>avg ~61.9-62.3 ms, max 62.3-64.1 ms across the session</td>
+<td>Flat throughout</td>
+</tr>
+<tr>
+<td><code>CaptureManager</code> outer-channel write latency avg/max</td>
+<td>avg 0.00 ms, max 0.39-0.49 ms</td>
+<td>Flat, negligible throughout</td>
+</tr>
+</tbody>
+</table>
+<p>None of these four signals show any growth, drift, or correlation with the ~40% rise in
+deviation-at-fire over the session (2,409.6 → 3,453.5 across the 8 corrections). If genuine
+capture-rate mismatch were responsible, real inter-window elapsed should itself have drifted
+from 15.000 s; it did not. If capture-pipeline backpressure/scheduling delay were responsible,
+chunk-dequeue gaps or channel-write latency should have grown; neither did. <strong>This is a real,
+useful negative result for 8.3</strong> — it argues against the "scheduling delay visible at the
+WASAPI/<code>CaptureManager</code>/<code>CycleFramer</code>-dequeue stages" half of Evidence 5's working hypothesis,
+at least within this session's 32 minutes and its ~40% deviation swing.</p>
+<p><strong>What this does not tell us (scope limit, stated plainly, not discovered after the fact):</strong>
+32 minutes is short. It cannot rule out:
+- A correlation that only emerges over hours (e.g. the "growing CPU/memory load from the native
+  decoder's accumulating internal state" half of Evidence 5 — <code>hashTableRejectCount</code> growth —
+  which <code>tasks.md</code> 8.4 has not yet instrumented for systematic logging; this run's single
+  end-of-session value, 1,783, cannot be compared to <code>ce13e30</code>'s reported growth without a
+  matching per-cycle series).
+- Whether the deviation-at-fire values plateauing in a ~3,380-3,470 band for the last 4
+  corrections (3,444.5 / 3,466.1 / 3,380.5 / 3,453.5) is a genuine plateau or coincidence — too
+  short a window to tell, loosely echoing but not confirming the plateau <code>1cebf81</code> suggested
+  near its own much longer session's end.
+- Any pipeline stage upstream or downstream of the three instrumented here (e.g. the moment
+  between "window buffer fully filled" and the code line reading <code>_clock.UtcNow</code> executing,
+  which 8.1 does not separately instrument).</p>
+<h3 id="33-decode-volume-context-only-not-analysed-further-this-run">3.3 Decode volume (context only, not analysed further this run)</h3>
+<p>2,466 total decodes across 127 cycles (mean 19.4/cycle) — consistent with normal decode-pipeline
+operation; no anomaly observed. No WSJT-X cross-comparison attempted this run (not this run's
+purpose, and the change remains under a merge hold regardless).</p>
+<hr />
+<h2 id="4-summary-verdict-table">4. Summary verdict table</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+<th>Threshold</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stability — no crash</td>
+<td>0 crashes</td>
+<td>0</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Stability — no log ERR/FTL</td>
+<td>0/0</td>
+<td>0</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Duration</td>
+<td>32m4s</td>
+<td>—</td>
+<td><strong>PASS (short session, by design)</strong></td>
+</tr>
+<tr>
+<td>Correction bounds cumulative drift (H₀-2)</td>
+<td>Deviation grew 2,385.8 → 3,382.1 samples (+996.3, ≈31.6 samples/min) despite 8 corrections firing</td>
+<td>should stay small/non-trending</td>
+<td><strong>FAIL (expected — no fix landed since <code>1cebf81</code>)</strong></td>
+</tr>
+<tr>
+<td>Pipeline-timing instrumentation correlates with the growing deviation (H₀-3)</td>
+<td>Real inter-window elapsed, chunk-dequeue gaps, WASAPI cadence, and channel-write latency all stayed flat across a ~40% deviation swing</td>
+<td>correlation would support a specific root cause</td>
+<td><strong>REFUTED — informative negative result</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: as expected on H₀-2 (still non-convergent, unchanged code), genuinely useful
+on H₀-3 (rules out two of the three candidate explanations at the instrumented stages).</strong>
+<code>tasks.md</code> 6.6/7.6/8.6 all remain unchecked; the HK-011 merge hold stands. This run does not
+decide 8.3 — it narrows the evidence 8.3 will be decided from.</p>
+<hr />
+<h2 id="5-recommendations">5. Recommendations</h2>
+<p><strong>Primary — hand H₀-3's negative result to 8.3, do not treat it as inconclusive.</strong> A flat
+signal across a real ~40% swing in the thing we're trying to explain is evidence, not absence of
+evidence. The next fix-shape discussion should treat "capture-cadence/scheduling-delay, as
+visible at WASAPI/<code>CaptureManager</code>/<code>CycleFramer</code>'s own dequeue point" as a <em>de-prioritized</em>
+explanation rather than the leading one, pending anything that contradicts this over a longer
+run.</p>
+<p><strong>Second — close the <code>hashTableRejectCount</code>/decode-elapsed-time systematic-logging gap
+(<code>tasks.md</code> 8.4) before the next longer live run</strong>, rather than after. This run's single
+end-of-session <code>hashTableRejectCount</code> value (1,783) was not useful for anything beyond
+confirming the counter exists — the same ad hoc-sampling problem <code>tasks.md</code> 8.2's reconciliation
+already flagged twice. A per-cycle or per-N-minute logged series would make a future longer run
+immediately comparable to <code>ce13e30</code>'s and this run's data without a follow-on reconciliation
+effort.</p>
+<p><strong>Third — a longer follow-up run is still warranted, but from a stated need, not by default.</strong>
+Specifically: (a) confirm whether the ~3,380-3,470 plateau in this run's last 4 corrections is
+real or coincidental, which needs more corrections than a 32-minute window can produce; (b) with
+8.4's logging in place, check whether <code>hashTableRejectCount</code>/decode-elapsed growth actually
+correlates with the deviation over a multi-hour session, now on a real per-cycle basis instead of
+first-N/last-N endpoint sampling (the method <code>tasks.md</code> 8.2 already found unreliable twice).</p>
+<p><strong>Not yet addressed by this run:</strong> <code>tasks.md</code> 8.3 (fix shape) remains blocked — this run
+narrows candidate explanations but does not isolate root cause on its own. Recommend the
+Developer session review this report plus <code>ce13e30</code>/<code>1cebf81</code>'s alongside it before proposing a
+fix shape, given H₀-3's result changes which explanations are still live.</p>
+<p><strong>Cross-references:</strong> <code>dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md</code>
+(the finding this run gathers data for); <code>qa/endurance/2026-07-24-ce13e30/report.md</code> and
+<code>qa/endurance/2026-07-24-1cebf81/report.md</code> (the two prior runs against this change);
+<code>qa/endurance/2026-07-24-29041f7/run-notes.md</code> (this run's raw working notes, timestamped as
+gathered).</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
