@@ -23,11 +23,15 @@ than carrying indefinitely as an unexplained gap.
   over a long-running capture session, instead of letting it accumulate unbounded for the life
   of the process.
 - Mechanism (per `design.md`): `CycleFramer` periodically compares its arithmetic cycle-boundary
-  sequence against the injected `IClock`; once accumulated deviation exceeds a threshold, it
-  corrects the next window's sample count by a small bounded amount and re-anchors `cycleStart`
-  to the true wall-clock value. Confined to `CycleFramer` — the one platform-agnostic point
-  downstream of all three capture implementations — not the platform-specific capture/resampler
-  layer (see `design.md` Decision 1 for why that alternative was rejected).
+  sequence against the injected `IClock`; once accumulated deviation exceeds a threshold **and
+  that threshold-crossing persists across several consecutive checks in the same direction
+  without shrinking** (design.md Decision 4 — added after live pre-merge evidence showed a real
+  capture pipeline's own recurring scheduling latency, not genuine device drift, was triggering a
+  correction on every single cycle), it corrects the next window's sample count by a small
+  bounded amount and re-anchors `cycleStart` to the true wall-clock value. Confined to
+  `CycleFramer` — the one platform-agnostic point downstream of all three capture
+  implementations — not the platform-specific capture/resampler layer (see `design.md`
+  Decision 1 for why that alternative was rejected).
 - No new user-facing capability and no breaking API change is intended — this is a correctness
   fix to existing decode-timing behavior. The observable effect is improved decode recall on
   long-running sessions, not a new feature.

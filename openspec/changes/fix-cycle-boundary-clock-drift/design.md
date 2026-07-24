@@ -102,6 +102,56 @@ keeps the mechanism a slow slew that only ever engages for genuine multi-cycle d
 exactly the failure mode this change targets — while remaining inert for the jitter that
 already exists harmlessly in every session today.
 
+### Decision 4: Gate the correction on persistence (several consecutive, same-sign, non-decreasing readings), not a single threshold crossing
+
+**Added post-implementation, from live evidence** (`dev-tasks/2026-07-23-cycleframer-correction-fires-every-cycle-live-evidence.md`).
+A live pre-merge validation run against a real capture pipeline (WASAPI → `Channel<float[]>` →
+`CycleFramer`, concurrent with native FT8 decode on the same thread pool) found the correction
+firing on every single 15 s cycle from the very first cycle, always at the per-event cap — not
+the rare, occasional event Decision 3 designed. The raw arithmetic was confirmed self-consistent
+(not a bookkeeping bug); real inter-window wall-clock cadence stayed close to nominal 15.000 s
+throughout. The anomaly was specific to what the drift-check's single `IClock.UtcNow` read was
+measuring: a recurring, roughly-constant-order-of-magnitude (tens to ~200 ms observed),
+non-monotonic pipeline-scheduling latency between "audio truly arrived" and "`CycleFramer`'s
+code got scheduled to read the clock" — 100-300x larger than the ~7.6 samples/cycle genuine
+device drift this change targets, but recurring every cycle rather than accumulating.
+
+**Chosen.** Require `RequiredConsecutiveReadings` (3) consecutive drift-check readings that (a)
+clear `DriftThresholdSamples`, (b) share the same sign, and (c) are non-decreasing in magnitude
+versus the previous reading in the streak, before applying a correction. Any reading that fails
+any of those three conditions starts a fresh candidate streak rather than continuing the old one.
+
+**Why this distinguishes the two cases:** genuine device clock-rate drift, left uncorrected,
+accumulates monotonically every cycle (each reading strictly larger than the last, same sign) —
+it will always eventually satisfy a same-sign, non-decreasing streak, however long. The observed
+pipeline latency bounces from cycle to cycle without a consistent trend (verified against the
+live evidence's own logged second-session sequence — 1162.5, 814.1, 1326.1, 1181.4, 772.2,
+547.7, 1016.1 samples — which never sustains a non-decreasing run of 3), so it essentially never
+satisfies the same persistence test. This is a direct, testable consequence of the two
+processes' different shapes (monotonic accumulation vs. bounded, non-monotonic noise), not a
+tuned-to-one-trace heuristic.
+
+**Alternative considered — re-derive `DriftThresholdSamples`/`MaxCorrectionSamples` directly
+from the observed pipeline noise floor (~500-2400 samples) instead of gating on persistence
+(partially adopted).** Raising `DriftThresholdSamples` alone to clear that noise ceiling would
+make genuine drift take roughly 80+ minutes just to become a threshold candidate at all, without
+actually improving noise rejection (persistence gating already does that job regardless of a
+single reading's magnitude) — so `DriftThresholdSamples` is left at its original Phase-3-derived
+value (24). `MaxCorrectionSamples` **is** raised (32 → 48): persistence-gating necessarily delays
+a genuine correction until several cycles after the threshold is first crossed, so accumulated
+deviation at fire time is typically larger than a single-cycle crossing; a modestly larger cap
+resolves it in fewer follow-on slew events. This is a bounded, reasoned adjustment tied to the
+new mechanism's own delayed-reaction effect, not a blind retune against the noisy live trace.
+
+**Deferred, not done in this pass:** stage-by-stage timestamp instrumentation (WASAPI
+`DataAvailable` firing time, `Channel<float[]>` enqueue/dequeue instants) to isolate the
+proximate cause of the recurring latency was recommended in the live-evidence dev-task as
+Recommended Next Step 1. `CycleFramer` now logs its own per-check deviation and persistence
+streak at Debug level (within this change's approved `Impact: CycleFramer.cs only` scope), but
+instrumenting `WasapiAudioSource`/the capture layer itself is outside that stated scope and
+would need its own scope decision (a proposal.md amendment or a follow-on change) — tracked as
+an open follow-up in `tasks.md`, not done silently here.
+
 ## Risks / Trade-offs
 
 - **[Risk] A large, one-time system clock step (operator changes system time, host NTP client
