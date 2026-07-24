@@ -27,44 +27,19 @@ JS8, JT9, JT65, WSPR, and related).
 > <sub>The version above is sourced from the root [`VERSION`](VERSION) file and
 > CI-checked (gate G9) — do not hand-edit it here; edit `VERSION` instead.</sub>
 
-All development phases to date are merged and archived. FT8 decoding
-**and transmitting** are fully functional against live audio and recorded fixtures.
-A complete automated six-message FT8 QSO exchange has been validated via
-VoiceMeeter software loopback.
+82 phases and changes are merged and archived to date. FT8 decoding **and
+transmitting** are fully functional against live audio and recorded fixtures,
+including real transmitter keying (CAT/serial PTT) and a complete automated
+six-message FT8 QSO exchange validated via VoiceMeeter software loopback.
 
-| Phase | Deliverable | State |
-|---|---|---|
-| p0 — Foundation | Build pipeline, CI quality gates, tooling | ✅ merged |
-| p1 — Walking skeleton | Daemon, embedded web server, WebSocket | ✅ merged |
-| p2 — Audio config | Device enumeration, JSON config, Settings REST round-trip | ✅ merged |
-| p3 — Web frontend | Dark-theme UI, Settings page, real-time waterfall | ✅ merged |
-| p4 — Audio pipeline | PCM capture (WASAPI / arecord / sox), STA threading fix | ✅ merged |
-| p5 — FT8 decoder | Cycle framer, spectrum analyser, initial decode pipeline | ✅ merged |
-| p6 — File logging | Per-session log files, retention, log-level config | ✅ merged |
-| p7 — Device display name | Friendly device names; legacy config migration | ✅ merged |
-| p8 — FT8 decode performance | kgoba/ft8_lib submodule, P/Invoke shim, SNR calibration | ✅ merged |
-| p9 — Decode logging | all.txt-style per-cycle decode log | ✅ merged |
-| p10 — Ground truth | Replay harness; G6 gate; WSJT-X corpus recovery-rate test | ✅ merged |
-| p12 — ft8_lib port | Production P/Invoke decoder; full UAT-01 sign-off | ✅ merged |
-| p13 — Cross-platform decoder | libft8.so (Linux x64) + libft8.dylib (macOS ARM64) | ✅ merged |
-| p14 — Decode start/stop | FR-017: controlled decode lifecycle; CancellationToken wiring | ✅ merged |
-| p15 — Iterative subtraction | Spectrogram-domain second-pass decoder; 69.1% recovery rate | ✅ merged |
-| p16 — CAT control | `IRadioConnection` abstraction; `SerialCatConnection`; `RigctldConnection`; `CatPollingService`; CAT config section; Settings CAT UI and status-bar indicator | ✅ merged |
-| p17 — Settings UX & freq persistence | Tabbed Settings page; serial port enumeration; three-tier effective-frequency resolution; dial frequency persisted across restarts (FR-035–FR-039) | ✅ merged |
-| p18 — Settings dirty state | "Unsaved changes" badge and breadcrumb/browser navigation guard (FR-040, FR-041) | ✅ merged |
-| p19 — Frequency management | Configurable FT8 frequency list; `FrequencyStore`; REST tune endpoint; dial-frequency selector on main page (FR-042–FR-045) | ✅ merged |
-| p20 — FA digit width | Self-calibrating digit-width computation in `SerialCatConnection` FA tune command | ✅ merged |
-| ft8-qso-answerer-v1 — FT8 TX & QSO answerer | FT8 TX pipeline (native encode, GFSK synthesis, WASAPI playback); `IPttController` abstraction; QSO answerer state machine (auto-answer CQ, 6-message exchange, retry, watchdog, operator abort); ADIF 3.x log writer; `tx` config section; Settings TX fields | ✅ merged |
-| tx-ux-improvements — TX UX & config hardening | D-TX-002: config bounds enforced at four layers (HTML, JS, API, config-load) with `Math.Clamp` backstop; `RetryCount = 0` means unlimited retries; FR-UX-002: abort reasons surfaced in scrolling TX history panel; UI-001: obsolete "Enable auto-answer" toggle removed; `ITxEventBus` interface extracted for daemon-level unit testing | ✅ merged |
-| gui-tx-panel — main-page TX control | TX enable/disable and live state moved onto the primary page; no longer activated by a Settings toggle or confirmed only via logs | ✅ merged |
-| qso-caller — Call CQ origination | `QsoCallerService`: the station can now originate CQ calls, not only answer them — completing both FT8 TX roles | ✅ merged |
-| qso-log-dialog — pre-log confirmation | WSJT-X-style confirmation dialog at final transmission; enrich (name, TX power, comments) or discard before the ADIF record is written | ✅ merged |
-| decoder-settings-page — live OSD tuning | The three D-009 OSD gate parameters (`K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, `OSD_NHARD_MAX`) exposed as live-configurable settings — false-positive/sensitivity trade-off tunable without a native rebuild | ✅ merged |
-| lan-remote-access — LAN + passphrase auth | Kestrel bind-address selectable via config; `LanBindPolicy` + `PassphraseAuthPolicy` (`X-Api-Key` / `?key=`); login page; Remote Access settings section. Loopback always trusted; internet exposure out of scope | ✅ merged |
-| f-002 — callsign-structure region lookup | Shape-aware callsign parsing and region/entity lookup surfaced to the operator | ✅ merged |
-| f-001 — hashed-callsign resolution | Session-scoped 22-bit hash table resolves nonstandard/compound callsigns (`PJ4/K1ABC`, special-event calls) announced once via a Type 4 message and later referenced by hash | ✅ merged |
-| f-003 — AP-assist for nonstandard callsigns | AP-assisted decode of nonstandard callsigns (Gap B) building on the f-001 hash table | ✅ merged |
-| f-004 — operator visibility | Native shim ABI version exposed in the UI; TX/Call-CQ button visual states (armed vs transmitting); log viewer (Settings Logs tab + standalone full-log page); waterfall display modifiers | ✅ merged |
+One change is currently active and held from merge:
+**`fix-cycle-boundary-clock-drift`** — a `CycleFramer` cycle-boundary drift
+fix has been implemented and re-implemented across three rounds, each defeated
+in turn by live endurance testing; root cause is now isolated but no fix shape
+has been chosen yet.
+
+**Full phase-by-phase deliverable history, and the active change's detailed
+status, live in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).**
 
 ## Decoder Measurement System Analysis (Gage R&R)
 
