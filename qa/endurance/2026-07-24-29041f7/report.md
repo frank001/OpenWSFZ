@@ -132,6 +132,25 @@ useful negative result for 8.3** — it argues against the "scheduling delay vis
 WASAPI/`CaptureManager`/`CycleFramer`-dequeue stages" half of Evidence 5's working hypothesis,
 at least within this session's 32 minutes and its ~40% deviation swing.
 
+> **Erratum (2026-07-24, post-hoc correlation analysis of this run's own artefacts — no new live
+> run):** the table above misattributes the session's 15.287 s outlier to "the operator-stop
+> transition at 18:39:02" — it did not occur there. The 15.287 s reading actually occurred at
+> **18:34:02.058**, immediately following correction #7 (fired 18:33:46.771); the reading logged
+> at 18:39:02 was a separate value, 15.282 s, following correction #8 (fired 18:38:47.058) by
+> exactly one cycle — four seconds *before* the graceful stop command was even issued (18:39:06),
+> not a shutdown artefact either. Correcting the record and looking systematically rather than at
+> the two extremes: **every one of this session's 8 corrections is immediately followed by a
+> real-inter-window-elapsed spike whose excess over 15.000 s matches the correction's own size, at
+> 89-114% (avg 98.5%, n=8)**. This does not overturn H₀-3's verdict on the three *cadence* signals
+> (WASAPI inter-arrival, chunk-dequeue gaps, channel-write latency genuinely stay flat), but
+> `real inter-window elapsed` itself was mischaracterised — it is not flat, it spikes in lockstep
+> with each correction's own magnitude, a per-event signal the slow-trend framing above wasn't
+> built to detect. A candidate mechanism (the discard/"lengthen" branch cannot reclaim real time,
+> only spend more of it) and a proposed confirming test are recorded in
+> `dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md`'s addendum. **Not
+> yet confirmed as root cause** — this is a code-consistent correlation from existing data, not
+> the result of an isolated, controlled test.
+
 **What this does not tell us (scope limit, stated plainly, not discovered after the fact):**
 32 minutes is short. It cannot rule out:
 - A correlation that only emerges over hours (e.g. the "growing CPU/memory load from the native

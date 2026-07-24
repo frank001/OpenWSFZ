@@ -279,6 +279,166 @@ clearly warranted, since ad hoc endpoint sampling has twice produced a misleadin
 (`pre_merge_check.py` gate), 8.6 (live re-confirmation with the new instrumentation — needs real
 capture hardware and session time, not something this session can execute). The merge hold stands.
 
+## Addendum (2026-07-24, continued): a candidate mechanism, found by re-reading 8.6's own
+artefacts — not a new live run, not yet confirmed
+
+8.6 ran (`qa/endurance/2026-07-24-29041f7/report.md`) and reproduced non-convergence again, with
+H₀-3 REFUTED: the three newly-instrumented *cadence* signals (WASAPI inter-arrival, chunk-dequeue
+gaps, channel-write latency) all stayed flat across a ~40% swing in deviation-at-fire. That
+narrowed the field but didn't identify a mechanism. Going back into that run's own log — no new
+live session — and cross-referencing `Cycle boundary resync` lines against the *immediately
+following* `Cycle boundary pipeline timing` line (rather than the report's aggregate avg/min/max
+summary, which is too coarse to see a per-event effect) finds a fourth signal that does correlate:
+
+| # | Correction fired (samples) | Correction (s) | Next window's real elapsed | Excess over 15.000 s | Excess (samples) | Excess ÷ correction |
+|---|---|---|---|---|---|---|
+| 1 | 2,410 | 0.2008 | 15.229 s | 0.229 s | 2,748.0 | 114% |
+| 2 | 2,769 | 0.2308 | 15.234 s | 0.234 s | 2,808.0 | 101% |
+| 3 | 2,445 | 0.2037 | 15.191 s | 0.191 s | 2,292.0 | 94% |
+| 4 | 3,326 | 0.2772 | 15.248 s | 0.248 s | 2,976.0 | 89% |
+| 5 | 3,444 | 0.2870 | 15.276 s | 0.276 s | 3,312.0 | 96% |
+| 6 | 3,466 | 0.2888 | 15.269 s | 0.269 s | 3,228.0 | 93% |
+| 7 | 3,381 | 0.2818 | 15.287 s | 0.287 s | 3,444.0 | 102% |
+| 8 | 3,454 | 0.2878 | 15.282 s | 0.282 s | 3,384.0 | 98% |
+
+n=8, avg ratio 98.5%, range 89-114%. Every fired correction is followed, one cycle later, by a
+real-wall-clock delay of almost exactly its own size. Cross-checked against the raw `Cycle
+boundary drift check` line at the same timestamp (an independent measurement, not derived from
+the same arithmetic): correction #1's very next drift-check reading was 2,753.4 samples against
+this table's derived 2,748.0 — a 99.8% match, confirming both signals are capturing the same
+underlying event, not two unrelated coincidences.
+
+**Errata filed against the source report:** `qa/endurance/2026-07-24-29041f7/report.md` §3.2
+attributed the session's 15.287 s outlier to "the operator-stop transition at 18:39:02." That's
+wrong on the facts — 15.287 s occurred at 18:34:02.058, immediately after correction #7
+(18:33:46.771); the reading actually logged at 18:39:02 was a distinct value, 15.282 s, following
+correction #8 (18:38:47.058) by one cycle, four seconds before the stop command was even issued.
+Erratum added in place in both `report.md` and `report.html`, per this file's own established
+practice of not silently rewriting original claims.
+
+### A candidate mechanism: the discard branch cannot reclaim real time, only spend more of it
+
+Every one of the 8 corrections above (and all 10 in the earlier `1cebf81` run) was a *discard*
+("lengthen"/positive) correction — `pendingSkipSamples += correction` in `CycleFramer.cs`. That
+branch does not relabel or skip anything for free: `RunAsync`'s loop only advances by reading
+`chunk`s off `_source`, which in production is fed at whatever rate the real device actually
+delivers (confirmed steady by the very WASAPI/`CaptureManager` cadence data that stayed flat in
+8.6). So discarding `correction` extra raw samples before the next window may resume accumulating
+means waiting to *receive* those samples first — costing very close to `correction / SampleRate`
+seconds of additional real wall-clock time before that next window can close. The next drift
+check then measures that self-inflicted wait as a fresh deviation of almost the same size. This
+is not a sizing defect (Decision 5's math is exactly right, per `1cebf81`'s own finding) and not a
+bookkeeping defect (the persistence-streak reset and `nominalCycleStart` reset both check out
+algebraically, per this file's original Evidence 4) — it would be the discard mechanism itself
+being structurally unable to close a positive real-time gap, because performing the correction
+costs the same real time it is trying to eliminate.
+
+This also explains, for free, why 8.6's three cadence signals stayed flat: `pendingSkipSamples`
+consumption doesn't change per-chunk arrival timing (chunks keep arriving on their normal ~62 ms
+cadence) — it just requires more chunks before the window closes. A per-*chunk* cadence
+measurement would never show this; only a per-*window* wall-clock measurement (which 8.1 happened
+to also add) would, and did.
+
+**A sharp, falsifiable prediction:** the *replay* ("shorten"/negative) branch reuses already-
+captured tail samples immediately (`filled = replay`, no wait on new data), so by the same logic
+it should not cost extra real time — it should genuinely converge. Every correction observed live
+across both endurance runs (18 total, `ce13e30` + `1cebf81` + `29041f7`) has been positive/discard;
+the replay branch has never fired in the field. If the mechanism above is right, a replay
+correction should behave completely differently from a discard one under otherwise identical
+conditions — that asymmetry is the cleanest available test.
+
+### Confidence: correlational and code-consistent, not confirmed
+
+To be explicit about what this addendum does and doesn't establish, since the Captain asked
+directly and the answer matters for how much weight 8.3 should put on this:
+
+- **Established:** the code, read literally, makes the discard-costs-real-time consequence
+  necessary given a steady delivery rate (not assumed — the same run's own cadence data shows the
+  rate is steady). The empirical excess/correction ratio (89-114%, avg 98.5%, n=8) is consistent
+  with that necessity, and it reproduces independently in the drift-check reading. This is more
+  than a fitted correlation — the mechanism was deduced from the code first and the data checked
+  against it after — but it still falls short of an isolated test.
+- **Not established:** no controlled/isolated test has been run. Confounds sharing the same
+  timing window haven't been individually ruled out — the `LogInformation` resync line itself and
+  a decode kickoff both land in the same window in the sampled log excerpt, and neither has been
+  shown *not* to contribute. The replay-branch prediction above is untested. Live-hardware noise
+  (the ±11-14% spread around the 98.5% average) hasn't been separated from genuine second-order
+  effects.
+- **Practical read:** worth designing 8.3's fix candidate around this mechanism as the leading
+  hypothesis, but not worth closing 8.3 or writing a fix without the test below (or equivalent)
+  confirming it first — consistent with the Captain's own instinct to ask "are you sure, without
+  testing?" before treating this as settled.
+
+### Proposed test specification (for the Developer session — not implemented here, per HK-011)
+
+Goal: confirm or falsify the mechanism above in a fast, deterministic, CI-safe way, without
+needing another live-hardware session — and, distinctly, generate the one data point live testing
+never has: a fired replay/negative correction.
+
+**Why the existing test doubles can't answer this as-is:** every existing `CycleFramerTests.cs`
+feed helper (`FeedExactSamples`, `FeedSamples`) writes chunks to an unbounded `Channel<float[]>`
+with no real delay between writes — by design, so the existing tests run in milliseconds and are
+immune to the exact flaky-timing problems `HK-006`/Gate G10 exist to catch. That's precisely why
+none of them could have caught this: the mechanism under test only manifests when the *source* is
+rate-limited in real wall-clock time, which none of the current doubles are.
+
+**New test double needed** — a feed helper that genuinely waits between chunks, e.g.:
+
+```csharp
+private static async Task FeedSamplesAtRealRate(
+    ChannelWriter<float[]> writer, int totalSamples, int samplesPerChunk,
+    TimeSpan perChunkDelay, float fillValue = 0.5f)
+{
+    int sent = 0;
+    while (sent < totalSamples)
+    {
+        int take = Math.Min(samplesPerChunk, totalSamples - sent);
+        await Task.Delay(perChunkDelay); // the real-time cost under test — deliberate, not incidental
+        var chunk = new float[take];
+        Array.Fill(chunk, fillValue);
+        await writer.WriteAsync(chunk);
+        sent += take;
+    }
+}
+```
+
+A small, fast per-chunk delay (e.g. a few ms) is fine — the assertion should be *relative* (this
+run's own baseline cycle time vs. its own post-correction cycle time), not pinned to an absolute
+threshold, exactly per this project's own flaky-test-delay lessons (`test-delay-debt.md`, Gate
+G10) rather than repeating that mistake in a brand-new test.
+
+**Test 1 — discard correction costs real time proportional to its own size.** Reuse the existing
+pattern from `RunAsync_ConstantRateOffset_BoundedCorrectionFiresAtThreshold` /
+`RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections` (a `RateClock`
+offset engineered to clear `DriftThresholdSamples` for `RequiredConsecutiveReadings` consecutive
+checks, forcing a known, positive correction on a known window index) but drive it through
+`FeedSamplesAtRealRate` instead of `FeedExactSamples`. Wrap each `output.Reader.ReadAsync()` in a
+`Stopwatch` to record real arrival times. Compute a baseline inter-window real time from an early,
+uncorrected window pair in the same run, and compare it to the real time of the window pair
+spanning the correction. Assert the excess is within a generous tolerance band (e.g. 70-130%) of
+`correction / effective feed rate` — mirroring the live 89-114% spread rather than demanding exact
+equality.
+
+**Test 2 — replay correction does not cost real time (the asymmetry/falsification check).**
+Mirror Test 1 but engineer a negative correction instead (a `RateClock` reading *behind* nominal —
+see the existing "device running fast" scenarios for the sign convention). Assert the post-
+correction window's real elapsed time is **not** inflated relative to baseline — ideally
+statistically indistinguishable from it, since replay reuses already-buffered samples and should
+need no additional real-time wait. This is the test with no live precedent at all: it directly
+checks the asymmetry the mechanism predicts and the field data has never been able to exercise.
+
+**What a result would mean:**
+- Both tests confirm the prediction → strong support for treating this as 8.3's root cause; the
+  fix shape then needs to address that the discard branch's premise (relabelling/skipping is
+  "free") is false, not just re-tune constants (consistent with 8.3's existing instruction not to
+  re-tune blindly).
+- Test 1 fails to reproduce the delay under a controlled, confound-free rate-limited source →
+  redirects suspicion back to the live-only confounds noted above (logging call cost, concurrent
+  decode kickoff, GC), which this addendum could not rule out from log data alone.
+- Test 2 shows replay *also* costs real time → the mechanism as stated is wrong or incomplete;
+  worth re-examining `nominalCycleStart`/`cycleStart` bookkeeping again, more skeptically than
+  Evidence 4's first pass.
+
 ## Appendix: reproduction
 
 - Report: `qa/endurance/2026-07-24-1cebf81/report.md` (+ rendered `report.html`).

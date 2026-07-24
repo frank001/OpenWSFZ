@@ -341,3 +341,22 @@ implementation.
       is real. **Superseded-pending:** a longer follow-up run, once 8.4 lands and/or 8.3 needs
       stronger confidence specifically on the pipeline-timing correlation — not committed to by
       default.
+
+- [ ] 8.7 Candidate mechanism identified from 8.6's own artefacts (no new live run) — a discard
+      ("lengthen"/positive) correction requires waiting to receive the discarded samples at the
+      real device delivery rate before the next window can close, so it spends real wall-clock
+      time rather than reclaiming any; the next drift check then re-measures that self-inflicted
+      wait as a fresh deviation of almost the same size. Empirically: all 8 corrections in
+      `29041f7` are followed, one cycle later, by a real-inter-window-elapsed excess matching the
+      correction's own size at 89-114% (avg 98.5%). See
+      `dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md`'s continued
+      addendum for the full analysis, an errata correction to `29041f7`'s report (a mis-attributed
+      outlier), and a proposed two-part deterministic test (discard-costs-real-time; replay-does-
+      not, as an asymmetry/falsification check — the replay branch has never fired live in any
+      endurance run, so this is otherwise untested).
+      **Explicitly not a root-cause confirmation:** code-consistent and empirically corroborated,
+      but not the result of an isolated/controlled test — confounds sharing the same timing window
+      (the resync log call, a concurrent decode kickoff) have not been individually ruled out.
+      **Not implemented here, per HK-011** — the proposed test lives in `tests/`, which is
+      Developer-session territory same as `src/` for this change; QA's role stops at the
+      specification. 8.3 remains blocked on this test's outcome, not just on this addendum.
