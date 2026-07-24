@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Endurance Test Report — 2026-07-24</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="endurance-test-report-2026-07-24">Endurance Test Report — 2026-07-24</h1>
+<h2 id="1-study-hypothesis">1. Study hypothesis</h2>
+<p><strong>What is this run testing?</strong></p>
+<p>This run is the live-hardware validation step for <code>fix-cycle-boundary-clock-drift</code>
+(<code>openspec/changes/fix-cycle-boundary-clock-drift/</code>, open PR #108, branch
+<code>docs/propose-fix-cycle-boundary-clock-drift</code>) — specifically <code>tasks.md</code> item <strong>6.6</strong>, the last
+unchecked item and the Captain's HK-011 precondition for lifting the merge hold. That change was
+proposed to fix a real, previously-documented defect: three consecutive endurance runs
+(<code>qa/endurance/2026-06-22-f11f438</code> → <code>2026-07-06-7340e45</code> → <code>2026-07-07-bb0a1c4</code>) tracked
+OpenWSFZ's own decode-cycle DT drifting progressively more negative and more widely spread
+relative to WSJT-X (stdev 0.513 → 0.597 → 0.698 s across those three reports), and QA's D-001
+live-path investigation (<code>qa/rr-study/results/2026-07-23-d001-live-path-root-cause/</code>) attributed
+~89% of that drift to a genuine ~-42 ppm capture-device clock-rate error compounding through
+<code>CycleFramer</code>'s never-resynced arithmetic cycle boundary.</p>
+<p>A first live pre-merge validation attempt (dev-task
+<code>2026-07-23-cycleframer-correction-fires-every-cycle-live-evidence.md</code>) found the originally
+proposed correction firing on every single 15 s cycle from cycle 1 — not genuine device drift,
+but a recurring ~500–2400-sample pipeline-scheduling latency swamping the threshold check. That
+was fixed by gating the correction on <strong>persistence</strong> (<code>design.md</code> Decision 4):
+<code>RequiredConsecutiveReadings = 3</code> consecutive same-sign, non-decreasing readings required before
+a correction fires, with <code>MaxCorrectionSamples</code> raised 32 → 48. This run is the re-test of that
+revised mechanism against the same live setup, to answer the question <code>tasks.md</code> 6.6 poses
+directly: <em>does the correction now stay quiet during ordinary operation and only engage for
+genuine, sustained, multi-cycle drift?</em></p>
+<p><strong>Build under test:</strong> <code>src/OpenWSFZ.Ft8/CycleFramer.cs</code> at git HEAD <code>ce13e308</code> <strong>plus the
+<code>fix-cycle-boundary-clock-drift</code> implementation diff, still uncommitted in the working tree</strong>
+(persistence-gated correction, <code>RequiredConsecutiveReadings = 3</code>, <code>MaxCorrectionSamples = 48</code>,
+<code>DriftThresholdSamples = 24</code>). Not yet reviewed for push per HK-011 — this run is part of the
+evidence gathering for that sign-off, not a post-merge regression check.</p>
+<p><strong>Null hypotheses:</strong></p>
+<ul>
+<li><strong>H₀-1 (stability):</strong> OpenWSFZ completes the session without crash, audio dropout, or
+  unrecoverable gap.</li>
+<li><strong>H₀-2 (drift bounded):</strong> The persistence-gated correction keeps the cycle-boundary's
+  accumulated deviation from <code>_clock.UtcNow</code> small and roughly stable over the session — i.e.,
+  firing corrections at a rate and magnitude sufficient to satisfy <code>design.md</code>'s stated Goal
+  ("bound how far a decode-cycle window's actual sample content can drift from the true UTC
+  15-second grid over an arbitrarily long-running session").</li>
+</ul>
+<p><strong>Defects under observation:</strong> <code>fix-cycle-boundary-clock-drift</code> (open, PR #108, not merged).
+Cross-referenced: <code>dev-tasks/2026-07-23-cycleframer-correction-fires-every-cycle-live-evidence.md</code>
+(the persistence-gate fix this run re-tests) and
+<code>dev-tasks/2026-07-23-cycleframer-large-clock-step-slow-convergence.md</code> (a related, previously
+Captain-accepted-as-deferred gap in the same correction mechanism, for one-off clock steps
+specifically — see §3.2 for why this run's finding intersects it).</p>
+<p><strong>What constitutes a meaningful result?</strong></p>
+<ul>
+<li>Stability: zero crashes, zero unrecoverable gaps, clean shutdown.</li>
+<li>Drift correction: H₀-2 confirmed if accumulated deviation stays within a small multiple of
+  <code>DriftThresholdSamples</code> (24) throughout the session, with corrections firing rarely and
+  the residual not showing a sustained, session-long growth trend. H₀-2 refuted if the
+  residual instead grows materially and continuously despite corrections firing.</li>
+</ul>
+<hr />
+<h2 id="2-data-summary">2. Data summary</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Date</td>
+<td>2026-07-23/24 UTC (local 2026-07-24 00:23:34 → 08:17:54 CEST)</td>
+</tr>
+<tr>
+<td>OpenWSFZ SHA</td>
+<td><code>ce13e308</code> (HEAD) <strong>+ uncommitted <code>fix-cycle-boundary-clock-drift</code> diff</strong> (<code>CycleFramer.cs</code>, <code>CycleFramerTests.cs</code>, openspec artefacts) — not merged, not reviewed for push</td>
+</tr>
+<tr>
+<td>ft8_lib shim</td>
+<td>20260033 (unchanged from the 07-07 endurance baseline)</td>
+</tr>
+<tr>
+<td>Session start (UTC)</td>
+<td>2026-07-23 22:23:34.069 (capture start)</td>
+</tr>
+<tr>
+<td>Session end (UTC)</td>
+<td>2026-07-24 06:17:54.878 (graceful operator-initiated stop)</td>
+</tr>
+<tr>
+<td>Duration</td>
+<td>7 hours 54 minutes 21 seconds</td>
+</tr>
+<tr>
+<td>Total 15-second cycles (windows emitted)</td>
+<td>1,897</td>
+</tr>
+<tr>
+<td>Total decodes (OpenWSFZ)</td>
+<td>31,517 (mean 16.6/cycle)</td>
+</tr>
+<tr>
+<td>Band</td>
+<td>40 m (7.074 MHz FT8)</td>
+</tr>
+<tr>
+<td>Audio device</td>
+<td>USB Audio CODEC (<code>d451e08c</code>), WASAPI, 48000 Hz → 12000 Hz — same device as the Phase 3 ~-42 ppm measurement and the three prior endurance reports</td>
+</tr>
+<tr>
+<td>WSJT-X</td>
+<td>Running in parallel, saving WAV files, per this run's setup instructions — WSJT-X-vs-OpenWSFZ <code>delta_dt</code>/recall comparison intentionally <strong>not</strong> performed this run (per the originating dev-task's own ordering: that comparison is gated on this drift-correction re-test going cleanly, which it did not — see §3.2)</td>
+</tr>
+<tr>
+<td>Daemon log file</td>
+<td><code>logs/openswfz-20260723T222314Z.log</code> (26,025 lines; git-ignored, local only)</td>
+</tr>
+<tr>
+<td>Shutdown</td>
+<td>Graceful (operator-initiated <code>POST /api/v1/decode/stop</code>; <code>RecordingStopped (graceful)</code>, <code>Capture stopped ... (operator-stopped). Chunks received: 459765</code>)</td>
+</tr>
+<tr>
+<td>Cycle-boundary drift checks logged</td>
+<td>1,897 (one per window, Debug level, per <code>tasks.md</code> 6.3)</td>
+</tr>
+<tr>
+<td>Cycle-boundary resyncs fired</td>
+<td>20 (Information level)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Acceptance thresholds (this run):</strong></p>
+<ul>
+<li>Stability: 0 crashes, 0 unrecoverable gaps, 0 log ERR/WRN/FTL entries.</li>
+<li>Drift correction: accumulated deviation should remain small (order of <code>DriftThresholdSamples</code>,
+  24, to perhaps a few hundred samples) and non-trending over a multi-hour session, consistent
+  with the change's stated Goal of bounding — not merely slowing — cycle-boundary drift.</li>
+</ul>
+<hr />
+<h2 id="3-results">3. Results</h2>
+<h3 id="31-stability">3.1 Stability</h3>
+<p>OpenWSFZ ran cleanly for 7h54m21s (1,897 decoded cycles) with no crash, audio dropout, or decode
+gap, on the build under test.</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Log ERR entries</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>Log WRN entries</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>Log FTL entries</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>Heartbeat count</td>
+<td>5,716</td>
+</tr>
+<tr>
+<td>Daemon process identity</td>
+<td>Single PID throughout (no restart)</td>
+</tr>
+<tr>
+<td>Shutdown</td>
+<td>Graceful (operator API call)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>H₀-1: CONFIRMED</strong> — zero failures, clean session, no stability concern with the build under
+test.</p>
+<h3 id="32-cycle-boundary-drift-correction-blocking-finding-correction-does-not-bound-cumulative-drift">3.2 Cycle-boundary drift correction — BLOCKING FINDING: correction does not bound cumulative drift</h3>
+<p><strong>H₀-2: REJECTED.</strong> The persistence gate (Decision 4) is working exactly as designed at
+rejecting the <em>false-positive</em> case it was built for — no correction fired on recurring
+pipeline-latency noise. But this full-length run surfaces a second, more serious problem the
+short validation window couldn't show: <strong>once the gate correctly confirms genuine, sustained
+drift, the fixed 48-sample-per-event cap is nowhere near large enough to keep pace with it, so
+the cumulative deviation grows through the whole session anyway — the mechanism fires
+correctly, but does not bound anything.</strong></p>
+<p><strong>All 20 resyncs, in order:</strong></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Time (local)</th>
+<th>Accumulated deviation at fire</th>
+<th>Correction applied</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>00:32:30.154</td>
+<td>1,848.4 samples (154.03 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>00:33:15.149</td>
+<td>1,736.0 samples (144.67 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>00:38:30.148</td>
+<td>1,673.8 samples (139.48 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>00:39:45.182</td>
+<td>2,044.4 samples (170.37 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>00:48:30.211</td>
+<td>2,341.6 samples (195.14 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>01:11:45.277</td>
+<td>3,084.3 samples (257.03 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>01:21:30.306</td>
+<td>3,384.0 samples (282.00 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>8</td>
+<td>01:28:30.339</td>
+<td>3,729.2 samples (310.76 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>9</td>
+<td>01:43:30.369</td>
+<td>4,044.3 samples (337.02 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>10</td>
+<td>03:12:00.625</td>
+<td>7,065.5 samples (588.79 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>11</td>
+<td>03:22:15.663</td>
+<td>7,469.6 samples (622.47 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>12</td>
+<td>03:32:00.684</td>
+<td>7,681.2 samples (640.10 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>13</td>
+<td>03:38:30.731</td>
+<td>8,189.5 samples (682.46 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>14</td>
+<td>03:45:15.752</td>
+<td>8,394.9 samples (699.57 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>15</td>
+<td>03:51:30.779</td>
+<td>8,678.6 samples (723.22 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>16</td>
+<td>03:57:45.786</td>
+<td>8,711.0 samples (725.92 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>17</td>
+<td>04:19:00.843</td>
+<td>9,351.4 samples (779.28 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>18</td>
+<td>04:34:45.906</td>
+<td>10,060.6 samples (838.38 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>19</td>
+<td>06:18:46.196</td>
+<td>13,484.9 samples (1,123.74 ms)</td>
+<td>48 (cap)</td>
+</tr>
+<tr>
+<td>20</td>
+<td>08:10:16.529</td>
+<td>17,438.0 samples (1,453.17 ms)</td>
+<td>48 (cap)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Every single correction saturated the cap</strong> — the deviation at fire time was always vastly
+larger than the 48 samples actually removed. And the deviation at which corrections fire is
+itself climbing steadily through the session — not bouncing around a stable floor:</p>
+<table>
+<thead>
+<tr>
+<th>Time (local)</th>
+<th>Deviation reading</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>00:23:45</td>
+<td>964 samples</td>
+</tr>
+<tr>
+<td>01:01:15</td>
+<td>2,686 samples</td>
+</tr>
+<tr>
+<td>01:39:00</td>
+<td>3,821 samples</td>
+</tr>
+<tr>
+<td>02:16:30</td>
+<td>4,934 samples</td>
+</tr>
+<tr>
+<td>02:54:00</td>
+<td>6,086 samples</td>
+</tr>
+<tr>
+<td>03:31:30</td>
+<td>7,432 samples</td>
+</tr>
+<tr>
+<td>04:09:00</td>
+<td>8,677 samples</td>
+</tr>
+<tr>
+<td>04:46:30</td>
+<td>10,345 samples</td>
+</tr>
+<tr>
+<td>05:24:00</td>
+<td>11,387 samples</td>
+</tr>
+<tr>
+<td>06:01:30</td>
+<td>12,808 samples</td>
+</tr>
+<tr>
+<td>06:39:00</td>
+<td>13,734 samples</td>
+</tr>
+<tr>
+<td>07:16:30</td>
+<td>15,494 samples</td>
+</tr>
+<tr>
+<td>07:54:00</td>
+<td>16,378 samples</td>
+</tr>
+<tr>
+<td>08:17:46 (last reading before operator stop)</td>
+<td>17,119 samples (1,426.55 ms)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The arithmetic:</strong> over the full 7h54m21s session, the checked deviation grew from 964 to
+17,119 samples — a net increase of 16,155 samples, despite 20 corrections firing along the way.
+Total sample-count actually removed by all 20 corrections combined: 20 × 48 = 960 samples — <strong>a
+correction pushback of about 6% of the net growth actually observed.</strong> The residual is not being
+bounded; it is climbing at a materially unbounded rate for the whole session.</p>
+<p><strong>Net residual drift rate this run: ≈0.171 s/hour</strong> (16,155 samples ÷ 12,000 Hz ÷ 7.899 h). This
+is not merely "still present despite the fix" — it is, within rounding, the same magnitude as
+the original, independently-measured, <em>unfixed</em> defect this whole change exists to eliminate:
+QA's D-001 investigation (<code>proposal.md</code>, <code>qa/rr-study/results/2026-07-23-d001-live-path-root-cause/</code>)
+measured OpenWSFZ's live decoded DT drifting at <strong>-0.171 s/hour</strong> relative to WSJT-X, before any
+of this fix existed. This run's own internal CycleFramer check — a different measurement,
+against <code>_clock.UtcNow</code> rather than decoded-message DT vs. WSJT-X, so not a like-for-like
+replication of that figure — nonetheless lands on the same order of magnitude, which is a
+striking, if circumstantial, sign that the corrected build may be delivering close to none of
+the intended benefit over a session this length.</p>
+<p><strong>Ruled out as an alternative explanation:</strong> decode-side slowdown (thread-pool contention
+building up over the session, which would show up as growing <code>elapsed=</code> decode times and could
+independently explain a growing gap between "window ready" and "clock read"). Checked directly —
+decode elapsed times stayed flat (300–600 ms) across the entire session with no growth trend, and
+no ERR/WRN/FTL log entries or other anomalies appear anywhere in the log. The growth is
+consistent with genuine, confirmed, accumulating cycle-boundary drift — exactly the case the
+persistence gate is supposed to catch and the correction is supposed to then bound — not a
+pipeline-latency or decode-performance artefact.</p>
+<p><strong>Why this happens:</strong> <code>MaxCorrectionSamples = 48</code> was sized (design.md Decision 4) as "a
+modestly larger cap [than the original 32] to resolve [a threshold crossing] in fewer follow-on
+slew events," reasoned from the <em>persistence gate's delayed-reaction effect</em> on a single crossing
+— not from the accumulated magnitude a real, hours-long, continuously-accumulating drift will
+have reached by the time three consecutive non-decreasing readings satisfy the gate. Once the
+gate has already confirmed (through persistence) that a reading reflects genuine sustained
+drift rather than noise, capping the correction to a small fixed quantum no longer serves the
+purpose it was designed for (protecting against a single anomalous/implausible reading,
+<code>design.md</code>'s Risks section) — it simply throttles the fix's own remedy far below the rate it
+needs to keep up with what has already been confirmed as real.</p>
+<p><strong>Relationship to the already-known slow-convergence gap:</strong> this is the same root tension flagged
+in <code>dev-tasks/2026-07-23-cycleframer-large-clock-step-slow-convergence.md</code> (a flat cap taking
+~19–39 days to absorb a one-off multi-minute clock step) — except that dev-task's scenario was a
+rare, hypothetical one-off event the Captain explicitly accepted deferring. <strong>This run shows the
+same ceiling applies to the change's primary, everyday target case — ordinary continuous device
+clock-rate drift over a multi-hour session — not just an unlikely edge case.</strong> That is a
+materially different risk profile than what was deferred on 2026-07-23, and reopens the
+question the Captain settled for the one-off-step scenario.</p>
+<h3 id="33-decode-volume-context-only-not-analysed-further-this-run">3.3 Decode volume (context only, not analysed further this run)</h3>
+<p>31,517 total decodes across 1,897 cycles (mean 16.6/cycle) — consistent with a normally
+functioning decode pipeline throughout; no anomaly observed here. A full WSJT-X-vs-OpenWSFZ
+recall/<code>delta_dt</code> comparison was intentionally not run this session (§2) and remains blocked on
+resolving §3.2 first, per the originating dev-task's own recommended ordering.</p>
+<hr />
+<h2 id="4-summary-verdict-table">4. Summary verdict table</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+<th>Threshold</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stability — no crash</td>
+<td>0 crashes</td>
+<td>0</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Stability — no log ERR/WRN/FTL</td>
+<td>0/0/0</td>
+<td>0</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Duration</td>
+<td>7h54m21s</td>
+<td>—</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Persistence gate rejects pipeline-noise false positives</td>
+<td>Confirmed — 0 corrections in first ~9 min despite readings exceeding threshold every cycle</td>
+<td>no correction on noise</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>Correction bounds cumulative cycle-boundary drift</td>
+<td>Deviation grew 964 → 17,119 samples (net +16,155) over the session; corrections removed only 960 samples total (~6% of growth); net rate ≈0.171 s/hr, order-of-magnitude matching the original unfixed D-001 figure</td>
+<td>should stay small/non-trending</td>
+<td><strong>FAIL — BLOCKING</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall verdict: FAIL (blocking).</strong> Stability is clean and the persistence gate correctly
+solves the false-positive problem it was built for (§3.2's first paragraph), but this run
+demonstrates the correction mechanism, as currently sized, does not achieve the change's own
+primary stated goal of bounding cycle-boundary drift over a long-running session. Recommend
+<strong>tasks.md 6.6 remains unchecked</strong> and the HK-011 merge hold <strong>stays in place</strong> pending a design
+revision.</p>
+<hr />
+<h2 id="5-recommendations">5. Recommendations</h2>
+<p><strong>Primary recommendation — return to design, not just re-tune a constant.</strong> The core issue is
+structural: <code>MaxCorrectionSamples</code> conflates two different jobs that need different answers —
+(a) bounding a <em>single, unconfirmed</em> reading against an implausible one-off event (where a small
+cap is exactly right, per <code>design.md</code>'s Risks section), and (b) sizing the correction once
+<code>RequiredConsecutiveReadings</code> has already confirmed the reading reflects genuine, sustained
+drift (where a small fixed cap actively defeats the change's Goal #1). Suggest considering,
+for the Developer session's design discussion:</p>
+<ol>
+<li>Once the persistence gate fires, correct by (at least) the full confirmed accumulated
+   deviation rather than a small fixed quantum — the gate has already done the work of ruling out
+   noise, so there is no remaining reason to under-correct.</li>
+<li>Keep a separate, smaller safety cap only for the <em>first</em> candidate reading in a streak (i.e.,
+   before persistence is established) if an implausibly large single reading needs bounding —
+   this preserves <code>design.md</code>'s original one-off-step mitigation without throttling confirmed,
+   persistent drift.</li>
+<li>Re-open <code>dev-tasks/2026-07-23-cycleframer-large-clock-step-slow-convergence.md</code> for the
+   Captain's awareness: this run shows the same flat-cap ceiling affects the change's primary
+   continuous-drift case, not only the one-off-step scenario that was explicitly accepted as
+   deferred. The two gaps likely share one fix.</li>
+</ol>
+<p><strong>Not blocking, but worth folding into the same follow-up:</strong> the WSJT-X-vs-OpenWSFZ <code>delta_dt</code>
+comparison (this run's originally intended purpose, per the live-evidence dev-task's Recommended
+Next Step 4) should stay deferred until a revised correction is re-validated with another run
+like this one — running it against a build that demonstrably doesn't bound drift would not
+cleanly test the ~42 ppm hypothesis, for the same reason the very first live-evidence dev-task
+gave for pausing it originally.</p>
+<p><strong>Historical thread worth closing the loop on:</strong> the three-run DT-spread trend flagged in
+<code>qa/endurance/2026-07-07-bb0a1c4</code> §3.4/§5 ("recommend a dedicated look at OpenWSFZ's
+cycle-framing/DT-computation path before it is dismissed again") is exactly what this change was
+commissioned to address. This run's finding suggests that dedicated look is still not
+complete — worth citing this report alongside that trend when the Developer session revisits
+the design.</p>
+<p><strong>Next endurance run:</strong> should be a re-run of this same setup (same device, same technique)
+against whatever revised correction sizing comes out of the recommendation above, checked
+specifically for whether the accumulated-deviation-at-fire-time series stays flat/bounded across
+a multi-hour session rather than climbing as it did here.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
