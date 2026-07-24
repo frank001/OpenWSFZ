@@ -136,11 +136,39 @@ internal sealed class WasapiAudioSource : IAudioSource
                     capture.WaveFormat.Channels == 2 ? "stereo→mono(left)" : "mono",
                     capture.WaveFormat.SampleRate);
 
+                // ── Diagnostic instrumentation (tasks.md 8.1, root-cause instrumentation for
+                // dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md) ──
+                // DataAvailable fires at roughly 50 Hz, so logging every firing individually over
+                // a multi-hour session would be tens of millions of log lines. Aggregated instead
+                // and flushed every DiagFlushIntervalEvents firings (~4 s at nominal cadence) as a
+                // single Debug summary line, matching the log-volume order of magnitude CycleFramer
+                // already produces once per 15 s cycle. Captured via plain locals, not
+                // Interlocked/lock-protected: NAudio's WasapiCapture invokes DataAvailable
+                // serially from its own dedicated capture thread (the existing buffer.AddSamples
+                // call below already assumes this), so no concurrent access is expected.
+                const int diagFlushIntervalEvents = 200;
+                DateTime? diagLastDataAvailableUtc  = null;
+                int    diagEventCount               = 0;
+                double diagGapSumMs                 = 0;
+                double diagGapMaxMs                 = 0;
+                double diagEnqueueLatencySumMs      = 0;
+                double diagEnqueueLatencyMaxMs      = 0;
+
                 // DataAvailable fires on the WASAPI capture thread (~50 Hz).
                 capture.DataAvailable += (_, e) =>
                 {
                     try
                     {
+                        var diagFireUtc = DateTime.UtcNow;
+                        if (diagLastDataAvailableUtc.HasValue)
+                        {
+                            double gapMs = (diagFireUtc - diagLastDataAvailableUtc.Value).TotalMilliseconds;
+                            diagGapSumMs += gapMs;
+                            diagGapMaxMs  = Math.Max(diagGapMaxMs, gapMs);
+                        }
+                        diagLastDataAvailableUtc = diagFireUtc;
+                        diagEventCount++;
+
                         buffer.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
                         // Warn if the buffer is near-full (> 4 s). This indicates the consumer
@@ -155,6 +183,7 @@ internal sealed class WasapiAudioSource : IAudioSource
                         }
 
                         // Drain the resampler in 2 048-sample chunks.
+                        var diagDrainStartUtc = DateTime.UtcNow;
                         var outBuf = new float[2048];
                         int read;
                         while ((read = resampler.Read(outBuf, 0, outBuf.Length)) > 0)
@@ -170,6 +199,26 @@ internal sealed class WasapiAudioSource : IAudioSource
                                     deviceId,
                                     chunk.Length);
                             }
+                        }
+                        double diagDrainMs = (DateTime.UtcNow - diagDrainStartUtc).TotalMilliseconds;
+                        diagEnqueueLatencySumMs += diagDrainMs;
+                        diagEnqueueLatencyMaxMs  = Math.Max(diagEnqueueLatencyMaxMs, diagDrainMs);
+
+                        if (diagEventCount >= diagFlushIntervalEvents)
+                        {
+                            _logger?.LogDebug(
+                                "WASAPI capture cadence on '{DeviceId}': {Events} DataAvailable firings; " +
+                                "inter-arrival avg={AvgGapMs:F1} ms max={MaxGapMs:F1} ms; " +
+                                "resampler-drain-to-enqueue avg={AvgEnqueueMs:F2} ms max={MaxEnqueueMs:F2} ms.",
+                                deviceId, diagEventCount,
+                                diagGapSumMs / diagEventCount, diagGapMaxMs,
+                                diagEnqueueLatencySumMs / diagEventCount, diagEnqueueLatencyMaxMs);
+
+                            diagEventCount          = 0;
+                            diagGapSumMs            = 0;
+                            diagGapMaxMs            = 0;
+                            diagEnqueueLatencySumMs = 0;
+                            diagEnqueueLatencyMaxMs = 0;
                         }
                     }
                     catch (Exception ex)

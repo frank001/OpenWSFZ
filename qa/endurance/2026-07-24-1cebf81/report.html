@@ -800,6 +800,25 @@ ruled out decode-side slowdown as an explanation (elapsed times stayed flat 300�
 attributed its growth to genuine accumulating drift. This run's data points the other way,
 which is itself worth the Developer session's attention: the two runs may be seeing different
 underlying phenomena, not necessarily the same one.</p>
+<blockquote>
+<p><strong>Erratum (2026-07-24, tasks.md 8.2 reconciliation):</strong> a rigorous re-check of both raw logs
+(<code>logs/openswfz-20260723T222314Z.log</code> for <code>ce13e30</code>, <code>logs/openswfz-20260724T082055Z.log</code> for
+this run) using a full-session decile breakdown and linear regression, not just the two-point
+first-100/last-100 comparison above, complicates this section's framing. This run's own
+"+19.6%" headline turns out to be heavily endpoint-sensitive: the whole-session linear trend is
+essentially flat (slope ≈ +11 ms/1,000 cycles, r = +0.06 — no meaningful correlation), and the
+high last-100 average was driven by a noisy final decile (576.4 ms, stdev 99.9) sitting right
+after the <em>lowest</em> decile of the whole session (433.8 ms) — not a sustained climb. Separately,
+<code>ce13e30</code>'s "flat" claim also does not hold under the same method — it shows a real, if partial,
+~24% <em>decrease</em> (r = −0.56) concentrated in one mid-session step-down, not decode-side growth
+either. Net: <strong>neither run supports a clean, monotonic "decode load grows over the session"
+story</strong> — this working hypothesis's circumstantial support is weaker than presented above, and
+the growing-CPU/memory-load mechanism should not be assumed without better evidence (e.g. actual
+<code>hashTableRejectCount</code>/elapsed-time logging at regular cadence, tasks.md 8.4, rather than ad hoc
+endpoint sampling). This does not resolve H₀-3 either way; it narrows what future investigation
+should treat as established. Full numbers: dev-task addendum,
+<code>dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md</code>.</p>
+</blockquote>
 <p>If this hypothesis is correct, it means: a correction cannot fix a scheduling delay — it can only
 change which raw samples map to a window — so re-anchoring <code>nominalCycleStart</code> to a reading that
 reflects processing delay rather than sample-rate mismatch just re-baselines against a moving

@@ -257,6 +257,30 @@ public sealed class CaptureManagerTests
         cm.IsCapturing.Should().BeFalse(
             "IsCapturing must be false once the capture task has faulted");
     }
+
+    // ── tasks.md 8.1: root-cause instrumentation ─────────────────────────────
+
+    [Fact(DisplayName = "tasks.md 8.1: CaptureManager logs periodic Debug cadence instrumentation once enough chunks flow through")]
+    public async Task StartAsync_AfterManyChunks_LogsPeriodicCadenceDebug()
+    {
+        // Arrange — 250 chunks comfortably clears the 200-event flush interval, so at least
+        // one "Capture pipeline cadence" Debug summary must be logged before the source ends.
+        var logger = new RecordingLogger<CaptureManager>();
+        await using var cm = new CaptureManager(new RapidAudioSource(chunkCount: 250), logger);
+
+        // Act
+        await cm.StartAsync("mic-diag-001");
+
+        // Allow the capture task to drain the finite (but rapid) source.
+        await Poll.UntilAsync(() => !cm.IsCapturing, timeout: TimeSpan.FromSeconds(5));
+
+        // Assert
+        logger.Entries.Should().Contain(
+            e => e.Level == LogLevel.Debug && e.Message.Contains("Capture pipeline cadence"),
+            "dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md's " +
+            "instrumentation needs a periodic Debug summary of chunk inter-arrival and " +
+            "outer-channel write latency to isolate where accumulated deviation originates");
+    }
 }
 
 // ── ArecordAudioSource unit tests ─────────────────────────────────────────────
@@ -327,6 +351,35 @@ public sealed class ArecordAudioSourceTests
             .ThrowAsync<AudioCaptureException>(
                 because: "arecord exiting non-zero signals a capture failure");
     }
+}
+
+/// <summary>
+/// <see cref="IAudioSource"/> that yields a fixed number of chunks back-to-back with no
+/// artificial delay (just an <c>await Task.Yield()</c> per chunk) — used to exercise
+/// CaptureManager's periodic diagnostic-instrumentation flush (tasks.md 8.1) without a
+/// multi-second test runtime.
+/// </summary>
+internal sealed class RapidAudioSource : IAudioSource
+{
+    private readonly int _chunkCount;
+
+    public int SampleRate   => 12_000;
+    public int ChannelCount => 1;
+
+    public RapidAudioSource(int chunkCount) => _chunkCount = chunkCount;
+
+    public async IAsyncEnumerable<float[]> CaptureAsync(
+        string deviceId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        for (int i = 0; i < _chunkCount; i++)
+        {
+            await Task.Yield();
+            yield return new float[2048];
+        }
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 /// <summary>

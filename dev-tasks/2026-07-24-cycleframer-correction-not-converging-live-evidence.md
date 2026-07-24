@@ -225,6 +225,60 @@ checks out exactly against its own specification.
   5's effect on its own scenario; unrelated to this finding's root cause but part of the same
   overall mechanism.
 
+## Addendum (2026-07-24): instrumentation landed (8.1), decode-elapsed-time reconciliation done (8.2)
+
+**8.1 — root-cause instrumentation.** Landed per `design.md` Decision 6 (scope amendment — see
+`proposal.md`'s Impact section): Debug-level, periodically-aggregated diagnostic timing at three
+pipeline stages (`WasapiAudioSource.cs` `DataAvailable` cadence + resampler-drain-to-enqueue
+latency; `CaptureManager.cs` chunk-receive cadence + outer-channel write latency, platform-
+agnostic so it covers `arecord`/`sox` too; `CycleFramer.cs` real wall-clock inter-window elapsed
+time + chunk-dequeue-gap stats). All new timestamps use `DateTime.UtcNow` directly, never
+`_clock.UtcNow`, so the existing `RateClock`/`StepClock`/`BouncingClock` test doubles (which model
+drift purely as a function of `_clock.UtcNow`'s read count) are unaffected. New test coverage
+(`CycleFramerTests.RunAsync_WindowCloses_LogsPipelineTimingDebug`,
+`CaptureManagerTests.StartAsync_AfterManyChunks_LogsPeriodicCadenceDebug`) passes; full suites
+green. **Not yet exercised live** — this instrumentation has not run against real hardware yet;
+that is 8.6, still open.
+
+**8.2 — reconcile against `ce13e30`'s decode-elapsed-time claim.** Re-checked both runs' raw logs
+(`logs/openswfz-20260723T222314Z.log` for `ce13e30`, `logs/openswfz-20260724T082055Z.log` for this
+run) with the same method, plus a full-session decile breakdown and linear regression the original
+first-100/last-100 comparisons didn't do:
+
+| | `ce13e30` | `1cebf81` (this run) |
+|---|---|---|
+| n cycles with `elapsed=` | 1,897 | 1,502 |
+| first-100 avg | 561.2 ms | 507.6 ms |
+| last-100 avg | 425.9 ms | 607.0 ms |
+| endpoint delta | −24.1% | +19.6% |
+| whole-session linear slope | −67.4 ms / 1,000 cycles | +11.0 ms / 1,000 cycles |
+| correlation (r) | −0.56 (real, moderate) | +0.06 (~none) |
+
+**Finding: neither "ruled out" / "contributing factor" framing survives intact.**
+`ce13e30`'s "elapsed times stayed flat... with no growth trend" is not accurate — there is a real,
+moderately-correlated ~24% *decrease*, concentrated in one mid-session step-down (decile 6→7:
+545.8 ms → 431.7 ms), not noise. This run's own "+19.6%" headline is real as a raw endpoint
+comparison but is not backed by a whole-session trend (r = 0.06, essentially flat) — it is driven
+by a noisy final decile (576.4 ms, stdev 99.9) immediately following the *lowest* decile of the
+entire session (433.8 ms, decile 9). Net: **decode-elapsed time does not show a clean, monotonic
+growth pattern in either run** — the "growing CPU/memory load from accumulating decoder state"
+half of Evidence 5's working hypothesis has weaker support than either report claimed, in both
+directions. This doesn't resolve the core non-convergence question, but it means 8.3's eventual
+fix-shape decision should not lean on "decode elapsed time is provably growing" as supporting
+evidence without better data (see 8.4). Errata added to both source reports
+(`qa/endurance/2026-07-24-ce13e30/report.md`, `qa/endurance/2026-07-24-1cebf81/report.md`) rather
+than silently rewriting their original claims.
+
+`hashTableRejectCount` could not be reconciled the same way — neither raw log contains it (it was
+only sampled ad hoc via `/api/v1/status` polling in the 1cebf81 run, never logged), confirming 8.4's
+premise that systematic logging is needed before that half of the hypothesis can be checked at all.
+
+**Still open:** 8.3 (decide fix shape — blocked on live data from the new instrumentation, not
+just this reconciliation), 8.4 (systematic `hashTableRejectCount`/elapsed-time logging — now more
+clearly warranted, since ad hoc endpoint sampling has twice produced a misleading headline), 8.5
+(`pre_merge_check.py` gate), 8.6 (live re-confirmation with the new instrumentation — needs real
+capture hardware and session time, not something this session can execute). The merge hold stands.
+
 ## Appendix: reproduction
 
 - Report: `qa/endurance/2026-07-24-1cebf81/report.md` (+ rendered `report.html`).

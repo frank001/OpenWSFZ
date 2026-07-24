@@ -90,16 +90,64 @@ public sealed class CaptureManager : IAsyncDisposable
         _captureTask = Task.Run(async () =>
         {
             var chunksReceived = 0; // D2 (DIAG): count chunks to see if WASAPI ever delivers data
+
+            // ── Diagnostic instrumentation (tasks.md 8.1, root-cause instrumentation for
+            // dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md) ──
+            // CaptureManager is the single platform-agnostic point downstream of all three
+            // IAudioSource implementations (WASAPI/arecord/sox) and upstream of CycleFramer —
+            // the same reasoning design.md Decision 1 used to pick CycleFramer as the fix point
+            // for the drift correction itself. Instrumenting here once covers every platform.
+            // Aggregated and flushed periodically (not per-chunk) to keep log volume bounded over
+            // a multi-hour session; local variables only — this loop is the sole writer.
+            const int diagFlushIntervalEvents = 200;
+            DateTime? diagLastChunkReceivedUtc = null;
+            int    diagEventCount            = 0;
+            double diagGapSumMs              = 0;
+            double diagGapMaxMs              = 0;
+            double diagWriteLatencySumMs     = 0;
+            double diagWriteLatencyMaxMs     = 0;
+
             try
             {
                 await foreach (var chunk in _source.CaptureAsync(deviceId, linkedCt))
                 {
                     chunksReceived++; // D2 (DIAG)
 
+                    var diagReceivedUtc = DateTime.UtcNow;
+                    if (diagLastChunkReceivedUtc.HasValue)
+                    {
+                        double gapMs = (diagReceivedUtc - diagLastChunkReceivedUtc.Value).TotalMilliseconds;
+                        diagGapSumMs += gapMs;
+                        diagGapMaxMs  = Math.Max(diagGapMaxMs, gapMs);
+                    }
+                    diagLastChunkReceivedUtc = diagReceivedUtc;
+                    diagEventCount++;
+
                     // Notify the audio activity monitor before queuing the chunk (FR-020).
                     ChunkReceived?.Invoke(chunk);
 
+                    var diagWriteStartUtc = DateTime.UtcNow;
                     await _channel.Writer.WriteAsync(chunk, linkedCt);
+                    double diagWriteMs = (DateTime.UtcNow - diagWriteStartUtc).TotalMilliseconds;
+                    diagWriteLatencySumMs += diagWriteMs;
+                    diagWriteLatencyMaxMs  = Math.Max(diagWriteLatencyMaxMs, diagWriteMs);
+
+                    if (diagEventCount >= diagFlushIntervalEvents)
+                    {
+                        _logger?.LogDebug(
+                            "Capture pipeline cadence on '{DeviceId}': {Events} chunks received from source; " +
+                            "inter-arrival avg={AvgGapMs:F1} ms max={MaxGapMs:F1} ms; " +
+                            "outer-channel write avg={AvgWriteMs:F2} ms max={MaxWriteMs:F2} ms.",
+                            deviceId, diagEventCount,
+                            diagGapSumMs / diagEventCount, diagGapMaxMs,
+                            diagWriteLatencySumMs / diagEventCount, diagWriteLatencyMaxMs);
+
+                        diagEventCount        = 0;
+                        diagGapSumMs          = 0;
+                        diagGapMaxMs          = 0;
+                        diagWriteLatencySumMs = 0;
+                        diagWriteLatencyMaxMs = 0;
+                    }
                 }
 
                 // The source's async enumerable ended without throwing an exception.

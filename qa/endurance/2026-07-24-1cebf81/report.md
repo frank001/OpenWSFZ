@@ -228,6 +228,24 @@ attributed its growth to genuine accumulating drift. This run's data points the 
 which is itself worth the Developer session's attention: the two runs may be seeing different
 underlying phenomena, not necessarily the same one.
 
+> **Erratum (2026-07-24, tasks.md 8.2 reconciliation):** a rigorous re-check of both raw logs
+> (`logs/openswfz-20260723T222314Z.log` for `ce13e30`, `logs/openswfz-20260724T082055Z.log` for
+> this run) using a full-session decile breakdown and linear regression, not just the two-point
+> first-100/last-100 comparison above, complicates this section's framing. This run's own
+> "+19.6%" headline turns out to be heavily endpoint-sensitive: the whole-session linear trend is
+> essentially flat (slope ≈ +11 ms/1,000 cycles, r = +0.06 — no meaningful correlation), and the
+> high last-100 average was driven by a noisy final decile (576.4 ms, stdev 99.9) sitting right
+> after the *lowest* decile of the whole session (433.8 ms) — not a sustained climb. Separately,
+> `ce13e30`'s "flat" claim also does not hold under the same method — it shows a real, if partial,
+> ~24% *decrease* (r = −0.56) concentrated in one mid-session step-down, not decode-side growth
+> either. Net: **neither run supports a clean, monotonic "decode load grows over the session"
+> story** — this working hypothesis's circumstantial support is weaker than presented above, and
+> the growing-CPU/memory-load mechanism should not be assumed without better evidence (e.g. actual
+> `hashTableRejectCount`/elapsed-time logging at regular cadence, tasks.md 8.4, rather than ad hoc
+> endpoint sampling). This does not resolve H₀-3 either way; it narrows what future investigation
+> should treat as established. Full numbers: dev-task addendum,
+> `dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md`.
+
 If this hypothesis is correct, it means: a correction cannot fix a scheduling delay — it can only
 change which raw samples map to a window — so re-anchoring `nominalCycleStart` to a reading that
 reflects processing delay rather than sample-rate mismatch just re-baselines against a moving

@@ -239,7 +239,7 @@ isolated, and re-tuning `CorrectionSanityCeilingSamples`/`DriftThresholdSamples`
 Recommended next steps, item 3). This section tracks the investigation, not a pre-chosen
 implementation.
 
-- [ ] 8.1 Instrument each relevant pipeline stage with timestamps — WASAPI `DataAvailable` firing
+- [x] 8.1 Instrument each relevant pipeline stage with timestamps — WASAPI `DataAvailable` firing
       time, `Channel<float[]>` enqueue/dequeue instants, and `CycleFramer`'s own processing
       instant relative to when it reads `_clock.UtcNow` — to isolate where the measured
       "deviation" actually originates: genuine capture-rate mismatch vs. `CycleFramer`'s own
@@ -249,7 +249,24 @@ implementation.
       touching `WasapiAudioSource.cs` needs its own scope decision, a `proposal.md` amendment or
       follow-on change, same as noted at 6.3). Two independent live runs (that dev-task's session
       and this one) now motivate it.
-- [ ] 8.2 Reconcile against `qa/endurance/2026-07-24-ce13e30/report.md`'s decode-elapsed-time
+      **Done:** scope widened via a `proposal.md` Impact amendment (Captain's explicit choice —
+      see `design.md` Decision 6). Debug-level, periodically-aggregated (not per-event —
+      `DataAvailable` fires ~50 Hz) diagnostic timing added at three stages:
+      `WasapiAudioSource.cs` (`DataAvailable` inter-arrival cadence, resampler-drain-to-enqueue
+      latency, flushed every 200 firings ≈ 4 s), `CaptureManager.cs` (chunk-receive cadence and
+      outer-channel write latency, flushed every 200 chunks — the platform-agnostic point
+      downstream of all three `IAudioSource` implementations, so this covers `arecord`/`sox` too
+      for free), and `CycleFramer.cs` (real wall-clock inter-window elapsed time and
+      chunk-dequeue-gap stats, logged once per cycle alongside the existing drift-check line).
+      All new timestamps use `DateTime.UtcNow` directly, never `_clock.UtcNow` — the
+      `RateClock`/`StepClock`/`BouncingClock` test doubles model drift purely as a function of
+      `_clock.UtcNow`'s read count, so any additional read there would have silently corrupted
+      their arithmetic. New test coverage:
+      `CycleFramerTests.RunAsync_WindowCloses_LogsPipelineTimingDebug` and
+      `CaptureManagerTests.StartAsync_AfterManyChunks_LogsPeriodicCadenceDebug`; all 18
+      `OpenWSFZ.Ft8.Tests` `CycleFramerTests` and all 20 `OpenWSFZ.Audio.Tests` pass. Not yet
+      exercised live — see 8.6.
+- [x] 8.2 Reconcile against `qa/endurance/2026-07-24-ce13e30/report.md`'s decode-elapsed-time
       finding specifically: that run explicitly ruled out decode-side slowdown (elapsed times flat
       300–600 ms across its whole session), while `qa/endurance/2026-07-24-1cebf81/report.md`
       found elapsed times growing +19.6% (508 ms → 607 ms, first-100 vs last-100 cycles) alongside
@@ -257,15 +274,43 @@ implementation.
       method used in the newer report before treating either "ruled out"/"contributing factor"
       conclusion as settled — the two runs' evidence currently disagrees on a checkable point, not
       just on interpretation.
+      **Done:** re-checked both raw logs with the same method plus a full-session decile
+      breakdown + linear regression. Neither original framing survives: `ce13e30`'s "flat, no
+      growth trend" claim is wrong (real ~24% decrease, r=−0.56, one mid-session step-down, not
+      noise); this run's "+19.6% growth" headline is real as an endpoint comparison but not backed
+      by a whole-session trend (r=+0.06, essentially flat) — driven by a noisy final decile.
+      `hashTableRejectCount` could not be reconciled at all — neither raw log contains it (ad hoc
+      `/api/v1/status` sampling only), confirming 8.4's premise. Full numbers and both reports'
+      errata: dev-task addendum, `dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md`.
+      Net effect: decode-elapsed-time growth should not be leaned on as supporting evidence for
+      Evidence 5's working hypothesis in either direction without better data (8.4). Does not
+      resolve non-convergence; narrows what 8.3 can safely assume.
 - [ ] 8.3 Only after 8.1–8.2 land: decide on a fix shape. Do not adjust
       `CorrectionSanityCeilingSamples`, `DriftThresholdSamples`, or `RequiredConsecutiveReadings`
       before root cause is isolated — `qa/endurance/2026-07-24-1cebf81/report.md` §3.2 already
       shows Decision 5's sizing math itself is not where the problem lives.
+      **Still blocked:** 8.1's instrumentation exists but has not run live yet (needs 8.6); 8.2's
+      reconciliation removed decode-elapsed-time growth as reliable supporting evidence for
+      Evidence 5's working hypothesis rather than confirming it either way. No live data yet to
+      isolate genuine capture-rate mismatch vs. pipeline-scheduling delay vs. something else — do
+      not start this until 8.6 produces that data.
 - [ ] 8.4 Add systematic logging for `hashTableRejectCount` and decode elapsed time at a regular
       cadence (both were only available via ad hoc `/api/v1/status` polling in the 2026-07-24 run)
       if 8.2 finds session-length CPU/memory load is a real contributing factor.
-- [ ] 8.5 Re-run `python3 tools/pre_merge_check.py` (HK-006) against whatever this section
+      **Not done — premise not met, but strengthened, not weakened:** 8.2 didn't find a clean
+      "session-length CPU/memory load is a real contributing factor" result (neither run shows a
+      robust monotonic elapsed-time trend), but it did show ad hoc endpoint sampling (first-100
+      vs. last-100) produced a misleading headline in both directions — a stronger argument for
+      regular-cadence logging over ad hoc polling than the original conditional anticipated. Worth
+      doing regardless of 8.3's eventual fix shape; not yet done here since it's not on 8.1/8.2's
+      critical path.
+- [x] 8.5 Re-run `python3 tools/pre_merge_check.py` (HK-006) against whatever this section
       produces before calling the change ready for merge again.
+      **Done:** all gates PASS — G9a doc/VERSION, Release build, UDP-margin lint, G10 lint, full
+      test suite (all projects, incl. 300/300 `OpenWSFZ.Ft8.Tests` — up one from section 7's run —
+      and 17/17 `OpenWSFZ.Audio.Tests` — up one), G3 traceability, WSL Debian compile+test, G8
+      openspec strict validation (57/57, incl. this change's Decision-6-revised design.md/
+      proposal.md), self-contained publish, AOT publish. Result: READY.
 - [ ] 8.6 Live re-confirmation: re-run the same live setup (same device, same technique) used in
       6.6/7.6 against the outcome of 8.1–8.4, checked specifically for whether the post-correction
       reading actually drops near the noise floor rather than re-establishing at the same

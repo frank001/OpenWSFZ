@@ -190,6 +190,21 @@ consistent with genuine, confirmed, accumulating cycle-boundary drift — exactl
 persistence gate is supposed to catch and the correction is supposed to then bound — not a
 pipeline-latency or decode-performance artefact.
 
+> **Erratum (2026-07-24, tasks.md 8.2 reconciliation):** "stayed flat" was too strong. A rigorous
+> re-check of this same log (`logs/openswfz-20260723T222314Z.log`, `elapsed=` field, all 1,897
+> cycles) using the first-100/last-100-average method the later `1cebf81` report used, plus a
+> full-session decile breakdown and linear regression, finds the *range* claim (300–600 ms) holds,
+> but "no growth trend" does not: elapsed time actually **decreased** ~24% from first-100
+> (561.2 ms) to last-100 (425.9 ms), concentrated in a step-down around 60–70% through the session
+> (decile 6: 545.8 ms → decile 7: 431.7 ms) rather than a smooth trend (whole-session linear
+> regression: slope ≈ −67 ms/1,000 cycles, r = −0.56 — a real, moderate correlation, not just
+> noise). This does not overturn this section's conclusion (a *decrease* cannot explain the
+> *growing* deviation this run measured — if anything it argues more strongly against a
+> decode-slowdown explanation here), but "flat" was inaccurate and should not be read as "provably
+> constant." See `dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md`'s
+> addendum for the full reconciliation against the later `1cebf81` run, whose own "+19.6% growth"
+> headline figure turns out to have a similar endpoint-sampling caveat.
+
 **Why this happens:** `MaxCorrectionSamples = 48` was sized (design.md Decision 4) as "a
 modestly larger cap [than the original 32] to resolve [a threshold crossing] in fewer follow-on
 slew events," reasoned from the *persistence gate's delayed-reaction effect* on a single crossing

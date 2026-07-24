@@ -213,6 +213,62 @@ Risks-section intent) for no real benefit — a ceiling sized several orders of 
 plausible drift or clock-step scenario costs nothing in the common case while still catching
 genuinely broken input.
 
+### Decision 6: Widen diagnostic-instrumentation scope to `WasapiAudioSource.cs`/`CaptureManager.cs`, keeping it strictly Debug-level and non-behavioural
+
+**Added post-implementation, from live evidence**
+(`dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md`, following a fresh
+live re-confirmation run at `qa/endurance/2026-07-24-1cebf81/report.md` that validated Decision
+5's sizing formula fires exactly per spec — every one of 10 corrections matched its confirmed
+deviation to the sample — yet the very next drift-check reading after each correction landed
+within ±4% of the pre-correction value, all ten times, and the underlying deviation climbed
+steadily across the whole 6h16m session largely independent of when corrections fired. The
+correction is sized correctly but does not converge on real hardware.
+
+**Root cause: not yet isolated.** Unlike Decisions 4 and 5, this is not a known fix — the
+dev-task's own conclusion is that the proximate source of the measured "deviation" (genuine
+capture-device clock-rate mismatch vs. `CycleFramer`'s own loop-scheduling delay vs. something
+else) is not isolated, and re-tuning `DriftThresholdSamples`/`CorrectionSanityCeilingSamples`/
+`RequiredConsecutiveReadings` again without isolating it first is explicitly discouraged (the
+dev-task's own evidence already shows the sizing math itself is not where the problem lives).
+
+**Chosen.** Add Debug-level, periodically-aggregated diagnostic timing instrumentation at three
+pipeline stages — `WasapiAudioSource`'s `DataAvailable` firing cadence and resampler-drain-to-
+enqueue latency, `CaptureManager`'s chunk-receive cadence and outer-channel write latency (the
+single platform-agnostic point downstream of all three `IAudioSource` implementations, same
+reasoning as Decision 1's choice of fix point), and `CycleFramer`'s own real wall-clock
+inter-window elapsed time and chunk-dequeue-gap statistics — so a future live run has the data to
+isolate where accumulated deviation actually originates, without needing a further code change
+first.
+
+**Why this widens `proposal.md`'s stated scope, and why that is the right call rather than a
+silent scope creep.** The original `Impact: Code:` line confined this change to `CycleFramer.cs`
+because that was sufficient for the *correction* itself (Decision 1). Diagnosing why a correctly-
+sized correction fails to converge is a different question that the correction's own fix point
+cannot answer alone — the dev-task's own Recommended Next Steps (and 6.3's identically-reasoned
+deferral before it) are explicit that this exact instrumentation needs its own scope decision, not
+silent inclusion. `proposal.md`'s Impact section has been amended in place (the Captain's explicit
+choice, mirroring how Decisions 4/5 were folded into this same change rather than spun into a
+separate one) to cover this.
+
+**Why the instrumentation itself is safe to add without a full risk/mitigation write-up like
+Decisions 1–5.** It is diagnostic-only: every new timestamp/aggregate is read-only with respect to
+the audio pipeline's actual data flow (no chunk is ever delayed, dropped, or altered to produce a
+measurement), logged at Debug level (already off by default in production per this codebase's
+existing logging conventions — see `CycleFramer`'s existing per-cycle Debug lines), and
+periodically aggregated (not per-event) specifically to keep log volume bounded over a multi-hour
+session: `DataAvailable` fires at ~50 Hz, so per-event logging would produce tens of millions of
+lines over a 6+ hour run — flushing a summary every 200 events (~4 s) keeps volume comparable to
+`CycleFramer`'s existing once-per-15s Debug cadence. Deliberately keyed off `DateTime.UtcNow`
+directly rather than the injectable `IClock` used by the correction logic itself — several
+existing unit tests (`RateClock`/`StepClock`/`BouncingClock`) model drift purely as a function of
+how many times `_clock.UtcNow` is read, so adding any further read there would silently corrupt
+their arithmetic; the instrumentation needs real wall-clock timing regardless, so this is not a
+compromise.
+
+**Explicitly deferred, not done in this pass:** deciding a fix shape (tasks.md 8.3), which per the
+dev-task must wait until this instrumentation has actually run live and 8.1/8.2's findings are in
+hand — this decision adds the instrumentation only, not a fix.
+
 ## Risks / Trade-offs
 
 - **[Risk] A large, one-time system clock step (operator changes system time, host NTP client

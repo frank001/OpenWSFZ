@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Ft8;
 using Xunit;
@@ -800,6 +801,69 @@ public sealed class CycleFramerTests
 
         windows.Should().AllSatisfy(w => w.Pcm.Should().HaveCount(SamplesPerCycle,
             "a correction adjusts which raw samples land in a window, never the emitted window's length"));
+    }
+
+    // ── tasks.md 8.1: root-cause instrumentation ─────────────────────────────
+
+    [Fact(DisplayName = "tasks.md 8.1: RunAsync logs Debug pipeline-timing instrumentation once per closed window")]
+    public async Task RunAsync_WindowCloses_LogsPipelineTimingDebug()
+    {
+        // Clock starts exactly at second 0 of a cycle → no leading silence.
+        var clock  = new FakeClock(new DateTime(2026, 7, 24, 9, 0, 0, DateTimeKind.Utc));
+        var logger = new RecordingLogger<CycleFramer>();
+
+        var source = Channel.CreateUnbounded<float[]>();
+        var output = Channel.CreateUnbounded<(float[], DateTime, double?)>();
+        var framer = new CycleFramer(source.Reader, clock, logger);
+
+        var producerTask = FeedSamples((source.Writer, source.Reader), totalSamples: SamplesPerCycle * 2, chunkSize: 4096);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var framerTask = framer.RunAsync(output.Writer, cts.Token);
+
+        await producerTask;
+
+        // Drain one complete window so the pipeline-timing log line (emitted alongside the
+        // drift check, once per closed window) has definitely fired.
+        await output.Reader.ReadAsync(cts.Token);
+
+        cts.Cancel();
+        try { await framerTask; } catch { /* cancelled */ }
+
+        logger.Entries.Should().Contain(
+            e => e.Level == LogLevel.Debug && e.Message.Contains("Cycle boundary pipeline timing"),
+            "dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md's " +
+            "instrumentation needs a per-window Debug summary of real inter-window elapsed time " +
+            "and chunk-dequeue-gap stats to isolate where accumulated deviation originates");
+    }
+
+    /// <summary>
+    /// <see cref="ILogger{T}"/> that records every log entry for assertion — local to this
+    /// file rather than shared, mirroring OpenWSFZ.Audio.Tests' equivalent test double.
+    /// </summary>
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        private readonly List<(LogLevel Level, string Message)> _entries = new();
+        private readonly object _lock = new();
+
+        public IReadOnlyList<(LogLevel Level, string Message)> Entries
+        {
+            get { lock (_lock) return [.. _entries]; }
+        }
+
+        IDisposable? ILogger.BeginScope<TState>(TState state) => null;
+        bool ILogger.IsEnabled(LogLevel logLevel) => true;
+
+        void ILogger.Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var msg = formatter(state, exception);
+            lock (_lock) _entries.Add((logLevel, msg));
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

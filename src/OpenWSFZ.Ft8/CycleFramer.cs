@@ -66,6 +66,20 @@ namespace OpenWSFZ.Ft8;
 /// readings before acting filters that noise out while still catching genuine sustained drift,
 /// whose accumulated deviation grows monotonically once nothing is correcting it.
 /// </para>
+///
+/// <para>
+/// A live multi-hour endurance run found the (correctly-sized, per design.md Decision 5)
+/// correction firing exactly as designed yet not converging — the underlying deviation kept
+/// climbing regardless (see
+/// dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md). To isolate
+/// whether that is genuine capture-rate mismatch, capture-pipeline scheduling delay, or
+/// something else, <see cref="RunAsync"/> logs Debug-level diagnostic timing once per cycle
+/// (real inter-window wall-clock elapsed time, and chunk-dequeue-gap statistics from
+/// <paramref name="output"/>'s upstream source) — deliberately measured via
+/// <see cref="DateTime.UtcNow"/> directly rather than <see cref="IClock"/>, so this
+/// instrumentation never changes how many times the injectable clock is read (several existing
+/// unit tests model drift purely as a function of that read count).
+/// </para>
 /// </summary>
 public sealed class CycleFramer
 {
@@ -205,6 +219,27 @@ public sealed class CycleFramer
             int    driftStreakSign      = 0;
             double driftStreakMagnitude = 0;
 
+            // ── Diagnostic instrumentation (tasks.md 8.1, root-cause instrumentation
+            // for dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md) ──
+            // Deliberately keyed off DateTime.UtcNow directly, NEVER _clock.UtcNow: the
+            // RateClock/StepClock/BouncingClock test doubles above model drift purely as a
+            // function of how many times _clock.UtcNow has been read, so any additional read
+            // of _clock here would silently corrupt every one of those tests' arithmetic. In
+            // production _clock IS a thin DateTime.UtcNow passthrough (SystemClock.cs), so this
+            // is the same real wall-clock instant either way — just measured without touching
+            // the injectable seam the drift-correction logic depends on.
+            //
+            // Purpose: isolate where accumulated "deviation" actually originates — genuine
+            // capture-rate mismatch (would show up as real inter-window elapsed time itself
+            // growing) vs. irregular/bursty chunk delivery from the capture pipeline (would show
+            // up as growing chunk-dequeue gaps) vs. something else entirely. See the dev-task's
+            // Evidence 5 working hypothesis (processing/scheduling delay, not genuine drift).
+            DateTime? diagLastWindowCloseUtc  = null; // real time the previous window closed
+            DateTime? diagLastChunkDequeueUtc = null; // real time the previous chunk was dequeued
+            int    diagChunkDequeueCount      = 0;
+            double diagChunkDequeueGapSumMs   = 0;
+            double diagChunkDequeueGapMaxMs   = 0;
+
             // Snapshot the dial frequency at window-open time (startup = open of first window).
             // This prevents band-change boundary mislabeling: the decode pump compares this
             // snapshot against the live frequency at decode time and discards the cycle if
@@ -217,6 +252,21 @@ public sealed class CycleFramer
 
             await foreach (var chunk in _source.ReadAllAsync(ct))
             {
+                // Diagnostic instrumentation (tasks.md 8.1): gap since the previous chunk was
+                // dequeued from _source, aggregated per window (see the reset alongside the
+                // pipeline-timing log below). A growing max here points at irregular/bursty
+                // delivery from the capture pipeline (channel backpressure, thread-pool
+                // contention with concurrent native decode) rather than genuine device drift.
+                var diagChunkDequeueUtc = DateTime.UtcNow;
+                if (diagLastChunkDequeueUtc.HasValue)
+                {
+                    double gapMs = (diagChunkDequeueUtc - diagLastChunkDequeueUtc.Value).TotalMilliseconds;
+                    diagChunkDequeueGapSumMs += gapMs;
+                    diagChunkDequeueGapMaxMs  = Math.Max(diagChunkDequeueGapMaxMs, gapMs);
+                    diagChunkDequeueCount++;
+                }
+                diagLastChunkDequeueUtc = diagChunkDequeueUtc;
+
                 int remaining = chunk.Length;
                 int chunkPos  = 0;
 
@@ -305,6 +355,38 @@ public sealed class CycleFramer
                             "Cycle boundary drift check: deviation = {DeviationSamples:F1} samples " +
                             "({DeviationMs:F2} ms); persistence streak = {Streak}/{Required}.",
                             deviationSamples, deviationSeconds * 1000.0, driftStreakCount, RequiredConsecutiveReadings);
+
+                        // Diagnostic instrumentation (tasks.md 8.1): real wall-clock elapsed time
+                        // since the previous window closed, and this window's chunk-dequeue-gap
+                        // aggregates, logged at the same once-per-cycle cadence as the drift check
+                        // above (keeps log volume comparable to existing Debug output). If real
+                        // inter-window elapsed time itself tracks ~15.000 s throughout a session
+                        // while accumulated deviation still grows, that points away from "the
+                        // window physically takes longer to fill" and toward a scheduling/
+                        // bookkeeping effect elsewhere; if it also grows in lockstep, that
+                        // supports genuine capture-rate mismatch (or upstream backpressure
+                        // stalling delivery, visible via the chunk-dequeue-gap stats).
+                        var diagNowUtc = DateTime.UtcNow;
+                        double? diagRealInterWindowSeconds = diagLastWindowCloseUtc.HasValue
+                            ? (diagNowUtc - diagLastWindowCloseUtc.Value).TotalSeconds
+                            : null;
+                        diagLastWindowCloseUtc = diagNowUtc;
+
+                        double diagAvgChunkDequeueGapMs = diagChunkDequeueCount > 0
+                            ? diagChunkDequeueGapSumMs / diagChunkDequeueCount
+                            : 0;
+
+                        _logger?.LogDebug(
+                            "Cycle boundary pipeline timing: processing instant = {NowUtc:HH:mm:ss.fff}; " +
+                            "real inter-window elapsed = {RealElapsed} (nominal 15.000 s); " +
+                            "chunk dequeue gaps this window: n={ChunkCount}, avg={AvgGapMs:F1} ms, max={MaxGapMs:F1} ms.",
+                            diagNowUtc,
+                            diagRealInterWindowSeconds.HasValue ? $"{diagRealInterWindowSeconds:F3} s" : "n/a (first window)",
+                            diagChunkDequeueCount, diagAvgChunkDequeueGapMs, diagChunkDequeueGapMaxMs);
+
+                        diagChunkDequeueCount    = 0;
+                        diagChunkDequeueGapSumMs = 0;
+                        diagChunkDequeueGapMaxMs = 0;
 
                         if (driftStreakCount >= RequiredConsecutiveReadings)
                         {

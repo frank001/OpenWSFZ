@@ -53,19 +53,32 @@ than carrying indefinitely as an unexplained gap.
   timing accuracy over long sessions is an undocumented gap, not a regression of stated
   behavior).
 
-`audio-capture` is **not** modified: `design.md` (Decision 1) rejected fixing this at the
-platform-specific capture/resampling layer, since two of three platforms resample via an
-opaque external process that cannot be uniformly calibrated from this codebase. The fix is
-confined to `CycleFramer`, the single platform-agnostic point downstream of all three capture
-implementations.
+`audio-capture`'s *correction behaviour* is **not** modified: `design.md` (Decision 1) rejected
+fixing the drift itself at the platform-specific capture/resampling layer, since two of three
+platforms resample via an opaque external process that cannot be uniformly calibrated from this
+codebase. The correction mechanism remains confined to `CycleFramer`, the single
+platform-agnostic point downstream of all three capture implementations. `WasapiAudioSource.cs`
+and `CaptureManager.cs` gained Debug-level *diagnostic* instrumentation only (Decision 6) — no
+change to capture, resampling, or correction behaviour on any platform.
 
 ## Impact
 
-- **Code:** `src/OpenWSFZ.Ft8/CycleFramer.cs` only (cycle-boundary bookkeeping).
+- **Code:** `src/OpenWSFZ.Ft8/CycleFramer.cs` (cycle-boundary bookkeeping), plus, as of the
+  root-cause instrumentation added for `tasks.md` 8.1
+  (`dev-tasks/2026-07-24-cycleframer-correction-not-converging-live-evidence.md`, design.md
+  Decision 6): `src/OpenWSFZ.Audio/WasapiAudioSource.cs` and `src/OpenWSFZ.Audio/CaptureManager.cs`
+  — Debug-level, periodically-aggregated diagnostic timing only (capture-cadence and
+  channel-hop latency), no behavioural change. Scope was originally confined to `CycleFramer.cs`
+  alone (Decision 1's platform-agnostic-fix-point reasoning still holds for the *correction*
+  itself); this amendment widens only the diagnostic-instrumentation scope, needed because a live
+  endurance re-test found the (correctly-sized, per Decision 5) correction firing exactly as
+  designed yet still not converging, and isolating why requires visibility into the capture
+  pipeline stages upstream of `CycleFramer`, not just `CycleFramer` itself.
 - **Tests:** new coverage using a fake/injectable `IClock` in `CycleFramer` tests, asserting
   (a) no correction fires absent drift, (b) a bounded correction fires once accumulated
   deviation exceeds threshold, (c) a single implausibly large deviation does not produce an
-  unbounded jump.
+  unbounded jump; plus Debug-log-assertion coverage in `CycleFramerTests.cs` and
+  `CaptureManagerTests.cs` for the diagnostic instrumentation above.
 - **Validation:** re-running the Tight/Isolated replay pilots
   (`qa/rr-study/results/2026-07-23-d9ab692-d001-isolated-pipeline-diagnosis/` and
   `qa/rr-study/results/2026-07-23-d001-tight-class-replay/` harnesses) against a corrected build
