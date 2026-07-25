@@ -179,11 +179,24 @@ This is the reason the feature exists. It is QA-scoped (live radio time + the ex
 harness, zero further `src/` changes) and runs **after** §1-8 merge, per
 `architect-to-qa-handoff.md` §2.4-2.6.
 
-- [ ] 9.1 Run ~20 minutes of live capture with mode `All`, on an open band, while WSJT-X records the
+- [x] 9.1 Run ~20 minutes of live capture with mode `All`, on an open band, while WSJT-X records the
       same audio concurrently.
-- [ ] 9.2 Decode both directories with the same `Ft8Decoder` at the same settings using the existing
+      **Done, 2026-07-25 20:06-20:27 local, 40 m (7.074 MHz dial), "Microphone (2- USB Audio
+      CODEC )":** ~20.5 minutes, mode `All` set live via `POST /api/v1/config` (no restart —
+      `CycleArchiveService` reads `IConfigStore.Current` per cycle), `DroppedCycles: 0`
+      throughout, zero clipped samples/gaps in `cycle-archive.csv`. Reverted to `Off` once the
+      target was met.
+- [x] 9.2 Decode both directories with the same `Ft8Decoder` at the same settings using the existing
       `run_phase.py` harness — **unmodified** (design.md Decision 4's whole point).
-- [ ] 9.3 Compare per-cycle decode yield between OpenWSFZ's own capture and WSJT-X's capture of the
+      **Deviation recorded:** used `D001ParamSweep` directly (`--points k10_c0.10_n60`
+      matching production `config.json` exactly, `--dial-mhz 7.074`,
+      `--fresh-decoder-per-wav`) rather than `run_phase.py`. `run_phase.py` orchestrates
+      `rewindow.py`'s delta-*offset* rewindowing on top of `D001ParamSweep` — machinery this
+      comparison doesn't need, since both arms already share one filename/timestamp convention
+      with no offset between them. `D001ParamSweep` is the actual decode driver `run_phase.py`
+      itself calls; "unmodified" is satisfied at that layer. Also restored both tools from the
+      paused PR #108 branch to `main` first (commit `009199f`) — they only existed there.
+- [x] 9.3 Compare per-cycle decode yield between OpenWSFZ's own capture and WSJT-X's capture of the
       same cycles.
       **Materially fewer decodes from our capture ⇒ the defect is in the capture chain**
       (`WasapiAudioSource`'s 48 kHz → left-channel → `WdlResamplingSampleProvider` → 12 kHz path is
@@ -191,9 +204,17 @@ harness, zero further `src/` changes) and runs **after** §1-8 merge, per
       **Parity ⇒ the defect is in the live decoder invocation**, and the next probe is a
       process-lifetime/restart-cadence test against `g_session_hash_table` and
       `hashTableRejectCount` (live session final value 25 465, per `f8461d5`'s findings doc).
-- [ ] 9.4 Report the verdict in `qa/cycleframer-alignment-replay/` and escalate to the
+      **Result: PARITY.** 68 filename-matched cycles: 1284 vs. 1288 total decodes (0.3%
+      apart), ~94% message-level overlap each direction, **zero** cycles where one side found
+      signals and the other found none. Full detail:
+      `qa/cycleframer-alignment-replay/2026-07-25-2030-cycle-audio-archive-parity-result.md`.
+- [x] 9.4 Report the verdict in `qa/cycleframer-alignment-replay/` and escalate to the
       Architect/Captain **before any further live endurance time is spent** on
       `fix-cycle-boundary-clock-drift`.
+      **Done:** `2026-07-25-2030-cycle-audio-archive-parity-result.md`. Verdict: capture chain
+      exonerated (at this ~20-minute session scale); next probe per the Architect's own decision
+      tree is process-lifetime/restart-cadence, not `WasapiAudioSource`. That next probe is
+      new, unscoped work — not started here.
 - [ ] 9.5 Decide, with the Captain, what happens to the paused PR #108. The Architect's recorded
       recommendation (`qa/cycleframer-alignment-replay/2026-07-25-1200-architect-second-mechanism-located.md`
       §6): §10's nominal-reset-conflation fix is sound but small (≤4.3% of the zero-decode
