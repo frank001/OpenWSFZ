@@ -833,7 +833,7 @@ depend on whether 10.1–10.4 land; it measures the audio, not the framer. It ca
       independent replication check, not the primary route. Its matched set is real and verified:
       WSJT-X 50,501 lines, OpenWSFZ 31,517, 20 resync + 1,897 drift-check lines, 1,884 WAVs
       format-identical to 0724.)*
-- [ ] 11.10 **D-001 absolute-gap sizing — on 0724, this study's own audio.** Unblocked by 11.9, and
+- [x] 11.10 **D-001 absolute-gap sizing — on 0724, this study's own audio.** Unblocked by 11.9, and
       the thing SPEC §11 explicitly said this study *could not settle*. With both decoders' logs
       over the same session, the harness can decompose **how much of D-001's recall gap is
       alignment and how much is everything else** — what §1 has wanted from the start, and which
@@ -908,3 +908,35 @@ depend on whether 10.1–10.4 land; it measures the audio, not the framer. It ca
       that is a Developer-session matter, independent of this item, and does not block it.
       NFR-021: both `ALL.TXT` files contain real third-party callsigns — derived artefacts stay
       git-ignored and local, as `artefacts/` already is.
+
+      **VERDICT 2026-07-25 (QA): DOES NOT MATCH — falsified.** Full analysis:
+      `qa/cycleframer-alignment-replay/2026-07-25-1110-alignment-vs-second-mechanism-findings.md`,
+      harness `qa/cycleframer-alignment-replay/d001_1110_decomposition.py`. True UTC reconstructed
+      per method constraint (b) from the daemon log's own `cycleStart re-anchored to HH:MM:SS.mmm`
+      resync lines (136, matching `corrections_table.csv` exactly) plus **3 `CycleFramer started`
+      events** (2 in the first 90s, 1 genuine mid-session restart at 21:07:00 UTC not previously
+      documented anywhere in this change) treated as hard resets of the correction chain.
+      **Reconstruction independently validated**: the final reconstructed `cycleStart`'s offset from
+      the true 15s UTC grid is 5.958s, matching SPEC.md section 2 item 1's documented figure (65.96s
+      cumulative correction mod 15 = 5.96s) to the millisecond.
+
+      Measured `δ_live(k)` (1,783/1,789 live cycles joined, 0 collisions, guards (d) both recorded —
+      live hashTableRejectCount=25,465, arm-A baseline=73,490) **never exceeds 1.9s in any decile**,
+      including deciles 3–4 where the count-ratio pass found retention collapsed to 2–3%. Run through
+      SPEC.md section 2.5 item 10's own validated zero-free-parameter recall(delta) model (RMS 0.056
+      against Phase 1b's 12 independent points), the *measured* alignment error in those deciles
+      predicts 0.96–0.99 recall; *actual* measured recall there is 0.00–0.17 — a 90+ point residual,
+      versus −0.04 to −0.24 in the "good" deciles (1, 2, 5, 8, 10). Two distinct decile populations,
+      not a smooth gradient.
+
+      **Consequence: a second, distinct, time-varying mechanism in the live capture path — not
+      alignment — dominates D-001's live-path loss.** The Architect's `~11 decodes/cycle, roughly
+      half of D-001` sizing for a working CycleFramer fix was explicitly conditioned on this
+      prediction holding; it does not, so that sizing does not carry over. Section 4 of the findings
+      doc: 10.8 should proceed only with this qualification on record (a convergent fix is still
+      worth something in the good/partial deciles, just not the dominant win previously framed);
+      identifying the second mechanism is now the higher-value open question, out of this item's own
+      scope per SPEC.md section 11; deliverable #4 should be resized from this study's own
+      `(δ_live, predicted-recall)` pairs, not the retracted count-ratio inversion. **Escalated to the
+      Captain/Architect, not resolved here** — whether to proceed with 10.8 as newly-scoped, pause
+      for the second mechanism, or otherwise, is a priority call on a multi-week investigation.
