@@ -851,5 +851,60 @@ depend on whether 10.1–10.4 land; it measures the audio, not the framer. It ca
       drops 1,348 of 1,789 cycles **and selects on the correction residue** — reconstruct true UTC
       from `cycleStart` + the daemon log instead; and the raw 82,943-vs-20,092 ratio is not a
       recall figure (§3's trap).
+
+      ---
+      ### ARCHITECT HANDOFF TO QA — 2026-07-25. Start here.
+
+      **Read first:** `qa/cycleframer-alignment-replay/2026-07-25-d001-live-path-decomposition-findings.md`.
+      A coarse count-ratio pass has already been run against this session's artefacts and it changes
+      what 11.10 is for. **This item is now the highest-value open work in the change**, and larger
+      than the task text above assumed.
+
+      **What that pass found.** Decodes per cycle over the same 2,827 cycles of audio:
+      **live 7.08 | same decoder replayed offline on grid-aligned audio 18.35 | WSJT-X 29.34.**
+      D-001's gap therefore splits almost exactly in half — **+11.27/cycle lost in the live path,
+      +10.99/cycle genuine decoder quality.** Live decoded *nothing at all* on 1,050 of 2,839 cycles
+      (37.0%); the offline replay never dropped below **five** decodes on any of 2,827. TX blanking,
+      band conditions, daemon downtime and decoder incapacity are each excluded with evidence in the
+      findings doc §3 — **do not re-litigate those four, and do not treat this as an open question.**
+      Decile 1 ran at **0.984 retention** (live 21.22 vs replay 21.57), so the live path is not
+      broken at session start; the loss is progressive, sawtoothed, and consistent with a correction
+      loop that fires without converging.
+
+      **Your job — the one question that is still open.** The live-path half of the gap is
+      time-varying and real, but this pass **cannot separate alignment error from any other
+      capture-path difference** (the replay runs on WSJT-X's capture, the live run on OpenWSFZ's own;
+      §5 limitation 2). Settle that. Everything else above is context, not work.
+
+      **Falsifiable prediction, stated in advance — state your verdict before you look.**
+      Reconstructed `δ_live(k)` must sit near **0 in decile 1**, reach **|δ| ≈ 2.3 by decile 2**,
+      exceed **|δ| ≈ 3 in deciles 3–4**, and hover at **|δ| ≈ 2.4–2.6** thereafter (full per-decile
+      table: findings §4, both sign branches given — a count ratio carries no sign, `δ_live` will).
+      - **Matches** → alignment explains the live-path half, and a working `CycleFramer` fix is worth
+        ~11 decodes/cycle, ~half of all of D-001.
+      - **Does not match** → a second distinct mechanism exists in the capture path and five live
+        rounds have been aimed at the wrong dominant cause. **This is the more important outcome to
+        be able to detect**, which is why the numbers are on record before the run.
+
+      **Method constraints, all mandatory:**
+      (a) Use SPEC §5.3's **paired within-cycle** recall metric, not the count ratio — the count
+          ratio was a sizing shortcut and is only valid if live decodes are a subset of the replay's,
+          which is untested (findings §5 limitation 1).
+      (b) Reconstruct true UTC from `cycleStart` + the daemon log's correction sum. **Timestamp-keyed
+          joining is invalid** — it drops 1,348 of 1,789 cycles and selects on the correction residue.
+      (c) `δ_live(k) = DT_ref(k) − DT_live(k)` — **mind the sign, it was inverted once already**
+          (SPEC §6.3), and it is in the **absolute δ frame**, the same frame as deliverable #5's
+          bound. Do not compare it against DT-relative intervals.
+      (d) Carry forward 11.6's two guards: the collision assertion must still fail loudly on any
+          nonzero merge count, and `hashTableRejectCount` recorded per arm.
+      (e) NFR-021: both `ALL.TXT` files carry real third-party callsigns — derived artefacts stay
+          git-ignored and local.
+
+      **Scope: QA tooling only, zero `src/`, no live radio time** — HK-000 applies, not HK-011.
+
+      **Sequencing note:** **10.8's live session should not be scheduled until this reports.** If the
+      live-path loss is not alignment, a passing 10.8 would certify a framer that fixed the wrong
+      thing. Separately, 10.4's unit test is currently **red** on the uncommitted Developer branch —
+      that is a Developer-session matter, independent of this item, and does not block it.
       NFR-021: both `ALL.TXT` files contain real third-party callsigns — derived artefacts stay
       git-ignored and local, as `artefacts/` already is.
