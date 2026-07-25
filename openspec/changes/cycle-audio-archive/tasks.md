@@ -215,6 +215,20 @@ harness, zero further `src/` changes) and runs **after** §1-8 merge, per
       own audio: 1.575 — the pre-existing, already-tracked decoder-sensitivity gap (D-001's
       original finding), **not** a capture-chain or cycle-boundary signal; confirmed
       decoder-tracking, not capture-tracking, since it reproduces even on WSJT-X's own audio.
+      **Second addendum (2026-07-25 21:45):** raw-waveform cross-correlation of the same 68
+      pairs (no decoder involved at all — PCM samples only), reported in
+      `qa/cycleframer-alignment-replay/2026-07-25-2145-raw-audio-crosscorrelation-check.md`.
+      11/68 pairs contain a signal strong enough to lock a clean correlation peak (>0.95); all
+      11, independently, land on a lag ≡4 (mod 12) samples — i.e. a fixed 0.333 ms sub-ms
+      residual with only whole-millisecond jitter varying between them, and **no trend with
+      elapsed session time**. This corroborates capture-chain parity on a second, independent
+      line of evidence (raw signal alignment, not decoded message counts) and specifically rules
+      out an accumulating clock-rate error in `WasapiAudioSource`'s resampling path over this
+      session's ~21-minute span. The remaining 57/68 pairs are inconclusive (not contradictory)
+      by this time-domain method — most 15 s windows are noise-dominated in raw amplitude terms
+      even when they contain decodable FT8 signal, so a clean lag only resolves when one signal
+      is strong enough to also dominate in the time domain. A frequency-domain (band-limited
+      coherence) refinement could sharpen those 57 further; not attempted, flagged only.
 - [x] 9.4 Report the verdict in `qa/cycleframer-alignment-replay/` and escalate to the
       Architect/Captain **before any further live endurance time is spent** on
       `fix-cycle-boundary-clock-drift`.
