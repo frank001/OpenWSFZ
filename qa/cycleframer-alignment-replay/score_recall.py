@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import statistics
 import sys
 from datetime import datetime, timezone
@@ -92,7 +93,27 @@ def load_manifest(path: Path) -> dict:
     return ts_to_cycle
 
 
-def build_cycle_sets(all_txt_rows: list[dict], ts_to_cycle: dict) -> dict:
+_HASH_BRACKET_RE = re.compile(r"<[^>]*>")
+
+
+def normalize_hash_tokens(message: str) -> str:
+    """Canonicalize any angle-bracketed callsign token to '<HASH>'.
+
+    WSJT-X/ft8_lib convention: an unresolved Type-4 hashed callsign renders as literal
+    '<...>'; once the session-scoped hash table (a NATIVE process-global in ft8_shim.c's
+    g_session_hash_table -- confirmed empirically 2026-07-25, see
+    cross_input_determinism.py) resolves the hash, the SAME underlying signal renders as
+    e.g. '<PD00DOG>'. Both are the decoder's best information about the SAME physical
+    transmission; which one appears for a given cycle depends on what other windows were
+    decoded earlier IN THE SAME PROCESS, not on anything about that cycle's own signal.
+    Left un-normalized, this makes message-text matching (SPEC.md 5.3) order-dependent
+    for any cycle containing a hash-compressed message -- confirmed to fully explain a
+    14/25-cycle mismatch in the section 7.4(b) forward-vs-reverse control (0/25 after
+    normalization)."""
+    return _HASH_BRACKET_RE.sub("<HASH>", message)
+
+
+def build_cycle_sets(all_txt_rows: list[dict], ts_to_cycle: dict, normalize_hash: bool = False) -> dict:
     """cycle_id -> set(message text), deduplicated, per SPEC.md 5.3."""
     sets: dict[tuple[int, int], set] = {}
     unmapped = 0
@@ -101,11 +122,67 @@ def build_cycle_sets(all_txt_rows: list[dict], ts_to_cycle: dict) -> dict:
         if cycle_id is None:
             unmapped += 1
             continue
-        sets.setdefault(cycle_id, set()).add(r["message"])
+        msg = normalize_hash_tokens(r["message"]) if normalize_hash else r["message"]
+        sets.setdefault(cycle_id, set()).add(msg)
     if unmapped:
         print(f"[WARN] {unmapped} ALL.TXT row(s) had a ts field absent from the manifest "
               f"(decode of a wav the manifest doesn't cover?)", file=sys.stderr)
     return sets
+
+
+# ---------------------------------------------------------------------------
+# SPEC.md section 7.3 (amended 2026-07-25) -- provenance-distinctness guard.
+#
+# The hazard this guards against is exactly what voided SPEC.md section 3's "recall vs
+# WSJT-X" approach: scoring a decode set against itself and reporting the result as
+# recall. The rule: refuse to score unless ref/test resolve to DISTINCT provenance
+# (different manifest path AND different recorded delta), with exactly one whitelisted
+# exception -- the delta=0-vs-delta=0 identity anchor (arm A scored against itself),
+# which must be labelled as the identity case and must return exactly 1.0000. Any OTHER
+# same-delta pairing (including two independently-generated same-delta datasets) is a
+# hard refusal. The shuffled-pairing control (--shift != 0) is exempt: it deliberately
+# compares one arm's cycle k against its own cycle k+shift, which is a different
+# cycle's content, not a self-comparison -- the hazard this guard targets.
+# ---------------------------------------------------------------------------
+
+def manifest_delta(path: Path) -> float:
+    deltas = set()
+    with open(path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if "delta_s" in row and row["delta_s"] != "":
+                deltas.add(round(float(row["delta_s"]), 6))
+    if len(deltas) > 1:
+        raise SystemExit(f"FATAL: {path} records more than one delta_s value ({sorted(deltas)}) "
+                          f"-- a single arm must be generated at a single, uniform offset.")
+    if not deltas:
+        raise SystemExit(f"FATAL: {path} has no delta_s column -- not a rewindow.py manifest?")
+    return deltas.pop()
+
+
+def check_provenance(ref_manifest: Path, test_manifest: Path, shift: int) -> bool:
+    """Returns True iff this is the whitelisted delta=0-vs-delta=0 identity anchor.
+    Raises SystemExit on any other same-delta / same-provenance pairing."""
+    if shift != 0:
+        return False  # shuffled-pairing control: exempt, not a self-comparison hazard
+
+    ref_delta = manifest_delta(ref_manifest)
+    test_delta = manifest_delta(test_manifest)
+    ref_resolved = ref_manifest.resolve()
+    test_resolved = test_manifest.resolve()
+
+    if ref_delta != test_delta:
+        return False  # distinct delta -- ordinary, unambiguous comparison
+
+    if ref_delta == 0.0 and ref_resolved == test_resolved:
+        return True  # the one whitelisted identity anchor
+
+    raise SystemExit(
+        f"REFUSED (SPEC.md section 7.3 provenance guard): reference and test arms resolve to "
+        f"the SAME delta ({ref_delta}s) and are not the whitelisted delta=0 identity anchor "
+        f"(ref manifest={ref_resolved}, test manifest={test_resolved}). Scoring this pairing "
+        f"would risk reporting a self-comparison as recall -- exactly the failure class that "
+        f"voided the ALL.TXT-vs-ALL.TXT approach in section 3. Refusing to run."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -151,26 +228,40 @@ def summarize(results: list[dict]) -> dict:
 
 
 def cmd_recall(args: argparse.Namespace) -> None:
+    ref_manifest = Path(args.ref_manifest)
+    test_manifest = Path(args.test_manifest) if args.test_manifest else ref_manifest
+
+    is_identity = check_provenance(ref_manifest, test_manifest, args.shift)
+
     ref_rows = parse_all_txt(Path(args.ref_all_txt))
-    ref_map = load_manifest(Path(args.ref_manifest))
-    ref_sets = build_cycle_sets(ref_rows, ref_map)
+    ref_map = load_manifest(ref_manifest)
+    ref_sets = build_cycle_sets(ref_rows, ref_map, normalize_hash=args.normalize_hash_tokens)
 
     test_all_txt = Path(args.test_all_txt) if args.test_all_txt else Path(args.ref_all_txt)
-    test_manifest = Path(args.test_manifest) if args.test_manifest else Path(args.ref_manifest)
     test_rows = parse_all_txt(test_all_txt)
     test_map = load_manifest(test_manifest)
-    test_sets = build_cycle_sets(test_rows, test_map)
+    test_sets = build_cycle_sets(test_rows, test_map, normalize_hash=args.normalize_hash_tokens)
 
     results, excluded = paired_recall(test_sets, ref_sets, shift=args.shift, min_ref=args.min_ref)
     summary = summarize(results)
 
-    label = args.label or f"shift={args.shift}"
+    label = args.label or (f"IDENTITY delta=0" if is_identity else f"shift={args.shift}")
+    if is_identity:
+        label = f"[IDENTITY ANCHOR] {label}"
     print(f"recall[{label}]: n_cycles={summary['n_cycles']} excluded(|ref|<{args.min_ref})={excluded}")
     if summary["n_cycles"]:
         print(f"  median={summary['median']:.4f}  IQR=[{summary['q1']:.4f}, {summary['q3']:.4f}]  "
               f"mean={summary['mean']:.4f}  range=[{summary['min']:.4f}, {summary['max']:.4f}]")
     else:
         print("  (no cycles scored -- check manifests / min-ref threshold)")
+
+    if is_identity:
+        if not (summary["n_cycles"] and summary["min"] == 1.0 and summary["max"] == 1.0):
+            raise SystemExit(
+                "FATAL: identity anchor did not return exactly 1.0000 for every cycle -- "
+                "this means the pairing/matching logic itself is broken (SPEC.md section 7.3)."
+            )
+        print("  identity anchor confirmed exact (1.0000 for every cycle).")
 
     if args.out:
         outp = Path(args.out)
@@ -193,6 +284,10 @@ def main() -> None:
     sp.add_argument("--test-manifest", default=None, help="test arm's manifest.csv (default: same as ref)")
     sp.add_argument("--shift", type=int, default=0, help="k-shift for shuffled-pairing control (SPEC.md section 7.2)")
     sp.add_argument("--min-ref", type=int, default=5, help="exclude cycles with |ref(k)| below this")
+    sp.add_argument("--normalize-hash-tokens", action="store_true",
+                     help="canonicalize <...>/<CALLSIGN> hash-resolution tokens to <HASH> before "
+                          "matching -- neutralizes the decode-order-dependent hash-table confound "
+                          "(SPEC.md section 7.4(b))")
     sp.add_argument("--label", default=None)
     sp.add_argument("--out", default=None, help="per-cycle CSV output path")
     sp.set_defaults(fn=cmd_recall)
