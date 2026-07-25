@@ -450,6 +450,11 @@ startupLogger.LogInformation(
     bindPolicy.GetType().Name,
     authPolicy.GetType().Name);
 
+// cycle-audio-archive: set by the AddSingleton factory below the moment DI first constructs the
+// service — see cycleArchiveDroppedCyclesProvider's remarks a few lines down for why this
+// indirection (rather than closing over `app` or the later `cycleArchiveService` local) is needed.
+CycleArchiveService? cycleArchiveServiceRef = null;
+
 // Create and configure the web application.
 var app = WebApp.Create(
     port,
@@ -473,6 +478,13 @@ var app = WebApp.Create(
     // report the native hash-table reject count mid-session (it changes over time, unlike
     // the fixed shimVersion above).
     hashTableRejectCountProvider: () => ft8Decoder.GetHashTableRejectCount(),
+    // cycle-audio-archive: live provider, same rationale as hashTableRejectCountProvider above.
+    // Cannot close over `app` (the variable this very Create(...) call is assigning) or the
+    // `cycleArchiveService` local resolved further below — neither exists yet at this point in
+    // Program.cs. Instead reads cycleArchiveServiceRef, set by the AddSingleton factory inside
+    // configureServices the moment DI first constructs the singleton — guaranteed to have
+    // happened by the time any real status request can arrive (Kestrel is not yet listening).
+    cycleArchiveDroppedCyclesProvider: () => cycleArchiveServiceRef?.DroppedCycles ?? 0,
     configureServices:    services =>
     {
         // Register the auth policy selected above (daemon wins over WebApp.Create default).
@@ -601,6 +613,21 @@ var app = WebApp.Create(
             sp.GetService<ICallsignRegionStore>()));
         services.AddHostedService(sp => sp.GetRequiredService<ExternalReportingService>());
 
+        // cycle-audio-archive: registered unconditionally (inert by default — mode Off writes
+        // nothing and creates no directory). The decode pump below resolves the same singleton
+        // and calls TryEnqueue non-blockingly after each cycle (design.md Decision 2).
+        // Also stashes the instance into cycleArchiveServiceRef (captured from the outer Program.cs
+        // scope) so cycleArchiveDroppedCyclesProvider above can read it live.
+        services.AddSingleton(sp =>
+        {
+            var svc = new CycleArchiveService(
+                sp.GetRequiredService<IConfigStore>(),
+                sp.GetRequiredService<ILogger<CycleArchiveService>>());
+            cycleArchiveServiceRef = svc;
+            return svc;
+        });
+        services.AddHostedService(sp => sp.GetRequiredService<CycleArchiveService>());
+
         // IAdifLogWriter resolves to a decorator so every ADIF write (direct-write path AND
         // WebApp's POST /api/v1/tx/log-qso) also emits an outbound QSOLogged datagram — see
         // QsoLoggedNotifyingAdifWriter's class remarks.
@@ -709,11 +736,17 @@ app.Lifetime.ApplicationStarted.Register(() =>
     // per-cycle) — the decode pump calls AdmitNewValues per decode, before the QSO-controller
     // fan-out, so automation benefits from admission on the same cycle it occurred.
     var decodeFilterStore = app.Services.GetRequiredService<IDecodeFilterStore>();
+    // cycle-audio-archive: resolved once here (not per-cycle), mirroring decodeFilterStore above.
+    var cycleArchiveService = app.Services.GetRequiredService<CycleArchiveService>();
     _ = Task.Run(async () =>
     {
         await foreach (var (pcmWindow, cycleStart, windowDialFreq) in
             framerOutput.Reader.ReadAllAsync(stoppingToken))
         {
+            // cycle-audio-archive: sampled as close to the window's actual close as possible
+            // (design.md Decision 6 — "the true wall-clock instant the window closed"), before
+            // any decode latency below is incurred.
+            var windowClosedUtc = DateTime.UtcNow;
             try
             {
                 // Snapshot the live frequency immediately before decoding.
@@ -756,6 +789,13 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
                 _ = decodeEventBus.Publish(visibleResults); // fire-and-forget: do not await WebSocket delivery
                 await allTxtWriter.AppendAsync(cycleStart, dialFreq, results); // unfiltered — ALL.TXT unaffected
+
+                // cycle-audio-archive: non-blocking enqueue; the archive's own dedicated writer
+                // task performs all file I/O (design.md Decision 2 — the pump must never await
+                // disk I/O). decodeCount is unfiltered `results.Count`, matching ALL.TXT above —
+                // Decoded/NoDecodes mode selection reflects what the decoder actually produced,
+                // not what decode-noise-suppression hides from the UI.
+                cycleArchiveService.TryEnqueue(pcmWindow, cycleStart, windowClosedUtc, results.Count, dialFreq);
 
                 // fix-decode-filter-new-value-admission, design.md Decision 4: admit any
                 // previously-unseen attribute value (DXCC entity/Continent/CQ Zone/ITU Zone) on a

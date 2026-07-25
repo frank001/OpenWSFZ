@@ -52,6 +52,14 @@ public static class WebApp
     /// <c>() =&gt; ft8Decoder.GetHashTableRejectCount()</c>). Defaults to <c>null</c> →
     /// reported as 0 for callers (e.g. minimal test fixtures) that do not wire up the native shim.
     /// </param>
+    /// <param name="cycleArchiveDroppedCyclesProvider">
+    /// Live provider for the cycle audio archive's dropped-cycle count, surfaced as
+    /// <see cref="DaemonStatus.CycleArchiveDroppedCycles"/> on <c>GET /api/v1/status</c> and the
+    /// initial WebSocket <c>status</c> event (<c>cycle-audio-archive</c> capability). Changes over
+    /// the session like <paramref name="hashTableRejectCountProvider"/>, so it is likewise supplied
+    /// as a delegate (callers pass <c>() =&gt; cycleArchiveService.DroppedCycles</c>). Defaults to
+    /// <c>null</c> → reported as 0 for callers that do not wire up the archive.
+    /// </param>
     /// <param name="appScope">
     /// App-instance scope GUID to tag every WebSocket connection accepted through this
     /// instance's <c>/api/v1/ws</c> endpoint (N6). Pass this when a bus that broadcasts
@@ -80,6 +88,7 @@ public static class WebApp
         Action<IServiceCollection>?                         configureServices           = null,
         int                                                  shimVersion                 = 0,
         Func<int>?                                           hashTableRejectCountProvider = null,
+        Func<long>?                                          cycleArchiveDroppedCyclesProvider = null,
         Guid?                                                appScope                    = null)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
@@ -300,7 +309,8 @@ public static class WebApp
                 DialFrequencyMHz:    effectiveFreq,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
                 ShimVersion:         shimVersion,
-                HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0));
+                HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
+                CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0));
         });
 
         app.MapGet("/api/v1/audio/devices", async (
@@ -547,7 +557,8 @@ public static class WebApp
                 DialFrequencyMHz:    freqStart,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
                 ShimVersion:         shimVersion,
-                HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0));
+                HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
+                CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0));
         });
 
         app.MapPost("/api/v1/decode/stop", async (
@@ -566,7 +577,8 @@ public static class WebApp
                 DialFrequencyMHz:    freqStop,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
                 ShimVersion:         shimVersion,
-                HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0));
+                HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
+                CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0));
         });
 
         // ── Decode filter endpoints (decode-panel-filtering) ──────────────────
@@ -1780,7 +1792,8 @@ public static class WebApp
                 ws, store, audioMonitor, dataFlowMonitor,
                 captureManager, audioWatchdog, catState,
                 wsLogger, scope, shimVersion,
-                hashTableRejectCountProvider?.Invoke() ?? 0, ctx.RequestAborted);
+                hashTableRejectCountProvider?.Invoke() ?? 0,
+                cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0, ctx.RequestAborted);
         });
 
         return app;

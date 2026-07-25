@@ -437,4 +437,107 @@ public sealed class JsonConfigStoreTests
         store.Current.DecodeNoiseSuppression.SuppressSynthetic.Should().BeTrue(
             "suppressSynthetic omitted from a partial object must still resolve to its documented default (true), not the CLR zero-default (false)");
     }
+
+    // ── cycle-audio-archive: CycleAudioArchiveConfig defaults and round-trip (task 1.2) ──────
+
+    [Fact(DisplayName = "cycle-audio-archive: AppConfig.CycleAudioArchive defaults on a fresh config")]
+    public void AppConfig_CycleAudioArchive_DefaultsOnFreshConfig()
+    {
+        var config = new AppConfig();
+
+        config.CycleAudioArchive.Should().NotBeNull();
+        config.CycleAudioArchive.Mode.Should().Be(CycleAudioArchiveMode.Off,
+            "archiving must be opt-in — Off is the default (NFR-021)");
+        config.CycleAudioArchive.Directory.Should().BeNull("null resolves to the platform default directory");
+        config.CycleAudioArchive.MaxSizeMb.Should().Be(2048);
+        config.CycleAudioArchive.MaxAgeHours.Should().Be(168);
+        config.CycleAudioArchive.WriteManifest.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: AppConfig.CycleAudioArchive defaults when key absent from config file")]
+    public void AppConfig_CycleAudioArchive_Defaults_WhenAbsentFromFile()
+    {
+        // Simulate a config file written before this section existed — same STJ source-gen
+        // null-vs-initialiser guard precedent as Logging/DecodeLog/RemoteAccess/
+        // DecodeNoiseSuppression/ExternalReporting.
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath, """{"audioDeviceId":"mic","port":8080}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.CycleAudioArchive.Should().NotBeNull(
+            "a missing cycleAudioArchive key must not deserialise to null (STJ source-gen guard)");
+        store.Current.CycleAudioArchive.Mode.Should().Be(CycleAudioArchiveMode.Off);
+        store.Current.CycleAudioArchive.MaxSizeMb.Should().Be(2048);
+        store.Current.CycleAudioArchive.MaxAgeHours.Should().Be(168);
+        store.Current.CycleAudioArchive.WriteManifest.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: AppConfig.CycleAudioArchive round-trips via config file")]
+    public async Task AppConfig_CycleAudioArchive_RoundTrips()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        await store.SaveAsync(new AppConfig
+        {
+            CycleAudioArchive = new CycleAudioArchiveConfig(
+                mode:          CycleAudioArchiveMode.NoDecodes,
+                directory:     "/custom/archive",
+                maxSizeMb:     4096,
+                maxAgeHours:   72,
+                writeManifest: false),
+        });
+
+        var reloaded = new JsonConfigStore(configPath);
+        reloaded.Current.CycleAudioArchive.Mode.Should().Be(CycleAudioArchiveMode.NoDecodes);
+        reloaded.Current.CycleAudioArchive.Directory.Should().Be("/custom/archive");
+        reloaded.Current.CycleAudioArchive.MaxSizeMb.Should().Be(4096);
+        reloaded.Current.CycleAudioArchive.MaxAgeHours.Should().Be(72);
+        reloaded.Current.CycleAudioArchive.WriteManifest.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: CycleAudioArchiveConfig with a partial JSON object still applies documented defaults")]
+    public void CycleAudioArchiveConfig_PartialJsonObject_AppliesDefaults()
+    {
+        // Whole section present but maxSizeMb/maxAgeHours/writeManifest omitted: STJ source-gen
+        // would deserialise their CLR zero-defaults (0/0/false) without the [JsonConstructor]
+        // parameter-default guard — confirm the documented defaults actually win.
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath,
+            """{"audioDeviceId":"mic","port":8080,"cycleAudioArchive":{"mode":"all"}}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.CycleAudioArchive.Mode.Should().Be(CycleAudioArchiveMode.All);
+        store.Current.CycleAudioArchive.MaxSizeMb.Should().Be(2048,
+            "maxSizeMb omitted from a partial object must still resolve to its documented default (2048), not 0");
+        store.Current.CycleAudioArchive.MaxAgeHours.Should().Be(168,
+            "maxAgeHours omitted from a partial object must still resolve to its documented default (168), not 0");
+        store.Current.CycleAudioArchive.WriteManifest.Should().BeTrue(
+            "writeManifest omitted from a partial object must still resolve to its documented default (true), not the CLR zero-default (false)");
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: enum wire values are lowerCamelCase, not PascalCase")]
+    public async Task CycleAudioArchiveMode_SerialisesToLowerCamelCaseWireValues()
+    {
+        // WorkedBeforeState.cs's remarks document this exact mistake shipping once and blanking
+        // every worked-before indicator in the live UI — this test guards CycleAudioArchiveMode
+        // against the same class of defect.
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        await store.SaveAsync(new AppConfig
+        {
+            CycleAudioArchive = new CycleAudioArchiveConfig(mode: CycleAudioArchiveMode.NoDecodes),
+        });
+
+        var json = await File.ReadAllTextAsync(configPath);
+        json.Should().Contain("\"noDecodes\"", "the wire value must be lowerCamelCase, not \"NoDecodes\"");
+        json.Should().NotContain("\"NoDecodes\"");
+    }
 }

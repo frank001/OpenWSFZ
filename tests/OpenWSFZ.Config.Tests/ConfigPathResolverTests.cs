@@ -134,4 +134,28 @@ public sealed class ConfigPathResolverTests
         config.Port.Should().Be(8080,
             "the default HTTP port is 8080");
     }
+
+    // ── cycle-audio-archive: default directory resolution (task 1.3) ────────────────────────
+
+    [Fact(DisplayName = "cycle-audio-archive: default archive directory resolves under the platform config root")]
+    public void ResolveDefaultCycleAudioDirectory_ResolvesUnderPlatformConfigRoot()
+    {
+        var dir = ConfigPathResolver.ResolveDefaultCycleAudioDirectory();
+
+        dir.Should().EndWith(
+            Path.Combine("OpenWSFZ", "cycle-audio"),
+            "the default archive directory must sit alongside config.json under the platform's " +
+            "per-user application-data directory");
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: default archive directory is never under the repository or executable directory (NFR-021)")]
+    public void ResolveDefaultCycleAudioDirectory_IsNotUnderRepoOrExecutableDirectory()
+    {
+        var dir = ConfigPathResolver.ResolveDefaultCycleAudioDirectory();
+
+        var repoRoot = AppContext.BaseDirectory;
+        dir.Should().NotStartWith(repoRoot,
+            "recordings contain real off-air audio and real third-party callsigns (NFR-021) — " +
+            "the default location must never be the executable/build output directory");
+    }
 }

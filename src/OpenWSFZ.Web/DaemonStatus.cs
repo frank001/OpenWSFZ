@@ -56,4 +56,13 @@ public sealed record DaemonStatus(
     /// saturated during this session. Read live per request; resets to 0 only on daemon
     /// restart. Defaults to 0 for callers that do not wire up the native shim.
     /// </summary>
-    int     HashTableRejectCount = 0);
+    int     HashTableRejectCount = 0,
+    /// <summary>
+    /// Process-lifetime count of decode-cycle windows dropped by the cycle audio archive because
+    /// its internal queue was at capacity (<c>cycle-audio-archive</c> capability). Always 0 when
+    /// the archive is disabled (<c>Off</c>, the default) or under normal operation — a nonzero
+    /// value indicates the archive's dedicated writer task cannot keep up with the configured
+    /// mode. Read live per request; resets to 0 only on daemon restart. Defaults to 0 for callers
+    /// that do not wire up the archive.
+    /// </summary>
+    long    CycleArchiveDroppedCycles = 0);

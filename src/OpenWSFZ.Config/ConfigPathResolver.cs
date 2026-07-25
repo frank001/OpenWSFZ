@@ -11,9 +11,10 @@ namespace OpenWSFZ.Config;
 /// </summary>
 public static class ConfigPathResolver
 {
-    private const string EnvVar      = "OPENWSFZ_CONFIG";
-    private const string AppDirName  = "OpenWSFZ";
-    private const string ConfigFile  = "config.json";
+    private const string EnvVar         = "OPENWSFZ_CONFIG";
+    private const string AppDirName     = "OpenWSFZ";
+    private const string ConfigFile     = "config.json";
+    private const string CycleAudioDir  = "cycle-audio";
 
     /// <summary>
     /// Resolves the config file path and returns both the resolved path and its source
@@ -41,18 +42,31 @@ public static class ConfigPathResolver
     public static string ResolvePath(string? cliOverride = null) =>
         Resolve(cliOverride).ResolvedPath;
 
+    /// <summary>
+    /// Resolves the default directory for the cycle audio archive
+    /// (<c>cycle-audio-archive</c> capability, design.md Decision 8) when no directory is
+    /// explicitly configured. Uses the same platform-appropriate per-user application-data root
+    /// as the config file itself (<c>%AppData%\OpenWSFZ\cycle-audio\</c> on Windows,
+    /// <c>~/.config/OpenWSFZ/cycle-audio/</c> on Linux/macOS) — never the repository or the
+    /// executable directory, because recordings contain real off-air audio and real
+    /// third-party callsigns (NFR-021).
+    /// </summary>
+    public static string ResolveDefaultCycleAudioDirectory() =>
+        Path.Combine(PlatformAppDataRoot(), AppDirName, CycleAudioDir);
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static string PlatformDefault()
+    private static string PlatformDefault() =>
+        Path.Combine(PlatformAppDataRoot(), AppDirName, ConfigFile);
+
+    private static string PlatformAppDataRoot()
     {
         // Environment.GetFolderPath returns:
         //   Windows  → %APPDATA%                              (e.g. C:\Users\<user>\AppData\Roaming)
         //   Linux    → $XDG_CONFIG_HOME or ~/.config
         //   macOS    → ~/Library/Application Support
-        var appData = Environment.GetFolderPath(
+        return Environment.GetFolderPath(
             Environment.SpecialFolder.ApplicationData,
             Environment.SpecialFolderOption.DoNotVerify);
-
-        return Path.Combine(appData, AppDirName, ConfigFile);
     }
 }
