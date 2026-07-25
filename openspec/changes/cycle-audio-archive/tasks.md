@@ -28,24 +28,24 @@ tree on 2026-07-25 before issue, not merely inherited — see §0.
 
 ## 1. Configuration model
 
-- [ ] 1.1 Add `CycleAudioArchiveMode` enum (`Off`, `All`, `Decoded`, `NoDecodes`) and
+- [x] 1.1 Add `CycleAudioArchiveMode` enum (`Off`, `All`, `Decoded`, `NoDecodes`) and
       `CycleAudioArchiveConfig` record to `OpenWSFZ.Abstractions`, modelled on `DecodeLogConfig`
       (`src/OpenWSFZ.Abstractions/DecodeLogConfig.cs`). Apply the `[JsonConstructor]` +
       explicit-parameter-defaults pattern `DecodeNoiseSuppressionConfig.cs:14-27` documents —
       `MaxSizeMb` (2048), `MaxAgeHours` (168) and `WriteManifest` (true) all have non-CLR-zero
       defaults and will silently deserialise to `0`/`false` without it (design.md Decision 8).
-- [ ] 1.2 Add `CycleAudioArchive` to `AppConfig`, register both new types in `ConfigJsonContext`
+- [x] 1.2 Add `CycleAudioArchive` to `AppConfig`, register both new types in `ConfigJsonContext`
       with `[JsonSerializable]` (design.md Decision 8; `OpenWSFZ.Daemon.csproj:18` sets
       `PublishAot=true` whenever a `RuntimeIdentifier` is set — an AOT publish, not a build, is
       where a missed registration surfaces), and add the null-backfill entry in
       `JsonConfigStore.cs` alongside the existing `DecodeLog`/`DecodeNoiseSuppression` entries
       (`:143`, `:156`).
-- [ ] 1.3 Add default-directory resolution using the same platform logic as `ConfigPathResolver`
+- [x] 1.3 Add default-directory resolution using the same platform logic as `ConfigPathResolver`
       (`%AppData%\OpenWSFZ\cycle-audio\` on Windows, `~/.config/OpenWSFZ/cycle-audio/` elsewhere).
       Assert in a test that the resolved default is **not** under the repository or the executable
       directory (NFR-021, design.md Decision 8).
-- [ ] 1.4 Add `cycle-audio/` and `cycle-archive.csv` to `.gitignore` as defence in depth.
-- [ ] 1.5 Pin the enum's wire values explicitly:
+- [x] 1.4 Add `cycle-audio/` and `cycle-archive.csv` to `.gitignore` as defence in depth.
+- [x] 1.5 Pin the enum's wire values explicitly:
       `[JsonConverter(typeof(JsonStringEnumConverter<CycleAudioArchiveMode>))]` (the **generic**
       form — the non-generic one is not AOT-safe) plus an explicit `[JsonStringEnumMemberName]` on
       each member (`"off"`/`"all"`/`"decoded"`/`"noDecodes"`, matching this project's lowerCamelCase
@@ -55,23 +55,23 @@ tree on 2026-07-25 before issue, not merely inherited — see §0.
 
 ## 2. WAV encoding
 
-- [ ] 2.1 Implement `CycleWavWriter` — canonical 44-byte RIFF/WAVE header, 12 kHz mono 16-bit,
+- [x] 2.1 Implement `CycleWavWriter` — canonical 44-byte RIFF/WAVE header, 12 kHz mono 16-bit,
       exactly 180 000 frames. **No NAudio** (`OpenWSFZ.Audio.csproj:27` package-references it under
       `Condition="$([MSBuild]::IsOSPlatform('Windows'))"`; a `WaveFileWriter` call breaks the Linux
       `arecord`/macOS `sox` builds). A canonical header against `System.IO` is ~40 lines.
-- [ ] 2.2 Implement float→int16 conversion:
+- [x] 2.2 Implement float→int16 conversion:
       `(short)Math.Clamp(MathF.Round(sample * 32767f), -32768f, 32767f)`, with a per-cycle
       clipped-sample count (design.md Decision 4).
-- [ ] 2.3 Unit tests: header field correctness (RIFF/WAVE/fmt/data chunk sizes, channels, rate,
+- [x] 2.3 Unit tests: header field correctness (RIFF/WAVE/fmt/data chunk sizes, channels, rate,
       bits); exact frame count; clamping of `+1.5`/`-1.5` to `32767`/`-32768` with clip count 2;
       round-trip of a known sample pattern.
 
 ## 3. Archive service
 
-- [ ] 3.1 Implement `CycleArchiveService` with a bounded queue (capacity 8) and a dedicated
+- [x] 3.1 Implement `CycleArchiveService` with a bounded queue (capacity 8) and a dedicated
       background writer task. `TryEnqueue(pcm, cycleStart, closedUtc, decodeCount, dialMhz)` SHALL
       be non-blocking and SHALL NOT be awaited by any caller (design.md Decision 2).
-- [ ] 3.2 Channel config: `FullMode = BoundedChannelFullMode.DropWrite`. Implement drop counting
+- [x] 3.2 Channel config: `FullMode = BoundedChannelFullMode.DropWrite`. Implement drop counting
       **without relying on `TryWrite`'s return value** — all three drop modes (`DropOldest`,
       `DropNewest`, `DropWrite`) make `TryWrite` return `true` unconditionally in .NET. Compare
       queue count against capacity *before* writing and increment `DroppedCycles` explicitly. Add a
@@ -79,60 +79,73 @@ tree on 2026-07-25 before issue, not merely inherited — see §0.
       (`if (!innerChannel.Writer.TryWrite(chunk))` on a `DropOldest` channel — verified 2026-07-25,
       dead code) as the reason this capability counts drops explicitly instead (design.md
       Decision 3). **No drop path in this capability may be uncounted — standing rule.**
-- [ ] 3.3 Log the dropped count at Warning on first drop and every 100th thereafter; expose it on
+- [x] 3.3 Log the dropped count at Warning on first drop and every 100th thereafter; expose it on
       the daemon status endpoint.
-- [ ] 3.4 Implement mode selection (`Off`/`All`/`Decoded`/`NoDecodes`) against the decode count.
-- [ ] 3.5 Implement filename collision handling — suffix `_2`, `_3`, …; never overwrite; log at
+- [x] 3.4 Implement mode selection (`Off`/`All`/`Decoded`/`NoDecodes`) against the decode count.
+- [x] 3.5 Implement filename collision handling — suffix `_2`, `_3`, …; never overwrite; log at
       Debug (design.md Decision 5). Reachable because the (paused) drift correction can move
       `cycleStart` backwards, producing a repeated label.
-- [ ] 3.6 Unit tests for 3.1-3.5, including a stalled-writer test asserting the pump-side enqueue
+- [x] 3.6 Unit tests for 3.1-3.5, including a stalled-writer test asserting the pump-side enqueue
       returns promptly and the drop counter increments.
 
 ## 4. Manifest
 
-- [ ] 4.1 Implement `cycle-archive.csv` append with header-on-create and columns per design.md
+- [x] 4.1 Implement `cycle-archive.csv` append with header-on-create and columns per design.md
       Decision 6: `filename,cycle_start_utc,window_closed_utc,decode_count,dial_mhz,clipped_samples,dropped_before`.
-- [ ] 4.2 Assert in a test that no decoded message text or callsign can reach the manifest
+- [x] 4.2 Assert in a test that no decoded message text or callsign can reach the manifest
       (NFR-021).
-- [ ] 4.3 Unit tests: header written once; one row per archived cycle in order; gap marker
+- [x] 4.3 Unit tests: header written once; one row per archived cycle in order; gap marker
       (`dropped_before`) after simulated drops; `window_closed_utc − cycle_start_utc` reflects a
       synthetic off-grid offset.
 
 ## 5. Retention
 
-- [ ] 5.1 Implement size-cap (`MaxSizeMb`, default 2048) and age-cap (`MaxAgeHours`, default 168)
+- [x] 5.1 Implement size-cap (`MaxSizeMb`, default 2048) and age-cap (`MaxAgeHours`, default 168)
       enforcement, oldest-first, swept every 100 cycles on the writer task (design.md Decision 7).
-- [ ] 5.2 Restrict deletion to the configured directory and the archive's own
+- [x] 5.2 Restrict deletion to the configured directory and the archive's own
       `YYMMDD_HHMMSS[_n].wav` pattern. **Never a directory wipe** — an operator pointing the setting
       at a populated folder must not lose data.
-- [ ] 5.3 Implement the free-space floor (500 MB): stop archiving for the remainder of the session,
+- [x] 5.3 Implement the free-space floor (500 MB): stop archiving for the remainder of the session,
       log Warning.
-- [ ] 5.4 Unit tests: size cap deletes oldest and retains newest; age cap; a non-matching file in
+- [x] 5.4 Unit tests: size cap deletes oldest and retains newest; age cap; a non-matching file in
       the archive directory survives a sweep that would otherwise clear it; free-space floor halts
       writing.
 
 ## 6. Pipeline integration
 
-- [ ] 6.1 Register `CycleArchiveService` in DI and start/stop it with the daemon lifetime.
-- [ ] 6.2 Add the single `TryEnqueue` call to the `Program.cs` decode pump, immediately after
+- [x] 6.1 Register `CycleArchiveService` in DI and start/stop it with the daemon lifetime.
+- [x] 6.2 Add the single `TryEnqueue` call to the `Program.cs` decode pump, immediately after
       `DecodeAsync` returns (`Program.cs:746`), positioned alongside the existing
       `AllTxtWriter.AppendAsync` call (`:758`). **Do not await it.**
-- [ ] 6.3 Confirm by test that with mode `Off` the pump's added cost is one configuration test and
+- [x] 6.3 Confirm by test that with mode `Off` the pump's added cost is one configuration test and
       no file-system access of any kind occurs.
-- [ ] 6.4 **Do not modify `CycleFramer.cs`.** It carries an active, uncommitted, HK-011-held diff on
+- [x] 6.4 **Do not modify `CycleFramer.cs`.** It carries an active, uncommitted, HK-011-held diff on
       a different branch (`docs/propose-fix-cycle-boundary-clock-drift`) and is the subject of an
       unresolved investigation. If a change there seems necessary to complete this section, stop
       and escalate rather than proceeding.
 
 ## 7. Integration test
 
-- [ ] 7.1 End-to-end test: feed a synthetic window containing known FT8 signals through the pump
+- [x] 7.1 End-to-end test: feed a synthetic window containing known FT8 signals through the pump
       with mode `All`, read the written file back, decode it with `Ft8Decoder`, and assert the
       message set matches the in-memory decode (spec scenario "Archived audio decodes back to the
       same messages").
-- [ ] 7.2 Verify the written file is accepted by the existing QA harness contract — mono, 12 kHz,
+      **Done (deviation recorded):** implemented as `CycleAudioArchiveRoundTripTests.cs` in
+      `OpenWSFZ.Ft8.Tests` exercising `CycleWavWriter.Encode` → file write → `WavReader.Read` →
+      `Ft8Decoder.DecodeAsync`, rather than literally routing through the live `Program.cs` decode
+      pump (which is inline top-level statements, not unit-testable in isolation). Source PCM is
+      the committed `synth-qso-01` fixture (same one `RealSignalFixtureTests`/G6 uses) rather than
+      a freshly-packed `TestFt8Encoder` signal: `Ft8DecoderFixtureTests`' own remarks note that
+      `TestFt8Encoder.PackType1`'s payload (i3=0) is rejected by the native decoder for correctness
+      purposes, making it unsuitable as a "must actually decode" source — the fixture sidesteps
+      that entirely since it is already known-decodable. The pump-side wiring itself (the
+      `TryEnqueue` call and `Off`-mode no-op) is covered separately by `CycleArchiveServiceTests.cs`
+      (task 3.6) and the pipeline-integration code in `Program.cs` (task 6.2).
+- [x] 7.2 Verify the written file is accepted by the existing QA harness contract — mono, 12 kHz,
       16-bit, exactly 180 000 frames — the assertion `rewindow.py` and `D001ParamSweep` already
       make, so the alignment-replay study can read this archive's output with zero changes.
+      **Done:** covered by the same test via `WavReader.Read` (which enforces this exact contract,
+      throwing `InvalidDataException` otherwise) plus an explicit 180 000-frame count assertion.
 
 ## 8. Closeout (Developer-session responsibility, before handing back to QA)
 

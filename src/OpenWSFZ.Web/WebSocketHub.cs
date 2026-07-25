@@ -256,6 +256,13 @@ internal static class WebSocketHub
     /// <c>GET /api/v1/status</c>; this is a point-in-time snapshot for the WS handshake.
     /// Defaults to 0 when the caller does not wire up the native shim.
     /// </param>
+    /// <param name="cycleArchiveDroppedCycles">
+    /// Snapshot of the cycle audio archive's dropped-cycle count at connection time, forwarded
+    /// from <see cref="WebApp.Create"/> and included in the initial <c>status</c> event
+    /// (<c>cycle-audio-archive</c> capability). A live value is served on
+    /// <c>GET /api/v1/status</c>; this is a point-in-time snapshot for the WS handshake.
+    /// Defaults to 0 when the caller does not wire up the archive.
+    /// </param>
     /// <param name="ct">Cancellation token tied to the HTTP request lifetime.</param>
     public static async Task HandleAsync(
         WebSocket ws,
@@ -269,6 +276,7 @@ internal static class WebSocketHub
         Guid scope,
         int shimVersion,
         int hashTableRejectCount,
+        long cycleArchiveDroppedCycles,
         CancellationToken ct)
     {
         RegisterSocket(ws, scope);
@@ -298,7 +306,8 @@ internal static class WebSocketHub
                 TxAudioOffsetHz:     txCfg.TxAudioOffsetHz,
                 HoldTxFreq:          txCfg.HoldTxFreq,
                 ShimVersion:         shimVersion,
-                HashTableRejectCount: hashTableRejectCount);
+                HashTableRejectCount: hashTableRejectCount,
+                CycleArchiveDroppedCycles: cycleArchiveDroppedCycles);
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);

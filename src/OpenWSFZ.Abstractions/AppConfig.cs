@@ -95,4 +95,12 @@ public sealed record AppConfig(
     /// error and remain fully inert (no sockets opened) until an operator opts in.
     /// </summary>
     public ExternalReportingConfig ExternalReporting { get; init; } = new();
+
+    /// <summary>
+    /// Operator-controlled cycle audio archive configuration (<c>cycle-audio-archive</c>
+    /// capability). Always non-null; defaults to <c>Mode = Off</c> so existing config files
+    /// without a <c>cycleAudioArchive</c> key deserialise without error and no recordings are
+    /// written unless an operator opts in (NFR-021).
+    /// </summary>
+    public CycleAudioArchiveConfig CycleAudioArchive { get; init; } = new();
 }

@@ -86,6 +86,13 @@ ALL.TXT
 ADIF.log
 *.adif
 
+# Cycle audio archive (cycle-audio-archive capability) — real off-air audio and real
+# third-party callsigns (NFR-021). The default archive directory is the platform per-user
+# app-data directory, outside the repo; these entries are defence in depth in case an
+# operator points the "directory" setting at (or under) the repo itself.
+cycle-audio/
+cycle-archive.csv
+
 # Operator / debug tools — binaries placed at repo root during investigations
 procdump*.exe
 procdump*.zip

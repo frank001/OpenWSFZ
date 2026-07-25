@@ -162,6 +162,13 @@ public sealed class JsonConfigStore : IConfigStore
             if (config.ExternalReporting is null)
                 config = config with { ExternalReporting = new ExternalReportingConfig() };
 
+            // "cycleAudioArchive" key is absent in config files written before the
+            // cycle-audio-archive change. Same STJ source-gen null-vs-initialiser guard as
+            // "logging"/"decodeLog"/"remoteAccess"/"decodeNoiseSuppression"/"externalReporting"
+            // above.
+            if (config.CycleAudioArchive is null)
+                config = config with { CycleAudioArchive = new CycleAudioArchiveConfig() };
+
             // "ptt" key is absent in config files written before the cat-tx-ptt change.
             // Same STJ source-gen null-vs-initialiser guard as
             // "logging"/"decodeLog"/"remoteAccess"/"decodeNoiseSuppression"/"externalReporting"
