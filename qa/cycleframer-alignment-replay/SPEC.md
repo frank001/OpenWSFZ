@@ -196,6 +196,41 @@ Verified 2026-07-25:
 This is WSJT-X's own capture, independent of OpenWSFZ's capture path, and it is grid-aligned to
 true UTC. Contiguity is what makes re-windowing at arbitrary offsets possible.
 
+### 4.1 WSJT-X decode log — RECOVERED 2026-07-25
+
+§11's open request is **answered on this session's own audio.** The Captain recovered
+`artefacts/20260724_live_run_2227/wsjt-x ALL.TXT`. Verified 2026-07-25:
+
+| | `wsjt-x ALL.TXT` | `ALL.TXT` (OpenWSFZ) |
+|---|---|---|
+| lines | 82,943 | 20,092 |
+| Rx/FT8 cycles | **2,827 — every WAV** | 1,789 distinct labels |
+| first → last | `260724_202800` → `260725_081815` | `260724_202800` → `260725_081705` |
+
+The WSJT-X log's cycle set is **exactly the 2,827 WAVs**, so it is complete for this session with
+no gaps to reconcile. It is unambiguously a different decoder, not a copy: 4.13× the decode count,
+and on the first cycle alone it reports SNR 24 / DT +0.2 where OpenWSFZ reports SNR 4 / DT +0.8.
+**This is therefore not §3's invalidated self-comparison.**
+
+**Consequence: the alignment component and the absolute gap are now measurable on the same audio,
+the same session, and the same signal population.** That removes the `DT_med` transfer problem
+that would have applied to sizing the gap on the 0723 archive (§11) — the recall(δ) curve's own
+`DT_med` is the right one to use, by construction. `artefacts/20260723_live_run_2223/` remains a
+valid independent second session, but is no longer the primary route.
+
+**Caveats that still bind (do not skip these):**
+
+- **Only 441 of OpenWSFZ's 1,789 labels sit on the 15 s UTC grid**, so 1,348 cycles have no
+  same-timestamp counterpart in the WSJT-X log. Naive timestamp-keyed joining silently drops 75%
+  of the session and **selects on the cumulative-correction residue**, which is not a random
+  subset. Reconstruct the true UTC cycle from `cycleStart` and the daemon log's correction sum.
+- **An on-grid label does not mean the content was aligned.** §2 item 2 established that the label
+  slide does *not* track content position; the two are decoupled. Any argument of the form "these
+  cycles were grid-aligned, so alignment error ≈ 0 there" is invalid. *(Recorded because the
+  Architect made exactly this error on first inspection of the recovered file.)*
+- The raw 82,943-vs-20,092 ratio is **not** a recall figure — §3's trap. Use §5.3's paired
+  within-cycle metric.
+
 ## 5. Experimental design
 
 The core design decision: **both arms use the same decoder (`Ft8Decoder`) on the same audio, and
@@ -489,15 +524,19 @@ Precedent for feasibility: the D-001 sweep ran ~106 000 offline decodes.
 the production decoder; whether the alignment excursions the live runs exhibit are material; and a
 quantitative bound for correction magnitude.
 
-~~**Does not settle:** the absolute size of D-001's recall gap.~~ **Amended 2026-07-25 — this
-caveat is now partly lifted, on a different session's archive.**
+~~**Does not settle:** the absolute size of D-001's recall gap.~~ **Amended twice on 2026-07-25 —
+this caveat is now lifted on this study's own session. See §4.1.**
 
-The original text was right that this study's own audio cannot settle D-001's absolute gap: no
-WSJT-X `ALL.TXT` was preserved for the night of 2026-07-24, and the Captain has confirmed it is
-**unrecoverable** — if it is not in the artefact folder, it is gone.
+*First amendment (superseded): the 0724 WSJT-X log was believed lost and `20260723_live_run_2223/`
+was identified as a substitute. **Then the Captain recovered
+`artefacts/20260724_live_run_2227/wsjt-x ALL.TXT`** — 82,943 lines covering all 2,827 cycles of
+this study's own audio. That is strictly better: same session, same signal population, so the
+recall(δ) curve's own `DT_med` applies by construction and no cross-session transfer is needed.
+Primary route is now 0724; §4.1 has the verification table and caveats.*
 
-**But `artefacts/20260723_live_run_2223/` has the complete matched set**, and the open request
-below is answered by it. Verified 2026-07-25:
+`artefacts/20260723_live_run_2223/` remains valuable as an **independent second session** —
+different build (`ce13e308` + persistence-gated diff), different night, 7h54m — and is the natural
+replication check once 0724's figures exist. Verified 2026-07-25:
 
 | file | content |
 |---|---|
@@ -526,8 +565,11 @@ harness consume them unmodified. This makes two previously-blocked things execut
    timestamp-keyed matching breaks by construction — use the daemon log's correction sum to align.
    The raw 50,501-vs-31,517 line ratio is **not** a recall figure.
 
-> ~~**Open request to the Captain:**~~ **Answered 2026-07-25** — see above. The 2026-07-24 WSJT-X
-> log is lost; `artefacts/20260723_live_run_2223/` supersedes the need for it.
+> ~~**Open request to the Captain:**~~ **CLOSED 2026-07-25 — the Captain recovered the file.**
+> `artefacts/20260724_live_run_2227/wsjt-x ALL.TXT`, 82,943 lines, all 2,827 cycles of this
+> study's own session. See §4.1. *(An intermediate note here claimed the log was lost and pointed
+> at the 0723 archive as a substitute; that is superseded — 0723 is now the replication check, not
+> the primary route.)*
 
 ## 12. Notes for the implementing session
 

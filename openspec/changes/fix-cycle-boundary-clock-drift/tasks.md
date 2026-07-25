@@ -648,11 +648,13 @@ cost. See design.md Decision 9 for the full derivation, the five findings, and t
       | `openwsfz/openswfz-20260723T222314Z.log` | **20 `Cycle boundary resync` + 1,897 `Cycle boundary drift check` lines** |
       | `wsjtx/wav/` | 1,884 files, mono/12 kHz/16-bit/exactly 180,000 frames, 99.5% contiguous (1,873×15 s, 8×30 s, 2×45 s) |
 
-      **This makes 10.6 fully executable, and it is the only run that does.** The daemon log yields
-      the cumulative signed correction sum per cycle; the two `ALL.TXT`s yield the per-cycle DT
-      offset; the prediction ("offset tracks the correction sum" vs "sits flat") is testable as
-      written. The WAVs are format-identical to the 0724 archive, so `rewindow.py` consumes them
-      unmodified.
+      **Superseded within the hour — the Captain recovered the 0724 log too.**
+      `artefacts/20260724_live_run_2227/wsjt-x ALL.TXT`: 82,943 lines, **all 2,827 Rx/FT8 cycles —
+      exactly the WAV set**, `260724_202800` → `260725_081815`. Verified a genuinely different
+      decoder, not a copy (4.13× OpenWSFZ's 20,092 decodes; first cycle SNR 24/DT +0.2 vs
+      SNR 4/DT +0.8). **Run 10.6 on 0724, not 0723** — it is *this change's own* 9.5-fail session,
+      so the DT baseline, the recall(δ) curve and the correction log all describe the same signal
+      population, with no cross-session transfer. 0723 becomes the independent replication check.
       **This is not the §3-invalidated comparison.** §3 voided *OpenWSFZ vs OpenWSFZ* (a
       self-comparison); this is two genuinely different decoders. Two real confounds remain and
       must be handled explicitly, not assumed away:
@@ -664,10 +666,29 @@ cost. See design.md Decision 9 for the full derivation, the five findings, and t
         this item is measuring. Use the daemon log's correction sum to align, and say so.
       - The raw 50,501-vs-31,517 line ratio is **not** a recall figure (§3's trap). Filter Tx lines
         and non-FT8 modes, and use the paired within-cycle metric of SPEC §5.3.
-      **Note the run differs from 0724_2227**: build `ce13e308` + the persistence-gated diff, 7h54m,
-      40 m — a *different* session and build from the 9.5 round. Same device and band. Any figure
-      derived here describes that session; per §2.5 item 10 the tolerance interval tracks `DT_med`
-      1:1, so **0723's own DT baseline must be measured, not inherited from 0724's +0.80.**
+      **Note 0723 differs from 0724_2227**: build `ce13e308` + the persistence-gated diff, 7h54m,
+      40 m. Same device and band. If used, it needs **its own** DT baseline — per §2.5 item 10 the
+      tolerance interval tracks `DT_med` 1:1 and +0.80 does not transfer.
+
+      **(a-2) Preliminary signal on the recovered 0724 log — INDICATIVE ONLY, do not cite.**
+      A quick Architect pass on the 438 cycles where OpenWSFZ's label happens to coincide with a
+      true UTC grid slot gives a DT offset (OpenWSFZ − WSJT-X) with median +0.000, p10–p90
+      −1.40…+0.50, and a **strong downward trend across the session: r = −0.92, slope
+      −0.18 s/hr.** Taken at face value that would favour 10.6's "tracks" branch over "sits flat,"
+      and would mean the +0.5–0.6 s time-invariant offset hypothesised in 8.6 (from *one cycle,
+      11 decodes*) is not what the session-wide data shows.
+      **Two reasons this is not yet a result, both mine:**
+      - **The subset is selection-biased, badly.** Matching on identical timestamps keeps only the
+        441/1,789 labels sitting on the grid, i.e. it *selects on the cumulative-correction
+        residue*. Hourly coverage is wildly uneven as a result (238 cycles in hour 0–1, then 84,
+        then nothing until hour 6), so the regression is fitted on a non-random 25% of the session.
+      - **My framing of that subset was simply wrong.** I initially reasoned "on-grid label ⇒
+        alignment error ≈ 0 there ⇒ a clean natural experiment." §2 item 2 already establishes the
+        label slide does **not** track content position — the two are decoupled — so an on-grid
+        label licenses no inference about content alignment at all. Recorded rather than quietly
+        dropped; it is the same reason-instead-of-check error as the retracted (a) above.
+      The real test needs true-UTC cycle reconstruction from `cycleStart` + the daemon log's
+      correction sum, across all 1,789 cycles. That is 10.6's actual job.
       (b) **The measurement it needs is already funded elsewhere.** §11's Phase 1b produces the
       arm-A DT baseline across all 2,827 cycles; that is the same distribution 10.6 needs for its
       OpenWSFZ side, at zero extra decode cost. Sequence 10.6 *after* 11.5, not in parallel.
@@ -779,25 +800,34 @@ depend on whether 10.1–10.4 land; it measures the audio, not the framer. It ca
       authors Sections 1/5 and the Section 2 framing; render HTML via `render_report.py`).
       NFR-021: derived artefacts contain real third-party callsigns — keep them git-ignored and
       local, exactly as `artefacts/` is.
-- [x] 11.9 ~~**Open request to the Captain**~~ — **ANSWERED 2026-07-25, and better than the request
-      asked for.** The 2026-07-24 WSJT-X `ALL.TXT` is **unrecoverable** (Captain: if it is not in
-      the artefact folder it is lost) — but `artefacts/20260723_live_run_2223/` holds a complete
-      matched set that the 0724 run never had: WSJT-X `ALL.TXT` (50,501 lines), OpenWSFZ `ALL.TXT`
-      (31,517 lines), the daemon log with 20 resync + 1,897 drift-check lines, and 1,884 WAVs
-      verified format-identical to the 0724 archive. See 10.6(a) for the full table and caveats.
-- [ ] 11.10 **D-001 absolute-gap sizing on the 0723 archive** — newly unblocked by 11.9, and the
-      thing SPEC §11 explicitly said this study *could not settle*. With both decoders' `ALL.TXT`
-      over the same session, the harness can size **how much of D-001's recall gap is alignment and
-      how much is everything else** — the decomposition §1 has wanted from the start and which no
-      run has ever had the data for.
-      **Do not fold this into the recall(δ) curve.** Keep the curve on 0724's audio: Phases 0/0b/1a
-      are three phases deep on segment 0 there, and rebasing would discard a ratified baseline to
-      buy a comparison that is better run as its own arm. 0723 is a *different session and build*
-      (`ce13e308` + persistence-gated diff, 7h54m, 40 m).
-      Sequence **after 11.5**, which supplies the scoring machinery and the DT-baseline method;
-      0723 needs **its own** `DT_med`, not 0724's +0.80 (§2.5 item 10 — the interval tracks the
-      population 1:1).
-      Carries the same three confounds as 10.6(a): different captures (no sample registration —
-      §6), OpenWSFZ's sliding cycle labels, and the raw line-count ratio not being a recall figure.
-      NFR-021: 0723's `ALL.TXT` files contain real third-party callsigns — derived artefacts stay
+- [x] 11.9 ~~**Open request to the Captain**~~ — **CLOSED 2026-07-25: the Captain recovered the
+      file.** `artefacts/20260724_live_run_2227/wsjt-x ALL.TXT` — 82,943 lines, **all 2,827 Rx/FT8
+      cycles, exactly matching the WAV set**, `260724_202800` → `260725_081815`. Confirmed a
+      genuinely different decoder rather than a copy (4.13× OpenWSFZ's decode count; first cycle
+      SNR 24/DT +0.2 vs SNR 4/DT +0.8), so **not** §3's invalidated self-comparison. Verification
+      table and caveats: SPEC §4.1.
+      *(An intermediate state of this item recorded the 0724 log as unrecoverable and nominated
+      `artefacts/20260723_live_run_2223/` as a substitute. That is superseded — 0723 is now the
+      independent replication check, not the primary route. Its matched set is real and verified:
+      WSJT-X 50,501 lines, OpenWSFZ 31,517, 20 resync + 1,897 drift-check lines, 1,884 WAVs
+      format-identical to 0724.)*
+- [ ] 11.10 **D-001 absolute-gap sizing — on 0724, this study's own audio.** Unblocked by 11.9, and
+      the thing SPEC §11 explicitly said this study *could not settle*. With both decoders' logs
+      over the same session, the harness can decompose **how much of D-001's recall gap is
+      alignment and how much is everything else** — what §1 has wanted from the start, and which
+      no run has ever had the data for.
+      **0724 is strictly better than 0723 here.** Same session, same signal population, same audio
+      the recall(δ) curve is built on — so the curve's own `DT_med` applies *by construction* and
+      there is no cross-session transfer to justify (§2.5 item 10 makes that transfer non-trivial:
+      the interval moves 1:1 with `DT_med`). Run 0723 afterwards as an independent replication on a
+      different night and build.
+      **Do not fold this into the recall(δ) curve** — it is a separate arm with a different
+      question. Sequence **after 11.5**, which supplies the scoring machinery and the session-wide
+      DT baseline.
+      Three confounds, all mandatory (SPEC §4.1): different *captures* so no sample-level
+      registration (§6); OpenWSFZ's cycle labels slide off the UTC grid, so timestamp-keyed joining
+      drops 1,348 of 1,789 cycles **and selects on the correction residue** — reconstruct true UTC
+      from `cycleStart` + the daemon log instead; and the raw 82,943-vs-20,092 ratio is not a
+      recall figure (§3's trap).
+      NFR-021: both `ALL.TXT` files contain real third-party callsigns — derived artefacts stay
       git-ignored and local, as `artefacts/` already is.
