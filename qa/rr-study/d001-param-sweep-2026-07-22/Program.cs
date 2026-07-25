@@ -104,7 +104,16 @@ foreach (var p in grid)
     writers[p.DirName] = sw;
 }
 
-var decoder = new Ft8Decoder(new SystemClock(), logger: null); // grammarStore null → BuiltInDefault (shipped D-009 calibration)
+// grammarStore null → BuiltInDefault (shipped D-009 calibration). Default: one shared
+// instance for the whole run (original D-001 param-sweep behaviour, unchanged for
+// existing callers of this harness). --fresh-decoder-per-wav (added for the
+// cycleframer-alignment-replay study, SPEC.md section 7.4(b)) instead constructs a new
+// decoder per WAV, so Ft8Decoder's process-lifetime cumulative state (hash-table
+// callsign resolution, hashTableRejectCount) cannot leak across windows decoded in the
+// same run — confirmed by that study's cross-input determinism control to otherwise
+// make message TEXT order-dependent (e.g. "<...> DG0JW" vs "<PD00DOG> DG0JW" for
+// identical audio) even though the underlying signal is found either way.
+Ft8Decoder? sharedDecoder = opts.FreshDecoderPerWav ? null : new Ft8Decoder(new SystemClock(), logger: null);
 
 int decoded = 0, skipped = 0;
 long totalDecodeMs = 0;
@@ -114,6 +123,7 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
 {
     var path = wavPaths[wi];
     var stem = Path.GetFileNameWithoutExtension(path);
+    var decoder = sharedDecoder ?? new Ft8Decoder(new SystemClock(), logger: null);
 
     // Resolve the slot timestamp.
     DateTime cycleStart;
@@ -188,6 +198,26 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
 
 foreach (var w in writers.Values) { w.Flush(); w.Dispose(); }
 
+// tasks.md 11.6(b) / SPEC.md section 7.4(b-ii) (cycleframer-alignment-replay): record
+// Ft8Decoder.GetHashTableRejectCount() -- process-lifetime cumulative, so for one CLI
+// invocation this is the total for THIS ARM's entire decode set (whether or not
+// --fresh-decoder-per-wav is set: the count lives in native static memory, shared by
+// every managed Ft8Decoder instance in this process, so any instance reads the same
+// final value). Written per grid point so Phase 1b can compare reject counts across
+// arms as a confound signature -- a hash-driven reject is a genuinely missing decode
+// that normalize_hash_tokens() neither fixes nor reveals.
+{
+    int finalRejectCount = (sharedDecoder ?? new Ft8Decoder(new SystemClock(), logger: null))
+        .GetHashTableRejectCount();
+    foreach (var p in grid)
+    {
+        var dir = Path.Combine(opts.OutDir, p.DirName);
+        File.WriteAllText(Path.Combine(dir, "hash_reject_count.txt"),
+            $"hashTableRejectCount={finalRejectCount}\n");
+    }
+    Console.WriteLine($"hashTableRejectCount (process-lifetime cumulative) = {finalRejectCount}");
+}
+
 swall.Stop();
 Console.WriteLine($"Done. decoded={decoded} skipped={skipped} points={grid.Count} " +
                   $"total-decodes={(long)decoded * grid.Count} wall={swall.Elapsed.TotalMinutes:F1} min");
@@ -253,6 +283,7 @@ sealed class CliOptions
     public int? IndexEnd { get; init; }
     public int? ShardIndex { get; init; }
     public int? ShardCount { get; init; }
+    public bool FreshDecoderPerWav { get; init; }
 
     public static CliOptions? Parse(string[] args)
     {
@@ -262,6 +293,7 @@ sealed class CliOptions
         int progress = 100;
         HashSet<string>? points = null;
         int? indexStart = null, indexEnd = null, shardIndex = null, shardCount = null;
+        bool freshDecoderPerWav = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -284,6 +316,7 @@ sealed class CliOptions
                 case "--index-end": indexEnd = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--shard-index": shardIndex = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--shard-count": shardCount = int.Parse(Next(), CultureInfo.InvariantCulture); break;
+                case "--fresh-decoder-per-wav": freshDecoderPerWav = true; break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {a}");
                     return Usage();
@@ -308,6 +341,7 @@ sealed class CliOptions
             ProgressEvery = progress, Points = points,
             IndexStart = indexStart, IndexEnd = indexEnd,
             ShardIndex = shardIndex, ShardCount = shardCount,
+            FreshDecoderPerWav = freshDecoderPerWav,
         };
     }
 
@@ -316,7 +350,8 @@ sealed class CliOptions
         Console.Error.WriteLine(
             "Usage: D001ParamSweep --wav-dir <dir> --out-dir <dir> --all-txt-name <name>\n" +
             "                      [--manifest <csv>] [--dial-mhz <d>] [--limit <n>]\n" +
-            "                      [--points k10_c0.10_n60,...] [--progress-every <n>]");
+            "                      [--points k10_c0.10_n60,...] [--progress-every <n>]\n" +
+            "                      [--fresh-decoder-per-wav]");
         return null;
     }
 }

@@ -149,17 +149,29 @@ tree on 2026-07-25 before issue, not merely inherited — see §0.
 
 ## 8. Closeout (Developer-session responsibility, before handing back to QA)
 
-- [ ] 8.1 Run `python3 tools/pre_merge_check.py` (HK-006) before any "ready" claim — G9a, Release
+- [x] 8.1 Run `python3 tools/pre_merge_check.py` (HK-006) before any "ready" claim — G9a, Release
       build+tests, G3 traceability, G8 openspec validate, G9b, AOT publish (this is where a missed
       §1.2 registration would otherwise surface unexpectedly late).
-- [ ] 8.2 Confirm no UI control was added anywhere (design.md Decision 9 — the GUI is a separate,
+      **Verified by QA post-merge (2026-07-25), retroactively checking the boxes this section left
+      unticked:** PR #109's own "Test plan" checklist records all 10 gates PASS (build, full test
+      suite — Web.Tests 262/262, Daemon.Tests 587/587, Ft8.Tests 295/295 — G3 traceability, WSL
+      Debian compile+test, G8 `openspec validate`, self-contained publish, AOT publish).
+- [x] 8.2 Confirm no UI control was added anywhere (design.md Decision 9 — the GUI is a separate,
       later, GUI-focused change; standing convention: controls appear only once their backend is
       fully implemented and testable end-to-end).
-- [ ] 8.3 Confirm `git status` shows no `.wav`, no `cycle-archive.csv`, and no `cycle-audio/`
+      **Verified by QA post-merge:** `grep -rli CycleAudioArchive web/ src/OpenWSFZ.Daemon/wwwroot`
+      on current `main` returns nothing.
+- [x] 8.3 Confirm `git status` shows no `.wav`, no `cycle-archive.csv`, and no `cycle-audio/`
       directory tracked (NFR-021 — recordings carry real third-party callsigns).
-- [ ] 8.4 Per HK-011: present the `src/` diff to the Captain for explicit pre-push sign-off before
+      **Verified by QA post-merge:** the only tracked `.wav` files on `main` are the pre-existing
+      `tests/OpenWSFZ.Ft8.Tests/Fixtures/synth-qso-0{1,2,3}.wav` synthetic fixtures; no
+      `cycle-archive.csv` or `cycle-audio/` tracked anywhere. `Mode` defaults to
+      `CycleAudioArchiveMode.Off` (`CycleAudioArchiveConfig.cs`).
+- [x] 8.4 Per HK-011: present the `src/` diff to the Captain for explicit pre-push sign-off before
       pushing. Per HK-010: `gh pr merge` always needs the Captain's explicit sign-off, green CI
       notwithstanding.
+      **Verified by QA post-merge:** PR #109's "Test plan" checklist records both sign-offs
+      granted; PR merged 2026-07-25T17:40:56Z as `027ce22`.
 
 ## 9. QA's own follow-on work — not part of the Developer handoff, do not implement in §1-8
 

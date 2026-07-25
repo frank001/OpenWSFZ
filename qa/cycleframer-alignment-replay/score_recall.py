@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+"""Paired within-cycle recall(delta) scorer.
+
+Implements SPEC.md section 5.3: for cycle k and offset delta,
+
+    recall_delta(k) = |decodes(window_delta, k) INTERSECT ref(k)| / |ref(k)|
+
+matched by message text, deduplicated, within-cycle. Cycle identity is (segment_index, k)
+-- NOT the wall-clock ts field written into ALL.TXT, because two arms at different delta
+label the same underlying window with different (sub-second-truncated) timestamps. The
+join key comes from each arm's own manifest.csv (segment_index, k columns), which
+rewindow.py writes at generation time.
+
+Also implements SPEC.md section 7's shuffled-pairing control (score cycle k against
+ref(k+shift) instead of ref(k) -- must collapse to ~0) via --shift.
+
+HK-009: reconfigure stdout to UTF-8 up front (cp1252 console default).
+NFR-021: outputs may reference real third-party callsigns only insofar as message text
+is echoed into the (git-ignored) --out CSV; keep --out under _work/.
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import re
+import statistics
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+
+# ---------------------------------------------------------------------------
+# ALL.TXT parsing -- mirrors Program.cs FormatAllTxtLine:
+#   "{ts}     {dialMhz:F3} Rx FT8 {snr,6} {dt,4:F1} {freq,4} {message}"
+# ---------------------------------------------------------------------------
+
+def parse_all_txt(path: Path) -> list[dict]:
+    rows = []
+    if not path.exists():
+        return rows
+    with open(path, encoding="ascii", errors="replace") as fh:
+        for line in fh:
+            line = line.rstrip("\r\n")
+            if not line.strip():
+                continue
+            tok = line.split()
+            if len(tok) < 8:
+                print(f"[WARN] unparsable ALL.TXT line in {path}: {line!r}", file=sys.stderr)
+                continue
+            ts, _dial, _rx, _ft8, snr, dt, freq = tok[0], tok[1], tok[2], tok[3], tok[4], tok[5], tok[6]
+            message = " ".join(tok[7:])
+            rows.append({
+                "ts": ts, "snr": snr, "dt": dt, "freq": freq, "message": message,
+            })
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Manifest parsing -- ts_field is the SAME truncation D001ParamSweep applies
+# (DateTime.ToString("yyMMdd_HHmmss")): floor to whole seconds.
+# ---------------------------------------------------------------------------
+
+def parse_cycle_utc(s: str) -> datetime:
+    s2 = s[:-1] if s.endswith("Z") else s
+    if "." in s2:
+        dt = datetime.strptime(s2, "%Y-%m-%dT%H:%M:%S.%f")
+    else:
+        dt = datetime.strptime(s2, "%Y-%m-%dT%H:%M:%S")
+    return dt.replace(tzinfo=timezone.utc)
+
+
+def load_manifest(path: Path) -> dict:
+    """Return (ts_field -> (segment_index, k)), raising on any collision -- an ambiguous
+    join would silently corrupt every downstream recall figure (SPEC.md section 3's
+    standing rule: never trust a comparison whose provenance wasn't checked)."""
+    ts_to_cycle: dict[str, tuple[int, int]] = {}
+    with open(path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            cycle_utc = parse_cycle_utc(row["cycle_utc"])
+            ts_field = cycle_utc.strftime("%y%m%d_%H%M%S")
+            cycle_id = (int(row["segment_index"]), int(row["k"]))
+            if ts_field in ts_to_cycle and ts_to_cycle[ts_field] != cycle_id:
+                raise SystemExit(
+                    f"FATAL: ts_field collision in {path}: {ts_field!r} maps to both "
+                    f"{ts_to_cycle[ts_field]} and {cycle_id}. Pairing would be ambiguous -- "
+                    f"refusing to score. (See SPEC.md section 3/7 provenance rule.)"
+                )
+            ts_to_cycle[ts_field] = cycle_id
+    return ts_to_cycle
+
+
+_HASH_BRACKET_RE = re.compile(r"<[^>]*>")
+
+
+def normalize_hash_tokens(message: str) -> str:
+    """Canonicalize any angle-bracketed callsign token to '<HASH>'.
+
+    WSJT-X/ft8_lib convention: an unresolved Type-4 hashed callsign renders as literal
+    '<...>'; once the session-scoped hash table (a NATIVE process-global in ft8_shim.c's
+    g_session_hash_table -- confirmed empirically 2026-07-25, see
+    cross_input_determinism.py) resolves the hash, the SAME underlying signal renders as
+    e.g. '<PD00DOG>'. Both are the decoder's best information about the SAME physical
+    transmission; which one appears for a given cycle depends on what other windows were
+    decoded earlier IN THE SAME PROCESS, not on anything about that cycle's own signal.
+    Left un-normalized, this makes message-text matching (SPEC.md 5.3) order-dependent
+    for any cycle containing a hash-compressed message -- confirmed to fully explain a
+    14/25-cycle mismatch in the section 7.4(b) forward-vs-reverse control (0/25 after
+    normalization)."""
+    return _HASH_BRACKET_RE.sub("<HASH>", message)
+
+
+def build_cycle_sets(all_txt_rows: list[dict], ts_to_cycle: dict,
+                      normalize_hash: bool = False) -> tuple[dict, list]:
+    """cycle_id -> set(message text), deduplicated, per SPEC.md 5.3.
+
+    Also returns `merges`: SPEC.md section 7.4(b-i) / tasks.md 11.6(a)'s mandatory
+    collision assertion. normalize_hash_tokens() can map two GENUINELY DISTINCT messages
+    (e.g. '<X> CALL -14' and '<Y> CALL -14') onto the same normalized string, which would
+    silently INFLATE recall by making two different signals count as one match. Each
+    merges[i] is (cycle_id, normalized_message, sorted list of >=2 distinct original
+    messages that collapsed onto it) -- empty when normalize_hash is False or no
+    collision occurred. Callers MUST check this (see check_no_collisions) rather than
+    assume it stays zero -- Phase 0 measured 0 merges across 25 cycles, but 7.18% of rows
+    carry a bracket token, which will not stay zero at Phase 1b's 400 cycles."""
+    sets: dict[tuple[int, int], set] = {}
+    raw_by_cycle: dict[tuple[int, int], dict[str, set]] = {}
+    unmapped = 0
+    for r in all_txt_rows:
+        cycle_id = ts_to_cycle.get(r["ts"])
+        if cycle_id is None:
+            unmapped += 1
+            continue
+        original = r["message"]
+        msg = normalize_hash_tokens(original) if normalize_hash else original
+        sets.setdefault(cycle_id, set()).add(msg)
+        if normalize_hash:
+            raw_by_cycle.setdefault(cycle_id, {}).setdefault(msg, set()).add(original)
+    if unmapped:
+        print(f"[WARN] {unmapped} ALL.TXT row(s) had a ts field absent from the manifest "
+              f"(decode of a wav the manifest doesn't cover?)", file=sys.stderr)
+
+    merges = []
+    if normalize_hash:
+        for cycle_id, msg_map in raw_by_cycle.items():
+            for norm_msg, originals in msg_map.items():
+                if len(originals) > 1:
+                    merges.append((cycle_id, norm_msg, sorted(originals)))
+    return sets, merges
+
+
+def check_no_collisions(merges: list, context: str) -> None:
+    """SPEC.md section 7.4(b-i) mandatory guard: fail loudly, do not silently proceed,
+    if normalize_hash_tokens() merged two distinct messages within any cycle."""
+    if not merges:
+        return
+    print(f"[COLLISION] {len(merges)} hash-normalization merge(s) in {context}:", file=sys.stderr)
+    for cycle_id, norm_msg, originals in merges[:20]:
+        print(f"  cycle {cycle_id}: {originals} all normalize to {norm_msg!r}", file=sys.stderr)
+    raise SystemExit(
+        f"FATAL (SPEC.md section 7.4(b-i)): {len(merges)} hash-token collision(s) in {context} -- "
+        f"normalize_hash_tokens() merged genuinely distinct messages, which would inflate recall. "
+        f"Refusing to report a figure. This must be investigated (e.g. a finer normalization key "
+        f"that preserves the non-hash content) before scoring can proceed."
+    )
+
+
+# ---------------------------------------------------------------------------
+# SPEC.md section 7.3 (amended 2026-07-25) -- provenance-distinctness guard.
+#
+# The hazard this guards against is exactly what voided SPEC.md section 3's "recall vs
+# WSJT-X" approach: scoring a decode set against itself and reporting the result as
+# recall. The rule: refuse to score unless ref/test resolve to DISTINCT provenance
+# (different manifest path AND different recorded delta), with exactly one whitelisted
+# exception -- the delta=0-vs-delta=0 identity anchor (arm A scored against itself),
+# which must be labelled as the identity case and must return exactly 1.0000. Any OTHER
+# same-delta pairing (including two independently-generated same-delta datasets) is a
+# hard refusal. The shuffled-pairing control (--shift != 0) is exempt: it deliberately
+# compares one arm's cycle k against its own cycle k+shift, which is a different
+# cycle's content, not a self-comparison -- the hazard this guard targets.
+# ---------------------------------------------------------------------------
+
+def manifest_delta(path: Path) -> float:
+    deltas = set()
+    with open(path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if "delta_s" in row and row["delta_s"] != "":
+                deltas.add(round(float(row["delta_s"]), 6))
+    if len(deltas) > 1:
+        raise SystemExit(f"FATAL: {path} records more than one delta_s value ({sorted(deltas)}) "
+                          f"-- a single arm must be generated at a single, uniform offset.")
+    if not deltas:
+        raise SystemExit(f"FATAL: {path} has no delta_s column -- not a rewindow.py manifest?")
+    return deltas.pop()
+
+
+def check_provenance(ref_manifest: Path, test_manifest: Path, shift: int) -> bool:
+    """Returns True iff this is the whitelisted delta=0-vs-delta=0 identity anchor.
+    Raises SystemExit on any other same-delta / same-provenance pairing."""
+    if shift != 0:
+        return False  # shuffled-pairing control: exempt, not a self-comparison hazard
+
+    ref_delta = manifest_delta(ref_manifest)
+    test_delta = manifest_delta(test_manifest)
+    ref_resolved = ref_manifest.resolve()
+    test_resolved = test_manifest.resolve()
+
+    if ref_delta != test_delta:
+        return False  # distinct delta -- ordinary, unambiguous comparison
+
+    if ref_delta == 0.0 and ref_resolved == test_resolved:
+        return True  # the one whitelisted identity anchor
+
+    raise SystemExit(
+        f"REFUSED (SPEC.md section 7.3 provenance guard): reference and test arms resolve to "
+        f"the SAME delta ({ref_delta}s) and are not the whitelisted delta=0 identity anchor "
+        f"(ref manifest={ref_resolved}, test manifest={test_resolved}). Scoring this pairing "
+        f"would risk reporting a self-comparison as recall -- exactly the failure class that "
+        f"voided the ALL.TXT-vs-ALL.TXT approach in section 3. Refusing to run."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Paired recall
+# ---------------------------------------------------------------------------
+
+def paired_recall(numerator_sets: dict, denominator_sets: dict, shift: int = 0,
+                   min_ref: int = 5) -> tuple[list[dict], int]:
+    results = []
+    excluded_low_ref = 0
+    for cycle_id, ref_set in denominator_sets.items():
+        if len(ref_set) < min_ref:
+            excluded_low_ref += 1
+            continue
+        seg, k = cycle_id
+        shifted_id = (seg, k + shift)
+        num_set = numerator_sets.get(shifted_id, set())
+        inter = num_set & ref_set
+        recall = len(inter) / len(ref_set)
+        results.append({
+            "segment_index": seg, "k": k, "ref_n": len(ref_set), "num_n": len(num_set),
+            "inter_n": len(inter), "recall": recall,
+        })
+    return results, excluded_low_ref
+
+
+def summarize(results: list[dict]) -> dict:
+    if not results:
+        return {"n_cycles": 0, "median": None, "q1": None, "q3": None}
+    recalls = sorted(r["recall"] for r in results)
+    n = len(recalls)
+    median = statistics.median(recalls)
+    if n >= 4:
+        q1 = statistics.median(recalls[: n // 2])
+        q3 = statistics.median(recalls[(n + 1) // 2:])
+    else:
+        q1 = q3 = median
+    return {
+        "n_cycles": n, "median": median, "q1": q1, "q3": q3,
+        "min": recalls[0], "max": recalls[-1],
+        "mean": statistics.mean(recalls),
+    }
+
+
+def cmd_recall(args: argparse.Namespace) -> None:
+    ref_manifest = Path(args.ref_manifest)
+    test_manifest = Path(args.test_manifest) if args.test_manifest else ref_manifest
+
+    is_identity = check_provenance(ref_manifest, test_manifest, args.shift)
+
+    ref_rows = parse_all_txt(Path(args.ref_all_txt))
+    ref_map = load_manifest(ref_manifest)
+    ref_sets, ref_merges = build_cycle_sets(ref_rows, ref_map, normalize_hash=args.normalize_hash_tokens)
+    check_no_collisions(ref_merges, "reference arm")
+
+    test_all_txt = Path(args.test_all_txt) if args.test_all_txt else Path(args.ref_all_txt)
+    test_rows = parse_all_txt(test_all_txt)
+    test_map = load_manifest(test_manifest)
+    test_sets, test_merges = build_cycle_sets(test_rows, test_map, normalize_hash=args.normalize_hash_tokens)
+    check_no_collisions(test_merges, "test arm")
+
+    results, excluded = paired_recall(test_sets, ref_sets, shift=args.shift, min_ref=args.min_ref)
+    summary = summarize(results)
+
+    label = args.label or (f"IDENTITY delta=0" if is_identity else f"shift={args.shift}")
+    if is_identity:
+        label = f"[IDENTITY ANCHOR] {label}"
+    print(f"recall[{label}]: n_cycles={summary['n_cycles']} excluded(|ref|<{args.min_ref})={excluded}")
+    if summary["n_cycles"]:
+        print(f"  median={summary['median']:.4f}  IQR=[{summary['q1']:.4f}, {summary['q3']:.4f}]  "
+              f"mean={summary['mean']:.4f}  range=[{summary['min']:.4f}, {summary['max']:.4f}]")
+    else:
+        print("  (no cycles scored -- check manifests / min-ref threshold)")
+
+    if is_identity:
+        if not (summary["n_cycles"] and summary["min"] == 1.0 and summary["max"] == 1.0):
+            raise SystemExit(
+                "FATAL: identity anchor did not return exactly 1.0000 for every cycle -- "
+                "this means the pairing/matching logic itself is broken (SPEC.md section 7.3)."
+            )
+        print("  identity anchor confirmed exact (1.0000 for every cycle).")
+
+    if args.out:
+        outp = Path(args.out)
+        outp.parent.mkdir(parents=True, exist_ok=True)
+        with open(outp, "w", newline="", encoding="utf-8") as fh:
+            wr = csv.DictWriter(fh, fieldnames=["segment_index", "k", "ref_n", "num_n", "inter_n", "recall"])
+            wr.writeheader()
+            wr.writerows(results)
+        print(f"  -> {outp}")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sp = sub.add_parser("recall", help="paired within-cycle recall(delta), or a shuffled-pairing control")
+    sp.add_argument("--ref-all-txt", required=True, help="reference (denominator) arm's ALL.TXT")
+    sp.add_argument("--ref-manifest", required=True, help="reference arm's manifest.csv")
+    sp.add_argument("--test-all-txt", default=None, help="test (numerator) arm's ALL.TXT (default: same as ref, for shuffle control)")
+    sp.add_argument("--test-manifest", default=None, help="test arm's manifest.csv (default: same as ref)")
+    sp.add_argument("--shift", type=int, default=0, help="k-shift for shuffled-pairing control (SPEC.md section 7.2)")
+    sp.add_argument("--min-ref", type=int, default=5, help="exclude cycles with |ref(k)| below this")
+    sp.add_argument("--normalize-hash-tokens", action="store_true",
+                     help="canonicalize <...>/<CALLSIGN> hash-resolution tokens to <HASH> before "
+                          "matching -- neutralizes the decode-order-dependent hash-table confound "
+                          "(SPEC.md section 7.4(b))")
+    sp.add_argument("--label", default=None)
+    sp.add_argument("--out", default=None, help="per-cycle CSV output path")
+    sp.set_defaults(fn=cmd_recall)
+
+    args = p.parse_args()
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()
