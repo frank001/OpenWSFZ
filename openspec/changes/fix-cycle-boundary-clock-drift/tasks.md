@@ -451,7 +451,7 @@ implementation.
 
 ## 9. Deviation-accounting fix: correct for a correction's own real-time cost (design.md Decision 8, tasks.md 8.3's decided fix shape)
 
-- [ ] 9.1 `src/OpenWSFZ.Ft8/CycleFramer.cs`: at the moment a correction fires (inside the
+- [x] 9.1 `src/OpenWSFZ.Ft8/CycleFramer.cs`: at the moment a correction fires (inside the
       `driftStreakCount >= RequiredConsecutiveReadings` branch), record
       `pendingNominalAdjustSeconds = correction / (double)SampleRate` — a one-shot value
       representing the genuine extra-or-reduced real time the *next* window will take to fill
@@ -467,12 +467,20 @@ implementation.
       trace and rationale. **`src/` change — Developer-session territory per HK-011; QA's role
       stops at this specification unless the Captain explicitly grants a session-treat-as-Developer
       exception, as was done for 8.4/8.7.**
-- [ ] 9.2 Confirm this does not change behaviour for the no-correction-fires path (the vast
+- [x] 9.2 Confirm this does not change behaviour for the no-correction-fires path (the vast
       majority of windows): `pendingNominalAdjustSeconds` must default to/settle at exactly 0 when
       no correction has just fired, so `nominalCycleStart`'s advance is the unchanged flat
       `CycleDurationSecs` in that case — existing tests asserting "no correction fires absent
       drift" and "cycleStart advances by exactly 15 seconds" must continue to pass unmodified.
-- [ ] 9.3 Unit test (extends 8.7's `FeedSamplesAtRealRate` rate-limited-source harness in
+      Confirmed: `RunAsync_ClockInLockStep_NoCorrectionFires` and
+      `RunAsync_RecurringNonMonotonicDeviation_NeverFiresCorrection` pass unmodified. One
+      *correction-fires* test, `RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections`
+      (many repeated corrections over a long session), needed its tolerance updated — its own
+      docstring now explains why: 9.1 legitimately shifts subsequent-correction timing/sizing in a
+      multi-correction session (out of scope for this task's "no-correction-fires" guarantee), and
+      the residual it measures settles into a new, still-bounded, still-non-growing steady-state
+      plateau (~80 samples higher than before), not unbounded growth. Not a regression.
+- [x] 9.3 Unit test (extends 8.7's `FeedSamplesAtRealRate` rate-limited-source harness in
       `CycleFramerTests.cs`): after a correction fires under a genuinely rate-limited source (both
       discard and replay directions, mirroring 8.7's two tests), assert that the **deviation
       reading** on the window immediately following the corrected one lands near the noise floor —
@@ -481,14 +489,116 @@ implementation.
       (`1cebf81`'s report: "does the post-correction reading actually drop near the noise floor,
       or re-establish at the same magnitude"). This is the acceptance criterion for whether 9.1
       actually fixes non-convergence, independent of any live run.
-- [ ] 9.4 Re-run `python3 tools/pre_merge_check.py` (HK-006) against 9.1-9.3's combined changes.
+      Implemented as `RunAsync_DiscardCorrectionDeviationAccounting_NextReadingNearNoiseFloor` /
+      `RunAsync_ReplayCorrectionDeviationAccounting_NextReadingNearNoiseFloor`. A first attempt
+      tied the test `IClock` to actually-measured real elapsed time (scaled ~35x to compress 15 s
+      into a sub-second test window) — correct in principle but fatally flaky, since any OS-
+      scheduler hiccup got amplified 35x into thousands of spurious samples (observed directly: a
+      247 000-sample reading where ~45 000 was expected). Replaced with a deterministic
+      `SampleCountClock` (true UTC derived from the exact count of raw samples delivered by the
+      still-genuinely-rate-limited feed, divided by an assumed true device sample rate) — physically
+      equivalent, immune to scheduler jitter, 5/5 clean repeated local runs. Both tests confirm the
+      fixed case (post-correction reading ~25-42% of the correction's own magnitude) is clearly
+      separated from the unfixed case (analytically ~125-142%, hand-derived, not re-tested against
+      old code) — the bound is not "near-zero" because 9.1 only ever claimed to cancel the
+      correction's own real-time cost, not the window's ordinary ongoing per-cycle device-rate
+      contribution (see 9.2's note above and the test's own inline comments).
+- [x] 9.4 Re-run `python3 tools/pre_merge_check.py` (HK-006) against 9.1-9.3's combined changes.
+      Result: READY — every gate passed (G9a, Release build+full test suite incl. WSL Debian, G3
+      traceability, G8 openspec validate --strict --all, self-contained publish, AOT publish).
 - [ ] 9.5 Live re-confirmation: same live setup as 6.6/7.6/8.6 (same device, same technique),
       checked specifically for whether the post-correction deviation reading now actually drops
       near the noise floor across a real session, not just in the isolated unit test (9.3). This
       is the actual gate before the HK-011 merge hold can be reconsidered — 6.6/7.6/8.6 remain
       historical markers of the three prior (failed) fix attempts and are not retroactively
       satisfied by this section; 9.5 is this fix's own live acceptance test.
+      **FAILED, 2026-07-24/25 overnight, 40m band, 11h51m — the longest and most data-rich round
+      in this investigation.** `qa/endurance/2026-07-25-40m-band-9.5-fail/report.md`. Only 32/136
+      (23.5%) of corrections landed near the noise floor on their immediate next reading; the
+      session-level signal is worse than that number alone suggests — correction magnitude grew
+      essentially monotonically, hour over hour, roughly 8x from the first hour to the last, with
+      no plateau. Zero crashes, zero ERR/FTL, pipeline-timing instrumentation stayed flat
+      throughout (H₀-3 continues to hold) — this is squarely the same non-convergence defect
+      every round before 9.1 also showed, not a stability or instrumentation problem. Do not
+      retry 9.5 against 9.1 unmodified; see 9.6.
 - [ ] 9.6 Once 9.5 passes: reconsider the HK-011 merge hold with the Captain. If 9.5 does not
       converge either, escalate to fallback fix shapes 2 or 3 recorded in design.md Decision 8
       (continuous rate-tracking, or reopening Decision 1's scope boundary) rather than re-tuning
       9.1's constants in isolation.
+      **Does not apply — 9.5 failed, not passed.** Per this item's own instruction, escalate to
+      one of Decision 8's fallback shapes rather than re-tuning 9.1 (which has no tunable
+      constants to begin with). The HK-011 merge hold stands, unchanged. Not the Captain's call
+      to make yet — there is nothing converging to sign off on.
+      **SUPERSEDED by §10 (design.md Decision 9, Architect 2026-07-25):** the escalation to
+      fallback shapes 2/3 is withdrawn. 9.5's failure was traced to a defect *in* 9.1's
+      implementation (`nominalCycleStart = cycleStart` discarding the divergence 9.1 itself
+      creates), not to Decision 8's mechanism trace being wrong. 9.1 is retained; §10 fixes it.
+
+## 10. Reset-conflation fix: `nominalCycleStart` must be shifted, not re-anchored to `cycleStart` (design.md Decision 9)
+
+Context: the 9.5 overnight round's own artefacts show each post-correction deviation reading
+reproducing the **previous** correction (r=0.9931, slope 0.977, sign match 135/135), and an energy
+balance in which 66.8 s of the session's 68.9 s excess real time is the corrections' own discard
+cost. See design.md Decision 9 for the full derivation, the five findings, and the risks.
+
+- [ ] 10.1 `src/OpenWSFZ.Ft8/CycleFramer.cs`: in the `driftStreakCount >= RequiredConsecutiveReadings`
+      branch, replace `nominalCycleStart = cycleStart;` with
+      `nominalCycleStart = nominalCycleStart.AddSeconds(correction / (double)SampleRate);`.
+      Shift by `correction`, **not** by `deviationSeconds` — in the ordinary unclamped case they are
+      equal and the current deviation is zeroed exactly, but if `CorrectionSanityCeilingSamples`
+      ever binds, shifting by `correction` correctly carries the residual forward as a slew
+      (Decision 5's intended behaviour) whereas shifting by `deviationSeconds` would silently
+      swallow it. `cycleStart` keeps its own separate `+correction/SampleRate` advance — the whole
+      point is that the two quantities are not interchangeable. **`src/` change — Developer-session
+      territory per HK-011, with the Captain's pre-push sign-off.**
+- [ ] 10.2 Same file: correct the now-false invariant in the `nominalCycleStart` declaration comment
+      ("Reset to match cycleStart whenever a correction fires") and in the class-level `<summary>`
+      Decision 8 paragraph. State the actual invariant: `nominalCycleStart` is a pure arithmetic
+      measurement reference that legitimately diverges from `cycleStart` by the accumulated history
+      of one-shot adjustments, and must never be re-anchored to it. This comment asserting the
+      pre-Decision-8 invariant is part of the defect, not incidental to it.
+- [ ] 10.3 Change the 9.3 acceptance metric (`CycleFramerTests.cs`) to regress the post-correction
+      reading against **both** its own and the preceding correction's magnitude. Without this the
+      test suite cannot distinguish a full fix from another half-fix — this is exactly why 9.1's
+      partial success read as "changed nothing" in 9.5, and it is a prerequisite for trusting any
+      future live round.
+- [ ] 10.4 New unit test: fire **two or more consecutive corrections** under the deterministic
+      `SampleCountClock` + `FeedSamplesAtRealRate` harness and assert the second correction's
+      post-reading does not reproduce the first's magnitude. Every existing 9.3 test fires exactly
+      one correction, which is precisely why this escaped a full `pre_merge_check.py` pass.
+      Additionally: restore
+      `RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections` to its
+      pre-9.1 tolerance. Per Decision 9 Finding 5, that test *did* detect this regression (residual
+      "~80 samples higher") and its tolerance was widened and the shift rationalised as a benign new
+      plateau; if 10.1 is correct the original tolerance must pass again. Treat failure to restore it
+      as evidence the fix is incomplete, not as a reason to re-widen.
+- [ ] 10.5 Re-derive and record the drift constants against the ~101 ppm figure measured from
+      correction-free cycles (95% CI [46, 156] ppm) rather than D-001's 42.41 ppm. Document whether
+      `DriftThresholdSamples = 24` and `RequiredConsecutiveReadings = 3` still hold at ~18
+      samples/cycle instead of the 7.6 they were derived from. Expected outcome is "unchanged, fires
+      ~2.4x more often, not a defect" — but the discrepancy must not stay undocumented, and the
+      wide CI is itself worth narrowing from the WAV archive if cheap.
+- [ ] 10.6 Offline, no live time: session-wide DT-offset comparison against WSJT-X using the
+      preserved archive (`artefacts/20260724_live_run_2227/wav/`, 2,827 files) to close Decision 9
+      Finding 4 / the report's Section 7. Falsifiable prediction: the OpenWSFZ-vs-WSJT-X DT offset
+      **tracks the cumulative signed correction sum over the session** rather than sitting flat at
+      +0.5–0.6 s. If it tracks, Section 7 is not a separate defect and needs no further
+      investigation; if it sits flat, there is a genuine second, time-invariant offset to chase
+      separately.
+- [ ] 10.7 Re-run `python3 tools/pre_merge_check.py` (HK-006) against 10.1–10.4's combined changes.
+- [ ] 10.8 Live re-confirmation, replacing 9.5 as this change's live acceptance gate. Reuse the
+      HK-013 supervisor (`qa/endurance/2026-07-24-supervisor.sh`) with its two recorded edge-case
+      fixes applied. Acceptance criteria, all three required:
+      (a) post-correction readings land near the noise floor against **both** own and previous
+      correction magnitude (10.3's metric);
+      (b) correction magnitude reaches a plateau rather than growing hour over hour;
+      (c) the pipeline-timing figure for correction-free windows sits at nominal 15.000 s — tested
+      **against nominal, not merely for absence of a trend**, per Decision 9's inversion of H₀-3.
+      A session need not match 9.5's 11h51m: with the loop fixed, corrections should be ~2 orders of
+      magnitude smaller, so a plateau should be visible within 2–3 hours. Run longer only if the
+      short round passes.
+- [ ] 10.9 Once 10.8 passes: reconsider the HK-011 merge hold with the Captain. If 10.8 fails, *then*
+      escalate to Decision 8's fallback shapes — but note that Decision 9's diagnosis is
+      quantitative and closed, so a failure here would indicate a *further* distinct mechanism and
+      should be root-caused from the run's own artefacts first, in the manner Decision 9 was, before
+      any architecture change is chosen.

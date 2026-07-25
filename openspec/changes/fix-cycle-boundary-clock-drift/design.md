@@ -407,6 +407,130 @@ need to re-derive the mechanism from the live-run reports.
   accepted, per Decision 1's platform-uniformity argument; a resampler-level fix would only
   cover Windows.
 
+### Decision 9: 9.5's failure is a defect *in* Decision 8's implementation, not a refutation of it — fix the `nominalCycleStart` reset; the escalation to fallback shapes 2/3 is withdrawn
+
+**Decided by the Architect, 2026-07-25**, after re-analysing `qa/endurance/2026-07-25-40m-band-9.5-fail/`'s
+own raw artefacts (`artefacts/20260724_live_run_2227/corrections_table.csv` and the two sub-session
+daemon logs). The 9.5 report recommended escalating to Decision 8's fallback (2) or (3). **That
+recommendation is not adopted.** The report's data is sound and its instrumentation is sound; its
+central inference is wrong. Decision 1 stands, Decision 8 stands, and no new correction architecture
+is needed.
+
+**Finding 1 — the post-correction reading reproduces the *previous* correction, not its own.** The
+9.5 report scored each correction against its own magnitude. Regressing each post-correction
+deviation reading against the *preceding* correction instead:
+
+| Test | Result |
+|---|---|
+| corr(next_reading, **own** correction) | 0.764 |
+| corr(next_reading, **previous** correction) | **0.9931** |
+| best-fit slope vs. previous correction | **0.977** |
+| sign(next_reading) == sign(previous correction) | **135 / 135** |
+
+This is an identity, not a trend. It also means **Decision 8 half-worked**: attempt #3's signature
+was `next_reading ≈ own correction` (`1cebf81`'s "within ±4% of its pre-correction value"), and 9.1
+changed it to `next_reading ≈ previous correction`. The one-shot adjustment *does* cancel a
+correction's own real-time cost exactly as Decision 8 predicted; it is then re-injected one step
+later. 9.3/9.5's acceptance metric — ratio to *own* magnitude — cannot see that difference, because
+in steady state `c_prev ≈ c_own`, so a genuine half-fix scores identically to no fix at all.
+
+**Finding 2 — root cause: `nominalCycleStart = cycleStart` discards the divergence 9.1 creates.**
+The two clocks are advanced *unequally* once 9.1 exists:
+
+```
+cycleStart        += CycleDurationSecs                                // unchanged
+nominalCycleStart += CycleDurationSecs + pendingNominalAdjustSeconds  // 9.1
+```
+
+So for every window following a correction, `nominalCycleStart` sits ahead of `cycleStart` by
+exactly that correction's adjustment. The correction branch then re-anchors with
+`nominalCycleStart = cycleStart`, throwing that divergence away. The total forward shift across a
+correction is therefore `(2·c_now − c_prev)/SampleRate`, where the derivation requires
+`2·c_now/SampleRate` — `c_now` to zero the current deviation, `c_now` again for the next window's
+discard cost. The shortfall is precisely `c_prev`, which is what Finding 1 measures.
+
+`nominalCycleStart = cycleStart` was **correct before Decision 8** — with no one-shot adjustment the
+two clocks never diverged, so re-anchoring and shifting were the same operation. Decision 8 added a
+mechanism that silently invalidated a pre-existing line, and the invariant was never re-derived. The
+comment still asserting the old, now-false invariant ("Reset to match cycleStart whenever a
+correction fires") is part of the defect and must be corrected with it.
+
+**Finding 3 — 97% of the measured "drift" was self-inflicted.** Energy balance over the 9.5 session:
+
+| Quantity | Value |
+|---|---|
+| Measured excess real time over nominal (2,836 windows × 15.0243 s avg) | 68.9 s |
+| Signed sum of all 136 corrections | **66.8 s** |
+| Unexplained residual | **2.1 s** |
+| Predicted genuine drift at −42.41 ppm over 42,609 s | **1.81 s** |
+
+Splitting the pipeline-timing instrumentation by whether a correction preceded the window confirms
+it independently: windows with **no** preceding correction (n=2,554) averaged **15.0015 s**; windows
+**immediately after** a correction (n=127) averaged **15.5047 s**, and subtracting that correction's
+own cost returns **14.9854 s**. The entire excess in the post-correction population is the
+correction's own discard cost, quantitatively. The genuine defect is ~4 s over 11.8 h; the loop
+generated **67 s** of self-inflicted correction chasing it.
+
+**This inverts H₀-3.** The 9.5 report reads "avg 15.0243 s, flat, no correlation" as *refuting*
+pipeline timing as the mechanism. But deviation is the *integral* of that bias: a constant offset
+with no trend is exactly what an accumulating drift source looks like. The report searched for a
+trend, correctly found none, and drew the wrong inference from a summary statistic that was itself
+97% correction cost. Future rounds must test the pipeline-timing figure against nominal, not only
+for a trend.
+
+**Finding 4 — Section 7's DT offset is this same defect, not a separate thread.** `cycleStart` is
+shifted forward by every correction cumulatively and is never re-aligned to the UTC 15-second grid
+after startup, so a runaway loop produces a *growing* label offset. Cumulative `cycleStart` shift in
+the 9.5 run reached **+0.47 s at t+32 min and +0.63 s at t+34 min**; `f57fa4d`'s DT spot-check, at
+t+39 min of a comparable run, found **+0.5 to +0.6 s**. This is a cross-run comparison, so
+plausibility rather than proof — but it is sharply falsifiable against the preserved WAV archive
+with no new live time: the offset should track the cumulative correction sum, not sit flat.
+
+**Finding 5 — a multi-correction unit test already caught this and its tolerance was relaxed
+instead.** `tasks.md` 9.2 records that
+`RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections` — the one existing
+test that fires *many* corrections in sequence — needed its tolerance widened under 9.1, its
+residual settling "~80 samples higher than before." That regression was rationalised as a benign new
+plateau. It is the `c_prev` re-injection, visible in the test suite before the overnight run was
+ever started. Restoring that tolerance is a falsifiable acceptance criterion for the fix below.
+
+**The fix:** shift the arithmetic reference by the correction actually applied, rather than
+re-anchoring it to `cycleStart`:
+
+```csharp
+// was: nominalCycleStart = cycleStart;
+nominalCycleStart = nominalCycleStart.AddSeconds(correction / (double)SampleRate);
+```
+
+Shifting by `correction` (not by `deviationSeconds`) is deliberate: in the ordinary unclamped case
+the two are equal and the current deviation is zeroed exactly, while if the
+`CorrectionSanityCeilingSamples` backstop ever binds, the residual `(deviation − correction)`
+correctly carries forward to be chipped away on subsequent cycles — preserving Decision 5's
+intended slew-not-step behaviour. `cycleStart` keeps its own separate `+correction/SampleRate`
+advance; the point of the fix is precisely that the two quantities are *not* the same thing and must
+stop being conflated.
+
+**Scope:** `src/OpenWSFZ.Ft8/CycleFramer.cs` only, one statement plus the stale comment at its
+declaration. Per HK-011 this is Developer-session territory with the Captain's pre-push sign-off.
+
+- **[Trade-off] Four failed rounds argue for a more defensive response than a one-line fix.**
+  → Considered and rejected. Fallback (2) (continuous rate-tracking) would have *worked* while
+  leaving this defect latent in the code, because it removes discrete corrections and so sidesteps
+  the loop rather than fixing it — buying a new architecture and another overnight round to conceal
+  a one-line bug. The diagnosis here is quantitative and closed (r=0.9931, energy balance to 0.3 s),
+  which is a materially different evidentiary position from rounds 1–4.
+- **[Risk] The correction-free per-cycle bias measures ~101 ppm, against D-001's 42.41 ppm
+  hardware figure.** 95% CI [46, 156] ppm — wide, with its lower bound sitting on the D-001
+  prediction, so "consistent with, possibly 2–3× larger." `DriftThresholdSamples` and
+  `RequiredConsecutiveReadings` were derived from 7.6 samples/cycle; at ~18 samples/cycle the
+  correction simply fires ~2.4× more often, which is not itself a defect. → Mitigation: re-derive
+  and record the constants explicitly (tasks.md 10.5) rather than leaving the discrepancy
+  undocumented.
+- **[Risk] Every discard permanently destroys captured audio.** At the runaway scale this was 67 s
+  of a 11.8 h session; at the corrected scale it is bounded by the genuine drift rate (~4 s), which
+  is the irreducible cost of correcting a real clock-rate error. → Accepted, unchanged from
+  Decision 2.
+
 ## Migration Plan
 
 No data migration. This is a behavioural change confined to `CycleFramer`'s internal cycle-

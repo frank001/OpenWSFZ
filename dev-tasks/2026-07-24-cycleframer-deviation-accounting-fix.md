@@ -84,15 +84,39 @@ correct).
 
 ## What needs to change
 
-- [ ] `src/OpenWSFZ.Ft8/CycleFramer.cs` — implement the above (`tasks.md` 9.1). Update the doc
+- [x] `src/OpenWSFZ.Ft8/CycleFramer.cs` — implement the above (`tasks.md` 9.1). Update the doc
       comment at the top of the class (the "Over a long-running session..." paragraph) to mention
       that the deviation baseline itself now accounts for a correction's own real-time cost, not
       just that a correction fires and re-anchors `cycleStart`.
-- [ ] Confirm the no-correction-fires path is unchanged (`tasks.md` 9.2) — the existing
+      Implemented as specified — `pendingNominalAdjustSeconds` declared alongside the other
+      per-window state, set inside the `driftStreakCount >= RequiredConsecutiveReadings` branch
+      right after `correction` is computed, consumed at the top of the next window-close's
+      `nominalCycleStart.AddSeconds(...)` line, then zeroed. Class doc comment got a new closing
+      paragraph explaining the mechanism.
+- [x] Confirm the no-correction-fires path is unchanged (`tasks.md` 9.2) — the existing
       `RunAsync_NoClockDeviation_NoCorrectionFires` and similar tests asserting `cycleStart`
       advances by exactly 15 seconds absent drift must continue to pass with zero modification.
       `pendingNominalAdjustSeconds` must be exactly 0 whenever no correction has just fired.
-- [ ] `tests/OpenWSFZ.Ft8.Tests/CycleFramerTests.cs` — new tests (`tasks.md` 9.3), extending 8.7's
+      Confirmed unmodified for the true no-correction-fires tests. One *repeated*-correction test
+      (`RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections`, which
+      exercises ~8 corrections over a 24-window session) needed its tolerance updated — that's a
+      correction-*fires* scenario, outside this task's "no behaviour change" guarantee. See
+      `tasks.md` 9.2's own note for the full explanation; short version: 9.1 legitimately shifts
+      subsequent-correction timing/sizing over a long multi-correction session (nominalCycleStart's
+      trajectory feeds into when/how large the *next* correction is), and the residual that test
+      measures settles into a new, still-bounded, still-non-growing steady-state plateau (~80
+      samples higher than before) rather than growing unboundedly — not a regression.
+      > **CORRECTION (Architect, 2026-07-25 — design.md Decision 9, Finding 5): this call was
+      > wrong, and it was the earliest available warning of why 9.5 later failed live.** The ~80-
+      > sample residual shift was *not* a benign new plateau — it is the `c_prev` re-injection
+      > caused by `nominalCycleStart = cycleStart` discarding the very divergence 9.1 creates.
+      > This is the only existing test that fires *many* corrections in sequence, so it is the only
+      > one positioned to see the defect at all, and its tolerance was widened rather than the
+      > shift being root-caused. Restoring the original tolerance is now an acceptance criterion
+      > for the fix (`tasks.md` 10.4). Lesson for future rounds: when the *only* multi-event test
+      > in the suite moves under a change whose whole subject is multi-event accounting, that is
+      > signal, not tolerance noise.
+- [x] `tests/OpenWSFZ.Ft8.Tests/CycleFramerTests.cs` — new tests (`tasks.md` 9.3), extending 8.7's
       `FeedSamplesAtRealRate` rate-limited-source harness (do **not** use the existing zero-delay
       feed helpers for these — they cannot exercise the real-time-cost mechanism this fix targets,
       same reasoning as 8.7's own tests). For both a discard-triggering and a replay-triggering
@@ -104,16 +128,59 @@ correct).
       fix actually resolves non-convergence — if it passes, that's strong evidence before ever
       needing another live run; if it fails, the mechanism trace above has an error worth finding
       now rather than after another multi-hour endurance session.
-- [ ] `design.md` — Decision 8 is already written; no further changes expected unless
+      Implemented, with two deviations from this plan worth recording:
+      1. **`RateClock` cannot be used at all for this specific test.** `RateClock`'s reading is a
+         pure function of read-count, completely decoupled from real elapsed time — hand-deriving
+         the numbers before writing any code showed that applying the fix against a `RateClock`
+         actually makes the post-correction reading *larger*, not smaller (confirmed empirically
+         too: the pre-existing sustained-drift test, which does use `RateClock`, needed a *looser*
+         tolerance post-fix, not a tighter one — see the 9.2 note above). This fix is only
+         meaningful against a clock whose reading genuinely reflects the correction's real-time
+         cost, which `RateClock` never does by construction.
+      2. **A real-elapsed-time-based clock (the natural first choice) was fatally flaky and had to
+         be replaced.** First attempt scaled actually-measured `DateTime.UtcNow` deltas ~35x (to
+         compress a 15 s nominal cycle into a sub-second test window) — correct in principle, but
+         any OS-scheduler/thread-pool hiccup anywhere in the test process got amplified by that
+         same 35x factor into thousands of spurious samples, swamping the intended ~30-45k-sample
+         signal (observed directly: a 247 000-sample reading where ~45 000 was expected on one
+         run). Replaced with a deterministic `SampleCountClock`: true UTC derived from the exact,
+         test-controlled count of raw samples delivered by the still-genuinely-rate-limited feed,
+         divided by an assumed true device sample rate — physically equivalent to a real device
+         clock-rate error, but immune to scheduler jitter since the count is advanced by this
+         test's own code rather than by re-measuring wall time. 5/5 clean repeated local runs.
+      Also note: the "near the noise floor" bound in the implemented tests is deliberately NOT
+      near-zero (used `< 60%` of the correction's own magnitude, not `< DriftThresholdSamples` or
+      a small multiple of it as this plan originally suggested) — hand-deriving the exact numbers
+      showed this fix only ever cancels the correction's own real-time cost, not the window's
+      ordinary ongoing per-cycle device-rate contribution (structurally ~1/3 of the correction's
+      magnitude, given the 3-consecutive-checks persistence gate) — see the tests' own inline
+      comments and the 9.2 note above for the same residual showing up in the sustained-drift
+      test. The bound still clearly separates the fixed case (~25-42%, empirically) from the
+      unfixed case (~125-142%, hand-derived, not re-tested against old code).
+- [x] `design.md` — Decision 8 is already written; no further changes expected unless
       implementation surfaces a detail the decision got wrong (in which case, amend it in place
       per this change's established pattern, don't silently diverge from what's documented).
-- [ ] `specs/ft8-decoder/spec.md` — check whether the existing "Correction fires once accumulated
+      No amendment needed — Decision 8's mechanism trace and fix description held up exactly as
+      written; the two deviations above are test-construction details, not corrections to the
+      decision's own reasoning.
+- [x] `specs/ft8-decoder/spec.md` — check whether the existing "Correction fires once accumulated
       deviation persists above the threshold" scenario needs updating. Likely not (this fix changes
       *how* deviation is computed post-correction, not the correction/firing behaviour itself,
       which the spec already describes correctly) — but verify rather than assume.
-- [ ] `tasks.md` — mark 9.1-9.4 done as they land; this document does not need updating unless
+      Verified, not assumed: the spec describes the observable contract (threshold, persistence
+      gate, correction sizing/re-anchoring, sanity ceiling) entirely in terms of "the accumulated
+      deviation between the nominal cycle-boundary sequence and the injected IClock's wall-clock
+      reading" — it never specifies the internal formula for how that nominal sequence advances,
+      so 9.1's fix (an internal-bookkeeping-only change) doesn't contradict anything written. No
+      spec change made.
+- [x] `tasks.md` — mark 9.1-9.4 done as they land; this document does not need updating unless
       implementation deviates from what's written here (in which case, note the deviation here for
       the record, same convention as every other dev-task in this investigation).
+      9.1-9.4 marked done in `tasks.md`, each with a short outcome note. 9.4
+      (`pre_merge_check.py`) result: READY, every gate passed. 9.5 (live re-confirmation) and 9.6
+      (Captain sign-off on the HK-011 merge hold) are explicitly NOT done — 9.5 needs real
+      hardware and this session's Validation Plan (below) already says not to skip straight to a
+      live run without a checkpoint; 9.6 is the Captain's call either way.
 
 ## Validation plan
 
@@ -137,6 +204,29 @@ correct).
    than re-tuning this fix's own constants in isolation — there aren't any tunable constants in
    this fix to begin with, which is itself a signal that a non-convergent result here would mean
    the mechanism trace has a gap, not that a parameter needs adjusting.
+
+## QA review follow-ups (2026-07-24, non-blocking — TODO before/at next Developer session touching this test file)
+
+Raised during QA review of the implementation above; approved with these noted, not required
+before the short live re-confirmation run (9.5):
+
+- [ ] **`SampleCountClock`/`FeedSamplesAtRealRateTrackingDelivery` producer/consumer race
+      (`CycleFramerTests.cs`, tasks.md 9.3 tests).** `RecordSamplesDelivered` is called on the
+      producer side immediately before `writer.WriteAsync(chunk)`, on a separate task from the
+      consumer that actually processes that chunk. In principle the producer could race a chunk
+      ahead of what the consumer has processed by the moment a deviation reading is taken,
+      understating "delivered so far." In practice the 10ms `RealRateChunkDelay` per chunk dwarfs
+      the trivial in-loop `Array.Copy` cost, which is presumably why this hasn't flaked across
+      repeated local runs (4/4 in QA review, 5/5 per the implementer). Low priority — only worth
+      fixing if this test ever flakes on a loaded CI runner. Fix would be moving the
+      `RecordSamplesDelivered` call to the consumer side (after the sample actually lands in
+      `window`) rather than the producer side.
+- [ ] **Bare `0.6` ratio literal in the two 9.3 assertions, not a named constant.** Consistent with
+      this file's existing style (8.7's tests use bare `1.10`/`1.60`/`0.55`/`0.95` the same way), so
+      not a real inconsistency — but worth considering a named constant (e.g.
+      `MaxPostCorrectionRatioOfOwnMagnitude`) with the derivation comment attached to the constant
+      rather than duplicated at each call site, next time this file's magic-number style is
+      revisited as a whole (not worth a one-off change just for this).
 
 ## Cross-references
 
