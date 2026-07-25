@@ -6,6 +6,14 @@
       `DecodeNoiseSuppressionConfig` documents — `MaxSizeMb` (2048), `MaxAgeHours` (168) and
       `WriteManifest` (true) all have non-CLR-zero defaults and will silently deserialise to
       `0`/`false` without it (design.md Decision 8).
+- [ ] 1.1a Pin the enum's wire values: `[JsonConverter(typeof(JsonStringEnumConverter<CycleAudioArchiveMode>))]`
+      (the **generic** form — the non-generic one is not AOT-safe) plus an explicit
+      `[JsonStringEnumMemberName]` on every member (`"off"`, `"all"`, `"decoded"`, `"noDecodes"`).
+      `ConfigJsonContext`'s camelCase `PropertyNamingPolicy` renames JSON *properties*, not enum
+      *values*, and a bare converter emits PascalCase. `WorkedBeforeState.cs:11-30` documents this
+      exact mistake shipping once and blanking every worked-before indicator in the live UI; that
+      note also warns that `TxRole`/`CallerPartnerSelectMode` are not working counter-examples.
+      Getting this wrong now bakes a broken wire contract into the parked GUI change.
 - [ ] 1.2 Add `CycleAudioArchive` to `AppConfig`, register both new types in `ConfigJsonContext`,
       and add the null-backfill entry in `JsonConfigStore` alongside the existing `DecodeLog` and
       `DecodeNoiseSuppression` entries.
