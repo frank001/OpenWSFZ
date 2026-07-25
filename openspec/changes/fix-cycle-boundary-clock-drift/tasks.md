@@ -715,15 +715,25 @@ cost. See design.md Decision 9 for the full derivation, the five findings, and t
       close. Add: **per-cycle alignment error, derived as `δ_live(k) = DT_ref(k) − DT_live(k)`
       (study §6 — mind the sign, it was inverted once already), must stay inside the measured
       tolerance interval for ≥95% of cycles.**
-      - **Provisional interval: `δ ∈ [−1.6, +2.0] s` for ≥92% median recall**, hard cliff centres at
-        −2.32 / +2.40, derived at `DT_med` = +0.80 (study §2.5 item 10, deliverable #5). **Not
-        final** — pending 11.5. Do not hard-code it into a gate before 11.7 lands.
-      - **The interval is not a constant of the decoder.** It is `[DT_med − 3.12, DT_med + 1.60]`
-        and moves 1:1 with the signal population's DT, so it must be quoted together with the
-        `DT_med` it was derived from and re-derived for a different band or session.
+      - ~~Provisional interval `δ ∈ [−1.6, +2.0] s` for ≥92% median recall~~ → **FINAL, 2026-07-25
+        (deliverable #5, `2026-07-25-deliverable-5-alignment-bound.md`):
+        `δ ∈ [DT_p95 − 3.12, DT_p05 + 1.60]`.** On 0724 that is `[−1.62, +2.00]` at `DT_med` = +0.80,
+        giving 0.90 median / 0.81 p10 per-cycle recall at the edges. Hard cliff centres −2.32 /
+        +2.40 confirmed by measurement (−2.345 / +2.434).
+      - **Do NOT hard-code `[−1.62, +2.00]` into this gate.** That is the 0724 *instance*, and 0724's
+        `DT_med` includes 0724's own alignment error — which is the thing 10.1–10.4 exist to remove,
+        so a fixed-framer session will legitimately have a different `DT_med`. **The gate must
+        measure its own session's `DT_p05`/`DT_p95` from that run's reference decodes and
+        instantiate the bound from them.** The percentile form, not the interval, is the constant.
+      - **Frame:** `δ_live(k) = DT_ref(k) − DT_live(k)` is in the **absolute δ** frame, and so is the
+        bound above — compare them directly. The study's "wider on the negative side" statements are
+        in the **DT-relative** frame and must not be applied to `δ_live` (study §6.3 frame note).
       - Quote conformance against a **stated percentile, not the median** — the recall distribution
-        has a left tail the median hides (study §5.3).
-      **Sequencing:** (d) needs 11.7's final bound, so 10.8 should not be scheduled ahead of §11.
+        has a left tail the median hides (study §5.3). Note the floor does not vanish inside the
+        interval: **1–3 cycles per 400 decode nothing even at δ well within bounds**, so "≥95% of
+        cycles inside the interval" is the right gate shape and "no cycle loses decodes" is not.
+      **Sequencing:** (d) needed 11.7's final bound — **that bound now exists, so (d) is unblocked
+      and 10.8 is no longer gated on §11.**
       (a)–(c) are independent of §11 and can proceed on the existing schedule; a run that satisfies
       (a)–(c) but has not yet been scored against (d) is a **partial** pass, not a green gate.
 - [ ] 10.9 Once 10.8 passes: reconsider the HK-011 merge hold with the Captain. If 10.8 fails, *then*
@@ -768,7 +778,7 @@ depend on whether 10.1–10.4 land; it measures the audio, not the framer. It ca
       **Standing note for any future session:** `decode.c:279` is now load-bearing for every figure
       in SPEC §2.5 item 10, §5.2 and deliverable #5. **Any re-vendoring or re-patching of ft8_lib
       must re-check that line.**
-- [ ] 11.5 **Phase 1b — confirm-and-cut** (Captain's decision, 2026-07-25). 400 cycles stratified
+- [x] 11.5 **Phase 1b — confirm-and-cut** (Captain's decision, 2026-07-25). 400 cycles stratified
       across the session × 11 non-anchor offsets (SPEC §5.2 second amendment), plus the arm-A DT
       baseline extended to all 2,827 cycles. ≈7,200 decodes, down from ≈13,200 for the full
       27-point grid. Weighted toward the **positive cliff**, which has exactly two measurements ever
@@ -781,7 +791,7 @@ depend on whether 10.1–10.4 land; it measures the audio, not the framer. It ca
       The DT baseline is the single highest-value measurement in the phase: if the model holds, the
       curve is *derived* from that distribution rather than traced, and 10.6 gets its OpenWSFZ side
       for free.
-- [ ] 11.6 Guards carried forward from 11.2's narrowed metric, both mandatory in 11.5:
+- [x] 11.6 Guards carried forward from 11.2's narrowed metric, both mandatory in 11.5:
       (a) **Collision assertion** (SPEC §7.4(b-i)) — `normalize_hash_tokens()` can merge two
       *genuinely distinct* messages and thereby *inflate* recall. Measured on Phase 0's reference:
       7.18% of rows carry a bracket token, **0 within-cycle merges across 25 cycles**. Safe there;
@@ -791,11 +801,23 @@ depend on whether 10.1–10.4 land; it measures the audio, not the framer. It ca
       actually names, and a hash-driven *reject* is a genuinely missing decode that normalization
       neither fixes nor reveals. Record it per arm and compare across arms; a systematic difference
       is a confound signature. 8.4 already added the per-cycle log line this needs.
-- [ ] 11.7 Deliverables (SPEC §10), in particular **#5: the maximum acceptable alignment error**,
-      which is what 10.8(d) consumes. Must be stated as an **asymmetric interval `δ_min … δ_max`,
-      never `±X`** — with *more* headroom on the negative side, the opposite of the retracted item
-      9's claim — against a **stated percentile**, and **together with the `DT_med` it was derived
-      from**. Provisional pending 11.5: `δ ∈ [−1.6, +2.0]` at `DT_med` = +0.80.
+- [~] 11.7 Deliverables (SPEC §10). **#5 (the maximum acceptable alignment error, which 10.8(d)
+      consumes) is DONE — Architect, 2026-07-25:
+      `qa/cycleframer-alignment-replay/2026-07-25-deliverable-5-alignment-bound.md`.**
+      **FINAL BOUND: `δ ∈ [DT_p95 − 3.12, DT_p05 + 1.60]`, = `δ ∈ [−1.62, +2.00]` on the 0724
+      session at `DT_med` = +0.80**, for 0.90 per-cycle median / 0.81 p10 recall at the edges.
+      Stated as an asymmetric interval, against a stated percentile (now carried *inside* the
+      formula, in the DT frame), together with its `DT_med`. Verified against the sweep to within
+      0.011 s at both edges.
+      **Sign convention settled — this item's own previous wording was the defect.** "More headroom
+      on the negative side" is true in the **DT-relative** frame and false in the **absolute δ**
+      frame, where `DT_med` = +0.80 makes the positive side wider; the provisional `[−1.6, +2.0]`
+      quoted right next to it was already in the absolute frame. `rewindow.py`'s
+      `base = round(delta*SAMPLE_RATE)` fixes the convention: **+δ cuts later, so `DT_obs = d − δ`.**
+      All intervals are now quoted in the absolute frame; SPEC §10 item 5 and §6.3 corrected to name
+      the frame wherever they describe the asymmetry direction.
+      Remaining under 11.7: deliverables #2 (curve write-up), #4 (predicted cost of the 9.5
+      session's excursions, §6) — neither blocks 10.8(d).
 - [ ] 11.8 `qa/cycleframer-alignment-replay/report.md` per NFR-024/HK-001 section conventions (QA
       authors Sections 1/5 and the Section 2 framing; render HTML via `render_report.py`).
       NFR-021: derived artefacts contain real third-party callsigns — keep them git-ignored and

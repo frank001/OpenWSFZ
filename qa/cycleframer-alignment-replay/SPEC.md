@@ -347,6 +347,13 @@ Once recall(δ) exists:
    excursions to the tolerant side and concluded misalignment was nearly free. **The correction
    stands and is now doubly load-bearing**: with the true interval −2.32 … +2.40, the sign error
    would still have mapped negative-δ excursions to positive δ and vice versa.
+
+   *Frame note, 2026-07-25 (Architect).* "More headroom on the negative side" above is stated in the
+   **DT-relative** frame, where it is emphatically true — at ±2.3 s from `DT_med`, population recall
+   is 0.966 negative vs 0.055 positive. **This step's output `δ_live(k)` is in the absolute δ frame**,
+   where 0724's `DT_med` = +0.80 makes the positive side the wider one (`[−2.32, +2.40]`). Compare
+   `δ_live` against absolute-frame intervals only. See §10 item 5 and
+   `2026-07-25-deliverable-5-alignment-bound.md` §0.
 4. Map through recall(δ) to get the predicted recall cost of the live alignment, per cycle and
    session-wide.
 
@@ -503,9 +510,19 @@ Precedent for feasibility: the D-001 sweep ran ~106 000 offline decodes.
    *Rationale corrected 2026-07-25.* This previously cited §2.5 item 9 ("centred near δ=+0.8, half
    the headroom on the negative side"), which is retracted. The requirement stands, for item 10's
    reason instead: the decoder's search window is itself asymmetric (`DT_obs ∈ [−1.60, +3.12]`), so
-   the δ-frame interval is `[DT_med − 3.12, DT_med + 1.60]` — **wider on the negative side, the
-   opposite of what item 9 claimed.** A symmetric bound would be simultaneously too loose on one
-   side and too tight on the other, in the reverse direction to the one previously documented.
+   **in the DT-relative frame** the interval is `[DT_med − 3.12, DT_med + 1.60]` — wider on the
+   negative side, the opposite of what item 9 claimed. A symmetric bound would be simultaneously too
+   loose on one side and too tight on the other, in the reverse direction to the one previously
+   documented.
+
+   **Frame discipline, added 2026-07-25 (Architect), deliverable #5 final.** That asymmetry
+   statement is true only in the DT-relative frame. **In the absolute δ frame — the frame this
+   study measures, the frame `δ_live(k) = DT_ref(k) − DT_live(k)` (§6.3 step 3) produces, and the
+   frame 10.8(d) consumes — `DT_med` = +0.80 shifts the interval to `[−2.32, +2.40]`, which is wider
+   on the *positive* side.** Both readings are correct; stating either without naming its frame is
+   what produced the contradiction between this paragraph and the value quoted below it.
+   **Quote all intervals in the absolute δ frame. Name the frame whenever describing the asymmetry
+   direction.**
 
    Three further constraints on how the number is stated:
 
@@ -513,8 +530,17 @@ Precedent for feasibility: the D-001 sweep ran ~106 000 offline decodes.
    - **State the `DT_med` it was derived from.** The interval tracks the signal population 1:1; it
      is not a fixed property of the decoder and does not transfer to another band or session
      without re-deriving.
-   - Provisional value from the data in hand, pending Phase 1b: **δ ∈ [−1.6, +2.0] for ≥92% median
-     recall**, with hard cliff centres at −2.32 / +2.40, at `DT_med` = +0.80.
+   - ~~Provisional value from the data in hand, pending Phase 1b: **δ ∈ [−1.6, +2.0] for ≥92% median
+     recall**, with hard cliff centres at −2.32 / +2.40, at `DT_med` = +0.80.~~
+     **FINAL, from Phase 1b (2026-07-25): `δ ∈ [DT_p95 − 3.12, DT_p05 + 1.60]`, instantiated on the
+     0724 session as `δ ∈ [−1.62, +2.00]` at `DT_med` = +0.80** (`DT_p05`/`DT_p95` = +0.40/+1.50),
+     for **0.90 per-cycle median / 0.81 p10** recall at the edges; hard cliff centres −2.32 / +2.40
+     confirmed by measurement (−2.345 / +2.434). The percentile form is preferred over
+     `DT_med ± margin` because it adapts to the DT distribution's *shape*, not only its median —
+     0724's spread is unusually tight (IQR 0.10 s), so median-only margins would silently
+     over-estimate headroom on a broader population. Full derivation, edge costs, transfer
+     conditions and the corrections this ruling makes to §6.3 and `tasks.md`:
+     **`2026-07-25-deliverable-5-alignment-bound.md`.**
 6. Raw per-cycle scoring data, callsign-free where possible (NFR-021 — derived artefacts
    containing real callsigns are git-ignored, local only).
 
