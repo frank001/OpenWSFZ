@@ -531,6 +531,109 @@ declaration. Per HK-011 this is Developer-session territory with the Captain's p
   is the irreducible cost of correcting a real clock-rate error. → Accepted, unchanged from
   Decision 2.
 
+### Decision 9 Addendum: `RunAsync_SustainedConstantRateDrift_…` is rebuilt on `SampleCountClock` with a no-growth assertion; Finding 5's "restore the 220-sample tolerance" acceptance criterion is **withdrawn**
+
+**Decided by the Architect, 2026-07-25**, resolving the escalation in
+`qa/cycleframer-code-review/2026-07-25-decision9-review-and-rateclock-escalation.md`. QA confirmed
+10.1–10.3 correct, confirmed all `SampleCountClock`-based tests pass, and routed one blocked item —
+`RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections`, which fails at 220
+and whose residual climbs linearly without bound out to windowCount=60 — upward rather than
+deciding it in a Developer or QA session. That was correct.
+
+**Ruling: option (1) — rebuild the test on `SampleCountClock`, do not retire it — *and* replace its
+absolute-tolerance assertion with a no-growth assertion. Finding 5's tolerance-restore criterion is
+withdrawn as unachievable in principle, not merely unmet.**
+
+**Finding 5 committed a category error, and it is mine.** That test is **Decision 5's** regression
+guard. Its own header comment says so: it exists because the old fixed 48-sample cap "only ever
+chipped away a small fraction of each confirmed deviation, so residual drift grew essentially
+unbounded, correction after correction," and because "unit tests never caught it — the earlier tests
+only exercise a handful of cycles around a single correction event." It predates Decisions 8 and 9
+entirely. Finding 5 conscripted it as a falsification criterion for a mechanism it was never built
+to observe, on the strength of a real observation (the 9.1 tolerance widening *was* the one-shot
+adjustment showing up) plus an invalid inference (that 10.1 would therefore restore the old bound).
+
+**This was foreseeable from the test file itself.** The comment block added at 9.3 already records
+the governing fact: `RateClock`/`StepClock`/`BouncingClock` are "by design, decoupled from anything
+happening during the window they measure (a fixed formula of read-count alone) and cannot exercise
+this fix's mechanism at all — a clock that never reflects a correction's own real-time cost can
+never show that cost re-surfacing as fresh deviation, fix or no fix." It even records the
+hand-derivation that applying the fix under such a clock makes the post-correction reading *larger*.
+Decision 9 was written without reconciling Finding 5 against that paragraph. QA's diagnosis is
+independently correct and needed no correction; the defect was upstream of it.
+
+**Why the 220-sample tolerance cannot be restored under any correct implementation.** Not a
+constant-picking problem:
+
+- Under `RateClock`, Decision 8's one-shot adjustment has nothing in the clock's reading to
+  reconcile against, so it is pure un-cancelled bias that compounds per correction — unbounded, as
+  QA measured. The pre-10.1 `nominalCycleStart = cycleStart` reset was acting as a periodic release
+  valve for that synthetic mismatch. **Boundedness under `RateClock` was a property of the bug.**
+  Preserving it would mean preserving the bug Finding 2 exists to remove.
+- Under `SampleCountClock`, boundedness is real but the *scale* changes. The 220 figure derives from
+  60 samples/cycle × 3 checks + margin. A genuinely rate-limited feed quantises a correction's
+  real-time cost to the chunk size, so the mechanism is only observable when a correction spans
+  several chunks — which forces a much larger per-cycle error, and therefore a residual bound in the
+  tens of thousands of samples. 220 is unreachable in the model where the property is even
+  meaningful.
+
+**The assertion is reformulated, and this is the substantive part of the ruling.** The absolute
+constant is what made this test brittle across every round (220 → 305 → unbounded). The property
+Decision 5 actually cares about is *bounded vs. linearly growing*, which is a trend, not a
+magnitude. Assert instead:
+
+1. **No growth in residual** — residual over the final third of windows must not exceed the first
+   third by more than a small factor. This is scale-free and survives any future change to the
+   device-error constant or the clock model.
+2. **Correction magnitude does not escalate** — successive corrections must trend toward the genuine
+   drift rate rather than growing. This is the direct unit-test analogue of the live failure
+   signature the 9.5 session recorded (correction magnitude growing ~8× hour-over-hour with no
+   plateau), and no existing test asserts it.
+
+(2) is worth more than the original test ever was: it encodes the exact session-scale
+non-convergence that five live rounds detected and the suite never did.
+
+**Feasibility, measured not assumed.** The existing 10.4 test (7 windows, 2 corrections,
+`SampleCountClock` + genuinely rate-limited feed) runs in **5 s** — ~0.7 s per window, dominated by
+40 chunks/window at the OS timer's real granularity rather than the nominal 10 ms. A naive port to
+24 windows would cost ~17 s and exceed the 20 s `CancellationTokenSource` budget the existing tests
+use. It becomes affordable by trading chunk count for chunk size: ~10 chunks/window over ~18 windows
+(≈6 corrections) lands near **3–4 s**, at the price of a more exaggerated per-cycle error so that a
+correction still spans several chunks. Exact constants are the Developer session's to derive and
+record, same convention as 10.5 — the constraint to respect is `3 × per-cycle-error ≳ 4 × chunk
+size`, and Gate G10 applies to whatever delays result.
+
+**Why not option (2), retire it.** 10.4's new test covers two corrections, which is enough to
+falsify reset-conflation but not enough to catch a slow divergence over a dozen firings — the exact
+gap that let Decision 5's original fixed-cap defect reach a 7h54m live run undetected. Retiring
+would leave Decision 5 with single- and double-correction coverage only, and would remove the one
+test positioned to catch escalating-correction non-convergence before an overnight round does.
+
+- **[Trade-off] This makes a slow test slower and coarser.** → Accepted. The alternative is a fast
+  test asserting a precise number about a mechanism its clock cannot represent, which is what the
+  last three rounds have been debugging. A 3–4 s test that measures the right property beats a
+  0.1 s test that measures an artefact.
+- **[Risk] A no-growth assertion over ~6 corrections may be statistically weak — 6 points is few,
+  and a slow divergence could hide inside the tolerance.** → Mitigation: state the detectable
+  growth rate explicitly in the test comment rather than implying the test proves boundedness in
+  general, and treat the live gate (10.8), now backed by the alignment-replay study's recall bound,
+  as the real session-scale check. This test's job is to catch gross divergence early and cheaply.
+- **[Risk] The exaggerated device-error constant drifts further from the measured ~42–101 ppm.**
+  → Accepted, unchanged from the existing tests' own rationale: these constants are chosen to reach
+  a given number of correction events in a manageable window, not to model the real rate. 10.5
+  records the real-rate derivation separately.
+
+**Required `tasks.md` §10 changes** (Developer-session work per HK-011):
+
+- **10.4** — strike the "restore the 220-sample tolerance" sub-item; it is withdrawn above. The new
+  multi-correction `SampleCountClock` test already written and verified stands as complete.
+- **New item (10.4a)** — rebuild `RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections`
+  on `SampleCountClock` + `FeedSamplesAtRealRateTrackingDelivery`, with the two assertions above
+  replacing the absolute tolerance, and derive/record the constants per the envelope given here.
+- **10.2** — the `RateClock`/`StepClock`/`BouncingClock` limitation is now a decided design
+  constraint rather than a test-file aside. Note at their declarations that they must not be used
+  for any test exercising the deviation-accounting mechanism.
+
 ## Migration Plan
 
 No data migration. This is a behavioural change confined to `CycleFramer`'s internal cycle-
