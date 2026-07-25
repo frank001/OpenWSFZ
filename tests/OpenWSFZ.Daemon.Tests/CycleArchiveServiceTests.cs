@@ -316,8 +316,16 @@ public sealed class CycleArchiveServiceTests : IDisposable
         service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 1, 7.074);
         service.TryEnqueue(new float[FullWindowSamples], CycleAt(2), CycleAt(2), 1, 7.074);
 
-        await Poll.UntilAsync(() => CountWavFiles() == 2,
-            timeoutMessage: () => $"expected retention to prune to 2 files, currently {CountWavFiles()}");
+        // CountWavFiles() == 2 is true at two non-equivalent points in this test's file-count
+        // sequence (0 -> 1 -> 2 -> 3 -> evict oldest -> 2): transiently, after only cycle0+cycle1
+        // have landed but before cycle2's write has even been enqueued by the writer task, and
+        // again once settled, after cycle2's write has triggered eviction of cycle0. A bare count
+        // poll cannot tell these apart, so it must instead wait for the specific terminal file set
+        // — oldest gone, newest present — which only the settled state can satisfy.
+        var oldestPath = Path.Combine(_tempDir, $"{CycleAt(0):yyMMdd_HHmmss}.wav");
+        var newestPath = Path.Combine(_tempDir, $"{CycleAt(2):yyMMdd_HHmmss}.wav");
+        await Poll.UntilAsync(() => CountWavFiles() == 2 && !File.Exists(oldestPath) && File.Exists(newestPath),
+            timeoutMessage: () => $"expected retention to prune to 2 files (oldest evicted, newest retained), currently {CountWavFiles()}");
 
         var remaining = Directory.GetFiles(_tempDir, "*.wav").Select(Path.GetFileName).ToList();
         remaining.Should().NotContain(f => f!.Contains(CycleAt(0).ToString("yyMMdd_HHmmss")),
