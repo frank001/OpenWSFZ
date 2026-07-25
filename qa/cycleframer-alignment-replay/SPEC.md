@@ -489,15 +489,45 @@ Precedent for feasibility: the D-001 sweep ran ~106 000 offline decodes.
 the production decoder; whether the alignment excursions the live runs exhibit are material; and a
 quantitative bound for correction magnitude.
 
-**Does not settle:** the absolute size of D-001's recall gap. That needs OpenWSFZ measured against
-**WSJT-X's own decodes of the same audio**, and no WSJT-X `ALL.TXT` was preserved for this session
-— only its WAVs. This study measures the *alignment component* only.
+~~**Does not settle:** the absolute size of D-001's recall gap.~~ **Amended 2026-07-25 — this
+caveat is now partly lifted, on a different session's archive.**
 
-> **Open request to the Captain:** if WSJT-X's `ALL.TXT` (or its `wsjtx_log.adi` / decode history)
-> from the night of 2026-07-24 still exists on the shack machine, preserving it would let this
-> same harness size D-001's absolute gap on this session's audio at near-zero extra cost. The
-> sibling directory `artefacts/20260723_live_run_2223/` has a `wsjtx/` subdirectory, so this data
-> has been captured before.
+The original text was right that this study's own audio cannot settle D-001's absolute gap: no
+WSJT-X `ALL.TXT` was preserved for the night of 2026-07-24, and the Captain has confirmed it is
+**unrecoverable** — if it is not in the artefact folder, it is gone.
+
+**But `artefacts/20260723_live_run_2223/` has the complete matched set**, and the open request
+below is answered by it. Verified 2026-07-25:
+
+| file | content |
+|---|---|
+| `wsjtx/ALL.TXT` | 50,501 lines, `260723_222345` → `260724_061730` |
+| `openwsfz/ALL.TXT` | 31,517 lines, `260723_222330` → `260724_061730` |
+| `openwsfz/openswfz-20260723T222314Z.log` | 20 `Cycle boundary resync` + 1,897 `Cycle boundary drift check` lines |
+| `wsjtx/wav/` | 1,884 files, mono/12 kHz/16-bit/exactly 180,000 frames, 99.5% contiguous |
+
+The WAVs are **format-identical to §4's 0724 archive**, so `rewindow.py` and the whole Phase 0
+harness consume them unmodified. This makes two previously-blocked things executable: `tasks.md`
+10.6's DT-offset prediction, and D-001 absolute-gap sizing (`tasks.md` 11.10).
+
+**Three constraints on using it, none optional:**
+
+1. **Keep the recall(δ) curve on the 0724 audio.** Phases 0/0b/1a are three phases deep on
+   segment 0 there; rebasing would discard a ratified baseline to buy a comparison better run as
+   its own arm. 0723 is a *different session and build* (`ce13e308` + the persistence-gated diff,
+   7h54m, 40 m).
+2. **0723 needs its own `DT_med`.** Per §2.5 item 10 the tolerance interval is
+   `[DT_med − 3.12, DT_med + 1.60]` and moves 1:1 with the signal population. Segment 0's +0.80
+   does not transfer.
+3. **This is not §3's invalidated comparison** — that was OpenWSFZ against itself. Two different
+   decoders is a real comparison. But it *is* two different **captures**, so §6's prohibition on
+   sample-level registration still binds: match on per-cycle message sets, never on samples. And
+   OpenWSFZ's cycle labels slide off the UTC grid by the cumulative correction (§2 item 1), so
+   timestamp-keyed matching breaks by construction — use the daemon log's correction sum to align.
+   The raw 50,501-vs-31,517 line ratio is **not** a recall figure.
+
+> ~~**Open request to the Captain:**~~ **Answered 2026-07-25** — see above. The 2026-07-24 WSJT-X
+> log is lost; `artefacts/20260723_live_run_2223/` supersedes the need for it.
 
 ## 12. Notes for the implementing session
 
