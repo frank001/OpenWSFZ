@@ -541,7 +541,7 @@ reproducing the **previous** correction (r=0.9931, slope 0.977, sign match 135/1
 balance in which 66.8 s of the session's 68.9 s excess real time is the corrections' own discard
 cost. See design.md Decision 9 for the full derivation, the five findings, and the risks.
 
-- [ ] 10.1 `src/OpenWSFZ.Ft8/CycleFramer.cs`: in the `driftStreakCount >= RequiredConsecutiveReadings`
+- [x] 10.1 `src/OpenWSFZ.Ft8/CycleFramer.cs`: in the `driftStreakCount >= RequiredConsecutiveReadings`
       branch, replace `nominalCycleStart = cycleStart;` with
       `nominalCycleStart = nominalCycleStart.AddSeconds(correction / (double)SampleRate);`.
       Shift by `correction`, **not** by `deviationSeconds` — in the ordinary unclamped case they are
@@ -551,17 +551,23 @@ cost. See design.md Decision 9 for the full derivation, the five findings, and t
       swallow it. `cycleStart` keeps its own separate `+correction/SampleRate` advance — the whole
       point is that the two quantities are not interchangeable. **`src/` change — Developer-session
       territory per HK-011, with the Captain's pre-push sign-off.**
-- [ ] 10.2 Same file: correct the now-false invariant in the `nominalCycleStart` declaration comment
+- [x] 10.2 Same file: correct the now-false invariant in the `nominalCycleStart` declaration comment
       ("Reset to match cycleStart whenever a correction fires") and in the class-level `<summary>`
       Decision 8 paragraph. State the actual invariant: `nominalCycleStart` is a pure arithmetic
       measurement reference that legitimately diverges from `cycleStart` by the accumulated history
       of one-shot adjustments, and must never be re-anchored to it. This comment asserting the
       pre-Decision-8 invariant is part of the defect, not incidental to it.
-- [ ] 10.3 Change the 9.3 acceptance metric (`CycleFramerTests.cs`) to regress the post-correction
+- [x] 10.3 Change the 9.3 acceptance metric (`CycleFramerTests.cs`) to regress the post-correction
       reading against **both** its own and the preceding correction's magnitude. Without this the
       test suite cannot distinguish a full fix from another half-fix — this is exactly why 9.1's
       partial success read as "changed nothing" in 9.5, and it is a prerequisite for trusting any
       future live round.
+      **Done as:** both existing tests fire exactly one correction each, so there is no *preceding*
+      correction within either test to regress against for a session's first correction (10.1's fix
+      and the pre-10.1 bug are numerically identical on a lone first correction — confirmed by
+      hand-derivation, see the new comments added to both tests). Both tests still pass unchanged
+      post-10.1; their comments now say so explicitly and point at 10.4's new test for the actual
+      both-magnitudes falsification check.
 - [ ] 10.4 New unit test: fire **two or more consecutive corrections** under the deterministic
       `SampleCountClock` + `FeedSamplesAtRealRate` harness and assert the second correction's
       post-reading does not reproduce the first's magnitude. Every existing 9.3 test fires exactly
@@ -572,6 +578,47 @@ cost. See design.md Decision 9 for the full derivation, the five findings, and t
       "~80 samples higher") and its tolerance was widened and the shift rationalised as a benign new
       plateau; if 10.1 is correct the original tolerance must pass again. Treat failure to restore it
       as evidence the fix is incomplete, not as a reason to re-widen.
+      **Status: half-done, blocked — see dev-tasks/2026-07-25-cycleframer-nominal-reset-conflation-fix.md
+      addendum.** The new multi-correction test
+      (`RunAsync_TwoConsecutiveDiscardCorrections_SecondPostReadingDoesNotReproduceFirstCorrection`,
+      `SampleCountClock`-based) is written and passes against the 10.1 fix; hand-confirmed as a
+      genuine falsification test by temporarily reverting 10.1 and observing it fail exactly as
+      predicted (second post-reading ≈ first correction's magnitude, ratio 1.33x vs the 0.6x bound).
+      **The tolerance-restore sub-item does NOT pass and is not a matter of picking a new number:**
+      reverting `RunAsync_SustainedConstantRateDrift_ResidualStaysBoundedAcrossManyCorrections` to
+      220 fails at windowCount=24 exactly as before (residual reaches 660), and extending the same
+      run to windowCount=60 shows residual climbing *linearly without bound* (reaches 1740, no
+      plateau) — this is not "needs a wider constant," it cannot pass at any fixed tolerance if run
+      long enough. Root cause: this test's `RateClock` is a fixed per-read-count formula with zero
+      correlation between a correction firing and the clock's own reading — i.e. it models a
+      correction as having exactly zero real-time cost. Decision 8/9's mechanism assumes the
+      opposite (a discard genuinely costs real time, per Decision 8's own live-evidence basis) and,
+      per Decision 9's own math (Finding 2: "the derivation requires `2·c_now/SampleRate`"),
+      *correctly and intentionally* leaves a permanent `correction/SampleRate` gap baked into
+      `nominalCycleStart` after every correction under that assumption. Under `RateClock`, since the
+      clock reading never reflects any of that assumed real cost, this permanent gap has nothing to
+      reconcile against and compounds every correction, unbounded. The pre-10.1 buggy `= cycleStart`
+      reset was, empirically, acting as a periodic release valve for exactly this synthetic
+      mismatch (hand-confirmed: buggy code plateaus cleanly at 300 samples through windowCount=60,
+      matching the original 9.1 rationale) — which is a coincidence of the bug, not a property worth
+      preserving, per Decision 9's own Finding 2 argument that the reset was wrong. This is a real
+      discrepancy between design.md Decision 9's explicit prediction ("the original tolerance must
+      pass again") and observed behaviour, not an implementation slip in 10.1 (10.1 is the verbatim
+      prescribed one-liner, and the three `SampleCountClock`-based real-cost tests — the two 9.3
+      tests plus the new 10.4 test — all pass, confirming the fix is correct for the real-device
+      model). Escalated to the Captain rather than resolved unilaterally: re-widening the tolerance
+      is explicitly excluded by this task's own instructions and wouldn't work anyway (unbounded),
+      and changing this test's clock model to something cost-consistent (mirroring why 9.3's own
+      tests moved off `RateClock`/`StepClock`/`BouncingClock` to `SampleCountClock`) is a design-
+      level call, not a Developer-session one. `src/` fix (10.1/10.2) and the new falsification test
+      are left in place and verified; the tolerance-restore sub-item is unchecked pending direction.
+      **QA review (2026-07-25) confirmed this failure and its diagnosis independently (re-derived
+      the math, re-ran the suite) and, per the Captain's explicit direction, routed it to the
+      Architect as a Decision 9 addendum question rather than resolving it here** — see
+      `qa/cycleframer-code-review/2026-07-25-decision9-review-and-rateclock-escalation.md` for the
+      three options surfaced (rebuild on `SampleCountClock`, retire in favour of 10.4's new test, or
+      an Architect-preferred alternative). 10.1-10.3 and the new multi-correction test are approved;
+      do not proceed to 10.7 until this is resolved.
 - [ ] 10.5 Re-derive and record the drift constants against the ~101 ppm figure measured from
       correction-free cycles (95% CI [46, 156] ppm) rather than D-001's 42.41 ppm. Document whether
       `DriftThresholdSamples = 24` and `RequiredConsecutiveReadings = 3` still hold at ~18
@@ -585,6 +632,22 @@ cost. See design.md Decision 9 for the full derivation, the five findings, and t
       +0.5–0.6 s. If it tracks, Section 7 is not a separate defect and needs no further
       investigation; if it sits flat, there is a genuine second, time-invariant offset to chase
       separately.
+      **Amended 2026-07-25 (Architect) — two corrections and a dependency, see §11:**
+      (a) **The prediction as written is not testable on the preserved archive.** Per the alignment
+      study's §3, `artefacts/20260724_live_run_2227/wav/` is *WSJT-X's own* grid-aligned capture and
+      carries no information about OpenWSFZ's `cycleStart`; and per its §2 items 1–2 the label slide
+      demonstrably does **not** track content position. A WSJT-X `ALL.TXT` for that night was never
+      preserved (study §11's open request to the Captain), so the OpenWSFZ-vs-WSJT-X comparison this
+      item specifies has no WSJT-X side. Re-scope or re-source before attempting it — do not run the
+      §3-invalidated substitute.
+      (b) **The measurement it needs is already funded elsewhere.** §11's Phase 1b produces the
+      arm-A DT baseline across all 2,827 cycles; that is the same distribution 10.6 needs for its
+      OpenWSFZ side, at zero extra decode cost. Sequence 10.6 *after* 11.5, not in parallel.
+      (c) The +0.5–0.6 s figure this item chases came from a **single cycle, 11 matched decodes**
+      (8.6's evening run). Segment 0's measured DT median is +0.80 with p10–p90 +0.60…+1.10
+      (study §2.5 item 6) — i.e. the claimed "offset" is inside the ordinary per-cycle spread of
+      real signals' DT. **It may not be an offset at all.** Establish the session-wide baseline
+      first (11.5) before treating this as a defect to chase.
 - [ ] 10.7 Re-run `python3 tools/pre_merge_check.py` (HK-006) against 10.1–10.4's combined changes.
 - [ ] 10.8 Live re-confirmation, replacing 9.5 as this change's live acceptance gate. Reuse the
       HK-013 supervisor (`qa/endurance/2026-07-24-supervisor.sh`) with its two recorded edge-case
@@ -597,8 +660,101 @@ cost. See design.md Decision 9 for the full derivation, the five findings, and t
       A session need not match 9.5's 11h51m: with the loop fixed, corrections should be ~2 orders of
       magnitude smaller, so a plateau should be visible within 2–3 hours. Run longer only if the
       short round passes.
+      **(d) added 2026-07-25 (Architect) — the outcome criterion this gate has never had.**
+      Criteria (a)–(c) all read the framer's own internal deviation log; none measures what
+      misalignment actually *costs*, which is the gap the alignment-replay study (§11) exists to
+      close. Add: **per-cycle alignment error, derived as `δ_live(k) = DT_ref(k) − DT_live(k)`
+      (study §6 — mind the sign, it was inverted once already), must stay inside the measured
+      tolerance interval for ≥95% of cycles.**
+      - **Provisional interval: `δ ∈ [−1.6, +2.0] s` for ≥92% median recall**, hard cliff centres at
+        −2.32 / +2.40, derived at `DT_med` = +0.80 (study §2.5 item 10, deliverable #5). **Not
+        final** — pending 11.5. Do not hard-code it into a gate before 11.7 lands.
+      - **The interval is not a constant of the decoder.** It is `[DT_med − 3.12, DT_med + 1.60]`
+        and moves 1:1 with the signal population's DT, so it must be quoted together with the
+        `DT_med` it was derived from and re-derived for a different band or session.
+      - Quote conformance against a **stated percentile, not the median** — the recall distribution
+        has a left tail the median hides (study §5.3).
+      **Sequencing:** (d) needs 11.7's final bound, so 10.8 should not be scheduled ahead of §11.
+      (a)–(c) are independent of §11 and can proceed on the existing schedule; a run that satisfies
+      (a)–(c) but has not yet been scored against (d) is a **partial** pass, not a green gate.
 - [ ] 10.9 Once 10.8 passes: reconsider the HK-011 merge hold with the Captain. If 10.8 fails, *then*
       escalate to Decision 8's fallback shapes — but note that Decision 9's diagnosis is
       quantitative and closed, so a failure here would indicate a *further* distinct mechanism and
       should be root-caused from the run's own artefacts first, in the manner Decision 9 was, before
       any architecture change is chosen.
+
+## 11. Alignment-replay study: what does misalignment actually cost in decodes? (`qa/cycleframer-alignment-replay/SPEC.md`)
+
+Five live rounds have measured the *correction loop's* behaviour in detail. **None has ever measured
+what misalignment costs in recall** — which is what 10.8's acceptance bound and the D-001 scope
+decision both turn on. This section tracks that study.
+
+**Scope: QA tooling only, zero `src/`, no live radio time** — HK-000 applies, not HK-011. Runs
+entirely offline against the preserved WAV archive. Does not modify `CycleFramer` and does not
+depend on whether 10.1–10.4 land; it measures the audio, not the framer. It can therefore proceed
+**in parallel with** §10's live work, and should, since 10.8(d) and 10.6 both now depend on it.
+
+- [x] 11.1 Phase 0 — re-windowing self-test + the four mandatory controls (SPEC §5.1, §7). 129
+      decodes. **PASSED and ratified**, SPEC §2.5/§14. Findings:
+      `qa/cycleframer-alignment-replay/2026-07-25-phase0-findings.md`.
+- [x] 11.2 Phase 0b — §7.4(b) cross-input determinism + the §7.3 provenance guard. **§7.3 guard
+      passed. §7.4(b) FAILED and was resolved by narrowing the metric**, not by the remedy the SPEC
+      prescribed (fresh managed `Ft8Decoder` per window does not clear `ft8_shim.c:627`'s native
+      process-global `g_session_hash_table`). Hash-bracket canonicalization
+      (`normalize_hash_tokens()`) takes the forward-vs-reverse mismatch 14/25 → 0/25 and moves no
+      already-ratified §2.5 figure by >0.002. Findings: `2026-07-25-phase0b-findings.md`; ruling:
+      SPEC §7.4(b), §15.2. **Two guards outstanding — see 11.6.**
+- [x] 11.3 Phase 1a — asymmetry probe, 25 cycles × 7 δ, 175 decodes. **PASSED**, and did its job:
+      **falsified SPEC §2.5 item 9's predicted −1.7 negative cliff** (recall still 0.833 at
+      δ=−2.125; real cliff at −2.3…−2.4). The retracted grid would have put 13 dense points in the
+      wrong place while stopping short of the cliff bottom. Findings:
+      `2026-07-25-phase1a-findings.md`.
+- [x] 11.4 Architect review of 11.2/11.3 (SPEC §15) — **a fifth pre-existing SPEC defect, and the
+      second serious one after §6.3's inverted sign.** The decoder's time search is
+      `DT_obs ∈ [−1.60, +3.12]`, read from `native/ft8_lib_build/patched/ft8/decode.c:279`, not the
+      symmetric ±2.5 s the SPEC asserted three times. Applied to arm A's own DT distribution with
+      **zero fitted parameters** it reproduces all 12 measured recall points at RMS 0.085 (the
+      assumed ±2.5 s bound scores 0.472). Recorded as SPEC §2.5 item 10; item 9 retracted.
+      Consequences already folded into 10.6 and 10.8(d) above.
+      **Standing note for any future session:** `decode.c:279` is now load-bearing for every figure
+      in SPEC §2.5 item 10, §5.2 and deliverable #5. **Any re-vendoring or re-patching of ft8_lib
+      must re-check that line.**
+- [ ] 11.5 **Phase 1b — confirm-and-cut** (Captain's decision, 2026-07-25). 400 cycles stratified
+      across the session × 11 non-anchor offsets (SPEC §5.2 second amendment), plus the arm-A DT
+      baseline extended to all 2,827 cycles. ≈7,200 decodes, down from ≈13,200 for the full
+      27-point grid. Weighted toward the **positive cliff**, which has exactly two measurements ever
+      (+2.0, +3.0) and whose predicted centre (+2.40) has never been probed — the model's strongest
+      untested prediction.
+      **Gated on SPEC §5.2's three-part falsification criterion, evaluated against the
+      *session-wide* DT median, not segment 0's.** State the verdict before looking.
+      **If any part fails, fall back to the full 27-point grid before quoting deliverables #2/#5** —
+      a cut budget is only legitimate while the model justifying it is still standing.
+      The DT baseline is the single highest-value measurement in the phase: if the model holds, the
+      curve is *derived* from that distribution rather than traced, and 10.6 gets its OpenWSFZ side
+      for free.
+- [ ] 11.6 Guards carried forward from 11.2's narrowed metric, both mandatory in 11.5:
+      (a) **Collision assertion** (SPEC §7.4(b-i)) — `normalize_hash_tokens()` can merge two
+      *genuinely distinct* messages and thereby *inflate* recall. Measured on Phase 0's reference:
+      7.18% of rows carry a bracket token, **0 within-cycle merges across 25 cycles**. Safe there;
+      will not stay zero at 400 cycles. `score_recall.py` must **count merges per run and fail
+      loudly if nonzero.** Assert it, don't assume it.
+      (b) **Reject-count recording** (SPEC §7.4(b-ii)) — `hashTableRejectCount` is the hazard §7.4
+      actually names, and a hash-driven *reject* is a genuinely missing decode that normalization
+      neither fixes nor reveals. Record it per arm and compare across arms; a systematic difference
+      is a confound signature. 8.4 already added the per-cycle log line this needs.
+- [ ] 11.7 Deliverables (SPEC §10), in particular **#5: the maximum acceptable alignment error**,
+      which is what 10.8(d) consumes. Must be stated as an **asymmetric interval `δ_min … δ_max`,
+      never `±X`** — with *more* headroom on the negative side, the opposite of the retracted item
+      9's claim — against a **stated percentile**, and **together with the `DT_med` it was derived
+      from**. Provisional pending 11.5: `δ ∈ [−1.6, +2.0]` at `DT_med` = +0.80.
+- [ ] 11.8 `qa/cycleframer-alignment-replay/report.md` per NFR-024/HK-001 section conventions (QA
+      authors Sections 1/5 and the Section 2 framing; render HTML via `render_report.py`).
+      NFR-021: derived artefacts contain real third-party callsigns — keep them git-ignored and
+      local, exactly as `artefacts/` is.
+- [ ] 11.9 **Open request to the Captain, still unanswered** (SPEC §11): if WSJT-X's `ALL.TXT`,
+      `wsjtx_log.adi`, or decode history from the night of 2026-07-24 still exists on the shack
+      machine, preserving it would let this same harness size **D-001's absolute recall gap** on
+      this session's audio at near-zero extra cost — and would give 10.6 the WSJT-X side it
+      currently lacks. The sibling `artefacts/20260723_live_run_2223/` has a `wsjtx/` subdirectory,
+      so this has been captured before. **This study measures the alignment component only; it
+      cannot settle D-001's absolute gap without that data.**

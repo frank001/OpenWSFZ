@@ -1,7 +1,9 @@
 # Offline alignment-replay study — how much recall does cycle-boundary misalignment cost?
 
-**Author:** Architect session, 2026-07-25. **Status:** Phase 0 complete and ratified (see §2.5 and
-§14); Phase 1 specified below, amended 2026-07-25 in light of Phase 0's results.
+**Author:** Architect session, 2026-07-25. **Status:** Phases 0, 0b and 1a complete and ratified
+(§2.5, §14, §15). **Phase 1b re-scoped to confirm-and-cut** (11 offsets, ≈7 200 decodes) against
+§5.2's falsification criterion — authorised, not yet run. §2.5 item 9 is **retracted**; item 10
+supersedes it.
 **Scope:** QA tooling only — zero `src/` changes, no live radio time. Implementable by a QA
 session under HK-000.
 
@@ -96,13 +98,73 @@ below was reproduced independently by the Architect from the committed harness a
    drops 550 → 48. Only signals whose natural DT leaves them inside the bound survive. This is
    stronger corroboration than the recall cliff alone.
 
-9. **Therefore the tolerance band is asymmetric about δ=0 and its centre is δ ≈ +0.8.** With
-   signals at DT +0.80, a search bound near ±2.5 s, and a transmission spanning ≈[0.80, 13.44] s
-   of the cycle: positive δ has ≈3.3 s of headroom and clips the signal *head*; negative δ has
-   only ≈1.7 s of headroom and clips almost nothing (δ=−1 loses no symbols at all), so on that
-   side the search bound binds *before* symbol loss does. **Prediction: the negative cliff sits
-   near δ ≈ −1.7, roughly half the positive side's tolerance.** Phase 0 probed only positive δ, so
-   this is an untested model prediction — Phase 1 tests it first (§9).
+9. ~~**Therefore the tolerance band is asymmetric about δ=0 and its centre is δ ≈ +0.8.**~~
+   **RETRACTED 2026-07-25 — falsified by Phase 1a and superseded by item 10.** This item predicted
+   the negative cliff near δ ≈ −1.7 ("roughly half the positive side's tolerance"), reasoning from
+   an assumed symmetric ±2.5 s decoder search bound and from symbol-clipping headroom. Phase 1a
+   measured the negative cliff at δ ≈ −2.3…−2.4 and recall still 0.833 at δ=−2.125. Both the
+   predicted *number* and the predicted *mechanism* were wrong. The claim that the band is "centred
+   near δ=+0.8" is retracted with it. Recorded rather than deleted, per §3's standing rule.
+
+10. **The decoder's time search is `DT_obs ∈ [−1.60, +3.12] s` — hardcoded and asymmetric — and
+    this alone explains the entire recall(δ) curve.** *Added 2026-07-25 (Architect, reviewing
+    Phase 1a).* Read directly from
+    `native/ft8_lib_build/patched/ft8/decode.c:279`:
+
+    ```c
+    for (candidate.time_offset = -10; candidate.time_offset < 20; ++candidate.time_offset)
+    ```
+
+    30 blocks × 0.16 s/block, plus sub-block reach from `time_osr = 2` (`ft8_shim.c:470`,
+    `K_TIME_OSR 2`). **The "bounded near ±2.5 s" figure previously asserted in §5.2 and in the
+    retracted item 9 is not what the code does** and every prediction derived from it inherits
+    the error.
+
+    Combined with item 7's `DT_obs = DT_true − δ`, this yields a **zero-free-parameter model**:
+
+    > `recall(δ) = P( DT_true ∈ [δ − 1.60, δ + 3.12] )` over the reference decode population.
+
+    Tested against all 12 measured δ points (Phase 0 + Phase 1a), with the bound read from source
+    and `DT_true` read from arm A's own `ALL.TXT` — nothing fitted:
+
+    | δ | measured | predicted | resid |
+    |---|---|---|---|
+    | −2.500 | 0.115 | 0.120 | −0.005 |
+    | −2.375 | 0.423 | 0.188 | +0.236 |
+    | −2.250 | 0.769 | 0.615 | +0.154 |
+    | −2.125 | 0.833 | 0.783 | +0.051 |
+    | −1.750 | 0.885 | 0.920 | −0.035 |
+    | −1.375 | 0.909 | 0.958 | −0.049 |
+    | −1.000 | 0.957 | 0.966 | −0.009 |
+    | +2.000 | 0.920 | 0.962 | −0.042 |
+    | +3.000 | 0.077 | 0.080 | −0.003 |
+    | +5.000 | 0.000 | 0.000 | 0.000 |
+    | +7.500 | 0.000 | 0.000 | 0.000 |
+
+    **RMS error 0.085.** The previously assumed symmetric ±2.5 s bound scores **0.472** on the
+    same data — falsified, not marginal. The two large residuals sit in the steepest part of the
+    cliff, where the 0.08 s sub-block quantum moves the prediction sharply; both point the same
+    way (the decoder slightly out-reaches the hard block bound), consistent with `time_sub`
+    interpolation.
+
+    **Predicted cliff centres: δ = DT_med − 3.12 and δ = DT_med + 1.60**, i.e. **−2.32 and +2.40**
+    at segment 0's DT_med = +0.80. Phase 1a measured the negative one at −2.3…−2.4.
+
+    Three consequences that matter downstream:
+
+    - **The gradual negative shoulder is DT spread, not symbol loss.** Phase 1a's own hypothesis
+      (per-cycle DT spread smears a per-station step function into an aggregate slope) is correct
+      in form; the step is each station reaching the *search bound* at a different δ, not losing
+      tail symbols. Same smearing, different cause.
+    - **The near-symmetry of the two cliffs in δ is a coincidence of this signal population.** The
+      decoder's own asymmetry (window centred at DT_obs +0.76) very nearly cancels the population's
+      DT offset (+0.80), leaving a δ-frame band centred at ≈ +0.1. Change the DT population and the
+      band becomes asymmetric in δ again. **The tolerance interval therefore tracks `DT_true` 1:1
+      and is not a fixed property of the decoder.** This is why §9's session-wide DT baseline is
+      load-bearing, and why deliverable #5 must still be stated asymmetrically — for this reason,
+      not the retracted item 9's reason.
+    - **Recall is a population statistic, not a per-signal one.** Every station is in or out on its
+      own DT; the curve's shape is the DT CDF, so the median understates the tail (see §5.3).
 
 ## 3. Invalidated approaches — do not repeat
 
@@ -162,23 +224,42 @@ concatenation and off-by-one errors.
 | **S-wide** | −4.0, +4.0 | Confirms the curve has bottomed out rather than being truncated by the sweep range. Two points only — Phase 0 showed recall is already 0.0000 by δ=+3.0, so this arm no longer warrants four. |
 | **N — negative controls** | see §7 | Proves the harness can detect an alignment effect at all. **Mandatory; results are void without it.** |
 
-**Sweep grid (amended 2026-07-25).** The original uniform 0.25 s grid put only ~4 points across a
-transition that Phase 0 showed collapses 92% within 1 s — inadequate, because deliverable #5's
-number sits *on* that transition. Resolution now follows where the structure is, per §2.5 item 9:
+**Sweep grid — second amendment, 2026-07-25 (supersedes the first).** The first amendment sized a
+27-point grid around §2.5 item 9's predicted −1.7 negative cliff. Item 9 is now retracted and item
+10's search-bound model reproduces the whole curve with no free parameters, so tracing 27 points
+empirically buys much less than it did. Phase 1b is re-scoped to **confirm-and-cut** (Captain's
+decision, 2026-07-25): probe where the model makes its sharpest and least-tested predictions, and
+if it survives, *derive* the curve from the session-wide DT distribution instead of tracing it.
 
-| region | δ range | step | points |
+| region | δ points | n | why |
 |---|---|---|---|
-| negative cliff (predicted) | −2.50 … −1.00 | 0.125 | 13 |
-| flat / plateau | −0.50 … +2.00 | 0.50 | 6 |
-| positive cliff (measured 2.0→3.0) | +2.25 … +3.25 | 0.125 | 9 |
-| bottomed-out shoulders | −3.00, +3.50 | — | 2 |
+| positive cliff | +2.00, +2.25, +2.50, +2.75, +3.00 | 5 | **The model's strongest untested prediction.** The positive side has exactly two measurements ever (+2.0, +3.0) and the predicted centre (+2.40) has never been probed. Highest information per decode. |
+| negative cliff | −2.00, −2.25, −2.50, −2.75 | 4 | Confirm Phase 1a's 25-cycle result at 400 cycles, and bracket the bottom — the previous grid stopped at −2.50, inside the drop. |
+| plateau | −1.00 | 1 | One genuine (non-anchor) plateau point at 400 cycles. |
+| bottomed-out shoulder | +3.50 | 1 | Confirms the positive side has floored. |
+| identity anchor | 0.00 | — | Arm A; §7.3 whitelisted. Not evidence. |
 
-Total 27 points (δ=0 falls on the plateau grid and is shared with arm A). Refine further only if a
-cliff proves sharper than 0.125 s resolution can resolve.
+**11 non-anchor points** (down from 27). Cost: 400 × 12 ≈ **4 800 decodes**, plus extending the
+arm-A DT baseline to the full 2 827 cycles (≈2 427 beyond the 400 already decoded at δ=0) —
+**≈7 200 total, versus ≈13 200 for the full grid.**
 
-Range rationale: an FT8 transmission occupies 12.64 s of the 15 s cycle and, per §2.5 item 6, sits
-at DT +0.80; ft8_lib's time search is bounded near ±2.5 s. The tolerance band is therefore centred
-near δ=+0.8, not δ=0, and the interesting structure lies in roughly −2.5 … +3.5.
+**Falsification criterion — state the verdict before looking (mandatory).** The model passes iff,
+after re-deriving cliff centres from the *session-wide* DT median:
+
+1. `|measured − predicted|` ≤ **0.10** at every point outside the two cliff transitions, and
+   ≤ **0.25** at points inside them (where the 0.08 s sub-block quantum dominates); **and**
+2. the measured 50 % crossing of the positive cliff falls within **±0.15 s** of
+   `DT_med + 1.60`; **and**
+3. the negative 50 % crossing falls within ±0.15 s of `DT_med − 3.12`.
+
+**If any of the three fails, fall back to the full 27-point grid** (previous amendment's table,
+with the negative dense region shifted to −2.75 … −1.75) before quoting deliverable #2 or #5. A
+cut budget is only legitimate while the model that justifies it is still standing.
+
+Range rationale (corrected): an FT8 transmission occupies 12.64 s of the 15 s cycle and, per §2.5
+item 6, sits at DT +0.80; the decoder's time search is `DT_obs ∈ [−1.60, +3.12]` per §2.5 item 10.
+The tolerance band in δ is therefore `[DT_med − 3.12, DT_med + 1.60]` ≈ **−2.32 … +2.40** for this
+population — centred near δ ≈ +0.1, *not* +0.8 — and the interesting structure lies in −3.0 … +3.5.
 
 ### 5.3 Recall metric — paired, within-cycle
 
@@ -197,6 +278,14 @@ timing shift does not move a signal in frequency.
 
 Report the median and IQR of `recall_δ(k)` over cycles, not a pooled ratio — pooling would let
 high-activity cycles dominate.
+
+**Also report p10 and the count of zero-recall cycles (added 2026-07-25).** Phase 1a's data has a
+left tail the median hides: `min` recall is 0.000 at *every* negative δ probed, including δ=−1.0
+where the median is 0.957, and the mean trails the median throughout (0.905 vs 0.957 at −1.0).
+Some cycles fail completely well inside the tolerance band. Per §2.5 item 10 this is expected —
+recall is a population statistic over each cycle's own DT spread — but it means **deliverable #5's
+bound must be quoted against a stated percentile, never the median alone**, or it will be too loose
+for the cycles that matter most.
 
 Cycles with `|ref(k)| < 5` are excluded (insufficient signal to estimate a rate). Record how many
 cycles this excludes.
@@ -217,19 +306,33 @@ Once recall(δ) exists:
    backwards and would have mapped every live cycle onto the wrong half of the curve.* Phase 0
    settles it empirically (§2.5 item 7): the δ=2.0 arm has DT_ref=+0.80 and DT_obs=−1.20, so
    `DT_ref − DT_obs = +2.00 = δ`, whereas `DT_obs − DT_ref` gives −2.00. Because the curve is
-   asymmetric (§2.5 item 9), this sign error would not merely have flipped a label — it would have
-   assigned the live run's worst excursions to the tolerant side and concluded misalignment was
-   nearly free.
+   asymmetric (~~§2.5 item 9~~ → **§2.5 item 10**, which retracts item 9 but confirms the
+   asymmetry — in the opposite direction, with *more* headroom on the negative side), this sign
+   error would not merely have flipped a label — it would have assigned the live run's worst
+   excursions to the tolerant side and concluded misalignment was nearly free. **The correction
+   stands and is now doubly load-bearing**: with the true interval −2.32 … +2.40, the sign error
+   would still have mapped negative-δ excursions to positive δ and vice versa.
 4. Map through recall(δ) to get the predicted recall cost of the live alignment, per cycle and
    session-wide.
 
-   Worked example of what this implies, using §2's live medians and the +0.80 baseline — **to be
-   replaced with real figures once recall(δ) exists, not quoted as a result**: the 5.0 h bucket at
-   median DT +2.90 maps to δ_live ≈ −2.10, past the predicted negative cliff (near-total recall
-   loss); the 1.5 h and 9.5 h buckets at median DT −1.10/−1.30 map to δ_live ≈ +1.90/+2.10, worth
-   roughly 8%. If that pattern survives measurement, the live cost is dominated by a minority of
-   negative-δ excursions rather than spread evenly across the session — which is a materially
-   different conclusion for §1's question than "±1–2 s of oscillation" suggests on its face.
+   Worked example — **corrected 2026-07-25**, using §2's live medians, the +0.80 baseline, and the
+   *measured* curve rather than the retracted item 9's prediction. Still **to be replaced with real
+   per-cycle figures once recall(δ) is final, not quoted as a result**:
+
+   | bucket | median DT_live | δ_live | recall | source |
+   |---|---|---|---|---|
+   | 5.0 h | +2.90 | −2.10 | **≈0.83** | measured (Phase 1a, δ=−2.125) |
+   | 1.5 h | −1.10 | +1.90 | ≈0.92 | measured (Phase 0, δ=+2.00) |
+   | 9.5 h | −1.30 | +2.10 | ≈0.90 | interpolated |
+
+   *The previous version of this example called the 5.0 h bucket "past the predicted negative cliff
+   (near-total recall loss)". That rested on the retracted −1.7 cliff. The real cliff is at −2.32,
+   so δ_live = −2.10 sits on the shoulder, not past it, and the measured cost is ~17% — not ~100%.*
+   **This materially changes the provisional answer to §1**: on bucket medians, the 9.5 session's
+   alignment cost the worst 30-minute window roughly a sixth of its decodes, not nearly all of
+   them. Bucket medians average over per-cycle excursions that may be far worse (see §5.3's left
+   tail), so this is a floor on the damage, not a settled figure — but it no longer supports the
+   framing that misalignment was catastrophic session-wide.
 
 This decomposition is deliberate: it separates a robustly measurable quantity (the curve) from a
 separately-derived input (the live alignment error), instead of attempting one fragile end-to-end
@@ -247,9 +350,12 @@ degenerate comparison. These controls exist to catch exactly that:
    void** — stop and diagnose.
 
    *Amended 2026-07-25.* This originally specified δ=+2.0, which contradicted §5.2's own rationale:
-   2.0 s falls *inside* ft8_lib's ±2.5 s time search, so the decoder is expected to absorb most of
+   2.0 s falls *inside* the decoder's time search, so the decoder is expected to absorb most of
    it. A control that proves the harness can detect misalignment must probe **outside** the
-   decoder's compensation range. Phase 0 measured 0.9200 at δ=2.0 and 0.0769 at δ=3.0 — the
+   decoder's compensation range. (The ±2.5 s figure cited when this amendment was first written is
+   itself wrong — see §2.5 item 10; the real bound is `DT_obs ∈ [−1.60, +3.12]`, which puts the
+   positive-δ edge at +2.40 and so leaves this amendment's conclusion intact: δ=+3.0 is outside it,
+   δ=+2.0 is inside.) Phase 0 measured 0.9200 at δ=2.0 and 0.0769 at δ=3.0 — the
    original probe point would have voided a sound harness. The 0.92 figure is not a control
    failure; it is a headline result (the decoder absorbs 2 s of misalignment for ~8% recall), and
    belongs in the recall(δ) write-up as such.
@@ -274,8 +380,36 @@ degenerate comparison. These controls exist to catch exactly that:
      *identical* inputs, but each sweep arm decodes a different sequence of *different* windows, so
      the arms' cumulative-state trajectories diverge. Decode arm A's cycle set once in forward
      order and once in reverse, and assert the per-cycle decode sets are identical. ~50 decodes.
-     **Must pass before Phase 1's results are trusted.** If it fails, use a fresh decoder instance
-     per window and re-assert.
+     **Must pass before Phase 1's results are trusted.** ~~If it fails, use a fresh decoder instance
+     per window and re-assert.~~
+
+     **Outcome, 2026-07-25 — the control FAILS as specified, and the prescribed remedy does not
+     work.** Phase 0b measured 14/25 cycles mismatched. Root cause: `ft8_shim.c:627`'s
+     `g_session_hash_table` is a **native process-global**, deliberately session-scoped, so a
+     hashed callsign renders `<...>` or `<PD00DOG>` depending purely on which windows were decoded
+     earlier in the same process. The prescribed fix (fresh managed `Ft8Decoder` per window) was
+     built and tried — identical 14/25 mismatch, because the state is in native static memory the
+     managed wrapper never touches. Only a fresh *process* would clear it.
+
+     **Resolution: narrow the metric, and say so.** The study proceeds by canonicalizing
+     bracketed hash tokens (`<[^>]*>` → `<HASH>`) before matching, via `score_recall.py`'s
+     `normalize_hash_tokens()` — 0/25 mismatches after. Re-scoring Phase 0's ratified δ ∈ {2.0,
+     3.0, 5.0, 7.5} figures with normalization on changed no median and shifted IQR/mean by
+     <0.002, so §2.5's established facts stand. **This is a deliberate reduction in the metric's
+     discriminating power, not a passing control**, and it carries two mandatory guards:
+
+     - **(b-i) Collision assertion.** Normalization can merge two *genuinely distinct* messages
+       (`<X> CALL −14` and `<Y> CALL −14` collapse to the same string), which would *inflate*
+       recall. Measured on Phase 0's reference: 7.18 % of rows carry a bracket token and **0
+       within-cycle merges occurred across all 25 cycles** — safe there, but 7.18 % is high enough
+       that it will not stay zero at Phase 1b's 400 cycles. `score_recall.py` **must count merges
+       per run and fail loudly if the count is nonzero.** Do not assume.
+     - **(b-ii) Reject-count recording.** This section names `hashTableRejectCount` as the hazard,
+       and a hash-driven *reject* yields a genuinely missing decode — which normalization neither
+       fixes nor reveals. Phase 0b's "never a missing or extra decode" observation covers 25 cycles
+       under one perturbation; Phase 1b diverges the arms much harder. **Record
+       `hashTableRejectCount` per arm in Phase 1b** and compare across arms; a systematic
+       difference is a confound signature.
 
 ## 8. Reuse — build on the D-001 harness
 
@@ -298,20 +432,26 @@ shipped baseline throughout.
 | Phase | Scope | Decodes | Gate |
 |---|---|---|---|
 | **0** | Re-windowing self-test (§5.1) + controls (§7) | 129 | **PASSED and ratified 2026-07-25** (§2.5, §14). |
-| **0b** | Control §7.4(b) cross-input determinism + the §7.3 guard, both built into the Phase 1 driver | ~50 | Must pass before Phase 1's results are trusted. |
-| **1a** | **Asymmetry probe.** 25 cycles × δ ∈ {−1.00, −1.375, −1.75, −2.125, −2.50} | ~125 | Locate the negative cliff. Confirms or kills §2.5 item 9 *before* the full grid is spent. |
-| **1b** | 400 cycles stratified across the session × 27 offsets (§5.2 grid) | ~10 800 | Curve shape. Re-grid from 1a's measured cliff location if it lands outside −2.5…−1.0. |
-| **2** | Full 2,827 cycles × 27 offsets, only if 1b's curve needs tightening | ~76 000 | — |
+| **0b** | Control §7.4(b) cross-input determinism + the §7.3 guard, both built into the Phase 1 driver | ~50 | **RUN 2026-07-25.** §7.3 guard passed. §7.4(b) **failed and was resolved by narrowing the metric** — see §7.4(b) and §15; guards (b-i)/(b-ii) are outstanding and land in 1b. |
+| **1a** | **Asymmetry probe.** 25 cycles × δ ∈ {−1.00, −1.375, −1.75, −2.125, −2.50}, + refinement at −2.25/−2.375 | 175 | **PASSED 2026-07-25.** Falsified §2.5 item 9; negative cliff at −2.3…−2.4, not −1.7. Superseded by item 10's model. |
+| **1b** | **Confirm-and-cut.** 400 cycles stratified × 11 non-anchor offsets (§5.2 second amendment) + arm-A DT baseline across all 2 827 cycles | ~7 200 | §5.2's three-part falsification criterion. **If any part fails, fall back to the full 27-point grid before quoting deliverables #2/#5.** |
+| **2** | Full 2,827 cycles × full grid, only if 1b's curve needs tightening | ~76 000 | — |
 
-**Phase 1a runs first, on segment 0's same 25 cycles as Phase 0** — so it is directly comparable to
-the positive-δ figures already in hand, and costs ~1% of the full sweep. Its purpose is to avoid
-spending the Phase 1b budget on a grid built from an untested model. If the negative cliff lands
-outside the predicted −2.5…−1.0 window, amend §5.2's grid before running 1b.
+**Phase 1a ran first, on segment 0's same 25 cycles as Phase 0** — directly comparable to the
+positive-δ figures already in hand, at ~1.6% of the full sweep. Its purpose was to avoid spending
+the Phase 1b budget on a grid built from an untested model, and it did exactly that: the model was
+untrue, and the retracted grid would have put 13 dense points in the wrong place while stopping
+short of the real cliff bottom. **This is the phasing working as designed — record it as such.**
 
 Phase 1b stratification: sample evenly across the 11h51m span, restricted to cycles with
-`|ref(k)| ≥ 5`, so both good and poor propagation periods are represented. Also widen the arm-A DT
-baseline (§2.5 item 6) across the full span at this point — segment 0's +0.80 may not hold
-session-wide, and every δ→live mapping depends on it.
+`|ref(k)| ≥ 5`, so both good and poor propagation periods are represented.
+
+**The arm-A DT baseline is now load-bearing, not a side deliverable.** Per §2.5 item 10 the
+tolerance interval is `[DT_med − 3.12, DT_med + 1.60]` — it moves 1:1 with the signal population's
+DT, so segment 0's +0.80 must be widened across the full span *before* deliverable #5 is quoted,
+and the falsification criterion in §5.2 is evaluated against the session-wide median, not
+segment 0's. Under confirm-and-cut this baseline is the single highest-value measurement in the
+phase: if the model holds, the curve is derived from this distribution rather than traced.
 
 Precedent for feasibility: the D-001 sweep ran ~106 000 offline decodes.
 
@@ -323,9 +463,23 @@ Precedent for feasibility: the D-001 sweep ran ~106 000 offline decodes.
 4. Predicted recall cost of the 9.5 session's observed alignment excursions (§6).
 5. A recommended **maximum acceptable alignment error in seconds**, derived from the curve, for
    use as a `tasks.md` 10.8 acceptance bound and as a cap on correction magnitude. **This must be
-   stated as an asymmetric interval (`δ_min … δ_max`), never as `±X`** — per §2.5 item 9 the
-   tolerance band is centred near δ=+0.8 with roughly half as much headroom on the negative side.
-   A symmetric bound would be simultaneously too loose on one side and too tight on the other.
+   stated as an asymmetric interval (`δ_min … δ_max`), never as `±X`.**
+
+   *Rationale corrected 2026-07-25.* This previously cited §2.5 item 9 ("centred near δ=+0.8, half
+   the headroom on the negative side"), which is retracted. The requirement stands, for item 10's
+   reason instead: the decoder's search window is itself asymmetric (`DT_obs ∈ [−1.60, +3.12]`), so
+   the δ-frame interval is `[DT_med − 3.12, DT_med + 1.60]` — **wider on the negative side, the
+   opposite of what item 9 claimed.** A symmetric bound would be simultaneously too loose on one
+   side and too tight on the other, in the reverse direction to the one previously documented.
+
+   Three further constraints on how the number is stated:
+
+   - **Quote it against a stated percentile, not the median** (§5.3's left tail).
+   - **State the `DT_med` it was derived from.** The interval tracks the signal population 1:1; it
+     is not a fixed property of the decoder and does not transfer to another band or session
+     without re-deriving.
+   - Provisional value from the data in hand, pending Phase 1b: **δ ∈ [−1.6, +2.0] for ≥92% median
+     recall**, with hard cliff centres at −2.32 / +2.40, at `DT_med` = +0.80.
 6. Raw per-cycle scoring data, callsign-free where possible (NFR-021 — derived artefacts
    containing real callsigns are git-ignored, local only).
 
@@ -366,6 +520,11 @@ quantitative bound for correction magnitude.
 - `qa/rr-study/d001-param-sweep-2026-07-22/` — the harness to extend.
 - `qa/cycleframer-alignment-replay/2026-07-25-phase0-findings.md` — the QA session's Phase 0
   report, whose sensitivity-control escalation this revision resolves (§14).
+- `qa/cycleframer-alignment-replay/2026-07-25-phase0b-findings.md`,
+  `2026-07-25-phase1a-findings.md` — the QA session's Phase 0b and 1a reports, reviewed in §15.
+- `native/ft8_lib_build/patched/ft8/decode.c:279` — the hardcoded time-search bound that §2.5
+  item 10 is built on. **Any future re-vendoring or re-patching of ft8_lib must re-check this
+  line**; if it changes, every figure in §2.5 item 10, §5.2 and deliverable #5 changes with it.
 
 ## 14. Architect ruling on Phase 0's escalation (2026-07-25)
 
@@ -405,3 +564,83 @@ the amended wording, not the original). Both land in Phase 0b.
 "ruled out repeated-message contamination" check (585 reference messages, zero verbatim adjacent-cycle
 recurrences) was unprompted, is exactly the right instinct for a text-matched metric, and closes a
 hole this specification never asked about.
+
+## 15. Architect review of Phase 0b and Phase 1a (2026-07-25)
+
+**Both phases accepted.** All figures in both QA reports were reproduced independently from
+`_work/phase1a_summary.csv`, `_work/phase1a_refine_summary.csv` and the committed harness before
+ruling — not accepted on report alone. `check_provenance()` and `normalize_hash_tokens()` were read
+and confirmed to implement §7.3's amended wording and §7.4(b)'s described fix respectively.
+
+### 15.1 A fifth specification defect, and the model that replaces it
+
+Phase 1a falsified §2.5 item 9's −1.7 prediction and — correctly — offered its replacement as a
+hypothesis rather than asserting it. The hypothesis was *tail-symbol clipping smeared by per-cycle
+DT spread*. **The smearing half is right; the clipping half is wrong.** The answer was available in
+the vendored decoder and neither the original specification nor the QA session went to look:
+`decode.c:279` bounds the time search at `DT_obs ∈ [−1.60, +3.12]`, hardcoded and asymmetric, not
+the ±2.5 s this specification asserted three separate times.
+
+That bound, applied to arm A's own DT distribution with **no fitted parameters**, reproduces all
+12 measured recall points at RMS error 0.085; the assumed ±2.5 s bound scores 0.472 on the same
+data. Full model, evidence and consequences are recorded as **§2.5 item 10**; item 9 is struck
+through rather than deleted, per §3's standing rule.
+
+**This is the fifth pre-existing defect in this specification, and the second serious one** (after
+§6.3's inverted sign). Like the sign error, it would not have been caught by any control in §7 —
+§7's controls test whether the *harness* measures what it claims, and this was a wrong physical
+constant in the *specification's model*, which the harness faithfully measured around. Both
+survived Phase 0's ratification. **The pattern is now established enough to name: this
+specification's assumed physics has been wrong more often than its measurements have.** Prefer
+reading the vendored source over reasoning from remembered protocol constants.
+
+### 15.2 On QA's Phase 0b resolution
+
+The hash-token diagnosis is the strongest work in either report: root-caused to a named line,
+*tested the remedy this specification prescribed*, showed it fails for a stated mechanical reason
+(native static memory the managed wrapper never touches), and declined to silently work around it.
+The re-scoring check against §2.5's already-ratified figures was unprompted and exactly right.
+
+Two corrections to its framing, neither affecting the outcome:
+
+1. **This is a control that failed, not a defect that was fixed.** §7.4(b) asks whether cumulative
+   native state perturbs decodes; the finding is that **it does**, and the study proceeds by making
+   the metric blind to the axis it perturbs. That is a legitimate and common move, but it must be
+   recorded as a narrowed metric rather than a passed control — §7.4(b) is amended accordingly.
+   (That the prescribed remedy proved infeasible is a weaker class of defect than the four in §14;
+   it was a wrong fix, not a wrong requirement.)
+2. **Two hazards were not addressed** and are now mandatory guards on Phase 1b: §7.4(b-i)
+   collision assertion (measured 0 merges across Phase 0's 25 cycles, but 7.18 % of rows carry a
+   bracket token, so it will not stay zero at 400 cycles — assert it, don't assume it) and
+   §7.4(b-ii) `hashTableRejectCount` recording (the hazard §7.4 actually names; normalization
+   neither fixes nor reveals a reject-driven missing decode).
+
+Keeping `D001ParamSweep --fresh-decoder-per-wav` is endorsed, on the reasoning QA gave.
+
+### 15.3 On QA's Phase 1a analysis
+
+Accepted, with the mechanism replaced per §15.1 and two methodological notes:
+
+- **The δ=0 identity anchor is being used as evidence.** Phase 1a's combined table lists
+  `0.000 | 1.000` alongside measured points and its shape argument leans on it ("declines gradually
+  from 1.00 at δ=0"). §2.5 is explicit that this is an anchor, not a measurement. Phase 0b's
+  reverse-order arm is an *independent-order* decode of δ=0 that matched 25/25 after normalization
+  — a better anchor, already on disk, free to promote. It remains same-input, so it bounds
+  order-dependence rather than establishing sensitivity; label it that way.
+- **The left tail is real and was not reported.** `min` recall is 0.000 at every negative δ
+  including −1.0. §5.3 is amended to require p10 and a zero-recall cycle count.
+
+QA's recommendation to re-grid before spending Phase 1b's budget is **accepted and went further
+than requested**: with item 10's model in hand the Captain has cut Phase 1b from 27 offsets to 11
+(≈7 200 decodes rather than ≈13 200), against a stated three-part falsification criterion with a
+fallback to the full grid. See §5.2's second amendment and §9.
+
+### 15.4 Consequence for §1's question — provisional, and it moved
+
+The corrected worked example in §6 changes the anticipated answer materially: the 9.5 session's
+worst 30-minute bucket (median DT +2.90 → δ_live −2.10) costs **≈17 % of decodes, not ≈100 %**.
+The retracted −1.7 cliff had placed that bucket past the cliff; the real cliff is at −2.32 and the
+bucket sits on the shoulder. Bucket medians average over per-cycle excursions that may be worse, so
+this is a floor rather than a settled figure — but the framing that cycle-boundary misalignment was
+catastrophic across the 9.5 session is **not currently supported by measurement**, and
+`tasks.md` 10.8's eventual acceptance bound should not be written as though it were.
