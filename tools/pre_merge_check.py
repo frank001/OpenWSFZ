@@ -15,8 +15,32 @@ Both gates are trivially runnable locally and would have failed instantly.
 This script exists so there is exactly ONE command to run — not four
 separately-remembered ones — before telling anyone a change is ready.
 
+Gap found 2026-07-25 (cycle-audio-archive, PR #109): this script's Gate G9
+step only ever ran check_version_docs.py (doc/VERSION cross-reference). CI's
+own "Gate G9 — Version governance" job runs THAT *and* check_version_bump.py
+(the mandatory-bump-on-user-facing-change check, .github/workflows/ci.yml's
+G9b step) — a second script this file had never modelled at all. Consequence:
+this script reported "READY" on a PR that CI's real Gate G9 then failed
+minutes later, for exactly the class of gap this script exists to prevent.
+Fixed by adding step_g9b() below, invoking check_version_bump.py against the
+same effective base ref CI uses (origin/${{ github.base_ref }}), defaulting
+to origin/main since that's this project's base branch for the overwhelming
+majority of PRs — override with --base-ref for the rare case it isn't
+(e.g. a stacked PR per HK-008).
+
 What this runs, in order:
   1. Gate G9a — doc/VERSION consistency        (tools/check_version_docs.py)
+  1b. Gate G9b — mandatory VERSION bump on a    (tools/check_version_bump.py)
+      newly-introduced User-facing: yes change   — see "Gap found 2026-07-25"
+                                                   above. Refreshes the local
+                                                   origin/main ref first (a
+                                                   stale cached ref would make
+                                                   the diff meaningless); a
+                                                   fetch failure (no network,
+                                                   no remote) degrades to
+                                                   INCONCLUSIVE, not FAIL — an
+                                                   environment gap, not a code
+                                                   regression.
   2. Build the solution in Release              (dotnet build -c Release)
   3. The full local test suite                  (dotnet test -c Release, minus E2E
                                                    unless a published binary already
@@ -112,6 +136,12 @@ Flags:
                      isn't available and don't want the noise, or the change
                      genuinely touches nothing that could differ by platform
                      (e.g. a single markdown file).
+  --base-ref=<ref>   Base ref for step 1b's mandatory-VERSION-bump check
+                     (tools/check_version_bump.py), e.g. --base-ref=origin/develop
+                     for a PR not targeting main (HK-008 stacked-PR case).
+                     Defaults to origin/main, matching CI's own
+                     origin/${{ github.base_ref }} for the overwhelming
+                     majority of PRs in this project.
 
 Exit codes
   0  every gate that ran passed (INCONCLUSIVE results do not fail the run)
@@ -261,6 +291,50 @@ def step_g9a():
     result = GateResult("G9a — doc/VERSION consistency")
     code, _ = _run([sys.executable, os.path.join("tools", "check_version_docs.py")])
     result.status = "PASS" if code == 0 else "FAIL"
+    return result
+
+
+def step_g9b(base_ref="origin/main"):
+    """
+    G9b — mandatory VERSION bump when a newly-introduced OpenSpec proposal
+    declares **User-facing:** yes (tools/check_version_bump.py), mirroring
+    CI's own version-governance job exactly (.github/workflows/ci.yml:
+    `python3 tools/check_version_bump.py "origin/${{ github.base_ref }}"`).
+
+    Refreshes the local base-ref remote-tracking branch first via
+    `git fetch origin <branch>` — a stale cached ref (e.g. an origin/main
+    from three days ago still sitting in .git/refs/remotes) would make the
+    diff meaningless, silently comparing against the wrong commit rather
+    than the real current base. A fetch failure (no network, no remote
+    configured, ref doesn't exist) is reported INCONCLUSIVE, not FAIL — an
+    environment gap, not a code regression — and the underlying check does
+    not run in that case. check_version_bump.py's own exit code 2 ("usage /
+    git error", e.g. base_ref not reachable even after a successful fetch)
+    is likewise treated as INCONCLUSIVE rather than FAIL, per its own
+    documented exit-code contract; only exit code 1 ("a rule was violated")
+    is a real FAIL.
+    """
+    result = GateResult("G9b — mandatory VERSION bump on user-facing change")
+
+    remote_branch = base_ref.split("/", 1)[1] if "/" in base_ref else base_ref
+    fetch_code, fetch_output = _run(["git", "fetch", "origin", remote_branch])
+    if fetch_code != 0:
+        tail = fetch_output.strip().splitlines()[-1] if fetch_output.strip() else "no output"
+        result.status = "INCONCLUSIVE"
+        result.detail = (
+            f"could not `git fetch origin {remote_branch}` ({tail}) — an environment/network "
+            "gap, not a code regression. Re-run once network access is available, or pass "
+            "--base-ref to point at a ref you can reach.")
+        return result
+
+    code, _ = _run([sys.executable, os.path.join("tools", "check_version_bump.py"), base_ref])
+    if code == 0:
+        result.status = "PASS"
+    elif code == 2:
+        result.status = "INCONCLUSIVE"
+        result.detail = "check_version_bump.py reported a usage/git error (exit 2), not a rule violation — see output above."
+    else:
+        result.status = "FAIL"
     return result
 
 
@@ -528,10 +602,15 @@ def main():
     skip_tests = "--skip-tests" in args
     skip_openspec = "--skip-openspec" in args
     skip_wsl = "--skip-wsl" in args
+    base_ref = "origin/main"
+    for arg in args:
+        if arg.startswith("--base-ref="):
+            base_ref = arg[len("--base-ref="):]
 
     results = []
 
     results.append(step_g9a())
+    results.append(step_g9b(base_ref))
     build_result = step_build()
     results.append(build_result)
 
