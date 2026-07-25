@@ -1,0 +1,7 @@
+# NFR-021: decoded/derived output may contain real third-party callsigns.
+# Only the harness code and report.md are committed; all working data stays local.
+_work/
+*.wav
+manifest.csv
+provenance.json
+segments.json
