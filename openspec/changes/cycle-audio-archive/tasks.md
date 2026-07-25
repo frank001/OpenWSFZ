@@ -208,6 +208,13 @@ harness, zero further `src/` changes) and runs **after** §1-8 merge, per
       apart), ~94% message-level overlap each direction, **zero** cycles where one side found
       signals and the other found none. Full detail:
       `qa/cycleframer-alignment-replay/2026-07-25-2030-cycle-audio-archive-parity-result.md`.
+      **Addendum (§3a of that doc):** cross-checked against the Captain-gathered live
+      real-time `ALL.TXT`s (`artefacts/20260725_live_run_1806/`, git-ignored). Live OpenWSFZ
+      decode vs. offline re-decode of its own captured audio: 0.995 (no live-invocation
+      shortfall visible at this scale). Live WSJT-X vs. our `Ft8Decoder` re-decoding WSJT-X's
+      own audio: 1.575 — the pre-existing, already-tracked decoder-sensitivity gap (D-001's
+      original finding), **not** a capture-chain or cycle-boundary signal; confirmed
+      decoder-tracking, not capture-tracking, since it reproduces even on WSJT-X's own audio.
 - [x] 9.4 Report the verdict in `qa/cycleframer-alignment-replay/` and escalate to the
       Architect/Captain **before any further live endurance time is spent** on
       `fix-cycle-boundary-clock-drift`.

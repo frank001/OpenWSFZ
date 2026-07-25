@@ -102,6 +102,40 @@ issue) that would show up regardless of session length. It does not yet test whe
 decoder invocation's* process-lifetime state (native hash table, `hashTableRejectCount`) is
 what degrades over many hours -- that is explicitly the next probe, not this one.
 
+## 3a. Cross-check against the actual live decode logs (addendum, Captain-gathered artefacts)
+
+The Captain gathered the full raw artefacts of this session into
+`artefacts/20260725_live_run_1806/` (git-ignored, NFR-021): both daemons' own real-time
+`ALL.TXT` (`owsfz/ALL.TXT`, `wsjt-x/ALL.TXT`) plus the full `.wav` sets and the OpenWSFZ
+daemon log. This is a materially better artefact than §2's offline re-decode alone, because it
+lets three further, sharper questions be asked with the same data. Comparison script:
+`qa/cycleframer-alignment-replay/_work/compare_live_vs_offline.py`.
+
+Restricting all three to the same 68 filename-matched cycles used in §2:
+
+| comparison | ratio | reads as |
+|---|---|---|
+| (b) live OpenWSFZ decode vs. offline re-decode of OpenWSFZ's own captured audio | **0.995** (1277 vs. 1284) | our live production decode path is essentially deterministic with an offline batch re-decode of the identical audio -- no live-invocation-specific shortfall is visible **at this session length** |
+| (c) live WSJT-X decode vs. offline re-decode of WSJT-X's captured audio through *our* `Ft8Decoder` | **1.575** (2028 vs. 1288) | WSJT-X's own decoder finds ~58% more messages in its own audio than our `Ft8Decoder` does in the identical audio |
+| (a) live OpenWSFZ decode vs. live WSJT-X decode, same 68 cycles | **0.630** (1277 vs. 2028) | the two live systems disagree by a wide margin |
+
+**(a)'s gap is not a new finding -- it is (c)'s already-known decoder-sensitivity gap
+re-appearing, not a capture-chain or live-invocation signal.** (a) conflates two different
+decoder implementations (our `Ft8Decoder` port vs. WSJT-X's own), so it cannot isolate the
+capture chain the way §2's comparison does (same `Ft8Decoder`, only the capture chain differs).
+(c) shows the same ~1.575x gap appears even when WSJT-X's *own* audio is fed through our
+decoder -- i.e. the gap tracks the decoder, not which system captured the audio. This is the
+long-documented, separately-tracked baseline recall gap between the ported `Ft8Decoder` and
+WSJT-X's reference decoder (the original D-001 finding, R&R study baseline), not something new
+about `CycleFramer`, `WasapiAudioSource`, or process-lifetime state.
+
+**(b) is the useful new data point.** It directly tests the "live decoder invocation" hypothesis
+§3 leaves open, using the live daemon's own production decode path rather than an offline batch
+re-decode, and finds no shortfall (0.995) at this ~20-25 minute scale. This is consistent with,
+not contradictory to, §3's caveat that the phenomenon under investigation is session-length-
+dependent -- it simply extends "no defect visible yet" from the capture chain to the live
+invocation path as well, at the one scale tested so far.
+
 ## 4. Consequences for `tasks.md` / next steps
 
 1. `cycle-audio-archive/tasks.md` §9.1-9.4: **done**, this document is the 9.4 report.
