@@ -198,6 +198,26 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
 
 foreach (var w in writers.Values) { w.Flush(); w.Dispose(); }
 
+// tasks.md 11.6(b) / SPEC.md section 7.4(b-ii) (cycleframer-alignment-replay): record
+// Ft8Decoder.GetHashTableRejectCount() -- process-lifetime cumulative, so for one CLI
+// invocation this is the total for THIS ARM's entire decode set (whether or not
+// --fresh-decoder-per-wav is set: the count lives in native static memory, shared by
+// every managed Ft8Decoder instance in this process, so any instance reads the same
+// final value). Written per grid point so Phase 1b can compare reject counts across
+// arms as a confound signature -- a hash-driven reject is a genuinely missing decode
+// that normalize_hash_tokens() neither fixes nor reveals.
+{
+    int finalRejectCount = (sharedDecoder ?? new Ft8Decoder(new SystemClock(), logger: null))
+        .GetHashTableRejectCount();
+    foreach (var p in grid)
+    {
+        var dir = Path.Combine(opts.OutDir, p.DirName);
+        File.WriteAllText(Path.Combine(dir, "hash_reject_count.txt"),
+            $"hashTableRejectCount={finalRejectCount}\n");
+    }
+    Console.WriteLine($"hashTableRejectCount (process-lifetime cumulative) = {finalRejectCount}");
+}
+
 swall.Stop();
 Console.WriteLine($"Done. decoded={decoded} skipped={skipped} points={grid.Count} " +
                   $"total-decodes={(long)decoded * grid.Count} wall={swall.Elapsed.TotalMinutes:F1} min");

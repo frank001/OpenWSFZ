@@ -32,7 +32,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from score_recall import parse_all_txt, load_manifest, build_cycle_sets  # noqa: E402
+from score_recall import parse_all_txt, load_manifest, build_cycle_sets, check_no_collisions  # noqa: E402
 
 
 def build_reverse_copy(fwd_dir: Path, fwd_manifest: Path, rev_dir: Path) -> Path:
@@ -110,11 +110,13 @@ def main() -> None:
 
     fwd_rows = parse_all_txt(Path(args.fwd_all_txt))
     fwd_map = load_manifest(Path(args.fwd_manifest))
-    fwd_sets = build_cycle_sets(fwd_rows, fwd_map, normalize_hash=args.normalize_hash_tokens)
+    fwd_sets, fwd_merges = build_cycle_sets(fwd_rows, fwd_map, normalize_hash=args.normalize_hash_tokens)
+    check_no_collisions(fwd_merges, "forward-order arm")
 
     rev_rows = parse_all_txt(rev_all_txt)
     rev_map = load_manifest(rev_manifest)
-    rev_sets = build_cycle_sets(rev_rows, rev_map, normalize_hash=args.normalize_hash_tokens)
+    rev_sets, rev_merges = build_cycle_sets(rev_rows, rev_map, normalize_hash=args.normalize_hash_tokens)
+    check_no_collisions(rev_merges, "reverse-order arm")
 
     all_cycles = sorted(set(fwd_sets) | set(rev_sets))
     mismatches = []

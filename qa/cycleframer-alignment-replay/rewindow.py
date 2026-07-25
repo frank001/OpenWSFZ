@@ -180,16 +180,26 @@ def window_k_range(n_samples: int, base_offset: int) -> tuple[int, int]:
 
 
 def cut_segment(seg_pcm: np.ndarray, delta_seconds: float,
-                 k_start: int | None = None, k_end: int | None = None):
+                 k_start: int | None = None, k_end: int | None = None,
+                 k_values: "set[int] | None" = None):
     """Yield (k, window_int16_array) for every full window at offset
-    round(delta*SAMPLE_RATE) + k*WINDOW_SAMPLES, per SPEC.md 5.1 step 3."""
+    round(delta*SAMPLE_RATE) + k*WINDOW_SAMPLES, per SPEC.md 5.1 step 3.
+
+    If k_values is given (a sparse, possibly non-contiguous set of window indices --
+    needed for Phase 1b's stratified multi-segment sample), only those k are cut,
+    ignoring k_start/k_end; each requested k still must lie in this segment's valid
+    [k_min, k_max] range at this delta, or it is silently skipped (segment too short at
+    this offset) -- callers doing provenance-sensitive counting should compare the
+    requested set against what was actually yielded."""
     base = round(delta_seconds * SAMPLE_RATE)
     k_min, k_max = window_k_range(len(seg_pcm), base)
-    if k_start is not None:
-        k_min = max(k_min, k_start)
-    if k_end is not None:
-        k_max = min(k_max, k_end)
-    for k in range(k_min, k_max + 1):
+    if k_values is not None:
+        ks = sorted(k for k in k_values if k_min <= k <= k_max)
+    else:
+        lo = k_min if k_start is None else max(k_min, k_start)
+        hi = k_max if k_end is None else min(k_max, k_end)
+        ks = range(lo, hi + 1)
+    for k in ks:
         idx = base + k * WINDOW_SAMPLES
         yield k, seg_pcm[idx: idx + WINDOW_SAMPLES]
 
@@ -217,10 +227,16 @@ def wav_name(delta_seconds: float, seg_idx: int, k: int) -> str:
 
 def do_rewindow(wav_dir: Path, out_dir: Path, delta_seconds: float,
                  segment_indices: list[int] | None, k_start: int | None, k_end: int | None,
-                 clean: bool) -> tuple[Path, dict]:
+                 clean: bool, cycle_selection: "dict[int, set[int]] | None" = None) -> tuple[Path, dict]:
+    """cycle_selection, if given, maps segment_index -> a sparse set of k values to cut
+    in that segment (Phase 1b's stratified multi-segment sample) -- takes precedence
+    over k_start/k_end and over segment_indices (the segments touched are exactly
+    cycle_selection's keys)."""
     entries = list_wavs(wav_dir)
     segs = find_segments(entries)
-    if segment_indices is not None:
+    if cycle_selection is not None:
+        segs = [s for s in segs if s.index in cycle_selection]
+    elif segment_indices is not None:
         segs = [s for s in segs if s.index in segment_indices]
     if not segs:
         raise SystemExit("no segments selected (check --segment-index / source dir)")
@@ -232,9 +248,16 @@ def do_rewindow(wav_dir: Path, out_dir: Path, delta_seconds: float,
 
     manifest_rows = []
     sha = git_sha()
+    requested_total = 0
     for seg in segs:
         seg_pcm = concat_segment(seg)
-        for k, window in cut_segment(seg_pcm, delta_seconds, k_start, k_end):
+        if cycle_selection is not None:
+            k_vals = cycle_selection[seg.index]
+            requested_total += len(k_vals)
+            window_iter = cut_segment(seg_pcm, delta_seconds, k_values=k_vals)
+        else:
+            window_iter = cut_segment(seg_pcm, delta_seconds, k_start, k_end)
+        for k, window in window_iter:
             label = window_label(seg, delta_seconds, k)
             name = wav_name(delta_seconds, seg.index, k)
             write_wav_int16(out_dir / name, window)
@@ -248,6 +271,11 @@ def do_rewindow(wav_dir: Path, out_dir: Path, delta_seconds: float,
                 "harness_git_sha": sha,
             })
 
+    if cycle_selection is not None and len(manifest_rows) != requested_total:
+        print(f"[WARN] cycle_selection requested {requested_total} windows at delta={delta_seconds}, "
+              f"only {len(manifest_rows)} fell inside their segment's valid range at this offset "
+              f"(expected near segment boundaries at large |delta|).", file=sys.stderr)
+
     manifest_path = out_dir / "manifest.csv"
     with open(manifest_path, "w", newline="", encoding="utf-8") as fh:
         wr = csv.DictWriter(fh, fieldnames=list(manifest_rows[0].keys()))
@@ -260,6 +288,7 @@ def do_rewindow(wav_dir: Path, out_dir: Path, delta_seconds: float,
         "delta_seconds": delta_seconds,
         "segment_indices": sorted(s.index for s in segs),
         "k_start": k_start, "k_end": k_end,
+        "sparse_selection": cycle_selection is not None,
         "n_windows": len(manifest_rows),
         "harness_git_sha": sha,
         "generated_at": datetime.now(timezone.utc).isoformat(),

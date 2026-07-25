@@ -33,7 +33,7 @@ sys.path.insert(0, str(HERE))
 import rewindow as rw  # noqa: E402
 from score_recall import (  # noqa: E402
     parse_all_txt, load_manifest, build_cycle_sets, paired_recall, summarize,
-    check_provenance,
+    check_provenance, check_no_collisions,
 )
 
 
@@ -95,7 +95,8 @@ def main() -> None:
     )
     ref_rows = parse_all_txt(ref_all_txt)
     ref_map = load_manifest(ref_manifest)
-    ref_sets = build_cycle_sets(ref_rows, ref_map, normalize_hash=normalize)
+    ref_sets, ref_merges = build_cycle_sets(ref_rows, ref_map, normalize_hash=normalize)
+    check_no_collisions(ref_merges, "reference arm")
 
     rows_out = []
     for delta in deltas:
@@ -114,7 +115,8 @@ def main() -> None:
 
         test_rows = parse_all_txt(test_all_txt)
         test_map = load_manifest(test_manifest)
-        test_sets = build_cycle_sets(test_rows, test_map, normalize_hash=normalize)
+        test_sets, test_merges = build_cycle_sets(test_rows, test_map, normalize_hash=normalize)
+        check_no_collisions(test_merges, f"test arm delta={delta}")
 
         results, excluded = paired_recall(test_sets, ref_sets, shift=0, min_ref=args.min_ref)
         summary = summarize(results)

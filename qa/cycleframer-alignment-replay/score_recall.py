@@ -113,21 +113,59 @@ def normalize_hash_tokens(message: str) -> str:
     return _HASH_BRACKET_RE.sub("<HASH>", message)
 
 
-def build_cycle_sets(all_txt_rows: list[dict], ts_to_cycle: dict, normalize_hash: bool = False) -> dict:
-    """cycle_id -> set(message text), deduplicated, per SPEC.md 5.3."""
+def build_cycle_sets(all_txt_rows: list[dict], ts_to_cycle: dict,
+                      normalize_hash: bool = False) -> tuple[dict, list]:
+    """cycle_id -> set(message text), deduplicated, per SPEC.md 5.3.
+
+    Also returns `merges`: SPEC.md section 7.4(b-i) / tasks.md 11.6(a)'s mandatory
+    collision assertion. normalize_hash_tokens() can map two GENUINELY DISTINCT messages
+    (e.g. '<X> CALL -14' and '<Y> CALL -14') onto the same normalized string, which would
+    silently INFLATE recall by making two different signals count as one match. Each
+    merges[i] is (cycle_id, normalized_message, sorted list of >=2 distinct original
+    messages that collapsed onto it) -- empty when normalize_hash is False or no
+    collision occurred. Callers MUST check this (see check_no_collisions) rather than
+    assume it stays zero -- Phase 0 measured 0 merges across 25 cycles, but 7.18% of rows
+    carry a bracket token, which will not stay zero at Phase 1b's 400 cycles."""
     sets: dict[tuple[int, int], set] = {}
+    raw_by_cycle: dict[tuple[int, int], dict[str, set]] = {}
     unmapped = 0
     for r in all_txt_rows:
         cycle_id = ts_to_cycle.get(r["ts"])
         if cycle_id is None:
             unmapped += 1
             continue
-        msg = normalize_hash_tokens(r["message"]) if normalize_hash else r["message"]
+        original = r["message"]
+        msg = normalize_hash_tokens(original) if normalize_hash else original
         sets.setdefault(cycle_id, set()).add(msg)
+        if normalize_hash:
+            raw_by_cycle.setdefault(cycle_id, {}).setdefault(msg, set()).add(original)
     if unmapped:
         print(f"[WARN] {unmapped} ALL.TXT row(s) had a ts field absent from the manifest "
               f"(decode of a wav the manifest doesn't cover?)", file=sys.stderr)
-    return sets
+
+    merges = []
+    if normalize_hash:
+        for cycle_id, msg_map in raw_by_cycle.items():
+            for norm_msg, originals in msg_map.items():
+                if len(originals) > 1:
+                    merges.append((cycle_id, norm_msg, sorted(originals)))
+    return sets, merges
+
+
+def check_no_collisions(merges: list, context: str) -> None:
+    """SPEC.md section 7.4(b-i) mandatory guard: fail loudly, do not silently proceed,
+    if normalize_hash_tokens() merged two distinct messages within any cycle."""
+    if not merges:
+        return
+    print(f"[COLLISION] {len(merges)} hash-normalization merge(s) in {context}:", file=sys.stderr)
+    for cycle_id, norm_msg, originals in merges[:20]:
+        print(f"  cycle {cycle_id}: {originals} all normalize to {norm_msg!r}", file=sys.stderr)
+    raise SystemExit(
+        f"FATAL (SPEC.md section 7.4(b-i)): {len(merges)} hash-token collision(s) in {context} -- "
+        f"normalize_hash_tokens() merged genuinely distinct messages, which would inflate recall. "
+        f"Refusing to report a figure. This must be investigated (e.g. a finer normalization key "
+        f"that preserves the non-hash content) before scoring can proceed."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -235,12 +273,14 @@ def cmd_recall(args: argparse.Namespace) -> None:
 
     ref_rows = parse_all_txt(Path(args.ref_all_txt))
     ref_map = load_manifest(ref_manifest)
-    ref_sets = build_cycle_sets(ref_rows, ref_map, normalize_hash=args.normalize_hash_tokens)
+    ref_sets, ref_merges = build_cycle_sets(ref_rows, ref_map, normalize_hash=args.normalize_hash_tokens)
+    check_no_collisions(ref_merges, "reference arm")
 
     test_all_txt = Path(args.test_all_txt) if args.test_all_txt else Path(args.ref_all_txt)
     test_rows = parse_all_txt(test_all_txt)
     test_map = load_manifest(test_manifest)
-    test_sets = build_cycle_sets(test_rows, test_map, normalize_hash=args.normalize_hash_tokens)
+    test_sets, test_merges = build_cycle_sets(test_rows, test_map, normalize_hash=args.normalize_hash_tokens)
+    check_no_collisions(test_merges, "test arm")
 
     results, excluded = paired_recall(test_sets, ref_sets, shift=args.shift, min_ref=args.min_ref)
     summary = summarize(results)
