@@ -1,5 +1,8 @@
 # Phase 1b findings — confirm-and-cut: the model survives its first out-of-sample test
 
+> **Superseded 2026-07-26.** Closed alignment-replay work, retained as history; no live D-001
+> lead. See `2026-07-26-0015-d001-consolidation-and-clean-slate.md`.
+
 **Author:** QA session, 2026-07-25. **Scope:** SPEC.md section 9 Phase 1b (`tasks.md` 11.5-11.6),
 run via `run_phase1b.py` on the full `artefacts/20260724_live_run_2227/wav/` corpus (2,827 files,
 all 15 segments). ~7,624 decodes total (2,827 baseline + 4,797 across 11 sweep arms — slightly

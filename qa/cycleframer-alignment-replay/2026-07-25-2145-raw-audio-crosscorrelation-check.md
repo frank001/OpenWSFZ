@@ -3,6 +3,11 @@
 **Author:** QA, 2026-07-25 (21:45). Follow-on to `2026-07-25-2030-cycle-audio-archive-parity-result.md`
 (§9.3/9.4), at the Captain's request to push the comparison one level deeper than decoded text.
 
+> **Superseded 2026-07-26.** §2–§4 corrected by `2026-07-25-2300-alignment-root-cause.md`: the
+> search window here was ±50 ms, 10× too narrow (true lags run to −504 ms); with it widened,
+> 68/68 pairs lock (not 11/68), on invariant lag ≡ 76 (mod 120) — a 10 ms grid — not the mod-12
+> reading below. Body retained as history; do not cite §2–§4 as current.
+
 ---
 
 ## 0. Why this check exists

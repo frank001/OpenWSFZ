@@ -1,5 +1,8 @@
 # Phase 0b findings — cross-input determinism, and a fifth SPEC defect
 
+> **Superseded 2026-07-26.** Closed alignment-replay work, retained as history; no live D-001
+> lead. See `2026-07-26-0015-d001-consolidation-and-clean-slate.md`.
+
 **Author:** QA session, 2026-07-25. **Scope:** SPEC.md section 7.4(b) (cross-input determinism
 control) and section 7.3 (provenance-distinctness guard), following the Architect's Phase 0
 ratification (SPEC.md section 14) and its four fixed defects.

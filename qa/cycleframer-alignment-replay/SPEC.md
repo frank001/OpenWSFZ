@@ -469,6 +469,17 @@ point rather than a fresh build:
 axis changes from decode parameters to alignment offset; the decode parameters stay pinned at the
 shipped baseline throughout.
 
+**Added 2026-07-25/26:** `measure_dt_alignment.py` (this directory) — a 2×2 decoder×audio
+instrument (our decoder/our audio, our decoder/reference audio, reference decoder/reference audio,
+all live and offline combinations as available) that separates a capture-chain fault from a
+decoder fault by decomposing an absolute DT gap into its two additive components. It resolved the
+D-001 capture-vs-decoder question in one run where decode-count comparison alone could not resolve
+it at all (see `2026-07-25-2300-alignment-root-cause.md`). General-purpose, not specific to this
+study; reach for it before rebuilding an ad hoc alignment probe. Companion:
+`measure_capture_alignment.py` (waveform, full-range FFT cross-correlation — use a search window
+wide enough for the true lag range, not a narrow default; see the same document §2.1 for the
+failure mode of getting that wrong).
+
 ## 9. Phasing and cost
 
 | Phase | Scope | Decodes | Gate |

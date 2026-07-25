@@ -7,6 +7,11 @@ This document does two things: it sets out the recommendation to **close PR #108
 it specifies the **follow-on work** in enough detail for QA to author `tasks.md` entries and
 `dev-tasks/*.md` handoffs. Per HK-015 I have not written either — task authorship is QA's.
 
+> **Partially superseded 2026-07-26.** §4's work plan is withdrawn, replaced by
+> `2026-07-26-0015-d001-consolidation-and-clean-slate.md` §6 and
+> `2026-07-26-0100-architect-to-qa-land-housekeep-and-continue-d001.md` Part C. §2 (PR #108
+> mechanics/close recommendation) remains current.
+
 ---
 
 ## 1. TL;DR

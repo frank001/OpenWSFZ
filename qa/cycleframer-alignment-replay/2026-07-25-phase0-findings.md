@@ -1,5 +1,8 @@
 # Phase 0 findings — cycleframer-alignment-replay
 
+> **Superseded 2026-07-26.** Closed alignment-replay work, retained as history; no live D-001
+> lead. See `2026-07-26-0015-d001-consolidation-and-clean-slate.md`.
+
 **Author:** QA session, 2026-07-25. **Scope:** SPEC.md Phase 0 (re-windowing self-test + the
 four mandatory controls, section 7), on real off-air audio from
 `artefacts/20260724_live_run_2227/wav/` (2,827 files, 15 segments — independently reproduced

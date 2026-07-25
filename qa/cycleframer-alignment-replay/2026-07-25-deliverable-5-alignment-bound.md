@@ -1,5 +1,8 @@
 # Deliverable #5 — maximum acceptable alignment error
 
+> **Superseded 2026-07-26.** Closed alignment-replay work, retained as history; no live D-001
+> lead. See `2026-07-26-0015-d001-consolidation-and-clean-slate.md`.
+
 **Author:** Architect, 2026-07-25. **Status:** FINAL (supersedes the provisional value in SPEC §10
 item 5 and `tasks.md` 11.7 / 10.8(d)).
 **Derived from:** Phase 1b (`2026-07-25-phase1b-findings.md`, 400 cycles x 11 offsets), Phase 1a's

@@ -1,6 +1,9 @@
 # Phase 1a findings — asymmetry probe locates the negative cliff, and the model that predicted
 # its location is wrong
 
+> **Superseded 2026-07-26.** Closed alignment-replay work, retained as history; no live D-001
+> lead. See `2026-07-26-0015-d001-consolidation-and-clean-slate.md`.
+
 **Author:** QA session, 2026-07-25. **Scope:** SPEC.md section 9 Phase 1a (asymmetry probe),
 plus an unplanned refinement pass once the initial probe didn't land where predicted.
 25 cycles (segment 0, k=0..24 — the same cycles as Phase 0), all scored with
