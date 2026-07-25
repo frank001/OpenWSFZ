@@ -510,6 +510,20 @@ void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int 
  */
 #define K_MAX_DECODED  (K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2)
 
+/*
+ * K_MAX_CANDIDATES_ANY_PASS (D-001 C.1, 2026-07-26) — the true maximum per-pass
+ * candidate count across BOTH passes, in either direction. Previously the pass-loop's
+ * local `candidates[]` array (below) was hardcoded to K_MAX_CANDIDATES_PASS2 on the
+ * stale assumption that 200 is always the larger of the two caps. That is only true
+ * while K_MAX_CANDIDATES <= K_MAX_CANDIDATES_PASS2 (140 <= 200). ftx_find_candidates()
+ * writes up to pass_max_cands entries into whatever array it is given, with no bound
+ * tied to the array's actual declared size — so raising K_MAX_CANDIDATES past 200
+ * without widening this macro silently overruns a 200-element stack array on pass 0.
+ * See dev-tasks/2026-07-26-d001-candidate-cap-sweep.md §2.
+ */
+#define K_MAX_CANDIDATES_ANY_PASS \
+    (K_MAX_CANDIDATES > K_MAX_CANDIDATES_PASS2 ? K_MAX_CANDIDATES : K_MAX_CANDIDATES_PASS2)
+
 /* ── Local noise floor estimation ─────────────────────────────────────────── */
 /*
  * K_LOCAL_NOISE_WINDOW — number of waterfall bins sampled on each side of the
@@ -1293,8 +1307,10 @@ int ft8_decode_all(
         int pass_max_cands = k_pass_cfg[pass].max_cands;
         int pass_ldpc      = k_pass_cfg[pass].ldpc;
 
-        /* Size the local candidate array to the maximum across all passes */
-        ftx_candidate_t candidates[K_MAX_CANDIDATES_PASS2]; /* largest per-pass max */
+        /* Size the local candidate array to the maximum across all passes.
+         * K_MAX_CANDIDATES_ANY_PASS (not K_MAX_CANDIDATES_PASS2) — see its definition
+         * above; this is the D-001 C.1 stack-buffer-overflow fix. */
+        ftx_candidate_t candidates[K_MAX_CANDIDATES_ANY_PASS]; /* largest per-pass max, either direction */
         int ncands = ftx_find_candidates(&mon.wf, pass_max_cands,
                                           candidates, pass_min_score);
         tls_candidate_counts[pass] = ncands;
