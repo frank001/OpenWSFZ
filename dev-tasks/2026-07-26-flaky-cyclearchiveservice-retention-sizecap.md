@@ -17,10 +17,22 @@ f.Contains("260725_100000") because the oldest file must be the one deleted, but
    in CycleArchiveServiceTests.cs:line 323
 ```
 
-Failed identically (same two filenames, same message) on two separate `windows-latest` CI runs
-for the same PR:
-- run `30174105246`, job `89719988250`
-- run `30174114371`, job `89720011525`
+Failed identically (same two filenames, same message) on **all four** `windows-latest` CI job runs
+attempted for this PR — the original two jobs, and a re-run of each requested specifically to
+confirm it was a flake rather than a regression:
+- run `30174105246`, job `89719988250` (original)
+- run `30174114371`, job `89720011525` (original)
+- run `30174114371` re-run, job `89721142759` — failed again, identically
+- run `30174105246` re-run, job `89721183200` — failed again, identically
+
+**4 for 4 is stronger than a rare race and crosses TESTING_STRATEGY.md §11.3's escalation bar**
+(repeat flake on the same test before a fix lands ⇒ blocker, no merges to `main` until fixed or
+removed). It is not, however, a permanent "always fails on GitHub's Windows runner" situation
+either: PR #112, from the identical `main` tree (this file untouched since PR #109), passed all
+587 `Daemon.Tests` including this one on `windows-latest` (run `30174054128`, job `89719858235`,
+20:44:44Z) minutes before PR #113's first failure (20:45:46Z). So it can pass there — it just
+isn't doing so for this PR's runs. Flagged to the Captain rather than decided unilaterally — see
+Disposition.
 
 ## Why this is not PR #113's fault
 
@@ -82,15 +94,18 @@ already do) rather than a raw count would not have this ambiguity.
 
 ## Disposition
 
-**Status: OPEN, tracked here per TESTING_STRATEGY.md §11 — first occurrence.** Not fixed in this
-session; PR #113's own diff is unrelated and should not carry this fix as a drive-by. The failed
-CI jobs were re-run at the Captain's direction (§11 permits confirming a suspected flake this way;
-it is not the same as muting or wrapping the *test* in retry) — see below for the outcome once
-those land.
+**Status: OPEN, blocker per TESTING_STRATEGY.md §11.3.** Not fixed in this session yet — PR #113's
+own diff is unrelated and a fix should not ride in as a drive-by on it. The failed CI jobs were
+re-run at the Captain's direction to distinguish flake from regression (§11 permits this as a
+one-time confirmation; it is not the same as muting or wrapping the *test* in retry) — all four
+job runs across both original jobs failed identically. That satisfies §11.3's "repeat flake before
+the issue is fixed" condition outright: **no merge to `main` should proceed while this test is in
+this state**, for any PR, until it is fixed or removed (removal needs QA + Product-Owner
+sign-off — not proposed here; the fix in hand is small and well-understood, see below).
 
-**Re-open / escalation bar, per §11.3:** a second occurrence of this same test failing (on any
-PR) before a fix lands escalates to blocker — no merges to `main` until it's fixed or removed
-(with QA + Product-Owner sign-off for removal). This document is that first occurrence.
+This is escalated to the Captain rather than resolved unilaterally: PR #112 and PR #113 are both
+currently open awaiting your merge sign-off, and per the policy as written, neither should merge
+until this is addressed.
 
 **Suggested fix, for whoever picks this up:** change the poll to wait for the exact expected
 terminal file set (e.g. poll until `CountWavFiles() == 2 && !File.Exists(oldestPath)`, or poll
