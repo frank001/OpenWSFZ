@@ -21,6 +21,7 @@
 // Decodes are never parallelised across grid points (that would race the shared globals).
 
 using System.Globalization;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Ft8;
 using OpenWSFZ.Ft8.Tests; // WavReader (linked via <Compile Include> in the .csproj)
@@ -92,6 +93,17 @@ Console.WriteLine($"  output  : <out-dir>/<point>/{opts.AllTxtName}");
 
 // ── Open one writer per grid point. ──────────────────────────────────────────────────
 var writers = new Dictionary<string, StreamWriter>();
+// D-001 C.1 (2026-07-26) deviation from "harness unmodified" — see dev-tasks/
+// 2026-07-26-d001-candidate-cap-sweep.md §3.5. With logger: null (the harness's
+// original, unconditional behaviour), Ft8Decoder.cs:420's failCands/meanAbsLLR/
+// prenormVar Debug line is never emitted anywhere, so the candidate-cap sweep could
+// not report those fields as required. --debug-log (opt-in, default off, so every
+// existing caller of this harness is byte-for-byte unaffected) now opens one
+// <out-dir>/<point>/decode.log per grid point and routes a minimal ILogger<Ft8Decoder>
+// there, formatted to match ldpc_stats.py's RE_LLR line shape exactly (see
+// SwitchablePointLogger below) so the existing Python parsing methodology applies
+// unchanged to an offline run's log instead of a live daemon's.
+var debugLogWriters = new Dictionary<string, StreamWriter>();
 foreach (var p in grid)
 {
     var dir = Path.Combine(opts.OutDir, p.DirName);
@@ -102,7 +114,25 @@ foreach (var p in grid)
         AutoFlush = false,
     };
     writers[p.DirName] = sw;
+
+    if (opts.DebugLog)
+    {
+        var dlw = new StreamWriter(Path.Combine(dir, "decode.log"), append: false)
+        {
+            AutoFlush = true, // low volume (one line per pass per WAV) — flush cost is negligible
+        };
+        debugLogWriters[p.DirName] = dlw;
+    }
 }
+
+// Single mutable-target logger instance, shared by every Ft8Decoder this process
+// constructs (shared or fresh-per-wav) — its Target is repointed to the current grid
+// point's writer immediately before each decode, so one decoder instance processing
+// multiple grid points in sequence (the normal --points-restricted-to-one case, but
+// also the general multi-point case) still routes each pass's debug line to the
+// correct point's decode.log. Concrete only when --debug-log is set; otherwise decoders
+// get logger: null exactly as before (zero behavioural change for existing callers).
+var switchableLogger = opts.DebugLog ? new SwitchablePointLogger<Ft8Decoder>() : null;
 
 // grammarStore null → BuiltInDefault (shipped D-009 calibration). Default: one shared
 // instance for the whole run (original D-001 param-sweep behaviour, unchanged for
@@ -113,7 +143,9 @@ foreach (var p in grid)
 // same run — confirmed by that study's cross-input determinism control to otherwise
 // make message TEXT order-dependent (e.g. "<...> DG0JW" vs "<PD00DOG> DG0JW" for
 // identical audio) even though the underlying signal is found either way.
-Ft8Decoder? sharedDecoder = opts.FreshDecoderPerWav ? null : new Ft8Decoder(new SystemClock(), logger: null);
+Ft8Decoder? sharedDecoder = opts.FreshDecoderPerWav
+    ? null
+    : new Ft8Decoder(new SystemClock(), logger: switchableLogger);
 
 int decoded = 0, skipped = 0;
 long totalDecodeMs = 0;
@@ -123,7 +155,7 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
 {
     var path = wavPaths[wi];
     var stem = Path.GetFileNameWithoutExtension(path);
-    var decoder = sharedDecoder ?? new Ft8Decoder(new SystemClock(), logger: null);
+    var decoder = sharedDecoder ?? new Ft8Decoder(new SystemClock(), logger: switchableLogger);
 
     // Resolve the slot timestamp.
     DateTime cycleStart;
@@ -169,6 +201,10 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
     foreach (var p in grid)
     {
         decoder.SetDecodeParams(p.K, p.Corr, p.NHard);
+        if (switchableLogger is not null)
+            switchableLogger.Target = debugLogWriters.TryGetValue(p.DirName, out var dlw)
+                ? new StreamWriterLineLogger(dlw)
+                : null;
         var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         IReadOnlyList<DecodeResult> results;
         try
@@ -197,6 +233,7 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
 }
 
 foreach (var w in writers.Values) { w.Flush(); w.Dispose(); }
+foreach (var w in debugLogWriters.Values) { w.Flush(); w.Dispose(); }
 
 // tasks.md 11.6(b) / SPEC.md section 7.4(b-ii) (cycleframer-alignment-replay): record
 // Ft8Decoder.GetHashTableRejectCount() -- process-lifetime cumulative, so for one CLI
@@ -284,6 +321,7 @@ sealed class CliOptions
     public int? ShardIndex { get; init; }
     public int? ShardCount { get; init; }
     public bool FreshDecoderPerWav { get; init; }
+    public bool DebugLog { get; init; }
 
     public static CliOptions? Parse(string[] args)
     {
@@ -294,6 +332,7 @@ sealed class CliOptions
         HashSet<string>? points = null;
         int? indexStart = null, indexEnd = null, shardIndex = null, shardCount = null;
         bool freshDecoderPerWav = false;
+        bool debugLog = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -317,6 +356,7 @@ sealed class CliOptions
                 case "--shard-index": shardIndex = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--shard-count": shardCount = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--fresh-decoder-per-wav": freshDecoderPerWav = true; break;
+                case "--debug-log": debugLog = true; break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {a}");
                     return Usage();
@@ -342,6 +382,7 @@ sealed class CliOptions
             IndexStart = indexStart, IndexEnd = indexEnd,
             ShardIndex = shardIndex, ShardCount = shardCount,
             FreshDecoderPerWav = freshDecoderPerWav,
+            DebugLog = debugLog,
         };
     }
 
@@ -351,7 +392,62 @@ sealed class CliOptions
             "Usage: D001ParamSweep --wav-dir <dir> --out-dir <dir> --all-txt-name <name>\n" +
             "                      [--manifest <csv>] [--dial-mhz <d>] [--limit <n>]\n" +
             "                      [--points k10_c0.10_n60,...] [--progress-every <n>]\n" +
-            "                      [--fresh-decoder-per-wav]");
+            "                      [--fresh-decoder-per-wav] [--debug-log]");
         return null;
+    }
+}
+
+// ── D-001 C.1 debug-log support (--debug-log, §3.5 of the candidate-cap-sweep dev-task) ──
+
+/// <summary>
+/// Retargetable <c>ILogger&lt;T&gt;</c> — every <see cref="Ft8Decoder"/> instance this process
+/// constructs shares ONE instance of this wrapper (assigned once, at startup); <see cref="Target"/>
+/// is repointed to the current grid point's <see cref="StreamWriterLineLogger"/> immediately
+/// before each decode call. This lets a single long-lived <c>sharedDecoder</c> (the harness's
+/// default mode) route each grid point's debug lines to that point's own <c>decode.log</c>, even
+/// though Ft8Decoder's constructor only accepts a logger once. When null (the default -- no
+/// point's decode.log open, e.g. --fresh-decoder-per-wav churns decoders faster than points),
+/// logging is a no-op, matching the harness's original logger: null behaviour exactly.
+/// </summary>
+sealed class SwitchablePointLogger<T> : ILogger<T>
+{
+    public ILogger? Target { get; set; }
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => Target?.BeginScope(state);
+    public bool IsEnabled(LogLevel logLevel) => Target?.IsEnabled(logLevel) ?? false;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+        => Target?.Log(logLevel, eventId, state, exception, formatter);
+}
+
+/// <summary>
+/// Minimal file-backed <c>ILogger</c> that formats lines to match
+/// <c>qa/cycleframer-alignment-replay/ldpc_stats.py</c>'s <c>RE_LLR</c>/<c>RE_PASS</c>/<c>RE_DEC</c>
+/// regexes byte-for-byte: <c>{yyyy-MM-dd HH:mm:ss.fff} +00:00 [LVL] {message}</c> — the same shape
+/// Serilog's default <c>{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message}</c> template
+/// produces in the daemon's own log files (<see cref="OpenWSFZ.Daemon.Logging.LoggingPipeline"/>),
+/// so the existing Python parsing methodology applies unchanged to this offline harness's log.
+/// </summary>
+sealed class StreamWriterLineLogger(StreamWriter writer) : ILogger
+{
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        string lvl = logLevel switch
+        {
+            LogLevel.Trace       => "VRB",
+            LogLevel.Debug       => "DBG",
+            LogLevel.Information => "INF",
+            LogLevel.Warning     => "WRN",
+            LogLevel.Error       => "ERR",
+            LogLevel.Critical    => "FTL",
+            _                    => "INF",
+        };
+        string ts = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+        writer.WriteLine($"{ts} +00:00 [{lvl}] {formatter(state, exception)}");
     }
 }
