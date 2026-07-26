@@ -97,6 +97,11 @@ public sealed class AvContainmentTests
         }
 
         public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { /* no-op */ }
+
+        public void SetCandidateDiagCapture(bool enable) { /* no-op */ }
+        public (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
+                float[] PrenormVariance, float[] PostnormMeanAbsLlr) GetLastCandidateDiagnostics()
+            => ([], [], [], [], [], []);
     }
 
     /// <summary>

@@ -220,8 +220,15 @@ internal static class Ft8LibInterop
     ///   this managed layer, ABI, or struct layout (48 bytes) — the bump exists purely so the
     ///   startup ABI check catches a stale (pre-fix) native binary whose reject count cannot be
     ///   trusted once the hash table saturates.
+    /// 20260034 (d001-c2-llr-normalization): adds two exported entry points for an opt-in,
+    ///   per-pass-0-candidate diagnostic capture — <c>ft8_set_candidate_diag_capture</c> and
+    ///   <c>ft8_get_last_candidate_diag</c> (surfaced here as <see cref="SetCandidateDiagCapture"/>
+    ///   and <see cref="GetLastCandidateDiagnostics"/>). Disabled by default: zero behavioural or
+    ///   performance change on the production decode path when capture is off. No change to
+    ///   ABI or struct layout (48 bytes) for any existing entry point — the bump exists purely
+    ///   so the startup ABI check catches a stale (pre-diagnostic) native binary.
     /// </summary>
-    private const int ExpectedShimVersion = 20260033;
+    private const int ExpectedShimVersion = 20260034;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -257,6 +264,14 @@ internal static class Ft8LibInterop
     /// populated portion.
     /// </summary>
     private const int MaxResults = 340;  // 140 + 200 (two-pass capacity)
+
+    /// <summary>
+    /// Maximum number of pass-0 candidates the per-candidate diagnostic capture
+    /// (C.2, shim 20260034) can record in one decode cycle. Mirrors the native
+    /// <c>K_MAX_CANDIDATES</c> constant (pass-0's candidate cap, 140) — the diagnostic
+    /// only captures pass-0 candidates, so pass 1's larger cap (200) is not relevant here.
+    /// </summary>
+    private const int MaxPass0Candidates = 140;
 
     /// <summary>
     /// Number of decode passes executed by the native shim per cycle.
@@ -350,6 +365,32 @@ internal static class Ft8LibInterop
         [Out] float[] outMeanAbs,
         [Out] float[] outPrenormVariance,
         [Out] int[]   outFailCount,
+        int           capacity);
+
+    /// <summary>
+    /// Enable/disable per-pass-0-candidate diagnostic capture for the next
+    /// <see cref="NativeDecodeAll"/> call on this thread (C.2 LLR-normalisation
+    /// investigation, shim 20260034). Disabled by default. Sticky across calls.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_candidate_diag_capture",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetCandidateDiagCapture(int enable);
+
+    /// <summary>
+    /// Return per-pass-0-candidate diagnostics from the most recent
+    /// <see cref="NativeDecodeAll"/> call on this thread (C.2, shim 20260034).
+    /// Populated only if <see cref="NativeSetCandidateDiagCapture"/> was called with
+    /// a non-zero value beforehand.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_candidate_diag",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastCandidateDiag(
+        [Out] float[] outFreqHz,
+        [Out] float[] outDt,
+        [Out] short[] outScore,
+        [Out] byte[]  outDecoded,
+        [Out] float[] outPrenormVar,
+        [Out] float[] outPostnormMeanAbs,
         int           capacity);
 
     /// <summary>
@@ -552,6 +593,67 @@ internal static class Ft8LibInterop
             return ([], [], []);
 
         return (meanAbs[..numPasses], prenormVariance[..numPasses], failCount[..numPasses]);
+    }
+
+    /// <summary>
+    /// Enable/disable per-pass-0-candidate diagnostic capture (C.2 LLR-normalisation
+    /// investigation, shim 20260034). Disabled by default — production callers should
+    /// never call this. The setting is sticky across <see cref="DecodeAll"/> calls on
+    /// the calling thread until changed again.
+    /// </summary>
+    public static void SetCandidateDiagCapture(bool enable)
+    {
+        EnsureInitialized();
+        NativeSetCandidateDiagCapture(enable ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Return per-pass-0-candidate diagnostics from the most recent <see cref="DecodeAll"/>
+    /// call on this thread (C.2, shim 20260034). Empty unless <see cref="SetCandidateDiagCapture"/>
+    /// was called with <c>true</c> before that <see cref="DecodeAll"/> call.
+    /// <para>
+    /// <c>FreqHz[i]</c> / <c>Dt[i]</c> — candidate centre frequency (Hz) and time offset (s),
+    /// same formula as the decoded-result fields in <see cref="Ft8NativeResult"/>.
+    /// </para>
+    /// <para>
+    /// <c>Score[i]</c> — sync score (<c>ftx_candidate_t.score</c>).
+    /// </para>
+    /// <para>
+    /// <c>Decoded[i]</c> — <c>true</c> if the native LDPC/OSD decode converged and the CRC
+    /// matched for this candidate this cycle; independent of any later cross-pass dedup or
+    /// text-unpack outcome.
+    /// </para>
+    /// <para>
+    /// <c>PrenormVariance[i]</c> — pre-normalisation variance of the raw log174 array.
+    /// <c>PostnormMeanAbsLlr[i]</c> — post-normalisation mean|LLR|; may be <c>NaN</c> for
+    /// degenerate candidates (prenorm variance == 0) — callers must check
+    /// <c>float.IsFinite</c> before using it.
+    /// </para>
+    /// Must be called on the same thread that called <see cref="DecodeAll"/>.
+    /// </summary>
+    public static (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
+                   float[] PrenormVariance, float[] PostnormMeanAbsLlr) GetLastCandidateDiagnostics()
+    {
+        EnsureInitialized();
+
+        var freqHz            = new float[MaxPass0Candidates];
+        var dt                 = new float[MaxPass0Candidates];
+        var score               = new short[MaxPass0Candidates];
+        var decodedRaw          = new byte[MaxPass0Candidates];
+        var prenormVariance     = new float[MaxPass0Candidates];
+        var postnormMeanAbsLlr  = new float[MaxPass0Candidates];
+
+        int n = NativeGetLastCandidateDiag(
+            freqHz, dt, score, decodedRaw, prenormVariance, postnormMeanAbsLlr, MaxPass0Candidates);
+
+        if (n <= 0)
+            return ([], [], [], [], [], []);
+
+        var decoded = new bool[n];
+        for (int i = 0; i < n; i++) decoded[i] = decodedRaw[i] != 0;
+
+        return (freqHz[..n], dt[..n], score[..n], decoded,
+                prenormVariance[..n], postnormMeanAbsLlr[..n]);
     }
 
     /// <summary>

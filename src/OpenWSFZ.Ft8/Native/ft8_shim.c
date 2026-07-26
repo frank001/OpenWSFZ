@@ -527,6 +527,26 @@ static _Thread_local int   tls_llr_fail_count[K_MAX_PASSES];
 static _Thread_local int   tls_num_passes       = 0;
 static _Thread_local float tls_last_noise_floor_db = 0.0f;
 
+/* ── Thread-local per-candidate diagnostic capture (C.2 LLR-normalisation
+ * investigation, shim 20260034) ──────────────────────────────────────────
+ * Opt-in (default disabled): when enabled via ft8_set_candidate_diag_capture(1),
+ * every PASS-0 candidate examined this cycle (whether or not it decodes) has its
+ * frequency, time offset, sync score, decode outcome, pre-normalisation log174
+ * variance, and post-normalisation mean|LLR| recorded here.  Sized to
+ * K_MAX_CANDIDATES (pass 0's cap, 140) — pass 1 candidates are NOT captured, per
+ * the dev-task scope (Phase 1 targets pass-0 candidate survival only).
+ * Zero cost when disabled: the capture block is skipped entirely, so the extra
+ * ftx_compute_candidate_llr_stats() call for already-decoded candidates (which
+ * production code never makes) never runs on the shipped path.               */
+static _Thread_local int     tls_diag_capture_enabled          = 0;
+static _Thread_local float   tls_diag_freq_hz[K_MAX_CANDIDATES];
+static _Thread_local float   tls_diag_dt[K_MAX_CANDIDATES];
+static _Thread_local int16_t tls_diag_score[K_MAX_CANDIDATES];
+static _Thread_local uint8_t tls_diag_decoded[K_MAX_CANDIDATES];
+static _Thread_local float   tls_diag_prenorm_var[K_MAX_CANDIDATES];
+static _Thread_local float   tls_diag_postnorm_mean_abs[K_MAX_CANDIDATES];
+static _Thread_local int     tls_diag_count                    = 0;
+
 /* ── Thread-local AP decode state (Task A, shim 20260020) ────────────────── */
 /*
  * AP bit constraints supplied by ft8_set_ap_bits().  Copied into an override
@@ -1095,6 +1115,67 @@ int ft8_get_last_llr_stats(
     return n;
 }
 
+/* ── Per-candidate diagnostic capture (C.2, shim 20260034) ──────────────── */
+/*
+ * ft8_set_candidate_diag_capture — enable/disable per-candidate diagnostic
+ * capture for the next ft8_decode_all call on this thread.  Disabled (0) by
+ * default: production callers never pay for this.  Call with enable=1 before
+ * ft8_decode_all to populate the TLS buffers read back by
+ * ft8_get_last_candidate_diag(); the flag is sticky across calls (does not
+ * reset itself) so a harness can enable it once and decode many cycles.
+ */
+void ft8_set_candidate_diag_capture(int enable)
+{
+    tls_diag_capture_enabled = enable ? 1 : 0;
+}
+
+/*
+ * ft8_get_last_candidate_diag — return per-pass-0-candidate diagnostics from
+ * the most recent ft8_decode_all call on this thread.  Populated only if
+ * ft8_set_candidate_diag_capture(1) was called beforehand; returns 0 otherwise.
+ *
+ * out_freq_hz[i]            — candidate centre frequency, Hz (same formula used
+ *                              for FT8Result.freq_hz, unrounded).
+ * out_dt[i]                 — candidate time offset from cycle start, seconds.
+ * out_score[i]               — sync score (ftx_candidate_t.score).
+ * out_decoded[i]             — 1 if ftx_decode_candidate()/ftx_decode_candidate_ap()
+ *                              returned true for this candidate (LDPC/OSD converged
+ *                              AND CRC matched); 0 otherwise.  Independent of any
+ *                              later cross-pass dedup or text-unpack outcome — this
+ *                              is the LDPC-survival signal the C.2 hypothesis is about.
+ * out_prenorm_var[i]         — pre-normalisation variance of the raw log174 array.
+ * out_postnorm_mean_abs[i]   — post-normalisation mean|LLR|.  NaN for degenerate
+ *                              candidates (prenorm variance == 0) — callers must
+ *                              isfinite()-check before use, same contract as
+ *                              ftx_compute_candidate_llr_stats().
+ * capacity                   — size of all output arrays; pass >= K_MAX_CANDIDATES
+ *                              (140) for full data.
+ *
+ * Returns: number of pass-0 candidates recorded this cycle (<= capacity).
+ * Thread-safe: TLS-scoped, same contract as ft8_get_last_pass_counts.
+ */
+int ft8_get_last_candidate_diag(
+    float*   out_freq_hz,
+    float*   out_dt,
+    int16_t* out_score,
+    uint8_t* out_decoded,
+    float*   out_prenorm_var,
+    float*   out_postnorm_mean_abs,
+    int      capacity)
+{
+    int n = (tls_diag_count < capacity) ? tls_diag_count : capacity;
+    for (int i = 0; i < n; i++)
+    {
+        out_freq_hz[i]           = tls_diag_freq_hz[i];
+        out_dt[i]                = tls_diag_dt[i];
+        out_score[i]             = tls_diag_score[i];
+        out_decoded[i]           = tls_diag_decoded[i];
+        out_prenorm_var[i]       = tls_diag_prenorm_var[i];
+        out_postnorm_mean_abs[i] = tls_diag_postnorm_mean_abs[i];
+    }
+    return n;
+}
+
 /* ── AP decode setter (Task A, shim 20260020) ────────────────────────────── */
 /*
  * ft8_set_ap_bits — supply known AP bit constraints for the next decode cycle.
@@ -1202,6 +1283,7 @@ int ft8_decode_all(
     for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_prenorm_var_sum[i] = 0.0f; /* Task B */
     for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_fail_count[i]      = 0;
     tls_num_passes = 0;
+    tls_diag_count = 0; /* C.2, shim 20260034 — reset regardless of capture-enabled state */
 
     /* ── 4a. Cross-pass suppression accumulator ─────────────────────────── */
     /* Holds decoded candidates from pass 0 for spectrogram-domain tile
@@ -1317,6 +1399,33 @@ int ft8_decode_all(
                                                   ap_log174, &msg, &status);
             else
                 decoded = ftx_decode_candidate(&mon.wf, cand, pass_ldpc, &msg, &status);
+
+            /* C.2 LLR-normalisation diagnostic capture (shim 20260034): every pass-0
+             * candidate, decoded or not — opt-in via ft8_set_candidate_diag_capture(1),
+             * independent of the existing failing-candidate-only aggregate below (that
+             * accumulator is untouched; this re-derives its own prenorm_var/mean_abs so
+             * the aggregate's behaviour cannot regress). freq_hz/dt formulas mirror the
+             * decoded-result computation further below verbatim. */
+            if (pass == 0 && tls_diag_capture_enabled && tls_diag_count < K_MAX_CANDIDATES)
+            {
+                float diag_prenorm_var = 0.0f;
+                float diag_mean_abs = ftx_compute_candidate_llr_stats(&mon.wf, cand, &diag_prenorm_var);
+
+                float diag_freq_hz = (mon.min_bin + cand->freq_offset +
+                                      (float)cand->freq_sub / mon.wf.freq_osr)
+                                    / mon.symbol_period;
+                float diag_dt      = (cand->time_offset +
+                                      (float)cand->time_sub / mon.wf.time_osr)
+                                    * mon.symbol_period;
+
+                int di = tls_diag_count++;
+                tls_diag_freq_hz[di]          = diag_freq_hz;
+                tls_diag_dt[di]               = diag_dt;
+                tls_diag_score[di]            = cand->score;
+                tls_diag_decoded[di]          = decoded ? 1 : 0;
+                tls_diag_prenorm_var[di]      = diag_prenorm_var;
+                tls_diag_postnorm_mean_abs[di]= diag_mean_abs; /* may be NaN — degenerate candidate */
+            }
 
             if (!decoded)
             {

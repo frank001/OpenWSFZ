@@ -41,4 +41,11 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
         => Ft8LibInterop.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
+
+    public void SetCandidateDiagCapture(bool enable)
+        => Ft8LibInterop.SetCandidateDiagCapture(enable);
+
+    public (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
+            float[] PrenormVariance, float[] PostnormMeanAbsLlr) GetLastCandidateDiagnostics()
+        => Ft8LibInterop.GetLastCandidateDiagnostics();
 }
