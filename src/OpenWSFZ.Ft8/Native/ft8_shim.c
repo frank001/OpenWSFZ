@@ -463,6 +463,12 @@ void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int 
 #define TONE_SPACING_HZ   6.25f    /* Hz per FT8 tone step (6.25 Hz / tone)        */
 #define FT8_SAMPLE_RATE_F 12000.0f /* Nominal sample rate used by all synthesis math */
 
+/* D-001 C.4 min-score sweep (dev-tasks/2026-07-26-d001-c4-min-score-sweep.md) swept K_MIN_SCORE
+ * {10 (baseline), 8, 6, 4} paired with K_MAX_CANDIDATES=600 (and, for a supplementary
+ * ceiling-saturation check, 2000) -- see the findings doc
+ * (qa/cycleframer-alignment-replay/2026-07-26-c4-min-score-sweep-findings.md) for the decisive
+ * positive result. Restored to the shipped 10/140 here; no constant change is shipped from this
+ * branch (findings doc §10) pending the Architect/QA-scoped follow-up that result calls for. */
 #define K_MIN_SCORE       10
 #define K_MAX_CANDIDATES  140
 #define K_LDPC_ITERATIONS 50   /* raised 25→50 (shim 20260025): optimal flooding BP count per H_ITER diagnostic */

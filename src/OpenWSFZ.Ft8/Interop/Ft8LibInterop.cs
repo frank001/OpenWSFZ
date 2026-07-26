@@ -267,11 +267,26 @@ internal static class Ft8LibInterop
 
     /// <summary>
     /// Maximum number of pass-0 candidates the per-candidate diagnostic capture
-    /// (C.2, shim 20260034) can record in one decode cycle. Mirrors the native
-    /// <c>K_MAX_CANDIDATES</c> constant (pass-0's candidate cap, 140) — the diagnostic
-    /// only captures pass-0 candidates, so pass 1's larger cap (200) is not relevant here.
+    /// (C.2, shim 20260034) can record in one decode cycle. Must be &gt;= the native
+    /// <c>K_MAX_CANDIDATES</c> constant (pass-0's candidate cap) currently baked into the
+    /// loaded <c>libft8</c> binary — the diagnostic only captures pass-0 candidates, so
+    /// pass 1's larger cap (200) is not relevant here.
+    /// <para>
+    /// D-001 C.4 (dev-tasks/2026-07-26-d001-c4-min-score-sweep.md) found this hardcoded at
+    /// the then-shipped 140 was a silent truncation bug: raising native
+    /// <c>K_MAX_CANDIDATES</c> to 600 for the min-score sweep (so a lower <c>K_MIN_SCORE</c>
+    /// floor's extra candidates aren't heap-truncated, per that dev-task's Sec.3) did nothing
+    /// for the diagnostic CSV, because <see cref="NativeGetLastCandidateDiag"/>'s own
+    /// <c>capacity</c> parameter — sized from this constant — silently capped the managed
+    /// copy back down to the first 140 candidates the native loop happened to capture,
+    /// regardless of how many cleared the floor. Raised to 600 to match C.1's own verified
+    /// crash-free ceiling (same class of fix as that dev-task's
+    /// <c>K_MAX_CANDIDATES_ANY_PASS</c> native-side stack-safety fix, but on the managed
+    /// side of this opt-in diagnostic path — production callers never hit this, since
+    /// <see cref="SetCandidateDiagCapture"/> defaults to disabled).
+    /// </para>
     /// </summary>
-    private const int MaxPass0Candidates = 140;
+    private const int MaxPass0Candidates = 600;
 
     /// <summary>
     /// Number of decode passes executed by the native shim per cycle.

@@ -56,6 +56,22 @@ from this same fixed code path) found a small, real, bounded recovery — see
 qa/cycleframer-alignment-replay/2026-07-26-c1-candidate-cap-sweep-findings.md — not judged to
 justify shipping a cap other than 140 without a separate, deliberate sign-off.
 
+Rebuild note (2026-07-26, D-001 C.4 min-score sweep): branch `d001-c4-min-score-sweep` (off
+`main` post-#115, merged with `d001-c2-llr-normalization`) swept K_MIN_SCORE {10,8,6,4} x
+K_MAX_CANDIDATES {600, and a supplementary 2000} — see
+qa/cycleframer-alignment-replay/2026-07-26-c4-min-score-sweep-findings.md for the decisive
+positive result (large, real recovery of C.3's 648-message candidate-generation-gap population,
+not a shipping recommendation from this branch pending a validated follow-up per that doc's §10).
+FT8_SHIM_VERSION is NOT bumped for this rebuild — the shipped constants (K_MIN_SCORE=10,
+K_MAX_CANDIDATES=140) are unchanged in the committed binary; the sweep itself used local,
+uncommitted intermediate rebuilds. One permanent `src/` change DID survive this branch, on the
+managed side only: `Ft8LibInterop.cs`'s `MaxPass0Candidates` constant (the diagnostic-capture
+buffer size mirroring native K_MAX_CANDIDATES) was found hardcoded at the stale 140 — a silent
+truncation bug that produced a wrong first-pass "null" result during this sweep before being
+caught and fixed (see the findings doc §3). Raised to 600, same "dormant, zero-cost until the
+native constant moves again" framing as K_MAX_CANDIDATES_ANY_PASS above; this native binary is
+unaffected (the fix is entirely on the managed/interop side).
+
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
@@ -81,10 +97,15 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
-Build date:       CI-rebuilt — the committed binary is a prior-version placeholder;
-                  CI always builds from the current ft8_shim.c (current shim version).
-                  See .github/workflows/ci.yml step "Build native Linux SO (x64, GCC)".
-                  CI `commit-native-binaries` job auto-commits shim 20260030 after next push.
+Build date:       2026-07-26 (D-001 C.4) — manually rebuilt via WSL2 Debian
+                  (native/ft8_lib_build/build_linux.sh) to bring the committed placeholder up to
+                  FT8_SHIM_VERSION=20260034; `pre_merge_check.py`'s WSL gate was failing with an
+                  ABI-mismatch (expected 20260034, got the stale 20260033 placeholder) until this
+                  rebuild — CI would have fixed it post-push regardless, but this branch's own
+                  local gate needed a real binary to go green, not a wave-off. CI still always
+                  rebuilds from the current ft8_shim.c on every push regardless of what's
+                  committed here — see .github/workflows/ci.yml step "Build native Linux SO (x64,
+                  GCC)"; the `commit-native-binaries` job will overwrite this with its own build.
 Patches:          none — unpatched kgoba/ft8_lib sources used directly (GCC supports C11 VLAs)
 Sources:          /mnt/c/Temp/ft8_lib_headers (headers from msvc-compat d18ed84) + ft8_shim.c
 
