@@ -118,6 +118,55 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     public int GetHashTableRejectCount()
         => _interop.GetHashTableRejectCount();
 
+    /// <summary>
+    /// Enable/disable per-pass-0-candidate diagnostic capture (C.2 LLR-normalisation
+    /// investigation, dev-tasks/2026-07-26-d001-c2-llr-normalization.md). Disabled by
+    /// default — production callers (the daemon) should never call this; it exists for
+    /// the offline diagnostic harness to opt into before decoding a corpus.
+    /// <para>
+    /// Pure C#-side flag (no native call here): <see cref="DecodeAsync"/> reads it and
+    /// (re)asserts the native capture toggle itself, from inside the same <c>Task.Run</c>
+    /// that calls <c>DecodeAll</c> — same reason <see cref="SetApConstraints"/>'s value is
+    /// applied inside that lambda rather than by a separate direct native call from here:
+    /// the native flag is thread-local, and the calling thread is never the thread that
+    /// actually runs the native decode.
+    /// </para>
+    /// Takes effect on the next <see cref="DecodeAsync"/> call; safe to call at any time.
+    /// </summary>
+    public void SetCandidateDiagCapture(bool enable)
+        => _candidateDiagCaptureEnabled = enable;
+
+    private volatile bool _candidateDiagCaptureEnabled;
+    private IReadOnlyList<Ft8CandidateDiagnostic> _lastCandidateDiagnostics = [];
+
+    /// <summary>
+    /// Return per-pass-0-candidate diagnostics captured during the most recent
+    /// <see cref="DecodeAsync"/> call (C.2). Empty unless <see cref="SetCandidateDiagCapture"/>
+    /// was set to <c>true</c> before that call. Safe to read from any thread after the
+    /// <see cref="DecodeAsync"/> task completes — unlike the native getters this wraps, it is
+    /// an ordinary managed field snapshotted inside <see cref="DecodeAsync"/>'s own
+    /// TLS-affine <c>Task.Run</c>, not a second TLS read from an arbitrary caller thread.
+    /// See <see cref="Ft8CandidateDiagnostic"/> for field semantics — in particular,
+    /// <see cref="Ft8CandidateDiagnostic.Decoded"/> reflects raw LDPC/OSD+CRC survival, not
+    /// membership in the cycle's final (deduped, text-unpacked) decode list.
+    /// </summary>
+    public IReadOnlyList<Ft8CandidateDiagnostic> GetLastCandidateDiagnostics()
+        => _lastCandidateDiagnostics;
+
+    private static IReadOnlyList<Ft8CandidateDiagnostic> BuildCandidateDiagnostics(
+        (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
+         float[] PrenormVariance, float[] PostnormMeanAbsLlr) raw)
+    {
+        var result = new Ft8CandidateDiagnostic[raw.FreqHz.Length];
+        for (int i = 0; i < raw.FreqHz.Length; i++)
+        {
+            result[i] = new Ft8CandidateDiagnostic(
+                raw.FreqHz[i], raw.Dt[i], raw.Score[i], raw.Decoded[i],
+                raw.PrenormVariance[i], raw.PostnormMeanAbsLlr[i]);
+        }
+        return result;
+    }
+
     /// <param name="clock">Wall-clock provider for aligning cycle timestamps.</param>
     /// <param name="logger">Optional structured logger; pass null to suppress all log output.</param>
     /// <param name="grammarStore">
@@ -287,11 +336,25 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 else
                     _interop.SetApBits([], []);  // explicitly clear any TLS residue from a prior cycle
 
+                // C.2 diagnostic capture (shim 20260034): re-asserted every cycle rather than
+                // relying on native stickiness, for the same reason SetApBits is re-asserted
+                // above — the ThreadPool thread executing this lambda is not guaranteed to be
+                // the same one from cycle to cycle, so the C#-side _candidateDiagCaptureEnabled
+                // flag (not the native TLS flag) is this decoder's single source of truth.
+                _interop.SetCandidateDiagCapture(_candidateDiagCaptureEnabled);
+
                 var r = _interop.DecodeAll(normalisedPcm);
                 var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
                 var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
                 var n = _interop.GetLastNoiseFloorDb();
                 var l = _interop.GetLastLlrStats(_interop.MaxDecodePasses);
+
+                // Must be read here too (same TLS-affinity requirement as p/c/n/l above) —
+                // never from a public getter called after this Task.Run returns.
+                _lastCandidateDiagnostics = _candidateDiagCaptureEnabled
+                    ? BuildCandidateDiagnostics(_interop.GetLastCandidateDiagnostics())
+                    : [];
+
                 return (r, p, c, n, l);
             }, ct);
         }
@@ -305,6 +368,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 "cycle skipped. If this recurs, configure WER LocalDumps or attach ProcDump " +
                 "before the next live run to capture a crash dump for D-006 root-cause analysis.",
                 timeStr);
+            // TLS state (and therefore anything captured from it) is unreliable after an AV
+            // (R-1 guard) — clear rather than let a prior cycle's diagnostics leak into this
+            // cycle's (empty) result set.
+            _lastCandidateDiagnostics = [];
             return [];
         }
 

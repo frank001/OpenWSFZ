@@ -33,6 +33,11 @@ public sealed class WorkedBeforeLookupTests
 
         public void SetApBits(byte[] mycallBits, byte[] hiscallBits) { }
         public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { }
+
+        public void SetCandidateDiagCapture(bool enable) { /* no-op */ }
+        public (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
+                float[] PrenormVariance, float[] PostnormMeanAbsLlr) GetLastCandidateDiagnostics()
+            => ([], [], [], [], [], []);
     }
 
     private static float[] BuildLoudPcm()

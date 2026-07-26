@@ -293,8 +293,19 @@ extern "C" {
  *              fires after a full probe confirms the callsign is genuinely new.  No change
  *              to the 256-slot capacity or eviction policy.  No ABI or struct layout change;
  *              no new exported entry points.
+ *   20260034 — d001-c2-llr-normalization: per-pass-0-candidate diagnostic capture, opt-in
+ *              via ft8_set_candidate_diag_capture(1) and read back via
+ *              ft8_get_last_candidate_diag().  Disabled by default — zero behavioural or
+ *              performance change on the production path (the capture block is skipped
+ *              entirely when the flag is off, so it never calls
+ *              ftx_compute_candidate_llr_stats() for already-decoded candidates, which
+ *              production code never does).  Investigates whether ftx_normalize_logl's
+ *              fixed-target-variance scheme predicts the specific messages missed vs.
+ *              decoded at the per-candidate level (D-001 consolidation doc §3, §6.2).
+ *              Two new exported entry points; no change to any existing export's signature
+ *              or behaviour.
  */
-#define FT8_SHIM_VERSION 20260033
+#define FT8_SHIM_VERSION 20260034
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -426,6 +437,60 @@ int ft8_get_last_llr_stats(
     float* out_prenorm_variance,
     int*   out_fail_count,
     int    capacity);
+
+/*
+ * ft8_set_candidate_diag_capture — enable/disable per-pass-0-candidate diagnostic
+ * capture for the next ft8_decode_all call on this thread (C.2 LLR-normalisation
+ * investigation, shim 20260034).
+ *
+ * Disabled (0) by default: production callers never pay for this — the capture
+ * block inside ft8_decode_all is skipped entirely when the flag is off, so it
+ * never invokes ftx_compute_candidate_llr_stats() for already-decoded candidates
+ * (which production code never does today).
+ *
+ * The flag is sticky across ft8_decode_all calls (it does not reset itself), so a
+ * diagnostic harness can enable it once and then decode many cycles.
+ *
+ * Thread-safe: TLS-scoped. Call on the same thread that will call ft8_decode_all.
+ */
+void ft8_set_candidate_diag_capture(int enable);
+
+/*
+ * ft8_get_last_candidate_diag — return per-pass-0-candidate diagnostics from the
+ * most recent ft8_decode_all call on this thread (C.2, shim 20260034). Populated
+ * only if ft8_set_candidate_diag_capture(1) was called beforehand; returns 0
+ * candidates (all output arrays left untouched) otherwise.
+ *
+ * out_freq_hz[i]           — candidate centre frequency, Hz (same formula used for
+ *                            FT8Result.freq_hz, unrounded float).
+ * out_dt[i]                — candidate time offset from cycle start, seconds.
+ * out_score[i]              — sync score (ftx_candidate_t.score).
+ * out_decoded[i]            — 1 if ftx_decode_candidate()/ftx_decode_candidate_ap()
+ *                            returned true for this candidate (LDPC/OSD converged
+ *                            AND CRC matched) this cycle; 0 otherwise. Independent
+ *                            of any later cross-pass dedup or text-unpack outcome —
+ *                            this is the LDPC-survival signal the C.2 hypothesis is
+ *                            about.
+ * out_prenorm_var[i]        — pre-normalisation variance of the raw log174 array
+ *                            (ftx_compute_candidate_llr_stats' out_prenorm_variance).
+ * out_postnorm_mean_abs[i]  — post-normalisation mean|LLR|. NaN for degenerate
+ *                            candidates (prenorm variance == 0) — callers must
+ *                            isfinite()-check before use, same contract as
+ *                            ftx_compute_candidate_llr_stats().
+ * capacity                  — size of all six output arrays; pass >= K_MAX_CANDIDATES
+ *                            (140) to receive every pass-0 candidate.
+ *
+ * Returns: number of pass-0 candidates recorded this cycle (<= capacity).
+ * Thread-safe: TLS-scoped, same contract as ft8_get_last_pass_counts.
+ */
+int ft8_get_last_candidate_diag(
+    float*   out_freq_hz,
+    float*   out_dt,
+    int16_t* out_score,
+    uint8_t* out_decoded,
+    float*   out_prenorm_var,
+    float*   out_postnorm_mean_abs,
+    int      capacity);
 
 /*
  * ft8_set_ap_bits — supply known AP bit constraints for the next decode cycle

@@ -91,4 +91,27 @@ internal interface IFt8NativeInterop
     /// <param name="osdCorrThreshold">OSD normalised correlation gate (default 0.10f, valid [0.05, 0.40]).</param>
     /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (default 60, valid [30, 100]).</param>
     void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax);
+
+    /// <summary>
+    /// Enable/disable per-pass-0-candidate diagnostic capture (C.2 LLR-normalisation
+    /// investigation, shim 20260034). Disabled by default; production callers should
+    /// never call this. Sticky across <see cref="DecodeAll"/> calls until changed again.
+    /// </summary>
+    void SetCandidateDiagCapture(bool enable);
+
+    /// <summary>
+    /// Return per-pass-0-candidate diagnostics from the most recent <see cref="DecodeAll"/>
+    /// call on this thread (C.2, shim 20260034). Empty unless
+    /// <see cref="SetCandidateDiagCapture"/> was called with <c>true</c> beforehand.
+    /// <para>
+    /// <c>FreqHz[i]</c>/<c>Dt[i]</c> — candidate centre frequency (Hz) / time offset (s).
+    /// <c>Score[i]</c> — sync score. <c>Decoded[i]</c> — whether native LDPC/OSD converged
+    /// and CRC matched for this candidate (independent of later dedup/text-unpack).
+    /// <c>PrenormVariance[i]</c>/<c>PostnormMeanAbsLlr[i]</c> — pre- and post-normalisation
+    /// LLR statistics; <c>PostnormMeanAbsLlr[i]</c> may be <c>NaN</c> for degenerate candidates.
+    /// </para>
+    /// MUST be called on the same thread as <see cref="DecodeAll"/>.
+    /// </summary>
+    (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
+     float[] PrenormVariance, float[] PostnormMeanAbsLlr) GetLastCandidateDiagnostics();
 }

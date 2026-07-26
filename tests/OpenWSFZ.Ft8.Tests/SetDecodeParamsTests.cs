@@ -43,6 +43,11 @@ public sealed class SetDecodeParamsTests
             LastOsdCorrThreshold  = osdCorrThreshold;
             LastOsdNhardMax       = osdNhardMax;
         }
+
+        public void SetCandidateDiagCapture(bool enable) { /* no-op */ }
+        public (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
+                float[] PrenormVariance, float[] PostnormMeanAbsLlr) GetLastCandidateDiagnostics()
+            => ([], [], [], [], [], []);
     }
 
     // ── 7.3a — Adapter correctly delegates SetDecodeParams ───────────────────

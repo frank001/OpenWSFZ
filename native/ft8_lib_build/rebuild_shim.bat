@@ -39,6 +39,8 @@ link /DLL ^
   /EXPORT:ft8_set_ap_bits ^
   /EXPORT:ft8_set_decode_params ^
   /EXPORT:ft8_get_hash_table_reject_count ^
+  /EXPORT:ft8_set_candidate_diag_capture ^
+  /EXPORT:ft8_get_last_candidate_diag ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\constants.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\crc.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\decode.obj" ^

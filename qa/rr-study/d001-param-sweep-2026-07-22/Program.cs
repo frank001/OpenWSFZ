@@ -90,6 +90,8 @@ Console.WriteLine($"  wav-dir : {opts.WavDir}");
 Console.WriteLine($"  out-dir : {opts.OutDir}");
 Console.WriteLine($"  ts-mode : {(manifest is null ? "filename" : "manifest")}");
 Console.WriteLine($"  output  : <out-dir>/<point>/{opts.AllTxtName}");
+if (opts.CandidateDiagCsvName is not null)
+    Console.WriteLine($"  diag-csv: <out-dir>/<point>/{opts.CandidateDiagCsvName} (C.2 per-pass-0-candidate capture ON)");
 
 // ── Open one writer per grid point. ──────────────────────────────────────────────────
 var writers = new Dictionary<string, StreamWriter>();
@@ -133,6 +135,27 @@ foreach (var p in grid)
 // correct point's decode.log. Concrete only when --debug-log is set; otherwise decoders
 // get logger: null exactly as before (zero behavioural change for existing callers).
 var switchableLogger = opts.DebugLog ? new SwitchablePointLogger<Ft8Decoder>() : null;
+
+// ── C.2 (d001-c2-llr-normalization): optional per-pass-0-candidate diagnostic CSV, one
+// per grid point, alongside that point's ALL.TXT. Opt-in via --candidate-diag-csv; the
+// underlying native capture (Ft8Decoder.SetCandidateDiagCapture) is disabled unless this
+// is set, so omitting the flag reproduces this harness's pre-C.2 behaviour exactly. ────
+var diagWriters = new Dictionary<string, StreamWriter>();
+if (opts.CandidateDiagCsvName is not null)
+{
+    foreach (var p in grid)
+    {
+        var dir = Path.Combine(opts.OutDir, p.DirName);
+        Directory.CreateDirectory(dir);
+        var sw = new StreamWriter(Path.Combine(dir, opts.CandidateDiagCsvName), append: false, System.Text.Encoding.ASCII)
+        {
+            NewLine = "\n",
+            AutoFlush = false,
+        };
+        sw.WriteLine("cycle_ts,wav_stem,freq_hz,dt,score,decoded,prenorm_var,postnorm_mean_abs_llr");
+        diagWriters[p.DirName] = sw;
+    }
+}
 
 // grammarStore null → BuiltInDefault (shipped D-009 calibration). Default: one shared
 // instance for the whole run (original D-001 param-sweep behaviour, unchanged for
@@ -205,6 +228,8 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
             switchableLogger.Target = debugLogWriters.TryGetValue(p.DirName, out var dlw)
                 ? new StreamWriterLineLogger(dlw)
                 : null;
+        if (opts.CandidateDiagCsvName is not null)
+            decoder.SetCandidateDiagCapture(true); // sticky per-thread native flag; cheap to re-assert
         var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         IReadOnlyList<DecodeResult> results;
         try
@@ -221,6 +246,13 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
         var w = writers[p.DirName];
         foreach (var r in results)
             w.WriteLine(FormatAllTxtLine(tsField, opts.DialMhz, r));
+
+        if (opts.CandidateDiagCsvName is not null)
+        {
+            var dw = diagWriters[p.DirName];
+            foreach (var c in decoder.GetLastCandidateDiagnostics())
+                dw.WriteLine(FormatDiagCsvLine(tsField, stem, c));
+        }
     }
 
     decoded++;
@@ -234,6 +266,7 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
 
 foreach (var w in writers.Values) { w.Flush(); w.Dispose(); }
 foreach (var w in debugLogWriters.Values) { w.Flush(); w.Dispose(); }
+foreach (var w in diagWriters.Values) { w.Flush(); w.Dispose(); }
 
 // tasks.md 11.6(b) / SPEC.md section 7.4(b-ii) (cycleframer-alignment-replay): record
 // Ft8Decoder.GetHashTableRejectCount() -- process-lifetime cumulative, so for one CLI
@@ -269,6 +302,14 @@ return 0;
 static string FormatAllTxtLine(string ts, double dialMhz, DecodeResult r)
     => string.Create(CultureInfo.InvariantCulture,
         $"{ts}     {dialMhz:F3} Rx FT8 {r.Snr,6} {r.Dt,4:F1} {r.FreqHz,4} {r.Message}");
+
+// C.2: one CSV row per pass-0 candidate. wav_stem/cycle_ts are plain filename-stem /
+// yyMMdd_HHmmss strings — never contain commas, so no CSV quoting is needed.
+// postnorm_mean_abs_llr may render as "NaN" for degenerate candidates (prenorm var == 0);
+// pandas.read_csv treats that as NaN by default.
+static string FormatDiagCsvLine(string ts, string wavStem, Ft8CandidateDiagnostic c)
+    => string.Create(CultureInfo.InvariantCulture,
+        $"{ts},{wavStem},{c.FreqHz},{c.Dt},{c.Score},{(c.Decoded ? 1 : 0)},{c.PrenormVariance},{c.PostnormMeanAbsLlr}");
 
 static Dictionary<string, DateTime> LoadManifest(string path)
 {
@@ -322,6 +363,7 @@ sealed class CliOptions
     public int? ShardCount { get; init; }
     public bool FreshDecoderPerWav { get; init; }
     public bool DebugLog { get; init; }
+    public string? CandidateDiagCsvName { get; init; }
 
     public static CliOptions? Parse(string[] args)
     {
@@ -333,6 +375,7 @@ sealed class CliOptions
         int? indexStart = null, indexEnd = null, shardIndex = null, shardCount = null;
         bool freshDecoderPerWav = false;
         bool debugLog = false;
+        string? candidateDiagCsvName = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -357,6 +400,7 @@ sealed class CliOptions
                 case "--shard-count": shardCount = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--fresh-decoder-per-wav": freshDecoderPerWav = true; break;
                 case "--debug-log": debugLog = true; break;
+                case "--candidate-diag-csv": candidateDiagCsvName = Next(); break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {a}");
                     return Usage();
@@ -383,6 +427,7 @@ sealed class CliOptions
             ShardIndex = shardIndex, ShardCount = shardCount,
             FreshDecoderPerWav = freshDecoderPerWav,
             DebugLog = debugLog,
+            CandidateDiagCsvName = candidateDiagCsvName,
         };
     }
 
@@ -392,7 +437,8 @@ sealed class CliOptions
             "Usage: D001ParamSweep --wav-dir <dir> --out-dir <dir> --all-txt-name <name>\n" +
             "                      [--manifest <csv>] [--dial-mhz <d>] [--limit <n>]\n" +
             "                      [--points k10_c0.10_n60,...] [--progress-every <n>]\n" +
-            "                      [--fresh-decoder-per-wav] [--debug-log]");
+            "                      [--fresh-decoder-per-wav] [--debug-log]\n" +
+            "                      [--candidate-diag-csv <name>]  (C.2 per-pass-0-candidate capture)");
         return null;
     }
 }
