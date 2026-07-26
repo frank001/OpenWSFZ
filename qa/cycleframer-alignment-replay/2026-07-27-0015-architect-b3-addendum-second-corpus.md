@@ -8,6 +8,16 @@ replication design. Nothing else in the memo is touched.
 different band. The Captain is right, and my item 3 overpriced itself: the corpus does not need
 gathering. It needs ~20 minutes of compute.
 
+> **Correction (00:30), prompted by the Captain a second time:** the first version of this note
+> claimed the `wav/` set was our own capture and that "there is no `wsjt-x/wav/`". **Backwards.**
+> Our daemon had no WAV-saving capability on 07-24 at all — `cycle-audio-archive` merged 07-25
+> (PR #109), the day after this run — and the daemon log contains no save/archive lines. The 126
+> WAVs are therefore **WSJT-X's own saved audio**; it is the *our-side* capture set that does not
+> exist for this run. This is the *better* configuration for B.1b (§2, §3 below, both corrected):
+> the jt9 arms and the offline anchor now run in the identical substrate condition as corpus 1,
+> and the A4-substrate caveat vanishes instead of needing to be carried. Recorded as a correction
+> rather than silently edited, per this thread's standing practice.
+
 ---
 
 ## 1. Two corrections to the memo's §4
@@ -25,19 +35,23 @@ gathering. It needs ~20 minutes of compute.
 ## 2. Due diligence done this session (verify, don't re-derive)
 
 - **Artefact contents:** `ALL.TXT` (WSJT-X, cumulative), `owsfx ALL.TXT` (ours, run-scoped),
-  daemon log, `wav/` with **126 files of our own capture** — 12 kHz mono 16-bit, exactly 180 000
-  samples each, i.e. jt9-compatible by the same construction B.1's arm A4 already validated
-  (and found mildly *favourable* to jt9, so substrate is not a confound).
+  daemon log, `wav/` with **126 files of WSJT-X's own saved audio** — 12 kHz mono 16-bit, exactly
+  180 000 samples each. Provenance established, not assumed (see the 00:30 correction above):
+  our daemon could not save WAVs until `cycle-audio-archive` merged on 07-25, and the run log
+  shows no save activity — these files can only be WSJT-X's.
 - **WSJT-X ran in parallel:** its ALL.TXT carries **4371 decode lines inside the run window**
   (16:07:15–16:38:45), both sides at dial 14.074.
 - **Raw window counts, not yet deduped/matched:** WSJT-X 4371 over 126 cycles vs our live 2466
   over 127 — ratio **1.77×**, vs 1.59× on the 40 m corpus. The gap is present on the second
   band, prima facie slightly larger. These counts are due diligence, not results — QA's matcher
   produces the real numbers.
-- **One structural difference from corpus 1:** WSJT-X's ALL.TXT here is **cumulative** (it opens
-  at 08:21 with earlier-session traffic). Window filtering is load-bearing for B.1b in a way it
-  was not on 07-25. And there is **no `wsjt-x/wav/`** — jt9 runs on our capture only, which A4's
-  finding makes acceptable and which should be stated, not hidden, in the findings doc.
+- **Two structural differences from corpus 1:** (a) WSJT-X's ALL.TXT here is **cumulative** (it
+  opens at 08:21 with earlier-session traffic) — window filtering is load-bearing for B.1b in a
+  way it was not on 07-25. (b) There is **no our-side capture set** (the capability post-dates
+  this run), so no A4-style arm is possible — nothing is lost, A4's question is already closed,
+  and every arm that matters runs on WSJT-X's audio, the same substrate as corpus 1's A0–A2 and
+  the same substrate as corpus 1's our-offline anchor (1300). The substrate condition is
+  therefore *identical* across the two corpora, which strengthens the comparison.
 
 ## 3. B.1b — replication design
 
@@ -46,9 +60,9 @@ Same instrument, same conventions, new corpus. Everything reuses `b1_jt9_ablatio
 
 | piece | spec |
 |---|---|
-| corpus | the 126 `wav/` files, chronological, one jt9 process per arm |
+| corpus | the 126 `wav/` files (WSJT-X's own audio), chronological, one jt9 process per arm |
 | arms | **A0′** `-8 -d 3`, **A1′** `-8 -d 2`, **A2′** `-8 -d 1` — same flags as B.1, no context/AP flags |
-| our offline anchor | re-decode the same 126 WAVs at shipped settings (k10/c0.10/n60) with the existing harness — the anchor is the **offline** number, not the live 2466 (report the live number alongside for continuity) |
+| our offline anchor | re-decode the same 126 WAVs at shipped settings (k10/c0.10/n60) with the existing harness — "our decoder / WSJT-X audio / offline", the **same arm definition as corpus 1's 1300 anchor**. Report the live 2466 alongside for continuity only (it decoded our live stream, a different substrate — the 0.5% capture-share finding makes that immaterial, but say so) |
 | WSJT-X reference | ALL.TXT filtered to 16:07:15–16:38:45, deduped, cycle-matched — the cumulative-file caveat from §2 applies |
 | scoring | totals, miss coverage of the matched miss population, overlap with our offline set — the same three numbers as B.1 §3, plus the T(3)−T(2) / T(2)−T(1) price list |
 | smoke test | one WAV, depth 3, before any arm is trusted — B.1 §3.1 discipline unchanged |
