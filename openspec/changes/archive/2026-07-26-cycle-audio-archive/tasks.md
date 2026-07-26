@@ -239,11 +239,20 @@ harness, zero further `src/` changes) and runs **after** §1-8 merge, per
       exonerated (at this ~20-minute session scale); next probe per the Architect's own decision
       tree is process-lifetime/restart-cadence, not `WasapiAudioSource`. That next probe is
       new, unscoped work — not started here.
-- [ ] 9.5 Decide, with the Captain, what happens to the paused PR #108. The Architect's recorded
-      recommendation (`qa/cycleframer-alignment-replay/2026-07-25-1200-architect-second-mechanism-located.md`
-      §6): §10's nominal-reset-conflation fix is sound but small (≤4.3% of the zero-decode
-      population per the LDPC findings) and should be re-scoped as correctness hygiene rather than
-      D-001 recovery. This is a recommendation on record, not a decision QA can make unilaterally.
+- [x] 9.5 Decide, with the Captain, what happens to the paused PR #108.
+      **Done, 2026-07-26 — closed unfixed, with the Captain's explicit sign-off (HK-010).** Three
+      live-tested `CycleFramer` drift-correction fix rounds were defeated because the premise —
+      cycle-boundary clock drift — was falsified by direct measurement: the framer holds absolute
+      alignment to σ = 59 ms over the 0725 session with zero dropped samples and no accumulation,
+      3.5x more stable than the reference implementation (WSJT-X, σ = 208 ms) it was being
+      compared against. There is no drift in `CycleFramer` to fix. Full evidence and disposition:
+      `qa/cycleframer-alignment-replay/2026-07-25-2300-alignment-root-cause.md` and
+      `2026-07-26-0015-d001-consolidation-and-clean-slate.md`. The one file worth keeping from
+      that branch (per-cycle `hashTableRejectCount` logging, decoder-side observability) was
+      salvaged separately per `dev-tasks/2026-07-26-salvage-hashtablerejectcount-logging.md`
+      rather than lost with the branch. D-001's remaining gap is a decoder problem (98.5% of the
+      recall gap per the consolidation doc's decomposition table), tracked as ongoing work outside
+      this change.
 
 ## 10. Deferred — GUI (separate later change, do not implement here)
 
