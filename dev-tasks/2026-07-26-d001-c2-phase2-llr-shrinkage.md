@@ -8,6 +8,15 @@
     `ftx_normalize_logl`, which runs on every decode in production, not behind a flag.
   **Do not start 2b before 2a reports.** Same discipline C.2 itself used for its own
   Phase 1 → Phase 2 gate, and C.3 → C.4 before it.
+
+  **2026-07-26 update: Phase 2a reported (ceiling held near 135); the Architect briefly closed
+  Phase 2b as declined (18:30 ruling), then reopened it — not as this section's unflagged ship,
+  but as a flag-gated diagnostic *trial* — under Captain challenge (19:30 revision). §3 below
+  remains the correct spec for **shipping** the shrinkage fix, unchanged, and stays gated on that
+  trial's result. The trial itself is scoped separately:
+  **`dev-tasks/2026-07-26-d001-c2-phase2c-shrinkage-trial-and-ber.md`.** Read that file for the
+  current active work; treat §3 here as the "if the trial earns it" destination, not the next
+  step.
 **Source:**
   - `qa/cycleframer-alignment-replay/2026-07-26-c2-llr-normalization-findings.md` §6 — the
     original Phase 2 recommendation (shrinkage toward a per-pass median, not clamp/floor) and

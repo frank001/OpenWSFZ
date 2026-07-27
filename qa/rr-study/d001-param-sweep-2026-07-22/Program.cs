@@ -91,7 +91,10 @@ Console.WriteLine($"  out-dir : {opts.OutDir}");
 Console.WriteLine($"  ts-mode : {(manifest is null ? "filename" : "manifest")}");
 Console.WriteLine($"  output  : <out-dir>/<point>/{opts.AllTxtName}");
 if (opts.CandidateDiagCsvName is not null)
-    Console.WriteLine($"  diag-csv: <out-dir>/<point>/{opts.CandidateDiagCsvName} (C.2 per-pass-0-candidate capture ON)");
+    Console.WriteLine($"  diag-csv: <out-dir>/<point>/{opts.CandidateDiagCsvName} (C.2 per-pass-0-candidate capture ON)"
+        + (opts.CandidateDiagLlr ? " +llr174" : ""));
+if (opts.LlrShrinkageWeight is double w0 && w0 != 0.0)
+    Console.WriteLine($"  llr-shrinkage-weight: {w0} (D-001 C.2 Phase 2c shrinkage trial ON — diagnostic only)");
 
 // ── Open one writer per grid point. ──────────────────────────────────────────────────
 var writers = new Dictionary<string, StreamWriter>();
@@ -143,6 +146,16 @@ var switchableLogger = opts.DebugLog ? new SwitchablePointLogger<Ft8Decoder>() :
 var diagWriters = new Dictionary<string, StreamWriter>();
 if (opts.CandidateDiagCsvName is not null)
 {
+    // D-001 C.2 Phase 2c (dev-tasks/2026-07-26-d001-c2-phase2c-shrinkage-trial-and-ber.md
+    // §3.2) deviation from "harness unmodified" -- same class as C.1's --debug-log and
+    // C.2 Phase 1's own --candidate-diag-csv. --candidate-diag-llr appends one more column,
+    // llr174, holding the candidate's 174 raw (pre-normalisation) LLR values as a
+    // semicolon-joined field (not 174 separate CSV columns -- keeps the file readable by
+    // the same csv.DictReader-based analysis scripts C.2 Phase 1 already established).
+    // Opt-in and independent of --candidate-diag-csv's existing columns; omitting
+    // --candidate-diag-llr reproduces the pre-Phase-2c CSV schema exactly.
+    string header = "cycle_ts,wav_stem,freq_hz,dt,score,decoded,prenorm_var,postnorm_mean_abs_llr"
+        + (opts.CandidateDiagLlr ? ",llr174" : "");
     foreach (var p in grid)
     {
         var dir = Path.Combine(opts.OutDir, p.DirName);
@@ -152,7 +165,7 @@ if (opts.CandidateDiagCsvName is not null)
             NewLine = "\n",
             AutoFlush = false,
         };
-        sw.WriteLine("cycle_ts,wav_stem,freq_hz,dt,score,decoded,prenorm_var,postnorm_mean_abs_llr");
+        sw.WriteLine(header);
         diagWriters[p.DirName] = sw;
     }
 }
@@ -229,7 +242,14 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
                 ? new StreamWriterLineLogger(dlw)
                 : null;
         if (opts.CandidateDiagCsvName is not null)
+        {
             decoder.SetCandidateDiagCapture(true); // sticky per-thread native flag; cheap to re-assert
+            if (opts.CandidateDiagLlr)
+                decoder.SetCandidateDiagLlrCapture(true);
+        }
+        // D-001 C.2 Phase 2c: re-assert every cycle, same reasoning as SetCandidateDiagCapture
+        // above (sticky native TLS flag; cheap to re-assert; harmless at the 0.0 default).
+        decoder.SetLlrShrinkage(opts.LlrShrinkageWeight ?? 0.0);
         var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         IReadOnlyList<DecodeResult> results;
         try
@@ -251,7 +271,7 @@ for (int wi = 0; wi < wavPaths.Count; wi++)
         {
             var dw = diagWriters[p.DirName];
             foreach (var c in decoder.GetLastCandidateDiagnostics())
-                dw.WriteLine(FormatDiagCsvLine(tsField, stem, c));
+                dw.WriteLine(FormatDiagCsvLine(tsField, stem, c, opts.CandidateDiagLlr));
         }
     }
 
@@ -307,9 +327,18 @@ static string FormatAllTxtLine(string ts, double dialMhz, DecodeResult r)
 // yyMMdd_HHmmss strings — never contain commas, so no CSV quoting is needed.
 // postnorm_mean_abs_llr may render as "NaN" for degenerate candidates (prenorm var == 0);
 // pandas.read_csv treats that as NaN by default.
-static string FormatDiagCsvLine(string ts, string wavStem, Ft8CandidateDiagnostic c)
-    => string.Create(CultureInfo.InvariantCulture,
+// D-001 C.2 Phase 2c: when includeLlr174 is set, appends a 9th column -- the candidate's
+// 174 raw LLR values, semicolon-joined (never comma-joined -- would break CSV column
+// counting). c.Llr174 is empty unless --candidate-diag-llr was passed; write nothing after
+// the trailing comma in that case (an empty field, not "missing column").
+static string FormatDiagCsvLine(string ts, string wavStem, Ft8CandidateDiagnostic c, bool includeLlr174)
+{
+    string baseLine = string.Create(CultureInfo.InvariantCulture,
         $"{ts},{wavStem},{c.FreqHz},{c.Dt},{c.Score},{(c.Decoded ? 1 : 0)},{c.PrenormVariance},{c.PostnormMeanAbsLlr}");
+    if (!includeLlr174) return baseLine;
+    string llrField = string.Join(';', c.Llr174.Select(v => v.ToString("G9", CultureInfo.InvariantCulture)));
+    return baseLine + "," + llrField;
+}
 
 static Dictionary<string, DateTime> LoadManifest(string path)
 {
@@ -364,6 +393,8 @@ sealed class CliOptions
     public bool FreshDecoderPerWav { get; init; }
     public bool DebugLog { get; init; }
     public string? CandidateDiagCsvName { get; init; }
+    public bool CandidateDiagLlr { get; init; }
+    public double? LlrShrinkageWeight { get; init; }
 
     public static CliOptions? Parse(string[] args)
     {
@@ -376,6 +407,8 @@ sealed class CliOptions
         bool freshDecoderPerWav = false;
         bool debugLog = false;
         string? candidateDiagCsvName = null;
+        bool candidateDiagLlr = false;
+        double? llrShrinkageWeight = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -401,6 +434,8 @@ sealed class CliOptions
                 case "--fresh-decoder-per-wav": freshDecoderPerWav = true; break;
                 case "--debug-log": debugLog = true; break;
                 case "--candidate-diag-csv": candidateDiagCsvName = Next(); break;
+                case "--candidate-diag-llr": candidateDiagLlr = true; break;
+                case "--llr-shrinkage-weight": llrShrinkageWeight = double.Parse(Next(), CultureInfo.InvariantCulture); break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {a}");
                     return Usage();
@@ -428,6 +463,8 @@ sealed class CliOptions
             FreshDecoderPerWav = freshDecoderPerWav,
             DebugLog = debugLog,
             CandidateDiagCsvName = candidateDiagCsvName,
+            CandidateDiagLlr = candidateDiagLlr,
+            LlrShrinkageWeight = llrShrinkageWeight,
         };
     }
 
@@ -438,7 +475,11 @@ sealed class CliOptions
             "                      [--manifest <csv>] [--dial-mhz <d>] [--limit <n>]\n" +
             "                      [--points k10_c0.10_n60,...] [--progress-every <n>]\n" +
             "                      [--fresh-decoder-per-wav] [--debug-log]\n" +
-            "                      [--candidate-diag-csv <name>]  (C.2 per-pass-0-candidate capture)");
+            "                      [--candidate-diag-csv <name>]  (C.2 per-pass-0-candidate capture)\n" +
+            "                      [--candidate-diag-llr]  (D-001 C.2 Phase 2c: +174-raw-LLR column,\n" +
+            "                                               requires --candidate-diag-csv)\n" +
+            "                      [--llr-shrinkage-weight <d>]  (D-001 C.2 Phase 2c shrinkage trial;\n" +
+            "                                                     diagnostic only, default 0.0 = no-op)");
         return null;
     }
 }
