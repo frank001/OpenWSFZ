@@ -22,7 +22,14 @@ Self-checks (the lesson from the R.5 audit -- R.5 had checks on its endpoints bu
 rungs actually measured):
   SC1  per-signal MEASURED in-band SNR vs nominal, both backgrounds, must agree within tolerance
   SC2  every chosen gap must be genuinely free of WSJT-X-decoded signal within the guard
-  SC3  AWGN control must approach ceiling at the top of the sweep
+  SC3  AWGN control must approach ceiling at the top of the sweep -- HARD GATE (2026-07-27 QA):
+       added per architect handoff Sec.7/Sec.9 item 3; the docstring claimed this existed before
+       it was actually implemented -- see 2026-07-27-1921-architect-to-qa-r6-handoff.md Sec.1/7.
+  SC4  gap contamination (raw/robust in-band power ratio) -- bias-corrected 2026-07-27 QA per
+       handoff Sec.6: the per-bin power in a periodogram is chi-squared(2 dof), whose median is
+       ln(2) times its mean, so the raw median-based robust estimator underestimates noise power
+       by ~1.6 dB; MEDIAN_BIAS_CORRECTION below removes that so SC4 measures contamination rather
+       than estimator bias.
 
 NFR-021: synthetic messages are Q-prefix by construction; real message text is never printed.
 ASCII-only console output (HK-009).
@@ -63,6 +70,16 @@ MAX_GRAFTS = int(os.environ.get("R6_MAX_GRAFTS", "4"))
 SNR_GRID = [float(x) for x in os.environ.get("R6_SNRS", "-6,-3,0,3,6,10").split(",")]
 SEED = 20260727
 
+# SC3: the control arm must approach ceiling at the top (warmest point) of the SNR grid, both
+# decoders. This is the hard gate that would have turned "AWGN 0.0% everywhere" into a FAIL
+# instead of a table row (handoff Sec.1/Sec.7).
+SC3_CEILING = float(os.environ.get("R6_SC3_CEILING", "0.90"))
+
+# The median of a chi-squared(2 dof) periodogram bin is ln(2) times its mean; dividing by this
+# converts the robust (median-based, outlier-resistant) power estimate back into an unbiased
+# estimate of mean noise power (handoff Sec.6).
+MEDIAN_BIAS_CORRECTION = math.log(2.0)
+
 
 # -------------------- in-band measurement --------------------
 
@@ -87,7 +104,12 @@ def band_noise_rms_robust(pcm: np.ndarray, lo: float, hi: float) -> tuple[float,
     it, because SC1 divided by the same contaminated estimate.
 
     Parseval for a real rfft: sum(x^2) ~ (2/N^2) * sum_k |X_k|^2 over the band.
-    Robust form replaces sum_k with n_bins * median_k.
+    Robust form replaces sum_k with n_bins * median_k, then divides by MEDIAN_BIAS_CORRECTION
+    (=ln 2) because the median of a chi-squared(2 dof) periodogram bin is ln(2) times its mean --
+    uncorrected, this estimator is unbiased-looking but actually reads ~1.6 dB low (found in
+    review of the architect's handoff Sec.6; the first version of this function had this bias,
+    which is why SC1's real-arm offset and SC4's baseline median both sat near -1.5/+1.6 dB with
+    no real contamination or arm mismatch to explain them).
     """
     n = len(pcm)
     spec = np.fft.rfft(pcm)
@@ -96,7 +118,8 @@ def band_noise_rms_robust(pcm: np.ndarray, lo: float, hi: float) -> tuple[float,
     p = np.abs(spec[m]) ** 2
     if p.size == 0:
         return 0.0, 0.0
-    robust = math.sqrt(2.0 * p.size * float(np.median(p)) / (n * n))
+    median_unbiased = float(np.median(p)) / MEDIAN_BIAS_CORRECTION
+    robust = math.sqrt(2.0 * p.size * median_unbiased / (n * n))
     raw = math.sqrt(2.0 * float(p.sum()) / (n * n))
     ratio_db = 20 * math.log10(raw / robust) if robust > 0 and raw > 0 else float("inf")
     return robust, ratio_db
@@ -285,10 +308,11 @@ def main() -> int:
     print(f"    arm-to-arm offset (real - awgn) = {delta:+.2f} dB  "
           f"{'[PASS]' if abs(delta) < 1.0 else '[FAIL] arms are NOT at matched effective SNR'}")
     ca = np.array([c for c in contam if np.isfinite(c)])
-    print(f"SC4 gap contamination (raw/robust in-band, dB): median {np.median(ca):+.2f}  "
-          f"p95 {np.percentile(ca,95):+.2f}  max {ca.max():+.2f}")
-    print(f"    (high values = undecoded carriers in the 'empty' gap; this is what broke the "
-          f"first draft)")
+    print(f"SC4 gap contamination (raw/robust in-band, dB, bias-corrected): "
+          f"median {np.median(ca):+.2f}  p95 {np.percentile(ca,95):+.2f}  max {ca.max():+.2f}")
+    print(f"    median should now sit near 0 dB (estimator bias removed); the INFORMATIVE "
+          f"statistic is the upper tail (p95/max) -- high values there = undecoded carriers "
+          f"leaking into the 'empty' gap, this is what broke the first draft")
     print(f"SC2 gap-clearance violations: {sc2_viol}  {'[PASS]' if sc2_viol==0 else '[FAIL]'}")
     print(f"    total grafts placed: {n_gap_total}")
 
@@ -312,6 +336,25 @@ def main() -> int:
                     line += f" {'--':>16} |"
         print(line)
 
+    # SC3 -- HARD GATE. The AWGN control must approach ceiling at the top (warmest) SNR point,
+    # both decoders. Without this, a broken control (e.g. R.6's first run: 0.0% at every SNR
+    # tested) prints as an ordinary table row instead of failing loudly (handoff Sec.1/Sec.7).
+    top_snr = max(SNR_GRID)
+    sc3_ours = summary.get(f"ours_awgn_{top_snr:+.0f}")
+    sc3_jt9 = summary.get(f"jt9_awgn_{top_snr:+.0f}")
+    sc3_ours_p = sc3_ours["p"] if sc3_ours else 0.0
+    sc3_jt9_p = sc3_jt9["p"] if sc3_jt9 else 0.0
+    sc3_pass = sc3_ours_p >= SC3_CEILING and sc3_jt9_p >= SC3_CEILING
+    print()
+    print(f"SC3 [HARD GATE] AWGN control must reach >={100*SC3_CEILING:.0f}% at top of SNR grid "
+          f"(SNR={top_snr:+.0f}): ours={100*sc3_ours_p:.1f}%  jt9={100*sc3_jt9_p:.1f}%  "
+          f"{'[PASS]' if sc3_pass else '[FAIL] CONTROL ARM IS BROKEN -- DO NOT QUOTE ANY R.6 NUMBER'}")
+    if not sc3_pass:
+        print("    Per the 2026-07-27 handoff Sec.1: do not quote, summarise, or build on any")
+        print("    R.6 number from this run until SC3 passes. See the handoff Sec.5 for the")
+        print("    diagnostic checklist (level sweep, write_wav peak norm, quantisation, ")
+        print("    amplitude-vs-SNR convention) already worked through for this failure mode.")
+
     print()
     print("=== THE FORK ===")
     for snr_db in SNR_GRID:
@@ -327,10 +370,19 @@ def main() -> int:
     with open(os.path.join(OUT_DIR, "measurements.json"), "w", encoding="utf-8") as fh:
         json.dump({"summary": summary,
                    "sc1_median_db": med, "sc1_arm_offset_db": delta,
-                   "sc4_contam_median_db": float(np.median(ca)), "sc2_violations": sc2_viol,
+                   "sc2_violations": sc2_viol,
+                   "sc3_pass": sc3_pass, "sc3_ceiling": SC3_CEILING, "sc3_top_snr": top_snr,
+                   "sc3_ours_p": sc3_ours_p, "sc3_jt9_p": sc3_jt9_p,
+                   "sc4_contam_median_db": float(np.median(ca)),
+                   "sc4_contam_p95_db": float(np.percentile(ca, 95)),
+                   "sc4_contam_max_db": float(ca.max()),
                    "n_cycles": len(sel), "n_grafts": n_gap_total,
                    "snr_grid": SNR_GRID, "per_signal": per_signal[:2000]}, fh, indent=2)
     print(f"\nWrote {os.path.join(OUT_DIR, 'measurements.json')}")
+    if not sc3_pass:
+        print("\n[FATAL] SC3 gate failed -- exiting non-zero so callers/CI cannot silently treat "
+              "this run as valid.")
+        return 1
     return 0
 
 
