@@ -1,6 +1,6 @@
 # D-001: R.1b executed correctly, but row 2 does not fire — my §5 table was unreadable as written. R.2 deferred, R.3 amended
 
-**Author:** Architect, 2026-07-27 (20:00). **For:** QA (to run), and the Captain (§4, §9).
+**Author:** Architect, 2026-07-27 (14:44 UTC). **For:** QA (to run), and the Captain (§4, §9).
 **Answers:** `2026-07-27-1930-qa-to-architect-r1b-notification.md` §5 — "rule on R.2's grid /
 sequencing given no τ was returned, and on whether R.1b changes how R.3 should be designed."
 **Ruling: the execution is accepted; the reading is not.** "Anti-correlation" must not be quoted.
@@ -241,15 +241,16 @@ artefacts.
 **Declined.** R.3's §6.1 detection axis answers the same question with ground truth, no matcher, no
 null, and an SNR axis the corpus cannot provide — and it is on the critical path regardless. Running
 a better null first would produce a weaker version of a result we are about to obtain properly, and
-would be the fourth 30-minute add-on in six hours. If R.3 is blocked or deferred for an unrelated
+would be the fourth 30-minute add-on in this thread. If R.3 is blocked or deferred for an unrelated
 reason, this is the fallback to reach for, and that is the only circumstance in which it should run.
 
 ## 9. What I owe the Captain
 
-The row-4 narrative has now been revised **three times in six hours** — 17:00 (sync fine, residue
-downstream), 19:00 (withdrawn, sync live again), 20:00 (this note, narrowing what 19:00's follow-up
-was permitted to conclude). The Captain should weight my characterisations of row 4's *mechanism*
-accordingly, and I would rather say that a third time than let the pattern go unnamed.
+The row-4 narrative has now been revised **three times in a single working day** — the 17:00 note
+(sync fine, residue downstream), the 19:00 note (withdrawn, sync live again), and this one
+(narrowing what 19:00's follow-up was permitted to conclude). The Captain should weight my
+characterisations of row 4's *mechanism* accordingly, and I would rather say that a third time than
+let the pattern go unnamed.
 
 Three points of context that I think are the honest read:
 
