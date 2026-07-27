@@ -227,8 +227,23 @@ internal static class Ft8LibInterop
     ///   performance change on the production decode path when capture is off. No change to
     ///   ABI or struct layout (48 bytes) for any existing entry point — the bump exists purely
     ///   so the startup ABI check catches a stale (pre-diagnostic) native binary.
+    /// 20260035 (d001-c2-phase2c-shrinkage-trial-and-ber): two independent, opt-in,
+    ///   default-off diagnostics, neither shipped/enabled on the production path:
+    ///   (A) <c>ft8_set_llr_shrinkage</c> (surfaced as <see cref="SetLlrShrinkage"/>) — sets a
+    ///   thread-local weight, default 0.0, blended into the native <c>ftx_normalize_logl</c>'s
+    ///   pre-normalisation variance toward a running per-decode-call reference. Weight 0.0 is
+    ///   an exact no-op by construction (verified byte-identical against the pristine shim-20260034
+    ///   build on the discovery corpus — see the Phase 2c findings doc). (B)
+    ///   <c>ft8_set_candidate_diag_llr_capture</c> + <c>ft8_get_last_candidate_llr</c> (surfaced
+    ///   as <see cref="SetCandidateDiagLlrCapture"/> + <see cref="GetLastCandidateLlr174"/>) —
+    ///   opt-in export of the 174 raw (pre-normalisation) LLR values per pass-0 candidate, layered
+    ///   on top of shim 20260034's existing capture (has no effect unless
+    ///   <see cref="SetCandidateDiagCapture"/> is ALSO enabled). Three new exported entry points;
+    ///   no change to any existing export's signature, struct layout, or behaviour when all three
+    ///   new toggles are left at their defaults — the bump exists purely so the startup ABI check
+    ///   catches a stale (pre-diagnostic) native binary.
     /// </summary>
-    private const int ExpectedShimVersion = 20260034;
+    private const int ExpectedShimVersion = 20260035;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -287,6 +302,13 @@ internal static class Ft8LibInterop
     /// </para>
     /// </summary>
     private const int MaxPass0Candidates = 600;
+
+    /// <summary>
+    /// Number of raw LLR values <see cref="GetLastCandidateLlr174"/> returns per candidate.
+    /// Mirrors the native <c>FTX_LDPC_N</c> constant (174 — the FT8/FT4 LDPC codeword length,
+    /// shared by both protocols' fixed (174,91) code).
+    /// </summary>
+    private const int LlrPerCandidate = 174;
 
     /// <summary>
     /// Number of decode passes executed by the native shim per cycle.
@@ -407,6 +429,38 @@ internal static class Ft8LibInterop
         [Out] float[] outPrenormVar,
         [Out] float[] outPostnormMeanAbs,
         int           capacity);
+
+    /// <summary>
+    /// Enable/disable the 174-raw-LLR-per-candidate export for the next
+    /// <see cref="NativeDecodeAll"/> call on this thread (D-001 C.2 Phase 2c BER
+    /// measurement, shim 20260035). Disabled by default. Has no effect unless
+    /// <see cref="NativeSetCandidateDiagCapture"/> is also enabled.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_candidate_diag_llr_capture",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetCandidateDiagLlrCapture(int enable);
+
+    /// <summary>
+    /// Return the 174 raw (pre-normalisation) LLR values for every pass-0 candidate
+    /// from the most recent <see cref="NativeDecodeAll"/> call on this thread (D-001
+    /// C.2 Phase 2c, shim 20260035). <paramref name="outLlr174Flat"/> must have length
+    /// &gt;= <paramref name="capacity"/> * 174; candidate i's values occupy
+    /// <c>[i*174, i*174+174)</c>.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_candidate_llr",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastCandidateLlr(
+        [Out] float[] outLlr174Flat,
+        int           capacity);
+
+    /// <summary>
+    /// Set the thread-local LLR-shrinkage weight blended into the native
+    /// <c>ftx_normalize_logl</c>'s pre-normalisation variance (D-001 C.2 Phase 2c
+    /// shrinkage trial, shim 20260035). Default 0.0 (exact no-op).
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_llr_shrinkage",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetLlrShrinkage(double weight);
 
     /// <summary>
     /// Supply known AP bit constraints for the next decode cycle
@@ -669,6 +723,64 @@ internal static class Ft8LibInterop
 
         return (freqHz[..n], dt[..n], score[..n], decoded,
                 prenormVariance[..n], postnormMeanAbsLlr[..n]);
+    }
+
+    /// <summary>
+    /// Enable/disable the 174-raw-LLR-per-candidate export (D-001 C.2 Phase 2c BER
+    /// measurement, shim 20260035). Disabled by default. Has NO effect unless
+    /// <see cref="SetCandidateDiagCapture"/> is ALSO enabled — this only adds an extra
+    /// per-candidate export layered on top of that capture, it does not enable capture
+    /// by itself. Sticky across <see cref="DecodeAll"/> calls until changed again.
+    /// </summary>
+    public static void SetCandidateDiagLlrCapture(bool enable)
+    {
+        EnsureInitialized();
+        NativeSetCandidateDiagLlrCapture(enable ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Return the 174 raw (pre-normalisation) LLR values for every pass-0 candidate from
+    /// the most recent <see cref="DecodeAll"/> call on this thread (D-001 C.2 Phase 2c BER
+    /// measurement, shim 20260035). Empty unless BOTH <see cref="SetCandidateDiagCapture"/>
+    /// and <see cref="SetCandidateDiagLlrCapture"/> were called with <c>true</c> beforehand.
+    /// <para>
+    /// <c>result[i]</c> is candidate <c>i</c>'s 174-value array, in the SAME candidate
+    /// order/index as <see cref="GetLastCandidateDiagnostics"/>'s arrays from the same
+    /// cycle. Never <c>NaN</c>: a hard-decision sign comparison is defined for every
+    /// candidate, degenerate or not.
+    /// </para>
+    /// Must be called on the same thread that called <see cref="DecodeAll"/>.
+    /// </summary>
+    public static float[][] GetLastCandidateLlr174()
+    {
+        EnsureInitialized();
+
+        var flat = new float[MaxPass0Candidates * LlrPerCandidate];
+        int n = NativeGetLastCandidateLlr(flat, MaxPass0Candidates);
+
+        if (n <= 0) return [];
+
+        var result = new float[n][];
+        for (int i = 0; i < n; i++)
+        {
+            var row = new float[LlrPerCandidate];
+            Array.Copy(flat, i * LlrPerCandidate, row, 0, LlrPerCandidate);
+            result[i] = row;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Set the thread-local LLR-shrinkage weight blended into the native
+    /// <c>ftx_normalize_logl</c>'s pre-normalisation variance (D-001 C.2 Phase 2c
+    /// shrinkage trial, shim 20260035). Default 0.0 — an exact no-op by construction.
+    /// Diagnostic-only: no production caller should ever set this to a non-zero value.
+    /// Takes effect on the next <see cref="DecodeAll"/> call; sticky until changed again.
+    /// </summary>
+    public static void SetLlrShrinkage(double weight)
+    {
+        EnsureInitialized();
+        NativeSetLlrShrinkage(weight);
     }
 
     /// <summary>

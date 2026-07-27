@@ -1,6 +1,24 @@
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
-Shim version:     FT8_SHIM_VERSION = 20260034 (d001-c2-llr-normalization):
+Shim version:     FT8_SHIM_VERSION = 20260035 (d001-c2-phase2c-shrinkage-trial-and-ber):
+                  Two independent, opt-in, default-off diagnostics, neither shipped/enabled on
+                  the production path: (A) ft8_set_llr_shrinkage(double weight) — thread-local,
+                  default 0.0, blends each candidate's own pre-normalisation log174 variance
+                  toward a running per-decode-call reference in ftx_normalize_logl
+                  (patched/ft8/decode.c). weight 0.0 verified byte-identical against the
+                  pre-Phase-2c (shim 20260034) build on the D-001 68-cycle discovery corpus.
+                  (B) ft8_set_candidate_diag_llr_capture(int enable) +
+                  ft8_get_last_candidate_llr(...) — opt-in export of the 174 raw
+                  (pre-normalisation) LLR values per pass-0 candidate, layered on top of shim
+                  20260034's existing ft8_set_candidate_diag_capture (no effect unless that
+                  capture is also enabled). Findings:
+                  qa/cycleframer-alignment-replay/2026-07-26-c2-phase2c-shrinkage-trial-and-ber-
+                  findings.md — shrinkage trial closed on evidence (negative Δ matched at weight
+                  1.0); BER measurement reads ≈50% (front-end/demodulation), corroborating the
+                  shrinkage trial's negative result independently. No production behaviour
+                  change: both toggles default off; three new exported entry points; no change
+                  to any existing export's signature, struct layout, or behaviour.
+                  Previous: FT8_SHIM_VERSION = 20260034 (d001-c2-llr-normalization):
                   Two new exported entry points, opt-in and disabled by default:
                   ft8_set_candidate_diag_capture(int enable) and
                   ft8_get_last_candidate_diag(...). When enabled, every PASS-0 candidate
@@ -72,12 +90,45 @@ caught and fixed (see the findings doc §3). Raised to 600, same "dormant, zero-
 native constant moves again" framing as K_MAX_CANDIDATES_ANY_PASS above; this native binary is
 unaffected (the fix is entirely on the managed/interop side).
 
+Rebuild note (2026-07-27, gate-tls-diag-llr174-compile-time): `tls_diag_llr174`
+(src/OpenWSFZ.Ft8/Native/ft8_shim.c — the 140x174-float, ~97,440-byte-per-thread raw-LLR capture
+array added by shim 20260035 above) is now compile-time-gated behind a new, default-off macro,
+`FT8_ENABLE_RAW_LLR_CAPTURE` (`#ifndef`'d to 0 near the top of the array's comment block). No build
+script changes needed on any platform: the array, its capture-loop write, and
+`ft8_get_last_candidate_llr`'s body all compile out when the gate is 0 (the export itself stays,
+always returning 0 in that case, matching its own pre-existing "returns 0 otherwise" documented
+contract); `ft8_set_candidate_diag_llr_capture` and `ft8_set_llr_shrinkage` are untouched and remain
+unconditionally exported (`Ft8Decoder.cs` calls both every decode cycle regardless of the gate).
+FT8_SHIM_VERSION is NOT bumped — no export's signature or contract changes. Per
+`qa/cycleframer-alignment-replay/2026-07-27-1622-architect-dll-size-ruling.md` (the real cost was
+per-thread committed memory, not shipped-binary disk size) and
+`dev-tasks/2026-07-27-d001-gate-tls-diag-llr174-compile-time.md` (the fix this implements). Verified:
+Windows `.dll` 158,208 -> 60,416 bytes (back to the pre-Phase-2c ~60.8 KB baseline); Linux `.so`
+`.tbss` section 100,208 -> 2,768 bytes (readelf -S) — both confirming the array, not the small
+shim-20260034 scalar group (~1.4 KB, left untouched, out of scope), was the cost. A locally-built
+(uncommitted) diagnostic variant with `-DFT8_ENABLE_RAW_LLR_CAPTURE=1` rebuilds to the original
+158,208-byte size and was confirmed (via a throwaway test against the real interop, not the fake)
+to still return real, nonzero, finite per-candidate LLR rows — the C.2 Phase 2c study workflow is
+unaffected; only the shipped default changes.
+
 --- Windows x64 ---
 Compiler:         MSVC 19.44.35223 (Visual Studio 2022 Community)
 Runtime:          /MD (links ucrtbase.dll + msvcp140.dll — inbox on Windows 10+)
-Build date:       2026-07-26 (d001-c2-llr-normalization: FT8_SHIM_VERSION=20260034; adds the
-                              opt-in per-candidate diagnostic capture described above; shim
-                              compiled from Native/ft8_shim.c using rebuild_shim.bat)
+Build date:       2026-07-27 (gate-tls-diag-llr174-compile-time: FT8_SHIM_VERSION unchanged at
+                              20260035; tls_diag_llr174 now compile-time-gated off by default —
+                              see the rebuild note above. Binary shrinks from 158,208 to 60,416
+                              bytes. Compiled via rebuild_shim.bat, no script changes needed.)
+                  Binary re-rebuilt 2026-07-26 (d001-c2-phase2c-shrinkage-trial-and-ber: FT8_SHIM_VERSION=20260035;
+                              adds the two opt-in diagnostics described above; shim compiled from
+                              Native/ft8_shim.c using rebuild_shim.bat. Between this build and the
+                              committed one, K_MIN_SCORE/K_MAX_CANDIDATES were temporarily swapped
+                              to 4/2000 for one capture run (THE 567 population's BER measurement,
+                              a separate candidate set from the shipped config) and reverted
+                              before this binary was rebuilt — confirmed reverted via a
+                              byte-identical ALL.TXT re-check on the discovery corpus, see the
+                              findings doc §4.1/§6.)
+                  Binary re-rebuilt 2026-07-26 (d001-c2-llr-normalization: FT8_SHIM_VERSION=20260034;
+                              adds the opt-in per-candidate diagnostic capture)
                   Binary re-rebuilt 2026-07-26 (D-001 C.1 stack-safety fix above, then merged
                               with the C.2 diagnostic-capture build for D-001 C.4 below); same
                               FT8_SHIM_VERSION, verified behaviourally identical at shipped
@@ -97,6 +148,29 @@ Compiler:         GCC 14.2.0 (Debian 14.2.0-19) via WSL2 Debian
 Flags:            -std=c11 -D_GNU_SOURCE -O2 -fPIC
                   (_GNU_SOURCE required: ft8_lib uses stpcpy, a POSIX function not
                   exposed under strict -std=c11 without a feature-test macro)
+Build date:       2026-07-27 (gate-tls-diag-llr174-compile-time) — manually rebuilt via WSL2 Debian
+                  (native/ft8_lib_build/build_linux.sh, script CRLF-stripped in-flight for the WSL
+                  bash invocation — the committed script itself is unchanged, autocrlf=true on this
+                  Windows checkout is a pre-existing local artefact) to pick up the compile-time
+                  gate described above. FT8_SHIM_VERSION unchanged at 20260035. `.tbss` section
+                  shrinks from 100,208 to 2,768 bytes (readelf -S) — the ~97,440-byte
+                  tls_diag_llr174 contribution is gone; the remaining ~2,700 bytes are the
+                  shim-20260034 scalar/array diagnostic group (out of scope, unaffected) plus the
+                  shim-20260035 shrinkage scalars and capture-enable flags (also unaffected). See
+                  dev-tasks/2026-07-27-d001-gate-tls-diag-llr174-compile-time.md.
+Build date:       2026-07-26 (D-001 C.2 Phase 2c follow-up) — manually rebuilt via WSL2 Debian
+                  (native/ft8_lib_build/build_linux.sh) to bring the committed binary up to
+                  FT8_SHIM_VERSION=20260035; see
+                  dev-tasks/2026-07-26-d001-c2-phase2c-linux-so-rebuild.md. The Phase 2c session
+                  bumped the shim to 20260035 (llr-shrinkage + candidate-LLR-capture diagnostics,
+                  see the entry above) and rebuilt the Windows .dll but the session was interrupted
+                  before a final Linux-side rebuild could catch up, leaving this .so stale at
+                  20260034; `pre_merge_check.py`'s WSL gate failed with an ABI-mismatch (expected
+                  20260035, got the stale 20260034 binary) until this rebuild. Same defect class,
+                  same fix, as the D-001 C.4 entry below. CI still always rebuilds from the current
+                  ft8_shim.c on every push regardless of what's committed here — see
+                  .github/workflows/ci.yml step "Build native Linux SO (x64, GCC)"; the
+                  `commit-native-binaries` job will overwrite this with its own build.
 Build date:       2026-07-26 (D-001 C.4) — manually rebuilt via WSL2 Debian
                   (native/ft8_lib_build/build_linux.sh) to bring the committed placeholder up to
                   FT8_SHIM_VERSION=20260034; `pre_merge_check.py`'s WSL gate was failing with an

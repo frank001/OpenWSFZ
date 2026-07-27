@@ -41,6 +41,9 @@ link /DLL ^
   /EXPORT:ft8_get_hash_table_reject_count ^
   /EXPORT:ft8_set_candidate_diag_capture ^
   /EXPORT:ft8_get_last_candidate_diag ^
+  /EXPORT:ft8_set_candidate_diag_llr_capture ^
+  /EXPORT:ft8_get_last_candidate_llr ^
+  /EXPORT:ft8_set_llr_shrinkage ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\constants.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\crc.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\decode.obj" ^

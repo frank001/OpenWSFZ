@@ -140,6 +140,52 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     private IReadOnlyList<Ft8CandidateDiagnostic> _lastCandidateDiagnostics = [];
 
     /// <summary>
+    /// Enable/disable the 174-raw-LLR-per-candidate export (D-001 C.2 Phase 2c BER
+    /// measurement, dev-tasks/2026-07-26-d001-c2-phase2c-shrinkage-trial-and-ber.md).
+    /// Disabled by default — production callers (the daemon) should never call this. Has
+    /// NO effect unless <see cref="SetCandidateDiagCapture"/> is ALSO enabled: this only
+    /// adds an extra per-candidate export layered on top of that capture, populating
+    /// <see cref="Ft8CandidateDiagnostic.Llr174"/> on the records
+    /// <see cref="GetLastCandidateDiagnostics"/> already returns.
+    /// <para>
+    /// Same pure C#-side-flag-plus-re-assert pattern as <see cref="SetCandidateDiagCapture"/>
+    /// and for the same reason: the native flag is thread-local, and the calling thread is
+    /// never the thread that actually runs <c>DecodeAll</c>.
+    /// </para>
+    /// Takes effect on the next <see cref="DecodeAsync"/> call; safe to call at any time.
+    /// </summary>
+    public void SetCandidateDiagLlrCapture(bool enable)
+        => _candidateDiagLlrCaptureEnabled = enable;
+
+    private volatile bool _candidateDiagLlrCaptureEnabled;
+
+    /// <summary>
+    /// Set the thread-local LLR-shrinkage weight blended into the native decoder's
+    /// pre-normalisation LLR variance (D-001 C.2 Phase 2c shrinkage trial, dev-tasks/
+    /// 2026-07-26-d001-c2-phase2c-shrinkage-trial-and-ber.md). Default 0.0 — an exact
+    /// no-op by construction; verified byte-identical against the pristine pre-trial
+    /// build on the discovery corpus (see the Phase 2c findings doc) before any other
+    /// weight was trusted.
+    /// <para>
+    /// Diagnostic-only: no production caller (the daemon) should ever call this with a
+    /// non-zero value. Same re-assert-every-cycle pattern as
+    /// <see cref="SetCandidateDiagCapture"/> and for the same TLS-thread-affinity reason.
+    /// </para>
+    /// <para>
+    /// <c>_llrShrinkageWeight</c> is a plain (non-<c>volatile</c>) field — C# disallows
+    /// <c>volatile</c> on <c>double</c> — same eventual-consistency tolerance already
+    /// accepted for <see cref="SetDecodeParams"/>'s module-level native globals: a missed
+    /// update means one decode cycle uses the previous weight, which is acceptable for a
+    /// diagnostic-only, offline-harness-driven setting.
+    /// </para>
+    /// Takes effect on the next <see cref="DecodeAsync"/> call; safe to call at any time.
+    /// </summary>
+    public void SetLlrShrinkage(double weight)
+        => _llrShrinkageWeight = weight;
+
+    private double _llrShrinkageWeight;
+
+    /// <summary>
     /// Return per-pass-0-candidate diagnostics captured during the most recent
     /// <see cref="DecodeAsync"/> call (C.2). Empty unless <see cref="SetCandidateDiagCapture"/>
     /// was set to <c>true</c> before that call. Safe to read from any thread after the
@@ -153,16 +199,24 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     public IReadOnlyList<Ft8CandidateDiagnostic> GetLastCandidateDiagnostics()
         => _lastCandidateDiagnostics;
 
+    private static readonly IReadOnlyList<float> EmptyLlr174 = [];
+
     private static IReadOnlyList<Ft8CandidateDiagnostic> BuildCandidateDiagnostics(
         (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
-         float[] PrenormVariance, float[] PostnormMeanAbsLlr) raw)
+         float[] PrenormVariance, float[] PostnormMeanAbsLlr) raw,
+        float[][] llr174)
     {
         var result = new Ft8CandidateDiagnostic[raw.FreqHz.Length];
         for (int i = 0; i < raw.FreqHz.Length; i++)
         {
+            // llr174 is empty unless SetCandidateDiagLlrCapture was ALSO enabled; even
+            // then, defend against any length mismatch (should not happen — both arrays
+            // come from the same decode cycle's tls_diag_count) rather than throw.
+            IReadOnlyList<float> rowLlr = i < llr174.Length ? llr174[i] : EmptyLlr174;
+
             result[i] = new Ft8CandidateDiagnostic(
                 raw.FreqHz[i], raw.Dt[i], raw.Score[i], raw.Decoded[i],
-                raw.PrenormVariance[i], raw.PostnormMeanAbsLlr[i]);
+                raw.PrenormVariance[i], raw.PostnormMeanAbsLlr[i], rowLlr);
         }
         return result;
     }
@@ -343,6 +397,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 // flag (not the native TLS flag) is this decoder's single source of truth.
                 _interop.SetCandidateDiagCapture(_candidateDiagCaptureEnabled);
 
+                // D-001 C.2 Phase 2c (shim 20260035): same re-assert-every-cycle reasoning,
+                // both thread-local native toggles.
+                _interop.SetCandidateDiagLlrCapture(_candidateDiagLlrCaptureEnabled);
+                _interop.SetLlrShrinkage(_llrShrinkageWeight);
+
                 var r = _interop.DecodeAll(normalisedPcm);
                 var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
                 var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
@@ -351,8 +410,13 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
 
                 // Must be read here too (same TLS-affinity requirement as p/c/n/l above) —
                 // never from a public getter called after this Task.Run returns.
+                // GetLastCandidateLlr174 is only called when the LLR-capture flag is set —
+                // it allocates a ~140 * 174-float array, and omitting the flag entirely
+                // (the default) must cost nothing beyond the diag-capture-off harness paths.
                 _lastCandidateDiagnostics = _candidateDiagCaptureEnabled
-                    ? BuildCandidateDiagnostics(_interop.GetLastCandidateDiagnostics())
+                    ? BuildCandidateDiagnostics(
+                        _interop.GetLastCandidateDiagnostics(),
+                        _candidateDiagLlrCaptureEnabled ? _interop.GetLastCandidateLlr174() : [])
                     : [];
 
                 return (r, p, c, n, l);

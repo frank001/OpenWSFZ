@@ -391,6 +391,13 @@ float ftx_compute_candidate_llr_stats(
     const ftx_candidate_t* cand,
     float*                 out_prenorm_variance);
 
+/* D-001 C.2 Phase 2c BER measurement (shim 20260035): raw (pre-normalisation) LLR-174
+ * extraction, no bp_decode, never NaN/degenerate-skipped. */
+void ftx_get_candidate_raw_llr(
+    const ftx_waterfall_t* wf,
+    const ftx_candidate_t* cand,
+    float*                 out_log174);
+
 /* Task A (shim 20260020): AP-constrained decode */
 bool ftx_decode_candidate_ap(
     const ftx_waterfall_t*  wf,
@@ -566,6 +573,55 @@ static _Thread_local uint8_t tls_diag_decoded[K_MAX_CANDIDATES];
 static _Thread_local float   tls_diag_prenorm_var[K_MAX_CANDIDATES];
 static _Thread_local float   tls_diag_postnorm_mean_abs[K_MAX_CANDIDATES];
 static _Thread_local int     tls_diag_count                    = 0;
+
+/* Opt-in, OFF by default. Only the D-001 C.2 Phase 2c raw-LLR BER-measurement study needs
+ * the tls_diag_llr174 array below; no shipped build should carry it (see
+ * qa/cycleframer-alignment-replay/2026-07-27-1622-architect-dll-size-ruling.md and the
+ * dev-task that implements the ruling, dev-tasks/2026-07-27-d001-gate-tls-diag-llr174-
+ * compile-time.md). To build a diagnostic binary that can capture raw LLRs, compile with
+ * -DFT8_ENABLE_RAW_LLR_CAPTURE=1 (gcc/clang) or /DFT8_ENABLE_RAW_LLR_CAPTURE=1 (cl) added
+ * to that ONE build invocation — do not commit a binary built this way. */
+#ifndef FT8_ENABLE_RAW_LLR_CAPTURE
+#define FT8_ENABLE_RAW_LLR_CAPTURE 0
+#endif
+
+/* ── Thread-local raw-LLR-174 capture (D-001 C.2 Phase 2c BER measurement,
+ * shim 20260035) ─────────────────────────────────────────────────────────
+ * Opt-in (default disabled) and layered ON TOP of the C.2 diagnostic capture above:
+ * only fires when BOTH tls_diag_capture_enabled AND tls_diag_llr_capture_enabled are
+ * set, reusing the same per-pass-0-candidate loop iteration and the same candidate
+ * index as tls_diag_freq_hz/etc. (so row i's 174 LLRs belong to the same candidate as
+ * row i's freq/dt/score/decoded). Kept as a SEPARATE toggle from the scalar capture
+ * (rather than folded into it) so a caller wanting only the cheap scalar stats never
+ * pays for 140 * 174 floats (~76 KB) of extra copying per cycle.
+ * Zero cost when disabled: same discipline as tls_diag_capture_enabled — the extra
+ * ftx_get_candidate_raw_llr() call and memcpy never run on the shipped path.
+ * The tls_diag_llr174 array itself is compile-time-gated behind
+ * FT8_ENABLE_RAW_LLR_CAPTURE (default off) — it is the one 97,440-byte-per-thread cost
+ * called out by the Architect's ruling; every other symbol in this block (the enable
+ * flag and the two setter functions below) stays in every build, gated or not, because
+ * Ft8Decoder.cs calls ft8_set_candidate_diag_llr_capture/ft8_set_llr_shrinkage
+ * unconditionally every decode cycle. */
+static _Thread_local int   tls_diag_llr_capture_enabled = 0;
+#if FT8_ENABLE_RAW_LLR_CAPTURE
+static _Thread_local float tls_diag_llr174[K_MAX_CANDIDATES][FTX_LDPC_N]; /* FTX_LDPC_N == 174 */
+#endif
+
+/* ── LLR shrinkage trial (D-001 C.2 Phase 2c, shim 20260035) ─────────────────────────── */
+/*
+ * Thread-local, default-off (0.0) shrinkage weight and its per-decode-call running
+ * reference, plumbed into patched/ft8/decode.c's ftx_normalize_logl (declared extern
+ * there — see that file's comment block for the exact blend and no-op guarantee).
+ * Non-static (unlike the tls_diag_* arrays above) because decode.c, a different
+ * translation unit, needs to read/write them — same reason s_osd_corr_threshold and
+ * s_osd_nhard_max are non-static file-scope globals rather than static.
+ * tls_llr_shrinkage_weight is sticky across calls, set via ft8_set_llr_shrinkage();
+ * tls_llr_shrink_ref_mean/_ref_n are reset to 0 at the top of every ft8_decode_all call
+ * (see below) so the reference reflects only the CURRENT decode cycle.
+ */
+_Thread_local double tls_llr_shrinkage_weight = 0.0;
+_Thread_local double tls_llr_shrink_ref_mean  = 0.0;
+_Thread_local int    tls_llr_shrink_ref_n     = 0;
 
 /* ── Thread-local AP decode state (Task A, shim 20260020) ────────────────── */
 /*
@@ -1196,6 +1252,74 @@ int ft8_get_last_candidate_diag(
     return n;
 }
 
+/* ── Raw-LLR-174 capture (D-001 C.2 Phase 2c BER measurement, shim 20260035) ─────── */
+/*
+ * ft8_set_candidate_diag_llr_capture — enable/disable the 174-raw-LLR-per-candidate
+ * export for the next ft8_decode_all call on this thread.  Disabled (0) by default.
+ * Has NO effect unless ft8_set_candidate_diag_capture(1) is ALSO enabled — this toggle
+ * only adds an extra export on top of that capture's existing per-candidate loop, it
+ * does not enable capture by itself. Sticky across calls, same contract as
+ * ft8_set_candidate_diag_capture.
+ */
+void ft8_set_candidate_diag_llr_capture(int enable)
+{
+    tls_diag_llr_capture_enabled = enable ? 1 : 0;
+}
+
+/*
+ * ft8_get_last_candidate_llr — return the 174 raw (pre-normalisation) LLR values for
+ * every pass-0 candidate recorded by the most recent ft8_decode_all call on this
+ * thread. Populated only if BOTH ft8_set_candidate_diag_capture(1) AND
+ * ft8_set_candidate_diag_llr_capture(1) were called beforehand; returns 0 otherwise
+ * (out_llr174_flat left untouched).
+ *
+ * out_llr174_flat — caller-allocated array of capacity * 174 floats. Candidate i's 174
+ *                   values occupy out_llr174_flat[i*174 .. i*174+173], in the SAME
+ *                   candidate order and index as ft8_get_last_candidate_diag's output
+ *                   arrays (row i here is row i there) — join by index, not by content.
+ * capacity        — number of CANDIDATE SLOTS out_llr174_flat has room for (i.e. its
+ *                   length must be >= capacity * 174); pass >= K_MAX_CANDIDATES (140)
+ *                   for full data.
+ *
+ * Returns: number of pass-0 candidates recorded this cycle (<= capacity), identical to
+ * ft8_get_last_candidate_diag's return value when both toggles were enabled together.
+ * Thread-safe: TLS-scoped, same contract as ft8_get_last_pass_counts.
+ *
+ * Compile-time-gated (FT8_ENABLE_RAW_LLR_CAPTURE, default off): the export itself
+ * always stays available (Ft8Decoder.cs's managed-side plumbing must link against it
+ * unconditionally), but in a shipped (gate-off) build the backing tls_diag_llr174
+ * array does not exist, so this always returns 0 and leaves out_llr174_flat untouched
+ * -- exactly the contract already documented above for the not-both-toggles-set case.
+ */
+int ft8_get_last_candidate_llr(float* out_llr174_flat, int capacity)
+{
+#if FT8_ENABLE_RAW_LLR_CAPTURE
+    int n = (tls_diag_count < capacity) ? tls_diag_count : capacity;
+    for (int i = 0; i < n; i++)
+        memcpy(out_llr174_flat + (size_t)i * FTX_LDPC_N, tls_diag_llr174[i], sizeof(tls_diag_llr174[i]));
+    return n;
+#else
+    (void)out_llr174_flat;
+    (void)capacity;
+    return 0;
+#endif
+}
+
+/* ── LLR shrinkage trial (D-001 C.2 Phase 2c, shim 20260035) ────────────────────── */
+/*
+ * ft8_set_llr_shrinkage — set the thread-local shrinkage weight blended into
+ * ftx_normalize_logl's pre-normalisation variance (patched/ft8/decode.c). Default 0.0
+ * (an exact no-op — see that file for the guarantee). Sticky across ft8_decode_all
+ * calls, same contract as ft8_set_decode_params/ft8_set_candidate_diag_capture.
+ * Valid range [0.0, 1.0]; values outside are clamped inside ftx_normalize_logl itself,
+ * not here, so out-of-range writes are still observable via whatever value was set
+ * (only the effective blend is clamped).
+ */
+void ft8_set_llr_shrinkage(double weight)
+{
+    tls_llr_shrinkage_weight = weight;
+}
+
 /* ── AP decode setter (Task A, shim 20260020) ────────────────────────────── */
 /*
  * ft8_set_ap_bits — supply known AP bit constraints for the next decode cycle.
@@ -1304,6 +1428,12 @@ int ft8_decode_all(
     for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_fail_count[i]      = 0;
     tls_num_passes = 0;
     tls_diag_count = 0; /* C.2, shim 20260034 — reset regardless of capture-enabled state */
+    /* D-001 C.2 Phase 2c (shim 20260035): reset the shrinkage running reference so it
+     * reflects only THIS decode call, not carryover from a previous cycle on the same
+     * thread. tls_llr_shrinkage_weight itself is NOT reset here -- it is the sticky
+     * setting from ft8_set_llr_shrinkage, same lifecycle as tls_diag_capture_enabled. */
+    tls_llr_shrink_ref_mean = 0.0;
+    tls_llr_shrink_ref_n    = 0;
 
     /* ── 4a. Cross-pass suppression accumulator ─────────────────────────── */
     /* Holds decoded candidates from pass 0 for spectrogram-domain tile
@@ -1447,6 +1577,18 @@ int ft8_decode_all(
                 tls_diag_decoded[di]          = decoded ? 1 : 0;
                 tls_diag_prenorm_var[di]      = diag_prenorm_var;
                 tls_diag_postnorm_mean_abs[di]= diag_mean_abs; /* may be NaN — degenerate candidate */
+
+                /* D-001 C.2 Phase 2c BER measurement (shim 20260035): layered opt-in on
+                 * top of the capture above -- same candidate index di, so row di here
+                 * lines up with row di's freq/dt/score/decoded/prenorm_var. Never NaN
+                 * (ftx_get_candidate_raw_llr does not skip degenerate candidates).
+                 * Compile-time-gated: tls_diag_llr174 does not exist in a shipped
+                 * (FT8_ENABLE_RAW_LLR_CAPTURE=0) build, so this write is compiled out
+                 * entirely rather than merely skipped at runtime. */
+#if FT8_ENABLE_RAW_LLR_CAPTURE
+                if (tls_diag_llr_capture_enabled)
+                    ftx_get_candidate_raw_llr(&mon.wf, cand, tls_diag_llr174[di]);
+#endif
             }
 
             if (!decoded)

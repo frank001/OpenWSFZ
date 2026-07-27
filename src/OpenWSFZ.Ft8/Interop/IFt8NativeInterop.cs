@@ -114,4 +114,42 @@ internal interface IFt8NativeInterop
     /// </summary>
     (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
      float[] PrenormVariance, float[] PostnormMeanAbsLlr) GetLastCandidateDiagnostics();
+
+    /// <summary>
+    /// Enable/disable the 174-raw-LLR-per-candidate export (D-001 C.2 Phase 2c BER
+    /// measurement, shim 20260035). Disabled by default. Has NO effect unless
+    /// <see cref="SetCandidateDiagCapture"/> is ALSO enabled — this only adds an extra
+    /// per-candidate export on top of that capture, it does not enable capture by itself.
+    /// Sticky across <see cref="DecodeAll"/> calls until changed again.
+    /// </summary>
+    void SetCandidateDiagLlrCapture(bool enable);
+
+    /// <summary>
+    /// Return the 174 raw (pre-normalisation) LLR values for every pass-0 candidate
+    /// recorded by the most recent <see cref="DecodeAll"/> call on this thread (D-001
+    /// C.2 Phase 2c BER measurement, shim 20260035). Empty unless BOTH
+    /// <see cref="SetCandidateDiagCapture"/> and <see cref="SetCandidateDiagLlrCapture"/>
+    /// were called with <c>true</c> beforehand.
+    /// <para>
+    /// <c>result[i]</c> is candidate <c>i</c>'s 174-value array, in the SAME candidate
+    /// order/index as <see cref="GetLastCandidateDiagnostics"/>'s arrays from the same
+    /// cycle — join by index, not by content. Never contains <c>NaN</c> (unlike
+    /// <c>PostnormMeanAbsLlr</c>): a hard-decision sign comparison is defined for every
+    /// candidate, degenerate or not.
+    /// </para>
+    /// Deliberately a separate call from <see cref="GetLastCandidateDiagnostics"/> (not
+    /// folded into its tuple) so a caller that only wants the cheap scalar stats never
+    /// pays for the ~140 * 174-float managed array allocation this call makes.
+    /// MUST be called on the same thread as <see cref="DecodeAll"/>.
+    /// </summary>
+    float[][] GetLastCandidateLlr174();
+
+    /// <summary>
+    /// Set the thread-local LLR-shrinkage weight blended into the native
+    /// <c>ftx_normalize_logl</c>'s pre-normalisation variance (D-001 C.2 Phase 2c
+    /// shrinkage trial, shim 20260035). Default 0.0 — an exact no-op by construction.
+    /// Diagnostic-only: no production caller should ever set this to a non-zero value.
+    /// Takes effect on the next <see cref="DecodeAll"/> call; sticky until changed again.
+    /// </summary>
+    void SetLlrShrinkage(double weight);
 }

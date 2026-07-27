@@ -48,4 +48,13 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
     public (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
             float[] PrenormVariance, float[] PostnormMeanAbsLlr) GetLastCandidateDiagnostics()
         => Ft8LibInterop.GetLastCandidateDiagnostics();
+
+    public void SetCandidateDiagLlrCapture(bool enable)
+        => Ft8LibInterop.SetCandidateDiagLlrCapture(enable);
+
+    public float[][] GetLastCandidateLlr174()
+        => Ft8LibInterop.GetLastCandidateLlr174();
+
+    public void SetLlrShrinkage(double weight)
+        => Ft8LibInterop.SetLlrShrinkage(weight);
 }

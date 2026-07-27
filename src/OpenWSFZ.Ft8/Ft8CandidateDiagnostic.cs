@@ -27,10 +27,20 @@ namespace OpenWSFZ.Ft8;
 /// (pre-normalisation variance == 0) — callers must check <see cref="float.IsFinite(float)"/>
 /// before using this value.
 /// </param>
+/// <param name="Llr174">
+/// The 174 raw (pre-normalisation) LLR values for this candidate (D-001 C.2 Phase 2c BER
+/// measurement, dev-tasks/2026-07-26-d001-c2-phase2c-shrinkage-trial-and-ber.md). Empty
+/// unless <see cref="Ft8Decoder.SetCandidateDiagLlrCapture"/> was ALSO enabled (in addition
+/// to <see cref="Ft8Decoder.SetCandidateDiagCapture"/>) before the decode cycle that
+/// produced this record. Never contains <see cref="float.NaN"/> — a hard-decision (sign)
+/// comparison against a known-true codeword is defined for every candidate, degenerate or
+/// not, unlike <see cref="PostnormMeanAbsLlr"/>.
+/// </param>
 public sealed record Ft8CandidateDiagnostic(
     float FreqHz,
     float Dt,
     short Score,
     bool  Decoded,
     float PrenormVariance,
-    float PostnormMeanAbsLlr);
+    float PostnormMeanAbsLlr,
+    IReadOnlyList<float> Llr174);

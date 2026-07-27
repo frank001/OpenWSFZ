@@ -65,6 +65,10 @@ public sealed class D009FpFilterTests
         public (float[] FreqHz, float[] Dt, short[] Score, bool[] Decoded,
                 float[] PrenormVariance, float[] PostnormMeanAbsLlr) GetLastCandidateDiagnostics()
             => ([], [], [], [], [], []);
+
+        public void SetCandidateDiagLlrCapture(bool enable) { /* no-op */ }
+        public float[][] GetLastCandidateLlr174() => [];
+        public void SetLlrShrinkage(double weight) { /* no-op */ }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

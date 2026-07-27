@@ -304,8 +304,33 @@ extern "C" {
  *              decoded at the per-candidate level (D-001 consolidation doc §3, §6.2).
  *              Two new exported entry points; no change to any existing export's signature
  *              or behaviour.
+ *   20260035 — d001-c2-phase2c-shrinkage-trial-and-ber: two independent, opt-in,
+ *              default-off diagnostics in one shim bump (dev-tasks/
+ *              2026-07-26-d001-c2-phase2c-shrinkage-trial-and-ber.md), sharing the C.2
+ *              Phase 1 discipline (default disabled, verified behavioural no-op when
+ *              disabled) but NOT shipped or enabled on the production path either way:
+ *              (A) ft8_set_llr_shrinkage(double weight) — thread-local, default 0.0,
+ *              plumbed into patched/ft8/decode.c's ftx_normalize_logl.  Blends each
+ *              candidate's own pre-normalisation log174 variance with a running
+ *              per-decode-call reference (mean raw variance of non-degenerate candidates
+ *              normalised so far this call), per the Architect's shrinkage-trial design
+ *              (qa/cycleframer-alignment-replay/
+ *              2026-07-26-1930-architect-c2-phase2a-ruling-revision.md §5).  weight==0.0
+ *              is an EXACT no-op by construction (effective_variance assigned directly
+ *              from variance inside an `if` guard, never touching the reference) —
+ *              verified byte-identical against the pristine shim-20260034 build on the
+ *              discovery corpus before any other row of the sweep was trusted (see the
+ *              findings doc).  (B) ft8_set_candidate_diag_llr_capture(int enable) +
+ *              ft8_get_last_candidate_llr() — opt-in export of the 174 raw
+ *              (pre-normalisation) LLR values per pass-0 candidate, layered on top of
+ *              shim 20260034's existing capture (has no effect unless
+ *              ft8_set_candidate_diag_capture(1) is ALSO enabled), feeding the BER
+ *              measurement's hard-decision comparison against WSJT-X's re-encoded true
+ *              codeword.  Three new exported entry points; no change to any existing
+ *              export's signature, struct layout, or behaviour when all three new
+ *              toggles are left at their defaults.
  */
-#define FT8_SHIM_VERSION 20260034
+#define FT8_SHIM_VERSION 20260035
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -491,6 +516,67 @@ int ft8_get_last_candidate_diag(
     float*   out_prenorm_var,
     float*   out_postnorm_mean_abs,
     int      capacity);
+
+/*
+ * ft8_set_candidate_diag_llr_capture — enable/disable the 174-raw-LLR-per-candidate
+ * export for the next ft8_decode_all call on this thread (D-001 C.2 Phase 2c BER
+ * measurement, shim 20260035).
+ *
+ * Disabled (0) by default.  Has NO effect unless ft8_set_candidate_diag_capture(1) is
+ * ALSO enabled — this is an additional export layered on top of that capture's existing
+ * per-pass-0-candidate loop, not an independent capture path.  Kept as a separate toggle
+ * (rather than folded into ft8_set_candidate_diag_capture) so a caller wanting only the
+ * cheap scalar stats never pays for the extra 140 * 174 floats of copying per cycle.
+ *
+ * Sticky across calls, same contract as ft8_set_candidate_diag_capture.
+ */
+void ft8_set_candidate_diag_llr_capture(int enable);
+
+/*
+ * ft8_get_last_candidate_llr — return the 174 raw (pre-normalisation) LLR values for
+ * every pass-0 candidate recorded by the most recent ft8_decode_all call on this thread
+ * (D-001 C.2 Phase 2c, shim 20260035).  Populated only if BOTH
+ * ft8_set_candidate_diag_capture(1) AND ft8_set_candidate_diag_llr_capture(1) were
+ * called beforehand; returns 0 otherwise (out_llr174_flat left untouched).
+ *
+ * Unlike ft8_get_last_candidate_diag's out_postnorm_mean_abs, these values are never
+ * NaN: ftx_get_candidate_raw_llr performs no degenerate-candidate check, because a
+ * hard-decision (sign) comparison against a known-true codeword is defined for every
+ * candidate.  The sign of a raw log174[i] is identical to its sign after
+ * ftx_normalize_logl (which only ever scales by a non-negative factor), so callers
+ * doing hard-decision BER need only these raw values.
+ *
+ * out_llr174_flat — caller-allocated array of capacity * 174 floats.  Candidate i's 174
+ *                   values occupy out_llr174_flat[i*174 .. i*174+173], in the SAME
+ *                   candidate order/index as ft8_get_last_candidate_diag's arrays — join
+ *                   by index, not by content.
+ * capacity        — number of CANDIDATE SLOTS out_llr174_flat has room for (its length
+ *                   must be >= capacity * 174); pass >= K_MAX_CANDIDATES (140) for full
+ *                   data.
+ *
+ * Returns: number of pass-0 candidates recorded this cycle (<= capacity).
+ * Thread-safe: TLS-scoped, same contract as ft8_get_last_pass_counts.
+ */
+int ft8_get_last_candidate_llr(float* out_llr174_flat, int capacity);
+
+/*
+ * ft8_set_llr_shrinkage — set the thread-local LLR-shrinkage weight blended into
+ * ftx_normalize_logl's pre-normalisation variance (D-001 C.2 Phase 2c shrinkage trial,
+ * shim 20260035; patched/ft8/decode.c).
+ *
+ * Default 0.0, an EXACT no-op: at weight 0.0, ftx_normalize_logl assigns
+ * effective_variance directly from each candidate's own raw variance inside an `if`
+ * guard that never touches the running reference — byte-identical to the pre-trial
+ * arithmetic. Valid range [0.0, 1.0]; out-of-range values are clamped inside
+ * ftx_normalize_logl itself (not here), so this setter never rejects a value.
+ *
+ * Sticky across ft8_decode_all calls, same contract as ft8_set_decode_params /
+ * ft8_set_candidate_diag_capture.  This is a DIAGNOSTIC-ONLY toggle: no production
+ * caller should ever call this with a non-zero value — see the shrinkage-trial dev-task
+ * (dev-tasks/2026-07-26-d001-c2-phase2c-shrinkage-trial-and-ber.md) for what would be
+ * required before any non-zero weight could ship.
+ */
+void ft8_set_llr_shrinkage(double weight);
 
 /*
  * ft8_set_ap_bits — supply known AP bit constraints for the next decode cycle

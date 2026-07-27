@@ -61,6 +61,24 @@ extern int   s_osd_nhard_max;        /* runtime-configurable; default 60   (shim
 #define OSD_CORR_THRESHOLD s_osd_corr_threshold
 #define OSD_NHARD_MAX      s_osd_nhard_max
 
+/* ── LLR shrinkage trial (D-001 C.2 Phase 2c, shim 20260035) ────────────────────────────
+ *
+ * Thread-local, default-off (0.0) weight blended into ftx_normalize_logl's
+ * pre-normalisation variance, toward a running per-decode-call reference (the mean raw
+ * variance of every non-degenerate candidate normalised so far on this thread since the
+ * last ft8_decode_all reset).  Owned by ft8_shim.c (ft8_set_llr_shrinkage sets the
+ * weight; ft8_decode_all resets the reference at the top of every call) — declared
+ * extern here, same pattern as s_osd_corr_threshold/s_osd_nhard_max above.
+ *
+ * weight == 0.0 is an EXACT no-op: see ftx_normalize_logl below, which only reads the
+ * reference inside an `if (tls_llr_shrinkage_weight != 0.0)` branch, so at the default
+ * the function is byte-identical to its pre-trial form regardless of what the reference
+ * holds (this also protects against 0.0 * non-finite-reference producing NaN).
+ */
+extern _Thread_local double tls_llr_shrinkage_weight;   /* default 0.0 (shim 20260035) */
+extern _Thread_local double tls_llr_shrink_ref_mean;    /* running mean raw variance, this call */
+extern _Thread_local int    tls_llr_shrink_ref_n;        /* count backing the running mean       */
+
 // Lookup table for y = 10*log10(1 + 10^(x/10)), where
 //   y - increase in signal level dB when adding a weaker independent signal
 //   x - specific relative strength of the weaker signal in dB
@@ -91,6 +109,19 @@ float ftx_compute_candidate_llr_stats(
     const ftx_waterfall_t* wf,
     const ftx_candidate_t* cand,
     float*                 out_prenorm_variance);
+
+/* Non-static diagnostic probe — called from ft8_shim.c (D-001 C.2 Phase 2c, shim 20260035).
+ * Writes the 174 RAW (pre-normalisation) likelihoods for cand into out_log174, with no
+ * normalisation and no bp_decode call — a pure extraction, safe for any candidate
+ * (including degenerate ones ftx_compute_candidate_llr_stats would report as NaN).
+ * The hard decision (sign) of a raw log174[i] is identical to the hard decision of the
+ * normalised value: ftx_normalize_logl only ever scales by a non-negative factor, so
+ * sign is invariant under normalisation — callers doing a hard-decision BER comparison
+ * need only the raw array, not the post-normalisation one. */
+void ftx_get_candidate_raw_llr(
+    const ftx_waterfall_t* wf,
+    const ftx_candidate_t* cand,
+    float*                 out_log174);
 
 /* AP-constrained decode — called from ft8_shim.c for pass 0 (Task A, shim 20260020).
  * Behaves identically to ftx_decode_candidate but applies the ap_overrides array
@@ -390,11 +421,55 @@ static void ftx_normalize_logl(float* log174)
     float inv_n = 1.0f / FTX_LDPC_N;
     float variance = (sum2 - (sum * sum * inv_n)) * inv_n;
 
+    /* D-001 C.2 Phase 2c shrinkage trial (shim 20260035).  Blend this candidate's own
+     * pre-normalisation variance with the running reference toward a robust per-call
+     * mean, so a low-variance (marginal) candidate is scaled less aggressively than
+     * ftx_normalize_logl's fixed-target scheme would scale it alone.
+     *
+     * weight == 0.0 (the default): effective_variance is assigned directly from
+     * variance -- no arithmetic touches the reference at all.  This is deliberately an
+     * `if`, not just "the blend formula happens to reduce to variance at weight 0" --
+     * the trial's own self-check requires a BYTE-IDENTICAL no-op, and 0.0 * a
+     * non-finite reference would otherwise poison the result (0 * inf == NaN). */
+    float effective_variance = variance;
+    if (tls_llr_shrinkage_weight != 0.0)
+    {
+        double w = tls_llr_shrinkage_weight;
+        if (w < 0.0) w = 0.0;
+        if (w > 1.0) w = 1.0;
+        if (tls_llr_shrink_ref_n > 0)
+        {
+            double ref = tls_llr_shrink_ref_mean;
+            effective_variance = (float)((1.0 - w) * (double)variance + w * ref);
+        }
+        /* else: no reference yet this call (this is the first non-degenerate candidate
+         * normalised on this thread since the last ft8_decode_all reset) -- nothing to
+         * shrink toward yet, so effective_variance stays == variance for this one
+         * candidate. */
+    }
+
     // Normalize log174 distribution and scale it with experimentally found coefficient
-    float norm_factor = sqrtf(24.0f / variance);
+    float norm_factor = sqrtf(24.0f / effective_variance);
     for (int i = 0; i < FTX_LDPC_N; ++i)
     {
         log174[i] *= norm_factor;
+    }
+
+    /* Update the running reference from this candidate's own RAW (unblended) variance,
+     * for the next candidate normalised this call.  Skips degenerate (variance == 0)
+     * candidates so a zero-variance candidate can never drag the reference to zero and
+     * corrupt every subsequent candidate's shrinkage target -- callers that reach this
+     * function with variance == 0 already produce norm_factor == inf exactly as before
+     * this trial (unchanged existing behaviour); this update only decides what feeds
+     * the *next* candidate's reference, not this one's own normalisation.
+     * Runs unconditionally (even at weight == 0.0) so there is a single code path;
+     * harmless at weight == 0.0 because the reference is never read there (see above).
+     * Welford-style running mean avoids an unbounded accumulator over an unbounded
+     * candidate count within one decode call. */
+    if (variance > 0.0f)
+    {
+        tls_llr_shrink_ref_n++;
+        tls_llr_shrink_ref_mean += ((double)variance - tls_llr_shrink_ref_mean) / (double)tls_llr_shrink_ref_n;
     }
 }
 
@@ -800,6 +875,29 @@ float ftx_compute_candidate_llr_stats(
         abs_sum += fabsf(log174[i]);
 
     return abs_sum / (float)FTX_LDPC_N;
+}
+
+/*
+ * ftx_get_candidate_raw_llr — diagnostic probe for D-001 C.2 Phase 2c (shim 20260035).
+ *
+ * Pure extraction: fills out_log174 with the 174 RAW (pre-normalisation) likelihoods
+ * for cand, with no normalisation and no bp_decode call.  Unlike
+ * ftx_compute_candidate_llr_stats, this never returns NaN or skips a degenerate
+ * candidate — a hard-decision (sign) comparison against a known-true codeword is
+ * defined for every candidate, degenerate or not, and the sign of a raw log174[i] is
+ * identical to the sign it would have after ftx_normalize_logl (which only ever scales
+ * by a non-negative factor). Read-only with respect to the waterfall; safe to call for
+ * any candidate.
+ */
+void ftx_get_candidate_raw_llr(
+    const ftx_waterfall_t* wf,
+    const ftx_candidate_t* cand,
+    float*                 out_log174)
+{
+    if (wf->protocol == FTX_PROTOCOL_FT4)
+        ft4_extract_likelihood(wf, cand, out_log174);
+    else
+        ft8_extract_likelihood(wf, cand, out_log174);
 }
 
 /*
