@@ -19,9 +19,13 @@ identically every time:
             ALL.TXT             OpenWSFZ's decode log, filtered to the session window
             openswfz-*.log      daemon log file(s) covering the session window
             cycle-archive.csv   cycle-audio-archive manifest, if the feature was in use
-        README.md               mechanical facts filled in; narrative sections left as TODO
+        contents.md             mechanical facts filled in; narrative sections left as TODO
+        contents.html           rendered copy of contents.md (Captain's standing instruction,
+                                 2026-07-27 — every live-run folder needs both)
 
-<HHMM> is the session START time, matching the existing artefacts/ naming convention.
+<HHMM> is the session START time, matching the existing artefacts/ naming convention. Nothing
+in this layout is ever named after the band/frequency in use — that's just an adjustable run
+parameter (Captain, 2026-07-27) that can change mid-session, so it never belongs in a path.
 
 Usage:
     # Common case: run immediately after ending a live session. Auto-detects the session
@@ -36,6 +40,11 @@ Usage:
 
     # Preview without copying anything:
     python tools/gather_live_run_artefacts.py --dry-run
+
+    # Also render a companion incident/session report to HTML in the same pass (Captain's
+    # standing instruction, 2026-07-27 — contents.html and a report's own .html should both
+    # come out of one gather, not one automatic and one remembered-by-hand afterwards):
+    python tools/gather_live_run_artefacts.py --report-md qa/endurance/2026-07-26-f283844/report.md
 
 Only stdlib is used deliberately — this needs to run on a QA/Developer workstation with no
 project virtualenv guaranteed to be active.
@@ -270,10 +279,10 @@ def copy_cycle_archive_manifest(cycle_dir: Path, dst_dir: Path) -> bool:
     return False
 
 
-# ── README generation ───────────────────────────────────────────────────────────────────
+# ── contents.md / contents.html generation ─────────────────────────────────────────────
 
 
-def write_readme(
+def write_contents(
     out_dir: Path,
     name: str,
     start: datetime,
@@ -291,7 +300,11 @@ def write_readme(
     audio_device = config.get("audioDeviceFriendlyName") or "TODO"
     log_names = ", ".join(f"`{p.name}`" for p in owsfz_logs) or "(none found in window)"
 
-    body = f"""# Live run artefacts — {start:%Y-%m-%d} (session {start:%H:%M:%S} → {end:%H:%M:%S} UTC)
+    # Note (Captain's standing instruction, 2026-07-27): the band/frequency is just an
+    # adjustable run parameter, not part of the run's identity — it appears below only as
+    # descriptive metadata about what happened during the session, never in the folder name,
+    # this file's name, or any filename under it (naming is date/time-only throughout).
+    body = f"""# Live run contents — {start:%Y-%m-%d} (session {start:%H:%M:%S} → {end:%H:%M:%S} UTC)
 
 Gathered automatically by `tools/gather_live_run_artefacts.py` (HK-016). Not committed to
 VCS (git-ignored, `artefacts/` — NFR-021/GDPR: these files contain real third-party
@@ -317,7 +330,9 @@ supports and fill in the "Headline result" section below.
 
 ## Device / session metadata
 
-Audio device: {audio_device}. Dial frequency: {dial_mhz if dial_mhz else "TODO"} MHz.
+Audio device: {audio_device}. Dial frequency at time of gathering: {dial_mhz if dial_mhz else "TODO"} MHz
+(a run parameter, may have changed during the session — check the ALL.TXT frequency column
+for the actual per-line value, not this single snapshot).
 Decoder settings: `kMinScorePass2={decoder.get("kMinScorePass2", "TODO")}`,
 `osdCorrThreshold={decoder.get("osdCorrThreshold", "TODO")}`,
 `osdNhardMax={decoder.get("osdNhardMax", "TODO")}`.
@@ -327,15 +342,45 @@ Session duration: {end - start} ({start:%H:%M:%S} → {end:%H:%M:%S}).
 
 TODO — one-line pointer to wherever the actual analysis/report for this run lives.
 """
-    readme_path = out_dir / "README.md"
-    if readme_path.exists():
-        readme_path = out_dir / "README.autogen.md"
+    contents_path = out_dir / "contents.md"
+    if contents_path.exists():
+        contents_path = out_dir / "contents.autogen.md"
         print(
-            f"  note: README.md already exists — writing mechanical facts to "
-            f"{readme_path.name} instead so your hand-edited notes aren't clobbered"
+            f"  note: contents.md already exists — writing mechanical facts to "
+            f"{contents_path.name} instead so your hand-edited notes aren't clobbered"
         )
-    readme_path.write_text(body, encoding="utf-8")
-    return readme_path
+    contents_path.write_text(body, encoding="utf-8")
+    render_markdown_html(contents_path)
+    return contents_path
+
+
+def render_markdown_html(md_path: Path) -> None:
+    """Render a Markdown file to HTML alongside it, via the shared renderer
+    (qa/rr-study/render_report.py — generic despite its name/location; single source of truth
+    for this repo's Markdown->HTML styling rather than a second copy here). Used for this
+    script's own contents.md, and (via --report-md) for a companion incident/session report.md
+    living elsewhere (e.g. qa/endurance/<date>-<sha>/report.md) — the Captain's standing
+    instruction, 2026-07-27, after report.md got gathered without its report.html once and had
+    to be rendered as an afterthought. Best-effort: a rendering failure (e.g. no network for the
+    renderer's one-time 'markdown' package bootstrap) is warned about, not fatal — the .md file,
+    which is the primary artefact, is already written by the time this runs.
+    """
+    renderer = REPO_ROOT / "qa" / "rr-study" / "render_report.py"
+    if not renderer.is_file():
+        print(f"  warning: {renderer} not found — skipping {md_path.name} HTML render")
+        return
+    if not md_path.is_file():
+        print(f"  warning: {md_path} not found — skipping HTML render")
+        return
+    try:
+        subprocess.run(
+            [sys.executable, str(renderer), str(md_path)],
+            check=True, capture_output=True, text=True,
+        )
+        print(f"  rendered {md_path.with_suffix('.html').name}")
+    except (OSError, subprocess.CalledProcessError) as exc:
+        detail = exc.stderr if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+        print(f"  warning: {md_path.name} HTML render failed: {detail}")
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────────────────
@@ -369,6 +414,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--log-pad-seconds", type=int, default=300,
                     help="Slack applied to daemon *.log file mtime filtering (default: %(default)s).")
     p.add_argument("--dry-run", action="store_true", help="Print what would happen; copy nothing.")
+    p.add_argument("--report-md", action="append", dest="report_md_paths", metavar="PATH",
+                    help="Also render this Markdown file to HTML (e.g. a companion "
+                         "qa/endurance/<date>-<sha>/report.md incident write-up), alongside "
+                         "this run's own contents.md/contents.html. Repeatable.")
     return p
 
 
@@ -458,10 +507,16 @@ def main(argv: list[str] | None = None) -> int:
     wsjtx_lines = filter_alltxt(wsjtx_alltxt, wsjtx_dir / "ALL.TXT", start, end)
     wsjtx_wavs = copy_wav_window(wsjtx_wav_dir, wsjtx_wav_out, start, end, pad)
 
-    readme_path = write_readme(
+    contents_path = write_contents(
         out_dir, name, start, end, owsfz_lines, owsfz_wavs, owsfz_logs, wsjtx_lines, wsjtx_wavs, config
     )
-    print(f"\nWrote {readme_path} — fill in the TODO sections before closing out the run.")
+    print(f"\nWrote {contents_path} — fill in the TODO sections before closing out the run.")
+
+    if args.report_md_paths:
+        print("\nRendering companion report(s):")
+        for report_md in args.report_md_paths:
+            render_markdown_html(Path(report_md))
+
     print(f"Done: {out_dir}")
     return 0
 

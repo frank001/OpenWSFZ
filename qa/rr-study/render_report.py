@@ -1,15 +1,21 @@
-"""render_report.py — Convert an R&R study report.md to an HTML page.
+"""render_report.py — Convert a Markdown file to an HTML page (GitHub Dark style).
+
+Originally built for R&R study report.md files (HK-001) but generic: works on any
+Markdown file, e.g. an artefacts/<run>/contents.md live-run summary (Captain's
+standing instruction, 2026-07-27 — every live-run folder gets a contents.md AND a
+rendered contents.html).
 
 Usage
 -----
-    python render_report.py [path/to/report.md]
+    python render_report.py [path/to/some.md]
 
     If no path is given, the most recently modified report.md under
-    qa/rr-study/results/ is rendered automatically.
+    qa/rr-study/results/ is rendered automatically (the original R&R workflow).
 
 Output
 ------
-    report.html written alongside the source report.md.
+    <same-stem>.html written alongside the source .md file (report.md -> report.html,
+    contents.md -> contents.html, etc.).
 
 Images are referenced by relative path (not embedded), so the HTML file
 must remain in the same directory as the PNG charts to display correctly.
@@ -360,7 +366,7 @@ def main() -> None:
         sys.exit(f"ERROR: {report_path} does not exist")
 
     report_dir  = report_path.parent
-    output_path = report_dir / "report.html"
+    output_path = report_dir / f"{report_path.stem}.html"
 
     try:
         display_in = report_path.relative_to(PROJ_ROOT)
@@ -391,7 +397,7 @@ def main() -> None:
     # ── Page title from first H1 ────────────────────────────────────────────
     h1_match   = re.search(r"<h1[^>]*>(.*?)</h1>", body, re.S | re.I)
     page_title = re.sub(r"<[^>]+>", "", h1_match.group(1)).strip() \
-                 if h1_match else "R&R Study Report"
+                 if h1_match else report_path.stem
 
     # ── Build & write HTML ──────────────────────────────────────────────────
     html = build_html(body, page_title, get_pygments_css())
