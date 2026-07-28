@@ -188,6 +188,117 @@ public sealed class ConfigApiNullGuardTests : IClassFixture<WebTestFactory>
     }
 
     [Fact(DisplayName =
+        "fix-external-reporting-appid-collision AC: a Settings-page-shaped externalReporting save " +
+        "does not revert a previously-persisted non-default InstanceId back to \"OpenWSFZ\"")]
+    public async Task PostConfig_SettingsPageShapedSave_PreservesPreviouslyPersistedInstanceId()
+    {
+        // Unlike ptt (never sent by the UI at all), web/js/settings.js's External Programs tab
+        // DOES send a full, non-null "externalReporting" object on every save — it just has no
+        // field yet for "instanceId" (no UI required per this change's minimum scope). Confirmed
+        // live before the WebApp.cs guard was added: this exact shape (whole section present,
+        // instanceId key absent) silently reverted InstanceId to the STJ-constructor-default
+        // "OpenWSFZ", undoing a multi-instance operator's configuration on the very next
+        // unrelated Settings-page save and reintroducing the GridTracker collision this change
+        // fixes.
+        var client = _factory.CreateClient();
+
+        try
+        {
+            // Seed a non-default InstanceId (simulates the targeted POST an operator uses today,
+            // per dev-tasks/2026-07-28-fix-external-reporting-appid-collision.md §3 — no
+            // Settings-page field exists for this).
+            var seedContent = new StringContent(
+                """{ "audioDeviceId": "test-device", "externalReporting": { "instanceId": "OpenWSFZ-20m" } }""",
+                Encoding.UTF8, "application/json");
+            (await client.PostAsync("/api/v1/config", seedContent)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var seededJson = await (await client.GetAsync("/api/v1/config")).Content.ReadAsStringAsync();
+            using (var seededDoc = JsonDocument.Parse(seededJson))
+            {
+                seededDoc.RootElement.GetProperty("externalReporting").GetProperty("instanceId").GetString()
+                    .Should().Be("OpenWSFZ-20m", "the seed POST must have taken effect before testing preservation");
+            }
+
+            // Now perform an ordinary Settings-page save shaped exactly like
+            // web/js/settings.js's collected "externalReporting" object (settings.js:1345-1350) —
+            // every field it knows about, "instanceId" entirely absent.
+            var settingsPageShaped = new StringContent(
+                """
+                {
+                  "audioDeviceId": "test-device",
+                  "externalReporting": {
+                    "enabled": false,
+                    "targets": [],
+                    "honourInboundCommands": false,
+                    "restrictExternalRepliesToDecodeFilter": false
+                  }
+                }
+                """,
+                Encoding.UTF8, "application/json");
+            (await client.PostAsync("/api/v1/config", settingsPageShaped)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var afterJson = await (await client.GetAsync("/api/v1/config")).Content.ReadAsStringAsync();
+            using var afterDoc = JsonDocument.Parse(afterJson);
+            afterDoc.RootElement.GetProperty("externalReporting").GetProperty("instanceId").GetString()
+                .Should().Be("OpenWSFZ-20m",
+                    "an unrelated Settings-page save must not silently revert InstanceId to " +
+                    "\"OpenWSFZ\" — this is the exact multi-instance-collision regression this test " +
+                    "guards against");
+        }
+        finally
+        {
+            // Restore Current.ExternalReporting to the default before returning control to the
+            // shared WebTestFactory (IClassFixture — one instance for this whole test class), so
+            // this test's seeded state can never leak into the gridtracker-udp-reporting test
+            // above or any other test in this class regardless of xUnit's execution order.
+            var resetContent = new StringContent(
+                """{ "audioDeviceId": "test-device", "externalReporting": { "instanceId": "OpenWSFZ" } }""",
+                Encoding.UTF8, "application/json");
+            await client.PostAsync("/api/v1/config", resetContent);
+        }
+    }
+
+    [Fact(DisplayName =
+        "fix-external-reporting-appid-collision AC: an explicit POST resetting instanceId to the " +
+        "literal default is honoured, not mistaken for omission")]
+    public async Task PostConfig_ExplicitInstanceIdResetToDefault_IsHonoured()
+    {
+        // The preservation guard above (PostConfig_SettingsPageShapedSave_PreservesPreviouslyPersistedInstanceId)
+        // must not overcorrect into treating every incoming "OpenWSFZ" as "the client didn't
+        // really mean it" — an operator explicitly resetting a two-instance setup back to a
+        // single instance (or reverting a typo) sends "instanceId": "OpenWSFZ" on purpose and
+        // that must win.
+        var client = _factory.CreateClient();
+
+        try
+        {
+            var seedContent = new StringContent(
+                """{ "audioDeviceId": "test-device", "externalReporting": { "instanceId": "OpenWSFZ-20m" } }""",
+                Encoding.UTF8, "application/json");
+            (await client.PostAsync("/api/v1/config", seedContent)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var explicitResetContent = new StringContent(
+                """{ "audioDeviceId": "test-device", "externalReporting": { "instanceId": "OpenWSFZ" } }""",
+                Encoding.UTF8, "application/json");
+            (await client.PostAsync("/api/v1/config", explicitResetContent)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var afterJson = await (await client.GetAsync("/api/v1/config")).Content.ReadAsStringAsync();
+            using var afterDoc = JsonDocument.Parse(afterJson);
+            afterDoc.RootElement.GetProperty("externalReporting").GetProperty("instanceId").GetString()
+                .Should().Be("OpenWSFZ",
+                    "a POST body that explicitly includes \"instanceId\": \"OpenWSFZ\" must be honoured " +
+                    "as a real reset, not silently overridden back to the previously-persisted value");
+        }
+        finally
+        {
+            var resetContent = new StringContent(
+                """{ "audioDeviceId": "test-device", "externalReporting": { "instanceId": "OpenWSFZ" } }""",
+                Encoding.UTF8, "application/json");
+            await client.PostAsync("/api/v1/config", resetContent);
+        }
+    }
+
+    [Fact(DisplayName =
         "cat-tx-ptt AC-2: an unrelated Settings-page save does not revert a previously-persisted " +
         "non-default ptt.method back to AudioVox")]
     public async Task PostConfig_UnrelatedSave_PreservesPreviouslyPersistedPtt()

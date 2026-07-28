@@ -120,6 +120,19 @@ public sealed class ExternalReportingServiceTests
     private static WsjtxDatagram.MessageType ReadMessageType(byte[] datagram)
         => (WsjtxDatagram.MessageType)BinaryPrimitives.ReadUInt32BigEndian(datagram.AsSpan(8, 4));
 
+    /// <summary>
+    /// Reads the WSJT-X-protocol "Id" field — the length-prefixed UTF-8 string immediately
+    /// following the magic(4)/schema(4)/type(4) header (offset 12) — out of a raw outbound
+    /// datagram. Used by <c>InstanceId</c>-configurability regression tests
+    /// (fix-external-reporting-appid-collision) to confirm the daemon sends the operator-
+    /// configured value rather than a hardcoded literal.
+    /// </summary>
+    private static string ReadId(byte[] datagram)
+    {
+        var len = BinaryPrimitives.ReadUInt32BigEndian(datagram.AsSpan(12, 4));
+        return System.Text.Encoding.UTF8.GetString(datagram.AsSpan(16, (int)len));
+    }
+
     // ── Outbound: two simultaneous targets (task 3.7) ───────────────────────
 
     [Fact(DisplayName = "FR-053: Two enabled targets both receive a Decode datagram")]
@@ -179,6 +192,59 @@ public sealed class ExternalReportingServiceTests
 
     private static bool Encoding_UTF8_Contains(byte[] datagram, string needle)
         => System.Text.Encoding.UTF8.GetString(datagram).Contains(needle);
+
+    [Fact(DisplayName =
+        "fix-external-reporting-appid-collision: outbound Heartbeat/Status/Decode datagrams carry " +
+        "the configured InstanceId, not a hardcoded \"OpenWSFZ\" literal")]
+    public async Task ConfiguredInstanceId_IsUsedInOutboundDatagrams()
+    {
+        // Two simultaneous instances (this change's real-world trigger: split-antenna dual-band
+        // capture, 2026-07-28) would each set a distinct InstanceId; this test only needs one
+        // instance configured with a non-default value to prove the field is actually read from
+        // config rather than the old `private const string AppId = "OpenWSFZ"`.
+        const string configuredId = "OpenWSFZ-20m";
+
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled:    true,
+                targets:    [new ExternalReportingTarget("A", "127.0.0.1", port, true)],
+                instanceId: configuredId)
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22",
+                    Region: new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false))]));
+
+            // Heartbeat + Status (immediate first-tick burst) + Decode — same margin rationale as
+            // TwoEnabledTargets_BothReceiveDecode above.
+            var received = await ReceiveAllAsync(listener, 3, TimeSpan.FromSeconds(3));
+
+            received.Select(ReadMessageType).Should().Contain(
+                [WsjtxDatagram.MessageType.Heartbeat, WsjtxDatagram.MessageType.Status,
+                 WsjtxDatagram.MessageType.Decode],
+                "the burst must include all three message types this test asserts the Id field on");
+            received.Select(ReadId).Should().AllSatisfy(id => id.Should().Be(configuredId,
+                "every outbound datagram must carry the operator-configured InstanceId, not a " +
+                "hardcoded literal identical across every running instance (the collision this " +
+                "change fixes: two instances broadcasting the same Id are indistinguishable to " +
+                "companion programs such as GridTracker)"));
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
 
     [Fact(DisplayName = "FR-053: Disabled target never receives a datagram")]
     public async Task DisabledTarget_NeverReceives()

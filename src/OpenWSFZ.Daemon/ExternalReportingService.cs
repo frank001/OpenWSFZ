@@ -65,8 +65,6 @@ namespace OpenWSFZ.Daemon;
 /// </summary>
 public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
 {
-    private const string AppId = "OpenWSFZ";
-
     private readonly ChannelReader<DecodeBatch>            _decodeChannel;
     private readonly IConfigStore                          _configStore;
     private readonly IServiceProvider                      _serviceProvider;
@@ -429,7 +427,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                         Mode:                   "~",
                         Message:                r.Message,
                         LowConfidence:          false);
-                    await SendToAllEnabledAsync(WsjtxDatagram.EncodeDecode(AppId, fields)).ConfigureAwait(false);
+                    await SendToAllEnabledAsync(
+                        WsjtxDatagram.EncodeDecode(_configStore.Current.ExternalReporting.InstanceId, fields))
+                        .ConfigureAwait(false);
                 }
             }
         }
@@ -455,7 +455,8 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                 {
                     _lastHeartbeatSentUtc = now;
                     await SendToAllEnabledAsync(
-                        WsjtxDatagram.EncodeHeartbeat(AppId, 3, AssemblyVersion.Get(), ""))
+                        WsjtxDatagram.EncodeHeartbeat(
+                            _configStore.Current.ExternalReporting.InstanceId, 3, AssemblyVersion.Get(), ""))
                         .ConfigureAwait(false);
                 }
 
@@ -465,7 +466,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                 {
                     _lastStatus         = status;
                     _lastStatusSentUtc  = now;
-                    await SendToAllEnabledAsync(WsjtxDatagram.EncodeStatus(AppId, status)).ConfigureAwait(false);
+                    await SendToAllEnabledAsync(
+                        WsjtxDatagram.EncodeStatus(_configStore.Current.ExternalReporting.InstanceId, status))
+                        .ConfigureAwait(false);
                 }
             }
 
@@ -557,7 +560,8 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
             MyCall:         record.OperatorCallsign,
             MyGrid:         record.OperatorGrid);
 
-        _ = SendToAllEnabledAsync(WsjtxDatagram.EncodeQsoLogged(AppId, fields));
+        _ = SendToAllEnabledAsync(
+            WsjtxDatagram.EncodeQsoLogged(_configStore.Current.ExternalReporting.InstanceId, fields));
     }
 
     // ── Outbound send + Close-on-shutdown (task 3.6) ────────────────────────
@@ -618,7 +622,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         if (!IsOutboundActive) return;
         try
         {
-            await SendToAllEnabledAsync(WsjtxDatagram.EncodeClear(AppId)).ConfigureAwait(false);
+            await SendToAllEnabledAsync(
+                WsjtxDatagram.EncodeClear(_configStore.Current.ExternalReporting.InstanceId))
+                .ConfigureAwait(false);
         }
         catch { /* best-effort on shutdown */ }
     }
@@ -628,7 +634,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         if (!IsOutboundActive) return;
         try
         {
-            await SendToAllEnabledAsync(WsjtxDatagram.EncodeClose(AppId)).ConfigureAwait(false);
+            await SendToAllEnabledAsync(
+                WsjtxDatagram.EncodeClose(_configStore.Current.ExternalReporting.InstanceId))
+                .ConfigureAwait(false);
         }
         catch { /* best-effort on shutdown */ }
     }

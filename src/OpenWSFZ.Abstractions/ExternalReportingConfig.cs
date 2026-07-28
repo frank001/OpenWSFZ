@@ -77,12 +77,14 @@ public sealed record ExternalReportingConfig
         bool                                    enabled                                = false,
         IReadOnlyList<ExternalReportingTarget>? targets                                = null,
         bool                                    honourInboundCommands                  = false,
-        bool                                    restrictExternalRepliesToDecodeFilter  = false)
+        bool                                    restrictExternalRepliesToDecodeFilter  = false,
+        string                                  instanceId                             = "OpenWSFZ")
     {
         Enabled                                = enabled;
         Targets                                = targets ?? [];
         HonourInboundCommands                  = honourInboundCommands;
         RestrictExternalRepliesToDecodeFilter  = restrictExternalRepliesToDecodeFilter;
+        InstanceId                             = instanceId;
     }
 
     /// <summary>
@@ -121,4 +123,18 @@ public sealed record ExternalReportingConfig
     /// regardless of this flag (fix-external-reporting-clear-and-reply-filter change).
     /// </summary>
     public bool RestrictExternalRepliesToDecodeFilter { get; init; } = false;
+
+    /// <summary>
+    /// WSJT-X-protocol "Id" field sent in every outbound Heartbeat/Status/Decode/QSOLogged/
+    /// Clear/Close datagram. Companion programs (GridTracker, JTAlert, N1MM+, etc.) key off this
+    /// field to distinguish multiple simultaneously-running protocol-compatible instances.
+    /// Defaults to <c>"OpenWSFZ"</c> for single-instance sessions (unchanged, backward-compatible
+    /// behaviour). Operators running more than one simultaneous instance (e.g. two bands captured
+    /// via a split antenna) MUST give each instance a distinct value here, or companion programs
+    /// will not be able to tell the instances apart — observed as a companion program's live
+    /// decode view resetting every FT8 cycle and dropped forwarding to services such as
+    /// PSKReporter (2026-07-28 dual-receiver session finding,
+    /// fix-external-reporting-appid-collision change).
+    /// </summary>
+    public string InstanceId { get; init; } = "OpenWSFZ";
 }

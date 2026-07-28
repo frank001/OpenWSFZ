@@ -351,10 +351,28 @@ public static class WebApp
             IConfigStore store,
             CancellationToken ct) =>
         {
+            // Read the raw body as text (rather than request.ReadFromJsonAsync straight off the
+            // stream) so it can be inspected twice: once deserialised into AppConfig for the
+            // existing save path, and once as a JsonDocument purely to ask "did the client's own
+            // JSON literally include an 'instanceId' key inside 'externalReporting'?" — see the
+            // InstanceId guard below (fix-external-reporting-appid-collision). That distinction is
+            // unrecoverable once STJ's [JsonConstructor] default has already collapsed "omitted"
+            // and "explicitly resent as the default value" into the same C# value.
+            string rawBody;
+            using (var bodyReader = new StreamReader(request.Body))
+                rawBody = await bodyReader.ReadToEndAsync(ct);
+
             AppConfig? config;
+            bool instanceIdExplicitlyProvided;
             try
             {
-                config = await request.ReadFromJsonAsync(AppJsonContext.Default.AppConfig, ct);
+                config = JsonSerializer.Deserialize(rawBody, AppJsonContext.Default.AppConfig);
+
+                using var rawDoc = JsonDocument.Parse(rawBody);
+                instanceIdExplicitlyProvided =
+                    rawDoc.RootElement.TryGetProperty("externalReporting", out var extRepRaw)
+                    && extRepRaw.ValueKind == JsonValueKind.Object
+                    && extRepRaw.TryGetProperty("instanceId", out _);
             }
             catch (JsonException)
             {
@@ -384,6 +402,32 @@ public static class WebApp
                 config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
             if (config.ExternalReporting is null)
                 config = config with { ExternalReporting = new ExternalReportingConfig() };
+            // InstanceId (fix-external-reporting-appid-collision) needs a guard of its own, one
+            // level deeper than the whole-section null guard above: unlike Ptt, the "externalReporting"
+            // section itself is NOT missing on an ordinary Settings-page save — web/js/settings.js's
+            // External Programs tab actively populates and sends enabled/targets/
+            // honourInboundCommands/restrictExternalRepliesToDecodeFilter every time. It just has no
+            // field yet for instanceId (deliberately, per this change's minimum scope), so that one
+            // field alone comes back through STJ's [JsonConstructor] parameter default ("OpenWSFZ")
+            // on every single such save — not just a hypothetical missing-key edge case, but every
+            // ordinary save once an operator has configured a non-default InstanceId for multi-
+            // instance operation. Left unguarded, the very next unrelated Settings-page save (toggling
+            // showCycleCountdown, anything) silently collapses two distinguishable instances back onto
+            // the same wire Id, reintroducing the exact GridTracker collision this change exists to
+            // fix. Uses the raw-JSON key-presence check above (not a value comparison against
+            // "OpenWSFZ") specifically so a deliberate targeted POST that explicitly resets
+            // instanceId back to the literal default string is still honoured, not mistaken for
+            // omission.
+            if (!instanceIdExplicitlyProvided)
+            {
+                config = config with
+                {
+                    ExternalReporting = config.ExternalReporting with
+                    {
+                        InstanceId = store.Current.ExternalReporting.InstanceId,
+                    },
+                };
+            }
             // Ptt gets a different fallback than the four guards above: web/js/settings.js
             // never sends a "ptt" key at all (there is deliberately no Settings-page UI for
             // it — design.md Decision 6), so EVERY Settings-page save hits this branch, not
