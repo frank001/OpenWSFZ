@@ -409,6 +409,18 @@ public static class WebApp
                 config = config with { Logging = new LoggingConfig() };
             if (config.DecodeLog is null)
                 config = config with { DecodeLog = new DecodeLogConfig() };
+            // RemoteAccess (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-crash.md §4):
+            // same STJ null-vs-initialiser quirk, bundled in alongside the CycleAudioArchive fix
+            // below since it's the same one-line shape. Lower urgency than CycleAudioArchive —
+            // unlike that section, web/js/settings.js DOES have a Settings-page UI for
+            // remoteAccess and always sends the key on every real save (see settings.js's
+            // buildConfigPayload), so this branch is only reachable via a non-UI API caller
+            // (tests, curl, a future integration) sending a partial body. Nothing today
+            // dereferences RemoteAccess unconditionally the way CycleArchiveService does
+            // CycleAudioArchive, so a fresh default here (rather than the Ptt-style ?? fallback)
+            // is safe: it can never silently clobber an operator's setting via the real UI.
+            if (config.RemoteAccess is null)
+                config = config with { RemoteAccess = new RemoteAccessConfig() };
             if (config.DecodeNoiseSuppression is null)
                 config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
             if (config.ExternalReporting is null)
@@ -473,6 +485,21 @@ public static class WebApp
                     },
                 };
             }
+            // cycle-audio-archive crash (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-
+            // crash.md): same STJ quirk, applied here for the first time since this section was
+            // added 2026-07-26 after this guard block was originally written. Unlike the four
+            // guards above, there is currently no Settings-page UI field for cycleAudioArchive
+            // (same situation Ptt was in, see the comment below) — every ordinary Settings-page
+            // save omits this key, so a fresh new CycleAudioArchiveConfig() default is applied
+            // on EVERY save, not just a hypothetical missing-key edge case. That is acceptable
+            // today only because there is no UI to have configured a non-default value through in
+            // the first place. The moment a future PR adds a dedicated cycle-audio-archive panel,
+            // this guard must switch to the Ptt pattern below (?? store.Current.CycleAudioArchive)
+            // or it will silently clobber an operator's chosen archive mode on the very next
+            // unrelated settings save — the exact "stuck-on-VOX"-class bug the Ptt guard exists to
+            // prevent.
+            if (config.CycleAudioArchive is null)
+                config = config with { CycleAudioArchive = new CycleAudioArchiveConfig() };
             // Ptt gets a different fallback than the four guards above: web/js/settings.js
             // never sends a "ptt" key at all (there is deliberately no Settings-page UI for
             // it — design.md Decision 6), so EVERY Settings-page save hits this branch, not
