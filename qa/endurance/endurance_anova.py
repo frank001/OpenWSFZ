@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Endurance-session ANOVA: matched-decode SNR agreement between OpenWSFZ and jt9.
+"""Endurance-session ANOVA: matched-decode metric agreement between OpenWSFZ and jt9.
 
 Built as a standard step for every unattended endurance session (Captain's
 instruction, 2026-07-27 -- "I want the ANOVA analysis built in for every unattended
@@ -16,15 +16,22 @@ that -- each real transmission happens once. There is no trial axis.
 This script instead uses a two-way ANOVA WITHOUT replication (a randomized complete
 block design): Part = one matched decode instance (paired by cycle + normalised
 message text, so both appraisers are being scored on the identical real signal),
-Appraiser = {OpenWSFZ, jt9}, response = reported SNR (dB). Blocking on Part removes
-part-to-part variance from the Appraiser comparison without needing repeat trials.
+Appraiser = {OpenWSFZ, jt9}. Blocking on Part removes part-to-part variance from the
+Appraiser comparison without needing repeat trials.
+
+MULTIPLE RESPONSES (added 2026-07-28, Captain's request -- the first cut only compared
+SNR): the same matched Parts carry three independently-reported numeric fields per
+decode -- SNR (dB), DT (time offset, s), and reported frequency offset (Hz). Each gets
+its own ANOVA table run over the identical Part set (see RESPONSES below); nothing
+about the design changes per metric, only which paired numeric value is fed in.
 
 CONSEQUENCE, STATED PLAINLY: with exactly one observation per Part x Appraiser cell,
 the Part x Appraiser interaction and the residual/error term are mathematically
 confounded (a standard, well-known property of unreplicated factorial designs, not a
-defect in this script). This table can say whether the two appraisers' *mean*
-reported SNR differs, after removing part-to-part variation (the Appraiser row). It
-cannot separately test whether that difference itself varies signal-to-signal.
+defect in this script), for every response above. Each table can say whether the two
+appraisers' *mean* value differs, after removing part-to-part variation (the
+Appraiser row). None of them can separately test whether that difference itself
+varies signal-to-signal.
 
 What any of this MEANS for D-001, row 4/5, or any cross-run/cross-session
 comparison is explicitly not this script's business -- per the Captain's own
@@ -86,7 +93,14 @@ def normalize_hash_tokens(message: str) -> str:
 
 
 def parse_all_txt(path: str) -> list[dict]:
-    """This repo's ALL.TXT writer format: ts dial Rx MODE snr dt freq message..."""
+    """This repo's ALL.TXT writer format: ts dial Rx MODE snr dt freq message...
+
+    Captures all three paired numeric metrics this script compares -- snr (dB), dt
+    (time offset, s), freq_hz (reported frequency offset, Hz) -- not just snr, so a
+    row that's unparseable in any one of the three is skipped entirely rather than
+    silently admitted with a missing field (AllTxtWriter.cs always writes all three
+    together; a row failing to parse means genuine corruption, not an optional field).
+    """
     rows = []
     with open(path, encoding="ascii", errors="replace") as fh:
         for line in fh:
@@ -98,9 +112,12 @@ def parse_all_txt(path: str) -> list[dict]:
                 continue
             try:
                 snr = float(tok[4])
+                dt = float(tok[5])
+                freq_hz = float(tok[6])
             except ValueError:
                 continue
-            rows.append({"ts": tok[0], "snr": snr, "message": " ".join(tok[7:])})
+            rows.append({"ts": tok[0], "snr": snr, "dt": dt, "freq_hz": freq_hz,
+                        "message": " ".join(tok[7:])})
     return rows
 
 
@@ -116,6 +133,11 @@ def parse_jt9_stdout(text: str, hhmmss_to_ts: dict[str, str]) -> tuple[list[dict
     every line in a batch would silently mislabel every post-midnight decode with the
     wrong date -- corrupting the cycle-matching key without raising any error. Returns
     (rows, unmatched_count) -- unmatched HHMMSS values are dropped, not guessed at.
+
+    Each row also captures dt (tok[2], time offset s) and freq_hz (tok[3], reported
+    frequency offset Hz) alongside snr -- the same three paired metrics parse_all_txt
+    captures from our own side, so all three can be compared (2026-07-28, Captain's
+    request).
     """
     rows = []
     unmatched = 0
@@ -136,9 +158,12 @@ def parse_jt9_stdout(text: str, hhmmss_to_ts: dict[str, str]) -> tuple[list[dict
             continue
         try:
             snr = float(tok[1])
+            dt = float(tok[2])
+            freq_hz = float(tok[3])
         except ValueError:
             continue
-        rows.append({"ts": ts, "snr": snr, "message": " ".join(tok[5:])})
+        rows.append({"ts": ts, "snr": snr, "dt": dt, "freq_hz": freq_hz,
+                    "message": " ".join(tok[5:])})
     return rows, unmatched
 
 
@@ -232,34 +257,61 @@ def run_jt9(jt9_exe: str, wav_paths: list[str], depth: int,
     return all_rows
 
 
-def match_pairs(ours_rows: list[dict], jt9_rows: list[dict]) -> list[tuple]:
+#: Metrics compared between the two appraisers, each run as its own ANOVA table over the
+#: identical matched Parts (2026-07-28, Captain's request -- the first cut only compared
+#: SNR). `key` matches the field names parse_all_txt/parse_jt9_stdout populate; `fmt` is
+#: the display precision used in the report's appraiser-means bullets.
+RESPONSES: list[dict] = [
+    {"key": "snr", "label": "SNR", "unit": "dB", "fmt": "{:.3f}"},
+    {"key": "dt", "label": "DT (time offset)", "unit": "s", "fmt": "{:.4f}"},
+    {"key": "freq_hz", "label": "Frequency offset", "unit": "Hz", "fmt": "{:.1f}"},
+]
+
+
+def match_pairs(ours_rows: list[dict], jt9_rows: list[dict]) -> list[dict]:
     """Pair matched decodes (same cycle, same normalised message text) between the
-    two appraisers. Returns list of (part_key, ours_snr, jt9_snr). Never returns or
-    logs the message text itself -- only the paired SNR values survive past this
-    function (NFR-021)."""
-    ours_by_key: dict[tuple, list[float]] = {}
+    two appraisers. Returns one dict per matched Part:
+    {"part": index, "ours_<key>": v, "jt9_<key>": v, ...} for every key in RESPONSES.
+    Never returns or logs the message text itself -- only the paired numeric metrics
+    survive past this function (NFR-021); the message is used solely to build the
+    match key and is discarded once each row dict has served that purpose."""
+    ours_by_key: dict[tuple, list[dict]] = {}
     for r in ours_rows:
         key = (r["ts"], normalize_hash_tokens(r["message"]))
-        ours_by_key.setdefault(key, []).append(r["snr"])
-    jt9_by_key: dict[tuple, list[float]] = {}
+        ours_by_key.setdefault(key, []).append(r)
+    jt9_by_key: dict[tuple, list[dict]] = {}
     for r in jt9_rows:
         key = (r["ts"], normalize_hash_tokens(r["message"]))
-        jt9_by_key.setdefault(key, []).append(r["snr"])
+        jt9_by_key.setdefault(key, []).append(r)
 
     pairs = []
     part_index = 0
     for key in sorted(set(ours_by_key) & set(jt9_by_key)):
-        o_snrs = ours_by_key[key]
-        j_snrs = jt9_by_key[key]
-        for o, j in zip(o_snrs, j_snrs):
+        o_list = ours_by_key[key]
+        j_list = jt9_by_key[key]
+        for o, j in zip(o_list, j_list):
             part_index += 1
-            pairs.append((part_index, o, j))
+            pair = {"part": part_index}
+            for resp in RESPONSES:
+                k = resp["key"]
+                pair[f"ours_{k}"] = o[k]
+                pair[f"jt9_{k}"] = j[k]
+            pairs.append(pair)
     return pairs
+
+
+def response_tuples(pairs: list[dict], key: str) -> list[tuple]:
+    """Extracts (part_index, ours_value, jt9_value) tuples for one response metric from
+    match_pairs()'s output -- the shape two_way_anova_no_replication() and
+    render_charts() expect (both generic over whatever numeric response they're handed)."""
+    return [(p["part"], p[f"ours_{key}"], p[f"jt9_{key}"]) for p in pairs]
 
 
 def two_way_anova_no_replication(pairs: list[tuple]) -> dict:
     """Randomized complete block design, no replication: Part (block, b levels) x
-    Appraiser (a=2 levels), response = reported SNR."""
+    Appraiser (a=2 levels). Generic over whichever numeric response `pairs` carries
+    (SNR, DT, or frequency offset -- see RESPONSES/response_tuples) -- this function
+    itself has no notion of units."""
     b = len(pairs)
     a = 2
     N = a * b
@@ -309,14 +361,17 @@ def two_way_anova_no_replication(pairs: list[tuple]) -> dict:
     }
 
 
-def render_charts(pairs: list[tuple], stats: dict, out_dir: str, stem: str) -> tuple[str | None, str | None]:
+def render_charts(pairs: list[tuple], stats: dict, out_dir: str, stem: str,
+                   label: str = "SNR", unit: str = "dB") -> tuple[str | None, str | None]:
     """Writes <stem>_scatter.png and <stem>_residual.png into out_dir, alongside the
     markdown report (render_report.py displays images by relative path, so they must
     live next to the .md/.html they're referenced from). Returns their basenames, or
     (None, None) if there are too few pairs to plot anything meaningful.
 
-    Only ever touches the numeric (part_index, ours_snr, jt9_snr) tuples match_pairs()
-    already produced -- never message text (NFR-021).
+    `pairs` is one response's (part_index, ours_value, jt9_value) tuples, from
+    response_tuples() -- this function is generic over whichever metric `label`/`unit`
+    describe (SNR/dB, DT/s, Frequency offset/Hz); it only ever touches those three
+    numeric fields per tuple, never message text (NFR-021).
     """
     if len(pairs) < 2:
         return None, None
@@ -362,9 +417,9 @@ def render_charts(pairs: list[tuple], stats: dict, out_dir: str, stem: str) -> t
     cb = fig.colorbar(hb, ax=ax, shrink=0.8)
     cb.set_label("matched pairs per bin (log scale)", color=INK_SECONDARY, fontsize=9)
     cb.ax.tick_params(labelcolor=INK_MUTED)
-    ax.set_xlabel("jt9 reported SNR (dB)", color=INK_SECONDARY)
-    ax.set_ylabel("OpenWSFZ reported SNR (dB)", color=INK_SECONDARY)
-    ax.set_title(f"Matched-decode SNR: OpenWSFZ vs jt9 (n={len(pairs)} pairs)", color=INK_PRIMARY)
+    ax.set_xlabel(f"jt9 reported {label} ({unit})", color=INK_SECONDARY)
+    ax.set_ylabel(f"OpenWSFZ reported {label} ({unit})", color=INK_SECONDARY)
+    ax.set_title(f"Matched-decode {label}: OpenWSFZ vs jt9 (n={len(pairs)} pairs)", color=INK_PRIMARY)
     ax.tick_params(colors=INK_MUTED)
     ax.legend(loc="upper left", fontsize=8, facecolor=SURFACE, edgecolor=INK_MUTED)
     ax.set_aspect("equal", adjustable="box")
@@ -385,14 +440,14 @@ def render_charts(pairs: list[tuple], stats: dict, out_dir: str, stem: str) -> t
     hb = ax.hexbin(jt9, diffs, gridsize=gridsize, cmap=seq_cmap, mincnt=1,
                     bins="log", linewidths=0.1)
     ax.axhline(mean_diff, linestyle="--", linewidth=1.2, color=INK_SECONDARY,
-               label=f"mean diff = {mean_diff:+.2f} dB")
+               label=f"mean diff = {mean_diff:+.3f} {unit}")
     cb = fig.colorbar(hb, ax=ax, shrink=0.8)
     cb.set_label("matched pairs per bin (log scale)", color=INK_SECONDARY, fontsize=9)
     cb.ax.tick_params(labelcolor=INK_MUTED)
-    ax.set_xlabel("jt9 reported SNR (dB)", color=INK_SECONDARY)
-    ax.set_ylabel("OpenWSFZ - jt9 (dB)", color=INK_SECONDARY)
-    ax.set_title("Per-Part residual -- does the Appraiser gap depend on signal strength?",
-                 color=INK_PRIMARY)
+    ax.set_xlabel(f"jt9 reported {label} ({unit})", color=INK_SECONDARY)
+    ax.set_ylabel(f"OpenWSFZ - jt9 ({unit})", color=INK_SECONDARY)
+    ax.set_title(f"Per-Part residual -- does the Appraiser gap in {label} depend on "
+                 f"jt9-reported {label}?", color=INK_PRIMARY)
     ax.tick_params(colors=INK_MUTED)
     ax.legend(loc="best", fontsize=8, facecolor=SURFACE, edgecolor=INK_MUTED)
     fig.tight_layout()
@@ -403,65 +458,127 @@ def render_charts(pairs: list[tuple], stats: dict, out_dir: str, stem: str) -> t
     return scatter_name, residual_name
 
 
-def render_report(stats: dict, meta: dict,
-                   chart_files: tuple[str | None, str | None] = (None, None)) -> str:
+def render_markdown_html(md_path: str) -> None:
+    """Renders md_path to HTML alongside it, via the shared renderer
+    (qa/rr-study/render_report.py -- generic despite its name/location; single source of
+    truth for this repo's Markdown->HTML styling). Same helper `render_markdown_html` in
+    tools/gather_live_run_artefacts.py uses for contents.md -- kept here as a small local
+    copy rather than a cross-directory import, since qa/endurance and tools/ are not set
+    up as importable packages. Added 2026-07-28 after anova_report.html was twice missed
+    as a manual afterthought (once for this script's own report, once for contents.md) --
+    the .md's companion .html should never depend on someone remembering a second step.
+    Best-effort: a rendering failure is warned about, not fatal -- the .md file, the
+    primary artefact, is already written by the time this runs.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    renderer = os.path.normpath(os.path.join(here, "..", "rr-study", "render_report.py"))
+    if not os.path.isfile(renderer):
+        print(f"[WARN] {renderer} not found -- skipping HTML render of {md_path}",
+              file=sys.stderr)
+        return
+    if not os.path.isfile(md_path):
+        print(f"[WARN] {md_path} not found -- skipping HTML render", file=sys.stderr)
+        return
+    try:
+        subprocess.run([sys.executable, renderer, md_path], check=True,
+                        capture_output=True, text=True)
+        print(f"wrote {os.path.splitext(md_path)[0]}.html")
+    except (OSError, subprocess.CalledProcessError) as exc:
+        detail = exc.stderr if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+        print(f"[WARN] HTML render of {md_path} failed: {detail}", file=sys.stderr)
+
+
+def render_report(response_results: list[tuple[dict, dict, tuple[str | None, str | None]]],
+                   meta: dict) -> str:
+    """`response_results` is one (resp_def, stats, chart_files) triple per entry in
+    RESPONSES, sharing the same matched Parts -- see main(). Renders one ANOVA table +
+    chart pair + appraiser-means section per response, followed by a single shared
+    caveat section (the structural note applies identically to all three)."""
     L = []
-    L.append("# Endurance-session ANOVA -- matched-decode SNR (OpenWSFZ vs jt9)")
+    L.append("# Endurance-session ANOVA -- matched-decode metrics (OpenWSFZ vs jt9)")
     L.append("")
     L.append(f"**Run:** {meta['run_label']}  ")
     L.append(f"**Generated:** {meta['generated_utc']} (`date -u`, HK-017)  ")
     L.append("**Design:** two-way ANOVA without replication (randomized complete block "
               "design) -- Part (matched decode instance) x Appraiser (OpenWSFZ, jt9), "
-              "response = reported SNR (dB). See this script's docstring for why this "
-              "design applies to single-pass live data, and not the replicated design "
-              "in `qa/rr-study/harness/anova_compute.py`.")
+              "run separately for each paired numeric response below (SNR, DT, "
+              "frequency offset) over the identical matched Parts. See this script's "
+              "docstring for why this design applies to single-pass live data, and not "
+              "the replicated design in `qa/rr-study/harness/anova_compute.py`.")
     L.append("")
     L.append(f"- WAV cycles fed to jt9: **{meta['n_wavs']}**")
     L.append(f"- Our decodes in window: **{meta['n_ours']}**")
     L.append(f"- jt9 decodes in window: **{meta['n_jt9']}**")
-    L.append(f"- Matched pairs (Parts, used below): **{stats['b']}**")
+    L.append(f"- Matched pairs (Parts, shared across every response below): **{meta['n_pairs']}**")
     L.append("")
-    if stats["b"] < 2:
+
+    # Decode coverage: how much of each side's output the other side also reported.
+    # Distinct from the RESPONSES loop below -- this isn't a per-Part paired value, it's
+    # a volume/overlap comparison over the whole window (2026-07-28, Captain's request).
+    # Computed here rather than passed in via meta since it only needs the three counts
+    # already above, and stays valid even in the "too few pairs for an ANOVA" branch.
+    n_ours, n_jt9, n_pairs = meta["n_ours"], meta["n_jt9"], meta["n_pairs"]
+    ours_only = n_ours - n_pairs
+    jt9_only = n_jt9 - n_pairs
+    pct_of_ours = (100.0 * n_pairs / n_ours) if n_ours else float("nan")
+    pct_of_jt9 = (100.0 * n_pairs / n_jt9) if n_jt9 else float("nan")
+    pct_ours_only = (100.0 * ours_only / n_ours) if n_ours else float("nan")
+    pct_jt9_only = (100.0 * jt9_only / n_jt9) if n_jt9 else float("nan")
+    L.append("## Decode coverage")
+    L.append("")
+    L.append(f"- OpenWSFZ decoded **{n_ours}** messages in this window; jt9 decoded "
+              f"**{n_jt9}**.")
+    L.append(f"- **{n_pairs}** decodes matched between the two (same cycle + normalised "
+              f"message text) -- **{pct_of_ours:.1f}%** of OpenWSFZ's decodes, "
+              f"**{pct_of_jt9:.1f}%** of jt9's decodes.")
+    L.append(f"- OpenWSFZ-only (jt9 did not report it): **{ours_only}** "
+              f"({pct_ours_only:.1f}% of OpenWSFZ's total).")
+    L.append(f"- jt9-only (OpenWSFZ did not report it): **{jt9_only}** "
+              f"({pct_jt9_only:.1f}% of jt9's total).")
+    L.append("")
+
+    if meta["n_pairs"] < 2:
         L.append("**Too few matched pairs to compute an ANOVA table (need >= 2).** "
                   "Re-run against a larger window.")
         return "\n".join(L) + "\n"
-    scatter_name, residual_name = chart_files
-    if scatter_name:
-        L.append("## Charts")
+
+    for resp, stats, chart_files in response_results:
+        label, unit, fmt = resp["label"], resp["unit"], resp["fmt"]
+        L.append(f"## {label} ({unit})")
         L.append("")
-        L.append(f"![Matched-decode SNR scatter: OpenWSFZ vs jt9]({scatter_name})")
-        L.append("")
-        if residual_name:
-            L.append(f"![Per-Part residual vs jt9 SNR]({residual_name})")
+        scatter_name, residual_name = chart_files
+        if scatter_name:
+            L.append(f"![Matched-decode {label} scatter: OpenWSFZ vs jt9]({scatter_name})")
             L.append("")
-    L.append("## ANOVA table")
-    L.append("")
-    L.append("| Source | SS | df | MS | F | P |")
-    L.append("|---|---:|---:|---:|---:|---:|")
-    L.append(f"| Part | {stats['ss_part']:.4f} | {stats['df_part']} | "
-              f"{stats['ms_part']:.4f} | {stats['f_part']:.3f} | {stats['p_part']:.4f} |")
-    L.append(f"| Appraiser | {stats['ss_appraiser']:.4f} | {stats['df_appraiser']} | "
-              f"{stats['ms_appraiser']:.4f} | {stats['f_appraiser']:.3f} | "
-              f"{stats['p_appraiser']:.4f} |")
-    L.append(f"| Residual (confounded with interaction, n=1/cell) | "
-              f"{stats['ss_error']:.4f} | {stats['df_error']} | {stats['ms_error']:.4f} | | |")
-    L.append(f"| Total | {stats['ss_total']:.4f} | {stats['df_total']} | | | |")
-    L.append("")
-    L.append("## Appraiser means (matched-decode SNR, dB)")
-    L.append("")
-    L.append(f"- OpenWSFZ mean: {stats['appraiser_means']['ours']:.3f} dB")
-    L.append(f"- jt9 mean: {stats['appraiser_means']['jt9']:.3f} dB")
-    L.append(f"- Grand mean: {stats['grand_mean']:.3f} dB")
-    L.append("")
+            if residual_name:
+                L.append(f"![Per-Part residual vs jt9 {label}]({residual_name})")
+                L.append("")
+        L.append("| Source | SS | df | MS | F | P |")
+        L.append("|---|---:|---:|---:|---:|---:|")
+        L.append(f"| Part | {stats['ss_part']:.4f} | {stats['df_part']} | "
+                  f"{stats['ms_part']:.4f} | {stats['f_part']:.3f} | {stats['p_part']:.4f} |")
+        L.append(f"| Appraiser | {stats['ss_appraiser']:.4f} | {stats['df_appraiser']} | "
+                  f"{stats['ms_appraiser']:.4f} | {stats['f_appraiser']:.3f} | "
+                  f"{stats['p_appraiser']:.4f} |")
+        L.append(f"| Residual (confounded with interaction, n=1/cell) | "
+                  f"{stats['ss_error']:.4f} | {stats['df_error']} | {stats['ms_error']:.4f} | | |")
+        L.append(f"| Total | {stats['ss_total']:.4f} | {stats['df_total']} | | | |")
+        L.append("")
+        L.append(f"Appraiser means ({label}, {unit}): OpenWSFZ "
+                  f"{fmt.format(stats['appraiser_means']['ours'])} {unit}, jt9 "
+                  f"{fmt.format(stats['appraiser_means']['jt9'])} {unit}, grand mean "
+                  f"{fmt.format(stats['grand_mean'])} {unit}.")
+        L.append("")
+
     L.append("## Caveat (structural, not a defect)")
     L.append("")
     L.append("With one observation per Part x Appraiser cell -- a live signal happens "
               "once -- the interaction term and the residual/error term are "
               "mathematically confounded (standard property of an unreplicated "
-              "factorial design). This table can say whether the two appraisers' "
-              "*mean* reported SNR differs after removing part-to-part variation (the "
-              "Appraiser row); it cannot separately test whether that difference "
-              "itself varies signal-to-signal.")
+              "factorial design), for every response above. Each table can say whether "
+              "the two appraisers' *mean* value differs after removing part-to-part "
+              "variation (the Appraiser row); none of them can separately test whether "
+              "that difference itself varies signal-to-signal.")
     L.append("")
     L.append("Cross-run comparison and interpretation of these numbers is "
               "Architect/Captain territory, not this script's.")
@@ -520,8 +637,6 @@ def main() -> int:
     pairs = match_pairs(ours_rows, jt9_rows)
     print(f"matched pairs: {len(pairs)}")
 
-    stats = two_way_anova_no_replication(pairs) if len(pairs) >= 2 else {"b": len(pairs)}
-
     run_label = args.run_label or f"{args.wav_dir} ({len(wav_paths)} cycles)"
     meta = {
         "run_label": run_label,
@@ -529,22 +644,34 @@ def main() -> int:
         "n_wavs": len(wav_paths),
         "n_ours": len(ours_rows),
         "n_jt9": len(jt9_rows),
+        "n_pairs": len(pairs),
     }
 
     out_dir = os.path.dirname(os.path.abspath(args.out)) or "."
     out_stem = os.path.splitext(os.path.basename(args.out))[0]
-    chart_files = (None, None)
-    if len(pairs) >= 2:
-        print("rendering charts...")
-        chart_files = render_charts(pairs, stats, out_dir, out_stem)
 
-    report = render_report(stats, meta, chart_files)
+    # One ANOVA table + chart pair per RESPONSES entry, all sharing the same matched
+    # Parts (2026-07-28, Captain's request -- SNR-only was the first cut).
+    response_results: list[tuple[dict, dict, tuple[str | None, str | None]]] = []
+    for resp in RESPONSES:
+        tuples = response_tuples(pairs, resp["key"]) if len(pairs) >= 2 else []
+        stats = two_way_anova_no_replication(tuples) if len(tuples) >= 2 else {"b": len(tuples)}
+        chart_files: tuple[str | None, str | None] = (None, None)
+        if len(tuples) >= 2:
+            print(f"rendering {resp['label']} charts...")
+            chart_files = render_charts(
+                tuples, stats, out_dir, f"{out_stem}_{resp['key']}", resp["label"], resp["unit"])
+        response_results.append((resp, stats, chart_files))
+
+    report = render_report(response_results, meta)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(report)
     print(f"wrote {args.out}")
-    if chart_files[0]:
-        print(f"wrote {os.path.join(out_dir, chart_files[0])}")
-        print(f"wrote {os.path.join(out_dir, chart_files[1])}")
+    render_markdown_html(args.out)
+    for resp, _stats, chart_files in response_results:
+        if chart_files[0]:
+            print(f"wrote {os.path.join(out_dir, chart_files[0])}")
+            print(f"wrote {os.path.join(out_dir, chart_files[1])}")
     return 0
 
 
