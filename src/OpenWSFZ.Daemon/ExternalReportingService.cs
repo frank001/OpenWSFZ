@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
@@ -63,8 +65,19 @@ namespace OpenWSFZ.Daemon;
 /// decision.
 /// </para>
 /// </summary>
-public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
+public sealed class ExternalReportingService : IHostedService, IAsyncDisposable, IExternalReportingRelayTarget
 {
+    /// <summary>
+    /// One atomic unit of work for <see cref="DispatchLoopAsync"/>: an ordered list of already-
+    /// encoded datagrams to send to every enabled target, one after another, before the next
+    /// queued item begins (design.md Decision 3 — never interleaved with another source's traffic
+    /// mid-dispatch). <see cref="Done"/> is completed once every datagram in this item has actually
+    /// been sent, so callers that need to know delivery has happened (e.g. Clear/Close on shutdown)
+    /// can await it; <c>null</c> for fire-and-forget callers.
+    /// </summary>
+    private readonly record struct DispatchItem(IReadOnlyList<byte[]> Datagrams, TaskCompletionSource? Done);
+
+
     private readonly ChannelReader<DecodeBatch>            _decodeChannel;
     private readonly IConfigStore                          _configStore;
     private readonly IServiceProvider                      _serviceProvider;
@@ -141,6 +154,31 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     private Task? _decodeLoopTask;
     private Task? _timerLoopTask;
     private Task? _inboundLoopTask;
+    private Task? _dispatchLoopTask;
+
+    // ── external-reporting-single-connection: leader/follower relay state ──────
+    //
+    // Single-consumer dispatch queue (design.md Decision 3): both this instance's own outbound
+    // sends (when acting as leader) and every relay batch accepted from a follower
+    // (EnqueueRelayBatch) funnel through this one channel, drained solely by DispatchLoopAsync, so
+    // no batch is ever interleaved with another mid-dispatch.
+    private readonly Channel<DispatchItem> _dispatchChannel = Channel.CreateUnbounded<DispatchItem>();
+
+    // Set true the moment a follower's relay attempt fails (connect error, timeout, non-2xx) and
+    // cleared on the next successful relay (Decision 4). While true, Reconcile opens real sockets
+    // to `targets` — "degrades to exactly leader-role behaviour" — so SendToAllEnabledAsync has
+    // something to send to for the direct-send fallback.
+    private volatile bool _followerDegraded;
+
+    // Most recently observed decode batch, tracked regardless of role/active state, purely so a
+    // leader's inbound Reply handler can diagnose "not in my own decode batch" (task 5.1) distinctly
+    // from "no callsign could be extracted".
+    private volatile DecodeBatch? _lastDecodeBatch;
+
+    // Shared HttpClient for both the follower→leader relay POST and the leader→follower Halt-Tx
+    // broadcast — both are loopback/LAN calls between co-located daemon instances, not WAN calls,
+    // hence the short sub-second timeout (task 2.3).
+    private readonly HttpClient _relayHttpClient;
 
     /// <summary>Production constructor — all dependencies from DI.</summary>
     public ExternalReportingService(
@@ -156,7 +194,12 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     {
     }
 
-    /// <summary>Test constructor — allows overriding the timer cadences to avoid multi-second waits.</summary>
+    /// <summary>
+    /// Test constructor — allows overriding the timer cadences to avoid multi-second waits, and
+    /// (external-reporting-single-connection) injecting a fake <see cref="HttpMessageHandler"/> for
+    /// the follower→leader relay POST / leader→follower Halt-Tx broadcast without live network
+    /// access.
+    /// </summary>
     internal ExternalReportingService(
         ChannelReader<DecodeBatch>       decodeChannel,
         IConfigStore                     configStore,
@@ -165,7 +208,8 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         ICatState?                        catState,
         ICallsignRegionStore?             regionStore,
         TimeSpan                          heartbeatInterval,
-        TimeSpan                          statusPollInterval)
+        TimeSpan                          statusPollInterval,
+        HttpClient?                       relayHttpClient = null)
     {
         _decodeChannel      = decodeChannel;
         _configStore        = configStore;
@@ -175,6 +219,7 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         _regionStore        = regionStore;
         _heartbeatInterval  = heartbeatInterval;
         _statusPollInterval = statusPollInterval;
+        _relayHttpClient    = relayHttpClient ?? new HttpClient { Timeout = TimeSpan.FromMilliseconds(800) };
     }
 
     /// <summary>
@@ -213,9 +258,10 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         Reconcile(_configStore.Current.ExternalReporting);
         _configStore.OnSaved += OnConfigSaved;
 
-        _decodeLoopTask  = Task.Run(() => DecodeLoopAsync(token), CancellationToken.None);
-        _timerLoopTask   = Task.Run(() => TimerLoopAsync(token), CancellationToken.None);
-        _inboundLoopTask = Task.Run(() => InboundLoopAsync(token), CancellationToken.None);
+        _decodeLoopTask   = Task.Run(() => DecodeLoopAsync(token), CancellationToken.None);
+        _timerLoopTask    = Task.Run(() => TimerLoopAsync(token), CancellationToken.None);
+        _inboundLoopTask  = Task.Run(() => InboundLoopAsync(token), CancellationToken.None);
+        _dispatchLoopTask = Task.Run(() => DispatchLoopAsync(token), CancellationToken.None);
         return Task.CompletedTask;
     }
 
@@ -231,13 +277,18 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         // WSJT-X's own "Clear sent on graceful shutdown" trigger (design.md Decision 1; fix-
         // external-reporting-clear-and-reply-filter task 1.2). Clear is deliberately sent first so
         // a consumer's "history discarded" bookkeeping is updated before the connection-teardown
-        // signal.
+        // signal. Each call now routes through DispatchOrRelayAsync (leader: the single-consumer
+        // dispatch queue, awaited to actual-send completion; follower: relay-or-degrade), so
+        // DispatchLoopAsync must still be running when these are awaited — hence completing the
+        // channel writer and cancelling `cts` only afterwards, below.
         await SendClearToAllAsync().ConfigureAwait(false);
         await SendCloseToAllAsync().ConfigureAwait(false);
 
+        _dispatchChannel.Writer.TryComplete();
+
         await cts.CancelAsync().ConfigureAwait(false);
 
-        var tasks = new[] { _decodeLoopTask, _timerLoopTask, _inboundLoopTask }
+        var tasks = new[] { _decodeLoopTask, _timerLoopTask, _inboundLoopTask, _dispatchLoopTask }
             .Where(t => t is not null).Select(t => t!).ToArray();
         try
         {
@@ -281,9 +332,19 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     {
         config ??= new ExternalReportingConfig();
 
+        // external-reporting-single-connection: a "follower" opens no outbound/inbound socket to
+        // its own targets at all in steady state (Requirement: "Follower role relays instead of
+        // sending directly") — every datagram goes to leaderUrl instead. Only once a relay attempt
+        // has actually failed and this instance has degraded (Decision 4) does it need real
+        // sockets, at which point it "degrades to exactly leader-role behaviour", sockets included,
+        // so RelayToLeaderAsync's direct-send fallback (SendToAllEnabledAsync) has something to
+        // send to. A "leader" is unaffected — always wants sockets exactly as before this change.
+        var isFollower    = string.Equals(config.Role, "follower", StringComparison.Ordinal);
+        var socketsWanted = !isFollower || _followerDegraded;
+
         lock (_targetsLock)
         {
-            var desiredEnabled = config.Enabled
+            var desiredEnabled = (config.Enabled && socketsWanted)
                 ? config.Targets.Where(t => t.Enabled).ToList()
                 : [];
 
@@ -388,6 +449,27 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         get { lock (_targetsLock) return _outboundClients.Count > 0 || _primaryTarget is not null; }
     }
 
+    /// <summary>
+    /// external-reporting-single-connection: role-aware replacement for the pre-existing
+    /// <see cref="IsOutboundActive"/> gate used by every outbound call site. For a
+    /// <c>"leader"</c> (the default), this is extensionally identical to <see cref="IsOutboundActive"/>
+    /// in every case (byte-for-byte requirement preserved: Reconcile already forces
+    /// <see cref="IsOutboundActive"/> to <c>false</c> whenever <c>Enabled</c> is <c>false</c>, so the
+    /// explicit <c>Enabled</c> check below never changes a leader's observed gating). For a
+    /// <c>"follower"</c>, "active" means simply <c>Enabled</c> — a follower has no sockets to be
+    /// "outbound active" via in steady state, but is still fully expected to build and relay
+    /// datagrams.
+    /// </summary>
+    private bool IsReportingActive
+    {
+        get
+        {
+            var config = _configStore.Current.ExternalReporting;
+            if (!config.Enabled) return false;
+            return string.Equals(config.Role, "follower", StringComparison.Ordinal) || IsOutboundActive;
+        }
+    }
+
     // ── Outbound: decode-batch-driven Clear + Decode (tasks 3.3–3.4) ────────
 
     private async Task DecodeLoopAsync(CancellationToken ct)
@@ -396,7 +478,38 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         {
             await foreach (var batch in _decodeChannel.ReadAllAsync(ct).ConfigureAwait(false))
             {
-                if (!IsOutboundActive) continue;
+                // external-reporting-single-connection (task 5.1): tracked unconditionally, before
+                // the active-gate below, so a leader's inbound Reply handler can always diagnose
+                // "not in my own current decode batch" — independent of whether this specific batch
+                // happened to be reportable.
+                _lastDecodeBatch = batch;
+
+                if (!IsReportingActive) continue;
+
+                var config     = _configStore.Current.ExternalReporting;
+                var instanceId = config.InstanceId;
+                var isFollower = string.Equals(config.Role, "follower", StringComparison.Ordinal);
+
+                // external-reporting-single-connection (task 2.2): a follower groups one decode
+                // cycle's Status (if changed/due) immediately followed by its Decode datagrams into
+                // a single relay batch/POST (design.md Decision 3's ordering requirement), instead
+                // of relaying one datagram per POST. A leader's own Status stays on TimerLoopAsync's
+                // pre-existing independent 1s-polled cadence, completely unchanged — see the
+                // "Leader with no followers is unchanged from today's behaviour" requirement.
+                List<(string Type, byte[] Bytes)>? followerBatch = isFollower ? [] : null;
+
+                if (isFollower)
+                {
+                    var status  = BuildStatusFields();
+                    var changed = _lastStatus is null || !_lastStatus.Value.Equals(status);
+                    var due     = DateTimeOffset.UtcNow - _lastStatusSentUtc >= _heartbeatInterval;
+                    if (changed || due)
+                    {
+                        _lastStatus        = status;
+                        _lastStatusSentUtc = DateTimeOffset.UtcNow;
+                        followerBatch!.Add(("Status", WsjtxDatagram.EncodeStatus(instanceId, status)));
+                    }
+                }
 
                 foreach (var r in batch.Results)
                 {
@@ -409,7 +522,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                     // traffic, independent of DecodeNoiseSuppressionFilter's own operator-toggleable
                     // gate on the shared decode-pump channel (which this service's inbound batches
                     // have already passed through and could, if the operator has disabled both
-                    // suppression settings, still contain unknown-region/synthetic entries).
+                    // suppression settings, still contain unknown-region/synthetic entries). Applies
+                    // identically before a datagram is ever handed to the relay path (follower) —
+                    // this absolute exclusion runs before either branch below.
                     if (r.Region is null || r.Region.Synthetic)
                     {
                         _logger.LogDebug(
@@ -427,10 +542,16 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                         Mode:                   "~",
                         Message:                r.Message,
                         LowConfidence:          false);
-                    await SendToAllEnabledAsync(
-                        WsjtxDatagram.EncodeDecode(_configStore.Current.ExternalReporting.InstanceId, fields))
-                        .ConfigureAwait(false);
+                    var decodeBytes = WsjtxDatagram.EncodeDecode(instanceId, fields);
+
+                    if (isFollower)
+                        followerBatch!.Add(("Decode", decodeBytes));
+                    else
+                        await DispatchAsync([decodeBytes]).ConfigureAwait(false);
                 }
+
+                if (isFollower && followerBatch!.Count > 0)
+                    await RelayToLeaderAsync(followerBatch).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) { /* shutdown */ }
@@ -447,28 +568,40 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     {
         while (!ct.IsCancellationRequested)
         {
-            if (IsOutboundActive)
+            if (IsReportingActive)
             {
-                var now = DateTimeOffset.UtcNow;
+                var config     = _configStore.Current.ExternalReporting;
+                var isFollower = string.Equals(config.Role, "follower", StringComparison.Ordinal);
+                var now        = DateTimeOffset.UtcNow;
 
                 if (now - _lastHeartbeatSentUtc >= _heartbeatInterval)
                 {
                     _lastHeartbeatSentUtc = now;
-                    await SendToAllEnabledAsync(
-                        WsjtxDatagram.EncodeHeartbeat(
-                            _configStore.Current.ExternalReporting.InstanceId, 3, AssemblyVersion.Get(), ""))
-                        .ConfigureAwait(false);
+                    var heartbeatBytes = WsjtxDatagram.EncodeHeartbeat(
+                        config.InstanceId, 3, AssemblyVersion.Get(), "");
+                    // Heartbeat/QSOLogged/Clear/Close each relay as their own single-datagram batch
+                    // (task 2.2) — only Status+Decode are grouped, in DecodeLoopAsync, per cycle.
+                    await DispatchOrRelayAsync("Heartbeat", heartbeatBytes).ConfigureAwait(false);
                 }
 
-                var status  = BuildStatusFields();
-                var changed = _lastStatus is null || !_lastStatus.Value.Equals(status);
-                if (changed || now - _lastStatusSentUtc >= _heartbeatInterval)
+                // Requirement "Leader role preserves existing direct-send behaviour": Status stays
+                // on this pre-existing, independent 1s-polled cadence for a leader, completely
+                // unchanged (same fields, same change-or-due check, same _lastStatus/_lastStatusSentUtc
+                // bookkeeping). A follower's Status is instead built and grouped with its Decode
+                // datagrams once per decode cycle (task 2.2, DecodeLoopAsync) so a relayed batch's
+                // Status-then-Decode ordering can never be split across the relay hop — see
+                // design.md Decision 3.
+                if (!isFollower)
                 {
-                    _lastStatus         = status;
-                    _lastStatusSentUtc  = now;
-                    await SendToAllEnabledAsync(
-                        WsjtxDatagram.EncodeStatus(_configStore.Current.ExternalReporting.InstanceId, status))
-                        .ConfigureAwait(false);
+                    var status  = BuildStatusFields();
+                    var changed = _lastStatus is null || !_lastStatus.Value.Equals(status);
+                    if (changed || now - _lastStatusSentUtc >= _heartbeatInterval)
+                    {
+                        _lastStatus        = status;
+                        _lastStatusSentUtc = now;
+                        await DispatchAsync([WsjtxDatagram.EncodeStatus(config.InstanceId, status)])
+                            .ConfigureAwait(false);
+                    }
                 }
             }
 
@@ -535,7 +668,7 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     /// </summary>
     internal void NotifyQsoLogged(QsoRecord record)
     {
-        if (!IsOutboundActive) return;
+        if (!IsReportingActive) return;
 
         // Absolute guarantee, Tier 2 (no exceptions): a completed QSO with a synthetic or
         // unresolved partner must never be reported to an external program as a real logged
@@ -560,8 +693,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
             MyCall:         record.OperatorCallsign,
             MyGrid:         record.OperatorGrid);
 
-        _ = SendToAllEnabledAsync(
-            WsjtxDatagram.EncodeQsoLogged(_configStore.Current.ExternalReporting.InstanceId, fields));
+        var qsoLoggedBytes = WsjtxDatagram.EncodeQsoLogged(
+            _configStore.Current.ExternalReporting.InstanceId, fields);
+        _ = DispatchOrRelayAsync("QsoLogged", qsoLoggedBytes);
     }
 
     // ── Outbound send + Close-on-shutdown (task 3.6) ────────────────────────
@@ -619,11 +753,11 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
     /// </summary>
     private async Task SendClearToAllAsync()
     {
-        if (!IsOutboundActive) return;
+        if (!IsReportingActive) return;
         try
         {
-            await SendToAllEnabledAsync(
-                WsjtxDatagram.EncodeClear(_configStore.Current.ExternalReporting.InstanceId))
+            await DispatchOrRelayAsync(
+                "Clear", WsjtxDatagram.EncodeClear(_configStore.Current.ExternalReporting.InstanceId))
                 .ConfigureAwait(false);
         }
         catch { /* best-effort on shutdown */ }
@@ -631,14 +765,182 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
 
     private async Task SendCloseToAllAsync()
     {
-        if (!IsOutboundActive) return;
+        if (!IsReportingActive) return;
         try
         {
-            await SendToAllEnabledAsync(
-                WsjtxDatagram.EncodeClose(_configStore.Current.ExternalReporting.InstanceId))
+            await DispatchOrRelayAsync(
+                "Close", WsjtxDatagram.EncodeClose(_configStore.Current.ExternalReporting.InstanceId))
                 .ConfigureAwait(false);
         }
         catch { /* best-effort on shutdown */ }
+    }
+
+    // ── Single-consumer dispatch queue (external-reporting-single-connection, task 3.2) ─────
+
+    /// <summary>
+    /// Enqueues one atomic, ordered batch of already-encoded datagrams onto
+    /// <see cref="_dispatchChannel"/>, returning a <see cref="Task"/> that completes once
+    /// <see cref="DispatchLoopAsync"/> has actually sent every datagram in <paramref name="datagrams"/>
+    /// to every enabled target. Used for this instance's own outbound sends when acting as leader;
+    /// <see cref="EnqueueRelayBatch"/> uses the fire-and-forget form for a follower's relayed batch.
+    /// </summary>
+    private Task DispatchAsync(IReadOnlyList<byte[]> datagrams)
+    {
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_dispatchChannel.Writer.TryWrite(new DispatchItem(datagrams, tcs)))
+            tcs.TrySetResult(); // writer already completed (shutting down) — nothing left to send
+        return tcs.Task;
+    }
+
+    /// <summary>
+    /// Drains <see cref="_dispatchChannel"/> one <see cref="DispatchItem"/> at a time, sending
+    /// every datagram in an item to every enabled target, in order, before beginning the next
+    /// queued item — whether that item is this leader's own traffic or a follower's relayed batch
+    /// (design.md Decision 3: no batch is ever interleaved with another mid-dispatch). This is the
+    /// sole remaining call site of <see cref="SendToAllEnabledAsync"/> for the leader path
+    /// (<see cref="DegradeAndSendDirectAsync"/> is the only other one, used by a degraded follower).
+    /// </summary>
+    private async Task DispatchLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var item in _dispatchChannel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
+                foreach (var datagram in item.Datagrams)
+                    await SendToAllEnabledAsync(datagram).ConfigureAwait(false);
+                item.Done?.TrySetResult();
+            }
+        }
+        catch (OperationCanceledException) { /* shutdown */ }
+    }
+
+    /// <summary>
+    /// Routes one already-encoded datagram to this instance's outbound path, branching on
+    /// <c>externalReporting.role</c> (task 2.1): <c>"leader"</c> enqueues it onto the single-
+    /// consumer dispatch queue (unchanged wire behaviour, just serialised through one more hop);
+    /// <c>"follower"</c> relays it to <c>leaderUrl</c> (or degrades to direct send — Decision 4).
+    /// </summary>
+    private Task DispatchOrRelayAsync(string type, byte[] datagram)
+        => string.Equals(_configStore.Current.ExternalReporting.Role, "follower", StringComparison.Ordinal)
+            ? RelayToLeaderAsync([(type, datagram)])
+            : DispatchAsync([datagram]);
+
+    // ── Follower-side relay send path (external-reporting-single-connection, tasks 2.3–2.4) ──
+
+    /// <summary>
+    /// Relays an ordered batch of already-encoded datagrams to <c>externalReporting.leaderUrl</c>
+    /// via <c>POST /api/v1/external-reporting/relay</c>. On any failure (missing/malformed
+    /// <c>leaderUrl</c>, connect error, timeout, non-2xx response) degrades to sending the same
+    /// batch directly to this instance's own <c>targets</c>, under its own <c>instanceId</c>
+    /// (Decision 4) — reuses <see cref="SendToAllEnabledAsync"/>, the exact same path a
+    /// <c>"leader"</c> instance's own traffic goes through via <see cref="DispatchLoopAsync"/>.
+    /// </summary>
+    private async Task RelayToLeaderAsync(IReadOnlyList<(string Type, byte[] Bytes)> batch)
+    {
+        if (batch.Count == 0) return;
+
+        var config    = _configStore.Current.ExternalReporting;
+        var leaderUrl = config.LeaderUrl;
+
+        if (string.IsNullOrWhiteSpace(leaderUrl))
+        {
+            await DegradeAndSendDirectAsync(batch, "leaderUrl is not configured", exception: null)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var payload = new RelayBatchRequest(
+                config.InstanceId,
+                batch.Select(b => new RelayDatagramDto(b.Type, Convert.ToBase64String(b.Bytes))).ToList());
+
+            using var content  = JsonContent.Create(payload, AppJsonContext.Default.RelayBatchRequest);
+            var       relayUri = $"{leaderUrl.TrimEnd('/')}/api/v1/external-reporting/relay";
+            using var response = await _relayHttpClient.PostAsync(relayUri, content).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+                throw new HttpRequestException($"leader responded HTTP {(int)response.StatusCode}");
+
+            // Requirement "Follower resumes relaying once its leader becomes reachable again":
+            // automatic, on the very next successful relay attempt — no restart or manual action.
+            if (_followerDegraded)
+                _logger.LogInformation(
+                    "external-reporting: leader at '{LeaderUrl}' reachable again — resuming relay.",
+                    leaderUrl);
+            SetFollowerDegraded(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            // OperationCanceledException here can only originate from _relayHttpClient's own
+            // Timeout (surfaced as TaskCanceledException, a subclass) — this method is never passed
+            // the service's own shutdown token, so a real shutdown cancellation can never be
+            // mistaken for a relay failure here.
+            await DegradeAndSendDirectAsync(batch, ex.Message, ex).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Decision 4's degrade fallback: logs a Warning at most once per leader-unreachable state
+    /// (mirrors <see cref="_resolutionWarned"/>'s once-per-failure-state pattern above), then sends
+    /// the batch directly via <see cref="SendToAllEnabledAsync"/> — the follower behaves "exactly
+    /// like leader role" for the duration the leader stays unreachable.
+    /// </summary>
+    private async Task DegradeAndSendDirectAsync(
+        IReadOnlyList<(string Type, byte[] Bytes)> batch, string reason, Exception? exception)
+    {
+        var alreadyDegraded = _followerDegraded;
+        SetFollowerDegraded(true);
+
+        if (!alreadyDegraded)
+        {
+            _logger.LogWarning(exception,
+                "external-reporting: relay to leader failed ({Reason}) — degrading to direct send " +
+                "under this instance's own instanceId until the leader becomes reachable again.",
+                reason);
+        }
+
+        foreach (var (_, bytes) in batch)
+            await SendToAllEnabledAsync(bytes).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Flips <see cref="_followerDegraded"/> and re-runs <see cref="Reconcile"/> so the socket
+    /// machinery (open on degrade, closed again on reconciliation) tracks the transition
+    /// immediately, without waiting for the next unrelated config change.
+    /// </summary>
+    private void SetFollowerDegraded(bool degraded)
+    {
+        if (_followerDegraded == degraded) return;
+        _followerDegraded = degraded;
+        Reconcile(_configStore.Current.ExternalReporting);
+    }
+
+    // ── IExternalReportingRelayTarget (external-reporting-single-connection, task 3.1) ───────
+
+    /// <inheritdoc/>
+    public bool CanAcceptRelay
+    {
+        get
+        {
+            var config = _configStore.Current.ExternalReporting;
+            return config.Enabled && string.Equals(config.Role, "leader", StringComparison.Ordinal);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void EnqueueRelayBatch(string followerInstanceId, IReadOnlyList<byte[]> datagrams)
+    {
+        if (datagrams.Count == 0) return;
+
+        _logger.LogDebug(
+            "external-reporting: enqueuing a {Count}-datagram relay batch from follower '{FollowerInstanceId}'.",
+            datagrams.Count, followerInstanceId);
+
+        // Fire-and-forget: the HTTP handler that called this should not block waiting for the
+        // actual UDP send(s) to complete — "enqueue", not "deliver synchronously" (interface
+        // contract). Ordering/no-interleaving is still guaranteed by the single-consumer channel.
+        _ = DispatchAsync(datagrams);
     }
 
     private void CloseAllSockets()
@@ -758,6 +1060,34 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         {
             _logger.LogWarning(ex, "external-reporting: Halt Tx dispatch failed.");
         }
+
+        // external-reporting-single-connection (task 4.1): broadcast to every configured
+        // follower, concurrently, best-effort — one follower's failure/timeout SHALL NOT block this
+        // instance's own AbortAsync above or delivery to any other follower. Reuses each follower's
+        // own existing POST /api/v1/tx/abort endpoint, unmodified.
+        var followerUrls = _configStore.Current.ExternalReporting.FollowerUrls;
+        if (followerUrls.Count == 0) return;
+
+        var broadcasts = followerUrls.Select(async url =>
+        {
+            try
+            {
+                using var response = await _relayHttpClient
+                    .PostAsync($"{url.TrimEnd('/')}/api/v1/tx/abort", content: null)
+                    .ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                    _logger.LogWarning(
+                        "external-reporting: Halt Tx broadcast to follower '{Url}' returned HTTP {StatusCode}.",
+                        url, (int)response.StatusCode);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "external-reporting: Halt Tx broadcast to follower '{Url}' failed.", url);
+            }
+        });
+
+        await Task.WhenAll(broadcasts).ConfigureAwait(false);
     }
 
     private void HandleReply(WsjtxDatagram.InboundMessage.ReplyMessage reply)
@@ -775,6 +1105,20 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
                 "external-reporting: Reply received but no callsign could be extracted from '{Message}' — ignoring.",
                 reply.Message);
             return;
+        }
+
+        // external-reporting-single-connection (task 5.1, design.md Decision 5's v1 scope
+        // limitation): a distinct diagnostic, separate from the "no callsign could be extracted"
+        // case above — no behavioural change, engagement is still attempted exactly as before.
+        // Lets an operator running a relaying follower tell "GridTracker2 sent nothing useful" apart
+        // from "this leader never saw that callsign itself (only a follower decoded it)".
+        if (!IsCallsignInCurrentDecodeBatch(callsign))
+        {
+            _logger.LogInformation(
+                "external-reporting: Reply named '{Callsign}' which was not found in this instance's " +
+                "own current decode batch — if a relaying follower decoded it, this release does not " +
+                "route Reply to the originating follower (see external-reporting capability's Decision 5).",
+                callsign);
         }
 
         var target = ReplyTarget;
@@ -815,6 +1159,27 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable
         }
 
         callsign = string.Empty;
+        return false;
+    }
+
+    /// <summary>
+    /// external-reporting-single-connection (task 5.1): checks whether <paramref name="callsign"/>
+    /// appears as a CQ in <see cref="_lastDecodeBatch"/> — this instance's own most recent decode
+    /// batch, tracked unconditionally by <see cref="DecodeLoopAsync"/> regardless of role/active
+    /// state. Uses the same <see cref="QsoAnswererService.TryParseCq"/> matcher
+    /// <see cref="TryExtractCallsign"/> and <c>QsoAnswererService.TryEngageExternal</c> already use.
+    /// </summary>
+    private bool IsCallsignInCurrentDecodeBatch(string callsign)
+    {
+        var batch = _lastDecodeBatch;
+        if (batch is null) return false;
+
+        foreach (var r in batch.Results)
+        {
+            if (QsoAnswererService.TryParseCq(r.Message, out var cq, out _)
+                && string.Equals(cq, callsign, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
         return false;
     }
 

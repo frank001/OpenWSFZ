@@ -299,6 +299,67 @@ public sealed class ConfigApiNullGuardTests : IClassFixture<WebTestFactory>
     }
 
     [Fact(DisplayName =
+        "FR-063: a Settings-page-shaped externalReporting save does not revert previously-persisted " +
+        "role/leaderUrl/followerUrls")]
+    public async Task PostConfig_SettingsPageShapedSave_PreservesPreviouslyPersistedRoleLeaderFollowerUrls()
+    {
+        // Same rationale as PostConfig_SettingsPageShapedSave_PreservesPreviouslyPersistedInstanceId
+        // above (fix-external-reporting-appid-collision): web/js/settings.js's External Programs
+        // tab has no field yet for role/leaderUrl/followerUrls either, so an ordinary, unrelated
+        // Settings-page save must not silently collapse a configured leader/follower group back
+        // onto "leader"/null/[].
+        var client = _factory.CreateClient();
+
+        try
+        {
+            var seedContent = new StringContent(
+                """
+                {
+                  "audioDeviceId": "test-device",
+                  "externalReporting": {
+                    "role": "follower",
+                    "leaderUrl": "http://127.0.0.1:8080",
+                    "followerUrls": ["http://127.0.0.1:8081"]
+                  }
+                }
+                """,
+                Encoding.UTF8, "application/json");
+            (await client.PostAsync("/api/v1/config", seedContent)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var settingsPageShaped = new StringContent(
+                """
+                {
+                  "audioDeviceId": "test-device",
+                  "externalReporting": {
+                    "enabled": false,
+                    "targets": [],
+                    "honourInboundCommands": false,
+                    "restrictExternalRepliesToDecodeFilter": false
+                  }
+                }
+                """,
+                Encoding.UTF8, "application/json");
+            (await client.PostAsync("/api/v1/config", settingsPageShaped)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var afterJson = await (await client.GetAsync("/api/v1/config")).Content.ReadAsStringAsync();
+            using var afterDoc = JsonDocument.Parse(afterJson);
+            var extRep = afterDoc.RootElement.GetProperty("externalReporting");
+            extRep.GetProperty("role").GetString().Should().Be("follower",
+                "an unrelated Settings-page save must not silently revert role to \"leader\"");
+            extRep.GetProperty("leaderUrl").GetString().Should().Be("http://127.0.0.1:8080");
+            extRep.GetProperty("followerUrls").EnumerateArray().Select(e => e.GetString())
+                .Should().Equal("http://127.0.0.1:8081");
+        }
+        finally
+        {
+            var resetContent = new StringContent(
+                """{ "audioDeviceId": "test-device", "externalReporting": { "role": "leader", "leaderUrl": null, "followerUrls": [] } }""",
+                Encoding.UTF8, "application/json");
+            await client.PostAsync("/api/v1/config", resetContent);
+        }
+    }
+
+    [Fact(DisplayName =
         "cat-tx-ptt AC-2: an unrelated Settings-page save does not revert a previously-persisted " +
         "non-default ptt.method back to AudioVox")]
     public async Task PostConfig_UnrelatedSave_PreservesPreviouslyPersistedPtt()

@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 The 2026-07-28/29 dual-receiver live session (40m via radio, 80m via SDR, two simultaneous

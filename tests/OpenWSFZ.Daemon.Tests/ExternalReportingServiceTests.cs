@@ -1,9 +1,12 @@
 using System.Buffers.Binary;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
+using System.Text.Json;
 using System.Threading.Channels;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
@@ -87,16 +90,68 @@ public sealed class ExternalReportingServiceTests
         IConfigStore configStore, ChannelReader<DecodeBatch> channelReader,
         IServiceProvider? serviceProvider = null,
         ICallsignRegionStore? regionStore = null,
-        TimeSpan? heartbeatInterval = null, TimeSpan? statusPollInterval = null)
+        TimeSpan? heartbeatInterval = null, TimeSpan? statusPollInterval = null,
+        HttpClient? relayHttpClient = null,
+        ILogger<ExternalReportingService>? logger = null)
         => new(
             channelReader,
             configStore,
             serviceProvider ?? BuildServiceProvider(),
-            NullLogger<ExternalReportingService>.Instance,
+            logger ?? NullLogger<ExternalReportingService>.Instance,
             catState: null,
             regionStore: regionStore,
             heartbeatInterval:  heartbeatInterval  ?? TimeSpan.FromSeconds(30),
-            statusPollInterval: statusPollInterval ?? TimeSpan.FromMilliseconds(50));
+            statusPollInterval: statusPollInterval ?? TimeSpan.FromMilliseconds(50),
+            relayHttpClient: relayHttpClient);
+
+    /// <summary>
+    /// Fake <see cref="HttpMessageHandler"/> that records every request's URI/body and answers via
+    /// a caller-supplied factory (default: <c>200 OK</c>) — used for both the follower→leader relay
+    /// POST and the leader→follower Halt-Tx broadcast (<c>external-reporting-single-connection</c>),
+    /// since both go through <see cref="ExternalReportingService"/>'s single shared
+    /// <c>_relayHttpClient</c>. Mirrors <c>HttpCountryFileSourceTests.FakeHandler</c>'s style.
+    /// </summary>
+    private sealed class RecordingHttpHandler : HttpMessageHandler
+    {
+        public sealed record RecordedRequest(string Uri, string Body);
+
+        private readonly List<RecordedRequest> _requests = [];
+        public IReadOnlyList<RecordedRequest> Requests { get { lock (_requests) return [.. _requests]; } }
+
+        /// <summary>Invoked per request; return <c>null</c> to answer 200 OK (the default).</summary>
+        public Func<HttpRequestMessage, HttpResponseMessage?>? ResponseFactory { get; set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var body = request.Content is null
+                ? ""
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+            lock (_requests) _requests.Add(new RecordedRequest(request.RequestUri!.ToString(), body));
+            return ResponseFactory?.Invoke(request) ?? new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
+    /// <summary>Captures every log entry, for assertions the DisplayName-only pattern can't cover.</summary>
+    private sealed class CapturingLogger : ILogger<ExternalReportingService>
+    {
+        private readonly List<(LogLevel Level, string Message)> _entries = [];
+        public IReadOnlyList<(LogLevel Level, string Message)> Entries { get { lock (_entries) return [.. _entries]; } }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (_entries) _entries.Add((logLevel, formatter(state, exception)));
+        }
+
+        public bool HasEntryContaining(LogLevel level, string substring) =>
+            Entries.Any(e => e.Level == level &&
+                              e.Message.Contains(substring, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>Receives up to <paramref name="maxDatagrams"/> datagrams within the timeout, or fewer if it elapses.</summary>
     private static async Task<List<byte[]>> ReceiveAllAsync(
@@ -316,6 +371,31 @@ public sealed class ExternalReportingServiceTests
         var field = typeof(ExternalReportingService).GetField(
             "_inboundClient", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         return (UdpClient?)field!.GetValue(sut);
+    }
+
+    /// <summary>
+    /// Reads the private <c>_lastDecodeBatch</c> field via reflection (external-reporting-single-
+    /// connection) so a test can poll for "the background decode loop has processed this batch"
+    /// instead of a fixed delay, mirroring <see cref="GetInboundClient"/> above.
+    /// </summary>
+    private static DecodeBatch? GetLastDecodeBatch(ExternalReportingService sut)
+    {
+        var field = typeof(ExternalReportingService).GetField(
+            "_lastDecodeBatch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (DecodeBatch?)field!.GetValue(sut);
+    }
+
+    /// <summary>
+    /// Reads the private <c>_followerDegraded</c> field via reflection (external-reporting-single-
+    /// connection, Decision 4) so a test can observe the degrade/reconcile state transition
+    /// directly rather than inferring it from UDP packet counts, which is fragile in the presence
+    /// of the independent first-tick Heartbeat burst.
+    /// </summary>
+    private static bool GetFollowerDegraded(ExternalReportingService sut)
+    {
+        var field = typeof(ExternalReportingService).GetField(
+            "_followerDegraded", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (bool)field!.GetValue(sut)!;
     }
 
     /// <summary>
@@ -1237,6 +1317,555 @@ public sealed class ExternalReportingServiceTests
                 timeout: TimeSpan.FromSeconds(5));
 
             await qso.Received(1).AbortAsync(Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // external-reporting-single-connection
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private static readonly JsonSerializerOptions RelayJsonOptions =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    // ── 2.5: Follower-side relay send path ──────────────────────────────────
+
+    [Fact(DisplayName =
+        "FR-064: Follower relays one decode cycle's Status+Decode as a single ordered POST")]
+    public async Task Follower_RelaysStatusThenDecode_AsOneOrderedBatch()
+    {
+        var handler    = new RecordingHttpHandler();
+        var httpClient = new HttpClient(handler);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled:    true,
+                role:       "follower",
+                leaderUrl:  "http://127.0.0.1:9999",
+                targets:    [],
+                instanceId: "OpenWSFZ-Follower")
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, relayHttpClient: httpClient);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22",
+                    Region: new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false))]));
+
+            await Poll.UntilAsync(
+                () => handler.Requests.Any(r => r.Body.Contains("\"type\":\"Decode\"")),
+                timeout: TimeSpan.FromSeconds(5));
+
+            var req  = handler.Requests.First(r => r.Body.Contains("\"type\":\"Decode\""));
+            req.Uri.Should().Be("http://127.0.0.1:9999/api/v1/external-reporting/relay");
+
+            var body = JsonSerializer.Deserialize<RelayBatchRequest>(req.Body, RelayJsonOptions)!;
+            body.FollowerInstanceId.Should().Be("OpenWSFZ-Follower");
+
+            var statusIdx = body.Datagrams.FindIndex(d => d.Type == "Status");
+            var decodeIdx = body.Datagrams.FindIndex(d => d.Type == "Decode");
+            statusIdx.Should().BeGreaterThanOrEqualTo(0, "the first cycle's Status is always changed/due");
+            decodeIdx.Should().BeGreaterThan(statusIdx,
+                "Status must immediately precede Decode within the same relay batch (design.md Decision 3)");
+
+            var decodeBytes = Convert.FromBase64String(body.Datagrams[decodeIdx].BytesBase64);
+            ReadMessageType(decodeBytes).Should().Be(WsjtxDatagram.MessageType.Decode);
+            ReadId(decodeBytes).Should().Be("OpenWSFZ-Follower");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName =
+        "FR-064: Follower's absolute synthetic/unknown-region exclusion applies before a datagram " +
+        "ever reaches the relay path")]
+    public async Task Follower_AbsoluteExclusion_AppliesBeforeRelay()
+    {
+        var handler    = new RecordingHttpHandler();
+        var httpClient = new HttpClient(handler);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled:   true,
+                role:      "follower",
+                leaderUrl: "http://127.0.0.1:9999",
+                targets:   [])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, relayHttpClient: httpClient,
+            heartbeatInterval: TimeSpan.FromMinutes(10)); // keep Status "not due" across both batches
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            // First batch: empty results — establishes _lastStatus/_lastStatusSentUtc via the
+            // Status-changed-or-due grouping check in DecodeLoopAsync, producing exactly one POST
+            // (Status only, no Decode datagrams to group with it).
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow, []));
+            await Poll.UntilAsync(() => handler.Requests.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+            var countAfterFirstBatch = handler.Requests.Count;
+
+            // Second batch: one Region:null (unknown-region) decode, same Status as before (not
+            // yet due for a heartbeat-interval-forced resend) — pending is therefore empty and no
+            // relay POST should be sent for this batch at all.
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult(Time: "12:00:01", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1UNK JO22",
+                    Region: null)]));
+
+            // Give the decode loop a moment to process the second batch, then assert no additional
+            // request appeared and none of the recorded requests ever carried "Q1UNK".
+            await Task.Delay(TimeSpan.FromMilliseconds(300));
+            handler.Requests.Count.Should().Be(countAfterFirstBatch,
+                "a batch containing only an absolutely-excluded Decode result must produce no relay POST");
+            handler.Requests.Should().NotContain(r => r.Body.Contains("Q1UNK"));
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName =
+        "FR-064: Follower degrades to direct send under its own instanceId when its leader is unreachable")]
+    public async Task Follower_DegradesToDirectSend_WhenLeaderUnreachable()
+    {
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var targetPort = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
+
+        var handler = new RecordingHttpHandler
+        {
+            ResponseFactory = _ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable),
+        };
+        var httpClient = new HttpClient(handler);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled:    true,
+                role:       "follower",
+                leaderUrl:  "http://127.0.0.1:9999",
+                targets:    [new ExternalReportingTarget("A", "127.0.0.1", targetPort, true)],
+                instanceId: "OpenWSFZ-Follower")
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, relayHttpClient: httpClient);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22",
+                    Region: new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false))]));
+
+            var received = await ReceiveAllAsync(listener, 1, TimeSpan.FromSeconds(5));
+            received.Should().ContainSingle(
+                "relay failure (503 from the leader) must degrade to a direct UDP send to targets");
+            ReadId(received[0]).Should().Be("OpenWSFZ-Follower",
+                "the degraded direct send still carries this instance's own instanceId");
+
+            handler.Requests.Should().NotBeEmpty("a relay attempt must still have been made first");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName =
+        "FR-064: Follower automatically resumes relaying once its leader becomes reachable again")]
+    public async Task Follower_ResumesRelaying_OnceLeaderReachableAgain()
+    {
+        // Observes the _followerDegraded state transition directly (GetFollowerDegraded) rather
+        // than inferring it from UDP packet counts or HTTP body text-matching: the independent
+        // first-tick Heartbeat burst (TimerLoopAsync) also relays/degrades on its own schedule
+        // alongside the decode-cycle batches this test drives, and a relayed body is base64 (its
+        // bytes do not contain the plaintext callsign), so counting/matching on either is fragile.
+        var leaderUp = false;
+        var handler = new RecordingHttpHandler
+        {
+            ResponseFactory = _ => leaderUp
+                ? new HttpResponseMessage(HttpStatusCode.OK)
+                : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable),
+        };
+        var httpClient = new HttpClient(handler);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled:   true,
+                role:      "follower",
+                leaderUrl: "http://127.0.0.1:9999",
+                targets:   [])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(4);
+        var sut     = CreateSut(store, channel.Reader, relayHttpClient: httpClient,
+            heartbeatInterval: TimeSpan.FromMinutes(10));
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22",
+                    Region: new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false))]));
+
+            await Poll.UntilAsync(() => GetFollowerDegraded(sut),
+                timeoutMessage: () => "expected the follower to degrade after a failed relay attempt");
+
+            leaderUp = true;
+
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult(Time: "12:00:01", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22",
+                    Region: new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false))]));
+
+            await Poll.UntilAsync(() => !GetFollowerDegraded(sut),
+                timeoutMessage: () => "expected the follower to clear degraded state once the " +
+                                      "leader became reachable again");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    // ── 3.3: Leader-side relay ingestion + dispatch ordering ────────────────
+
+    [Theory(DisplayName = "FR-065: CanAcceptRelay reflects enabled+role=leader")]
+    [InlineData(true,  "leader",   true)]
+    [InlineData(false, "leader",   false)]
+    [InlineData(true,  "follower", false)]
+    public void CanAcceptRelay_ReflectsEnabledAndRole(bool enabled, string role, bool expected)
+    {
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(enabled: enabled, role: role,
+                leaderUrl: role == "follower" ? "http://127.0.0.1:9999" : null)
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader);
+
+        ((IExternalReportingRelayTarget)sut).CanAcceptRelay.Should().Be(expected);
+    }
+
+    [Fact(DisplayName = "FR-065: Leader relay endpoint dispatches a follower's batch in order to every enabled target")]
+    public async Task EnqueueRelayBatch_DispatchesInOrder()
+    {
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true, role: "leader",
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, heartbeatInterval: TimeSpan.FromMinutes(10));
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            var d1 = WsjtxDatagram.EncodeHeartbeat("Follower1", 3, "1.0", "");
+            var d2 = WsjtxDatagram.EncodeDecode("Follower1", new WsjtxDatagram.DecodeFields(
+                true, 1000, -5, 0.1, 1500, "~", "CQ Q1TST JO22", false));
+            var d3 = WsjtxDatagram.EncodeClear("Follower1");
+
+            ((IExternalReportingRelayTarget)sut).EnqueueRelayBatch("Follower1", [d1, d2, d3]);
+
+            // Capture generously (this leader's own first-tick Heartbeat+Status burst also lands
+            // on the same listener — see other tests' "margin" remarks) and filter to the relayed
+            // batch's own Id ("Follower1") so this test is robust to that unrelated noise.
+            var received = await ReceiveAllAsync(listener, 6, TimeSpan.FromSeconds(3));
+            var relayed  = received.Where(d => ReadId(d) == "Follower1").ToList();
+            relayed.Should().HaveCount(3);
+            relayed[0].Should().BeEquivalentTo(d1, "relayed datagrams must be forwarded byte-identical, in order");
+            relayed[1].Should().BeEquivalentTo(d2);
+            relayed[2].Should().BeEquivalentTo(d3);
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName =
+        "FR-065: A relayed batch is never interleaved with this leader's own concurrent outbound traffic")]
+    public async Task EnqueueRelayBatch_NeverInterleavedWithOwnTraffic()
+    {
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true, role: "leader", instanceId: "OpenWSFZ-Leader",
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(4);
+        var sut     = CreateSut(store, channel.Reader, heartbeatInterval: TimeSpan.FromMinutes(10));
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            // Own traffic: two Decode datagrams, individually dispatched (leader's pre-existing
+            // per-result cadence, DecodeLoopAsync).
+            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
+            [
+                new DecodeResult("12:00:00", -5, 0.1, 1500, "CQ Q1AAA JO22",
+                    new RegionInfo("EU", "TestLand", false)),
+                new DecodeResult("12:00:00", -5, 0.1, 1600, "CQ Q1BBB JO22",
+                    new RegionInfo("EU", "TestLand", false)),
+            ]));
+
+            // A relayed 3-datagram batch, fired at the same moment — must land on the wire as one
+            // uninterrupted contiguous run, never split by either of the two decodes above.
+            var r1 = WsjtxDatagram.EncodeHeartbeat("Follower1", 3, "1.0", "");
+            var r2 = WsjtxDatagram.EncodeDecode("Follower1", new WsjtxDatagram.DecodeFields(
+                true, 2000, -5, 0.1, 1700, "~", "CQ Q1CCC JO22", false));
+            var r3 = WsjtxDatagram.EncodeClear("Follower1");
+            ((IExternalReportingRelayTarget)sut).EnqueueRelayBatch("Follower1", [r1, r2, r3]);
+
+            // Capture generously: 2 own Decode datagrams + this leader's own first-tick
+            // Heartbeat+Status burst (unrelated noise, same "margin" rationale as other tests in
+            // this file) + the 3 relayed datagrams.
+            var received = await ReceiveAllAsync(listener, 7, TimeSpan.FromSeconds(3));
+            received.Should().HaveCountGreaterThanOrEqualTo(5, "2 own Decode datagrams + 3 relayed datagrams");
+
+            // Locate the relayed batch's first datagram and assert the next two are exactly r2, r3
+            // — i.e. contiguous, never split by an own-traffic datagram (own Decodes or the
+            // unrelated Heartbeat/Status burst) landing in between.
+            var startIdx = received.FindIndex(d => d.AsSpan().SequenceEqual(r1));
+            startIdx.Should().BeGreaterThanOrEqualTo(0, "the relayed Heartbeat must have been received");
+            (startIdx + 2).Should().BeLessThan(received.Count,
+                "the relayed batch's remaining two datagrams must also have been received");
+            received[startIdx + 1].Should().BeEquivalentTo(r2,
+                "the relayed batch's Decode must immediately follow its Heartbeat, uninterrupted");
+            received[startIdx + 2].Should().BeEquivalentTo(r3,
+                "the relayed batch's Clear must immediately follow its Decode, uninterrupted");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    // ── 4.2: Inbound Halt Tx broadcast to followers ─────────────────────────
+
+    [Fact(DisplayName = "FR-066: Halt Tx aborts the leader and every reachable configured follower")]
+    public async Task HaltTx_BroadcastsToConfiguredFollowers()
+    {
+        var port = GetFreeUdpPort();
+        var qso  = Substitute.For<IQsoController>();
+        qso.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var handler    = new RecordingHttpHandler();
+        var httpClient = new HttpClient(handler);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true, role: "leader",
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)],
+                followerUrls: ["http://127.0.0.1:8081", "http://127.0.0.1:8082"])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, BuildServiceProvider(qso: qso),
+            relayHttpClient: httpClient);
+
+        using var cts    = new CancellationTokenSource();
+        using var sender = new UdpClient();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            await WaitForInboundBoundAsync(sut);
+
+            var haltTx = BuildHaltTxDatagram();
+            await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
+
+            await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
+                timeout: TimeSpan.FromSeconds(5));
+            await qso.Received(1).AbortAsync(Arg.Any<CancellationToken>());
+
+            await Poll.UntilAsync(() => handler.Requests.Count >= 2, timeout: TimeSpan.FromSeconds(5));
+            handler.Requests.Select(r => r.Uri).Should().BeEquivalentTo(
+                ["http://127.0.0.1:8081/api/v1/tx/abort", "http://127.0.0.1:8082/api/v1/tx/abort"]);
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName = "FR-066: An unreachable follower does not block Halt Tx on the leader or other followers")]
+    public async Task HaltTx_UnreachableFollowerDoesNotBlockLeaderOrOtherFollowers()
+    {
+        var port = GetFreeUdpPort();
+        var qso  = Substitute.For<IQsoController>();
+        qso.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var handler = new RecordingHttpHandler
+        {
+            ResponseFactory = req => req.RequestUri!.ToString().Contains("8081")
+                ? throw new HttpRequestException("connection refused")
+                : new HttpResponseMessage(HttpStatusCode.OK),
+        };
+        var httpClient = new HttpClient(handler);
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true, role: "leader",
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)],
+                followerUrls: ["http://127.0.0.1:8081", "http://127.0.0.1:8082"])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, BuildServiceProvider(qso: qso),
+            relayHttpClient: httpClient);
+
+        using var cts    = new CancellationTokenSource();
+        using var sender = new UdpClient();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            await WaitForInboundBoundAsync(sut);
+
+            var haltTx = BuildHaltTxDatagram();
+            await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
+
+            await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
+                timeout: TimeSpan.FromSeconds(5));
+            await qso.Received(1).AbortAsync(Arg.Any<CancellationToken>());
+
+            await Poll.UntilAsync(
+                () => handler.Requests.Any(r => r.Uri.Contains("8082")),
+                timeout: TimeSpan.FromSeconds(5),
+                timeoutMessage: () => "the reachable follower (8082) must still receive its abort " +
+                                      "request even though 8081 fails");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    // ── 5.2: Inbound Reply — v1 scope diagnostic logging ────────────────────
+
+    [Fact(DisplayName =
+        "FR-066: Reply for a callsign absent from this leader's own decode batch is logged distinctly")]
+    public async Task Reply_CallsignNotInOwnDecodeBatch_LogsDistinctly()
+    {
+        var port      = GetFreeUdpPort();
+        var reply     = Substitute.For<IExternalReplyTarget>();
+        var capturing = new CapturingLogger();
+        reply.TryEngageAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)],
+                honourInboundCommands: true)
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, BuildServiceProvider(reply: reply), logger: capturing);
+
+        using var cts    = new CancellationTokenSource();
+        using var sender = new UdpClient();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            await WaitForInboundBoundAsync(sut);
+
+            // This leader's own decode batch contains a different callsign than the one the Reply
+            // below names — "Q1TST" is present only in a (hypothetical) follower's decode batch,
+            // never in this instance's own.
+            var ownBatch = new DecodeBatch(DateTimeOffset.UtcNow,
+                [new DecodeResult("12:00:00", -5, 0.1, 1500, "CQ Q1OTHER JO22",
+                    new RegionInfo("EU", "TestLand", false))]);
+            channel.Writer.TryWrite(ownBatch);
+            await Poll.UntilAsync(() => GetLastDecodeBatch(sut) == ownBatch,
+                timeoutMessage: () => "the decode loop never processed the seeded own-decode-batch");
+
+            var datagram = BuildReplyDatagram("CQ Q1TST JO22");
+            await sender.SendAsync(datagram, datagram.Length, "127.0.0.1", port);
+
+            await Poll.WaitForCallAsync(() => reply.ReceivedCalls(),
+                nameof(IExternalReplyTarget.TryEngageAsync), timeout: TimeSpan.FromSeconds(5));
+
+            capturing.HasEntryContaining(LogLevel.Information, "Q1TST").Should().BeTrue();
+            capturing.HasEntryContaining(LogLevel.Information,
+                "not found in this instance's own current decode batch").Should().BeTrue();
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact(DisplayName =
+        "FR-066: The pre-existing \"no callsign extracted\" Reply log path is unchanged by the new diagnostic")]
+    public async Task Reply_NoCallsignExtracted_DoesNotLogDecodeBatchDiagnostic()
+    {
+        var port      = GetFreeUdpPort();
+        var reply     = Substitute.For<IExternalReplyTarget>();
+        var capturing = new CapturingLogger();
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)],
+                honourInboundCommands: true)
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, BuildServiceProvider(reply: reply), logger: capturing);
+
+        using var cts    = new CancellationTokenSource();
+        using var sender = new UdpClient();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            await WaitForInboundBoundAsync(sut);
+
+            // An empty message: TryExtractCallsign fails before the new decode-batch check is ever
+            // reached — the pre-existing "no callsign could be extracted" path.
+            var datagram = BuildReplyDatagram("");
+            await sender.SendAsync(datagram, datagram.Length, "127.0.0.1", port);
+
+            await Poll.UntilAsync(
+                () => capturing.HasEntryContaining(LogLevel.Information, "no callsign could be extracted"),
+                timeout: TimeSpan.FromSeconds(5));
+
+            capturing.HasEntryContaining(LogLevel.Information,
+                "not found in this instance's own current decode batch").Should().BeFalse(
+                "the new diagnostic must not fire on the pre-existing no-callsign-extracted path");
+            await reply.DidNotReceive().TryEngageAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         }
         finally
         {

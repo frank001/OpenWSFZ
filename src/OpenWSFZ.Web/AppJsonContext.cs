@@ -68,6 +68,9 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(List<ExternalReportingTarget>))]
 [JsonSerializable(typeof(PttTestResponse))]
 [JsonSerializable(typeof(SystemRestartResponse))]
+[JsonSerializable(typeof(RelayBatchRequest))]
+[JsonSerializable(typeof(RelayDatagramDto))]
+[JsonSerializable(typeof(List<RelayDatagramDto>))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
 
 /// <summary>Envelope for <c>status</c> WebSocket text frames.</summary>
@@ -389,6 +392,24 @@ public sealed record PttTestResponse(string Result, string? Message = null);
 /// Wire format: <c>{"status":"restarting"}</c>.
 /// </summary>
 public sealed record SystemRestartResponse(string Status);
+
+/// <summary>
+/// One already-encoded WSJT-X-protocol datagram carried in a
+/// <c>POST /api/v1/external-reporting/relay</c> request body (<c>external-reporting-single-
+/// connection</c> change, design.md Decision 2). <c>Type</c> is informational/diagnostic only —
+/// the leader is a byte-blind forwarder and never inspects it to decide how to send
+/// <see cref="BytesBase64"/>. Wire format: <c>{"type":"Decode","bytesBase64":"..."}</c>.
+/// </summary>
+public sealed record RelayDatagramDto(string Type, string BytesBase64);
+
+/// <summary>
+/// Request body for <c>POST /api/v1/external-reporting/relay</c> (<c>external-reporting-single-
+/// connection</c> change). A follower packs one "moment" — one decode cycle's Status-then-Decode
+/// set, or a single Heartbeat/QSOLogged/Clear/Close — into <see cref="Datagrams"/>, in send order.
+/// Wire format: <c>{"followerInstanceId":"OpenWSFZ-80m","datagrams":[{"type":"Status","bytesBase64":"..."},
+/// {"type":"Decode","bytesBase64":"..."}]}</c>.
+/// </summary>
+public sealed record RelayBatchRequest(string FollowerInstanceId, List<RelayDatagramDto> Datagrams);
 
 internal sealed record WsQsoReviewMessage(
     string  Type,

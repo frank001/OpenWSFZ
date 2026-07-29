@@ -78,13 +78,19 @@ public sealed record ExternalReportingConfig
         IReadOnlyList<ExternalReportingTarget>? targets                                = null,
         bool                                    honourInboundCommands                  = false,
         bool                                    restrictExternalRepliesToDecodeFilter  = false,
-        string                                  instanceId                             = "OpenWSFZ")
+        string                                  instanceId                             = "OpenWSFZ",
+        string                                  role                                   = "leader",
+        string?                                 leaderUrl                              = null,
+        IReadOnlyList<string>?                  followerUrls                           = null)
     {
         Enabled                                = enabled;
         Targets                                = targets ?? [];
         HonourInboundCommands                  = honourInboundCommands;
         RestrictExternalRepliesToDecodeFilter  = restrictExternalRepliesToDecodeFilter;
         InstanceId                             = instanceId;
+        Role                                   = role;
+        LeaderUrl                              = leaderUrl;
+        FollowerUrls                           = followerUrls ?? [];
     }
 
     /// <summary>
@@ -137,4 +143,33 @@ public sealed record ExternalReportingConfig
     /// fix-external-reporting-appid-collision change).
     /// </summary>
     public string InstanceId { get; init; } = "OpenWSFZ";
+
+    /// <summary>
+    /// <c>"leader"</c> (default) or <c>"follower"</c> (<c>external-reporting-single-connection</c>
+    /// change). A <c>"leader"</c> instance behaves exactly as this service always has: it opens its
+    /// own outbound/inbound sockets and speaks the WSJT-X protocol directly to <see cref="Targets"/>.
+    /// A <c>"follower"</c> instance opens no sockets to <see cref="Targets"/> at all — every
+    /// datagram it would have sent is instead relayed to <see cref="LeaderUrl"/> via
+    /// <c>POST /api/v1/external-reporting/relay</c>, so that multiple local instances present as a
+    /// single logical WSJT-X-protocol connection to companion programs such as GridTracker2 (and,
+    /// through it, PSK Reporter). Any value other than the literal <c>"follower"</c> is treated as
+    /// <c>"leader"</c> — this keeps every pre-existing config (no <c>role</c> key at all) byte-for-
+    /// byte unchanged. Default: <c>"leader"</c>.
+    /// </summary>
+    public string Role { get; init; } = "leader";
+
+    /// <summary>
+    /// The leader daemon's own local HTTP base URL (e.g. <c>"http://127.0.0.1:8080"</c>), required
+    /// and meaningful only when <see cref="Role"/> is <c>"follower"</c>. <c>POST /api/v1/config</c>
+    /// rejects (HTTP 400, no partial persistence) a save with <c>role: "follower"</c> and a missing
+    /// or empty <see cref="LeaderUrl"/>. Default: <c>null</c>.
+    /// </summary>
+    public string? LeaderUrl { get; init; } = null;
+
+    /// <summary>
+    /// Local base URLs (e.g. <c>["http://127.0.0.1:8081"]</c>) of follower instances this leader
+    /// forwards an inbound <c>Halt Tx</c> to, in addition to acting on it itself. Meaningful only
+    /// when <see cref="Role"/> is <c>"leader"</c>. Default: <c>[]</c> (empty — no broadcast).
+    /// </summary>
+    public IReadOnlyList<string> FollowerUrls { get; init; } = [];
 }

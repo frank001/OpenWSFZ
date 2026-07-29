@@ -364,15 +364,26 @@ public static class WebApp
 
             AppConfig? config;
             bool instanceIdExplicitlyProvided;
+            bool roleExplicitlyProvided;
+            bool leaderUrlExplicitlyProvided;
+            bool followerUrlsExplicitlyProvided;
             try
             {
                 config = JsonSerializer.Deserialize(rawBody, AppJsonContext.Default.AppConfig);
 
                 using var rawDoc = JsonDocument.Parse(rawBody);
-                instanceIdExplicitlyProvided =
+                var hasExtRepObject =
                     rawDoc.RootElement.TryGetProperty("externalReporting", out var extRepRaw)
-                    && extRepRaw.ValueKind == JsonValueKind.Object
-                    && extRepRaw.TryGetProperty("instanceId", out _);
+                    && extRepRaw.ValueKind == JsonValueKind.Object;
+                instanceIdExplicitlyProvided    = hasExtRepObject && extRepRaw.TryGetProperty("instanceId", out _);
+                // external-reporting-single-connection (task 1.2): role/leaderUrl/followerUrls need
+                // the exact same presence-in-source-JSON guard as instanceId above — none of the
+                // three has a web/js/settings.js field yet, so every ordinary Settings-page save
+                // would otherwise silently collapse a configured leader/follower group back onto
+                // "leader"/null/[] on the very next unrelated save.
+                roleExplicitlyProvided          = hasExtRepObject && extRepRaw.TryGetProperty("role", out _);
+                leaderUrlExplicitlyProvided     = hasExtRepObject && extRepRaw.TryGetProperty("leaderUrl", out _);
+                followerUrlsExplicitlyProvided  = hasExtRepObject && extRepRaw.TryGetProperty("followerUrls", out _);
             }
             catch (JsonException)
             {
@@ -425,6 +436,40 @@ public static class WebApp
                     ExternalReporting = config.ExternalReporting with
                     {
                         InstanceId = store.Current.ExternalReporting.InstanceId,
+                    },
+                };
+            }
+            // external-reporting-single-connection (task 1.2): same rationale/mechanism as the
+            // InstanceId guard immediately above, applied identically to Role/LeaderUrl/
+            // FollowerUrls — each field preserved independently so a save that only omits one of
+            // the three doesn't also revert the other two.
+            if (!roleExplicitlyProvided)
+            {
+                config = config with
+                {
+                    ExternalReporting = config.ExternalReporting with
+                    {
+                        Role = store.Current.ExternalReporting.Role,
+                    },
+                };
+            }
+            if (!leaderUrlExplicitlyProvided)
+            {
+                config = config with
+                {
+                    ExternalReporting = config.ExternalReporting with
+                    {
+                        LeaderUrl = store.Current.ExternalReporting.LeaderUrl,
+                    },
+                };
+            }
+            if (!followerUrlsExplicitlyProvided)
+            {
+                config = config with
+                {
+                    ExternalReporting = config.ExternalReporting with
+                    {
+                        FollowerUrls = store.Current.ExternalReporting.FollowerUrls,
                     },
                 };
             }
@@ -564,6 +609,18 @@ public static class WebApp
                             "which is outside the valid range 1-65535.");
                     }
                 }
+
+                // external-reporting-single-connection (task 1.3): a follower with no leaderUrl to
+                // relay to can never do anything useful — reject outright rather than persist an
+                // unreachable-by-construction config (same HTTP 400/no-partial-persistence pattern
+                // as the port check above).
+                if (string.Equals(extRep.Role, "follower", StringComparison.Ordinal)
+                    && string.IsNullOrWhiteSpace(extRep.LeaderUrl))
+                {
+                    return Results.BadRequest(
+                        "externalReporting.role is \"follower\" but leaderUrl is missing or empty — " +
+                        "a follower requires a leaderUrl to relay to.");
+                }
             }
 
             // ── Remote access config validation (SEC-001 / D-LAN-006) ──────────────
@@ -579,6 +636,57 @@ public static class WebApp
 
             await store.SaveAsync(config, ct);
             return TypedResults.Ok(store.Current);
+        });
+
+        // ── Leader-side relay ingestion endpoint (external-reporting-single-connection) ──
+        //
+        // Capture IExternalReportingRelayTarget from the service container (may be null in tests
+        // or when the daemon-side ExternalReportingService isn't wired) — same pattern as
+        // qsoController/catTuner above.
+        var externalReportingRelayTarget = app.Services.GetService<IExternalReportingRelayTarget>();
+
+        app.MapPost("/api/v1/external-reporting/relay", async (
+            HttpRequest request,
+            CancellationToken ct) =>
+        {
+            // Requirement: "Relay endpoint rejects a request from an unconfigured follower" — no
+            // datagram is ever sent to any target when this instance isn't an enabled leader.
+            if (externalReportingRelayTarget is null || !externalReportingRelayTarget.CanAcceptRelay)
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+            RelayBatchRequest? body;
+            try
+            {
+                body = await JsonSerializer.DeserializeAsync(
+                    request.Body, AppJsonContext.Default.RelayBatchRequest, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON.");
+            }
+
+            if (body is null || body.Datagrams is null || body.Datagrams.Count == 0)
+                return Results.BadRequest("Missing or empty \"datagrams\" array.");
+
+            byte[][] decoded;
+            try
+            {
+                decoded = new byte[body.Datagrams.Count][];
+                for (var i = 0; i < body.Datagrams.Count; i++)
+                    decoded[i] = Convert.FromBase64String(body.Datagrams[i].BytesBase64);
+            }
+            catch (FormatException)
+            {
+                return Results.BadRequest("Malformed base64 in \"datagrams\".");
+            }
+
+            // design.md Decision 2: the leader is a byte-blind forwarder — it never decodes,
+            // reinterprets, or re-derives anything from the payload. EnqueueRelayBatch hands the
+            // whole ordered array to the same single-consumer dispatch queue the leader's own
+            // outbound sends go through (Decision 3), so this batch is never split by another
+            // source mid-dispatch.
+            externalReportingRelayTarget.EnqueueRelayBatch(body.FollowerInstanceId ?? "", decoded);
+            return Results.Ok();
         });
 
         app.MapPost("/api/v1/decode/start", async (
