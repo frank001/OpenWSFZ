@@ -82,7 +82,7 @@ Tests live in six tiers, listed cheapest-and-fastest first.
 * **Live in:** `tests/OpenWSFZ.Decoding.Ft8.Tests/`, with the corpus under `tests/OpenWSFZ.Decoding.Ft8.Tests/Fixtures/Wav/`. Corpus sourcing in &sect;5.
 * **Speed budget:** whole decoder-fixture suite &lt; 20 s on Linux. Larger fixtures are tagged `[Trait("corpus", "extended")]` and run nightly only.
 
-This tier is the **single most important** part of the suite. It is what proves OpenWSFZ decodes FT8 correctly, and it is what makes the clean-room MIT story defensible (we can demonstrate correctness against the same fixtures the upstream `ft8_lib` and the WSJT-X reference suite use).
+This tier is the **single most important** part of the suite. It is what proves OpenWSFZ decodes FT8 correctly, and it is what makes the clean-room, non-GPL-derived provenance story defensible (we can demonstrate correctness against the same fixtures the upstream `ft8_lib` and the WSJT-X reference suite use).
 
 ### 4.3 Integration tests (in-process)
 
@@ -136,7 +136,7 @@ This tier is the **single most important** part of the suite. It is what proves 
   }
   ```
 
-* **Corpus provenance:** sourced from two **MIT-compatible** origins only:
+* **Corpus provenance:** sourced from two **permissively-licensed** origins only:
   1. **`ft8_lib`'s own test corpus** (MIT-licensed alongside the library).
   2. **The WSJT-X reference recordings** that are explicitly distributed for testing under permissive terms by the K1JT group via QEX article supplements. Each entry's `source` field documents its origin.
 * **Forbidden corpus sources:** any recording shipped under GPL terms, any recording obtained from a non-public source. The license-inventory CI gate verifies every fixture has a `source` entry pointing to an approved origin.
@@ -287,8 +287,8 @@ real-signal recovery fails CI and cannot merge.
 | Coverlet | Coverage collection | MIT |
 | ReportGenerator | Coverage report formatting | Apache-2.0 |
 | Microsoft.AspNetCore.Mvc.Testing | Integration host (WebApplicationFactory) | MIT |
-| `tools/TraceabilityCheck` | First-party, this repo | MIT (project licence) |
-| `tools/LicenseInventoryCheck` | First-party, this repo | MIT |
+| `tools/TraceabilityCheck` | First-party, this repo | AGPL-3.0 (project licence) |
+| `tools/LicenseInventoryCheck` | First-party, this repo | AGPL-3.0 (project licence) |
 
 > **FluentAssertions note:** the 7.x release re-licensed away from Apache-2.0. We pin **the last permissive 6.x release** in `Directory.Packages.props`. The license-inventory gate enforces this pin.
 
@@ -383,7 +383,7 @@ These are explicitly **not** in v1's testing scope; they are recorded so they do
 
 * The build is gated by **requirement traceability** (every FR-### / NFR-### appears in a test name), **not** by line-coverage percentage.
 * Six test tiers: unit, decoder-fixture, integration, end-to-end, performance, soak.
-* The decoder-fixture tier is the correctness linchpin and the clean-room MIT evidence.
+* The decoder-fixture tier is the correctness linchpin and the clean-room, non-GPL-derived provenance evidence.
 * A flaky test is a bug; never a steady state.
 * The QA role enforces the rubric at PR review.
 * The soak and extended-corpus tiers run nightly and gate releases, not PRs.
