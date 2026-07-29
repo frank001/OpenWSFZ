@@ -58,4 +58,38 @@ public sealed class LogRotationServiceTests
         result.Should().BeAfter(exactBoundary,
             "the next rotation must always be in the future, never at or before now");
     }
+
+    // ── Regression: dev-tasks/2026-07-29-fix-loggingconfig-null-rotationschedule-crash.md ──
+    //
+    // A previous version of the catch-all branch returned utcNow.AddDays(36500) (~100 years) for
+    // any unrecognised RotationSchedule value, including a null one produced by STJ deserialising
+    // a partial "logging" JSON object with no [JsonConstructor] guard. That delay overflows
+    // Task.Delay's valid range (Int32.MaxValue ms, ~24.8 days), throws
+    // ArgumentOutOfRangeException uncaught inside ExecuteAsync, and crashes the entire host under
+    // BackgroundServiceExceptionBehavior.StopHost. These tests assert the catch-all is safe
+    // regardless of whether LoggingConfig's own [JsonConstructor] guard (which restores the
+    // intended "daily" default for an *omitted* key) is also in place — a *present-but-misspelled*
+    // value must never reach this overflow either.
+
+    [Fact(DisplayName = "Regression: CalculateNextBoundary with null RotationSchedule stays within Task.Delay's valid range")]
+    public void NullSchedule_ReturnsSafeBoundaryWithinTaskDelayRange()
+    {
+        var now    = new DateTime(2026, 5, 25, 2, 47, 0, DateTimeKind.Utc);
+        var result = LogRotationService.CalculateNextBoundary(now, Cfg(null!));
+
+        (result - now).Should().BeLessThanOrEqualTo(TimeSpan.FromDays(24),
+            "a null RotationSchedule must never produce a delay that overflows Task.Delay's Int32.MaxValue-ms limit");
+    }
+
+    [Fact(DisplayName = "Regression: CalculateNextBoundary with an unrecognised RotationSchedule stays within Task.Delay's valid range")]
+    public void UnrecognisedSchedule_ReturnsSafeBoundaryWithinTaskDelayRange()
+    {
+        // A plausible hand-typed miscapitalisation of "daily" — case-sensitive switch, so this
+        // hits the catch-all exactly like an omitted/null key does.
+        var now    = new DateTime(2026, 5, 25, 2, 47, 0, DateTimeKind.Utc);
+        var result = LogRotationService.CalculateNextBoundary(now, Cfg("Daily"));
+
+        (result - now).Should().BeLessThanOrEqualTo(TimeSpan.FromDays(24),
+            "an unrecognised RotationSchedule must never produce a delay that overflows Task.Delay's Int32.MaxValue-ms limit");
+    }
 }
