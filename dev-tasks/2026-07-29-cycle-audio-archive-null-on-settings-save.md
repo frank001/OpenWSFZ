@@ -42,13 +42,28 @@ Sequence, reconstructed from the running 20m/follower instance's own file timest
    cycles of genuine, never-to-be-recovered 80m off-air audio.
 6. **`cycleArchiveDroppedCycles` in `/api/v1/status` never moved from `0`** across the entire outage —
    the one operator-visible counter that exists specifically to surface "a cycle didn't get archived"
-   gave no signal at all. Nor did anything appear in the recent log tail matching
-   `cycle-audio-archive` (the string every other logged path in `CycleArchiveService` — collisions,
-   disk-floor trips — uses consistently). Whatever code path this explicit-`null` config hits, it is
-   currently invisible on every instrument this project has for the purpose.
-7. Confirmed the 40m/leader instance, untouched by any settings-page save tonight, still has its
+   gave no signal at all.
+7. **Confirmed, not speculated: it is a real, uncaught-at-source `NullReferenceException`, not a silent
+   no-op.** Found on a later pass through the same log, once the retune's own log window was read in
+   full: `CycleArchiveService.TryEnqueue` (`src/OpenWSFZ.Daemon/CycleArchiveService.cs:178`,
+   `var mode = _configStore.Current.CycleAudioArchive.Mode;`) throws directly when the property is
+   `null` — and `TryEnqueue` is the unconditional, non-awaited entry point called on *every* decode
+   cycle regardless of mode (its own doc comment: "When the mode is `Off`... this costs exactly one
+   config-property read"). Some outer catch in the decode pipeline (not `CycleArchiveService`'s own
+   `ProcessItemAsync` try/catch, which logs a distinct `"cycle-audio-archive: ..."`-prefixed message —
+   this is a *different* call site) swallows it and logs a generic, unhelpfully-labelled
+   `"Decode error: Object reference not set to an instance of an object."` with a full stack trace.
+   Counted exactly **8 occurrences**, `23:16:15` to `23:18:00` local time — precisely the retune
+   window, never recurring since. Full trace in §8. This means the outage wasn't silent in the logs
+   (a full stack trace was there the whole time) — it was silent only on the one channel an operator
+   would actually watch (`cycleArchiveDroppedCycles`) and mislabelled generically enough
+   (`"Decode error"`, no `cycle-audio-archive` substring) that a log grep for the service's own name
+   wouldn't have found it either. Strengthens 5(b) below from a reasonable guess to a confirmed defect.
+8. Confirmed the 40m/leader instance, untouched by any settings-page save tonight, still has its
    correct, non-null `cycleAudioArchive` — this is specific to a settings-page save happening on an
-   instance, not something that spontaneously drifts on its own.
+   instance, not something that spontaneously drifts on its own. (The `NullReferenceException` in
+   item 7 above is likewise 20m/follower-only — grep of the 40m log for the same string returns zero
+   matches.)
 
 ## 2. Root cause (per the Captain's own diagnosis, matching the evidence)
 
@@ -138,12 +153,18 @@ exactly as observed tonight. Recommend `POST /api/v1/config` reject (HTTP 400, n
 `WebApp.cs`) any request whose body sets a documented-always-non-null section to explicit `null`, for
 every such section, not just this one.
 
-**(b) Observability gap, worth fixing regardless of (a):** whatever code path silently no-ops when
-`_configStore.Current.CycleAudioArchive` is null needs to at minimum log a `[WRN]` and increment
-`cycleArchiveDroppedCycles` (or a distinct counter) every time it happens. An outage with zero signal
-on the one metric built to catch exactly this class of problem is a second, independent defect from
-the null itself — even after §3 and 5(a) ship, some future gap in this same family deserves to be
-loud, not silent.
+**(b) Observability gap, confirmed (not speculated) — see §1 item 7:** `CycleArchiveService
+.TryEnqueue` (`CycleArchiveService.cs:178`) reads `_configStore.Current.CycleAudioArchive.Mode`
+completely unguarded, with no null check before the property access, despite the class's own
+`ProcessItemAsync` (a different method, further down the same file) explicitly guarding the identical
+read with `string.IsNullOrWhiteSpace(config.Directory)`-style defensive checks throughout. Add a null
+guard at line 178 itself (treat a null `CycleAudioArchive` as `Mode == Off`, i.e. archiving simply
+doesn't run that cycle, exactly as if the operator had explicitly configured it off) **and** log a
+`[WRN]` plus increment `cycleArchiveDroppedCycles` the first time this happens per session, so an
+operator has an actual signal instead of a generically-labelled `"Decode error"` stack trace that
+doesn't even mention `cycle-audio-archive` by name. This is a second, independent defect from the
+null itself — even after §3 and 5(a) ship, some future gap in this same family deserves to be loud
+and correctly attributed, not merely non-fatal.
 
 ## 6. Tonight's live workaround (not a fix, do not treat as one)
 
@@ -182,3 +203,11 @@ above.
 - `GET http://127.0.0.1:8081/api/v1/config` — captured raw mid-outage tonight, showing
   `"cycleAudioArchive":null` verbatim alongside a fully-intact `externalReporting` block from the same
   response.
+- Full stack trace, `OpenWSFZ-20m-capture/logs/openswfz-20260729T182813Z.log`, first of 8 identical
+  occurrences (`23:16:15` through `23:18:00` local, 20m/follower log only):
+  ```
+  2026-07-29 23:16:15.270 +02:00 [ERR] Decode error: Object reference not set to an instance of an object.
+  System.NullReferenceException: Object reference not set to an instance of an object.
+     at OpenWSFZ.Daemon.CycleArchiveService.TryEnqueue(Single[] pcm, DateTime cycleStart, DateTime closedUtc, Int32 decodeCount, Double dialMhz) in D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Daemon\CycleArchiveService.cs:line 178
+     at Program.<>c__DisplayClass0_3.<<<Main>$>b__36>d.MoveNext()
+  ```
