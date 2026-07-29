@@ -351,10 +351,39 @@ public static class WebApp
             IConfigStore store,
             CancellationToken ct) =>
         {
+            // Read the raw body as text (rather than request.ReadFromJsonAsync straight off the
+            // stream) so it can be inspected twice: once deserialised into AppConfig for the
+            // existing save path, and once as a JsonDocument purely to ask "did the client's own
+            // JSON literally include an 'instanceId' key inside 'externalReporting'?" — see the
+            // InstanceId guard below (fix-external-reporting-appid-collision). That distinction is
+            // unrecoverable once STJ's [JsonConstructor] default has already collapsed "omitted"
+            // and "explicitly resent as the default value" into the same C# value.
+            string rawBody;
+            using (var bodyReader = new StreamReader(request.Body))
+                rawBody = await bodyReader.ReadToEndAsync(ct);
+
             AppConfig? config;
+            bool instanceIdExplicitlyProvided;
+            bool roleExplicitlyProvided;
+            bool leaderUrlExplicitlyProvided;
+            bool followerUrlsExplicitlyProvided;
             try
             {
-                config = await request.ReadFromJsonAsync(AppJsonContext.Default.AppConfig, ct);
+                config = JsonSerializer.Deserialize(rawBody, AppJsonContext.Default.AppConfig);
+
+                using var rawDoc = JsonDocument.Parse(rawBody);
+                var hasExtRepObject =
+                    rawDoc.RootElement.TryGetProperty("externalReporting", out var extRepRaw)
+                    && extRepRaw.ValueKind == JsonValueKind.Object;
+                instanceIdExplicitlyProvided    = hasExtRepObject && extRepRaw.TryGetProperty("instanceId", out _);
+                // external-reporting-single-connection (task 1.2): role/leaderUrl/followerUrls need
+                // the exact same presence-in-source-JSON guard as instanceId above — none of the
+                // three has a web/js/settings.js field yet, so every ordinary Settings-page save
+                // would otherwise silently collapse a configured leader/follower group back onto
+                // "leader"/null/[] on the very next unrelated save.
+                roleExplicitlyProvided          = hasExtRepObject && extRepRaw.TryGetProperty("role", out _);
+                leaderUrlExplicitlyProvided     = hasExtRepObject && extRepRaw.TryGetProperty("leaderUrl", out _);
+                followerUrlsExplicitlyProvided  = hasExtRepObject && extRepRaw.TryGetProperty("followerUrls", out _);
             }
             catch (JsonException)
             {
@@ -384,6 +413,66 @@ public static class WebApp
                 config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
             if (config.ExternalReporting is null)
                 config = config with { ExternalReporting = new ExternalReportingConfig() };
+            // InstanceId (fix-external-reporting-appid-collision) needs a guard of its own, one
+            // level deeper than the whole-section null guard above: unlike Ptt, the "externalReporting"
+            // section itself is NOT missing on an ordinary Settings-page save — web/js/settings.js's
+            // External Programs tab actively populates and sends enabled/targets/
+            // honourInboundCommands/restrictExternalRepliesToDecodeFilter every time. It just has no
+            // field yet for instanceId (deliberately, per this change's minimum scope), so that one
+            // field alone comes back through STJ's [JsonConstructor] parameter default ("OpenWSFZ")
+            // on every single such save — not just a hypothetical missing-key edge case, but every
+            // ordinary save once an operator has configured a non-default InstanceId for multi-
+            // instance operation. Left unguarded, the very next unrelated Settings-page save (toggling
+            // showCycleCountdown, anything) silently collapses two distinguishable instances back onto
+            // the same wire Id, reintroducing the exact GridTracker collision this change exists to
+            // fix. Uses the raw-JSON key-presence check above (not a value comparison against
+            // "OpenWSFZ") specifically so a deliberate targeted POST that explicitly resets
+            // instanceId back to the literal default string is still honoured, not mistaken for
+            // omission.
+            if (!instanceIdExplicitlyProvided)
+            {
+                config = config with
+                {
+                    ExternalReporting = config.ExternalReporting with
+                    {
+                        InstanceId = store.Current.ExternalReporting.InstanceId,
+                    },
+                };
+            }
+            // external-reporting-single-connection (task 1.2): same rationale/mechanism as the
+            // InstanceId guard immediately above, applied identically to Role/LeaderUrl/
+            // FollowerUrls — each field preserved independently so a save that only omits one of
+            // the three doesn't also revert the other two.
+            if (!roleExplicitlyProvided)
+            {
+                config = config with
+                {
+                    ExternalReporting = config.ExternalReporting with
+                    {
+                        Role = store.Current.ExternalReporting.Role,
+                    },
+                };
+            }
+            if (!leaderUrlExplicitlyProvided)
+            {
+                config = config with
+                {
+                    ExternalReporting = config.ExternalReporting with
+                    {
+                        LeaderUrl = store.Current.ExternalReporting.LeaderUrl,
+                    },
+                };
+            }
+            if (!followerUrlsExplicitlyProvided)
+            {
+                config = config with
+                {
+                    ExternalReporting = config.ExternalReporting with
+                    {
+                        FollowerUrls = store.Current.ExternalReporting.FollowerUrls,
+                    },
+                };
+            }
             // Ptt gets a different fallback than the four guards above: web/js/settings.js
             // never sends a "ptt" key at all (there is deliberately no Settings-page UI for
             // it — design.md Decision 6), so EVERY Settings-page save hits this branch, not
@@ -520,6 +609,18 @@ public static class WebApp
                             "which is outside the valid range 1-65535.");
                     }
                 }
+
+                // external-reporting-single-connection (task 1.3): a follower with no leaderUrl to
+                // relay to can never do anything useful — reject outright rather than persist an
+                // unreachable-by-construction config (same HTTP 400/no-partial-persistence pattern
+                // as the port check above).
+                if (string.Equals(extRep.Role, "follower", StringComparison.Ordinal)
+                    && string.IsNullOrWhiteSpace(extRep.LeaderUrl))
+                {
+                    return Results.BadRequest(
+                        "externalReporting.role is \"follower\" but leaderUrl is missing or empty — " +
+                        "a follower requires a leaderUrl to relay to.");
+                }
             }
 
             // ── Remote access config validation (SEC-001 / D-LAN-006) ──────────────
@@ -535,6 +636,57 @@ public static class WebApp
 
             await store.SaveAsync(config, ct);
             return TypedResults.Ok(store.Current);
+        });
+
+        // ── Leader-side relay ingestion endpoint (external-reporting-single-connection) ──
+        //
+        // Capture IExternalReportingRelayTarget from the service container (may be null in tests
+        // or when the daemon-side ExternalReportingService isn't wired) — same pattern as
+        // qsoController/catTuner above.
+        var externalReportingRelayTarget = app.Services.GetService<IExternalReportingRelayTarget>();
+
+        app.MapPost("/api/v1/external-reporting/relay", async (
+            HttpRequest request,
+            CancellationToken ct) =>
+        {
+            // Requirement: "Relay endpoint rejects a request from an unconfigured follower" — no
+            // datagram is ever sent to any target when this instance isn't an enabled leader.
+            if (externalReportingRelayTarget is null || !externalReportingRelayTarget.CanAcceptRelay)
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+            RelayBatchRequest? body;
+            try
+            {
+                body = await JsonSerializer.DeserializeAsync(
+                    request.Body, AppJsonContext.Default.RelayBatchRequest, ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest("Malformed JSON.");
+            }
+
+            if (body is null || body.Datagrams is null || body.Datagrams.Count == 0)
+                return Results.BadRequest("Missing or empty \"datagrams\" array.");
+
+            byte[][] decoded;
+            try
+            {
+                decoded = new byte[body.Datagrams.Count][];
+                for (var i = 0; i < body.Datagrams.Count; i++)
+                    decoded[i] = Convert.FromBase64String(body.Datagrams[i].BytesBase64);
+            }
+            catch (FormatException)
+            {
+                return Results.BadRequest("Malformed base64 in \"datagrams\".");
+            }
+
+            // design.md Decision 2: the leader is a byte-blind forwarder — it never decodes,
+            // reinterprets, or re-derives anything from the payload. EnqueueRelayBatch hands the
+            // whole ordered array to the same single-consumer dispatch queue the leader's own
+            // outbound sends go through (Decision 3), so this batch is never split by another
+            // source mid-dispatch.
+            externalReportingRelayTarget.EnqueueRelayBatch(body.FollowerInstanceId ?? "", decoded);
+            return Results.Ok();
         });
 
         app.MapPost("/api/v1/decode/start", async (

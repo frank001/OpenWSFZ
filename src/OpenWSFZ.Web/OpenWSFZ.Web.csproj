@@ -26,5 +26,13 @@
   <ItemGroup>
     <!-- Expose internal types (AudioWatchdog, etc.) to the Web test project. -->
     <InternalsVisibleTo Include="OpenWSFZ.Web.Tests" />
+    <!--
+      external-reporting-single-connection: ExternalReportingService (OpenWSFZ.Daemon) reuses
+      AppJsonContext's source-generated RelayBatchRequest/RelayDatagramDto serialisation for its
+      outbound POST /api/v1/external-reporting/relay body — the exact same AOT-safe context the
+      leader-side endpoint deserialises with — rather than duplicating the DTO shape and a second
+      source-gen context. Mirrors OpenWSFZ.Rig's existing InternalsVisibleTo to OpenWSFZ.Daemon.
+    -->
+    <InternalsVisibleTo Include="OpenWSFZ.Daemon" />
   </ItemGroup>
 </Project>
