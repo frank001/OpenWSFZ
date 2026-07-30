@@ -598,6 +598,12 @@ directory by default, data-directory override when set).
   (`DecodeFilterState`) is still honoured by `qso-answerer`/`qso-caller`'s external-reply engagement
   paths; when `true`, such a Reply is rejected, matching the decode panel's own visibility exactly.
   Only meaningful when `honourInboundCommands` is also `true` (see `external-reporting` capability).
+- `instanceId` (string, default `"OpenWSFZ"`) — the WSJT-X-protocol `Id` field sent in every
+  outbound Heartbeat/Status/Decode/QSOLogged/Clear/Close datagram (see `external-reporting`
+  capability). Operators running more than one simultaneous `OpenWSFZ.Daemon` instance (e.g. two
+  bands captured via a split antenna) MUST give each instance a distinct value here, or companion
+  programs that key off this field to distinguish multiple protocol-compatible instances (e.g.
+  GridTracker) will not be able to tell them apart.
 
 An entry with `port` outside `1`–`65535` SHALL be rejected on save with the same validation-error
 pattern used elsewhere in `POST /api/v1/config` (HTTP 400, no partial persistence).
@@ -606,12 +612,14 @@ pattern used elsewhere in `POST /api/v1/config` (HTTP 400, no partial persistenc
 
 - **WHEN** the config file has no `externalReporting` key
 - **THEN** `AppConfig.ExternalReporting.Enabled` SHALL be `false` and `Targets` SHALL be an empty
-  list, and `RestrictExternalRepliesToDecodeFilter` SHALL be `false`
+  list, `RestrictExternalRepliesToDecodeFilter` SHALL be `false`, and `InstanceId` SHALL be
+  `"OpenWSFZ"`
 
 #### Scenario: externalReporting object round-trips correctly
 
 - **WHEN** a config file contains an `externalReporting` object with `enabled: true`, two target
-  entries, `honourInboundCommands: true`, and `restrictExternalRepliesToDecodeFilter: true`
+  entries, `honourInboundCommands: true`, `restrictExternalRepliesToDecodeFilter: true`, and
+  `instanceId: "OpenWSFZ-20m"`
 - **THEN** `GET /api/v1/config` SHALL return those exact values and a subsequent `POST
   /api/v1/config` with a modified target list SHALL persist the change
 
@@ -635,6 +643,30 @@ pattern used elsewhere in `POST /api/v1/config` (HTTP 400, no partial persistenc
   `false`, preserving the new default (external Reply honoured regardless of the decode-panel
   filter) for any pre-existing installation
 
+#### Scenario: Missing instanceId key on an existing externalReporting object defaults to "OpenWSFZ"
+
+- **WHEN** a config file contains an `externalReporting` object from before this field existed
+  (e.g. `{ "enabled": true, "targets": [...], "honourInboundCommands": true }` with no
+  `instanceId` key)
+- **THEN** `AppConfig.ExternalReporting.InstanceId` SHALL deserialise to `"OpenWSFZ"`, not `null` or
+  an empty string, preserving single-instance behaviour for any pre-existing installation
+
+#### Scenario: Settings-page-shaped save without instanceId preserves the previously-persisted value
+
+- **WHEN** `POST /api/v1/config` includes an `externalReporting` object with `enabled`, `targets`,
+  `honourInboundCommands`, and `restrictExternalRepliesToDecodeFilter` — the exact shape
+  `web/js/settings.js`'s External Programs tab sends, which has no field for `instanceId` — and a
+  non-default `InstanceId` was already persisted from an earlier, targeted save
+- **THEN** the persisted `InstanceId` SHALL be unchanged; an ordinary, unrelated Settings-page save
+  SHALL NOT silently revert it to `"OpenWSFZ"` (fix-external-reporting-appid-collision)
+
+#### Scenario: Explicit instanceId reset to the literal default is honoured
+
+- **WHEN** `POST /api/v1/config` includes `externalReporting.instanceId: "OpenWSFZ"` explicitly,
+  regardless of whatever value was previously persisted
+- **THEN** `AppConfig.ExternalReporting.InstanceId` SHALL be saved as `"OpenWSFZ"` — presence of the
+  key in the request body, not its value, is what distinguishes an intentional reset from omission
+
 ---
 
 ### Requirement: externalReporting configuration exposed via Settings REST API
@@ -646,7 +678,7 @@ request and response bodies alongside the existing config fields.
 
 - **WHEN** a client sends `GET /api/v1/config`
 - **THEN** the response SHALL include an `externalReporting` object with `enabled`, `targets`,
-  `honourInboundCommands`, and `restrictExternalRepliesToDecodeFilter` fields
+  `honourInboundCommands`, `restrictExternalRepliesToDecodeFilter`, and `instanceId` fields
 
 #### Scenario: POST /api/v1/config with a new target persists and takes effect
 

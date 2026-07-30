@@ -15,7 +15,7 @@ Usage
 Output
 ------
     <same-stem>.html written alongside the source .md file (report.md -> report.html,
-    contents.md -> contents.html, etc.).
+    contents.md -> contents.html, anova_report_40m.md -> anova_report_40m.html, etc.).
 
 Images are referenced by relative path (not embedded), so the HTML file
 must remain in the same directory as the PNG charts to display correctly.

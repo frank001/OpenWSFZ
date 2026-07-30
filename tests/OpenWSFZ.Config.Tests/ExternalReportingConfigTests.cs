@@ -125,6 +125,53 @@ public sealed class ExternalReportingConfigTests
         extRep.Targets.Should().BeEmpty();
     }
 
+    // ── external-reporting-single-connection: role/leaderUrl/followerUrls ──────
+
+    [Fact(DisplayName =
+        "FR-063: ExternalReportingConfig with role/leaderUrl/followerUrls round-trips via ConfigJsonContext")]
+    public void ExternalReportingConfig_RoleLeaderFollowerUrls_RoundTrip_PreservesValues()
+    {
+        var original = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled:      true,
+                targets:      [],
+                instanceId:   "OpenWSFZ-20m",
+                role:         "follower",
+                leaderUrl:    "http://127.0.0.1:8080",
+                followerUrls: ["http://127.0.0.1:8081", "http://127.0.0.1:8082"])
+        };
+
+        var json   = JsonSerializer.Serialize(original, ConfigJsonContext.Default.AppConfig);
+        var loaded = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        loaded.ExternalReporting.Role.Should().Be("follower");
+        loaded.ExternalReporting.LeaderUrl.Should().Be("http://127.0.0.1:8080");
+        loaded.ExternalReporting.FollowerUrls.Should().Equal(
+            "http://127.0.0.1:8081", "http://127.0.0.1:8082");
+
+        json.Should().Contain("\"role\"");
+        json.Should().Contain("\"leaderUrl\"");
+        json.Should().Contain("\"followerUrls\"");
+    }
+
+    [Fact(DisplayName =
+        "FR-063: missing role/leaderUrl/followerUrls keys on an existing externalReporting object " +
+        "default to leader behaviour")]
+    public void Load_MissingRoleLeaderFollowerUrlsKeys_DefaultToLeaderBehaviour()
+    {
+        const string json = """
+            {"port":8080,"externalReporting":{"enabled":true,"targets":[],"instanceId":"OpenWSFZ-20m"}}
+            """;
+        var config = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig)!;
+
+        config.ExternalReporting.Role.Should().Be("leader",
+            "a config file predating this field must reproduce this instance's pre-existing " +
+            "direct-send behaviour exactly");
+        config.ExternalReporting.LeaderUrl.Should().BeNull();
+        config.ExternalReporting.FollowerUrls.Should().BeEmpty();
+    }
+
     [Fact(DisplayName = "A target entry deserialises with correct field values")]
     public void Load_SingleTarget_DeserialisesCorrectly()
     {

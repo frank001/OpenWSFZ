@@ -540,4 +540,57 @@ public sealed class JsonConfigStoreTests
         json.Should().Contain("\"noDecodes\"", "the wire value must be lowerCamelCase, not \"NoDecodes\"");
         json.Should().NotContain("\"NoDecodes\"");
     }
+
+    // ── fix-external-reporting-appid-collision: ExternalReportingConfig.InstanceId ──────────
+
+    [Fact(DisplayName = "external-reporting-appid-collision: AppConfig.ExternalReporting.InstanceId defaults on a fresh config")]
+    public void AppConfig_ExternalReporting_InstanceId_DefaultsOnFreshConfig()
+    {
+        var config = new AppConfig();
+
+        config.ExternalReporting.InstanceId.Should().Be("OpenWSFZ",
+            "single-instance sessions must keep the historical literal WSJT-X-protocol Id");
+    }
+
+    [Fact(DisplayName = "external-reporting-appid-collision: ExternalReportingConfig with a partial JSON object still defaults InstanceId to \"OpenWSFZ\"")]
+    public void ExternalReportingConfig_PartialJsonObject_InstanceIdDefaultsToOpenWsfz()
+    {
+        // Whole "externalReporting" section present (so the section-level null guard doesn't
+        // apply) but "instanceId" itself omitted: without the [JsonConstructor] parameter
+        // default, STJ source-gen would deserialise the CLR zero-default for a non-nullable
+        // string init property (null), not the documented "OpenWSFZ" default — same class of
+        // bug as the cycleAudioArchive/RemoteAccess precedents above.
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath,
+            """{"audioDeviceId":"mic","port":8080,"externalReporting":{"enabled":true}}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.ExternalReporting.Enabled.Should().BeTrue("sanity: the partial object did apply");
+        store.Current.ExternalReporting.InstanceId.Should().Be("OpenWSFZ",
+            "instanceId omitted from a partial externalReporting object must still resolve to " +
+            "its documented default (\"OpenWSFZ\"), not null or empty");
+    }
+
+    [Fact(DisplayName = "external-reporting-appid-collision: ExternalReportingConfig.InstanceId round-trips via config file")]
+    public async Task ExternalReportingConfig_InstanceId_RoundTrips()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        await store.SaveAsync(new AppConfig
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled:    true,
+                instanceId: "OpenWSFZ-20m"),
+        });
+
+        var reloaded = new JsonConfigStore(configPath);
+        reloaded.Current.ExternalReporting.InstanceId.Should().Be("OpenWSFZ-20m",
+            "a distinct operator-configured InstanceId must survive a save/reload round-trip " +
+            "unchanged — this is the field two simultaneous instances must set differently to " +
+            "avoid the GridTracker collision this change fixes");
+    }
 }
