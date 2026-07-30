@@ -1,16 +1,17 @@
 # OpenWSFZ
 
-An open-source, cross-platform, MIT-licensed weak-signal amateur-radio
+An open-source, cross-platform, AGPL-3.0-licensed weak-signal amateur-radio
 application for amateur radio operators — covering the WSJT-X family of modes (FT8, FT4,
 JS8, JT9, JT65, WSPR, and related).
 
 ## Project intent
 
 - **For amateur radio operators**, as a flexible alternative for existing software.
-- **Cross-platform** (Windows, Linux, macOS) and **free of restrictions**.
-- **MIT-licensed**, clean-room implementation derived from public protocol
+- **Cross-platform** (Windows, Linux, macOS).
+- **AGPL-3.0-licensed.** Clean-room implementation derived from public protocol
   specifications. No code, algorithms, or assets are taken from the GPL-3.0
-  WSJT-X or JS8Call source trees.
+  WSJT-X or JS8Call source trees — this engineering rule is independent of, and
+  unaffected by, the project's own licence.
 - **Spec-driven and incrementally delivered**: every behavioural change goes
   through a written proposal ([OpenSpec](openspec/)) before implementation.
 
@@ -312,7 +313,9 @@ All six active CI gates pass on every platform:
 
 - **G1** — `dotnet build` with zero warnings
 - **G3** — Requirement traceability (every FR/NFR ID mapped to a test)
-- **G5** — Dependency licence inventory (MIT / Apache-2.0 / BSD only)
+- **G5** — Dependency licence inventory (permissive licences only — MIT / Apache-2.0 / BSD /
+  CC0 / 0BSD / ISC — no copyleft dependencies, a clean-room-provenance rule kept independently
+  of the project's own licence)
 - **G6** — Real off-air signal recovery: three committed 40 m band fixture WAVs decoded against WSJT-X answer keys on Windows x64, Linux x64, and macOS ARM64
 - **G7** — Secrets scan (gitleaks over full commit history; any credential finding fails the build)
 - **G8** — OpenSpec validation (`openspec validate --strict --all` across every spec and active change)
@@ -357,4 +360,4 @@ build cleanliness, test coverage, and requirement traceability on every PR.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GNU Affero General Public License v3.0 (AGPL-3.0) — see [LICENSE](LICENSE).

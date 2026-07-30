@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-OpenWSFZ is an open-source, MIT-licensed, cross-platform alternative
+OpenWSFZ is an open-source, AGPL-3.0-licensed, cross-platform alternative
 to the WSJT-X weak-signal amateur-radio application family. Where
 WSJT-X is a Qt desktop application under GPL-3.0, OpenWSFZ is
 controlled entirely from a web page served by the application itself,
@@ -43,8 +43,9 @@ alternative to WSJT-X that is:
 
 - **Web-controlled** rather than tied to a desktop Qt UI.
 - **Cross-platform** from a single source tree.
-- **MIT-licensed**, removing the GPL-3.0 restrictions of the
-  reference application.
+- **AGPL-3.0-licensed.** Independently, clean-room implemented — no code,
+  algorithms, or assets are taken from the GPL-3.0 reference application's
+  source tree, regardless of the project's own licence family.
 
 The aspirational bar is competitive: **the project's goal is to be
 software that HAM operators would prefer over the existing options**,
@@ -123,7 +124,7 @@ Only one persona is in scope for v0.x.
   - Existing WSJT-X is Qt-bound and not naturally controlled from a
     non-local browser.
   - Cross-platform support for hobby radio software is uneven.
-  - GPL-3.0 restrictions limit what they can do with the source.
+  - WSJT-X's GPL-3.0 terms constrain what they can do with its source tree.
 - **Technical Proficiency:**
   - Holds a valid amateur-radio licence (regulator exam passed);
     therefore familiar with radio operation, modes, frequencies,
@@ -323,10 +324,12 @@ data in v0.x:
   PCI-DSS / SOC2 remain not applicable (no health, payment, or service-
   organisation data is processed).
 - **License compliance** is a further active concern: every dependency
-  must be license-compatible with MIT redistribution. **Clean-room**
-  implementation from public protocol specifications is mandatory;
-  GPL-3.0 source from WSJT-X or JS8Call must not be used as a source
-  of implementation, to preserve the project's MIT license.
+  must be permissively licensed (no copyleft) regardless of the project's
+  own licence. **Clean-room** implementation from public protocol
+  specifications is mandatory; GPL-3.0 source from WSJT-X or JS8Call must
+  not be used as a source of implementation, under any circumstance — this
+  rule is independent of, and does not change with, the project's own
+  distribution licence (currently AGPL-3.0).
 
 ---
 
@@ -334,11 +337,12 @@ data in v0.x:
 
 | Constraint                                | Detail                                                                                                                            | Reason                                                                            |
 |-------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
-| License                                   | MIT                                                                                                                               | Project goal: free of restrictions.                                               |
+| License                                   | AGPL-3.0 (GNU Affero General Public License v3.0)                                                                                 | Captain's directive, 2026-07-29 — see LICENSE.                                    |
 | Disallowed frameworks / toolchains        | **Qt**, **Fortran**, **Node.js** (at build time)                                                                                  | User-stated exclusions.                                                           |
 | Preferred implementation language         | **C#**                                                                                                                            | User preference.                                                                  |
 | Acceptable fallback language              | **C++**                                                                                                                           | If C# proves impractical for FT8 DSP, cross-platform audio I/O, or packaging.    |
-| Implementation provenance                 | Clean-room from public protocol specifications. GPL-3.0 source (WSJT-X / JS8Call) may be a behavioural reference only, never a source of code, algorithms, or assets. | Maintain MIT licensing.                                            |
+| Implementation provenance                 | Clean-room from public protocol specifications. GPL-3.0 source (WSJT-X / JS8Call) may be a behavioural reference only, never a source of code, algorithms, or assets. | Maintain clean-room provenance — this rule holds regardless of the project's own licence. |
+| Dependency licensing                      | Every NuGet package and native submodule must be permissively licensed (MIT, BSD, Apache-2.0, CC0, 0BSD, ISC, or equivalent) — no copyleft dependencies, gated in CI. | Independent, standing policy — unaffected by the project's own AGPL-3.0 licence. |
 | Target OSes (v0.x)                        | Windows, Linux, macOS &mdash; **x86_64** only                                                                                     | Cross-platform driver, scoped to desktop x86_64 for v0.x.                        |
 | Distribution model (v0.x)                 | Source only, via the project's GitHub repository.                                                                                 | User preference; minimises packaging / code-signing complexity for v0.x.         |
 | Bind address (v0.x)                       | `127.0.0.1` loopback only.                                                                                                        | Proof-of-concept simplicity, no auth required.                                    |
@@ -403,6 +407,7 @@ data in v0.x:
 | Term                | Definition                                                                                                                       |
 |---------------------|----------------------------------------------------------------------------------------------------------------------------------|
 | ADIF                | Amateur Data Interchange Format &mdash; the standard log file format used to exchange QSO records between logging applications. |
+| AGPL-3.0            | GNU Affero General Public License v3.0 &mdash; the copyleft licence selected by the project (2026-07-29), extending GPL-3.0's terms to cover network/server use. See LICENSE. |
 | ARCHITECT           | One of the four AI-assisted roles in this project. Owns system design from this document.                                       |
 | ARM64 / aarch64     | 64-bit ARM CPU architecture. Examples: Raspberry Pi 4/5, Banana Pi BPI-R4, Apple Silicon Macs. Out of scope for v0.x.           |
 | Analyst             | This role; produces and maintains `REQUIREMENTS.md`.                                                                            |
@@ -418,7 +423,6 @@ data in v0.x:
 | GDPR                | EU General Data Protection Regulation. Governs processing of personal data; an amateur callsign identifies a natural person and is personal data. See NFR-021. |
 | HAM                 | Licensed amateur-radio operator.                                                                                                 |
 | K1JT                | Callsign of Joe Taylor, the principal author of the WSJT family of weak-signal modes.                                            |
-| MIT License         | The permissive open-source licence selected by the project.                                                                      |
 | OpenSpec            | Spec-driven development tool published by Fission-AI. Used during the premature-scaffolding work on `feature/project-skeleton`; status TBD post-design. |
 | PSK Reporter        | A crowdsourced propagation reporting service for received signals. Not in v0.x.                                                  |
 | PTT                 | Push-To-Talk &mdash; the signal that keys a transmitter. Not in v0.x.                                                            |

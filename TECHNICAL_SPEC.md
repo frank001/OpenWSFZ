@@ -78,7 +78,7 @@ These are the rules that govern every detail design decision below.
 5. **No persisted state beyond the configuration file.** Decoded messages are session-only (FR-021 / Data Requirements). Recovery from any failure is "restart the process."
 6. **The UI is a strict consumer.** No business logic in the browser. The frontend renders state pushed over WebSocket and issues intents over HTTP/WS. This keeps the architecture honest for future deployments where the UI may not be co-located with the daemon (web-service deployment, v2+).
 7. **No silent fallbacks.** Misconfiguration, missing audio devices, or port conflicts produce a clear stderr message and a non-zero exit. We never paper over operator errors.
-8. **License hygiene is gated in CI.** Every transitive dependency is enumerated and verified MIT-redistributable on every build. A non-compatible licence fails the build.
+8. **License hygiene is gated in CI.** Every transitive dependency is enumerated and verified permissively-licensed (no copyleft) on every build, independent of the project's own licence. A non-compatible licence fails the build.
 
 ---
 
@@ -357,7 +357,7 @@ All meaningful actions (save config, list devices) are HTTP, not WS. This keeps 
 | PortAudio | Native, git submodule under `/native/portaudio` | MIT-style (PortAudio licence) | Submodule pinned at a specific tag |
 | ft8_lib | Native, git submodule under `/native/ft8_lib` | MIT | Submodule pinned at a specific tag |
 
-A CI step (see &sect;9.4) walks the full transitive graph and fails the build if any licence is not MIT-redistributable.
+A CI step (see &sect;9.4) walks the full transitive graph and fails the build if any licence is not permissively-licensed (no copyleft), independent of the project's own AGPL-3.0 licence.
 
 ### 7.2 Host OS integrations
 
@@ -424,7 +424,7 @@ Out-of-scope threats (v1, accepted): malicious local processes running as the op
 ```
 /                              Repository root
   README.md
-  LICENSE                      MIT
+  LICENSE                      AGPL-3.0
   REQUIREMENTS.md
   TECHNICAL_SPEC.md            (this file)
   IMPLEMENTATION_PLAN.md       (separate deliverable)
@@ -483,7 +483,7 @@ A single `OpenWSFZ.sln` lets `dotnet build` / `dotnet test` operate over the who
 * Matrix: `{ windows-latest, ubuntu-latest, macos-latest }`.
 * Per OS: checkout (with submodules); cache .NET and CMake; build native; build .NET; run all tests; collect Coverlet coverage; upload coverage as an artifact.
 * Single OS (Linux) additionally runs:
-  * The **licence inventory check** (walks every NuGet reference and every submodule, asserts MIT-redistributable).
+  * The **licence inventory check** (walks every NuGet reference and every submodule, asserts permissively-licensed / no copyleft).
   * The **traceability check** (every requirement ID FR-### / NFR-### appears in at least one test name; see &sect;10).
 * Branch protection on `main` requires green CI on all three OSes plus the Linux-only checks (NFR-007).
 

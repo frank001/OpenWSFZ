@@ -51,7 +51,7 @@ The CI workflow SHALL invoke `tools/LicenseInventoryCheck` on the Linux matrix l
 
 #### Scenario: Non-redistributable dependency blocks merge
 
-- **WHEN** a NuGet reference or submodule under `/native/` has a licence that is not MIT-redistributable per the policy in the `dependency-licence-policy` capability
+- **WHEN** a NuGet reference or submodule under `/native/` has a licence that is not permissively-licensed (no copyleft) per the policy in the `dependency-licence-policy` capability
 - **THEN** the CI workflow SHALL report failure on the Linux leg and the pull-request SHALL be blocked
 
 ### Requirement: Coverage reporting is informational
