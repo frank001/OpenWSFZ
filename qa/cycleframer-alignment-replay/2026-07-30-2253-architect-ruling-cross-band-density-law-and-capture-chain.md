@@ -2,7 +2,8 @@
 # Two measurements authorised by the Captain. One new defect raised as a separate item.
 
 **Author:** Architect, 2026-07-30 (22:53 UTC, `date -u`, per HK-017).
-**For:** QA (§5, §6, §7 are actionable), and the Captain (§0, §4, §8).
+**REVISED 2026-07-30 23:15 UTC — see §R below. One ruling of mine is withdrawn.**
+**For:** QA (§5, §6, §6b, §7 are actionable), and the Captain (§0, §4, §8).
 **Answers:** `2026-07-30-2221-qa-to-architect-capture-chain-and-cross-band-findings.md`.
 **Additive to:** `2026-07-27-2012-architect-to-qa-d001-closing-handoff.md`, which remains the
 standing reference for programme state and stop rules. **Supersedes nothing.**
@@ -19,16 +20,48 @@ direction.
 
 ---
 
+## R. Revision record — 2026-07-30 23:15 UTC
+
+The Captain asked whether cross-decoding the two recorders' WAVs (jt9 on ours, our decoder on
+WSJT-X's) would add insight. Validating that the two sets were comparable **found a critical
+capture defect**, now raised separately as
+[`DEFECT-capture-clock-drift-silent-decode-loss.md`](../../DEFECT-capture-clock-drift-silent-decode-loss.md).
+
+**In short:** OpenWSFZ's capture window drifts ~45–49 ppm against UTC on the physical-radio
+device (not on the virtual-audio device), and once accumulated drift passes ~2.4 s — about 13
+hours in — decoding collapses to ~2% of the reference, silently, with the heartbeat still
+reporting `dataFlowing=true` and zero `WRN`/`ERR`/`FTL` in the log.
+
+| section | change |
+|---|---|
+| **§3.2** | **WITHDRAWN — my ruling, and it was wrong.** I attributed the 40m corpus's shortfall to reference method. The real cause is that half that session was broken |
+| **§3.1** | Density law **reduced from four points to three.** The cross-instance claim is withdrawn — the fourth corpus is on the drifting device |
+| **§4** | QA's capture-chain sample is **confounded** — it sits at 2.34 s of drift, at the cliff edge |
+| **§6** | Measurement B **redesigned** around drift stratification; it was invalid as written |
+| **§6b** | **NEW** — the re-alignment experiment, which settles the drift question offline |
+| **§8, §9** | Updated; the 49.9% figure is struck entirely |
+
+§1, §2, §5 and §7 stand unchanged.
+
+**How this was caught matters procedurally.** It was not caught by a test, a gate, or a
+supervisor — all of which reported healthy. It was caught by checking whether two files were
+actually comparable before comparing them, which is HK-018's rule doing exactly its job. The
+same check also caught two errors of my own in the same hour (a wrong log-timestamp timezone
+assumption, and a lag-convention I validated against a synthetic control before trusting).
+
 ## 0. Summary — the one thing to read if you read nothing else
 
 QA's numbers all reproduce exactly. **Re-cutting the same data changes three conclusions.**
 
-1. **§1's cross-band finding is real and much stronger than QA presented.** Holding the
-   *reference method* constant, four corpora obey
-   `parity ≈ 112 − 37.6·log₁₀(decode density)` with **R² = 0.9985** — residuals under one
-   parity point across a 38-point range, four bands, a full decade of density, and **two
-   different capture chains.** This is not a spread. It is a law, and nothing in D-001 to date
-   has this signal-to-noise.
+0. **A critical capture defect was found while validating this ruling** (§R). It invalidates one
+   of the corpora outright, confounds QA's §3, and reverses one of my own conclusions below.
+   Read `DEFECT-capture-clock-drift-silent-decode-loss.md` first — it matters more than anything
+   else in this document.
+1. **§1's cross-band finding is real and stronger than QA presented**, on the three corpora that
+   survive §R. Holding the *reference method* constant, they obey
+   `parity ≈ 112 − 37.6·log₁₀(decode density)` — monotone across a full decade of density
+   (3.4 → 36.4 decodes/cycle) and three bands. The fourth point sat on that line too, but it
+   comes from the drifting device and must be recomputed before it can be counted (§3.1).
 2. **§3's capture-chain effect is not established** — it is ~1.5σ (p ≈ 0.12), and the argument
    offered for the two effects being non-confounding is **circular algebra** that would come out
    "exactly" for any four numbers. QA's conclusion may well be right; the evidence given does not
@@ -68,7 +101,7 @@ this document; the other turned two cost estimates into measurements.
 |---|---|---|
 | **1** — fold the capture-chain effect into the row 4 decomposition as "small, real, measured" | **Not accepted as written.** Defer pending §6 | ~1.5σ is not "real". Embedding it now is how the closing handoff §6 acquires a tenth withdrawn number |
 | **2** — re-weigh the withdrawn co-channel/density mechanism | **Accepted, with a caution QA did not raise** (§3.3) | the withdrawal did rest on a low-power test. But density ≠ co-channel; there is an equally good rival explanation, and §5 separates them |
-| **3** — present 64.1%/789 as one sample from a 49.9%–91.6% distribution | **Accepted in substance, corrected in form** (§3.2) | the range as stated silently mixes two reference methods. Like-for-like is 53.2%–91.6% |
+| **3** — present 64.1%/789 as one sample from a 49.9%–91.6% distribution | **Accepted in substance; my correction to it was itself wrong** (§3.2, withdrawn at §R) | the range is **53.2%–91.6% on three clean corpora**. 49.9% is struck — not a reference-method artefact as I claimed, but a broken session (§R) |
 | **4** — dev-task correcting the D6 comment | **Accepted, with an addition** (§7.4) | don't just delete it — record the measurement and its date, or the next engineer re-assumes it |
 | **5** — do not chase the resample question | **Accepted, and reinforced** | §6 must establish the effect *exists* before anything is spent on why. QA had these backwards — rec 1 folds in a number that rec 5 forbids validating |
 
@@ -80,50 +113,61 @@ QA reported a 49.9%–91.6% spread "tracking density," and set the two 40m corpo
 apples-to-apples. That framing hides the result. Holding the **reference method** constant
 (jt9 re-decode), all four jt9-referenced corpora fall on one line:
 
-| corpus | band | capture instance | ref decodes/cycle | parity | residual vs fit |
-|---|---|---|---:|---:|---:|
-| `2026-07-29-5016363` 80m | 80m | SDR Uno / Voicemeeter | 3.38 | 91.6% | **−0.4** |
-| `2026-07-29-5016363` 10m | 10m | SDR Uno / Voicemeeter | 8.52 | 77.7% | **+0.9** |
-| `2026-07-29-489135a` 40m | 40m | **USB Audio CODEC** | 19.81 | 62.4% | **−0.6** |
-| `2026-07-29-5016363` 20m | 20m | SDR Uno / Voicemeeter | 36.36 | 53.2% | **+0.1** |
+| corpus | band | capture instance | ref decodes/cycle | parity | status |
+|---|---|---|---:|---:|---|
+| `2026-07-29-5016363` 80m | 80m | SDR Uno / Voicemeeter | 3.38 | 91.6% | **clean** — no drift |
+| `2026-07-29-5016363` 10m | 10m | SDR Uno / Voicemeeter | 8.52 | 77.7% | **clean** — no drift |
+| `2026-07-29-5016363` 20m | 20m | SDR Uno / Voicemeeter | 36.36 | 53.2% | **clean** — no drift |
+| ~~`2026-07-29-489135a` 40m~~ | 40m | **USB Audio CODEC** | 19.81 | ~~62.4%~~ | **SUSPENDED** — drifting device (§R) |
 
 ```
-parity(%) ≈ 111.9 − 37.63 · log₁₀(reference decodes per cycle)      R² = 0.9985
+parity(%) ≈ 111.9 − 37.63 · log₁₀(reference decodes per cycle)
 ```
 
-Two things fall out that QA's framing suppressed:
+The three surviving points are **monotone across a full decade of density** and span four-fold
+in parity. That relationship is the finding, and it is unaffected by the defect: all three come
+from the Voicemeeter instance, which §R's evidence shows does not drift at all.
 
-- **The capture-instance swap lands dead on the line** (40m/489135a, residual −0.60). Two
-  completely different capture chains — a virtual-mixer SDR feed and a physical radio through a
-  USB CODEC — obey the same parity law once density is controlled. This independently bounds
-  *inter-chain* variation at corpus scale to **under one parity point**, and it is the first
-  quantitative bound the study has on the closing handoff §2.3 candidate *"something in our own
-  capture/processing chain."*
-- **R² = 0.9985 on four points is two degrees of freedom** and I am not going to oversell it. What
-  is not explained away by low df is that the *residuals are under one point across a 38-point
-  range*, and that the one off-line point (below) has an identified cause rather than being noise.
+**What §R took away, stated plainly:**
 
-### 3.2 The 49.9% outlier is a reference-method artefact — correction to QA rec 3
+- **The cross-instance claim is withdrawn.** I wrote that two different capture chains obey the
+  same law, and treated that as the study's first quantitative bound on the closing handoff
+  §2.3 capture-chain candidate. The fourth corpus is on the **drifting** device and its 62.4%
+  is depressed by an unknown amount over its final hours. It fell on the line, but that may be
+  coincidence. **It must be recomputed on its drift-free window before it counts** — QA task in §6b.
+- **Three points, two fitted parameters, one degree of freedom.** I am not quoting R² for a
+  three-point fit; it would be meaningless. Monotone across a decade is the honest claim, and it
+  is enough to motivate Measurement A — which is where the mechanism actually gets decided.
 
-| | 40m / 489135a | 40m / 5016363 |
-|---|---:|---:|
-| band | 40m | 40m |
-| capture instance | USB CODEC | USB CODEC |
-| density | 19.81/cyc | ~19.14/cyc |
-| **reference** | **jt9 re-decode** | **live WSJT-X ALL.TXT** |
-| **parity** | **62.4%** | **49.9%** |
+### 3.2 ~~The 49.9% outlier is a reference-method artefact~~ — **WITHDRAWN**
 
-Same band, same instance, same density — **12.5 points apart**. The live-WSJT-X-referenced corpus
-sits **13.7 points below** the line the other four define. The only variable is the reference.
+> **This section was wrong and is withdrawn in full.** I argued that the 40m corpus's 49.9%
+> parity sat 13.7 points below trend because it used a live-WSJT-X reference rather than a jt9
+> re-decode, and I proposed a citation rule on that basis. **That explanation is false.**
+>
+> The actual cause is the capture clock drift (§R). That corpus ran 25 hours: roughly 13 hours
+> at ~65% parity, then a collapse to ~2% for the remaining 12. **49.9% is the average of a
+> working application and a broken one.** It is not a parity measurement, not a reference-method
+> artefact, and not a data point of any kind.
+>
+> **What I should have done:** the hourly breakdown that revealed this is a five-line
+> computation over two `ALL.TXT` files that were already on disk. I reasoned about a
+> between-corpus difference instead of opening the within-corpus time series. That is precisely
+> the failure HK-018 exists to prevent, and the closing handoff §10 singles out as *"not aimed
+> at QA."* Third such ruling in this thread; this one at least was caught before it propagated
+> into the row 4 decomposition.
 
-QA flagged this confound in its own caveats and then still quoted 49.9% as the bottom of a single
-range. **Both numbers are legitimate; they answer different questions.** The live-WSJT-X figure is
-the *product*-relevant one, because NFR-018 was set against live WSJT-X. The jt9 figures are the
-*diagnostically clean* ones, because a re-decode carries no PC-clock-drift exposure. Quoting them
-as one interval is the error.
+**What replaces it.** The 49.9% figure is struck entirely (§9). QA's rec 3 — *"present 64.1% as
+one sample from a wide distribution"* — still stands, but the distribution is
+**53.2%–91.6% on three clean corpora**, not 49.9%–91.6% on five.
 
-**Citation rule going forward:** never quote a parity range spanning both reference methods. State
-the reference with the number, every time.
+The reference-method question I raised is **not resolved either way** — it is simply unevidenced,
+because the only corpus that could have tested it is invalid. Whether a live-WSJT-X reference and
+a jt9 re-decode give materially different parity on the *same* audio remains open, and
+Measurement C (§6b) would answer it as a free by-product.
+
+**Citation rule that does survive, and is worth keeping:** state the reference method with every
+parity number. It was good practice for a bad reason.
 
 ### 3.3 Why this does *not* yet revive the co-channel mechanism — the caution QA missed
 
@@ -144,7 +188,23 @@ stratification**, which is what §5 measures. Until §5 runs, the honest positio
 was under-powered and is no longer safe to rely on, and the replacement mechanism is not yet
 identified.*
 
-## 4. §3's capture-chain effect — two problems
+## 4. §3's capture-chain effect — three problems
+
+> **Added at revision (§R): the sample is confounded, which subsumes both problems below.**
+> QA's 30 cycles run `260730_064015` → `260730_064730`. Cross-correlation measures the drift at
+> that instant as **−2.342 s** — hour 12 of the session, immediately before the cliff at
+> −2.48 s. The two WAVs QA compared are **not recordings of the same instant**; they are offset
+> by 2.34 s and overlap by only ~84%.
+>
+> So §3's headline — *"WSJT-X's own recording of a given instant is measurably easier to decode
+> than OpenWSFZ's recording of the identical instant"* — is not describing audio quality. The
+> most likely reading is that our window was truncating signals WSJT-X captured whole. **The
+> +12.5% is a plausible measurement of the drift, not of the capture chain.**
+>
+> This also retires QA's §5 framing: the resample algorithm was never the remaining candidate,
+> because the effect it was invoked to explain has a much simpler available cause. §4.1 and §4.2
+> below still stand on their own terms and are retained — the reasoning errors are real
+> independent of the confound.
 
 ### 4.1 The "multiplicative combination" argument is circular
 
@@ -276,10 +336,30 @@ index 2 908. The remaining 99.5% is sitting on disk, already matched, already gi
 > propagation condition, one noise environment, one point in the diurnal cycle. Stratifying
 > across the full 24 h fixes both problems at once.
 
-### 6.2 Design
+### 6.2 Design — **REVISED at §R. The original design was invalid.**
 
-- **Sample:** every 19th matched cycle across the full 24 h (`5782 / 300 ≈ 19`), giving **n = 300**
-  spread over all propagation and diurnal conditions. Fixed stride, not random — reproducible.
+> **What changed and why.** The original design sampled every 19th cycle across the full 24 h,
+> to spread across propagation conditions. **That is now the worst possible sampling**: it would
+> have drawn roughly half its cycles from the post-collapse window where we decode ~2%, and
+> pooled them with healthy ones. It would have produced a large, confident, and entirely
+> spurious "capture-chain effect" — a far worse outcome than QA's underpowered n=30.
+>
+> Stratify by **measured drift**, not by time.
+
+- **Measure drift per sampled cycle first**, by cross-correlating the two WAVs (the procedure in
+  the defect report §2.1; validate the lag convention against a synthetic control before
+  trusting it).
+- **Primary arm — the clean estimate.** Sample **n = 300** from cycles with
+  **|drift| < 0.5 s** only. On this session that is roughly the first 2 hours, so a wider
+  sample may need a second session or the 489135a corpus's early hours. **This is the only arm
+  that measures the capture chain**, because it is the only one where the two recordings are of
+  substantially the same audio.
+- **Secondary arm — the dose–response, and the more valuable output.** Sample ~50 cycles at each
+  of ~8 drift levels spanning 0 → 4.4 s. This yields the decoder's **DT tolerance curve** as a
+  measured constant. §2.3 of the defect report brackets the cliff at 2.34–2.48 s from decode
+  counts alone; this would resolve it properly, for both decoders, and the project needs that
+  number regardless of D-001.
+- **Sampling within a stratum:** fixed stride, not random — reproducible.
 - **Arms:** unchanged from QA's — the same 2×2 (our WAV / WSJT-X WAV) × (our decoder / jt9),
   `jt9 -8 -d 3`, our decoder at baseline grid point `k10_c0.10_n60` via
   `qa/rr-study/d001-param-sweep-2026-07-22/`. Confirm again that `src/` is unchanged versus the
@@ -291,6 +371,10 @@ index 2 908. The remaining 99.5% is sitting on disk, already matched, already gi
 - Report the interaction term `ad/bc` with its CI. **Do not repeat the `(b/a)×(d/b)` identity** (§4.1).
 
 ### 6.3 Reading rule — **pre-registered, fixed before the run**
+
+**Applies to the primary (|drift| < 0.5 s) arm only.** Any capture-chain conclusion drawn from
+pooled or drifted cycles is void, however tight its confidence interval looks. The secondary arm
+is descriptive — it reports the tolerance curve and is not subject to this rule.
 
 | outcome | reading | consequence |
 |---|---|---|
@@ -326,6 +410,55 @@ nine minutes.
 **QA: record actual timings for the our-decoder arms** — that figure is the one estimate in this
 document that is not a measurement, and it should not stay one.
 
+## 6b. MEASUREMENT C — the re-alignment experiment ⟨NEW at §R⟩
+
+**This is now the highest-value measurement available, and it is not a D-001 measurement.** It
+settles the capture defect, and it is the answer to the Captain's original question about
+cross-decoding — a stronger version of it.
+
+### 6b.1 The idea
+
+The per-cycle drift is directly measurable by cross-correlation. So our archived WAVs can be
+**shifted back into alignment with WSJT-X's and re-decoded.** Three previous
+`fix-cycle-boundary-clock-drift` rounds were defeated by slow, non-reproducible live testing.
+This settles the same question **offline and deterministically, on 5 782 matched pairs already
+on disk.**
+
+### 6b.2 Design
+
+1. For each sampled cycle, measure the lag by cross-correlation.
+2. Shift our WAV by the measured lag (sample-domain roll, zero-padding the vacated tail — no
+   resampling, no interpolation, so nothing new is introduced into the audio).
+3. Re-decode the shifted WAV with **our own decoder**, and with **jt9** as a control.
+4. Compare parity before and after realignment, **within the collapsed window** (drift > 2.5 s,
+   where baseline parity is ~2%) and within the healthy window as a null control.
+
+### 6b.3 Reading rule — **pre-registered, fixed before the run**
+
+| outcome | reading | consequence |
+|---|---|---|
+| **Collapsed-window parity recovers toward ~65%** | The collapse is window misalignment and nothing else. **Proven, not inferred.** | The defect's mechanism is confirmed; the fix targets cycle-boundary synchronisation. **The affected corpora become recoverable by realignment** rather than being written off |
+| **Parity recovers only partially** (say to 20–45%) | Misalignment is the main cause but something else co-varies with session age — thermal, buffer growth, memory | Report the residual. Do **not** speculate on the co-factor without measuring it |
+| **No recovery** | The drift is a *symptom*, not the cause. Something else in the capture path degrades with session length | Escalate. The defect report's §7 hypothesis is wrong and the diagnosis must widen |
+| **Healthy-window control moves materially** | The realignment procedure itself is doing something | Harness defect. Void the run and fix the shift logic before re-reading anything |
+
+### 6b.4 Cost
+
+| item | estimate | basis |
+|---|---|---|
+| cross-correlation, 300 cycles | **~2 min** | measured — each pair is two 180 000-sample FFTs |
+| decode, 300 cycles × 2 decoders × (shifted + unshifted) | **~1 h** | jt9 measured at 2.66 s/WAV; our decoder estimated |
+| harness + report | 2–3 h | shift logic is ~20 lines; the reading is the work |
+
+**Free by-products**, which is why this is the best-value run on the table:
+
+- The **DT tolerance constant** (§6.2 secondary arm), needed independently of D-001.
+- **The 489135a 40m corpus recomputed on its drift-free window** — which restores or refutes the
+  fourth point of the density law and the withdrawn cross-instance claim (§3.1).
+- **The reference-method question** left open by §3.2's withdrawal: the same cycles decoded by
+  jt9 and present in live WSJT-X's `ALL.TXT` give a direct like-for-like comparison of the two
+  reference methods on identical audio, at no extra cost.
+
 ## 7. SEPARATE ITEM — OpenWSFZ's reported SNR has a gain error ⟨raised outside D-001⟩
 
 On the Captain's direction this is raised as its own item, **not folded into D-001**, where it
@@ -341,9 +474,11 @@ identical cycle, found by both decoders:
 | 80m (jt9) | +1.417 dB | +9.454 dB | **8.04 dB** |
 | 10m (jt9) | −4.950 dB | −1.755 dB | **3.20 dB** |
 | 20m (jt9) | −3.704 dB | +1.898 dB | **5.60 dB** |
-| 40m (live WSJT-X) | −13.061 dB | −0.563 dB | **12.50 dB** |
+| ~~40m (live WSJT-X)~~ | ~~−13.061 dB~~ | ~~−0.563 dB~~ | ~~12.50 dB~~ **— suspect (§R), excluded** |
 
-Regressing ours on the reference across the three jt9-referenced corpora:
+Regressing ours on the reference across the three jt9-referenced corpora — **all three on the
+non-drifting device, so the fit below is unaffected by §R; the 40m row above is listed for
+completeness only and is excluded from the fit:**
 
 ```
 ours ≈ 0.585 × reference − 4.28 dB          residuals ±0.53 dB on 3 points
@@ -442,6 +577,13 @@ The consequence for the decision:
 - **I am not re-opening the menu**, and this does not change my §4 recommendation from the B.3
   memo. The decision remains row 1 vs row 4 vs row 5, and it remains the Captain's.
 
+**One addition at §R.** The density law now rests on three corpora rather than four, so §8's
+argument is *motivating* rather than *established* until Measurement A runs. It should be put to
+the Captain as a live possibility that changes NFR-018's shape, not as a finding. And a practical
+consequence: **the capture defect should be fixed, or sessions capped below ~12 hours on the
+affected device, before any further long-session corpus is gathered for this purpose** —
+otherwise every new corpus needs the same forensic salvage the 40m ones now need.
+
 **The row 4 decomposition I owe** (closing handoff §8) should wait for Measurement A. If §5
 reverses the co-channel withdrawal, the decomposition's shape changes materially — competition
 handling is a different engineering target from sync/candidate quality. Delivering it before §5
@@ -456,7 +598,11 @@ spec, or Captain-facing summary, that is a defect.
 |---|---|
 | *"the two effects combine close to multiplicatively … 1.125 × 1.478 ≈ 1.663 against 544/327 = 1.663 exactly"* | **Circular** — true for any four numbers. Cite the interaction term instead: `ad/bc = 0.977 ± 9.8%`, i.e. **no detectable interaction, and insufficient precision to claim multiplicativity** |
 | *"a real, but secondary, capture-chain effect exists"* / *"small, real, measured"* (§0.2, rec 1) | **Not established.** ~1.5σ, p ≈ 0.12, two correlated arms, anti-conservative SEs. **Pending Measurement B** |
-| *"parity ranges 49.9% to 91.6%"* as a single distribution | **Mixes two reference methods.** jt9-referenced: **53.2%–91.6%**. Live-WSJT-X-referenced: **49.9%** (one corpus). State the reference with the number |
+| *"parity ranges 49.9% to 91.6%"* as a single distribution | **53.2%–91.6%**, three clean corpora. **49.9% is struck entirely** — that corpus averages ~13 h at ~65% with ~12 h of a broken application at ~2% (§R). Not a parity measurement |
+| **My own §3.2**: *"the 49.9% shortfall is a reference-method artefact (jt9 re-decode vs live WSJT-X)"* ⟨mine, withdrawn same day⟩ | **False.** The cause is the capture clock drift (§R). The reference-method question is now **unevidenced either way** — Measurement C would settle it |
+| **My own §3.1**: *"two different capture chains obey the same parity law … bounds inter-chain variation under one parity point"* ⟨mine, withdrawn same day⟩ | **Withdrawn.** The second chain is the drifting device; its 62.4% is depressed by an unknown amount. Recompute on its drift-free window before citing |
+| *"WSJT-X's own recording of a given instant …"* (QA §3's framing) | The two recordings were **2.34 s apart**, not of the same instant. The comparison is confounded (§4) |
+| `2026-07-29-5016363/anova_report_40m.md` as a parity source | **Do not cite for parity at all.** Its DT and SNR appraiser means are likewise session-averaged across a ramp and a collapse |
 | *"the 64.1% figure came from one band, one 21-minute corpus"* — correct, but incomplete | Add: that corpus sat at **~24 decodes/cycle**, the **dense half** of the measured range. It is not a mid-range sample (§8) |
 | D6 comment's *"differential signal (L = −R)"* in `WasapiAudioSource.cs` | **Measured false on current hardware**: `corr(L,R) = 1.000000`, `RMS(L−R) = 0.0` (2026-07-30). Harmless in practice; must not be relied on as documentation |
 | *"D-002 closed the SNR bias question"* | **Superseded.** D-002 corrected a constant; the residual is a **gain error** (slope ≈ 0.58), which a constant cannot fix (§7) |
@@ -480,6 +626,9 @@ spec, or Captain-facing summary, that is a defect.
 
 ## 11. Cross-references
 
+- **`DEFECT-capture-clock-drift-silent-decode-loss.md`** (repo root) — the capture defect found
+  while validating this ruling. **Read first**; it invalidates one corpus, confounds QA's §3, and
+  forced §R's revisions.
 - `2026-07-30-2221-qa-to-architect-capture-chain-and-cross-band-findings.md` — the note this answers.
 - `2026-07-27-2012-architect-to-qa-d001-closing-handoff.md` — standing programme reference; §0 stop
   rule, §2.2 the withdrawn co-channel bet, §2.3 the three unmeasured candidates, §6 the citation
@@ -497,6 +646,10 @@ spec, or Captain-facing summary, that is a defect.
 - `src/OpenWSFZ.Audio/WasapiAudioSource.cs` — the D6 comment (§7.4).
 
 ---
+
+*Revised 2026-07-30 23:15 UTC per §R: §3.2 withdrawn in full, §3.1 reduced to three corpora,
+§6 redesigned, §6b added, §8/§9 updated. Two of the withdrawn items in §9 are my own, both
+caught and struck the same day rather than propagating into the row 4 decomposition.*
 
 *Per HK-015 this is Architect → QA material; the task specs and the §7.4 dev-tasks are QA's to
 author and own. Per HK-014 this note is committed locally and goes no further — no push, no merge.
