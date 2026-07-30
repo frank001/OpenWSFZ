@@ -151,16 +151,25 @@ All 4 sites migrated: the PTT-assert barrier waits on `SetPttAsync` being called
 hand-written poll loops became `Poll.WaitForCallCountAsync`/`UntilAsync`; the concurrency
 "caller #2 stays blocked" negative wait became a poll-and-expect-timeout on `callCount == 2`.
 
-### `tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs` — MIGRATED, no exceptions
+### `tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs` — MIGRATED (Phase 2), 1 exception added since
 
-All 18 sites migrated: "let Reconcile bind" delays became `WaitForInboundBoundAsync` (polls the
-bound `_inboundClient` — sending an inbound datagram before the socket is bound silently drops
-it); "wait then assert AbortAsync/TryEngageAsync/LastFreeText" delays became
+All 18 original sites migrated: "let Reconcile bind" delays became `WaitForInboundBoundAsync`
+(polls the bound `_inboundClient` — sending an inbound datagram before the socket is bound
+silently drops it); "wait then assert AbortAsync/TryEngageAsync/LastFreeText" delays became
 `Poll.WaitForCallAsync`/`WaitForEqualAsync`; the opted-out reply negative became a
 poll-and-expect-timeout; the two between-sends pacing delays were removed (FIFO delivery on the
 single inbound socket already orders them, and the trailing barrier proves processing); and the
 StopAsync-Clear/Close test now waits for the initial Heartbeat+Status burst to actually be
 received before stopping.
+
+**2026-07-30, one new site added by `feat/external-reporting-single-connection`** (the
+leader/follower relay feature, merged into `d001-c4-min-score-sweep` this date): a test proving
+that a same-Status, already-relayed decode batch produces **no additional** relay POST. Same
+"prove an absence" category as every other exception in this file — there is no positive event
+to poll for when the assertion is that nothing further happened; polling faster than a fixed
+wait would only prove something *did* happen sooner, not that it *won't*.
+
+tests/OpenWSFZ.Daemon.Tests/ExternalReportingServiceTests.cs:1431: Task.Delay(TimeSpan.FromMilliseconds(300))
 
 
 ## Phase 3 — Remaining files across all four affected test projects
@@ -224,6 +233,21 @@ the original Phase 1–3 migration. Two sites existed; one is now migrated, one 
   `QsoAnswererServiceTests`/`QsoCallerServiceTests`.
 
 tests/OpenWSFZ.Daemon.Tests/ConsoleDetacherTests.cs:64: Task.Delay(TimeSpan.FromSeconds(1))
+
+
+## Post-migration addition — `LoggingRotationRegressionTests.cs` (1 permanent justified exception)
+
+New file added 2026-07-29 by the `LoggingConfig` STJ-omitted-key crash fix
+(dev-tasks/2026-07-29-fix-loggingconfig-null-rotationschedule-crash.md), outside the Phase 1–3
+migration campaign. `Host_WithNullRotationSchedule_StartsAndStaysUp` proves the daemon host
+**survives** a null `RotationSchedule` rather than crashing under
+`BackgroundServiceExceptionBehavior.StopHost` shortly after startup. The first HTTP request
+already proves the host was up at that instant; the fixed delay before a second request proves
+it *stayed* up, not merely that it hadn't crashed yet. Same "prove an absence" category as every
+other exception in this file — there is no positive condition to poll for "the host will not
+crash a little while from now."
+
+tests/OpenWSFZ.Web.Tests/LoggingRotationRegressionTests.cs:128: Task.Delay(TimeSpan.FromMilliseconds(200))
 
 
 ## Permanent exemption — `Poll.UntilAsync`'s own test fixtures
