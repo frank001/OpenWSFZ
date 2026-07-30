@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Standalone, throwaway diagnostic — NOT part of OpenWSFZ.slnx, no ProjectReference into
+    src/. Dumps raw, untouched stereo PCM straight off a WASAPI capture device (no left-
+    channel extraction, no resampling, no decoder) so the L/R phase relationship can be
+    measured directly and independently of either OpenWSFZ's or WSJT-X's own audio pipeline.
+
+    Context: 2026-07-31 QA verification. WasapiAudioSource.cs (src/OpenWSFZ.Audio) carries a
+    "D6" comment asserting 'Microphone (2- USB Audio CODEC)' delivers a differential signal
+    (L = -R), and extracts the left channel alone for exactly that reason. WSJT-X's own Audio
+    settings for the same device (confirmed via screenshot, 2026-07-31) show Input: Mono —
+    a different channel-handling choice than ours, made independently. Whether the D6 premise
+    is actually true has never been measured directly; this tool measures it.
+
+    NFR-021: writes only a raw WAV under a git-ignored artefacts/ path and a numeric
+    correlation report — no decoded message text is produced or possible here (no FT8
+    decode path is invoked at all).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>LrPhaseCheck</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" />
+  </ItemGroup>
+</Project>
