@@ -1841,7 +1841,13 @@ public sealed class QsoCallerServiceTests
         await Poll.WaitForCallCountAsync(() => ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 3,
             timeout: TimeSpan.FromSeconds(3));
         await ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>()); // retry fired
-        sut.State.Should().Be(QsoState.WaitRr73, "one retry must not exhaust the retry budget");
+        // KeyUpAsync firing does not happen-before the state machine's own transition into
+        // WaitRr73 -- poll the state itself rather than asserting on it synchronously right
+        // after the PTT call count (found flaky live on ubuntu-latest CI, 2026-07-30: the bare
+        // assertion landed in the gap between KeyUpAsync #3 and the WaitRr73 transition,
+        // observing the prior TxReport state instead).
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3),
+            what: "state after the retry (one retry must not exhaust the retry budget)");
 
         // Complete the QSO — the final ADIF record must still carry the value chosen at the
         // original TxReport, not a value clobbered/reset by the intervening retry.
@@ -1936,13 +1942,19 @@ public sealed class QsoCallerServiceTests
         // First silence cycle is skipped (skip guard), second fires the retry. Gate on the
         // retry's completed PTT cycle (KeyUpAsync count 3), not just channel-drain — draining
         // proves the batch was dequeued but not that the retransmit + WaitRr73 transition has
-        // landed, which races on ubuntu-latest scheduling.
+        // landed. That transition itself is polled below rather than asserted on synchronously
+        // (it used to race on ubuntu-latest scheduling — fixed 2026-07-30).
         Send(channel, Make("Q2NOISE Q3NOISE -10"));
         await WaitForBatchDrainedAsync(channel);
         Send(channel, Make("Q2NOISE Q3NOISE -10"));
         await Poll.WaitForCallCountAsync(() => ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 3,
             timeout: TimeSpan.FromSeconds(3));
-        sut.State.Should().Be(QsoState.WaitRr73, "one retry must not exhaust the retry budget");
+        // Poll the state transition itself rather than asserting synchronously right after the
+        // PTT call count -- KeyUpAsync firing does not happen-before WaitRr73 (see the sibling
+        // RetryOrAbortAsync_WaitRr73Retry_ResendsSamePersistedReportValue test above, which hit
+        // this exact race live on ubuntu-latest CI, 2026-07-30).
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3),
+            what: "state after the retry (one retry must not exhaust the retry budget)");
 
         sut.LastTxMessage.Should().Be(expectedReport,
             "the retry retransmits the exact same persisted report value, not a freshly recomputed one");

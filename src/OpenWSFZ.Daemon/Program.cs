@@ -692,6 +692,12 @@ var app = WebApp.Create(
         // ExternalReportingService resolves this to route by whichever role is active.
         services.AddSingleton<IExternalReplyTarget>(sp => sp.GetRequiredService<QsoControllerRouter>());
 
+        // IExternalReportingRelayTarget (external-reporting-single-connection): the seam
+        // POST /api/v1/external-reporting/relay resolves so a follower's relayed batch reaches
+        // this leader's own single-consumer dispatch queue without OpenWSFZ.Web depending on
+        // OpenWSFZ.Daemon — mirrors IExternalReplyTarget immediately above.
+        services.AddSingleton<IExternalReportingRelayTarget>(sp => sp.GetRequiredService<ExternalReportingService>());
+
         // Both services run as HostedServices; the inactive one discards batches cheaply.
         services.AddHostedService(sp => sp.GetRequiredService<QsoAnswererService>());
         services.AddHostedService(sp => sp.GetRequiredService<QsoCallerService>());

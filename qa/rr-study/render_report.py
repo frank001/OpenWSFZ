@@ -1,4 +1,4 @@
-"""render_report.py — Convert an R&R study report.md to an HTML page.
+"""render_report.py — Convert a Markdown report to an HTML page.
 
 Usage
 -----
@@ -9,7 +9,21 @@ Usage
 
 Output
 ------
-    report.html written alongside the source report.md.
+    <stem>.html written alongside the source .md file (e.g. report.md -> report.html,
+    contents.md -> contents.html, anova_report_40m.md -> anova_report_40m.html).
+
+    FIXED 2026-07-30 (found live, via tools/gather_live_run_artefacts.py and the
+    qa/endurance/endurance_anova_*.py scripts): this used to hardcode the output filename
+    to a literal "report.html" regardless of the input file's own name, which was harmless
+    for this module's original qa/rr-study caller (run_study_xplat.py always names its
+    input exactly "report.md", so <stem>.html was always "report.html" anyway) but silently
+    collided once other callers started passing differently-named .md files (contents.md,
+    anova_report.md, per-band anova_report_<band>.md) into the SAME directory as each
+    other -- each render would overwrite the previous one's "report.html" without warning,
+    while both callers' own "wrote <name>.html" print statements kept claiming the correct,
+    distinct name had been written. Deriving the output name from the input's own stem
+    fixes this for every caller and is a no-op for the original report.md -> report.html
+    case.
 
 Images are referenced by relative path (not embedded), so the HTML file
 must remain in the same directory as the PNG charts to display correctly.
@@ -360,7 +374,7 @@ def main() -> None:
         sys.exit(f"ERROR: {report_path} does not exist")
 
     report_dir  = report_path.parent
-    output_path = report_dir / "report.html"
+    output_path = report_dir / f"{report_path.stem}.html"
 
     try:
         display_in = report_path.relative_to(PROJ_ROOT)

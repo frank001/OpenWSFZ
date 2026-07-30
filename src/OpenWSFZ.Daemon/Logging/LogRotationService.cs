@@ -47,13 +47,25 @@ internal sealed class LogRotationService : BackgroundService
     /// Returns the next UTC moment at which rotation should fire,
     /// always strictly in the future.
     /// </summary>
+    /// <remarks>
+    /// Belt-and-braces guard (dev-tasks/2026-07-29-fix-loggingconfig-null-rotationschedule-crash.md
+    /// §3): the catch-all below must never return a delay that exceeds <see cref="Task.Delay"/>'s
+    /// maximum (~24.8 days / <see cref="int.MaxValue"/> ms). This is reachable for *any*
+    /// unrecognised <see cref="LoggingConfig.RotationSchedule"/> value — not just the intentional
+    /// "session" literal already short-circuited by the caller — e.g. a hand-typed typo such as
+    /// "Daily". A previous version returned <c>utcNow.AddDays(36500)</c> here (~100 years), which
+    /// overflows <c>Task.Delay</c>'s valid range, throws <see cref="ArgumentOutOfRangeException"/>
+    /// uncaught inside a <see cref="BackgroundService"/>, and crashes the entire host under the
+    /// default <c>BackgroundServiceExceptionBehavior.StopHost</c>. "Come back and check again
+    /// tomorrow" is a safe, cheap fallback for any value this switch doesn't recognise.
+    /// </remarks>
     internal static DateTime CalculateNextBoundary(DateTime utcNow, LoggingConfig cfg) =>
         cfg.RotationSchedule switch
         {
             "hourly" => NextHourly(utcNow),
             "daily"  => NextDaily(utcNow, cfg.RotationTime),
             "weekly" => NextWeekly(utcNow, cfg.RotationDayOfWeek, cfg.RotationTime),
-            _        => utcNow.AddDays(36500), // "session" or unknown — effectively never
+            _        => utcNow.AddDays(1), // "session", null, or unrecognised — re-check tomorrow, never a Task.Delay overflow
         };
 
     private static DateTime NextHourly(DateTime utcNow)

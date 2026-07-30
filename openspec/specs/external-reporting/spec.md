@@ -65,15 +65,45 @@ log a Warning once per resolution failure and SHALL NOT prevent delivery to othe
 ### Requirement: Outbound Heartbeat message
 
 The service SHALL send a WSJT-X-protocol Heartbeat datagram to every enabled target at a fixed
-interval (matching WSJT-X's own convention) carrying the configured application `Id` (default
-`"OpenWSFZ"`), the maximum schema number supported, and a version/revision string. The first
-Heartbeat SHALL be sent within one interval of `ExternalReportingService` becoming enabled (start-up
-or a config save that newly enables the feature).
+interval (matching WSJT-X's own convention) carrying the configured application `Id`
+(`externalReporting.instanceId`, default `"OpenWSFZ"` — see `configuration` capability), the
+maximum schema number supported, and a version/revision string. The first Heartbeat SHALL be sent
+within one interval of `ExternalReportingService` becoming enabled (start-up or a config save that
+newly enables the feature).
 
 #### Scenario: Heartbeat sent after enabling
 
 - **WHEN** `externalReporting.enabled` transitions from `false` to `true` via a config save
 - **THEN** a Heartbeat datagram SHALL be sent to every enabled target within one heartbeat interval
+
+---
+
+### Requirement: Configurable per-instance Id for multi-instance disambiguation
+
+The service SHALL carry the same `Id` field value on every outbound datagram it sends (Heartbeat,
+Status, Decode, QSOLogged, Clear, Close): `AppConfig.ExternalReporting.InstanceId`, read live from
+config at send time (not cached at startup), so a config save that changes it takes effect without
+a daemon restart. Operators running more than one simultaneous `OpenWSFZ.Daemon` instance against
+the same companion-program target (e.g. two bands captured via a split antenna, both reporting to
+one local GridTracker) MUST give each instance a distinct `InstanceId`, or companion programs that
+key off this field to distinguish multiple protocol-compatible instances will not be able to tell
+them apart — observed in practice (2026-07-28 dual-receiver session) as the companion program's
+live decode view resetting every FT8 cycle and silently dropped forwarding to downstream services
+such as PSKReporter, not merely a cosmetic display glitch.
+
+#### Scenario: Configured InstanceId is used across all outbound message types
+
+- **WHEN** `externalReporting.instanceId` is set to a non-default value (e.g. `"OpenWSFZ-20m"`) and
+  the service sends Heartbeat, Status, and Decode datagrams
+- **THEN** every one of those datagrams' `Id` field SHALL carry `"OpenWSFZ-20m"`, not the literal
+  `"OpenWSFZ"`
+
+#### Scenario: Default InstanceId preserves single-instance behaviour
+
+- **WHEN** `externalReporting.instanceId` is not configured (config omits the key, or a
+  single-instance session never sets it)
+- **THEN** every outbound datagram's `Id` field SHALL carry `"OpenWSFZ"`, byte-for-byte identical to
+  every session before this field existed
 
 ---
 
