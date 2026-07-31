@@ -1,5 +1,38 @@
 # Defect: Capture Clock Drift — Silent, Total Decode Loss After ~13 Hours
 
+> **UPDATE, 2026-07-31 (QA, per `2026-07-31-1222` S5 item 2, ruled at `2026-07-31-1212` S1.2):**
+> since this document was written, the root cause has been established in code (`CycleFramer`
+> reads `IClock.UtcNow` once at start-up and advances `cycleStart` by pure arithmetic
+> thereafter — never re-syncing; see `2026-07-31-0029` S2.1), and the fix (per-cycle wall-clock
+> resync, lazy rather than eager — see dev-task
+> `dev-tasks/2026-07-31-fix-cycleframer-clock-drift-boundary-resync.md`) is built and verified
+> on branch `fix-cycleframer-clock-drift-boundary-resync`, pending the Captain's sign-off before
+> push (HK-011). §7's "mechanism in code" item is resolved; §6's suggested offline experiment
+> was run (Measurement C) and confirmed the collapse is window misalignment and nothing else.
+>
+> **One durable constant worth recording here rather than only in a calibration write-up**
+> (task 4 of the D-001/capture-drift programme, `2026-07-31-1137`/`2026-07-31-1207`, ruled
+> accurate at `2026-07-31-1212` S1.2): **sub-0.5-second capture misalignment between two
+> independent recordings of the same audio costs approximately 0.15 points of matched decode
+> parity** (measured directly: jt9 decoding one recording vs. the other, same underlying
+> signal, n=150 healthy-window cycles from `20260729_live_run_1831-8080`; 59.1% vs 59.0%,
+> 95% CIs [57.8%,60.5%] and [57.6%,60.3%], overlapping almost entirely). This is a small,
+> real, precisely bounded number — not a guess — and it retroactively justifies the
+> `|drift| < 0.5 s` healthy-window bar this programme has used on intuition throughout
+> (Measurement C's stratum definition, this defect's own §2.3 cliff bracket). It is also
+> consistent with the 2.34–2.48 s DT cliff (§2.3 below) being a genuine cliff rather than the
+> gradual end of a ramp: parity barely moves at all until misalignment approaches that
+> threshold, then collapses abruptly.
+>
+> §4 point 3's "62.4% ... needs recomputing on its drift-free window" is now done: the
+> corpus's drift-free parity is 56.6–56.7%, and — a separate, unexpected finding — that corpus
+> did in fact reach the 2.34–2.48 s cliff in its final ~2 hours (drift(14) = −2.473 s), so §2.4's
+> table entry for it should be read as "reached the cliff late and briefly," not as a
+> permanently sound corpus. Full detail: `2026-07-31-1137-qa-measurement-task4-result-489135a-recompute.md`,
+> `2026-07-31-1212-architect-ruling-task4-closes-inconclusive-density-law-not-predictive.md`.
+> The rest of this document is left as originally written below, for the historical record of
+> how the defect was found and diagnosed.
+
 **Raised by:** Architect, 2026-07-30 (23:15 UTC, `date -u`, per HK-017)
 **Severity:** **Critical** — on affected capture hardware the application silently stops
 decoding after ~13 hours of continuous operation and never recovers, while reporting healthy

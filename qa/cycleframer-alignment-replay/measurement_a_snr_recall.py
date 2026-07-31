@@ -191,17 +191,39 @@ def main() -> int:
                            ["10m", "20m", "80m"])
         report_lines.append(f"| [{b:.0f}, {b+BIN_WIDTH:.0f}) | {vals} | {sep:.1f} |")
 
-    # monotone-in-density check: is separation direction consistent with density order
-    # (80m sparsest should recall >= 20m densest, at matched SNR) across usable bins?
+    # monotone-in-density check: FIXED 2026-07-31 (dev-task 3, per 2026-07-31-0029 S1 /
+    # 2026-07-31-1222 S4). The check below previously tested ONLY recalls["80m"] >=
+    # recalls["20m"] -- the two OUTER bands by density (80m=3.38, 20m=36.36/cycle) -- and
+    # printed "monotone" from that alone, silently ignoring 10m (8.52/cycle) entirely. Every
+    # common-support bin happens to satisfy the outer-pair test (80m's recall is always the
+    # highest of the three), so the old check reported 26/26 = 100% regardless of what 10m
+    # was doing. The REAL three-band ordering -- recall(80m) >= recall(10m) >= recall(20m),
+    # consistent with density sparsest-to-densest -- fails whenever 10m's recall doesn't sit
+    # between the other two, which happens repeatedly at both ends of the SNR range (10m
+    # dips below 20m at very low SNR; 10m rises above 80m at high SNR). This is what
+    # `2026-07-31-0029` S1 means by "the curves cross" -- not a subtle statistical point, a
+    # visible ordering violation in the per-bin table.
     monotone_count = 0
+    crosses_count = 0  # bins where the ordering inverts outright (10m outside [20m, 80m])
     for b, sep, recalls in per_bin_seps:
-        if "80m" in recalls and "20m" in recalls and recalls["80m"] >= recalls["20m"]:
-            monotone_count += 1
-    monotone_frac = monotone_count / len(per_bin_seps) if per_bin_seps else float("nan")
+        if "80m" in recalls and "10m" in recalls and "20m" in recalls:
+            ordered = recalls["80m"] >= recalls["10m"] >= recalls["20m"]
+            if ordered:
+                monotone_count += 1
+            else:
+                crosses_count += 1
+    three_band_bins = monotone_count + crosses_count
+    monotone_frac = (monotone_count / three_band_bins) if three_band_bins else float("nan")
 
-    report_lines.append(f"\n**Max separation across common-support bins: {max_sep_overall:.1f} "
-                         f"points.** 80m-recall >= 20m-recall in {monotone_count}/{len(per_bin_seps)} "
-                         f"usable bins ({monotone_frac*100:.0f}%).\n")
+    report_lines.append(
+        f"\n**Max separation across common-support bins: {max_sep_overall:.1f} points.** "
+        f"Full three-band density ordering (80m >= 10m >= 20m) holds in "
+        f"{monotone_count}/{three_band_bins} bins with all three bands present "
+        f"({monotone_frac*100:.0f}%); fails -- curves cross -- in "
+        f"{crosses_count}/{three_band_bins} ({100 - monotone_frac*100:.0f}%). This replaces a "
+        f"prior version of this check that tested only the outer band pair (80m vs 20m) and "
+        f"reported 26/26 = 100% regardless of 10m's position; see "
+        f"2026-07-31-0029 S1 / dev-task 3 for why that was wrong.\n")
 
     # ---- pre-registered reading rule, applied mechanically ----
     report_lines.append("\n## Pre-registered reading rule (S5.3, quoted verbatim)\n")
@@ -214,14 +236,42 @@ def main() -> int:
 | **Curves cross** (sparse below dense at some SNRs) | Not anticipated by any current model. | Escalation. Do not rationalise. |
 """)
 
+    # FIXED 2026-07-31 (dev-task 3, per 2026-07-31-0029 S1): this if/elif chain can only ever
+    # print ONE row's outcome, even when the underlying data satisfies more than one row's
+    # condition simultaneously -- which is exactly what happens here. The rule's own rows 3
+    # ("non-monotone in density") and 4 ("curves cross") are not mutually exclusive as written
+    # (a drafting defect in the pre-registered rule itself, not this script's execution -- see
+    # 0029 S1/S5), and with crosses_count > 0 this run satisfies both at once. Silently priming
+    # one label over the other via elif ordering is how the original bug ("monotone" printed
+    # from a test that only checked the outer pair) happened in the first place. Report the
+    # overlap explicitly instead of resolving it silently.
+    row3_fires = 5.0 <= max_sep_overall < 10.0 or (max_sep_overall >= 10.0 and monotone_frac < 0.8)
+    row4_fires = crosses_count > 0
+
     if max_sep_overall < 5.0:
         outcome = "CURVES OVERLAY (<5 pts) -> Pure sensitivity. Co-channel withdrawal STANDS."
     elif max_sep_overall >= 10.0 and monotone_frac >= 0.8:
         outcome = "DENSE BELOW SPARSE (>=10 pts, monotone) -> Co-channel withdrawal REVERSES. ESCALATE."
-    elif 5.0 <= max_sep_overall < 10.0 or (max_sep_overall >= 10.0 and monotone_frac < 0.8):
+    elif row3_fires and row4_fires:
+        outcome = ("ROWS 3 AND 4 BOTH FIRE (non-monotone in density, AND curves cross in "
+                   f"{crosses_count}/{three_band_bins} bins) -> the reversal is NOT licensed. "
+                   "The co-channel withdrawal is dead (row 1 excluded by the >=10pt "
+                   "separation), but this is not evidence of competition either -- it is a "
+                   "20m-specific deficit of unknown mechanism. ESCALATE, do not interpret "
+                   "further, do not rationalise.")
+    elif row3_fires:
         outcome = "AMBIGUOUS (5-10 pts, or non-monotone). Report as ambiguous, do not interpret further."
-    else:
+    elif row4_fires:
         outcome = "CURVES CROSS / not anticipated. ESCALATE."
+    else:
+        # Provably unreachable: whenever row3_fires is False, max_sep_overall is either <5.0
+        # (caught above) or >=10.0 with monotone_frac>=0.8 (also caught above) -- there is no
+        # remaining case. Raising rather than duplicating another branch's string, so a future
+        # change to the conditions above that DOES make this reachable fails loudly instead of
+        # silently printing a conclusion nothing above actually established.
+        raise AssertionError(
+            "unreachable: row3_fires is False but neither the <5pt nor the "
+            ">=10pt&monotone_frac>=0.8 branch matched -- the outcome logic above has a gap")
 
     report_lines.append(f"\n**Mechanical outcome per the table above: {outcome}**\n")
 
