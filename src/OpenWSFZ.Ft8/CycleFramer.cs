@@ -132,7 +132,19 @@ public sealed class CycleFramer
                         // residual bounded to a single cycle's worth of clock error, which
                         // per the 2026-07-31 handoff is ~3 orders of magnitude inside the
                         // measured decode-failure cliff, so no rate estimation/PLL is needed.
-                        cycleStart  = _clock.UtcNow;
+                        cycleStart = _clock.UtcNow;
+
+                        // dev-tasks/2026-07-31-fix-cycleframer-dial-freq-lazy-resync-
+                        // consistency.md: snapshotted here, at the same lazy resync point as
+                        // cycleStart, rather than eagerly in the emission block below. Both
+                        // must be captured at the identical instant — when the window
+                        // actually begins accumulating its first real sample — so that a
+                        // band change during the close-open gap (the same gap the clock-
+                        // drift fix above exists to absorb) is attributed to the window that
+                        // is actually open when it happens, not the one that just closed.
+                        // Do not move this back to the emission block "for tidiness".
+                        windowDialFreq = _dialFreqProvider?.Invoke();
+
                         needsResync = false;
                     }
 
@@ -152,15 +164,13 @@ public sealed class CycleFramer
                         _logger?.LogDebug("Window emitted ({Samples} samples, cycle {CycleStart:HH:mm:ss}).",
                             SamplesPerCycle, cycleStart);
 
-                        // Advance to the next cycle and snapshot the frequency at the new
-                        // window-open boundary — not at window-close — so that a band change
-                        // that happens during the previous window is correctly attributed to
-                        // the next window, not the one just emitted. cycleStart itself is
-                        // resolved lazily above, not here — see `needsResync`.
-                        window         = new float[SamplesPerCycle];
-                        filled         = 0;
-                        windowDialFreq = _dialFreqProvider?.Invoke();
-                        needsResync    = true;
+                        // Advance to the next cycle. Both cycleStart and windowDialFreq are
+                        // resolved lazily at the top of the loop, not here — see
+                        // `needsResync` and the dev-tasks/2026-07-31-fix-cycleframer-dial-
+                        // freq-lazy-resync-consistency.md comment above.
+                        window      = new float[SamplesPerCycle];
+                        filled      = 0;
+                        needsResync = true;
                     }
                 }
             }
