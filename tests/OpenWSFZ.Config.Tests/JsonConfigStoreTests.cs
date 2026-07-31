@@ -521,6 +521,43 @@ public sealed class JsonConfigStoreTests
             "writeManifest omitted from a partial object must still resolve to its documented default (true), not the CLR zero-default (false)");
     }
 
+    // ── 2026-07-28 null-config crash (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-
+    // crash.md §2.2/§5): SaveAsync only re-guarded Ptt, so a null CycleAudioArchive built by any
+    // caller (WebApp.cs's own guard is the primary fix — this is the belt-and-braces backstop for
+    // every OTHER caller of SaveAsync) was persisted to disk and installed live, crashing every
+    // subsequent CycleArchiveService.TryEnqueue call. ────────────────────────────────────────
+
+    [Fact(DisplayName =
+        "Regression: JsonConfigStore.SaveAsync never leaves Current.CycleAudioArchive null, even " +
+        "when handed a config with CycleAudioArchive explicitly null")]
+    public async Task SaveAsync_NullCycleAudioArchive_IsGuardedToNonNull()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        var store = new JsonConfigStore(configPath);
+
+        // Constructing via `with` (rather than `new AppConfig()`) bypasses the property
+        // initialiser and reproduces exactly what a caller building a partial AppConfig from a
+        // JSON payload that omitted "cycleAudioArchive" would hand SaveAsync (the STJ source-gen
+        // null-vs-initialiser quirk documented throughout this file and JsonConfigStore.Load()).
+        var withNullArchive = new AppConfig() with { CycleAudioArchive = null! };
+
+        // Act — must not throw, and must not persist/install a null CycleAudioArchive.
+        var act = async () => await store.SaveAsync(withNullArchive);
+        await act.Should().NotThrowAsync();
+
+        store.Current.CycleAudioArchive.Should().NotBeNull(
+            "SaveAsync must guard a null CycleAudioArchive the same way it already guards Ptt");
+        store.Current.CycleAudioArchive.Mode.Should().Be(CycleAudioArchiveMode.Off,
+            "a live read of .Mode (mirroring CycleArchiveService.TryEnqueue's first line) must not throw");
+
+        var onDisk = JsonSerializer.Deserialize(
+            File.ReadAllText(configPath),
+            ConfigJsonContext.Default.AppConfig);
+        onDisk!.CycleAudioArchive.Should().NotBeNull(
+            "the guard must apply before the write to disk, not just to the in-memory Current");
+    }
+
     [Fact(DisplayName = "cycle-audio-archive: enum wire values are lowerCamelCase, not PascalCase")]
     public async Task CycleAudioArchiveMode_SerialisesToLowerCamelCaseWireValues()
     {

@@ -59,6 +59,28 @@ public sealed class JsonConfigStore : IConfigStore
         if (config.Ptt is null)
             config = config with { Ptt = _current.Ptt ?? new PttConfig() };
 
+        // Belt-and-braces guard, second section (dev-tasks/2026-07-28-fix-cycle-audio-archive-
+        // null-config-crash.md): the same reasoning as the Ptt guard immediately above applies to
+        // CycleAudioArchive. Load() has guarded this section since it was added (2026-07-26), but
+        // SaveAsync — "the one true chokepoint" per the class remark above — did not, so a null
+        // CycleAudioArchive built by any caller (WebApp.cs's own guard is the primary fix, this is
+        // defence in depth for every other caller of SaveAsync) was persisted to disk verbatim and
+        // installed live into _current, crashing every subsequent CycleArchiveService.TryEnqueue
+        // call. Falls back to the already-persisted _current.CycleAudioArchive (not a hardcoded
+        // fresh default) for the same reason as Ptt: there is no Settings-page UI for this section
+        // yet, so a hardcoded default would silently revert an operator's configured archive mode
+        // on every unrelated save.
+        if (config.CycleAudioArchive is null)
+            config = config with { CycleAudioArchive = _current.CycleAudioArchive ?? new CycleAudioArchiveConfig() };
+
+        // RemoteAccess (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-crash.md §4):
+        // same belt-and-braces reasoning as CycleAudioArchive above, bundled in as a one-line
+        // fix. A fresh default (not a _current fallback) is correct here — see the matching
+        // comment in WebApp.cs for why this section doesn't share Ptt/CycleAudioArchive's
+        // "no UI, so preserve whatever's on disk" concern.
+        if (config.RemoteAccess is null)
+            config = config with { RemoteAccess = new RemoteAccessConfig() };
+
         var dir = Path.GetDirectoryName(_path)
             ?? throw new InvalidOperationException($"Cannot determine directory for '{_path}'.");
 
