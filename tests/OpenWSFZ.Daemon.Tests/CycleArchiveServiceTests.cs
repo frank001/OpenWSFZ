@@ -417,6 +417,50 @@ public sealed class CycleArchiveServiceTests : IDisposable
         await service.StopAsync(CancellationToken.None);
     }
 
+    // ── 2026-07-28 null-config crash: defence in depth (dev-tasks/2026-07-28-fix-cycle-audio-
+    // archive-null-config-crash.md §2.3/§5) ──────────────────────────────────────────────────
+
+    [Fact(DisplayName =
+        "Regression: TryEnqueue does not throw when IConfigStore.Current.CycleAudioArchive is null, " +
+        "and treats the cycle as an off-mode no-op (not a counted drop)")]
+    public async Task TryEnqueue_NullCycleAudioArchive_DoesNotThrow_AndIsOffModeNoOp()
+    {
+        // Reproduces the live incident: a config with CycleAudioArchive = null (e.g. persisted by
+        // a POST /api/v1/config body that omitted the "cycleAudioArchive" key before the WebApp.cs/
+        // JsonConfigStore.SaveAsync guards existed) must not crash the decode pump every cycle —
+        // this was the actual crash site (CycleArchiveService.cs:178, the first line of the method).
+        var configStore = new StubConfigStore(new AppConfig() with { CycleAudioArchive = null! });
+        var service = new CycleArchiveService(
+            configStore, NullLogger<CycleArchiveService>.Instance,
+            queueCapacity: 8, retentionSweepInterval: 100, freeBytesProvider: null);
+        await service.StartAsync(CancellationToken.None);
+
+        var act = () => service.TryEnqueue(
+            new float[FullWindowSamples], CycleAt(0), CycleAt(0), decodeCount: 5, dialMhz: 7.074);
+        act.Should().NotThrow(
+            "a null CycleAudioArchive must never crash TryEnqueue — this is exactly the live-incident NRE");
+
+        // Falling back to a fresh CycleAudioArchiveConfig() means Mode resolves to Off, which
+        // returns before the channel or drop-accounting is ever touched — consistent with the
+        // "Off is the default and writes nothing" behaviour above, not a new drop path.
+        service.DroppedCycles.Should().Be(0,
+            "an off-mode-equivalent fallback must not be counted as a drop, matching real Off mode");
+
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    // Note on ProcessItemAsync's mirror-image guard (CycleArchiveService.cs:269-270): it is fixed
+    // with the identical `_configStore.Current.CycleAudioArchive ?? new CycleAudioArchiveConfig()`
+    // pattern as TryEnqueue above, but is deliberately NOT covered by a second integration test
+    // here. A null CycleAudioArchive's fallback Directory is null, which
+    // ConfigPathResolver.ResolveDefaultCycleAudioDirectory() resolves to the real per-user
+    // %APPDATA%\OpenWSFZ\cycle-audio\ directory (NFR-021) — exercising that path for real would
+    // create/append to files in the developer's actual application-data directory, which this
+    // project's own ConfigPathResolverTests deliberately avoids (path-string assertions only,
+    // never an actual write). The guard is a one-line symmetric change reviewable by inspection;
+    // TryEnqueue's test above already exercises the identical `?? new CycleAudioArchiveConfig()`
+    // coalesce pattern end-to-end without that side effect.
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static DateTime CycleAt(int index) =>

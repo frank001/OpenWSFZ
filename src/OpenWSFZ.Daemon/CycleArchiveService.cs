@@ -175,7 +175,14 @@ public sealed class CycleArchiveService : IHostedService, IAsyncDisposable
     /// <param name="dialMhz">Dial frequency snapshot in MHz, recorded in the manifest.</param>
     public void TryEnqueue(float[] pcm, DateTime cycleStart, DateTime closedUtc, int decodeCount, double dialMhz)
     {
-        var mode = _configStore.Current.CycleAudioArchive.Mode;
+        // Defence in depth (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-crash.md,
+        // mirrors AllTxtWriter.AppendAsync's D-010 guard): read CycleAudioArchive defensively so
+        // this method cannot throw unguarded even if some future code path reintroduces a null
+        // CycleAudioArchive into IConfigStore.Current. The actual root cause — a null-persisting
+        // POST /api/v1/config body — is fixed at the source in WebApp.cs and JsonConfigStore.
+        // SaveAsync, but this is the method that crashed the daemon outright (no catch above it on
+        // the decode-pump call site), so it must be self-defending regardless.
+        var mode = (_configStore.Current.CycleAudioArchive ?? new CycleAudioArchiveConfig()).Mode;
         if (mode == CycleAudioArchiveMode.Off)
             return;
 
@@ -266,7 +273,8 @@ public sealed class CycleArchiveService : IHostedService, IAsyncDisposable
             return;
         }
 
-        var config    = _configStore.Current.CycleAudioArchive;
+        // Defence in depth — same reasoning as TryEnqueue's guard above.
+        var config    = _configStore.Current.CycleAudioArchive ?? new CycleAudioArchiveConfig();
         var directory = string.IsNullOrWhiteSpace(config.Directory)
             ? ConfigPathResolver.ResolveDefaultCycleAudioDirectory()
             : config.Directory;

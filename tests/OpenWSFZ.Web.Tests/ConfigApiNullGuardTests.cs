@@ -147,6 +147,71 @@ public sealed class ConfigApiNullGuardTests : IClassFixture<WebTestFactory>
             "the recovered ExternalReporting must be the default ExternalReportingConfig(), i.e. disabled");
     }
 
+    [Fact(DisplayName =
+        "cycle-audio-archive crash: POST omitting \"cycleAudioArchive\" key does not persist a null " +
+        "CycleAudioArchive (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-crash.md)")]
+    public async Task PostConfig_OmittingCycleAudioArchiveKey_DoesNotPersistNullCycleAudioArchive()
+    {
+        var client  = _factory.CreateClient();
+        var content = new StringContent(
+            """{ "audioDeviceId": "test-device" }""",
+            Encoding.UTF8, "application/json");
+
+        var postResp = await client.PostAsync("/api/v1/config", content);
+        postResp.StatusCode.Should().Be(HttpStatusCode.OK,
+            "a request body omitting cycleAudioArchive must still be accepted — there is no " +
+            "Settings-page UI for this section (same situation as ptt), so EVERY ordinary " +
+            "Settings-page save omits this key");
+
+        var getResp = await client.GetAsync("/api/v1/config");
+        getResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await getResp.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        doc.RootElement.TryGetProperty("cycleAudioArchive", out var cycleAudioArchiveElement).Should().BeTrue(
+            "GET /api/v1/config must include the cycleAudioArchive key");
+        cycleAudioArchiveElement.ValueKind.Should().NotBe(JsonValueKind.Null,
+            "a POST body omitting \"cycleAudioArchive\" must never leave " +
+            "IConfigStore.Current.CycleAudioArchive null — this crashes the very next decode cycle's " +
+            "CycleArchiveService.TryEnqueue with an unguarded NullReferenceException and takes the " +
+            "whole daemon process down (the live incident this regression test guards against)");
+
+        // Must be default CycleAudioArchiveConfig values (Mode = Off), not merely non-null — a
+        // live read of .Mode (mirroring TryEnqueue's first line) must not throw.
+        cycleAudioArchiveElement.GetProperty("mode").GetString().Should().Be("off",
+            "the recovered CycleAudioArchive must be the default CycleAudioArchiveConfig(), i.e. Off");
+    }
+
+    [Fact(DisplayName =
+        "cycle-audio-archive crash §4: POST omitting \"remoteAccess\" key does not persist a null " +
+        "RemoteAccess (same gap, bundled in per dev-tasks/2026-07-28-fix-cycle-audio-archive-null-" +
+        "config-crash.md §4)")]
+    public async Task PostConfig_OmittingRemoteAccessKey_DoesNotPersistNullRemoteAccess()
+    {
+        var client  = _factory.CreateClient();
+        var content = new StringContent(
+            """{ "audioDeviceId": "test-device" }""",
+            Encoding.UTF8, "application/json");
+
+        var postResp = await client.PostAsync("/api/v1/config", content);
+        postResp.StatusCode.Should().Be(HttpStatusCode.OK,
+            "a request body omitting remoteAccess must still be accepted");
+
+        var getResp = await client.GetAsync("/api/v1/config");
+        getResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await getResp.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        doc.RootElement.TryGetProperty("remoteAccess", out var remoteAccessElement).Should().BeTrue(
+            "GET /api/v1/config must include the remoteAccess key");
+        remoteAccessElement.ValueKind.Should().NotBe(JsonValueKind.Null,
+            "a POST body omitting \"remoteAccess\" must never leave IConfigStore.Current.RemoteAccess null");
+        remoteAccessElement.GetProperty("enabled").GetBoolean().Should().BeFalse(
+            "the recovered RemoteAccess must be the default RemoteAccessConfig(), i.e. disabled");
+    }
+
     [Fact(DisplayName = "cat-tx-ptt AC-1: POST omitting \"ptt\" key does not persist a null Ptt")]
     public async Task PostConfig_OmittingPttKey_DoesNotPersistNullPtt()
     {
