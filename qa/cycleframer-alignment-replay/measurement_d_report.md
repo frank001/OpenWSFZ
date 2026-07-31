@@ -1,5 +1,19 @@
 # Measurement D -- within-band density stratification (D-001)
 
+> **ERRATA (2026-07-31 15:50 UTC), per Architect ruling
+> `2026-07-31-1530-architect-ruling-measurement-d-corpus-is-two-sessions.md`:**
+> **This report's premise that band, antenna, receiver and session were held constant is
+> FALSE.** The 20m corpus below is **two sessions 18h28m apart**
+> (2026-07-29 18:31:30-21:14:30, then 2026-07-30 15:42:15-18:40:00), and the sparse/dense
+> strata read below are substantially a segment split (sparse 90.1% segment 1, dense 65.4%
+> segment 2). **The headline 18.21-point matched figure below is SUSPENDED, not refuted.**
+> The density/competition effect itself is UPHELD -- it reproduces independently within each
+> segment, more strongly in segment 1 alone (median +22.33 pts, ROW 1 fires) -- see
+> `measurement_d_segment_rerun_report.md` for the per-segment re-run and quote that, not the
+> pooled figure below, going forward. Self-checks 1-4 below are unaffected (they are blind to
+> temporal structure, which is exactly the gap the ruling's new self-check 5 closes). Nothing
+> below this notice has been altered; it is preserved as the original pooled run.
+
 Spec: `2026-07-31-0853-architect-to-qa-measurement-d-spec-within-band-density.md`. Reading taken on **20m** only; 10m/80m are free replication, reported not decisive.
 
 
