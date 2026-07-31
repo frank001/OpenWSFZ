@@ -1,0 +1,18 @@
+{
+  "port": 8091,
+  "audioDeviceId": "{0.0.1.00000000}.{8dbb88e8-fd07-44b8-9ee9-88b906b8d11f}",
+  "decodingEnabled": true,
+  "decodeLog": { "dialFrequencyMHz": 14.074 },
+  "tx": { "callsign": "PD2FZ", "grid": "JO33" },
+  "logging": { "fileEnabled": false },
+  "externalReporting": {
+    "enabled": true,
+    "role": "follower",
+    "instanceId": "OpenWSFZ-20m",
+    "leaderUrl": "http://127.0.0.1:8090",
+    "targets": [
+      { "name": "GridTracker2", "host": "127.0.0.1", "port": 2237, "enabled": true }
+    ],
+    "honourInboundCommands": false
+  }
+}
