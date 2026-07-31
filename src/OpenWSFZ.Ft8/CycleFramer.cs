@@ -91,6 +91,19 @@ public sealed class CycleFramer
             // they differ (audio spans two bands).
             double? windowDialFreq = _dialFreqProvider?.Invoke();
 
+            // DEFECT-capture-clock-drift-silent-decode-loss.md: set the instant a window
+            // closes, consumed (and cleared) the next time this loop is about to accumulate
+            // a *fresh* window's first sample. The resync deliberately happens lazily —
+            // right when new data actually starts arriving for the next window — rather
+            // than eagerly the moment the previous one closes. That distinction is the
+            // whole fix: any real wall-clock time that elapses *between* the two (a capture
+            // device crystal that simply runs slow, measured at 48.4 ppm on the affected
+            // hardware, and/or WasapiAudioSource silently dropping a chunk on its warn-only
+            // overrun/write-failure branches) only shows up in _clock.UtcNow once that gap
+            // has actually passed. Reading the clock at window-close instead would miss it
+            // — the gap (if any) hasn't happened yet at that point in the code.
+            bool needsResync = false;
+
             _logger?.LogInformation(
                 "CycleFramer started; leading silence = {Samples} samples ({Seconds:F3} s), cycle start = {CycleStart:HH:mm:ss}.",
                 leadingSilence, leadingSilence / (double)SampleRate, cycleStart);
@@ -102,6 +115,27 @@ public sealed class CycleFramer
 
                 while (remaining > 0)
                 {
+                    if (needsResync)
+                    {
+                        // Re-derive this window's start from the wall clock rather than
+                        // trusting "previous cycleStart + 15s" arithmetic — see the
+                        // comment on `needsResync` above and DEFECT-capture-clock-drift-
+                        // silent-decode-loss.md. Deliberately NOT floored to the nearest
+                        // 15-second UTC grid line the way AlignToCycleStart is at start-up:
+                        // the sample buffer itself is untouched by this fix (still always
+                        // exactly SamplesPerCycle samples — no padding, no truncation, no
+                        // carry-over), so a window's audio may now genuinely span slightly
+                        // more or less than 15.000s of real time when the capture device's
+                        // rate isn't exactly nominal. That residual is fully absorbed by
+                        // this timestamp (the gap between consecutive CycleStart values),
+                        // not by resizing the buffer — resync-every-cycle keeps that
+                        // residual bounded to a single cycle's worth of clock error, which
+                        // per the 2026-07-31 handoff is ~3 orders of magnitude inside the
+                        // measured decode-failure cliff, so no rate estimation/PLL is needed.
+                        cycleStart  = _clock.UtcNow;
+                        needsResync = false;
+                    }
+
                     int space = SamplesPerCycle - filled;
                     int copy  = Math.Min(space, remaining);
 
@@ -121,11 +155,12 @@ public sealed class CycleFramer
                         // Advance to the next cycle and snapshot the frequency at the new
                         // window-open boundary — not at window-close — so that a band change
                         // that happens during the previous window is correctly attributed to
-                        // the next window, not the one just emitted.
+                        // the next window, not the one just emitted. cycleStart itself is
+                        // resolved lazily above, not here — see `needsResync`.
                         window         = new float[SamplesPerCycle];
                         filled         = 0;
-                        cycleStart     = cycleStart.AddSeconds(CycleDurationSecs);
                         windowDialFreq = _dialFreqProvider?.Invoke();
+                        needsResync    = true;
                     }
                 }
             }
