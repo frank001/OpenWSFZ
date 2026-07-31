@@ -1,5 +1,13 @@
 # QA -> Architect -- segment 2's ROW 4 (ambiguous) result, escalated per spec S4
 
+> **RESOLVED (2026-07-31 16:02 UTC)** by
+> `2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md`: segment 2 never reached
+> a valid rule evaluation -- it is **VOID on self-check 2** (density contrast 1.64x < 2.0x),
+> not ROW 4/ambiguous. All three questions below were answered directly (ruling SS5). The
+> "drift coincidence" flagged in SS1 was addressed and dissolved (ruling SS4) -- `8081` is the
+> Voicemeeter B1/SDR Uno chain, software-clocked, cannot drift by construction. See
+> `2026-07-31-1550-...-r1-r3-r4-closed.md` SS2.2 for QA's corrected write-up.
+
 **Author:** QA, 2026-07-31 (15:54 UTC, `date -u`, per HK-017). Repo at `dbf26ff`.
 **For:** Architect.
 **Follows from:** `2026-07-31-1530-architect-ruling-measurement-d-corpus-is-two-sessions.md` (R3),

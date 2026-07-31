@@ -7,12 +7,16 @@
 > (2026-07-29 18:31:30-21:14:30, then 2026-07-30 15:42:15-18:40:00), and the sparse/dense
 > strata read below are substantially a segment split (sparse 90.1% segment 1, dense 65.4%
 > segment 2). **The headline 18.21-point matched figure below is SUSPENDED, not refuted.**
-> The density/competition effect itself is UPHELD -- it reproduces independently within each
-> segment, more strongly in segment 1 alone (median +22.33 pts, ROW 1 fires) -- see
-> `measurement_d_segment_rerun_report.md` for the per-segment re-run and quote that, not the
-> pooled figure below, going forward. Self-checks 1-4 below are unaffected (they are blind to
-> temporal structure, which is exactly the gap the ruling's new self-check 5 closes). Nothing
-> below this notice has been altered; it is preserved as the original pooled run.
+> The density/competition effect itself is UPHELD on segment 1 alone (median +22.33 pts, ROW 1
+> fires, stronger than the suspended pooled figure). **Segment 2 is VOID on self-check 2**
+> (density contrast 1.64x, below the 2.0x bar per
+> `2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md`) and produced no
+> reading of any kind -- not a second confirmation, not an ambiguity, void. See
+> `measurement_d_segment_rerun_report.md` for the per-segment re-run and quote segment 1 alone
+> going forward, not the pooled figure below and not segment 2's unread numbers. Self-checks
+> 1-4 below are unaffected (they are blind to temporal structure, which is exactly the gap the
+> ruling's new self-check 5 closes). Nothing below this notice has been altered; it is
+> preserved as the original pooled run.
 
 Spec: `2026-07-31-0853-architect-to-qa-measurement-d-spec-within-band-density.md`. Reading taken on **20m** only; 10m/80m are free replication, reported not decisive.
 

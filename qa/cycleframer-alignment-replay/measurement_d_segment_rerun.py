@@ -69,6 +69,17 @@ SEGMENTS = [
     ("segment 2", CUT, None),
 ]
 
+# Self-check 2, mechanised per the Architect's ruling
+# 2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md V3: "a contrast below ~2x
+# on 20m means the strata are too close to read" was prose in the spec, not a coded gate, and
+# this script's first version reported the contrast figure descriptively without voiding on it
+# -- a gap in THIS script specifically (measurement_d_within_band_density.py's own main()
+# already hardcoded this exact 2.0 bar as a hard gate at its "contrast_void" check; this script
+# simply failed to carry that gate over when reusing the rest of that module's logic). Fixed
+# here: bar is 2.0, not "~2x" (V3's own correction), and a void segment reports no per-bin
+# table and no reading-rule row of any kind.
+CONTRAST_MIN = 2.0
+
 
 def run_segment(label: str, start, end, ref_rows_all, our_rows_all) -> dict:
     ref_rows = filter_rows_by_window(ref_rows_all, start, end)
@@ -82,6 +93,20 @@ def run_segment(label: str, start, end, ref_rows_all, our_rows_all) -> dict:
     sparse_mean = statistics.mean(density_by_cycle[c] for c in sparse_cycles) if sparse_cycles else float("nan")
     dense_mean = statistics.mean(density_by_cycle[c] for c in dense_cycles) if dense_cycles else float("nan")
     contrast = dense_mean / sparse_mean if sparse_cycles and sparse_mean else float("nan")
+
+    contrast_void = math.isnan(contrast) or contrast < CONTRAST_MIN
+    if contrast_void:
+        # Self-check 2 gate (V3): void here, before computing anything the reading rule would
+        # touch. No per-bin table, no duplicate-key check, no median diff, no row outcome --
+        # a void run produces no reading, per the standing stop rule (rev2 SS7 / 07-27 design SS6).
+        return dict(
+            label=label, n_cycles=len(density_by_cycle), n_sparse=len(sparse_cycles),
+            n_dense=len(dense_cycles), q1=q1, q3=q3, sparse_mean=sparse_mean,
+            dense_mean=dense_mean, contrast=contrast, contrast_void=True,
+            sparse_dup=float("nan"), dense_dup=float("nan"), dup_gap_pts=float("nan"),
+            total_matched=total_matched, rows=[], median_diff=float("nan"), confounded=False,
+            n_usable=0, frac_ge8=float("nan"), n_ge8=0,
+        )
 
     sparse_dup = duplicate_key_rate(ref_rows, stratum, "sparse")
     dense_dup = duplicate_key_rate(ref_rows, stratum, "dense")
@@ -110,9 +135,9 @@ def run_segment(label: str, start, end, ref_rows_all, our_rows_all) -> dict:
     return dict(
         label=label, n_cycles=len(density_by_cycle), n_sparse=len(sparse_cycles),
         n_dense=len(dense_cycles), q1=q1, q3=q3, sparse_mean=sparse_mean, dense_mean=dense_mean,
-        contrast=contrast, sparse_dup=sparse_dup, dense_dup=dense_dup, dup_gap_pts=dup_gap_pts,
-        total_matched=total_matched, rows=rows, median_diff=med_diff, confounded=confounded,
-        n_usable=len(rows), frac_ge8=frac_ge8, n_ge8=n_ge8,
+        contrast=contrast, contrast_void=False, sparse_dup=sparse_dup, dense_dup=dense_dup,
+        dup_gap_pts=dup_gap_pts, total_matched=total_matched, rows=rows, median_diff=med_diff,
+        confounded=confounded, n_usable=len(rows), frac_ge8=frac_ge8, n_ge8=n_ge8,
     )
 
 
@@ -155,8 +180,12 @@ def main() -> int:
         print(f"=== {label} ===")
         print(f"cycles={r['n_cycles']} sparse_n={r['n_sparse']} dense_n={r['n_dense']} "
               f"matched={r['total_matched']}")
-        print(f"density contrast={r['contrast']:.2f}x  dup gap={r['dup_gap_pts']:.2f}pts  "
-              f"usable bins={r['n_usable']}  median diff={r['median_diff']:+.2f}pts")
+        if r["contrast_void"]:
+            print(f"density contrast={r['contrast']:.2f}x  < {CONTRAST_MIN}x -- "
+                  "SELF-CHECK 2 VOID. No reading produced for this segment.")
+        else:
+            print(f"density contrast={r['contrast']:.2f}x  dup gap={r['dup_gap_pts']:.2f}pts  "
+                  f"usable bins={r['n_usable']}  median diff={r['median_diff']:+.2f}pts")
 
     report.append("## Segment composition\n")
     report.append("| segment | cycles | sparse n (cycles) | dense n (cycles) | "
@@ -168,14 +197,19 @@ def main() -> int:
                        f"<= {r['q1']:.1f} | >= {r['q3']:.1f} | {r['total_matched']} |")
     report.append("")
 
-    report.append("## Self-check 2 (density contrast) per segment\n")
+    report.append("## Self-check 2 (density contrast) per segment -- MECHANISED HARD GATE\n")
+    report.append(
+        f"Per `2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md` V3: "
+        f"`dense_mean / sparse_mean < {CONTRAST_MIN}` VOIDS the segment before any further "
+        "check runs -- no duplicate-key check, no common-support check, no reading-rule row.\n")
     report.append("| segment | sparse mean ref decodes/cycle | dense mean ref decodes/cycle | "
-                   "contrast |")
-    report.append("|---|---:|---:|---:|")
+                   "contrast | verdict |")
+    report.append("|---|---:|---:|---:|---|")
     for label, *_ in SEGMENTS:
         r = results[label]
+        verdict = f"**VOID (< {CONTRAST_MIN}x)**" if r["contrast_void"] else "readable"
         report.append(f"| {label} | {r['sparse_mean']:.2f} | {r['dense_mean']:.2f} | "
-                       f"{r['contrast']:.2f}x |")
+                       f"{r['contrast']:.2f}x | {verdict} |")
     report.append("")
 
     report.append("## Self-check 3 (duplicate-key artefact) per segment\n")
@@ -184,6 +218,10 @@ def main() -> int:
     report.append("|---|---:|---:|---:|---:|---|")
     for label, *_ in SEGMENTS:
         r = results[label]
+        if r["contrast_void"]:
+            report.append(f"| {label} | n/a | n/a | n/a | n/a | **VOID on self-check 2 -- "
+                           "not evaluated** |")
+            continue
         report.append(
             f"| {label} | {r['sparse_dup']*100:.2f}% | {r['dense_dup']*100:.2f}% | "
             f"{r['dup_gap_pts']:.2f} | {r['median_diff']:+.2f} | "
@@ -195,6 +233,9 @@ def main() -> int:
     report.append("|---|---:|---|")
     for label, *_ in SEGMENTS:
         r = results[label]
+        if r["contrast_void"]:
+            report.append(f"| {label} | n/a | **VOID on self-check 2 -- not evaluated** |")
+            continue
         verdict = "insufficient (<10)" if r["n_usable"] < 10 else "OK"
         report.append(f"| {label} | {r['n_usable']} | {verdict} |")
     report.append("")
@@ -202,6 +243,20 @@ def main() -> int:
     for label, *_ in SEGMENTS:
         r = results[label]
         report.append(f"## {label} per-bin recall\n")
+        if r["contrast_void"]:
+            report.append(
+                f"**VOID on self-check 2.** Density contrast {r['contrast']:.2f}x is below "
+                f"the {CONTRAST_MIN}x bar -- the strata are too close to read (this segment's "
+                f"sparse stratum, at {r['sparse_mean']:.2f} ref decodes/cycle, sits above "
+                "segment 1's entire sparse-to-middle range and above segment 1's own sparse "
+                "cutoff -- it compares dense against denser, not sparse against dense). Per the "
+                "standing stop rule, this segment produced **no reading of any kind** -- not "
+                "ambiguous, not weak, void. No per-bin table, no median diff, no row outcome is "
+                "reported, and none should be quoted from this segment "
+                "(see `1602`'s ruling, citation blacklist).\n")
+            print(f">>> {label}: VOID on self-check 2 (contrast {r['contrast']:.2f}x < "
+                  f"{CONTRAST_MIN}x). No reading produced.")
+            continue
         if r["confounded"]:
             report.append("**Duplicate-key gap is within an order of magnitude of the median "
                            "diff -- per spec S3#3 this segment is confounded and MUST NOT be "
@@ -229,18 +284,40 @@ def main() -> int:
         print(f">>> {label}: {outcome}")
 
     report.append("## Summary\n")
-    report.append("| | segment 1 | segment 2 |")
-    report.append("|---|---:|---:|")
     r1, r2 = results["segment 1"], results["segment 2"]
-    report.append(f"| cycles | {r1['n_cycles']} | {r2['n_cycles']} |")
-    report.append(f"| usable bins | {r1['n_usable']} | {r2['n_usable']} |")
-    report.append(f"| median diff (pts) | {r1['median_diff']:+.2f} | {r2['median_diff']:+.2f} |")
-    report.append(f"| frac bins >= 8pts | {r1['frac_ge8']*100:.0f}% | {r2['frac_ge8']*100:.0f}% |")
-    report.append("")
-    report.append(
-        "**Per R3, segment 1 is the better test** (larger sparse/dense stratum sizes) and is "
-        "primary. If segment 2 shows `insufficient (<10)` above, that is reported as-is per "
-        "the ruling's instruction, not pooled to rescue it.\n")
+    if r2["contrast_void"]:
+        report.append("| | segment 1 | segment 2 |")
+        report.append("|---|---:|---:|")
+        report.append(f"| cycles | {r1['n_cycles']} | {r2['n_cycles']} |")
+        report.append(f"| density contrast | {r1['contrast']:.2f}x | "
+                       f"**{r2['contrast']:.2f}x -- VOID (< {CONTRAST_MIN}x)** |")
+        report.append(f"| usable bins | {r1['n_usable']} | n/a (void) |")
+        report.append(f"| median diff (pts) | {r1['median_diff']:+.2f} | n/a (void) |")
+        report.append(f"| mechanical outcome | ROW 1 -- confirmed | **VOID on self-check 2** |")
+        report.append("")
+        report.append(
+            "**Segment 2 is VOID on self-check 2**, per "
+            "`2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md`: its "
+            f"contrast ({r2['contrast']:.2f}x) is too low because its sparse stratum "
+            f"({r2['sparse_mean']:.2f} ref decodes/cycle) sits above segment 1's entire "
+            "sparse-to-middle range -- it compares dense against denser, not sparse against "
+            "dense. It produced no reading of any kind, not an ambiguous or weak one. Do not cite its "
+            "median diff, bin count, or bin fraction (citation blacklist, `1602` SS7). "
+            "**Segment 1's ROW 1 stands alone as the reading, unqualified** -- R3/R4's "
+            "primary designation for segment 1 turns out to be the only segment capable of "
+            "producing a reading at all, not merely the better of two.\n")
+    else:
+        report.append("| | segment 1 | segment 2 |")
+        report.append("|---|---:|---:|")
+        report.append(f"| cycles | {r1['n_cycles']} | {r2['n_cycles']} |")
+        report.append(f"| usable bins | {r1['n_usable']} | {r2['n_usable']} |")
+        report.append(f"| median diff (pts) | {r1['median_diff']:+.2f} | {r2['median_diff']:+.2f} |")
+        report.append(f"| frac bins >= 8pts | {r1['frac_ge8']*100:.0f}% | {r2['frac_ge8']*100:.0f}% |")
+        report.append("")
+        report.append(
+            "**Per R3, segment 1 is the better test** (larger sparse/dense stratum sizes) and is "
+            "primary. If segment 2 shows `insufficient (<10)` above, that is reported as-is per "
+            "the ruling's instruction, not pooled to rescue it.\n")
 
     report_path = os.path.join(out_dir, "measurement_d_segment_rerun_report.md")
     with open(report_path, "w", encoding="ascii", errors="replace") as fh:

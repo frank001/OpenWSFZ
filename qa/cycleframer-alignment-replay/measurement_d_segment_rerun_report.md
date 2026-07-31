@@ -11,26 +11,28 @@ Per `2026-07-31-1530-architect-ruling-measurement-d-corpus-is-two-sessions.md` R
 | segment 1 | 618 | 176 | 159 | <= 23.0 | >= 41.0 | 9751 |
 | segment 2 | 712 | 186 | 180 | <= 36.0 | >= 45.0 | 14450 |
 
-## Self-check 2 (density contrast) per segment
+## Self-check 2 (density contrast) per segment -- MECHANISED HARD GATE
 
-| segment | sparse mean ref decodes/cycle | dense mean ref decodes/cycle | contrast |
-|---|---:|---:|---:|
-| segment 1 | 18.47 | 48.86 | 2.65x |
-| segment 2 | 33.02 | 54.21 | 1.64x |
+Per `2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md` V3: `dense_mean / sparse_mean < 2.0` VOIDS the segment before any further check runs -- no duplicate-key check, no common-support check, no reading-rule row.
+
+| segment | sparse mean ref decodes/cycle | dense mean ref decodes/cycle | contrast | verdict |
+|---|---:|---:|---:|---|
+| segment 1 | 18.47 | 48.86 | 2.65x | readable |
+| segment 2 | 33.02 | 54.21 | 1.64x | **VOID (< 2.0x)** |
 
 ## Self-check 3 (duplicate-key artefact) per segment
 
 | segment | sparse dup-key rate | dense dup-key rate | gap (pts) | median diff (pts) | confounded? |
 |---|---:|---:|---:|---:|---|
 | segment 1 | 0.00% | 0.00% | 0.00 | +22.33 | no |
-| segment 2 | 0.00% | 0.47% | 0.47 | +12.26 | no |
+| segment 2 | n/a | n/a | n/a | n/a | **VOID on self-check 2 -- not evaluated** |
 
 ## Self-check 4 (common support, n>=20 both strata) per segment
 
 | segment | usable bins | verdict |
 |---|---:|---|
 | segment 1 | 21 | OK |
-| segment 2 | 28 | OK |
+| segment 2 | n/a | **VOID on self-check 2 -- not evaluated** |
 
 ## segment 1 per-bin recall
 
@@ -64,49 +66,17 @@ Per `2026-07-31-1530-architect-ruling-measurement-d-corpus-is-two-sessions.md` R
 
 ## segment 2 per-bin recall
 
-| SNR bin (dB) | sparse n | sparse matched | sparse recall | sparse 95% CI | dense n | dense matched | dense recall | dense 95% CI | diff (pts) |
-|---:|---:|---:|---:|---|---:|---:|---:|---|---:|
-| [-24, -22) | 100 | 13 | 13.0% | [7.8%,21.0%] | 106 | 9 | 8.5% | [4.5%,15.4%] | +4.5 |
-| [-22, -20) | 58 | 11 | 19.0% | [10.9%,30.9%] | 103 | 13 | 12.6% | [7.5%,20.4%] | +6.3 |
-| [-20, -18) | 92 | 27 | 29.3% | [21.0%,39.3%] | 150 | 23 | 15.3% | [10.4%,22.0%] | +14.0 |
-| [-18, -16) | 151 | 35 | 23.2% | [17.2%,30.5%] | 232 | 51 | 22.0% | [17.1%,27.7%] | +1.2 |
-| [-16, -14) | 163 | 49 | 30.1% | [23.5%,37.5%] | 316 | 74 | 23.4% | [19.1%,28.4%] | +6.6 |
-| [-14, -12) | 283 | 78 | 27.6% | [22.7%,33.0%] | 430 | 93 | 21.6% | [18.0%,25.8%] | +5.9 |
-| [-12, -10) | 306 | 107 | 35.0% | [29.8%,40.5%] | 539 | 137 | 25.4% | [21.9%,29.3%] | +9.5 |
-| [-10, -8) | 369 | 130 | 35.2% | [30.5%,40.2%] | 618 | 162 | 26.2% | [22.9%,29.8%] | +9.0 |
-| [-8, -6) | 414 | 168 | 40.6% | [36.0%,45.4%] | 674 | 215 | 31.9% | [28.5%,35.5%] | +8.7 |
-| [-6, -4) | 439 | 212 | 48.3% | [43.7%,53.0%] | 715 | 275 | 38.5% | [35.0%,42.1%] | +9.8 |
-| [-4, -2) | 428 | 221 | 51.6% | [46.9%,56.3%] | 706 | 246 | 34.8% | [31.4%,38.4%] | +16.8 |
-| [-2, 0) | 448 | 244 | 54.5% | [49.8%,59.0%] | 761 | 294 | 38.6% | [35.2%,42.1%] | +15.8 |
-| [0, 2) | 426 | 226 | 53.1% | [48.3%,57.7%] | 702 | 288 | 41.0% | [37.4%,44.7%] | +12.0 |
-| [2, 4) | 392 | 240 | 61.2% | [56.3%,65.9%] | 602 | 283 | 47.0% | [43.1%,51.0%] | +14.2 |
-| [4, 6) | 361 | 231 | 64.0% | [58.9%,68.8%] | 514 | 266 | 51.8% | [47.4%,56.0%] | +12.2 |
-| [6, 8) | 301 | 193 | 64.1% | [58.6%,69.3%] | 508 | 252 | 49.6% | [45.3%,53.9%] | +14.5 |
-| [8, 10) | 267 | 189 | 70.8% | [65.1%,75.9%] | 446 | 260 | 58.3% | [53.7%,62.8%] | +12.5 |
-| [10, 12) | 254 | 182 | 71.7% | [65.8%,76.8%] | 352 | 201 | 57.1% | [51.9%,62.2%] | +14.6 |
-| [12, 14) | 204 | 156 | 76.5% | [70.2%,81.8%] | 282 | 181 | 64.2% | [58.4%,69.6%] | +12.3 |
-| [14, 16) | 160 | 117 | 73.1% | [65.8%,79.4%] | 249 | 152 | 61.0% | [54.9%,66.9%] | +12.1 |
-| [16, 18) | 109 | 77 | 70.6% | [61.5%,78.4%] | 177 | 112 | 63.3% | [56.0%,70.0%] | +7.4 |
-| [18, 20) | 96 | 85 | 88.5% | [80.6%,93.5%] | 146 | 107 | 73.3% | [65.6%,79.8%] | +15.3 |
-| [20, 22) | 76 | 62 | 81.6% | [71.4%,88.7%] | 122 | 83 | 68.0% | [59.3%,75.6%] | +13.5 |
-| [22, 24) | 55 | 50 | 90.9% | [80.4%,96.1%] | 107 | 84 | 78.5% | [69.8%,85.2%] | +12.4 |
-| [24, 26) | 49 | 38 | 77.6% | [64.1%,87.0%] | 57 | 45 | 78.9% | [66.7%,87.5%] | -1.4 |
-| [26, 28) | 36 | 32 | 88.9% | [74.7%,95.6%] | 58 | 42 | 72.4% | [59.8%,82.2%] | +16.5 |
-| [28, 30) | 26 | 24 | 92.3% | [75.9%,97.9%] | 24 | 18 | 75.0% | [55.1%,88.0%] | +17.3 |
-| [32, 34) | 22 | 20 | 90.9% | [72.2%,97.5%] | 21 | 10 | 47.6% | [28.3%,67.6%] | +43.3 |
-
-**Median diff: +12.26 pts. 21/28 bins (75%) have diff >= 8 pts.**
-
-**Mechanical outcome (segment 2), Measurement D's spec S4 rule, unmodified: ROW 4: partial/ambiguous. Report as ambiguous. Do not interpret.**
+**VOID on self-check 2.** Density contrast 1.64x is below the 2.0x bar -- the strata are too close to read (this segment's sparse stratum, at 33.02 ref decodes/cycle, sits above segment 1's entire sparse-to-middle range and above segment 1's own sparse cutoff -- it compares dense against denser, not sparse against dense). Per the standing stop rule, this segment produced **no reading of any kind** -- not ambiguous, not weak, void. No per-bin table, no median diff, no row outcome is reported, and none should be quoted from this segment (see `1602`'s ruling, citation blacklist).
 
 ## Summary
 
 | | segment 1 | segment 2 |
 |---|---:|---:|
 | cycles | 618 | 712 |
-| usable bins | 21 | 28 |
-| median diff (pts) | +22.33 | +12.26 |
-| frac bins >= 8pts | 90% | 75% |
+| density contrast | 2.65x | **1.64x -- VOID (< 2.0x)** |
+| usable bins | 21 | n/a (void) |
+| median diff (pts) | +22.33 | n/a (void) |
+| mechanical outcome | ROW 1 -- confirmed | **VOID on self-check 2** |
 
-**Per R3, segment 1 is the better test** (larger sparse/dense stratum sizes) and is primary. If segment 2 shows `insufficient (<10)` above, that is reported as-is per the ruling's instruction, not pooled to rescue it.
+**Segment 2 is VOID on self-check 2**, per `2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md`: its contrast (1.64x) is too low because its sparse stratum (33.02 ref decodes/cycle) sits above segment 1's entire sparse-to-middle range -- it compares dense against denser, not sparse against dense. It produced no reading of any kind, not an ambiguous or weak one. Do not cite its median diff, bin count, or bin fraction (citation blacklist, `1602` SS7). **Segment 1's ROW 1 stands alone as the reading, unqualified** -- R3/R4's primary designation for segment 1 turns out to be the only segment capable of producing a reading at all, not merely the better of two.
 

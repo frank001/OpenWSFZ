@@ -4,7 +4,16 @@
 **Responds to:** `2026-07-31-1530-architect-ruling-measurement-d-corpus-is-two-sessions.md`.
 **Captain's instruction:** proceed with R1, R3 and R4 as scoped in that ruling.
 
----
+> **ERRATA (2026-07-31 16:10 UTC), per
+> `2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md`:** §2's table and §2.1's
+> second bullet below, as originally written, reported segment 2 as **ROW 4 ("ambiguous")**.
+> That has been superseded: **segment 2 is VOID on self-check 2** (density contrast 1.64x,
+> below the 2.0x bar), and produced no reading of any kind -- not ambiguous, not weak. Its
+> median diff (+12.26 pts), bin count (28) and bin fraction (75%) must not be cited (citation
+> blacklist, `1602` SS7). This also exposed a gap in `measurement_d_segment_rerun.py` itself:
+> `measurement_d_within_band_density.py`'s pooled run already hardcoded this exact 2.0x gate,
+> and the segment script omitted it when reusing the rest of that module's logic -- now fixed
+> (see §2.2). Original text below is left unstruck for the record; read it through this notice.
 
 ## 0. What was done
 
@@ -72,6 +81,43 @@ report rather than silently skipped).
   pooled result.** Nothing here reopens R2 -- the effect is upheld, and segment 1 alone is now
   the stronger, cleaner citation for it.
 
+### 2.2 Correction (2026-07-31 16:10 UTC) -- segment 2 is VOID, not ambiguous
+
+I escalated segment 2's ROW 4 outcome to the Architect
+(`2026-07-31-1554-qa-to-architect-segment-2-row4-escalated.md`), flagging (but not acting on) a
+coincidence: segment 2 is the corpus's high-uptime half and also the segment landing on an
+unresolved rule outcome. The ruling
+(`2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md`) answered:
+
+- **Segment 2 never reached a valid reading rule evaluation.** Its density contrast is 1.64x,
+  below self-check 2's own bar. Its sparse stratum (33.02 ref decodes/cycle) sits above segment
+  1's entire sparse-to-middle range -- it compares dense against denser, not sparse against
+  dense. Per the standing stop rule, a failed self-check means the run is void, not a weak or
+  ambiguous result; the ROW 4 label is struck.
+- **This was a gap in `measurement_d_segment_rerun.py`, specifically, not in the Architect's
+  spec drafting** as the ruling's own §2 credits itself with: `measurement_d_within_band_
+  density.py`'s pooled run already hardcodes this exact "contrast < 2.0" gate (its
+  `contrast_void` check) and halts before reading anything if it fires. My segment script
+  reused `stratify_cycles`/`matched_stratified_bins`/etc. from that module but did not carry
+  the contrast gate over -- an oversight in the reuse, now fixed by adding the identical
+  `CONTRAST_MIN = 2.0` gate to `measurement_d_segment_rerun.py` itself, ahead of any
+  duplicate-key or common-support check. Re-run output and `measurement_d_segment_rerun_
+  report.md` now reflect this (segment 2 reports **VOID**, no per-bin table, no row outcome).
+- **The drift coincidence I flagged dissolves per the ruling's V4**: `8081` runs on the
+  Voicemeeter B1 / SDR Uno chain, which is software-clocked and cannot drift against the system
+  clock by construction (unlike the USB Audio CODEC chain, which is where both drift incidents
+  on record occurred). The drift screen (work order `1356` task 1) keeps its existing priority,
+  amended only to report per segment rather than session-wide.
+- **Corrected summary:**
+
+  | | segment 1 (primary) | segment 2 |
+  |---|---:|---:|
+  | density contrast | 2.65x | **1.64x -- VOID (< 2.0x)** |
+  | mechanical outcome | **ROW 1 -- Competition CONFIRMED** | **VOID on self-check 2 (no reading)** |
+
+  Segment 1's ROW 1 stands exactly as originally reported -- unqualified, and now understood as
+  the *only* segment capable of producing a reading at all, not merely the stronger of two.
+
 ## 3. R4 -- noted for S.1, not yet actionable
 
 Per the work order (`2026-07-31-1356-...`), arm S.1 (spectral locality) has **not been run** --
@@ -107,6 +153,10 @@ start beyond what the work order already scoped, and Task 1 has not been run.
 
 - `2026-07-31-1530-architect-ruling-measurement-d-corpus-is-two-sessions.md` -- the ruling this
   closes out R1/R3 for and notes R4 from.
-- `measurement_d_segment_rerun.py` / `measurement_d_segment_rerun_report.md` -- R3's deliverable.
-- `measurement_d_report.md` -- amended with the errata banner (R1).
-- `measurement_d_within_band_density.py` -- reused unmodified, per the ruling's own instruction.
+- `measurement_d_segment_rerun.py` / `measurement_d_segment_rerun_report.md` -- R3's deliverable,
+  since amended per SS2.2 to mechanise the self-check 2 hard gate.
+- `measurement_d_report.md` -- amended with the errata banner (R1), since corrected per SS2.2.
+- `measurement_d_within_band_density.py` -- reused unmodified, per the ruling's own instruction;
+  also the source of the `contrast_void` gate SS2.2's correction ports into the segment script.
+- `2026-07-31-1554-qa-to-architect-segment-2-row4-escalated.md` -- the escalation SS2.2 answers.
+- `2026-07-31-1602-architect-ruling-segment-2-void-on-self-check-2.md` -- the ruling SS2.2 applies.
