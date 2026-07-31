@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2026-07-28 session log — full narrative</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="2026-07-28-session-log-full-narrative">2026-07-28 session log — full narrative</h1>
+<p><strong>Why this document exists</strong>: this session covered a lot of ground beyond the corpus itself — a
+crash diagnosis, a multi-hour QRM investigation, a second receiver built live, a protocol bug
+found and partly fixed, and a tool idea proposed, refined twice, and correctly scrapped. Most of
+that lived only in conversation or scattered across <code>artefacts/</code> (git-ignored, not durable) and
+brief mentions in <code>report.md</code>. This is the complete, chronological account, written so none of it
+gets lost. Cross-references: <code>artefacts/20260728_live_run_1319/report.md</code> (the terser
+after-action summary), <code>artefacts/20260728_live_run_1319/screenshots/NOTES.md</code> (the interference
+investigation's own working notes), <code>anova_report_10m.md</code>/<code>anova_report_20m.md</code> (this directory).</p>
+<p><strong>A note on redaction (added 2026-07-31, before first commit):</strong> the original narrative named
+real third-party amateur callsigns directly — decoded stations encountered during the QRM
+investigation and the propagation narration. Per NFR-021 (only Q-prefix synthetic callsigns, plus
+<code>PD2FZ</code> and public figures, may appear in version control), every real callsign below has been
+replaced with a consistent Q-prefix synthetic call (one call per station, used at every occurrence
+of that station). <code>PD2FZ</code> and the already-synthetic <code>Q1OFZ</code> were untouched. This document was
+edited in place — no separately preserved unredacted copy of this narrative exists on disk — but
+the raw decode logs it was written from (<code>artefacts/20260728_live_run_1319/owsfz/ALL.TXT</code> and
+<code>.../wsjt-x/ALL.TXT</code>, both git-ignored, never committed) still carry every real callsign named
+below, so the ground truth is not lost, only kept out of version control.</p>
+<hr />
+<h2 id="1-opening-why-did-openwsfz-close-a-crash-a-false-lead-and-its-real-cause">1. Opening: "why did OpenWSFZ close?" — a crash, a false lead, and its real cause</h2>
+<p>The day started with the Captain clearing all WAVs/<code>ALL.TXT</code> and starting both applications for a
+fresh 10m run. Early checks found <code>decodingEnabled: false</code> on the daemon — the Captain armed it
+manually. Shortly after, the daemon vanished without either of us issuing a kill command.</p>
+<p><strong>First investigation</strong> (log inspection) found the actual cause: an unhandled
+<code>NullReferenceException</code> in <code>CycleArchiveService.TryEnqueue</code> —
+<code>_configStore.Current.CycleAudioArchive.Mode</code> dereferenced on a null <code>CycleAudioArchive</code>. The
+persisted <code>config.json</code> had the literal value <code>"cycleAudioArchive": null</code>.</p>
+<p><strong>Root cause, traced through the actual code</strong> (not guessed): <code>JsonConfigStore.SaveAsync</code> only
+re-applies the System.Text.Json "omitted key deserialises to null instead of the property
+initialiser" guard for <code>Ptt</code>, not for <code>CycleAudioArchive</code> — and <code>WebApp.cs</code>'s <code>POST
+/api/v1/config</code> handler's guard block (which re-defaults <code>Logging</code>/<code>DecodeLog</code>/
+<code>DecodeNoiseSuppression</code>/<code>ExternalReporting</code>) had never been extended to cover
+<code>CycleAudioArchive</code> either, since that section was added after the guard block was written. Since
+there's no Settings-page UI field for <code>cycleAudioArchive</code> at all, <em>every</em> ordinary settings save
+hits this path. <code>CycleArchiveService.TryEnqueue</code> and <code>ProcessItemAsync</code> both dereferenced the
+section unconditionally, unlike <code>AllTxtWriter</code>/<code>ExternalReportingService.Reconcile</code>, which already
+carried the equivalent defence-in-depth for this exact class of bug (D-010, an earlier incident).
+This also explained a second symptom: the crash-and-restart cycle silently reset the archive mode
+back to <code>Off</code> on every restart, because <code>Load()</code>'s own null-guard substitutes a fresh default
+(<code>Mode = Off</code>) rather than preserving what was actually configured.</p>
+<p><strong>A second, unrelated complication surfaced mid-diagnosis</strong>: the daemon restarted itself twice
+with nobody — Captain or QA — having issued a restart, including once immediately undoing a
+deliberate <code>taskkill</code> meant to abort the session. Investigated via <code>Get-CimInstance
+Win32_Process</code> searching for stray <code>bash.exe</code>/supervisor processes (rather than assuming it was
+either of us): found <code>qa/endurance/2026-07-26-supervisor-80m.sh</code> (PID 19768) still running,
+uninterrupted, since 22:47 the night of 2026-07-26 — over 36 hours, through an entirely separate
+prior session, auto-restarting the daemon on every failure it saw per its own correctly-implemented
+HK-013 design. Killed. This produced a new standing rule, <strong>HK-019</strong> (supervisor teardown +
+orphan-check discipline), written to QA memory the same day.</p>
+<p><strong>The fix</strong>: three-layer guard (<code>WebApp.cs</code>, <code>JsonConfigStore.SaveAsync</code>, and defence-in-depth in
+<code>CycleArchiveService</code> itself, mirroring the <code>AllTxtWriter</code> pattern), plus the same one-line fix
+for the analogous <code>RemoteAccess</code> gap (lower urgency, not an active crash). Handed off via
+<code>dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-crash.md</code> (QA-authored, per HK-011),
+implemented in a separate Developer session (commit <code>031fb37</code>), and code-reviewed directly: three
+new regression tests reproducing the actual STJ quirk end-to-end, full test suites re-run clean
+(91/91, 264/264, 588/588 across the three touched projects), single clean commit on top of
+current <code>main</code>. Approved.</p>
+<h2 id="2-fresh-10m-run-on-the-fixed-build">2. Fresh 10m run, on the fixed build</h2>
+<p>Published fresh from the fix branch (self-contained win-x64), launched with an isolated,
+freshly-written <code>cycleAudioArchive</code> config (<code>mode: "all"</code>) confirmed via the running instance's
+own <code>/api/v1/config</code>. Verified live: real decode within the first cycle, WAV files landing
+correctly, no repeat crash. WSJT-X started in parallel by the Captain.</p>
+<h2 id="3-the-qrm-hunt">3. The QRM hunt</h2>
+<h3 id="31-first-sighting-first-wrong-guess">3.1 First sighting, first (wrong) guess</h3>
+<p>Mid-session, the Captain spotted an evenly-spaced comb pattern filling almost the entire 0–3000 Hz
+waterfall passband on WSJT-X — visually nothing like normal FT8 traffic (which shows scattered,
+irregular tone positions). Both the Captain and QA guessed <strong>solar power converter PWM harmonics</strong>
+from the shape and midday timing alone, deliberately not retuning to check 11m directly so as not
+to disturb the run.</p>
+<h3 id="32-a-false-decode-side-thread-q36ibdp">3.2 A false-decode side-thread: <code>Q36IBD/P</code></h3>
+<p>Comparing OpenWSFZ's and WSJT-X's <code>ALL.TXT</code>s for the same cycle (<code>112115</code>) found 4/5 messages
+agreeing closely, with one differing catch each side. WSJT-X's unique catch (<code>Q2TND</code>) had a
+plausible real-world callsign shape; OpenWSFZ's (<code>Q36IBD/P</code>) did not — no valid amateur prefix
+scheme places two digits directly after a single leading letter, a classic signature of an
+LDPC pass on noise rather than a genuine weak-signal recovery. Flagged as a likely false decode,
+plausibly related to an interference-elevated near-threshold candidate population, not proof of a
+decoder defect (later folded into <code>report.md</code> §4 and <code>NOTES.md</code>).</p>
+<p>A related check (not fully resolved that evening, deferred): whether OpenWSFZ was genuinely
+"outperforming" WSJT-X. Turned out most of the apparent lead was simply because WSJT-X's <code>ALL.TXT</code>
+only started once the Captain restarted it (it hadn't been decoding earlier) — not a fair
+same-window comparison for the earliest cycles.</p>
+<h3 id="33-q3eat-the-insane-power-investigation">3.3 Q3EAT: the "insane power" investigation</h3>
+<p>Extreme SNR readings (26–35 dB) for one specific station (<code>Q3EAT</code>, worked in turn by <code>Q4DNG</code>,
+<code>Q5DGM</code>, <code>Q6DMA</code>) stood out against otherwise-normal-range DX in the same cycles. Cross-checked
+against OpenWSFZ's own log: <strong>both independent decoders</strong> flagged the same one station as
+anomalous (28/34/35 dB on our side vs. 26/32/32 on WSJT-X's) — strong evidence of a genuine
+phenomenon, not a decoder-specific SNR-estimator quirk. A PSKReporter check for <code>Q3EAT</code> showed
+236 transmitters heard across 90 countries in 24h, 2,846 reports — an exceptionally active,
+widely-heard station. The Captain then found and read <code>Q3EAT</code>'s HamQTH bio directly (Spanish):
+<em>"mi instalación de antenas está compuesta por directiva para 10-15-20m..."</em> — a directional beam
+antenna on exactly the bands in question. Fully explained: strong signal + real beam gain, not a
+bug or artefact.</p>
+<p><strong>Terminology correction, twice</strong>: QA initially attributed the Spain opening to "ducting" (a
+tropospheric VHF/UHF phenomenon, not really applicable at 28 MHz); corrected to <strong>Sporadic-E</strong>,
+the actual well-known 10m mechanism for exactly this signature (sudden, sustained, geographically
+concentrated strong openings, in-season for Northern Hemisphere summer). Confirmed against the
+live corpus: <code>Q7EBL</code>, <code>Q8ECA</code>, <code>Q9EGF</code>, <code>Q1EAZ</code> all running unusually strong and sustained for
+30+ minutes.</p>
+<h3 id="34-should-we-wait-it-out-or-switch-bands-and-a-corrected-assumption">3.4 "Should we wait it out or switch bands?" — and a corrected assumption</h3>
+<p>QA recommended continuing on 10m, initially reasoning from an assumed motivation ("a rare,
+fleeting DX opening"). The Captain corrected this directly: the actual motivation was never about
+catching a specific opening — this run (like the 2026-07-26/27 80m overnight run before it) is
+part of a deliberate, systematic effort to gather cross-reference corpora from bands <strong>other than
+20m/40m</strong>, to check whether band choice matters at all. QA had speculated about the Captain's
+reasoning instead of asking. Under the corrected motivation, the interference itself became a
+legitimate part of what the cross-band comparison was meant to surface, not a confound to avoid.</p>
+<h3 id="35-characterising-the-interference-properly">3.5 Characterising the interference properly</h3>
+<p>A longer waterfall capture (~6 minutes) let the comb's timing be characterised precisely: present
+for ~45–60s, then clean for ~5 minutes, then back — a duty-cycle pattern, refining "on and off"
+into an actual rough period.</p>
+<h3 id="36-cross-antenna-sdr-investigation">3.6 Cross-antenna SDR investigation</h3>
+<p>The Captain brought up SDRuno on a separate SDR receiver — <strong>sharing the same physical antenna</strong>
+via a pre-existing MFJ-1708B-SDR splitter (installed 2023, well before this project, so not a new
+variable) — to look at a wider span without retuning the live run's own radio. A wide (2 MHz) span
+(27.1–29.0 MHz) revealed several discrete, non-comb carriers, most notably a strong spike
+initially marked at <strong>27,535.729 kHz, -66.1 dB</strong> — sitting ~130 kHz above the legal CB ceiling
+(27.405 MHz), in "freeband"/"outband" territory known for illegal linear-amplifier operators,
+particularly in parts of Europe.</p>
+<p>A separate, unrelated tall spike was also found near <strong>28,784.794 kHz</strong> — inside 10m proper,
+consistently present across every later check regardless of the freeband cluster's state.
+Explicitly ruled <em>out</em> of the interference story (most likely ordinary band occupancy or a
+receiver birdie, never confirmed either way).</p>
+<h3 id="37-building-the-correlation-sample-by-sample">3.7 Building the correlation, sample by sample</h3>
+<p>Over roughly 90 minutes, alternating SDRuno checks against WSJT-X's own comb-present/comb-absent
+windows:</p>
+<ul>
+<li><strong>On, marked</strong>: 27,535.729 kHz (-66.1 dB); 27,703.309 kHz (-91.1 dB); 27,634.003 kHz (-93.2 dB) —
+  all landing within a ~170 kHz pocket, consistent with SSB voice energy shifting with modulation
+  (or several nearby stations clustered together), not a fixed carrier.</li>
+<li><strong>On, weaker</strong>: 27,464.000 kHz (-107.4 dBm, SNR 6.7 dB) — a much fainter reading, but consistent
+  with catching a lull in real speech (SSB only carries energy during actual talking) rather than
+  contradicting the pattern.</li>
+<li><strong>Off, baseline</strong>: a clean SDRuno capture during a genuinely comb-absent WSJT-X window, showing
+  no comparable elevated feature in the same region.</li>
+</ul>
+<p><strong>Real audio confirmation</strong>: the Captain got SDRuno's own audio working (after some Voicemeeter
+audio-routing trouble) and demodulated actual <strong>French voice</strong> on ~27.51 MHz in AM mode,
+confirmed intermittent ("comes and goes"). A later attempt during an active comb window, in USB
+mode, produced only noise — plausibly a mode mismatch (AM demodulated as USB), or plausibly
+genuine evidence of an overdriven, badly-modulated transmission strong enough to both splatter
+into the front end <em>and</em> sound distorted rather than clean — left as an open, not fully resolved,
+distinction.</p>
+<p><strong>Local-source ruled out</strong>: a standalone tinySA Ultra, on its own separate antenna (explicitly
+<em>not</em> connected to the shared feed, to avoid any risk to the live run), showed nothing elevated
+during an active comb-present window — evidence against a local/near-field noise source inside
+the shack, pointing the source outward, over the air.</p>
+<h3 id="38-final-verdict">3.8 Final verdict</h3>
+<p><strong>Not solar power converters.</strong> Five independent, converging lines of evidence — real audio
+identification, consistent frequency clustering just above the legal CB ceiling, correlation with
+the comb across multiple paired on/off checks, expected strength variance for real SSB voice, and
+a local source explicitly ruled out — point to intermittent, strong French freeband/CB voice
+traffic (illegal linear amplifier operation) overloading the receiver front end at ~540 kHz
+remove, well outside the signal's own legitimate bandwidth. Not proven via one perfect
+simultaneous capture, but well-supported. Full detail and the complete evidence trail:
+<code>artefacts/20260728_live_run_1319/screenshots/NOTES.md</code>.</p>
+<h2 id="4-two-pskreporter-side-investigations">4. Two PSKReporter side-investigations</h2>
+<h3 id="41-the-gray-unknown-band-markers">4.1 The gray "Unknown" band markers</h3>
+<p>The Captain noticed gray markers on PD2FZ's own PSKReporter map and, recalling the legend, was
+concerned they might indicate genuine 11m (CB) activity from PD2FZ's own station. Investigated:
+the Captain confirmed <strong>zero transmissions</strong> in the past 24 hours (pure receive), so any
+emissions-safety concern was fully off the table immediately. The actual explanation, found by
+reading <code>ExternalReportingService.cs</code>'s own code: the WSJT-X UDP protocol's <code>Decode</code> packets carry
+only a <em>relative</em> frequency offset, never an absolute one — GridTracker must pair each <code>Decode</code>
+with the most recently received <code>Status</code> packet (which does carry the real dial frequency) to
+compute an absolute frequency for PSKReporter. An occasional pairing gap (a dropped UDP <code>Status</code>
+packet, or a <code>Decode</code> arriving before the first <code>Status</code>) would explain a spot rendering as
+"Unknown" band — a benign client-side timing artifact, not a defect in what OpenWSFZ sends.
+Narrowing the PSKReporter view to the last 6 hours (i.e., just this session) showed <strong>zero</strong> gray
+markers — confirming the gray ones were leftover history from <em>outside</em> this session (most likely
+the prior night's 80m run), not a live defect.</p>
+<h3 id="42-the-pink-wedgelens-overlay">4.2 The pink wedge/lens overlay</h3>
+<p>A separate, static, pie-slice-shaped translucent overlay appeared on PD2FZ's own PSKReporter map
+across multiple screenshots spanning several hours. QA (twice) speculated it might be the
+day/night grayline; the Captain twice corrected this ("duh, I know what the grey line is" — the
+genuine grayline is the separate, real moving dark-shadow terminator visible in wider world-map
+views). Worked out properly on request: the wedge's position was static across a 3+ hour span
+(a real terminator would have visibly swept ~45° of longitude in that time) and had an apex
+anchored exactly at PD2FZ's own station location, radiating outward in one compass sector — the
+signature of a <strong>point-source directional-antenna pattern</strong>, not a globe-spanning terminator band.
+Concluded: most likely PSKReporter rendering PD2FZ's own registered antenna heading/beamwidth,
+echoing the same concept just confirmed for <code>Q3EAT</code>'s bio.</p>
+<h2 id="5-the-dual-receiver-build-10m-20m-simultaneously">5. The dual-receiver build (10m + 20m simultaneously)</h2>
+<p>Building on the corrected cross-band-corpus motivation (§3.4), the Captain proposed routing
+SDRuno's 20m-tuned output through Voicemeeter (<code>Voicemeeter Out B1</code>) into a <strong>second, fully
+isolated OpenWSFZ instance</strong>. Set up carefully:</p>
+<ul>
+<li>Confirmed the exact Voicemeeter device via the running instance's own <code>/api/v1/audio/devices</code>
+  endpoint rather than guessing a name.</li>
+<li>Built a dedicated config outside both the repo and <code>%APPDATA%</code> (deliberately, to avoid any
+  collision with git-tracked files or the live 10m instance's real config): own port (8081), own
+  <code>decodeLog.path</code>, own <code>cycleAudioArchive.directory</code>, <code>mode: "all"</code>.</li>
+<li>Launched from the same already-tested fixed-build exe. Verified immediately: real 20m decodes
+  flowing, WAVs archiving correctly, main 10m instance and WSJT-X completely undisturbed
+  throughout (confirmed via unchanged PIDs at every check).</li>
+<li><code>tx.callsign</code> was left unconfigured initially, and the UI correctly showed the synthetic
+  placeholder <code>Q1OFZ</code> rather than defaulting to the real callsign — confirmed as
+  <code>TxConfig.Callsign</code>'s actual coded default (<code>"Q1OFZ"</code>), matching this project's NFR-021
+  privacy policy working as designed on an unconfigured instance.</li>
+</ul>
+<p>A screenshot of both instances' web UIs running side by side prompted a genuinely warm moment —
+"there is something really satisfying about this" — worth recording as much as the technical
+content: a splitter installed in 2023, an SDR mostly used for spectrum-watching, and existing
+Voicemeeter routing, combined for a real second live corpus at negligible marginal cost.</p>
+<h2 id="6-external-reporting-and-the-appid-collision">6. External reporting and the <code>AppId</code> collision</h2>
+<p>The Captain initially approved of the 20m instance <em>not</em> reporting to GridTracker/PSKReporter
+(<code>externalReporting.enabled: false</code>, deliberately set that way when the instance was built). On
+reflection, the Captain pushed back correctly: there's nothing wrong with reporting <em>genuine</em>
+reception — that's literally what PSKReporter is for, and a station running multiple bands
+simultaneously under one callsign is completely normal. QA's original "avoid polluting the network
+with test data" framing was wrong; the actual valid reason was narrower — the instance would have
+reported under the synthetic <code>Q1OFZ</code> placeholder, not the real callsign, which genuinely would
+have been misleading. Fixed properly: fetched the instance's full current config, set
+<code>tx.callsign = "PD2FZ"</code> / <code>tx.grid = "JO33"</code>, enabled <code>externalReporting</code> targeting the same local
+GridTracker as the main instance — done via a full GET-then-POST round-trip (not a partial body),
+deliberately following the exact discipline learned the hard way in §1.</p>
+<p><strong>Symptom</strong>: shortly after, GridTracker's live view began clearing itself every ~15 seconds (one
+FT8 cycle). <strong>Root-caused directly in code</strong>: <code>ExternalReportingService.cs</code>'s WSJT-X-protocol
+<code>AppId</code> is a hardcoded <code>const string "OpenWSFZ"</code> — identical across every running instance, with
+no config override. Both simultaneous instances broadcasting under the literal same identity meant
+GridTracker couldn't distinguish them, most plausibly seeing what looked like one instance whose
+dial frequency kept jumping between bands.</p>
+<p>The Captain initially accepted this as a cosmetic nuisance not worth fixing tonight, and asked for
+a dev-task capturing the proper fix (a configurable <code>InstanceId</code> field on <code>ExternalReportingConfig</code>,
+following the exact same STJ-omitted-key-guard discipline as §1's fix — written into
+<code>dev-tasks/2026-07-28-fix-external-reporting-appid-collision.md</code>). Later, the Captain checked
+PSKReporter directly and found the 20m instance's spots <strong>were not arriving there at all</strong> — the
+collision breaks actual downstream delivery, not just GridTracker's local display. External
+reporting was disabled again on the 20m instance for the rest of the session, and the dev-task was
+updated to reflect the confirmed (not merely cosmetic) impact — raising its priority.</p>
+<h2 id="7-the-third-receiver-idea-proposed-refined-twice-correctly-scrapped">7. The third-receiver idea: proposed, refined twice, correctly scrapped</h2>
+<p>While exploring adding a <em>third</em> simultaneous receiver, the Captain hit real friction — juggling
+another application's audio settings alongside SDRuno's own routing got confusing enough to stop
+rather than risk the live run. This prompted a genuinely useful design conversation with three
+distinct iterations:</p>
+<ol>
+<li><strong>QA's first idea (over-scoped, rejected)</strong>: eliminate SDRuno/Voicemeeter entirely and build
+   direct SDR-hardware access plus software channelization into OpenWSFZ itself. The Captain
+   rejected this directly — keep Voicemeeter, don't fold SDR access into OpenWSFZ, "just a simple
+   application" that routes audio.</li>
+<li><strong>QA's second idea (under-scoped, also wrong)</strong>: a small standalone audio <em>router</em> — one input,
+   manually selected to one of several labeled outputs, no hardware access at all. Written up as
+   <code>dev-tasks/2026-07-28-band-audio-router-tool-idea.md</code>. The Captain corrected this too: what was
+   actually wanted was a lightweight replacement for SDRuno's own core function — tuning and
+   demodulating an SDR directly — run as multiple simple instances, one per band.</li>
+<li><strong>The real constraint, checked rather than assumed</strong>: before writing a third spec, QA
+   researched whether multiple processes can independently drive the same physical SDR hardware
+   simultaneously. From the SDRuno screenshots' own UI (three switchable antenna ports — ANT A/B/C
+   — rather than two independent receive chains), the Captain's unit appears to be a
+   <strong>single-tuner</strong> device (RSPdx-shaped, not the dual-tuner RSPduo). A single-tuner SDR can only
+   be centred on one frequency, with one instantaneous bandwidth window, at any moment — typically
+   exclusively owned by one process. "Multiple simple instances independently tuning the same
+   hardware" therefore cannot work as described; the real options are either a genuine
+   channelizer (if the desired bands fit within one ~10 MHz tuning window) or <strong>separate physical
+   SDR hardware</strong> per far-apart band (10m + 20m, tonight's actual case, is far too wide for any
+   single tuner). Presented clearly, with a request to confirm the actual hardware before writing
+   anything further.</li>
+</ol>
+<p>The Captain's response: <strong>"that's enough. scrap the whole idea."</strong> The spec file was deleted
+cleanly rather than left as stale, incorrect documentation. Recorded here so the reasoning (and
+why it was rejected) isn't lost even though the artefact itself is gone — a genuine hardware
+constraint, correctly identified before any implementation effort was wasted on it.</p>
+<h2 id="8-band-condition-narration-threaded-through-the-evening">8. Band-condition narration, threaded through the evening</h2>
+<p>Several live cross-checks against the running corpus, not just PSKReporter's own map, confirmed
+real propagation events as they happened:</p>
+<ul>
+<li><strong>10m fading, 20m opening</strong> ("10m seems to be dying, 20m is on fire") — confirmed via decode
+  density (3 decodes/cycle on 10m vs. 18 decodes in one 20m cycle alone, genuinely global:
+  <code>Q2VRV</code> Hong Kong, <code>Q3BDA</code>/<code>Q4BIJ</code> China, <code>Q6NJF</code> Kenya, <code>Q7RAJ</code> Russia, <code>Q8JAJ</code> Japan) and
+  raw line-count totals (20m's <code>ALL.TXT</code> overtook 10m's within about three hours of being added,
+  despite starting more than an hour later).</li>
+<li><strong>A genuine South America opening</strong> during the later grayline-approach window — <code>Q9PYM</code>,
+  <code>Q1PYV</code>, <code>Q2PUY</code>, <code>Q3CXA</code>, <code>Q4LUT</code>, <code>Q5LUA</code> all worked into Europe at consistently deep
+  negative SNR (-16 to -29 dB), matching expected long-path F2 propagation, cross-checked directly
+  against both <code>ALL.TXT</code> and PSKReporter's map.</li>
+<li><strong>Grayline genuinely encroaching</strong> toward the Captain's own longitude by the session's later
+  stages, correctly distinguished (§4.2) from the unrelated static antenna-pattern overlay on the
+  same maps.</li>
+</ul>
+<h2 id="9-session-close-stop-gather-and-a-process-gap-caught-and-fixed">9. Session close: stop, gather, and a process gap caught and fixed</h2>
+<p>At the Captain's instruction, all three processes (10m OpenWSFZ, WSJT-X, 20m OpenWSFZ) were
+stopped cleanly — no crashes, no orphaned processes (checked explicitly this time, per §1's HK-019
+lesson).</p>
+<p><strong>First gather attempt was a genuine miss</strong>: QA built an ad-hoc artefact directory structure
+(<code>10m/</code>/<code>20m/</code> subfolders, <code>README.md</code>, <code>report.md</code>) from scratch instead of using the
+established, already-committed <code>tools/gather_live_run_artefacts.py</code>, which encodes the actual
+agreed convention (no band names in any path — bands are a run <em>parameter</em>, not identity;
+<code>contents.md</code>/<code>.html</code>, not <code>README.md</code>; auto-rendered HTML companion). Caught only when the
+Captain asked <strong>"where is the ANOVA report?"</strong>, which led to discovering that the established
+<code>qa/endurance/endurance_anova.py</code> tool — built specifically for this purpose, per the Captain's
+own 2026-07-27 standing instruction that every endurance session gets this treatment — lived on
+<code>d001-c4-min-score-sweep</code>, a branch QA had not had checked out all evening (having worked from
+<code>fix-cycle-audio-archive-null-config-crash</code>, forked off <code>main</code>, since §1).</p>
+<p><strong>Corrected properly</strong>: switched to the branch holding the tooling, read both scripts fully rather
+than guessing at their interfaces, then re-ran the <em>real</em> gather tool twice — once for 10m
+(reusing the existing folder identity, since its start time already matched) and once for 20m as
+its own genuinely separate "live run" folder (correct per the tool's own convention, since 20m had
+no WSJT-X pairing and started at a different time). Verified line/WAV counts matched exactly
+before deleting the superseded ad-hoc structure. Two further inaccuracies were caught and
+hand-corrected while filling in the mechanical <code>contents.md</code> files: the auto-captured "build under
+test" reflected the tooling-access branch, not the branch that actually ran the session; and 20m's
+device metadata leaked in from the 10m instance's config because an <code>OPENWSFZ_CONFIG</code> environment
+variable set via <code>export</code> in one shell call didn't survive into a separate subsequent shell call.</p>
+<p><strong>The ANOVA reports themselves</strong> (<code>anova_report_10m.md</code>, <code>anova_report_20m.md</code>, this directory):
+each band's own <code>cycleAudioArchive</code> WAV archive was independently re-decoded by <code>jt9</code> (WSJT-X's
+own CLI decoder — no dependency on the live WSJT-X GUI instance, which is why this worked for 20m
+too, despite no WSJT-X ever having run on that band) and matched against OpenWSFZ's <code>ALL.TXT</code> by
+cycle and normalised message text. Headline numbers: jt9 out-decoded OpenWSFZ by ~30% on 10m
+(8,390 vs. 6,480) and by roughly double on 20m (50,953 vs. 25,512) — consistent with this being
+the plain <code>main</code> baseline decoder, not the D-001 tuning branch. SNR means differed by ~14.8 dB on
+10m and ~6.25 dB on 20m between the two decoders — a real, measured, unexplained cross-band
+difference, explicitly left as Architect/Captain territory to interpret, not concluded here.
+Frequency-offset differences were statistically significant on both bands (large sample sizes)
+but practically negligible (≤0.1 Hz) — flagged as a clean statistical-vs-practical-significance
+example, not a real disagreement.</p>
+<h2 id="10-whats-left-open">10. What's left open</h2>
+<ul>
+<li><code>dev-tasks/2026-07-28-fix-external-reporting-appid-collision.md</code> — confirmed real (not
+  cosmetic) impact, scoped, not yet implemented.</li>
+<li><code>dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-crash.md</code> — implemented, tested,
+  reviewed, done.</li>
+<li>The third-receiver idea (§7) — deliberately scrapped, not pursued further; this document is now
+  its only remaining record.</li>
+<li><code>qa/endurance/2026-07-28-supervisor-10m.sh</code> — written early in the session as a precaution, never
+  actually armed/used (the crash-and-orphan saga in §1 made it moot before it was needed); left in
+  place, harmless.</li>
+<li>HK-019 (QA memory) — new standing rule from §1's orphaned-supervisor discovery, now permanent
+  across sessions.</li>
+<li>The AM-vs-USB "just noise" question from §3.7 — left genuinely unresolved, not just deferred:
+  could be mode mismatch or could be a real overdriven signal; worth resolving if the interference
+  question is ever revisited.</li>
+</ul>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
