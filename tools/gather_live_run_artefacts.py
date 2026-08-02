@@ -834,6 +834,27 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--owsfz-cycle-audio-dir", help="Override the cycle-audio-archive directory "
                                                      "(default: config.json's cycleAudioArchive.directory, "
                                                      "or the platform default).")
+    p.add_argument("--owsfz-config", help="Path to THIS instance's own config.json, used only "
+                                           "for the contents.md 'Device / session metadata' "
+                                           "section (audio device, dial frequency snapshot, "
+                                           "decoder settings) -- NOT for --owsfz-alltxt/--owsfz-"
+                                           "log-dir/--owsfz-cycle-audio-dir defaults, which have "
+                                           "their own fallback below. Default: config.json "
+                                           "colocated with --owsfz-alltxt (the normal "
+                                           "<X>-capture/ALL.TXT + <X>-capture/config.json layout); "
+                                           "falls back to the single global config "
+                                           "(OPENWSFZ_CONFIG env var, or %%APPDATA%%/OpenWSFZ/"
+                                           "config.json) only if that's absent. Multi-instance "
+                                           "gathers (e.g. paired 8080+8081) MUST either rely on "
+                                           "the colocated default or pass this explicitly -- the "
+                                           "old global-only lookup silently returned the SAME "
+                                           "config for every instance regardless of which one was "
+                                           "being gathered (found live 2026-08-02: both the 8080 "
+                                           "and 8081 runs of this tool wrote identical, and for "
+                                           "8080 stale, audio-device/dial-frequency metadata into "
+                                           "their contents.md, because both calls fell through to "
+                                           "the one global config with no per-instance override "
+                                           "available at all).")
     p.add_argument("--split-owsfz-by-band", action="store_true",
                     help="Split the OpenWSFZ ALL.TXT/wav/manifest output into per-band "
                          "subfolders (owsfz/<band>/...) instead of one flat owsfz/ folder. "
@@ -905,6 +926,27 @@ def main(argv: list[str] | None = None) -> int:
     owsfz_alltxt = Path(args.owsfz_alltxt) if args.owsfz_alltxt else (
         REPO_ROOT / config.get("decodeLog", {}).get("path", "ALL.TXT")
     )
+
+    # Metadata config for contents.md's "Device / session metadata" section specifically --
+    # deliberately NOT the same lookup as `config` above (which only ever finds one global
+    # config regardless of instance, see --owsfz-config's help text for the multi-instance bug
+    # this fixes). Prefers an explicit --owsfz-config; then the config.json colocated with
+    # --owsfz-alltxt (the normal <X>-capture/ALL.TXT + <X>-capture/config.json layout, correct
+    # per-instance without needing the flag); only falls back to the single global `config` if
+    # neither is available (preserves old behavior for a bare repo-root single-instance run).
+    metadata_config = config
+    metadata_config_path = (
+        Path(args.owsfz_config) if args.owsfz_config else owsfz_alltxt.parent / "config.json"
+    )
+    if metadata_config_path.is_file():
+        try:
+            metadata_config = json.loads(metadata_config_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"warning: could not read {metadata_config_path}: {exc} -- "
+                  f"falling back to the global config for contents.md metadata", file=sys.stderr)
+    elif args.owsfz_config:
+        print(f"warning: --owsfz-config {metadata_config_path} not found -- "
+              f"falling back to the global config for contents.md metadata", file=sys.stderr)
     owsfz_log_dirs = [Path(d) for d in args.owsfz_log_dirs] if args.owsfz_log_dirs else [
         REPO_ROOT / config.get("logging", {}).get("directory", "logs"),
         REPO_ROOT / "logs-linux",
@@ -1016,7 +1058,7 @@ def main(argv: list[str] | None = None) -> int:
 
     contents_path = write_contents(
         out_dir, name, start, end, owsfz_lines, owsfz_wavs, owsfz_logs, wsjtx_lines, wsjtx_wavs,
-        config, owsfz_band_breakdown,
+        metadata_config, owsfz_band_breakdown,
     )
     print(f"\nWrote {contents_path} — fill in the TODO sections before closing out the run.")
 
