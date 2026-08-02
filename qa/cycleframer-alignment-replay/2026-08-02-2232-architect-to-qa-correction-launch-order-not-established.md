@@ -27,6 +27,18 @@
 > trips the ±5% bar ⇒ VOID. We do not need to know *why* WSJT-X halves — only that N3 catches it.
 > **§7's A-B-A run is therefore unnecessary and is withdrawn. Do not execute it.**
 >
+> **Second correction, 22:55 UTC — the WAVs were already gathered.** §6.2 as first rewritten still
+> called for a capture run "for scale." The Captain: *"what corpus run? we have thousands of WSJT-X
+> wav files by now, all waiting for analysis in the artefacts folder."* Correct —
+> `artefacts/20260731_live_run_2004-8080/wsjt-x/wav/` holds **10,469** of them, 99.97% coverage on
+> the matched population. See the rewritten §6.2. **N3 can run now, offline.**
+>
+> **The hardlink is not a defect for N3.** `wsjt-x/ALL.TXT` is the same inode in both the `-8080`
+> and `-8081` folders — one WSJT-X instance, gathered into both. That correctly invalidated QA's
+> *two-independent-captures* assumption. But N3 needs **one** instance, so one capture is exactly
+> what it wants. QA's original 99.45% figure was sound; the 88/88 re-run and the three-profile
+> rebuild that followed were both unnecessary.
+>
 > §1–§5 stand as written: they stop a launch-order procedure being adopted on evidence that does
 > not support it, and they withdraw my own bogus prereg amendment. What does **not** stand is
 > §6.3's claim that leg C carries an *unbounded* silent failure mode — N3 bounds it at ±5%. I told
@@ -185,10 +197,22 @@ false decode exactly. Real-vs-false is unresolved and does not need resolving at
    rule is not established. But the reason to drop it is simpler than that: **it is a WSJT-X
    question, and WSJT-X is not our project.** Run **one** instance for leg C, as prereg §3 always
    specified, and the pairing the effect needs never exists.
-2. **A real corpus — yes, and this is now the only open question.** T1 is answered and N3 can
-   return MEASURED. What T1/T4 lack is *scale*: 88 cycles against the ~3,637 the +0s stratum needs.
-   That is a capture run with one WSJT-X leg alongside `8080`, which is what the 07-31 corpus
-   already was.
+2. ~~**A real corpus — yes, and this is now the only open question.**~~ **WRONG — withdrawn 22:55
+   UTC on the Captain's second correction.** No capture run is needed. The data has been on disk
+   since 08-02. `artefacts/20260731_live_run_2004-8080/wsjt-x/wav/` holds **10,469 WSJT-X WAVs**
+   spanning `260731_200830` → `260802_155200` (~43.6 h). Coverage against the matched population:
+
+   | | |
+   |---|---:|
+   | cycles present in both live logs | 3,618 |
+   | …of those, WSJT-X WAV present | **3,617 = 99.97%** |
+
+   3,618 is a raw-timestamp proxy for the ~3,637 +0s stratum — **QA should set the exact population
+   with `apply_grid_snap`, not my string match.** The other 6,858 of 8080's 10,475 cycles are
+   drift-offset timestamps that never sat on the grid; they are not missing WAVs.
+
+   **N3 is an offline `jt9` run over files already gathered.** It needs no radio, no capture, no
+   second instance, and no Captain-authorised live run.
 3. **T4 stays unauthorised — for the reason it always was: it needs the Captain's authorisation.**
    My "second reason" is withdrawn (see the correction block). N3 bounds the leg-C risk at ±5%.
 
