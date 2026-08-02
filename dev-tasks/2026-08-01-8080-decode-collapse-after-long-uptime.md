@@ -97,7 +97,7 @@ manifest, and has only been observed once. Suggested approach, in order of cost:
    there's more to look at than "candidate count dropped."
 2. **If a fast repro is needed**: consider whether replaying the archived WAV corpus from this
    incident (`OpenWSFZ-8080-capture/cycle-audio/`, cycles around `10:08Z`-`10:57Z` on 2026-08-01,
-   see the manifest cross-reference in `qa/endurance/2026-07-31-2dacd1a/CONTAMINATION-NOTE.md`)
+   see the manifest cross-reference in `qa/endurance/2026-08-02-multiday-20m-anova/CONTAMINATION-NOTE.md`)
    through a *freshly started* decoder reproduces the low-candidate behavior on that same audio —
    if a fresh process decodes the same WAVs fine, that confirms the defect is in accumulated
    process state, not the audio content itself (which is already strongly implied but not yet
@@ -181,7 +181,7 @@ written, and the same defect recurred twice more before the run was deliberately
 Captain. Both were caught and handled by QA's judgment-based autonomous restart policy (a separate,
 lighter mechanism than §6's disarmed cross-instance check — direct human/QA reading of the
 `Decodes/30min` status-check column, not a scripted heuristic). Full blow-by-blow for both is in
-`qa/endurance/2026-07-31-2dacd1a/CONTAMINATION-NOTE.md`, Windows 6 and 7 — summary here for anyone
+`qa/endurance/2026-08-02-multiday-20m-anova/CONTAMINATION-NOTE.md`, Windows 6 and 7 — summary here for anyone
 who doesn't want to read the whole contamination note first:
 
 - **Window 6** (`2026-08-02T00:39Z`): same signature — one-sided `Decodes/30min` decline against a
@@ -218,7 +218,7 @@ is **still unidentified** — this remains the top open item from this run.
 
 ## 9. References
 
-- `qa/endurance/2026-07-31-2dacd1a/CONTAMINATION-NOTE.md`, "Window 4" — full incident timeline,
+- `qa/endurance/2026-08-02-multiday-20m-anova/CONTAMINATION-NOTE.md`, "Window 4" — full incident timeline,
   measurements, and manifest cross-reference for the affected corpus span.
 - `src/OpenWSFZ.Ft8/Ft8Decoder.cs:430-447` — `hashTableRejectCount` logging, the metric that was
   investigated and ruled out as a cause here.

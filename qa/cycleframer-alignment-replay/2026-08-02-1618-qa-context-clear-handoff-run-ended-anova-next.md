@@ -70,7 +70,7 @@ finished at **2/5**, cap never approached.
 restart) was ~14h → ~13h42m → ~13h03m across the three occurrences — tight enough to strongly
 suggest an uptime/state-accumulation trigger rather than time-of-day or band conditions. Full
 detail: `dev-tasks/2026-08-01-8080-decode-collapse-after-long-uptime.md` §8 (the update section
-added this session) and `qa/endurance/2026-07-31-2dacd1a/CONTAMINATION-NOTE.md` Windows 6/7. Root
+added this session) and `qa/endurance/2026-08-02-multiday-20m-anova/CONTAMINATION-NOTE.md` Windows 6/7. Root
 cause is still **not identified** — this is the top open item from the whole run, not something
 this session solved, just characterized better.
 
@@ -93,7 +93,7 @@ unknown — get that from the Captain, don't guess and start running analysis sc
 
 - Final corpus: `artefacts/20260731_live_run_2004-8080/`, `-8081/`, and `artefacts/README.md`
   (hardlink/backup policy note).
-- Run history/incident record: `qa/endurance/2026-07-31-2dacd1a/CONTAMINATION-NOTE.md` (now
+- Run history/incident record: `qa/endurance/2026-08-02-multiday-20m-anova/CONTAMINATION-NOTE.md` (now
   marked RUN ENDED at the top, 7 windows total, final tally 2/5).
 - Open defect: `dev-tasks/2026-08-01-8080-decode-collapse-after-long-uptime.md` (§8 is the
   freshest section).

@@ -50,7 +50,7 @@ Before writing this up I checked the run against your own preflight brief and fo
 | §3: no Settings-page saves on 8080 | **Not directly checked** -- no observable signature either way from ALL.TXT/cycle-archive.csv alone; flagging as unverified rather than assumed |
 | §4: record 8081 band/retunes | **8081 never retuned** -- 212,422/212,422 lines at 14.074 MHz, same band as 8080 for the entire run |
 | §5: supervisor kill+log+cooldown+restart, cap 5, rotation guard ported | **Met** -- confirmed in `qa/endurance/2026-07-31-supervisor-8080/8081.sh` when securing these scripts earlier this session (HK-013 addendum guard present in both) |
-| §6: watch WAV count, disk, `\|dt\|`, decode ratio, restart count | Not this note's business to re-litigate -- see `qa/endurance/2026-07-31-2dacd1a/CONTAMINATION-NOTE.md` for the run's own live health record (final tally: 2/5 autonomous restarts used, cap never approached) |
+| §6: watch WAV count, disk, `\|dt\|`, decode ratio, restart count | Not this note's business to re-litigate -- see `qa/endurance/2026-08-02-multiday-20m-anova/CONTAMINATION-NOTE.md` for the run's own live health record (final tally: 2/5 autonomous restarts used, cap never approached) |
 | §7.1: gather artefacts (HK-016) | **Done**, though a real bug surfaced doing it -- see §7 below |
 | §7.2: jt9 offline re-decode of 8080's WAVs | **Not done** -- see §6.2 |
 | §7.3: contiguity/segment report before analysis | **Done, but after the ANOVA reports, not before** -- see §0.2 and §2 |
@@ -239,7 +239,7 @@ untouched this session. `verify_dt_drift_489135a.py` was already generalised to 
 - `2026-07-30-2221-qa-to-architect-capture-chain-and-cross-band-findings.md` -- source of
   the ~10-13% capture-chain effect cited in §5.3.
 - `qa/endurance/2026-08-02-multiday-20m-anova/` -- the three ANOVA reports themselves.
-- `qa/endurance/2026-07-31-2dacd1a/CONTAMINATION-NOTE.md` -- Window 7 incident detail
+- `qa/endurance/2026-08-02-multiday-20m-anova/CONTAMINATION-NOTE.md` -- Window 7 incident detail
   matching §2's detected gap.
 - `dev-tasks/2026-08-01-8080-decode-collapse-after-long-uptime.md` -- the still-open
   decode-collapse defect behind 8080's restarts and its one segment break.
