@@ -48,13 +48,48 @@ for the wrong reason, see T6.
 `apply_grid_snap`; the ~3,637 +0s stratum is the real denominator. Please re-derive rather than
 inherit my number.
 
-### T2 — Fold the design into the drift dev-task  ✅ **appears DONE — confirm and close**
+### T2 — Fold the design into the drift dev-task  ✅ **the DOCUMENT is done. The FIX is NOT.**
 
-`dev-tasks/2026-08-02-reopen-cycleframer-clock-drift-still-present-after-pr118.md` already carries
-the 0.2 s acceptance bar (lines 25, 38, 105) and the oracle work (lines 81, 91, 100), including the
-instruction not to relax the tolerance to make it pass. That is the substance of what the 1813
-hand-off asked for. **Confirm it is complete on your side and say so; I am reading a file, not your
-intent.** Still `src/` per HK-011 — separate Developer session, Captain sign-off before push.
+⚠️ **Corrected 23:23 UTC — my first wording said "DONE" without qualification and could be read as the
+drift being fixed. It is not, and the implementation was never part of T1–T5.**
+
+- **T2 as the 1813 hand-off scoped it — a *document* task — is complete.**
+  `dev-tasks/2026-08-02-reopen-cycleframer-clock-drift-still-present-after-pr118.md` carries the
+  0.2 s acceptance bar (lines 25, 38, 105) and the oracle work (lines 81, 91, 100), including the
+  instruction not to relax the tolerance to make it pass. Confirm on your side; I read a file, not
+  your intent.
+- **The fix itself is unimplemented and unscheduled.** `src/` per HK-011 — separate Developer
+  session, Captain sign-off before push.
+
+**What the drift actually costs** — measured on the 07-31 corpus, 8080 cycles matching the UTC grid
+by elapsed uptime:
+
+| hours | cycles | matched | match % |
+|---|---:|---:|---:|
+| 0–3 | 720 | 705 | 97.9% |
+| 3–6 | 720 | 315 | 43.8% |
+| 6–9 | 720 | 0 | **0.0%** |
+| 9–12 | 720 | 0 | **0.0%** |
+| 15–18 | 720 | 720 | 100.0% |
+| 21–27 | 1,440 | 0 | **0.0%** |
+| **total** | **10,475** | **3,618** | **34.5%** |
+
+The sawtooth is the window walking off the grid and being reset by restarts. **Past ~6–9 h of
+uptime the run contributes nothing to any paired analysis**, and **65% of the whole corpus is
+unusable**. 48 ppm is a small number; losing two thirds of every long capture is not. T3 item 3's
+~6 h cap is not a separate rule — it is this defect stated as an operating limit.
+
+**Sequencing — the fix does NOT block T4.** The +0s stratum is drift-free *by construction*;
+selecting grid-aligned cycles is precisely what removes drift. T4 runs offline on 3,618 cycles
+already on disk and the fix would not change one number in it. The fix blocks **future capture**,
+not current analysis:
+
+```
+T4 (offline, existing data)      <- not blocked by the drift fix
+drift fix (src/, Dev session)    <- BLOCKS the next capture run
+```
+
+Do not gather another corpus before it lands, or two thirds is thrown away again.
 
 ### T3 — Record corrections  ✅ **items 1–3 ENACTED. Item 4 is yours and is NOT done.**
 
@@ -158,7 +193,7 @@ If T9 gets picked up, that is where I would start.
 
 ```
 T1  CLOSED
-T2  confirm + close  ────────────▶ (already substantially done)
+T2  document done; FIX UNIMPLEMENTED, blocks next capture (not T4)
 T3  item 4 only ─────────────────▶ QA
 T6  stand down ──────────────────▶ no work
 T7  draft dev-task ──────────────▶ Developer session later
