@@ -80,6 +80,81 @@ def parse_cycle_ts(token: str) -> datetime.datetime | None:
         return None
 
 
+# FT8's fixed cycle length -- the grid every cycle timestamp is supposed to land on exactly.
+# Added 2026-08-02 per the grid-artefact correction (qa/cycleframer-alignment-replay/2026-08-
+# 02-1714-...-correction-cycle-grid-artefact-voids-8080-anova.md): 8080's capture clock
+# drifts off this grid at ~0.18 s/h, resetting only on process restart, and match_pairs()'s
+# exact-(ts, message) key silently fails to match any decode stamped off-grid -- not because
+# the decode was missed, but because its cycle label was wrong. That is a real, measured
+# degradation (DT/SNR both track the offset, see the correction's §2.3), not merely cosmetic
+# mislabelling, so grid-snapping is an explicit, opt-in, always-labelled step -- never a
+# silent default -- see apply_grid_snap()/compute_grid_gate() below.
+FT8_CYCLE_SECONDS = 15
+
+
+def ts_offset_seconds(token: str) -> int | None:
+    """How many seconds past the enclosing 15s FT8 grid boundary this timestamp sits (0 =
+    exactly on-grid). None if unparseable. This is the per-decode drift-stratification
+    factor the 2026-08-02 correction introduced."""
+    dt = parse_cycle_ts(token)
+    if dt is None:
+        return None
+    total = dt.hour * 3600 + dt.minute * 60 + dt.second
+    return total % FT8_CYCLE_SECONDS
+
+
+def snap_ts_to_grid(token: str) -> str:
+    """Floor a cycle timestamp to its enclosing 15s FT8 grid boundary. FLOOR, not round --
+    per the 2026-08-02-1721 spec's §4: the drift is one-directional (late), so rounding would
+    walk a heavily-drifted timestamp into the WRONG neighbouring cycle instead of back to the
+    cycle it actually belongs to. Returns the token unchanged if unparseable."""
+    dt = parse_cycle_ts(token)
+    if dt is None:
+        return token
+    total = dt.hour * 3600 + dt.minute * 60 + dt.second
+    snapped_total = total - (total % FT8_CYCLE_SECONDS)
+    snapped_dt = (dt.replace(hour=0, minute=0, second=0, microsecond=0) +
+                  datetime.timedelta(seconds=snapped_total))
+    return snapped_dt.strftime(_TS_FMT)
+
+
+def apply_grid_snap(rows: list[dict]) -> list[dict]:
+    """Returns NEW row dicts (never mutates the input) with `orig_ts` and `offset` recorded
+    and `ts` replaced by its grid-snapped value. Strictly opt-in -- callers decide which
+    side(s), if any, get this applied before match_pairs() sees them. match_pairs() itself is
+    UNCHANGED and still keys on exact (ts, message) -- correct behaviour for its documented
+    purpose (2026-08-02 correction §1) -- it simply now sees the snapped ts for whichever rows
+    were routed through this function first."""
+    out = []
+    for r in rows:
+        nr = dict(r)
+        nr["orig_ts"] = r["ts"]
+        nr["offset"] = ts_offset_seconds(r["ts"])
+        nr["ts"] = snap_ts_to_grid(r["ts"])
+        out.append(nr)
+    return out
+
+
+def compute_grid_gate(rows: list[dict]) -> dict:
+    """The mechanical gate from the 2026-08-02 correction's §6 (per HK-021): fraction of this
+    log's UNIQUE cycle timestamps that already sit exactly on the 15s FT8 grid, evaluated on
+    RAW (pre-snap) rows -- this IS the check for whether snapping/stratification is needed,
+    not a result of having applied it already. Rows mutually exclusive, evaluated in order,
+    hard threshold 0.99 (not "close to 1"):
+        ROW 1: G >= 0.99  -> PASS -- matched-decode analysis may pool freely.
+        ROW 2: 0.99 > G   -> VOID -- must not pool; grid-snap and stratify instead.
+    """
+    unique_ts = sorted(set(r["ts"] for r in rows))
+    n = len(unique_ts)
+    on_grid = sum(1 for ts in unique_ts if ts_offset_seconds(ts) == 0)
+    g = (on_grid / n) if n else float("nan")
+    row = 1 if g >= 0.99 else 2
+    return {
+        "g": g, "n_unique_ts": n, "n_on_grid": on_grid,
+        "row": row, "verdict": "PASS" if row == 1 else "VOID",
+    }
+
+
 def parse_time_arg(value: str, date_arg: str | None) -> datetime.datetime:
     """Accept either a full `YYYY-MM-DD HH:MM[:SS]` or a bare `HH:MM[:SS]` combined with a
     date (defaulting to today). Same shape as tools/gather_live_run_artefacts.py's
@@ -174,7 +249,15 @@ def match_pairs(a_rows: list[dict], b_rows: list[dict]) -> list[dict]:
     {"part": index, "a_<key>": v, "b_<key>": v, ...} for every key in RESPONSES.
     Never returns or logs the message text itself -- only the paired numeric metrics
     survive past this function (NFR-021); the message is used solely to build the match
-    key and is discarded once each row dict has served that purpose."""
+    key and is discarded once each row dict has served that purpose.
+
+    UNCHANGED matching behaviour (2026-08-02 correction §1: this is correct as written and
+    stays the default) -- keys on the exact `ts` each row carries. If a caller ran a side's
+    rows through apply_grid_snap() first, `ts` there is already the snapped value, so this
+    function's own logic never needs to know grid-snapping happened at all. The only
+    addition is propagating each row's `offset` field (if present) into the returned pair as
+    `a_offset`/`b_offset`, purely a pass-through for stratify_pairs() -- absent entirely for
+    rows that were never grid-snapped, so this is a no-op for every pre-existing caller."""
     a_by_key: dict[tuple, list[dict]] = {}
     for r in a_rows:
         key = (r["ts"], normalize_hash_tokens(r["message"]))
@@ -196,8 +279,81 @@ def match_pairs(a_rows: list[dict], b_rows: list[dict]) -> list[dict]:
                 k = resp["key"]
                 pair[f"a_{k}"] = a[k]
                 pair[f"b_{k}"] = b[k]
+            if "offset" in a:
+                pair["a_offset"] = a["offset"]
+            if "offset" in b:
+                pair["b_offset"] = b["offset"]
             pairs.append(pair)
     return pairs
+
+
+def stratify_pairs(pairs: list[dict], side: str) -> dict[int | None, list[dict]]:
+    """Groups match_pairs() output by one side's grid-drift offset (see apply_grid_snap) --
+    e.g. stratify_pairs(pairs, "a")[0] is every matched pair where appraiser A's ORIGINAL
+    (pre-snap) timestamp landed exactly on-grid. `side` is "a" or "b". Pairs whose side never
+    went through apply_grid_snap() (no offset recorded) land under the key None -- calling
+    this on non-snapped data is harmless, it just returns {None: <all pairs>}."""
+    groups: dict[int | None, list[dict]] = {}
+    for p in pairs:
+        key = p.get(f"{side}_offset")
+        groups.setdefault(key, []).append(p)
+    return groups
+
+
+def render_stratum_breakdown(pairs: list[dict], side: str, a_label: str, b_label: str) -> str:
+    """Renders the per-stratum-plus-POOLED breakdown table required whenever a report is
+    grid-snapped WITHOUT an explicit single --stratum selected. Implements the 2026-08-02-
+    1721 spec's §2 hard rule verbatim: 'no pooled cross-stratum mean of SNR or DT is to be
+    reported for 8080, in any table, without the stratum breakdown printed immediately
+    beside it.' The POOLED row is always first and always labelled DO-NOT-REPORT, matching
+    that spec's own demonstration table -- this function exists so the tool enforces the
+    rule mechanically rather than relying on every caller to remember it by hand."""
+    groups = stratify_pairs(pairs, side)
+    strata = sorted(k for k in groups if k is not None)
+    L = []
+    L.append("> **Grid-snapped, no single stratum selected.** Per the 2026-08-02 spec: pooling "
+              "SNR/DT/frequency across drift strata produces numbers that describe this run's "
+              "restart schedule, not the decoder -- the POOLED row below is shown for "
+              "transparency only and must never be cited on its own.")
+    L.append("")
+    for resp in RESPONSES:
+        k, label, unit, fmt = resp["key"], resp["label"], resp["unit"], resp["fmt"]
+        L.append(f"### {label} ({unit}) -- grid-snapped, by stratum")
+        L.append("")
+        L.append(f"| stratum | n | {a_label} mean | {b_label} mean | gap ({b_label} minus {a_label}) |")
+        L.append("|---|---:|---:|---:|---:|")
+        if pairs:
+            a_all = [p[f"a_{k}"] for p in pairs]
+            b_all = [p[f"b_{k}"] for p in pairs]
+            a_mean, b_mean = sum(a_all) / len(a_all), sum(b_all) / len(b_all)
+            L.append(f"| **POOLED -- DO NOT REPORT** | {len(pairs)} | {fmt.format(a_mean)} | "
+                      f"{fmt.format(b_mean)} | {fmt.format(b_mean - a_mean)} |")
+        for s in strata:
+            sp = groups[s]
+            a_vals = [p[f"a_{k}"] for p in sp]
+            b_vals = [p[f"b_{k}"] for p in sp]
+            if not a_vals:
+                continue
+            a_mean, b_mean = sum(a_vals) / len(a_vals), sum(b_vals) / len(b_vals)
+            L.append(f"| +{s}s stratum | {len(sp)} | {fmt.format(a_mean)} | "
+                      f"{fmt.format(b_mean)} | {fmt.format(b_mean - a_mean)} |")
+        L.append("")
+    return "\n".join(L) + "\n"
+
+
+def render_gate_section(gate_a: dict, a_label: str, gate_b: dict, b_label: str) -> str:
+    """Renders the mechanical gate (compute_grid_gate) for both appraisers at the top of a
+    report, per the 2026-08-02 correction's §6 ('run first and reported at the top of every
+    output'). Purely descriptive -- callers decide what to do with ROW 2 (VOID), this
+    function does not itself refuse to proceed."""
+    L = ["## Grid-alignment gate (per HK-021, 2026-08-02 correction)", ""]
+    L.append("| appraiser | unique ts | on-grid | G | row | verdict |")
+    L.append("|---|---:|---:|---:|---|---|")
+    for label, g in ((a_label, gate_a), (b_label, gate_b)):
+        L.append(f"| {label} | {g['n_unique_ts']} | {g['n_on_grid']} | {g['g']:.4f} | "
+                  f"ROW {g['row']} | {g['verdict']} |")
+    L.append("")
+    return "\n".join(L) + "\n"
 
 
 def response_tuples(pairs: list[dict], key: str) -> list[tuple]:

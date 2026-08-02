@@ -69,7 +69,24 @@ def main() -> int:
     ap.add_argument("--end", help="Same formats as --start.")
     ap.add_argument("--date", help="Date (YYYYMMDD) to combine with a bare HH:MM "
                                     "--start/--end. Default: today.")
+    ap.add_argument("--a-snap-grid", action="store_true",
+                     help="Grid-snap appraiser A's timestamps (floor to the enclosing 15s "
+                          "FT8 boundary) before matching. Opt-in only -- see the 2026-08-02 "
+                          "grid-artefact correction. The gate is always run and reported "
+                          "regardless of this flag.")
+    ap.add_argument("--b-snap-grid", action="store_true",
+                     help="Same as --a-snap-grid, for appraiser B.")
+    ap.add_argument("--stratum", type=int, default=None,
+                     help="After matching, keep only pairs whose snapped side's ORIGINAL "
+                          "(pre-snap) offset equals this many seconds. Requires --a-snap-"
+                          "grid or --b-snap-grid. Omitting this while snapping is active "
+                          "renders a per-stratum breakdown instead of a pooled ANOVA table.")
     args = ap.parse_args()
+
+    if args.stratum is not None and not (args.a_snap_grid or args.b_snap_grid):
+        print("[ERROR] --stratum requires --a-snap-grid or --b-snap-grid (nothing to "
+              "stratify by otherwise)", file=sys.stderr)
+        return 2
 
     if not os.path.isfile(args.a_all_txt):
         print(f"[ERROR] {args.a_all_txt} not found", file=sys.stderr)
@@ -84,25 +101,45 @@ def main() -> int:
         print(f"[ERROR] --end ({end}) is before --start ({start})", file=sys.stderr)
         return 2
 
-    a_rows = ac.filter_rows_by_window(ac.parse_all_txt(args.a_all_txt), start, end)
-    b_rows = ac.filter_rows_by_window(ac.parse_all_txt(args.b_all_txt), start, end)
-    print(f"{args.a_label} decodes in window: {len(a_rows)}")
-    print(f"{args.b_label} decodes in window: {len(b_rows)}")
+    a_rows_raw = ac.filter_rows_by_window(ac.parse_all_txt(args.a_all_txt), start, end)
+    b_rows_raw = ac.filter_rows_by_window(ac.parse_all_txt(args.b_all_txt), start, end)
+    print(f"{args.a_label} decodes in window: {len(a_rows_raw)}")
+    print(f"{args.b_label} decodes in window: {len(b_rows_raw)}")
+
+    gate_a = ac.compute_grid_gate(a_rows_raw)
+    gate_b = ac.compute_grid_gate(b_rows_raw)
+    print(f"grid gate -- {args.a_label}: G={gate_a['g']:.4f} (ROW {gate_a['row']}, {gate_a['verdict']})")
+    print(f"grid gate -- {args.b_label}: G={gate_b['g']:.4f} (ROW {gate_b['row']}, {gate_b['verdict']})")
+
+    a_rows = ac.apply_grid_snap(a_rows_raw) if args.a_snap_grid else a_rows_raw
+    b_rows = ac.apply_grid_snap(b_rows_raw) if args.b_snap_grid else b_rows_raw
 
     pairs = ac.match_pairs(a_rows, b_rows)
     print(f"matched pairs: {len(pairs)}")
 
+    stratum_label = ""
+    unstratified_snap = False
+    if args.stratum is not None:
+        side = "a" if args.a_snap_grid else "b"
+        before = len(pairs)
+        pairs = [p for p in pairs if p.get(f"{side}_offset") == args.stratum]
+        print(f"stratum filter: +{args.stratum}s only -- {len(pairs)}/{before} pairs kept")
+        stratum_label = f" -- GRID-SNAPPED, +{args.stratum}s STRATUM ONLY"
+    elif args.a_snap_grid or args.b_snap_grid:
+        stratum_label = " -- GRID-SNAPPED, ALL STRATA (see breakdown, do not cite a pooled number)"
+        unstratified_snap = True
+
     window_note = f" ({start} -> {end})" if (start or end) else ""
-    run_label = args.run_label or (
+    run_label = (args.run_label or (
         f"{args.a_all_txt} vs {args.b_all_txt}{window_note}"
-    )
+    )) + stratum_label
     meta = {
         "run_label": run_label,
         "generated_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "a_label": args.a_label,
         "b_label": args.b_label,
-        "n_a": len(a_rows),
-        "n_b": len(b_rows),
+        "n_a": len(a_rows_raw),
+        "n_b": len(b_rows_raw),
         "n_pairs": len(pairs),
         "method_note": args.method_note,
     }
@@ -110,9 +147,21 @@ def main() -> int:
     out_dir = os.path.dirname(os.path.abspath(args.out)) or "."
     out_stem = os.path.splitext(os.path.basename(args.out))[0]
 
+    gate_section = ac.render_gate_section(gate_a, args.a_label, gate_b, args.b_label)
+
+    if unstratified_snap:
+        side = "a" if args.a_snap_grid else "b"
+        report = gate_section + ac.render_report([], meta).rsplit("## Caveat", 1)[0]
+        report += ac.render_stratum_breakdown(pairs, side, args.a_label, args.b_label)
+        with open(args.out, "w", encoding="utf-8") as fh:
+            fh.write(report)
+        print(f"wrote {args.out} (coverage + per-stratum breakdown, no pooled ANOVA)")
+        ac.render_markdown_html(args.out)
+        return 0
+
     response_results = ac.run_responses(pairs, out_dir, out_stem, args.a_label, args.b_label)
 
-    report = ac.render_report(response_results, meta)
+    report = gate_section + ac.render_report(response_results, meta)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(report)
     print(f"wrote {args.out}")

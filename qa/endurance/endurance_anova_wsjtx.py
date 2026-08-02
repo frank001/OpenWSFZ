@@ -90,7 +90,28 @@ def main() -> int:
                           "note in that case rather than letting the default overstate "
                           "how identical the two feeds actually are (Captain/QA, "
                           "2026-08-02, multi-day 8080/8081 live run).")
+    ap.add_argument("--a-snap-grid", action="store_true",
+                     help="Grid-snap OpenWSFZ's timestamps (floor to the enclosing 15s FT8 "
+                          "boundary) before matching. Opt-in only -- see the 2026-08-02 "
+                          "grid-artefact correction for why this exists. The gate "
+                          "(compute_grid_gate) is always run and reported regardless of "
+                          "this flag; use it to decide whether snapping is even needed.")
+    ap.add_argument("--b-snap-grid", action="store_true",
+                     help="Same as --a-snap-grid, for the WSJT-X side.")
+    ap.add_argument("--stratum", type=int, default=None,
+                     help="After matching, keep only pairs whose snapped side's ORIGINAL "
+                          "(pre-snap) offset equals this many seconds (e.g. 0 for the "
+                          "on-grid stratum). Requires --a-snap-grid or --b-snap-grid. "
+                          "Omitting this while snapping is active is legal but the report "
+                          "will show a per-stratum breakdown instead of a single pooled "
+                          "ANOVA table -- pooling across drift strata is not allowed by "
+                          "this script without an explicit acknowledgement via --stratum.")
     args = ap.parse_args()
+
+    if args.stratum is not None and not (args.a_snap_grid or args.b_snap_grid):
+        print("[ERROR] --stratum requires --a-snap-grid or --b-snap-grid (nothing to "
+              "stratify by otherwise)", file=sys.stderr)
+        return 2
 
     if not os.path.isfile(args.ours_all_txt):
         print(f"[ERROR] {args.ours_all_txt} not found", file=sys.stderr)
@@ -105,25 +126,49 @@ def main() -> int:
         print(f"[ERROR] --end ({end}) is before --start ({start})", file=sys.stderr)
         return 2
 
-    ours_rows = ac.filter_rows_by_window(ac.parse_all_txt(args.ours_all_txt), start, end)
-    wsjtx_rows = ac.filter_rows_by_window(ac.parse_all_txt(args.wsjtx_all_txt), start, end)
-    print(f"OpenWSFZ decodes in window: {len(ours_rows)}")
-    print(f"WSJT-X decodes in window: {len(wsjtx_rows)}")
+    ours_rows_raw = ac.filter_rows_by_window(ac.parse_all_txt(args.ours_all_txt), start, end)
+    wsjtx_rows_raw = ac.filter_rows_by_window(ac.parse_all_txt(args.wsjtx_all_txt), start, end)
+    print(f"OpenWSFZ decodes in window: {len(ours_rows_raw)}")
+    print(f"WSJT-X decodes in window: {len(wsjtx_rows_raw)}")
+
+    # Gate: always computed on the raw (pre-snap) rows and always reported, per the
+    # 2026-08-02 correction's §6 ("run first and reported at the top of every output") --
+    # independent of whether --a-snap-grid/--b-snap-grid were passed, so a caller always
+    # knows whether pooling would have been safe without snapping at all.
+    gate_a = ac.compute_grid_gate(ours_rows_raw)
+    gate_b = ac.compute_grid_gate(wsjtx_rows_raw)
+    print(f"grid gate -- OpenWSFZ: G={gate_a['g']:.4f} (ROW {gate_a['row']}, {gate_a['verdict']})")
+    print(f"grid gate -- WSJT-X:   G={gate_b['g']:.4f} (ROW {gate_b['row']}, {gate_b['verdict']})")
+
+    ours_rows = ac.apply_grid_snap(ours_rows_raw) if args.a_snap_grid else ours_rows_raw
+    wsjtx_rows = ac.apply_grid_snap(wsjtx_rows_raw) if args.b_snap_grid else wsjtx_rows_raw
 
     pairs = ac.match_pairs(ours_rows, wsjtx_rows)
     print(f"matched pairs: {len(pairs)}")
 
+    stratum_label = ""
+    unstratified_snap = False
+    if args.stratum is not None:
+        side = "a" if args.a_snap_grid else "b"
+        before = len(pairs)
+        pairs = [p for p in pairs if p.get(f"{side}_offset") == args.stratum]
+        print(f"stratum filter: +{args.stratum}s only -- {len(pairs)}/{before} pairs kept")
+        stratum_label = f" -- GRID-SNAPPED, +{args.stratum}s STRATUM ONLY"
+    elif args.a_snap_grid or args.b_snap_grid:
+        stratum_label = " -- GRID-SNAPPED, ALL STRATA (see breakdown, do not cite a pooled number)"
+        unstratified_snap = True
+
     window_note = f" ({start} -> {end})" if (start or end) else ""
-    run_label = args.run_label or (
+    run_label = (args.run_label or (
         f"{args.ours_all_txt} vs {args.wsjtx_all_txt}{window_note}"
-    )
+    )) + stratum_label
     meta = {
         "run_label": run_label,
         "generated_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "a_label": "OpenWSFZ",
         "b_label": "WSJT-X",
-        "n_a": len(ours_rows),
-        "n_b": len(wsjtx_rows),
+        "n_a": len(ours_rows_raw),
+        "n_b": len(wsjtx_rows_raw),
         "n_pairs": len(pairs),
         "method_note": args.method_note or (
             "Both appraisers' decode logs come from the same live session already on "
@@ -137,9 +182,26 @@ def main() -> int:
     out_dir = os.path.dirname(os.path.abspath(args.out)) or "."
     out_stem = os.path.splitext(os.path.basename(args.out))[0]
 
+    gate_section = ac.render_gate_section(gate_a, "OpenWSFZ", gate_b, "WSJT-X")
+
+    if unstratified_snap:
+        # Table-A shape: coverage is safe to pool (recall doesn't carry the same
+        # cross-stratum-averaging trap SNR/DT/freq do), but no pooled ANOVA table is
+        # rendered at all -- only the mandatory per-stratum breakdown, per the spec's rule.
+        side = "a" if args.a_snap_grid else "b"
+        coverage_meta = dict(meta)
+        report = gate_section + ac.render_report([], coverage_meta).rsplit(
+            "## Caveat", 1)[0]
+        report += ac.render_stratum_breakdown(pairs, side, "OpenWSFZ", "WSJT-X")
+        with open(args.out, "w", encoding="utf-8") as fh:
+            fh.write(report)
+        print(f"wrote {args.out} (coverage + per-stratum breakdown, no pooled ANOVA)")
+        ac.render_markdown_html(args.out)
+        return 0
+
     response_results = ac.run_responses(pairs, out_dir, out_stem, "OpenWSFZ", "WSJT-X")
 
-    report = ac.render_report(response_results, meta)
+    report = gate_section + ac.render_report(response_results, meta)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(report)
     print(f"wrote {args.out}")
