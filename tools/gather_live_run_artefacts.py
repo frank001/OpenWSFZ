@@ -72,6 +72,31 @@ Usage:
         --split-owsfz-by-band \
         --name "20260730_live_run_1821-8081"
 
+    # Two OpenWSFZ instances sharing one physical WSJT-X install (the standard 8080+8081
+    # split-antenna setup, e.g. qa/cycleframer-alignment-replay/2026-07-31-...-preflight-brief-
+    # multiday-20m-live-run.md) each get their own gather, but both would otherwise re-copy the
+    # *same* WSJT-X-side ALL.TXT/WAVs in full a second time -- multiple GB of pure duplication
+    # for a run of any length (Captain, 2026-08-02, flagged after a ~3GB duplicate on a single
+    # ~2-day run). Gather the first instance normally, then point the second instance's
+    # --wsjtx-link-from at the first instance's already-materialized wsjt-x/ folder: every WAV
+    # (and ALL.TXT) is hardlinked instead of re-copied from the live source, since both
+    # artefact output folders live under the same --out-root (same volume) in the normal case.
+    # Hardlinks cannot cross drive letters (a Windows/NTFS limitation, not fixable via a
+    # setting) -- if the two folders ever do end up on different volumes, each file
+    # transparently falls back to a full copy instead of erroring, just without the disk
+    # savings. The live WSJT-X source is only ever read once, by the first invocation:
+    python tools/gather_live_run_artefacts.py \
+        --owsfz-alltxt "D:/Projects/claude/OpenWSFZ-8080-capture/ALL.TXT" \
+        --owsfz-log-dir "D:/Projects/claude/OpenWSFZ-8080-capture/logs" \
+        --owsfz-cycle-audio-dir "D:/Projects/claude/OpenWSFZ-8080-capture/cycle-audio" \
+        --name "20260731_live_run_2004-8080"
+    python tools/gather_live_run_artefacts.py \
+        --owsfz-alltxt "D:/Projects/claude/OpenWSFZ-8081-capture/ALL.TXT" \
+        --owsfz-log-dir "D:/Projects/claude/OpenWSFZ-8081-capture/logs" \
+        --owsfz-cycle-audio-dir "D:/Projects/claude/OpenWSFZ-8081-capture/cycle-audio" \
+        --name "20260731_live_run_2004-8081" \
+        --wsjtx-link-from "artefacts/20260731_live_run_2004-8080/wsjt-x"
+
 Only stdlib is used deliberately — this needs to run on a QA/Developer workstation with no
 project virtualenv guaranteed to be active.
 """
@@ -81,6 +106,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -302,6 +328,155 @@ def copy_wav_window(
         count += 1
     print(f"  {src_dir} -> {dst_dir} ({count} WAV files in window)")
     return count
+
+
+def link_or_copy(src: Path, dst: Path) -> bool:
+    """Hardlink src -> dst if possible (same NTFS volume, near-zero extra disk, and the two
+    directory entries stay independent -- deleting one never touches the other's data); fall
+    back to a full byte copy (shutil.copy2, preserves mtime) if hardlinking fails for any
+    reason. The most common failure is `OSError: [WinError 17]` / `EXDEV` when src and dst are
+    on different drive letters -- hardlinks fundamentally cannot cross volumes on NTFS, this
+    is not a permissions issue and cannot be fixed by a setting (unlike symlinks, which need
+    Developer Mode or admin and were tried and rejected for this use -- see --wsjtx-link-from's
+    help text). Returns True if hardlinked, False if a full copy was made, so callers can tally
+    and report which happened rather than silently guessing."""
+    if dst.exists() or dst.is_symlink():
+        dst.unlink()
+    try:
+        os.link(src, dst)
+        return True
+    except OSError:
+        shutil.copy2(src, dst)
+        return False
+
+
+def link_or_copy_wsjtx_from(src_wsjtx_dir: Path, dst_wsjtx_dir: Path) -> tuple[int, int, int]:
+    """Populate this run's wsjt-x/ folder from a sibling run's *already-gathered* wsjt-x/
+    folder (src_wsjtx_dir) instead of re-reading the live WSJT-X source a second time --
+    hardlinking every WAV and ALL.TXT via link_or_copy() rather than copying, since the bytes
+    are identical either way. Used for the common two-OpenWSFZ-instance case (e.g. an 8080 +
+    8081 pair sharing one physical WSJT-X install, split from the same antenna): running the
+    plain gather twice would otherwise duplicate the entire WSJT-X-side corpus in full, a
+    multi-GB waste for any run of meaningful length (Captain, 2026-08-02).
+
+    Returns (wav_count, wav_linked, copied_total) -- wav_count is the WAV total (for the
+    contents.md stat, matching what copy_wav_window's return value means elsewhere), wav_linked
+    is how many of those were hardlinked, and copied_total additionally folds in whether
+    ALL.TXT itself needed a fallback copy, so the caller can print one honest "N fell back to a
+    full copy" note covering both."""
+    dst_wsjtx_dir.mkdir(parents=True, exist_ok=True)
+    dst_wav_dir = dst_wsjtx_dir / "wav"
+    dst_wav_dir.mkdir(parents=True, exist_ok=True)
+
+    copied_total = 0
+
+    src_alltxt = src_wsjtx_dir / "ALL.TXT"
+    if src_alltxt.is_file():
+        if not link_or_copy(src_alltxt, dst_wsjtx_dir / "ALL.TXT"):
+            copied_total += 1
+    else:
+        print(f"  (skip) {src_alltxt} not found -- is --wsjtx-link-from pointed at a real "
+              f"already-gathered wsjt-x/ folder (not the live WSJT-X install)?")
+
+    src_wav_dir = src_wsjtx_dir / "wav"
+    wav_count = wav_linked = 0
+    if src_wav_dir.is_dir():
+        for wav in sorted(src_wav_dir.glob("*.wav")):
+            wav_count += 1
+            if link_or_copy(wav, dst_wav_dir / wav.name):
+                wav_linked += 1
+            else:
+                copied_total += 1
+    else:
+        print(f"  (skip) {src_wav_dir} not found")
+
+    print(f"  {src_wsjtx_dir} -> {dst_wsjtx_dir} "
+          f"({wav_count} WAV files, {wav_linked} hardlinked"
+          f"{f', {wav_count - wav_linked} copied' if wav_count - wav_linked else ''})")
+    return wav_count, wav_linked, copied_total
+
+
+def sha256_file(path: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def dedupe_wsjtx_in_place(dst_wsjtx_dir: Path, src_wsjtx_dir: Path) -> None:
+    """Retroactively de-duplicate an *already-gathered* wsjt-x/ folder against a sibling run's
+    wsjt-x/ folder, in place -- for artefacts gathered before --wsjtx-link-from existed (or
+    where it wasn't used, e.g. the 2026-07-31/08-02 8080+8081 live run that motivated adding
+    this). For every file present in both with matching size AND a matching SHA-256 hash --
+    never trust filename+size alone for something this destructive -- the dst copy is deleted
+    and replaced with a hardlink to the src copy. Anything that doesn't match (different
+    content, or present on only one side) is left completely untouched and reported, never
+    silently dropped or guessed at."""
+    linked = 0
+    already_linked = 0
+    mismatched: list[str] = []
+    dst_only: list[str] = []
+    bytes_freed = 0
+
+    pairs: list[tuple[Path, Path]] = []
+    src_alltxt, dst_alltxt = src_wsjtx_dir / "ALL.TXT", dst_wsjtx_dir / "ALL.TXT"
+    if dst_alltxt.is_file():
+        if src_alltxt.is_file():
+            pairs.append((src_alltxt, dst_alltxt))
+        else:
+            dst_only.append(dst_alltxt.name)
+    src_wav_dir, dst_wav_dir = src_wsjtx_dir / "wav", dst_wsjtx_dir / "wav"
+    if dst_wav_dir.is_dir():
+        for dst_wav in sorted(dst_wav_dir.glob("*.wav")):
+            src_wav = src_wav_dir / dst_wav.name
+            if src_wav.is_file():
+                pairs.append((src_wav, dst_wav))
+            else:
+                dst_only.append(dst_wav.name)
+
+    for src, dst in pairs:
+        try:
+            if src.stat().st_ino == dst.stat().st_ino:
+                already_linked += 1
+                continue
+        except OSError:
+            pass
+        if src.stat().st_size != dst.stat().st_size:
+            mismatched.append(dst.name)
+            continue
+        if sha256_file(src) != sha256_file(dst):
+            mismatched.append(dst.name)
+            continue
+        size = dst.stat().st_size
+        dst.unlink()
+        os.link(src, dst)
+        linked += 1
+        bytes_freed += size
+
+    print(f"De-dupe: {dst_wsjtx_dir}")
+    print(f"         against {src_wsjtx_dir}")
+    print(f"  {linked} file(s) hash-verified identical and re-linked "
+          f"({bytes_freed / (1 << 20):.1f} MiB freed)")
+    if already_linked:
+        print(f"  {already_linked} file(s) already hardlinked (no change needed)")
+    if mismatched:
+        preview = ", ".join(mismatched[:10]) + (" ..." if len(mismatched) > 10 else "")
+        print(f"  WARNING: {len(mismatched)} file(s) present on both sides but content "
+              f"differs -- left untouched, needs a human look: {preview}")
+    if dst_only:
+        print(f"  {len(dst_only)} file(s) only in {dst_wsjtx_dir} (not in {src_wsjtx_dir}) -- "
+              f"left untouched (window-edge difference or genuinely unique)")
+
+
+def count_lines(path: Path) -> int:
+    """Line count for a file already on disk (used for the contents.md stat when the WSJT-X
+    side was hardlinked in rather than freshly filtered/counted by filter_alltxt())."""
+    if not path.is_file():
+        return 0
+    with path.open("r", encoding="utf-8", errors="replace") as fh:
+        return sum(1 for _ in fh)
 
 
 def copy_log_files(
@@ -671,11 +846,31 @@ def build_arg_parser() -> argparse.ArgumentParser:
                          "'unknown-band' rather than dropped.")
     p.add_argument("--wsjtx-root", help="WSJT-X's data directory "
                                          "(default: %%LOCALAPPDATA%%\\WSJT-X on Windows).")
+    p.add_argument("--wsjtx-link-from", metavar="PATH",
+                    help="Path to a sibling run's already-gathered wsjt-x/ folder (e.g. "
+                         "artefacts/<name>-8080/wsjt-x). When given, this run's WSJT-X-side "
+                         "ALL.TXT/WAVs are hardlinked from there instead of re-copied from the "
+                         "live WSJT-X source -- for the common case of two OpenWSFZ instances "
+                         "sharing one WSJT-X install (e.g. an 8080+8081 pair), this avoids "
+                         "duplicating the entire WSJT-X-side corpus a second time (multi-GB on "
+                         "any run of length). Hardlinks need the two folders on the same NTFS "
+                         "volume (true for two artefact folders under the same --out-root, the "
+                         "normal case) -- falls back to a full copy per-file if not, rather than "
+                         "erroring. --wsjtx-root/--start/--end are ignored for the WSJT-X side "
+                         "when this is set (the source folder is already a filtered snapshot).")
     p.add_argument("--pad-seconds", type=int, default=30,
                     help="Slack applied to WAV/ALL.TXT timestamp filtering, each side of the "
                          "window, to absorb clock offset between the two apps (default: %(default)s).")
     p.add_argument("--log-pad-seconds", type=int, default=300,
                     help="Slack applied to daemon *.log file mtime filtering (default: %(default)s).")
+    p.add_argument("--dedupe-existing", metavar="PATH",
+                    help="Retroactively de-duplicate an already-gathered wsjt-x/ folder at PATH "
+                         "against --wsjtx-link-from's folder, in place -- for artefacts gathered "
+                         "before this flag existed. Every file is SHA-256-verified identical "
+                         "before being replaced with a hardlink; anything that doesn't match "
+                         "(or exists on only one side) is left untouched and reported. Skips the "
+                         "rest of the normal gather entirely when given -- an in-place-edit mode, "
+                         "not a session gather.")
     p.add_argument("--dry-run", action="store_true", help="Print what would happen; copy nothing.")
     p.add_argument("--report-md", action="append", dest="report_md_paths", metavar="PATH",
                     help="Also render this Markdown file to HTML (e.g. a companion "
@@ -696,6 +891,15 @@ def main(argv: list[str] | None = None) -> int:
                 pass
 
     args = build_arg_parser().parse_args(argv)
+
+    if args.dedupe_existing:
+        if not args.wsjtx_link_from:
+            print("error: --dedupe-existing requires --wsjtx-link-from (the source wsjt-x/ "
+                  "folder to de-duplicate against).", file=sys.stderr)
+            return 1
+        dedupe_wsjtx_in_place(Path(args.dedupe_existing), Path(args.wsjtx_link_from))
+        return 0
+
     config = load_owsfz_config()
 
     owsfz_alltxt = Path(args.owsfz_alltxt) if args.owsfz_alltxt else (
@@ -709,6 +913,7 @@ def main(argv: list[str] | None = None) -> int:
         Path(config.get("cycleAudioArchive", {}).get("directory") or
              (platform_appdata_root() / "OpenWSFZ" / "cycle-audio"))
     )
+    wsjtx_link_from = Path(args.wsjtx_link_from) if args.wsjtx_link_from else None
     wsjtx_root = Path(args.wsjtx_root) if args.wsjtx_root else (platform_localappdata_root() / "WSJT-X")
     wsjtx_alltxt = wsjtx_root / "ALL.TXT"
     wsjtx_wav_dir = wsjtx_root / "save"
@@ -751,8 +956,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  owsfz ALL.TXT        = {owsfz_alltxt}")
     print(f"  owsfz log dir(s)     = {', '.join(str(d) for d in owsfz_log_dirs)}")
     print(f"  owsfz cycle-audio    = {cycle_audio_dir}")
-    print(f"  wsjt-x ALL.TXT       = {wsjtx_alltxt}")
-    print(f"  wsjt-x save/ wav dir = {wsjtx_wav_dir}")
+    if wsjtx_link_from:
+        print(f"  wsjt-x side          = hardlinked from {wsjtx_link_from} "
+              f"(live WSJT-X source not read this run)")
+    else:
+        print(f"  wsjt-x ALL.TXT       = {wsjtx_alltxt}")
+        print(f"  wsjt-x save/ wav dir = {wsjtx_wav_dir}")
 
     if args.dry_run:
         print("\n--dry-run: no files copied, no directories created.")
@@ -795,8 +1004,15 @@ def main(argv: list[str] | None = None) -> int:
         owsfz_wavs = copy_wav_window(cycle_audio_dir, owsfz_wav_dir, start, end, pad)
         copy_cycle_archive_manifest(cycle_audio_dir, owsfz_dir)
 
-    wsjtx_lines = filter_alltxt(wsjtx_alltxt, wsjtx_dir / "ALL.TXT", start, end)
-    wsjtx_wavs = copy_wav_window(wsjtx_wav_dir, wsjtx_wav_out, start, end, pad)
+    if wsjtx_link_from:
+        wsjtx_wavs, wsjtx_wav_linked, wsjtx_copied_total = link_or_copy_wsjtx_from(wsjtx_link_from, wsjtx_dir)
+        wsjtx_lines = count_lines(wsjtx_dir / "ALL.TXT")
+        if wsjtx_copied_total:
+            print(f"  note: {wsjtx_copied_total} file(s) fell back to a full copy -- "
+                  f"{wsjtx_link_from} and {wsjtx_dir} are not on the same volume")
+    else:
+        wsjtx_lines = filter_alltxt(wsjtx_alltxt, wsjtx_dir / "ALL.TXT", start, end)
+        wsjtx_wavs = copy_wav_window(wsjtx_wav_dir, wsjtx_wav_out, start, end, pad)
 
     contents_path = write_contents(
         out_dir, name, start, end, owsfz_lines, owsfz_wavs, owsfz_logs, wsjtx_lines, wsjtx_wavs,
