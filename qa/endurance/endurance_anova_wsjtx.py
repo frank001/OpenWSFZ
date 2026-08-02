@@ -80,6 +80,16 @@ def main() -> int:
     ap.add_argument("--end", help="Same formats as --start.")
     ap.add_argument("--date", help="Date (YYYYMMDD) to combine with a bare HH:MM "
                                     "--start/--end. Default: today.")
+    ap.add_argument("--method-note", default=None,
+                     help="Override the report's default method_note sentence, which "
+                          "assumes both appraisers hear the SAME physical radio hardware. "
+                          "That's true for a single-receiver leader/follower pairing but "
+                          "false for a split-antenna, different-receiver comparison (e.g. "
+                          "OpenWSFZ on an SDR-fed instance vs a WSJT-X instance on a "
+                          "separate radio sharing only the antenna) -- pass an accurate "
+                          "note in that case rather than letting the default overstate "
+                          "how identical the two feeds actually are (Captain/QA, "
+                          "2026-08-02, multi-day 8080/8081 live run).")
     args = ap.parse_args()
 
     if not os.path.isfile(args.ours_all_txt):
@@ -115,7 +125,7 @@ def main() -> int:
         "n_a": len(ours_rows),
         "n_b": len(wsjtx_rows),
         "n_pairs": len(pairs),
-        "method_note": (
+        "method_note": args.method_note or (
             "Both appraisers' decode logs come from the same live session already on "
             "disk -- OpenWSFZ's own ALL.TXT and the real WSJT-X application's own "
             "ALL.TXT, both listening to the same physical radio feed throughout. No "
