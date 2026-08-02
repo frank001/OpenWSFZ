@@ -104,10 +104,28 @@ The Captain authorised memory writes at 23:0x. Items 1–3 are enacted in projec
 **Item 4 remains open and is yours:** note ratio-of-sums as the standing estimator in
 `qa/endurance/anova_common.py`. I checked — there is no mention of it in that file today.
 
-### T4 — Angle 1  🔴 **BLOCKED on Captain authorisation. Unchanged. Do not begin.**
+### T4 — Angle 1  🟢 **AUTHORISED by the Captain, 2026-08-02 23:45 UTC. QA may begin.**
 
-Execute the pre-registration exactly as written. **It is unamended** — my proposed §6 change is
-withdrawn (T6). Do not compute `F_dec` as a by-product of anything else.
+Execute the pre-registration exactly as written. My proposed §6 (AP) change is **withdrawn** (T6),
+but note the prereg **has** been amended twice since the 1813 draft, both before authorisation and
+before any data was seen, both making an undefined case defined and changing **no threshold**:
+
+- **N3 gained an explicit non-finite guard.** It was the one null that failed *open* — `> 0.05 ⇒
+  VOID` returns `False` on NaN, so a degenerate denominator silently passed. N1/N2 are
+  `else ⇒ VOID` forms and already failed closed.
+- **§4 gained ROW 5**, a catch-all. Rows 1–4 are exhaustive over the reals but not over NaN, so a
+  NaN `F_dec` matched no row while §4 claimed the first matching row is the verdict.
+
+Both were surfaced by QA's `ratio_of_sums()` returning NaN on a zero denominator (T3 item 4).
+
+⚠️ **Known, benign selection effect — state it in the report, do not correct for it.** The +0s
+stratum is drift-free by construction, which means it is drawn from roughly the first ~3 h after
+each restart (drift < ~0.5 s). It is therefore *systematically the freshest portion of each uptime
+segment*, not a random sample of the run. That is exactly what makes it valid for decoder-vs-capture
+attribution — and per T9 it also keeps the population clear of the >2 s decode cliff — but it should
+be named rather than left implicit.
+
+Do not compute `F_dec` as a by-product of anything else.
 
 What has changed is only the cost: **no radio, no capture, no second instance, no live run.**
 Null N3 is `jt9` over `artefacts/20260731_live_run_2004-8080/wsjt-x/wav/`, compared against the
@@ -161,7 +179,47 @@ but `notes` is measured from disk. **`notes` is interpretive, lives in the scrip
 and is yours to extend** — a blank cell is honest, a wrong note is the failure the file exists to
 prevent.
 
-### T9 — ⚠️ The connection worth your attention: `2026-08-01-8080-decode-collapse-after-long-uptime`
+### T9 — ✅ **SOLVED 23:48 UTC. It is the drift defect. Root cause is no longer unknown.**
+
+**The Captain identified it in one sentence: "it's the cliff where the drift is over 2 seconds."**
+Measured and confirmed — 8080/8081 decode ratio pooled over the three restart segments of the
+07-31 corpus, against accumulated drift at 48.0 ppm:
+
+| uptime | drift | 8080/8081 | |
+|---:|---:|---:|---|
+| 0–5 h | 0–0.86 s | 0.93–0.97 | flat, healthy |
+| 6–11 h | 1.04–1.90 s | 0.95 → 0.81 | gradual decline |
+| **12 h** | **2.07 s** | **0.713** | **cliff begins** |
+| 13 h | 2.25 s | 0.426 | |
+| 14 h | 2.42 s | **0.254** | past FT8's ~2.36 s guard interval |
+
+**Two corrections to `dev-tasks/2026-08-01-8080-decode-collapse-after-long-uptime.md` — yours to
+make, per HK-015:**
+
+1. **"Root cause not yet known" → it is the `CycleFramer` clock drift** reopened in
+   `dev-tasks/2026-08-02-reopen-cycleframer-clock-drift-still-present-after-pr118.md`. **These are
+   one defect, not two.** The drift fix closes both.
+2. **"Reproduced once" → three occurrences in this corpus**, one per restart segment, at consistent
+   uptime. It is not an incident; it is a deterministic function of uptime.
+
+Every candidate the dev-task ruled out is *consistent* with drift rather than contradicting it:
+power-cycling the radio didn't fix it (software, not RF); a process restart fixed it completely
+(resets accumulated drift to zero); 8081 was unaffected throughout (**4.7 ppm reaches 2 s at
+~118 h**, and the run was 43.5 h — it never approached the cliff).
+
+⚠️ **This raises the drift fix's severity.** It is not merely "65% of cycles unusable for paired
+analysis." It is **decode rate falling to ~25% of an identical reference instance past ~13.7 h
+uptime, silently, with every health signal green.** The T3 item 3 cap of ~6 h is well-placed: at
+6 h drift is 1.04 s and the ratio is still 0.930.
+
+**How I got this wrong first, since the method matters more than the result:** I initially used
+**grid-match %** as the drift proxy and concluded drift was *not* the cause. Grid% is a binary that
+saturates at 0% once drift exceeds ~0.5 s (≈2.9 h uptime), so it sat pinned at zero from h5 to h14
+while real drift climbed 0.86 s → 2.42 s. **A saturated indicator cannot reveal a threshold effect
+above its saturation point.** Use accumulated drift in seconds, per uptime segment. Grid% answers a
+different question (does the label match) and must not be substituted for drift magnitude.
+
+### T9-b — the original framing, retained for provenance
 
 This is the on-project version of what I spent today chasing in the wrong application.
 
@@ -198,9 +256,9 @@ T3  item 4 only ─────────────────▶ QA
 T6  stand down ──────────────────▶ no work
 T7  draft dev-task ──────────────▶ Developer session later
 T8  adopt in normal practice
-T9  ⚠ on-project, root cause unknown, method available
+T9  SOLVED -- it IS the drift defect; fold into the drift dev-task
                      │
-T4  blocked on Captain ──────────▶ T5 design
+T4  AUTHORISED 23:45 ─────────────▶ T5 design
 ```
 
 **Everything except T4 is unblocked.** T9 is the only item where I would spend real time.
