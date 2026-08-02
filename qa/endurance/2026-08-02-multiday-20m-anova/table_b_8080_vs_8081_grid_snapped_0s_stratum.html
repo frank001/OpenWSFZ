@@ -320,20 +320,42 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 </head>
 <body>
   <div class="markdown-body">
+<h2 id="grid-alignment-gate-per-hk-021-2026-08-02-correction">Grid-alignment gate (per HK-021, 2026-08-02 correction)</h2>
+<table>
+<thead>
+<tr>
+<th>appraiser</th>
+<th style="text-align: right;">unique ts</th>
+<th style="text-align: right;">on-grid</th>
+<th style="text-align: right;">G</th>
+<th>row</th>
+<th>verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenWSFZ-8080</td>
+<td style="text-align: right;">10475</td>
+<td style="text-align: right;">3637</td>
+<td style="text-align: right;">0.3472</td>
+<td>ROW 2</td>
+<td>VOID</td>
+</tr>
+<tr>
+<td>OpenWSFZ-8081</td>
+<td style="text-align: right;">10467</td>
+<td style="text-align: right;">10450</td>
+<td style="text-align: right;">0.9984</td>
+<td>ROW 1</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
 <h1 id="endurance-session-anova-matched-decode-metrics-openwsfz-8080-vs-openwsfz-8081">Endurance-session ANOVA -- matched-decode metrics (OpenWSFZ-8080 vs OpenWSFZ-8081)</h1>
-<blockquote>
-<p><strong>RELABELLED 2026-08-02, not recomputed.</strong> Same issue and same fix as <code>anova_report_8080_
-vs_wsjtx.md</code> in this folder -- 8080's cycle-clock drift means exact-key matching only
-succeeds for the +0s (on-grid) stratum. <strong>The 62,775 matched pairs below are 34.0% of the
-run, not the whole run.</strong> See <code>table_b_8080_vs_8081_grid_snapped_0s_stratum.md</code> (independent
-recomputation, reproduces every number below exactly) and <code>table_a_8080_vs_8081_grid_
-snapped.md</code> for all three strata. Diagnosis/spec: <code>qa/cycleframer-alignment-replay/2026-08-
-02-1714-...-correction-...md</code> / <code>2026-08-02-1721-...-spec-grid-snapped-anova-rerun.md</code>.</p>
-</blockquote>
-<p><strong>Run:</strong> 2026-07-31 20:04Z -&gt; 2026-08-02 15:52Z multi-day 20m live run (OpenWSFZ 8080/FT-991A vs OpenWSFZ 8081/SDR Uno, same decoder, same split antenna, different receiver hardware) -- <strong>VALID FOR THE +0s DRIFT STRATUM ONLY, SEE BANNER ABOVE</strong><br />
-<strong>Generated:</strong> 2026-08-02T16:42:06Z (<code>date -u</code>, HK-017)<br />
+<p><strong>Run:</strong> 2026-07-31 20:04Z -&gt; 2026-08-02 15:52Z multi-day 20m live run: Table B, OpenWSFZ 8080 vs OpenWSFZ 8081 -- GRID-SNAPPED, +0s STRATUM ONLY<br />
+<strong>Generated:</strong> 2026-08-02T17:36:34Z (<code>date -u</code>, HK-017)<br />
 <strong>Design:</strong> two-way ANOVA without replication (randomized complete block design) -- Part (matched decode instance) x Appraiser (OpenWSFZ-8080, OpenWSFZ-8081), run separately for each paired numeric response below (SNR, DT, frequency offset) over the identical matched Parts. See anova_common.py's module docstring for why this design applies to single-pass live data, and not the replicated design in <code>qa/rr-study/harness/anova_compute.py</code>.</p>
-<p>Both appraisers run the identical OpenWSFZ decoder against the same split antenna; the only variable between them is the receiver/audio chain -- 8080 is fed by the FT-991A, 8081 by SDR Uno -&gt; Voicemeeter B1. This isolates the hardware/capture-chain contribution in a way anova_report_8080_vs_wsjtx.md and anova_report_8081_vs_wsjtx.md cannot individually, since each of those also swaps decoder identity for one side. 8080 experienced several decode-collapse-induced restarts this run (dev-tasks/2026-08-01-8080-decode-collapse-after-long-uptime.md); 8081 ran on a single continuous daemon instance throughout -- a coverage/uptime asymmetry that any Appraiser-row difference below should be read alongside, not just the hardware difference.</p>
+<p>Grid-snapped, +0s (on-grid) drift stratum only -- both appraisers run the identical OpenWSFZ decoder against the same split antenna; the only variable between them is the receiver/audio chain -- 8080/FT-991A, 8081/SDR Uno -&gt; Voicemeeter B1. Restricted to 8080's on-grid stratum per the 2026-08-02 grid-artefact correction; this is the properly-labelled successor to the original whole-run table, which was VOID as a whole-run claim.</p>
 <ul>
 <li>OpenWSFZ-8080 decodes in window: <strong>184918</strong></li>
 <li>OpenWSFZ-8081 decodes in window: <strong>212422</strong></li>
@@ -347,8 +369,8 @@ snapped.md</code> for all three strata. Diagnosis/spec: <code>qa/cycleframer-ali
 <li>OpenWSFZ-8081-only (OpenWSFZ-8080 did not report it): <strong>149647</strong> (70.4% of OpenWSFZ-8081's total).</li>
 </ul>
 <h2 id="snr-db">SNR (dB)</h2>
-<p><img alt="Matched-decode SNR scatter: OpenWSFZ-8080 vs OpenWSFZ-8081" src="anova_report_8080_vs_8081_snr_scatter.png" /></p>
-<p><img alt="Per-Part residual vs OpenWSFZ-8081 SNR" src="anova_report_8080_vs_8081_snr_residual.png" /></p>
+<p><img alt="Matched-decode SNR scatter: OpenWSFZ-8080 vs OpenWSFZ-8081" src="table_b_8080_vs_8081_grid_snapped_0s_stratum_snr_scatter.png" /></p>
+<p><img alt="Per-Part residual vs OpenWSFZ-8081 SNR" src="table_b_8080_vs_8081_grid_snapped_0s_stratum_snr_residual.png" /></p>
 <table>
 <thead>
 <tr>
@@ -397,8 +419,8 @@ snapped.md</code> for all three strata. Diagnosis/spec: <code>qa/cycleframer-ali
 </table>
 <p>Appraiser means (SNR, dB): OpenWSFZ-8080 -7.754 dB, OpenWSFZ-8081 -4.287 dB, grand mean -6.021 dB.</p>
 <h2 id="dt-time-offset-s">DT (time offset) (s)</h2>
-<p><img alt="Matched-decode DT (time offset) scatter: OpenWSFZ-8080 vs OpenWSFZ-8081" src="anova_report_8080_vs_8081_dt_scatter.png" /></p>
-<p><img alt="Per-Part residual vs OpenWSFZ-8081 DT (time offset)" src="anova_report_8080_vs_8081_dt_residual.png" /></p>
+<p><img alt="Matched-decode DT (time offset) scatter: OpenWSFZ-8080 vs OpenWSFZ-8081" src="table_b_8080_vs_8081_grid_snapped_0s_stratum_dt_scatter.png" /></p>
+<p><img alt="Per-Part residual vs OpenWSFZ-8081 DT (time offset)" src="table_b_8080_vs_8081_grid_snapped_0s_stratum_dt_residual.png" /></p>
 <table>
 <thead>
 <tr>
@@ -447,8 +469,8 @@ snapped.md</code> for all three strata. Diagnosis/spec: <code>qa/cycleframer-ali
 </table>
 <p>Appraiser means (DT (time offset), s): OpenWSFZ-8080 0.3229 s, OpenWSFZ-8081 0.8132 s, grand mean 0.5681 s.</p>
 <h2 id="frequency-offset-hz">Frequency offset (Hz)</h2>
-<p><img alt="Matched-decode Frequency offset scatter: OpenWSFZ-8080 vs OpenWSFZ-8081" src="anova_report_8080_vs_8081_freq_hz_scatter.png" /></p>
-<p><img alt="Per-Part residual vs OpenWSFZ-8081 Frequency offset" src="anova_report_8080_vs_8081_freq_hz_residual.png" /></p>
+<p><img alt="Matched-decode Frequency offset scatter: OpenWSFZ-8080 vs OpenWSFZ-8081" src="table_b_8080_vs_8081_grid_snapped_0s_stratum_freq_hz_scatter.png" /></p>
+<p><img alt="Per-Part residual vs OpenWSFZ-8081 Frequency offset" src="table_b_8080_vs_8081_grid_snapped_0s_stratum_freq_hz_residual.png" /></p>
 <table>
 <thead>
 <tr>

@@ -1,20 +1,14 @@
+## Grid-alignment gate (per HK-021, 2026-08-02 correction)
+
+| appraiser | unique ts | on-grid | G | row | verdict |
+|---|---:|---:|---:|---|---|
+| OpenWSFZ | 10475 | 3637 | 0.3472 | ROW 2 | VOID |
+| WSJT-X | 10470 | 10470 | 1.0000 | ROW 1 | PASS |
+
 # Endurance-session ANOVA -- matched-decode metrics (OpenWSFZ vs WSJT-X)
 
-> **RELABELLED 2026-08-02, not recomputed.** This table's numbers are unchanged and
-> arithmetically correct, but they were originally presented as whole-run results and are
-> not. 8080's cycle-clock drifts off the FT8 15-second grid at ~0.18 s/h, resetting only on
-> restart; `match_pairs()`'s exact-`(ts, message)` key silently only matches decodes stamped
-> exactly on-grid. **The 64,275 matched pairs below are the +0s (on-grid) drift stratum
-> only -- 34.8% of the run, not the whole run.** The other 65.2% (drifted +1s/+2s) matched
-> against WSJT-X only after grid-snapping; see `table_b_8080_vs_wsjtx_grid_snapped_0s_
-> stratum.md` in this folder (an independent recomputation via the snap-and-stratify path,
-> reproducing every number below exactly) and `table_a_8080_vs_wsjtx_grid_snapped.md` for
-> the whole-run picture across all three strata. Diagnosis: `qa/cycleframer-alignment-
-> replay/2026-08-02-1714-...-correction-cycle-grid-artefact-voids-8080-anova.md`. Execution
-> spec: `2026-08-02-1721-...-spec-grid-snapped-anova-rerun.md`.
-
-**Run:** 2026-07-31 20:04Z -> 2026-08-02 15:52Z multi-day 20m live run (OpenWSFZ 8080/FT-991A vs live WSJT-X, same audio feed) -- **VALID FOR THE +0s DRIFT STRATUM ONLY, SEE BANNER ABOVE**  
-**Generated:** 2026-08-02T16:40:02Z (`date -u`, HK-017)  
+**Run:** 2026-07-31 20:04Z -> 2026-08-02 15:52Z multi-day 20m live run: Table B, 8080/FT-991A vs WSJT-X -- GRID-SNAPPED, +0s STRATUM ONLY  
+**Generated:** 2026-08-02T17:36:27Z (`date -u`, HK-017)  
 **Design:** two-way ANOVA without replication (randomized complete block design) -- Part (matched decode instance) x Appraiser (OpenWSFZ, WSJT-X), run separately for each paired numeric response below (SNR, DT, frequency offset) over the identical matched Parts. See anova_common.py's module docstring for why this design applies to single-pass live data, and not the replicated design in `qa/rr-study/harness/anova_compute.py`.
 
 Both appraisers' decode logs come from the same live session already on disk -- OpenWSFZ's own ALL.TXT and the real WSJT-X application's own ALL.TXT, both listening to the same physical radio feed throughout. No re-decoding was performed (contrast endurance_anova_jt9.py, used when there is no live third-party log to read).
@@ -32,9 +26,9 @@ Both appraisers' decode logs come from the same live session already on disk -- 
 
 ## SNR (dB)
 
-![Matched-decode SNR scatter: OpenWSFZ vs WSJT-X](anova_report_8080_vs_wsjtx_snr_scatter.png)
+![Matched-decode SNR scatter: OpenWSFZ vs WSJT-X](table_b_8080_vs_wsjtx_grid_snapped_0s_stratum_snr_scatter.png)
 
-![Per-Part residual vs WSJT-X SNR](anova_report_8080_vs_wsjtx_snr_residual.png)
+![Per-Part residual vs WSJT-X SNR](table_b_8080_vs_wsjtx_grid_snapped_0s_stratum_snr_residual.png)
 
 | Source | SS | df | MS | F | P |
 |---|---:|---:|---:|---:|---:|
@@ -47,9 +41,9 @@ Appraiser means (SNR, dB): OpenWSFZ -7.923 dB, WSJT-X -2.492 dB, grand mean -5.2
 
 ## DT (time offset) (s)
 
-![Matched-decode DT (time offset) scatter: OpenWSFZ vs WSJT-X](anova_report_8080_vs_wsjtx_dt_scatter.png)
+![Matched-decode DT (time offset) scatter: OpenWSFZ vs WSJT-X](table_b_8080_vs_wsjtx_grid_snapped_0s_stratum_dt_scatter.png)
 
-![Per-Part residual vs WSJT-X DT (time offset)](anova_report_8080_vs_wsjtx_dt_residual.png)
+![Per-Part residual vs WSJT-X DT (time offset)](table_b_8080_vs_wsjtx_grid_snapped_0s_stratum_dt_residual.png)
 
 | Source | SS | df | MS | F | P |
 |---|---:|---:|---:|---:|---:|
@@ -62,9 +56,9 @@ Appraiser means (DT (time offset), s): OpenWSFZ 0.3220 s, WSJT-X 0.2127 s, grand
 
 ## Frequency offset (Hz)
 
-![Matched-decode Frequency offset scatter: OpenWSFZ vs WSJT-X](anova_report_8080_vs_wsjtx_freq_hz_scatter.png)
+![Matched-decode Frequency offset scatter: OpenWSFZ vs WSJT-X](table_b_8080_vs_wsjtx_grid_snapped_0s_stratum_freq_hz_scatter.png)
 
-![Per-Part residual vs WSJT-X Frequency offset](anova_report_8080_vs_wsjtx_freq_hz_residual.png)
+![Per-Part residual vs WSJT-X Frequency offset](table_b_8080_vs_wsjtx_grid_snapped_0s_stratum_freq_hz_residual.png)
 
 | Source | SS | df | MS | F | P |
 |---|---:|---:|---:|---:|---:|
