@@ -54,6 +54,19 @@ NFR-021: message text (real third-party callsigns) is read only to build the mat
 is never printed to stdout/stderr and never written to any output file. Only aggregate
 counts and statistics reach the rendered report.
 ASCII-only console output (HK-009).
+
+ESTIMATOR CONVENTION -- ratio-of-sums, never mean-of-ratios (T3 item 4, 2026-08-02 hand-off).
+Any decode-count ratio in this programme (e.g. one instance's decodes over another's, over a
+set of cycles/strata/parts) is computed as SUM(numerator)/SUM(denominator), never as the
+average of each part's own numerator/denominator ratio. Mean-of-ratios weights a 2-decode
+cycle the same as a 40-decode one, which is wrong whenever cycle-to-cycle decode volume
+varies -- exactly the live-corpus case. This was not academic: on 2026-08-02 the Architect's
+own +1s-stratum prediction flipped sign (+1.5% under mean-of-ratios vs the correct -2.9% under
+ratio-of-sums, see `…-1813-architect-corrections-to-record-drift-controls-and-my-own-errors.md`
+§6), which cost part of an argument about whether the drift effect was a gradient or a
+threshold. See ratio_of_sums() below for the canonical implementation, and
+qa/endurance/drift_stratum_control_ratio.py for a worked example (its Table C sums
+decode_count per stratum before dividing, exactly to avoid this).
 """
 from __future__ import annotations
 
@@ -543,6 +556,31 @@ def render_markdown_html(md_path: str) -> None:
     except (OSError, subprocess.CalledProcessError) as exc:
         detail = exc.stderr if isinstance(exc, subprocess.CalledProcessError) else str(exc)
         print(f"[WARN] HTML render of {md_path} failed: {detail}", file=sys.stderr)
+
+
+def ratio_of_sums(numerators: list[float], denominators: list[float]) -> float:
+    """The standing estimator (see module docstring) for any decode-count ratio in this
+    programme: SUM(numerators) / SUM(denominators), NOT mean(n/d for n, d in zip(...)).
+
+    The two are not interchangeable. Mean-of-ratios gives a 2-decode cycle the same weight
+    as a 40-decode one; ratio-of-sums weights every decode equally, which is what "what
+    fraction of decodes did X get relative to Y" actually means. Deliberately takes two
+    parallel lists rather than a list of (n, d) pairs or pre-computed per-part ratios, so a
+    caller cannot accidentally average per-part ratios before calling this and call the
+    result correct.
+
+    len(numerators) must equal len(denominators); both empty returns NaN rather than raising
+    (mirrors pct_or_na's "no data" handling below)."""
+    if len(numerators) != len(denominators):
+        raise ValueError(
+            f"ratio_of_sums: numerators ({len(numerators)}) and denominators "
+            f"({len(denominators)}) must be the same length -- one entry per part/cycle/"
+            f"stratum."
+        )
+    denom_sum = sum(denominators)
+    if not numerators or denom_sum == 0:
+        return float("nan")
+    return sum(numerators) / denom_sum
 
 
 def pct_or_na(numerator: int, denominator: int) -> str:
