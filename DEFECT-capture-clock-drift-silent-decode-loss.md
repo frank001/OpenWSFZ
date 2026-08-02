@@ -1,5 +1,37 @@
 # Defect: Capture Clock Drift — Silent, Total Decode Loss After ~13 Hours
 
+> **REOPENED, 2026-08-02 (QA, per `qa/cycleframer-alignment-replay/2026-08-02-1714-
+> architect-to-qa-correction-cycle-grid-artefact-voids-8080-anova.md` §5 and §8 item 3):**
+> the 2026-07-31 UPDATE below records PR #118 (per-cycle wall-clock resync) as closing this
+> defect. **It does not.** A fresh multi-day (43.8h) live run on the same affected hardware
+> (FT-991A / USB Audio CODEC, instance "8080"), on a build well past PR #118, shows the
+> identical drift signature: cycle timestamps accumulate offset from the 15-second FT8 grid
+> at **~0.18 s/h — indistinguishable from the pre-fix ~45 ppm figure** — resetting only on
+> process restart, never continuously self-correcting within an uptime epoch. Three restarts
+> during the run produced three visible reset-and-reaccumulate sawtooth cycles. DT tracks the
+> offset at roughly 1:1 and mean SNR drops ~10 dB per second of accumulated offset — this is
+> real signal degradation from a misaligned capture window, not a cosmetic timestamp label.
+>
+> **What changed, and what didn't:** before PR #118 the *timestamp label* stayed put while
+> the underlying window silently drifted (hence "silent" in this document's title). After
+> PR #118 the label honestly reports the drifted wall-clock position — a genuine
+> observability improvement, and the reason this recurrence was even detectable this time —
+> but the capture window itself is still drifting by the same amount. The fix corrected what
+> gets *reported*, not what gets *captured*. This is in direct tension with the fix's own
+> oracle (`CycleFramerClockDriftOracleTests.cs`), which asserts drift stays within a 0.2s
+> tolerance over 24h at 48.4 ppm — the live corpus contradicts that guarantee by an order of
+> magnitude within a fraction of that time window on real hardware. Reconciling that
+> contradiction is the open question for the next Developer session; see the new dev-task
+> `dev-tasks/2026-08-02-reopen-cycleframer-clock-drift-still-present-after-pr118.md`.
+>
+> **Two records this reopening corrects, referenced elsewhere and not edited unilaterally
+> here:** `project-state-2026-07-31-d001-competition-confirmed.md` (QA project-state memory)
+> records this defect as "fixed and merged (PR #118)" — it is not, per the above. The ~12h
+> session-cap lift that memory entry also records as justified by the fix should be
+> reconsidered. Full diagnosis, evidence tables, and the grid-snapped re-run this correction
+> also required: `qa/cycleframer-alignment-replay/2026-08-02-1714-...md` and
+> `2026-08-02-1721-...-spec-grid-snapped-anova-rerun.md`.
+
 > **UPDATE, 2026-07-31 (QA, per `2026-07-31-1222` S5 item 2, ruled at `2026-07-31-1212` S1.2):**
 > since this document was written, the root cause has been established in code (`CycleFramer`
 > reads `IClock.UtcNow` once at start-up and advances `cycleStart` by pure arithmetic
