@@ -5,7 +5,17 @@
 itself superseded my own first pass at T1) -- read this one, the 1832 note's job was just to stop
 the bleeding at the time.
 **Status:** T1 answered, small-scale, cleanly. T4 still not re-authorised -- that's unaffected by
-anything here. One new finding is bigger than T1 was ever going to be.
+anything here.
+
+> **Correction, 22:14 UTC, same session:** the Captain caught an overreach in the first version of
+> \7 within minutes of it being written -- I had extrapolated the launch-order defect back onto
+> the *original* 07-31 corpus. That corpus only ever ran **one** WSJT-X instance (paired with the
+> real radio); the `8081` leg's comparator was SDR Uno, a different application entirely, on
+> Voicemeeter B1. The defect needs **two simultaneous WSJT-X instances** to manifest at all -- with
+> only one running, there was nothing for it to interact with. \7 below is corrected accordingly:
+> the defect matters for T1/T4's *own* measurement method going forward (since N3 now deliberately
+> requires a second WSJT-X instance), not for anything already measured. Left visible rather than
+> silently edited out, per the standing practice on this note -- say so, don't smooth it over.
 
 ---
 
@@ -153,47 +163,48 @@ That is a real, honest, non-contaminated T1 result. It is also **88 cycles again
 run) but is nowhere near the scale needed to re-run T4's F_dec measurement -- that needs this
 validated configuration held for hours, with `8080` running throughout, not 22 minutes.
 
-## 7. The bigger question this surfaced -- reaches past T1 entirely
+## 7. Scope of the defect -- corrected
 
-The original 43.5-hour, 3,637-cycle +0s-stratum corpus (Tables A/B/C, the 0.521/0.573 baseline
-ratios, everything the 1741 note produced) has **no record of what order its WSJT-X instance was
-launched in relative to anything else running that day.** We now know that's up to a ~1.8-2x lever
-on live decode count, with no external signature that distinguishes a suppressed run from a
-healthy one after the fact -- I looked for one before writing this (WAV presence, file sizes,
-decode-log structure) and found nothing that would tell them apart retroactively.
+**Does not reach the original corpus.** The 43.5-hour, 3,637-cycle +0s-stratum corpus (Tables
+A/B/C, the 0.521/0.573 baseline ratios, everything the 1741 note produced) ran **exactly one**
+WSJT-X instance -- paired with the real radio, matching `8080`'s audio chain. `8081`'s comparator
+in that corpus was SDR Uno, a separate application on Voicemeeter B1, not a second WSJT-X. The
+defect isolated in \2-\4 is specifically about **two simultaneously-running WSJT-X instances**,
+one launched after the other -- with only one instance ever running against that corpus, there
+was no pairing for the effect to act on. "WSJT-X's live decode count" as ground truth for leg C
+in every prior D-001 measurement is **not** newly in question because of anything found today.
 
-**This means "WSJT-X's live decode count" as ground truth for leg C, in every D-001 measurement
-run before today, is now an open question, not a settled one.** Not because anything about drift
-or grid-alignment was wrong -- because a completely separate, previously-unknown mechanism could
-have been suppressing that instance's decode volume the whole time, for reasons having nothing to
-do with signal quality, and nobody had any way to know. I'm flagging this rather than asserting
-it either way: I have not gone back and checked whether the 07-31 WSJT-X instance's own logs
-record its own startup order relative to whatever else was running -- that's the next mechanical
-check, if it's worth doing, before this gets treated as fact rather than a live hypothesis.
+**Where it does bite**: N3, as designed, now deliberately requires a second WSJT-X instance
+(`FT991A-Copy`) running alongside the primary one, specifically to give jt9's calibration check a
+genuinely independent capture to compare against. That is exactly the situation the defect needs
+to manifest. So the practical consequence is narrow but real: **any future T1/N3 measurement, or
+any future corpus meant to feed T4, needs its two WSJT-X instances launched in the validated-safe
+order** (whichever isn't the radio-controlling one, first) -- or the N3 calibration itself risks
+being built on a suppressed instance. That's the entire footprint of this finding. Section \6's
+88/88 result already used the safe order, so it stands as reported.
 
 ## 8. What I'd put in front of the Captain and you, in order
 
-1. **Whether it's worth checking the 07-31 corpus's WSJT-X startup log** for anything that would
-   confirm or rule out this effect having been active then -- cheap, mechanical, answers \7
-   properly instead of leaving it as a live hypothesis. I have not done this yet.
-2. **A standing decision on launch order** for any future run: `Copy` (or generally, "the
-   non-primary instance") before the radio-controlling one, given every reversed-order reading
-   came back clean and every original-order reading came back suppressed.
-3. **Whether to run a real corpus now** under the validated-clean configuration -- this is the
+1. **A standing decision on launch order** for any future run needing two WSJT-X instances:
+   the non-primary one before the radio-controlling one, given every reversed-order reading
+   came back clean and every original-order reading came back suppressed. This is now a
+   procedural requirement for N3 specifically, not a general finding about past corpora (\7).
+2. **Whether to run a real corpus now** under the validated-clean configuration -- this is the
    only way to get T1/T4 back to the scale they need, and per HK-004 the tooling to do it already
    exists (`qa/endurance/anova_common.py`, the grid-snap machinery from the 1721 spec).
-4. **T4 remains not re-authorised.** Nothing here changes that call -- if anything, \7 is a new
-   reason to want the redesign to explicitly account for leg-C reliability, not just leg-C
-   independence (which was the 1813 hand-off's concern).
+3. **T4 remains not re-authorised.** Nothing here changes that call. \7's original framing (a
+   reason to redesign around leg-C *reliability*) does not hold up -- withdrawn; the 1813
+   hand-off's leg-C *independence* concern (already what motivated the three-instance rebuild)
+   remains the operative one.
 
 ## 9. Cross-references
 
 - `2026-08-02-1832-qa-to-architect-t1-wsjtx-wav-availability.md` -- superseded by this note.
 - `2026-08-02-1813-architect-to-qa-handoff-drift-fix-corrections-and-angle1.md`,
   `...-prereg-angle1-baseline-deficit-decomposition.md` \5-\6 (N3, the AP confound).
-- `2026-08-02-1741-qa-to-architect-grid-snapped-anova-rerun-result.md` -- the 07-31 corpus \7
-  now casts doubt on as ground truth for leg C specifically (not for anything grid/drift-related,
-  which stands as measured).
+- `2026-08-02-1741-qa-to-architect-grid-snapped-anova-rerun-result.md` -- the 07-31 corpus this
+  note's \7 confirms is **unaffected** by the launch-order defect (single WSJT-X instance only);
+  stands as measured, no reliability question attaches to it from anything found today.
 - Live artefacts (outside the repo, not committed, referenced for provenance):
   `C:\Users\Frank\AppData\Local\WSJT-X - FT991A\`, `...-FT991A-Copy\`, `...-SDRUno\`;
   `D:\Projects\claude\OpenWSFZ-8080-capture\`, `...-8081-capture\` (both this session's fresh
@@ -206,8 +217,10 @@ check, if it's worth doing, before this gets treated as fact rather than a live 
 implied, no merge-readiness claim made. Per HK-017 filename/byline carry real `date -u` UTC. Per
 HK-021 \\3's table rows are mechanical, reproducible diffs -- not judgement calls. Per HK-022 every
 figure above was measured fresh this session (baseline-then-diff, cycle-counted), none copied or
-extrapolated from a prior note. Per HK-012 \\7-\\8 are surfaced explicitly, as open questions, so
-they don't lapse for want of an owner -- \\7 in particular is not mine to resolve unilaterally.
+extrapolated from a prior note. Per HK-012 \\8's items are surfaced explicitly so they don't lapse
+for want of an owner. Per HK-022 again: \\7's first draft was itself wrong (checked against the
+Captain's correction the same session, at 22:14 UTC, rather than left standing) -- the corpus
+question it originally raised does not survive; recorded as a correction, not silently dropped.
 Per HK-004 \\6's small T1 re-check was actually run, not merely recommended, once the data to do
 it existed. NFR-021: real third-party callsigns appear only in \\5 (already publicly visible in
 the Captain's own screenshot) and are not used as match keys anywhere in this note; all other
