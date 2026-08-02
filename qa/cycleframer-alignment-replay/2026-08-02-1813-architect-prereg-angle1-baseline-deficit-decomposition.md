@@ -74,7 +74,19 @@ ROW 3:  0.30 < F_dec < 0.70    ⇒ MIXED. Both mechanisms material.
 
 ROW 4:  F_dec <= 0.30          ⇒ PREDOMINANTLY CAPTURE-ATTRIBUTABLE.
                 Decoder work is misdirected. Capture chain becomes the priority.
+
+ROW 5 (catch-all): no row above fired
+                ⇒ NO VERDICT. Report and escalate. Reachable only if F_dec is
+                NaN or infinite (degenerate denominator: C == A, or an empty
+                leg). Rows 1-4 are exhaustive over the reals but NOT over
+                float("nan"), which compares False against every threshold.
 ```
+
+⚠️ **AMENDED 2026-08-02 23:40 UTC, before authorisation and before any data was seen.** ROW 5 did
+not exist in the original draft, which asserted rows 1-4 were exhaustive. They are not: a NaN
+`F_dec` matched no row and the pre-registration produced no defined outcome. Surfaced by QA's
+`ratio_of_sums()` (T3 item 4) returning NaN on a zero denominator, then verified by execution.
+**No threshold changed; this only makes an undefined case defined.**
 
 ## 5. Mandatory nulls — any failure ⇒ VOID
 
@@ -90,13 +102,31 @@ N2  GRID GATE: G >= 0.99 on the analysed subset for all three legs
 N3  INSTRUMENT: jt9 must be calibrated against live WSJT-X before leg B is
                comparable to leg C. Run jt9 over WSJT-X's OWN WAVs for the same
                cycles; it must reproduce WSJT-X's live count within +/-5%.
+               NOT isfinite(|jt9(WSJTX wav) - C| / C)   ⇒ VOID.   <- see below
                |jt9(WSJTX wav) - C| / C > 0.05          ⇒ VOID.
                WSJT-X WAVs unavailable                  ⇒ verdict is INDICATIVE,
                not MEASURED, regardless of which row fires.
+               STATUS 2026-08-02: WAVs ARE available -- 10,469 on disk, 99.97%
+               coverage (T1 closed). MEASURED is reachable.
 
 N4  DEDUP:     jt9 output must carry zero duplicate (ts, message) pairs, as
                already verified for both live logs.     Else ⇒ VOID.
 ```
+
+⚠️ **AMENDED 2026-08-02 23:40 UTC, before authorisation and before any data was seen — N3's
+explicit non-finite guard.** NaN compares `False` against every threshold, so the direction of a
+null decides whether it fails safe:
+
+| null | form | on NaN | |
+|---|---|---|---|
+| N1 | `!= 1.0 ⇒ VOID` | VOID | fails **closed** ✅ |
+| N2 | `>= 0.99 else VOID` | VOID | fails **closed** ✅ |
+| **N3** | `> 0.05 ⇒ VOID` | **no VOID** | failed **OPEN** ⚠️ |
+
+**N3 was the one null that could silently pass on degenerate data**, and it is the null T1 was run
+to enable. A VOID-on-exceed test fails open; a VOID-unless-met test fails closed. Per HK-021 a
+pre-registered check must be able to *fire* — a threshold that no input can trip is not mechanical,
+it is decorative. **No threshold changed.**
 
 ## 6. ⚠️ Named confound: a-priori (AP) decoding
 
