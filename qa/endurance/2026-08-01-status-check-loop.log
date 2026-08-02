@@ -1,0 +1,576 @@
+=== Loop fire: 2026-08-01T22:08:14Z ===
+=== Status check: 2026-08-01T22:08:14Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 6225 │ 211516  │ -        │ 4968          │ -        │
+│ 8080   │ 20m (14.074) │ 6254 │ 110595  │ 52.3%    │ 2244 (45.2%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 6256 │ 126821  │ 60.0%    │ 2633 (53.0%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260801T105702Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-01T22:38:24Z ===
+=== Status check: 2026-08-01T22:38:27Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 6345 │ 216388  │ -        │ 4828          │ -        │
+│ 8080   │ 20m (14.074) │ 6375 │ 112751  │ 52.1%    │ 2118 (43.9%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 6376 │ 129380  │ 59.8%    │ 2535 (52.5%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260801T105702Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-01T23:08:37Z ===
+=== Status check: 2026-08-01T23:08:37Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 6466 │ 220874  │ -        │ 4481          │ -        │
+│ 8080   │ 20m (14.074) │ 6496 │ 114787  │ 52.0%    │ 2006 (44.8%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 6497 │ 131827  │ 59.7%    │ 2406 (53.7%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260801T105702Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-01T23:38:49Z ===
+=== Status check: 2026-08-01T23:38:50Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 6587 │ 226012  │ -        │ 5052          │ -        │
+│ 8080   │ 20m (14.074) │ 6617 │ 116920  │ 51.7%    │ 2097 (41.5%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 6618 │ 134590  │ 59.5%    │ 2719 (53.8%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260801T105702Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T00:08:58Z ===
+=== Status check: 2026-08-02T00:08:58Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 6708 │ 230956  │ -        │ 4904          │ -        │
+│ 8080   │ 20m (14.074) │ 6737 │ 118503  │ 51.3%    │ 1565 (31.9%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 6738 │ 137098  │ 59.4%    │ 2505 (51.1%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260801T105702Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T00:39:05Z ===
+=== Status check: 2026-08-02T00:39:06Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 6828 │ 235891  │ -        │ 4889          │ -        │
+│ 8080   │ 20m (14.074) │ 6858 │ 119446  │ 50.6%    │ 924 (18.9%)   │ 0/20     │
+│ 8081   │ 20m (14.074) │ 6859 │ 139783  │ 59.3%    │ 2645 (54.1%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260801T105702Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T01:09:15Z ===
+=== Status check: 2026-08-02T01:09:15Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 6949 │ 240628  │ -        │ 4656          │ -        │
+│ 8080   │ 20m (14.074) │ 6978 │ 121805  │ 50.6%    │ 2350 (50.5%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 6980 │ 142341  │ 59.2%    │ 2509 (53.9%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T01:39:26Z ===
+=== Status check: 2026-08-02T01:39:26Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 7069 │ 245509  │ -        │ 4851          │ -        │
+│ 8080   │ 20m (14.074) │ 7098 │ 124304  │ 50.6%    │ 2480 (51.1%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 7100 │ 144990  │ 59.1%    │ 2630 (54.2%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T02:09:35Z ===
+=== Status check: 2026-08-02T02:09:35Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 7189 │ 249878  │ -        │ 4317          │ -        │
+│ 8080   │ 20m (14.074) │ 7219 │ 126585  │ 50.7%    │ 2237 (51.8%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 7221 │ 147357  │ 59.0%    │ 2324 (53.8%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T02:39:43Z ===
+=== Status check: 2026-08-02T02:39:44Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 7310 │ 254054  │ -        │ 4103          │ -        │
+│ 8080   │ 20m (14.074) │ 7339 │ 128721  │ 50.7%    │ 2117 (51.6%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 7341 │ 149525  │ 58.9%    │ 2145 (52.3%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T03:09:52Z ===
+=== Status check: 2026-08-02T03:09:52Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 7429 │ 257689  │ -        │ 3602          │ -        │
+│ 8080   │ 20m (14.074) │ 7460 │ 130756  │ 50.7%    │ 1996 (55.4%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 7462 │ 151683  │ 58.9%    │ 2121 (58.9%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T03:39:59Z ===
+=== Status check: 2026-08-02T03:40:00Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 7550 │ 261248  │ -        │ 3503          │ -        │
+│ 8080   │ 20m (14.074) │ 7581 │ 132776  │ 50.8%    │ 1986 (56.7%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 7583 │ 153757  │ 58.9%    │ 2037 (58.2%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T04:10:10Z ===
+=== Status check: 2026-08-02T04:10:10Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 7669 │ 264907  │ -        │ 3636          │ -        │
+│ 8080   │ 20m (14.074) │ 7701 │ 134996  │ 51.0%    │ 2203 (60.6%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 7703 │ 156069  │ 58.9%    │ 2300 (63.3%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T04:40:18Z ===
+=== Status check: 2026-08-02T04:40:19Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 7789 │ 268535  │ -        │ 3590          │ -        │
+│ 8080   │ 20m (14.074) │ 7822 │ 137199  │ 51.1%    │ 2161 (60.2%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 7824 │ 158454  │ 59.0%    │ 2341 (65.2%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T05:10:29Z ===
+=== Status check: 2026-08-02T05:10:31Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 7910 │ 272594  │ -        │ 4000          │ -        │
+│ 8080   │ 20m (14.074) │ 7943 │ 139535  │ 51.2%    │ 2298 (57.5%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 7945 │ 160935  │ 59.0%    │ 2441 (61.0%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T05:40:40Z ===
+=== Status check: 2026-08-02T05:40:41Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 8029 │ 276833  │ -        │ 4197          │ -        │
+│ 8080   │ 20m (14.074) │ 8063 │ 141897  │ 51.3%    │ 2340 (55.8%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 8065 │ 163574  │ 59.1%    │ 2615 (62.3%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T06:10:48Z ===
+=== Status check: 2026-08-02T06:10:49Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 8150 │ 281396  │ -        │ 4519          │ -        │
+│ 8080   │ 20m (14.074) │ 8184 │ 144434  │ 51.3%    │ 2496 (55.2%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 8186 │ 166365  │ 59.1%    │ 2749 (60.8%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T06:40:57Z ===
+=== Status check: 2026-08-02T06:40:58Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 8270 │ 286251  │ -        │ 4770          │ -        │
+│ 8080   │ 20m (14.074) │ 8304 │ 146986  │ 51.3%    │ 2525 (52.9%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 8306 │ 169177  │ 59.1%    │ 2763 (57.9%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T07:11:07Z ===
+=== Status check: 2026-08-02T07:11:09Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 8389 │ 291195  │ -        │ 4944          │ -        │
+│ 8080   │ 20m (14.074) │ 8425 │ 149685  │ 51.4%    │ 2659 (53.8%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 8427 │ 172065  │ 59.1%    │ 2864 (57.9%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T07:41:17Z ===
+=== Status check: 2026-08-02T07:41:18Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 8510 │ 295794  │ -        │ 4530          │ -        │
+│ 8080   │ 20m (14.074) │ 8546 │ 152246  │ 51.5%    │ 2519 (55.6%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 8548 │ 174820  │ 59.1%    │ 2708 (59.8%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T08:11:25Z ===
+=== Status check: 2026-08-02T08:11:25Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 8630 │ 300650  │ -        │ 4831          │ -        │
+│ 8080   │ 20m (14.074) │ 8666 │ 154865  │ 51.5%    │ 2603 (53.9%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 8668 │ 177647  │ 59.1%    │ 2811 (58.2%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T08:41:33Z ===
+=== Status check: 2026-08-02T08:41:33Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 8750 │ 304980  │ -        │ 4293          │ -        │
+│ 8080   │ 20m (14.074) │ 8787 │ 157301  │ 51.6%    │ 2393 (55.7%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 8789 │ 180317  │ 59.1%    │ 2626 (61.2%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T09:11:42Z ===
+=== Status check: 2026-08-02T09:11:43Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 8870 │ 308899  │ -        │ 3888          │ -        │
+│ 8080   │ 20m (14.074) │ 8907 │ 159512  │ 51.6%    │ 2192 (56.4%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 8909 │ 182711  │ 59.1%    │ 2375 (61.1%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T09:41:52Z ===
+=== Status check: 2026-08-02T09:41:52Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 8989 │ 312499  │ -        │ 3594          │ -        │
+│ 8080   │ 20m (14.074) │ 9028 │ 161631  │ 51.7%    │ 2079 (57.8%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 9030 │ 185085  │ 59.2%    │ 2333 (64.9%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T10:12:03Z ===
+=== Status check: 2026-08-02T10:12:04Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 9108 │ 315889  │ -        │ 3329          │ -        │
+│ 8080   │ 20m (14.074) │ 9149 │ 163772  │ 51.8%    │ 2107 (63.3%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 9151 │ 187440  │ 59.3%    │ 2319 (69.7%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T10:42:13Z ===
+=== Status check: 2026-08-02T10:42:13Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 9229 │ 319263  │ -        │ 3319          │ -        │
+│ 8080   │ 20m (14.074) │ 9269 │ 165828  │ 51.9%    │ 2025 (61.0%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 9271 │ 189676  │ 59.4%    │ 2199 (66.3%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T11:12:22Z ===
+=== Status check: 2026-08-02T11:12:22Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 9349 │ 322796  │ -        │ 3508          │ -        │
+│ 8080   │ 20m (14.074) │ 9390 │ 167945  │ 52.0%    │ 2101 (59.9%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 9392 │ 192011  │ 59.5%    │ 2318 (66.1%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T11:42:31Z ===
+=== Status check: 2026-08-02T11:42:31Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 9470 │ 326129  │ -        │ 3294          │ -        │
+│ 8080   │ 20m (14.074) │ 9511 │ 169880  │ 52.1%    │ 1898 (57.6%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 9513 │ 194177  │ 59.5%    │ 2128 (64.6%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T12:12:39Z ===
+=== Status check: 2026-08-02T12:12:39Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 9590 │ 329458  │ -        │ 3304          │ -        │
+│ 8080   │ 20m (14.074) │ 9631 │ 171827  │ 52.2%    │ 1931 (58.4%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 9633 │ 196447  │ 59.6%    │ 2252 (68.2%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T12:42:49Z ===
+=== Status check: 2026-08-02T12:42:51Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 9711 │ 332838  │ -        │ 3349          │ -        │
+│ 8080   │ 20m (14.074) │ 9752 │ 173622  │ 52.2%    │ 1769 (52.8%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 9754 │ 198716  │ 59.7%    │ 2234 (66.7%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T13:12:59Z ===
+=== Status check: 2026-08-02T13:12:59Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 9832 │ 335736  │ -        │ 2848          │ -        │
+│ 8080   │ 20m (14.074) │ 9873 │ 175040  │ 52.1%    │ 1389 (48.8%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 9875 │ 200693  │ 59.8%    │ 1940 (68.1%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T13:43:08Z ===
+=== Status check: 2026-08-02T13:43:09Z ===
+
+┌────────┬──────────────┬──────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼──────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 9953 │ 339233  │ -        │ 3472          │ -        │
+│ 8080   │ 20m (14.074) │ 9993 │ 176188  │ 51.9%    │ 1140 (32.8%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 9995 │ 202966  │ 59.8%    │ 2258 (65.0%)  │ 0/20     │
+└────────┴──────────────┴──────┴─────────┴──────────┴───────────────┴──────────┘
+
+No [ERR]/[FTL] lines, no supervisor-triggered restarts on either instance.
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T003959Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T14:13:24Z ===
+=== Status check: 2026-08-02T14:13:24Z ===
+
+┌────────┬──────────────┬───────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs  │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼───────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 10073 │ 343041  │ -        │ 3779          │ -        │
+│ 8080   │ 20m (14.074) │ 10093 │ 178027  │ 51.9%    │ 1824 (48.3%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 10116 │ 205326  │ 59.9%    │ 2318 (61.3%)  │ 0/20     │
+└────────┴──────────────┴───────┴─────────┴──────────┴───────────────┴──────────┘
+
+!! 8080 restart-supervisor.log shows 1 restart(s): /d/Projects/claude/OpenWSFZ-8080-capture/restart-supervisor.log
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T135024Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T14:43:32Z ===
+=== Status check: 2026-08-02T14:43:33Z ===
+
+┌────────┬──────────────┬───────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs  │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼───────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 10194 │ 346626  │ -        │ 3548          │ -        │
+│ 8080   │ 20m (14.074) │ 10214 │ 180147  │ 52.0%    │ 2085 (58.8%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 10237 │ 207543  │ 59.9%    │ 2182 (61.5%)  │ 0/20     │
+└────────┴──────────────┴───────┴─────────┴──────────┴───────────────┴──────────┘
+
+!! 8080 restart-supervisor.log shows 1 restart(s): /d/Projects/claude/OpenWSFZ-8080-capture/restart-supervisor.log
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T135024Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T15:13:42Z ===
+=== Status check: 2026-08-02T15:13:43Z ===
+
+┌────────┬──────────────┬───────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs  │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼───────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 10315 │ 350098  │ -        │ 3407          │ -        │
+│ 8080   │ 20m (14.074) │ 10334 │ 182203  │ 52.0%    │ 2047 (60.1%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 10357 │ 209619  │ 59.9%    │ 2066 (60.6%)  │ 0/20     │
+└────────┴──────────────┴───────┴─────────┴──────────┴───────────────┴──────────┘
+
+!! 8080 restart-supervisor.log shows 1 restart(s): /d/Projects/claude/OpenWSFZ-8080-capture/restart-supervisor.log
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T135024Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
+=== Loop fire: 2026-08-02T15:43:52Z ===
+=== Status check: 2026-08-02T15:43:55Z ===
+
+┌────────┬──────────────┬───────┬─────────┬──────────┬───────────────┬──────────┐
+│ Source │ Band         │ WAVs  │ ALL.TXT │ vs WSJTX │ Decodes/30min │ 0-dec/20 │
+├────────┼──────────────┼───────┼─────────┼──────────┼───────────────┼──────────┤
+│ WSJT-X │ 20m (14.074) │ 10435 │ 353893  │ -        │ 3776          │ -        │
+│ 8080   │ 20m (14.074) │ 10455 │ 184339  │ 52.1%    │ 2093 (55.4%)  │ 0/20     │
+│ 8081   │ 20m (14.074) │ 10478 │ 211829  │ 59.9%    │ 2166 (57.4%)  │ 0/20     │
+└────────┴──────────────┴───────┴─────────┴──────────┴───────────────┴──────────┘
+
+!! 8080 restart-supervisor.log shows 1 restart(s): /d/Projects/claude/OpenWSFZ-8080-capture/restart-supervisor.log
+
+Current logs: 8080=/d/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260802T135024Z.log
+              8081=/d/Projects/claude/OpenWSFZ-8081-capture/logs/openswfz-20260731T200428Z.log
+=== Next fire in 1800s ===
