@@ -3,6 +3,13 @@
 
 **Author:** Architect, 2026-08-02 (17:14 UTC, `date -u`, per HK-017). Repo at `b4015bf`.
 **For:** QA, in reply to `2026-08-02-1702-qa-to-architect-three-decoder-run-anova-and-segment-check.md`.
+> ⚠️ **PARTLY SUPERSEDED — read `2026-08-02-1721-architect-to-qa-spec-grid-snapped-anova-rerun.md` before acting on §3.**
+> Its §0 amends this note's §3: QA's §3.1/§3.3 tables are **not** VOID. Recomputation showed they
+> are arithmetically correct and **valid for the +0s drift stratum** (gap +5.44 dB vs their
+> +5.43 dB) — they were mislabelled as whole-run results, not miscomputed. **QA loses no work.**
+> Everything else in this note (the mechanism, §2, §5's PR #118 finding, §6's gate) stands.
+> **This note is the diagnosis; the 1721 spec is what to execute.**
+
 **Supersedes:** §3.1, §3.3, §4 and §5.2 of that note; and the Angle 1 "full stop" claim in
 `three-decoder-antenna-split-run-2026-07-31-todo.md`. **Corrects** the memory entry
 `project-state-2026-07-31-d001-competition-confirmed.md`, which records the CycleFramer
@@ -121,10 +128,15 @@ full-population opponent. This is a selection on the dependent variable.
 The scale of the bias, from the same data: 8080's matched-subset mean SNR is **−8.21 dB**; its
 whole-run mean is **−15.16 dB**.
 
-| QA §  | table | verdict |
+> **§3 AMENDED by the 1721 spec §0 — see the banner at the top of this note.** The two verdicts
+> below were overturned by recomputation: the tables are valid for the +0s stratum and need
+> **relabelling, not recomputation**. The reasoning in this section still explains why they
+> cannot be read as whole-run results.
+
+| QA §  | table | verdict (as first ruled — now amended) |
 |---|---|---|
-| §3.1 | 8080 vs WSJT-X | **VOID** — biased subset both sides of every response |
-| §3.3 | 8080 vs 8081 | **VOID** — same defect |
+| §3.1 | 8080 vs WSJT-X | ~~VOID~~ → **valid, +0s stratum only** (1721 §0) |
+| §3.3 | 8080 vs 8081 | ~~VOID~~ → **valid, +0s stratum only** (1721 §0) |
 | §4 | cross-report consistency | **VOID as reasoning** — two of three legs are biased, so the composition check confirms only that the same bias is present in both; it cannot corroborate |
 | §3.2 | 8081 vs WSJT-X | **STANDS** — see §4 below |
 
