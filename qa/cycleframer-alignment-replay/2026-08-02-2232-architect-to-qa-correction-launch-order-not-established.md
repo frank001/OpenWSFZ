@@ -3,8 +3,35 @@
 
 **Author:** Architect, 2026-08-02 (22:32 UTC, `date -u`, per HK-017). Repo at `1aecc02`.
 **For:** QA. **Concerns** `2026-08-02-2207-qa-to-architect-wsjtx-launch-order-defect-and-t1-result.md`.
-**Status:** T4 still not authorised — nothing here changes that, and §5 gives a second reason.
+**Status:** T4 still not authorised — nothing here changes that.
 **Reproduce everything below:** `qa/cycleframer-alignment-replay/architect_launch_order_recheck.py`.
+
+> **Correction, 22:48 UTC, same session — scope. §7 is WITHDRAWN in full.**
+>
+> The Captain stopped this note after it was written: *"We are not investigating WSJT-X here. We
+> are looking for a clean measurement for the T1 question. Our project is OpenWSFZ, not WSJT-X."*
+> That is correct and it dissolves most of what follows.
+>
+> **T1 is answered.** QA's §6 reported 88/88 cycles with a verified non-hardlinked WSJT-X WAV. The
+> 1813 hand-off asked for presence and coverage and said *"nothing else in T1."* The answer is
+> **yes**, so N3 can return **MEASURED** rather than INDICATIVE. That was the whole task.
+>
+> **N3 never required a second WSJT-X instance.** It compares `jt9` over one instance's *own* WAVs
+> against that same instance's *own* live count `C` — a self-consistency check on the leg-C
+> instrument. Prereg §3's 2×2 has exactly one WSJT-X leg. QA's §7 read N3 as needing an independent
+> second capture; it does not. **The three-profile rebuild, the launch-order diagnostic, and my §7
+> A-B-A are all downstream of that one over-specification.**
+>
+> **N3 already guards the suppression risk, by construction.** A WAV is raw capture; the live count
+> is decode output. A suppressed decoder with healthy capture makes `jt9(WAVs)` overshoot `C` and
+> trips the ±5% bar ⇒ VOID. We do not need to know *why* WSJT-X halves — only that N3 catches it.
+> **§7's A-B-A run is therefore unnecessary and is withdrawn. Do not execute it.**
+>
+> §1–§5 stand as written: they stop a launch-order procedure being adopted on evidence that does
+> not support it, and they withdraw my own bogus prereg amendment. What does **not** stand is
+> §6.3's claim that leg C carries an *unbounded* silent failure mode — N3 bounds it at ±5%. I told
+> the Captain that was "a stronger objection" than the leg-C independence concern. It is not. That
+> is the third error of mine this session and it is recorded here rather than edited out.
 
 ---
 
@@ -13,7 +40,9 @@
 - The launch-order conclusion **does not hold**. `Copy` was never suppressed in either order;
   `FT991A` alone was suppressed and later recovered. The paired ratio hid this.
 - Launch order was **perfectly confounded with time** — every original-order test ran before every
-  reversed-order test, with no repeat. One A-B-A block settles it; §7 pre-registers it.
+  reversed-order test, with no repeat. ~~One A-B-A block settles it; §7 pre-registers it.~~
+  **Withdrawn:** settling it means investigating WSJT-X, which is not this project's job. N3 already
+  guards the only consequence we care about.
 - Two mechanisms eliminated mechanically: **sequence parity is clean** (nothing is dropping an
   even/odd sequence), and there is a **third regime at ~0.85** the note doesn't report.
 - **§3's stated rule is inverted relative to its own tables.** §8.1's recommendation happens to
@@ -150,25 +179,26 @@ same 302 Hz, same DT, within 1 dB. That is **not** evidence it was a real signal
 same physical device that block, and a deterministic decoder on identical samples reproduces a
 false decode exactly. Real-vs-false is unresolved and does not need resolving at n=1.)*
 
-## 6. Answers to QA's §8
+## 6. Answers to QA's §8 — rewritten after the scope correction
 
-1. **Standing launch-order decision — do not adopt.** It would encode a rule §1 shows is not
-   established, and would impose a procedural constraint on every future N3 run for a cause that
-   may not exist. §7 settles it in under an hour instead.
-2. **A real corpus now — not yet.** Committing hours of capture to a configuration whose
-   ground-truth instrument has an uncharacterised ~2× failure mode is the expensive version of this
-   mistake. §7 first; corpus after, if it clears.
-3. **T4 stays unauthorised — agreed, and now for a second reason.** §7 of QA's note is right that
-   the 07-31 corpus is untouched (one WSJT-X instance, no pairing for the effect to act on). But
-   leg C's ground truth is a WSJT-X live count, and we now know a WSJT-X instance can sit at half
-   rate for ninety minutes with nothing in its `.ini` to show for it. Until we know what causes
-   that and can detect it, leg C carries an unbounded, silent failure mode. **This is a stronger
-   objection than the leg-C independence concern that motivated the three-profile rebuild**, and it
-   is not addressed by it.
+1. **Standing launch-order decision — do not adopt, and do not investigate further.** §1 shows the
+   rule is not established. But the reason to drop it is simpler than that: **it is a WSJT-X
+   question, and WSJT-X is not our project.** Run **one** instance for leg C, as prereg §3 always
+   specified, and the pairing the effect needs never exists.
+2. **A real corpus — yes, and this is now the only open question.** T1 is answered and N3 can
+   return MEASURED. What T1/T4 lack is *scale*: 88 cycles against the ~3,637 the +0s stratum needs.
+   That is a capture run with one WSJT-X leg alongside `8080`, which is what the 07-31 corpus
+   already was.
+3. **T4 stays unauthorised — for the reason it always was: it needs the Captain's authorisation.**
+   My "second reason" is withdrawn (see the correction block). N3 bounds the leg-C risk at ±5%.
 
-## 7. Pre-registered A-B-A discriminator — mechanical, ordered, exclusive
+## 7. ~~Pre-registered A-B-A discriminator~~ — **WITHDRAWN, DO NOT EXECUTE**
 
-Written before the run. Thresholds fixed here. **Not authorised until the Captain says so.**
+**Withdrawn 22:48 UTC on the Captain's scope correction.** This section designs an hour-long
+investigation into a third-party application's decoder behaviour. Even executed perfectly it would
+tell us nothing about OpenWSFZ, and N3 already voids on the only consequence that reaches our
+measurement. **Left visible rather than deleted, because the reasoning that produced it is the
+error worth seeing.** Nothing below is authorised.
 
 **Setup.** All three instances up. `SDRUno` launched **first in every block and never restarted** —
 its job is to be *constant*, not healthy; if it is itself suppressed, it is suppressed equally
@@ -241,7 +271,10 @@ Nothing here is a back-door into T4.
 
 ---
 
-*Per HK-015 Architect → QA: design mine, execution QA's, on the Captain's authorisation only;
+*Per HK-018 the scope correction at the top is the one that mattered: three of my four errors this
+session came from investigating a third-party application instead of checking what our own
+pre-registration already required. Per HK-015 Architect → QA: design mine, execution QA's, on the
+Captain's authorisation only;
 `dev-tasks/` remains QA's to author and I have not written one for §4's `JsonConfigStore` bug. Per
 HK-014/HK-010 committed locally, no push, no merge, and I do not ask for one. Per HK-017 filename
 and byline carry real `date -u` UTC (22:32 on 08-02 UTC; the local clock had already rolled to
