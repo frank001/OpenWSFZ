@@ -53,9 +53,23 @@ namespace OpenWSFZ.Ft8.Tests;
 /// <para>
 /// <b>Expected red values against unfixed <c>main</c></b>, per the dev-task §4.3.1: ~4.1 s of
 /// grid offset after 24 h at 48.4 ppm, against a 0.2 s tolerance; and ~50 000 samples of
-/// consumption divergence, against a 3 000-sample clamp. Both were confirmed red before the fix
-/// was written. The 0.2 s tolerance is unchanged from the predecessor oracle — the number was
-/// always right, it was the reference it was compared against that was wrong.
+/// consumption divergence. Both were confirmed red before the fix was written, and remain red
+/// with the tightened bound below. Measured after the fix, the worst misalignment across the
+/// full 24 h is <b>9 samples (0.75 ms)</b> — precisely the single-cycle accumulation the
+/// arithmetic predicts (15 s x 48.4 ppm = 726 us).
+/// </para>
+///
+/// <para>
+/// <b>Both bounds are <see cref="ToleranceSeconds"/>, and deliberately so.</b> The audio bound in
+/// the undisturbed cases (1 and 3) was briefly <see cref="MaxCorrectionSamples"/> — 250 ms, which
+/// is looser than the 0.2 s bar it exists to guard and ~333x the expected misalignment. Cases 2
+/// and 4 perturb the stream and legitimately need a settling window to converge across; cases 1
+/// and 3 have nothing to converge from, so the clamp should never engage in them at all. An
+/// implementation applying the correction every other cycle, or at half strength, would have
+/// passed the looser bound. <see cref="MaxCorrectionSamples"/> stays correct in
+/// <see cref="AssertNoCycleExceedsTheClamp"/>, which asserts a different property. The 0.2 s
+/// figure itself is unchanged from the predecessor oracle — it was always the right number; it
+/// was the reference it was compared against that was wrong.
 /// </para>
 ///
 /// <para>
@@ -149,10 +163,17 @@ public sealed class CycleFramerClockDriftOracleTests
 
         // ── Assertion 2: the AUDIO must be on the grid, not merely the label ──
         var (worstDriftIdx, worstDriftSamples) = WorstSampleMisalignment(device, windows);
+        double worstDriftSecs = worstDriftSamples / (double)SampleRate;
 
-        Math.Abs(worstDriftSamples).Should().BeLessThan(MaxCorrectionSamples,
+        // Bounded by ToleranceSeconds, not by MaxCorrectionSamples. Nothing in this case has
+        // anything to converge *from* — there is no drop and no clock step — so the clamp
+        // should never engage at all, and the expected steady-state misalignment is a single
+        // cycle's accumulation: 15 s x 48.4 ppm = 726 us, ~8.7 samples. Allowing the 3 000-sample
+        // clamp here would permit ~333x that, and would sit above the programme's own 0.2 s
+        // acceptance bar into the bargain. An oracle guarding a 0.2 s bar must not pass at 0.24 s.
+        Math.Abs(worstDriftSecs).Should().BeLessThan(ToleranceSeconds,
             $"window {worstDriftIdx} of {windows.Count} begins {worstDriftSamples} source samples " +
-            $"({worstDriftSamples / (double)SampleRate:F3}s) away from where a window carrying its " +
+            $"({worstDriftSecs:F3}s) away from where a window carrying its " +
             "own grid label must begin. This is the assertion a label-only or label-snapping fix " +
             "cannot satisfy: to hold a 15s wall-clock window on a device running at " +
             $"{DriftedHz}Hz the framer must consume ~{DriftedHz * CycleDurationSecs:F0} source " +
@@ -268,9 +289,14 @@ public sealed class CycleFramerClockDriftOracleTests
                 $"epoch {epoch}, window {worstOffGridIdx + 1}: label is {worstOffGrid:F3}s off-grid");
 
             var (worstDriftIdx, worstDriftSamples) = WorstSampleMisalignment(device, settled);
-            Math.Abs(worstDriftSamples).Should().BeLessThan(MaxCorrectionSamples,
+            double worstDriftSecs = worstDriftSamples / (double)SampleRate;
+
+            // ToleranceSeconds, for the same reason as case 1: an epoch is undisturbed once it
+            // is running, so the clamp should never engage and ~8.7 samples is the predicted
+            // steady state. See the comment on case 1's audio bound.
+            Math.Abs(worstDriftSecs).Should().BeLessThan(ToleranceSeconds,
                 $"epoch {epoch}, window {worstDriftIdx + 1}: audio is {worstDriftSamples} samples " +
-                $"({worstDriftSamples / (double)SampleRate:F3}s) off-grid. Drift must be bounded " +
+                $"({worstDriftSecs:F3}s) off-grid. Drift must be bounded " +
                 "*within* an epoch, not merely reset by the next restart — the live sawtooth is " +
                 "what unbounded-until-restart looks like");
 

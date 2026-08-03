@@ -190,6 +190,37 @@ public sealed class CycleFramer
                         // up to 2048 samples (171 ms) on the real capture sources. Left
                         // uncorrected that is a systematic bias eating most of the 0.2 s
                         // acceptance budget, so subtract it rather than inherit it.
+                        //
+                        // This assumes we reach a chunk promptly after the device hands it
+                        // over. If we are LATE to it — a long GC pause, a busy host — the
+                        // clock runs ahead of the true capture instant by that lag and the
+                        // realignment is biased late by it. Bounded and benign, for three
+                        // reasons worth writing down rather than re-deriving:
+                        //
+                        //   1. Subtracting `remaining` can only ever REDUCE the bias. Without
+                        //      this line it is lag + remaining/SampleRate; with it, lag. The
+                        //      correction is a monotone improvement at every lag, including
+                        //      zero. It cannot be the thing that makes lag hurt.
+                        //   2. The lag has a hard ceiling. CaptureManager's channel is bounded
+                        //      at 16 chunks with FullMode.DropOldest, so the backlog cannot
+                        //      grow past ~2.7 s (16 x 171 ms) — beyond that the channel
+                        //      discards rather than queues. And the decode pump cannot cause
+                        //      lag at all: framerOutput is bounded at 2 and we TryWrite, so a
+                        //      stalled consumer drops windows instead of back-pressuring us.
+                        //   3. It self-clears. Once the lag goes, the bias goes with it, and
+                        //      the loop re-converges at MaxCorrectionSamples per cycle —
+                        //      a full 2.7 s worst case in ~11 cycles.
+                        //
+                        // A sustained bias would need the framer to be persistently slower
+                        // than real time at an Array.Copy of 12 000 samples/s, which would be
+                        // continuously discarding audio at (2) and is a far larger, separately
+                        // visible problem than this term.
+                        //
+                        // Note the oracle CANNOT see any of this: SimulatedCaptureDevice
+                        // derives its clock from its own production position, so the harness
+                        // is lag-free by construction. Injecting processing lag is a harness
+                        // change and a scope increase — see dev-tasks/2026-08-03-review-
+                        // followup-grid-realignment-oracle-tolerance.md §2.
                         DateTime firstSampleUtc =
                             _clock.UtcNow.AddSeconds(-remaining / (double)SampleRate);
 
