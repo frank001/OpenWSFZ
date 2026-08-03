@@ -201,20 +201,36 @@ public sealed class CycleFramer
                         //      this line it is lag + remaining/SampleRate; with it, lag. The
                         //      correction is a monotone improvement at every lag, including
                         //      zero. It cannot be the thing that makes lag hurt.
-                        //   2. The lag has a hard ceiling. CaptureManager's channel is bounded
-                        //      at 16 chunks with FullMode.DropOldest, so the backlog cannot
-                        //      grow past ~2.7 s (16 x 171 ms) — beyond that the channel
-                        //      discards rather than queues. And the decode pump cannot cause
-                        //      lag at all: framerOutput is bounded at 2 and we TryWrite, so a
-                        //      stalled consumer drops windows instead of back-pressuring us.
+                        //   2. The lag has a hard ceiling, but count BOTH buffers. Two bounded
+                        //      DropOldest channels stack on this path: WasapiAudioSource's
+                        //      inner channel (32 chunks, WasapiAudioSource.cs:37-41) feeds
+                        //      CaptureManager, which republishes into its own (16 chunks,
+                        //      CaptureManager.cs:66-68). A chunk can sit in both, so the
+                        //      backlog ceiling is 48 chunks x 170.7 ms = ~8.2 s, NOT the
+                        //      ~2.7 s that counting CaptureManager alone suggests. Beyond
+                        //      that the channels discard rather than queue. The decode pump
+                        //      cannot contribute at all: framerOutput is bounded at 2 and we
+                        //      TryWrite, so a stalled consumer drops windows instead of
+                        //      back-pressuring us.
                         //   3. It self-clears. Once the lag goes, the bias goes with it, and
-                        //      the loop re-converges at MaxCorrectionSamples per cycle —
-                        //      a full 2.7 s worst case in ~11 cycles.
+                        //      the loop re-converges at MaxCorrectionSamples per cycle — the
+                        //      full 8.2 s worst case in ~33 cycles (~8 min).
                         //
-                        // A sustained bias would need the framer to be persistently slower
-                        // than real time at an Array.Copy of 12 000 samples/s, which would be
-                        // continuously discarding audio at (2) and is a far larger, separately
-                        // visible problem than this term.
+                        // ⚠️ Read (2) before assuming the ceiling is safely small: ~8.2 s is
+                        // ABOVE NearestCycleGridLine's half-cycle wrap point of 7.5 s. At a
+                        // sustained backlog near the ceiling, firstSampleUtc reads late enough
+                        // that the nearest grid line becomes the NEXT one, and the framer would
+                        // walk the window towards a grid line a full cycle away — the clamp
+                        // bounds how fast it gets there, not whether it goes. DropOldest also
+                        // means a sustained overload does not drain: the channels sit full and
+                        // the lag persists rather than clearing.
+                        //
+                        // Accepted rather than guarded, because reaching it requires the framer
+                        // to be persistently slower than real time at an Array.Copy of 12 000
+                        // samples/s. A system in that state is already discarding audio at both
+                        // channels in (2) — a far larger and separately visible problem than
+                        // this term, and not one a guard here would fix. If that assumption ever
+                        // stops holding, this is the line to revisit first.
                         //
                         // Note the oracle CANNOT see any of this: SimulatedCaptureDevice
                         // derives its clock from its own production position, so the harness
