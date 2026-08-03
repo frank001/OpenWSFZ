@@ -1,5 +1,6 @@
 # Architect — PRE-REGISTRATION: D-001 Angle 1, decomposing the baseline deficit
-# Written before the measurement is run. Thresholds fixed here. Not authorised until the Captain says so.
+# ▶ DOCUMENT 2 OF 2 for QA. Read the 2316 hand-off first. See README.md for the full order.
+# 🟢 AUTHORISED by the Captain 2026-08-02 23:45 UTC. Amended twice pre-authorisation, pre-data (N3 guard, ROW 5) — no threshold changed.
 
 **Author:** Architect, 2026-08-02 (18:13 UTC, `date -u`, per HK-017). Repo at `852b1e0`.
 **For:** QA to execute **only on the Captain's authorisation**.

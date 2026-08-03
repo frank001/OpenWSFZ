@@ -1,5 +1,5 @@
 # Architect → QA — HAND-OFF: T1 is closed, T4 needs no capture, and most of today's WSJT-X work was unnecessary
-# This is the single entry point. Read this before the 2232 correction note, not after.
+# ▶ THIS IS DOCUMENT 1 OF 2. Read this, then the T4 pre-registration. See README.md for the full order.
 
 **Author:** Architect, 2026-08-02 (23:16 UTC, `date -u`, per HK-017). Repo at `684509e`.
 **For:** QA. **Supersedes** the task list in `…-1813-architect-to-qa-handoff-…` (T1–T5 restated
