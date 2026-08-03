@@ -5,7 +5,7 @@ multi-day 20m live run (`qa/cycleframer-alignment-replay/2026-07-31-1907-...-pre
 multiday-20m-live-run.md`).
 **Branch:** fresh off `main`, current tip `2dacd1a`. This is investigation, not a known fix — scope
 the branch once a root cause is found.
-**Status:** ⚠️ **ROOT CAUSE FOUND, 2026-08-02 — do not investigate this separately.** This is the
+**Status:** ✅ **CLOSED 2026-08-03 — fixed and merged as `be5960a`.** See §0. This was the
 reopened `CycleFramer` clock drift, tracked in
 `dev-tasks/2026-08-02-reopen-cycleframer-clock-drift-still-present-after-pr118.md`. **These are ONE
 defect, not two;** that fix closes this one. See §0 below. A clean process restart is a workaround
@@ -22,7 +22,28 @@ one dataset the whole run exists to produce, while every existing health signal 
 
 ---
 
-## 0. Resolution — added by QA, 2026-08-03 (14:35 UTC, `date -u`, HK-017)
+## 0. ✅ CLOSED — fix merged 2026-08-03 as `be5960a`
+
+**This dev-task is closed. No Developer session is needed and none should be opened.** The root
+cause below was fixed by the `CycleFramer` grid-realignment work merged to `main` as **`be5960a`**
+(CI run `30831377759`, green on ubuntu/windows/macos). The capture window now re-anchors to the UTC
+15-second grid at sample level every cycle; measured worst-case offset over a simulated 24 h at
+48.4 ppm is **9 samples (0.75 ms)**, against the ~4.1 s that produced this collapse.
+
+The §7 question this document left open — *"Tests required, once a root cause is found"* — is
+answered by that work's oracle: five cases in `CycleFramerClockDriftOracleTests.cs`, including a
+restart-punctuated multi-epoch case built specifically because **this** document's failure shape
+(collapse after long uptime, cleared by restart) is what a single-epoch oracle cannot distinguish
+from "bounded forever".
+
+See `DEFECT-capture-clock-drift-silent-decode-loss.md`'s CLOSED banner for the full closure.
+
+*Retained below for provenance: the incident record and the ruled-out candidates, which remain
+accurate and are the reason the eventual diagnosis held together.*
+
+---
+
+## 0b. Resolution — how the root cause was identified, QA 2026-08-03 (14:35 UTC)
 
 The collapse is the `CycleFramer` capture window walking off the UTC 15-second grid at 48.0 ppm and
 crossing FT8's ~2.36 s guard interval. 8080/8081 decode ratio pooled over the corpus's three restart

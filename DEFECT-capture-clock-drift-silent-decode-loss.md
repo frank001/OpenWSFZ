@@ -1,4 +1,63 @@
 # Defect: Capture Clock Drift — Silent, Total Decode Loss After ~13 Hours
+# ✅ RESOLVED 2026-08-03 — merged as `be5960a`, CI green. Read the CLOSED banner first.
+
+> ## ✅ CLOSED, 2026-08-03 (16:27 UTC, `date -u`, QA). Merged to `main` as **`be5960a`** and pushed.
+>
+> **The window is now re-anchored to the UTC grid at sample level, every cycle.** The fix chooses
+> how many source samples to *consume* each cycle so the window's audio spans the wall-clock
+> interval between grid lines, padding or trimming the tail inside FT8's ~2.36 s guard interval and
+> clamping corrections to 250 ms so a system-clock step converges over several cycles rather than
+> mutilating one. `consume` is the fix; `cycleStart = grid` is bookkeeping that becomes *true* only
+> because `consume` moved the window.
+>
+> | | before | after |
+> |---|---|---|
+> | window offset from grid, 24 h @ 48.4 ppm | ~4.1 s (unbounded) | **9 samples = 0.75 ms** |
+> | decode rate past ~13.7 h uptime | ~25% of an identical reference | no degradation mechanism remains |
+>
+> 9 samples is precisely the single-cycle accumulation the arithmetic predicts
+> (15 s × 48.4 ppm = 726 µs ≈ 8.7 samples) — the loop cancels the accumulation, leaving only one
+> cycle's worth of error at any instant.
+>
+> ### Why this closure should be believed where 2026-07-31's should not
+>
+> **The oracle was replaced, not adjusted.** The predecessor computed ground truth as the
+> drift-*inclusive* window open time, so it asserted **label honesty** — identically zero after
+> PR #118 by construction. It was green against this defect for weeks. The replacement asserts two
+> independent properties: the emitted label's offset from the UTC grid, **and** which source samples
+> actually landed in the window, the latter keyed to the capture device's own model of which sample
+> was being captured at the grid instant. That second assertion is red against unfixed `main`,
+> against a label-only fix, and against a label-snap fix alike — the three ways this could have been
+> declared fixed while still broken.
+>
+> **QA verified it red by reverting `src/`, three times:** on delivery (5/5 red), again after the
+> tolerance was tightened from 250 ms to the programme's 0.2 s bar (5/5 red), and once more for the
+> fixture guard on the unrelated retention defect. None of those red results was taken from a commit
+> message.
+>
+> ### Also closed by this fix
+>
+> `dev-tasks/2026-08-01-8080-decode-collapse-after-long-uptime.md` — **the same defect, not a second
+> one.** Every candidate that dev-task ruled out is consistent with drift: the radio power-cycle
+> didn't help (software, not RF), a process restart cleared it completely (resets accumulated drift
+> to zero), and 8081 was unaffected throughout (4.7 ppm reaches 2 s at ~118 h; the run was 43.5 h).
+>
+> ### Two things NOT closed by this fix
+>
+> 1. **The ~6 h session cap on the FT-991A chain remains in force** until the Captain lifts it
+>    explicitly. It was mitigation for this defect and may now go — but the previous ~12 h cap was
+>    lifted on the belief that PR #118 had fixed this, and that belief cost 2,702 cycles in the
+>    +2 s regime. It lifts as a decision, not as an assumption.
+> 2. **Gate G9 — Version governance did not run on the merge.** It landed as a direct push, and G9
+>    executes only on the `pull_request` leg. `pre_merge_check.py` ran G9a and G9b locally, both
+>    PASS, against the same base ref CI would have used — so version governance *was* checked, by
+>    the script rather than by the gate.
+>
+> **Evidence:** `dev-tasks/2026-08-02-reopen-cycleframer-clock-drift-still-present-after-pr118.md`
+> (the task), `dev-tasks/2026-08-03-review-followup-grid-realignment-oracle-tolerance.md` (QA's
+> review finding), `qa/cycleframer-alignment-replay/2026-08-02-1813-architect-design-cycleframer-
+> grid-realignment.md` (the design). Merge commit `be5960a`; CI run `30831377759` green on
+> ubuntu/windows/macos.
 
 > **REOPENED, 2026-08-02 (QA, per `qa/cycleframer-alignment-replay/2026-08-02-1714-
 > architect-to-qa-correction-cycle-grid-artefact-voids-8080-anova.md` §5 and §8 item 3):**
