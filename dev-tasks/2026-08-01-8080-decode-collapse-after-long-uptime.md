@@ -5,12 +5,51 @@ multi-day 20m live run (`qa/cycleframer-alignment-replay/2026-07-31-1907-...-pre
 multiday-20m-live-run.md`).
 **Branch:** fresh off `main`, current tip `2dacd1a`. This is investigation, not a known fix — scope
 the branch once a root cause is found.
-**Status:** live defect, reproduced once, root cause **not yet known**. A clean process restart is
-a confirmed workaround, not a fix. No regression test exists for this path.
+**Status:** ⚠️ **ROOT CAUSE FOUND, 2026-08-02 — do not investigate this separately.** This is the
+reopened `CycleFramer` clock drift, tracked in
+`dev-tasks/2026-08-02-reopen-cycleframer-clock-drift-still-present-after-pr118.md`. **These are ONE
+defect, not two;** that fix closes this one. See §0 below. A clean process restart is a workaround
+because it resets accumulated drift to zero, not because it clears any runtime state.
+
+**Superseded status line (retained for provenance):** *"live defect, reproduced once, root cause
+not yet known… No regression test exists for this path."* Both italicised claims are now corrected:
+the cause is known, and it **reproduced three times**, once per restart segment of the 07-31 corpus,
+at consistent uptime. It is not an incident; it is a deterministic function of uptime.
 **Severity:** high for this project's current priorities — 8080 is the "decisive corpus" instance
 for an active multi-day corpus-gathering run; if this recurs unnoticed, it silently degrades the
 one dataset the whole run exists to produce, while every existing health signal (heartbeat,
 `[ERR]`/`[FTL]`, archiving) stays green throughout.
+
+---
+
+## 0. Resolution — added by QA, 2026-08-03 (14:35 UTC, `date -u`, HK-017)
+
+The collapse is the `CycleFramer` capture window walking off the UTC 15-second grid at 48.0 ppm and
+crossing FT8's ~2.36 s guard interval. 8080/8081 decode ratio pooled over the corpus's three restart
+segments, against accumulated drift:
+
+| uptime | drift | 8080/8081 | |
+|---:|---:|---:|---|
+| 0–5 h | 0–0.86 s | 0.93–0.97 | flat, healthy |
+| 6–11 h | 1.04–1.90 s | 0.95 → 0.81 | gradual decline |
+| **12 h** | **2.07 s** | **0.713** | **cliff begins** |
+| 13 h | 2.25 s | 0.426 | |
+| 14 h | 2.42 s | **0.254** | past the guard interval |
+
+**Every candidate ruled out in §2 below is *consistent* with drift rather than contradicting it:**
+
+- *Power-cycling the radio didn't fix it* — correct; the defect is software framing, not RF.
+- *A daemon restart fixed it completely* — correct; a restart re-anchors `cycleStart` to the grid
+  at start-up (`CycleFramer.cs:86`) and resets accumulated drift to zero.
+- *8081 was unaffected throughout* — correct; that chain drifts at 4.7 ppm, reaching 2 s at ~118 h.
+  The run was 43.5 h, so 8081 never approached the cliff.
+
+§2's checks were sound and remain valid; they simply could not see the mechanism, because the
+window's alignment was not among the things measured. The ~14 h onset in §1 is the cliff.
+
+⚠️ **Do not open a Developer session against this file.** The work is in the drift dev-task. This
+one should be archived against that fix once it lands, and its §7 ("Tests required, once a root
+cause is found") is answered by that task's §4 oracle work.
 
 ---
 
