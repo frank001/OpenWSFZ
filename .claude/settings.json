@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash qa/endurance/restart-8080-on-anomaly.sh *)",
+      "Bash(bash qa/endurance/restart-8081-on-anomaly.sh *)",
+      "Bash(qa/endurance/restart-8080-on-anomaly.sh *)",
+      "Bash(qa/endurance/restart-8081-on-anomaly.sh *)"
+    ]
+  }
+}
