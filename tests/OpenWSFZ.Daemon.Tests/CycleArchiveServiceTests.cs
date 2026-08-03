@@ -461,10 +461,93 @@ public sealed class CycleArchiveServiceTests : IDisposable
     // TryEnqueue's test above already exercises the identical `?? new CycleAudioArchiveConfig()`
     // coalesce pattern end-to-end without that side effect.
 
+    // ── Fixture guard ─────────────────────────────────────────────────────────
+
+    [Fact(DisplayName =
+        "cycle-audio-archive (fixture guard): fixture cycle stamps are clock-relative, so no " +
+        "retention test can silently age out of the window it is meant to exercise")]
+    public void FixtureCycleStamps_StayFarInsideTheDefaultAgeCap()
+    {
+        // Mechanical form of the date-independence requirement in dev-tasks/2026-08-03-fix-time-
+        // bombed-cyclearchive-retention-sizecap-test.md §4.3. The previous fixed-date fixture
+        // passed for six days and then failed forever, deterministically, with no code change --
+        // exactly the failure mode a green test suite cannot report. Reasoning in a comment would
+        // not have caught it being reintroduced; this does.
+        //
+        // CycleAt(0) is the oldest stamp any test uses; the newest in the file is CycleAt(5),
+        // 75 s later.
+        TimeSpan oldestAge = DateTime.UtcNow - CycleAt(0);
+        var defaultMaxAge  = TimeSpan.FromHours(new CycleAudioArchiveConfig().MaxAgeHours);
+
+        oldestAge.Should().BePositive(
+            "fixture stamps must sit in the past, as real archived cycle starts do");
+
+        oldestAge.Should().BeLessThan(defaultMaxAge / 100,
+            $"the oldest fixture stamp is {oldestAge.TotalHours:F2} h old against a default " +
+            $"MaxAgeHours of {defaultMaxAge.TotalHours:F0} h. Fixture timestamps must be derived " +
+            "from the wall clock, never from a fixed calendar date: a fixed date's age grows " +
+            "without bound until it crosses the age cap, at which point EnforceRetention deletes " +
+            "every fixture file before the size-cap loop is reached and the test fails on every " +
+            "run thereafter. Two orders of magnitude of headroom means this can only trip if " +
+            "MaxAgeHours itself is deliberately made tiny, which is not something a fixture can " +
+            "do by accident");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    private const int CycleSeconds = 15;
+
+    /// <summary>
+    /// Anchor for every fixture cycle timestamp, resolved once per test run against the wall
+    /// clock rather than hardcoded to a calendar date.
+    ///
+    /// <para>
+    /// <b>This used to be <c>new DateTime(2026, 7, 25, 10, 0, 0)</c>, and it was a time bomb.</b>
+    /// <c>EnforceRetention</c> applies the age cap before the size cap, and reads a file's age
+    /// from the <c>yyMMdd_HHmmss</c> stamp in its own name. With <c>MaxAgeHours</c> at its
+    /// default of 168 h, every fixture file aged out at <c>2026-07-25 10:00 + 168 h =
+    /// 2026-08-01 10:00 UTC</c> — after which <c>Retention_SizeCap_DeletesOldestRetainsNewest</c>
+    /// had all three of its files deleted by the age cap before the size-cap loop it exists to
+    /// exercise was ever reached, and reported <c>currently 0</c>. It failed deterministically
+    /// on every run from that instant. See
+    /// <c>dev-tasks/2026-08-03-fix-time-bombed-cyclearchive-retention-sizecap-test.md</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Why this cannot age out again.</b> The anchor is now always ~5 minutes before the run
+    /// itself, so a fixture file's age at assertion time is minutes, never days. For the age cap
+    /// to fire again, <c>MaxAgeHours</c> would have to drop below ~0.1 h — five orders of
+    /// magnitude from its 168 h default, and a change no fixture could hide. The bomb is removed
+    /// rather than moved: there is no future date at which this starts failing, because there is
+    /// no longer any fixed date in it.
+    /// </para>
+    ///
+    /// <para>
+    /// Resolved <b>once</b>, as a <c>static readonly</c>, not per call. Several tests compare a
+    /// filename built from <c>CycleAt(0)</c> against one built by a later <c>CycleAt(0)</c> call
+    /// (lines ~325-333) — re-reading the clock per call would let those drift apart and
+    /// reintroduce flakiness of a different kind. Snapped to a 15-second boundary with no
+    /// sub-second component so the second-resolution <c>yyMMdd_HHmmss</c> filenames stay
+    /// well-formed, distinct, and exactly one cycle apart, as real cycle starts are.
+    /// </para>
+    ///
+    /// <para>
+    /// The 5-minute backdate keeps every index this file uses (0 through 5, a 75 s span) at or
+    /// before "now", matching the old fixed-date fixture's intent of stamps already in the past.
+    /// </para>
+    /// </summary>
+    private static readonly DateTime FixtureEpochUtc =
+        SnapToCycleBoundary(DateTime.UtcNow.AddMinutes(-5));
+
+    /// <summary>Floors <paramref name="utc"/> to the 15-second cycle grid, discarding sub-second ticks.</summary>
+    private static DateTime SnapToCycleBoundary(DateTime utc)
+    {
+        const long cycleTicks = CycleSeconds * TimeSpan.TicksPerSecond;
+        return new DateTime(utc.Ticks - (utc.Ticks % cycleTicks), DateTimeKind.Utc);
+    }
+
     private static DateTime CycleAt(int index) =>
-        new DateTime(2026, 7, 25, 10, 0, 0, DateTimeKind.Utc).AddSeconds(15 * index);
+        FixtureEpochUtc.AddSeconds(CycleSeconds * index);
 
     private int CountWavFiles() =>
         Directory.Exists(_tempDir) ? Directory.GetFiles(_tempDir, "*.wav").Length : 0;
