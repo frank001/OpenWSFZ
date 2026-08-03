@@ -207,9 +207,18 @@ render_table() {
 
 echo
 render_table \
-    "Source|Band|WAVs|ALL.TXT|vs WSJTX|Decodes/30min|0-dec/20" \
+    "Source|Band|WAVs (total)|ALL.TXT (total)|vs WSJTX|Decodes/30min|0-dec/20" \
     "WSJT-X|$BAND_WSJTX|$WAV_WSJTX|$CELL_WSJTX_TXT|-|$CELL_WSJTX_D30|-" \
     "8080|$BAND_8080|$WAV_8080|$LINES_8080|$CELL_VS|$CELL_D30|$ZERO_8080/20"
+
+# --- Provenance for the two total columns. Printed so the exact file behind each
+#     number, and the instant it was read, are never in doubt. These figures move
+#     at roughly 60 lines/min, so any hand-check taken even a minute apart will
+#     differ; this line makes the comparison checkable rather than arguable.
+echo
+echo "ALL.TXT totals read at $(date -u +"%H:%M:%SZ") -- raw line counts, no filtering:"
+echo "  WSJT-X $LINES_WSJTX  <- $TXT_WSJTX"
+echo "  8080   $LINES_8080  <- $TXT_8080"
 
 # --- Archiving liveness: age of the newest live WAV.
 NEWEST_WAV="$(ls -t "$CYCLE_AUDIO_DIR"/*.wav 2>/dev/null | head -1)"
