@@ -326,8 +326,17 @@ public sealed class CycleFramerTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         _ = Task.Run(() => framer.RunAsync(output.Writer, cts.Token));
 
-        // Feed two full windows worth of samples.
-        await FeedSamples((source.Writer, source.Reader), SamplesPerCycle * 2, 4096);
+        // Feed three full windows worth of samples to observe two emissions.
+        //
+        // Two used to be exactly enough, back when a window was unconditionally 180 000
+        // source samples. It no longer is: CycleFramer now chooses its per-cycle consumption
+        // by re-anchoring to the UTC 15-second grid, so a window may consume up to 3 000
+        // samples more than nominal (MaxCorrectionSamples). This test's FakeClock never
+        // advances — a deliberate simplification, since what it asserts is the dial-frequency
+        // snapshot point, not timing — and a frozen clock reads as "we are perpetually
+        // 4 096 samples early", so window 1 asks for the full 183 000. Feed enough that the
+        // fixture cannot starve it. See DEFECT-capture-clock-drift-silent-decode-loss.md.
+        await FeedSamples((source.Writer, source.Reader), SamplesPerCycle * 3, 4096);
 
         var emitted = new List<double?>();
         await foreach (var (_, _, dialFreq) in output.Reader.ReadAllAsync(cts.Token))

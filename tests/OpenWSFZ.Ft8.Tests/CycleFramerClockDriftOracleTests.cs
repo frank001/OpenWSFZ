@@ -198,9 +198,15 @@ public sealed class CycleFramerClockDriftOracleTests
                 $"window {k} precedes the drop and must sit on the grid");
         }
 
-        // No single cycle may absorb the whole 2 s: that would discard or duplicate 24 000
-        // samples at once. The clamp exists to spread it.
-        AssertNoCycleExceedsTheClamp(device, windows);
+        // No single cycle of the RECOVERY may absorb the whole 2 s: that would discard or
+        // duplicate 24 000 samples at once. The clamp exists to spread it over ~8 cycles.
+        //
+        // The drop lands part-way through window `cleanCycles`'s accumulation, so the gap
+        // that reads inflated is the one *ending* at window `cleanCycles + 1` (measured:
+        // 204 000 = 180 000 + the 24 000 dropped). Start one past it. That window is skipped
+        // rather than asserted on because the framer is handed a perfectly contiguous stream
+        // across the gap and cannot detect it — see the helper's remarks.
+        AssertNoCycleExceedsTheClamp(device, windows, fromIndex: cleanCycles + 2);
 
         // 2 s at a 0.25 s clamp converges in ~8 cycles; allow 12 before requiring the bar.
         const int convergenceCycles = 12;
@@ -431,12 +437,23 @@ public sealed class CycleFramerClockDriftOracleTests
     /// Asserts that consecutive windows never differ in source consumption from
     /// <see cref="SamplesPerCycle"/> by more than <see cref="MaxCorrectionSamples"/> — the
     /// safety valve of the design's §3 property 4, measured from the audio itself.
+    ///
+    /// <para>
+    /// Consumption is measured as the gap between consecutive windows' first source-sample
+    /// indices, which equals what the framer chose to consume <em>except across a silent
+    /// drop</em>: the window straddling a dropped chunk spans the missing indices too, so its
+    /// gap reads 180 000 + the drop through no fault of the framer, which received a
+    /// perfectly contiguous stream and cannot possibly detect the gap. Callers exercising a
+    /// drop pass <paramref name="fromIndex"/> past the straddling window; what matters there
+    /// is that the <em>recovery</em> respects the clamp.
+    /// </para>
     /// </summary>
     private static void AssertNoCycleExceedsTheClamp(
         SimulatedCaptureDevice device,
-        IReadOnlyList<WindowRecorder.RecordedWindow> windows)
+        IReadOnlyList<WindowRecorder.RecordedWindow> windows,
+        int fromIndex = 2)
     {
-        for (int k = 2; k < windows.Count; k++)
+        for (int k = fromIndex; k < windows.Count; k++)
         {
             long prev = FirstSampleIndex(device, windows[k - 1]);
             long here = FirstSampleIndex(device, windows[k]);
