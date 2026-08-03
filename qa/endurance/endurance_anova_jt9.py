@@ -158,12 +158,23 @@ def run_jt9(jt9_exe: str, wav_paths: list[str], depth: int,
             batch_size: int = JT9_BATCH_SIZE) -> list[dict]:
     if not wav_paths:
         return []
-    if hhmmss_to_ts is None:
-        hhmmss_to_ts = {
-            os.path.splitext(os.path.basename(p))[0].split("_", 1)[1]:
-                os.path.splitext(os.path.basename(p))[0]
-            for p in wav_paths
-        }
+    # BUG FOUND AND FIXED 2026-08-03 (QA, T4/Angle-1 execution): when hhmmss_to_ts is
+    # None, this used to build ONE dict keyed by bare HHMMSS across the ENTIRE wav_paths
+    # list before batching. parse_jt9_stdout's own docstring already warns that an
+    # endurance session "commonly spans UTC midnight" and that naively resolving HHMMSS
+    # back to a full ts "would silently mislabel" decodes -- but the global-dict
+    # construction here recreated exactly that hazard one level up: two WAVs on
+    # different calendar dates sharing the same time-of-day HHMMSS would collide in the
+    # single shared dict (Python keeps whichever key was inserted last), silently
+    # misattributing every jt9 decode line for the losing date to the WRONG day's cycle
+    # for the rest of the run. Confirmed live and non-hypothetical: the 07-31/08-02
+    # +0s-stratum population used by Angle 1 (D-001) has 394 such collisions across its
+    # 3,618 cycles. A single batch's own time span is always << 24h (<=37.5 min at the
+    # default 150-file batch size), so no real collision can occur WITHIN one batch --
+    # the fix is to build hhmmss_to_ts per batch, from only that batch's own files,
+    # rather than once globally. A caller-supplied hhmmss_to_ts is still honoured as-is
+    # (unchanged behaviour) for anyone who has already worked around this themselves.
+    per_batch_auto_map = hhmmss_to_ts is None
     # Measured ~1s/file wall time (2026-07-27 timing probe, this machine). 5s/file per
     # batch gives generous headroom without needing a hand-tuned timeout per run.
     if timeout_secs is None:
@@ -187,11 +198,22 @@ def run_jt9(jt9_exe: str, wav_paths: list[str], depth: int,
         # thread pool achieves real OS-level parallelism here despite Python's GIL -- no
         # multiprocessing/pickling needed, since each worker's actual work happens
         # outside the Python interpreter entirely.
-        futures = [
-            executor.submit(_run_one_jt9_batch, jt9_exe, batch, depth, hhmmss_to_ts,
-                             timeout_secs, i + 1, len(batches))
-            for i, batch in enumerate(batches)
-        ]
+        futures = []
+        for i, batch in enumerate(batches):
+            # Per-batch map when auto-derived (see BUG note above) -- collision-safe by
+            # construction, since one batch's time span can never contain a real
+            # same-time-of-day repeat. A caller-supplied hhmmss_to_ts is passed through
+            # unchanged, once, for every batch (prior behaviour).
+            batch_map = (
+                {
+                    os.path.splitext(os.path.basename(p))[0].split("_", 1)[1]:
+                        os.path.splitext(os.path.basename(p))[0]
+                    for p in batch
+                }
+                if per_batch_auto_map else hhmmss_to_ts
+            )
+            futures.append(executor.submit(_run_one_jt9_batch, jt9_exe, batch, depth,
+                                            batch_map, timeout_secs, i + 1, len(batches)))
         for future in concurrent.futures.as_completed(futures):
             rows, unmatched = future.result()
             all_rows.extend(rows)
