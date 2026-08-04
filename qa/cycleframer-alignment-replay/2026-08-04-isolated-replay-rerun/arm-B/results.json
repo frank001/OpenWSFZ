@@ -1,0 +1,382 @@
+{
+  "target_per_stratum": 20,
+  "max_tries_per_stratum": 60,
+  "reference_llr_threshold_25th_pct": null,
+  "reference_llr_n": 0,
+  "results": {
+    "< -15 dB": {
+      "tried": 23,
+      "decoded_on_replay": 3,
+      "reproduced_collected_n": 20,
+      "records": [
+        {
+          "ts": "260803_202700",
+          "freq_hz": 1010,
+          "wsjt_snr_db": -20,
+          "band": "< -15 dB",
+          "total_candidates": 294,
+          "mean_abs_llr": 4.011251184834124,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_181400",
+          "freq_hz": 729,
+          "wsjt_snr_db": -21,
+          "band": "< -15 dB",
+          "total_candidates": 340,
+          "mean_abs_llr": 4.070868312757201,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_114030",
+          "freq_hz": 413,
+          "wsjt_snr_db": -22,
+          "band": "< -15 dB",
+          "total_candidates": 233,
+          "mean_abs_llr": 4.129967032967033,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_230430",
+          "freq_hz": 837,
+          "wsjt_snr_db": -18,
+          "band": "< -15 dB",
+          "total_candidates": 144,
+          "mean_abs_llr": 4.008543307086614,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_224730",
+          "freq_hz": 419,
+          "wsjt_snr_db": -20,
+          "band": "< -15 dB",
+          "total_candidates": 195,
+          "mean_abs_llr": 4.078571428571428,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_214430",
+          "freq_hz": 1197,
+          "wsjt_snr_db": -21,
+          "band": "< -15 dB",
+          "total_candidates": 340,
+          "mean_abs_llr": 4.005129963898917,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_044830",
+          "freq_hz": 912,
+          "wsjt_snr_db": -18,
+          "band": "< -15 dB",
+          "total_candidates": 126,
+          "mean_abs_llr": 3.9389072164948455,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_211000",
+          "freq_hz": 762,
+          "wsjt_snr_db": -17,
+          "band": "< -15 dB",
+          "total_candidates": 340,
+          "mean_abs_llr": 4.096648936170213,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_225730",
+          "freq_hz": 1031,
+          "wsjt_snr_db": -19,
+          "band": "< -15 dB",
+          "total_candidates": 146,
+          "mean_abs_llr": 4.078734513274337,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_202115",
+          "freq_hz": 783,
+          "wsjt_snr_db": -17,
+          "band": "< -15 dB",
+          "total_candidates": 217,
+          "mean_abs_llr": 4.027559322033898,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_003500",
+          "freq_hz": 680,
+          "wsjt_snr_db": -17,
+          "band": "< -15 dB",
+          "total_candidates": 82,
+          "mean_abs_llr": 4.019,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_204945",
+          "freq_hz": 833,
+          "wsjt_snr_db": -19,
+          "band": "< -15 dB",
+          "total_candidates": 248,
+          "mean_abs_llr": 4.095815384615385,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_075845",
+          "freq_hz": 382,
+          "wsjt_snr_db": -22,
+          "band": "< -15 dB",
+          "total_candidates": 205,
+          "mean_abs_llr": 4.122285714285714,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_113900",
+          "freq_hz": 1062,
+          "wsjt_snr_db": -21,
+          "band": "< -15 dB",
+          "total_candidates": 289,
+          "mean_abs_llr": 4.097511737089202,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_054230",
+          "freq_hz": 639,
+          "wsjt_snr_db": -24,
+          "band": "< -15 dB",
+          "total_candidates": 327,
+          "mean_abs_llr": 4.067823529411765,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_095130",
+          "freq_hz": 388,
+          "wsjt_snr_db": -20,
+          "band": "< -15 dB",
+          "total_candidates": 340,
+          "mean_abs_llr": 4.065875,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_220030",
+          "freq_hz": 638,
+          "wsjt_snr_db": -17,
+          "band": "< -15 dB",
+          "total_candidates": 329,
+          "mean_abs_llr": 4.0338,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_112915",
+          "freq_hz": 237,
+          "wsjt_snr_db": -20,
+          "band": "< -15 dB",
+          "total_candidates": 274,
+          "mean_abs_llr": 4.14959375,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_133630",
+          "freq_hz": 695,
+          "wsjt_snr_db": -17,
+          "band": "< -15 dB",
+          "total_candidates": 235,
+          "mean_abs_llr": 4.119478260869564,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_122145",
+          "freq_hz": 218,
+          "wsjt_snr_db": -18,
+          "band": "< -15 dB",
+          "total_candidates": 278,
+          "mean_abs_llr": 4.084402985074628,
+          "verdict": "ambiguous_busy_passband"
+        }
+      ]
+    },
+    "-15..-10 dB": {
+      "tried": 21,
+      "decoded_on_replay": 1,
+      "reproduced_collected_n": 20,
+      "records": [
+        {
+          "ts": "260804_002800",
+          "freq_hz": 196,
+          "wsjt_snr_db": -11,
+          "band": "-15..-10 dB",
+          "total_candidates": 102,
+          "mean_abs_llr": 4.018767441860465,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_092130",
+          "freq_hz": 198,
+          "wsjt_snr_db": -13,
+          "band": "-15..-10 dB",
+          "total_candidates": 340,
+          "mean_abs_llr": 4.1105857142857145,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_132030",
+          "freq_hz": 1266,
+          "wsjt_snr_db": -15,
+          "band": "-15..-10 dB",
+          "total_candidates": 281,
+          "mean_abs_llr": 4.1426560846560845,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_213330",
+          "freq_hz": 917,
+          "wsjt_snr_db": -13,
+          "band": "-15..-10 dB",
+          "total_candidates": 304,
+          "mean_abs_llr": 4.094571428571428,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_195815",
+          "freq_hz": 1053,
+          "wsjt_snr_db": -12,
+          "band": "-15..-10 dB",
+          "total_candidates": 299,
+          "mean_abs_llr": 4.072235294117648,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_231145",
+          "freq_hz": 400,
+          "wsjt_snr_db": -15,
+          "band": "-15..-10 dB",
+          "total_candidates": 285,
+          "mean_abs_llr": 4.0103375,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_225045",
+          "freq_hz": 385,
+          "wsjt_snr_db": -14,
+          "band": "-15..-10 dB",
+          "total_candidates": 318,
+          "mean_abs_llr": 4.026288065843621,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_221530",
+          "freq_hz": 997,
+          "wsjt_snr_db": -15,
+          "band": "-15..-10 dB",
+          "total_candidates": 299,
+          "mean_abs_llr": 4.080251101321585,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_131445",
+          "freq_hz": 559,
+          "wsjt_snr_db": -11,
+          "band": "-15..-10 dB",
+          "total_candidates": 272,
+          "mean_abs_llr": 4.0482030456852796,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_231545",
+          "freq_hz": 839,
+          "wsjt_snr_db": -13,
+          "band": "-15..-10 dB",
+          "total_candidates": 293,
+          "mean_abs_llr": 4.0199083333333325,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_211930",
+          "freq_hz": 1004,
+          "wsjt_snr_db": -13,
+          "band": "-15..-10 dB",
+          "total_candidates": 309,
+          "mean_abs_llr": 4.066675324675325,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_182245",
+          "freq_hz": 176,
+          "wsjt_snr_db": -12,
+          "band": "-15..-10 dB",
+          "total_candidates": 340,
+          "mean_abs_llr": 4.034946564885496,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_211730",
+          "freq_hz": 1058,
+          "wsjt_snr_db": -13,
+          "band": "-15..-10 dB",
+          "total_candidates": 340,
+          "mean_abs_llr": 4.08392490118577,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_190130",
+          "freq_hz": 1116,
+          "wsjt_snr_db": -14,
+          "band": "-15..-10 dB",
+          "total_candidates": 311,
+          "mean_abs_llr": 4.102475,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_043015",
+          "freq_hz": 177,
+          "wsjt_snr_db": -15,
+          "band": "-15..-10 dB",
+          "total_candidates": 142,
+          "mean_abs_llr": 4.094712871287129,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_221430",
+          "freq_hz": 360,
+          "wsjt_snr_db": -15,
+          "band": "-15..-10 dB",
+          "total_candidates": 283,
+          "mean_abs_llr": 4.032288461538462,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_231400",
+          "freq_hz": 579,
+          "wsjt_snr_db": -13,
+          "band": "-15..-10 dB",
+          "total_candidates": 136,
+          "mean_abs_llr": 4.045,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260803_232745",
+          "freq_hz": 194,
+          "wsjt_snr_db": -13,
+          "band": "-15..-10 dB",
+          "total_candidates": 278,
+          "mean_abs_llr": 4.073139130434783,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_132300",
+          "freq_hz": 538,
+          "wsjt_snr_db": -15,
+          "band": "-15..-10 dB",
+          "total_candidates": 283,
+          "mean_abs_llr": 4.068247706422018,
+          "verdict": "ambiguous_busy_passband"
+        },
+        {
+          "ts": "260804_081945",
+          "freq_hz": 827,
+          "wsjt_snr_db": -15,
+          "band": "-15..-10 dB",
+          "total_candidates": 271,
+          "mean_abs_llr": 3.9753333333333334,
+          "verdict": "ambiguous_busy_passband"
+        }
+      ]
+    }
+  }
+}

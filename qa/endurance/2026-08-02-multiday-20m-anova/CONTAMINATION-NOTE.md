@@ -163,7 +163,19 @@ software defect, not experimentation or a band-conditions artifact.**
 | **Ruled out** | Clipping (`clipped_frac=0`), silence, low audio level (WAV peak/RMS normal throughout), elevated noise floor (`-67` to `-68 dB`, at or below the session average), hash-table saturation (8081's `hashTableRejectCount` was *higher* than 8080's throughout and showed zero effect) |
 | **What changed** | Raw LDPC candidate count itself dropped — from the 140-200 range 8080 also showed earlier in this same session, down to 39-96, while 8081 held steady at 140 throughout. LDPC fail rate on found candidates also rose sharply (most candidates failing checksum, `meanAbsLLR` unchanged — i.e. not simply "weaker signal," something about candidate quality itself) |
 | **Diagnostic steps taken, in order** | 1) Power-cycled the physical radio — **did not fix it**, arguably slightly worse afterward. 2) Restarted the 8080 daemon process — **same config, same radio, same antenna, nothing else changed — fully fixed it**, decode rate back to 17-26/cycle and candidate counts back to 131-140 within the first six cycles after restart |
-| **Conclusion** | Since a clean process restart alone cured it with literally nothing else changed, this rules out hardware/RF as the cause and points at a **software/runtime-state defect that surfaces after long continuous uptime** (~14h in this occurrence). Root cause not yet identified — see `dev-tasks/2026-08-01-8080-decode-collapse-after-long-uptime.md` for the investigation handoff |
+| **Conclusion** | Since a clean process restart alone cured it with literally nothing else changed, this rules out hardware/RF as the cause and points at a **software/runtime-state defect that surfaces after long continuous uptime** (~14h in this occurrence). ~~Root cause not yet identified~~ — **superseded 2026-08-04, see note below.** |
+
+**Superseded 2026-08-04 (QA, Task 1 of the FP-surge spec).** This window's "root cause not yet
+identified" line is stale, not this window's own observations, which stand as recorded above and
+are not being rewritten. The cause was identified 2026-08-03: the `CycleFramer` capture window
+drifting off the UTC 15 s grid at 48.0 ppm and crossing FT8's ~2.36 s guard interval — fixed and
+merged as `be5960a`. Measured directly, not just attributed: on `artefacts/20260803_live_run_1713/`
+(post-fix), the decisive 18.96 h uptime epoch shows no decode-ratio cliff past the 13.7 h point
+(`median(ratio, after)` = 93.5% of `median(ratio, before)`, clear of the 0.80x NOT-CLOSED bar; see
+`qa/endurance/2026-08-03-drift-screen/window4_closure_check.py`). See
+`dev-tasks/2026-08-01-8080-decode-collapse-after-long-uptime.md` Sec.0/Sec.0b for the full
+resolution. The disarmed cross-instance decode-collapse detector (Sec.6 of that dev-task) is not
+needed for this specific failure mode; whether it is wanted for a different one remains open.
 
 **Operational note:** the supervisor did not and could not detect this — every signal it watches
 (heartbeat, `[ERR]`/`[FTL]`, archiving liveness) stayed green throughout. A cross-instance detection

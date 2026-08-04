@@ -1,0 +1,65 @@
+[16:59:42Z] Daemon launched, pid=26584, port=8099, stdout -> qa\cycleframer-alignment-replay\2026-08-04-isolated-replay-rerun\arm-B\_work\daemon_run\daemon_stdout.log
+[16:59:44Z] Daemon ready: {'state': 'Running', 'version': '0.47', 'audioDevice': None, 'captureActive': False, 'audioActive': False, 'decodingEnabled': True, 'dialFrequencyMHz': 0, 'catConnectionStatus': 'Disabled', 'rxAudioOffsetHz': 1500, 'txAudioOffsetHz': 1500, 'holdTxFreq': False, 'shimVersion': 20260033, 'hashTableRejectCount': 0, 'cycleArchiveDroppedCycles': 0}
+[16:59:47Z] Capture device: CABLE Output (VB-Audio Virtual Cable) ({0.0.1.00000000}.{ecb41d74-1aa5-43b1-ac89-b69e40510f00})
+[16:59:51Z] Config applied (audio device + Debug file logging + ALL.TXT logging).
+[16:59:53Z] Decode started.
+[16:59:57Z] Output device: [26] CABLE Input (VB-Audio Virtual C
+[16:59:59Z] 
+=== Stratum: < -15 dB -- target 20 reproduced, up to 60 tries ===
+[17:00:49Z]   [1/60] 260803_202700 @ 1010Hz (-20 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=294, n_blocks_seen=3 (1/20 collected)
+[17:01:34Z]   [2/60] 260803_181400 @ 729Hz (-21 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=340, n_blocks_seen=3 (2/20 collected)
+[17:02:19Z]   [3/60] 260804_112930 @ 991Hz (-20 dB) -> DECODED-ON-REPLAY (excluded from split)
+[17:03:04Z]   [4/60] 260804_114030 @ 413Hz (-22 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=233, n_blocks_seen=3 (3/20 collected)
+[17:03:49Z]   [5/60] 260803_230430 @ 837Hz (-18 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=144, n_blocks_seen=3 (4/20 collected)
+[17:04:34Z]   [6/60] 260803_224730 @ 419Hz (-20 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=195, n_blocks_seen=3 (5/20 collected)
+[17:05:19Z]   [7/60] 260803_214430 @ 1197Hz (-21 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=340, n_blocks_seen=3 (6/20 collected)
+[17:06:04Z]   [8/60] 260804_044830 @ 912Hz (-18 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=126, n_blocks_seen=3 (7/20 collected)
+[17:06:49Z]   [9/60] 260803_211000 @ 762Hz (-17 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=340, n_blocks_seen=3 (8/20 collected)
+[17:07:34Z]   [10/60] 260803_225730 @ 1031Hz (-19 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=146, n_blocks_seen=3 (9/20 collected)
+[17:08:19Z]   [11/60] 260803_185400 @ 1114Hz (-18 dB) -> DECODED-ON-REPLAY (excluded from split)
+[17:09:04Z]   [12/60] 260803_202115 @ 783Hz (-17 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=217, n_blocks_seen=3 (10/20 collected)
+[17:09:49Z]   [13/60] 260804_003500 @ 680Hz (-17 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=82, n_blocks_seen=3 (11/20 collected)
+[17:10:34Z]   [14/60] 260803_204945 @ 833Hz (-19 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=248, n_blocks_seen=3 (12/20 collected)
+[17:11:19Z]   [15/60] 260804_075845 @ 382Hz (-22 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=205, n_blocks_seen=3 (13/20 collected)
+[17:12:04Z]   [16/60] 260803_230130 @ 419Hz (-18 dB) -> DECODED-ON-REPLAY (excluded from split)
+[17:12:49Z]   [17/60] 260804_113900 @ 1062Hz (-21 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=289, n_blocks_seen=3 (14/20 collected)
+[17:13:34Z]   [18/60] 260804_054230 @ 639Hz (-24 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=327, n_blocks_seen=3 (15/20 collected)
+[17:14:19Z]   [19/60] 260804_095130 @ 388Hz (-20 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=340, n_blocks_seen=3 (16/20 collected)
+[17:15:04Z]   [20/60] 260803_220030 @ 638Hz (-17 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=329, n_blocks_seen=3 (17/20 collected)
+[17:15:49Z]   [21/60] 260804_112915 @ 237Hz (-20 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=274, n_blocks_seen=3 (18/20 collected)
+[17:16:34Z]   [22/60] 260804_133630 @ 695Hz (-17 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=235, n_blocks_seen=3 (19/20 collected)
+[17:17:19Z]   [23/60] 260804_122145 @ 218Hz (-18 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=278, n_blocks_seen=3 (20/20 collected)
+[17:17:19Z] 
+=== Stratum: -15..-10 dB -- target 20 reproduced, up to 60 tries ===
+[17:18:04Z]   [1/60] 260804_002800 @ 196Hz (-11 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=102, n_blocks_seen=3 (1/20 collected)
+[17:18:49Z]   [2/60] 260804_092130 @ 198Hz (-13 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=340, n_blocks_seen=3 (2/20 collected)
+[17:19:34Z]   [3/60] 260804_132030 @ 1266Hz (-15 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=281, n_blocks_seen=3 (3/20 collected)
+[17:20:19Z]   [4/60] 260803_213330 @ 917Hz (-13 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=304, n_blocks_seen=3 (4/20 collected)
+[17:21:04Z]   [5/60] 260803_195815 @ 1053Hz (-12 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=299, n_blocks_seen=3 (5/20 collected)
+[17:21:49Z]   [6/60] 260803_231145 @ 400Hz (-15 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=285, n_blocks_seen=3 (6/20 collected)
+[17:22:34Z]   [7/60] 260803_225045 @ 385Hz (-14 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=318, n_blocks_seen=3 (7/20 collected)
+[17:23:19Z]   [8/60] 260803_221530 @ 997Hz (-15 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=299, n_blocks_seen=3 (8/20 collected)
+[17:24:04Z]   [9/60] 260804_131445 @ 559Hz (-11 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=272, n_blocks_seen=3 (9/20 collected)
+[17:24:49Z]   [10/60] 260803_231545 @ 839Hz (-13 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=293, n_blocks_seen=3 (10/20 collected)
+[17:25:34Z]   [11/60] 260803_211930 @ 1004Hz (-13 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=309, n_blocks_seen=3 (11/20 collected)
+[17:26:19Z]   [12/60] 260803_213100 @ 1160Hz (-12 dB) -> DECODED-ON-REPLAY (excluded from split)
+[17:27:04Z]   [13/60] 260803_182245 @ 176Hz (-12 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=340, n_blocks_seen=3 (12/20 collected)
+[17:27:49Z]   [14/60] 260803_211730 @ 1058Hz (-13 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=340, n_blocks_seen=3 (13/20 collected)
+[17:28:34Z]   [15/60] 260803_190130 @ 1116Hz (-14 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=311, n_blocks_seen=3 (14/20 collected)
+[17:29:19Z]   [16/60] 260804_043015 @ 177Hz (-15 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=142, n_blocks_seen=3 (15/20 collected)
+[17:30:04Z]   [17/60] 260803_221430 @ 360Hz (-15 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=283, n_blocks_seen=3 (16/20 collected)
+[17:30:49Z]   [18/60] 260803_231400 @ 579Hz (-13 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=136, n_blocks_seen=3 (17/20 collected)
+[17:31:34Z]   [19/60] 260803_232745 @ 194Hz (-13 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=278, n_blocks_seen=3 (18/20 collected)
+[17:32:19Z]   [20/60] 260804_132300 @ 538Hz (-15 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=283, n_blocks_seen=3 (19/20 collected)
+[17:33:04Z]   [21/60] 260804_081945 @ 827Hz (-15 dB) -> reproduced, prelim=ambiguous_busy_passband, total_candidates=271, n_blocks_seen=3 (20/20 collected)
+[17:33:04Z] 
+No reproduced miss had <=3 total candidates -- skipping the reference-pool run.
+[17:33:04Z] 
+Results (committed, no message text) written to qa\cycleframer-alignment-replay\2026-08-04-isolated-replay-rerun\arm-B\results.json
+[17:33:04Z] 
+< -15 dB: tried=23 decoded_on_replay=3 reproduced=20
+[17:33:04Z]     ambiguous_busy_passband: 20
+[17:33:04Z] 
+-15..-10 dB: tried=21 decoded_on_replay=1 reproduced=20
+[17:33:04Z]     ambiguous_busy_passband: 20
+[17:33:06Z] Daemon (pid=26584) stopped.
