@@ -88,9 +88,32 @@ FAIL_MAX_ABS_LAG_S = 0.5
 FAIL_MAX_ABS_LABEL_S = 0.5
 
 # PASS thresholds. 0.2 s is the bar the fix's own oracle is held to. 0.02 s/h is an order of
-# magnitude under the defect signature and ~27x above the 0.75 ms/24 h the fix predicts, so
-# a genuinely fixed framer clears it with room while a drifting one cannot.
+# magnitude under the defect signature, so a genuinely fixed framer clears it with room while
+# a drifting one cannot. The fix predicts 9 samples / 0.75 ms OVER 24 H, i.e. a slope of
+# 3.125e-5 s/h -- so this bar sits ~640x above the predicted drift, not the ~27x an earlier
+# version of this comment claimed (that arithmetic read the prediction as 0.75 ms PER HOUR).
+# Found and corrected 2026-08-04, after the ROW 5 PASS this constant governed -- the constant
+# itself did NOT change, only this rationale. The error was conservative (it made the bar
+# look tighter than it is), so it did not inflate the 2026-08-03 PASS. It does mean a screen
+# built to catch PARTIAL regression should not inherit this constant unexamined: a 640x bar
+# is a considerably blunter instrument than a 27x one. See
+# 2026-08-04-1416-architect-to-qa-post-cap-lift-work-order.md secs 2-3 for the full context.
 PASS_SLOPE_S_PER_H = 0.02
+# GATE, registered 2026-08-04, not yet built -- do not extend this constant's use
+# unexamined. PASS_MAX_ABS_LAG_S is checked against max(|lag|), a POINT MAXIMUM over all
+# locked pairs in the decisive epoch, which is monotonically non-decreasing in sample count.
+# On the 2026-08-03 18.96 h epoch it read 0.095 s -- 2.1x, the tightest margin of any
+# statistic that run produced, where the slope-based statistics cleared by two orders of
+# magnitude. A materially longer epoch raises this figure on noise alone, with a perfectly
+# stationary window, and can drift the screen toward ROW 4 INCONCLUSIVE for no physical
+# reason. Removing the ~6h FT-991A cap (2026-08-04) is what makes this live: the cap was the
+# only thing preventing the long runs that would exercise this bar.
+#   ASSERTION: any future drift screen over an epoch materially longer than 18.96 h must
+#   re-derive this bar first. It may not be inherited as-is.
+# Candidate fix (not decided, not implemented): split the two jobs this statistic does today
+# -- keep a fixed absolute bar as a catastrophe detector on the FAIL row only (0.5 s is
+# sample-size-insensitive in any realistic corpus), and replace the PASS row's point maximum
+# with a high quantile, which is stable under growing N.
 PASS_MAX_ABS_LAG_S = 0.2
 
 # Epoch detection. A restart resets accumulated drift to zero, so epochs must be found even
