@@ -11,7 +11,7 @@ Every column except **notes** is measured from disk on each run and
 cannot go stale silently. **notes** is interpretive and hand-written --
 treat it as a claim to verify, not a fact.
 
-Scanned: 2026-08-02 23:13 UTC | 27 runs | 96,222 total WAVs
+Scanned: 2026-08-04 14:00 UTC | 28 runs | 106,156 total WAVs
 
 | run | UTC span | legs (distinct cycles) | WAVs | notes *(interpretive)* |
 |---|---|---|---|---|
@@ -35,6 +35,7 @@ Scanned: 2026-08-02 23:13 UTC | 27 runs | 96,222 total WAVs
 | `20260729_live_run_1831-8081` | 260730_092815 -> 260730_154030 | `owsfz/10m` 1,490<br>`owsfz/20m` 1,364<br>`owsfz/80m` 1,932 | `owsfz` 5,773 |  |
 | `20260731_live_run_2004-8080` | 260731_200430 -> 260802_155200 | `owsfz` 10,475<br>`wsjt-x` 10,470<br>**HARDLINKED** `wsjt-x` = `20260731_live_run_2004-8081`/`wsjt-x` | `owsfz` 10,489<br>`wsjt-x` 10,469 | **D-001 Angle 1 corpus.** One WSJT-X instance (hardlinked into the -8081 folder too -- one capture, not two). Feeds legs A/B/C and null N3, which needs exactly this: jt9 over WSJT-X's own WAVs vs its own live count. N3 runnable offline, no capture needed. T4 unauthorised as of 2026-08-02. |
 | `20260731_live_run_2004-8081` | 260731_200430 -> 260802_155200 | `owsfz` 10,467<br>`wsjt-x` 10,470<br>**HARDLINKED** `wsjt-x` = `20260731_live_run_2004-8080`/`wsjt-x` | `owsfz` 10,512<br>`wsjt-x` 10,469 | Same WSJT-X capture as -8080 (hardlinked ALL.TXT + wav/). The owsfz leg IS distinct. Do not treat the two wsjt-x legs as independent captures. |
+| `20260803_live_run_1713` | 260803_171330 -> 260804_135645 | `owsfz` 4,614<br>`wsjt-x` 4,531 | `owsfz` 4,971<br>`wsjt-x` 4,963 |  |
 | `d001_b1b_second_corpus` | 260724_160730 -> 260724_163845 | `our_offline/k10_c0.10_n60/k10_c0.10_n60` 126 | - | Second corpus for the B.3 costed menu (2026-07-27). Menu decision still open. |
 | `d001_c2_phase2c` | 260725_180615 -> 260725_182645 | `ber/k10_cap140/k10_c0.10_n60` 68<br>`ber/k4_cap2000/k10_c0.10_n60` 68<br>`selfcheck/new_weight0/k10_c0.10_n60` 68<br>`selfcheck/pristine/k10_c0.10_n60` 0<br>`selfcheck/revert_check/k10_c0.10_n60` 68<br>`sweep/w0.00/k10_c0.10_n60` 68<br>`sweep/w0.25/k10_c0.10_n60` 68<br>`sweep/w0.50/k10_c0.10_n60` 68<br>`sweep/w0.75/k10_c0.10_n60` 68<br>`sweep/w1.00/k10_c0.10_n60` 68 | - |  |
 | `d001_r4_sensitivity_gap` | - | - | `buffers` 51 |  |
