@@ -16,11 +16,33 @@ intervals, zero jitter beyond 10 ms.
 
     python ui_stall_check.py --log <daemon.log> --open-time 2026-08-03T19:12:00Z
 
-ROWS (strict order, first match wins):
+INPUT CONTRACT (ruled 2026-08-04, Architect -> QA, after a same-day HK-021 near-miss: this
+check's row used to depend on WHICH logs were passed to --log, undocumented, and the choice
+was made after seeing the numbers rather than fixed in advance). The check measures
+heartbeat cadence of the daemon PROCESS UNDER TEST. A process boundary is not a heartbeat
+gap -- it is the absence of a process -- so a predecessor log must never be mixed into a
+successor's baseline; that measures the restart, not the stall.
+
+  C1  --log accepts EXACTLY ONE path.                    more than one, or zero
+                                                           ==> hard error, exit non-zero,
+                                                               NO ROW PRINTED.
+  C2  --open-time must fall within [first heartbeat,      outside ==> ROW 1 VOID
+      last heartbeat] of that one log.                    (wrong log for this attempt).
+  C3  baseline available before --open-time must be       shorter ==> ROW 1 VOID.
+      >= BASELINE_SECONDS.                                 Never silently truncated -- a
+                                                           truncated baseline is a different
+                                                           measurement wearing the same name.
+
+C1-C3 are evaluated in that order, before any row below, and before the pre-existing ROW 1
+(a baseline that is FULL LENGTH but already carries a stall).
+
+ROWS (strict order, first match wins, after C1-C3 pass):
 
   1 VOID          a gap >= STALL_SECONDS occurs in the BASELINE window before --open-time.
                   The daemon was already unstable, so nothing after it can be attributed to
                   the page. No verdict. Re-run on a clean baseline.
+                  (C2 and C3 above also report as "ROW 1 VOID", for a different reason each --
+                  see the printed message to tell them apart.)
 
   2 CONFIRMED     no such baseline gap, AND a gap >= STALL_SECONDS begins within
                   ATTRIB_SECONDS after --open-time.
@@ -85,19 +107,48 @@ def gaps(times, lo, hi):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--log", required=True, action="append",
-                    help="daemon log; repeat for the log the stall began in plus its successor")
+                    help="daemon log for the ONE process under test. Exactly one path: a "
+                         "process boundary is not a heartbeat gap, so a predecessor log must "
+                         "never be passed alongside its successor (C1).")
     ap.add_argument("--open-time", required=True, help="UTC instant the settings page was opened")
     args = ap.parse_args()
 
+    # C1: --log accepts exactly one path. Zero is already caught by argparse's own
+    # required=True (hard error, exit non-zero, no row printed -- satisfies C1 for free).
+    # More than one needs an explicit check, since action="append" otherwise accepts it
+    # silently and today's date this check runs against a predecessor+successor pair would
+    # measure the restart between them, not the stall.
+    if len(args.log) != 1:
+        print(f"CONTRACT VIOLATION (C1) -- --log requires exactly one path, got {len(args.log)}: "
+              f"{args.log}. A process boundary is not a heartbeat gap; passing more than one "
+              f"log conflates a restart with a stall. No row printed.", file=sys.stderr)
+        return 2
+
     t0 = datetime.strptime(args.open_time, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
-    times = []
-    for p in args.log:
-        times.extend(heartbeat_times(p))
-    times.sort()
+    times = heartbeat_times(args.log[0])
     if len(times) < 2:
         print("ROW 1 VOID -- fewer than 2 heartbeats found; nothing to measure.")
         return 1
+
+    # C2: --open-time must fall within this log's own heartbeat coverage. Outside it, the
+    # log simply isn't evidence about this attempt -- it's evidence about some other span.
+    if t0 < times[0] or t0 > times[-1]:
+        print(f"ROW 1 VOID (C2) -- open-time {t0:%Y-%m-%dT%H:%M:%SZ} falls outside this log's "
+              f"heartbeat coverage [{times[0]:%Y-%m-%dT%H:%M:%SZ} .. {times[-1]:%Y-%m-%dT%H:%M:%SZ}]. "
+              f"Supply the log for the process that was actually running at open-time.")
+        return 0
+
+    # C3: the baseline window must be fully available before --open-time, not truncated by
+    # the process start. A truncated baseline is a different, weaker measurement wearing the
+    # same name (fewer intervals to prove the daemon was quiet) -- it must VOID, not shrink
+    # silently, or a page opened soon after a restart could pass on an unearned clean read.
+    avail_baseline_s = (t0 - times[0]).total_seconds()
+    if avail_baseline_s < BASELINE_SECONDS:
+        print(f"ROW 1 VOID (C3) -- only {avail_baseline_s:.0f}s of baseline available before "
+              f"open-time (log starts {times[0]:%Y-%m-%dT%H:%M:%SZ}), under the required "
+              f"{BASELINE_SECONDS:.0f}s. Not silently truncated; not evaluated.")
+        return 0
 
     base = gaps(times, t0 - timedelta(seconds=BASELINE_SECONDS), t0)
     attrib = gaps(times, t0, t0 + timedelta(seconds=ATTRIB_SECONDS))
