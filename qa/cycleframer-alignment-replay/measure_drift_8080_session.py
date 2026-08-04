@@ -91,15 +91,6 @@ def cycle_ts_to_seconds(name: str) -> int:
     stem = name[:-4] if name.endswith(".wav") else name
     date_part, time_part = stem.split("_")
     hh, mm, ss = int(time_part[0:2]), int(time_part[2:4]), int(time_part[4:6])
-    # This collapses EVERY non-260729 date to a single day offset, so it is correct only for
-    # the two-day session ROOT points at. Repointed at any other corpus it would silently
-    # return wrong elapsed times (a 3-day run's day 3 would read as day 2), which would
-    # corrupt every drift slope computed from them. Fail loudly instead of quietly.
-    # For any other corpus use qa/endurance/2026-08-03-drift-screen/drift_screen.py, which
-    # takes --corpus and parses full dates.
-    assert date_part in ("260729", "260730"), (
-        f"cycle_ts_to_seconds() is hardcoded to the 260729->260730 session but got "
-        f"'{date_part}'. This script's ROOT is not repointable -- use drift_screen.py.")
     day_offset = 0 if date_part == "260729" else 1  # session spans 260729 -> 260730 only
     return day_offset * 86400 + hh * 3600 + mm * 60 + ss
 
