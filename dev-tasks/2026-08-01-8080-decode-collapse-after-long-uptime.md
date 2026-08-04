@@ -38,6 +38,20 @@ from "bounded forever".
 
 See `DEFECT-capture-clock-drift-silent-decode-loss.md`'s CLOSED banner for the full closure.
 
+**Measured, not just attributed — QA 2026-08-04.** Task 1 of
+`qa/rr-study/2026-08-04-1500-architect-to-qa-spec-false-positive-surge-and-window4-closure.md` Sec.2
+ran the pre-registered closure check against `artefacts/20260803_live_run_1713/`'s decisive epoch
+(18.96 h, past the 13.7 h cliff point, on the fixed build): per-cycle `ratio =
+openwsfz_decodes / wsjtx_decodes`, split at uptime-since-epoch-start = 13.7 h.
+`median(ratio, before)` = 1.5635 (n=2822), `median(ratio, after)` = 1.4615 (n=1263, all >= the
+200-cycle floor) — after stays at 93.5% of before, well clear of the 0.80x NOT-CLOSED bar.
+**ROW 3 — CLOSED.** No cliff past 13.7h on the fixed build; script and CSV-backed evidence at
+`qa/endurance/2026-08-03-drift-screen/window4_closure_check.py`. The disarmed cross-instance
+decode-collapse detector (`ENABLE_CROSS_INSTANCE_DECODE_CHECK`, see Sec.6 below) is **not needed for
+this failure mode** — `be5960a` removes the mechanism outright. It may still be wanted for a
+different failure mode; that is a separate, still-open question and this measurement does not touch
+it.
+
 *Retained below for provenance: the incident record and the ruled-out candidates, which remain
 accurate and are the reason the eventual diagnosis held together.*
 
