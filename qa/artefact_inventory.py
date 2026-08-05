@@ -64,6 +64,17 @@ _TS = re.compile(r"^(\d{6}_\d{6})")
 # is the failure this file exists to prevent.
 # ---------------------------------------------------------------------------
 NOTES: dict[str, str] = {
+    "20260803_live_run_1713":
+        "**D-001 replication corpus -- DO NOT PROPOSE A CAPTURE RUN FOR D-001.** "
+        "Answers project-state-2026-07-31 S5.4, which named the WSJT-X same-family "
+        "control 'the single most decision-relevant unknown for the menu' and "
+        "assumed the capture had not been run. It had -- two days later, into this "
+        "folder. 20m (14.074), ONE contiguous 18.96h decisive epoch from "
+        "260803_185914, drift screen ROW 5 PASS (+0.0 ppm), post-be5960a. Both "
+        "decoders on ONE verified audio path (median |r|=0.987 over 8 WAV pairs, "
+        "lags <=34ms) -- unlike the split -8080/-8081 runs, so re-verify per corpus "
+        "rather than inheriting either way. Density contrast 6.54x. Consumed by "
+        "Tasks 1/3/5 and by Arm R.D (specced 2026-08-05, not run, not authorised).",
     "20260731_live_run_2004-8080":
         "**D-001 Angle 1 corpus.** One WSJT-X instance (hardlinked into the -8081 "
         "folder too -- one capture, not two). Feeds legs A/B/C and null N3, which "
