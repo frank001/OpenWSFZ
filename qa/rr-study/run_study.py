@@ -30,7 +30,11 @@ _VENV_PYTHON = _HERE / ".venv" / "Scripts" / "python.exe"
 _SCENARIOS = _HERE / "scenarios"
 _RESULTS = _HERE / "results"
 
-WSJT_ALL_TXT    = Path(r"C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT")
+WSJT_ALL_TXT    = Path(r"C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT")
+# 2026-08-05 (repeat of 2026-06-22-f11f438 on newest build): the Captain now runs WSJT-X
+# under the multi-instance "WSJT-X - FT991A" profile (three-decoder antenna-split setup),
+# not the bare default profile this constant used to point at. See
+# qa/rr-study/results/2026-08-05-<sha>/ run notes.
 OWSFZ_ALL_TXT   = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 
 # Full registry — used for --scenarios filtering and validation.

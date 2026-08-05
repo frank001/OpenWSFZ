@@ -120,9 +120,24 @@ def _select_device(substring: str):
     """Return the sounddevice device index/name matching ``substring`` (case-insensitive).
 
     Exits 1 with an available-device list if no match is found.
+
+    2026-08-05 (repeat of 2026-06-22-f11f438): a device name substring can match the
+    *same* physical/virtual endpoint multiple times, once per Windows audio host API
+    (MME, DirectSound, WASAPI, WDM-KS) — each with its own advertised mix format. On a
+    machine with many virtual audio devices installed (Voicemeeter, VB-CABLE, Steam,
+    Oculus, ...), device enumeration order is not stable, so blindly taking the first
+    substring match can silently land on an MME entry with a 44100 Hz mix format instead
+    of the WASAPI entry the runbook's §1.2 48 kHz shared-mode setup actually configured.
+    Measured effect: OpenWSFZ still decoded through the mismatched MME path (its capture
+    is tolerant of the resample), but WSJT-X produced zero decodes despite showing clear
+    waterfall activity — a silent, appraiser-asymmetric failure that would have voided
+    every scenario in a full run without any error being raised. Prefer the WASAPI host
+    API explicitly; fall back to the first match (with a warning) only if no WASAPI
+    match exists.
     """
     import sounddevice as sd
-    devices = sd.query_devices()
+    devices  = sd.query_devices()
+    hostapis = sd.query_hostapis()
     matches = [
         (i, d) for i, d in enumerate(devices)
         if substring.lower() in d["name"].lower() and d["max_output_channels"] > 0
@@ -133,7 +148,28 @@ def _select_device(substring: str):
             if d["max_output_channels"] > 0:
                 print(f"  [{i}] {d['name']}")
         sys.exit(1)
-    idx, dev = matches[0]
+
+    wasapi_matches = [
+        (i, d) for i, d in matches
+        if hostapis[d["hostapi"]]["name"] == "Windows WASAPI"
+    ]
+    if wasapi_matches:
+        idx, dev = wasapi_matches[0]
+    else:
+        idx, dev = matches[0]
+        print(
+            f"  WARNING: no WASAPI match for '{substring}'; falling back to "
+            f"[{idx}] {dev['name']} via {hostapis[dev['hostapi']]['name']} "
+            f"(mix rate {dev['default_samplerate']:.0f} Hz). Verify this matches the "
+            "runbook §1.2 48 kHz shared-mode configuration before trusting results."
+        )
+
+    if len(matches) > 1:
+        print(
+            f"  Device '{substring}' matched {len(matches)} host-API entries; "
+            f"selected [{idx}] {dev['name']} via "
+            f"{hostapis[dev['hostapi']]['name']} ({dev['default_samplerate']:.0f} Hz)."
+        )
     return idx
 
 
