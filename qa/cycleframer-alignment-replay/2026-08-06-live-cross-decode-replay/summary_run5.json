@@ -1,0 +1,26 @@
+{
+  "pass1": {
+    "label": "PASS 1 -- WSJT-X-source audio: OpenWSFZ vs WSJT-X",
+    "n_our": 463,
+    "n_wx": 756,
+    "n_matched": 450,
+    "snr_delta_mean": -2.3577777777777778,
+    "snr_delta_median": -2.0,
+    "dt_delta_mean": 0.6557777777777777,
+    "dt_delta_median": 0.7,
+    "freq_delta_mean": 0.08222222222222222,
+    "freq_delta_median": 0.0
+  },
+  "pass2": {
+    "label": "PASS 2 -- OpenWSFZ-source audio: OpenWSFZ vs WSJT-X",
+    "n_our": 461,
+    "n_wx": 748,
+    "n_matched": 446,
+    "snr_delta_mean": -2.1995515695067263,
+    "snr_delta_median": -2.0,
+    "dt_delta_mean": 0.6612107623318385,
+    "dt_delta_median": 0.7,
+    "freq_delta_mean": 0.033632286995515695,
+    "freq_delta_median": 0.0
+  }
+}

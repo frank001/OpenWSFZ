@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live cross-decode replay -- full ANOVA report (n=5 runs)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="live-cross-decode-replay-full-anova-report-n5-runs">Live cross-decode replay -- full ANOVA report (n=5 runs)</h1>
+<p>Generated 2026-08-06 21:14 UTC. <code>qa/cycleframer-alignment-replay/2026-08-06-live-cross-decode-replay/build_full_anova.py</code>.</p>
+<p>5 independent live replays of the identical 20-cycle window from
+<code>20260803_live_run_1713</code> (260804_085845 -&gt; 260804_090330), both decoders decoding the
+same real-time audio simultaneously via VB-CABLE loopback (no offline <code>jt9</code>). Two designs:</p>
+<ol>
+<li><strong>3-way decode-count ANOVA (Decoder x Source x Cycle)</strong>: answers directly whether
+   Decoder and Source are confounded -- they are not, but Source is perfectly aliased
+   with within-run pass order (see the section itself). Fixed-effects model, all terms
+   tested against the pure run-to-run residual.</li>
+<li><strong>Per-source decode-count ANOVA</strong>: two-way ANOVA WITH replication and interaction
+   (Decoder x Cycle x Run), generalised from <code>qa/rr-study/harness/anova_compute.py</code>'s
+   Gauge-R&amp;R design, run separately per source pass (AIAG convention: main effects tested
+   against the Decoder x Cycle interaction). Superseded by #1 for any claim about Source
+   itself; kept as the simpler within-source view of Decoder alone.</li>
+<li><strong>SNR / DT / frequency</strong>: <code>qa/endurance/anova_common.py</code>'s established randomized-
+   complete-block design (Part = one matched decode, Appraiser = decoder), Parts pooled
+   across all 5 runs' matched pairs -- same machinery as every other live-corpus
+   ANOVA in this project, just fed a bigger pooled Part set. Also run separately per source.</li>
+</ol>
+<p>NFR-021: message text read only to build match keys, never printed or written. Aggregate
+statistics only below.</p>
+<h2 id="3-way-anova-does-the-design-separate-decoder-from-source">3-way ANOVA: does the design separate Decoder from Source?</h2>
+<p>Fixed-effects 3-way factorial with replication: Decoder (A, 2 levels) x Source (B, 2 levels) x Cycle (C, 20 levels, which of the 20 original archived cycles) x Run (5 replicates/cell). Every term tested against the pure run-to-run residual MS -- see this function's header comment for why that convention (not the AIAG main-effect-vs-interaction convention used for the per-source 2-way tables) is the right one here.</p>
+<p><strong>Order confound, stated again because it matters for how to read this table</strong>: every run played WSJT-X-source WAVs first, OpenWSFZ-source WAVs second, always in that order. The Source term and the Decoder x Source interaction below cannot distinguish a genuine source effect from a within-run pass-order effect -- read both as 'Source-or-order', not 'Source'.</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">DF</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+<th style="text-align: right;">%SS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Decoder</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">21800.522</td>
+<td style="text-align: right;">21800.522</td>
+<td style="text-align: right;">17422.995</td>
+<td style="text-align: right;">0.000000</td>
+<td style="text-align: right;">84.7%</td>
+</tr>
+<tr>
+<td>Source</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">6.502</td>
+<td style="text-align: right;">6.502</td>
+<td style="text-align: right;">5.197</td>
+<td style="text-align: right;">0.023286</td>
+<td style="text-align: right;">0.0%</td>
+</tr>
+<tr>
+<td>Cycle</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">2723.748</td>
+<td style="text-align: right;">143.355</td>
+<td style="text-align: right;">114.570</td>
+<td style="text-align: right;">0.000000</td>
+<td style="text-align: right;">10.6%</td>
+</tr>
+<tr>
+<td>Decoder x Source</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.202</td>
+<td style="text-align: right;">0.202</td>
+<td style="text-align: right;">0.162</td>
+<td style="text-align: right;">0.687738</td>
+<td style="text-align: right;">0.0%</td>
+</tr>
+<tr>
+<td>Decoder x Cycle</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">763.028</td>
+<td style="text-align: right;">40.159</td>
+<td style="text-align: right;">32.095</td>
+<td style="text-align: right;">0.000000</td>
+<td style="text-align: right;">3.0%</td>
+</tr>
+<tr>
+<td>Source x Cycle</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">21.047</td>
+<td style="text-align: right;">1.108</td>
+<td style="text-align: right;">0.885</td>
+<td style="text-align: right;">0.601705</td>
+<td style="text-align: right;">0.1%</td>
+</tr>
+<tr>
+<td>Decoder x Source x Cycle</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">36.948</td>
+<td style="text-align: right;">1.945</td>
+<td style="text-align: right;">1.554</td>
+<td style="text-align: right;">0.066218</td>
+<td style="text-align: right;">0.1%</td>
+</tr>
+<tr>
+<td>Residual (run-to-run)</td>
+<td style="text-align: right;">320</td>
+<td style="text-align: right;">400.400</td>
+<td style="text-align: right;">1.251</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">1.6%</td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">399</td>
+<td style="text-align: right;">25752.397</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">100.0%</td>
+</tr>
+</tbody>
+</table>
+<p>Grand mean: 30.30 decodes/cycle.
+Decoder means: OpenWSFZ=22.92, WSJT-X=37.69<br />
+Source means: WSJT-X-source WAVs=30.43, OpenWSFZ-source WAVs=30.18</p>
+<ul>
+<li><strong>Decoder main effect</strong>: SIGNIFICANT (p=0.000000)</li>
+<li><strong>Source main effect (read as Source-or-order)</strong>: SIGNIFICANT (p=0.023286)</li>
+<li><strong>Decoder x Source interaction (read as Decoder x [Source-or-order])</strong>: not significant (p=0.687738)</li>
+<li><strong>Cycle main effect</strong>: SIGNIFICANT (p=0.000000)</li>
+<li><strong>Decoder x Cycle interaction</strong>: SIGNIFICANT (p=0.000000)</li>
+<li><strong>Source x Cycle interaction</strong>: not significant (p=0.601705)</li>
+<li><strong>3-way interaction</strong>: not significant (p=0.066218)</li>
+</ul>
+<hr />
+<h2 id="wsjt-x-source-wavs">WSJT-X-source WAVs</h2>
+<h3 id="decode-count-anova-wsjt-x-source-wavs">Decode-count ANOVA (WSJT-X-source WAVs)</h3>
+<p>Design: Decoder (a=2) x Cycle (b=20, which of the 20 original archived cycles) x Run (n=5 replicate live sessions). Response: decode count in that cycle.</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">DF</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cycle (Part)</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">1351.820</td>
+<td style="text-align: right;">71.148</td>
+<td style="text-align: right;">3.170</td>
+<td style="text-align: right;">0.00780</td>
+</tr>
+<tr>
+<td>Decoder (Appraiser)</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">10833.920</td>
+<td style="text-align: right;">10833.920</td>
+<td style="text-align: right;">482.659</td>
+<td style="text-align: right;">0.00000</td>
+</tr>
+<tr>
+<td>Decoder x Cycle</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">426.480</td>
+<td style="text-align: right;">22.446</td>
+<td style="text-align: right;">22.904</td>
+<td style="text-align: right;">0.00000</td>
+</tr>
+<tr>
+<td>Repeatability (run-to-run)</td>
+<td style="text-align: right;">160</td>
+<td style="text-align: right;">156.800</td>
+<td style="text-align: right;">0.980</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">199</td>
+<td style="text-align: right;">12769.020</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Grand mean: 30.43 decodes/cycle. Decoder means: OpenWSFZ=23.07, WSJT-X=37.79</p>
+<table>
+<thead>
+<tr>
+<th>Variance component</th>
+<th style="text-align: right;">Value</th>
+<th style="text-align: right;">% of total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Repeatability (run-to-run)</td>
+<td style="text-align: right;">0.980</td>
+<td style="text-align: right;">0.8%</td>
+</tr>
+<tr>
+<td>Reproducibility (decoder)</td>
+<td style="text-align: right;">112.408</td>
+<td style="text-align: right;">95.1%</td>
+</tr>
+<tr>
+<td>Decoder</td>
+<td style="text-align: right;">108.115</td>
+<td style="text-align: right;">91.4%</td>
+</tr>
+<tr>
+<td>Decoder x Cycle</td>
+<td style="text-align: right;">4.293</td>
+<td style="text-align: right;">3.6%</td>
+</tr>
+<tr>
+<td>Cycle-to-cycle</td>
+<td style="text-align: right;">4.870</td>
+<td style="text-align: right;">4.1%</td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">118.258</td>
+<td style="text-align: right;">100.0%</td>
+</tr>
+</tbody>
+</table>
+<p>Decoder main effect: <strong>SIGNIFICANT</strong> (p=0.00000). Cycle main effect: <strong>significant</strong> (p=0.00780). Interaction: <strong>significant</strong> (p=0.00000).</p>
+<h1 id="endurance-session-anova-matched-decode-metrics-openwsfz-vs-wsjt-x">Endurance-session ANOVA -- matched-decode metrics (OpenWSFZ vs WSJT-X)</h1>
+<p><strong>Run:</strong> 5-run live cross-decode replay -- WSJT-X-source WAVs<br />
+<strong>Generated:</strong> 2026-08-06T21:14:54Z (<code>date -u</code>, HK-017)<br />
+<strong>Design:</strong> two-way ANOVA without replication (randomized complete block design) -- Part (matched decode instance) x Appraiser (OpenWSFZ, WSJT-X), run separately for each paired numeric response below (SNR, DT, frequency offset) over the identical matched Parts. See anova_common.py's module docstring for why this design applies to single-pass live data, and not the replicated design in <code>qa/rr-study/harness/anova_compute.py</code>.</p>
+<p>5 independent live replays of the same 20-cycle window (260804_085845-260804_090330, WSJT-X-source WAVs), both decoders decoding the same real-time audio simultaneously via VB-CABLE loopback. Parts pooled across all 5 runs (not one run's matched decodes).</p>
+<ul>
+<li>OpenWSFZ decodes in window: <strong>2307</strong></li>
+<li>WSJT-X decodes in window: <strong>3779</strong></li>
+<li>Matched pairs (Parts, shared across every response below): <strong>2253</strong></li>
+</ul>
+<h2 id="decode-coverage">Decode coverage</h2>
+<ul>
+<li>OpenWSFZ decoded <strong>2307</strong> messages in this window; WSJT-X decoded <strong>3779</strong>.</li>
+<li><strong>2253</strong> decodes matched between the two (same cycle + normalised message text) -- <strong>97.7%</strong> of OpenWSFZ's decodes, <strong>59.6%</strong> of WSJT-X's decodes.</li>
+<li>OpenWSFZ-only (WSJT-X did not report it): <strong>54</strong> (2.3% of OpenWSFZ's total).</li>
+<li>WSJT-X-only (OpenWSFZ did not report it): <strong>1526</strong> (40.4% of WSJT-X's total).</li>
+</ul>
+<h2 id="snr-db">SNR (dB)</h2>
+<p><img alt="Matched-decode SNR scatter: OpenWSFZ vs WSJT-X" src="anova_pass1_wsjtx_source_snr_scatter.png" /></p>
+<p><img alt="Per-Part residual vs WSJT-X SNR" src="anova_pass1_wsjtx_source_snr_residual.png" /></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">df</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td style="text-align: right;">324947.8140</td>
+<td style="text-align: right;">2252</td>
+<td style="text-align: right;">144.2930</td>
+<td style="text-align: right;">15.395</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td style="text-align: right;">6452.2113</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">6452.2113</td>
+<td style="text-align: right;">688.422</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Residual (confounded with interaction, n=1/cell)</td>
+<td style="text-align: right;">21106.7887</td>
+<td style="text-align: right;">2252</td>
+<td style="text-align: right;">9.3725</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">352506.8140</td>
+<td style="text-align: right;">4505</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Appraiser means (SNR, dB): OpenWSFZ -6.119 dB, WSJT-X -3.726 dB, grand mean -4.922 dB.</p>
+<h2 id="dt-time-offset-s">DT (time offset) (s)</h2>
+<p><img alt="Matched-decode DT (time offset) scatter: OpenWSFZ vs WSJT-X" src="anova_pass1_wsjtx_source_dt_scatter.png" /></p>
+<p><img alt="Per-Part residual vs WSJT-X DT (time offset)" src="anova_pass1_wsjtx_source_dt_residual.png" /></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">df</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td style="text-align: right;">1208.5455</td>
+<td style="text-align: right;">2252</td>
+<td style="text-align: right;">0.5367</td>
+<td style="text-align: right;">413.472</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td style="text-align: right;">480.9971</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">480.9971</td>
+<td style="text-align: right;">370590.101</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Residual (confounded with interaction, n=1/cell)</td>
+<td style="text-align: right;">2.9229</td>
+<td style="text-align: right;">2252</td>
+<td style="text-align: right;">0.0013</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">1692.4655</td>
+<td style="text-align: right;">4505</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Appraiser means (DT (time offset), s): OpenWSFZ 1.3881 s, WSJT-X 0.7346 s, grand mean 1.0613 s.</p>
+<h2 id="frequency-offset-hz">Frequency offset (Hz)</h2>
+<p><img alt="Matched-decode Frequency offset scatter: OpenWSFZ vs WSJT-X" src="anova_pass1_wsjtx_source_freq_hz_scatter.png" /></p>
+<p><img alt="Per-Part residual vs WSJT-X Frequency offset" src="anova_pass1_wsjtx_source_freq_hz_residual.png" /></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">df</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td style="text-align: right;">2164089766.0777</td>
+<td style="text-align: right;">2252</td>
+<td style="text-align: right;">960963.4840</td>
+<td style="text-align: right;">2030551.912</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td style="text-align: right;">9.2357</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9.2357</td>
+<td style="text-align: right;">19.515</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Residual (confounded with interaction, n=1/cell)</td>
+<td style="text-align: right;">1065.7643</td>
+<td style="text-align: right;">2252</td>
+<td style="text-align: right;">0.4733</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">2164090841.0777</td>
+<td style="text-align: right;">4505</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Appraiser means (Frequency offset, Hz): OpenWSFZ 1482.0 Hz, WSJT-X 1481.9 Hz, grand mean 1481.9 Hz.</p>
+<h2 id="caveat-structural-not-a-defect">Caveat (structural, not a defect)</h2>
+<p>With one observation per Part x Appraiser cell -- a live signal happens once -- the interaction term and the residual/error term are mathematically confounded (standard property of an unreplicated factorial design), for every response above. Each table can say whether the two appraisers' <em>mean</em> value differs after removing part-to-part variation (the Appraiser row); none of them can separately test whether that difference itself varies signal-to-signal.</p>
+<p>Cross-run comparison and interpretation of these numbers is Architect/Captain territory, not this module's.</p>
+<hr />
+<h2 id="openwsfz-source-wavs">OpenWSFZ-source WAVs</h2>
+<h3 id="decode-count-anova-openwsfz-source-wavs">Decode-count ANOVA (OpenWSFZ-source WAVs)</h3>
+<p>Design: Decoder (a=2) x Cycle (b=20, which of the 20 original archived cycles) x Run (n=5 replicate live sessions). Response: decode count in that cycle.</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">DF</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cycle (Part)</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">1392.975</td>
+<td style="text-align: right;">73.314</td>
+<td style="text-align: right;">3.730</td>
+<td style="text-align: right;">0.00308</td>
+</tr>
+<tr>
+<td>Decoder (Appraiser)</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">10966.805</td>
+<td style="text-align: right;">10966.805</td>
+<td style="text-align: right;">557.890</td>
+<td style="text-align: right;">0.00000</td>
+</tr>
+<tr>
+<td>Decoder x Cycle</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">373.495</td>
+<td style="text-align: right;">19.658</td>
+<td style="text-align: right;">12.911</td>
+<td style="text-align: right;">0.00000</td>
+</tr>
+<tr>
+<td>Repeatability (run-to-run)</td>
+<td style="text-align: right;">160</td>
+<td style="text-align: right;">243.600</td>
+<td style="text-align: right;">1.522</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">199</td>
+<td style="text-align: right;">12976.875</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Grand mean: 30.18 decodes/cycle. Decoder means: OpenWSFZ=22.77, WSJT-X=37.58</p>
+<table>
+<thead>
+<tr>
+<th>Variance component</th>
+<th style="text-align: right;">Value</th>
+<th style="text-align: right;">% of total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Repeatability (run-to-run)</td>
+<td style="text-align: right;">1.522</td>
+<td style="text-align: right;">1.3%</td>
+</tr>
+<tr>
+<td>Reproducibility (decoder)</td>
+<td style="text-align: right;">113.098</td>
+<td style="text-align: right;">94.3%</td>
+</tr>
+<tr>
+<td>Decoder</td>
+<td style="text-align: right;">109.471</td>
+<td style="text-align: right;">91.2%</td>
+</tr>
+<tr>
+<td>Decoder x Cycle</td>
+<td style="text-align: right;">3.627</td>
+<td style="text-align: right;">3.0%</td>
+</tr>
+<tr>
+<td>Cycle-to-cycle</td>
+<td style="text-align: right;">5.366</td>
+<td style="text-align: right;">4.5%</td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">119.987</td>
+<td style="text-align: right;">100.0%</td>
+</tr>
+</tbody>
+</table>
+<p>Decoder main effect: <strong>SIGNIFICANT</strong> (p=0.00000). Cycle main effect: <strong>significant</strong> (p=0.00308). Interaction: <strong>significant</strong> (p=0.00000).</p>
+<h1 id="endurance-session-anova-matched-decode-metrics-openwsfz-vs-wsjt-x_1">Endurance-session ANOVA -- matched-decode metrics (OpenWSFZ vs WSJT-X)</h1>
+<p><strong>Run:</strong> 5-run live cross-decode replay -- OpenWSFZ-source WAVs<br />
+<strong>Generated:</strong> 2026-08-06T21:14:56Z (<code>date -u</code>, HK-017)<br />
+<strong>Design:</strong> two-way ANOVA without replication (randomized complete block design) -- Part (matched decode instance) x Appraiser (OpenWSFZ, WSJT-X), run separately for each paired numeric response below (SNR, DT, frequency offset) over the identical matched Parts. See anova_common.py's module docstring for why this design applies to single-pass live data, and not the replicated design in <code>qa/rr-study/harness/anova_compute.py</code>.</p>
+<p>5 independent live replays of the same 20-cycle window (260804_085845-260804_090330, OpenWSFZ-source WAVs), both decoders decoding the same real-time audio simultaneously via VB-CABLE loopback. Parts pooled across all 5 runs (not one run's matched decodes).</p>
+<ul>
+<li>OpenWSFZ decodes in window: <strong>2277</strong></li>
+<li>WSJT-X decodes in window: <strong>3758</strong></li>
+<li>Matched pairs (Parts, shared across every response below): <strong>2219</strong></li>
+</ul>
+<h2 id="decode-coverage_1">Decode coverage</h2>
+<ul>
+<li>OpenWSFZ decoded <strong>2277</strong> messages in this window; WSJT-X decoded <strong>3758</strong>.</li>
+<li><strong>2219</strong> decodes matched between the two (same cycle + normalised message text) -- <strong>97.5%</strong> of OpenWSFZ's decodes, <strong>59.0%</strong> of WSJT-X's decodes.</li>
+<li>OpenWSFZ-only (WSJT-X did not report it): <strong>58</strong> (2.5% of OpenWSFZ's total).</li>
+<li>WSJT-X-only (OpenWSFZ did not report it): <strong>1539</strong> (41.0% of WSJT-X's total).</li>
+</ul>
+<h2 id="snr-db_1">SNR (dB)</h2>
+<p><img alt="Matched-decode SNR scatter: OpenWSFZ vs WSJT-X" src="anova_pass2_owsfz_source_snr_scatter.png" /></p>
+<p><img alt="Per-Part residual vs WSJT-X SNR" src="anova_pass2_owsfz_source_snr_residual.png" /></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">df</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td style="text-align: right;">324399.0689</td>
+<td style="text-align: right;">2218</td>
+<td style="text-align: right;">146.2575</td>
+<td style="text-align: right;">14.824</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td style="text-align: right;">5298.0624</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">5298.0624</td>
+<td style="text-align: right;">536.986</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Residual (confounded with interaction, n=1/cell)</td>
+<td style="text-align: right;">21883.4376</td>
+<td style="text-align: right;">2218</td>
+<td style="text-align: right;">9.8663</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">351580.5689</td>
+<td style="text-align: right;">4437</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Appraiser means (SNR, dB): OpenWSFZ -6.488 dB, WSJT-X -4.302 dB, grand mean -5.395 dB.</p>
+<h2 id="dt-time-offset-s_1">DT (time offset) (s)</h2>
+<p><img alt="Matched-decode DT (time offset) scatter: OpenWSFZ vs WSJT-X" src="anova_pass2_owsfz_source_dt_scatter.png" /></p>
+<p><img alt="Per-Part residual vs WSJT-X DT (time offset)" src="anova_pass2_owsfz_source_dt_residual.png" /></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">df</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td style="text-align: right;">1184.7199</td>
+<td style="text-align: right;">2218</td>
+<td style="text-align: right;">0.5341</td>
+<td style="text-align: right;">425.888</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td style="text-align: right;">477.6782</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">477.6782</td>
+<td style="text-align: right;">380869.602</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Residual (confounded with interaction, n=1/cell)</td>
+<td style="text-align: right;">2.7818</td>
+<td style="text-align: right;">2218</td>
+<td style="text-align: right;">0.0013</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">1665.1799</td>
+<td style="text-align: right;">4437</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Appraiser means (DT (time offset), s): OpenWSFZ 1.3870 s, WSJT-X 0.7309 s, grand mean 1.0589 s.</p>
+<h2 id="frequency-offset-hz_1">Frequency offset (Hz)</h2>
+<p><img alt="Matched-decode Frequency offset scatter: OpenWSFZ vs WSJT-X" src="anova_pass2_owsfz_source_freq_hz_scatter.png" /></p>
+<p><img alt="Per-Part residual vs WSJT-X Frequency offset" src="anova_pass2_owsfz_source_freq_hz_residual.png" /></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">df</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td style="text-align: right;">2120974835.7657</td>
+<td style="text-align: right;">2218</td>
+<td style="text-align: right;">956255.5617</td>
+<td style="text-align: right;">2042305.132</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td style="text-align: right;">2.9799</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">2.9799</td>
+<td style="text-align: right;">6.364</td>
+<td style="text-align: right;">0.0117</td>
+</tr>
+<tr>
+<td>Residual (confounded with interaction, n=1/cell)</td>
+<td style="text-align: right;">1038.5201</td>
+<td style="text-align: right;">2218</td>
+<td style="text-align: right;">0.4682</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">2120975877.2657</td>
+<td style="text-align: right;">4437</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Appraiser means (Frequency offset, Hz): OpenWSFZ 1477.2 Hz, WSJT-X 1477.1 Hz, grand mean 1477.2 Hz.</p>
+<h2 id="caveat-structural-not-a-defect_1">Caveat (structural, not a defect)</h2>
+<p>With one observation per Part x Appraiser cell -- a live signal happens once -- the interaction term and the residual/error term are mathematically confounded (standard property of an unreplicated factorial design), for every response above. Each table can say whether the two appraisers' <em>mean</em> value differs after removing part-to-part variation (the Appraiser row); none of them can separately test whether that difference itself varies signal-to-signal.</p>
+<p>Cross-run comparison and interpretation of these numbers is Architect/Captain territory, not this module's.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
