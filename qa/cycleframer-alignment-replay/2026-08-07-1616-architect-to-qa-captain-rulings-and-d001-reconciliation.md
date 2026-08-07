@@ -222,7 +222,7 @@ For whoever next reads the project board cold:
 
 ## 6. Still open with the Captain
 
-### 6.1 S.1 — asked, not yet answered
+### 6.1 S.1 — CLOSED. Only its *limb* is outstanding, and only for RC1's scope
 
 07-31 §5.1 frames S.1 as: is the density penalty frequency-**local** (collision / subtraction
 architecture — expensive) or cycle-**global** (candidate budget — cheap)? **That is very nearly
@@ -230,29 +230,33 @@ RC1's question**, and §0.2's 95% saturation is direct evidence for the cheap li
 
 Memory records S.1 as answered by the Captain in conversation on 2026-08-04 and never written up,
 with the standing instruction to **ask, not re-derive** — it has already been re-investigated twice
-off a stale line. I have asked.
+off a stale line. I asked, and then argued with the answer. See the withdrawal below.
 
-**Asked and answered in part, 2026-08-07:** the Captain proposed that the 3-way ANOVA
-(`2026-08-06-2115`) already settles S.1. **It does not, for two independent reasons:**
+> ⚠️ **WITHDRAWN — a second bad argument from me, 2026-08-07.**
+> I argued that the 3-way ANOVA (`2026-08-06-2115`) could not have settled S.1 because it
+> **postdates** the recorded 08-04 conversation by two days. **That reasoning is void.** It addresses
+> only whether the ANOVA *is* the 08-04 answer — a claim the Captain never made. He said two separate
+> things: S.1 was closed in conversation, *and* later work measured the mechanism. Whether a later
+> study answers S.1 on its own merits is entirely independent of what was said on 08-04. I used a
+> provenance argument in place of a substantive one.
+>
+> Recorded rather than deleted. It is the same family as §1.4's withdrawal: **reaching for a cheap
+> structural argument instead of checking the substance.**
 
-1. **Wrong factors.** The model is Decoder × Source × Cycle. There is **no frequency term in it.**
-   Frequency appears only in §4 as a reported quantity (1482.0 vs 1481.9 Hz, itself flagged there as
-   statistically significant but practically meaningless). S.1 asks a *spectral locality* question;
-   the design has no spectral factor to answer it with. What the ANOVA does settle — Decoder and
-   Source are not confounded, 84.7% of variance on Decoder — is a different and important result.
-2. **The dates preclude it.** The conversational S.1 answer is recorded as **2026-08-04**; the 3-way
-   ANOVA is **2026-08-06**. The ANOVA postdates it by two days and cannot be what was said.
+**S.1 is CLOSED.** The Captain closed it in conversation on 2026-08-04 and reconfirmed it on
+2026-08-07. It is not open, not partially open, and **not to be re-derived** — the standing rule is
+to ask him, and that rule was violated twice on 08-04 already.
 
-**So the 08-04 answer remains uncaptured and S.1 stays parked.** Do not re-derive it.
+**The one item outstanding is narrow:** *which limb* S.1 landed on — frequency-**local**
+(collision / subtraction architecture) or cycle-**global** (candidate budget). This is asked solely
+because it is load-bearing for RC1's scope (below), not to re-litigate the closure.
 
-⚠️ **But note, for the Developer session:** RC1's per-candidate `(time_offset, freq, score)` list is
-*incidentally* the data a spectral-locality test needs — it permits asking whether our misses cluster
-in frequency near strong decodes (local: collision / subtraction architecture) or spread across the
-band (global: candidate budget). Combined with §0.2's 95% saturation — a **per-cycle global** resource
-exhausting — S.1 may close for free as a by-product of RC1. **This is an observation about what RC1's
-data will permit, not a proposal to re-open S.1, and not a verdict.**
+⚠️ **Caveat on my own framing, stated because it may invalidate the question entirely:** everything
+above rests on `project-state-2026-07-31` §5.1's *one-line* summary of S.1. If the question the
+Captain actually closed is broader or different from that line, this item is void and the later
+study may cover it in full.
 
-Until S.1 is answered:
+Until the limb is known:
 
 > **RC1's gate stands as specced.** If S.1's answer already settles local-vs-global, RC1's gate may
 > be redundant or need rewriting — and that must happen **before** the Developer session, not after.
