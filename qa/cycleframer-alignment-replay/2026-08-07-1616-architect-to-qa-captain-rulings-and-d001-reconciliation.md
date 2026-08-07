@@ -75,11 +75,34 @@ because the question is fully answered.
 Collection-side only. **Nothing here proposes configuring WSJT-X** — that remains the Captain's and
 is out of scope by standing rule.
 
-🔴 **Precondition, not a follow-up.** WSJT-X's `ALL.TXT` carries real off-air callsigns. Widening
-the gatherer without the ignore rule already in place would *automate* the exact NFR-021 exposure W1
-found live in `_work_recal/` two days ago. The ignore rule lands first, verified with
-`git status --ignored`, and only then does the gatherer widen. I raised this with the Captain and it
-is an implementation constraint on his decision, not a reopening of it.
+> ⚠️ **WITHDRAWN — the precondition I attached to this ruling was wrong on the facts.**
+> I wrote: *"Widening the gatherer without the ignore rule already in place would automate the exact
+> NFR-021 exposure W1 found live in `_work_recal/`."* The Captain challenged it and he is correct.
+> Verified mechanically, 2026-08-07:
+>
+> ```
+> $ git check-ignore -v artefacts/
+> .gitignore:105:artefacts/    artefacts/
+> $ git ls-files artefacts/ | wc -l
+> 0
+> ```
+>
+> `artefacts/` is covered by a **blanket ignore** and has **zero tracked files**. HK-016 gathers into
+> `artefacts/`. There is no exposure path into VCS and no precondition is required.
+>
+> **How I got it wrong, since the mechanism matters more than the error:** W1's exposure was in
+> `qa/rr-study/d001-param-sweep-2026-07-22/_work_recal/` — a *different* directory under a
+> *different* ignore rule. I generalised from one gitignore gap to a second location without running
+> the single command that would have settled it. That is precisely HK-018, from the Architect, one
+> day after writing HK-018 discipline into a handoff. Recorded rather than quietly deleted.
+
+**Corrected position:** the widening is not merely safe, it is **an improvement on the status quo**.
+Today WSJT-X's `ALL.TXT` lives in AppData under no repository policy at all — which is exactly how a
+five-run experiment ended with its reference leg outside the repo until M0 rescued it. Gathering it
+into a blanket-ignored directory brings it *under* policy. Proceed without preconditions.
+
+**Nothing here proposes configuring WSJT-X** — that remains the Captain's and is out of scope by
+standing rule.
 
 ### 1.5 D-009 parameter decision — **NOT PUT**, deferred by me
 
@@ -207,7 +230,29 @@ RC1's question**, and §0.2's 95% saturation is direct evidence for the cheap li
 
 Memory records S.1 as answered by the Captain in conversation on 2026-08-04 and never written up,
 with the standing instruction to **ask, not re-derive** — it has already been re-investigated twice
-off a stale line. I have asked. Until it is answered:
+off a stale line. I have asked.
+
+**Asked and answered in part, 2026-08-07:** the Captain proposed that the 3-way ANOVA
+(`2026-08-06-2115`) already settles S.1. **It does not, for two independent reasons:**
+
+1. **Wrong factors.** The model is Decoder × Source × Cycle. There is **no frequency term in it.**
+   Frequency appears only in §4 as a reported quantity (1482.0 vs 1481.9 Hz, itself flagged there as
+   statistically significant but practically meaningless). S.1 asks a *spectral locality* question;
+   the design has no spectral factor to answer it with. What the ANOVA does settle — Decoder and
+   Source are not confounded, 84.7% of variance on Decoder — is a different and important result.
+2. **The dates preclude it.** The conversational S.1 answer is recorded as **2026-08-04**; the 3-way
+   ANOVA is **2026-08-06**. The ANOVA postdates it by two days and cannot be what was said.
+
+**So the 08-04 answer remains uncaptured and S.1 stays parked.** Do not re-derive it.
+
+⚠️ **But note, for the Developer session:** RC1's per-candidate `(time_offset, freq, score)` list is
+*incidentally* the data a spectral-locality test needs — it permits asking whether our misses cluster
+in frequency near strong decodes (local: collision / subtraction architecture) or spread across the
+band (global: candidate budget). Combined with §0.2's 95% saturation — a **per-cycle global** resource
+exhausting — S.1 may close for free as a by-product of RC1. **This is an observation about what RC1's
+data will permit, not a proposal to re-open S.1, and not a verdict.**
+
+Until S.1 is answered:
 
 > **RC1's gate stands as specced.** If S.1's answer already settles local-vs-global, RC1's gate may
 > be redundant or need rewriting — and that must happen **before** the Developer session, not after.
