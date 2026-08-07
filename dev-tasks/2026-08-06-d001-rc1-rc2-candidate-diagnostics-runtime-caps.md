@@ -1,14 +1,31 @@
 # Developer handoff: D-001 RC1 (per-decode attribution) + RC2 (runtime-settable candidate caps)
 
-**Authored by:** QA (per HK-000/HK-015). **Status: NOT AUTHORISED.** Drafted so it is ready the
-moment the Captain authorises it — **do not start this session without that sign-off (HK-011).**
-Needs a native rebuild (`src/OpenWSFZ.Ft8/Native/ft8_shim.c` + `Ft8LibInterop.cs`), so this is
-HK-011 work — QA proposes and stops.
+**Authored by:** QA (per HK-000/HK-015). **Status: AUTHORISED** by the Captain, 2026-08-07, per
+`2026-08-07-1616-architect-to-qa-captain-rulings-and-d001-reconciliation.md` §1.1 — RC1+RC2,
+bundled, one Developer session. This file is now the vehicle. Per HK-011 the Captain still
+reviews the `src/` diff before any push, and per HK-006 `pre_merge_check.py` remains the
+Captain's to run, not QA's or the Developer's.
+
+> 🔴 **S.1r flag (per the 1616 handoff §6.1's instruction to flag this at the top before the
+> Developer session starts):** S.1r ran 2026-08-07 —
+> `qa/cycleframer-alignment-replay/2026-08-07-s1r-spectral-locality/s1r_report.md`. At the
+> **pre-registered** 50/150 Hz boundary the result is **ROW 4 (no verdict)**: the `clear
+> (>150 Hz)` Separation level has zero surviving strata (0/12) once a live-discovered band-edge
+> confound is excluded (WSJT-X decodes outside OpenWSFZ's hardcoded [200, 3000) Hz search band
+> are 100% missed by construction, per the 2323 note §4, and were inflating that level's
+> apparent miss rate). **RC1's gate stands exactly as specced below — it is NOT narrowed.**
+> Reported for context only, never gating: a tighter, still physically-motivated *sensitivity*
+> boundary (25/100 Hz) shows both mechanisms LIVE and large (E_sep=+49.0pp p<1e-6, E_dens=
+> +11.2pp p<1e-5) — suggestive that locality matters a great deal in this dense window, but this
+> does not pre-empt RC1's own diagnostic classification below, which is decode-side and
+> independent of S.1r's observational design.
+
 **Source:** `qa/cycleframer-alignment-replay/2026-08-06-2336-architect-to-qa-spec-d001-root-cause-rc1-rc4.md`
 §2 (RC1), §3.1 (RC2's runtime-settable-caps prerequisite), §5 (why these two are bundled).
 **Captain's open decision this unblocks:** §7.1 of
 `2026-08-06-2346-architect-to-qa-handoff-index-and-work-queue.md` — "Authorise the RC1 (+RC2)
-Developer session? RC1's 15 minutes decides whether RC2/RC3's 45 are worth spending."
+Developer session? RC1's 15 minutes decides whether RC2/RC3's 45 are worth spending." **Answered
+2026-08-07: yes.**
 
 ---
 
