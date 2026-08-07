@@ -105,11 +105,73 @@ into a blanket-ignored directory brings it *under* policy. Proceed without preco
 **Nothing here proposes configuring WSJT-X** — that remains the Captain's and is out of scope by
 standing rule.
 
-### 1.5 D-009 parameter decision — **NOT PUT**, deferred by me
+### 1.5 D-009 parameter decision — **OPTION B**
 
-I did not put this one. I have not opened `report.md` §5 and would have been describing options
-A/B/C from memory of my own summary. It returns in a separate note. See §6.2 for what the Captain
-should have in front of him when it does.
+> ⚠️ **My deferral of this item was on a false premise.** I recorded it as "not put" because I had
+> not read `report.md` §5. The report has been on disk at
+> `qa/rr-study/results/2026-08-05-f6c5b46-d009-recalibration/report.md` since 2026-08-06 — the 2346
+> handoff's own document map cites it. I deferred a Captain decision by a day for want of a file I
+> had already been told the location of. Same family as §1.4: not checking before concluding.
+
+**Ruling: Option B — `osd_nhard_max` 60 → 40. One parameter. `k` and `corr` unchanged.**
+
+| | recall | S5 FP | S7 FP | S7 signal recovery | params moved |
+|---|---|---|---|---|---|
+| C — no change | 41.508 | 1 | 8 | 84.651% | 0 |
+| **B — adopted** | 41.508 | **0** | **0** | 84.651% | **1** |
+| A — `k` 10→5 + `nhard` 60→40 | +0.109 pp | 0 | 1 | **87.442%** | 2 |
+
+Rationale, in order of weight:
+
+1. **B's entire case rests on arms with a real oracle.** It ties recall exactly
+   (`recall_dpp = 0.000`), so no part of its argument touches the archived reference — the log found
+   suppressed ~2.3× and biased in exactly the low-SNR population D-009's recall arm is restricted to.
+   **Option A's only recall advantage is measured there.**
+2. **`k` is the parameter RC2 is about to sweep.** `k_min_score_pass2` sits in the candidate-scoring
+   path; per `report.md` §3.4 `k=5` pushes every slot into the `100+` candidate bucket, changing the
+   candidate accounting wholesale. B moves only `nhard`, an OSD parameter downstream of candidate
+   generation.
+3. **Nothing measured gets worse.** Recall identical, S7 recovery identical (84.651% both), FP
+   eliminated on both arms.
+
+### 1.5.1 Three things the costed menu does not say — carry these
+
+- **The menu leads with A's weakest evidence and omits its strongest.** §5 sells A on "+0.109 pp
+  recall" — ~19 decodes in 17,469, about **0.3 standard errors**, on the compromised reference.
+  A's actual gain is **+2.79 pp of S7 signal recovery** (84.651 → 87.442), measured on a *seeded
+  synthetic arm with ground truth*. It is ~25× the recall effect and appears nowhere in §5, because
+  recovery was never a gated term. **The third instance today of a rule structure deciding what the
+  Captain gets to see** — after the strict `>` that hid Option B itself.
+- **"C fails a gate" does not differentiate.** C is knocked for `co_channel_sweep` 86.67% < 89%.
+  **A reaches 87.442% and B stays at 84.651% — both also fail that bar.** ⚠️ This sweep's baseline
+  recovery is **84.651%**, not June's **86.67%**; they may not be the same metric. **QA should
+  confirm whether they are before that argument is used again either way.** I am not asserting it.
+- **A's +2.79 pp is ~1.2 standard errors on 215 signals.** Suggestive, not established — but still
+  stronger relative to its own uncertainty than the recall figure the menu leads with.
+
+### 1.5.2 ⚠️ Sequencing — B must NOT ship before RC2 runs
+
+**I argued the opposite to the Captain and it was wrong. Correcting it here before it propagates.**
+
+I said shipping B first would sharpen RC2's gate, by turning `S7 FP <= baseline` into "introduce no
+false positives at all." That part is true. **What I missed is that it invalidates RC2's free
+baseline.**
+
+RC2's gate is `g = mean decodes/run(C) − 461`, and that **461 was measured on the shipped build —
+i.e. at `nhard = 60`.** Change `nhard` first and `C0` no longer describes the build under test.
+
+- On the D-009 recall corpus, `nhard` 60→40 moved recall by **exactly 0.000 pp**, so the effect on
+  the replay window is *probably* nil.
+- **"Probably" is not good enough for a pre-registered baseline.** RC2's threshold is `g > 40.0`
+  against a run spread of 8 counts; a shift of even 10–15 decodes would eat a quarter of it.
+
+| option | cost | consequence |
+|---|---|---|
+| **Ship B after RC2 reports (recommended)** | none | RC2 keeps its free `C0`. B is a Pareto improvement, not an urgent one. |
+| Ship B first, re-measure `C0` | 15 min playback, 3 runs | Buys RC2 the sharper FP gate; pays for it in a baseline that was previously free. |
+
+**Nothing ships either way without a Developer session and the Captain's sign-off (HK-011/HK-010).**
+Changing the shipped default is a `src/` change; QA does not ship, merge or push a parameter value.
 
 ---
 
@@ -266,20 +328,25 @@ S.1 is to be **re-evidenced at power** from data already gathered. Specced as **
 > RC1's scope, so it runs **before** the Developer session, not after. Flag this at the top of the
 > dev-task.
 
-### 6.2 D-009 parameter decision — returns separately
+### 6.2 D-009 parameter decision — **CLOSED, see §1.5**
 
-When it does, it must go to the Captain with QA's §2.1 finding stated explicitly and not as a
-footnote: **`k10_*_n40` ties baseline recall exactly and posts zero false positives on both
-synthetic arms — it strictly dominates the shipped baseline for one changed parameter.** It is not
-the nominee **only because I wrote the rule with a strict `>` on recall.**
+**Decided 2026-08-07: Option B.** The material below is retained because its two warnings survive
+the decision and must keep travelling.
 
-That is an HK-021-family drafting failure — a rule structure that hid a dominating option — and it
-should be visible to the Captain when he weighs how much authority to give my nomination.
+**`k10_*_n40` — the option the Captain adopted — was never the nominee, and the reason is mine.**
+It ties baseline recall exactly and posts zero false positives on both synthetic arms, strictly
+dominating the shipped baseline for one changed parameter. It failed `WIN(p)` **only because I wrote
+the rule with a strict `>` on recall.** QA surfaced it in §2.1 of their results note despite the
+rule, not because of it.
+
+That is an HK-021-family drafting failure — a rule structure that hid the option that turned out to
+be the right one — and it should stay visible when weighing how much authority to give my future
+nominations. **It is the same failure as §1.5.1's second bullet**, found twice in one sweep.
 
 ⚠️ Also propagate: **`41.508%` must not be cited as "our recall."** Its reference is the archived
 corpus `ALL.TXT` restricted to low-SNR decodes — the exact log found suppressed ~2.3× on the busy
-window, biased in precisely the population it measures. This does not change the D-009 decision
-(+0.109 pp is far too small for reference bias to flip) but the number must not travel.
+window, biased in precisely the population it measures. **Option B is immune to this** — it ties
+recall exactly, so its case rests entirely on the synthetic arms — but the number must not travel.
 
 ---
 
