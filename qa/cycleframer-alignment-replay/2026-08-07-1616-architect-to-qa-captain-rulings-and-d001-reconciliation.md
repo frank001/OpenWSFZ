@@ -1,7 +1,8 @@
 # Architect → QA: Captain's rulings on §7, and the D-001 reconciliation that was owed
 
 **Author:** Architect, 2026-08-07 (16:16 UTC, `date -u`, per HK-017). Repo `main` at `ea2d94d`.
-**For:** QA. §1 records Captain decisions; §6 lists what is still open with him.
+**For:** QA. §1 records Captain decisions; §6 lists what is still open with him; **§7 is a
+pre-registered spec (S.1r) that is free to run and should precede the RC1 Developer session.**
 **Supersedes:** `2026-08-06-2346-architect-to-qa-handoff-index-and-work-queue.md` §7 (all five
 decisions), and corrects that document's §2 table (see §0).
 **Authorisation:** RC1+RC2 are **now authorised** by the Captain (§1.1). Everything else in this
@@ -256,11 +257,14 @@ above rests on `project-state-2026-07-31` §5.1's *one-line* summary of S.1. If 
 Captain actually closed is broader or different from that line, this item is void and the later
 study may cover it in full.
 
-Until the limb is known:
+**The Captain's 2026-08-07 direction supersedes the ask above.** The conversational closure rested
+on roughly **86 samples**. The five-run replay corpus carries **3,779 reference decodes and 1,526
+misses** — about **44× the evidence, already on disk.** Rather than reconstruct the 08-04 reasoning,
+S.1 is to be **re-evidenced at power** from data already gathered. Specced as **S.1r** in §7.
 
-> **RC1's gate stands as specced.** If S.1's answer already settles local-vs-global, RC1's gate may
-> be redundant or need rewriting — and that must happen **before** the Developer session, not after.
-> Flag this at the top of the dev-task.
+> **RC1's gate stands as specced unless S.1r fires ROW 2 or ROW 3.** S.1r is free and can narrow
+> RC1's scope, so it runs **before** the Developer session, not after. Flag this at the top of the
+> dev-task.
 
 ### 6.2 D-009 parameter decision — returns separately
 
@@ -279,7 +283,136 @@ window, biased in precisely the population it measures. This does not change the
 
 ---
 
-## 7. Citation limits in force — unchanged, restated
+## 7. S.1r — spectral locality, re-evidenced at power (PRE-REGISTERED SPEC)
+
+**Requested by the Captain, 2026-08-07.** S.1 is closed; **S.1r does not re-open it.** It replaces a
+~86-sample conversational basis with the five-run corpus, at ~44× the evidence, and its purpose is to
+put the *limb* beyond argument.
+
+**Cost: a re-analysis.** No `src/` change, no playback, no capture, no authorisation. Files are
+already on disk. ~1 h of QA scripting. Per HK-004 this is a *do*, not a *recommend* — the data and
+the ANOVA machinery both exist.
+
+### 7.1 The question, made mechanical
+
+| mechanism | prediction |
+|---|---|
+| frequency-**local** (collision / imperfect subtraction) | misses cluster near neighbouring signals; a weak signal alone in a quiet part of the band survives even in a busy cycle |
+| cycle-**global** (candidate budget) | misses track total cycle occupancy; spectral isolation buys nothing |
+
+### 7.2 Inputs and derived quantities
+
+Source: `_work/run{1..5}/`, five runs, busy window (`260804_085845 … 260804_090330`), pass 1.
+Match key `(cycle, normalize_hash_tokens(message))` as established. Reference is **fresh WSJT-X on
+the same replayed audio** (§2) — never the archived `ALL.TXT`.
+
+For every **WSJT-X** decode (the reference set defines what was actually on the air):
+
+| symbol | definition |
+|---|---|
+| `sep` | Hz to the **nearest other WSJT-X decode in the same cycle**. Undefined for single-decode cycles ⇒ **excluded, and the excluded count reported.** |
+| `dens` | count of WSJT-X decodes in that cycle (identical definition to the 2323 note §3) |
+| `snr` | WSJT-X's reported SNR — the common scale, since ours reads 2.0–2.6 dB low (tracked S7 gain error) |
+| `missed` | no matching decode of ours in that cycle |
+
+### 7.3 Design — the existing ANOVA machinery, one factor added
+
+`qa/rr-study/harness/anova_compute.py` / `qa/endurance/anova_common.py`, unchanged.
+
+| factor | levels | note |
+|---|---|---|
+| **Separation** (local) | `< 50` / `50–150` / `> 150` Hz | **physically motivated, not fished** — FT8 occupies ~50 Hz, so `<50` is overlap and `>150` is clear air |
+| **Density** (global) | `30–34` / `35–39` / `40–49` | identical bands to 2323 §3, so results join directly |
+| **SNR** | the existing 4 bands | **control, mandatory** — see §7.6 |
+| **Run** | 1–5 | replicates ⇒ every term tested against the pure run-to-run residual, exactly as the 3-way ANOVA did |
+
+Response: **miss rate per cell.**
+
+⚠️ **Why `sep` and not a neighbour count.** My first draft used *count of neighbours within ±50 Hz*.
+Checking the lattice before setting the threshold — 2800 Hz band, 30–49 signals — the expected count
+is only **~1–2**, so terciles would be dominated by ties and the predictor would carry almost no
+usable variance. **That is the RC spec §0.5 trap exactly**, and it was caught by applying that rule
+rather than by luck. `sep` is continuous, defined for every decode, and mean spacing (~70 Hz) sits
+between the two boundaries — so all three levels populate.
+
+**Mandatory lattice check before evaluating any gate:** report the observed distribution of `sep`
+and the per-cell `n`. **Any cell with pooled `n < 20` is excluded and reported as excluded.** If any
+*level* of Separation or Density is unpopulated, **the gate does not fire and the result is ROW 4** —
+a factor with no variance cannot be tested.
+
+### 7.4 Effect sizes
+
+Least-squares marginal means from the fitted model, in **percentage points of miss rate**:
+
+- `E_sep` = miss rate at `sep < 50` **minus** miss rate at `sep > 150`, marginal over Density and SNR
+- `E_dens` = miss rate at `dens 40–49` **minus** miss rate at `dens 30–34`, marginal over Separation and SNR
+
+`p_sep`, `p_dens` = F-test p-values for those main effects against the pure run-to-run residual.
+
+### 7.5 Pre-registered gate
+
+```python
+def limb(e, p):
+    """Classify one mechanism. Boundary values fall to PARTIAL by construction."""
+    if e > 5.0 and p < 0.01:   return "LIVE"
+    if e < 2.0 or  p > 0.05:   return "NULL"
+    return "PARTIAL"
+
+def s1r_row(e_sep, p_sep, e_dens, p_dens):
+    local  = limb(e_sep,  p_sep)
+    glob   = limb(e_dens, p_dens)
+    if local == "LIVE" and glob == "LIVE":  return "ROW 1"
+    if local == "LIVE" and glob == "NULL":  return "ROW 2"
+    if glob  == "LIVE" and local == "NULL": return "ROW 3"
+    return "ROW 4"
+```
+
+| row | condition | consequence |
+|---|---|---|
+| **ROW 1** | both LIVE | **BOTH MECHANISMS ARE REAL.** ⇒ S.1's either/or framing is false. RC1 proceeds as specced; RC2 is **necessary but not sufficient**. Report both effect sizes — the split decides where to spend. |
+| **ROW 2** | local LIVE, global NULL | **FREQUENCY-LOCAL.** ⇒ The candidate budget is **not** the dominant term. RC2 is demoted; the lever is collision / subtraction architecture. RC1 should be expected to fire its own ROW 2 (*decode, not search*). |
+| **ROW 3** | global LIVE, local NULL | **CYCLE-GLOBAL.** ⇒ Candidate budget confirmed as the mechanism. RC1 becomes **confirmatory rather than diagnostic**, and the Captain may elect to skip it and go straight to RC2. |
+| **ROW 4** | anything else (any PARTIAL, or a factor without variance) | **NO VERDICT.** ⇒ Report the full cell table. **RC1 stands as specced and is not narrowed.** |
+
+**Thresholds, with rationale, per HK-021 — challenge these before execution, not after:**
+
+- **`5.0` pp for LIVE.** Pooled run-to-run miss-rate spread is **0.7 pp** (0.399–0.406 over 5 runs),
+  so 5.0 pp is ~7× the instrument's own noise. The known density effect is ~18.5 pp (2323 §3), so
+  5.0 pp is ~27% of a known-real effect — large enough to matter, small enough that a genuine
+  *secondary* mechanism is not discarded.
+- **`2.0` pp / `p > 0.05` for NULL.** Just above noise; a mechanism below this is not carrying the
+  40% deficit.
+- **`p < 0.01` not `0.05` for LIVE** — several terms are tested on one corpus.
+- **Boundaries fall to PARTIAL** (`> 5.0`, `< 2.0` both strict) and PARTIAL routes to ROW 4.
+
+### 7.6 Confounds, stated in advance
+
+1. **Separation correlates with density** — busier cycles crowd everyone. This is why Density is in
+   the model: `E_sep` is a marginal mean **with Density held**, not a raw contrast.
+2. **Denser cycles carry *stronger* signals** (median WSJT-X SNR −7.0 dB at density 40+, −9.5 dB
+   below 35, per 2323 §3). This runs **against** a positive density finding, so a ROW 1/ROW 3 result
+   is *strengthened* by it, not threatened. SNR is nonetheless controlled.
+3. **`sep` is computed on WSJT-X's decodes, not ours** — using our own set would condition the
+   predictor on the outcome.
+4. **Sensitivity, reported but NOT gated:** re-run at boundaries `25/100` and `75/200`. **Only the
+   pre-registered `50/150` evaluates the gate.** Reporting the others guards against a boundary
+   artefact; letting them fire the gate would be fishing.
+
+### 7.7 What S.1r does not establish
+
+- **One window, density 30–49/cycle.** It fixes the limb **in the dense regime** — where the density
+  penalty lives — and is **silent** on the ~7/cycle regime.
+- **Decode-side, not pipeline-side.** It says whether locality matters, not *where* it acts. RC1
+  supplies the pipeline side; the two are complementary and neither substitutes for the other.
+- **Observational, not interventional.** It stratifies a designed experiment; it does not manipulate
+  the mechanism. **RC2's cap sweep is the interventional test**, and only the three together make
+  the answer durable.
+- It does **not** re-open S.1, and its result does not reverse a Captain's closure — it re-evidences
+  the limb at ~44× the sample the closure rested on.
+
+---
+
+## 8. Citation limits in force — unchanged, restated
 
 - **`s_low = 0.217`** — never cite. Void, harness defect.
 - **`F_dec = 1.2455`** — never citable.
@@ -295,8 +428,14 @@ window, biased in precisely the population it measures. This does not change the
 ---
 
 *Per HK-015 this is Architect → QA; `tasks.md` and `dev-tasks/*.md` remain QA's to author — §1.1
-authorises the work, it does not break it down. Per HK-014 committed locally, not pushed, no merge
-implied or requested. Per HK-011 RC1+RC2 require the Developer session the Captain has now
-authorised, and he reviews the diff before any push. Per HK-021 §0 records a correction QA raised
-against an Architect draft, and says so. Per NFR-021 no message text or callsign appears here, and
-§1.4 makes the ignore rule a precondition of the HK-016 widening rather than a follow-up.*
+authorises the work and §7 specs it, neither breaks it down. Per HK-014 committed locally, not
+pushed, no merge implied or requested. Per HK-011 RC1+RC2 require the Developer session the Captain
+has now authorised, and he reviews the diff before any push; **§7 touches no `src/` and needs no
+authorisation.** Per HK-021 §0 records a correction QA raised against an Architect draft and says so;
+§7.5's gate is drafted as the code that evaluates it, rows mutually exclusive and exhaustive in
+strict order, boundary values falling to PARTIAL and thence to the no-verdict row, with §7.3
+recording a predictor I discarded for want of variance before writing its threshold. Per NFR-021 no
+message text or callsign appears here; §7 reads message text only to build match keys, and the
+replay harness already writes per-row SNR/DT/frequency with callsigns stripped. Two Architect claims
+were withdrawn in this document on the Captain's challenge — §1.4 and §6.1 — and both are recorded
+in place rather than deleted.*
