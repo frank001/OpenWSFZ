@@ -1,0 +1,184 @@
+{
+  "cycles": 60,
+  "candidates": 8400,
+  "max_rank": 139,
+  "our_decodes": 1382,
+  "attributed": 1371,
+  "coverage": 0.992040520984081,
+  "sort_violations": 0,
+  "primary_policy": "highest-ranked match (models decoder: shim.c:1354 order + :1387 hash dedup)",
+  "primary_deciles": [
+    {
+      "decile": 1,
+      "rank_lo": 0,
+      "rank_hi": 13,
+      "n": 840,
+      "converted": 703,
+      "rate": 0.8369047619047619
+    },
+    {
+      "decile": 2,
+      "rank_lo": 14,
+      "rank_hi": 27,
+      "n": 840,
+      "converted": 333,
+      "rate": 0.3964285714285714
+    },
+    {
+      "decile": 3,
+      "rank_lo": 28,
+      "rank_hi": 41,
+      "n": 840,
+      "converted": 152,
+      "rate": 0.18095238095238095
+    },
+    {
+      "decile": 4,
+      "rank_lo": 42,
+      "rank_hi": 55,
+      "n": 840,
+      "converted": 88,
+      "rate": 0.10476190476190476
+    },
+    {
+      "decile": 5,
+      "rank_lo": 56,
+      "rank_hi": 69,
+      "n": 840,
+      "converted": 40,
+      "rate": 0.047619047619047616
+    },
+    {
+      "decile": 6,
+      "rank_lo": 70,
+      "rank_hi": 83,
+      "n": 840,
+      "converted": 16,
+      "rate": 0.01904761904761905
+    },
+    {
+      "decile": 7,
+      "rank_lo": 84,
+      "rank_hi": 97,
+      "n": 840,
+      "converted": 16,
+      "rate": 0.01904761904761905
+    },
+    {
+      "decile": 8,
+      "rank_lo": 98,
+      "rank_hi": 111,
+      "n": 840,
+      "converted": 11,
+      "rate": 0.013095238095238096
+    },
+    {
+      "decile": 9,
+      "rank_lo": 112,
+      "rank_hi": 125,
+      "n": 840,
+      "converted": 7,
+      "rate": 0.008333333333333333
+    },
+    {
+      "decile": 10,
+      "rank_lo": 126,
+      "rank_hi": 139,
+      "n": 840,
+      "converted": 4,
+      "rate": 0.004761904761904762
+    }
+  ],
+  "bound_deciles": [
+    {
+      "decile": 1,
+      "rank_lo": 0,
+      "rank_hi": 13,
+      "n": 840,
+      "converted": 3,
+      "rate": 0.0035714285714285713
+    },
+    {
+      "decile": 2,
+      "rank_lo": 14,
+      "rank_hi": 27,
+      "n": 840,
+      "converted": 24,
+      "rate": 0.02857142857142857
+    },
+    {
+      "decile": 3,
+      "rank_lo": 28,
+      "rank_hi": 41,
+      "n": 840,
+      "converted": 57,
+      "rate": 0.06785714285714285
+    },
+    {
+      "decile": 4,
+      "rank_lo": 42,
+      "rank_hi": 55,
+      "n": 840,
+      "converted": 75,
+      "rate": 0.08928571428571429
+    },
+    {
+      "decile": 5,
+      "rank_lo": 56,
+      "rank_hi": 69,
+      "n": 840,
+      "converted": 98,
+      "rate": 0.11666666666666667
+    },
+    {
+      "decile": 6,
+      "rank_lo": 70,
+      "rank_hi": 83,
+      "n": 840,
+      "converted": 153,
+      "rate": 0.18214285714285713
+    },
+    {
+      "decile": 7,
+      "rank_lo": 84,
+      "rank_hi": 97,
+      "n": 840,
+      "converted": 185,
+      "rate": 0.22023809523809523
+    },
+    {
+      "decile": 8,
+      "rank_lo": 98,
+      "rank_hi": 111,
+      "n": 840,
+      "converted": 237,
+      "rate": 0.28214285714285714
+    },
+    {
+      "decile": 9,
+      "rank_lo": 112,
+      "rank_hi": 125,
+      "n": 840,
+      "converted": 232,
+      "rate": 0.2761904761904762
+    },
+    {
+      "decile": 10,
+      "rank_lo": 126,
+      "rank_hi": 139,
+      "n": 840,
+      "converted": 307,
+      "rate": 0.36547619047619045
+    }
+  ],
+  "d1_policy_divergence": 0.8333333333333334,
+  "c_bottom": 0.004761904761904762,
+  "n_bottom": 840,
+  "c5c_row": "ROW 0",
+  "tolerance": {
+    "freq_hz": 6.25,
+    "dt_s": 0.5,
+    "subbin_residual_hz": 1.5625,
+    "subblock_residual_s": 0.04
+  }
+}
