@@ -142,10 +142,22 @@ Rationale, in order of weight:
   synthetic arm with ground truth*. It is ~25× the recall effect and appears nowhere in §5, because
   recovery was never a gated term. **The third instance today of a rule structure deciding what the
   Captain gets to see** — after the strict `>` that hid Option B itself.
-- **"C fails a gate" does not differentiate.** C is knocked for `co_channel_sweep` 86.67% < 89%.
-  **A reaches 87.442% and B stays at 84.651% — both also fail that bar.** ⚠️ This sweep's baseline
-  recovery is **84.651%**, not June's **86.67%**; they may not be the same metric. **QA should
-  confirm whether they are before that argument is used again either way.** I am not asserting it.
+- > ⚠️ **WITHDRAWN 2026-08-07 — QA checked and the two figures are NOT the same metric.**
+  > I wrote: *"C is knocked for `co_channel_sweep` 86.67% < 89%. A reaches 87.442% and B stays at
+  > 84.651% — both also fail that bar."* **The comparison is invalid.** Per QA's 1733 note §2,
+  > checked against `qa/rr-study/scenarios/s7-compounding.json`: only **6 of its 21 parts** carry
+  > `overlap_type: "co_channel_sweep"` — 60 signals, the population June's 86.67% is computed over.
+  > This sweep's `s7_recovery_pct` (84.651% / 87.442%) is computed over the **full 215 signals, all
+  > 21 parts**. Two statistics, two populations, one scenario file.
+  >
+  > **The honest statement, which is QA's:** *June's config failed June's own tight-offset gate;
+  > whether the current shim still does is not measured.* **Nobody has computed this sweep's
+  > 60-signal subset** — the per-part results were not retained, so it needs a fresh, small S7
+  > sub-run. Cheap, not zero, not requested.
+  >
+  > I hedged this at the time ("they may not be the same metric... I am not asserting it") and the
+  > hedge was correct — but **the bullet must not be repeated as written.** Option B's ruling is
+  > unaffected: its case never rested on this argument.
 - **A's +2.79 pp is ~1.2 standard errors on 215 signals.** Suggestive, not established — but still
   stronger relative to its own uncertainty than the recall figure the menu leads with.
 
@@ -476,6 +488,89 @@ def s1r_row(e_sep, p_sep, e_dens, p_dens):
   the answer durable.
 - It does **not** re-open S.1, and its result does not reverse a Captain's closure — it re-evidences
   the limb at ~44× the sample the closure rested on.
+
+---
+
+### 7.8 S.1r EXECUTED — ROW 4. The boundary was mine and it was dead on arrival.
+
+QA ran it (1733 note; `2026-08-07-s1r-spectral-locality/`). **Primary verdict ROW 4 — no verdict.
+RC1's gate stands exactly as specced and is NOT narrowed.**
+
+**ROW 4 here means the instrument could not fire, not that there is no effect** — the same shape as
+M3's void. The `clear (>150 Hz)` level was unpopulated in **0 of 12** (Density × SNR) strata.
+
+> ⚠️ **This is an Architect defect. QA executed correctly.** The observed `sep` distribution
+> (n=3,729) is **mean 38.8 Hz, p10 5, p50 32, p90 81, max 275.** I set the "clear" boundary at
+> **150 Hz — around the 97th–98th percentile of the distribution it was meant to split.** Once
+> divided 12 ways under `n >= 20` it could not populate.
+>
+> **The damning part:** §7.3 of this very spec rejected the neighbour-count predictor *because its
+> expected value made its levels degenerate* — and I then set the replacement predictor's top
+> boundary without running that same check. **I wrote the rule and violated it four paragraphs
+> later.** The arithmetic (mean spacing ~70 Hz) was already in my hand.
+
+**Both QA deviations were correct and are adopted:**
+
+1. **Band-edge confound** (spec did not anticipate it). Decodes at 193 Hz read as "clear" only
+   because there is no spectrum below our own hardcoded 200 Hz floor. Excluded from the outcome
+   tally, retained as neighbours and for `dens`. **The 50 excluded records match the 2323 note's
+   47+3 exactly** — an independent cross-check that both analyses read the same defect.
+2. **Additive model** instead of the saturated 3-way (rank-deficient on unbalanced data). Any true
+   interaction flows to the residual, making every F-test **more conservative** — the safe
+   direction for a gate already requiring `p < 0.01`.
+
+⚠️ **The 25/100 sensitivity is NOT to be laundered into a verdict.** It shows both limbs LIVE and
+large (`E_sep = +49.02` pp, `E_dens = +11.23` pp). It is physically plausible — two signals inside
+25 Hz genuinely overlap — and its density marginals (30.9/34.2/42.2%) cross-check the 2323 note's
+§3. **The spec walled sensitivity off from the gate in advance and that wall holds.** Suggestive,
+and it stays suggestive.
+
+### 7.9 S.1r-R — spectral locality folded into RC1 (Captain's direction, 2026-08-07)
+
+**Supersedes standalone S.1r. Do not re-run S.1r as specced in §7.1–§7.7.** Zero additional
+playback — this is analysis of data RC1 already produces.
+
+**Why the rider is strictly better than the standalone:** S.1r could only ask *"do misses cluster
+spectrally?"* RC1's per-candidate `(time_offset, freq_offset, score)` list asks *"was a candidate
+generated at that frequency at all?"* — the mechanism rather than its correlate. The limbs separate
+directly: `NO_CANDIDATE` misses spread evenly across `sep` ⇒ **global budget**;
+`CANDIDATE_NOT_DECODED` misses concentrated at tight `sep` ⇒ **local collision / subtraction**.
+
+**The boundary fix — the whole point.** `sep` is stratified by **terciles of its own observed
+in-band distribution**, boundaries computed **before outcomes are joined**:
+
+- **Terciles of a continuous variable are populated by construction.** The §7.8 failure cannot
+  recur. This is the structural fix, not a better-chosen constant.
+- **Outcome-blind, therefore not fishing** — the split is defined on the predictor's marginal
+  distribution, never on miss rate.
+- **Lattice check, done in advance this time:** ~1,476 in-band misses / 3 ≈ **492 per tercile**;
+  SE on a proportion near 0.5 at n=492 is ~2.3 pp. Both thresholds below clear it comfortably.
+- QA's band-edge exclusion (§7.8 #1) carries over unchanged.
+
+**Gate.** Let `D_cnd` = (`CANDIDATE_NOT_DECODED` share of in-band misses in T1) − (same in T3), and
+`D_noc` = (`NO_CANDIDATE` share in T1) − (same in T3), both in percentage points. T1 = tightest.
+
+```python
+def s1rr_row(d_cnd, d_noc):
+    if d_cnd > 15.0 and abs(d_noc) < 5.0:   return "ROW 1"   # LOCAL
+    if d_noc > 15.0 and abs(d_cnd) < 5.0:   return "ROW 2"   # GLOBAL
+    if d_cnd > 15.0 and d_noc > 15.0:       return "ROW 3"   # BOTH
+    return "ROW 4"                                            # no verdict
+```
+
+| row | consequence |
+|---|---|
+| **ROW 1 — LOCAL** | Candidates exist and fail to decode, concentrated where signals crowd ⇒ **collision / subtraction architecture**, not the budget. RC2's expected value drops sharply; RC4 (depth) becomes worth revisiting. |
+| **ROW 2 — GLOBAL** | Search failure is spectrally indifferent ⇒ **candidate budget**, confirming §0.2. RC2 is the lever. |
+| **ROW 3 — BOTH** | Both real ⇒ report both; the split decides spend. S.1's either/or framing is false. |
+| **ROW 4** | No verdict. **RC1's own three-way gate is unaffected and still governs.** |
+
+Thresholds: `15.0` pp is ~6.5 SE at n≈492; `5.0` pp is ~2 SE and is the "flat" bar. Boundaries fall
+to ROW 4 by construction (`>` and `<` both strict). **Rows are mutually exclusive and exhaustive in
+strict order.**
+
+⚠️ **This rider does not gate RC1 and cannot change RC1's verdict.** RC1's `f_nocand` rule (§2.3 of
+the RC spec) is untouched. If they disagree, RC1 governs and the disagreement is the finding.
 
 ---
 
