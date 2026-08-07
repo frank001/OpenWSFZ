@@ -1,4 +1,25 @@
-# C.5a result — our BP/OSD corrects **13 of 174 bits (7.5% BER)**. The threshold is measured at last.
+> # 🛑 RETRACTED 2026-08-07 22:20 UTC — DO NOT CITE `k_50 = 13`
+>
+> This document's headline is **withdrawn**. `k_50 = 13 / 174` is **not a decoder property**; it is a
+> measurement of what happens when every error is a *confidently wrong* LLR — one extreme of a free
+> parameter I set without noticing I had set it.
+>
+> **`2026-07-26-2230-architect-sec6-redesign-ruling.md` §4 declined this exact bench as ill-posed
+> three weeks before I built it.** Its §5 names the correct replacement, which has never been run.
+>
+> Three independent tells: the result sits **below** the (174,91) hard-decision capacity limit of
+> 10.2%, which a soft decoder cannot really be; its x-axis (injected bit count) is **not** the corpus
+> BER axis (raw LLR signs vs true codeword), so **§5's comparison against THE 135/THE 567 is void**;
+> and my "conservative bias" framing understated a term the July ruling calls dominant.
+>
+> **What survives:** the harness (§2's synth route, and the distinct-message requirement that defeats
+> the hash dedup) and the §6 observation that every prior "≈50% BER" reading was against an invented
+> number. **Nothing else.**
+>
+> Full retraction and the standing replacement spec:
+> `2026-08-07-2220-architect-to-qa-c5a-RETRACTED-run-the-standing-sec5-calibration.md`.
+
+# ~~C.5a result — our BP/OSD corrects **13 of 174 bits (7.5% BER)**. The threshold is measured at last.~~
 
 **Author:** Architect, 2026-08-07 (22:06 UTC, `date -u`, per HK-017). Repo `main` at `ef1ad46`.
 **For:** QA and the Captain.

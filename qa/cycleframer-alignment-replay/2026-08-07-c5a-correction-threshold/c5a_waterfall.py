@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
 """
+=============================================================================
+ RETRACTED 2026-08-07 22:20 UTC -- k_50 = 13 IS NOT A DECODER PROPERTY.
+ See 2026-08-07-2220-architect-to-qa-c5a-RETRACTED-run-the-standing-sec5-
+ calibration.md, and 2026-07-26-2230-architect-sec6-redesign-ruling.md Sec.4,
+ which declined this exact bench as ILL-POSED three weeks before it was built.
+
+ Injecting bit errors into a codeword and transmitting at high SNR makes every
+ error a CONFIDENTLY WRONG LLR. The Architect's own July table: confidently-
+ wrong errors make the threshold "read very low". It read 7.47% -- BELOW the
+ (174,91) hard-decision BSC capacity limit of 10.2%, which a soft decoder
+ cannot really be. That gap is the soft information this bench destroys.
+
+ Its x-axis (injected bit count) is ALSO not the corpus BER axis (raw LLR
+ signs vs true codeword). The two must never be compared.
+
+ KEEP: the harness. assemble_symbols() takes a 174-bit codeword, and distinct
+ messages per buffer defeat the shim's hash dedup (ft8_shim.c:1387). Both are
+ reusable by the standing Sec.5 design.
+ DO NOT KEEP: the number.
+=============================================================================
 C.5a -- calibrate this codebase's LDPC/OSD correction threshold.
 
 The question, first asked 2026-07-26 and never answered:
