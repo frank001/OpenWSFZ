@@ -19,6 +19,15 @@ Captain's to run, not QA's or the Developer's.
 > +11.2pp p<1e-5) — suggestive that locality matters a great deal in this dense window, but this
 > does not pre-empt RC1's own diagnostic classification below, which is decode-side and
 > independent of S.1r's observational design.
+>
+> 🔴 **Superseding update, 1616 handoff §7.9 (Captain's direction, 2026-08-07): standalone S.1r is
+> retired — do not re-run §7.1–§7.7 as specced.** Spectral locality is instead re-evidenced as a
+> **rider on RC1 itself, zero additional playback**, because RC1's per-candidate list answers the
+> mechanism directly (was a candidate generated there at all?) rather than S.1r's correlate (do
+> misses cluster spectrally?). The rider is folded into RC1's own procedure below — see the new
+> **§4.5**. It is non-gating: **it cannot narrow or reverse RC1's own ROW 1/2/3 verdict** (§4's
+> `f_nocand` gate is untouched); if the two disagree, RC1 governs and the disagreement is itself
+> the finding.
 
 **Source:** `qa/cycleframer-alignment-replay/2026-08-06-2336-architect-to-qa-spec-d001-root-cause-rc1-rc4.md`
 §2 (RC1), §3.1 (RC2's runtime-settable-caps prerequisite), §5 (why these two are bundled).
@@ -115,6 +124,51 @@ def rc1_row(f_nocand):  # f_nocand = NO_CANDIDATE / (total misses - OUT_OF_BAND)
 data; report RC1's result and return to the Architect/Captain for what comes next (RC4 depth
 becomes the thing worth revisiting per the source spec's §5 sequencing diagram, not this task).
 
+## 4.5 S.1r-R rider — spectral locality, folded into RC1 (non-gating, zero extra playback)
+
+**Run this regardless of which row RC1's own gate fires.** It reuses RC1's classification output
+(§4's three-way split) and adds one predictor, `sep`, computed from the WSJT-X reference set
+already collected for §4 — no new capture, no new decode run.
+
+**Predictor.** For every **in-band** WSJT-X decode (i.e. excluding `OUT_OF_BAND`, per §4's own
+band-edge exclusion — same 50-record exclusion the 2323 note reports as 47+3), compute `sep` = Hz
+to the nearest *other* WSJT-X decode in the same cycle. Undefined for single-decode cycles ⇒
+excluded, count reported.
+
+**Stratification — terciles of the *observed* `sep` distribution among in-band misses, computed
+before outcomes are joined.** Sort the in-band misses' `sep` values; split into three equal-count
+bins T1 (tightest spacing) / T2 / T3 (most isolated). This is a structural fix over the retired
+standalone spec: terciles of a continuous variable are populated by construction, so §7.8's
+"boundary sat at the 97th percentile and couldn't populate" failure cannot recur here. Report the
+observed `sep` cutpoints and each tercile's `n` (expect ≈492 each on the corpus this was sized
+against — recompute for whatever `n` this run actually produces, since RC1 replays the busy window
+3 times, not 5).
+
+**Gate:**
+
+```python
+def s1rr_row(d_cnd, d_noc):
+    """
+    d_cnd = (CANDIDATE_NOT_DECODED share of in-band misses in T1) minus (same share in T3), pp.
+    d_noc = (NO_CANDIDATE share of in-band misses in T1) minus (same share in T3), pp.
+    T1 = tightest tercile, T3 = most isolated. Boundaries strict; rows mutually exclusive in order.
+    """
+    if d_cnd > 15.0 and abs(d_noc) < 5.0:   return "ROW 1"   # LOCAL: collision/subtraction
+    if d_noc > 15.0 and abs(d_cnd) < 5.0:   return "ROW 2"   # GLOBAL: candidate budget confirmed
+    if d_cnd > 15.0 and d_noc > 15.0:       return "ROW 3"   # BOTH real
+    return "ROW 4"                                            # no verdict
+```
+
+`15.0` pp is ~6.5 SE at n≈492 per tercile; `5.0` pp is ~2 SE and is the "flat" bar. Report `d_cnd`,
+`d_noc`, the row, and the full T1/T2/T3 × {NO_CANDIDATE, CANDIDATE_NOT_DECODED} cell table
+regardless of which row fires — per HK-021, boundary values fall to ROW 4 by construction, do not
+round toward a verdict.
+
+⚠️ **This rider does not gate RC1 and cannot change RC1's §4 verdict.** It is reported alongside
+RC1's result, not in place of it. If `s1rr_row` and `rc1_row` disagree (e.g. RC1 fires ROW 3 mixed
+but the rider fires ROW 2 global-only), report both and say so plainly — do not adjudicate between
+them in this task.
+
 **Step 2 — RC2, only if RC1 fired ROW 1 or ROW 3.** 3 runs each, pass 1 only, busy window, against
 these configurations (`C0` is free — the 5 runs already on disk, 461 decodes/run baseline):
 
@@ -149,8 +203,11 @@ QA's or the Developer's**, regardless of which row fires.
       TLS getters. `time_offset` units stated explicitly in the write-up (verified, not assumed).
 - [ ] RC1 run (3 runs, pass 1, busy window), three-way classification reported overall + by SNR
       band + by density band, gate evaluated per §4's code.
+- [ ] §4.5 rider computed regardless of §4's outcome: `sep` per in-band WSJT-X decode, terciles
+      populated and reported (cutpoints + per-tercile `n`), `d_cnd`/`d_noc` and `s1rr_row`
+      reported alongside — never in place of — RC1's own verdict.
 - [ ] **If RC1 fires ROW 2: stop here.** Report and hand back — RC2 is not authorised to proceed
-      by this task in that case, regardless of the bundling.
+      by this task in that case, regardless of the bundling. The §4.5 rider is still reported.
 - [ ] If RC1 fires ROW 1 or ROW 3: caps made runtime-settable via `ft8_set_decode_params()`
       extension; §3.2's array-sizing fix applied and confirmed present at every configuration
       tested, including the untested-at-scale `C3`.
@@ -187,6 +244,13 @@ QA's or the Developer's**, regardless of which row fires.
   array-sizing overflow §3.2 above requires handling again, deliberately this time.
 - `qa/cycleframer-alignment-replay/2026-08-06-2346-architect-to-qa-handoff-index-and-work-queue.md`
   §6, §7.1 — why this is bundled, and the open Captain decision this task exists to answer.
+- `qa/cycleframer-alignment-replay/2026-08-07-1616-architect-to-qa-captain-rulings-and-d001-reconciliation.md`
+  §1.1 (authorisation), §1.5.2 (D-009 Option B must not ship before RC2's `C0` baseline is
+  measured — this task's RC2 leg is what that baseline depends on), §7.8 (standalone S.1r's ROW 4
+  and why), §7.9 (the rider retiring standalone S.1r and specifying §4.5 above).
+- `qa/cycleframer-alignment-replay/2026-08-07-s1r-spectral-locality/s1r_report.md` — the retired
+  standalone S.1r run; retained for provenance of the band-edge exclusion and the boundary-choice
+  lesson, not re-run.
 
 ---
 
