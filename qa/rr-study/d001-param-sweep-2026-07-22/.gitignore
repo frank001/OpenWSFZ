@@ -1,3 +1,10 @@
 # Local sweep working area — NFR-021: raw truth.csv / decode ALL.TXT / WAV corpora
 # stay local, never committed (work-order step 18 / acceptance criterion 8).
 _work/
+# run_recalibration.sh (2026-08-05, D-009 recalibration) writes here instead of _work/ —
+# same NFR-021 exposure, different name, so the pattern above missed it. Confirmed
+# 2026-08-07: qa/.../_work_recal/recall/{decoded,shards}/ holds 45 x "OpenWSFZ ALL.TXT"
+# plus per-shard decode output, all real off-air callsigns from 20260803_live_run_1713
+# (e.g. EI8HEB, US2YW, HS0ZOY — not Q-prefix synthetic). The fp/ subtree (S5/S7) is
+# synthetic-only (Q-prefix, confirmed clean) but stays under the same ignore for safety.
+_work_recal/

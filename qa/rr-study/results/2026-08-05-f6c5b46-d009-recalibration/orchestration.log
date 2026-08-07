@@ -1,0 +1,76 @@
+[20:30:11] Phase B: FP corpora (sequential S5 -> S7)
+[20:30:11]   generating s5 from s5-noise-wide.json
+fp-corpus: 120 slots, 120 truth rows, 0 rows without a WAV → D:\Projects\claude\OpenWSFZ\qa\rr-study\d001-param-sweep-2026-07-22\_work_recal\fp\s5\canon/manifest.csv, truth.csv, wsjt-all.txt
+run_recalibration.sh: line 93: "$WORK/fp/$tag/wavs"/*.wav: ambiguous redirect
+[20:30:22]   s5 done: 120 wavs
+[20:30:22]   generating s7 from s7-compounding.json
+fp-corpus: 105 slots, 215 truth rows, 0 rows without a WAV → D:\Projects\claude\OpenWSFZ\qa\rr-study\d001-param-sweep-2026-07-22\_work_recal\fp\s7\canon/manifest.csv, truth.csv, wsjt-all.txt
+run_recalibration.sh: line 93: "$WORK/fp/$tag/wavs"/*.wav: ambiguous redirect
+[20:30:41]   s7 done: 105 wavs
+[20:30:41] Phase C: FP decode + score (sequential S5 -> S7, debug-log on)
+[20:30:41]   decoding s5 (45 points, single process for WAV-order decode.log)
+[20:51:32]   s5 decode done
+[20:51:32]   decoding s7 (45 points, single process for WAV-order decode.log)
+[21:10:04]   s7 decode done
+score-fp: S5 slots=120, S7 slots=105, S7 signals=215
+  → D:\Projects\claude\OpenWSFZ\qa\rr-study\d001-param-sweep-2026-07-22\_work_recal\fp.csv
+[21:10:13] Phase D: recall decode (epoch [420,4971), 16 shards)
+[21:16:07] FATAL: a decode shard failed under /d/Projects/claude/OpenWSFZ/qa/rr-study/d001-param-sweep-2026-07-22/_work_recal/recall/shards
+--- restart 21:16:25 UTC: NSHARDS 16->12 (75%) per Captain request ---
+[21:16:25] Phase D: recall decode (epoch [420,4971), 12 shards)
+merged 12 shards → 45 points, 2495844 total lines → D:\Projects\claude\OpenWSFZ\qa\rr-study\d001-param-sweep-2026-07-22\_work_recal\recall\decoded
+[00:12:26] Phase D: recall score
+score-recall[full-epoch]: baseline recall=41.51% (wsjt_total=17469, miss=10218); baseline miss classes tight=2920 partial=4496 isolated=2802
+  → D:\Projects\claude\OpenWSFZ\qa\rr-study\d001-param-sweep-2026-07-22\_work_recal\recall.csv
+[00:12:41] Phase E: assemble
+assemble → D:\Projects\claude\OpenWSFZ\qa\rr-study\d001-param-sweep-2026-07-22\_work_recal\sweep_grid.csv
+  baseline S5 fp/slot=0.00833  S7 fp/slot=0.07619
+  VERDICT: 6 candidate win(s). Best: k5_c0.10_n40 recall_dpp=0.109 (S5Δ=-0.00833, S7Δ=-0.06667)
+    WIN k5_c0.10_n40: +0.109pp  S5Δ-0.00833 S7Δ-0.06667  isolated_recov=0.61%
+    WIN k5_c0.15_n40: +0.109pp  S5Δ-0.00833 S7Δ-0.06667  isolated_recov=0.61%
+    WIN k5_c0.25_n40: +0.109pp  S5Δ-0.00833 S7Δ-0.06667  isolated_recov=0.61%
+    WIN k7_c0.10_n40: +0.097pp  S5Δ-0.00833 S7Δ-0.06667  isolated_recov=0.54%
+    WIN k7_c0.15_n40: +0.097pp  S5Δ-0.00833 S7Δ-0.06667  isolated_recov=0.54%
+    WIN k7_c0.25_n40: +0.097pp  S5Δ-0.00833 S7Δ-0.06667  isolated_recov=0.54%
+[00:12:41] Phase F: ROW rule evaluation
+BASELINE k10_c0.10_n60: recall=41.508% s5_fp/slot=0.00833 s7_fp/slot=0.07619
+WIN candidates: 6
+RELIEF candidates: 15
+B_on_frontier: False (dominators found: 13)
+
+ROW 1 FIRED: the optimum has MOVED.
+  Candidate (argmax recall among winners): k5_c0.10_n40 recall=41.617% (Delta +0.109pp) s5=0.0 s7=0.00952
+  All winners:
+    k5_c0.10_n40: recall=41.617% s5=0.0 s7=0.00952
+    k5_c0.15_n40: recall=41.617% s5=0.0 s7=0.00952
+    k5_c0.25_n40: recall=41.617% s5=0.0 s7=0.00952
+    k7_c0.10_n40: recall=41.605% s5=0.0 s7=0.00952
+    k7_c0.15_n40: recall=41.605% s5=0.0 s7=0.00952
+    k7_c0.25_n40: recall=41.605% s5=0.0 s7=0.00952
+  => Captain sign-off required before any value ships. QA does not ship it.
+BASELINE k10_c0.10_n60: recall=41.508% s5_fp/slot=0.00833 s7_fp/slot=0.07619
+WIN candidates: 6
+RELIEF candidates: 15
+B_on_frontier: False (dominators found: 13)
+
+ROW 1 FIRED: the optimum has MOVED.
+  Candidate (argmax recall among winners): k5_c0.10_n40 recall=41.617% (Delta +0.109pp) s5=0.0 s7=0.00952
+  All winners:
+    k5_c0.10_n40: recall=41.617% s5=0.0 s7=0.00952
+    k5_c0.15_n40: recall=41.617% s5=0.0 s7=0.00952
+    k5_c0.25_n40: recall=41.617% s5=0.0 s7=0.00952
+    k7_c0.10_n40: recall=41.605% s5=0.0 s7=0.00952
+    k7_c0.15_n40: recall=41.605% s5=0.0 s7=0.00952
+    k7_c0.25_n40: recall=41.605% s5=0.0 s7=0.00952
+  => Captain sign-off required before any value ships. QA does not ship it.
+[00:12:41] Phase G: density stratification
+Traceback (most recent call last):
+  File "D:\Projects\claude\OpenWSFZ\qa\rr-study\d001-param-sweep-2026-07-22\density_stratify.py", line 143, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "D:\Projects\claude\OpenWSFZ\qa\rr-study\d001-param-sweep-2026-07-22\density_stratify.py", line 101, in main
+    cycles = pair_cycles(args.decode_log)
+  File "D:\Projects\claude\OpenWSFZ\qa\rr-study\d001-param-sweep-2026-07-22\density_stratify.py", line 54, in pair_cycles
+    with open(decode_log, encoding="utf-8", errors="replace") as fh:
+         ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 22] Invalid argument: 'D:\\Projects\\claude\\OpenWSFZ\\qa\\rr-study\\d001-param-sweep-2026-07-22\\_work_recal\\fp\\s5\\decoded\\k5_c0.10_n40\r\\decode.log'

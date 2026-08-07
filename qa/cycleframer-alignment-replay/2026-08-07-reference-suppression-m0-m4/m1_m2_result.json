@@ -1,0 +1,57 @@
+{
+  "generated_utc": "2026-08-06 22:58:49 UTC",
+  "window": [
+    "260804_085845",
+    "260804_085900",
+    "260804_085915",
+    "260804_085930",
+    "260804_085945",
+    "260804_090000",
+    "260804_090015",
+    "260804_090030",
+    "260804_090045",
+    "260804_090100",
+    "260804_090115",
+    "260804_090130",
+    "260804_090145",
+    "260804_090200",
+    "260804_090215",
+    "260804_090230",
+    "260804_090245",
+    "260804_090300",
+    "260804_090315",
+    "260804_090330"
+  ],
+  "m1": {
+    "row": "ROW 4",
+    "consequence": "INCONCLUSIVE. M4 MUST NOT RUN. Report delta, p, both medians, both n, escalate.",
+    "delta_db": -2.0,
+    "p": 0.004249674655997972,
+    "u_stat": 65387.0,
+    "median_new": -9.0,
+    "median_shared": -7.0,
+    "n_new": 460,
+    "n_shared": 323
+  },
+  "m2": {
+    "row": "ROW 1",
+    "verdict": "EVALUATED",
+    "consequence": "CONFIRMED -- 'OpenWSFZ finds decodes WSJT-X cannot' is false on this window; that population is a reference-suppression artifact. Arm R.D's reciprocity premise is undermined on this window; R.D remains unauthorised pending M3.",
+    "r_owsfz": 0.953405017921147,
+    "r_owsfz_all5": 0.9498207885304659,
+    "r_wsjtx_self": 0.9645390070921985,
+    "n_owsfz_excl": 279,
+    "n_wsjtx_excl": 141,
+    "residual_exclusive_count": null,
+    "intermittency_note": null
+  },
+  "tonight_union_n": 783,
+  "tonight_intersection_n": 722,
+  "per_run_n": {
+    "1": 752,
+    "2": 754,
+    "3": 758,
+    "4": 759,
+    "5": 756
+  }
+}

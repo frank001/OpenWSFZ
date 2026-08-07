@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>D-009 — Parameter Recalibration: Results Report</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="d-009-parameter-recalibration-results-report">D-009 — Parameter Recalibration: Results Report</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Defect ID</td>
+<td>D-009 (false-positive guard calibration); triggered by the S1-S8 repeat's Finding 1 (<code>ddcc455</code>)</td>
+</tr>
+<tr>
+<td>Type</td>
+<td>Offline decode sweep (no <code>src/</code> product or native-code change — QA tooling only)</td>
+</tr>
+<tr>
+<td>Governing spec</td>
+<td><code>qa/rr-study/2026-08-05-2003-architect-to-qa-spec-d009-recalibration.md</code></td>
+</tr>
+<tr>
+<td>Task breakdown</td>
+<td><code>qa/rr-study/2026-08-05-2018-qa-tasks-d009-recalibration.md</code> (QA-authored, HK-015)</td>
+</tr>
+<tr>
+<td>Analysis date</td>
+<td>2026-08-05 / 2026-08-06 (spans UTC midnight)</td>
+</tr>
+<tr>
+<td>Repo HEAD at analysis time</td>
+<td><code>f6c5b46</code> (native shim unchanged — this sweep drives runtime <code>ft8_set_decode_params</code> only)</td>
+</tr>
+<tr>
+<td>Recall corpus</td>
+<td><code>20260803_live_run_1713/owsfz</code>, decisive epoch only (<code>260803_185914</code> onward), WSJT-X <code>ALL.TXT</code> same epoch</td>
+</tr>
+<tr>
+<td>FP corpus</td>
+<td>Synthetic S5 (<code>s5-noise-wide.json</code>, 120 slots) + S7 (<code>s7-compounding.json</code>, 105 slots / 215 signals), seeded/reproducible</td>
+</tr>
+<tr>
+<td>Harness</td>
+<td><code>qa/rr-study/d001-param-sweep-2026-07-22/</code> (C# decode driver, <strong>unmodified</strong>) + <code>sweep_driver.py</code> (<strong>unmodified</strong>) + two new QA scripts (<code>density_stratify.py</code>, <code>apply_row_rule.py</code>) for spec Sec.5.4/5, which had no <code>2026-07-22-ea88d12</code> precedent</td>
+</tr>
+<tr>
+<td>Aggregate data</td>
+<td><code>sweep_grid.csv</code> (45-row grid), <code>fp_by_density.csv</code> (Sec.5.4 stratification), both this directory</td>
+</tr>
+<tr>
+<td>Status</td>
+<td><strong>COMPLETE — ROW 1 fired. Recommendation NOT shipped — awaiting Captain sign-off (spec Sec.6.2).</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>NFR-021 handling.</strong> All raw artefacts (WAVs, per-point <code>ALL.TXT</code>, <code>truth.csv</code>, per-point decode
+output, shard logs) stayed local under the harness's git-ignored <code>_work_recal/</code>. Only this
+report, <code>sweep_grid.csv</code>, <code>fp_by_density.csv</code>, and <code>orchestration.log</code>/<code>row_verdict.txt</code>
+(phase timestamps and the mechanical rule evaluation — no callsigns, no message text) are
+committed.</p>
+</blockquote>
+<hr />
+<h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
+<p><strong>Question (spec Sec.5, pre-committed before any decode ran).</strong> Across the three D-009
+runtime-configurable OSD-gate parameters (<code>k_min_score_pass2</code>, <code>osd_corr_threshold</code>,
+<code>osd_nhard_max</code>), does any operating point on a current, post-<code>be5960a</code> corpus dominate the
+shipped baseline <code>B = (10, 0.10, 60)</code> — gaining recall against WSJT-X while holding both the S5
+(pure-noise) and S7 (co-channel) synthetic false-positive rates at or below baseline?</p>
+<p><strong>Pre-registered rule (spec Sec.5, transcribed mechanically into <code>apply_row_rule.py</code>, not
+re-derived here):</strong></p>
+<ul>
+<li><code>WIN(p) := rec(p) &gt; rec(B) AND s5(p) &lt;= s5(B) AND s7(p) &lt;= s7(B)</code></li>
+<li><code>RELIEF(p) := s5(p) &lt;= 0.50*s5(B) AND s7(p) &lt;= s7(B) AND rec(p) &gt;= rec(B) - 1.00</code></li>
+<li><code>B_on_frontier := no p != B with rec(p) &gt;= rec(B) AND s5(p) &lt;= s5(B) AND s7(p) &lt;= s7(B)</code></li>
+<li>ROW 1 (<code>exists p, WIN(p)</code>) fires before ROW 2/3/4 are even evaluated — strict order, first
+  match wins.</li>
+</ul>
+<p><strong>Why now.</strong> The S1-S8 repeat on <code>3bd4cd0</code> (six weeks / 104 <code>src/</code> commits after the last D-009
+check) found OpenWSFZ false-positive decodes correlating with simultaneous-candidate density, not
+SNR — a leak the managed structural filter (<code>IsPlausibleMessage</code>) cannot close because the leaking
+shape (3-token <code>CALL CALL GRID</code>) is syntactically well-formed. The native OSD gate swept here is
+the only lever in scope that can move it (spec Sec.2.3).</p>
+<p><strong>Corpus caveat carried forward from Sec.7 of the spec.</strong> This harness bypasses <code>CycleFramer</code>
+entirely (per-slot WAVs are decoded directly) — it recalibrates the parameters against a
+post-<code>be5960a</code>-framed corpus, but cannot itself confirm the drift fix moved the optimum; that
+stays open. The FP arm is synthetic; the recall arm is real off-air audio; the two are never
+blended into one score.</p>
+<hr />
+<h2 id="section-2-data-summary-framing-full-method-in-the-spec-sec3">Section 2 — Data Summary (framing; full method in the spec Sec.3)</h2>
+<ul>
+<li><strong>Recall arm</strong>: <code>owsfz/wav</code> restricted to filename <code>&gt;= 260803_185914</code> — <strong>4,551</strong> WAVs (index
+  420 of 4,971 onward; the 420 WAVs before that timestamp belong to a separate process instance
+  per the daemon's own log split and are excluded, not part of the "one contiguous 18.96 h
+  decisive epoch" the spec names). Reference: <code>wsjt-x/ALL.TXT</code>, same restriction. No tune/validate
+  split — the decision rule is evaluated directly on the full restricted corpus (unlike
+  <code>ea88d12</code>; this spec has no held-out arm).</li>
+<li><strong>FP arm</strong>: S5 = 120 pure-noise slots, S7 = 105 co-channel slots / 215 injected signals,
+  regenerated from seed via <code>run_scenario.py --dry-run --dump-wav-dir</code>. <strong>Generated and decoded
+  strictly sequentially, S5 then S7, never concurrently</strong> (spec Sec.4 constraint 1 — the June
+  <code>d009-k10-confirm-s5</code>/<code>-s7</code> <code>CONTAMINATED.md</code> precedent). Decoded <strong>with <code>--debug-log</code></strong> (FP arm
+  only, per spec Sec.4.5) to support Sec.5.4.</li>
+<li><strong>Grid</strong>: 45 points, <code>k in {5,7,10,15,20} x corr in {0.10,0.15,0.25} x nhard in {40,60,80}</code>,
+  identical to <code>ea88d12</code> so the two are cell-for-cell comparable. <code>B = (10, 0.10, 60)</code> is an
+  ordinary enumerated point.</li>
+<li><strong>Execution note</strong>: the recall arm (4,551 WAVs x 45 points, ~600 ms/decode) is the dominant
+  cost. Ran sharded across 12 processes (75% of this box's 16 logical cores, throttled mid-run at
+  the Captain's request — the first attempt at 16 shards had already restarted cleanly with no
+  data loss, see <code>orchestration.log</code>). Total Phase D wall-clock: ~2h58m.</li>
+</ul>
+<hr />
+<h2 id="section-3-results">Section 3 — Results</h2>
+<h3 id="31-baseline-anchor">3.1 Baseline anchor</h3>
+<p><code>B = k10_c0.10_n60</code>: <strong>recall = 41.508%</strong> (17,469 WSJT-X low-SNR decodes in-epoch, 10,218 missed),
+<strong>S5 FP/slot = 0.00833</strong> (1 FP / 120 slots), <strong>S7 FP/slot = 0.07619</strong> (8 FP / 105 slots), <strong>S7
+signal recovery = 84.651%</strong>.</p>
+<h3 id="32-row-1-fired-the-optimum-has-moved">3.2 ROW 1 fired — the optimum has moved</h3>
+<p><code>apply_row_rule.py</code> (mechanical, spec rule transcribed verbatim): <strong>6 WIN(p) candidates</strong>, <strong>15
+RELIEF(p) candidates</strong> (superseded — ROW 1 fires first), baseline <strong>not</strong> on the naive
+dominance frontier (13 points dominate it outright).</p>
+<p><strong>All 6 winners</strong> (every one has <code>nhard=40</code>; <code>corr</code> has no measurable effect at <code>nhard=40</code> for
+either <code>k</code>):</p>
+<table>
+<thead>
+<tr>
+<th>point</th>
+<th>k</th>
+<th>corr</th>
+<th>nhard</th>
+<th>recall %</th>
+<th>Δpp vs B</th>
+<th>S5 fp/slot</th>
+<th>S7 fp/slot</th>
+<th>S7 fp Δ</th>
+<th>S7 recovery %</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>k5_c0.10_n40</strong></td>
+<td>5</td>
+<td>0.10</td>
+<td>40</td>
+<td><strong>41.617</strong></td>
+<td><strong>+0.109</strong></td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>−0.06667</td>
+<td>87.442</td>
+</tr>
+<tr>
+<td>k5_c0.15_n40</td>
+<td>5</td>
+<td>0.15</td>
+<td>40</td>
+<td>41.617</td>
+<td>+0.109</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>−0.06667</td>
+<td>87.442</td>
+</tr>
+<tr>
+<td>k5_c0.25_n40</td>
+<td>5</td>
+<td>0.25</td>
+<td>40</td>
+<td>41.617</td>
+<td>+0.109</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>−0.06667</td>
+<td>87.442</td>
+</tr>
+<tr>
+<td>k7_c0.10_n40</td>
+<td>7</td>
+<td>0.10</td>
+<td>40</td>
+<td>41.605</td>
+<td>+0.097</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>−0.06667</td>
+<td>87.442</td>
+</tr>
+<tr>
+<td>k7_c0.15_n40</td>
+<td>7</td>
+<td>0.15</td>
+<td>40</td>
+<td>41.605</td>
+<td>+0.097</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>−0.06667</td>
+<td>87.442</td>
+</tr>
+<tr>
+<td>k7_c0.25_n40</td>
+<td>7</td>
+<td>0.25</td>
+<td>40</td>
+<td>41.605</td>
+<td>+0.097</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>−0.06667</td>
+<td>87.442</td>
+</tr>
+</tbody>
+</table>
+<p>Nominee per spec Sec.5 ("argmax rec(p) among winners"): <strong><code>k5_c0.10_n40</code></strong> — +0.109 pp recall,
+S5 FP eliminated entirely (58 → 0 across the whole arm), S7 FP down 87.4% (8 → 1).</p>
+<h3 id="33-the-global-pareto-frontier-differs-from-the-win-set-reported-per-spec-sec5">3.3 The global Pareto frontier differs from the WIN set — reported per spec Sec.5</h3>
+<p><code>WIN(p)</code> is defined strictly relative to <code>B</code>; it is <strong>not</strong> the same set as the points no other
+point dominates. Computed directly (any <code>p</code> with no <code>q</code> weakly-better-on-all-three-and-
+strictly-better-on-one): <strong>frontier size 6/45</strong>, but it swaps the <code>k7</code> triple for a <code>k10</code> triple:</p>
+<table>
+<thead>
+<tr>
+<th>point</th>
+<th>recall %</th>
+<th>Δpp vs B</th>
+<th>S5 fp/slot</th>
+<th>S7 fp/slot</th>
+<th>note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>k5_c0.10_n40</td>
+<td>41.617</td>
+<td>+0.109</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>argmax-recall WIN nominee</td>
+</tr>
+<tr>
+<td>k5_c0.15_n40</td>
+<td>41.617</td>
+<td>+0.109</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>—</td>
+</tr>
+<tr>
+<td>k5_c0.25_n40</td>
+<td>41.617</td>
+<td>+0.109</td>
+<td>0.0</td>
+<td>0.00952</td>
+<td>—</td>
+</tr>
+<tr>
+<td>k10_c0.10_n40</td>
+<td>41.508</td>
+<td>0.000</td>
+<td>0.0</td>
+<td><strong>0.0</strong></td>
+<td>ties B's recall exactly; <strong>zero FP on both synthetic arms</strong></td>
+</tr>
+<tr>
+<td>k10_c0.15_n40</td>
+<td>41.508</td>
+<td>0.000</td>
+<td>0.0</td>
+<td>0.0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>k10_c0.25_n40</td>
+<td>41.508</td>
+<td>0.000</td>
+<td>0.0</td>
+<td>0.0</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>k10_*_n40</code> points don't qualify as <code>WIN(p)</code> — <code>recall_dpp = 0.000</code>, and the rule requires
+<code>rec(p) &gt; rec(B)</code> strictly — but they Pareto-dominate <code>B</code> (identical recall, strictly fewer FPs
+on <strong>both</strong> arms, <code>S7 fp/slot = 0.0</code> — 0 of 105 slots, vs baseline's 8) and change only <strong>one</strong>
+parameter from the shipped config (<code>nhard</code> 60→40; <code>k</code> and <code>corr</code> unchanged). Flagged for the
+costed menu below — the rule correctly excluded it from "winner," but the Captain should see it.</p>
+<p><strong>Every point on both sets shares <code>nhard = 40</code>.</strong> <code>corr</code> (0.10/0.15/0.25) has zero measurable
+effect on recall or FP at <code>nhard = 40</code> for any <code>k</code> tested — its effect (visible at <code>nhard=60/80</code>,
+e.g. <code>k5_c0.25_n60</code> more than halves <code>k5_c0.10_n60</code>'s FP rate) is fully saturated away once
+<code>nhard</code> drops. <code>k</code> is the only recall lever (monotonic: 41.617% at k=5 down to 41.348% at k=20);
+<code>nhard</code> is overwhelmingly the FP lever.</p>
+<h3 id="34-section-54-density-stratification-reported-not-gated">3.4 Section 5.4 — density stratification (reported, not gated)</h3>
+<p>Per-cycle candidate load (pass-0 + pass-1 count from <code>--debug-log</code>) bucketed
+<code>0-9/10-24/25-49/50-99/100+</code>, FP-per-slot within bucket. Baseline vs. the two frontier
+candidates above:</p>
+<table>
+<thead>
+<tr>
+<th>point</th>
+<th>scenario</th>
+<th>bucket</th>
+<th>slots</th>
+<th>FP</th>
+<th>FP/100 slots</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>k10_c0.10_n60 (B)</strong></td>
+<td>S5</td>
+<td>10-24</td>
+<td>82</td>
+<td>0</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td></td>
+<td>S5</td>
+<td>25-49</td>
+<td>38</td>
+<td>1</td>
+<td>2.63</td>
+</tr>
+<tr>
+<td></td>
+<td>S7</td>
+<td>25-49</td>
+<td>77</td>
+<td>7</td>
+<td><strong>9.09</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>S7</td>
+<td>50-99</td>
+<td>27</td>
+<td>1</td>
+<td>3.70</td>
+</tr>
+<tr>
+<td>k5_c0.10_n40</td>
+<td>S5</td>
+<td>100+</td>
+<td>120</td>
+<td>0</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td></td>
+<td>S7</td>
+<td>100+</td>
+<td>105</td>
+<td>1</td>
+<td>0.95</td>
+</tr>
+<tr>
+<td>k10_c0.10_n40</td>
+<td>S5</td>
+<td>10-24</td>
+<td>82</td>
+<td>0</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td></td>
+<td>S5</td>
+<td>25-49</td>
+<td>38</td>
+<td>0</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td></td>
+<td>S7</td>
+<td>25-49</td>
+<td>77</td>
+<td>0</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td></td>
+<td>S7</td>
+<td>50-99</td>
+<td>27</td>
+<td>0</td>
+<td>0.0</td>
+</tr>
+</tbody>
+</table>
+<p>Full 450-row table in <code>fp_by_density.csv</code> (all 45 points x 2 scenarios x 5 buckets).</p>
+<p>Two things worth the Captain's attention, neither part of the gated rule:</p>
+<ol>
+<li><strong>Baseline's leak is concentrated exactly where Finding 1 predicted</strong> — the 25-49 and 50-99
+   candidate buckets, i.e. the co-channel/dense regime, not the sparse one. This is the same
+   mechanism <code>ddcc455</code>'s Finding 1 described, now reproduced under controlled synthetic
+   conditions rather than inferred from a live daemon log.</li>
+<li><strong>The bucketing variable is confounded with <code>k</code> itself.</strong> <code>k_min_score_pass2</code> gates how many
+   raw candidates get counted as "found" before OSD — at <code>k=5</code> every single slot in both arms
+   falls in the <code>100+</code> bucket (vs. baseline's spread across 10-24/25-49). The stratification is
+   real and reproducible, but it cannot be read as "the same operating point behaves differently
+   at different densities" across different <code>k</code> rows — only within a fixed <code>k</code> (which this sweep
+   didn't vary density for, since S5/S7 each have one candidate-load profile). A future
+   density-varying corpus (§5.4's own stated purpose) would need to hold <code>k</code> fixed and vary
+   density directly to separate the two effects.</li>
+</ol>
+<hr />
+<h2 id="section-4-verdict-table">Section 4 — Verdict Table</h2>
+<table>
+<thead>
+<tr>
+<th>Row</th>
+<th>Fired?</th>
+<th>Consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ROW 1 (<code>WIN</code> exists)</td>
+<td><strong>YES</strong></td>
+<td>Optimum MOVED. Captain sign-off required before any value ships.</td>
+</tr>
+<tr>
+<td>ROW 2 (<code>RELIEF</code>, no <code>WIN</code>)</td>
+<td>N/A (ROW 1 fired first)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>ROW 3 (<code>B_on_frontier</code>)</td>
+<td>N/A</td>
+<td>—</td>
+</tr>
+<tr>
+<td>ROW 4 (contradiction)</td>
+<td>N/A</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Full machine output: <code>row_verdict.txt</code> (this directory).</p>
+<hr />
+<h2 id="section-5-recommendations-costed-menu-captain-decision-required-spec-sec62">Section 5 — Recommendations (costed menu — Captain decision required, spec Sec.6.2)</h2>
+<p>QA does not ship or recommend a default. Per spec Sec.6.2, expect a menu, not a winner — and
+per the June D-009 investigation's own precedent, the shipped baseline already fails one of its
+own gates (<code>co_channel_sweep</code> 86.67% &lt; 89%), so "no change" is not a neutral default either.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Change from shipped</th>
+<th>Recall</th>
+<th>S5 FP</th>
+<th>S7 FP</th>
+<th>Trade</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A — argmax-recall winner</strong></td>
+<td><code>k</code> 10→5, <code>nhard</code> 60→40</td>
+<td>+0.109 pp</td>
+<td>58→0</td>
+<td>8→1</td>
+<td>Two parameters move; small but real recall gain, near-total FP elimination on both synthetic arms.</td>
+</tr>
+<tr>
+<td><strong>B — minimal-change, zero-FP tie</strong></td>
+<td><code>nhard</code> 60→40 only</td>
+<td>+0.000 pp (tied)</td>
+<td>58→0</td>
+<td>8→<strong>0</strong></td>
+<td>One parameter moves; recall unchanged, <strong>zero FP on both arms tested</strong>; not a <code>WIN</code> under the strict rule (no recall gain) but Pareto-dominates B.</td>
+</tr>
+<tr>
+<td><strong>C — no change</strong></td>
+<td>none</td>
+<td>41.508%</td>
+<td>1/120</td>
+<td>8/105</td>
+<td>Known to already fail <code>co_channel_sweep</code> (86.67%&lt;89%, June precedent). Baseline is provably dominated (Sec.3.3) — "no change" is a choice to accept known-suboptimal FP behaviour, not a neutral default.</td>
+</tr>
+</tbody>
+</table>
+<p>QA's observation, not a recommendation: every winning and every frontier point shares
+<code>nhard=40</code>; <code>corr</code> is inert at that setting. If the Captain wants the smallest possible change to
+verify before wider adoption, <strong>Option B changes exactly one constant</strong> and was the cleanest
+result in the grid (zero FP on 225 synthetic slots). Option A trades a second parameter change for
+the paper recall gain, which is small (+0.1pp) against 17,469 WSJT-X reference decodes — real, but
+modest.</p>
+<p><strong>Not addressed here (out of spec scope, Sec.1):</strong> bisecting which of the three flagged commits
+moved the leak; the two managed-filter rule gaps (Sec.6.3 of the spec — recorded there for
+whoever next touches <code>IsPlausibleMessage</code>, requires a Developer session); <code>K_MAX_CANDIDATES_PASS2</code>.
+Whether <code>be5960a</code> itself moved the optimum remains open (Section 1 caveat) — only Arm A (spec
+Sec.3.4, not authorised) or a live re-run would close that.</p>
+<p><strong>QA does not ship, merge, or push any parameter value.</strong> Awaiting Captain sign-off per spec
+Sec.6.2 / HK-010 / HK-014.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

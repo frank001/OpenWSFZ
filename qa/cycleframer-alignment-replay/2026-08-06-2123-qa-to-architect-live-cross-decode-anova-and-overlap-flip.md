@@ -114,6 +114,27 @@ decodes as informative.
 - `project-state-2026-07-31-d001-competition-confirmed.md` — the original 64.1%-parity/
   789-miss framing this may bear on, if the suppression hypothesis generalises.
 
+## 6. Correction — 2026-08-06 (22:04 UTC, `date -u`, per HK-017)
+
+**Architect catch, applied here per
+`2026-08-06-2144-architect-to-qa-spec-reference-suppression-m0-m4.md` §0.1.** The §3 table
+above is correct and internally consistent (279 + 187 = 466; 141 + 187 = 328; 187/466 =
+40.1%). The prose beneath it (original lines 68–70) swapped the two decoders:
+
+> ~~"WSJT-X missed 141 of OpenWSFZ's 466 decodes (43%); OpenWSFZ missed 279 of WSJT-X's own
+> 328 (60%)"~~ — **wrong**. 141/466 = 30.3%, not 43%; 279/328 = 85.1%, not 60%, and would
+> force matched = 49 against the table's 187.
+
+**Correct statement: WSJT-X missed 279 of OpenWSFZ's 466 (59.9%). OpenWSFZ missed 141 of
+WSJT-X's 328 (43.0%).**
+
+This is an Architect-side catch on a QA note, and it cuts in QA's favour, not against it —
+the corrected reading makes the finding *stronger*. Originally OpenWSFZ appeared to
+out-decode WSJT-X 466 to 328, with 279 decodes exclusively its own; tonight it is 461 to
+752, with ~14 exclusively its own. The comparison does not merely shift, it **inverts**. No
+other figure in this note (§2, §3's table itself, §4) is affected — only the two prose
+sentences at original lines 68–70, which should be read via the corrected statement above.
+
 ---
 
 *Per HK-015 this is QA → Architect. Per HK-014/HK-010 committed locally, no push, no merge

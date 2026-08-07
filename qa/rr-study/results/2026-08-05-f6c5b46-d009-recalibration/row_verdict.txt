@@ -1,0 +1,15 @@
+BASELINE k10_c0.10_n60: recall=41.508% s5_fp/slot=0.00833 s7_fp/slot=0.07619
+WIN candidates: 6
+RELIEF candidates: 15
+B_on_frontier: False (dominators found: 13)
+
+ROW 1 FIRED: the optimum has MOVED.
+  Candidate (argmax recall among winners): k5_c0.10_n40 recall=41.617% (Delta +0.109pp) s5=0.0 s7=0.00952
+  All winners:
+    k5_c0.10_n40: recall=41.617% s5=0.0 s7=0.00952
+    k5_c0.15_n40: recall=41.617% s5=0.0 s7=0.00952
+    k5_c0.25_n40: recall=41.617% s5=0.0 s7=0.00952
+    k7_c0.10_n40: recall=41.605% s5=0.0 s7=0.00952
+    k7_c0.15_n40: recall=41.605% s5=0.0 s7=0.00952
+    k7_c0.25_n40: recall=41.605% s5=0.0 s7=0.00952
+  => Captain sign-off required before any value ships. QA does not ship it.
