@@ -173,7 +173,7 @@ treatment (it is a recommendation, pending the Captain).
 
 ## 9. Artefacts
 
-- Harness: `qa/cycleframer-alignment-replay/h1_hash_token_contamination.py` (untracked pending commit
-  — HK-014, no push/merge from this session; committing is the Captain's or Architect's call).
+- Harness: `qa/cycleframer-alignment-replay/h1_hash_token_contamination.py` (**committed `c0af3fb`**
+  at the Captain's explicit request; still no push, HK-014).
 - Sources: `artefacts/20260808_live_run_0016-808{0,1}/{owsfz,wsjt-x}/ALL.TXT`, unchanged.
 - No new capture, no `src/` change.

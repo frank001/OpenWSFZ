@@ -42,8 +42,17 @@ the evidence trail; **§0.5 is the current state and wins wherever it disagrees 
 | **W3** — HK-016 widening | ✅ **CLOSED — it was already implemented** since `a60b015` (2026-07-30), five days before it was asked for. No change was needed. | addendum in `hk016-…standard.md` |
 | **W4** — RC3 / `c_bottom` | unchanged: **ROW 0**, needs a `src/` change, still behind D-001. | §5 below |
 | **T1** — frequency quantisation | ✅ **CLOSED 2026-08-08.** `G = 3.16 pp` → **ROW 3**, real but small. | `2026-08-08-2046-qa-to-architect-t1-frequency-quantisation-results.md` |
-| 🔴 **T2** — offset-curve shape | **SPECCED, NOT RUN.** | §2.5, spec `2026-08-08-2102-architect-to-qa-spec-t2-offset-curve-shape.md` |
-| 🔴 **H1** — `<...>` hash-token contamination | **SPECCED, NOT RUN. Run this BEFORE T2** — it gates two of the most-quoted figures on the board. | §2.6, spec `2026-08-08-2121-architect-to-qa-spec-h1-hash-token-contamination.md` |
+| **H1** — `<...>` hash-token contamination | ✅ **DONE 2026-08-08 21:35Z. Gate A = A-ROW 1** (`M = 2.26 pp` ⇒ recovery is now the bracket **`[55.5%, 57.8%]`**). **Gate B = B-ROW 2** (`ΔF = 0.02 pp` — `<...>` is **not** what drives the ~4% FP). | §2.4, results `2026-08-08-2135-qa-to-architect-h1-hash-token-contamination-results.md` |
+| 🔴 **H1a** — validate the wildcard matches by frequency | **SPECCED, NOT RUN. ~10 min, and it goes BEFORE T2** — if it fires ROW 1 the `[55.5%, 57.8%]` bracket is **retired** before it hardens into a dozen documents. Also closes the FP level's unstated **+0.66 pp** uncertainty. | §2.4a, spec `2026-08-08-2156-architect-to-qa-spec-h1a-wildcard-frequency-validation.md` |
+| 🔴 **T2** — offset-curve shape | **SPECCED, NOT RUN.** Last in the queue. | §2.5, spec `2026-08-08-2102-architect-to-qa-spec-t2-offset-curve-shape.md` |
+
+⚠️ **Two record defects found and fixed 2026-08-08 21:56Z, both worth naming rather than silently
+correcting.** (1) This table pointed H1 at "§2.6" while the section was written as **§2.4** — an
+Architect cross-reference error, present since the row was added. (2) The board's 21:35Z entry stated
+that this queue had been updated for H1's result; **it had not been** — the row above still read
+"SPECCED, NOT RUN" and §2.4 still read "RUN THIS FIRST". That is HK-024's exact failure mode
+(a document left stale while another document says it was updated), and it is the second time in one
+day that a "downstream updates made" claim has needed checking rather than trusting.
 
 ### 🛑 Four statements below that are now known-wrong — do not act on them
 
@@ -71,7 +80,21 @@ not parametric — which is why D-009 swept 45 points for **+0.109 pp**. See `ar
 
 ---
 
-## 2.4 🔴 H1 — `<...>` hash-token contamination — **RUN THIS FIRST**
+## 2.4 ✅ H1 — `<...>` hash-token contamination — **DONE 21:35Z: A-ROW 1 / B-ROW 2**
+
+> **Result:** `2026-08-08-2135-qa-to-architect-h1-hash-token-contamination-results.md`.
+> `R_base = 55.53%` (reproduced), `R_excl = 55.61%`, `R_wild = 57.79%`, **`M = 2.26 pp` → A-ROW 1**;
+> **`ΔF = 0.02 pp` → B-ROW 2**. Both gates cleared ROW 0 on the first run; the §2.4.1 dead-path trap
+> was avoided. **The recovery figure is now the bracket `[55.5%, 57.8%]`;** the ~4% FP stands and is
+> confirmed clean of `<...>`. Follow-up **H1a (§2.4a)** may retire that bracket — run it first.
+>
+> 🔴 **The one finding worth carrying beyond H1 itself:** `R_excl` — the board's *original* one-line
+> method, "exclude `<...>` rows both sides" — moved the number by **+0.08 pp** and would have closed
+> this item as **immaterial**. The real effect (2.26 pp) is only visible under wildcard matching.
+> **A method sketched in a one-line note is not a specification; check that it can express the answer
+> that turns out to be true** (HK-021(a)). This came within one drafting decision of a false negative.
+>
+> **The section below is the pre-run index entry, kept as written.**
 
 **Spec:** `qa/cycleframer-alignment-replay/2026-08-08-2121-architect-to-qa-spec-h1-hash-token-contamination.md`.
 **Read the spec — this is the index entry, not the instructions.** Not authorised to run (§0 header).
@@ -121,6 +144,40 @@ callsign. **Never describe recovery gained here as "new decodes."**
 **drops from the denominator entirely** any message whose only callsign-shaped tokens were hashed.
 **Report how many rows that silently removed** — an unknown-size silent exclusion underneath a
 published figure is exactly what this run exists to surface.
+
+---
+
+## 2.4a 🔴 H1a — validate the wildcard matches by frequency — **RUN THIS FIRST**
+
+**Spec:** `qa/cycleframer-alignment-replay/2026-08-08-2156-architect-to-qa-spec-h1a-wildcard-frequency-validation.md`.
+**Read the spec — this is the index entry.** Not authorised to run. ~10 min, same window/sources as H1.
+
+**Why now and not later.** H1's `[55.5%, 57.8%]` bracket is already propagating into the 1942 report
+§8 and the board, and will be carried by every downstream citation. `R_wild` was called an *upper*
+bound only because **a wildcard match cannot be verified from text.** It **can** be verified from
+frequency — and if it holds, the bracket is spurious precision that should be retired **before** it
+hardens into a dozen documents.
+
+**This is a different failure mode than H1's 0.5% ambiguity figure.** That measured how often a
+`<...>` row had **two or more** candidates. It says nothing about whether the **single** candidate was
+the **right** one — and only that biases `R_wild`. The realistic spurious case is concrete:
+`CQ <...> <grid>` where two stations sharing a grid square both call CQ in the same cycle.
+
+**Tolerance is derived, not chosen** (HK-021(d)): our frequency is on the 3.125 Hz lattice, so
+`1.5625 + 0.5 + 0.5 = 2.5625` ⇒ **`|Δf| ≤ 3 Hz`**. **And the null is measured, not assumed** — a
+within-cycle permutation gives `V_null`, the spurious-match rate the corpus itself produces. `V` is
+unreadable without it, which is why `V_null > 0.10` is ROW 0b.
+
+**Gate:** ROW 1 at `V ≥ 0.95` ⇒ **retire the bracket**, recovery becomes `≈ 57.8%`, and the
+superseded citation limits in H1 §8 and the 1942 report §8 must be **edited, not left to contradict**.
+ROW 2 at `V ≤ 0.75` ⇒ `R_wild` is biased, not merely an upper bound. Architect predicts **ROW 1**.
+
+⚠️ **§4 of the spec is a second, unrelated deliverable:** H1 bounded the silent exclusion at **280
+rows** but never converted it. Those rows sit in the FP denominator and contribute zero to its
+numerator, so the ~4% carries an **unstated upper uncertainty of ~+0.66 pp** (`F` ∈ 4.24–4.90%).
+🛑 **This does NOT revise Gate B** — that gated `ΔF`, a difference; this is the *level*. But it does
+bear on **D-009 Option B**, moving that evidence slightly *toward* Option B. Record it in §7.3; the
+Captain resolves it.
 
 ---
 
