@@ -296,8 +296,21 @@ rebuilt DLL ⇒ Developer session under HK-011; QA proposes and stops.
 
 ## 8. Citation limits
 
-**May be cited:** the recovery figures in §2.1 (with their windows); the SNR stratification in §2.2;
-the ~4% FP estimate in §2.3 **as an upper bound, with the two cautions attached**; the ruling-out of
+🔴 **Updated 2026-08-08 21:35Z following H1** (`2026-08-08-2135-qa-to-architect-h1-hash-token-contamination-results.md`).
+H1 measured how much the never-re-initialised 256-slot hash table (`<...>` tokens) distorts the two
+headline figures below. **Gate A fired A-ROW 1 (material, `M = 2.26 pp`): the §2.1 recovery figures
+must now be read as the bracket `[R_base, R_wild]`, i.e. 20m is `[55.5%, 57.8%]`, not a bare 55.5%.**
+`R_wild` is an upper bound with only a 0.5% ambiguous fraction attached — cite the bracket, not the
+upper end alone, and never describe the gap between them as "new decodes" (H1 §0). **Gate B read
+B-ROW 2 (immaterial, `ΔF = 0.02 pp`): the §2.3 ~4% FP estimate is UNCHANGED and confirmed clean of
+`<...>` contamination** — its existing upper-bound caveat (below) still applies, and now applies with
+full weight to §7.3's D-009 Option B question, since the FP evidence there was not a text-matching
+artefact.
+
+**May be cited:** the recovery figures in §2.1, now read as the **bracket `[55.5%, 57.8%]`** on 20m
+per H1 (with their windows, and 17m unaffected — H1 was 20m-only, spec §1.3); the SNR stratification
+in §2.2; the ~4% FP estimate in §2.3 **as an upper bound, with the two cautions attached, and now
+also confirmed independent of hash-token contamination (H1 Gate B, B-ROW 2)**; the ruling-out of
 density and run-length as explanations for self-consistency in §3.1.
 
 🛑 **May NOT be cited:** anything from the 17m leg as a *pre-registered result* (§5 — it voided);
