@@ -300,18 +300,33 @@ rebuilt DLL ⇒ Developer session under HK-011; QA proposes and stops.
 H1 measured how much the never-re-initialised 256-slot hash table (`<...>` tokens) distorts the two
 headline figures below. **Gate A fired A-ROW 1 (material, `M = 2.26 pp`): the §2.1 recovery figures
 must now be read as the bracket `[R_base, R_wild]`, i.e. 20m is `[55.5%, 57.8%]`, not a bare 55.5%.**
-`R_wild` is an upper bound with only a 0.5% ambiguous fraction attached — cite the bracket, not the
-upper end alone, and never describe the gap between them as "new decodes" (H1 §0). **Gate B read
+🔴 **SUPERSEDED 2026-08-08 23:10Z by H1a** (`2026-08-08-2310-architect-h1a-wildcard-frequency-validation-results.md`).
+H1a validated all 1 563 wildcard matches **by frequency** — the check H1 could not do from text —
+and fired **ROW 1 at `V = 0.9968`**, with **not one** of 1 563 randomly re-paired rows landing inside
+tolerance (`V_null = 0.0000`). **So `R_wild` is an ESTIMATE, not an upper bound, the `[55.5%, 57.8%]`
+bracket is RETIRED, and 20m recovery is `≈ 57.8%`.** The 0.5%-ambiguity caveat no longer applies.
+🛑 **Still never describe the difference from 55.5% as "new decodes"** (H1 §0) — those decodes always
+existed; only their *text* could not match. **Gate B read
 B-ROW 2 (immaterial, `ΔF = 0.02 pp`): the §2.3 ~4% FP estimate is UNCHANGED and confirmed clean of
 `<...>` contamination** — its existing upper-bound caveat (below) still applies, and now applies with
 full weight to §7.3's D-009 Option B question, since the FP evidence there was not a text-matching
 artefact.
 
-**May be cited:** the recovery figures in §2.1, now read as the **bracket `[55.5%, 57.8%]`** on 20m
-per H1 (with their windows, and 17m unaffected — H1 was 20m-only, spec §1.3); the SNR stratification
-in §2.2; the ~4% FP estimate in §2.3 **as an upper bound, with the two cautions attached, and now
-also confirmed independent of hash-token contamination (H1 Gate B, B-ROW 2)**; the ruling-out of
-density and run-length as explanations for self-consistency in §3.1.
+**May be cited:** the recovery figures in §2.1 — 20m now reads **`≈ 57.8%`** per H1a (bracket retired;
+17m and the 08-06 replay figure are **uncorrected**, see the mixed-basis warning below); the SNR
+stratification in §2.2; the ~4% FP estimate in §2.3 **as an upper bound, with the two cautions
+attached, confirmed independent of hash-token contamination (H1 Gate B, B-ROW 2), and now bounded at
+`4.24–4.90%` (H1a §5)**; the ruling-out of density and run-length as explanations for
+self-consistency in §3.1.
+
+🔴 **MIXED-BASIS WARNING on the "~55–64% three-estimate band" (H1a §7.1) — read before quoting it.**
+That band pools 20m **55.5%**, 17m **62.6–63.7%** and the 08-06 replay **59.6%**. **Only the 20m
+member has been corrected for `<...>`.** The other two were measured on the same exact-match basis and
+are depressed by the same mechanism by an unknown amount, so restating the 20m member alone would
+silently mix corrected and uncorrected estimates. **The band therefore stays as published**, with the
+note that its 20m member is now known to be ~2.3 pp low on an uncorrected basis and the other two have
+not been checked. 🛑 **Do not compare a corrected figure against an uncorrected one.** Correcting 17m
+and the replay corpus is separate work, not authorised.
 
 🛑 **May NOT be cited:** anything from the 17m leg as a *pre-registered result* (§5 — it voided);
 "94.4% self-consistency" as an OpenWSFZ property (§3.1); any density slope as a law or parameter

@@ -142,7 +142,9 @@ expected is not there.
 🛑 Not cited here and must not be cited elsewhere from this run:
 
 - `R_wild` (57.79%) as "the real recovery rate" — it is an upper bound, always quoted with its
-  ambiguity fraction (0.5%) attached.
+  ambiguity fraction (0.5%) attached. 🔴 **SUPERSEDED 23:10Z by H1a (ROW 1, `V = 0.9968`, `V_null =
+  0.0000`): the wildcard matches are frequency-validated, `R_wild` is an estimate, and 20m recovery is
+  `≈ 57.8%`. The bracket is retired.**
 - Any recovery gained under `R_wild` as "new decodes" or a decode-capability improvement.
 - Any 17m false-positive number (out of scope, spec §1.3).
 - Any restatement of T1's `G` or T2's `D_int`/`U` (different thread, spec §1.2).
@@ -163,7 +165,12 @@ expected is not there.
 
 **May be cited once complete (this document):** `R_base` as the reproduction check; `R_excl` as
 "recovery among decodes where the hash table interfered on neither instrument"; `R_wild` **only as an
-upper bound, always with its 0.5% ambiguity fraction attached**; `M = 2.26 pp` and Gate A = A-ROW 1;
+upper bound, always with its 0.5% ambiguity fraction attached** — 🔴 **SUPERSEDED 2026-08-08 23:10Z by
+H1a (`2026-08-08-2310-architect-h1a-wildcard-frequency-validation-results.md`, ROW 1, `V = 0.9968`):
+the wildcard matches are validated by frequency, so `R_wild` is an ESTIMATE, not an upper bound, and
+may be cited WITHOUT the ambiguity fraction. 20m recovery is `≈ 57.8%`; the `[55.5%, 57.8%]` bracket
+is RETIRED.** ⚠️ **The FP level additionally carries `4.24–4.90%` (H1a §5) — this does NOT revise
+Gate B, which gated a difference, not a level.** Also citable from this document: `M = 2.26 pp` and Gate A = A-ROW 1;
 `ΔF = 0.02 pp` and Gate B = B-ROW 2; the 280-row §3.4 silent-exclusion count.
 
 🛑 **May not be cited, under any row:** `R_wild` as "the real recovery rate" or without its ambiguity

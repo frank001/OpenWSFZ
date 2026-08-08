@@ -43,8 +43,8 @@ the evidence trail; **§0.5 is the current state and wins wherever it disagrees 
 | **W4** — RC3 / `c_bottom` | unchanged: **ROW 0**, needs a `src/` change, still behind D-001. | §5 below |
 | **T1** — frequency quantisation | ✅ **CLOSED 2026-08-08.** `G = 3.16 pp` → **ROW 3**, real but small. | `2026-08-08-2046-qa-to-architect-t1-frequency-quantisation-results.md` |
 | **H1** — `<...>` hash-token contamination | ✅ **DONE 2026-08-08 21:35Z. Gate A = A-ROW 1** (`M = 2.26 pp` ⇒ recovery is now the bracket **`[55.5%, 57.8%]`**). **Gate B = B-ROW 2** (`ΔF = 0.02 pp` — `<...>` is **not** what drives the ~4% FP). | §2.4, results `2026-08-08-2135-qa-to-architect-h1-hash-token-contamination-results.md` |
-| 🔴 **H1a** — validate the wildcard matches by frequency | **SPECCED, NOT RUN. ~10 min, and it goes BEFORE T2** — if it fires ROW 1 the `[55.5%, 57.8%]` bracket is **retired** before it hardens into a dozen documents. Also closes the FP level's unstated **+0.66 pp** uncertainty. | §2.4a, spec `2026-08-08-2156-architect-to-qa-spec-h1a-wildcard-frequency-validation.md` |
-| 🔴 **T2** — offset-curve shape | **SPECCED, NOT RUN.** Last in the queue. | §2.5, spec `2026-08-08-2102-architect-to-qa-spec-t2-offset-curve-shape.md` |
+| **H1a** — validate the wildcard matches by frequency | ✅ **DONE 2026-08-08 23:10Z → ROW 1**, `V = 0.9968`, `V_null = 0.0000`. **The bracket is RETIRED: 20m recovery is `≈ 57.8%`.** FP level bounded `4.24–4.90%`. | §2.4a, results `2026-08-08-2310-architect-h1a-wildcard-frequency-validation-results.md` |
+| 🔴 **T2** — offset-curve shape | **SPECCED, NOT RUN. The only live QA item.** | §2.5, spec `2026-08-08-2102-architect-to-qa-spec-t2-offset-curve-shape.md` |
 
 ⚠️ **Two record defects found and fixed 2026-08-08 21:56Z, both worth naming rather than silently
 correcting.** (1) This table pointed H1 at "§2.6" while the section was written as **§2.4** — an
@@ -147,7 +147,21 @@ published figure is exactly what this run exists to surface.
 
 ---
 
-## 2.4a 🔴 H1a — validate the wildcard matches by frequency — **RUN THIS FIRST**
+## 2.4a ✅ H1a — validate the wildcard matches by frequency — **DONE 23:10Z: ROW 1**
+
+> **Result:** `2026-08-08-2310-architect-h1a-wildcard-frequency-validation-results.md`.
+> **`V = 0.9968` (1 558/1 563) → ROW 1. The `[55.5%, 57.8%]` bracket is RETIRED; 20m recovery is
+> `≈ 57.8%`.** `V_null = 0.0000` — not one of 1 563 randomly re-paired rows landed inside tolerance.
+> The `Δf` distribution is bimodal with an **empty 4–20 Hz gap**, so the result does not depend on the
+> tolerance choice at all. 🔴 **Unplanned cross-validation: mean `|Δf|` = 0.7452 Hz vs T1's
+> independently measured `mean_r` = 0.7367 — agreement to 0.0085 Hz**, which also establishes for the
+> first time that our decoder reports the **nearest** lattice point. Superseded citation limits in
+> H1 §8 and the 1942 report §8 were **edited, not annotated**. ⚠️ **The spec's consequence to restate
+> the "~55–64% band" was NOT executed** — only its 20m member is corrected, and restating it alone
+> would mix bases (see the results §7.1). ⚠️ FP level bounded **4.24–4.90%**; this does **not** revise
+> Gate B.
+>
+> **The section below is the pre-run index entry, kept as written.**
 
 **Spec:** `qa/cycleframer-alignment-replay/2026-08-08-2156-architect-to-qa-spec-h1a-wildcard-frequency-validation.md`.
 **Read the spec — this is the index entry.** Not authorised to run. ~10 min, same window/sources as H1.
