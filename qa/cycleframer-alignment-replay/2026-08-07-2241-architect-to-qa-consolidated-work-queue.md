@@ -44,6 +44,7 @@ the evidence trail; **§0.5 is the current state and wins wherever it disagrees 
 | **T1** — frequency quantisation | ✅ **CLOSED 2026-08-08.** `G = 3.16 pp` → **ROW 3**, real but small. | `2026-08-08-2046-qa-to-architect-t1-frequency-quantisation-results.md` |
 | **H1** — `<...>` hash-token contamination | ✅ **DONE 2026-08-08 21:35Z. Gate A = A-ROW 1** (`M = 2.26 pp` ⇒ recovery is now the bracket **`[55.5%, 57.8%]`**). **Gate B = B-ROW 2** (`ΔF = 0.02 pp` — `<...>` is **not** what drives the ~4% FP). | §2.4, results `2026-08-08-2135-qa-to-architect-h1-hash-token-contamination-results.md` |
 | **H1a** — validate the wildcard matches by frequency | ✅ **DONE 2026-08-08 23:10Z → ROW 1**, `V = 0.9968`, `V_null = 0.0000`. **The bracket is RETIRED: 20m recovery is `≈ 57.8%`.** FP level bounded `4.24–4.90%`. | §2.4a, results `2026-08-08-2310-architect-h1a-wildcard-frequency-validation-results.md` |
+| 🔴 **P1** — decode-depth contrast | **SPECCED 2026-08-08 23:57Z, NOT RUN. The only live QA item.** Offline `jt9 -d1` vs `-d3` on WSJT-X's own WAVs — **the one open arm that can make D-001 SMALLER rather than better-described.** No WSJT-X reconfiguration, no capture, no `src/`. | §2.7, spec `2026-08-08-2357-architect-to-qa-spec-p1-decode-depth-contrast.md` |
 | **T2** — offset-curve shape | ✅ **DONE 2026-08-08 23:19Z → ROW 3.** `D_int = 4.03 pp` replicates both split-halves (interior-worst-case mechanism supported); `U = 1.85 pp` clears its bar pooled but the halves disagree in sign (`−0.01` / `3.38`) — two-candidate claim unconfirmed, not killed. | §2.5, results `2026-08-08-2319-qa-to-architect-t2-offset-curve-shape-results.md` |
 
 ⚠️ **Two record defects found and fixed 2026-08-08 21:56Z, both worth naming rather than silently
@@ -192,6 +193,43 @@ numerator, so the ~4% carries an **unstated upper uncertainty of ~+0.66 pp** (`F
 🛑 **This does NOT revise Gate B** — that gated `ΔF`, a difference; this is the *level*. But it does
 bear on **D-009 Option B**, moving that evidence slightly *toward* Option B. Record it in §7.3; the
 Captain resolves it.
+
+---
+
+## 2.7 🔴 P1 — decode-depth contrast — **the only live QA item**
+
+**Spec:** `qa/cycleframer-alignment-replay/2026-08-08-2357-architect-to-qa-spec-p1-decode-depth-contrast.md`.
+**Read the spec — this is the index entry.** Not authorised to run.
+
+**Why it matters more than another shape/offset arm.** Every recovery figure means *"against WSJT-X
+at `NDepth = 3`"* while we run `K_MAX_PASSES = 2` + caps 140/200. **On record since 2026-08-06, never
+quantified.** It is the only stated reason to think part of the ~42% deficit is *configuration* rather
+than *capability* — so it is **the one open arm that can shrink the problem** instead of describing it
+better. Bounding context: **`FT8AP = false`** (WSJT-X's biggest recall lever is off), and RC4 already
+showed a third pass in *our* decoder buys nothing.
+
+🔴 **Why the barred instrument is admissible.** `jt9 -d3` is barred as a **reference** — it overshoots
+WSJT-X by +11.2% and OpenWSFZ by +93.8%, and emits duplicate `(ts, message)` pairs. **That bar is on a
+LEVEL. This is a CONTRAST**: `-d1` vs `-d3`, identical files, identical invocation, one flag apart —
+the overshoot and the duplication are **common-mode and cancel.** The standing rule attached to that
+bar instructs exactly this check. 🛑 **No jt9 count may leave the document as a level.**
+
+🛑 **The gate is deliberately ASYMMETRIC, and this must be restated whichever row fires.** The
+barred-instrument note's named hypothesis is that **offline jt9 has no ~15 s real-time budget** and can
+exhaust the depth-3 search. So some of what `-d3` finds is bought with time WSJT-X never had ⇒ **the
+result is an UPPER BOUND. A small `A` CLOSES the question; a large `A` does NOT establish that depth
+costs us that much** — only *at most* that much, pending a time-budgeted instrument.
+
+**Headline metric** `A = |MISS ∩ (D3 \ D1)| / |REF|` — the share of the reference population we miss
+*and* that only depth-3 recovers, on the same axis as `G`/`D_int`/`M`. ROW 2 at `A ≤ 1.5 pp` **closes
+the depth caveat and hardens the architectural reading**; ROW 1 at `≥ 5.0 pp` escalates it as a
+blocking uncertainty. Architect predicts **ROW 3, `A` = 2–6 pp** — ⚠️ **weight that lightly: my
+categorical calls run 2/4.**
+
+⚠️ **Two operational requirements that are easy to skip and would spoil the run:** a **timing probe
+first** (20 files per depth; >90 min extrapolated ⇒ pre-registered 1 000-cycle subsample with the seed
+recorded **before** any output is inspected), and a **frequency-clustered bootstrap CI on `A`** —
+🛑 **a binomial interval is wrong here** (design effect 3.5–4.2× on this corpus, HK-021(i)).
 
 ---
 
