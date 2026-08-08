@@ -44,7 +44,7 @@ the evidence trail; **§0.5 is the current state and wins wherever it disagrees 
 | **T1** — frequency quantisation | ✅ **CLOSED 2026-08-08.** `G = 3.16 pp` → **ROW 3**, real but small. | `2026-08-08-2046-qa-to-architect-t1-frequency-quantisation-results.md` |
 | **H1** — `<...>` hash-token contamination | ✅ **DONE 2026-08-08 21:35Z. Gate A = A-ROW 1** (`M = 2.26 pp` ⇒ recovery is now the bracket **`[55.5%, 57.8%]`**). **Gate B = B-ROW 2** (`ΔF = 0.02 pp` — `<...>` is **not** what drives the ~4% FP). | §2.4, results `2026-08-08-2135-qa-to-architect-h1-hash-token-contamination-results.md` |
 | **H1a** — validate the wildcard matches by frequency | ✅ **DONE 2026-08-08 23:10Z → ROW 1**, `V = 0.9968`, `V_null = 0.0000`. **The bracket is RETIRED: 20m recovery is `≈ 57.8%`.** FP level bounded `4.24–4.90%`. | §2.4a, results `2026-08-08-2310-architect-h1a-wildcard-frequency-validation-results.md` |
-| 🔴 **T2** — offset-curve shape | **SPECCED, NOT RUN. The only live QA item.** | §2.5, spec `2026-08-08-2102-architect-to-qa-spec-t2-offset-curve-shape.md` |
+| **T2** — offset-curve shape | ✅ **DONE 2026-08-08 23:19Z → ROW 3.** `D_int = 4.03 pp` replicates both split-halves (interior-worst-case mechanism supported); `U = 1.85 pp` clears its bar pooled but the halves disagree in sign (`−0.01` / `3.38`) — two-candidate claim unconfirmed, not killed. | §2.5, results `2026-08-08-2319-qa-to-architect-t2-offset-curve-shape-results.md` |
 
 ⚠️ **Two record defects found and fixed 2026-08-08 21:56Z, both worth naming rather than silently
 correcting.** (1) This table pointed H1 at "§2.6" while the section was written as **§2.4** — an
@@ -195,7 +195,28 @@ Captain resolves it.
 
 ---
 
-## 2.5 🔴 T2 — the shape of the offset-vs-recovery curve
+## 2.5 ✅ T2 — the shape of the offset-vs-recovery curve — **DONE 23:19Z: ROW 3**
+
+> **Result:** `2026-08-08-2319-qa-to-architect-t2-offset-curve-shape-results.md`. Population reused from
+> T1, kept 67 243 — exact match. All 5 ROW 0 checks passed. `D_int = 4.03 pp` (CEN vs INT) replicates
+> cleanly across both cycle-parity halves (3.95 / 4.13 pp, same sign) — **the interior-worst-case
+> mechanism (§0.2) is supported.** `U = 1.85 pp` (MID vs INT) clears the 1.5 pp bar **pooled**, but
+> `half0 U = −0.01 pp` and `half1 U = 3.38 pp` disagree in sign against a per-half noise floor of
+> ≈0.87 pp — a real disagreement. Gate: `U≥1.5` true, `half0>0` false ⇒ not ROW 1; `U≤0.5` false ⇒ not
+> ROW 2 ⇒ **ROW 3**. Per §1.2, `D_int` is never substituted into T1's gate; **T1 stays ROW 3,
+> unchanged.** The §0.3 SNR-stratum reconciliation gap shrinks from T1's 0.81 pp to **0.16 pp** on
+> fixed rung groups — confirms the per-stratum quintile re-derivation drove most of T1 §4.1's spread.
+> One prediction landed just outside its bar: SNR-quintile `mean_r` spread measured **0.0226 Hz**
+> against the pre-registered `<0.02 Hz` line (narrow miss, flagged per §5.2, not resolved either way).
+> §5.3: zero decimal-Hz frequency lines in 1 295 204 WSJT-X lines corpus-wide — the integer-Hz limit
+> confirmed as a corpus property. **Architect scored 5/7 on recorded predictions** — prediction 7
+> (`U≥1.5`, ROW 1) is the notable miss: point estimate landed on the predicted magnitude, categorical
+> call failed on the split-half replication requirement, not on the magnitude bar (a different failure
+> mode than T1's, where the point estimate itself sat under the bar). 🛑 **Citation limit new to this
+> result: `U`'s pooled 1.85 pp figure may not be cited without the split-half disagreement** — ROW 3
+> exists specifically because the halves don't agree.
+>
+> **The section below is the pre-run index entry, kept as written.**
 
 **Spec:** `qa/cycleframer-alignment-replay/2026-08-08-2102-architect-to-qa-spec-t2-offset-curve-shape.md`
 (committed `f4045bb`). **Read the spec — this section is the index entry, not the instructions.**
@@ -514,3 +535,11 @@ W1/W2/W3 done, T1 run and closed, and **T2 (§2.5) is the single live QA item.**
 statements this document originally made that are now known-wrong; where §0.5 and the body disagree,
 **§0.5 wins.** Struck-through text is kept deliberately rather than deleted, so the record shows what
 was believed and when. Still Architect → QA, still nothing authorised to run, still no push (HK-014).*
+
+---
+
+*Addendum, QA, 2026-08-08 23:19 UTC (`date -u`, HK-017). **T2 ran → ROW 3** (§2.5 above, full result
+`2026-08-08-2319-qa-to-architect-t2-offset-curve-shape-results.md`). **This queue is now fully closed
+out — every item in §0.5's table is DONE and no live QA item remains on it.** `BOARD.md` updated in
+the same edit, per HK-024. Per HK-011/HK-014: no `src/` change, no push, no merge; committing the new
+harness and result is the Captain's call (HK-010).*
