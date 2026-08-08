@@ -42,7 +42,8 @@ the evidence trail; **§0.5 is the current state and wins wherever it disagrees 
 | **W3** — HK-016 widening | ✅ **CLOSED — it was already implemented** since `a60b015` (2026-07-30), five days before it was asked for. No change was needed. | addendum in `hk016-…standard.md` |
 | **W4** — RC3 / `c_bottom` | unchanged: **ROW 0**, needs a `src/` change, still behind D-001. | §5 below |
 | **T1** — frequency quantisation | ✅ **CLOSED 2026-08-08.** `G = 3.16 pp` → **ROW 3**, real but small. | `2026-08-08-2046-qa-to-architect-t1-frequency-quantisation-results.md` |
-| 🔴 **T2** — offset-curve shape | **SPECCED, NOT RUN. The only live QA item.** | §2.5, spec `2026-08-08-2102-architect-to-qa-spec-t2-offset-curve-shape.md` |
+| 🔴 **T2** — offset-curve shape | **SPECCED, NOT RUN.** | §2.5, spec `2026-08-08-2102-architect-to-qa-spec-t2-offset-curve-shape.md` |
+| 🔴 **H1** — `<...>` hash-token contamination | **SPECCED, NOT RUN. Run this BEFORE T2** — it gates two of the most-quoted figures on the board. | §2.6, spec `2026-08-08-2121-architect-to-qa-spec-h1-hash-token-contamination.md` |
 
 ### 🛑 Four statements below that are now known-wrong — do not act on them
 
@@ -70,7 +71,60 @@ not parametric — which is why D-009 swept 45 points for **+0.109 pp**. See `ar
 
 ---
 
-## 2.5 🔴 T2 — the shape of the offset-vs-recovery curve — **the one live QA item**
+## 2.4 🔴 H1 — `<...>` hash-token contamination — **RUN THIS FIRST**
+
+**Spec:** `qa/cycleframer-alignment-replay/2026-08-08-2121-architect-to-qa-spec-h1-hash-token-contamination.md`.
+**Read the spec — this is the index entry, not the instructions.** Not authorised to run (§0 header).
+Pure re-analysis, ~30 min, no capture, no `src/`, no Developer session.
+
+**Why it goes ahead of T2:** it gates **two of the most-quoted numbers on the board** — the **55.5%
+recovery** and the **~4% FP rate** — and the board's own standing recommendation is that it runs
+*before either is quoted further*. T2 refines a ROW 3 result; H1 decides whether two headline figures
+are stated correctly.
+
+**The claim.** `hashTableRejectCount` hit **35 379** on the 20m leg; the 256-slot table is
+process-global and **never re-initialised**. Live effect: **5.5% of our decodes carry `<...>` against
+the reference's 1.7%.** 🔴 **These are NOT lost decodes** — `message.c:594-614` writes the literal and
+both call sites discard the return value, so nothing is dropped (a contrary hypothesis was raised and
+**retracted the same day** — do not re-scope it). They are frames we demodulated and error-corrected
+**correctly** whose *text* cannot match. Both headline figures key on exact `(ts, message)`, so each
+such row is counted against us **twice**: as a **miss** (depressing 55.5%) and as a **novel** decode
+(inflating the ~4% FP). **Magnitude has never been measured.**
+
+**Method:** three populations — `R_base` (exact match, must reproduce 55.5%), `R_excl` (symmetric
+exclusion), `R_wild` (wildcard `<...>` matching, an **upper bound**) — plus the FP proxy recomputed
+without our hashed rows. Two independent gates: **A** on `M = R_wild − R_base` (ROW 1 at ≥ 2.0 pp),
+**B** on `ΔF` (ROW 1 at ≥ 1.0 pp). They may land on different rows; that is legitimate, not a
+contradiction. Architect predicts **A-ROW 1**, `M` = 1.5–3.0 pp.
+
+### 2.4.1 🛑 The trap that will silently produce garbage
+
+**The existing harness's source paths are DEAD — verified 2026-08-08 21:21Z.**
+`qa/endurance/2026-08-08-four-decoder-interim-comparison.py:20-23` reads
+`D:/Projects/claude/OpenWSFZ-808{0,1}-capture/ALL.TXT`, and **those files no longer exist** — the 20m
+corpora were moved into `_archived_20260808_20m_already-in-artefacts/` when the leg was gathered.
+**Re-point every source at `artefacts/20260808_live_run_0016-808{0,1}/`**, keep the `14.074` dial
+filter (the AppData files are append-only and now carry 18.100 rows too), and **prefer importing
+`t1_frequency_quantisation.py`'s `load()`**, which already reads `artefacts/` correctly.
+**ROW 0a exists to catch precisely this** — do not skip it because the run looks healthy.
+
+### 2.4.2 The framing that must not slip
+
+⚠️ **This is a MEASUREMENT artefact, not lost decodes.** If Gate A fires ROW 1, part of the measured
+D-001 gap is **hash-table sizing, not decode capability** — and unlike sync refinement that is a
+**cheap** candidate treatment, which goes to the Captain as a recommendation *with a number*, never as
+session work (HK-011). 🛑 But for the end user a `<...>` decode is still a decode with a degraded
+callsign. **Never describe recovery gained here as "new decodes."**
+
+⚠️ **One thing to quantify that nobody has:** the FP proxy at
+`2026-08-08-four-decoder-interim-comparison.py:80,83` strips `<>`, fails the callsign regex, and then
+**drops from the denominator entirely** any message whose only callsign-shaped tokens were hashed.
+**Report how many rows that silently removed** — an unknown-size silent exclusion underneath a
+published figure is exactly what this run exists to surface.
+
+---
+
+## 2.5 🔴 T2 — the shape of the offset-vs-recovery curve
 
 **Spec:** `qa/cycleframer-alignment-replay/2026-08-08-2102-architect-to-qa-spec-t2-offset-curve-shape.md`
 (committed `f4045bb`). **Read the spec — this section is the index entry, not the instructions.**
