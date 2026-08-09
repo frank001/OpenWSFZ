@@ -230,3 +230,78 @@ as anything at all — it stays void, and reproducing it under ROW 0d is a *dete
 rehabilitation; `A_p15` if stage 1 returns V-ROW 2; `A` as "the amount depth costs us" rather than
 "at most"; `A` subtracted from the 42% deficit or the 57.8% recovery figure; any binomial interval;
 any restatement of `G`, `D_int`, `U`, `M`, or the recovery headline.
+
+---
+
+# AMENDMENT 1 — 2026-08-09 10:56 UTC (Architect)
+
+Made **before P1a was run**, on the basis of two mechanical pre-flights. **The spec's premise was
+wrong and would have produced a FALSE PASS.** Recorded here rather than silently edited.
+
+## A1.1 🛑 `-p 15` IS INERT FOR FILE DECODING — the specced contrast was vacuous
+
+Measured directly, `jt9 -8 -d 3` over the same 5 in-window WAVs:
+
+| invocation | decodes |
+|---|---|
+| (no `-p`) | **193** |
+| `-p 15` | **193** |
+| `-p 30` | **193** |
+| `--bogusflag` | **0** |
+
+The bogus flag returning 0 proves argv **is** reaching jt9 and being parsed. `-p` simply has no
+effect when jt9 decodes files — it governs live T/R period, not file input.
+
+🔴 **Consequence: `ΔA` would have been exactly 0 by construction, and stage 1 would have returned
+V-ROW 1 "invocation-robust" — falsely rehabilitating `A` = 15.55.** A gate that cannot fail is worse
+than no gate. This is the **third** gate-design defect in this thread and again it is mine; what
+differs is that a mechanical pre-flight caught it *before* the run, which is HK-021(j) working as
+intended.
+
+## A1.2 🛑 QA's §2.2 batching hypothesis is REFUTED — neither invocation makes duplicates
+
+40 in-window WAVs, depth 3, per-file vs Angle-1-style batched (`-p 15`, many files per process):
+
+| invocation | raw | unique | **duplicate `(ts, message)` pairs** |
+|---|---|---|---|
+| per-file | 1 532 | 1 532 | **0** |
+| batched | 1 707 | 1 707 | **0** |
+
+**Neither produces duplicates.** So the absence of duplicates in P1 is **not** explained by the
+invocation. **§2.1's base-rate argument now stands alone and unopposed**: at N4's ≈0.0023% rate a
+2 529-file run expects λ ≈ 1.3–1.6, and observing zero is ordinary. P1's ROW 0d was simply a badly
+calibrated gate — nothing more exotic.
+
+## A1.3 ✅ What replaces the contrast: PER-FILE vs BATCHED
+
+Batching is **not** inert — it yields **+11.4%** more decodes (1 707 vs 1 532). That is a real
+invocation sensitivity and it is the one worth gating on. ⚠️ **Unplanned observation, flagged as
+hypothesis-generating only and NOT a finding:** +11.4% sits suspiciously close to the **+11.2%**
+overshoot the barred-instrument note attributes to `jt9 -d3` versus WSJT-X. If Angle 1's overshoot
+was a *batching* artefact rather than a depth artefact, that reframes the bar itself — **out of
+scope here, do not chase it in this arm, record it for a future pre-registration.**
+
+**Revised legs:** `{d1, d3} × {per-file, batched}`, batch size **150** to match Angle 1's
+`JT9_BATCH_SIZE` exactly (`qa/endurance/endurance_anova_jt9.py:127`). Batch size is a free
+parameter and is therefore **pinned to the historical value, not chosen** (HK-021(d)).
+
+**Everything else in §3's gate stands unchanged**, with `A_p15` reading as `A_batched`:
+`ΔA = A_batched − A_perfile`, stage 1 at `|ΔA| ≤ 1.5 pp`, ROW 0c nesting, ROW 0d determinism
+against 15.553, ROW 0e underpowered at `SE(ΔA) > 0.75`, paired clustered bootstrap.
+
+## A1.4 Predictions — re-recorded, and the earlier set is void
+
+Predictions 1, 2 and 5 in §4 referred to `-p 15` and are **void** (the flag does nothing). Replacing
+them, recorded before the batched leg runs:
+
+| # | prediction | tested by |
+|---|---|---|
+| 1' | `\|ΔA\|` = **1.0–5.0 pp** — batching moves decode volume ~11%, so it will move `A` materially | stage 1 |
+| 2' | **V-ROW 2** (invocation-SENSITIVE) — i.e. I now expect `A` to fail its validity test | stage 1 |
+| 3' | nesting ≤ 0.5% on both invocations | ROW 0c |
+| 4' | `A_perfile` reproduces 15.553 exactly | ROW 0d |
+
+⚠️ Calibration unchanged and still binding: categorical ROW calls **2 of 4**, ranges **3 of 5**, both
+range misses too *pessimistic*. Prediction 2' reverses my original V-ROW 1 call — **the reversal is
+evidence-driven (the +11.4% measurement), and it is recorded here before the run rather than
+adjusted afterward.**
