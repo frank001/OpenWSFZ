@@ -49,19 +49,28 @@ def _run_partition(args):
             os.remove(out_path)
     legs = {str(s): [] for s in SCALES}
     av = 0
+    max_rms_err = 0.0                       # AMENDMENT 1 A1.1: mechanical ROW 0d
+    seen_ts = []
     for ts, path in files:
         try:
             raw = C.read_wav(path)
         except Exception:
             continue
+        seen_ts.append(ts)
         for s in SCALES:                    # all scales of THIS file, consecutively
-            res = _DEC.decode(C.normalise_rms(raw, s))
+            buf = C.normalise_rms(raw, s)
+            got = C.rms_of(buf)
+            if got >= C.SILENCE_RMS_THRESHOLD:      # silence guard returns unscaled
+                max_rms_err = max(max_rms_err, abs(got / s - 1.0))
+            res = _DEC.decode(buf)
             if res is None:
                 av += 1
                 continue
             for r in res:
                 legs[str(s)].append([ts, r["message"], r["freq_hz"]])
-    C.write_json(out_path, {"idx": idx, "n_files": len(files), "av": av, "legs": legs})
+    C.write_json(out_path, {"idx": idx, "n_files": len(files), "av": av,
+                            "max_rms_err": max_rms_err, "seen_ts": seen_ts,
+                            "legs": legs})
     return out_path, False
 
 
@@ -114,14 +123,19 @@ def main():
     # ── aggregate ────────────────────────────────────────────────────────────
     leg_keys = {str(s): set() for s in SCALES}
     av_total = 0
+    max_rms_err = 0.0
+    replayed = []
     for p in paths:
         with open(p, encoding="utf-8") as fh:
             d = json.load(fh)
         av_total += d.get("av", 0)
+        max_rms_err = max(max_rms_err, d.get("max_rms_err", 0.0))
+        replayed.extend(d.get("seen_ts", []))
         for s, rows in d["legs"].items():
             for ts, msg, _f in rows:
                 leg_keys[s].add((ts, msg))
 
+    ref = C.restrict_ref(ref, replayed)      # AMENDMENT 1 A1.2
     ref_keys = set(ref)
     n_ref = len(ref_keys)
     R = {s: 100.0 * len(leg_keys[s] & ref_keys) / n_ref for s in leg_keys}
@@ -139,8 +153,10 @@ def main():
             return "ROW 0b", "REF %d != %d" % (n_ref, C.REF_EXPECTED)
         if not (45.0 <= r_prod <= 70.0):
             return "ROW 0c", "R(0.20) = %.2f outside [45,70]" % r_prod
-        if spread < 1.0:
-            return "ROW 0d", "max-min R = %.2f pp < 1.0" % spread
+        if max_rms_err > 0.01:
+            # AMENDMENT 1 A1.1 -- mechanical, replaces the outcome-based spread check
+            return "ROW 0d", ("delivered PCM RMS deviated %.4f (>1%%) from target: "
+                              "the scaling never reached the decoder" % max_rms_err)
         if argmax_is_endpoint and p_val >= 0.5:
             return "ROW 0e", "argmax at endpoint %s with P = %.2f" % (s_star, p_val)
         return None, None
@@ -165,7 +181,9 @@ def main():
         "decode_params": {"kMinScorePass2": C.DECODE_PARAMS[0],
                           "osdCorrThreshold": C.DECODE_PARAMS[1],
                           "osdNhardMax": C.DECODE_PARAMS[2]},
-        "n_cycles": len(files), "REF": n_ref, "native_av_count": av_total,
+        "n_cycles": len(files), "n_replayed": len(set(replayed)),
+        "REF": n_ref, "native_av_count": av_total,
+        "max_rms_err": max_rms_err,
         "scales": SCALES, "R_by_scale": R,
         "R_prod": r_prod, "s_star": s_star, "P": p_val, "spread": spread,
         "argmax_is_endpoint": argmax_is_endpoint,

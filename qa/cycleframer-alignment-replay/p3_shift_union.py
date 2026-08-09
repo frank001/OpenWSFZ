@@ -68,11 +68,13 @@ def _run_partition(args):
             os.remove(out_path)
     legs = {lg: [] for lg in LEGS}
     av = 0
+    seen_ts = []
     for ts, path in files:
         try:
             pcm = C.normalise_rms(C.read_wav(path), C.PROD_TARGET_RMS)
         except Exception:
             continue
+        seen_ts.append(ts)
         for lg, buf in _variants(pcm).items():   # all legs of THIS file, consecutively
             res = _DEC.decode(buf)
             if res is None:
@@ -80,7 +82,8 @@ def _run_partition(args):
                 continue
             for r in res:
                 legs[lg].append([ts, r["message"], r["freq_hz"]])
-    C.write_json(out_path, {"idx": idx, "n_files": len(files), "av": av, "legs": legs})
+    C.write_json(out_path, {"idx": idx, "n_files": len(files), "av": av,
+                            "seen_ts": seen_ts, "legs": legs})
     return out_path, False
 
 
@@ -154,14 +157,17 @@ def main():
 
     leg_keys = {lg: set() for lg in LEGS}
     av_total = 0
+    replayed = []
     for p in paths:
         with open(p, encoding="utf-8") as fh:
             d = json.load(fh)
         av_total += d.get("av", 0)
+        replayed.extend(d.get("seen_ts", []))
         for lg, rows in d["legs"].items():
             for ts, msg, _f in rows:
                 leg_keys[lg].add((ts, msg))
 
+    ref = C.restrict_ref(ref, replayed)      # AMENDMENT 1 A1.2
     ref_keys = set(ref)
     n_ref = len(ref_keys)
     base = leg_keys["base"]
@@ -212,7 +218,8 @@ def main():
         "arm": "P3", "spec": "2026-08-09-0129-architect-to-qa-spec-p2-pcm-scale-"
                              "and-p3-sublattice-shift-union.md",
         "dll_sha256": sha, "shim_version": C.SHIM_VERSION,
-        "n_cycles": len(files), "REF": n_ref, "native_av_count": av_total,
+        "n_cycles": len(files), "n_replayed": len(set(replayed)),
+        "REF": n_ref, "native_av_count": av_total,
         "freq_delta_hz": FREQ_DELTA, "time_shift_samples": TIME_SAMPLES,
         "shift_control": {"mean_reported_delta_hz": ctl_mean, "n_matched": ctl_n,
                           "error_hz": ctl_err, "tolerance_hz": 0.25,

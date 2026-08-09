@@ -81,9 +81,15 @@ def parse_jt9_stdout(text):
     return out
 
 
+# P1a (spec 2026-08-09-0115): extra jt9 args, set by the P1a driver before a leg
+# runs. Empty list == P1's original invocation exactly. Threads share this
+# module global, which is correct: it is constant for the duration of a leg.
+EXTRA_ARGS = []
+
+
 def _decode_one(path, depth, cwd):
     r = subprocess.run(
-        [JT9_EXE, "-8", "-d", str(depth), path],
+        [JT9_EXE, "-8", "-d", str(depth)] + list(EXTRA_ARGS) + [path],
         cwd=cwd, capture_output=True, text=True, timeout=120,
     )
     return parse_jt9_stdout(r.stdout)

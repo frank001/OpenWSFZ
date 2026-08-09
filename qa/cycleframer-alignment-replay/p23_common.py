@@ -183,6 +183,20 @@ def load_ref(window=WINDOW_20M):
     return ref
 
 
+def restrict_ref(ref, replayed_ts):
+    """Spec AMENDMENT 1 A1.2: REF restricted to cycles actually replayed.
+
+    No-op at the full 2 529-cycle window (P1 measured the restriction effect as
+    exactly zero), but it makes --limit runs meaningful.
+    """
+    ts_set = set(replayed_ts)
+    return {k: v for k, v in ref.items() if k[0] in ts_set}
+
+
+def rms_of(pcm) -> float:
+    return float(np.sqrt(np.mean(np.asarray(pcm, dtype=np.float64) ** 2)))
+
+
 def cluster_bootstrap(ref_freq, member_fns, n_draws=1000, seed=SEED):
     """Frequency-clustered bootstrap (HK-021(i)), PAIRED across metrics.
 
