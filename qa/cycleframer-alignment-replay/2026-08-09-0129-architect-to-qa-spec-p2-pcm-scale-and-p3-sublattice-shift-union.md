@@ -300,3 +300,64 @@ WSJT-X's audio, not our capture path); `R(0.20)` as a revision of 55.5% or 57.8%
 interval; `S_all` as a promise of production gain (the production form is an OSR change, not a
 union, and has not been measured); any restatement of `G`, `D_int`, `U`, `M`, `A`, or the recovery
 headline; any `src/` change presented as approved.
+
+---
+
+# AMENDMENT 1 — 2026-08-09 10:40 UTC (Architect)
+
+Made **after the smoke tests, before either full run was armed.** Both changes are recorded here
+rather than silently edited, and both pre-echoes are disclosed. Repo `main` at `46436c4` when the
+original gates were committed — that commit remains the record of what was predicted blind.
+
+## A1.1 🔴 P2's ROW 0d is REPLACED — it repeated P1's exact defect
+
+**Original (struck, not deleted):** ~~`if max(R) − min(R) < 1.0: return "ROW 0d"` — "an 18 dB swing
+either way moved nothing: the scale is not reaching the decoder."~~
+
+**Why it was wrong.** That check cannot distinguish *"scale does not matter"* — which is ROW 2, the
+valuable negative result this arm exists to produce — from *"the harness never applied the scale."*
+It gates a **null** as an **instrument failure**, which is the HK-021 trap I ruled on eight hours
+ago in P1's ROW 0d, committed to `hk021-…md` as sibling **(j)**, and then reproduced.
+
+**Replacement — a mechanical assertion on the MECHANISM, not on an outcome:**
+
+```python
+if max_rms_error > 0.01:
+    return "ROW 0d"    # the PCM actually handed to ft8_decode_all did not carry the
+                       # intended RMS: the scaling never reached the decoder.
+```
+
+The harness measures the RMS of every buffer **immediately before the ctypes call** and records the
+worst relative deviation from that leg's target. Expected error is ~0 by construction, so a failure
+is unambiguous and cannot be produced by a true null. **A flat `R(s)` curve is now free to read as
+ROW 2, which is the whole point of the arm.**
+
+## A1.2 REF is restricted to replayed cycles
+
+`R(s)` and all P3 metrics now use `REF ∩ {replayed cycles}` as the denominator, as P1 did. At the
+full 2 529-cycle window this is a **no-op** (P1 measured the restriction effect as zero, 69 222 both
+ways), but it makes `--limit` runs meaningful and removes a way to misread a partial run.
+
+## A1.3 🔴 Smoke-test pre-echoes — disclosed, not buried
+
+Both harnesses were smoke-tested on 24 files (HK-020, §4.1). That necessarily revealed some outcome
+information. **What is protected is that the gates and predictions were committed at `46436c4`
+before either harness existed.** What was seen:
+
+1. **P2:** decode counts across all seven scales were flat within ~3% (505–523 on 24 files).
+   Direction is consistent with my committed predictions 2/3 (`P` small; ROW 2 or ROW 3), so this
+   pre-echo **agrees with** the blind call rather than informing it — but it is no longer blind and
+   must not be presented as a blind confirmation.
+2. **P3:** `X_guard` came out **0.817** on 24 files, against my committed prediction 4 of 0.35–0.65.
+   If that holds at full scale it **blocks ROW 1 by the guard** even if `S_all ≥ 3.0`, forcing ROW 3.
+   🔴 **This is a genuine early miss on a recorded prediction and is called now, in advance, rather
+   than after the fact.** The ROW 3 consequence text already covers it: if the guard is what blocks
+   ROW 1, say so explicitly, because "the union buys decodes but also manufactures them" is a
+   different finding from "shifting does nothing."
+3. **P3 shift control** measured **1.0084 Hz** reported against **1.0417 Hz** applied over 356
+   matched messages — error **0.0332 Hz**, inside the 0.25 Hz ROW 0d bar and inside prediction 5's
+   <0.05 Hz. The mixer works.
+
+⚠️ **`X` is a ratio within the gained set, so it is readable at 24 files; `S_all`/`R(s)` are not**
+(REF spans all 2 529 cycles, so a 24-file run drives them to ~0 mechanically). Only the `X` and
+shift-control pre-echoes above carry information; the rest of the smoke output does not.
