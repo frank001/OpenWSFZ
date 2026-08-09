@@ -1,0 +1,87 @@
+{
+  "REF": 69222,
+  "R_base": 56.321689636242816,
+  "SE_S_all": 0.08001417082726753,
+  "S_all": 4.26598480251943,
+  "S_freq": 2.4053046719251103,
+  "S_time": 3.0106035653404986,
+  "X_guard": 0.8969212510471936,
+  "arm": "P3",
+  "bootstrap": {
+    "R_base": {
+      "ci95": [
+        55.750950999379,
+        56.898832250533225
+      ],
+      "mean": 56.32981380936013,
+      "n_distinct_freq": 30513,
+      "n_draws": 1000,
+      "se": 0.2909098161530531,
+      "seed": 20260809
+    },
+    "S_all": {
+      "ci95": [
+        4.1068088947710395,
+        4.423872110874058
+      ],
+      "mean": 4.265984602953868,
+      "n_distinct_freq": 30513,
+      "n_draws": 1000,
+      "se": 0.08001417082726753,
+      "seed": 20260809
+    },
+    "S_freq": {
+      "ci95": [
+        2.283909957298822,
+        2.5182337627645617
+      ],
+      "mean": 2.4033489875409066,
+      "n_distinct_freq": 30513,
+      "n_draws": 1000,
+      "se": 0.06063758872740799,
+      "seed": 20260809
+    },
+    "S_time": {
+      "ci95": [
+        2.8780065412971747,
+        3.129385690821782
+      ],
+      "mean": 3.0110625819081287,
+      "n_distinct_freq": 30513,
+      "n_draws": 1000,
+      "se": 0.06594623023072246,
+      "seed": 20260809
+    }
+  },
+  "dll_sha256": "39aa1031ad63fd7c882ae9093a3d6c4d681f1c45e2a4f3b4336ff6c3f45e0aba",
+  "final_row": "ROW 3",
+  "freq_delta_hz": 1.0416666666666667,
+  "n_base": 47319,
+  "n_cycles": 2529,
+  "n_decodes_by_leg": {
+    "Fm": 47318,
+    "Fp": 47433,
+    "Tm": 47240,
+    "Tp": 47389,
+    "base": 47319
+  },
+  "n_gained": 28648,
+  "n_replayed": 2529,
+  "n_union": 75967,
+  "native_av_count": 0,
+  "partitions": 64,
+  "row0": null,
+  "row0_reason": null,
+  "shift_control": {
+    "deviation_from_spec": "real audio, not qa/rr-study/synth",
+    "error_hz": 0.033239700374531944,
+    "mean_reported_delta_hz": 1.0084269662921348,
+    "n_matched": 356,
+    "tolerance_hz": 0.25
+  },
+  "shim_version": 20260035,
+  "spec": "2026-08-09-0129-architect-to-qa-spec-p2-pcm-scale-and-p3-sublattice-shift-union.md",
+  "time_shift_samples": 320,
+  "wall_clock_min": 36.06796874205271,
+  "workers": 8
+}
