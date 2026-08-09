@@ -44,7 +44,8 @@ the evidence trail; **§0.5 is the current state and wins wherever it disagrees 
 | **T1** — frequency quantisation | ✅ **CLOSED 2026-08-08.** `G = 3.16 pp` → **ROW 3**, real but small. | `2026-08-08-2046-qa-to-architect-t1-frequency-quantisation-results.md` |
 | **H1** — `<...>` hash-token contamination | ✅ **DONE 2026-08-08 21:35Z. Gate A = A-ROW 1** (`M = 2.26 pp` ⇒ recovery is now the bracket **`[55.5%, 57.8%]`**). **Gate B = B-ROW 2** (`ΔF = 0.02 pp` — `<...>` is **not** what drives the ~4% FP). | §2.4, results `2026-08-08-2135-qa-to-architect-h1-hash-token-contamination-results.md` |
 | **H1a** — validate the wildcard matches by frequency | ✅ **DONE 2026-08-08 23:10Z → ROW 1**, `V = 0.9968`, `V_null = 0.0000`. **The bracket is RETIRED: 20m recovery is `≈ 57.8%`.** FP level bounded `4.24–4.90%`. | §2.4a, results `2026-08-08-2310-architect-h1a-wildcard-frequency-validation-results.md` |
-| 🔴 **P1** — decode-depth contrast | **SPECCED 2026-08-08 23:57Z, NOT RUN. The only live QA item.** Offline `jt9 -d1` vs `-d3` on WSJT-X's own WAVs — **the one open arm that can make D-001 SMALLER rather than better-described.** No WSJT-X reconfiguration, no capture, no `src/`. | §2.7, spec `2026-08-08-2357-architect-to-qa-spec-p1-decode-depth-contrast.md` |
+| ~~🔴 **P1** — decode-depth contrast~~ | **RAN 2026-08-09 01:01Z → VOIDED at ROW 0d** (instrument failure, not a null; committed `c4784c1`). **`A` = 15.55 pp is NOT citable in any form.** The gate was an **Architect drafting defect** — it demanded a property with a ≈0.0023% base rate, giving a ~1-in-4 false-failure rate. | §2.7 (closed), result `2026-08-09-0101-qa-to-architect-p1-…-results.md` |
+| 🔴 **P1a** — decode-depth **invocation robustness** | **SPECCED 2026-08-09 01:15Z, NOT RUN. The only live QA item.** A **validity re-test, NOT BLIND** (`A` = 15.553 already seen ⇒ scoring on `A` suspended). Gated on `ΔA` across `-p 15` vs default; `A_p15` readable only if stage 1 passes. ~32 min, no capture, no `src/`. | §2.8, spec `2026-08-09-0115-architect-to-qa-spec-p1a-decode-depth-invocation-robustness.md` |
 | **T2** — offset-curve shape | ✅ **DONE 2026-08-08 23:19Z → ROW 3.** `D_int = 4.03 pp` replicates both split-halves (interior-worst-case mechanism supported); `U = 1.85 pp` clears its bar pooled but the halves disagree in sign (`−0.01` / `3.38`) — two-candidate claim unconfirmed, not killed. | §2.5, results `2026-08-08-2319-qa-to-architect-t2-offset-curve-shape-results.md` |
 
 ⚠️ **Two record defects found and fixed 2026-08-08 21:56Z, both worth naming rather than silently
@@ -196,10 +197,43 @@ Captain resolves it.
 
 ---
 
-## 2.7 🔴 P1 — decode-depth contrast — **the only live QA item**
+## 2.7 ~~🔴 P1 — decode-depth contrast — **the only live QA item**~~ **P1 RAN 2026-08-09 01:01Z → VOIDED AT ROW 0d. Superseded by §2.8 (P1a).**
 
-**Spec:** `qa/cycleframer-alignment-replay/2026-08-08-2357-architect-to-qa-spec-p1-decode-depth-contrast.md`.
+🔴 **P1 is CLOSED as an instrument failure, not a null.** Result:
+`2026-08-09-0101-qa-to-architect-p1-decode-depth-contrast-results.md` (committed `c4784c1` with the
+harness, JSON and run log). **`A = 15.55 pp` was computed and is NOT citable in any form.** ROW
+0a/0b/0c passed clean; ROW 0d fired because dedup removed zero duplicate `(ts, message)` pairs.
+
+🔴 **The gate was an Architect drafting defect, not a QA execution error** — N4's duplicate rate was
+**3 in ~129 800 (≈0.0023%)**, so this population expected λ ≈ 1.3–1.6 and **P(observe zero) ≈ 20–27%:
+a ~1-in-4 false-failure rate by construction.** Compounded by the spec pinning a *non-batched, no
+`-p 15`* invocation structurally unlike the one that produced N4's duplicates. **ROW 0d was
+uninformative in both directions.** New HK-021 sibling **(j)**: an absence-based check is only
+diagnostic when the expected count makes absence surprising — require **λ ≥ 5**, and compute λ while
+drafting.
+
+**Everything below in this section still describes the question correctly** and is retained as the
+reasoning P1a inherits — only the gate and the invocation changed. Read §2.8 for what to run.
+
+---
+
+## 2.8 🔴 P1a — decode-depth invocation robustness — **the only live QA item**
+
+**Spec:** `qa/cycleframer-alignment-replay/2026-08-09-0115-architect-to-qa-spec-p1a-decode-depth-invocation-robustness.md`.
 **Read the spec — this is the index entry.** Not authorised to run.
+
+🔴 **P1a is a VALIDITY RE-TEST, not a fresh measurement, and it is NOT BLIND** — both Architect and
+QA have seen `A = 15.553`, so **prediction-scoring on `A` is suspended.** The blind question is
+`ΔA = A_p15 − A_default`: four legs (`{d1,d3} × {no -p, -p 15}`), identical files, ~32 min at
+`--workers 8`, **no timing probe** (P1 measured the rate). **Two-stage gate — stage 1 `|ΔA| ≤ 1.5 pp`
+⇒ invocation-robust, and only then may `A_p15` be read through P1's ROW 1/2/3.** ROW 0c is now the
+**nesting** check (`|D1\D3|/|D1| ≤ 1%`; P1's own numbers give 116/56 910 = 0.204%), ROW 0d is a
+**determinism** check (`A_default` reproduces 15.553), ROW 0e voids the run as **underpowered** if
+the measured `SE(ΔA)` > 0.75 pp. 🔴 **The bootstrap must be PAIRED.** P1 §0, §0.1, §0.2, §1 and §2.2
+carry over unchanged — read that spec first.
+
+**Everything in §2.7 below about *why the question matters* and *why the barred instrument is
+admissible* applies to P1a unchanged.**
 
 **Why it matters more than another shape/offset arm.** Every recovery figure means *"against WSJT-X
 at `NDepth = 3`"* while we run `K_MAX_PASSES = 2` + caps 140/200. **On record since 2026-08-06, never
