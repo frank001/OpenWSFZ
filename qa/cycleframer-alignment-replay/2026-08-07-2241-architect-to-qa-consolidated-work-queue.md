@@ -565,9 +565,19 @@ Not scoped here.
   anything, and do NOT propose a capture run.**
 - 🔴 **Better than either, and newly possible:** the 20m and 17m legs **overlap at density ~13–28 on
   different bands**, so band and density can finally be separated (fit recovery ~ density + band, test
-  whether the band term survives). Neither leg alone could do this. ⚠️ **Mandatory disclosure in any
-  pre-registration: QA has already seen 17m running ~2–3 pts above 20m at matched density** — the
-  direction is no longer blind, only the magnitude and the survival of the density slope are.
+  whether the band term survives). Neither leg alone could do this. ~~⚠️ Mandatory disclosure in any
+  pre-registration: QA has already seen 17m running ~2–3 pts above 20m at matched density — the
+  direction is no longer blind, only the magnitude and the survival of the density slope are.~~
+  🔴 **CORRECTED 2026-08-10 — this "~2–3 pts" figure was density-WINDOW matched, not exact-cell
+  matched, and was inflated by residual density difference inside the window. Under exact density ×
+  SNR-stratum matching it is 0.76–1.34 pp (17m−20m ladder), a real but much smaller effect. This item
+  is now CLOSED: X1 ran exactly this arm (spec
+  `2026-08-10-1538-architect-to-qa-spec-x1-cross-band-recovery-decomposition.md`) and found the band
+  term SURVIVES exact standardisation on the primary pair (80m vs 20m) — `B_std` +5.70 pp (L1) to
+  +4.83 pp (L3), 95% CI [+3.91, +7.42] pp at L1, **ROW 1**. Result:
+  `2026-08-10-1622-qa-to-architect-x1-cross-band-recovery-decomposition-results.md`. Struck through
+  rather than deleted so the record shows what was believed and when (HK-024/HK-022 pattern) —
+  do not carry the "~2–3 pts" figure forward in any form.
 - **The 60-signal `co_channel_sweep` subset** of the current sweep has never been computed. Cheap,
   needs a small fresh S7 sub-run.
 - **The post-fix FP surge is still open** — Tasks 2–4 didn't close it and **no Task 5 ruling exists**.
