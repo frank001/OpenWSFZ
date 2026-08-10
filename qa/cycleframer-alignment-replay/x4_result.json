@@ -1,0 +1,140 @@
+{
+  "spec": "2026-08-10-1808-architect-to-qa-spec-x4-s1-reopened-within-cycle-spectral-locality.md",
+  "row0a": {
+    "ref": 69222,
+    "expected": 69222,
+    "pass": true
+  },
+  "row0g": {
+    "n_band_edge": 868,
+    "n_band_edge_direct": 868,
+    "n_band_edge_all_cycles": 868,
+    "pass": true
+  },
+  "row0d": {
+    "n_distinct_sep": 540,
+    "bar": 50,
+    "pass": true
+  },
+  "sep_edges": [
+    14,
+    31,
+    50,
+    81
+  ],
+  "sep_summary": {
+    "n": 68354,
+    "min": 0,
+    "max": 983,
+    "p10": 7,
+    "p50": 40,
+    "p90": 116
+  },
+  "row0e": {
+    "qualifying_strata": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "detail": {
+      "0": {
+        "n_q1": 1436.0,
+        "n_q5": 1440.0,
+        "n_cycles": 865,
+        "weight": 1031.0,
+        "qualifies": true
+      },
+      "1": {
+        "n_q1": 1778.0,
+        "n_q5": 1617.0,
+        "n_cycles": 989,
+        "weight": 1217.0,
+        "qualifies": true
+      },
+      "2": {
+        "n_q1": 1721.0,
+        "n_q5": 1534.0,
+        "n_cycles": 963,
+        "weight": 1181.0,
+        "qualifies": true
+      },
+      "3": {
+        "n_q1": 1849.0,
+        "n_q5": 1641.0,
+        "n_cycles": 995,
+        "weight": 1276.0,
+        "qualifies": true
+      },
+      "4": {
+        "n_q1": 1296.0,
+        "n_q5": 1235.0,
+        "n_cycles": 758,
+        "weight": 926.0,
+        "qualifies": true
+      }
+    },
+    "pass": true
+  },
+  "row0c": {
+    "n_cycle_gap": 0.0,
+    "pass": true
+  },
+  "E_sep_point": 46.038525396543506,
+  "n_contributing_cells": 4570,
+  "row0b": {
+    "null_values": [
+      -0.7109990597671889,
+      0.7229471381820604,
+      0.6798196260825349,
+      -0.5007051891909933,
+      -0.4658298061498615,
+      -1.7686292354492676,
+      -0.06039458625665494,
+      0.40485712629687554,
+      0.46466640184054164,
+      -0.17270868880701007,
+      -0.37491177098209133,
+      -1.2429096179314825,
+      0.43882668532773395,
+      0.8815863623555935,
+      -0.9121284783164002,
+      -0.07838150096833953,
+      -0.5258181461885166,
+      -0.8298367723039458,
+      -1.3982446539472482,
+      0.4937477847292633
+    ],
+    "null_mean": -0.24775231907221987,
+    "bar": 2.0,
+    "pass": true
+  },
+  "bootstrap": {
+    "cycle_clustered": {
+      "se": 0.6525164184031127,
+      "ci95": [
+        44.73307520826,
+        47.34810585005138
+      ],
+      "n_boot": 1000
+    },
+    "freq_clustered": {
+      "se": 1.3713099667989386,
+      "ci95": [
+        44.02684302658049,
+        49.26147048111728
+      ],
+      "n_boot": 1000
+    },
+    "se_ratio": 2.10157158980752,
+    "sign_disagree": false,
+    "flagged": true
+  },
+  "row0f": {
+    "se_cycle": 0.6525164184031127,
+    "bar": 2.0,
+    "pass": true
+  },
+  "final_row": "FLAGGED -- clustering disagreement, row not read"
+}
