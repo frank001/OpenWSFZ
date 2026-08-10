@@ -118,6 +118,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TS_RE = re.compile(r"^(\d{6}_\d{6})")
 TS_FMT = "%y%m%d_%H%M%S"
 
+# G1 (§3.2/§3.3): the exact phrase written into contents.md's provenance section when
+# --wsjtx-shared-install was passed. qa/artefact_inventory.py greps run folders' contents.md
+# for this literal string to tell an operator-asserted shared install apart from an
+# unverified duplicate -- keep the two copies of this string in sync if it ever changes.
+SHARED_INSTALL_ASSERTION_MARKER = "operator asserted --wsjtx-shared-install"
+
 
 # ── Session-window helpers ──────────────────────────────────────────────────────────────
 
@@ -150,6 +156,25 @@ def first_last_cycle_ts(path: Path) -> tuple[datetime, datetime] | None:
     if first is None or last is None:
         return None
     return first, last
+
+
+def count_lines_in_window(path: Path, start: datetime, end: datetime) -> int:
+    """Count (without writing anything) how many lines of an ALL.TXT-format file have a
+    leading timestamp inside [start, end]. Used by the G1 guards (§3.3/§3.5) to answer "does
+    this candidate WSJT-X instance have any decodes in THIS session's window?" without the
+    side effect of filter_alltxt()'s own file write."""
+    if not path.is_file():
+        return 0
+    n = 0
+    with path.open("r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            m = TS_RE.match(line)
+            if not m:
+                continue
+            ts = parse_cycle_ts(m.group(1))
+            if ts is not None and start <= ts <= end:
+                n += 1
+    return n
 
 
 def parse_datetime_arg(value: str, date_arg: str | None) -> datetime:
@@ -479,6 +504,156 @@ def count_lines(path: Path) -> int:
         return sum(1 for _ in fh)
 
 
+# ── G1 provenance/guard helpers ─────────────────────────────────────────────────────────
+# G1 (qa/cycleframer-alignment-replay/2026-08-10-1559-architect-to-qa-spec-g1-gather-tool-
+# reference-provenance-guard.md): --wsjtx-link-from's documented premise -- "two OpenWSFZ
+# instances sharing one physical WSJT-X install" -- is unverifiable from inside one
+# invocation and was never checked. On the 2026-08-09 80m leg it silently didn't hold (two
+# genuinely separate live instances existed) and --wsjtx-link-from materialized one of them
+# twice while the other was never gathered at all -- no error, no warning, and nothing in the
+# artefact recorded which instance had actually been read. These helpers make the premise an
+# operator assertion (--wsjtx-shared-install) rather than a silent default, and make the
+# answer to "which instance is this?" mechanically recorded rather than requiring an inode
+# stat to recover after the fact.
+
+
+def find_wsjtx_instance_dirs(wsjtx_root: Path) -> list[Path]:
+    """Enumerate sibling WSJT-X install directories next to wsjtx_root (its own parent),
+    matching the 'WSJT-X*' naming WSJT-X itself uses for named instances (e.g. 'WSJT-X',
+    'WSJT-X - FT991A', 'WSJT-X - FT991A-Copy'). Includes wsjtx_root itself if it matches.
+    Matching is case-insensitive (NTFS is case-insensitive; a literal glob is not)."""
+    parent = wsjtx_root.parent
+    if not parent.is_dir():
+        return []
+    return sorted(
+        entry for entry in parent.iterdir()
+        if entry.is_dir() and entry.name.upper().startswith("WSJT-X")
+    )
+
+
+def active_wsjtx_instances(
+    wsjtx_root: Path, start: datetime, end: datetime
+) -> list[tuple[Path, int]]:
+    """Every sibling WSJT-X instance directory (see find_wsjtx_instance_dirs) that has at
+    least one decode inside [start, end], paired with its in-window line count. An instance
+    with zero in-window decodes was not live during this session and cannot be the source of
+    a duplication defect, so it is not "active" for guard purposes even if its ALL.TXT
+    exists."""
+    active: list[tuple[Path, int]] = []
+    for inst in find_wsjtx_instance_dirs(wsjtx_root):
+        n = count_lines_in_window(inst / "ALL.TXT", start, end)
+        if n > 0:
+            active.append((inst, n))
+    return active
+
+
+def guard_wsjtx_link_from_premise(
+    wsjtx_root: Path, start: datetime, end: datetime, shared_install_asserted: bool
+) -> int:
+    """§3.3: when --wsjtx-link-from is given, its premise ('one physical WSJT-X install') is
+    only true if exactly one live WSJT-X instance was active this session's window. Refuse
+    (return non-zero) if more than one candidate instance qualifies and the operator has not
+    passed --wsjtx-shared-install to assert the sharing is real and intentional. Returns 0 to
+    proceed, 1 to abort (caller exits with this code)."""
+    active = active_wsjtx_instances(wsjtx_root, start, end)
+    if len(active) <= 1 or shared_install_asserted:
+        return 0
+    print(
+        f"error: --wsjtx-link-from assumes ONE physical WSJT-X install shared between "
+        f"instances, but {len(active)} candidate WSJT-X installs have decodes inside this "
+        f"session's window:", file=sys.stderr,
+    )
+    for inst, n in active:
+        print(f"  {inst}  ({n} in-window decode line(s))", file=sys.stderr)
+    print(
+        "This is the exact defect in qa/cycleframer-alignment-replay/2026-08-10-1559-"
+        "architect-to-qa-spec-g1-gather-tool-reference-provenance-guard.md: hardlinking one "
+        "instance's ALL.TXT/WAVs into a second run's folder silently duplicates it while the "
+        "OTHER live instance's audio is never gathered at all. If this install really is "
+        "shared -- only one of the instances above was ever actually live this session --  "
+        "pass --wsjtx-shared-install to record that assertion on the record and proceed.",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def warn_if_default_wsjtx_root_is_wrong(
+    wsjtx_root: Path, used_default: bool, start: datetime, end: datetime
+) -> None:
+    """§3.5: --wsjtx-root's default (%LOCALAPPDATA%\\WSJT-X, the *plain* install) is not
+    necessarily either named instance in a multi-instance setup, and a leg that forgets to
+    pass --wsjtx-root explicitly gathers a wrong-and-possibly-stale directory with no
+    complaint. Warn loudly (not fatal -- unlike §3.3's guard, there is no operator assertion
+    that makes silently proceeding provably correct here) when the default resolved to
+    something with zero in-window decodes while a named sibling instance has some."""
+    if not used_default:
+        return
+    if count_lines_in_window(wsjtx_root / "ALL.TXT", start, end) > 0:
+        return
+    for inst in find_wsjtx_instance_dirs(wsjtx_root):
+        if inst == wsjtx_root:
+            continue
+        n = count_lines_in_window(inst / "ALL.TXT", start, end)
+        if n > 0:
+            print(
+                f"\nWARNING: --wsjtx-root defaulted to {wsjtx_root}, which has ZERO decodes "
+                f"in this session's window, while sibling install {inst} has {n} -- the "
+                f"default is very likely the WRONG instance for this gather. Pass "
+                f"--wsjtx-root \"{inst}\" explicitly if that is the intended source.",
+                file=sys.stderr,
+            )
+            return
+
+
+def check_sibling_gather_collision(
+    out_root: Path,
+    this_run_dir: Path,
+    wsjtx_alltxt_path: Path,
+    start: datetime,
+    end: datetime,
+    shared_install_asserted: bool,
+) -> None:
+    """§3.4: after writing, check whether any OTHER already-gathered run under the same
+    --out-root has a window-overlapping wsjt-x/ALL.TXT that is byte-identical (or the same
+    inode) to this run's own -- the general form of the G1 defect, catching it even when
+    --wsjtx-link-from was never used (e.g. two independent direct gathers that both happened
+    to read the same live install). Cheap: only hashes when a same-size candidate is found."""
+    if shared_install_asserted or not wsjtx_alltxt_path.is_file():
+        return
+    this_stat = wsjtx_alltxt_path.stat()
+    this_hash: str | None = None
+    for sibling in sorted(out_root.iterdir()):
+        if not sibling.is_dir() or sibling.resolve() == this_run_dir.resolve():
+            continue
+        candidate = sibling / "wsjt-x" / "ALL.TXT"
+        if not candidate.is_file():
+            continue
+        bounds = first_last_cycle_ts(candidate)
+        if bounds is None or bounds[1] < start or bounds[0] > end:
+            continue  # no window overlap -- not a candidate for THIS run's duplication
+        try:
+            same_inode = candidate.stat().st_ino == this_stat.st_ino
+        except OSError:
+            same_inode = False
+        same_bytes = False
+        if not same_inode and candidate.stat().st_size == this_stat.st_size:
+            if this_hash is None:
+                this_hash = sha256_file(wsjtx_alltxt_path)
+            same_bytes = sha256_file(candidate) == this_hash
+        if same_inode or same_bytes:
+            relation = "the same file (hardlinked)" if same_inode else "byte-identical"
+            print(
+                f"\nWARNING: {sibling.name}'s wsjt-x/ALL.TXT overlaps this run's session "
+                f"window and is {relation} to this run's own -- this is the G1 defect "
+                f"signature (two gather folders, one real WSJT-X instance). If this really "
+                f"is intentional (a genuinely shared install), pass --wsjtx-shared-install "
+                f"next time to record that on purpose. Otherwise, one of these two gathers "
+                f"is silently missing its own independent WSJT-X reference.",
+                file=sys.stderr,
+            )
+            return
+
+
 def copy_log_files(
     src_dirs: list[Path], dst_dir: Path, start: datetime, end: datetime, pad: timedelta
 ) -> list[Path]:
@@ -684,6 +859,65 @@ def write_band_manifests(
 # ── contents.md / contents.html generation ─────────────────────────────────────────────
 
 
+def render_provenance_section(provenance: dict) -> str:
+    """§3.2: render the provenance block so `contents.md` alone answers "which WSJT-X
+    instance is this, and how was it gathered?" without stat-ing an inode. `provenance` is the
+    dict built in main() -- see its construction there for the exact shape."""
+    owsfz = provenance["owsfz"]
+    wsjtx = provenance["wsjtx"]
+
+    def fmt_hash(sha: str | None) -> str:
+        return f"`{sha}`" if sha else "(not available)"
+
+    lines = []
+    if owsfz.get("band_files"):
+        lines.append(
+            f"- **OpenWSFZ side**: {owsfz['method']}, from `{owsfz['source']}` "
+            f"(split by band, per-band files below):"
+        )
+        for band, info in sorted(owsfz["band_files"].items()):
+            lines.append(
+                f"  - `owsfz/{band}/ALL.TXT`: {info['lines']} lines, "
+                f"SHA-256 {fmt_hash(info['sha256'])}."
+            )
+    else:
+        lines.append(
+            f"- **OpenWSFZ side**: {owsfz['method']}, from `{owsfz['source']}`. Gathered "
+            f"`owsfz/ALL.TXT`: {owsfz['lines']} lines, SHA-256 {fmt_hash(owsfz['sha256'])}."
+        )
+
+    wav_note = ""
+    if wsjtx.get("wav_linked") is not None:
+        wav_copied = wsjtx["wav_count"] - wsjtx["wav_linked"]
+        wav_note = (
+            f" WAVs: {wsjtx['wav_count']} total ({wsjtx['wav_linked']} hardlinked"
+            f"{f', {wav_copied} copied' if wav_copied else ''})."
+        )
+    else:
+        wav_note = f" WAVs: {wsjtx['wav_count']} total (copied from the live `save/` directory)."
+
+    lines.append(
+        f"- **WSJT-X side**: {wsjtx['method']}, from `{wsjtx['source']}`. Gathered "
+        f"`wsjt-x/ALL.TXT`: {wsjtx['lines']} lines, SHA-256 {fmt_hash(wsjtx['sha256'])}."
+        f"{wav_note}"
+    )
+
+    if provenance.get("shared_install_asserted"):
+        lines.append(
+            f"- **Shared-install assertion**: {SHARED_INSTALL_ASSERTION_MARKER} -- the "
+            f"operator has recorded that only one physical WSJT-X install was live during "
+            f"this session's window, so hardlinking/reading it into more than one gather "
+            f"folder is intentional, not the G1 defect."
+        )
+    else:
+        lines.append(
+            "- **Shared-install assertion**: not asserted -- the §3.3 guard was active for "
+            "this gather (refuses if more than one WSJT-X instance had in-window decodes "
+            "and this flag was not passed)."
+        )
+    return "\n".join(lines)
+
+
 def write_contents(
     out_dir: Path,
     name: str,
@@ -696,6 +930,7 @@ def write_contents(
     wsjtx_wavs: int,
     config: dict,
     owsfz_band_breakdown: dict[str, dict[str, int]] | None = None,
+    provenance: dict | None = None,
 ) -> Path:
     decoder = config.get("decoder", {})
     decode_log = config.get("decodeLog", {})
@@ -732,6 +967,12 @@ def write_contents(
             f"future use regardless)."
         )
 
+    provenance_section = render_provenance_section(provenance) if provenance else (
+        "TODO — this run was gathered before the G1 provenance fix; source instance/hash "
+        "not recorded. See qa/cycleframer-alignment-replay/2026-08-10-1559-architect-to-qa-"
+        "spec-g1-gather-tool-reference-provenance-guard.md."
+    )
+
     # Note (Captain's standing instruction, 2026-07-27): the band/frequency is just an
     # adjustable run parameter, not part of the run's identity — it appears below only as
     # descriptive metadata about what happened during the session, never in the folder name,
@@ -751,6 +992,10 @@ supports and fill in the "Headline result" section below.
 - `wsjt-x/ALL.TXT` — WSJT-X's decoded-message log, filtered to the session window
   ({wsjtx_lines} lines).
 - `wsjt-x/wav/` — {wsjtx_wavs} WAV recordings from WSJT-X's own `save/` directory.
+
+## WSJT-X / OpenWSFZ provenance (G1)
+
+{provenance_section}
 
 ## Build under test
 
@@ -879,6 +1124,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
                          "normal case) -- falls back to a full copy per-file if not, rather than "
                          "erroring. --wsjtx-root/--start/--end are ignored for the WSJT-X side "
                          "when this is set (the source folder is already a filtered snapshot).")
+    p.add_argument("--wsjtx-shared-install", action="store_true",
+                    help="Operator assertion (G1 §3.3) that the WSJT-X install used for this "
+                         "gather really is shared between OpenWSFZ instances -- i.e. only ONE "
+                         "WSJT-X instance was ever live during this session's window, so "
+                         "--wsjtx-link-from's premise genuinely holds. Without this flag, the "
+                         "tool refuses to proceed (non-zero exit) when it finds MORE THAN ONE "
+                         "sibling 'WSJT-X*' instance directory with decodes inside the session "
+                         "window -- the exact silent-duplication defect this spec exists to "
+                         "close. Also suppresses the post-gather sibling-collision warning "
+                         "(§3.4) and is recorded verbatim in contents.md's provenance section "
+                         "so the assertion is on the record, not just in a shell history.")
     p.add_argument("--pad-seconds", type=int, default=30,
                     help="Slack applied to WAV/ALL.TXT timestamp filtering, each side of the "
                          "window, to absorb clock offset between the two apps (default: %(default)s).")
@@ -982,6 +1238,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: end ({end}) is before start ({start})", file=sys.stderr)
         return 1
 
+    # ── G1 §3.3/§3.5 guards -- run before any copying, dry-run or not ──
+    if wsjtx_link_from:
+        if guard_wsjtx_link_from_premise(wsjtx_root, start, end, args.wsjtx_shared_install):
+            return 1
+    else:
+        warn_if_default_wsjtx_root_is_wrong(wsjtx_root, args.wsjtx_root is None, start, end)
+
     pad = timedelta(seconds=args.pad_seconds)
     log_pad = timedelta(seconds=args.log_pad_seconds)
 
@@ -1052,13 +1315,64 @@ def main(argv: list[str] | None = None) -> int:
         if wsjtx_copied_total:
             print(f"  note: {wsjtx_copied_total} file(s) fell back to a full copy -- "
                   f"{wsjtx_link_from} and {wsjtx_dir} are not on the same volume")
+        wsjtx_method = (
+            "hardlinked from sibling gather"
+            if wsjtx_copied_total == 0
+            else f"hardlinked from sibling gather ({wsjtx_copied_total} file(s) fell back to "
+                 f"a full copy -- cross-volume)"
+        )
+        wsjtx_source = str(wsjtx_link_from.resolve())
+        wsjtx_wav_linked_note: int | None = wsjtx_wav_linked
     else:
         wsjtx_lines = filter_alltxt(wsjtx_alltxt, wsjtx_dir / "ALL.TXT", start, end)
         wsjtx_wavs = copy_wav_window(wsjtx_wav_dir, wsjtx_wav_out, start, end, pad)
+        wsjtx_method = "read live and filtered"
+        wsjtx_source = str(wsjtx_alltxt.resolve()) if wsjtx_alltxt.exists() else str(wsjtx_alltxt)
+        wsjtx_wav_linked_note = None
+
+    # §3.4: catch the general form of the defect (not only the --wsjtx-link-from path) --
+    # another already-gathered run under the same --out-root whose wsjt-x/ALL.TXT overlaps
+    # this run's window and is byte-identical/same-inode to this run's own.
+    check_sibling_gather_collision(
+        Path(args.out_root), out_dir, wsjtx_dir / "ALL.TXT", start, end, args.wsjtx_shared_install,
+    )
+
+    # §3.2: provenance -- "reading contents.md alone must be enough to answer 'which WSJT-X
+    # instance is this?' without stat-ing inodes."
+    owsfz_out_alltxt = owsfz_dir / "ALL.TXT"
+    owsfz_band_files: dict[str, dict[str, object]] | None = None
+    if owsfz_band_breakdown is not None:
+        # Split mode has no single owsfz/ALL.TXT -- hash/count each per-band file instead so
+        # the "same for the OpenWSFZ side, for symmetry" requirement still holds per band.
+        owsfz_band_files = {}
+        for band in owsfz_band_breakdown:
+            band_alltxt = owsfz_dir / band / "ALL.TXT"
+            owsfz_band_files[band] = {
+                "sha256": sha256_file(band_alltxt) if band_alltxt.is_file() else None,
+                "lines": owsfz_band_breakdown[band]["lines"],
+            }
+    provenance = {
+        "owsfz": {
+            "method": "read live and filtered",
+            "source": str(owsfz_alltxt.resolve()) if owsfz_alltxt.exists() else str(owsfz_alltxt),
+            "sha256": sha256_file(owsfz_out_alltxt) if owsfz_out_alltxt.is_file() else None,
+            "lines": owsfz_lines,
+            "band_files": owsfz_band_files,
+        },
+        "wsjtx": {
+            "method": wsjtx_method,
+            "source": wsjtx_source,
+            "sha256": sha256_file(wsjtx_dir / "ALL.TXT") if (wsjtx_dir / "ALL.TXT").is_file() else None,
+            "lines": wsjtx_lines,
+            "wav_count": wsjtx_wavs,
+            "wav_linked": wsjtx_wav_linked_note,
+        },
+        "shared_install_asserted": args.wsjtx_shared_install,
+    }
 
     contents_path = write_contents(
         out_dir, name, start, end, owsfz_lines, owsfz_wavs, owsfz_logs, wsjtx_lines, wsjtx_wavs,
-        metadata_config, owsfz_band_breakdown,
+        metadata_config, owsfz_band_breakdown, provenance,
     )
     print(f"\nWrote {contents_path} — fill in the TODO sections before closing out the run.")
 
