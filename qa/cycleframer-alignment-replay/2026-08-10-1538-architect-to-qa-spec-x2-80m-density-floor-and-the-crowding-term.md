@@ -7,6 +7,99 @@
 
 ---
 
+## 🔴 AMENDMENT 1 — 2026-08-10 16:44Z, made BEFORE the arm ran. Read this first; it WINS over the body wherever they disagree.
+
+**Two triggers: X1 ran and returned ROW 1, and — more seriously — I failed HK-018 when drafting
+§0.2.** The crowding mechanism is not unexplored territory. The programme has investigated it
+hard, and one of its central claims was **already bounded and closed twice.** Had QA executed the
+body of this spec verbatim, it would have been sent at a closed question with a mis-stated
+tension. The defect is the Architect's drafting, not QA's execution.
+
+### A1.1 Prior art §0.2 should have cited and did not
+
+| finding | source | bearing |
+|---|---|---|
+| **C.1 swept `K_MAX_CANDIDATES` 140 / 300 / 600 → +0.93% at 300, byte-identical at 600** | 2026-07-25 | 🔴 **The candidate-cap family is already BOUNDED.** Raising the cap does not convert. |
+| **RC1 → ROW 2: misses decompose 3.1% out-of-band / 8.9% no-candidate / 87.9% candidate-present-and-FAILED** | 2026-08-07 | 🔴 Misses are **not** mostly "never looked at". We saw the signal and could not read it. |
+| **RC2 (candidate budget), "the leading treatment hypothesis" → CLOSED TWICE** | queue §3, l.367 | excluded by RC1 **and** already bounded by C.1. 🛑 **Do not re-propose it.** |
+| Candidate caps **are** saturated — pass 1 (140) on 95/100 cycles, pass 2 (200) on 90/100 | RC1/RC4 spec §0.2 | Saturation is real, but per C.1 the surplus is **not decodable**. Saturation ≠ loss. |
+| Budget allocated backwards — pass 1 yields 16.42%, pass 2 yields 0.80% | RC1/RC4 spec §0.3 | why a third pass cannot help |
+| **"Our failure scales with density at fixed SNR"** | 2026-08-06 2323 note §3 | 🔴 **Already established. X2 does NOT discover this.** |
+
+### A1.2 §0.2's "tension" was wrong in both directions — REPLACED
+
+- 🛑 **D-009's null is not evidence about crowding at all.** D-009 **explicitly excluded**
+  `K_MAX_CANDIDATES_PASS2` from its grid by construction. Citing its +0.109 pp as a puzzle for
+  the crowding reading was my error. **Strike that half of the tension.**
+- 🛑 **RC4's null is expected, not puzzling.** Pass 2 already converts at 0.80%, so a third pass
+  works an even more depleted residual. Nothing to reconcile.
+- ✅ **The real reconciliation, and it is much sharper:** `F_std` = +17.22 pp at the floor must be
+  squared with **C.1's +0.93% ceiling on the cap family** and **RC1's 87.9% candidate-present-and-
+  failed**. Those two together say the crowding cost is **not** budget exhaustion. **That is the
+  reconciliation the report must perform.**
+
+### A1.3 The ROW 1 consequence is REPLACED
+
+§3's ROW 1 currently says the time-bounded candidate/pass budget "earns its own pre-registration."
+🛑 **Delete that. RC2 is closed twice and C.1 bounded the family at +0.93%.**
+
+**Replacement ROW 1 consequence:** crowding is a real, first-order term that is **not** explained
+by candidate-budget exhaustion (A1.1). Since candidates are present and attempted and still fail
+in dense cycles, the surviving explanation family is **degradation of the signals themselves when
+the cycle is crowded** — co-channel and adjacent-signal interference — which is the *same channel
+family* X1's ROW 1 just promoted. **ROW 1 therefore promotes ONE joint sub-question with X1, not a
+budget arm**, and it needs its own pre-registration. 🛑 Still no `src/` recommendation, no
+parameter sizing, no capture run, in any row.
+
+### A1.4 🛑 The S.1 hazard, stated because A1.3 points straight at it
+
+The natural next measurement after a co-channel reading is a spectral one, and **S.1 is CLOSED —
+do not re-litigate or re-derive** (Captain, 08-04, reconfirmed 08-07; S.1r ROW 4 on an unpopulated
+boundary). **X2 measures the phenomenon and stops.** Any mechanism arm must confront the S.1 bar
+explicitly in its own pre-registration and take the Captain's ruling — **QA must not settle it in
+session** (§4.3 already says this; A1.3 makes it live, so it is repeated here deliberately).
+
+### A1.5 Check data that already exists before proposing any new measurement
+
+**S.2a — "does the candidate cap bind harder when the band is busy?"** was recorded as *blocked
+for want of instrumentation*, and **that was WRONG**: `ft8_get_last_candidate_counts()` per-cycle
+getters **were logged in the 5 runs already on disk**. If the report wants
+saturation-versus-density, **the data exists — go and look before recommending anything**
+(HK-004, HK-018).
+
+### A1.6 What X1's result changes
+
+X1 ran 2026-08-10 16:22Z → **ROW 1**
+(`2026-08-10-1622-qa-to-architect-x1-cross-band-recovery-decomposition-results.md`).
+
+1. **`ROW 0f` is satisfied — the X0 repair is DONE.** Verify it (distinct inodes, repaired `A∩B`
+   = 10 913 raw / 10 839 clean); **do not redo it.**
+2. **Pin the SNR strata to X1's published edges** rather than recomputing — identical by
+   construction, but pinning removes a drift path:
+   - L1 `[−15, −10, −5, 2]`
+   - L2 `[−19, −15, −13, −10, −8, −5, −2, 2, 7]`
+   - L3 `[−21, −19, −17, −15, −14, −13, −12, −10, −9, −8, −7, −5, −4, −2, 0, 2, 4, 7, 11]`
+   X2's primary metric uses **L1**, as the body specifies.
+3. **§4.1's reading is sharpened.** A band term is now confirmed (80m−20m `B_std` +5.70 pp L1 →
+   +4.83 pp L3, CI [+3.91, +7.42]). So "crowding appears on 80m only" **no longer means
+   "inseparable"** — it means crowding and band **interact**, and the interaction is the finding.
+   Report it as such rather than as a failure to separate.
+
+### A1.7 One claim in §0.2 is withdrawn
+
+§0.2 says this "points somewhere the programme has NOT been looking." **False, and withdrawn** —
+see A1.1. **What is genuinely new is narrower and should be stated that way:** the **floor regime**
+(density ≤ 5, unreachable in any prior corpus), the **magnitude** (+17.22 pp), and **near-100%
+recovery at the floor in the top SNR strata**.
+
+### A1.8 Unchanged
+
+**The gate thresholds in §3 are NOT touched** (`|F_std| ≥ 5.0` ⇒ ROW 1, `≤ 1.5` ⇒ ROW 2, SE bar
+2.0 pp). They were pre-registered against a disclosed point estimate; moving them now would be
+fitting the gate to the data. Everything in §1, §2, §4 and §5 stands except as amended above.
+
+---
+
 ## 0. Standing on QA's own pre-registration
 
 The governing pre-registration for this leg is **QA's**, written 2026-08-09 01:49Z before the
@@ -44,6 +137,10 @@ overlap regime.
 **Plainly: in an uncrowded cycle, OpenWSFZ recovers essentially every signal the reference hears.**
 
 ### 0.2 Why this is the most decision-relevant number of the weekend
+> 🔴 **SUPERSEDED IN PART BY AMENDMENT 1 (A1.1, A1.2, A1.7). Do not act on this section alone.**
+> Its "the programme has not been looking here" framing is **withdrawn**, and its D-009/RC4
+> tension is **wrong in both directions**. Kept unedited as provenance — it is what was believed
+> when the spec was written.
 
 The programme's current localisation is **demodulation capability** — no sync refinement,
 non-coherent single-symbol extraction, `G` = 3.16 pp, `S_all` = 4.27 pp. That work is sound and is
@@ -151,10 +248,13 @@ return "ROW 3"
 - **ROW 1 ⇒ crowding is a separate, first-order term in the D-001 deficit**, distinct from
   demodulation capability and not explained by signal quality. Consequences: (a) every recovery
   figure in the programme must be understood as *conditional on the density of the corpus it was
-  measured on* — including the headline ≈57.8%; (b) **the time-bounded candidate/pass budget
-  earns its own pre-registration**, with the D-009/RC4 nulls of §0.2 confronted head-on as part of
-  the design; (c) 🛑 **no `src/` change and no parameter recommendation may be drawn from this arm**
-  — it measures a phenomenon, it does not size a treatment (HK-011).
+  measured on* — including the headline ≈57.8%; (b) 🔴 **REPLACED BY AMENDMENT 1 (A1.3)** —
+  ~~the time-bounded candidate/pass budget earns its own pre-registration, with the D-009/RC4
+  nulls of §0.2 confronted head-on~~ 🛑 **the candidate budget is CLOSED TWICE (RC2) and bounded
+  at +0.93% (C.1); do NOT re-propose it.** The replacement consequence is a **single joint
+  sub-question with X1** on signal degradation in crowded cycles — see A1.3, and A1.4's S.1 bar;
+  (c) 🛑 **no `src/` change and no parameter recommendation may be drawn from this arm** — it
+  measures a phenomenon, it does not size a treatment (HK-011).
 - **ROW 2 ⇒ the floor is unremarkable once SNR is matched**, recovery-vs-density is composition,
   and 🛑 the "denser cycles truncate" candidate mechanism is **dead** and may not be re-proposed
   without new evidence.
