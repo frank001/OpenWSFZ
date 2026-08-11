@@ -4,6 +4,9 @@
 direction.
 **Severity:** Moderate, **product-facing usability**. The Product Owner reports the decode panel's
 update behaviour is affecting operating.
+**Disposition:** 🛑 **FILED FOR THE RECORD — no work authorised, nothing being pursued** (Product
+Owner, 2026-08-11). Tracked as **GitHub issue #122**. Operator performance is explicitly **out of scope**; the
+subject is the application's own latency contribution.
 **Status:** 🔴 **REAL AND OPERATIONALLY BINDING.** Not a perception problem — the Product Owner
 confirmed 2026-08-11 that it is **the wait itself**, because the decode must be actionable in time
 to engage a QSO. §3a re-scores the measured latency against that deadline and **partially reverses
@@ -128,19 +131,23 @@ timer anyone forgot. Every component measured is behaving as designed. This is a
 — the sum of honest costs against a deadline nobody wrote down — and it will not be fixed by
 finding a culprit, because there isn't one.
 
-**Three terms make up the budget. Only one is measured.**
+**The budget has three terms. Only the application's own terms are in scope.**
 
 | term | value | status |
 |---|---|---|
-| decode + framing | ~0.56 s (p50) | ✅ measured, n = 84 432 |
+| decode + framing | ~0.56 s (p50) | ✅ measured, n = 84 432 — **the application's own cost** |
 | delivery + render | unknown | ❌ never measured; bounded-small by inspection (§2), not by data |
-| human scan → decision → click → PTT up | unknown | ❌ never measured; **plausibly the largest term** |
+| ~~operator scan → decision → click~~ | — | 🛑 **OUT OF SCOPE — Product Owner ruling, 2026-08-11** |
 
-🔴 **The largest term is probably the human one, and it is the only one nobody has proposed
-touching.** Shrinking it — a keyboard-driven engage, CQ and workable stations sorted or highlighted
-to the top, a pre-targeted default — costs no native work, carries **no recall risk**, and is the
-one lever on this list that cannot make D-001 worse. That is an architectural recommendation, not a
-measurement, and it is offered as such.
+🛑 **Product Owner ruling, 2026-08-11: operator performance is not a subject of this defect and is
+not to be measured.** The application is what is owned; how quickly a human reads a panel is not
+the application's variable. An earlier Architect recommendation to attack the human term is
+**withdrawn** — it is recorded here only so nobody re-derives it and thinks it is live.
+
+**What survives that ruling, and it is the substance of the defect:** the application spends
+**~0.56 s of a 2.36 s deadline** it does not control and cannot extend. That number is the
+application's own, it is measured, and it is the correct thing to own regardless of what the
+operator does with the remainder.
 
 ## 4. What is therefore still open
 
@@ -176,13 +183,13 @@ not let a gate here turn on one.
 
 ## 6. The candidate levers, and what each one costs
 
-🔴 **None of these is authorised by this document.** Listed so the Product Owner can choose, with
-the honest price of each. Ordered by risk, cheapest and safest first.
+🛑 **NONE OF THESE IS AUTHORISED, AND NONE IS BEING PURSUED — Product Owner ruling, 2026-08-11.**
+This defect is filed for the record. The levers are documented so that whoever picks it up later
+inherits the analysis and the prices instead of rediscovering them. **Nobody should read this
+section as a plan.**
 
-**C — shrink the human term.** Keyboard-driven engage, CQ/workable stations sorted or highlighted
-to the top, a pre-targeted default row. Web UI only: no native work, no rebuilt DLL, **no recall
-risk, no D-001 interaction**. Attacks what is plausibly the largest term in the §3a budget.
-✅ **My recommendation for first move**, on value-per-risk.
+**~~C — shrink the human term.~~** 🛑 **WITHDRAWN — out of scope per §3a.** Operator performance is
+not this defect's subject.
 
 **D — measure the delivery + render leg.** Client-side `performance.now()` at WebSocket
 `onmessage` and after render, carrying the cycle timestamp already in the payload. Cheap, no
