@@ -4,8 +4,10 @@
 direction.
 **Severity:** Moderate, **product-facing usability**. The Product Owner reports the decode panel's
 update behaviour is affecting operating.
-**Status:** 🔴 **LOCUS NOT ESTABLISHED.** The obvious suspect has been measured and **ruled out**.
-This document exists to stop a fix being built against the wrong cause.
+**Status:** 🔴 **REAL AND OPERATIONALLY BINDING.** Not a perception problem — the Product Owner
+confirmed 2026-08-11 that it is **the wait itself**, because the decode must be actionable in time
+to engage a QSO. §3a re-scores the measured latency against that deadline and **partially reverses
+the §3 verdict below.** Read §3a before acting on §3.
 **No fix proposed here.** Per HK-011/HK-015 the correction routes through QA characterisation and
 then a Developer session; the `dev-tasks/*.md` is QA's to author, not this document.
 
@@ -52,12 +54,23 @@ across every daemon log in `logs/openswfz-*.log`:
 
 | metric | value |
 |---|---:|
-| n (cycles) | **3 972** |
-| min | 9 ms |
-| p50 | **463 ms** |
-| p90 | 581 ms |
-| p99 | 642 ms |
-| max | **934 ms** |
+| n (cycles) | **84 432** |
+| min | 8 ms |
+| p50 | **518 ms** |
+| p90 | 615 ms |
+| p95 | 637 ms |
+| p99 | **685 ms** |
+| p99.9 | 736 ms |
+| max | **1 367 ms** |
+| cycles > 1 s | 8 (**0.01%**) |
+| cycles > 2 s | **0** |
+
+⚠️ **A 6.5 s outlier scare was chased down and dismissed** — `grep` over all of `artefacts/`
+initially surfaced decodes of 6 202–6 515 ms. Every one traces to
+`c4_min_score/k*_cap2000/.../decode.log`: the **candidate-budget sweep at cap 2000**, an offline
+replay diagnostic that never shipped (production is 140/200, and that family is closed twice).
+Live daemon logs only — the 61 `openswfz-*.log` files — give the table above. The distinction
+matters: pooling replay harnesses with live operation would have inflated the headline ~10×.
 
 End-to-end on the server, worked from adjacent log timestamps (2026-08-07 run, representative):
 
@@ -75,10 +88,59 @@ symptom most obviously suggests, and the one I was on the point of speccing — 
 quarter of a second and would cost a native API change, a rebuilt `libft8.dll`, and a Developer
 session under HK-011. **It is the wrong lever and it should not be built.**
 
-⚠️ Caveats on the numbers, stated so they are not over-read: the 3 972 cycles pool several runs
-across 2026-08-03 → 2026-08-07 on mixed bands and are not a controlled sample; `elapsed` is the
-managed-side stopwatch, covering PCM normalisation plus the native call, not WebSocket delivery or
-render; and all of it was captured with debug logging enabled.
+⚠️ Caveats on the numbers, stated so they are not over-read: the 84 432 cycles pool many live runs
+across months and bands and are not a controlled sample; `elapsed` is the managed-side stopwatch,
+covering PCM normalisation plus the native call, **not** WebSocket delivery or render.
+
+## 3a. Re-scored against the operating deadline — this PARTIALLY REVERSES §3
+
+**Product Owner, 2026-08-11: it is the wait, not the absence of feedback.** The operator needs the
+decode in hand early enough to engage a QSO. That supplies the deadline §3 was missing, and §3's
+dismissal of a ~250 ms saving was made against an implicit "seconds matter" scale that is **wrong
+for this application**. Corrected here.
+
+**The deadline is physics, and it is already in our own code.** An FT8 transmission occupies
+**12.64 s of the 15 s slot**, leaving a **~2.36 s guard interval** (`CycleFramer.cs:304`,
+`main.js:1018-1023`). To answer a station heard in cycle N, the operator's own transmission must
+begin within that guard, i.e. by **t = 17.36 s** where cycle N started at t = 0.
+
+| event | time | source |
+|---|---:|---|
+| cycle N audio window closes | 15.000 s | 180 000 samples @ 12 kHz |
+| decode begins | ~15.042 s | measured framing overhead, 42 ms |
+| **decodes in hand (p50)** | **~15.560 s** | p50 518 ms |
+| decodes in hand (p99) | ~15.727 s | p99 685 ms |
+| decodes in hand (worst observed) | ~16.409 s | max 1 367 ms |
+| 🔴 **TX must have started** | **17.360 s** | 15 + 2.36 guard |
+
+**The operator's entire window to read, decide, and act is ~1.80 s at p50** — and 0.95 s in the
+worst observed cycle. Into that must fit: visual scan of a panel that just repainted wholesale, the
+decision itself, targeting and clicking the row, and the daemon's own PTT/keying startup.
+
+🔴 **Re-scored, the machine is consuming ~24% of the actionable window at p50 and up to ~60% at the
+observed worst case.** That is not the "negligible quarter-second" §3 called it. The decoder is
+still not *slow* in absolute terms — 518 ms to demodulate a 15 s buffer is respectable — but it is
+spending a quarter of a hard budget, and **against a 2.36 s deadline a 250 ms saving is ~14% of the
+operator's remaining time, which is material.**
+
+**What §3 still establishes, and it stands:** the latency is not a bug, a stall, a queue, or a
+timer anyone forgot. Every component measured is behaving as designed. This is a **budget** problem
+— the sum of honest costs against a deadline nobody wrote down — and it will not be fixed by
+finding a culprit, because there isn't one.
+
+**Three terms make up the budget. Only one is measured.**
+
+| term | value | status |
+|---|---|---|
+| decode + framing | ~0.56 s (p50) | ✅ measured, n = 84 432 |
+| delivery + render | unknown | ❌ never measured; bounded-small by inspection (§2), not by data |
+| human scan → decision → click → PTT up | unknown | ❌ never measured; **plausibly the largest term** |
+
+🔴 **The largest term is probably the human one, and it is the only one nobody has proposed
+touching.** Shrinking it — a keyboard-driven engage, CQ and workable stations sorted or highlighted
+to the top, a pre-targeted default — costs no native work, carries **no recall risk**, and is the
+one lever on this list that cannot make D-001 worse. That is an architectural recommendation, not a
+measurement, and it is offered as such.
 
 ## 4. What is therefore still open
 
@@ -89,13 +151,12 @@ and listed in no particular order:
 
 1. **WebSocket delivery and client render time** — never instrumented end-to-end. Row insertion
    cost at 20–27 decodes/cycle against a growing table is plausible but unquantified.
-2. **Lump versus trickle is a perceptual difference, not only a latency one.** A panel that fills
-   in one frame at 0.7 s may *feel* slower than one that starts filling at 1.5 s and finishes at
-   4 s, because the second gives continuous feedback. If this is the real complaint then the fix is
-   a progress affordance, not speed — and that is a cheap change, not a native one.
+2. ~~**Lump versus trickle is a perceptual difference.**~~ 🛑 **ANSWERED AND CLOSED 2026-08-11 —
+   the Product Owner confirms it is the wait, not the feedback.** A progress affordance alone does
+   **not** address this defect. Do not propose one as the fix.
 3. **The comparison baseline may not be like-for-like.** WSJT-X's own decode is slower than ours in
-   absolute terms; what it has is progressive paint. Worth confirming against the operator's
-   actual side-by-side before anything is built.
+   absolute terms; what it has is progressive paint. Still worth confirming, but §3a means the
+   deadline — not the comparison — is what governs.
 4. **Something after the render call** — browser paint, layout thrash, or filter re-evaluation
    (`reapplyDecodeFilterToRenderedRows`) — unexamined.
 
@@ -113,13 +174,43 @@ as acceptable to the operator?" is a Product Owner question and should be answer
 Note also that my own directional predictions are the weakest class in my calibration record — do
 not let a gate here turn on one.
 
-## 6. Explicitly not proposed
+## 6. The candidate levers, and what each one costs
 
-- **A native per-pass callback / early-results flush.** Ruled out by §3 on measured evidence.
-- **Any change to the two-pass structure or to `suppress_candidate_tiles`.** Unrelated to this
-  defect; the pass count in particular has been swept and reverted before (three passes: −4.30 pp).
-- **Any `src/` edit at all from this session.** Architect writes for QA (HK-015); QA characterises
-  and authors the dev-task; the Captain signs off (HK-011).
+🔴 **None of these is authorised by this document.** Listed so the Product Owner can choose, with
+the honest price of each. Ordered by risk, cheapest and safest first.
+
+**C — shrink the human term.** Keyboard-driven engage, CQ/workable stations sorted or highlighted
+to the top, a pre-targeted default row. Web UI only: no native work, no rebuilt DLL, **no recall
+risk, no D-001 interaction**. Attacks what is plausibly the largest term in the §3a budget.
+✅ **My recommendation for first move**, on value-per-risk.
+
+**D — measure the delivery + render leg.** Client-side `performance.now()` at WebSocket
+`onmessage` and after render, carrying the cycle timestamp already in the payload. Cheap, no
+capture run, and it closes the one unmeasured machine term. Do this alongside C.
+
+**B — emit pass-0 decodes as soon as pass 0 finishes.** Buys an unknown share of the ~518 ms.
+🔴 **Measure the per-pass split before costing this** — pass 1 searches a wider candidate net
+(200 vs 140) so it may well be the larger half, and if so B is worth materially more than the
+~250 ms §3 assumed. The measurement is cheap (a per-pass stopwatch in the shim); the *change* is a
+native API addition ⇒ rebuilt `libft8.dll`, new `FT8_SHIM_VERSION` (first free integer is 20260038,
+and G2 has claimed it — check before assigning), Developer session under HK-011.
+
+**A — decode before the cycle closes.** The largest lever by far: the signal occupies 12.64 s of
+the 15 s window, so in principle the buffer could be handed to the decoder ~1–2 s early and
+decodes could land **before** the cycle boundary, handing the operator the full guard interval plus
+margin. 🛑 **But the guard is exactly what absorbs DT spread and capture-clock drift, and this
+project has no zero-drift capture chain on any corpus.** Cutting into it trades directly against
+recall for late-DT stations — i.e. **against D-001, the programme's central open problem.**
+🔴 **This earns its own pre-registration with recall as a primary metric, not a side observation.**
+Do not prototype it first and measure after.
+
+## 6a. Explicitly still not proposed
+
+- **A progress affordance as *the* fix** — §4.2, closed by the Product Owner.
+- **Any change to `suppress_candidate_tiles` or the pass count** for latency reasons. Three passes
+  was swept and reverted (−4.30 pp); it is not a latency lever.
+- **Any `src/` edit from this session.** Architect writes for QA (HK-015); QA characterises and
+  authors the dev-task; the Captain signs off (HK-011).
 
 ## 7. Adjacent observation, recorded but NOT part of this defect
 
