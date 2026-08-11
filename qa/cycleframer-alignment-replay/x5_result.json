@@ -1,0 +1,53 @@
+{
+  "spec": "2026-08-11-1723-architect-to-qa-spec-x5-clustering-dependence-structure.md",
+  "row0a": {
+    "ref": 69222,
+    "ref_expected": 69222,
+    "ref_pass": true,
+    "e_sep": 46.038525396543506,
+    "e_sep_3dp": 46.039,
+    "e_sep_expected_3dp": 46.039,
+    "e_sep_pass": true,
+    "pass": true
+  },
+  "row0c": {
+    "checks": {
+      "row0b_null_mean_3dp": {
+        "value": -0.248,
+        "expected": -0.248,
+        "pass": true
+      },
+      "row0c_n_cycle_gap_2dp": {
+        "value": 0.0,
+        "expected": 0.0,
+        "pass": true
+      },
+      "row0d_n_distinct_sep": {
+        "value": 540,
+        "expected": 540,
+        "pass": true
+      },
+      "row0e_n_qualifying_strata": {
+        "value": 5,
+        "expected": 5,
+        "pass": true
+      },
+      "row0g_n_band_edge": {
+        "value": 868,
+        "expected": 868,
+        "pass": true
+      }
+    },
+    "pass": true
+  },
+  "row0d": {
+    "n_intersection_clusters": 67995,
+    "mean_decodes_per_cluster": 1.005279799985293,
+    "min_decodes_per_cluster": 1,
+    "max_decodes_per_cluster": 3,
+    "n_singleton_clusters": 67637,
+    "bar": 1.05,
+    "pass": false
+  },
+  "final_row": "ROW 0d -- STOP FOR RE-REGISTRATION"
+}
