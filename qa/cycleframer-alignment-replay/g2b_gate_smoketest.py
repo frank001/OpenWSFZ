@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
-"""Smoke test for g2b_gate.py revision 4 (2026-08-12, third Architect review).
+"""Smoke test for g2b_gate.py revision 5 (2026-08-12, fourth Architect review).
 
-Re-run required by the Architect's third review
-(`2026-08-12-2015-architect-to-qa-g2b-review-3-and-wav-dir-ruling.md`), which
-found three blocking (C1/C2/C5) plus one serious (C3, producer) and one
-moderate (C4, producer) defects. C3/C4 land in g2_verification_replay.py, on
-its own branch, and are covered by that file's own tests, not here. This
-revision:
+Re-run required by the Architect's fourth review
+(`2026-08-12-2052-architect-to-qa-g2b-review-4.md`), which found two blocking
+(D1, D2), one serious (D3), and two minor (D4, D5) findings. D2/D3 need a
+producer-side change and a new aggregator, and D4/D5 are producer/pre-reg
+fixes -- none of them land in this file. D1 does:
+
+  D1  --burned-wav-dir matching ZERO legs was silent -- indistinguishable
+      from the correct, common case (an un-burned corpus). Fixed:
+      --burned-corpus {yes,no} is now REQUIRED, and a mismatch between the
+      declaration and the legs' actual shared wav_dir is ROW 0 in EITHER
+      direction. New coverage below: declared-burned-but-isn't,
+      declared-unburned-but-is, and the "held-out floor applied to N leg(s)"
+      line printed unconditionally.
+
+Revision 4 (2026-08-12, third Architect review) found three blocking
+(C1/C2/C5) plus one serious (C3, producer) and one moderate (C4, producer)
+defects. C3/C4 land in g2_verification_replay.py, on its own branch, and are
+covered by that file's own tests, not here. That revision:
 
   - Drops --is-widest-rung from every gate invocation (C5: the flag and the
     combination rule it drove are gone from g2b_gate.py).
@@ -203,7 +215,14 @@ def make_legs(n_cycles, n_base, g_low, g_high, g_else, n_lost,
 
 def run_gate(tmp, base, wide, rep, f_min, f_max, manifest,
              g_new_bar, g_high_bar, churn_net_bar, churn_gross_bar,
-             held_out_from="0", burned_wav_dir="UNBURNED_WAV_DIR_SENTINEL"):
+             held_out_from="0", burned_wav_dir="UNBURNED_WAV_DIR_SENTINEL",
+             burned_corpus="no"):
+    """burned_corpus (D1): the operator's required declaration of whether the
+    legs ARE drawn from burned_wav_dir. Defaults to "no", which matches every
+    pre-D1 fixture in this file (none of them use the sentinel/default
+    wav_dir as their burned dir), so existing fixtures need no change. Callers
+    exercising the burned-corpus path pass "yes" explicitly.
+    """
     bpath, wpath, rpath = tmp / "base.json", tmp / "wide.json", tmp / "rep.json"
     bpath.write_text(json.dumps(base))
     wpath.write_text(json.dumps(wide))
@@ -216,6 +235,7 @@ def run_gate(tmp, base, wide, rep, f_min, f_max, manifest,
            "--baseline", str(bpath), "--widened", str(wpath), "--repeat", str(rpath),
            "--f-min", str(f_min), "--f-max", str(f_max),
            "--manifest", str(mpath),
+           "--burned-corpus", burned_corpus,
            "--burned-wav-dir", burned_wav_dir,
            "--held-out-from", held_out_from,
            "--g-new-min-rate", str(g_new_bar),
@@ -296,12 +316,16 @@ def main():
         out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
                         held_out_from=REAL_HELD_OUT_FLOOR_08_08,
-                        burned_wav_dir=REAL_WAV_DIR_08_08)
+                        burned_wav_dir=REAL_WAV_DIR_08_08, burned_corpus="yes")
         check("ROW0 held-out violation, burned corpus, REAL ts (B2)",
               "ROW 0 -- NO READ" in out and "burned leg must not be read" in out, out)
+        check("D1: held-out floor applied to all 3 legs (declared burned, is burned)",
+              "held-out floor applied to 3 leg(s)" in out, out)
 
         # ── ROW 1 -- B2: an UNRELATED corpus using REAL ts that would trip a
         # naive global lexical floor is NOT blocked -- the exact defect fixed.
+        # burned_corpus defaults to "no" here, correctly: these legs are NOT
+        # drawn from --burned-wav-dir.
         base, wide, rep = make_legs(5, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
                                      wav_dir=REAL_WAV_DIR_08_03,
                                      ts_list=REAL_TS_08_03_EARLY)
@@ -313,6 +337,42 @@ def main():
                         burned_wav_dir=REAL_WAV_DIR_08_08)
         check("ROW1 unrelated corpus NOT blocked by unrelated floor (B2)",
               "ROW 1 -- ELIGIBLE" in out and "burned leg must not be read" not in out, out)
+        check("D1: held-out floor applied to 0 legs (correctly un-burned)",
+              "held-out floor applied to 0 leg(s)" in out, out)
+
+        # ── ROW 0 -- D1: operator declares --burned-corpus yes, but the legs
+        # are NOT drawn from --burned-wav-dir (a typo/stale-path stand-in).
+        # Pre-D1 this was silent: every leg `continue`d, "P2 legs ok" printed,
+        # and the held-out floor was never applied. Now it is ROW 0.
+        base, wide, rep = make_legs(5, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     wav_dir=REAL_WAV_DIR_08_03,
+                                     ts_list=REAL_TS_08_03_EARLY)
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
+                        held_out_from=REAL_HELD_OUT_FLOOR_08_08,
+                        burned_wav_dir=REAL_WAV_DIR_08_08, burned_corpus="yes")
+        check("ROW0 D1: declared burned but legs are not -- was silent, now ROW 0",
+              "ROW 0 -- NO READ" in out
+              and "--burned-corpus yes was declared, but the legs are drawn "
+                  "from" in out
+              and "the held-out floor was never applied" in out, out)
+        check("D1: floor NOT applied when the declaration itself failed",
+              "held-out floor applied to 0 leg(s)" in out, out)
+
+        # ── ROW 0 -- D1: operator declares --burned-corpus no, but the legs
+        # ARE drawn from --burned-wav-dir -- the operator handed the gate the
+        # burned corpus while declaring it unburned. Also ROW 0.
+        base, wide, rep = make_legs(5, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     wav_dir=REAL_WAV_DIR_08_08,
+                                     ts_list=REAL_TS_08_08_EARLY)
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
+                        held_out_from=REAL_HELD_OUT_FLOOR_08_08,
+                        burned_wav_dir=REAL_WAV_DIR_08_08, burned_corpus="no")
+        check("ROW0 D1: declared unburned but legs are burned",
+              "ROW 0 -- NO READ" in out
+              and "--burned-corpus no was declared, but the legs are drawn "
+                  "from the burned corpus" in out, out)
 
         # ── ROW 0 -- C2 fail-closed: a leg with no provenance fields at all ──
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,

@@ -98,11 +98,34 @@ g2_verification_replay.py, on its own branch, not here. This file:
       invoked once per rung, cannot itself perform that cross-rung
       adjudication -- it prints the fact needed for it and stops.
 
+REVISION 5 (2026-08-12, fourth Architect review, 20:52Z) -- against
+`2026-08-12-2052-architect-to-qa-g2b-review-4.md`'s two blocking (D1, D2)
+findings, one serious (D3), and two minor (D4, D5). D2/D3/D4/D5 are addressed
+elsewhere (D2/D3 need a producer-side change and a new aggregator; D4 is a
+producer fix; D5 is a pre-registration comment). D1 lands here:
+
+  D1  --burned-wav-dir matching ZERO legs was silent and indistinguishable
+      from the correct, common case (an un-burned corpus, where zero legs
+      SHOULD match) -- a typo, a stale path, or a different drive mapping
+      made every leg's comparison `continue`, "P2 legs ok" printed, and the
+      burned run's held-out floor was never applied. Three rounds of one
+      shape: B2 protected nothing, C1 was B2's fix protecting nothing again,
+      D1 is C1's fix protecting nothing a third time. Fixed: --burned-corpus
+      {yes,no} is now REQUIRED. The operator pre-declares which case this run
+      is; a mismatch between the declaration and the legs' actual shared
+      wav_dir (which C2(b) already forces to be identical across all three
+      legs, when provenance is otherwise consistent) is ROW 0 in EITHER
+      direction, never a silent skip. The gate also now always prints
+      "held-out floor applied to N leg(s)", so the artefact records that the
+      floor ran rather than leaving its absence inferable only from an
+      absent complaint.
+
 Usage:
     python g2b_gate.py --band 20m --f-min 140 --f-max 3030 \
         --baseline base_20m.json --widened wide_20m_f140.json \
         --repeat  base_20m_repeat.json \
         --manifest g2b_dll_manifest.json \
+        --burned-corpus yes \
         --burned-wav-dir artefacts/20260808_live_run_0016-8080/wsjt-x/wav \
         --held-out-from 260808_014215 \
         --g-new-min-rate 0.0100 --g-high-min-rate 0.0050 \
@@ -324,6 +347,24 @@ def main():
     # (normcase+realpath) before any comparison -- a bare string `!=` is not
     # an identity check (relative vs absolute, `/` vs `\\`, a trailing
     # separator, or case all defeat it silently).
+    # D1 fix (Architect review 4, 2026-08-12 20:52Z): the operator now
+    # pre-declares whether these three legs ARE the burned corpus, rather
+    # than the gate inferring it from whether any leg happens to match
+    # --burned-wav-dir. Three rounds of the same shape (B2 -> C1 -> D1): each
+    # correction fixed the VALUE and left the SILENCE that made a wrong value
+    # undetectable -- a typo or a stale path made every leg's comparison
+    # `continue`, "P2 legs ok" printed, and the burned run's held-out floor
+    # was never applied, indistinguishable from the correct, common case (an
+    # un-burned corpus, where zero legs SHOULD match). A mismatch between the
+    # declaration and the legs' actual shared wav_dir is now ROW 0 in EITHER
+    # direction, never a silent skip.
+    ap.add_argument("--burned-corpus", required=True, choices=("yes", "no"),
+                     help="does --burned-wav-dir name the corpus these three "
+                          "legs are actually drawn from? 'yes' requires the "
+                          "legs' shared wav_dir to equal --burned-wav-dir and "
+                          "applies the held-out floor to all three; 'no' "
+                          "requires it NOT to equal it. Either mismatch is "
+                          "ROW 0, not a silent skip (D1)")
     ap.add_argument("--burned-wav-dir", required=True,
                      help="the WAV directory the burned leg was drawn from, "
                           "e.g. artefacts/20260808_live_run_0016-8080/"
@@ -442,24 +483,55 @@ def main():
         p2.append(f"legs do not share one corpus/slice "
                    f"(wav_dir, window, start_cycle) -- {detail}")
 
-    # B2: the held-out floor applies ONLY to legs drawn from --burned-wav-dir
-    # (RULED 2026-08-12: wsjt-x/wav for the 08-08 corpus, C1), compared
-    # normalised on both sides.
+    # D1 fix: --burned-corpus is the operator's required, pre-declared answer
+    # for whether these three legs (which, by the time we reach here without
+    # a corpus/slice-mismatch p2 entry, share ONE normalised wav_dir -- C2(b)
+    # already asserts that) are drawn from the burned corpus at
+    # --burned-wav-dir. The OLD per-leg `if wav_dir != burned_dir: continue`
+    # made a --burned-wav-dir typo silent: every leg `continue`d, "P2 legs
+    # ok" printed, and the floor was never applied -- indistinguishable from
+    # the correct, common case where zero legs SHOULD match (an un-burned
+    # corpus). Declaring the expected answer up front and checking it against
+    # what the legs actually are turns that silence into ROW 0, in EITHER
+    # direction: declared burned but the legs are not, or declared un-burned
+    # but they are.
     burned_wav_dir_norm = os.path.normcase(os.path.realpath(args.burned_wav_dir))
-    for role, cycles in (("baseline", cycles_base), ("widened", cycles_wide),
-                         ("repeat", cycles_rep)):
-        if role not in provenance:
-            continue  # already flagged above (missing wav_dir/window/start_cycle)
-        leg_wav_dir_norm, _window, _start_cycle = provenance[role]
-        if leg_wav_dir_norm != burned_wav_dir_norm or not cycles:
-            continue
-        leg_min = min(cycles)
-        if leg_min <= args.held_out_from:
-            p2.append(f"{role} leg is drawn from the burned run "
-                       f"({args.burned_wav_dir}) and its earliest cycle "
-                       f"{leg_min} does not exceed the held-out floor "
-                       f"{args.held_out_from} -- the burned leg must not be "
-                       f"read")
+    legs_share_one_corpus = (len(provenance) == 3
+                              and len(set(provenance.values())) == 1)
+    n_floor_applied = 0
+    if legs_share_one_corpus:
+        legs_wav_dir_norm = next(iter(provenance.values()))[0]
+        legs_are_burned = legs_wav_dir_norm == burned_wav_dir_norm
+        if args.burned_corpus == "yes" and not legs_are_burned:
+            p2.append(f"--burned-corpus yes was declared, but the legs are "
+                       f"drawn from {legs_wav_dir_norm!r}, not "
+                       f"{burned_wav_dir_norm!r} ({args.burned_wav_dir}) -- "
+                       f"the held-out floor was never applied")
+        elif args.burned_corpus == "no" and legs_are_burned:
+            p2.append(f"--burned-corpus no was declared, but the legs are "
+                       f"drawn from the burned corpus {burned_wav_dir_norm!r} "
+                       f"({args.burned_wav_dir}) -- the operator declared an "
+                       f"unburned corpus and handed the gate the burned one")
+        elif args.burned_corpus == "yes":  # and legs_are_burned
+            for role, cycles in (("baseline", cycles_base),
+                                  ("widened", cycles_wide),
+                                  ("repeat", cycles_rep)):
+                if not cycles:
+                    continue
+                n_floor_applied += 1
+                leg_min = min(cycles)
+                if leg_min <= args.held_out_from:
+                    p2.append(f"{role} leg is drawn from the burned run "
+                               f"({args.burned_wav_dir}) and its earliest "
+                               f"cycle {leg_min} does not exceed the "
+                               f"held-out floor {args.held_out_from} -- the "
+                               f"burned leg must not be read")
+        # else: --burned-corpus no, legs genuinely not burned -- correct,
+        # common case; the floor does not apply and nothing is checked.
+    # else: provenance is incomplete or the legs disagree on wav_dir/window/
+    # start_cycle -- already flagged above and ROW 0 fires regardless; the
+    # burned-corpus declaration cannot be evaluated against an unconfirmed
+    # corpus, so it is not (n_floor_applied stays 0, printed honestly below).
 
     # ── P3 (VALIDITY): is churn identified at all? ───────────────────────────
     # B5: AV parity is not assumed -- av_all (computed below, ahead of P3 too)
@@ -471,6 +543,10 @@ def main():
     p3_fired = rep_churn_abs != 0
 
     print(f"  P2 legs    {'FAIL: ' + '; '.join(p2) if p2 else 'ok'}")
+    # D1 fix: printed unconditionally, pass or fail, so the artefact records
+    # that the floor ran (or didn't) rather than leaving it inferable only
+    # from the absence of a complaint.
+    print(f"  held-out floor applied to {n_floor_applied} leg(s)")
     print(f"  P3 determinism  baseline-vs-repeat physical differences="
           f"{rep_churn_abs} -> {'FAIL -- churn NOT identified' if p3_fired else 'ok'}")
 
