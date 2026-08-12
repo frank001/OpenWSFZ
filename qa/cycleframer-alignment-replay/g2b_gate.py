@@ -100,9 +100,9 @@ g2_verification_replay.py, on its own branch, not here. This file:
 
 REVISION 5 (2026-08-12, fourth Architect review, 20:52Z) -- against
 `2026-08-12-2052-architect-to-qa-g2b-review-4.md`'s two blocking (D1, D2)
-findings, one serious (D3), and two minor (D4, D5). D3/D4 need a producer-
-side change and D5 a pre-registration comment; none of those three land in
-this file. D1 and D2 do:
+findings, one serious (D3), and two minor (D4, D5). D4 is a producer-only
+fix and D5 a pre-registration comment; neither lands in this file. D1, D2
+and D3's gate half do:
 
   D1  --burned-wav-dir matching ZERO legs was silent and indistinguishable
       from the correct, common case (an un-burned corpus, where zero legs
@@ -136,6 +136,17 @@ this file. D1 and D2 do:
       verdicts, any ROW_0/ROW_0d, or two verdicts sharing an f_min. It can
       only ever CLOSE the family -- it never recommends a rung; that choice
       stays the Captain's (pre-reg §4/§8, unchanged).
+  D3  The `assert len(res) < P.MAX_RESULTS` the Architect ordered last round
+      contradicted the C3 fix in the SAME producer file, on the SAME
+      hazard: no checkpointing exists, so a mid-run crash discards every
+      completed cycle -- exactly what C3 rejected, and `assert` is stripped
+      under `python -O` besides. Fixed in the producer (own commit, own
+      branch): a suspect cycle is now marked `"truncated": True` and the leg
+      continues. This file's half: any leg carrying even one truncated
+      cycle is now a P2 failure -- ROW 0, same fail-closed guarantee, no
+      lost work. `.get("truncated")` throughout, so a leg produced by a
+      pre-D3 g2_verification_replay.py (which never wrote the field) is
+      read as "not flagged truncated", not a KeyError.
 
 Usage:
     python g2b_gate.py --band 20m --f-min 140 --f-max 3030 \
@@ -210,6 +221,26 @@ def av_cycles(leg):
     contains SEH specifically because this happens; it is not hypothetical.
     """
     return {f["ts"] for f in leg["per_file"] if f.get("av")}
+
+
+def truncated_cycles(leg):
+    """{ts, ...} -- cycles the producer marked `truncated` (D3): the decoder
+    returned >= MAX_RESULTS results, so truncation cannot be ruled out for
+    that cycle. Unlike av_cycles(), these are NOT silently excluded from a
+    rate and the leg is NOT allowed to proceed missing them -- a truncated
+    cycle's decode set is exactly the kind of thing that would manufacture a
+    spurious G_new gain (if it is the widened leg, the one most likely to
+    grow) or hide a real loss, so P2 ROW 0s the WHOLE LEG. This is the gate
+    half of the fix the Architect's fourth review ordered: the producer no
+    longer crashes on this condition (a bare `assert` would have, contra
+    C3's own "clamp and warn, do not crash" ruling on the identical hazard)
+    -- it records the fact instead, and this is where that fact is read.
+    .get() rather than a bare key lookup: a leg produced by
+    g2_verification_replay.py older than the D3 fix carries no `truncated`
+    field at all, and the honest reading of "we don't know" is "not flagged
+    truncated", not a KeyError that would ROW-0 every pre-D3 fixture.
+    """
+    return {f["ts"] for f in leg["per_file"] if f.get("truncated")}
 
 
 def in_new_band_low(freq, f_min):
@@ -506,6 +537,21 @@ def main():
                                   manifest, args.manifest, "widened")
     p2 += check_manifest_binding(base["dll_sha256"], OLD_F_MIN, OLD_F_MAX,
                                   manifest, args.manifest, "baseline")
+
+    # D3 fix (Architect review 4): the producer no longer crashes when a
+    # cycle's decode count is indistinguishable from truncated -- it RECORDS
+    # the fact (`truncated`) and continues, so a suspect cycle no longer
+    # costs the whole leg's worth of completed work. This is where the gate
+    # ADJUDICATES that record: any leg carrying even one truncated cycle
+    # fails closed here, same guarantee the old `assert` was trying (and
+    # failing, by crashing) to provide, with no lost work either way.
+    for role, leg in (("baseline", base), ("widened", wide), ("repeat", rep)):
+        trunc = truncated_cycles(leg)
+        if trunc:
+            p2.append(f"{role} leg has {len(trunc)} truncated cycle(s) "
+                       f"(decoder returned >= MAX_RESULTS results; "
+                       f"truncation cannot be ruled out) -- earliest "
+                       f"{min(trunc)}")
 
     # C2 fix, two halves.
     #

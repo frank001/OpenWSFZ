@@ -166,7 +166,9 @@ def make_legs(n_cycles, n_base, g_low, g_high, g_else, n_lost,
               sha_rep=None, repeat_matches=True, first_ts_num=1000,
               wav_dir="SMOKETEST_WAV_DIR", window=("SMOKETEST_LO", "SMOKETEST_HI"),
               start_cycle=1, ts_list=None,
-              av_cycle_idx=None, av_leg="wide", omit_provenance=False):
+              av_cycle_idx=None, av_leg="wide", omit_provenance=False,
+              truncated_cycle_idx=None, truncated_leg="wide",
+              omit_truncated_field=False):
     """wav_dir/window/start_cycle are recorded on every leg (C2 needs all
     three present, and IDENTICAL across all three legs, to scope the held-out
     floor and to bind the legs to one corpus). ts_list, if given, overrides
@@ -177,6 +179,16 @@ def make_legs(n_cycles, n_base, g_low, g_high, g_else, n_lost,
     omit_provenance drops wav_dir/window/start_cycle entirely, for the C2
     fail-closed regression check (simulating a producer older than the B4
     extraction, which recorded none of the three).
+
+    truncated_cycle_idx/truncated_leg (D3), if given, marks that cycle
+    "truncated": True on the named leg -- decodes are left untouched (unlike
+    av, a truncated cycle's own decodes are exactly what is in question, but
+    the fixture does not need to simulate a real MAX_RESULTS-sized decode
+    list to exercise the gate's P2 check, which only reads the flag).
+    omit_truncated_field drops the "truncated" key entirely from every
+    per_file entry, simulating a leg produced by a pre-D3
+    g2_verification_replay.py, for the .get("truncated") fail-open-safely
+    regression check.
     """
     sha_rep = sha_rep or sha_base
     base_files, wide_files, rep_files = [], [], []
@@ -194,6 +206,12 @@ def make_legs(n_cycles, n_base, g_low, g_high, g_else, n_lost,
             target = {"base": b, "wide": w, "rep": r}[av_leg]
             target["av"] = True
             target["decodes"] = []
+
+        if not omit_truncated_field:
+            b["truncated"] = w["truncated"] = r["truncated"] = False
+        if truncated_cycle_idx is not None and i == truncated_cycle_idx:
+            target = {"base": b, "wide": w, "rep": r}[truncated_leg]
+            target["truncated"] = True
 
         base_files.append(b)
         wide_files.append(w)
@@ -466,6 +484,48 @@ def main():
               f"noav={out_noav!r} av={out_av!r}")
         check("B5: AV cycle count is reported (21st cycle, wide leg)",
               "AV cycles excluded from every rate (B5 fix): 1 cycle" in out_av, out_av)
+
+        # ── ROW 0 -- D3: a truncated cycle on the WIDENED leg fails closed ───
+        # (the leg most likely to grow, so most likely to hit MAX_RESULTS in
+        # reality -- the exact censoring the old assert was guarding against,
+        # now without crashing to do it).
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     truncated_cycle_idx=5, truncated_leg="wide")
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
+        check("ROW0 D3: truncated cycle on widened leg -> ROW 0",
+              "ROW 0 -- NO READ" in out
+              and "widened leg has 1 truncated cycle(s)" in out, out)
+
+        # ── ROW 0 -- D3: a truncated cycle on the BASELINE leg also fails
+        # closed -- the check is per-leg, not widened-only.
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     truncated_cycle_idx=0, truncated_leg="base")
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
+        check("ROW0 D3: truncated cycle on baseline leg -> ROW 0 (per-leg, not widened-only)",
+              "ROW 0 -- NO READ" in out
+              and "baseline leg has 1 truncated cycle(s)" in out, out)
+
+        # ── ROW 0 -- D3: a truncated cycle on the REPEAT leg also fails closed
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     truncated_cycle_idx=0, truncated_leg="rep")
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
+        check("ROW0 D3: truncated cycle on repeat leg -> ROW 0",
+              "ROW 0 -- NO READ" in out
+              and "repeat leg has 1 truncated cycle(s)" in out, out)
+
+        # ── D3: a leg from a PRE-D3 producer (no "truncated" field at all)
+        # must NOT be rejected -- .get("truncated") reads absence as "not
+        # flagged truncated", not a KeyError, so every fixture and every real
+        # leg produced before this fix keeps reading exactly as before.
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     omit_truncated_field=True)
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
+        check("D3: pre-D3 leg with no 'truncated' field at all -> unaffected, ROW 1",
+              "ROW 1 -- ELIGIBLE" in out and "truncated cycle(s)" not in out, out)
 
         # ── ROW 2 -- mechanism ok, NET churn fails, gross still ok ──────────
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 10, F_MIN, F_MAX)
