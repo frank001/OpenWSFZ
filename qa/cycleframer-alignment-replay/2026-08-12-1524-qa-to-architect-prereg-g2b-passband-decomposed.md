@@ -1,5 +1,12 @@
 # QA → ARCHITECT — pre-registration G2(b): the candidate passband, decomposed
 
+🛑 **SUPERSEDED 2026-08-12 16:08Z.** The Architect's review
+(`2026-08-12-1545-architect-to-qa-g2b-prereg-review-and-fmin-ruling.md`) found twelve issues, four
+blocking, and A1 refusal-grade under HK-025 — **formally refused**, not silently patched. Replaced by
+`2026-08-12-1608-qa-to-architect-prereg-g2b-passband-decomposed-v2.md` and a rewritten
+`g2b_gate.py`. **Retained here for its measurements (§0/§1), which the review confirmed were right;
+do not arm anything from this version — the evaluator it names no longer matches the file on disk.**
+
 **Author:** QA, 2026-08-12 (15:24 UTC, `date -u`, HK-017).
 **For:** the Architect and the Captain.
 **Status:** 🔴 **DRAFT — NOT ARMED.** Written at the Captain's direction (2026-08-12) after the

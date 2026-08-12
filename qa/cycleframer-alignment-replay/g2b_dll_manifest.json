@@ -1,0 +1,4 @@
+{
+  "_comment": "A7 fix (2026-08-12 review). SHA256 -> {f_min, f_max} manifest for the G2(b) f_min ladder, pre-registered BEFORE any rung's DLL is built. g2b_gate.py refuses to read (ROW 0) any widened leg whose dll_sha256 is not a key here, or whose f_min/f_max here does not match the --f-min/--f-max the gate was invoked with. Populate one entry per rung as each Developer-session build lands; never edit an existing entry after its leg has been run. The shim integer identifies nothing (it has already collided twice, 20260034/20260035) -- the SHA is the only authority, per standing memory.",
+  "_entries_expected": ["f_min=180 (rung 1, narrowest)", "f_min=140 (rung 2)", "f_min=100 (rung 3, widest)"]
+}

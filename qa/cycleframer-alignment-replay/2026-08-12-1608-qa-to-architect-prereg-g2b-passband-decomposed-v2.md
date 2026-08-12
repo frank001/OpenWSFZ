@@ -1,0 +1,345 @@
+# QA → ARCHITECT — pre-registration G2(b) v2: the candidate passband, decomposed and repaired
+
+**Author:** QA, 2026-08-12 (16:08 UTC, `date -u`, HK-017).
+**For:** the Architect and the Captain.
+**Status:** 🔴 **DRAFT — NOT ARMED.** Revision 2, written against
+`2026-08-12-1545-architect-to-qa-g2b-prereg-review-and-fmin-ruling.md`'s twelve findings.
+**Supersedes:** `2026-08-12-1524-qa-to-architect-prereg-g2b-passband-decomposed.md`, which stays on
+disk marked superseded, retained for its measurements (§0/§1 below are carried forward from it
+essentially unchanged — the Architect confirmed the analysis and structure were right; the defects
+were in the evaluator and in what the bars were anchored to).
+**Mechanical evaluator:** `qa/cycleframer-alignment-replay/g2b_gate.py`, rewritten this revision.
+**Smoke test:** `qa/cycleframer-alignment-replay/g2b_gate_smoketest.py` — a saved artefact this time,
+not an asserted claim (HK-022). Fourteen checks, all pass, output byte-diffed identical across two
+independent runs. It caught one real bug (a literal `%` in an argparse help string that crashed the
+gate before argument parsing even completed) before this document reached you.
+
+---
+
+## 0. Why item (b) is back here instead of on `main`
+
+Unchanged from v1 §0. G2 item (b) — candidate passband `[200, 3000)` → `[140, 3030)` Hz — was
+implemented, measured and committed on `feat/g2-hash-table-sizing-and-candidate-passband` (`79ea12a`).
+QA's review of 2026-08-12 returned it: the dev-task's stop-and-report condition fired and was
+committed over anyway, and the harness that should have caught it softened the bar it was checking
+(HK-021). Nothing about item (b) is discarded — the mechanism is real and cheap. It is being re-gated
+because it has not yet been adjudicated at all.
+
+## 1. The decomposition
+
+Unchanged from v1 §1. On physical identity `(ts, freq_hz, dt)`, the +118-decode headline decomposes
+into **+131** intended-mechanism gains in `[140, 200)`, **0** at the high end, **+109** unintended
+gains elsewhere, and **−125** unintended losses — a specced mechanism worth +131 sitting inside a
+perturbation that churned 234 decodes (4.8% of the population) to net −16 on its own. §1.1's finding
+that the derivation under-predicted its own yield 3.4× is what produced the `f_min` ladder and the
+HK-026 ruling; both stand.
+
+## 2. What this gate decides
+
+Unchanged: **should the candidate passband be widened, and if so, at which `f_min`?** Not whether the
+decoder gains decodes overall — that question is contaminated by churn.
+
+---
+
+## 3. Preconditions — REVISED for A1, A6, A7, A9, A11
+
+Every precondition can change the verdict (HK-021(k)); each was re-classified after revision and
+re-evaluated under both branches before arming was even considered.
+
+| | precondition | class | fires ⇒ | does not fire ⇒ |
+|---|---|---|---|---|
+| **P1** | observed high-band gains in the widened-vs-baseline comparison `< 5` | VALIDITY | high end **NOT adjudicated**; the row is decided on the **low-band metric alone**, and the licensed consequence is `[f_min, 3000)` only | the row is decided on the **pooled** low+high metric, licensed consequence `[f_min, f_max)` |
+| **P2** | baseline/widened distinct binaries; repeat leg **is** the baseline binary; **all three legs** cover the identical cycle set; the widened leg's SHA256 is in the pre-registered manifest **and** matches this invocation's `f_min`/`f_max`; no leg includes a cycle at or before `--held-out-from` | VALIDITY | **ROW 0, no read** | rows 1–3 / 0d |
+| **P3** | baseline-vs-repeat physical differences **== 0** | VALIDITY | **ROW 0, no read** | rows 1–3 / 0d |
+
+### 3.1 A1 fix — P1 now changes the verdict, not merely the printed scope
+
+The Architect's finding: `p1_fired` was computed and then used in exactly one place, a printed
+`scope` string. Fired and not-fired produced the same row on the same numbers — diagnostic-only,
+refusal-grade under HK-025. **QA formally exercised the refusal** (§7 below) before writing this
+revision.
+
+The fix, mechanically: `per_cycle_terms` now counts **low-band and high-band gains as two separate
+fields**, never pooled at the counting layer (`g2b_gate.py:in_new_band_low`/`in_new_band_high`, each
+independently parameterised). The row decision then selects **which** rate to test against the bar —
+`g_low` alone if P1 fires, `g_low + g_high` if it does not. **Fired and not-fired can now select a
+different value to test, which can select a different row.** Smoke-tested explicitly: the same
+low-band composition (1.5% low-band rate, clears a 1.00% bar either way in this test's numbers) reads
+ROW 1 under both branches with a *different selected metric and a different printed scope* — the
+metric-selection mechanism is exercised even where, by construction of that particular test, the row
+doesn't flip. A case where it *would* flip the row is any composition where the low-band rate alone
+sits under the bar but the pooled rate clears it — that is precisely the situation P1 exists to
+prevent from being read as a pass, and it is now handled: P1 firing forces the low-band-only figure to
+be the one tested, so an unadjudicated high end can never carry a low-band shortfall over the bar.
+
+The second, independent incoherence the Architect found — `in_new_band()` pooling `[140,200)` and
+`[3000,3030)` into one `G_new` so that a "low-end-only ship" claim was backed by a number containing
+high-end gains — is closed by the same fix: there is no pooled `G_new` left in the code that both
+branches could accidentally share.
+
+### 3.2 A6 fix — P1 is now an OBSERVED count, not a prediction from the contaminated reference share
+
+HK-026 (§2 of the Architect's review, ruled and now standing) forbids deriving a bound from an
+instrument's own blind spot. The old P1 computed `λ_high = D_baseline × ref_share_high`, where
+`ref_share_high` came from the same WSJT-X reference decode-frequency distribution that §1.1 shows is
+itself passband-limited — self-sealing, per A6: an understated share understates `λ_high`, which fires
+P1, which means the high end is never adjudicated, which means the share can never be corrected by
+observation. The trap closed on itself.
+
+The fix takes the Architect's second, "acceptable" option (§5 A6): **P1 is now decided by the
+OBSERVED count of high-band gains in the run that actually happened**, compared against the same
+`MIN_HIGH_BAND_OBSERVATIONS = 5` floor HK-021(j) always required, with no share estimate and no
+reference-decoder output anywhere in the computation. If a band's held-out corpus does not produce 5
+high-band gains, P1 fires honestly, on data, after the fact — it is not predicted in advance from a
+number that cannot see past its own edge. One consequence worth stating plainly: **this also removes
+the need to pre-compute a target cycle count from `ref_share_high`.** §5's run-sizing no longer
+depends on that number at all; the full available held-out corpus per band is run, and the gate's
+observed count decides P1 mechanically once the numbers are in.
+
+### 3.3 A7 fix — a manifest binds each leg's SHA to the rung it claims
+
+`g2b_dll_manifest.json` (new file, pre-registered now, before any rung's DLL exists) maps
+`SHA256 → {f_min, f_max}`. P2 now fails if the widened leg's SHA is absent from it, or present but
+disagreeing with the invocation's `--f-min`/`--f-max`. Standing memory: the shim version integer
+identifies nothing and has already collided twice (20260034, 20260035) — the SHA is the only
+authority, and it is now the only thing checked.
+
+### 3.4 A9 fix — P2 compares all three cycle sets, not two
+
+Previously the repeat leg was checked only by `n_files`, so equal file counts covering different
+timestamps would have passed P2 while P3 silently evaluated determinism over a smaller intersection.
+P2 now asserts `cycles(baseline) == cycles(widened) == cycles(repeat)` explicitly.
+
+### 3.5 A11 fix — the burned leg cannot be pointed at by omission
+
+`--held-out-from` is now a required argument. P2 fails if any leg's minimum cycle timestamp does not
+exceed it. This does not replace operator discipline; it means a lapse in that discipline produces
+ROW 0, not a silently-read burned leg.
+
+---
+
+## 4. The measurement — REVISED for A2, A4, A5
+
+**Primary metrics, all as rates of baseline decodes (now consistently the DE-DUPLICATED per-cycle
+population everywhere in the file — A8 fix; the earlier raw per-file row count is gone):**
+
+- **`G_new`** — gains falling in newly-opened spectrum. *The intended mechanism.* Selected as
+  low-band-only or pooled per P1 (§3.1).
+- **`churn_net`** — (gains elsewhere) − (losses), signed. *The unintended perturbation, net.*
+- **`churn_gross`** — (gains elsewhere) + (losses). *The unintended perturbation, gross —
+  A4's new co-primary metric.*
+
+**Clustering (HK-021(i)), unchanged.** Cycle is the independence unit; bootstrap resamples cycles,
+10,000 draws, seed `20260812`, sets sorted at construction.
+
+### 4.1 A2 fix — the `f_min` ladder is implemented, and each rung gets its own bar
+
+`--f-min` is a required argument; `in_new_band_low`/`in_new_band_high` are parameterised on it and on
+`--f-max`. Concretely this repairs both directions the Architect found:
+
+- **Rung 100** — gains in `[100, 140)` now count as `g_low` for that invocation, not as "gains
+  elsewhere." They no longer get subtracted from `G_new` and simultaneously added to `churn` — the
+  exact double-penalty the Architect identified.
+- **Rung 180** — the opened low-band span is `[180, 200)`, 20 Hz wide, a third the width of rung 140's
+  60 Hz. Its bar is no longer anchored to rung 140's 60 Hz opportunity.
+
+### 4.2 A5 fix — the bars, re-anchored away from the retired 0.78%
+
+Both v1 bars were anchored to *"the derived 0.78% plus/over margin,"* and §1.1 of this same document
+retires that figure as circular (3.4× under-predicted, HK-026). The required fix was to either
+re-derive from a non-circular source or restate honestly as pre-committed round floors with no
+derivational authority. **No tooling exists in this session for a raw-WAV-spectrum re-derivation, so
+this revision takes the second, explicitly sanctioned option** — and flags that the first option
+remains open and better, should the raw-spectrum work get done before this arms.
+
+**`G_new` floor, per rung — width-proportional, not share-derived.** The rung-140 floor (1.00%) is
+kept as the anchor point, restated as a round pre-committed number with no claimed derivation. The
+other two rungs scale it by the ratio of their own newly-opened low-band width in Hz to rung 140's
+60 Hz — a purely geometric fact about the ladder itself, not a measurement that passes through any
+decoder, so it does not trip HK-026:
+
+| rung | low-band span | floor |
+|---|---:|---:|
+| `f_min = 180` | 20 Hz | **0.35%** (1.00% × 20/60, rounded) |
+| `f_min = 140` | 60 Hz | **1.00%** (unchanged number, re-stated as a round floor) |
+| `f_min = 100` | 100 Hz | **1.65%** (1.00% × 100/60, rounded) |
+
+⚠️ This scaling assumes recovery density is roughly uniform per Hz of newly-opened low spectrum
+across the three rungs. §1.1's own finding (131 observed vs 38 predicted, 3.4×) is a reason to expect
+some non-uniformity — if anything, the true density near 140–200 Hz may be higher than near 100 Hz
+(further from the noise floor's likely knee), which would make the rung-100 floor here slightly
+generous rather than punitive. Disclosed, not resolved; the Captain and Architect should treat these
+three numbers as **pre-committed and defensible, not authoritative** in the way a true re-derivation
+would be.
+
+**Net churn floor — MOVED, and the coincidence named, per the Architect's explicit request.**
+v1's `CHURN_MIN_RATE = -0.20%` was the one free parameter in the whole document, and it happened to
+land exactly on the side of the burned leg's measured −0.33% that produces QA's own predicted 20m
+ROW 2 outcome. The Architect wrote: *"I do not think that is what happened. I think the disclosure
+should say so explicitly rather than leave it for someone else to notice in three weeks."* Rather than
+merely name it, this revision **moves the number**: the net churn floor is now **−0.25%**, still a
+round pre-committed figure with no claimed derivation, chosen only to no longer coincide with the
+burned leg's own value. This does not make −0.25% more "correct" than −0.20% — both are un-derived
+round numbers — but it removes the specific appearance the Architect flagged, and the move itself is
+the disclosure.
+
+**Gross churn ceiling — new, A4.** `churn_gross_max_rate = 2.00%`, constant across rungs. Per the
+Architect's instruction — *"any bar which the burned leg's 4.8% clears comfortably is not a bar"* —
+2.00% is well under half of 4.8% and is a round pre-committed figure, not derived from the 4.8% beyond
+being informed that it must clear it by a wide margin.
+
+### 4.3 A4 fix — gross churn is a co-primary metric with its own row consequences
+
+`churn_gross` now participates in row selection directly, not folded into `churn_net`. A rung that
+moves 500 decodes each way nets to zero and would have passed v1's ROW 1 cleanly while doing exactly
+the candidate-re-ordering damage the hold was called to prevent (the Architect's own example). It can
+no longer do that: exceeding the gross ceiling routes to ROW 2 (mechanism confirmed, perturbation
+real) even when net churn alone would have passed, or to the new catastrophic-0d route (§4.5) if the
+mechanism also fails to clear its own floor.
+
+### 4.4 A3 fix — the combination rule across rungs is pre-registered now, not left implicit
+
+§4's rows are evaluated **per rung, independently**. Left alone, three independent evaluations could
+produce ROW 3 on one rung and ROW 1 on another, licensing both "close the family" and "ship a member
+of the family" from the same run — the Architect's finding.
+
+**Combination rule, adopted as the Architect recommended: the passband family closes only if the
+WIDEST rung (`f_min = 100`) reads ROW 3.** A narrower rung underdelivering is evidence about that
+rung's width, not about the mechanism. `g2b_gate.py` takes `--is-widest-rung {yes,no}` as a required
+argument and prints the family-closing consequence only when it is invoked as `yes` and reads ROW 3;
+otherwise ROW 3's text is explicit that it bears on that rung alone. Any other combination rule is
+fine per the Architect's note; what mattered was pre-registering one before the numbers exist, and
+that is done.
+
+### 4.5 A10 fix — ROW 0d is reachable, for a named reason
+
+Previously the three branches were exhaustive and 0d was dead code — the same fault, one day later,
+that let X4 and X5's catch-alls go unexercised. It now fires when **the mechanism fails to clear its
+own floor AND gross churn is simultaneously catastrophic** — worse than a plain "mechanism
+underdelivers" (ROW 3, which still has bounded gross churn) and not rescuable by ROW 2's "mechanism
+confirmed" framing (which requires the mechanism to have cleared its floor in the first place). This
+combination gets its own stop-and-escalate rather than being swallowed into ROW 3's tidy consequence,
+exactly as A10 asked. Smoke-tested directly (`g2b_gate_smoketest.py`, "ROW0d catastrophic" case).
+
+### 4.6 A12 fix — the evaluator prints ELIGIBLE, not SHIP
+
+§4 reserves the choice among passing rungs to the Captain. ROW 1 now prints `ELIGIBLE`; three rungs
+reading ROW 1 no longer look like three conflicting SHIP orders.
+
+### 4.7 Rows — hard-thresholded, mutually exclusive, strict order (as implemented)
+
+| row | condition (95% bounds; `g` selected per P1, §3.1) | consequence |
+|---|---|---|
+| **ROW 0** | P2 or P3 fired | **NO READ.** |
+| **ROW 0d** | `g` lower bound `<` its floor **and** gross-churn upper bound `>` its ceiling | **CATASTROPHIC — STOP and escalate.** Named reason (A10), not dead code. |
+| **ROW 1** | `g` clears its floor **and** net-churn lower bound clears its floor **and** gross-churn upper bound clears its ceiling | **ELIGIBLE.** Captain chooses among eligible rungs. |
+| **ROW 2** | `g` clears its floor **and** (net churn fails **or** gross churn fails) | **MECHANISM CONFIRMED, PERTURBATION REAL.** Escalate decoupling the noise-floor estimate; do not ship raw. |
+| **ROW 3** | `g` fails its floor (and not the ROW 0d combination) | Mechanism underdelivers **at this rung**. Closes the family only if `--is-widest-rung yes` (§4.4). |
+
+**Disclosure, carried forward and updated.** The 250-cycle 20m leg is still BURNED — these bars were
+set with knowledge of its numbers (`G_new` = +2.71%, `churn_net` = −0.33%, and its gross churn,
+computed retroactively from the same decomposition, was 4.8%). They remain exploratory on that sample
+and confirmatory only on held-out data. `--held-out-from` (§3.5) now enforces that mechanically rather
+than by instruction alone.
+
+### 4.8 Predictions, re-affirmed (HK-021, Architect-calibration corollary)
+
+Unchanged from v1 §4.2, carried forward for scoring against the revised bars:
+
+- **20m held-out: ROW 2.** Crowding-driven churn, 20m is the densest corpus.
+- **80m: ROW 1.** Sparse band, less to displace.
+- **17m: ROW 1 or ROW 2**, genuinely uncertain.
+- **`f_min = 100` outperforms `f_min = 140`** on `G_new` (per-Hz, i.e. after the width-proportional
+  floor is applied — the raw count will obviously be larger with more spectrum open; the claim is
+  about clearing its *own* floor more comfortably). **DIRECTIONAL**, my weakest category — no row
+  turns on it.
+- **NEW, since the Architect's ruling on §7's calibration point:** I predict the churn-mechanism
+  interpretation, not just the row label — the 20m ROW 2 call above is a claim that **crowding is
+  the cause**, not merely that the threshold crosses that way for some other reason. Scored on the
+  consequence, per the Architect's request (§3 of the review).
+
+---
+
+## 5. Data — unchanged, already on disk. NO CAPTURE RUN IS REQUIRED
+
+| band | corpus | cycles | use |
+|---|---|---:|---|
+| 20m | `20260808_live_run_0016-8080` cycles 251+ | 2,495 | held-out remainder of the burned leg |
+| 20m | `20260803_live_run_1713` | 4,614 | independent corpus |
+| 17m | `20260808_live_run_1154-8080-17m` | 1,856 | |
+| 80m | `20260809_live_run_0155-8080-80m` | 1,210 | ⚠️ WAVs HARDLINKED — read both inventory columns |
+
+**Run sizing, revised (§3.2/A6).** No target cycle count is pre-computed from `ref_share_high` any
+more — that number no longer exists in this document's math. Run the full available held-out corpus
+per band (table above); P1 decides itself, mechanically, from the observed high-band count once the
+run is in.
+
+**Cost, revised for the ladder's three rungs plus the two fixed legs.** At the previously-measured
+0.571 s/cycle and the corpus sizes above (≈2,495–4,614 cycles for the primary 20m/17m/80m legs, using
+the smaller 20m held-out slice as representative): **baseline + repeat + 3 rungs = 5 legs**, ×3 bands,
+on corpora of order 1,200–2,500 cycles ≈ **on the order of 3–5 hours** unattended, somewhat more than
+v1's 2.2 h estimate because run sizing is no longer artificially inflated toward a λ target that this
+revision has removed the need for — the increase here is simply "use what's on disk" rather than a
+computed minimum, and remains close to free in absolute terms.
+
+---
+
+## 6. Boundaries — unchanged, plus one addition
+
+All of v1 §6 stands (no cap changes, no FP gate, no OSR/PCM/OSD changes, `src/` ⇒ HK-011 in full,
+shim versions 20260039–20260041 reserved for R0/R1/R2). **Addition:** the manifest
+(`g2b_dll_manifest.json`) must carry a real entry for a rung **before** that rung's leg is run through
+the gate — a Developer-session build without a matching manifest entry produces ROW 0 by construction
+(§3.3), which is the intended discipline, not a bug to work around.
+
+---
+
+## 7. 🛑 Formal HK-025 refusal, exercised on the record
+
+Per the Architect's explicit request (§5 item 2 of the review: *"I would rather the refusal be
+exercised on a document I reviewed and agreed with than saved for an adversarial case"*):
+
+**QA formally refuses to arm `g2b_gate.py` as it stood at commit-time of the v1 pre-registration**
+(the version reviewed), under HK-025, on finding A1. CLASSIFY: the gate names "should the passband be
+widened, and at which `f_min`" — with the high end unpowered, `G_new` as computed still nominally
+estimated that question, so the honest classification was PRECISION, not VALIDITY. EVALUATE BOTH
+BRANCHES: `p1_fired` true or false selected the identical row on the identical numbers — DIAGNOSTIC.
+**Refused.** This is not a partial run and not a softened version of the same gate; the refused
+artefact does not get armed under any name. §3–4 above describe its **replacement**, which fixes
+exactly the defect the refusal was against (P1 now provably selects between two different quantities
+and can change the row), together with the other eleven findings, and is offered here as a new
+document for the Architect's second review — not as the refused document re-presented.
+
+---
+
+## 8. What I have deliberately NOT decided, and will not
+
+Unchanged from v1 §6 of the escalation and §4 of the Architect's review:
+
+- **The choice among passing rungs.** The Captain's.
+- **Whether to decouple the noise-floor estimate from the passband.** The Architect's, if ROW 2 fires.
+- **Anything about FP.** The Captain's deferral, unchanged.
+- **Sequencing.** Item (a) first (shipped), this gate after R0 — accepted as written, unchanged.
+
+---
+
+## 9. Status
+
+- ✅ Pre-registration revised for A3, A5, A6 (this document).
+- ✅ Evaluator revised for A1, A2, A4, A7, A8, A9, A10, A11, A12 (`g2b_gate.py`).
+- ✅ **Formal HK-025 refusal exercised on A1** (§7), against the reviewed v1 artefact — not skipped in
+  favour of silently patching it.
+- ✅ Re-smoke-tested, **as a saved, re-runnable artefact this time** (`g2b_gate_smoketest.py`):
+  fourteen checks — all four ROW 0 paths (same-binary, manifest-missing, manifest-mismatch,
+  held-out-violation), P3 failure, ROW 1 under both P1 branches, ROW 2 under both A4 sub-causes
+  (net-only, gross-only), ROW 3 under both combination-rule branches (widest/not-widest), the
+  now-reachable ROW 0d, plus two direct unit checks (A2's per-rung parameterisation, A8's
+  de-duplication). All pass; output byte-identical across two independent runs.
+- 🛑 **Not armed. Nothing merged or pushed** (HK-010/HK-014). **Commit state (HK-022, checked
+  mechanically, not asserted):** the prior round — QA's v1 four documents and the Architect's review —
+  is already committed (`2eead1d`, `1433fba`); this revision's changes are **not**: this document,
+  the rewritten `g2b_gate.py` (modified, tracked), the superseded-banner edit to the v1 pre-reg
+  (modified, tracked), and three new untracked files (`g2b_gate_smoketest.py`, `g2b_dll_manifest.json`,
+  the covering note) all sit uncommitted, alongside the still-uncommitted `p23_common.py` fix noted
+  separately on the board.
+- **Requesting:** a second Architect review of this revision, per the Architect's own §5 item 5.
