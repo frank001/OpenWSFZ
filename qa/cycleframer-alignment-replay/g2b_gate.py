@@ -101,8 +101,8 @@ g2_verification_replay.py, on its own branch, not here. This file:
 REVISION 5 (2026-08-12, fourth Architect review, 20:52Z) -- against
 `2026-08-12-2052-architect-to-qa-g2b-review-4.md`'s two blocking (D1, D2)
 findings, one serious (D3), and two minor (D4, D5). D4 is a producer-only
-fix and D5 a pre-registration comment; neither lands in this file. D1, D2
-and D3's gate half do:
+fix, landing on qa/g2b-verification-replay-extract, not here. D1, D2, D3's
+gate half, and D5 do:
 
   D1  --burned-wav-dir matching ZERO legs was silent and indistinguishable
       from the correct, common case (an un-burned corpus, where zero legs
@@ -147,6 +147,17 @@ and D3's gate half do:
       lost work. `.get("truncated")` throughout, so a leg produced by a
       pre-D3 g2_verification_replay.py (which never wrote the field) is
       read as "not flagged truncated", not a KeyError.
+  D5  A review-3 instruction went uncarried-out because it was appended to
+      a line the Architect marked done/verified rather than given its own
+      marker -- process point acknowledged in review 4 (§6/§8): a marker
+      that carries an instruction is still an instruction. The instruction
+      itself: note WHY rep_churn_abs (P3's determinism check) may sum only
+      g_else+lost and skip g_low/g_high -- it is complete only because
+      `base` in that call is always the fixed-band [200,3000) BASELINE
+      binary, which structurally cannot emit in the new bands, so g_low/
+      g_high are necessarily zero there. The comment now sits at
+      rep_churn_abs itself, warning against ever repurposing that call for
+      a widened-vs-widened comparison without adding those columns back.
 
 Usage:
     python g2b_gate.py --band 20m --f-min 140 --f-max 3030 \
@@ -647,6 +658,23 @@ def main():
     av_all = av_cycles(base) | av_cycles(wide) | av_cycles(rep)
 
     rep_rows = per_cycle_terms(base, rep, args.f_min, args.f_max, av_all)
+    # D5 fix (review-3 instruction, not carried out at the time because it
+    # was appended to a line marked done/verified rather than given its own
+    # marker -- see REVISION 5's docstring note): rep_churn_abs deliberately reads
+    # ONLY g_else + lost (columns [2]/[3] of per_cycle_terms's tuple), never
+    # g_low/g_high (columns [0]/[1]). That omission is complete -- it is not
+    # silently dropping a real source of churn -- ONLY because `base` here
+    # is always the BASELINE binary, which is built for the fixed
+    # [OLD_F_MIN, OLD_F_MAX) = [200, 3000) band and structurally cannot emit
+    # a decode in [f_min, 200) or [3000, f_max): g_low and g_high are
+    # necessarily zero for every row in rep_rows, so summing them would add
+    # nothing here. If this call is EVER changed to compare two WIDENED legs
+    # against each other (rather than baseline-vs-repeat), that structural
+    # guarantee no longer holds, and rep_churn_abs as written would silently
+    # discard every genuine in-band (g_low/g_high) difference between them --
+    # p3_fired could read "ok" while churn in the low/high bands went
+    # completely uncounted. Do not repurpose this call without adding
+    # g_low/g_high back into the sum.
     rep_churn_abs = sum(r[2] + r[3] for r in rep_rows)
     p3_fired = rep_churn_abs != 0
 
