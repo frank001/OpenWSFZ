@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """G2(b) passband gate -- the MECHANICAL evaluator for the pre-registration at
-qa/cycleframer-alignment-replay/2026-08-12-1600-qa-to-architect-prereg-g2b-passband-decomposed-v2.md
+qa/cycleframer-alignment-replay/2026-08-12-1608-qa-to-architect-prereg-g2b-passband-decomposed-v2.md
 
 HK-021 requires a pre-registered check to be drafted by writing the code that
 evaluates it. This IS that code, and it is written before any ladder rung is run.
 It takes replay JSONs produced by g2_verification_replay.py and prints exactly one
 ROW per rung. It draws no conclusion the rows do not license.
 
-REVISION 2 (2026-08-12 16:00Z) -- rewritten against the Architect's twelve-finding
+REVISION 2 (2026-08-12 16:08Z) -- rewritten against the Architect's twelve-finding
 review (`2026-08-12-1545-architect-to-qa-g2b-prereg-review-and-fmin-ruling.md`).
 Findings A1, A2, A4, A7, A8, A9, A10, A11, A12 are fixed here; A3, A5, A6 are
 policy/derivation fixes and are documented in the revised pre-registration, with
@@ -17,20 +17,62 @@ A1 was ALSO formally refused under HK-025 before this revision was written -- se
 the covering document. This file does not "arm" the refused version; it replaces
 it.
 
-  Preconditions (P1 observation rule aside, which now changes the verdict rather
-  than merely the printed scope -- see A1) are evaluated FIRST and can each change
-  the verdict (HK-021(k)); rows are hard-thresholded, mutually exclusive, and read
-  in strict order with an explicit ROW 0 and a reachable ROW 0d that fires for a
-  named reason (A10), not as dead code.
+REVISION 3 (2026-08-12, second Architect review, 19:24Z) -- against
+`2026-08-12-1924-architect-to-qa-g2b-review-2-and-producer-ruling.md`'s four
+blocking (B1-B4) and two serious (B5-B6) findings. B4 (the producer was off-tree
+and unreviewed) is answered by extracting g2_verification_replay.py to its own
+branch, not in this file. The rest:
+
+  B1  The manifest previously bound only the WIDENED leg's SHA to its claimed
+      band; nothing asserted the baseline was the [200,3000) reference build.
+      Fixed: check_manifest_binding() is now called for baseline too (the
+      repeat leg is covered transitively, since P2 already asserts its SHA
+      equals the baseline's).
+  B2  --held-out-from was a global lexical floor pooled across ALL legs from
+      ANY corpus -- with a correct floor it silently ROW-0'd an un-burned
+      4,614-cycle corpus; with a wrong-format floor it silently protected
+      nothing. Fixed: the floor now applies ONLY to legs whose `wav_dir`
+      (a field g2_verification_replay.py's extraction now records) matches
+      the required --burned-wav-dir. A leg from any other corpus is never
+      touched by it, in either direction.
+  B3  The per-rung G_new floor was scaled to the low band's width but applied
+      to a POOLED low+high metric, so a narrow rung could read ELIGIBLE on
+      high-band noise alone while its own intended mechanism delivered
+      nothing. Fixed: g_low is barred against its own floor ALWAYS (g_pooled
+      and g_sel_fn are gone); g_high, when adjudicated (P1 not fired), gets
+      its OWN separate --g-high-min-rate floor and decides only the SCOPE of
+      the licensed consequence, never whether the rung passes at all.
+  B5  AV cycles (native access violation, caught by the shim's SEH) were
+      silently read as legitimate zero-decode cycles, letting a caught crash
+      on one leg inflate churn on the other. Fixed: av_cycles() excludes any
+      cycle where ANY of the three legs AV'd, uniformly, from every rate.
+  B6  ROW 0d's "catastrophic" text described a severity tier the code did not
+      implement -- it tests the identical gross-churn ceiling ROW 2 uses.
+      Fixed: the word is removed; the row is described as what it is, both
+      bars failing together (the Architect's second, no-new-parameter option).
+
+Also fixed: a dangling pointer in this docstring (the pre-reg filename/time
+cited "-1600-"/16:00Z; the actual document is "-1608-"/16:08Z -- corrected
+above), and bootstrap_bound's four independent resampling loops collapsed into
+one (bootstrap_bounds(), same seed, same per-draw samples, ~4x faster) -- the
+Architect flagged this as worth doing before the ladder's 9 legs run.
+
+  Preconditions (P1 observation rule aside, which changes the verdict rather
+  than merely the printed scope -- see A1) are evaluated FIRST and can each
+  change the verdict (HK-021(k)); rows are hard-thresholded, mutually
+  exclusive, and read in strict order with an explicit ROW 0 and a reachable
+  ROW 0d that fires for a named reason (A10), not as dead code.
 
 Usage:
     python g2b_gate.py --band 20m --f-min 140 --f-max 3030 \
         --baseline base_20m.json --widened wide_20m_f140.json \
         --repeat  base_20m_repeat.json \
-        --manifest g2b_dll_manifest.json --held-out-from 20260808_0016_000251Z \
+        --manifest g2b_dll_manifest.json \
+        --burned-wav-dir artefacts/20260808_live_run_0016-8080/owsfz/wav \
+        --held-out-from 260808_014215 \
         --is-widest-rung no \
-        --g-new-min-rate 0.0100 --churn-net-min-rate -0.0025 \
-        --churn-gross-max-rate 0.0200
+        --g-new-min-rate 0.0100 --g-high-min-rate 0.0050 \
+        --churn-net-min-rate -0.0025 --churn-gross-max-rate 0.0200
 """
 from __future__ import annotations
 
@@ -68,6 +110,11 @@ def phys_by_cycle(leg):
     Sorted at construction. Set iteration order is hash-randomised per process,
     so any downstream seeded resampling over an unsorted set silently differs
     run to run despite a fixed seed (the p23_common/load_ref defect class).
+
+    AV cycles (av=True; the shim's SEH caught a native access violation) map to
+    an empty set here, same as a genuine zero-decode cycle -- the DISTINCTION
+    between the two is made by av_cycles() below and applied by the caller
+    (B5 fix). This function alone cannot and does not tell them apart.
     """
     out = {}
     for f in leg["per_file"]:
@@ -75,6 +122,19 @@ def phys_by_cycle(leg):
         for d in f["decodes"]:
             out[f["ts"]].add((d["f"], round(d["dt"], 2)))
     return {ts: out[ts] for ts in sorted(out)}
+
+
+def av_cycles(leg):
+    """{ts, ...} -- cycles where the shim's SEH caught a native AV on this leg.
+
+    B5 fix. An AV cycle has no valid physical-decode comparison: reading it as
+    a zero-decode cycle silently converts a caught crash into a counted LOSS
+    (if the other leg being compared decoded fine) or a counted GAIN (in
+    reverse) -- feeding churn_net/churn_gross, which are co-primary and can
+    stop the arm, off an SEH artefact rather than a decoder result. The shim
+    contains SEH specifically because this happens; it is not hypothetical.
+    """
+    return {f["ts"] for f in leg["per_file"] if f.get("av")}
 
 
 def in_new_band_low(freq, f_min):
@@ -85,7 +145,7 @@ def in_new_band_high(freq, f_max):
     return OLD_F_MAX <= freq < f_max
 
 
-def per_cycle_terms(base, other, f_min, f_max):
+def per_cycle_terms(base, other, f_min, f_max, av_exclude=frozenset()):
     """Per-cycle (g_low, g_high, g_elsewhere, lost, n_base). Cycle is the CLUSTER
     unit (HK-021(i)): decodes within a cycle share one noise realisation and one
     candidate ordering. Bootstrap resamples CYCLES, never decodes.
@@ -93,9 +153,12 @@ def per_cycle_terms(base, other, f_min, f_max):
     A1 fix: low-band and high-band gains are counted SEPARATELY, never pooled at
     this layer. Pooling happens (or does not) only at the row-decision layer,
     and only conditioned on whether the high end is adjudicated (A1/P1 below).
+
+    B5 fix: av_exclude removes cycles where ANY of the three legs in this run
+    AV'd, so a caught native crash never enters a rate as a loss or a gain.
     """
     b, o = phys_by_cycle(base), phys_by_cycle(other)
-    shared = sorted(set(b) & set(o))
+    shared = sorted((set(b) & set(o)) - av_exclude)
     rows = []
     for ts in shared:
         gained, lost = o[ts] - b[ts], b[ts] - o[ts]
@@ -112,7 +175,7 @@ def rates(rows):
     this file; the earlier raw per-file row count is gone)."""
     d = sum(r[4] for r in rows)
     if d == 0:
-        return {"g_low": 0.0, "g_high": 0.0, "g_pooled": 0.0,
+        return {"g_low": 0.0, "g_high": 0.0,
                 "churn_net": 0.0, "churn_gross": 0.0}
     g_lo = sum(r[0] for r in rows)
     g_hi = sum(r[1] for r in rows)
@@ -121,25 +184,37 @@ def rates(rows):
     return {
         "g_low": g_lo / d,
         "g_high": g_hi / d,
-        "g_pooled": (g_lo + g_hi) / d,
         "churn_net": (g_else - lost) / d,
         "churn_gross": (g_else + lost) / d,
     }
 
 
-def bootstrap_bound(rows, metric_fn, pct):
-    """pct=0.05 -> 95% LOWER bound; pct=0.95 -> 95% UPPER bound. Gross churn (A4)
-    is a harm metric, so it is bounded above, not below -- everything else in
-    this gate is bounded below, as before."""
+def bootstrap_bounds(rows, metrics):
+    """metrics: {name: (metric_fn, pct)}. pct=0.05 -> 95% LOWER bound;
+    pct=0.95 -> 95% UPPER bound (gross churn is a harm metric, bounded above;
+    everything else here is bounded below).
+
+    ONE resampling loop computes every named metric from the SAME draw. The
+    four separate bootstrap_bound() calls this replaces each reseeded the rng
+    identically and drew the same n-sized sample sequence, so they already
+    shared common random numbers -- this is exactly equivalent and ~4x faster
+    for four metrics. Flagged by the Architect's B-round review as worth doing
+    before the ladder's 9 legs run.
+    """
     rng = random.Random(BOOTSTRAP_SEED)
     n = len(rows)
-    vals = []
+    acc = {name: [] for name in metrics}
     for _ in range(BOOTSTRAP_N):
         sample = [rows[rng.randrange(n)] for _ in range(n)]
-        vals.append(metric_fn(rates(sample)))
-    vals.sort()
-    idx = min(max(int(pct * BOOTSTRAP_N), 0), BOOTSTRAP_N - 1)
-    return vals[idx]
+        r = rates(sample)
+        for name, (metric_fn, _pct) in metrics.items():
+            acc[name].append(metric_fn(r))
+    out = {}
+    for name, (_metric_fn, pct) in metrics.items():
+        vals = sorted(acc[name])
+        idx = min(max(int(pct * BOOTSTRAP_N), 0), BOOTSTRAP_N - 1)
+        out[name] = vals[idx]
+    return out
 
 
 def load_manifest(path):
@@ -148,6 +223,27 @@ def load_manifest(path):
             return json.load(fh)
     except FileNotFoundError:
         return {}
+
+
+def check_manifest_binding(sha, f_min, f_max, manifest, manifest_path, role):
+    """B1 fix: this is now called for the BASELINE leg too, not only the
+    widened leg. Previously nothing asserted the baseline was actually the
+    [200,3000) reference build -- pointing --baseline/--repeat at, say, the
+    rung-180 binary passed every other precondition and silently measured a
+    narrower mechanism against a floor scaled for the wrong width. The repeat
+    leg is covered transitively: P2 already asserts its SHA equals the
+    baseline's."""
+    problems = []
+    entry = manifest.get(sha)
+    if entry is None:
+        problems.append(f"{role} leg's SHA {sha[:16]}... is not in the "
+                         f"pre-registered manifest {manifest_path}")
+    elif entry.get("f_min") != f_min or entry.get("f_max") != f_max:
+        problems.append(f"manifest says {role} leg's SHA {sha[:16]}... was "
+                         f"built for f_min={entry.get('f_min')} "
+                         f"f_max={entry.get('f_max')}, not the {role} band "
+                         f"[{f_min}, {f_max})")
+    return problems
 
 
 def main():
@@ -171,23 +267,32 @@ def main():
     # silently forgotten.
     ap.add_argument("--is-widest-rung", required=True, choices=["yes", "no"])
 
-    # A7 fix: nothing previously bound a leg's binary to the rung it claims to
-    # be. The manifest is pre-registered (SHA256 -> {f_min, f_max}) BEFORE the
-    # run; P2 asserts the widened leg's SHA is in it and matches this invocation.
+    # A7/B1 fix: nothing previously bound a leg's binary to the rung it claims
+    # to be, and (B1) the check only ever covered the widened leg. The manifest
+    # is pre-registered (SHA256 -> {f_min, f_max}) BEFORE the run; P2 now
+    # asserts BOTH the widened leg's and the baseline leg's SHA are in it and
+    # match what each is claimed to be.
     ap.add_argument("--manifest", required=True,
                      help="path to a JSON SHA256 -> {f_min, f_max} manifest, "
                           "pre-registered before any rung is built")
 
-    # A11 fix: nothing previously stopped the gate being pointed at the burned
-    # 250-cycle 20m leg. Required; the gate refuses to read if any leg's earliest
-    # cycle timestamp does not exceed this floor. Lexical compare, matching the
-    # UTC-sortable `ts` convention already used by phys_by_cycle's own sort and
-    # by every other harness in this directory (measure_drift_8080_session.py,
-    # measurement_b_capture_chain.py, measurement_c_realign.py all rely on the
-    # same lexical-equals-chronological property of these timestamps).
+    # B2 fix: --held-out-from is no longer a bare global lexical floor pooled
+    # across every leg from every corpus (that construction ROW-0'd an
+    # un-burned 4,614-cycle corpus under a correct floor, and protected
+    # nothing at all under the pre-reg's own example format -- both silently).
+    # The floor now applies ONLY to legs drawn from --burned-wav-dir, which
+    # g2_verification_replay.py's extraction records as each leg's `wav_dir`
+    # field. A leg from any other corpus is never compared against it.
+    ap.add_argument("--burned-wav-dir", required=True,
+                     help="the WAV directory the burned leg was drawn from, "
+                          "e.g. artefacts/20260808_live_run_0016-8080/"
+                          "owsfz/wav -- the floor below applies ONLY to legs "
+                          "whose recorded wav_dir equals this, never pooled "
+                          "across corpora")
     ap.add_argument("--held-out-from", required=True,
-                     help="ts floor (exclusive) -- every leg's minimum ts must "
-                          "exceed this, e.g. the burned leg's last cycle ts")
+                     help="ts floor (exclusive), evaluated only against legs "
+                          "drawn from --burned-wav-dir, e.g. 260808_014215 "
+                          "(the burned run's 250th in-window cycle)")
 
     # A5 fix: no bar in this file is derived from anything that passes through a
     # decoder. These are supplied by the caller (the pre-registration document),
@@ -197,6 +302,19 @@ def main():
     ap.add_argument("--g-new-min-rate", type=float, required=True,
                      help="this rung's own pre-committed low-band G_new floor, "
                           "as a fraction of baseline decodes (e.g. 0.0100)")
+
+    # B3 fix: g_high, when adjudicated (P1 does not fire), now gets its OWN
+    # floor rather than being pooled with g_low and tested against the
+    # low-band-scaled floor above. Fixed across the ladder (the high band
+    # [3000, f_max) is the same fixed width regardless of f_min), unlike
+    # --g-new-min-rate which varies per rung.
+    ap.add_argument("--g-high-min-rate", type=float, required=True,
+                     help="the high-band G_new floor, fraction of baseline "
+                          "decodes, tested only when P1 does not fire -- "
+                          "failing it narrows the licensed scope to "
+                          "[f_min, 3000) rather than failing the rung "
+                          "outright (B3 fix)")
+
     ap.add_argument("--churn-net-min-rate", type=float, required=True,
                      help="net churn floor (negative), fraction of baseline "
                           "decodes (e.g. -0.0025)")
@@ -237,26 +355,40 @@ def main():
     if cycles_base != cycles_rep:
         p2.append("baseline and repeat legs cover different cycles")
 
-    # A7: manifest binds the widened leg's SHA to the rung it claims to be.
+    # A7/B1: manifest binds EACH leg's SHA to the band it claims to be.
     manifest = load_manifest(args.manifest)
-    entry = manifest.get(wide["dll_sha256"])
-    if entry is None:
-        p2.append(f"widened leg's SHA {wide['dll_sha256'][:16]}... is not in "
-                   f"the pre-registered manifest {args.manifest}")
-    elif entry.get("f_min") != args.f_min or entry.get("f_max") != args.f_max:
-        p2.append(f"manifest says {wide['dll_sha256'][:16]}... was built for "
-                   f"f_min={entry.get('f_min')} f_max={entry.get('f_max')}, "
-                   f"not this invocation's f_min={args.f_min} f_max={args.f_max}")
+    p2 += check_manifest_binding(wide["dll_sha256"], args.f_min, args.f_max,
+                                  manifest, args.manifest, "widened")
+    p2 += check_manifest_binding(base["dll_sha256"], OLD_F_MIN, OLD_F_MAX,
+                                  manifest, args.manifest, "baseline")
 
-    # A11: no leg may include the burned held-out-from cycle or anything before it.
-    all_ts = list(cycles_base) + list(cycles_wide) + list(cycles_rep)
-    if all_ts and min(all_ts) <= args.held_out_from:
-        p2.append(f"a leg includes cycle(s) at or before the held-out floor "
-                  f"{args.held_out_from} (min ts seen: {min(all_ts)}) -- the "
-                  f"burned leg must not be read")
+    # B2: the held-out floor applies ONLY to legs drawn from --burned-wav-dir.
+    for leg, cycles, role in ((base, cycles_base, "baseline"),
+                              (wide, cycles_wide, "widened"),
+                              (rep, cycles_rep, "repeat")):
+        if "wav_dir" not in leg:
+            p2.append(f"{role} leg JSON has no 'wav_dir' field -- it was "
+                       f"produced by a producer older than the B4 extraction "
+                       f"and cannot be checked against the held-out floor; "
+                       f"regenerate it with the current "
+                       f"g2_verification_replay.py")
+            continue
+        if leg["wav_dir"] != args.burned_wav_dir or not cycles:
+            continue
+        leg_min = min(cycles)
+        if leg_min <= args.held_out_from:
+            p2.append(f"{role} leg is drawn from the burned run "
+                       f"({args.burned_wav_dir}) and its earliest cycle "
+                       f"{leg_min} does not exceed the held-out floor "
+                       f"{args.held_out_from} -- the burned leg must not be "
+                       f"read")
 
     # ── P3 (VALIDITY): is churn identified at all? ───────────────────────────
-    rep_rows = per_cycle_terms(base, rep, args.f_min, args.f_max)
+    # B5: AV parity is not assumed -- av_all (computed below, ahead of P3 too)
+    # excludes any cycle where any leg AV'd from every rate, P3's included.
+    av_all = av_cycles(base) | av_cycles(wide) | av_cycles(rep)
+
+    rep_rows = per_cycle_terms(base, rep, args.f_min, args.f_max, av_all)
     rep_churn_abs = sum(r[2] + r[3] for r in rep_rows)
     p3_fired = rep_churn_abs != 0
 
@@ -270,21 +402,28 @@ def main():
         return 0
 
     # ── The measurement ──────────────────────────────────────────────────────
-    rows = per_cycle_terms(base, wide, args.f_min, args.f_max)
+    rows = per_cycle_terms(base, wide, args.f_min, args.f_max, av_all)
     r = rates(rows)
-    d_base = sum(len(v) for v in phys_by_cycle(base).values())  # A8: same
-    # denominator as rates(), de-duplicated per-cycle -- not the raw per-file
-    # row count the old d_base used.
+    # A8/B5: d_base is now simply rates()'s own denominator, computed from the
+    # SAME (already AV-excluded) `rows` -- not an independently recomputed
+    # figure from phys_by_cycle(base) that could silently drift from it.
+    d_base = sum(row[4] for row in rows)
+
+    if av_all:
+        print(f"\n  AV cycles excluded from every rate (B5 fix): {len(av_all)} "
+              f"cycle(s) where the shim's SEH caught a native access "
+              f"violation on at least one leg")
 
     g_high_total = sum(row[1] for row in rows)
 
-    # A1/A6 fix: P1 is now an OBSERVED-count check (A6), and it changes WHICH
-    # metric decides the row (A1) -- previously it fired into printed text only,
-    # which made it diagnostic-only and refusal-grade under HK-025.
+    # A1/A6 fix: P1 is now an OBSERVED-count check (A6), and it determines
+    # whether the high end is adjudicated AT ALL (A1) -- previously it fired
+    # into printed text only, which made it diagnostic-only and refusal-grade
+    # under HK-025.
     p1_fired = g_high_total < MIN_HIGH_BAND_OBSERVATIONS
     print(f"\n  P1 high-band power  observed high-band gains={g_high_total} "
           f"(need >= {MIN_HIGH_BAND_OBSERVATIONS}) -> "
-          f"{'HIGH END UNADJUDICATED -- low-band metric governs the row' if p1_fired else 'both ends adjudicated -- pooled metric governs the row'}")
+          f"{'HIGH END UNADJUDICATED' if p1_fired else 'high end adjudicated'}")
 
     print(f"\n  cycles={len(rows)}  baseline decodes (de-duplicated)={d_base}")
     print(f"  intended mechanism   low-band gains  = {sum(x[0] for x in rows)}   "
@@ -297,15 +436,24 @@ def main():
     print(f"  churn (gross) = {r['churn_gross'] * 100:+.3f}%   "
           f"(gross = |elsewhere| + |lost|; net can hide re-ordering that gross cannot)")
 
-    g_sel_fn = (lambda rr: rr["g_low"]) if p1_fired else (lambda rr: rr["g_pooled"])
-    g_sel_val = g_sel_fn(r)
-    g_sel_lo = bootstrap_bound(rows, g_sel_fn, 0.05)
-    churn_net_lo = bootstrap_bound(rows, lambda rr: rr["churn_net"], 0.05)
-    churn_gross_hi = bootstrap_bound(rows, lambda rr: rr["churn_gross"], 0.95)
+    # B3 fix: ONE bootstrap pass, four metrics, g_low and g_high NEVER pooled.
+    bounds = bootstrap_bounds(rows, {
+        "g_low": (lambda rr: rr["g_low"], 0.05),
+        "g_high": (lambda rr: rr["g_high"], 0.05),
+        "churn_net": (lambda rr: rr["churn_net"], 0.05),
+        "churn_gross": (lambda rr: rr["churn_gross"], 0.95),
+    })
+    g_low_lo = bounds["g_low"]
+    g_high_lo = bounds["g_high"]
+    churn_net_lo = bounds["churn_net"]
+    churn_gross_hi = bounds["churn_gross"]
 
-    sel_label = "G_new (low-band only)" if p1_fired else "G_new (pooled, both ends)"
-    print(f"\n  {sel_label} = {g_sel_val * 100:+.3f}%  "
-          f"(95% lower {g_sel_lo * 100:+.3f}%, bar {args.g_new_min_rate * 100:+.2f}%)")
+    print(f"\n  G_new (low-band)  = {r['g_low'] * 100:+.3f}%  "
+          f"(95% lower {g_low_lo * 100:+.3f}%, bar {args.g_new_min_rate * 100:+.2f}%)")
+    if not p1_fired:
+        print(f"  G_new (high-band) = {r['g_high'] * 100:+.3f}%  "
+              f"(95% lower {g_high_lo * 100:+.3f}%, "
+              f"bar {args.g_high_min_rate * 100:+.2f}%)")
     print(f"  churn net  = {r['churn_net'] * 100:+.3f}%  "
           f"(95% lower {churn_net_lo * 100:+.3f}%, "
           f"bar {args.churn_net_min_rate * 100:+.2f}%)")
@@ -313,27 +461,43 @@ def main():
           f"(95% upper {churn_gross_hi * 100:+.3f}%, "
           f"bar {args.churn_gross_max_rate * 100:+.2f}%)")
 
-    scope = (" (LOW END ONLY -- P1 fired, the high end is NOT adjudicated; "
-             f"licensed consequence is [{args.f_min}, {OLD_F_MAX}) only)"
-             if p1_fired else
-             f" (both ends adjudicated; licensed consequence is "
-             f"[{args.f_min}, {args.f_max}))")
-
-    g_ok = g_sel_lo >= args.g_new_min_rate
+    # B3 fix: g_low is barred against its own floor ALWAYS -- it is never
+    # pooled with g_high, and its floor is never diluted by the high band's
+    # contribution. g_high, when adjudicated, gets its own separate floor and
+    # decides SCOPE only, never whether the rung passes.
+    g_ok = g_low_lo >= args.g_new_min_rate
+    high_adjudicated = not p1_fired
+    high_ok = high_adjudicated and (g_high_lo >= args.g_high_min_rate)
     net_ok = churn_net_lo >= args.churn_net_min_rate
     gross_ok = churn_gross_hi <= args.churn_gross_max_rate
 
+    if p1_fired:
+        scope = (" (LOW END ONLY -- P1 fired, the high end is NOT adjudicated; "
+                 f"licensed consequence is [{args.f_min}, {OLD_F_MAX}) only)")
+    elif high_ok:
+        scope = (f" (both ends adjudicated and both clear; licensed "
+                 f"consequence is [{args.f_min}, {args.f_max}))")
+    else:
+        scope = (" (LOW END ONLY -- high end adjudicated but did not clear "
+                 f"its own floor; licensed consequence is "
+                 f"[{args.f_min}, {OLD_F_MAX}) only)")
+
     # ── Rows, in strict order, mutually exclusive ────────────────────────────
-    # A10 fix: ROW 0d is now reachable for a NAMED reason -- catastrophic gross
-    # churn (perturbation) landing together with a mechanism that does not clear
-    # its own bar. That combination is worse than a plain "mechanism underdelivers"
+    # A10 fix: ROW 0d is now reachable for a NAMED reason -- gross churn fails
+    # its ceiling (the same ceiling ROW 2 tests -- B6 fix, no second tier is
+    # claimed) landing together with a mechanism that does not clear its own
+    # bar. That combination is worse than a plain "mechanism underdelivers"
     # (ROW 3) and worse than "mechanism confirmed, perturbation real" (ROW 2,
-    # which requires the mechanism to have cleared its bar). It gets its own stop.
+    # which requires the mechanism to have cleared its bar). It gets its own
+    # stop.
     if not g_ok and not gross_ok:
         print(f"\n  ROW 0d -- CATCH-ALL, reached for a named reason (A10): the "
-              f"mechanism does not clear its own bar AND gross churn is "
-              f"catastrophic{scope}. This is worse than 'mechanism underdelivers' "
-              f"-- STOP and escalate; do not improvise a reading.")
+              f"mechanism does not clear its own bar AND gross churn exceeds "
+              f"its ceiling{scope}. Both bars failed together, against the "
+              f"SAME gross-churn ceiling ROW 2 tests (B6 fix: no distinct "
+              f"severity tier is claimed here); it reaches this row rather "
+              f"than ROW 2 only because the mechanism ALSO failed. STOP and "
+              f"escalate; do not improvise a reading.")
     elif g_ok and net_ok and gross_ok:
         print(f"\n  ROW 1 -- ELIGIBLE{scope}. The mechanism clears its own "
               "pre-committed floor and both churn metrics are bounded. The "

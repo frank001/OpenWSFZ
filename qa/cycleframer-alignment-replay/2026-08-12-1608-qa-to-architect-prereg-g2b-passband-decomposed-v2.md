@@ -16,6 +16,22 @@ gate before argument parsing even completed) before this document reached you.
 
 ---
 
+**🔴 REVISION 3 ADDENDUM (2026-08-12, against the second Architect review,
+`2026-08-12-1924-architect-to-qa-g2b-review-2-and-producer-ruling.md`):** still 🔴 **DRAFT — NOT
+ARMED.** That review found B4 (the producer, `g2_verification_replay.py`, was off-tree inside item
+(b)'s own held commit, unreviewed, and structurally unable to produce three of the four corpora §5
+names) and ruled it extracted and reviewed FIRST, ahead of any further gate work. It is now extracted
+onto its own branch (`qa/g2b-verification-replay-extract`, commit `95cb253`), parameterised for slice
+(`--start-cycle`/`--n-files`, not prefix-only) and corpus (`--wav-dir`/`--window-lo`/`--window-hi`,
+not hard-coded), and awaits its own review. `g2b_gate.py` is revised for B1/B2/B3/B5/B6 below; the
+smoke test is revised to match plus new fixtures built from REAL ts values read off the actual
+corpora on disk (B2.4's lesson), now 21 checks, still byte-identical across two independent runs.
+§§3.5, 4.2, 4.5 and 5 below are updated in place to match; §3.1–3.4/4.1/4.3/4.4/4.6 (A1–A2, A4, A6,
+A9, A10, A12) are untouched by this addendum. **Requesting the Architect's third review per that
+document's §10.**
+
+---
+
 ## 0. Why item (b) is back here instead of on `main`
 
 Unchanged from v1 §0. G2 item (b) — candidate passband `[200, 3000)` → `[140, 3030)` Hz — was
@@ -110,11 +126,31 @@ Previously the repeat leg was checked only by `n_files`, so equal file counts co
 timestamps would have passed P2 while P3 silently evaluated determinism over a smaller intersection.
 P2 now asserts `cycles(baseline) == cycles(widened) == cycles(repeat)` explicitly.
 
-### 3.5 A11 fix — the burned leg cannot be pointed at by omission
+### 3.5 A11 fix, REVISED for B2 — the burned leg cannot be pointed at by omission, and the floor is
+now scoped to the specific run it names
 
-`--held-out-from` is now a required argument. P2 fails if any leg's minimum cycle timestamp does not
-exceed it. This does not replace operator discipline; it means a lapse in that discipline produces
-ROW 0, not a silently-read burned leg.
+`--held-out-from` is a required argument, as A11 established. **The second Architect review found
+this construction incomplete (B2):** the original check was `min(all_ts) <= args.held_out_from`, a
+lexical string compare over a global minimum pooled across ALL THREE legs from WHATEVER corpus they
+happened to be drawn from. That fails in both directions, silently: with the correct floor
+(`260808_014215`, §3.3 below) it ROW-0'd the entire 4,614-cycle 08-03 corpus — which is not burned at
+all, simply five days earlier and therefore lexically smaller — and with the document's own previous
+(wrong-format) example floor it never fired for any leg of any corpus. The category error underneath
+both failures: **the burned region is a prefix of ONE specific run, not a point on a global
+timeline.** A single global floor cannot express that.
+
+**Fix:** `--burned-wav-dir` is now also required. The floor applies ONLY to a leg whose `wav_dir`
+field — recorded by `g2_verification_replay.py`'s extraction, §5.4 of the review — equals
+`--burned-wav-dir`; a leg from any other corpus is never compared against the floor, in either
+direction. A leg with no `wav_dir` field at all (i.e. produced by a producer older than the
+extraction) fails ROW 0 rather than being silently skipped. This does not replace operator
+discipline; it means a lapse in that discipline, OR an attempt to point the floor at the wrong run
+entirely, produces ROW 0, not a silently-misread or silently-unprotected leg.
+
+The smoke test's coverage of this (`g2b_gate_smoketest.py`) uses REAL ts values read once, mechanically,
+off the actual 08-08 and 08-03 corpora on disk, not the smoke test's own invented format — directly
+answering the Architect's §3.4 lesson that a synthetic-only fixture cannot exercise a format contract
+it invents itself.
 
 ---
 
@@ -188,6 +224,34 @@ Architect's instruction — *"any bar which the burned leg's 4.8% clears comfort
 2.00% is well under half of 4.8% and is a round pre-committed figure, not derived from the 4.8% beyond
 being informed that it must clear it by a wide margin.
 
+### 4.2a B3 fix — g_low and g_high are barred separately; pooling is removed at the decision layer
+
+The second Architect review (B3): `g_sel_fn` selected EITHER `g_low` alone OR `g_low + g_high`
+pooled, and tested whichever was selected against `--g-new-min-rate` — a floor derived entirely from
+the low band's width. `[3000, 3030)` is a fixed 30 Hz slice identical across all three rungs, so when
+P1 did not fire, it contributed the SAME absolute amount to every rung's pooled numerator while the
+bar it was measured against shrank with the low span — rung 180's 0.35% bar could be cleared on
+high-band yield alone while `[180, 200)`, the mechanism actually under test, delivered nothing.
+Dismissing this via the reference decoder's 0.076% high-band share is explicitly unavailable: that
+figure is the same HK-026-contaminated one this document's own §1.1 shows under-predicted its own
+yield 3.4×.
+
+**Fix, as the Architect specified:** `g_low` is now barred against its own low-band floor
+(`--g-new-min-rate`) **always**, regardless of P1. `g_high`, when adjudicated (P1 does not fire), is
+barred against its **own**, separate floor (`--g-high-min-rate`) — and a `g_high` shortfall narrows
+the licensed consequence's SCOPE to `[f_min, 3000)`, exactly as an unadjudicated high end already did;
+it does not fail the rung outright. `g_pooled` and `g_sel_fn` no longer exist in the code.
+
+**`g_high` floor — the same width-proportional convention, extended consistently.** `[3000, 3030)` is
+30 Hz, fixed across the ladder. Using the rung-140 low-band anchor's own per-Hz rate (1.00% / 60 Hz ≈
+0.0167%/Hz) and applying it to the high band's fixed 30 Hz width: **`g_high_min_rate = 0.50%`**
+(1.00% × 30/60). This is the SAME geometric convention §4.2 already uses for the low-band ladder,
+now applied to the quantity it is actually scaled for — which the Architect's B3 finding states is
+what makes the convention defensible in the first place ("once g_low and g_high are barred
+separately, width-proportional scaling becomes a defensible pre-committed geometric convention").
+Disclosed with the identical caveat as the low-band floors: pre-committed and defensible, not a true
+re-derivation.
+
 ### 4.3 A4 fix — gross churn is a co-primary metric with its own row consequences
 
 `churn_gross` now participates in row selection directly, not folded into `churn_net`. A rung that
@@ -211,30 +275,42 @@ otherwise ROW 3's text is explicit that it bears on that rung alone. Any other c
 fine per the Architect's note; what mattered was pre-registering one before the numbers exist, and
 that is done.
 
-### 4.5 A10 fix — ROW 0d is reachable, for a named reason
+### 4.5 A10 fix, REVISED for B6 — ROW 0d is reachable, for a named reason, with no severity tier claimed
 
 Previously the three branches were exhaustive and 0d was dead code — the same fault, one day later,
 that let X4 and X5's catch-alls go unexercised. It now fires when **the mechanism fails to clear its
-own floor AND gross churn is simultaneously catastrophic** — worse than a plain "mechanism
-underdelivers" (ROW 3, which still has bounded gross churn) and not rescuable by ROW 2's "mechanism
-confirmed" framing (which requires the mechanism to have cleared its floor in the first place). This
-combination gets its own stop-and-escalate rather than being swallowed into ROW 3's tidy consequence,
-exactly as A10 asked. Smoke-tested directly (`g2b_gate_smoketest.py`, "ROW0d catastrophic" case).
+own floor AND gross churn also exceeds its ceiling** — worse than a plain "mechanism underdelivers"
+(ROW 3, which still has bounded gross churn) and not rescuable by ROW 2's "mechanism confirmed"
+framing (which requires the mechanism to have cleared its floor in the first place). This combination
+gets its own stop-and-escalate rather than being swallowed into ROW 3's tidy consequence, exactly as
+A10 asked.
+
+**B6 fix:** the previous wording described ROW 0d's gross-churn failure as "catastrophic," implying a
+second, higher severity tier. It is not one — `:341`'s ROW 2 and ROW 0d test the identical
+`--churn-gross-max-rate` ceiling; ROW 0d differs only in that the mechanism ALSO failed its own bar.
+The word is removed from the row text and from this section (the Architect offered either a genuine
+second threshold or removing the word, "equally honest"; this revision takes the no-new-parameter
+option). The smoke test asserts the word does not appear anywhere in the gate's output.
 
 ### 4.6 A12 fix — the evaluator prints ELIGIBLE, not SHIP
 
 §4 reserves the choice among passing rungs to the Captain. ROW 1 now prints `ELIGIBLE`; three rungs
 reading ROW 1 no longer look like three conflicting SHIP orders.
 
-### 4.7 Rows — hard-thresholded, mutually exclusive, strict order (as implemented)
+### 4.7 Rows — hard-thresholded, mutually exclusive, strict order (as implemented, REVISED for B3/B6)
 
-| row | condition (95% bounds; `g` selected per P1, §3.1) | consequence |
+`g_ok` below is **always** `g_low`'s 95% lower bound against `--g-new-min-rate` (B3: never pooled with
+`g_high`, never selected by `g_sel_fn` — that mechanism is gone). `scope` is three-way: low-band-only
+if P1 fired (high unadjudicated); full-band if P1 did not fire and `g_high` clears its own
+`--g-high-min-rate`; low-band-only (again) if P1 did not fire but `g_high` failed to clear its floor.
+
+| row | condition (95% bounds) | consequence |
 |---|---|---|
 | **ROW 0** | P2 or P3 fired | **NO READ.** |
-| **ROW 0d** | `g` lower bound `<` its floor **and** gross-churn upper bound `>` its ceiling | **CATASTROPHIC — STOP and escalate.** Named reason (A10), not dead code. |
-| **ROW 1** | `g` clears its floor **and** net-churn lower bound clears its floor **and** gross-churn upper bound clears its ceiling | **ELIGIBLE.** Captain chooses among eligible rungs. |
-| **ROW 2** | `g` clears its floor **and** (net churn fails **or** gross churn fails) | **MECHANISM CONFIRMED, PERTURBATION REAL.** Escalate decoupling the noise-floor estimate; do not ship raw. |
-| **ROW 3** | `g` fails its floor (and not the ROW 0d combination) | Mechanism underdelivers **at this rung**. Closes the family only if `--is-widest-rung yes` (§4.4). |
+| **ROW 0d** | `g_ok` fails **and** gross-churn upper bound `>` its ceiling | **STOP and escalate.** Named reason (A10); no severity tier beyond ROW 2's own gross-churn test is claimed (B6). |
+| **ROW 1** | `g_ok` clears **and** net-churn lower bound clears its floor **and** gross-churn upper bound clears its ceiling | **ELIGIBLE**, at the scope described above. Captain chooses among eligible rungs. |
+| **ROW 2** | `g_ok` clears **and** (net churn fails **or** gross churn fails) | **MECHANISM CONFIRMED, PERTURBATION REAL.** Escalate decoupling the noise-floor estimate; do not ship raw. |
+| **ROW 3** | `g_ok` fails (and not the ROW 0d combination) | Mechanism underdelivers **at this rung**. Closes the family only if `--is-widest-rung yes` (§4.4). |
 
 **Disclosure, carried forward and updated.** The 250-cycle 20m leg is still BURNED — these bars were
 set with knowledge of its numbers (`G_new` = +2.71%, `churn_net` = −0.33%, and its gross churn,
@@ -262,9 +338,32 @@ Unchanged from v1 §4.2, carried forward for scoring against the revised bars:
 
 ## 5. Data — unchanged, already on disk. NO CAPTURE RUN IS REQUIRED
 
+🔴 **Cycle count for the 20m held-out remainder corrected this addendum (was 2,495, B2 §3.3):** the
+producer applies `WINDOW_20M`, so the population it can actually reach is a windowed subset, not the
+inventory's full-run count. `2,495` was `2,745 − 250` (inventory's full-run count minus the burned
+250); the real population after windowing is smaller. Recomputed mechanically against the real 08-08
+corpus by `g2_verification_replay.py`'s own `select_files()` (see its extraction commit): **2,291**
+using `wsjt-x/wav` (2,529 in-window total − 250 burned), or **2,291** using `owsfz/wav` also (2,541
+in-window total − 250 burned) — the two directories happen to agree on the count of cycles 251+ even
+though their TOTAL in-window counts differ (2,529 vs 2,541), because they diverge only in gaps late in
+the window. Not blocking (A6 already removed any dependence on a predicted cycle count), but this is
+the number someone will use to plan the run.
+
+⚠️ **Open question, not resolved here, surfaced by the extraction:** `p23_common.py`'s own hard-coded
+default (`WAV_DIR`) points at `wsjt-x/wav`, matching that module's own docstring purpose (P2/P3
+deliberately replay WSJT-X's captured audio through our decoder). This document's own §3.3 arithmetic,
+and the Architect's B2 §3.3, describe the population as **`owsfz/wav`** — OUR daemon's own captured
+audio, which is what a G2(b) leg arguably should replay if the question is "what would OUR decoder
+recover from what it actually received." `g2_verification_replay.py`'s extraction makes `--wav-dir` a
+required, explicit argument specifically so this is a deliberate per-invocation choice, not an
+inherited default — but WHICH directory is correct for this pre-registration's actual runs is a
+methodological decision this document has not made, and the two chains are known to differ (the
+project's own recorded ~10-13% capture-chain effect). **Requesting the Architect's ruling on this
+before any rung is actually run**, separately from the third review of the fixes below.
+
 | band | corpus | cycles | use |
 |---|---|---:|---|
-| 20m | `20260808_live_run_0016-8080` cycles 251+ | 2,495 | held-out remainder of the burned leg |
+| 20m | `20260808_live_run_0016-8080` cycles 251+ | **2,291** (corrected) | held-out remainder of the burned leg |
 | 20m | `20260803_live_run_1713` | 4,614 | independent corpus |
 | 17m | `20260808_live_run_1154-8080-17m` | 1,856 | |
 | 80m | `20260809_live_run_0155-8080-80m` | 1,210 | ⚠️ WAVs HARDLINKED — read both inventory columns |
@@ -275,7 +374,7 @@ per band (table above); P1 decides itself, mechanically, from the observed high-
 run is in.
 
 **Cost, revised for the ladder's three rungs plus the two fixed legs.** At the previously-measured
-0.571 s/cycle and the corpus sizes above (≈2,495–4,614 cycles for the primary 20m/17m/80m legs, using
+0.571 s/cycle and the corpus sizes above (≈2,291–4,614 cycles for the primary 20m/17m/80m legs, using
 the smaller 20m held-out slice as representative): **baseline + repeat + 3 rungs = 5 legs**, ×3 bands,
 on corpora of order 1,200–2,500 cycles ≈ **on the order of 3–5 hours** unattended, somewhat more than
 v1's 2.2 h estimate because run sizing is no longer artificially inflated toward a λ target that this
@@ -343,3 +442,29 @@ Unchanged from v1 §6 of the escalation and §4 of the Architect's review:
   the covering note) all sit uncommitted, alongside the still-uncommitted `p23_common.py` fix noted
   separately on the board.
 - **Requesting:** a second Architect review of this revision, per the Architect's own §5 item 5.
+
+---
+
+## 9a. Status — REVISION 3 addendum (2026-08-12, against the second review)
+
+- ✅ **B4** — `g2_verification_replay.py` extracted onto its own branch
+  (`qa/g2b-verification-replay-extract`, commit `95cb253`), parameterised for slice and corpus.
+  Awaiting its own review, per the ruling's step 1. Not yet used to produce any leg.
+- ✅ **B1, B2, B3, B5, B6** fixed in `g2b_gate.py` (§§2–6 of the addendum banner above); §§3.5, 4.2a,
+  4.5, 4.7 and 5 of this document updated to match.
+- ✅ Minor: the dangling doc-pointer/date fixed in `g2b_gate.py`'s own docstring; the four separate
+  bootstraps collapsed into one (`bootstrap_bounds()`), flagged by the Architect as worth doing before
+  the ladder's 9 legs run.
+- ✅ Re-smoke-tested (`g2b_gate_smoketest.py`): 21 checks, including dedicated B1/B2/B3/B5/B6 coverage
+  and fixtures built from REAL ts values read off the actual 08-08/08-03 corpora on disk (not the
+  smoke test's own invented format). All pass; output byte-identical across two independent runs.
+- ⚠️ **New, open, not resolved here:** §5's `owsfz/wav` vs `wsjt-x/wav` discrepancy — which capture
+  chain a G2(b) leg should actually replay. Requesting the Architect's ruling on this specifically,
+  ahead of any rung actually being run.
+- 🛑 **Not armed. Nothing merged or pushed** (HK-010/HK-014). Commit state (HK-022): the extraction is
+  committed on its own branch as above; this document, `g2b_gate.py`, `g2b_dll_manifest.json` and
+  `g2b_gate_smoketest.py` are committed together on `main` in the same commit as this addendum, per
+  the established pattern for QA/Architect qa-tooling and docs work in this project. The still-separate
+  `p23_common.py` sort fix remains uncommitted, unrelated, and untouched by any of this.
+- **Requesting:** the Architect's third review, per that document's §10 step 4, plus a ruling on the
+  `owsfz/wav` vs `wsjt-x/wav` question above.
