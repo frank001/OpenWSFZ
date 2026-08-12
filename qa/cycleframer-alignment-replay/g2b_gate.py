@@ -63,14 +63,48 @@ Architect flagged this as worth doing before the ladder's 9 legs run.
   exclusive, and read in strict order with an explicit ROW 0 and a reachable
   ROW 0d that fires for a named reason (A10), not as dead code.
 
+REVISION 4 (2026-08-12, third Architect review, 20:15Z) -- against
+`2026-08-12-2015-architect-to-qa-g2b-review-3-and-wav-dir-ruling.md`'s three
+blocking (C1-C3... C1/C2/C5) plus one serious (C3) and one moderate (C4)
+findings against the gate and its producer. The producer fixes (C3/C4) land in
+g2_verification_replay.py, on its own branch, not here. This file:
+
+  C1  The docstring's usage example named --burned-wav-dir as .../owsfz/wav.
+      RULED: the 08-08 corpus for every leg of every rung is .../wsjt-x/wav
+      (raw-WAV measurement, HK-026-valid; the two capture chains are within
+      half a dB everywhere that matters, so the choice is not load-bearing and
+      consistency with the burned leg and the rest of the programme decides
+      it). Fixed here as a doc-only correction; the held-out remainder is
+      2,279 cycles (2,529 in-window - 250 burned), corrected in the pre-reg.
+  C2  wav_dir was compared as a raw path string (relative vs absolute, `/` vs
+      `\\`, a trailing separator, or case all silently defeat a bare `!=`),
+      and nothing bound the three legs to ONE corpus -- wsjt-x/wav's in-window
+      ts set is a STRICT SUBSET of owsfz/wav's (2,529 shared keys over
+      DIFFERENT audio), so a same-ts, different-corpus mix was caught today
+      only by an accidental 12-file gap in the existing cycle-set check.
+      Fixed: every wav_dir is normalised (normcase+realpath) before any
+      comparison, and P2 now asserts baseline/widened/repeat share one
+      identical (wav_dir, window, start_cycle) triple -- fields the B4
+      extraction already records, which is what makes this checkable at all.
+  C5  The A3 combination rule (my own review-1 recommendation, "family closes
+      only if the WIDEST rung reads ROW 3") let the THINNEST-MARGIN rung close
+      the whole family: raw WAV shows ~20 dB/40-60 Hz rolloff below 200 Hz, so
+      the width-proportional bars scale faster than the opportunity, and rung
+      100 -- structurally the thinnest margin of the three -- is also the
+      widest rung. Fixed per the Architect's own repair: --is-widest-rung is
+      REMOVED. ROW 3 is now evidence about that single rung's width only;
+      family closure is a separate adjudication made after all three rungs
+      have run, and closes only if NO rung reads ROW 1 or ROW 2. This gate,
+      invoked once per rung, cannot itself perform that cross-rung
+      adjudication -- it prints the fact needed for it and stops.
+
 Usage:
     python g2b_gate.py --band 20m --f-min 140 --f-max 3030 \
         --baseline base_20m.json --widened wide_20m_f140.json \
         --repeat  base_20m_repeat.json \
         --manifest g2b_dll_manifest.json \
-        --burned-wav-dir artefacts/20260808_live_run_0016-8080/owsfz/wav \
+        --burned-wav-dir artefacts/20260808_live_run_0016-8080/wsjt-x/wav \
         --held-out-from 260808_014215 \
-        --is-widest-rung no \
         --g-new-min-rate 0.0100 --g-high-min-rate 0.0050 \
         --churn-net-min-rate -0.0025 --churn-gross-max-rate 0.0200
 """
@@ -78,6 +112,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import sys
 
@@ -260,12 +295,14 @@ def main():
                      help="this rung's low-end cutoff, e.g. 180 / 140 / 100")
     ap.add_argument("--f-max", type=int, default=NEW_F_MAX_DEFAULT)
 
-    # A3 fix: the combination rule (family closes only if the WIDEST rung reads
-    # ROW 3, per the Architect's recommendation, accepted in the revised pre-reg)
-    # is pre-registered in prose but only MECHANICAL if the gate knows which
-    # invocation is the widest rung. Required, not defaulted, so it cannot be
-    # silently forgotten.
-    ap.add_argument("--is-widest-rung", required=True, choices=["yes", "no"])
+    # C5 fix: --is-widest-rung is REMOVED. The A3 combination rule it drove
+    # ("family closes only if the widest rung reads ROW 3") let the
+    # thinnest-margin rung -- which the raw WAV shows is also the widest rung
+    # -- close the whole family alone, discarding a passing narrower rung.
+    # ROW 3 is now evidence about the invoked rung's own width only; family
+    # closure is a separate, cross-rung adjudication this single invocation
+    # cannot perform (see the ROW 3 branch below and the REVISION 4 docstring
+    # note).
 
     # A7/B1 fix: nothing previously bound a leg's binary to the rung it claims
     # to be, and (B1) the check only ever covered the widened leg. The manifest
@@ -283,12 +320,17 @@ def main():
     # The floor now applies ONLY to legs drawn from --burned-wav-dir, which
     # g2_verification_replay.py's extraction records as each leg's `wav_dir`
     # field. A leg from any other corpus is never compared against it.
+    # C2 fix: this value, and every leg's recorded wav_dir, is normalised
+    # (normcase+realpath) before any comparison -- a bare string `!=` is not
+    # an identity check (relative vs absolute, `/` vs `\\`, a trailing
+    # separator, or case all defeat it silently).
     ap.add_argument("--burned-wav-dir", required=True,
                      help="the WAV directory the burned leg was drawn from, "
                           "e.g. artefacts/20260808_live_run_0016-8080/"
-                          "owsfz/wav -- the floor below applies ONLY to legs "
+                          "wsjt-x/wav -- the floor below applies ONLY to legs "
                           "whose recorded wav_dir equals this, never pooled "
-                          "across corpora")
+                          "across corpora (RULED 2026-08-12: wsjt-x/wav, not "
+                          "owsfz/wav, for the 08-08 corpus -- C1)")
     ap.add_argument("--held-out-from", required=True,
                      help="ts floor (exclusive), evaluated only against legs "
                           "drawn from --burned-wav-dir, e.g. 260808_014215 "
@@ -331,7 +373,7 @@ def main():
 
     base, wide, rep = load(args.baseline), load(args.widened), load(args.repeat)
     print(f"\n{'=' * 78}\nG2(b) GATE -- band {args.band}  f_min={args.f_min} "
-          f"f_max={args.f_max}  widest_rung={args.is_widest_rung}\n{'=' * 78}")
+          f"f_max={args.f_max}\n{'=' * 78}")
     for leg in (base, wide, rep):
         print(f"  {leg['label']:12s} sha={leg['dll_sha256'][:16]}... "
               f"shim={leg['shim_version']} files={leg['n_files']}")
@@ -362,18 +404,54 @@ def main():
     p2 += check_manifest_binding(base["dll_sha256"], OLD_F_MIN, OLD_F_MAX,
                                   manifest, args.manifest, "baseline")
 
-    # B2: the held-out floor applies ONLY to legs drawn from --burned-wav-dir.
-    for leg, cycles, role in ((base, cycles_base, "baseline"),
-                              (wide, cycles_wide, "widened"),
-                              (rep, cycles_rep, "repeat")):
-        if "wav_dir" not in leg:
-            p2.append(f"{role} leg JSON has no 'wav_dir' field -- it was "
-                       f"produced by a producer older than the B4 extraction "
-                       f"and cannot be checked against the held-out floor; "
+    # C2 fix, two halves.
+    #
+    # (a) wav_dir is normalised (normcase+realpath) before any comparison. A
+    #     bare `!=` on operator-typed strings is not an identity check --
+    #     relative vs absolute, `/` vs `\\`, a trailing separator, or (on
+    #     Windows) case all defeat it silently, and both conventions are
+    #     already live in this codebase (p23_common builds absolute paths
+    #     from REPO_ROOT; this file's own usage example is relative).
+    #
+    # (b) nothing previously asserted the three legs were drawn from the SAME
+    #     corpus -- and the ts key cannot catch a mix on its own: wsjt-x/wav's
+    #     in-window timestamp set is a STRICT SUBSET of owsfz/wav's (2,529
+    #     shared keys over DIFFERENT audio from different capture chains), so
+    #     a same-ts, different-corpus mix was caught today only by an
+    #     accidental 12-file gap in the cycles_base/wide/rep checks above. A
+    #     safety property must not rest on an accidental gap. Fixed: every leg
+    #     must carry wav_dir/window/start_cycle (fields the B4 extraction
+    #     records precisely for this reason), and all three legs must agree
+    #     on all three, normalised.
+    provenance = {}
+    for leg, role in ((base, "baseline"), (wide, "widened"), (rep, "repeat")):
+        missing = [k for k in ("wav_dir", "window", "start_cycle") if k not in leg]
+        if missing:
+            p2.append(f"{role} leg JSON is missing {', '.join(missing)} -- it "
+                       f"was produced by a producer older than the B4 "
+                       f"extraction and cannot be checked against the other "
+                       f"legs' corpus/slice or the held-out floor; "
                        f"regenerate it with the current "
                        f"g2_verification_replay.py")
             continue
-        if leg["wav_dir"] != args.burned_wav_dir or not cycles:
+        provenance[role] = (os.path.normcase(os.path.realpath(leg["wav_dir"])),
+                             tuple(leg["window"]), leg["start_cycle"])
+
+    if len(provenance) == 3 and len(set(provenance.values())) != 1:
+        detail = "; ".join(f"{role}={v}" for role, v in provenance.items())
+        p2.append(f"legs do not share one corpus/slice "
+                   f"(wav_dir, window, start_cycle) -- {detail}")
+
+    # B2: the held-out floor applies ONLY to legs drawn from --burned-wav-dir
+    # (RULED 2026-08-12: wsjt-x/wav for the 08-08 corpus, C1), compared
+    # normalised on both sides.
+    burned_wav_dir_norm = os.path.normcase(os.path.realpath(args.burned_wav_dir))
+    for role, cycles in (("baseline", cycles_base), ("widened", cycles_wide),
+                         ("repeat", cycles_rep)):
+        if role not in provenance:
+            continue  # already flagged above (missing wav_dir/window/start_cycle)
+        leg_wav_dir_norm, _window, _start_cycle = provenance[role]
+        if leg_wav_dir_norm != burned_wav_dir_norm or not cycles:
             continue
         leg_min = min(cycles)
         if leg_min <= args.held_out_from:
@@ -513,17 +591,17 @@ def main():
               "Escalate decoupling the noise-floor estimate from the passband "
               "as its own change; the widening returns on top of it.")
     elif not g_ok:
-        if args.is_widest_rung == "yes":
-            print(f"\n  ROW 3 -- the mechanism does not deliver at scale{scope}. "
-                  "This IS the widest rung, so per the pre-registered "
-                  "combination rule (family closes only if the widest rung "
-                  "reads ROW 3): CLOSE the passband family; do not re-propose "
-                  "without new evidence.")
-        else:
-            print(f"\n  ROW 3 -- this rung does not deliver{scope}. This is NOT "
-                  "the widest rung, so per the pre-registered combination rule "
-                  "this is evidence about THIS rung's width only -- it does "
-                  "not close the passband family by itself.")
+        # C5 fix: the previous rule ("family closes only if the WIDEST rung
+        # reads ROW 3") let the thinnest-margin rung -- the raw WAV shows this
+        # IS the widest rung, by construction of the ladder -- close the whole
+        # family alone, discarding a passing narrower rung. This invocation
+        # sees one rung only and cannot perform a cross-rung adjudication;
+        # ROW 3 is now evidence about this rung's width, full stop.
+        print(f"\n  ROW 3 -- this rung does not deliver{scope}. This is "
+              "evidence about THIS rung's width only. Per the repaired "
+              "combination rule (C5): the passband family closes only if NO "
+              "rung reads ROW 1 or ROW 2 -- a separate adjudication made "
+              "after all three rungs have run, not by this invocation alone.")
     else:
         # Structurally unreachable given the branches above are exhaustive over
         # (g_ok, gross_ok) x net_ok; kept as a safety net, same discipline A10

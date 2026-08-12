@@ -1,24 +1,38 @@
 #!/usr/bin/env python3
-"""Smoke test for g2b_gate.py revision 3 (2026-08-12, second Architect review).
+"""Smoke test for g2b_gate.py revision 4 (2026-08-12, third Architect review).
 
-Re-run required by the Architect's second review (S10 step 3): "add one real
-replay-JSON fixture to the smoke test... even a 20-cycle slice." The revision-2
-smoke test was saved as an artefact (HK-022) but built ENTIRELY on synthetic
-fixtures inventing their own timestamp format -- which is exactly why it could
-not catch B2 (the real ts format the gate compares against was never exercised).
-This revision keeps every revision-2 check, updates every call site for the new
-required CLI flags (--burned-wav-dir, --g-high-min-rate), adds direct coverage
-for B1/B2/B3/B5/B6, and adds fixtures built from REAL ts values read once,
-mechanically, off the actual WAV corpora on disk (2026-08-12) rather than an
-invented format -- see REAL_* below. The `decodes` payload inside those
-fixtures is still hand-authored: no live decoder run is authorized as part of
-this smoke test, only the ts/wav_dir FORMAT CONTRACT is real.
+Re-run required by the Architect's third review
+(`2026-08-12-2015-architect-to-qa-g2b-review-3-and-wav-dir-ruling.md`), which
+found three blocking (C1/C2/C5) plus one serious (C3, producer) and one
+moderate (C4, producer) defects. C3/C4 land in g2_verification_replay.py, on
+its own branch, and are covered by that file's own tests, not here. This
+revision:
+
+  - Drops --is-widest-rung from every gate invocation (C5: the flag and the
+    combination rule it drove are gone from g2b_gate.py).
+  - Replaces the two ROW 3 (widest/non-widest) checks with one check against
+    the repaired ROW 3 text -- evidence about the invoked rung only, family
+    closure named as a separate cross-rung adjudication.
+  - Every fixture leg now also carries `window`/`start_cycle` (C2: the gate
+    now requires all three provenance fields -- wav_dir, window, start_cycle
+    -- present and, across the three legs, IDENTICAL once normalised).
+  - Adds a fixture reproducing C2(b) directly: three legs sharing every `ts`
+    but with the widened leg drawn from a DIFFERENT corpus -- today this
+    passes (caught only by luck, via the cycle-set gap between owsfz/wav and
+    wsjt-x/wav); after the fix it must ROW 0.
+  - Updates the B2 "missing wav_dir field" regression check for the new,
+    three-field error message.
+
+Keeps every revision-3 check otherwise unchanged: B1/B2/B3/B5/B6 coverage,
+the REAL-ts-format fixtures (still real, still literal, per B2.4's lesson),
+and the direct (non-subprocess) unit checks.
 
 Exercises, by subprocess CLI invocation against fixture JSONs:
   - ROW 0, P2: same-binary, manifest-missing (widened), manifest-mismatch
     (widened), manifest-missing (BASELINE, B1), manifest-mismatch (BASELINE,
     B1), held-out violation on the burned corpus using REAL ts (B2), missing
-    wav_dir field (B2 fail-closed)
+    provenance fields (B2/C2 fail-closed), legs sharing every ts but drawn
+    from different corpora (C2b, NEW)
   - ROW 0, P3: determinism failure
   - ROW 1 (ELIGIBLE): P1 fired (low-band only), P1 not fired with the high
     band ALSO clearing its own separate floor (B3 -- both ends adjudicated)
@@ -32,8 +46,9 @@ Exercises, by subprocess CLI invocation against fixture JSONs:
     alone (A4 co-primary); once where g_low clears but g_high (adjudicated)
     does NOT -- scope narrows to low-band-only rather than failing the rung
     (B3's "own row path" for g_high)
-  - ROW 3, once as a non-widest rung (does not close the family) and once as
-    the widest rung (closes the family) -- A3's combination rule
+  - ROW 3, mechanism underdelivers -- evidence about this rung only, no
+    combination-rule flag involved (C5, REVISED from A3's widest/non-widest
+    pair)
   - ROW 0d, reached for the NAMED reason A10 introduced (mechanism sub-bar AND
     gross churn ceiling exceeded together), with NO "catastrophic" wording
     anywhere in the output (B6)
@@ -68,7 +83,7 @@ FAILURES = []
 # artefacts/ directory at all; it is blanket-gitignored), and not synthesised
 # in an invented format (B2.4's lesson: the old fixture format never made
 # contact with what the real producer emits). These are literal fixture data.
-REAL_WAV_DIR_08_08 = "artefacts/20260808_live_run_0016-8080/owsfz/wav"
+REAL_WAV_DIR_08_08 = "artefacts/20260808_live_run_0016-8080/wsjt-x/wav"  # C1: RULED
 REAL_TS_08_08_EARLY = ["260808_000830", "260808_000845", "260808_000900",
                        "260808_000915", "260808_000930"]
 REAL_HELD_OUT_FLOOR_08_08 = "260808_014215"  # the Architect's own cited floor
@@ -137,15 +152,19 @@ def make_cycle(ts, base_start, n_base, g_low, g_high, g_else, n_lost,
 def make_legs(n_cycles, n_base, g_low, g_high, g_else, n_lost,
               f_min, f_max, sha_base="a" * 64, sha_wide="b" * 64,
               sha_rep=None, repeat_matches=True, first_ts_num=1000,
-              wav_dir="SMOKETEST_WAV_DIR", ts_list=None,
-              av_cycle_idx=None, av_leg="wide", omit_wav_dir=False):
-    """wav_dir is recorded on every leg (B2 needs it on every leg to scope the
-    held-out floor). ts_list, if given, overrides the synthesised
-    '202608{n:06d}Z' timestamps with a caller-supplied list -- pass one of the
-    REAL_TS_* lists above to exercise the real format contract. av_cycle_idx/
-    av_leg, if given, marks that cycle av=True (decodes cleared) on the named
-    leg ("base"/"wide"/"rep"), for B5 coverage. omit_wav_dir drops the field
-    entirely, for the B2 fail-closed regression check.
+              wav_dir="SMOKETEST_WAV_DIR", window=("SMOKETEST_LO", "SMOKETEST_HI"),
+              start_cycle=1, ts_list=None,
+              av_cycle_idx=None, av_leg="wide", omit_provenance=False):
+    """wav_dir/window/start_cycle are recorded on every leg (C2 needs all
+    three present, and IDENTICAL across all three legs, to scope the held-out
+    floor and to bind the legs to one corpus). ts_list, if given, overrides
+    the synthesised '202608{n:06d}Z' timestamps with a caller-supplied list --
+    pass one of the REAL_TS_* lists above to exercise the real format
+    contract. av_cycle_idx/av_leg, if given, marks that cycle av=True (decodes
+    cleared) on the named leg ("base"/"wide"/"rep"), for B5 coverage.
+    omit_provenance drops wav_dir/window/start_cycle entirely, for the C2
+    fail-closed regression check (simulating a producer older than the B4
+    extraction, which recorded none of the three).
     """
     sha_rep = sha_rep or sha_base
     base_files, wide_files, rep_files = [], [], []
@@ -171,8 +190,10 @@ def make_legs(n_cycles, n_base, g_low, g_high, g_else, n_lost,
     def leg(label, sha, files):
         out = {"label": label, "dll_sha256": sha, "shim_version": 20260039,
                "n_files": n_cycles, "per_file": files}
-        if not omit_wav_dir:
+        if not omit_provenance:
             out["wav_dir"] = wav_dir
+            out["window"] = list(window)
+            out["start_cycle"] = start_cycle
         return out
 
     return (leg("base", sha_base, base_files),
@@ -180,7 +201,7 @@ def make_legs(n_cycles, n_base, g_low, g_high, g_else, n_lost,
             leg("repeat", sha_rep, rep_files))
 
 
-def run_gate(tmp, base, wide, rep, f_min, f_max, is_widest, manifest,
+def run_gate(tmp, base, wide, rep, f_min, f_max, manifest,
              g_new_bar, g_high_bar, churn_net_bar, churn_gross_bar,
              held_out_from="0", burned_wav_dir="UNBURNED_WAV_DIR_SENTINEL"):
     bpath, wpath, rpath = tmp / "base.json", tmp / "wide.json", tmp / "rep.json"
@@ -194,7 +215,6 @@ def run_gate(tmp, base, wide, rep, f_min, f_max, is_widest, manifest,
            "--band", "smoketest",
            "--baseline", str(bpath), "--widened", str(wpath), "--repeat", str(rpath),
            "--f-min", str(f_min), "--f-max", str(f_max),
-           "--is-widest-rung", is_widest,
            "--manifest", str(mpath),
            "--burned-wav-dir", burned_wav_dir,
            "--held-out-from", held_out_from,
@@ -208,7 +228,7 @@ def run_gate(tmp, base, wide, rep, f_min, f_max, is_widest, manifest,
 
 def main():
     print("=" * 78)
-    print("g2b_gate.py smoke test -- revision 3, 2026-08-12 (second review)")
+    print("g2b_gate.py smoke test -- revision 4, 2026-08-12 (third review)")
     print("=" * 78)
 
     F_MIN, F_MAX = 140, 3030
@@ -226,7 +246,7 @@ def main():
         # ── ROW 0 -- P2: baseline and widened are the SAME binary ───────────
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
                                      sha_wide="a" * 64)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no",
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX,
                         {"a" * 64: {"f_min": F_MIN, "f_max": F_MAX}},
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW0 same-binary", "ROW 0 -- NO READ" in out
@@ -234,7 +254,7 @@ def main():
 
         # ── ROW 0 -- P2: manifest missing the WIDENED SHA entirely ──────────
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no",
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX,
                         {"a" * 64: {"f_min": g2b.OLD_F_MIN, "f_max": g2b.OLD_F_MAX}},
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW0 widened manifest-missing (A7)", "ROW 0 -- NO READ" in out
@@ -245,14 +265,14 @@ def main():
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
         bad_manifest = {"b" * 64: {"f_min": 180, "f_max": F_MAX},
                          "a" * 64: {"f_min": g2b.OLD_F_MIN, "f_max": g2b.OLD_F_MAX}}
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", bad_manifest,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, bad_manifest,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW0 widened manifest-mismatch (A7)", "ROW 0 -- NO READ" in out
               and "widened leg's SHA" in out and "was built for f_min=180" in out)
 
         # ── ROW 0 -- P2/B1: manifest missing the BASELINE SHA entirely ──────
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no",
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX,
                         {"b" * 64: {"f_min": F_MIN, "f_max": F_MAX}},
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW0 baseline manifest-missing (B1)", "ROW 0 -- NO READ" in out
@@ -263,7 +283,7 @@ def main():
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
         bad_baseline_manifest = {"b" * 64: {"f_min": F_MIN, "f_max": F_MAX},
                                   "a" * 64: {"f_min": 140, "f_max": g2b.OLD_F_MAX}}
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no",
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX,
                         bad_baseline_manifest, 0.01, G_HIGH_BAR_UNUSED,
                         -0.0025, 0.02)
         check("ROW0 baseline manifest-mismatch (B1)", "ROW 0 -- NO READ" in out
@@ -273,7 +293,7 @@ def main():
         base, wide, rep = make_legs(5, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
                                      wav_dir=REAL_WAV_DIR_08_08,
                                      ts_list=REAL_TS_08_08_EARLY)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
                         held_out_from=REAL_HELD_OUT_FLOOR_08_08,
                         burned_wav_dir=REAL_WAV_DIR_08_08)
@@ -287,32 +307,48 @@ def main():
                                      ts_list=REAL_TS_08_03_EARLY)
         assert min(REAL_TS_08_03_EARLY) <= REAL_HELD_OUT_FLOOR_08_08, (
             "fixture no longer reproduces the global-pooling shape B2 fixes")
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
                         held_out_from=REAL_HELD_OUT_FLOOR_08_08,
                         burned_wav_dir=REAL_WAV_DIR_08_08)
         check("ROW1 unrelated corpus NOT blocked by unrelated floor (B2)",
               "ROW 1 -- ELIGIBLE" in out and "burned leg must not be read" not in out, out)
 
-        # ── ROW 0 -- B2 fail-closed: a leg with no wav_dir field at all ──────
+        # ── ROW 0 -- C2 fail-closed: a leg with no provenance fields at all ──
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
-                                     omit_wav_dir=True)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+                                     omit_provenance=True)
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
-        check("ROW0 missing wav_dir field, fails closed (B2)",
-              "ROW 0 -- NO READ" in out and "has no 'wav_dir' field" in out, out)
+        check("ROW0 missing wav_dir/window/start_cycle, fails closed (C2)",
+              "ROW 0 -- NO READ" in out
+              and "is missing wav_dir, window, start_cycle" in out, out)
+
+        # ── ROW 0 -- C2(b): legs share EVERY ts but the widened leg is drawn
+        # from a DIFFERENT corpus. Today this is caught only by luck (the
+        # cycle-set gap between owsfz/wav and wsjt-x/wav); it must not depend
+        # on luck -- provenance equality catches it directly.
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     wav_dir="CORPUS_A/wav",
+                                     window=("CORPUS_A_LO", "CORPUS_A_HI"))
+        wide["wav_dir"] = "CORPUS_B/wav"
+        wide["window"] = ["CORPUS_B_LO", "CORPUS_B_HI"]
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
+        check("ROW0 legs share every ts but differ in corpus (C2b)",
+              "ROW 0 -- NO READ" in out
+              and "do not share one corpus/slice" in out, out)
 
         # ── ROW 0 -- P3 fails: repeat leg differs from baseline ─────────────
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
                                      repeat_matches=False)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW0 P3 determinism fail", "ROW 0 -- NO READ" in out
               and "churn NOT identified" in out)
 
         # ── ROW 1 -- P1 FIRED (no high-band gains): low-band-only scope ─────
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW1 eligible, P1 fired -> low-band-only scope (A1/A6)",
               "ROW 1 -- ELIGIBLE" in out and "LOW END ONLY -- P1 fired" in out, out)
@@ -321,7 +357,7 @@ def main():
         # g_high=1/cycle, identical every cycle (zero variance) -> rate and its
         # 95% lower bound are both exactly 0.10%; bar set below that.
         base, wide, rep = make_legs(20, N_BASE, 15, 1, 2, 3, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, 0.0005, -0.0025, 0.02)
         check("ROW1 eligible, P1 not fired, high band clears its OWN floor (B3)",
               "ROW 1 -- ELIGIBLE" in out
@@ -332,7 +368,7 @@ def main():
         # the rung outright (this used to be untestable: v2 pooled g_low+g_high
         # so a low-band pass with a high-band shortfall could never surface).
         base, wide, rep = make_legs(20, N_BASE, 15, 1, 2, 3, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, 0.0050, -0.0025, 0.02)  # 0.0050 > the 0.10% rate
         check("ROW1 eligible, high band adjudicated but under its OWN floor "
               "-> scope narrows, rung still passes (B3)",
@@ -348,11 +384,11 @@ def main():
         base_noav, wide_noav, rep_noav = make_legs(20, N_BASE, 15, 0, 2, 3,
                                                      F_MIN, F_MAX)
         out_noav = run_gate(tmp, base_noav, wide_noav, rep_noav, F_MIN, F_MAX,
-                             "no", GOOD_MANIFEST, 0.01, G_HIGH_BAR_UNUSED,
+                             GOOD_MANIFEST, 0.01, G_HIGH_BAR_UNUSED,
                              -0.0025, 0.02)
         base_av, wide_av, rep_av = make_legs(21, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
                                               av_cycle_idx=20, av_leg="wide")
-        out_av = run_gate(tmp, base_av, wide_av, rep_av, F_MIN, F_MAX, "no",
+        out_av = run_gate(tmp, base_av, wide_av, rep_av, F_MIN, F_MAX,
                            GOOD_MANIFEST, 0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
 
         def g_new_line(out):
@@ -367,7 +403,7 @@ def main():
 
         # ── ROW 2 -- mechanism ok, NET churn fails, gross still ok ──────────
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 10, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW2 net-churn-only failure (A4)",
               "ROW 2 -- MECHANISM CONFIRMED" in out
@@ -376,31 +412,30 @@ def main():
 
         # ── ROW 2 -- mechanism ok, net ok, GROSS churn fails ─────────────────
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 110, 100, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW2 gross-churn-only failure (A4)",
               "ROW 2 -- MECHANISM CONFIRMED" in out
               and "gross churn exceeds its ceiling" in out
               and "net churn exceeds its floor" not in out, out)
 
-        # ── ROW 3 -- mechanism underdelivers, NOT the widest rung ───────────
+        # ── ROW 3 -- mechanism underdelivers -- evidence about this rung only
+        # (C5: no --is-widest-rung flag any more; the combination rule that
+        # closed the family on the widest rung alone is repealed -- family
+        # closure is a separate cross-rung adjudication this row names but
+        # cannot itself perform).
         base, wide, rep = make_legs(20, N_BASE, 2, 0, 1, 1, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
-        check("ROW3 non-widest rung does not close family (A3)",
-              "ROW 3" in out and "does not close the passband family" in out
-              and "CLOSE the passband family" not in out, out)
-
-        # ── ROW 3 -- mechanism underdelivers, IS the widest rung ────────────
-        base, wide, rep = make_legs(20, N_BASE, 2, 0, 1, 1, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "yes", GOOD_MANIFEST,
-                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
-        check("ROW3 widest rung closes family (A3)",
-              "ROW 3" in out and "CLOSE the passband family" in out, out)
+        check("ROW3 evidence about this rung only, no widest-rung flag (C5)",
+              "ROW 3" in out
+              and "evidence about THIS rung's width only" in out
+              and "family closes only if NO rung reads ROW 1 or ROW 2" in out
+              and "--is-widest-rung" not in out, out)
 
         # ── ROW 0d -- mechanism sub-bar AND gross churn ceiling exceeded ────
         base, wide, rep = make_legs(20, N_BASE, 2, 0, 300, 300, F_MIN, F_MAX)
-        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, "no", GOOD_MANIFEST,
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW0d reached for a named reason (A10)",
               "ROW 0d -- CATCH-ALL, reached for a named reason (A10)" in out, out)
@@ -434,8 +469,8 @@ def main():
         for f in FAILURES:
             print(f"  - {f}")
         return 1
-    print("SMOKE TEST PASSED -- all rows, including B1/B2/B3/B5/B6 coverage "
-          "and the real-ts-format fixtures, verified.")
+    print("SMOKE TEST PASSED -- all rows, including B1/B2/B3/B5/B6/C2/C5 "
+          "coverage and the real-ts-format fixtures, verified.")
     return 0
 
 

@@ -32,6 +32,31 @@ document's §10.**
 
 ---
 
+**🔴 REVISION 4 ADDENDUM (2026-08-12, against the third Architect review,
+`2026-08-12-2015-architect-to-qa-g2b-review-3-and-wav-dir-ruling.md`):** still 🔴 **DRAFT — NOT
+ARMED.** That review verified B1/B3/B5/B6 fixed and B4's extraction sound in its two structural
+fixes, then found three BLOCKING findings (C1, C2, C5) — two of which correct the Architect's own
+prior work — plus one SERIOUS (C3) and one MODERATE (C4) against the producer. C3/C4 land in
+`g2_verification_replay.py`, on its own branch, and are answered there, not in this document. Here:
+
+- **C1 — RULED.** The 08-08 corpus is `wsjt-x/wav` for every leg of every rung, decided by raw-WAV
+  measurement, not by fiat (§3.5a/§5). Held-out remainder corrected to **2,279** cycles.
+- **C2 — fixed.** `wav_dir` is normalised before comparison, and P2 now binds all three legs to one
+  corpus/slice explicitly (`wav_dir`/`window`/`start_cycle`, all three, normalised) rather than
+  relying on the `ts`-set check's accidental 12-file gap between `owsfz/wav` and `wsjt-x/wav` (§3.5a).
+- **C5 — fixed.** The A3 combination rule is repaired: `--is-widest-rung` is removed; the family
+  closes only if NO rung reads ROW 1 or ROW 2, not "only if the widest (and, per the raw-WAV
+  measurement, thinnest-margin) rung reads ROW 3" (§4.4/§4.7).
+- **§4.8 predictions re-affirmed** against the repaired rule, per the Architect's explicit request —
+  none of the four v1/v2 predictions actually depended on `--is-widest-rung`, and one new prediction
+  is added now that C5 makes a family-level claim meaningful to state.
+
+`g2b_gate.py` revised; `g2b_gate_smoketest.py` revised to match (21 checks, still real-ts fixtures,
+now including one built specifically for C2's cross-corpus/shared-`ts` case; output byte-identical
+across two independent runs). **Requesting the Architect's fourth review.**
+
+---
+
 ## 0. Why item (b) is back here instead of on `main`
 
 Unchanged from v1 §0. G2 item (b) — candidate passband `[200, 3000)` → `[140, 3030)` Hz — was
@@ -147,6 +172,47 @@ extraction) fails ROW 0 rather than being silently skipped. This does not replac
 discipline; it means a lapse in that discipline, OR an attempt to point the floor at the wrong run
 entirely, produces ROW 0, not a silently-misread or silently-unprotected leg.
 
+### 3.5a C1/C2 fixes (third Architect review) — the corpus is RULED, the comparison is normalised, and
+the three legs are now bound to ONE corpus
+
+The third review found the fix above had the right SHAPE and the wrong CORPUS, and a sharper defect
+underneath it:
+
+- **C1 — RULED: `wsjt-x/wav`, not `owsfz/wav`, for the 08-08 corpus.** Review 2 derived the burned
+  floor's arithmetic from `owsfz/wav`; the actual burned leg (`79ea12a`, no override, no CLI path to
+  one) read `p23_common.WAV_DIR`, which is `wsjt-x/wav`. Pointing `--burned-wav-dir` at `owsfz/wav`
+  while every leg is actually drawn from `wsjt-x/wav` made the B2 guard's `!=` test fail for every
+  leg — the guard protected nothing, silently, which is B2's original failure mode reintroduced by
+  the review-2 correction of it. **Ruled by raw-WAV measurement (HK-026-valid, no decoder in the
+  path): the two capture chains are within half a dB in every band this experiment opens, so the
+  choice is not load-bearing, and consistency with the burned leg and the rest of the programme
+  (`load_ref()`, T1/P2/P3/X*, all `wsjt-x`-anchored) decides it.** `--burned-wav-dir` is
+  `artefacts/20260808_live_run_0016-8080/wsjt-x/wav`; `--held-out-from 260808_014215` is unchanged
+  (checked directly against both corpora — the floor timestamp itself was never wrong, only the
+  directory it was paired with). **Held-out remainder corrected to 2,279 cycles** (2,529 in-window −
+  250 burned) — see §5.
+- **C2 — path equality is not identity, and `ts` alone cannot bind the legs to one corpus.** `wav_dir`
+  was compared with a bare `!=` on operator-typed strings: relative vs absolute, `/` vs `\`, a
+  trailing separator, or (on Windows) case all defeat it silently, and both conventions are already
+  live in this codebase (`p23_common` builds absolute paths from `REPO_ROOT`; this gate's own usage
+  example was relative). Sharper: nothing asserted the three legs came from the SAME corpus at all,
+  and `ts` cannot catch a mix on its own — measured, `wsjt-x/wav`'s in-window timestamp set (2,529
+  cycles) is a **strict subset** of `owsfz/wav`'s (2,541 cycles, 2,529 shared keys), carrying
+  *different audio from different capture chains* under identical keys. A full-slice cross-corpus mix
+  is caught today only by the accidental 12-file gap between the two directories' cycle sets — a
+  safety property must not rest on an accidental gap.
+
+**Fix:** every `wav_dir` (the CLI-supplied `--burned-wav-dir` and every leg's recorded field) is
+normalised (`os.path.normcase(os.path.realpath(...))`) before any comparison. Every leg must now
+carry `wav_dir`, `window` and `start_cycle` — the extraction already records all three, which is what
+makes this checkable — and P2 asserts baseline/widened/repeat agree on all three, normalised, not
+merely on the held-out floor. A leg missing any of the three, or a leg set that disagrees on the
+normalised triple, fails ROW 0.
+
+⚠️ Scope of the C1 ruling: it settles the 08-08 corpus only. The 08-03, 17m and 80m corpora apply the
+same rule (the chain the programme already uses for that corpus, recorded, not re-derived from taste)
+when they are drawn.
+
 The smoke test's coverage of this (`g2b_gate_smoketest.py`) uses REAL ts values read once, mechanically,
 off the actual 08-08 and 08-03 corpora on disk, not the smoke test's own invented format — directly
 answering the Architect's §3.4 lesson that a synthetic-only fixture cannot exercise a format contract
@@ -261,19 +327,33 @@ no longer do that: exceeding the gross ceiling routes to ROW 2 (mechanism confir
 real) even when net churn alone would have passed, or to the new catastrophic-0d route (§4.5) if the
 mechanism also fails to clear its own floor.
 
-### 4.4 A3 fix — the combination rule across rungs is pre-registered now, not left implicit
+### 4.4 A3 fix, REPAIRED for C5 — the combination rule across rungs is pre-registered now, not left
+implicit, and no longer lets the thinnest-margin rung close the family alone
 
 §4's rows are evaluated **per rung, independently**. Left alone, three independent evaluations could
 produce ROW 3 on one rung and ROW 1 on another, licensing both "close the family" and "ship a member
-of the family" from the same run — the Architect's finding.
+of the family" from the same run — the Architect's original finding.
 
-**Combination rule, adopted as the Architect recommended: the passband family closes only if the
-WIDEST rung (`f_min = 100`) reads ROW 3.** A narrower rung underdelivering is evidence about that
-rung's width, not about the mechanism. `g2b_gate.py` takes `--is-widest-rung {yes,no}` as a required
-argument and prints the family-closing consequence only when it is invoked as `yes` and reads ROW 3;
-otherwise ROW 3's text is explicit that it bears on that rung alone. Any other combination rule is
-fine per the Architect's note; what mattered was pre-registering one before the numbers exist, and
-that is done.
+**A3's first rule (superseded) — "the family closes only if the WIDEST rung reads ROW 3" — is
+REPEALED.** The third Architect review (C5) found it backwards: a raw-WAV measurement taken for the
+C1 ruling (§3.5a) shows a real rolloff of roughly 20 dB per 40–60 Hz below 200 Hz, so the
+width-proportional `G_new` floors (§4.2) — which scale with bandwidth opened, implicitly assuming
+uniform power per Hz — make rung 100 clear a 65% higher bar than rung 140 while opening a region
+carrying roughly 1% of rung 140's power. **Rung 100's margin is structurally the thinnest of the
+three, and rung 100 is also the widest rung** — so the old rule let the single thinnest-margin
+result close the entire family, including discarding a rung 140 that read ROW 1. That is backwards
+for a reason the raw WAV makes concrete, not hypothetical (though the *mechanism* — capture-chain
+filtering vs genuinely fewer stations transmitting below 200 Hz — is not established by this
+measurement and is not claimed; only the consequence for the combination rule is).
+
+**Repaired rule, as the Architect specified: the passband family closes only if NO rung reads ROW 1
+or ROW 2.** Equivalently: ROW 3 on any single rung is evidence about that rung's width only; family
+closure is a separate adjudication made after all three rungs have run, not a property any single
+rung's row can assert by itself. `g2b_gate.py` no longer takes `--is-widest-rung` — the flag and the
+per-rung branching it drove are removed; ROW 3's printed text states plainly that it bears on the
+invoked rung alone and names the repaired family-level rule for whoever reads all three rungs'
+output together. This removes a free parameter rather than adding one, and it moves the combination
+rule to where it belongs: after the ladder, not inside any one rung's invocation.
 
 ### 4.5 A10 fix, REVISED for B6 — ROW 0d is reachable, for a named reason, with no severity tier claimed
 
@@ -310,7 +390,7 @@ if P1 fired (high unadjudicated); full-band if P1 did not fire and `g_high` clea
 | **ROW 0d** | `g_ok` fails **and** gross-churn upper bound `>` its ceiling | **STOP and escalate.** Named reason (A10); no severity tier beyond ROW 2's own gross-churn test is claimed (B6). |
 | **ROW 1** | `g_ok` clears **and** net-churn lower bound clears its floor **and** gross-churn upper bound clears its ceiling | **ELIGIBLE**, at the scope described above. Captain chooses among eligible rungs. |
 | **ROW 2** | `g_ok` clears **and** (net churn fails **or** gross churn fails) | **MECHANISM CONFIRMED, PERTURBATION REAL.** Escalate decoupling the noise-floor estimate; do not ship raw. |
-| **ROW 3** | `g_ok` fails (and not the ROW 0d combination) | Mechanism underdelivers **at this rung**. Closes the family only if `--is-widest-rung yes` (§4.4). |
+| **ROW 3** | `g_ok` fails (and not the ROW 0d combination) | Mechanism underdelivers **at this rung**; evidence about that rung's width only. Family closes only if NO rung (of the three) reads ROW 1 or ROW 2 — a separate, cross-rung adjudication made after the ladder runs, REPAIRED per C5 (§4.4). |
 
 **Disclosure, carried forward and updated.** The 250-cycle 20m leg is still BURNED — these bars were
 set with knowledge of its numbers (`G_new` = +2.71%, `churn_net` = −0.33%, and its gross churn,
@@ -318,52 +398,62 @@ computed retroactively from the same decomposition, was 4.8%). They remain explo
 and confirmatory only on held-out data. `--held-out-from` (§3.5) now enforces that mechanically rather
 than by instruction alone.
 
-### 4.8 Predictions, re-affirmed (HK-021, Architect-calibration corollary)
+### 4.8 Predictions, RE-AFFIRMED against the repaired combination rule (HK-021, Architect-calibration
+corollary)
 
-Unchanged from v1 §4.2, carried forward for scoring against the revised bars:
+Carried forward from v1 §4.2, and explicitly re-affirmed here per the Architect's instruction (review
+3, §8 step 3) rather than silently inherited — the combination rule these predictions sit alongside
+changed (§4.4/C5), even though none of the four predictions below is actually a claim ABOUT the
+combination rule, so none of them changes in content. Re-stating them against the repaired rule is
+the discipline; the numbers are the same as v1/v2 because they were never anchored to
+`--is-widest-rung` in the first place — they are per-rung/per-band ROW predictions, and the repealed
+rule only ever governed how ROW 3 results combine ACROSS rungs after the fact.
 
-- **20m held-out: ROW 2.** Crowding-driven churn, 20m is the densest corpus.
-- **80m: ROW 1.** Sparse band, less to displace.
-- **17m: ROW 1 or ROW 2**, genuinely uncertain.
+- **20m held-out: ROW 2.** Crowding-driven churn, 20m is the densest corpus. Unaffected by C5 — this
+  is a per-band row prediction, not a family-closure claim.
+- **80m: ROW 1.** Sparse band, less to displace. Unaffected by C5.
+- **17m: ROW 1 or ROW 2**, genuinely uncertain. Unaffected by C5.
 - **`f_min = 100` outperforms `f_min = 140`** on `G_new` (per-Hz, i.e. after the width-proportional
   floor is applied — the raw count will obviously be larger with more spectrum open; the claim is
   about clearing its *own* floor more comfortably). **DIRECTIONAL**, my weakest category — no row
-  turns on it.
-- **NEW, since the Architect's ruling on §7's calibration point:** I predict the churn-mechanism
-  interpretation, not just the row label — the 20m ROW 2 call above is a claim that **crowding is
-  the cause**, not merely that the threshold crosses that way for some other reason. Scored on the
-  consequence, per the Architect's request (§3 of the review).
+  turns on it. Unaffected by C5, and read together with the Architect's own §7 DIRECTIONAL prediction
+  (rung 100's margin is the thinnest of the three, also unscored, also not licensed to move any bar).
+- **The churn-mechanism interpretation, not just the row label** — the 20m ROW 2 call above is a claim
+  that **crowding is the cause**, not merely that the threshold crosses that way for some other
+  reason. Scored on the consequence, per the Architect's request (§3 of the second review).
+- **NEW — the family-closure consequence, now that C5 makes it meaningful to state:** I predict the
+  ladder does **not** close under the repaired rule — i.e., at least one of the three rungs reads
+  ROW 1 or ROW 2 rather than all three reading ROW 3. This is entailed by the 80m-ROW-1 and
+  17m-ROW-1-or-2 predictions above (either alone is sufficient to keep the family open under the
+  repaired rule), so it is not an independent bet, but it is the first time this document has stated
+  the family-level outcome explicitly rather than leaving it to be read off the per-rung rows.
+  **DIRECTIONAL** (inherits the weaker of its two supporting predictions); no row turns on it.
 
 ---
 
 ## 5. Data — unchanged, already on disk. NO CAPTURE RUN IS REQUIRED
 
-🔴 **Cycle count for the 20m held-out remainder corrected this addendum (was 2,495, B2 §3.3):** the
-producer applies `WINDOW_20M`, so the population it can actually reach is a windowed subset, not the
-inventory's full-run count. `2,495` was `2,745 − 250` (inventory's full-run count minus the burned
-250); the real population after windowing is smaller. Recomputed mechanically against the real 08-08
-corpus by `g2_verification_replay.py`'s own `select_files()` (see its extraction commit): **2,291**
-using `wsjt-x/wav` (2,529 in-window total − 250 burned), or **2,291** using `owsfz/wav` also (2,541
-in-window total − 250 burned) — the two directories happen to agree on the count of cycles 251+ even
-though their TOTAL in-window counts differ (2,529 vs 2,541), because they diverge only in gaps late in
-the window. Not blocking (A6 already removed any dependence on a predicted cycle count), but this is
-the number someone will use to plan the run.
+🔴 **Cycle count for the 20m held-out remainder corrected AGAIN this addendum — 2,279, and this is the
+third and last time this number moves (C1):** it has now been wrong three times, every time for the
+same reason (nobody had pinned the corpus): 2,495 (v2 §5, the inventory's full-run count minus 250,
+before windowing was accounted for), 2,291 (revision 3, correctly windowed but against `owsfz/wav`),
+**2,279 (correct: windowed, against the RULED `wsjt-x/wav`** — 2,529 in-window total − 250 burned).
+Descriptive only — A6 already removed any dependence on a predicted cycle count from the gate's own
+math — but this is the number someone will use to plan the run.
 
-⚠️ **Open question, not resolved here, surfaced by the extraction:** `p23_common.py`'s own hard-coded
-default (`WAV_DIR`) points at `wsjt-x/wav`, matching that module's own docstring purpose (P2/P3
-deliberately replay WSJT-X's captured audio through our decoder). This document's own §3.3 arithmetic,
-and the Architect's B2 §3.3, describe the population as **`owsfz/wav`** — OUR daemon's own captured
-audio, which is what a G2(b) leg arguably should replay if the question is "what would OUR decoder
-recover from what it actually received." `g2_verification_replay.py`'s extraction makes `--wav-dir` a
-required, explicit argument specifically so this is a deliberate per-invocation choice, not an
-inherited default — but WHICH directory is correct for this pre-registration's actual runs is a
-methodological decision this document has not made, and the two chains are known to differ (the
-project's own recorded ~10-13% capture-chain effect). **Requesting the Architect's ruling on this
-before any rung is actually run**, separately from the third review of the fixes below.
+✅ **RESOLVED this addendum (was open in revision 3): `wsjt-x/wav`, for every leg of every rung of the
+08-08 corpus (§3.5a).** `p23_common.py`'s own hard-coded default already pointed there; the burned leg
+was already drawn from there; the entire programme (`load_ref()`, T1/P2/P3/X*) is already anchored
+there. Ruled by raw-WAV measurement, not by that consistency argument alone — the Architect checked
+first whether `owsfz/wav`'s capture chain might filter away the very band this experiment opens, found
+the two chains within half a dB everywhere that matters, and only then let consistency decide, since
+the choice turned out not to be load-bearing either way. Scope: this ruling settles 08-08 only; 08-03,
+17m and 80m apply the same rule (the chain the programme already uses for that corpus) when drawn, and
+that choice gets recorded, not re-derived from taste, each time.
 
 | band | corpus | cycles | use |
 |---|---|---:|---|
-| 20m | `20260808_live_run_0016-8080` cycles 251+ | **2,291** (corrected) | held-out remainder of the burned leg |
+| 20m | `20260808_live_run_0016-8080/wsjt-x/wav` cycles 251+ | **2,279** (corrected, RULED corpus) | held-out remainder of the burned leg |
 | 20m | `20260803_live_run_1713` | 4,614 | independent corpus |
 | 17m | `20260808_live_run_1154-8080-17m` | 1,856 | |
 | 80m | `20260809_live_run_0155-8080-80m` | 1,210 | ⚠️ WAVs HARDLINKED — read both inventory columns |
@@ -374,7 +464,7 @@ per band (table above); P1 decides itself, mechanically, from the observed high-
 run is in.
 
 **Cost, revised for the ladder's three rungs plus the two fixed legs.** At the previously-measured
-0.571 s/cycle and the corpus sizes above (≈2,291–4,614 cycles for the primary 20m/17m/80m legs, using
+0.571 s/cycle and the corpus sizes above (≈2,279–4,614 cycles for the primary 20m/17m/80m legs, using
 the smaller 20m held-out slice as representative): **baseline + repeat + 3 rungs = 5 legs**, ×3 bands,
 on corpora of order 1,200–2,500 cycles ≈ **on the order of 3–5 hours** unattended, somewhat more than
 v1's 2.2 h estimate because run sizing is no longer artificially inflated toward a λ target that this
@@ -468,3 +558,35 @@ Unchanged from v1 §6 of the escalation and §4 of the Architect's review:
   `p23_common.py` sort fix remains uncommitted, unrelated, and untouched by any of this.
 - **Requesting:** the Architect's third review, per that document's §10 step 4, plus a ruling on the
   `owsfz/wav` vs `wsjt-x/wav` question above.
+
+---
+
+## 9b. Status — REVISION 4 addendum (2026-08-12, against the third review)
+
+- ✅ **C1** — corpus RULED (`wsjt-x/wav`, §3.5a/§5); `--burned-wav-dir` corrected in `g2b_gate.py`'s
+  usage example; held-out remainder corrected to **2,279** in §5. `--held-out-from 260808_014215`
+  unchanged.
+- ✅ **C2** — `wav_dir` normalised (`os.path.normcase(os.path.realpath(...))`) before comparison in
+  `g2b_gate.py`; P2 now asserts `wav_dir`/`window`/`start_cycle` equality, normalised, across all
+  three legs, not merely the held-out floor against `--burned-wav-dir`. Smoke test gains a fixture
+  where two legs share every `ts` but differ only in recorded corpus — passes today, must (and does,
+  after the fix) ROW 0.
+- ✅ **C5** — `--is-widest-rung` removed. ROW 3 states it bears on the invoked rung's width only;
+  the repaired combination rule (family closes only if NO rung reads ROW 1 or ROW 2) is named in the
+  row text for whoever adjudicates all three rungs together, since no single invocation can perform
+  that adjudication itself. §4.4/§4.7 updated to match.
+- ✅ **§4.8 predictions re-affirmed** against the repaired rule, per the Architect's explicit
+  instruction — see §4.8 for the re-statement and the one new family-level prediction it licenses.
+- ✅ Re-smoke-tested (`g2b_gate_smoketest.py`): 21 checks (two ROW 3 widest/non-widest checks replaced
+  by one repaired-rule check; one new C2 cross-corpus/shared-`ts` check added). All pass; output
+  byte-identical across two independent runs (diffed, not asserted).
+- **C3, C4** (producer, `g2_verification_replay.py`) and the free `MAX_RESULTS` assertion the
+  Architect asked for regardless of finding: answered on `qa/g2b-verification-replay-extract`, not in
+  this document — see that branch's own commit for detail.
+- 🛑 **Not armed. Nothing merged or pushed** (HK-010/HK-014). Commit state (HK-022): this document,
+  `g2b_gate.py` and `g2b_gate_smoketest.py` are committed together on `main` in the same commit as
+  this addendum; the producer fixes are committed separately on
+  `qa/g2b-verification-replay-extract`, per the established pattern (B4's own extraction was likewise
+  kept off `main`). The still-separate `p23_common.py` sort fix remains uncommitted, unrelated, and
+  untouched by any of this.
+- **Requesting:** the Architect's fourth review, per that document's §8 step 5.
