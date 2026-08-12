@@ -15,9 +15,10 @@ using Xunit;
 // assist-flaky-decode-test.md): DisableTestParallelization (above) guarantees tests never run
 // CONCURRENTLY, but says nothing about the SEQUENCE collections run in — confirmed by repeated
 // full-suite runs that this assembly's cross-class test order is NOT stable across `dotnet test`
-// invocations. HashedCallsignResolutionTests.HashTableSaturation_RejectsNewEntriesOnceFull_
-// ExistingEntriesSurvive deliberately and permanently fills the shared, never-reset native hash
-// table to its 256-slot capacity; any test that runs after it and needs a fresh slot silently
+// invocations. HashedCallsignResolutionTests' opt-in HashTableSaturation_AtG2Capacity_Rejects
+// NewEntriesWithoutCorruptingExistingOnes deliberately and permanently fills the shared,
+// never-reset native hash table to its HASH_TABLE_SIZE capacity (256 when this was written;
+// 4096 since g2/shim 20260038); any test that runs after it and needs a fresh slot silently
 // fails to have its entry stored. This orderer pins that class's dedicated collection
 // (HashTableSaturationCollectionDefinition) to run strictly last, so every other test gets its
 // turn at a non-exhausted table first. See RunHashTableSaturationCollectionLastOrderer's doc

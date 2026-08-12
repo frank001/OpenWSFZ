@@ -361,6 +361,29 @@
  *   layout or ABI change; no new exported entry points — this is a same-signature
  *   behaviour fix inside an existing static function.
  *
+ * g2-hash-table-sizing-and-candidate-passband (FT8_SHIM_VERSION 20260038):
+ *
+ *   Item (a) — HASH_TABLE_SIZE 256 → 4096.  The table keys on a 10-bit bucket
+ *   (1024 distinct values) and places on first probe at (h10 * 23) % HASH_TABLE_SIZE;
+ *   since gcd(23, N) == 1 for any power of two, that placement is injective up to
+ *   N = 1024, so N = 256 collided 4:1 BY CONSTRUCTION before the table was full.
+ *   Measured symptom: hashTableRejectCount = 35,379 on the 2026-08-08 20m leg
+ *   (against 595 across C.1's entire 68-cycle corpus), and 5.5% of our decodes
+ *   carrying <...> against the reference's 1.7%.  4096 restores injective placement
+ *   with 4x probe headroom; sizeof(callsign_table_t) 4.0 KB → 64 KB.
+ *   🛑 This buys message TEXT only and CANNOT change the decode count: message.c's
+ *   two call sites already discard a hashed callsign's resolution failure without
+ *   affecting whether a decode is produced.  Do not read it as a D-001 recall change.
+ *   Lifetime (session-scoped, never re-initialised — f-001 D1/D2/D3) and the absence
+ *   of an eviction policy are both deliberately UNCHANGED; the defect was sizing.
+ *
+ *   Version numbering: ONE bump covers both item (a) and item (b) of G2, rather than
+ *   one per commit.  20260034-20260037 are unavailable (two claimed by unmerged
+ *   branches, colliding; two are W2's proposed renumbering targets), and 20260039,
+ *   20260040 and 20260041 are RESERVED for the R0/R1/R2 sync-refinement programme —
+ *   so a second bump here would collide with R0.  The shim's own history has
+ *   precedent for both conventions; the single-bump one is chosen deliberately.
+ *
  * Build: see BUILD.md.  encode.c and patched/ft8/decode.c must be compiled and linked.
  */
 
@@ -560,7 +583,26 @@ static _Thread_local int     tls_ap_num_hiscall_bits = 0;
 
 /* ── Callsign hash table ─────────────────────────────────────────────────── */
 
-#define HASH_TABLE_SIZE 256
+/* g2-hash-table-sizing (shim 20260038): 256 → 4096.
+ *
+ * The table keys on a 10-bit bucket (h10, below), so the key space has exactly
+ * 1024 distinct values.  First-probe placement is (h10 * 23) % HASH_TABLE_SIZE,
+ * and gcd(23, N) == 1 for every power of two, so that placement is INJECTIVE up
+ * to N = 1024.  At the previous N = 256 it therefore collided 4:1 by construction
+ * — before the table was anywhere near full — which is a sizing defect, not a
+ * genuine exhaustion of distinct callsigns.
+ *
+ * 1024 is the bijective floor; 4096 adds 4x probe headroom for distinct callsigns
+ * that legitimately share a 10-bit bucket (an unbounded population against 1024
+ * buckets).  Cost: sizeof(callsign_table_t) goes 4.0 KB → 64 KB.
+ *
+ * NOT changed here, deliberately: the session-scoped, never-re-initialised
+ * lifetime (f-001 D1/D2/D3) is BY DESIGN — a Type 4 message decoded in an earlier
+ * cycle must stay resolvable later — and there is still no eviction policy.  Any
+ * finite table eventually saturates on a multi-day daemon, which is exactly what
+ * g_hash_table_reject_count is retained to detect.
+ */
+#define HASH_TABLE_SIZE 4096
 typedef struct { char callsign[12]; uint32_t hash; } callsign_entry_t;
 typedef struct { callsign_entry_t entries[HASH_TABLE_SIZE]; int count; } callsign_table_t;
 
@@ -602,10 +644,10 @@ static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t
     int      idx = (h10 * 23) % HASH_TABLE_SIZE;
 
     /* Bounded probe (mirrors hash_table_lookup's guard above): safe even when the
-     * table is completely full (all 256 slots occupied, no '\0' terminator to stop
-     * an unbounded linear scan). When the table has room, an empty slot is always
+     * table is completely full (all HASH_TABLE_SIZE slots occupied, no '\0' terminator
+     * to stop an unbounded linear scan). When the table has room, an empty slot is always
      * reachable within HASH_TABLE_SIZE probes, so the bound never changes behaviour
-     * in that case — it only prevents an infinite loop in the all-256-occupied case.
+     * in that case — it only prevents an infinite loop in the all-slots-occupied case.
      * D-012: checking for an existing match BEFORE the full-table guard (rather than
      * after, as the previous version did) is the actual fix — a repeat announcement
      * of an already-known callsign must never increment g_hash_table_reject_count,
@@ -1004,7 +1046,8 @@ float ft8_get_last_noise_floor_db(void) { return tls_last_noise_floor_db; }
 /*
  * ft8_get_hash_table_reject_count — return the process-lifetime count of Type 4
  * callsign announcements discarded by hash_table_add because g_session_hash_table
- * was already at its 256-slot capacity (f-005-hash-table-saturation-diagnostic, D1).
+ * was already at its HASH_TABLE_SIZE capacity (4096 since shim 20260038; 256 before)
+ * (f-005-hash-table-saturation-diagnostic, D1).
  *
  * Read-only: never resets the counter, never touches the table (D3 — no reset-on-read).
  * Not thread-local — g_hash_table_reject_count is a process-global best-effort diagnostic

@@ -17,7 +17,7 @@ internal static class HashTableRejectCountReporter
 {
     /// <summary>
     /// Reads the reject count via <paramref name="rejectCountProvider"/> and logs it once at
-    /// Information level. A non-zero value means the 256-slot table saturated during the session.
+    /// Information level. A non-zero value means the 4096-slot table saturated during the session.
     /// <para>
     /// Any failure reading the native counter is swallowed (logged at Warning) so a best-effort
     /// diagnostic read can never block or fault the shutdown path.
@@ -35,7 +35,7 @@ internal static class HashTableRejectCountReporter
             int rejectCount = rejectCountProvider();
             logger.LogInformation(
                 "Hash table reject count (session): {RejectCount}. " +
-                "Non-zero means the 256-slot callsign hash table saturated and one or more " +
+                "Non-zero means the 4096-slot callsign hash table saturated and one or more " +
                 "Type 4 announcements could not be stored (f-005).",
                 rejectCount);
         }

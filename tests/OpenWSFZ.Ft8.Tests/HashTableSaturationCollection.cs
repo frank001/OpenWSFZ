@@ -7,13 +7,26 @@ using Xunit.Sdk;
 namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
-/// Dedicated xUnit collection for <see cref="HashedCallsignResolutionTests"/>, whose
-/// <c>HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive</c> test
-/// deliberately and <b>permanently</b> fills the native shim's process-global,
-/// never-reset <c>g_session_hash_table</c> (256-slot capacity) with 264 distinct new
-/// nonstandard-callsign entries — that is the test's entire point (proving the D3
-/// reject-when-full guard fires). See <see cref="RunHashTableSaturationCollectionLastOrderer"/>
-/// for why this collection is pinned to run strictly last in the assembly.
+/// Dedicated xUnit collection for <see cref="HashedCallsignResolutionTests"/>, which consumes
+/// a large number of entries in the native shim's process-global, never-reset
+/// <c>g_session_hash_table</c> and — when the opt-in g2 saturation test is enabled — fills it
+/// to capacity <b>permanently</b>.
+///
+/// <para>
+/// 🔴 <b>Changed by g2 (shim 20260038), read this before trusting the rationale below.</b>
+/// <c>HASH_TABLE_SIZE</c> went 256 → 4096, so the standard-suite test's 264 announcements no
+/// longer saturate anything; that test now asserts the opposite (all 264 resolve, zero
+/// rejects). Saturation coverage moved to
+/// <c>HashedCallsignResolutionTests.HashTableSaturation_AtG2Capacity_RejectsNewEntriesWithoutCorruptingExistingOnes</c>,
+/// which needs &gt; 4096 entries, takes about six minutes, and only runs when
+/// <c>OPENWSFZ_RUN_G2_SATURATION=1</c> is set.
+/// </para>
+/// <para>
+/// This collection is still pinned last, for two reasons that both survive g2: the opt-in test
+/// genuinely does exhaust the table when enabled, and this class still consumes several hundred
+/// entries that other tests would otherwise have to compete for. See
+/// <see cref="RunHashTableSaturationCollectionLastOrderer"/>.
+/// </para>
 /// </summary>
 [CollectionDefinition(Name)]
 public sealed class HashTableSaturationCollectionDefinition
@@ -35,7 +48,7 @@ public sealed class HashTableSaturationCollectionDefinition
 /// execution order is <em>not</em> stable across runs in this environment — the same
 /// binary, run twice with no code changes, produced two different orderings (confirmed:
 /// <c>F003ApAssistNonstandardCallsignDecodeTests</c>'s test ran at TRX index 191, after
-/// <c>HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive</c> at index 37,
+/// <c>HashTableSizing_264DistinctCallsigns_AllResolveWithZeroRejects</c> at index 37,
 /// in a run that failed; and at index 115, before that same saturation test at index 178,
 /// in a run that passed). <c>[assembly: CollectionBehavior(DisableTestParallelization =
 /// true)]</c> (see <c>AssemblyInfo.cs</c>) guarantees tests never run <em>concurrently</em>
@@ -44,10 +57,12 @@ public sealed class HashTableSaturationCollectionDefinition
 /// not otherwise guarantee a stable cross-class ordering absent an explicit orderer.
 /// </para>
 /// <para>
-/// The saturation test fills <c>g_session_hash_table</c> (native, process-global, 256-slot,
-/// never reset for the process's lifetime — design D1/D3, no new P/Invoke surface) to
-/// capacity with 264 distinct new entries, by design (that is what proves the
-/// reject-when-full guard, D3, actually fires). Once <c>tbl->count</c> reaches 256, EVERY
+/// The saturation test fills <c>g_session_hash_table</c> (native, process-global, never reset
+/// for the process's lifetime — design D1/D3, no new P/Invoke surface) to capacity by design
+/// (that is what proves the reject-when-full guard, D3, actually fires). ⚠️ The entry counts in
+/// this paragraph are the PRE-g2 ones: at the time this was written capacity was 256 and 264
+/// entries sufficed; since shim 20260038 capacity is 4096 and only the opt-in test reaches it.
+/// Once <c>tbl->count</c> reaches <c>HASH_TABLE_SIZE</c>, EVERY
 /// subsequent <c>hash_table_add</c> call in the process — regardless of which test or
 /// class calls it — is silently dropped (<c>ft8_shim.c</c>'s <c>hash_table_add</c>, the
 /// <c>if (tbl->count >= HASH_TABLE_SIZE) { ...; return; }</c> guard). Any test that needs
@@ -71,8 +86,8 @@ public sealed class HashTableSaturationCollectionDefinition
 /// on hash-table insertions. That count is source-line occurrences, not runtime
 /// invocations — <see cref="HashedCallsignResolutionTests"/>'s own private
 /// <c>BuildPcmFromType4</c> helper is exactly one such call site, yet the saturation test
-/// invokes it 264 times at runtime via its announce-phase batching loop, specifically
-/// engineered to exceed the 256-slot cap.
+/// invoked it 264 times at runtime via its announce-phase batching loop, specifically
+/// engineered to exceed what was then a 256-slot cap.
 /// </para>
 /// <para>
 /// <b>Fix (managed-code only, no native/shim/algorithm change — same category of fix as

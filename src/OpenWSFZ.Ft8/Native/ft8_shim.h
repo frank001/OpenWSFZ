@@ -293,8 +293,23 @@ extern "C" {
  *              fires after a full probe confirms the callsign is genuinely new.  No change
  *              to the 256-slot capacity or eviction policy.  No ABI or struct layout change;
  *              no new exported entry points.
+ *
+ *   20260038 (g2-hash-table-sizing-and-candidate-passband): two independent native
+ *              constant changes, shipped together.  (a) HASH_TABLE_SIZE 256 → 4096:
+ *              the table keys on a 10-bit bucket (1024 values) placed at
+ *              (h10 * 23) % HASH_TABLE_SIZE, injective up to N = 1024, so N = 256
+ *              collided 4:1 by construction before the table was full.  Buys message
+ *              TEXT only (fewer <...>); CANNOT change the decode count.  (b) the
+ *              ft8_decode_all monitor_config_t candidate passband widened from
+ *              [200, 3000) Hz to [140, 3030) Hz, covering 99.90% of the pooled
+ *              three-corpus reference decode-frequency distribution (was ~99.09%);
+ *              a signal outside the passband is missed by construction, 100% of the
+ *              time.  Width +3.2%.  No ABI or struct layout change (FT8Result stays
+ *              48 bytes); no new exported entry points.  ONE bump covers both items:
+ *              20260034-20260037 are unavailable and 20260039-20260041 are reserved
+ *              for the R0/R1/R2 programme.
  */
-#define FT8_SHIM_VERSION 20260033
+#define FT8_SHIM_VERSION 20260038
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -379,8 +394,8 @@ float ft8_get_last_noise_floor_db(void);
 /*
  * ft8_get_hash_table_reject_count — return the process-lifetime count of Type 4
  * callsign announcements discarded because the session-scoped callsign hash table
- * (g_session_hash_table) was already at its 256-slot capacity
- * (f-005-hash-table-saturation-diagnostic).
+ * (g_session_hash_table) was already at its HASH_TABLE_SIZE capacity (4096 since shim
+ * 20260038; 256 before) (f-005-hash-table-saturation-diagnostic).
  *
  * Read-only and side-effect-free: reading it never resets the counter or alters the
  * hash table.  Unlike the per-thread noise-floor / pass-count getters this reflects a

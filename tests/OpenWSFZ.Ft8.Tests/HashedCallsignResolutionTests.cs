@@ -48,12 +48,16 @@ namespace OpenWSFZ.Ft8.Tests;
 /// this class is deliberately assigned to the
 /// <see cref="HashTableSaturationCollectionDefinition"/> collection, which
 /// <see cref="RunHashTableSaturationCollectionLastOrderer"/> always schedules last in the
-/// assembly. <see cref="HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive"/>
-/// below deliberately and permanently fills the 256-slot table to capacity — once it runs,
+/// assembly. This class consumes several hundred hash-table entries, and its opt-in
+/// <see cref="HashTableSaturation_AtG2Capacity_RejectsNewEntriesWithoutCorruptingExistingOnes"/>
+/// deliberately and permanently fills the table to capacity when enabled — once that runs,
 /// every later test that needs a fresh hash-table slot silently fails to have its entry
-/// stored, for the remaining lifetime of the process. Running this whole class last (not
-/// just that one test) guarantees every other test gets a non-exhausted table first,
-/// regardless of xUnit's otherwise-unstable cross-class execution order. See that orderer's
+/// stored, for the remaining lifetime of the process. Running this whole class last
+/// guarantees every other test gets a non-exhausted table first,
+/// regardless of xUnit's otherwise-unstable cross-class execution order. ⚠️ Before g2
+/// (shim 20260038) capacity was 256 and the standard-suite 264-callsign test saturated it on
+/// every run; at 4096 it no longer does, and only the opt-in test reaches capacity.
+/// See that orderer's
 /// doc comment (<c>HashTableSaturationCollection.cs</c>) for the full root-cause writeup —
 /// this was the actual cause of the f-003 co-channel AP-decode test's flakiness, not the
 /// LDPC/decode-margin timing sensitivity originally suspected.
@@ -180,56 +184,63 @@ public sealed class HashedCallsignResolutionTests
             "this change — only cross-cycle resolution was broken");
     }
 
-    // ── 3.4: Bounded hash table growth (saturation / D3) ──────────────────────
+    // ── 3.4: Hash-table sizing regression (g2, shim 20260038) ─────────────────
 
     /// <summary>
-    /// Fills the table with more than its 256-entry capacity worth of distinct nonstandard
-    /// callsigns, then confirms (a) the reject-when-full guard triggers rather than
-    /// corrupting existing entries, and (b) entries added early remain resolvable.
+    /// <b>g2-hash-table-sizing regression (shim 20260038), the direct verification required by
+    /// <c>dev-tasks/2026-08-10-g2-hash-table-sizing-and-candidate-passband.md</c> §1.4 item 1.</b>
+    /// Announces 264 distinct nonstandard callsigns — comfortably more than the OLD
+    /// <c>HASH_TABLE_SIZE</c> of 256 — and asserts that <em>every one</em> still resolves and
+    /// that the reject-when-full counter did not move at all.
     ///
     /// <para>
-    /// Because the table is process-global and shared by the whole test assembly, this test
-    /// cannot assume it starts empty. It sidesteps that by adding 264 (&gt; 256) distinct new
-    /// callsigns itself: even in the worst case where every other test in the suite added
-    /// zero entries, 264 distinct new ones alone must exceed the 256-slot capacity, so the
-    /// guard is provably exercised regardless of prior test order. (In practice this
-    /// suite's total distinct-callsign footprint is small — a couple of dozen fictional
-    /// Q-prefix calls across all other tests — so the first several dozen of these 264 are
-    /// expected to succeed comfortably before any saturation.)
+    /// <b>This test previously asserted the exact opposite</b>, and its inversion is the whole
+    /// point of G2 item (a). At <c>HASH_TABLE_SIZE = 256</c> the table keyed on a 10-bit bucket
+    /// (1024 distinct values) placed at <c>(h10 * 23) % HASH_TABLE_SIZE</c>, which is injective
+    /// only up to N = 1024 — so 256 collided 4:1 <em>by construction</em>, and these same 264
+    /// callsigns forced at least 8 reject-when-full discards. At <c>HASH_TABLE_SIZE = 4096</c>
+    /// they all fit with room to spare. Field symptom this fixes: <c>hashTableRejectCount</c> =
+    /// 35,379 on the 2026-08-08 20m leg (against 595 across C.1's entire 68-cycle corpus).
     /// </para>
     /// <para>
-    /// <b>This permanently saturates the table for the rest of the process.</b> There is no
-    /// reset entry point (by design), so every later test needing a fresh hash-table slot
-    /// would silently fail to have its entry stored if it ran after this one. That is exactly
-    /// what caused <c>F003ApAssistNonstandardCallsignDecodeTests</c>'s co-channel AP-decode
-    /// test to flake under the full suite (see
-    /// <c>dev-tasks/2026-07-05-f-003-ap-assist-flaky-decode-test.md</c>) — this class is now
-    /// pinned to run last via <see cref="HashTableSaturationCollectionDefinition"/> /
-    /// <see cref="RunHashTableSaturationCollectionLastOrderer"/> specifically so this test's
-    /// deliberate saturation can never precede anything that still needs table capacity.
+    /// 🛑 <b>Scope:</b> this is a message-TEXT fix — fewer <c>&lt;...&gt;</c> placeholders where a
+    /// resolvable callsign exists. It cannot change the decode count: <c>message.c</c>'s two call
+    /// sites already discard a hashed callsign's resolution failure without affecting whether a
+    /// decode is produced. Do not read this test as covering D-001 recall.
+    /// </para>
+    /// <para>
+    /// The table is process-global and shared by the whole assembly, so the absolute reject count
+    /// is meaningless — only the DELTA this test induces is well-defined. The suite's total
+    /// distinct-callsign footprint is a couple of dozen Q-prefix calls, so 264 + that footprint
+    /// remains far below 4096 and the delta must be exactly zero.
+    /// </para>
+    /// <para>
+    /// Coverage note: because 264 no longer saturates a 4096-slot table, the D3 reject-when-full
+    /// guard is no longer exercised here. That coverage moves to
+    /// <c>G2HashTableSaturationOptInTests</c>, which genuinely exceeds 4096 but costs several
+    /// minutes and is therefore opt-in only (same precedent as
+    /// <see cref="F005RealCorpusSaturationCheck"/>). It is deliberately NOT dropped.
     /// </para>
     /// <para>
     /// Signals are batched 8-per-<see cref="Ft8LibInterop.DecodeAll"/>-call (250 Hz spacing,
     /// matching the existing FR-026 multi-signal precedent in
-    /// <c>Ft8DecoderFixtureTests</c>) to keep the native-call count — and CI runtime —
-    /// manageable: 264 callsigns needs only 33 announce calls + 33 verification calls.
+    /// <c>Ft8DecoderFixtureTests</c>): 264 callsigns needs only 33 announce calls + 33
+    /// verification calls.
     /// </para>
     /// </summary>
-    [Fact(DisplayName = "Bounded hash table growth: table rejects new entries once full without corrupting existing ones")]
-    public void HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive()
+    [Fact(DisplayName = "g2 sizing: 264 distinct callsigns (> the old 256 cap) all resolve with zero reject-when-full events")]
+    public void HashTableSizing_264DistinctCallsigns_AllResolveWithZeroRejects()
     {
-        const int totalAttempts = 264; // > HASH_TABLE_SIZE (256); 33 batches of 8
+        const int totalAttempts = 264; // > the OLD HASH_TABLE_SIZE (256); 33 batches of 8
         var callsigns = Enumerable.Range(0, totalAttempts)
             .Select(i => $"Q0{i:D5}") // 7-char, all-digits-after-Q, unique per index
             .ToArray();
 
-        // f-005: snapshot the native reject counter immediately before the announce phase so
-        // we can assert the getter actually observed the overflow (design.md Migration Plan /
-        // §4.2). The table is process-global and shared with the rest of the assembly, so the
-        // absolute value is meaningless — only the DELTA this test induces is well-defined.
+        // Snapshot the native reject counter immediately before the announce phase. Only the
+        // DELTA is well-defined — the table is process-global and shared with the assembly.
         int rejectsBefore = Ft8LibInterop.GetHashTableRejectCount();
 
-        // Announce phase — batched Type 4 messages. All adds (and therefore all
+        // Announce phase — batched Type 4 messages. All adds (and therefore any
         // reject-when-full events) happen here; the verify phase below only performs hash
         // *lookups*, which never call hash_table_add.
         foreach (var batch in callsigns.Chunk(BatchFreqsHz.Length))
@@ -251,26 +262,22 @@ public sealed class HashedCallsignResolutionTests
                     resolved.Add(cs);
         }
 
-        resolved.Count.Should().BeLessThan(totalAttempts,
-            "264 distinct new nonstandard callsigns cannot all fit in a 256-slot table — " +
-            "at least one must have been rejected by the reject-when-full guard (D3), " +
-            "regardless of how much capacity other tests in this process had already used");
+        resolved.Count.Should().Be(totalAttempts,
+            "at HASH_TABLE_SIZE = 4096 all 264 distinct nonstandard callsigns must be stored " +
+            "AND resolve — this is the g2 item (a) sizing fix. At the previous 256 they could " +
+            "not, because (h10 * 23) % 256 collides 4:1 by construction before the table is " +
+            "even full. A shortfall here means the sizing change did not take effect (stale " +
+            "libft8.dll?) or first-probe placement regressed");
 
-        // f-005: the native counter exposed by ft8_get_hash_table_reject_count must have
-        // observed those rejects. 264 distinct new callsigns against a 256-slot table force at
-        // least 264 − 256 = 8 reject-when-full events; if the shared table already held entries
-        // from earlier tests (it runs last, so it usually does), the delta is correspondingly
-        // larger. Asserting the delta (not an absolute value) keeps this robust to prior
-        // occupancy — exactly the caveat the design's Migration Plan calls out.
-        (rejectsAfter - rejectsBefore).Should().BeGreaterThanOrEqualTo(8,
-            "the reject counter must increment once per discarded Type 4 announcement, and " +
-            "264 announcements against 256 slots guarantee at least 8 discards this test");
+        (rejectsAfter - rejectsBefore).Should().Be(0,
+            "264 new callsigns plus this suite's small existing footprint sit far below the " +
+            "4096-slot capacity, so no announcement may be turned away for lack of room — a " +
+            "non-zero delta means the table saturated far earlier than its nominal capacity");
 
         for (int i = 0; i < 10; i++)
             resolved.Should().Contain(callsigns[i],
-                $"entry #{i} was added early in the saturation batch and must remain " +
-                "resolvable and unchanged — a full table must reject NEW entries, not " +
-                "corrupt or evict ones already stored");
+                $"entry #{i} was added early in the batch and must remain resolvable and " +
+                "unchanged — later adds must not corrupt or evict earlier entries");
     }
 
     // ── 3.5: D-012 regression — repeat announcement of an already-known callsign after
@@ -288,25 +295,30 @@ public sealed class HashedCallsignResolutionTests
     /// re-announces the same callsign many times over a long session.
     ///
     /// <para>
-    /// <b>Deliberately reuses <see cref="HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive"/>'s
+    /// <b>Deliberately reuses <see cref="HashTableSizing_264DistinctCallsigns_AllResolveWithZeroRejects"/>'s
     /// own guaranteed-resolvable early entry ("Q000000", its <c>callsigns[0]</c>) instead of
     /// storing a fresh callsign of its own.</b> The native hash table is process-global and never
-    /// reset (design D1/D3); once that sibling test has permanently saturated it to capacity, no
-    /// later test can ever get a genuinely new entry stored — it can only reuse one already proven
-    /// present. This test is therefore pinned to run strictly AFTER that sibling test via
-    /// <c>[TestCaseOrderer(...)]</c> on this class
+    /// reset (design D1/D3), so depending on a sibling test's proven-present entry is more robust
+    /// than assuming a fresh insert succeeds. This test is therefore pinned to run strictly AFTER
+    /// that sibling test via <c>[TestCaseOrderer(...)]</c> on this class
     /// (<see cref="RunD012RegressionAfterSaturationTestCaseOrderer"/>) — xUnit does not guarantee
-    /// method-execution order within a class by default, and an earlier draft of this test that
-    /// tried to store its own fresh "pre-existing" callsign before saturating (independently of the
-    /// sibling test) was observed to run AFTER the sibling test in practice, finding the table
-    /// already completely full and its own fresh entry silently rejected — exactly the ordering
-    /// hazard this explicit orderer removes.
+    /// method-execution order within a class by default.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>Coverage caveat since g2 (shim 20260038, HASH_TABLE_SIZE 256 → 4096):</b> the sibling
+    /// test's 264 callsigns NO LONGER saturate the table, so this test now exercises the
+    /// "already-known callsign is a no-op for the reject counter" path in the <em>non-full</em>
+    /// regime only. The original D-012 bug specifically required a FULL table (the full-table
+    /// guard ran before the already-known check), and that exact condition is now covered by
+    /// <c>G2HashTableSaturationOptInTests</c>, which genuinely exceeds 4096 entries but costs
+    /// several minutes and is opt-in only. This test is retained because the no-op assertion is
+    /// still correct and cheap; it is no longer sufficient on its own to catch a D-012 regression.
     /// </para>
     /// </summary>
-    [Fact(DisplayName = "D-012: re-announcing an already-known callsign after the table is saturated does not increment the reject count")]
-    public void RepeatAnnouncement_OfAlreadyKnownCallsign_AfterSaturation_DoesNotIncrementRejectCount()
+    [Fact(DisplayName = "D-012: re-announcing an already-known callsign does not increment the reject count (non-full regime; full-table case is opt-in)")]
+    public void RepeatAnnouncement_OfAlreadyKnownCallsign_DoesNotIncrementRejectCount()
     {
-        // "Q000000" == HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive's own
+        // "Q000000" == HashTableSizing_264DistinctCallsigns_AllResolveWithZeroRejects's own
         // callsigns[0] ($"Q0{0:D5}") — proven resolvable by that test's own final assertions. This
         // test relies on that sibling test having already run, enforced by this class's
         // [TestCaseOrderer] (RunD012RegressionAfterSaturationTestCaseOrderer).
@@ -315,7 +327,7 @@ public sealed class HashedCallsignResolutionTests
         float[] pcmVerifyBefore = BuildPcmFromEncodedMessage($"Q1D12PR {knownCallsign} JO33", DefaultFreqHz);
         var verifyBeforeResults = Ft8LibInterop.DecodeAll(pcmVerifyBefore);
         verifyBeforeResults.Should().Contain(r => r.Message.Contains(knownCallsign),
-            "the sibling saturation test must have already run and stored this callsign — if " +
+            "the sibling sizing test must have already run and stored this callsign — if " +
             "this fails, the class's [TestCaseOrderer] is not enforcing the required method order");
 
         int rejectsBefore = Ft8LibInterop.GetHashTableRejectCount();
@@ -332,8 +344,10 @@ public sealed class HashedCallsignResolutionTests
 
         (rejectsAfter - rejectsBefore).Should().Be(0,
             "D-012: re-announcing a callsign already present in the table must be a no-op " +
-            "for the reject counter, even once the table is completely full — only a " +
-            "genuinely new callsign turned away for lack of room may increment it");
+            "for the reject counter — only a genuinely new callsign turned away for lack of " +
+            "room may increment it. (Since g2/shim 20260038 this exercises the non-full " +
+            "regime; the full-table case D-012 originally regressed on is covered by the " +
+            "opt-in G2HashTableSaturationOptInTests)");
 
         // The known callsign must still resolve correctly after the repeat announcement (the
         // no-op path only refreshes the stored hash's high bits; it must not corrupt or evict
@@ -342,6 +356,97 @@ public sealed class HashedCallsignResolutionTests
         var verifyAfterResults = Ft8LibInterop.DecodeAll(pcmVerifyAfter);
         verifyAfterResults.Should().Contain(r => r.Message.Contains(knownCallsign),
             "the known callsign must remain resolvable after its repeat announcement");
+    }
+
+    // ── 3.6: D3 reject-when-full guard at the g2 capacity (OPT-IN, several minutes) ──
+
+    private const string SaturationOptInEnvVar = "OPENWSFZ_RUN_G2_SATURATION";
+
+    /// <summary>
+    /// <b>Opt-in only.</b> Preserves coverage of the D3 reject-when-full guard — and of D-012's
+    /// original FULL-table condition — at the g2 capacity of <c>HASH_TABLE_SIZE = 4096</c>
+    /// (shim 20260038).
+    ///
+    /// <para>
+    /// <b>Why this exists as a separate, gated test.</b> Before g2 the table held 256 entries, so
+    /// the standard-suite test could saturate it with 264 announcements in ~45 s and the guard was
+    /// covered for free. At 4096 the same coverage needs &gt; 4096 distinct announcements — roughly
+    /// 525 native <see cref="Ft8LibInterop.DecodeAll"/> calls, about six minutes — which is far too
+    /// slow to run on every <c>dotnet test</c>. Rather than silently dropping coverage of a guard
+    /// that prevents an unbounded probe loop on a full table, it moves here behind an environment
+    /// variable, following the same Captain-approved opt-in precedent as
+    /// <see cref="F005RealCorpusSaturationCheck"/>. Absent the variable it skips instantly.
+    /// </para>
+    /// <para>
+    /// <b>This permanently saturates the process-global table</b> (there is no reset entry point,
+    /// by design — f-001 D1/D3), so it is pinned to run strictly last, after every other test in
+    /// this class, via <see cref="RunD012RegressionAfterSaturationTestCaseOrderer"/>; the class
+    /// itself already runs last in the assembly via
+    /// <see cref="RunHashTableSaturationCollectionLastOrderer"/>. Any test running after it would
+    /// silently fail to have a new callsign stored.
+    /// </para>
+    /// <para>
+    /// To run deliberately:
+    /// <code>
+    /// OPENWSFZ_RUN_G2_SATURATION=1 dotnet test -c Release --filter "DisplayName~g2 SATURATION"
+    /// </code>
+    /// </para>
+    /// </summary>
+    [Fact(DisplayName = "g2 SATURATION (opt-in): the D3 reject-when-full guard still fires at HASH_TABLE_SIZE 4096 without corrupting stored entries")]
+    public void HashTableSaturation_AtG2Capacity_RejectsNewEntriesWithoutCorruptingExistingOnes()
+    {
+        if (Environment.GetEnvironmentVariable(SaturationOptInEnvVar) != "1")
+            return; // ~6-minute test; opt-in only. See the doc comment above.
+
+        // 4200 > HASH_TABLE_SIZE (4096), so the guard must fire regardless of how much of the
+        // table this assembly's other tests had already consumed: if the table already holds X
+        // entries, rejects >= 4200 - (4096 - X) >= 104. A distinct "Q9" prefix keeps these from
+        // colliding with the sizing test's "Q0" series.
+        const int totalAttempts = 4200;
+        const int guaranteedMinimumRejects = totalAttempts - 4096; // 104
+
+        var callsigns = Enumerable.Range(0, totalAttempts)
+            .Select(i => $"Q9{i:D5}")
+            .ToArray();
+
+        int rejectsBefore = Ft8LibInterop.GetHashTableRejectCount();
+
+        foreach (var batch in callsigns.Chunk(BatchFreqsHz.Length))
+        {
+            float[] pcm = BuildBatchedPcm(batch, BuildPcmFromType4);
+            _ = Ft8LibInterop.DecodeAll(pcm);
+        }
+
+        int rejectsAfter = Ft8LibInterop.GetHashTableRejectCount();
+
+        (rejectsAfter - rejectsBefore).Should().BeGreaterThanOrEqualTo(guaranteedMinimumRejects,
+            $"{totalAttempts} distinct new callsigns cannot all fit in a 4096-slot table, so the " +
+            "D3 reject-when-full guard must have turned away at least the overflow and the f-005 " +
+            "counter must have observed every one of them");
+
+        // Entries stored early must survive: a full table must reject NEW entries, never corrupt
+        // or evict ones already present. Sampling the first batch keeps the verify phase cheap.
+        var firstBatch = callsigns.Take(BatchFreqsHz.Length).ToArray();
+        float[] verifyPcm = BuildBatchedPcm(
+            firstBatch, (cs, f) => BuildPcmFromEncodedMessage($"Q1SAT {cs} JO33", f));
+        var verifyResults = Ft8LibInterop.DecodeAll(verifyPcm);
+        foreach (var cs in firstBatch)
+            verifyResults.Should().Contain(r => r.Message.Contains(cs),
+                $"{cs} was stored before the table filled and must remain resolvable — a full " +
+                "table must reject new entries, not corrupt or evict stored ones");
+
+        // D-012's ORIGINAL condition, which the standard-suite test can no longer reach: with the
+        // table genuinely full, re-announcing an already-known callsign must still be a no-op for
+        // the reject counter. Pre-fix, the full-table guard ran before the already-known probe and
+        // every such re-announcement was miscounted.
+        int beforeReannounce = Ft8LibInterop.GetHashTableRejectCount();
+        _ = Ft8LibInterop.DecodeAll(BuildPcmFromType4(callsigns[0], DefaultFreqHz));
+        int afterReannounce = Ft8LibInterop.GetHashTableRejectCount();
+
+        (afterReannounce - beforeReannounce).Should().Be(0,
+            "D-012, full-table regime: re-announcing a callsign already present must not " +
+            "increment the reject counter even when the table has no room left — only a " +
+            "genuinely new callsign turned away for lack of room may increment it");
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

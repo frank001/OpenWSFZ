@@ -51,7 +51,7 @@ public sealed record DaemonStatus(
     int     ShimVersion = 0,
     /// <summary>
     /// Process-lifetime count of Type 4 callsign announcements the native decoder discarded
-    /// because its session-scoped callsign hash table was already at its 256-slot capacity
+    /// because its session-scoped callsign hash table was already at its 4096-slot capacity
     /// (f-005-hash-table-saturation-diagnostic, D2). A non-zero value indicates the table
     /// saturated during this session. Read live per request; resets to 0 only on daemon
     /// restart. Defaults to 0 for callers that do not wire up the native shim.
