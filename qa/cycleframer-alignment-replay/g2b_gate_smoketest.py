@@ -216,12 +216,16 @@ def make_legs(n_cycles, n_base, g_low, g_high, g_else, n_lost,
 def run_gate(tmp, base, wide, rep, f_min, f_max, manifest,
              g_new_bar, g_high_bar, churn_net_bar, churn_gross_bar,
              held_out_from="0", burned_wav_dir="UNBURNED_WAV_DIR_SENTINEL",
-             burned_corpus="no"):
+             burned_corpus="no", emit_verdict=None):
     """burned_corpus (D1): the operator's required declaration of whether the
     legs ARE drawn from burned_wav_dir. Defaults to "no", which matches every
     pre-D1 fixture in this file (none of them use the sentinel/default
     wav_dir as their burned dir), so existing fixtures need no change. Callers
     exercising the burned-corpus path pass "yes" explicitly.
+
+    emit_verdict (D2): path to pass as --emit-verdict, or None to omit the
+    flag entirely (the pre-D2 default -- every existing fixture keeps
+    behaving exactly as before).
     """
     bpath, wpath, rpath = tmp / "base.json", tmp / "wide.json", tmp / "rep.json"
     bpath.write_text(json.dumps(base))
@@ -242,6 +246,8 @@ def run_gate(tmp, base, wide, rep, f_min, f_max, manifest,
            "--g-high-min-rate", str(g_high_bar),
            "--churn-net-min-rate", str(churn_net_bar),
            "--churn-gross-max-rate", str(churn_gross_bar)]
+    if emit_verdict is not None:
+        cmd += ["--emit-verdict", str(emit_verdict)]
     result = subprocess.run(cmd, capture_output=True, text=True)
     return result.stdout + result.stderr
 
@@ -501,6 +507,65 @@ def main():
               "ROW 0d -- CATCH-ALL, reached for a named reason (A10)" in out, out)
         check("ROW0d: no 'catastrophic' tier claimed anywhere in the output (B6)",
               "catastrophic" not in out.lower(), out)
+
+        # ── D2: --emit-verdict on a ROW 1 (full read) ────────────────────────
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
+        vpath = tmp / "verdict_row1.json"
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
+                        emit_verdict=vpath)
+        check("D2: --emit-verdict is a no-op on stdout otherwise (still ROW 1)",
+              "ROW 1 -- ELIGIBLE" in out, out)
+        v = json.loads(vpath.read_text()) if vpath.exists() else None
+        check("D2: verdict file was written", v is not None, out)
+        if v is not None:
+            check("D2: verdict row/band/f_min/f_max correct",
+                  v["row"] == "ROW_1" and v["band"] == "smoketest"
+                  and v["f_min"] == F_MIN and v["f_max"] == F_MAX, v)
+            check("D2: verdict rates/bounds present (a real read happened)",
+                  v["rates"] is not None and v["bounds"] is not None
+                  and set(v["rates"]) == {"g_low", "g_high", "churn_net",
+                                           "churn_gross"}
+                  and set(v["bounds"]) == {"g_low", "g_high", "churn_net",
+                                            "churn_gross"}, v)
+            check("D2: verdict bars match what was invoked",
+                  v["bars"] == {"g_new_min_rate": 0.01,
+                                "g_high_min_rate": G_HIGH_BAR_UNUSED,
+                                "churn_net_min_rate": -0.0025,
+                                "churn_gross_max_rate": 0.02}, v)
+            check("D2: verdict p1_fired and scope populated on a real read",
+                  v["p1_fired"] is True and v["scope"], v)
+
+        # ── D2: --emit-verdict on a ROW 0 (precondition failure, no read) ────
+        # rates/bounds/scope/p1_fired must be None -- honestly reporting that
+        # no read happened, not a fabricated zero -- while bars (CLI-known
+        # regardless of any precondition) are still present.
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     sha_wide="a" * 64)  # same-binary P2 failure
+        vpath0 = tmp / "verdict_row0.json"
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX,
+                        {"a" * 64: {"f_min": F_MIN, "f_max": F_MAX}},
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
+                        emit_verdict=vpath0)
+        check("D2 setup: ROW 0 fixture still reads ROW 0", "ROW 0 -- NO READ" in out, out)
+        v0 = json.loads(vpath0.read_text()) if vpath0.exists() else None
+        check("D2: ROW 0 verdict has row=ROW_0, rates/bounds/scope/p1_fired "
+              "None, bars still present",
+              v0 is not None and v0["row"] == "ROW_0"
+              and v0["rates"] is None and v0["bounds"] is None
+              and v0["scope"] is None and v0["p1_fired"] is None
+              and v0["bars"] == {"g_new_min_rate": 0.01,
+                                  "g_high_min_rate": G_HIGH_BAR_UNUSED,
+                                  "churn_net_min_rate": -0.0025,
+                                  "churn_gross_max_rate": 0.02}, v0)
+
+        # ── D2: no --emit-verdict given -- no file written, no crash ─────────
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
+        vpath_absent = tmp / "verdict_should_not_exist.json"
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
+        check("D2: --emit-verdict omitted -> no file written, gate unaffected",
+              "ROW 1 -- ELIGIBLE" in out and not vpath_absent.exists(), out)
 
     # ── Direct checks, no subprocess ─────────────────────────────────────────
     print()

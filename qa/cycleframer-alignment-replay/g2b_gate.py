@@ -100,9 +100,9 @@ g2_verification_replay.py, on its own branch, not here. This file:
 
 REVISION 5 (2026-08-12, fourth Architect review, 20:52Z) -- against
 `2026-08-12-2052-architect-to-qa-g2b-review-4.md`'s two blocking (D1, D2)
-findings, one serious (D3), and two minor (D4, D5). D2/D3/D4/D5 are addressed
-elsewhere (D2/D3 need a producer-side change and a new aggregator; D4 is a
-producer fix; D5 is a pre-registration comment). D1 lands here:
+findings, one serious (D3), and two minor (D4, D5). D3/D4 need a producer-
+side change and D5 a pre-registration comment; none of those three land in
+this file. D1 and D2 do:
 
   D1  --burned-wav-dir matching ZERO legs was silent and indistinguishable
       from the correct, common case (an un-burned corpus, where zero legs
@@ -119,6 +119,23 @@ producer fix; D5 is a pre-registration comment). D1 lands here:
       "held-out floor applied to N leg(s)", so the artefact records that the
       floor ran rather than leaving its absence inferable only from an
       absent complaint.
+  D2  The A3/C5 family-closure rule ("the family closes only if NO rung
+      reads ROW 1 or ROW 2") was pre-registered prose with NO mechanism, and
+      this gate emitted nothing to build one from -- it printed prose only
+      and returned 0 on EVERY path including ROW 0, so a cross-rung
+      adjudicator was not buildable without regexing English out of a
+      console log (how the bar got softened once already, in
+      g2_verification_report.py -- the finding that opened this whole
+      review chain). Fixed: --emit-verdict PATH (optional) writes one JSON
+      object -- band, f_min, f_max, row, scope, p1_fired, the four point
+      rates and bootstrap bounds (null on ROW_0, where no read happened),
+      and the four bars as invoked (always known, CLI-supplied). The
+      companion aggregator is g2b_family.py, its own file: CLOSE only if
+      all three rungs' verdicts read ROW_3, otherwise DO NOT CLOSE naming
+      which read ROW_1/ROW_2, and REFUSE outright on fewer/more than three
+      verdicts, any ROW_0/ROW_0d, or two verdicts sharing an f_min. It can
+      only ever CLOSE the family -- it never recommends a rung; that choice
+      stays the Captain's (pre-reg §4/§8, unchanged).
 
 Usage:
     python g2b_gate.py --band 20m --f-min 140 --f-max 3030 \
@@ -275,6 +292,28 @@ def bootstrap_bounds(rows, metrics):
     return out
 
 
+def build_verdict(band, f_min, f_max, row, scope, p1_fired, rates, bounds, bars):
+    """D2 fix: the one dict this gate can emit for a cross-rung adjudicator to
+    read. `rates`/`bounds` are None when no read was possible (ROW_0) -- there
+    is nothing honest to report for them, and None says so rather than a
+    fabricated zero. `bars` are always present: they are CLI-supplied and
+    known before any precondition is even evaluated."""
+    return {"band": band, "f_min": f_min, "f_max": f_max, "row": row,
+            "scope": scope, "p1_fired": p1_fired, "rates": rates,
+            "bounds": bounds, "bars": bars}
+
+
+def write_verdict(path, verdict):
+    """D2 fix: writes the verdict as JSON if --emit-verdict was given; a no-op
+    otherwise (the flag is optional so every existing invocation, and every
+    existing smoke-test fixture, keeps working unchanged)."""
+    if path is None:
+        return
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(verdict, fh, indent=2, sort_keys=True)
+        fh.write("\n")
+
+
 def load_manifest(path):
     try:
         with open(path, encoding="utf-8") as fh:
@@ -410,7 +449,30 @@ def main():
                           "observed 4.8%%, per the Architect's instruction that "
                           "a bar that number clears comfortably is not a bar")
 
+    # D2 fix (Architect review 4): HK-021 requires a pre-registered check to
+    # be drafted by writing the code that evaluates it. The A3/C5 family-
+    # closure rule ("the family closes only if NO rung reads ROW 1 or ROW 2")
+    # had no such code -- this gate printed prose only and returned 0 on
+    # EVERY path, including ROW 0, so nothing downstream could adjudicate the
+    # ladder without regexing English out of a console log (the exact way the
+    # bar got softened once already, in g2_verification_report.py). Optional:
+    # every existing invocation without this flag behaves exactly as before.
+    ap.add_argument("--emit-verdict", default=None, metavar="PATH",
+                     help="write this rung's verdict as JSON to PATH, for "
+                          "g2b_family.py to read -- band, f_min, f_max, row, "
+                          "scope, p1_fired, the four point rates and bootstrap "
+                          "bounds (null if no read), and the four bars as "
+                          "invoked (D2)")
+
     args = ap.parse_args()
+
+    # D2 fix: the bars are CLI-supplied, so they are known before ANY
+    # precondition is evaluated -- included in the verdict even on ROW 0,
+    # where rates/bounds are honestly None (no read happened).
+    bars = {"g_new_min_rate": args.g_new_min_rate,
+            "g_high_min_rate": args.g_high_min_rate,
+            "churn_net_min_rate": args.churn_net_min_rate,
+            "churn_gross_max_rate": args.churn_gross_max_rate}
 
     base, wide, rep = load(args.baseline), load(args.widened), load(args.repeat)
     print(f"\n{'=' * 78}\nG2(b) GATE -- band {args.band}  f_min={args.f_min} "
@@ -553,6 +615,9 @@ def main():
     if p2 or p3_fired:
         print("\n  ROW 0 -- NO READ. A precondition failed; the quantity is not an "
               "estimate of what this gate names. Do not interpret the numbers below.")
+        write_verdict(args.emit_verdict, build_verdict(
+            args.band, args.f_min, args.f_max, "ROW_0",
+            scope=None, p1_fired=None, rates=None, bounds=None, bars=bars))
         return 0
 
     # ── The measurement ──────────────────────────────────────────────────────
@@ -645,6 +710,7 @@ def main():
     # which requires the mechanism to have cleared its bar). It gets its own
     # stop.
     if not g_ok and not gross_ok:
+        row_id = "ROW_0d"
         print(f"\n  ROW 0d -- CATCH-ALL, reached for a named reason (A10): the "
               f"mechanism does not clear its own bar AND gross churn exceeds "
               f"its ceiling{scope}. Both bars failed together, against the "
@@ -653,10 +719,12 @@ def main():
               f"than ROW 2 only because the mechanism ALSO failed. STOP and "
               f"escalate; do not improvise a reading.")
     elif g_ok and net_ok and gross_ok:
+        row_id = "ROW_1"
         print(f"\n  ROW 1 -- ELIGIBLE{scope}. The mechanism clears its own "
               "pre-committed floor and both churn metrics are bounded. The "
               "Captain chooses among eligible rungs; this gate does not.")
     elif g_ok and (not net_ok or not gross_ok):
+        row_id = "ROW_2"
         reason = []
         if not net_ok:
             reason.append("net churn exceeds its floor")
@@ -673,6 +741,7 @@ def main():
         # family alone, discarding a passing narrower rung. This invocation
         # sees one rung only and cannot perform a cross-rung adjudication;
         # ROW 3 is now evidence about this rung's width, full stop.
+        row_id = "ROW_3"
         print(f"\n  ROW 3 -- this rung does not deliver{scope}. This is "
               "evidence about THIS rung's width only. Per the repaired "
               "combination rule (C5): the passband family closes only if NO "
@@ -682,10 +751,17 @@ def main():
         # Structurally unreachable given the branches above are exhaustive over
         # (g_ok, gross_ok) x net_ok; kept as a safety net, same discipline A10
         # applied to the previous unreachable branch -- if this ever prints, that
-        # is itself a finding to report, not a row to trust.
+        # is itself a finding to report, not a row to trust. Marked ROW_0d in
+        # the verdict too (D2): g2b_family.py refuses on ROW_0d, so an
+        # adjudicator can never silently treat this defect as real evidence.
+        row_id = "ROW_0d"
         print("\n  ROW 0d -- CATCH-ALL, reached via the UNEXPECTED branch (should "
               "be structurally unreachable). STOP and escalate; report this as a "
               "gate defect, do not improvise a reading.")
+
+    write_verdict(args.emit_verdict, build_verdict(
+        args.band, args.f_min, args.f_max, row_id, scope.strip(), p1_fired,
+        rates=r, bounds=bounds, bars=bars))
     return 0
 
 
