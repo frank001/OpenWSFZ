@@ -1,5 +1,15 @@
 # Developer handoff: R0 — a native build reproducible from pinned, vendored sources
 
+🔴 **SUPERSEDED 2026-08-13 17:24Z — the Captain ruled R0 onward goes through OpenSpec.** The
+operative artifact is now `openspec/changes/r0-reproducible-native-build/` (`proposal.md` +
+`design.md` + `specs/` + `tasks.md`), which carries this document's content in full plus two
+governance corrections found while writing it (the `dependency-licence-policy` spec's stale
+submodule assumption, and `ft8lib-interop`'s stale ABI version constant). A Developer session
+should run `opsx:apply` against the OpenSpec change's `tasks.md`, not this file. Retained here for
+provenance only — do not implement from this copy.
+
+---
+
 **Authored by:** QA (per HK-000/HK-015), transcribing
 `qa/cycleframer-alignment-replay/2026-08-11-1910-architect-to-qa-spec-r0-reproducible-native-build.md`
 (re-pinned 2026-08-13, `qa/cycleframer-alignment-replay/2026-08-13-1649-qa-to-architect-captains-ruling-g2b-ships-after-r2.md`
