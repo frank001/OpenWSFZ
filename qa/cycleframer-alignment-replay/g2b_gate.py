@@ -159,6 +159,41 @@ gate half, and D5 do:
       rep_churn_abs itself, warning against ever repurposing that call for
       a widened-vs-widened comparison without adding those columns back.
 
+  E1  Sent early, out of band, ahead of the fifth review proper
+      (`2026-08-12-2143-architect-to-qa-g2b-review-5-early-candidates.md`):
+      g2b_family.py read `band`/`f_max` off each verdict, printed both, and
+      tested neither -- and could not see the corpus at all, since the
+      verdict carried none. The pre-reg's own §5 ladder runs three rungs x
+      three bands, and 20m alone has two corpora, so three ROW_3 verdicts
+      drawn from three DIFFERENT bands, or two DIFFERENT 20m corpora, would
+      have printed CLOSE -- closing the passband family on a ladder that was
+      never run. BLOCKING for the family adjudication, not for running a
+      rung. Fixed here: every verdict now carries the legs' shared
+      normalised wav_dir (null-safe on ROW_0, where provenance may be
+      unconfirmed) and the --burned-corpus declaration (always known,
+      CLI-supplied). g2b_family.py's half: refuse unless all three verdicts
+      share one band, one f_max and one wav_dir.
+  E2  SERIOUS, same memo. The verdict carried no `dll_sha256` and no
+      manifest digest, so the family adjudicator -- the instrument that
+      actually combines the three rungs -- could not tell whether they ran
+      the same binaries, and the manifest is a mutable file with "never
+      edit an existing entry" enforced by nothing (D2's fault, one file
+      over, per the manifest's own _comment). Fixed here: every verdict now
+      carries `dll_sha256` for all three legs (baseline/widened/repeat) and
+      the manifest FILE's own SHA256 as read (manifest_file_sha256() below).
+      g2b_family.py's half: refuse if the three rungs' baseline SHAs, or
+      their manifest digests, are not identical. Widened SHAs are expected
+      to differ across rungs and are deliberately NOT checked for equality
+      -- the per-rung manifest binding (A7/B1) already covers them.
+  E3  MINOR in code, a process point in the memo: g2b_family.py returned 0
+      on CLOSE, DO NOT CLOSE and all six REFUSE paths alike -- the
+      identical defect D2 raised against this gate's own exit code,
+      reappearing inside the very instrument built to fix it. Fixed in
+      g2b_family.py only: 0 = CLOSE, 1 = DO NOT CLOSE, 2 = REFUSE,
+      documented in that file's own docstring and asserted in its smoke
+      test. This gate's --emit-verdict remains the machine-readable channel
+      here, per D2; this gate's own exit code is deliberately UNCHANGED.
+
 Usage:
     python g2b_gate.py --band 20m --f-min 140 --f-max 3030 \
         --baseline base_20m.json --widened wide_20m_f140.json \
@@ -173,6 +208,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -334,15 +370,47 @@ def bootstrap_bounds(rows, metrics):
     return out
 
 
-def build_verdict(band, f_min, f_max, row, scope, p1_fired, rates, bounds, bars):
+def manifest_file_sha256(path):
+    """E2 fix (Architect, 2026-08-12 21:43Z, out-of-band review-5 candidates):
+    the SHA256 of the manifest FILE as read, byte-for-byte -- not the SHAs it
+    contains. The manifest is a mutable file, and g2b_dll_manifest.json's own
+    _comment ("never edit an existing entry after its leg has been run") is
+    prose with no mechanism; this is the mechanism. g2b_family.py refuses the
+    family adjudication if the three rungs' manifest digests differ, so a
+    manifest edited between rungs is detectable rather than silently trusted.
+    None if the file does not exist -- P2's manifest-missing checks already
+    fail that leg closed (ROW 0); this just reports the fact honestly rather
+    than raising a second time."""
+    try:
+        with open(path, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()
+    except FileNotFoundError:
+        return None
+
+
+def build_verdict(band, f_min, f_max, row, scope, p1_fired, rates, bounds, bars,
+                   dll_sha256, manifest_sha256, wav_dir, burned_corpus):
     """D2 fix: the one dict this gate can emit for a cross-rung adjudicator to
     read. `rates`/`bounds` are None when no read was possible (ROW_0) -- there
     is nothing honest to report for them, and None says so rather than a
     fabricated zero. `bars` are always present: they are CLI-supplied and
-    known before any precondition is even evaluated."""
+    known before any precondition is even evaluated.
+
+    E1/E2 fix: `dll_sha256` (per-leg, baseline/widened/repeat) and
+    `manifest_sha256` (the manifest FILE's own digest as read) are, like
+    `bars`, always present -- known from the leg JSONs and the manifest path
+    before any precondition runs. `wav_dir` (the legs' shared normalised
+    corpus directory) and `burned_corpus` (the operator's D1 declaration) are
+    also always emitted; `wav_dir` is null-safe on ROW_0 where provenance may
+    be unconfirmed, `burned_corpus` is CLI-supplied and always known. Without
+    these four fields g2b_family.py -- the instrument that actually combines
+    three rungs into one conclusion -- cannot tell whether the three verdicts
+    it is adjudicating came from one experiment or three."""
     return {"band": band, "f_min": f_min, "f_max": f_max, "row": row,
             "scope": scope, "p1_fired": p1_fired, "rates": rates,
-            "bounds": bounds, "bars": bars}
+            "bounds": bounds, "bars": bars, "dll_sha256": dll_sha256,
+            "manifest_sha256": manifest_sha256, "wav_dir": wav_dir,
+            "burned_corpus": burned_corpus}
 
 
 def write_verdict(path, verdict):
@@ -503,8 +571,10 @@ def main():
                      help="write this rung's verdict as JSON to PATH, for "
                           "g2b_family.py to read -- band, f_min, f_max, row, "
                           "scope, p1_fired, the four point rates and bootstrap "
-                          "bounds (null if no read), and the four bars as "
-                          "invoked (D2)")
+                          "bounds (null if no read), the four bars as invoked "
+                          "(D2), each leg's dll_sha256, the manifest file's "
+                          "own sha256, the legs' shared wav_dir (null-safe on "
+                          "ROW_0) and the --burned-corpus declaration (E1/E2)")
 
     args = ap.parse_args()
 
@@ -517,11 +587,22 @@ def main():
             "churn_gross_max_rate": args.churn_gross_max_rate}
 
     base, wide, rep = load(args.baseline), load(args.widened), load(args.repeat)
+
+    # E2 fix: known immediately, exactly like `bars` above -- neither depends
+    # on any precondition, so both are emitted in the verdict on every path,
+    # including ROW_0, rather than only on a successful read.
+    dll_shas = {"baseline": base["dll_sha256"], "widened": wide["dll_sha256"],
+                "repeat": rep["dll_sha256"]}
+    manifest_sha256 = manifest_file_sha256(args.manifest)
+
     print(f"\n{'=' * 78}\nG2(b) GATE -- band {args.band}  f_min={args.f_min} "
           f"f_max={args.f_max}\n{'=' * 78}")
     for leg in (base, wide, rep):
         print(f"  {leg['label']:12s} sha={leg['dll_sha256'][:16]}... "
               f"shim={leg['shim_version']} files={leg['n_files']}")
+    print(f"  {'manifest':12s} sha="
+          f"{(manifest_sha256[:16] + '...') if manifest_sha256 else 'FILE NOT FOUND'} "
+          f"({args.manifest})")
 
     # ── P2 (VALIDITY): are these the legs the gate names? ────────────────────
     p2 = []
@@ -617,9 +698,15 @@ def main():
     burned_wav_dir_norm = os.path.normcase(os.path.realpath(args.burned_wav_dir))
     legs_share_one_corpus = (len(provenance) == 3
                               and len(set(provenance.values())) == 1)
+    # E1 fix: hoisted out of the `if legs_share_one_corpus:` block below so it
+    # is available on EVERY path, including ROW_0 -- the verdict needs it
+    # regardless of whether provenance was confirmed. None (null-safe, per
+    # build_verdict's docstring) when the legs do not share one corpus/slice,
+    # which is itself already a p2 failure by this point (C2(b) above).
+    legs_wav_dir_norm = (next(iter(provenance.values()))[0]
+                         if legs_share_one_corpus else None)
     n_floor_applied = 0
     if legs_share_one_corpus:
-        legs_wav_dir_norm = next(iter(provenance.values()))[0]
         legs_are_burned = legs_wav_dir_norm == burned_wav_dir_norm
         if args.burned_corpus == "yes" and not legs_are_burned:
             p2.append(f"--burned-corpus yes was declared, but the legs are "
@@ -691,7 +778,9 @@ def main():
               "estimate of what this gate names. Do not interpret the numbers below.")
         write_verdict(args.emit_verdict, build_verdict(
             args.band, args.f_min, args.f_max, "ROW_0",
-            scope=None, p1_fired=None, rates=None, bounds=None, bars=bars))
+            scope=None, p1_fired=None, rates=None, bounds=None, bars=bars,
+            dll_sha256=dll_shas, manifest_sha256=manifest_sha256,
+            wav_dir=legs_wav_dir_norm, burned_corpus=args.burned_corpus))
         return 0
 
     # ── The measurement ──────────────────────────────────────────────────────
@@ -835,7 +924,9 @@ def main():
 
     write_verdict(args.emit_verdict, build_verdict(
         args.band, args.f_min, args.f_max, row_id, scope.strip(), p1_fired,
-        rates=r, bounds=bounds, bars=bars))
+        rates=r, bounds=bounds, bars=bars,
+        dll_sha256=dll_shas, manifest_sha256=manifest_sha256,
+        wav_dir=legs_wav_dir_norm, burned_corpus=args.burned_corpus))
     return 0
 
 

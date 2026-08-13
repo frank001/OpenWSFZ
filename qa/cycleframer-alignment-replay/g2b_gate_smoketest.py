@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
-"""Smoke test for g2b_gate.py revision 5 (2026-08-12, fourth Architect review).
+"""Smoke test for g2b_gate.py revision 5 (2026-08-12, fourth Architect review;
+extended for E1/E2, 2026-08-12 21:43Z early candidates, folded into
+revision 5).
+
+E1/E2 (the early-candidates memo,
+`2026-08-12-2143-architect-to-qa-g2b-review-5-early-candidates.md`): the
+verdict this gate emits (--emit-verdict) previously carried no corpus
+identity and no binary provenance, so g2b_family.py -- the instrument that
+combines three rungs into one conclusion -- could not tell whether the three
+rungs shared one band/corpus or ran the same binaries. This file does not
+gain new PRECONDITIONS or new ROWS for E1/E2 (no CLI argument changed); it
+gains new coverage that the verdict's new fields (dll_sha256 per leg,
+manifest_sha256, wav_dir, burned_corpus) are populated correctly -- present
+and null-safe on ROW_0, present and real on every other row, and equal to
+what was actually read/declared. g2b_family.py's OWN smoke test
+(g2b_family_smoketest.py) is where the new E1/E2 REFUSAL conditions
+themselves are exercised, since those checks live in that file.
 
 Re-run required by the Architect's fourth review
 (`2026-08-12-2052-architect-to-qa-g2b-review-4.md`), which found two blocking
@@ -74,8 +90,10 @@ Exits non-zero and prints every mismatch if anything drifts from the expected ro
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -119,6 +137,27 @@ def check(name, condition, detail=""):
     print(f"  [{status}] {name}" + (f"  -- {detail}" if detail and not condition else ""))
     if not condition:
         FAILURES.append(name)
+
+
+# E1/E2 helpers -- compute the SAME values g2b_gate.py itself computes, so a
+# verdict's dll_sha256/manifest_sha256/wav_dir can be checked for EQUALITY to
+# something derived independently of the code under test, not merely for
+# presence.
+
+def expected_manifest_sha256(manifest_dict):
+    """Mirrors manifest_file_sha256() in g2b_gate.py against the exact bytes
+    run_gate() itself writes to disk (json.dumps(manifest), no separators
+    argument, default encoding -- these manifest fixtures are pure ASCII, so
+    the platform's default text encoding and utf-8 agree byte-for-byte)."""
+    return hashlib.sha256(json.dumps(manifest_dict).encode("utf-8")).hexdigest()
+
+
+def expected_wav_dir_norm(wav_dir):
+    """Mirrors the normcase(realpath(...)) the gate applies to a leg's
+    recorded wav_dir (D4/C2) -- realpath resolves a relative path against the
+    CALLER's (the gate subprocess's) CWD, which subprocess.run inherits from
+    this smoke test process, so computing it here the same way is valid."""
+    return os.path.normcase(os.path.realpath(wav_dir))
 
 
 # ── Fixture construction ─────────────────────────────────────────────────────
@@ -272,7 +311,8 @@ def run_gate(tmp, base, wide, rep, f_min, f_max, manifest,
 
 def main():
     print("=" * 78)
-    print("g2b_gate.py smoke test -- revision 4, 2026-08-12 (third review)")
+    print("g2b_gate.py smoke test -- revision 5 (fourth review + E1/E2 early "
+          "candidates)")
     print("=" * 78)
 
     F_MIN, F_MAX = 140, 3030
@@ -595,6 +635,18 @@ def main():
                                 "churn_gross_max_rate": 0.02}, v)
             check("D2: verdict p1_fired and scope populated on a real read",
                   v["p1_fired"] is True and v["scope"], v)
+            check("E2: verdict dll_sha256 matches the three legs' actual SHAs",
+                  v["dll_sha256"] == {"baseline": "a" * 64, "widened": "b" * 64,
+                                       "repeat": "a" * 64}, v)
+            check("E2: verdict manifest_sha256 matches the manifest file "
+                  "actually read",
+                  v["manifest_sha256"] == expected_manifest_sha256(GOOD_MANIFEST), v)
+            check("E1: verdict wav_dir matches the legs' shared (normalised) "
+                  "corpus directory",
+                  v["wav_dir"] == expected_wav_dir_norm("SMOKETEST_WAV_DIR"), v)
+            check("E1: verdict burned_corpus matches what was declared "
+                  "(default 'no')",
+                  v["burned_corpus"] == "no", v)
 
         # ── D2: --emit-verdict on a ROW 0 (precondition failure, no read) ────
         # rates/bounds/scope/p1_fired must be None -- honestly reporting that
@@ -603,8 +655,9 @@ def main():
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
                                      sha_wide="a" * 64)  # same-binary P2 failure
         vpath0 = tmp / "verdict_row0.json"
+        row0_manifest = {"a" * 64: {"f_min": F_MIN, "f_max": F_MAX}}
         out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX,
-                        {"a" * 64: {"f_min": F_MIN, "f_max": F_MAX}},
+                        row0_manifest,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
                         emit_verdict=vpath0)
         check("D2 setup: ROW 0 fixture still reads ROW 0", "ROW 0 -- NO READ" in out, out)
@@ -618,6 +671,92 @@ def main():
                                   "g_high_min_rate": G_HIGH_BAR_UNUSED,
                                   "churn_net_min_rate": -0.0025,
                                   "churn_gross_max_rate": 0.02}, v0)
+        check("E2: ROW 0 verdict STILL carries dll_sha256 (known before any "
+              "precondition, same as bars) -- the same-binary SHA itself",
+              v0 is not None
+              and v0["dll_sha256"] == {"baseline": "a" * 64, "widened": "a" * 64,
+                                        "repeat": "a" * 64}, v0)
+        check("E2: ROW 0 verdict STILL carries manifest_sha256 (known before "
+              "any precondition)",
+              v0 is not None
+              and v0["manifest_sha256"] == expected_manifest_sha256(row0_manifest), v0)
+        check("E1: ROW 0 verdict wav_dir is non-null when the ROW 0 cause is "
+              "UNRELATED to provenance -- the legs still share one corpus "
+              "(same-binary P2 failure, not a corpus mismatch)",
+              v0 is not None
+              and v0["wav_dir"] == expected_wav_dir_norm("SMOKETEST_WAV_DIR"), v0)
+
+        # ── E1: ROW 0 caused by a genuine PROVENANCE disagreement (C2b's
+        # cross-corpus fixture) -- wav_dir must be null-safe (None), never a
+        # stale or partial value, since legs_share_one_corpus is False here.
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     wav_dir="CORPUS_A/wav",
+                                     window=("CORPUS_A_LO", "CORPUS_A_HI"))
+        wide["wav_dir"] = "CORPUS_B/wav"
+        wide["window"] = ["CORPUS_B_LO", "CORPUS_B_HI"]
+        vpath0b = tmp / "verdict_row0_provenance.json"
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
+                        emit_verdict=vpath0b)
+        check("E1 setup: cross-corpus fixture still reads ROW 0 (C2b)",
+              "ROW 0 -- NO READ" in out, out)
+        v0b = json.loads(vpath0b.read_text()) if vpath0b.exists() else None
+        check("E1: ROW 0 verdict wav_dir is None when the legs genuinely "
+              "disagree on corpus/slice -- null-safe, not a fabricated value",
+              v0b is not None and v0b["wav_dir"] is None, v0b)
+
+        # ── E2: manifest FILE does not exist at all -- manifest_sha256 must
+        # be None, not a crash, and P2's own manifest-missing check must
+        # still fire (the SHA lookup fails closed either way; this is only
+        # checking the DIGEST field, a separate concern from A7/B1's binding
+        # check).
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
+        vpath0c = tmp / "verdict_row0_nomanifest.json"
+        missing_manifest_path = tmp / "does_not_exist_manifest.json"
+        cmd = [sys.executable, str(GATE),
+               "--band", "smoketest", "--baseline", str(tmp / "base.json"),
+               "--widened", str(tmp / "wide.json"), "--repeat", str(tmp / "rep.json"),
+               "--f-min", str(F_MIN), "--f-max", str(F_MAX),
+               "--manifest", str(missing_manifest_path),
+               "--burned-corpus", "no", "--burned-wav-dir", "UNBURNED_WAV_DIR_SENTINEL",
+               "--held-out-from", "0",
+               "--g-new-min-rate", "0.01", "--g-high-min-rate", str(G_HIGH_BAR_UNUSED),
+               "--churn-net-min-rate", "-0.0025", "--churn-gross-max-rate", "0.02",
+               "--emit-verdict", str(vpath0c)]
+        (tmp / "base.json").write_text(json.dumps(base))
+        (tmp / "wide.json").write_text(json.dumps(wide))
+        (tmp / "rep.json").write_text(json.dumps(rep))
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        out = result.stdout + result.stderr
+        check("E2 setup: missing manifest FILE still ROW 0s (A7, manifest "
+              "load returns {} -> SHA lookup fails)",
+              "ROW 0 -- NO READ" in out and "is not in the pre-registered "
+              "manifest" in out, out)
+        v0c = json.loads(vpath0c.read_text()) if vpath0c.exists() else None
+        check("E2: manifest_sha256 is None when the manifest file itself "
+              "does not exist -- no traceback, no fabricated digest",
+              v0c is not None and v0c["manifest_sha256"] is None, v0c)
+
+        # ── E1: --burned-corpus yes is echoed into the verdict verbatim ─────
+        base, wide, rep = make_legs(5, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     wav_dir=REAL_WAV_DIR_08_08,
+                                     ts_list=REAL_TS_08_08_EARLY)
+        vpath_burned = tmp / "verdict_burned.json"
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
+                        held_out_from=REAL_HELD_OUT_FLOOR_08_08,
+                        burned_wav_dir=REAL_WAV_DIR_08_08, burned_corpus="yes",
+                        emit_verdict=vpath_burned)
+        check("E1 setup: burned corpus fixture still ROW 0s (held-out "
+              "violation, unrelated to this check)",
+              "ROW 0 -- NO READ" in out, out)
+        vburned = json.loads(vpath_burned.read_text()) if vpath_burned.exists() else None
+        check("E1: verdict burned_corpus echoes 'yes' verbatim",
+              vburned is not None and vburned["burned_corpus"] == "yes", vburned)
+        check("E1: verdict wav_dir reflects the legs' actual (burned) corpus",
+              vburned is not None
+              and vburned["wav_dir"] == expected_wav_dir_norm(REAL_WAV_DIR_08_08),
+              vburned)
 
         # ── D2: no --emit-verdict given -- no file written, no crash ─────────
         base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
@@ -655,7 +794,9 @@ def main():
             print(f"  - {f}")
         return 1
     print("SMOKE TEST PASSED -- all rows, including B1/B2/B3/B5/B6/C2/C5 "
-          "coverage and the real-ts-format fixtures, verified.")
+          "coverage, the real-ts-format fixtures, and the E1/E2 verdict "
+          "field checks (dll_sha256, manifest_sha256, wav_dir, "
+          "burned_corpus, including their null-safe ROW_0 cases), verified.")
     return 0
 
 

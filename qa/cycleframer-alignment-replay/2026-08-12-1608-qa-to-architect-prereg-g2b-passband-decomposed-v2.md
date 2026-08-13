@@ -90,7 +90,7 @@ re-evaluated under both branches before arming was even considered.
 | | precondition | class | fires ⇒ | does not fire ⇒ |
 |---|---|---|---|---|
 | **P1** | observed high-band gains in the widened-vs-baseline comparison `< 5` | VALIDITY | high end **NOT adjudicated**; the row is decided on the **low-band metric alone**, and the licensed consequence is `[f_min, 3000)` only | the row is decided on the **pooled** low+high metric, licensed consequence `[f_min, f_max)` |
-| **P2** | baseline/widened distinct binaries; repeat leg **is** the baseline binary; **all three legs** cover the identical cycle set; the widened leg's SHA256 is in the pre-registered manifest **and** matches this invocation's `f_min`/`f_max`; no leg includes a cycle at or before `--held-out-from` | VALIDITY | **ROW 0, no read** | rows 1–3 / 0d |
+| **P2** | baseline/widened distinct binaries; repeat leg **is** the baseline binary; **all three legs** cover the identical cycle set **and** share one normalised `(wav_dir, window, start_cycle)` triple (C2); the widened **and baseline** legs' SHA256 are each in the pre-registered manifest **and** match what each is claimed to be (A7/B1); the operator's **required** `--burned-corpus {yes,no}` declaration matches the legs' actual shared corpus, in **either** direction (D1, §9c below); **no leg carries any `truncated` cycle** (D3, §9c below) | VALIDITY | **ROW 0, no read** | rows 1–3 / 0d |
 | **P3** | baseline-vs-repeat physical differences **== 0** | VALIDITY | **ROW 0, no read** | rows 1–3 / 0d |
 
 ### 3.1 A1 fix — P1 now changes the verdict, not merely the printed scope
@@ -590,3 +590,154 @@ Unchanged from v1 §6 of the escalation and §4 of the Architect's review:
   kept off `main`). The still-separate `p23_common.py` sort fix remains uncommitted, unrelated, and
   untouched by any of this.
 - **Requesting:** the Architect's fourth review, per that document's §8 step 5.
+
+---
+
+## 9c. Status — REVISION 5 ADDENDUM (against the fourth review's D1–D5, plus E1/E2/E3 sent early
+and out of band ahead of the fifth review proper)
+
+The fourth review (`2026-08-12-2052-architect-to-qa-g2b-review-4.md`) found two BLOCKING (D1, D2),
+one SERIOUS (D3) and two MINOR (D4, D5) findings, all verified fixed in code by the Architect against
+`968fa5c` on `main` (both smoke suites run twice, exit 0, byte-identical, diffed — not asserted). The
+Architect then sent three further findings early and out of band, on the Captain's instruction, so
+they could fold into this same revision rather than trigger a sixth round
+(`2026-08-12-2143-architect-to-qa-g2b-review-5-early-candidates.md`): E1 (BLOCKING for the family
+adjudication), E2 (SERIOUS), E3 (MINOR), all three inside `g2b_family.py`, the instrument D2 itself
+created. This addendum is the "revise the pre-registration for D1/D2/D3, then a fifth review" step the
+fourth review's §9 named, now covering D1–D5 and E1–E3 together, per the Architect's explicit
+instruction that E1's and E2's refusal conditions be pre-registered here, not left as code-only facts.
+
+### 9c.1 D1 — the burned-corpus declaration is now a pre-registered, required precondition
+
+Three rounds, one shape (B2 → C1 → D1): each correction fixed the *value* `--burned-wav-dir` names and
+left the *silence* that made a wrong value undetectable — a leg matching zero legs was indistinguishable
+from the correct, common case (an un-burned corpus) and from a typo (a burned corpus silently read
+un-protected). `--burned-corpus {yes,no}` is now **required**: the operator pre-declares which case this
+run is, and P2 (§3, revised above) now includes the check in *either* direction — declared `yes` but the
+legs are not drawn from `--burned-wav-dir`, or declared `no` but they are — both **ROW 0**, naming the
+mismatch. The gate also prints `held-out floor applied to N leg(s)` unconditionally, so the artefact
+records that the floor ran (or did not) rather than leaving it inferable only from an absent complaint.
+**HK-021(k):** fires (a mismatch either direction) ⇒ ROW 0; does not fire ⇒ rows 1–3/0d evaluated on the
+same numbers. Different rows either way ⇒ mechanical, not diagnostic.
+
+### 9c.2 D2 — the family-closure rule ("no rung reads ROW 1 or ROW 2", C5) now has a mechanism
+
+C5's repaired combination rule was pre-registered prose with no code that evaluated it — a violation of
+HK-021's own requirement that a pre-registered check be drafted *by writing the code that evaluates it*.
+Two pieces, both pre-registered here:
+
+- **`g2b_gate.py --emit-verdict PATH`** (optional) writes one JSON object per rung invocation: `band`,
+  `f_min`, `f_max`, `row`, `scope`, `p1_fired`, the four point rates and bootstrap bounds (`null` on
+  ROW_0/ROW_0d, where no read happened — honest, not a fabricated zero), the four bars as invoked
+  (always known, CLI-supplied, present on every path including ROW_0), and — per E1/E2 below —
+  `dll_sha256` (per leg), `manifest_sha256`, `wav_dir` and `burned_corpus`.
+- **`g2b_family.py`**, a new file, the cross-rung adjudicator: reads exactly three `--emit-verdict`
+  files and prints **CLOSE** only if all three read `ROW_3`; **DO NOT CLOSE**, naming which rungs read
+  `ROW_1`/`ROW_2`, otherwise; **REFUSE** if the ladder itself is not evaluable (below). Deliberate
+  asymmetry, unchanged from the fourth review's instruction: this instrument can only ever *close* the
+  family — it never ships anything, never ranks eligible (`ROW_1`) rungs, and the choice among them
+  stays the Captain's (§4/§8, unchanged).
+
+**`g2b_family.py`'s own precondition table — pre-registered here, mechanical, hard-thresholded, strict
+order:**
+
+| | precondition | class | fires ⇒ | does not fire ⇒ |
+|---|---|---|---|---|
+| **F1** | exactly `REQUIRED_LADDER_SIZE = 3` verdict files supplied | VALIDITY | **REFUSE** — an incomplete or duplicated ladder is not a family | proceed |
+| **F2** | every supplied file parses as JSON and carries `band`, `f_min`, `f_max`, `row`, `wav_dir`, `dll_sha256`, `manifest_sha256`, `burned_corpus` | VALIDITY | **REFUSE**, naming the missing field(s) or the read error | proceed |
+| **F3** | no two verdicts share an `f_min` | VALIDITY | **REFUSE** — a ladder is three DISTINCT rungs by definition | proceed |
+| **F4** | no verdict reads `ROW_0`/`ROW_0d` | VALIDITY | **REFUSE**, naming which rung(s) — a precondition failure or a gate defect is not evidence | proceed |
+| **F5 (E1, new this addendum)** | all three verdicts share one `band`, one `f_max`, one `wav_dir` | VALIDITY | **REFUSE**, naming the field and the differing per-rung values | proceed |
+| **F6 (E2, new this addendum)** | all three verdicts' `dll_sha256["baseline"]` are identical, **and** all three `manifest_sha256` are identical | VALIDITY | **REFUSE**, naming the differing values | proceed |
+| — | *(adjudication: CLOSE if all remaining verdicts read `ROW_3`, else DO NOT CLOSE, naming the rungs that do not)* | | | |
+
+### 9c.3 E1 (BLOCKING for the family adjudication, not for a rung's own run) — the ladder's identity, not
+just its rows, must match across all three verdicts
+
+Sent early, out of band, ahead of the fifth review proper. Before this fix, `g2b_family.py` read `band`
+and `f_max` off each verdict, printed both, tested neither, and could not see the corpus at all (the
+verdict carried no `wav_dir`). This is not hypothetical: §5's own ladder runs **three rungs × three
+bands**, and 20m alone has **two** corpora (the 08-08 held-out remainder and the independent 08-03 run)
+— so three `ROW_3` verdicts drawn from three different bands, or from two different 20m corpora, would
+have printed `CLOSE`, closing the passband family on a ladder that was never run. **Fixed and
+pre-registered as F5 above:** `g2b_gate.py` now emits the legs' shared normalised `wav_dir` (`null`-safe
+on ROW_0, where provenance may be unconfirmed — F4 above already refuses on any ROW_0/ROW_0d verdict
+before F5 is even reached, so `wav_dir` is guaranteed a real string by the time F5 runs) and the
+`--burned-corpus` declaration (always known, CLI-supplied); `g2b_family.py` refuses unless all three
+verdicts agree on all three fields. **HK-021(k):** fires (any of band/f_max/wav_dir differs) ⇒ REFUSE;
+does not fire ⇒ the same CLOSE/DO NOT CLOSE reading on the same three verdicts. Different outcome either
+way ⇒ mechanical, not diagnostic.
+
+### 9c.4 E2 (SERIOUS) — the family adjudicator must be able to tell whether the three rungs ran the
+same binaries
+
+Standing memory, restated because this is the second time it has had to be: **the shim version integer
+identifies nothing — pin the SHA256, never infer a leg's binary from a label.** `g2b_gate.py` already
+honours this per rung (A7/B1 bind both the widened and the baseline leg's SHA to the manifest) — but the
+verdict discarded all of it, so `g2b_family.py`, the instrument that actually *combines* the three rungs
+into one conclusion, could see none of it. Two concrete holes this left: (a) the manifest is a mutable
+file, and `g2b_dll_manifest.json`'s own `_comment` — "never edit an existing entry after its leg has been
+run" — is prose with no mechanism; a rung run today and a rung run next week could each pass their own
+manifest check against *different* manifest contents undetected; (b) nothing asserted the three rungs'
+baseline legs were actually the *same* `[200,3000)` build, only that each was individually *a* valid one.
+**Fixed and pre-registered as F6 above:** every verdict now carries `dll_sha256` for all three legs
+(baseline/widened/repeat) and the manifest **file's own** SHA256 as read (`manifest_sha256` — the digest
+of the bytes, not the SHAs the manifest contains); `g2b_family.py` refuses if the three rungs' baseline
+SHAs, or their manifest digests, are not identical, naming both values either way. **Widened SHAs are
+deliberately NOT checked for equality** — they are expected to differ across rungs (each rung is built
+against a different `f_min`), and the per-rung manifest binding (A7/B1) already covers them; checking
+them for equality would be checking the wrong thing. **HK-021(k):** fires (baseline SHA or manifest
+digest differs) ⇒ REFUSE; does not fire ⇒ the same CLOSE/DO NOT CLOSE reading. Mechanical.
+
+### 9c.5 E3 (MINOR in code, a process point in the memo) — distinct exit codes on the terminal instrument
+
+`g2b_family.py` previously returned `0` on `CLOSE`, on `DO NOT CLOSE`, and on all REFUSE paths alike —
+the identical defect D2 raised against `g2b_gate.py`'s own exit code, reproduced inside the very
+instrument D2 built to fix it. **Fixed: `0 = CLOSE`, `1 = DO NOT CLOSE`, `2 = REFUSE`**, documented in
+that file's own docstring and asserted for every path in its smoke test. **`g2b_gate.py`'s own exit code
+is deliberately UNCHANGED** — its machine-readable channel is `--emit-verdict`, settled by D2; re-opening
+it would break every invocation this pre-registration already describes, for nothing. Per the Architect's
+explicit instruction, **HK-021(k) does not apply to E3**: this is the family adjudicator's own output
+contract, not a pre-registered check on the experiment, and it is not evaluated as one here.
+
+### 9c.6 D3 — a truncated cycle fails the whole leg closed, without discarding completed work
+
+Producer half (`g2_verification_replay.py`, own branch, own commit — not detailed here): a cycle whose
+decode count reaches `MAX_RESULTS` is now recorded `"truncated": True` and the leg continues, rather than
+the previous bare `assert` (which crashed mid-run, discarding every completed cycle to report one suspect
+one, and which `python -O` strips entirely). Gate half, in this file's P2 (§3, revised above): any leg
+carrying even one `truncated` cycle is now **ROW 0** — same fail-closed guarantee, no lost work.
+`.get("truncated")` throughout, so a leg from a pre-D3 producer (no such field at all) reads as "not
+flagged truncated," not a `KeyError`.
+
+### 9c.7 D4, D5 — minor, carried by reference
+
+**D4** (producer-only: `wav_dir` is now recorded as `os.path.realpath(args.wav_dir)`, resolved against
+the producer's own CWD rather than left for the gate to resolve against whichever CWD *it* happens to be
+started from) lands on `qa/g2b-verification-replay-extract`, not in this document. **D5**: the two-line
+comment at `rep_churn_abs` (§4 above already carries it, added this round) explaining why summing only
+`g_else + lost` for P3's determinism check is complete *only because* `base` in that call is always the
+fixed-band baseline binary — a process point (an instruction attached to a ✅ line was not carried out
+because it was not read as an instruction), not a new mechanical check.
+
+### 9c.8 Status
+
+- ✅ **D1–D5** verified fixed in code by the Architect (fourth review), and carried into this
+  pre-registration as the revised P2 row (§3) plus §§9c.1–9c.7 above.
+- ✅ **E1, E2** fixed and pre-registered as F5/F6 in `g2b_family.py`'s own precondition table (§9c.2),
+  per the Architect's explicit instruction that their refusal conditions be stated here, not left
+  code-only.
+- ✅ **E3** fixed; explicitly NOT a pre-registered check (§9c.5), per the Architect's own instruction.
+- ✅ Re-smoke-tested: `g2b_gate_smoketest.py` (55 checks, including new direct assertions that
+  `dll_sha256`/`manifest_sha256`/`wav_dir`/`burned_corpus` are populated correctly and null-safe on
+  ROW_0) and `g2b_family_smoketest.py` (38 checks, including band/f_max/wav_dir mismatch, baseline-SHA
+  mismatch, manifest-digest mismatch, a deliberate widened-SHA-differs control, and every exit code).
+  Both suites run twice, exit 0, byte-identical across the two runs (diffed, not asserted — HK-022).
+- 🛑 **Not armed. Nothing merged, nothing pushed** (HK-010/HK-014). Commit state (HK-022, checked not
+  asserted, at commit time of this addendum): this document, `g2b_gate.py`, `g2b_family.py`,
+  `g2b_gate_smoketest.py` and `g2b_family_smoketest.py` are committed together on `main`; the D4 fix
+  remains on `qa/g2b-verification-replay-extract`, per the established pattern.
+- ⚠️ **R0 is still ahead of this gate in the programme.** Nothing in this round changes that or is
+  intended to be read as pre-empting it. No decoder has been run; no rung of the ladder has been run.
+- **Requesting:** the Architect's fifth review, of D1–D5 as carried into this document and of E1/E2/E3
+  as fixed and pre-registered above.
