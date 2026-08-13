@@ -1,7 +1,35 @@
 #!/usr/bin/env python3
-"""Smoke test for g2b_gate.py revision 5 (2026-08-12, fourth Architect review;
-extended for E1/E2, 2026-08-12 21:43Z early candidates, folded into
-revision 5).
+"""Smoke test for g2b_gate.py revision 6 (2026-08-13, fifth Architect review
+plus the Captain's two rulings on it).
+
+REVISION 6 additions:
+  J1  New coverage: an underpowered rung with a real effect (95% lower bound
+      fails, 95% upper bound does not) now reads ROW_INDETERMINATE, not
+      ROW 3; a zero-cycle (d_base=0) rung reads ROW_INDETERMINATE with the
+      degenerate-bootstrap reason named explicitly. Needs a NEW fixture
+      helper, make_legs_varied_low() -- make_legs()'s per-cycle composition
+      is IDENTICAL across cycles by construction, which gives every
+      bootstrap resample the same rate (zero variance) and can never
+      produce the lower/upper SPLIT this finding is about.
+  Captain's ruling (self-contained verdict) -- new coverage: a ROW_1
+      verdict carries `rows`/`window`/`start_cycle`/`n_cycles`/`d_base`/
+      `av_excluded_count`/`truncated_count`/`gate_sha256`/`bootstrap_n`/
+      `bootstrap_seed`/the pre-J1 constants; `--verify-verdict` re-derives
+      the row from those carried terms and matches on an untampered
+      verdict (ROW_1, ROW_0, ROW_INDETERMINATE) and FAILS, naming the
+      divergence, on a verdict whose `row` was tampered while its `rows`
+      were left genuine -- the negative control proving the re-derivation
+      checks the evidence, not the label.
+  J4  --burned-wav-dir/--held-out-from removed from every fixture's CLI
+      invocation; REAL_WAV_DIR_08_08/REAL_HELD_OUT_FLOOR_08_08 are now
+      DEFINED FROM g2b.BURNED_CORPUS itself, per the Captain's explicit
+      instruction not to add a test-only override flag -- a fixture that
+      wants to be read as "the burned corpus" points its own leg wav_dir at
+      the constant.
+
+Everything below this point is REVISION 5 and earlier, unchanged in
+substance (only the burned-corpus/held-out CLI plumbing described above
+moved):
 
 E1/E2 (the early-candidates memo,
 `2026-08-12-2143-architect-to-qa-g2b-review-5-early-candidates.md`): the
@@ -113,10 +141,18 @@ FAILURES = []
 # artefacts/ directory at all; it is blanket-gitignored), and not synthesised
 # in an invented format (B2.4's lesson: the old fixture format never made
 # contact with what the real producer emits). These are literal fixture data.
-REAL_WAV_DIR_08_08 = "artefacts/20260808_live_run_0016-8080/wsjt-x/wav"  # C1: RULED
+# J4 fix (Captain's ruling, fifth review): --burned-wav-dir/--held-out-from
+# are gone from the CLI -- REAL_WAV_DIR_08_08/REAL_HELD_OUT_FLOOR_08_08 are
+# now defined FROM g2b.BURNED_CORPUS itself (not merely equal to it by
+# construction) so this file cannot silently drift from the module constant
+# it is meant to exercise. A fixture that wants to be read as "the burned
+# corpus" sets its leg wav_dir to REAL_WAV_DIR_08_08; the gate now compares
+# that against BURNED_CORPUS internally rather than against a CLI argument.
+REAL_WAV_DIR_08_08 = g2b.BURNED_CORPUS["wav_dir"]  # C1: RULED
 REAL_TS_08_08_EARLY = ["260808_000830", "260808_000845", "260808_000900",
                        "260808_000915", "260808_000930"]
-REAL_HELD_OUT_FLOOR_08_08 = "260808_014215"  # the Architect's own cited floor
+REAL_HELD_OUT_FLOOR_08_08 = g2b.BURNED_CORPUS["held_out_from"]  # the
+                                              # Architect's own cited floor
                                               # (250th in-window cycle);
                                               # independently reproduced by
                                               # g2_verification_replay.py's
@@ -270,15 +306,58 @@ def make_legs(n_cycles, n_base, g_low, g_high, g_else, n_lost,
             leg("repeat", sha_rep, rep_files))
 
 
+def make_legs_varied_low(g_low_per_cycle, n_base, f_min, f_max,
+                          sha_base="a" * 64, sha_wide="b" * 64, sha_rep=None,
+                          wav_dir="SMOKETEST_WAV_DIR",
+                          window=("SMOKETEST_LO", "SMOKETEST_HI"), start_cycle=1):
+    """J1 coverage needs genuine bootstrap VARIANCE across cycles -- make_legs
+    above gives every cycle the IDENTICAL composition, so every bootstrap
+    resample draws the same rate every time (see the B3 ROW1 fixture's own
+    comment: "identical every cycle -> zero variance"), which can never
+    produce a 95% lower/upper bound SPLIT wide enough to distinguish "clears"
+    from "underpowered" from "genuinely absent". This helper instead takes
+    a PER-CYCLE g_low count, so cycles differ and resampling has something to
+    vary over -- the only way to construct an INDETERMINATE fixture at all.
+    """
+    sha_rep = sha_rep or sha_base
+    base_files, wide_files, rep_files = [], [], []
+    for i, g_low in enumerate(g_low_per_cycle):
+        ts = f"202608{1000 + i:06d}Z"
+        b, w = make_cycle(ts, 200, n_base, g_low, 0, 0, 0, f_min, f_max)
+        r = {"ts": ts, "av": False, "decodes": list(b["decodes"])}
+        b["truncated"] = w["truncated"] = r["truncated"] = False
+        base_files.append(b)
+        wide_files.append(w)
+        rep_files.append(r)
+
+    def leg(label, sha, files):
+        return {"label": label, "dll_sha256": sha, "shim_version": 20260039,
+                "n_files": len(files), "per_file": files,
+                "wav_dir": wav_dir, "window": list(window),
+                "start_cycle": start_cycle}
+
+    return (leg("base", sha_base, base_files),
+            leg("widened", sha_wide, wide_files),
+            leg("repeat", sha_rep, rep_files))
+
+
 def run_gate(tmp, base, wide, rep, f_min, f_max, manifest,
              g_new_bar, g_high_bar, churn_net_bar, churn_gross_bar,
-             held_out_from="0", burned_wav_dir="UNBURNED_WAV_DIR_SENTINEL",
              burned_corpus="no", emit_verdict=None):
     """burned_corpus (D1): the operator's required declaration of whether the
-    legs ARE drawn from burned_wav_dir. Defaults to "no", which matches every
-    pre-D1 fixture in this file (none of them use the sentinel/default
-    wav_dir as their burned dir), so existing fixtures need no change. Callers
-    exercising the burned-corpus path pass "yes" explicitly.
+    legs ARE drawn from the pre-registered BURNED_CORPUS constant. Defaults
+    to "no", which matches every fixture in this file that does not
+    deliberately set its leg wav_dir to REAL_WAV_DIR_08_08, so existing
+    fixtures need no change. Callers exercising the burned-corpus path pass
+    "yes" explicitly and point their fixture's wav_dir at REAL_WAV_DIR_08_08.
+
+    J4 fix (Captain's ruling): --burned-wav-dir/--held-out-from are GONE --
+    the burned region is now the hard-coded BURNED_CORPUS constant in
+    g2b_gate.py itself, isdir-checked against the real repo tree (this
+    machine has the real artefacts/ directory, per the Captain's explicit
+    instruction NOT to add a test-only override flag: "the correct fix is
+    to set the FIXTURE's recorded leg wav_dir to the constant"). Only the
+    operator's declaration (`--burned-corpus`) remains a CLI argument.
 
     emit_verdict (D2): path to pass as --emit-verdict, or None to omit the
     flag entirely (the pre-D2 default -- every existing fixture keeps
@@ -297,8 +376,6 @@ def run_gate(tmp, base, wide, rep, f_min, f_max, manifest,
            "--f-min", str(f_min), "--f-max", str(f_max),
            "--manifest", str(mpath),
            "--burned-corpus", burned_corpus,
-           "--burned-wav-dir", burned_wav_dir,
-           "--held-out-from", held_out_from,
            "--g-new-min-rate", str(g_new_bar),
            "--g-high-min-rate", str(g_high_bar),
            "--churn-net-min-rate", str(churn_net_bar),
@@ -311,8 +388,8 @@ def run_gate(tmp, base, wide, rep, f_min, f_max, manifest,
 
 def main():
     print("=" * 78)
-    print("g2b_gate.py smoke test -- revision 5 (fourth review + E1/E2 early "
-          "candidates)")
+    print("g2b_gate.py smoke test -- revision 6 (fifth review + Captain's "
+          "rulings)")
     print("=" * 78)
 
     F_MIN, F_MAX = 140, 3030
@@ -379,8 +456,7 @@ def main():
                                      ts_list=REAL_TS_08_08_EARLY)
         out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
-                        held_out_from=REAL_HELD_OUT_FLOOR_08_08,
-                        burned_wav_dir=REAL_WAV_DIR_08_08, burned_corpus="yes")
+                        burned_corpus="yes")
         check("ROW0 held-out violation, burned corpus, REAL ts (B2)",
               "ROW 0 -- NO READ" in out and "burned leg must not be read" in out, out)
         check("D1: held-out floor applied to all 3 legs (declared burned, is burned)",
@@ -389,23 +465,21 @@ def main():
         # ── ROW 1 -- B2: an UNRELATED corpus using REAL ts that would trip a
         # naive global lexical floor is NOT blocked -- the exact defect fixed.
         # burned_corpus defaults to "no" here, correctly: these legs are NOT
-        # drawn from --burned-wav-dir.
+        # drawn from the BURNED_CORPUS constant.
         base, wide, rep = make_legs(5, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
                                      wav_dir=REAL_WAV_DIR_08_03,
                                      ts_list=REAL_TS_08_03_EARLY)
         assert min(REAL_TS_08_03_EARLY) <= REAL_HELD_OUT_FLOOR_08_08, (
             "fixture no longer reproduces the global-pooling shape B2 fixes")
         out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
-                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
-                        held_out_from=REAL_HELD_OUT_FLOOR_08_08,
-                        burned_wav_dir=REAL_WAV_DIR_08_08)
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("ROW1 unrelated corpus NOT blocked by unrelated floor (B2)",
               "ROW 1 -- ELIGIBLE" in out and "burned leg must not be read" not in out, out)
         check("D1: held-out floor applied to 0 legs (correctly un-burned)",
               "held-out floor applied to 0 leg(s)" in out, out)
 
         # ── ROW 0 -- D1: operator declares --burned-corpus yes, but the legs
-        # are NOT drawn from --burned-wav-dir (a typo/stale-path stand-in).
+        # are NOT drawn from BURNED_CORPUS (a typo/stale-path stand-in).
         # Pre-D1 this was silent: every leg `continue`d, "P2 legs ok" printed,
         # and the held-out floor was never applied. Now it is ROW 0.
         base, wide, rep = make_legs(5, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
@@ -413,8 +487,7 @@ def main():
                                      ts_list=REAL_TS_08_03_EARLY)
         out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
-                        held_out_from=REAL_HELD_OUT_FLOOR_08_08,
-                        burned_wav_dir=REAL_WAV_DIR_08_08, burned_corpus="yes")
+                        burned_corpus="yes")
         check("ROW0 D1: declared burned but legs are not -- was silent, now ROW 0",
               "ROW 0 -- NO READ" in out
               and "--burned-corpus yes was declared, but the legs are drawn "
@@ -424,15 +497,14 @@ def main():
               "held-out floor applied to 0 leg(s)" in out, out)
 
         # ── ROW 0 -- D1: operator declares --burned-corpus no, but the legs
-        # ARE drawn from --burned-wav-dir -- the operator handed the gate the
+        # ARE drawn from BURNED_CORPUS -- the operator handed the gate the
         # burned corpus while declaring it unburned. Also ROW 0.
         base, wide, rep = make_legs(5, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
                                      wav_dir=REAL_WAV_DIR_08_08,
                                      ts_list=REAL_TS_08_08_EARLY)
         out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
-                        held_out_from=REAL_HELD_OUT_FLOOR_08_08,
-                        burned_wav_dir=REAL_WAV_DIR_08_08, burned_corpus="no")
+                        burned_corpus="no")
         check("ROW0 D1: declared unburned but legs are burned",
               "ROW 0 -- NO READ" in out
               and "--burned-corpus no was declared, but the legs are drawn "
@@ -598,6 +670,48 @@ def main():
               and "evidence about THIS rung's width only" in out
               and "family closes only if NO rung reads ROW 1 or ROW 2" in out
               and "--is-widest-rung" not in out, out)
+        check("ROW3 (J1): the 95%% upper bound is now printed as CONFIRMING "
+              "the absence, not merely the lower bound failing",
+              "confirming this is a genuine, powered absence" in out, out)
+
+        # ── ROW_INDETERMINATE (J1) -- underpowered: 8 cycles, 7 with NO
+        # low-band gain and 1 carrying the maximum possible for this rung's
+        # width (g_low=60, the full [140,200) span -- per_cycle_terms's own
+        # assert forbids exceeding it). True rate 0.75%, bar 1%; before the
+        # fix this read ROW 3 -- indistinguishable from a genuine absence.
+        # Because ~34% of bootstrap resamples never draw the one
+        # gain-carrying cycle at all, the 95% LOWER bound is 0.000% (fails
+        # the bar); because ~66% of resamples draw it at least once, the
+        # 95% UPPER bound is well above the bar -- exactly the split that
+        # must now read ROW_INDETERMINATE, not ROW 3.
+        base, wide, rep = make_legs_varied_low(
+            [0, 0, 0, 0, 0, 0, 0, 60], N_BASE, F_MIN, F_MAX)
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
+        check("ROW_INDETERMINATE (J1): underpowered rung with a REAL effect "
+              "no longer reads ROW 3",
+              "INDETERMINATE -- NO READ" in out
+              and "\n  ROW 3" not in out
+              and "not evidence of absence (ROW 3)" in out
+              and "not evidence of eligibility (ROW 1)" in out, out)
+
+        # ── ROW_INDETERMINATE (J1) -- the degenerate d_base == 0 case: a
+        # ZERO-cycle rung. bootstrap_bounds() over an empty rows list never
+        # raises (rows[rng.randrange(0)] is never evaluated when the sample
+        # size is 0) and returns a degenerate 0.0/0.0 bound that would
+        # otherwise misread as a confident absence (ROW 3) -- this is the
+        # exact case the Architect's own early-candidates memo got wrong
+        # twice (§1 of the fifth review). Must read ROW_INDETERMINATE, with
+        # the d_base=0 reason named explicitly, not the generic one.
+        base, wide, rep = make_legs_varied_low([], N_BASE, F_MIN, F_MAX)
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
+        check("ROW_INDETERMINATE (J1): zero-cycle rung (d_base=0) reads "
+              "INDETERMINATE, not ROW 3, with the d_base=0 reason named",
+              "INDETERMINATE -- NO READ" in out
+              and "d_base=0" in out
+              and "could not have been measured at all" in out
+              and "\n  ROW 3" not in out, out)
 
         # ── ROW 0d -- mechanism sub-bar AND gross churn ceiling exceeded ────
         base, wide, rep = make_legs(20, N_BASE, 2, 0, 300, 300, F_MIN, F_MAX)
@@ -626,8 +740,10 @@ def main():
                   v["rates"] is not None and v["bounds"] is not None
                   and set(v["rates"]) == {"g_low", "g_high", "churn_net",
                                            "churn_gross"}
-                  and set(v["bounds"]) == {"g_low", "g_high", "churn_net",
-                                            "churn_gross"}, v)
+                  # J1: bounds gains g_low_hi (the 95% UPPER bound) alongside
+                  # the four pre-existing lower/upper bounds.
+                  and set(v["bounds"]) == {"g_low", "g_low_hi", "g_high",
+                                            "churn_net", "churn_gross"}, v)
             check("D2: verdict bars match what was invoked",
                   v["bars"] == {"g_new_min_rate": 0.01,
                                 "g_high_min_rate": G_HIGH_BAR_UNUSED,
@@ -718,8 +834,7 @@ def main():
                "--widened", str(tmp / "wide.json"), "--repeat", str(tmp / "rep.json"),
                "--f-min", str(F_MIN), "--f-max", str(F_MAX),
                "--manifest", str(missing_manifest_path),
-               "--burned-corpus", "no", "--burned-wav-dir", "UNBURNED_WAV_DIR_SENTINEL",
-               "--held-out-from", "0",
+               "--burned-corpus", "no",
                "--g-new-min-rate", "0.01", "--g-high-min-rate", str(G_HIGH_BAR_UNUSED),
                "--churn-net-min-rate", "-0.0025", "--churn-gross-max-rate", "0.02",
                "--emit-verdict", str(vpath0c)]
@@ -744,9 +859,7 @@ def main():
         vpath_burned = tmp / "verdict_burned.json"
         out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
-                        held_out_from=REAL_HELD_OUT_FLOOR_08_08,
-                        burned_wav_dir=REAL_WAV_DIR_08_08, burned_corpus="yes",
-                        emit_verdict=vpath_burned)
+                        burned_corpus="yes", emit_verdict=vpath_burned)
         check("E1 setup: burned corpus fixture still ROW 0s (held-out "
               "violation, unrelated to this check)",
               "ROW 0 -- NO READ" in out, out)
@@ -765,6 +878,104 @@ def main():
                         0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02)
         check("D2: --emit-verdict omitted -> no file written, gate unaffected",
               "ROW 1 -- ELIGIBLE" in out and not vpath_absent.exists(), out)
+
+        # ── Captain's ruling §2 -- --verify-verdict re-derives a ROW_1
+        # verdict's own row from ITS OWN carried rows/bars/constants and
+        # asserts equality. This is the mechanism that makes "the verdict
+        # must be sufficient to re-derive the row without the leg JSONs"
+        # testable rather than merely asserted.
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX)
+        vpath_vv1 = tmp / "verdict_verify_row1.json"
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
+                        emit_verdict=vpath_vv1)
+        check("verify-verdict setup: ROW_1 fixture emits a verdict",
+              vpath_vv1.exists(), out)
+        vv1 = json.loads(vpath_vv1.read_text())
+        check("Captain's ruling (self-contained verdict): ROW_1 verdict carries `rows` (the "
+              "evidence itself), n_cycles, d_base, gate_sha256, "
+              "bootstrap_n/seed and the pre-J1/self-containment constants",
+              vv1["rows"] is not None and len(vv1["rows"]) == 20
+              and vv1["n_cycles"] == 20 and vv1["d_base"] == 20000
+              and vv1["gate_sha256"] and len(vv1["gate_sha256"]) == 64
+              and vv1["bootstrap_n"] == g2b.BOOTSTRAP_N
+              and vv1["bootstrap_seed"] == g2b.BOOTSTRAP_SEED
+              and vv1["min_high_band_observations"] == g2b.MIN_HIGH_BAND_OBSERVATIONS
+              and vv1["old_f_min"] == g2b.OLD_F_MIN
+              and vv1["old_f_max"] == g2b.OLD_F_MAX
+              and vv1["av_excluded_count"] == 0 and vv1["truncated_count"] == 0
+              and vv1["window"] == ["SMOKETEST_LO", "SMOKETEST_HI"]
+              and vv1["start_cycle"] == 1, vv1)
+
+        vv_result = subprocess.run(
+            [sys.executable, str(GATE), "--verify-verdict", str(vpath_vv1)],
+            capture_output=True, text=True)
+        check("--verify-verdict OK on an untampered ROW_1 verdict, exit 0",
+              vv_result.returncode == 0
+              and "VERIFY-VERDICT OK" in vv_result.stdout
+              and f"row {vv1['row']} re-derives identically" in vv_result.stdout,
+              vv_result.stdout + vv_result.stderr)
+
+        # ── --verify-verdict on a ROW_0 verdict: rows is null, nothing to
+        # re-derive, and that itself is verified rather than treated as a
+        # failure.
+        base, wide, rep = make_legs(20, N_BASE, 15, 0, 2, 3, F_MIN, F_MAX,
+                                     sha_wide="a" * 64)  # same-binary P2 failure
+        vpath_vv0 = tmp / "verdict_verify_row0.json"
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX,
+                        {"a" * 64: {"f_min": F_MIN, "f_max": F_MAX}},
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
+                        emit_verdict=vpath_vv0)
+        vv0_result = subprocess.run(
+            [sys.executable, str(GATE), "--verify-verdict", str(vpath_vv0)],
+            capture_output=True, text=True)
+        check("--verify-verdict OK on a ROW_0 verdict (rows correctly null, "
+              "nothing to re-derive), exit 0",
+              vv0_result.returncode == 0
+              and "VERIFY-VERDICT OK" in vv0_result.stdout
+              and "ROW_0" in vv0_result.stdout, vv0_result.stdout + vv0_result.stderr)
+
+        # ── --verify-verdict FAILS on a TAMPERED verdict -- the negative
+        # control proving the re-derivation actually checks something rather
+        # than trivially agreeing with whatever `row` says. Tampering the
+        # recorded row while leaving the carried `rows`/bars/constants
+        # genuine must be caught: decide() re-derives from the EVIDENCE, not
+        # from the label.
+        tampered = dict(vv1)
+        tampered["row"] = "ROW_3"  # was ROW_1; the underlying `rows` still says ROW_1
+        vpath_tampered = tmp / "verdict_tampered.json"
+        vpath_tampered.write_text(json.dumps(tampered))
+        vvt_result = subprocess.run(
+            [sys.executable, str(GATE), "--verify-verdict", str(vpath_tampered)],
+            capture_output=True, text=True)
+        check("--verify-verdict FAILS on a tampered row, exit non-zero, "
+              "names the divergence",
+              vvt_result.returncode != 0
+              and "VERIFY-VERDICT FAIL" in vvt_result.stdout
+              and "recorded row is 'ROW_3'" in vvt_result.stdout
+              and "re-derived row" in vvt_result.stdout
+              and "'ROW_1'" in vvt_result.stdout,
+              vvt_result.stdout + vvt_result.stderr)
+
+        # ── --verify-verdict re-derives a ROW_INDETERMINATE verdict too (J1) --
+        # not merely ROW_1/ROW_0.
+        base, wide, rep = make_legs_varied_low(
+            [0, 0, 0, 0, 0, 0, 0, 60], N_BASE, F_MIN, F_MAX)
+        vpath_vvi = tmp / "verdict_verify_indeterminate.json"
+        out = run_gate(tmp, base, wide, rep, F_MIN, F_MAX, GOOD_MANIFEST,
+                        0.01, G_HIGH_BAR_UNUSED, -0.0025, 0.02,
+                        emit_verdict=vpath_vvi)
+        check("verify-verdict setup: fixture reads ROW_INDETERMINATE",
+              "INDETERMINATE -- NO READ" in out, out)
+        vvi_result = subprocess.run(
+            [sys.executable, str(GATE), "--verify-verdict", str(vpath_vvi)],
+            capture_output=True, text=True)
+        check("--verify-verdict OK on an untampered ROW_INDETERMINATE "
+              "verdict, exit 0",
+              vvi_result.returncode == 0
+              and "VERIFY-VERDICT OK" in vvi_result.stdout
+              and "row ROW_INDETERMINATE re-derives identically" in vvi_result.stdout,
+              vvi_result.stdout + vvi_result.stderr)
 
     # ── Direct checks, no subprocess ─────────────────────────────────────────
     print()
@@ -793,10 +1004,15 @@ def main():
         for f in FAILURES:
             print(f"  - {f}")
         return 1
-    print("SMOKE TEST PASSED -- all rows, including B1/B2/B3/B5/B6/C2/C5 "
-          "coverage, the real-ts-format fixtures, and the E1/E2 verdict "
-          "field checks (dll_sha256, manifest_sha256, wav_dir, "
-          "burned_corpus, including their null-safe ROW_0 cases), verified.")
+    print("SMOKE TEST PASSED -- all rows including B1/B2/B3/B5/B6/C2/C5 "
+          "coverage, the real-ts-format fixtures, the E1/E2 verdict field "
+          "checks (dll_sha256, manifest_sha256, wav_dir, burned_corpus, "
+          "including their null-safe ROW_0 cases), REVISION 6's "
+          "ROW_INDETERMINATE coverage (J1, both the underpowered-real-effect "
+          "and zero-cycle/d_base=0 cases), the self-contained-verdict fields "
+          "and --verify-verdict re-derivation (including its tampered-row "
+          "negative control), and BURNED_CORPUS as a hard-coded constant "
+          "(J4), verified.")
     return 0
 
 

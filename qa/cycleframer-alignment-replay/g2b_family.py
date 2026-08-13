@@ -22,10 +22,16 @@ write (one per rung invocation) and prints exactly one adjudication:
     REFUSE         -- the ladder itself is not evaluable: fewer or more than
                       three verdicts, a verdict file missing required keys /
                       unreadable, two verdicts share an f_min, the three
-                      verdicts do not share one band/f_max/wav_dir (E1), the
-                      three verdicts' baseline dll_sha256 or manifest_sha256
-                      disagree (E2), or any verdict reads ROW_0/ROW_0d (a
-                      precondition failure or a gate defect is not evidence).
+                      verdicts do not share one band/f_max/wav_dir/
+                      burned_corpus (E1/J5), the three verdicts' baseline
+                      dll_sha256 or manifest_sha256 disagree (E2), any
+                      verdict reads ROW_0/ROW_0d/ROW_INDETERMINATE (a
+                      precondition failure, a gate defect, or an
+                      underpowered read is not evidence -- J1), a rung's
+                      bars do not match the pre-registered ladder (F7/J2),
+                      the three verdicts do not share one window/
+                      start_cycle (F8, absorbs J3), or the three verdicts
+                      were not read by the same evaluator (F9, gate_sha256).
 
 Deliberate asymmetry (D2, explicit): this instrument can only ever CLOSE the
 family. It never ships anything, and it must never print a recommendation
@@ -76,6 +82,44 @@ ROW_0/ROW_0d checks, deliberately: by the time they run, every remaining
 verdict is a real read (ROW_1/2/3), so `wav_dir` is guaranteed to be a real
 string rather than the null it may legitimately be on an unconfirmed ROW_0.
 
+REVISION 6 (fifth Architect review, `2026-08-13-1503-architect-to-qa-g2b-
+review-5.md`, plus the Captain's rulings on it) -- J2, J5, J6, F7, F8, F9:
+
+  J2/F7  Nothing previously checked that the bars a rung was INVOKED with
+      were the bars PRE-REGISTERED for that rung (§4.2 of the pre-reg:
+      180 -> 0.35%, 140 -> 1.00%, 100 -> 1.65%, plus the fixed g_high/net/
+      gross floors). Measured: inflating all four bars on every rung
+      converted a ladder where every rung read ROW_1 into one where every
+      rung read ROW_3 and CLOSEd -- one mistyped argument, repeated three
+      times, and no instrument in the chain said a word. This is E1's shape
+      a second time: the verdict carries the value, the adjudicator ignores
+      it. Fixed: PRE_REGISTERED_BARS (below) is a constant in THIS file
+      (deliberately not moved into the gate as constants -- the mechanism
+      belongs at the adjudication layer, where the pre-registration is what
+      is being enforced); F7 refuses if any rung's `bars` disagree with it.
+      `bars` joins REQUIRED_VERDICT_KEYS.
+  J5  `burned_corpus` joins F5's identity set -- three rungs sharing one
+      `wav_dir` could previously still disagree on whether that corpus was
+      declared burned (the exact conjunction J4 closes at the source, in
+      g2b_gate.py, by making the burned directory a hard-coded constant);
+      this closes it again at the adjudication layer.
+  J6  F6's two null-handling blocks were asymmetric: the manifest-digest
+      block formatted a None value as `'FILE NOT FOUND'`; the adjacent
+      baseline-SHA block did not, and `sha[:16]` would raise on a None
+      baseline SHA. Low reachability (the gate itself dies earlier on a
+      None SHA) -- fixed by making the two blocks consistent via one
+      shared `_fmt_sha()` helper, no new machinery.
+  F8  (absorbs J3) `window`/`start_cycle` must be identical across all
+      three rungs. F5 already binds the three rungs to one `wav_dir`, but
+      three rungs may share one directory and still run on DIFFERENT
+      SLICES of it (different windows, or the same window at different
+      start cycles) -- F5 alone cannot see that.
+  F9  All three rungs' `gate_sha256` (g2b_gate.py's own SHA256, carried in
+      the verdict since REVISION 6 of that file) must be identical. Three
+      rungs adjudicated together must have been read by the SAME
+      evaluator -- E2's own logic ("pin the SHA256, never infer identity
+      from a label") applied to the instrument rather than the DLL.
+
 Usage:
     python g2b_family.py --verdict verdict_f180.json \
                           --verdict verdict_f140.json \
@@ -86,22 +130,59 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 
 REQUIRED_LADDER_SIZE = 3
-REFUSAL_ROWS = {"ROW_0", "ROW_0d"}
+# J1 (g2b_gate.py, REVISION 6): ROW_INDETERMINATE is a NO-READ row, exactly
+# like ROW_0/ROW_0d -- an underpowered rung is not evidence of absence, and
+# must be refused on identically, never silently read as ROW_3.
+REFUSAL_ROWS = {"ROW_0", "ROW_0d", "ROW_INDETERMINATE"}
 EXIT_CLOSE, EXIT_DO_NOT_CLOSE, EXIT_REFUSE = 0, 1, 2
 
-# E1/E2 fix: required verdict keys extended. band/f_min/f_max/row were the
-# only keys this file previously depended on; wav_dir, dll_sha256 and
-# burned_corpus are, per build_verdict()'s own docstring in g2b_gate.py,
-# ALWAYS present (like `bars`) regardless of row -- a verdict missing any of
-# them predates E1/E2 and cannot be adjudicated against those conditions.
+# J2/F7: the SAME per-rung bar table §4.2 of the pre-registration commits to
+# BEFORE any rung is run -- g_new_min_rate varies by rung (width-
+# proportional, §4.2); g_high_min_rate/churn_net_min_rate/
+# churn_gross_max_rate are fixed across the ladder (§4.2a/§4.2). This is the
+# only place in the whole chain that checks the bar SUPPLIED against the bar
+# PRE-REGISTERED -- g2b_gate.py deliberately keeps the bars CLI-supplied
+# (A5), so the enforcement lives here, at the adjudication layer, not there.
+PRE_REGISTERED_BARS = {
+    180: {"g_new_min_rate": 0.0035, "g_high_min_rate": 0.0050,
+          "churn_net_min_rate": -0.0025, "churn_gross_max_rate": 0.0200},
+    140: {"g_new_min_rate": 0.0100, "g_high_min_rate": 0.0050,
+          "churn_net_min_rate": -0.0025, "churn_gross_max_rate": 0.0200},
+    100: {"g_new_min_rate": 0.0165, "g_high_min_rate": 0.0050,
+          "churn_net_min_rate": -0.0025, "churn_gross_max_rate": 0.0200},
+}
+BAR_TOLERANCE = 1e-9  # exact-value comparison, allowing only float round-trip noise
+
+# E1/E2/F7/F8/F9 fix: required verdict keys extended. band/f_min/f_max/row
+# were the only keys this file previously depended on; wav_dir, dll_sha256,
+# burned_corpus, bars, window, start_cycle and gate_sha256 are, per
+# build_verdict()'s own docstring in g2b_gate.py, ALWAYS present (like
+# `bars`) regardless of row -- a verdict missing any of them predates the
+# revision that added it and cannot be adjudicated against that condition.
 # manifest_sha256 is included too (E2); it can hold a None VALUE (the
-# manifest file did not exist when the gate ran) but the KEY itself is always
-# written.
+# manifest file did not exist when the gate ran) but the KEY itself is
+# always written. `rows`/`n_cycles`/`d_base` are deliberately NOT required
+# here -- this file never reads them; they exist for g2b_gate.py's own
+# --verify-verdict self-check, a separate contract.
 REQUIRED_VERDICT_KEYS = ("band", "f_min", "f_max", "row", "wav_dir",
-                          "dll_sha256", "manifest_sha256", "burned_corpus")
+                          "dll_sha256", "manifest_sha256", "burned_corpus",
+                          "bars", "window", "start_cycle", "gate_sha256")
+
+
+def _fmt_sha(sha):
+    """J6 fix: ONE null-safe SHA formatter, shared by every block that prints
+    a SHA that may legitimately be None (a baseline dll_sha256 the gate
+    could not read, or a manifest_sha256 for a manifest file that did not
+    exist when the gate ran). Previously the manifest-digest block handled
+    None explicitly ('FILE NOT FOUND') while the adjacent baseline-SHA block
+    did not, and `sha[:16]` would have raised TypeError on a None baseline
+    SHA -- two adjacent blocks, two different null disciplines, for no
+    reason tied to what the two values mean."""
+    return f"{sha[:16]}..." if sha else "MISSING"
 
 
 def load_verdict(path):
@@ -166,37 +247,43 @@ def main():
               "rungs, not the same rung counted twice.")
         return EXIT_REFUSE
 
-    # ── Refusal condition 3: no verdict may read ROW_0/ROW_0d. Those rows
-    # mean "no read happened" (a precondition failed) or "gate defect" --
-    # neither is evidence about whether that rung's mechanism delivered, and
-    # treating either as silently equivalent to ROW_3 would let a precondition
-    # failure or a bug CLOSE the family.
+    # ── Refusal condition 3: no verdict may read ROW_0/ROW_0d/
+    # ROW_INDETERMINATE. Those rows mean "no read happened" (a precondition
+    # failed), "gate defect", or "underpowered -- not evidence either way"
+    # (J1) -- none is evidence about whether that rung's mechanism
+    # delivered, and treating any as silently equivalent to ROW_3 would let
+    # a precondition failure, a bug, or a lack of power CLOSE the family.
     refused = [(p, v) for p, v in verdicts if v["row"] in REFUSAL_ROWS]
     if refused:
         named = "; ".join(f"{p} (f_min={v['f_min']}, {v['row']})"
                            for p, v in refused)
-        print(f"\n  REFUSE -- {len(refused)} verdict(s) read ROW_0/ROW_0d, "
-              f"which is NO READ, not evidence: {named}. Fix the "
-              "precondition (or the gate defect) and re-run that rung "
+        print(f"\n  REFUSE -- {len(refused)} verdict(s) read "
+              f"ROW_0/ROW_0d/ROW_INDETERMINATE, which is NO READ, not "
+              f"evidence: {named}. Fix the precondition (or the gate "
+              "defect), or run more cycles (J1), and re-run that rung "
               "before asking this instrument to adjudicate the family.")
         return EXIT_REFUSE
 
-    # ── Refusal condition 4 (E1): all three verdicts must share one band,
-    # one f_max and one wav_dir. A ladder is three rungs of ONE experiment;
-    # three rungs of three bands, or two different corpora inside one band,
-    # is not a family, even if all three happen to read the same row. Every
-    # verdict reaching this point is a real read (ROW_1/2/3, condition 3
-    # above already excluded ROW_0/ROW_0d), so wav_dir is guaranteed to be a
-    # real string here, never the null it may legitimately be on an
-    # unconfirmed ROW_0.
-    for field in ("band", "f_max", "wav_dir"):
+    # ── Refusal condition 4 (E1, J5 extends it): all three verdicts must
+    # share one band, one f_max, one wav_dir and one burned_corpus
+    # declaration. A ladder is three rungs of ONE experiment; three rungs of
+    # three bands, or two different corpora inside one band, is not a
+    # family, even if all three happen to read the same row -- and (J5)
+    # three rungs sharing one wav_dir could still disagree on whether that
+    # corpus was DECLARED burned, the exact conjunction J4 closes at the
+    # source in g2b_gate.py. Every verdict reaching this point is a real
+    # read (ROW_1/2/3, condition 3 above already excluded ROW_0/ROW_0d/
+    # ROW_INDETERMINATE), so wav_dir is guaranteed to be a real string here,
+    # never the null it may legitimately be on an unconfirmed ROW_0.
+    for field in ("band", "f_max", "wav_dir", "burned_corpus"):
         values = {v["f_min"]: v[field] for _, v in verdicts}
         if len(set(values.values())) != 1:
             named = "; ".join(f"f_min={f_min} {field}={val!r}"
                                for f_min, val in sorted(values.items()))
             print(f"\n  REFUSE -- the three rungs do not share one {field} "
                   f"-- {named}. A ladder is three rungs of ONE experiment; "
-                  "three rungs of three experiments is not a family (E1).")
+                  "three rungs of three experiments is not a family "
+                  "(E1/J5).")
             return EXIT_REFUSE
 
     # ── Refusal condition 5 (E2): all three verdicts must agree on the
@@ -210,7 +297,11 @@ def main():
     # (A7/B1, enforced by g2b_gate.py itself) already covers them.
     baseline_shas = {v["f_min"]: v["dll_sha256"]["baseline"] for _, v in verdicts}
     if len(set(baseline_shas.values())) != 1:
-        named = "; ".join(f"f_min={f_min} baseline_sha={sha[:16]}..."
+        # J6 fix: _fmt_sha() -- see that block's manifest_shas neighbour for
+        # why this needs to be null-safe identically, even though a None
+        # baseline SHA should not reach here in practice (the gate itself
+        # dies earlier on one).
+        named = "; ".join(f"f_min={f_min} baseline_sha={_fmt_sha(sha)}"
                            for f_min, sha in sorted(baseline_shas.items()))
         print(f"\n  REFUSE -- the three rungs' BASELINE binaries differ -- "
               f"{named}. Three rungs comparing against different "
@@ -219,8 +310,7 @@ def main():
         return EXIT_REFUSE
     manifest_shas = {v["f_min"]: v["manifest_sha256"] for _, v in verdicts}
     if len(set(manifest_shas.values())) != 1:
-        named = "; ".join(f"f_min={f_min} manifest_sha256="
-                           f"{(sha[:16] + '...') if sha else 'FILE NOT FOUND'}"
+        named = "; ".join(f"f_min={f_min} manifest_sha256={_fmt_sha(sha)}"
                            for f_min, sha in sorted(manifest_shas.items()))
         print(f"\n  REFUSE -- the three rungs read DIFFERENT manifest file "
               f"contents -- {named}. The manifest is mutable; a digest "
@@ -229,9 +319,66 @@ def main():
               "(E2).")
         return EXIT_REFUSE
 
+    # ── Refusal condition 6 (J2/F7): each rung's `bars` must equal the
+    # PRE-REGISTERED_BARS entry for its own f_min. g2b_gate.py deliberately
+    # keeps bars CLI-supplied (A5); this is the ONLY place that checks the
+    # bar SUPPLIED against the bar PRE-REGISTERED. Float comparison uses
+    # BAR_TOLERANCE, not `==`, since these values round-trip through
+    # argparse's `type=float` and JSON.
+    for _, v in verdicts:
+        expected = PRE_REGISTERED_BARS.get(v["f_min"])
+        if expected is None:
+            print(f"\n  REFUSE -- f_min={v['f_min']} is not one of the "
+                  f"pre-registered ladder rungs {sorted(PRE_REGISTERED_BARS)} "
+                  "-- its bars cannot be checked against anything (F7).")
+            return EXIT_REFUSE
+        mismatches = [
+            f"{key}: supplied {v['bars'][key]!r}, pre-registered {expected_val!r}"
+            for key, expected_val in expected.items()
+            if not math.isclose(v["bars"][key], expected_val,
+                                 rel_tol=0, abs_tol=BAR_TOLERANCE)]
+        if mismatches:
+            print(f"\n  REFUSE -- f_min={v['f_min']}'s bars do not match the "
+                  f"pre-registered values -- {'; '.join(mismatches)}. "
+                  "Enforcing the bar APPLIED is not the same as enforcing "
+                  "the bar PRE-REGISTERED (F7/J2).")
+            return EXIT_REFUSE
+
+    # ── Refusal condition 7 (F8, absorbs J3): all three verdicts must share
+    # one `window` and one `start_cycle`. F5/condition 4 above already binds
+    # the three rungs to one wav_dir, but three rungs may share one
+    # directory and still run on DIFFERENT SLICES of it -- F5 alone cannot
+    # see that; this is the field-adding half of what J3 originally raised.
+    for field in ("window", "start_cycle"):
+        values = {v["f_min"]: (tuple(v[field]) if isinstance(v[field], list)
+                                else v[field])
+                  for _, v in verdicts}
+        if len(set(values.values())) != 1:
+            named = "; ".join(f"f_min={f_min} {field}={val!r}"
+                               for f_min, val in sorted(values.items()))
+            print(f"\n  REFUSE -- the three rungs do not share one {field} "
+                  f"-- {named}. Three rungs may share one wav_dir yet run "
+                  "on different slices of it; a family verdict requires "
+                  "one slice, not merely one directory (F8/J3).")
+            return EXIT_REFUSE
+
+    # ── Refusal condition 8 (F9): all three verdicts' gate_sha256 must be
+    # identical. Three rungs adjudicated together must have been read by the
+    # SAME evaluator -- E2's own logic ("pin the SHA256, never infer
+    # identity from a label") applied to the instrument itself, not the DLL.
+    gate_shas = {v["f_min"]: v["gate_sha256"] for _, v in verdicts}
+    if len(set(gate_shas.values())) != 1:
+        named = "; ".join(f"f_min={f_min} gate_sha256={_fmt_sha(sha)}"
+                           for f_min, sha in sorted(gate_shas.items()))
+        print(f"\n  REFUSE -- the three rungs were read by DIFFERENT "
+              f"evaluators (g2b_gate.py changed between rungs) -- {named}. "
+              "Three rungs adjudicated together must have been read by the "
+              "SAME instrument (F9).")
+        return EXIT_REFUSE
+
     # ── The adjudication itself. Every remaining verdict reads ROW_1, ROW_2,
     # or ROW_3 -- the only three possibilities left after the refusal checks
-    # above, since ROW_0/ROW_0d were already excluded.
+    # above, since ROW_0/ROW_0d/ROW_INDETERMINATE were already excluded.
     non_row3 = sorted(((v["f_min"], v["row"]) for _, v in verdicts))
     non_row3 = [(f_min, row) for f_min, row in non_row3 if row != "ROW_3"]
 

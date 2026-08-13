@@ -90,7 +90,7 @@ re-evaluated under both branches before arming was even considered.
 | | precondition | class | fires ⇒ | does not fire ⇒ |
 |---|---|---|---|---|
 | **P1** | observed high-band gains in the widened-vs-baseline comparison `< 5` | VALIDITY | high end **NOT adjudicated**; the row is decided on the **low-band metric alone**, and the licensed consequence is `[f_min, 3000)` only | the row is decided on the **pooled** low+high metric, licensed consequence `[f_min, f_max)` |
-| **P2** | baseline/widened distinct binaries; repeat leg **is** the baseline binary; **all three legs** cover the identical cycle set **and** share one normalised `(wav_dir, window, start_cycle)` triple (C2); the widened **and baseline** legs' SHA256 are each in the pre-registered manifest **and** match what each is claimed to be (A7/B1); the operator's **required** `--burned-corpus {yes,no}` declaration matches the legs' actual shared corpus, in **either** direction (D1, §9c below); **no leg carries any `truncated` cycle** (D3, §9c below) | VALIDITY | **ROW 0, no read** | rows 1–3 / 0d |
+| **P2** | baseline/widened distinct binaries; repeat leg **is** the baseline binary; **all three legs** cover the identical cycle set **and** share one normalised `(wav_dir, window, start_cycle)` triple (C2); the widened **and baseline** legs' SHA256 are each in the pre-registered manifest **and** match what each is claimed to be (A7/B1); the operator's **required** `--burned-corpus {yes,no}` declaration matches the legs' actual shared corpus **against the hard-coded `BURNED_CORPUS` constant** (D1, J4 — §9d.3 below), in **either** direction; **`BURNED_CORPUS`'s own directory exists on disk** (J4, isdir-checked); **no leg carries any `truncated` cycle** (D3, §9c below) | VALIDITY | **ROW 0, no read** | rows 1–3 / 0d |
 | **P3** | baseline-vs-repeat physical differences **== 0** | VALIDITY | **ROW 0, no read** | rows 1–3 / 0d |
 
 ### 3.1 A1 fix — P1 now changes the verdict, not merely the printed scope
@@ -377,20 +377,26 @@ option). The smoke test asserts the word does not appear anywhere in the gate's 
 §4 reserves the choice among passing rungs to the Captain. ROW 1 now prints `ELIGIBLE`; three rungs
 reading ROW 1 no longer look like three conflicting SHIP orders.
 
-### 4.7 Rows — hard-thresholded, mutually exclusive, strict order (as implemented, REVISED for B3/B6)
+### 4.7 Rows — hard-thresholded, mutually exclusive, strict order (as implemented, REVISED for B3/B6, J1 — §9d.1)
 
 `g_ok` below is **always** `g_low`'s 95% lower bound against `--g-new-min-rate` (B3: never pooled with
 `g_high`, never selected by `g_sel_fn` — that mechanism is gone). `scope` is three-way: low-band-only
 if P1 fired (high unadjudicated); full-band if P1 did not fire and `g_high` clears its own
 `--g-high-min-rate`; low-band-only (again) if P1 did not fire but `g_high` failed to clear its floor.
 
+🔴 **J1 fix (fifth review, §9d.1 below): `g_ok` failing is no longer sufficient for ROW 3.** A second
+quantity, `g_powered_absence` — `g_low`'s 95% **UPPER** bound `<` `--g-new-min-rate`, **and** `d_base >
+0` — now gates ROW 3 vs the new **ROW_INDETERMINATE**. An underpowered rung (too few cycles, or a real
+effect the sample cannot resolve) is not evidence the mechanism is absent; it is evidence of nothing.
+
 | row | condition (95% bounds) | consequence |
 |---|---|---|
 | **ROW 0** | P2 or P3 fired | **NO READ.** |
-| **ROW 0d** | `g_ok` fails **and** gross-churn upper bound `>` its ceiling | **STOP and escalate.** Named reason (A10); no severity tier beyond ROW 2's own gross-churn test is claimed (B6). |
+| **ROW_INDETERMINATE** | `g_ok` fails **and** `g_powered_absence` is false (upper bound does not clear below the bar, or `d_base == 0`) | **NO READ — not evidence of absence, not evidence of eligibility.** New, J1. Family REFUSES on it exactly like ROW_0/ROW_0d. |
+| **ROW 0d** | `g_ok` fails **and** `g_powered_absence` **and** gross-churn upper bound `>` its ceiling | **STOP and escalate.** Named reason (A10); no severity tier beyond ROW 2's own gross-churn test is claimed (B6). |
 | **ROW 1** | `g_ok` clears **and** net-churn lower bound clears its floor **and** gross-churn upper bound clears its ceiling | **ELIGIBLE**, at the scope described above. Captain chooses among eligible rungs. |
 | **ROW 2** | `g_ok` clears **and** (net churn fails **or** gross churn fails) | **MECHANISM CONFIRMED, PERTURBATION REAL.** Escalate decoupling the noise-floor estimate; do not ship raw. |
-| **ROW 3** | `g_ok` fails (and not the ROW 0d combination) | Mechanism underdelivers **at this rung**; evidence about that rung's width only. Family closes only if NO rung (of the three) reads ROW 1 or ROW 2 — a separate, cross-rung adjudication made after the ladder runs, REPAIRED per C5 (§4.4). |
+| **ROW 3** | `g_ok` fails **and** `g_powered_absence` (and not the ROW 0d combination) | Mechanism underdelivers **at this rung**, genuinely and with power to say so; evidence about that rung's width only. Family closes only if NO rung (of the three) reads ROW 1 or ROW 2 — a separate, cross-rung adjudication made after the ladder runs, REPAIRED per C5 (§4.4). |
 
 **Disclosure, carried forward and updated.** The 250-cycle 20m leg is still BURNED — these bars were
 set with knowledge of its numbers (`G_new` = +2.71%, `churn_net` = −0.33%, and its gross churn,
@@ -741,3 +747,189 @@ because it was not read as an instruction), not a new mechanical check.
   intended to be read as pre-empting it. No decoder has been run; no rung of the ladder has been run.
 - **Requesting:** the Architect's fifth review, of D1–D5 as carried into this document and of E1/E2/E3
   as fixed and pre-registered above.
+
+---
+
+## 9d. Status — REVISION 6 ADDENDUM (against the fifth review's J1–J6, plus the Captain's two rulings on
+that review)
+
+The fifth review (`2026-08-13-1503-architect-to-qa-g2b-review-5.md`) found two BLOCKING (J1, J2), one
+SERIOUS (J3) and three MINOR (J4, J5, J6) findings. The Captain then ruled on two of them directly
+(`2026-08-13-1517-architect-to-qa-g2b-captains-rulings-j4-and-self-contained-verdict.md`): J4 is
+hard-coded rather than defaulted, and the verdict becomes self-contained by construction rather than by
+one field added per review round — which absorbs J3's field-adding half. All six findings, plus both
+rulings, are fixed in code and pre-registered here.
+
+### 9d.1 J1 (BLOCKING) — an underpowered rung is not evidence of absence
+
+`g_ok` failing (the 95% **lower** bound of `g_low` does not clear `--g-new-min-rate`) was, on its own,
+sufficient for ROW 3 — indistinguishable from "this rung was never powered to detect the effect it is
+about to declare absent." **Measured** (fifth review §1): an 8-cycle rung with the true low-band rate
+held at 2.5× its own bar read ROW 3, identically to a genuine 0.00% absence over 400 cycles; three such
+underpowered rungs CLOSEd the family. A zero-cycle (or zero-baseline-decode) rung is the degenerate case
+of the same defect: `bootstrap_bounds()` over zero rows never raises and returns a zero-width CI pinned
+at 0.0, which the OLD logic would have read as "confidently below the bar."
+
+**Fixed and pre-registered as the ROW_INDETERMINATE row in §4.7's table above.** `g_low`'s 95% **upper**
+bound now decides which of the two cases applies — `g_powered_absence` in the code — **and** `d_base >
+0` is checked explicitly, so the degenerate zero-measurement case can never be read as a confident
+absence regardless of what the bootstrap's degenerate CI reports:
+
+- `g_powered_absence` true (`d_base > 0` **and** `g_low`'s 95% upper bound `<` the bar): the rung was
+  measured and genuinely underdelivers → **ROW 3**, which now means what it says.
+- `g_powered_absence` false (`d_base == 0`, or the upper bound does not clear below the bar): the rung
+  was **not** powered to tell absence from insufficient data → **ROW_INDETERMINATE**, new. `g2b_family.py`
+  REFUSES on it exactly as it refuses ROW_0/ROW_0d (§9d.5's updated F-table).
+
+**HK-021(k):** classify — this is a VALIDITY check (a power/absence check, HK-021(j)'s own rule: "an
+absence needs λ ≥ 5 to be trusted," applied here to the rung's own primary metric rather than only to
+the high band). Evaluate both branches: fires (underpowered) ⇒ ROW_INDETERMINATE, a strictly different
+row, refused downstream; does not fire ⇒ the same ROW 1/2/3 reading on the same numbers as before.
+Different consequence either way ⇒ mechanical, not diagnostic.
+
+### 9d.2 J2 / F7 (BLOCKING for the family) — the bar SUPPLIED must equal the bar PRE-REGISTERED
+
+Nothing in the chain checked that the `--g-new-min-rate`/`--g-high-min-rate`/`--churn-net-min-rate`/
+`--churn-gross-max-rate` a rung was actually **invoked** with matched the values §4.2/§4.2a of this
+document pre-registers for that rung. **Measured** (fifth review §2): inflating all four bars on every
+rung of an otherwise-eligible ladder converted three ROW_1 reads into three ROW_3 reads and CLOSEd the
+family — one mistyped argument, repeated three times, and no instrument in the chain said a word. This
+is E1's shape a second time: the verdict already carries `bars` (D2); nothing downstream reads it against
+anything.
+
+**Fixed:** `g2b_family.py` now defines `PRE_REGISTERED_BARS`, keyed by `f_min`, restating exactly the
+table in §4.2/§4.2a:
+
+| `f_min` | `g_new_min_rate` | `g_high_min_rate` | `churn_net_min_rate` | `churn_gross_max_rate` |
+|---:|---:|---:|---:|---:|
+| 180 | 0.35% | 0.50% | −0.25% | 2.00% |
+| 140 | 1.00% | 0.50% | −0.25% | 2.00% |
+| 100 | 1.65% | 0.50% | −0.25% | 2.00% |
+
+Per the Captain's explicit instruction (carried from the Architect's fix, unchanged): **the mechanism
+belongs at the adjudication layer** (`g2b_family.py`), not in `g2b_gate.py` — A5 made the bars
+CLI-supplied deliberately, and moving them into the gate as constants would remove the operator's ability
+to supply them at all, which is not what this finding is about. `bars` joins `REQUIRED_VERDICT_KEYS`.
+
+**F7 (pre-registered here, mechanical):** REFUSE unless every rung's `bars` equal
+`PRE_REGISTERED_BARS[f_min]`, naming the rung, the field, the value supplied and the value expected.
+**HK-021(k):** fires (any of the four fields on any rung mismatches) ⇒ REFUSE; does not fire ⇒ the same
+CLOSE/DO NOT CLOSE reading on the same three verdicts. Mechanical.
+
+### 9d.3 J4 (MINOR, escalated by the Captain to a ruling) — the burned region is hard-coded
+
+`--burned-wav-dir`/`--held-out-from` were operator-typed CLI values, defeated by the same class of typo
+three rounds running (B2 → C1 → D1). **RULING (Captain):** both are **removed**, not defaulted, and
+become one pre-registered constant in `g2b_gate.py`:
+
+```python
+BURNED_CORPUS = {
+    "wav_dir": "artefacts/20260808_live_run_0016-8080/wsjt-x/wav",
+    "held_out_from": "260808_014215",
+}
+```
+
+Resolved against the **repo root** (`Path(__file__).resolve().parents[2]`, never the process's CWD — D4's
+hazard, already fixed once in the producer and now closed here too), and **isdir-checked**: if the
+resolved directory does not exist (a fresh checkout has no `artefacts/` at all — it is blanket-gitignored)
+the gate cannot determine whether the legs it was handed are burned in either direction, and fails ROW 0
+rather than silently treating an unconfirmable constant as "not burned." **No test-only override flag**
+exists, per the Captain's explicit instruction — a fixture that wants to exercise burned behaviour points
+its own recorded leg `wav_dir` at the constant.
+
+`--burned-corpus {yes,no}` **stays** — D1's point (the operator's declaration must exist and be checked
+against something) is unchanged; only *what it is checked against* moved from another operator-typed
+value to a ruled constant. Pre-registered as P2's revised row, §3 above.
+
+### 9d.4 Captain's ruling — the verdict is self-contained by construction (absorbs J3)
+
+J3 (SERIOUS) found the verdict emitted `wav_dir` only, so nothing bound three rungs' `ROW_3` reads to one
+corpus **slice** (as opposed to one directory) — two rungs could share `wav_dir` yet run on different
+`window`/`start_cycle`. Rather than add that one field (the pattern that produced five rounds of "carry
+one more field, discovered one field at a time" — the Architect's own §7.3 self-criticism), **the Captain
+ruled the structural question**: the verdict now carries **everything the row was computed from**, as a
+property, not a list:
+
+> **The verdict must be sufficient to RE-DERIVE the row without the leg JSONs.**
+
+**What it carries, concretely (`build_verdict()` in `g2b_gate.py`):**
+
+- **The evidence:** `rows` — the actual `(g_low, g_high, g_else, lost, n_base)` per-cycle tuples
+  `per_cycle_terms()` computed. `None` on ROW_0 (no read happened).
+- **The identity:** everything already there, **plus** `window`, `start_cycle`, `n_cycles`, `d_base`
+  (absorbs J3), `av_excluded_count`, `truncated_count`.
+- **The constants that entered the decision:** `bars` (already there), `bootstrap_n`, `bootstrap_seed`,
+  `min_high_band_observations`, `old_f_min`, `old_f_max`, and **`gate_sha256`** — this file's own SHA256,
+  E2's own logic ("pin the SHA256, never infer identity from a label") applied to the instrument rather
+  than the DLL.
+
+**The mechanism that makes it true:** the row-decision logic is extracted into `decide()`, a pure
+function of `(rows, f_min, f_max, bars, constants)` — `main()` calls it on a fresh read; **`g2b_gate.py
+--verify-verdict PATH`** (new) reads a verdict, calls the SAME `decide()` on the verdict's own carried
+`rows`/`bars`/constants, and asserts the re-derived row equals the row recorded. Exercised in the smoke
+suite for a ROW_1, a ROW_0 (`rows: null`, nothing to re-derive) and a ROW_INDETERMINATE verdict, plus a
+negative control (a verdict whose `row` is tampered while its `rows` are left genuine, which
+`--verify-verdict` catches and names). **`--verify-verdict` may only ever check a verdict against
+itself — never produce a row used as new evidence** (Captain's explicit instruction; enforced by taking
+no input but a single verdict path).
+
+**Boundary, stated in `build_verdict()`'s own docstring so the artefact is not over-trusted:** a passing
+`--verify-verdict` certifies what the gate **saw** re-derives to what the gate **said** — not that what it
+saw was **true**. It cannot certify that `wav_dir` held the audio it claims, that a DLL SHA was built from
+the source it claims, or that the producer read the cycles it recorded. **The instrument still cannot
+bound its own blind spot (HK-026).**
+
+### 9d.5 F8, F9 — the family's precondition table, updated in full
+
+`g2b_family.py`'s own precondition table (§9c.2) is restated here in full — F1–F6 unchanged, F7 new
+(§9d.2 above), F8/F9 new (absorbing J3's field-adding half and adding the evaluator-identity check):
+
+| | precondition | class | fires ⇒ | does not fire ⇒ |
+|---|---|---|---|---|
+| **F1** | exactly `REQUIRED_LADDER_SIZE = 3` verdict files supplied | VALIDITY | **REFUSE** | proceed |
+| **F2** | every file parses as JSON and carries all of `REQUIRED_VERDICT_KEYS` (now: `band`, `f_min`, `f_max`, `row`, `wav_dir`, `dll_sha256`, `manifest_sha256`, `burned_corpus`, `bars`, `window`, `start_cycle`, `gate_sha256`) | VALIDITY | **REFUSE**, naming the missing field(s) | proceed |
+| **F3** | no two verdicts share an `f_min` | VALIDITY | **REFUSE** | proceed |
+| **F4** | no verdict reads `ROW_0`/`ROW_0d`/**`ROW_INDETERMINATE`** (J1, new this addendum) | VALIDITY | **REFUSE**, naming which rung(s) | proceed |
+| **F5** | all three verdicts share one `band`, one `f_max`, one `wav_dir`, **and one `burned_corpus`** (J5, extends E1) | VALIDITY | **REFUSE**, naming the field and the differing values | proceed |
+| **F6** | all three verdicts' `dll_sha256["baseline"]` and `manifest_sha256` are identical | VALIDITY | **REFUSE**, naming the differing values (null-safe both ways — J6) | proceed |
+| **F7 (new)** | every rung's `bars` equal `PRE_REGISTERED_BARS[f_min]` (§9d.2) | VALIDITY | **REFUSE**, naming rung/field/supplied/expected | proceed |
+| **F8 (new, absorbs J3)** | all three verdicts share one `window` and one `start_cycle` | VALIDITY | **REFUSE**, naming the field and the differing values | proceed |
+| **F9 (new)** | all three verdicts' `gate_sha256` are identical | VALIDITY | **REFUSE** — three rungs were read by different evaluators | proceed |
+| — | *(adjudication: CLOSE if all remaining verdicts read `ROW_3`, else DO NOT CLOSE, naming the rungs that do not)* | | | |
+
+**HK-021(k), F8/F9:** fires ⇒ REFUSE; does not fire ⇒ the same CLOSE/DO NOT CLOSE reading on the same
+three verdicts. Mechanical, same shape as F5/F6/F7.
+
+### 9d.6 J5, J6 — minor, carried by reference
+
+**J5** (`burned_corpus` joins F5's identity set, §9d.5's table above) closes, at the adjudication layer,
+the same two-error conjunction J4 closes at the source (§9d.3) — the Captain's instruction was explicit
+that both land, not either. **J6**: `g2b_family.py`'s F6 previously formatted a `None` manifest digest as
+`'FILE NOT FOUND'` while an equivalent `None` baseline SHA would have raised `TypeError` on `sha[:16]` —
+fixed via one shared, null-safe `_fmt_sha()` helper (text now `'MISSING'` for both). Low reachability (the
+gate itself dies earlier on a `None` baseline SHA); no new machinery, per the Architect's own instruction.
+
+### 9d.7 Status
+
+- ✅ **J1** fixed and pre-registered: ROW_INDETERMINATE in §4.7's table (above) and §9d.1; `g2b_family.py`
+  refuses on it via the updated F4 (§9d.5).
+- ✅ **J2** fixed and pre-registered as F7 (§9d.2/§9d.5), including the restated `PRE_REGISTERED_BARS`
+  table.
+- ✅ **J3** absorbed into the Captain's self-contained-verdict ruling (§9d.4) rather than fixed as a
+  single added field; its field-adding half is F8 (§9d.5).
+- ✅ **J4** fixed per the Captain's ruling: `BURNED_CORPUS` hard-coded, repo-root-resolved, isdir-checked
+  (§9d.3); P2's row updated (§3 above).
+- ✅ **J5** fixed: `burned_corpus` in F5's identity set (§9d.5/§9d.6).
+- ✅ **J6** fixed: null-safe SHA formatting shared across F6 (§9d.6).
+- ✅ **Captain's ruling (self-contained verdict):** implemented as a property with a mechanism
+  (`decide()` shared by a fresh read and `--verify-verdict`), not a field list — §9d.4.
+- ✅ Re-smoke-tested: `g2b_gate_smoketest.py` (65 checks, including ROW_INDETERMINATE under both the
+  underpowered-real-effect and zero-cycle/`d_base=0` cases, the self-contained-verdict fields, and
+  `--verify-verdict` re-derivation including its tampered-row negative control) and
+  `g2b_family_smoketest.py` (62 checks, including F7 on all four bar fields plus a same-rung-bars
+  control, F8 on `window` and `start_cycle` independently, F9, J5, and J6's null-safe baseline-SHA case).
+  Both suites run twice, exit 0, byte-identical across the two runs (diffed, not asserted — HK-022).
+- 🛑 **Not armed. Nothing merged, nothing pushed** (HK-010/HK-014). No decoder has been run; no rung of
+  the ladder has been run. `p23_common.py`'s sort fix remains on its own branch, untouched by this.
+- **Requesting:** the Architect's sixth review, of J1–J6 and both Captain's rulings as fixed and
+  pre-registered above.

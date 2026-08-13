@@ -194,16 +194,85 @@ gate half, and D5 do:
       test. This gate's --emit-verdict remains the machine-readable channel
       here, per D2; this gate's own exit code is deliberately UNCHANGED.
 
+REVISION 6 (2026-08-13, fifth Architect review, 15:03Z, plus the Captain's
+two rulings on it, 15:17Z) -- against
+`2026-08-13-1503-architect-to-qa-g2b-review-5.md`'s two blocking (J1, J2),
+one serious (J3) and three minor (J4, J5, J6) findings, and
+`2026-08-13-1517-architect-to-qa-g2b-captains-rulings-j4-and-self-contained-
+verdict.md`'s two Captain's rulings on J4 and on the verdict's
+self-containment. J2's family-side half (F7) and J5's family-side half
+land in g2b_family.py, not here. This file:
+
+  J1  ROW 3 fired whenever g_low's 95% LOWER bound failed to clear its bar
+      -- guaranteed for ANY underpowered rung, indistinguishable from a
+      genuine absence. Measured: an 8-cycle rung with the true low-band
+      rate held at 2.5x its own bar still read ROW 3, identically to a
+      400-cycle rung with a genuine 0.00% rate, and three such underpowered
+      rungs CLOSEd the family. Fixed: bootstrap_bounds() now also computes
+      g_low's 95% UPPER bound. ROW 3 requires that upper bound to fall
+      BELOW the bar (a genuine, powered absence); if the lower bound fails
+      but the upper bound does not, the read is ROW_INDETERMINATE -- new,
+      refused by the family exactly like ROW_0/ROW_0d. A zero-cycle (or
+      zero-baseline-decode) rung is INDETERMINATE by definition: a
+      bootstrap over zero rows returns a degenerate zero-width CI pinned at
+      0.0 (rows[rng.randrange(0)] is never evaluated when the sample size
+      is 0, so no exception and no honest "no data" signal either) -- that
+      is not evidence the true rate is confidently below the bar, it is the
+      absence of any measurement at all, and is now caught by an explicit
+      d_base > 0 guard, not by the bound comparison alone.
+  Captain's ruling (verdict self-containment) -- absorbs J3: rather than
+      add one more field per review round (five rounds have shown that
+      approach cannot be enumerated by inspection), the verdict now carries
+      EVERYTHING the row was computed from -- the per-cycle rows
+      themselves, the corpus slice (window/start_cycle/n_cycles/d_base),
+      the AV-excluded and truncated-cycle counts, every constant that
+      entered the decision (BOOTSTRAP_N, BOOTSTRAP_SEED,
+      MIN_HIGH_BAND_OBSERVATIONS, OLD_F_MIN, OLD_F_MAX), and gate_sha256
+      (this file's own SHA256, E2's logic applied to the instrument rather
+      than the DLL). The row-decision logic itself is extracted into
+      decide(), a pure function of (rows, f_min, f_max, bars, constants),
+      so a fresh read (main()) and a re-derivation from a verdict's own
+      carried terms (--verify-verdict, new) run the IDENTICAL code path and
+      cannot silently diverge. `g2b_gate.py --verify-verdict PATH` reads a
+      verdict, re-derives its row via decide(), and asserts it equals the
+      row recorded -- asserted in the smoke suite for every fixture that
+      reaches a row. This certifies what the gate SAW, not what was TRUE;
+      the instrument still cannot bound its own blind spot (HK-026), and
+      --verify-verdict may only ever check a verdict against itself, never
+      produce a row used as new evidence.
+  J4  Captain's ruling: --burned-wav-dir and --held-out-from are REMOVED,
+      not defaulted -- C1 already settled the burned corpus by measurement,
+      and pinning the directory while leaving the floor operator-typed
+      would repeat this chain's own B2->C1->D1 pattern one field over. Both
+      become ONE pre-registered constant, BURNED_CORPUS, resolved against
+      the REPO ROOT (never the CWD -- D4's hazard) and isdir-checked -> ROW
+      0 if the resolved path does not exist (a fresh checkout has no
+      artefacts/ at all). --burned-corpus {yes,no} stays required (D1's
+      point): the operator still declares which case this run is, now
+      checked against a ruled constant instead of another operator-typed
+      value. No test-only override flag, per the Captain's explicit
+      instruction -- fixtures that want to exercise burned behaviour point
+      their recorded leg wav_dir AT the constant instead.
+  J5  burned_corpus joins F5's identity set in g2b_family.py (own commit,
+      that file) -- closes J4's two-error conjunction a second time, at the
+      adjudication layer, now that the constant closes it once at the
+      source.
+  J6  (g2b_family.py, own commit) -- asymmetric null-handling between the
+      baseline-SHA and manifest-digest blocks in F6 made consistent.
+
 Usage:
     python g2b_gate.py --band 20m --f-min 140 --f-max 3030 \
         --baseline base_20m.json --widened wide_20m_f140.json \
         --repeat  base_20m_repeat.json \
         --manifest g2b_dll_manifest.json \
         --burned-corpus yes \
-        --burned-wav-dir artefacts/20260808_live_run_0016-8080/wsjt-x/wav \
-        --held-out-from 260808_014215 \
         --g-new-min-rate 0.0100 --g-high-min-rate 0.0050 \
         --churn-net-min-rate -0.0025 --churn-gross-max-rate 0.0200
+
+    python g2b_gate.py --verify-verdict verdict_f140.json  (J4/self-containment,
+        REVISION 6: re-derives a verdict's own row from its own carried
+        rows/bars/constants and asserts equality; see decide()/
+        run_verify_verdict() below.)
 """
 from __future__ import annotations
 
@@ -213,6 +282,7 @@ import json
 import os
 import random
 import sys
+from pathlib import Path
 
 # ── Fixed protocol constants. The OLD band is what shipped as G2 item (a)+(b)'s ─
 # ── predecessor; NEW_F_MAX is fixed across the whole f_min ladder (pre-reg §4). ─
@@ -230,6 +300,29 @@ MIN_HIGH_BAND_OBSERVATIONS = 5
 
 BOOTSTRAP_N = 10000
 BOOTSTRAP_SEED = 20260812
+
+# J4 -- Captain's ruling, fifth review: this file's own location, resolved
+# CWD-independently (D4's hazard exactly: os.path.realpath resolves a
+# relative path against the PROCESS's CWD, not the file's location, so a
+# path meant to be repo-relative must be anchored off __file__, never off
+# whatever directory happened to launch the interpreter).
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# The ONE burned region. RULED by measurement (C1, review 3): the 08-08
+# corpus is wsjt-x/wav, and its 250th in-window cycle is 260808_014215
+# (independently reproduced by g2_verification_replay.py's select_files()
+# against the real corpus). Neither value is operator-supplied any more --
+# both were typed on the command line until this revision, and both were
+# defeated by the same class of typo (B2 -> C1 -> D1 for the directory; the
+# floor was always paired with it and would have repeated the shape one
+# field over). isdir-checked at the point of use: a hard-coded path is not
+# a correct path -- a fresh checkout has no artefacts/ at all (it is
+# blanket-gitignored) -- so an absent directory fails closed (ROW 0), it is
+# never silently treated as "not burned".
+BURNED_CORPUS = {
+    "wav_dir": "artefacts/20260808_live_run_0016-8080/wsjt-x/wav",
+    "held_out_from": "260808_014215",
+}
 
 
 def load(path):
@@ -342,7 +435,7 @@ def rates(rows):
     }
 
 
-def bootstrap_bounds(rows, metrics):
+def bootstrap_bounds(rows, metrics, bootstrap_n=BOOTSTRAP_N, seed=BOOTSTRAP_SEED):
     """metrics: {name: (metric_fn, pct)}. pct=0.05 -> 95% LOWER bound;
     pct=0.95 -> 95% UPPER bound (gross churn is a harm metric, bounded above;
     everything else here is bounded below).
@@ -353,21 +446,132 @@ def bootstrap_bounds(rows, metrics):
     shared common random numbers -- this is exactly equivalent and ~4x faster
     for four metrics. Flagged by the Architect's B-round review as worth doing
     before the ladder's 9 legs run.
+
+    REVISION 6: bootstrap_n/seed are now overridable (default to the module
+    constants) so run_verify_verdict() can re-derive a verdict's row using
+    the SEED AND DRAW COUNT THE VERDICT ITSELF CARRIES, not whatever this
+    file's current globals happen to be -- the self-containment property
+    (Captain's ruling) is about the verdict standing on its own, not about
+    trusting today's code to still match yesterday's constants.
+
+    n_rows == 0 (J1): `rows[rng.randrange(n_rows)] for _ in range(n_rows)`
+    never evaluates `randrange(0)` when n_rows is 0 -- the comprehension's
+    own `range(n_rows)` has zero iterations, so this returns [] cleanly,
+    and rates([]) is the honest all-zero default. That degenerate,
+    zero-width bootstrap CI is a defect if read as "confidently below the
+    bar" -- decide() below guards it explicitly (the d_base > 0 check),
+    rather than relying on this function to raise.
     """
-    rng = random.Random(BOOTSTRAP_SEED)
-    n = len(rows)
+    rng = random.Random(seed)
+    n_rows = len(rows)
     acc = {name: [] for name in metrics}
-    for _ in range(BOOTSTRAP_N):
-        sample = [rows[rng.randrange(n)] for _ in range(n)]
+    for _ in range(bootstrap_n):
+        sample = [rows[rng.randrange(n_rows)] for _ in range(n_rows)]
         r = rates(sample)
         for name, (metric_fn, _pct) in metrics.items():
             acc[name].append(metric_fn(r))
     out = {}
     for name, (_metric_fn, pct) in metrics.items():
         vals = sorted(acc[name])
-        idx = min(max(int(pct * BOOTSTRAP_N), 0), BOOTSTRAP_N - 1)
+        idx = min(max(int(pct * bootstrap_n), 0), bootstrap_n - 1)
         out[name] = vals[idx]
     return out
+
+
+def gate_file_sha256():
+    """This file's own SHA256, read fresh from disk (Captain's ruling, fifth
+    review §2: E2's logic -- pin the SHA256, never infer identity from a
+    label or a cached value -- applied to the INSTRUMENT itself, not the
+    DLL). Three rungs adjudicated together as one family must have been
+    read by the SAME evaluator; g2b_family.py's F9 refuses if the three
+    verdicts' gate_sha256 differ."""
+    with open(__file__, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def decide(rows, f_min, f_max, bars,
+           min_high_band_observations=MIN_HIGH_BAND_OBSERVATIONS,
+           old_f_max=OLD_F_MAX, bootstrap_n=BOOTSTRAP_N, bootstrap_seed=BOOTSTRAP_SEED):
+    """The measurement AND the row decision, as ONE pure function of
+    (rows, f_min, f_max, bars, constants) -- nothing else, no file I/O, no
+    argparse. main() calls this on a fresh read; run_verify_verdict() calls
+    the IDENTICAL function on a verdict's own carried rows/bars/constants,
+    so the two paths cannot silently diverge (Captain's ruling, fifth
+    review §2: "the verdict must be sufficient to RE-DERIVE the row without
+    the leg JSONs" -- this function is the derivation, used both ways).
+
+    J1 fix: ROW 3 previously fired whenever g_low's 95% LOWER bound failed
+    to clear its bar -- guaranteed for ANY underpowered rung, indistin-
+    guishable from a genuine absence. g_low's 95% UPPER bound now decides
+    which of the two it is:
+      - upper bound  < bar : the rung was measured and genuinely
+        underdelivers -> ROW 3 means what it says.
+      - upper bound >= bar (lower bound still fails) : the rung was NOT
+        powered to tell absence from insufficient data -> ROW_INDETERMINATE,
+        new, refused by g2b_family.py exactly like ROW_0/ROW_0d.
+      - d_base == 0 (zero baseline decodes -- nothing was measured at all):
+        ALWAYS ROW_INDETERMINATE, regardless of what the degenerate
+        zero-width bootstrap CI reports. A bootstrap over zero rows never
+        raises (see bootstrap_bounds()'s own docstring) and returns 0.0 for
+        both bounds, which would otherwise misread as a confident absence.
+    """
+    r = rates(rows)
+    d_base = sum(row[4] for row in rows)
+    g_high_total = sum(row[1] for row in rows)
+    p1_fired = g_high_total < min_high_band_observations
+
+    bounds = bootstrap_bounds(rows, {
+        "g_low":       (lambda rr: rr["g_low"], 0.05),
+        "g_low_hi":    (lambda rr: rr["g_low"], 0.95),
+        "g_high":      (lambda rr: rr["g_high"], 0.05),
+        "churn_net":   (lambda rr: rr["churn_net"], 0.05),
+        "churn_gross": (lambda rr: rr["churn_gross"], 0.95),
+    }, bootstrap_n=bootstrap_n, seed=bootstrap_seed)
+
+    g_ok = bounds["g_low"] >= bars["g_new_min_rate"]
+    g_powered_absence = (d_base > 0) and (bounds["g_low_hi"] < bars["g_new_min_rate"])
+    high_adjudicated = not p1_fired
+    high_ok = high_adjudicated and (bounds["g_high"] >= bars["g_high_min_rate"])
+    net_ok = bounds["churn_net"] >= bars["churn_net_min_rate"]
+    gross_ok = bounds["churn_gross"] <= bars["churn_gross_max_rate"]
+
+    if p1_fired:
+        scope = (" (LOW END ONLY -- P1 fired, the high end is NOT adjudicated; "
+                 f"licensed consequence is [{f_min}, {old_f_max}) only)")
+    elif high_ok:
+        scope = (f" (both ends adjudicated and both clear; licensed "
+                 f"consequence is [{f_min}, {f_max}))")
+    else:
+        scope = (" (LOW END ONLY -- high end adjudicated but did not clear "
+                 f"its own floor; licensed consequence is "
+                 f"[{f_min}, {old_f_max}) only)")
+
+    # ── Rows, in strict order, mutually exclusive (J1 adds the first branch;
+    # the remaining four are unchanged from REVISION 5, still exhaustive over
+    # (g_ok, gross_ok) x net_ok once the underpowered case is split off).
+    if not g_ok and not g_powered_absence:
+        row_id = "ROW_INDETERMINATE"
+    elif not g_ok and not gross_ok:
+        row_id = "ROW_0d"
+    elif g_ok and net_ok and gross_ok:
+        row_id = "ROW_1"
+    elif g_ok and (not net_ok or not gross_ok):
+        row_id = "ROW_2"
+    elif not g_ok:
+        row_id = "ROW_3"
+    else:
+        # Structurally unreachable given the branches above are exhaustive;
+        # kept as a safety net, same discipline A10 applied to the previous
+        # unreachable branch -- if this is ever selected, that is itself a
+        # finding to report, not a row to trust.
+        row_id = "ROW_0d"
+
+    return {"row": row_id, "scope": scope, "p1_fired": p1_fired,
+            "rates": r, "bounds": bounds, "d_base": d_base,
+            "g_high_total": g_high_total, "g_ok": g_ok, "gross_ok": gross_ok,
+            "net_ok": net_ok, "high_ok": high_ok,
+            "high_adjudicated": high_adjudicated,
+            "g_powered_absence": g_powered_absence}
 
 
 def manifest_file_sha256(path):
@@ -388,8 +592,12 @@ def manifest_file_sha256(path):
         return None
 
 
-def build_verdict(band, f_min, f_max, row, scope, p1_fired, rates, bounds, bars,
-                   dll_sha256, manifest_sha256, wav_dir, burned_corpus):
+def build_verdict(*, band, f_min, f_max, row, scope, p1_fired, rates, bounds, bars,
+                   dll_sha256, manifest_sha256, wav_dir, burned_corpus,
+                   window, start_cycle, n_cycles, d_base, rows,
+                   av_excluded_count, truncated_count, gate_sha256,
+                   bootstrap_n, bootstrap_seed, min_high_band_observations,
+                   old_f_min, old_f_max):
     """D2 fix: the one dict this gate can emit for a cross-rung adjudicator to
     read. `rates`/`bounds` are None when no read was possible (ROW_0) -- there
     is nothing honest to report for them, and None says so rather than a
@@ -405,12 +613,50 @@ def build_verdict(band, f_min, f_max, row, scope, p1_fired, rates, bounds, bars,
     be unconfirmed, `burned_corpus` is CLI-supplied and always known. Without
     these four fields g2b_family.py -- the instrument that actually combines
     three rungs into one conclusion -- cannot tell whether the three verdicts
-    it is adjudicating came from one experiment or three."""
+    it is adjudicating came from one experiment or three.
+
+    Captain's ruling, fifth review §2 (self-contained verdict): the fields
+    below make the verdict SUFFICIENT TO RE-DERIVE ITS OWN ROW without the
+    leg JSONs (run_verify_verdict() is the mechanism that checks this, not
+    merely asserts it) --
+
+      - `rows`: the actual per-cycle (g_low, g_high, g_else, lost, n_base)
+        terms per_cycle_terms() computed -- the evidence itself. None on
+        ROW_0 (no read happened, nothing to carry).
+      - `window`, `start_cycle`, `n_cycles`, `d_base`: the identity of the
+        slice measured (J3's field-adding half, absorbed here). `window`/
+        `start_cycle` are null-safe exactly like `wav_dir` (unconfirmed
+        provenance on some ROW_0 paths); `n_cycles`/`d_base` are None
+        whenever `rows` is None, for the same reason `rates`/`bounds` are.
+      - `av_excluded_count`, `truncated_count`: always known (computed
+        before any precondition is evaluated, like `bars`), so they are
+        present on every path including ROW_0.
+      - `gate_sha256`, `bootstrap_n`, `bootstrap_seed`,
+        `min_high_band_observations`, `old_f_min`, `old_f_max`: the
+        INSTRUMENT's own identity and every constant that entered the
+        decision. `gate_sha256` is E2's logic (pin the SHA256, never infer
+        identity from a label) applied to this file itself, not the DLL --
+        g2b_family.py's F9 refuses if three rungs were read by different
+        evaluators. Always known, always present.
+
+    Boundary, stated here so nobody over-trusts the artefact: this
+    certifies what the gate SAW, not what was TRUE. It cannot certify that
+    `wav_dir` held the audio it claims, that the DLL behind a SHA was built
+    from the source it claims, or that the producer read the cycles it
+    recorded. The instrument still cannot bound its own blind spot
+    (HK-026)."""
     return {"band": band, "f_min": f_min, "f_max": f_max, "row": row,
             "scope": scope, "p1_fired": p1_fired, "rates": rates,
             "bounds": bounds, "bars": bars, "dll_sha256": dll_sha256,
             "manifest_sha256": manifest_sha256, "wav_dir": wav_dir,
-            "burned_corpus": burned_corpus}
+            "burned_corpus": burned_corpus, "window": window,
+            "start_cycle": start_cycle, "n_cycles": n_cycles,
+            "d_base": d_base, "rows": rows,
+            "av_excluded_count": av_excluded_count,
+            "truncated_count": truncated_count, "gate_sha256": gate_sha256,
+            "bootstrap_n": bootstrap_n, "bootstrap_seed": bootstrap_seed,
+            "min_high_band_observations": min_high_band_observations,
+            "old_f_min": old_f_min, "old_f_max": old_f_max}
 
 
 def write_verdict(path, verdict):
@@ -422,6 +668,76 @@ def write_verdict(path, verdict):
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(verdict, fh, indent=2, sort_keys=True)
         fh.write("\n")
+
+
+def run_verify_verdict(path):
+    """Captain's ruling, fifth review §2: "the verdict must be sufficient to
+    RE-DERIVE the row without the leg JSONs" -- this is the mechanism that
+    makes that testable rather than merely asserted. Reads a verdict written
+    by --emit-verdict, recomputes the row from ONLY its own carried
+    `rows`/`bars`/constants via decide() -- the SAME function main() itself
+    calls on a fresh read -- and asserts the result equals the row recorded.
+    Exit non-zero and name the divergence if not.
+
+    A ROW_0 verdict carries `rows: null` (no read happened, nothing to
+    re-derive); this is verified to be exactly what was recorded, not
+    treated as a failure.
+
+    🛑 The verdict must not become a second source of truth: this may ONLY
+    ever CHECK a verdict against itself, never produce a row that is then
+    used as new evidence (Captain's explicit instruction). It takes no
+    argument but a single verdict path for exactly this reason -- there is
+    no way to feed it two different inputs and ask which is right.
+
+    Boundary, restated (see build_verdict()'s own docstring): a passing
+    --verify-verdict certifies the verdict is INTERNALLY CONSISTENT -- what
+    the gate saw, re-derives to what the gate said. It does not certify
+    that what the gate saw was true (HK-026)."""
+    with open(path, encoding="utf-8") as fh:
+        v = json.load(fh)
+
+    if v.get("row") == "ROW_0":
+        if v.get("rows") is not None:
+            print(f"VERIFY-VERDICT FAIL -- {path}: row is ROW_0 (no read) "
+                  f"but rows is not null -- a NO-READ verdict must carry no "
+                  f"evidence.")
+            return 1
+        print(f"VERIFY-VERDICT OK -- {path}: ROW_0, no read happened, "
+              f"rows correctly null. Nothing to re-derive.")
+        return 0
+
+    required = ("rows", "bars", "f_min", "f_max", "bootstrap_n", "bootstrap_seed")
+    missing = [k for k in required if v.get(k) is None]
+    if missing:
+        print(f"VERIFY-VERDICT FAIL -- {path}: row is {v.get('row')!r} (a "
+              f"real read) but is missing {', '.join(missing)} -- cannot "
+              f"re-derive without them.")
+        return 1
+
+    rows = [tuple(row) for row in v["rows"]]
+    decision = decide(
+        rows, v["f_min"], v["f_max"], v["bars"],
+        min_high_band_observations=v.get("min_high_band_observations",
+                                          MIN_HIGH_BAND_OBSERVATIONS),
+        old_f_max=v.get("old_f_max", OLD_F_MAX),
+        bootstrap_n=v["bootstrap_n"], bootstrap_seed=v["bootstrap_seed"])
+
+    if decision["row"] != v["row"]:
+        print(f"VERIFY-VERDICT FAIL -- {path}: recorded row is {v['row']!r}, "
+              f"re-derived row from the verdict's own carried rows/bars/"
+              f"constants is {decision['row']!r}. The verdict does NOT "
+              f"re-derive itself.")
+        return 1
+    if decision["scope"].strip() != v.get("scope"):
+        print(f"VERIFY-VERDICT FAIL -- {path}: row matches ({v['row']}) but "
+              f"recorded scope {v.get('scope')!r} != re-derived scope "
+              f"{decision['scope'].strip()!r}.")
+        return 1
+
+    print(f"VERIFY-VERDICT OK -- {path}: row {v['row']} re-derives "
+          f"identically from {len(rows)} carried per-cycle row(s), "
+          f"gate_sha256={v.get('gate_sha256', '?')[:16]}...")
+    return 0
 
 
 def load_manifest(path):
@@ -454,6 +770,23 @@ def check_manifest_binding(sha, f_min, f_max, manifest, manifest_path, role):
 
 
 def main():
+    # REVISION 6: --verify-verdict is a SEPARATE invocation mode (Captain's
+    # ruling, self-contained verdict) -- it needs no --band/--baseline/etc,
+    # so it is dispatched before the full parser (which requires those) is
+    # even constructed, via a minimal parser of its own.
+    if "--verify-verdict" in sys.argv:
+        vp = argparse.ArgumentParser()
+        vp.add_argument("--verify-verdict", required=True, metavar="PATH",
+                         help="read a verdict written by --emit-verdict, "
+                              "re-derive its row from its own carried rows/"
+                              "bars/constants via decide() (the SAME "
+                              "function a fresh read uses), and assert it "
+                              "equals the row recorded. May ONLY be used to "
+                              "check a verdict against itself -- never to "
+                              "produce a row used as new evidence.")
+        vargs = vp.parse_args()
+        return run_verify_verdict(vargs.verify_verdict)
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--band", required=True)
     ap.add_argument("--baseline", required=True)
@@ -485,46 +818,40 @@ def main():
                      help="path to a JSON SHA256 -> {f_min, f_max} manifest, "
                           "pre-registered before any rung is built")
 
-    # B2 fix: --held-out-from is no longer a bare global lexical floor pooled
-    # across every leg from every corpus (that construction ROW-0'd an
-    # un-burned 4,614-cycle corpus under a correct floor, and protected
-    # nothing at all under the pre-reg's own example format -- both silently).
-    # The floor now applies ONLY to legs drawn from --burned-wav-dir, which
-    # g2_verification_replay.py's extraction records as each leg's `wav_dir`
-    # field. A leg from any other corpus is never compared against it.
-    # C2 fix: this value, and every leg's recorded wav_dir, is normalised
+    # B2 fix: --held-out-from was a bare global lexical floor pooled across
+    # every leg from every corpus (that construction ROW-0'd an un-burned
+    # 4,614-cycle corpus under a correct floor, and protected nothing at all
+    # under the pre-reg's own example format -- both silently). The floor
+    # applies ONLY to legs drawn from the burned corpus, identified by each
+    # leg's recorded `wav_dir` field.
+    # C2 fix: wav_dir, and the burned corpus's own directory, are normalised
     # (normcase+realpath) before any comparison -- a bare string `!=` is not
     # an identity check (relative vs absolute, `/` vs `\\`, a trailing
     # separator, or case all defeat it silently).
-    # D1 fix (Architect review 4, 2026-08-12 20:52Z): the operator now
-    # pre-declares whether these three legs ARE the burned corpus, rather
-    # than the gate inferring it from whether any leg happens to match
-    # --burned-wav-dir. Three rounds of the same shape (B2 -> C1 -> D1): each
-    # correction fixed the VALUE and left the SILENCE that made a wrong value
-    # undetectable -- a typo or a stale path made every leg's comparison
-    # `continue`, "P2 legs ok" printed, and the burned run's held-out floor
-    # was never applied, indistinguishable from the correct, common case (an
-    # un-burned corpus, where zero legs SHOULD match). A mismatch between the
-    # declaration and the legs' actual shared wav_dir is now ROW 0 in EITHER
+    # D1 fix (Architect review 4): the operator pre-declares whether these
+    # three legs ARE the burned corpus, rather than the gate inferring it
+    # from whether any leg happens to match. A mismatch between the
+    # declaration and the legs' actual shared wav_dir is ROW 0 in EITHER
     # direction, never a silent skip.
+    # J4 fix (Captain's ruling, fifth review): --burned-wav-dir and
+    # --held-out-from are REMOVED, not defaulted. Three rounds (B2 -> C1 ->
+    # D1) each fixed the VALUE these named and left the SILENCE that made a
+    # wrong value undetectable; pinning the directory while leaving the
+    # floor operator-typed would repeat that shape one field over. Both are
+    # now ONE pre-registered constant, BURNED_CORPUS (module level, resolved
+    # against REPO_ROOT, isdir-checked -> ROW 0 if absent). Only the
+    # operator's DECLARATION of which case this run is remains a CLI
+    # argument -- checked against the ruled constant, not against another
+    # operator-typed value.
     ap.add_argument("--burned-corpus", required=True, choices=("yes", "no"),
-                     help="does --burned-wav-dir name the corpus these three "
-                          "legs are actually drawn from? 'yes' requires the "
-                          "legs' shared wav_dir to equal --burned-wav-dir and "
-                          "applies the held-out floor to all three; 'no' "
-                          "requires it NOT to equal it. Either mismatch is "
-                          "ROW 0, not a silent skip (D1)")
-    ap.add_argument("--burned-wav-dir", required=True,
-                     help="the WAV directory the burned leg was drawn from, "
-                          "e.g. artefacts/20260808_live_run_0016-8080/"
-                          "wsjt-x/wav -- the floor below applies ONLY to legs "
-                          "whose recorded wav_dir equals this, never pooled "
-                          "across corpora (RULED 2026-08-12: wsjt-x/wav, not "
-                          "owsfz/wav, for the 08-08 corpus -- C1)")
-    ap.add_argument("--held-out-from", required=True,
-                     help="ts floor (exclusive), evaluated only against legs "
-                          "drawn from --burned-wav-dir, e.g. 260808_014215 "
-                          "(the burned run's 250th in-window cycle)")
+                     help="does the pre-registered BURNED_CORPUS constant "
+                          "name the corpus these three legs are actually "
+                          "drawn from? 'yes' requires the legs' shared "
+                          "wav_dir to equal it and applies the held-out "
+                          "floor to all three; 'no' requires it NOT to "
+                          "equal it. Either mismatch is ROW 0, not a silent "
+                          "skip (D1); the constant itself is ROW 0 if its "
+                          "directory does not exist on disk (J4)")
 
     # A5 fix: no bar in this file is derived from anything that passes through a
     # decoder. These are supplied by the caller (the pre-registration document),
@@ -637,8 +964,13 @@ def main():
     # ADJUDICATES that record: any leg carrying even one truncated cycle
     # fails closed here, same guarantee the old `assert` was trying (and
     # failing, by crashing) to provide, with no lost work either way.
+    # Captain's ruling §2: truncated_count is accumulated here regardless of
+    # outcome -- known before any precondition decides pass/fail, exactly
+    # like `bars`/`dll_shas` above, so it is always present in the verdict.
+    truncated_count = 0
     for role, leg in (("baseline", base), ("widened", wide), ("repeat", rep)):
         trunc = truncated_cycles(leg)
+        truncated_count += len(trunc)
         if trunc:
             p2.append(f"{role} leg has {len(trunc)} truncated cycle(s) "
                        f"(decoder returned >= MAX_RESULTS results; "
@@ -686,16 +1018,33 @@ def main():
     # D1 fix: --burned-corpus is the operator's required, pre-declared answer
     # for whether these three legs (which, by the time we reach here without
     # a corpus/slice-mismatch p2 entry, share ONE normalised wav_dir -- C2(b)
-    # already asserts that) are drawn from the burned corpus at
-    # --burned-wav-dir. The OLD per-leg `if wav_dir != burned_dir: continue`
-    # made a --burned-wav-dir typo silent: every leg `continue`d, "P2 legs
-    # ok" printed, and the floor was never applied -- indistinguishable from
-    # the correct, common case where zero legs SHOULD match (an un-burned
-    # corpus). Declaring the expected answer up front and checking it against
-    # what the legs actually are turns that silence into ROW 0, in EITHER
+    # already asserts that) are drawn from the burned corpus. The OLD
+    # per-leg `if wav_dir != burned_dir: continue` made a typo'd
+    # --burned-wav-dir silent: every leg `continue`d, "P2 legs ok" printed,
+    # and the floor was never applied -- indistinguishable from the correct,
+    # common case where zero legs SHOULD match (an un-burned corpus).
+    # Declaring the expected answer up front and checking it against what
+    # the legs actually are turns that silence into ROW 0, in EITHER
     # direction: declared burned but the legs are not, or declared un-burned
     # but they are.
-    burned_wav_dir_norm = os.path.normcase(os.path.realpath(args.burned_wav_dir))
+    #
+    # J4 fix (Captain's ruling): the burned directory is no longer an
+    # operator-typed CLI value at all -- it is BURNED_CORPUS, a
+    # pre-registered constant resolved against REPO_ROOT (never the CWD --
+    # D4's hazard). A hard-coded path is not necessarily a CORRECT path (a
+    # fresh checkout has no artefacts/ at all, since it is
+    # blanket-gitignored), so it is isdir-checked here and fails closed
+    # (ROW 0) if the resolved directory does not exist -- we cannot then
+    # determine whether these legs are burned, in either direction.
+    burned_dir_abs = REPO_ROOT / BURNED_CORPUS["wav_dir"]
+    burned_dir_exists = os.path.isdir(burned_dir_abs)
+    if not burned_dir_exists:
+        p2.append(f"the pre-registered BURNED_CORPUS directory "
+                   f"{burned_dir_abs} does not exist -- cannot determine "
+                   f"whether these legs are burned in either direction "
+                   f"(J4: BURNED_CORPUS is hard-coded and isdir-checked; a "
+                   f"fresh checkout has no artefacts/ at all)")
+    burned_wav_dir_norm = os.path.normcase(os.path.realpath(str(burned_dir_abs)))
     legs_share_one_corpus = (len(provenance) == 3
                               and len(set(provenance.values())) == 1)
     # E1 fix: hoisted out of the `if legs_share_one_corpus:` block below so it
@@ -703,22 +1052,26 @@ def main():
     # regardless of whether provenance was confirmed. None (null-safe, per
     # build_verdict's docstring) when the legs do not share one corpus/slice,
     # which is itself already a p2 failure by this point (C2(b) above).
-    legs_wav_dir_norm = (next(iter(provenance.values()))[0]
-                         if legs_share_one_corpus else None)
-    n_floor_applied = 0
     if legs_share_one_corpus:
+        legs_wav_dir_norm, legs_window, legs_start_cycle = next(iter(provenance.values()))
+        legs_window = list(legs_window)
+    else:
+        legs_wav_dir_norm, legs_window, legs_start_cycle = None, None, None
+    n_floor_applied = 0
+    if legs_share_one_corpus and burned_dir_exists:
         legs_are_burned = legs_wav_dir_norm == burned_wav_dir_norm
         if args.burned_corpus == "yes" and not legs_are_burned:
             p2.append(f"--burned-corpus yes was declared, but the legs are "
                        f"drawn from {legs_wav_dir_norm!r}, not "
-                       f"{burned_wav_dir_norm!r} ({args.burned_wav_dir}) -- "
+                       f"{burned_wav_dir_norm!r} ({burned_dir_abs}) -- "
                        f"the held-out floor was never applied")
         elif args.burned_corpus == "no" and legs_are_burned:
             p2.append(f"--burned-corpus no was declared, but the legs are "
                        f"drawn from the burned corpus {burned_wav_dir_norm!r} "
-                       f"({args.burned_wav_dir}) -- the operator declared an "
+                       f"({burned_dir_abs}) -- the operator declared an "
                        f"unburned corpus and handed the gate the burned one")
         elif args.burned_corpus == "yes":  # and legs_are_burned
+            held_out_from = BURNED_CORPUS["held_out_from"]
             for role, cycles in (("baseline", cycles_base),
                                   ("widened", cycles_wide),
                                   ("repeat", cycles_rep)):
@@ -726,18 +1079,20 @@ def main():
                     continue
                 n_floor_applied += 1
                 leg_min = min(cycles)
-                if leg_min <= args.held_out_from:
+                if leg_min <= held_out_from:
                     p2.append(f"{role} leg is drawn from the burned run "
-                               f"({args.burned_wav_dir}) and its earliest "
+                               f"({burned_dir_abs}) and its earliest "
                                f"cycle {leg_min} does not exceed the "
-                               f"held-out floor {args.held_out_from} -- the "
+                               f"held-out floor {held_out_from} -- the "
                                f"burned leg must not be read")
         # else: --burned-corpus no, legs genuinely not burned -- correct,
         # common case; the floor does not apply and nothing is checked.
     # else: provenance is incomplete or the legs disagree on wav_dir/window/
-    # start_cycle -- already flagged above and ROW 0 fires regardless; the
+    # start_cycle, OR the burned-corpus constant's own directory does not
+    # exist -- already flagged above and ROW 0 fires regardless; the
     # burned-corpus declaration cannot be evaluated against an unconfirmed
-    # corpus, so it is not (n_floor_applied stays 0, printed honestly below).
+    # corpus or an unconfirmable constant, so it is not (n_floor_applied
+    # stays 0, printed honestly below).
 
     # ── P3 (VALIDITY): is churn identified at all? ───────────────────────────
     # B5: AV parity is not assumed -- av_all (computed below, ahead of P3 too)
@@ -773,36 +1128,49 @@ def main():
     print(f"  P3 determinism  baseline-vs-repeat physical differences="
           f"{rep_churn_abs} -> {'FAIL -- churn NOT identified' if p3_fired else 'ok'}")
 
+    gate_sha256 = gate_file_sha256()
+
     if p2 or p3_fired:
         print("\n  ROW 0 -- NO READ. A precondition failed; the quantity is not an "
               "estimate of what this gate names. Do not interpret the numbers below.")
         write_verdict(args.emit_verdict, build_verdict(
-            args.band, args.f_min, args.f_max, "ROW_0",
+            band=args.band, f_min=args.f_min, f_max=args.f_max, row="ROW_0",
             scope=None, p1_fired=None, rates=None, bounds=None, bars=bars,
             dll_sha256=dll_shas, manifest_sha256=manifest_sha256,
-            wav_dir=legs_wav_dir_norm, burned_corpus=args.burned_corpus))
+            wav_dir=legs_wav_dir_norm, burned_corpus=args.burned_corpus,
+            window=legs_window, start_cycle=legs_start_cycle,
+            n_cycles=None, d_base=None, rows=None,
+            av_excluded_count=len(av_all), truncated_count=truncated_count,
+            gate_sha256=gate_sha256, bootstrap_n=BOOTSTRAP_N,
+            bootstrap_seed=BOOTSTRAP_SEED,
+            min_high_band_observations=MIN_HIGH_BAND_OBSERVATIONS,
+            old_f_min=OLD_F_MIN, old_f_max=OLD_F_MAX))
         return 0
 
     # ── The measurement ──────────────────────────────────────────────────────
     rows = per_cycle_terms(base, wide, args.f_min, args.f_max, av_all)
-    r = rates(rows)
-    # A8/B5: d_base is now simply rates()'s own denominator, computed from the
-    # SAME (already AV-excluded) `rows` -- not an independently recomputed
-    # figure from phys_by_cycle(base) that could silently drift from it.
-    d_base = sum(row[4] for row in rows)
 
     if av_all:
         print(f"\n  AV cycles excluded from every rate (B5 fix): {len(av_all)} "
               f"cycle(s) where the shim's SEH caught a native access "
               f"violation on at least one leg")
 
-    g_high_total = sum(row[1] for row in rows)
+    # Captain's ruling §2: decide() is the SAME pure function
+    # run_verify_verdict() calls to re-derive a row from a verdict's own
+    # carried terms -- one implementation of the measurement and the row
+    # decision, so a fresh read and a re-derivation cannot silently diverge.
+    decision = decide(rows, args.f_min, args.f_max, bars)
+    r = decision["rates"]
+    bounds = decision["bounds"]
+    d_base = decision["d_base"]
+    g_high_total = decision["g_high_total"]
+    p1_fired = decision["p1_fired"]
+    scope = decision["scope"]
+    row_id = decision["row"]
+    g_ok = decision["g_ok"]
+    gross_ok = decision["gross_ok"]
+    net_ok = decision["net_ok"]
 
-    # A1/A6 fix: P1 is now an OBSERVED-count check (A6), and it determines
-    # whether the high end is adjudicated AT ALL (A1) -- previously it fired
-    # into printed text only, which made it diagnostic-only and refusal-grade
-    # under HK-025.
-    p1_fired = g_high_total < MIN_HIGH_BAND_OBSERVATIONS
     print(f"\n  P1 high-band power  observed high-band gains={g_high_total} "
           f"(need >= {MIN_HIGH_BAND_OBSERVATIONS}) -> "
           f"{'HIGH END UNADJUDICATED' if p1_fired else 'high end adjudicated'}")
@@ -818,62 +1186,55 @@ def main():
     print(f"  churn (gross) = {r['churn_gross'] * 100:+.3f}%   "
           f"(gross = |elsewhere| + |lost|; net can hide re-ordering that gross cannot)")
 
-    # B3 fix: ONE bootstrap pass, four metrics, g_low and g_high NEVER pooled.
-    bounds = bootstrap_bounds(rows, {
-        "g_low": (lambda rr: rr["g_low"], 0.05),
-        "g_high": (lambda rr: rr["g_high"], 0.05),
-        "churn_net": (lambda rr: rr["churn_net"], 0.05),
-        "churn_gross": (lambda rr: rr["churn_gross"], 0.95),
-    })
-    g_low_lo = bounds["g_low"]
-    g_high_lo = bounds["g_high"]
-    churn_net_lo = bounds["churn_net"]
-    churn_gross_hi = bounds["churn_gross"]
-
+    # J1: G_new (low-band) now prints BOTH bounds -- the 95% upper bound is
+    # what decides ROW 3 vs ROW_INDETERMINATE below.
     print(f"\n  G_new (low-band)  = {r['g_low'] * 100:+.3f}%  "
-          f"(95% lower {g_low_lo * 100:+.3f}%, bar {args.g_new_min_rate * 100:+.2f}%)")
+          f"(95% lower {bounds['g_low'] * 100:+.3f}%, 95% upper "
+          f"{bounds['g_low_hi'] * 100:+.3f}%, bar {args.g_new_min_rate * 100:+.2f}%)")
     if not p1_fired:
         print(f"  G_new (high-band) = {r['g_high'] * 100:+.3f}%  "
-              f"(95% lower {g_high_lo * 100:+.3f}%, "
+              f"(95% lower {bounds['g_high'] * 100:+.3f}%, "
               f"bar {args.g_high_min_rate * 100:+.2f}%)")
     print(f"  churn net  = {r['churn_net'] * 100:+.3f}%  "
-          f"(95% lower {churn_net_lo * 100:+.3f}%, "
+          f"(95% lower {bounds['churn_net'] * 100:+.3f}%, "
           f"bar {args.churn_net_min_rate * 100:+.2f}%)")
     print(f"  churn gross = {r['churn_gross'] * 100:+.3f}%  "
-          f"(95% upper {churn_gross_hi * 100:+.3f}%, "
+          f"(95% upper {bounds['churn_gross'] * 100:+.3f}%, "
           f"bar {args.churn_gross_max_rate * 100:+.2f}%)")
 
-    # B3 fix: g_low is barred against its own floor ALWAYS -- it is never
-    # pooled with g_high, and its floor is never diluted by the high band's
-    # contribution. g_high, when adjudicated, gets its own separate floor and
-    # decides SCOPE only, never whether the rung passes.
-    g_ok = g_low_lo >= args.g_new_min_rate
-    high_adjudicated = not p1_fired
-    high_ok = high_adjudicated and (g_high_lo >= args.g_high_min_rate)
-    net_ok = churn_net_lo >= args.churn_net_min_rate
-    gross_ok = churn_gross_hi <= args.churn_gross_max_rate
-
-    if p1_fired:
-        scope = (" (LOW END ONLY -- P1 fired, the high end is NOT adjudicated; "
-                 f"licensed consequence is [{args.f_min}, {OLD_F_MAX}) only)")
-    elif high_ok:
-        scope = (f" (both ends adjudicated and both clear; licensed "
-                 f"consequence is [{args.f_min}, {args.f_max}))")
-    else:
-        scope = (" (LOW END ONLY -- high end adjudicated but did not clear "
-                 f"its own floor; licensed consequence is "
-                 f"[{args.f_min}, {OLD_F_MAX}) only)")
-
-    # ── Rows, in strict order, mutually exclusive ────────────────────────────
-    # A10 fix: ROW 0d is now reachable for a NAMED reason -- gross churn fails
-    # its ceiling (the same ceiling ROW 2 tests -- B6 fix, no second tier is
-    # claimed) landing together with a mechanism that does not clear its own
-    # bar. That combination is worse than a plain "mechanism underdelivers"
-    # (ROW 3) and worse than "mechanism confirmed, perturbation real" (ROW 2,
-    # which requires the mechanism to have cleared its bar). It gets its own
-    # stop.
-    if not g_ok and not gross_ok:
-        row_id = "ROW_0d"
+    # ── Rows, in strict order, mutually exclusive (decide() above already
+    # picked row_id; this block is printing-only, matching the branch it took
+    # so the console explanation always agrees with the verdict) ────────────
+    if row_id == "ROW_INDETERMINATE":
+        # J1 fix: g_low's 95% LOWER bound fails to clear the bar, but its 95%
+        # UPPER bound does not fall below the bar either (or d_base == 0,
+        # the degenerate zero-measurement case) -- this rung was not powered
+        # to tell "does not deliver" from "could not have measured it"
+        # (HK-021(j)).
+        if d_base == 0:
+            reason = ("d_base=0 -- zero baseline decodes were available to "
+                       "measure against; this rung could not have been "
+                       "measured at all")
+        else:
+            reason = (f"g_low's 95% lower bound ({bounds['g_low']*100:+.3f}%) "
+                       f"does not clear the bar, but its 95% upper bound "
+                       f"({bounds['g_low_hi']*100:+.3f}%) does not fall "
+                       f"below the bar either")
+        print(f"\n  INDETERMINATE -- NO READ. {reason}. This is not evidence "
+              "of absence (ROW 3) and not evidence of eligibility (ROW 1); "
+              "it is evidence of nothing (J1). Run more cycles, or declare "
+              "this rung unadjudicated. STOP and escalate; do not read this "
+              "as ROW 3.")
+    elif row_id == "ROW_0d" and not g_ok and not gross_ok:
+        # A10 fix: ROW 0d is reachable for a NAMED reason -- gross churn
+        # fails its ceiling (the same ceiling ROW 2 tests -- B6 fix, no
+        # second tier is claimed) landing together with a mechanism that is
+        # a genuine, POWERED absence (J1: an underpowered "fails" case is
+        # ROW_INDETERMINATE above, never reaches here). That combination is
+        # worse than a plain "mechanism underdelivers" (ROW 3) and worse
+        # than "mechanism confirmed, perturbation real" (ROW 2, which
+        # requires the mechanism to have cleared its bar). It gets its own
+        # stop.
         print(f"\n  ROW 0d -- CATCH-ALL, reached for a named reason (A10): the "
               f"mechanism does not clear its own bar AND gross churn exceeds "
               f"its ceiling{scope}. Both bars failed together, against the "
@@ -881,13 +1242,11 @@ def main():
               f"severity tier is claimed here); it reaches this row rather "
               f"than ROW 2 only because the mechanism ALSO failed. STOP and "
               f"escalate; do not improvise a reading.")
-    elif g_ok and net_ok and gross_ok:
-        row_id = "ROW_1"
+    elif row_id == "ROW_1":
         print(f"\n  ROW 1 -- ELIGIBLE{scope}. The mechanism clears its own "
               "pre-committed floor and both churn metrics are bounded. The "
               "Captain chooses among eligible rungs; this gate does not.")
-    elif g_ok and (not net_ok or not gross_ok):
-        row_id = "ROW_2"
+    elif row_id == "ROW_2":
         reason = []
         if not net_ok:
             reason.append("net churn exceeds its floor")
@@ -897,25 +1256,27 @@ def main():
               f"({'; '.join(reason)}){scope}. Do NOT ship the raw widening. "
               "Escalate decoupling the noise-floor estimate from the passband "
               "as its own change; the widening returns on top of it.")
-    elif not g_ok:
+    elif row_id == "ROW_3":
         # C5 fix: the previous rule ("family closes only if the WIDEST rung
         # reads ROW 3") let the thinnest-margin rung -- the raw WAV shows this
         # IS the widest rung, by construction of the ladder -- close the whole
         # family alone, discarding a passing narrower rung. This invocation
         # sees one rung only and cannot perform a cross-rung adjudication;
         # ROW 3 is now evidence about this rung's width, full stop.
-        row_id = "ROW_3"
         print(f"\n  ROW 3 -- this rung does not deliver{scope}. This is "
-              "evidence about THIS rung's width only. Per the repaired "
-              "combination rule (C5): the passband family closes only if NO "
-              "rung reads ROW 1 or ROW 2 -- a separate adjudication made "
-              "after all three rungs have run, not by this invocation alone.")
+              "evidence about THIS rung's width only -- g_low's 95% upper "
+              f"bound ({bounds['g_low_hi']*100:+.3f}%) falls below the bar, "
+              "confirming this is a genuine, powered absence, not an "
+              "underpowered read (J1). Per the repaired combination rule "
+              "(C5): the passband family closes only if NO rung reads ROW 1 "
+              "or ROW 2 -- a separate adjudication made after all three "
+              "rungs have run, not by this invocation alone.")
     else:
-        # Structurally unreachable given the branches above are exhaustive over
-        # (g_ok, gross_ok) x net_ok; kept as a safety net, same discipline A10
-        # applied to the previous unreachable branch -- if this ever prints, that
-        # is itself a finding to report, not a row to trust. Marked ROW_0d in
-        # the verdict too (D2): g2b_family.py refuses on ROW_0d, so an
+        # Structurally unreachable given decide()'s branches are exhaustive;
+        # kept as a safety net, same discipline A10 applied to the previous
+        # unreachable branch -- if this ever prints, that is itself a
+        # finding to report, not a row to trust. Marked ROW_0d in the
+        # verdict too (D2): g2b_family.py refuses on ROW_0d, so an
         # adjudicator can never silently treat this defect as real evidence.
         row_id = "ROW_0d"
         print("\n  ROW 0d -- CATCH-ALL, reached via the UNEXPECTED branch (should "
@@ -923,10 +1284,19 @@ def main():
               "gate defect, do not improvise a reading.")
 
     write_verdict(args.emit_verdict, build_verdict(
-        args.band, args.f_min, args.f_max, row_id, scope.strip(), p1_fired,
+        band=args.band, f_min=args.f_min, f_max=args.f_max, row=row_id,
+        scope=scope.strip(), p1_fired=p1_fired,
         rates=r, bounds=bounds, bars=bars,
         dll_sha256=dll_shas, manifest_sha256=manifest_sha256,
-        wav_dir=legs_wav_dir_norm, burned_corpus=args.burned_corpus))
+        wav_dir=legs_wav_dir_norm, burned_corpus=args.burned_corpus,
+        window=legs_window, start_cycle=legs_start_cycle,
+        n_cycles=len(rows), d_base=d_base,
+        rows=[list(row) for row in rows],
+        av_excluded_count=len(av_all), truncated_count=truncated_count,
+        gate_sha256=gate_sha256, bootstrap_n=BOOTSTRAP_N,
+        bootstrap_seed=BOOTSTRAP_SEED,
+        min_high_band_observations=MIN_HIGH_BAND_OBSERVATIONS,
+        old_f_min=OLD_F_MIN, old_f_max=OLD_F_MAX))
     return 0
 
 
