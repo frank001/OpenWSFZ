@@ -115,7 +115,7 @@ helped** — which is exactly what separates "hypothesis falsified" from "integr
 
 | item | value |
 |---|---|
-| baseline DLL | `src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll` — SHA256 **`f2f30c890b253eb6b69aa1a89c26d2991ee70aa2a202c68361130344bb7d4015`** ✅ *re-verified 2026-08-11*, shim **20260033** |
+| baseline DLL | `src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll` — SHA256 **`c559a049d103c1f350f1a87b319033d5f8d1a2f91b74d9756d8d7cf03d2e6112`** ✅ *re-pinned 2026-08-13, G2(a) merged to `main`, verified independently (306/306 tests green)*, shim **20260038** (was `f2f30c890b253eb6b69aa1a89c26d2991ee70aa2a202c68361130344bb7d4015`/20260033) |
 | 🛑 never use | `39aa1031…` — unmerged `d001-rc4-decode-depth` three-pass diagnostic build |
 | shim integers | G2 holds **20260038**. This programme: **R0 = 20260039, R1 = 20260040, R2 = 20260041** |
 | corpus | `artefacts/20260808_live_run_0016-8080/` + `-8081/`, 20m, **2 529 cycles** |

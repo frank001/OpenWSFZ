@@ -38,10 +38,17 @@ version.**
 
 🔴 **The real problem is narrower, and still disqualifying: nine of eleven linked objects are
 untracked build artefacts with no recorded provenance, and the build cannot regenerate them.**
-The pinned production DLL `f2f30c89…` therefore cannot be rebuilt from source today, and every
-replay arm is pinned to a binary we cannot reconstruct. R1/R2 modify `decode.c`/`ft8_shim.c` and
-would link new code against those same opaque artefacts — **so a null result in R2 could be caused
-by the artefacts rather than by the change.**
+The pinned production DLL `f2f30c89…` (superseded 2026-08-13 by G2(a)'s `c559a049…`/20260038 —
+see the re-pin note below) therefore cannot be rebuilt from source today, and every replay arm is
+pinned to a binary we cannot reconstruct. R1/R2 modify `decode.c`/`ft8_shim.c` and would link new
+code against those same opaque artefacts — **so a null result in R2 could be caused by the
+artefacts rather than by the change.**
+
+🔴 **RE-PIN, 2026-08-13 16:59Z (QA, on the Architect's instruction, G2(a) now merged to `main`):**
+every reference to the baseline DLL in this spec means SHA256 `c559a049d103c1f350f1a87b319033d5f8d1a2f91b74d9756d8d7cf03d2e6112`, shim **20260038**, not `f2f30c89…`/20260033. R0's AC-1 (§4 below) builds
+from vendored sources and diffs against **this** baseline — the target of "cannot be rebuilt from
+source today" is now the 20260038 binary, unchanged in substance (still nine opaque linked
+objects, still no recorded provenance for them).
 
 ---
 
@@ -126,7 +133,8 @@ report, not a change to make silently.**
 **AC-1 (primary): behavioural equality against the pinned baseline.**
 
 Build the DLL from vendored sources per D2. Replay a fixed corpus subset through **both** the new
-DLL and the pinned `f2f30c89…` DLL, same input, same parameters, same order.
+DLL and the pinned `c559a049…`/20260038 DLL (re-pinned 2026-08-13, was `f2f30c89…`/20260033 — see
+§1), same input, same parameters, same order.
 
 > **PASS:** the decode output is **byte-identical** — same decodes, same order, same
 > `freq_hz`/`dt`/SNR fields, on every cycle.

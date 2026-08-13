@@ -144,9 +144,10 @@ in one command and not inherit the panic version.** *(HK-018 working as intended
 check beat a paragraph of reasoning.)*
 
 🔴 **The real problem is narrower and still disqualifying: nine of eleven linked objects have no
-recorded provenance and cannot be regenerated.** The pinned production DLL `f2f30c89…` cannot be
-rebuilt from source today; every replay arm is pinned to a binary we cannot reconstruct; and R1/R2
-would link new code against those same opaque artefacts.
+recorded provenance and cannot be regenerated.** The pinned production DLL (re-pinned 2026-08-13
+following G2(a)'s merge to `c559a049…`/20260038, was `f2f30c89…`/20260033) cannot be rebuilt from
+source today; every replay arm is pinned to a binary we cannot reconstruct; and R1/R2 would link
+new code against those same opaque artefacts.
 
 ⚠️ **This is the same defect class that has already cost this programme once** — the `39aa1031…`
 DLL that P2/P3/P1a ran turned out to be `d001-rc4-decode-depth`'s unmerged three-pass diagnostic
@@ -203,7 +204,7 @@ shortcut, refuse and escalate.
 
 | item | value |
 |---|---|
-| baseline DLL | `src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll`, SHA256 `f2f30c890b253eb6b69aa1a89c26d2991ee70aa2a202c68361130344bb7d4015`, shim `20260033` |
+| baseline DLL | `src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll`, SHA256 `c559a049d103c1f350f1a87b319033d5f8d1a2f91b74d9756d8d7cf03d2e6112`, shim `20260038` (re-pinned 2026-08-13, G2(a) merged; was `f2f30c890b253eb6b69aa1a89c26d2991ee70aa2a202c68361130344bb7d4015`/20260033) |
 | 🛑 **never** use | `39aa1031…` (unmerged RC4 three-pass diagnostic build) |
 | shim versions | **20260038 is G2's.** This programme takes **20260039** (R0), **20260040** (R1), **20260041** (R2). One per spec, asserted at startup. |
 | native upstream | `github.com/frank001/ft8_lib`, MIT, currently `d18ed84` + ~27 uncommitted modifications |

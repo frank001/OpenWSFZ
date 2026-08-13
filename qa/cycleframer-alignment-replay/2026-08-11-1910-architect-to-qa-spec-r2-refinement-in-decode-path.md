@@ -41,7 +41,7 @@ scope, and adding it voids the arm.
 | `REF` | **69 222** (two-instance intersection) |
 | baseline recovery | **≈57.8%** (H1a; the `[55.5, 57.8]` bracket is retired, `V` = 0.9968) |
 | baseline FP | **4.24–4.90%**, best estimate ~4.7% |
-| baseline DLL | `f2f30c890b253eb6b69aa1a89c26d2991ee70aa2a202c68361130344bb7d4015`, shim 20260033 |
+| baseline DLL | `c559a049d103c1f350f1a87b319033d5f8d1a2f91b74d9756d8d7cf03d2e6112`, shim 20260038 (re-pinned 2026-08-13; was `f2f30c890b253eb6b69aa1a89c26d2991ee70aa2a202c68361130344bb7d4015`/20260033 — G2(a) merged) |
 | 🛑 never use | `39aa1031…` — unmerged RC4 three-pass diagnostic build |
 | R2 DLL | shim **20260041**, SHA recorded at run time |
 | `ALL.TXT` fields | `[4]` SNR · `[5]` **DT** · `[6]` **freq Hz** — ⚠️ confusing 5/6 inverts a result exactly |
@@ -59,7 +59,7 @@ more than its own SE, **stop and escalate**; something else has changed.
 |---|---|---|
 | **0a** `REF` reproduction | exactly **69 222** | VOID — loader defect |
 | **0b** determinism | 3 process runs, results **mechanically byte-diffed** identical, on both legs | VOID. 🔴 Depends on R0's `p23_common.py:182` fix. *"Two runs, byte-identical" must be MECHANICALLY DIFFED, never asserted.* |
-| **0c** DLL identity | SHA asserted at startup on both legs; shim 20260033 / 20260041 | VOID |
+| **0c** DLL identity | SHA asserted at startup on both legs; shim 20260038 / 20260041 (re-pinned 2026-08-13; was 20260033) | VOID |
 | **0d** 🔴 **the refiner is actually firing** | **≥ 50%** of decoded candidates carry a **non-zero** applied `(Δf, Δt)`, and the applied refinements are **not all identical** | VOID — the stage is wired in but inert, and the arm would measure a no-op while looking like a null |
 | **0e** baseline sanity | re-measured baseline recovery within its own SE of 57.8% | escalate, do not proceed |
 
