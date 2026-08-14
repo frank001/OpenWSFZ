@@ -113,6 +113,16 @@ cl ^
 echo ERRORLEVEL after cl: %ERRORLEVEL%
 if %ERRORLEVEL% neq 0 goto :err_cl
 
+echo === Compiling sync_refiner.c (r1-sync-refiner-instrument-validation, OpenWSFZ-original, diagnostic-only) ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /I "D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\sync_refiner.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\refine\sync_refiner.c"
+echo ERRORLEVEL after cl (sync_refiner.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
 echo === Linking libft8.dll ===
 link /DLL ^
   /OUT:"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\libft8.dll" ^
@@ -127,6 +137,7 @@ link /DLL ^
   /EXPORT:ft8_set_ap_bits ^
   /EXPORT:ft8_set_decode_params ^
   /EXPORT:ft8_get_hash_table_reject_count ^
+  /EXPORT:ft8_refine_candidate ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\constants.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\crc.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\decode.obj" ^
@@ -137,7 +148,8 @@ link /DLL ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\monitor.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\kiss_fft.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\kiss_fftr.obj" ^
-  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\ft8_shim.obj"
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\ft8_shim.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\sync_refiner.obj"
 echo ERRORLEVEL after link: %ERRORLEVEL%
 if %ERRORLEVEL% neq 0 goto :err_link
 

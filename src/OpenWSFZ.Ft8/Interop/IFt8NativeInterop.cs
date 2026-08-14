@@ -92,4 +92,20 @@ internal interface IFt8NativeInterop
     /// <param name="osdCorrThreshold">OSD normalised correlation gate (default 0.10f, valid [0.05, 0.40]).</param>
     /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (default 60, valid [30, 100]).</param>
     void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax);
+
+    /// <summary>
+    /// Diagnostic-only per-candidate coherent sync refinement
+    /// (r1-sync-refiner-instrument-validation, shim 20260040). Given the cycle's PCM and a
+    /// candidate's coarse <c>(freq_hz, dt)</c> position, returns a refined <c>(Δf, Δt)</c>
+    /// RELATIVE TO that coarse position plus a sync quality score.
+    /// <para>
+    /// Reachable only from the validation harness and test code — no production call site
+    /// invokes it.
+    /// </para>
+    /// </summary>
+    /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1]; must be exactly 180 000 samples.</param>
+    /// <param name="coarseFreqHz">Coarse candidate frequency (Hz).</param>
+    /// <param name="coarseTimeOffsetS">Coarse candidate time offset (s) from cycle start.</param>
+    (float DeltaFreqHz, float DeltaTimeS, float SyncScore) RefineCandidate(
+        float[] pcm, int coarseFreqHz, float coarseTimeOffsetS);
 }

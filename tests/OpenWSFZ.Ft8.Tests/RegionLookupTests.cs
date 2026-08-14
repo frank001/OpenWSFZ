@@ -104,6 +104,9 @@ public sealed class RegionLookupTests
 
         public void SetApBits(byte[] mycallBits, byte[] hiscallBits) { }
         public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { }
+
+        public (float DeltaFreqHz, float DeltaTimeS, float SyncScore) RefineCandidate(
+            float[] pcm, int coarseFreqHz, float coarseTimeOffsetS) => (0f, 0f, 0f);
     }
 
     private static float[] BuildLoudPcm()

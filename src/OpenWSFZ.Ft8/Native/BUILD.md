@@ -88,6 +88,8 @@ native/ft8_lib_build/patched/common/monitor.c    (MSVC VLA compat patch)
 native/ft8_lib_vendor/fft/kiss_fft.c
 native/ft8_lib_vendor/fft/kiss_fftr.c
 src/OpenWSFZ.Ft8/Native/ft8_shim.c               (our shim — orchestrates the pipeline)
+native/ft8_lib_vendor/refine/sync_refiner.c      (r1: diagnostic-only coherent sync refiner,
+                                                   OpenWSFZ-original, no production call site)
 ```
 
 r0-reproducible-native-build: every one of these now compiles from tracked source on every
@@ -133,6 +135,11 @@ cl /I native\ft8_lib_vendor\ft8 /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Nat
 cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
    src\OpenWSFZ.Ft8\Native\ft8_shim.c
 
+:: Compile the sync refiner (r1-sync-refiner-instrument-validation, diagnostic-only,
+:: OpenWSFZ-original — no call site in decode.c/ft8_shim.c)
+cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
+   native\ft8_lib_vendor\refine\sync_refiner.c
+
 :: Link into DLL — exports must stay in sync with rebuild_shim.bat
 link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_lib_version_check ^
@@ -146,8 +153,9 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_set_ap_bits ^
    /EXPORT:ft8_set_decode_params ^
    /EXPORT:ft8_get_hash_table_reject_count ^
+   /EXPORT:ft8_refine_candidate ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
-   monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj
+   monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj
 
 :: Copy to repo location
 copy libft8.dll ..\..\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
@@ -186,7 +194,7 @@ gcc -shared -o libft8.so \
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
-Verify exports (all eleven symbols must appear):
+Verify exports (all twelve symbols must appear (r1-sync-refiner-instrument-validation adds ft8_refine_candidate)):
 
 ```bash
 nm -D libft8.so | grep "ft8_"
@@ -236,7 +244,7 @@ clang -dynamiclib -target arm64-apple-macos11.0 \
 > **Note:** `-D_GNU_SOURCE` is required for `stpcpy` on macOS as well (same reason as
 > Linux — see note in the Linux section above).
 
-Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all eleven symbols must appear):
+Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all twelve symbols must appear (r1-sync-refiner-instrument-validation adds ft8_refine_candidate)):
 
 ```bash
 nm -gU libft8.dylib | grep "ft8_"

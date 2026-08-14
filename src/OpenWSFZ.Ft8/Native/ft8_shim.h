@@ -353,8 +353,34 @@ extern "C" {
  *   pre-fix 20260039 build and the original 20260038 baseline: zero decode-
  *   output differences either way (log-output-only change). DLL SHA256:
  *   897f81dda95b83b24156a905b3aeec4a1cb98c64e5243564e6d0eb6b60643cb3.
+ *
+ * r1-sync-refiner-instrument-validation (FT8_SHIM_VERSION 20260040):
+ *
+ *   Adds ft8_refine_candidate() -- a new DIAGNOSTIC-ONLY export implementing
+ *   a per-candidate coherent sync-refinement stage: downconverts the
+ *   candidate's region of PCM to complex baseband (phase retained, not the
+ *   existing uint8_t magnitude-only waterfall), correlates coherently
+ *   against the three Costas 7x7 sync arrays (complex values summed first,
+ *   magnitude taken last -- explicitly not the ft8_decode_multi_symbols()
+ *   shape, which is dead code that sums dB magnitudes), and searches
+ *   two-dimensionally (coarse time -> frequency -> fine time) to produce a
+ *   refined (delta_f, delta_t) plus a sync quality score. Implemented in the
+ *   new native/ft8_lib_vendor/refine/sync_refiner.c (OpenWSFZ-original code,
+ *   additive to the vendor tree per design.md D7 -- not a modification of
+ *   any byte-identical-to-upstream file).
+ *
+ *   Clean-room: written directly from this change's spec.md/design.md method
+ *   description; no WSJT-X source was available in or consulted during this
+ *   session (see sync_refiner.c's header comment).
+ *
+ *   No production call site: ft8_refine_candidate is reachable only from the
+ *   validation harness and test code introduced by this change.
+ *   ftx_decode_candidate() and ft8_decode_all's production decode path
+ *   remain byte-for-byte unchanged -- this bump exists purely so the startup
+ *   ABI check catches a native binary built without the new export. No
+ *   struct layout change (FT8Result stays 48 bytes).
  */
-#define FT8_SHIM_VERSION 20260039
+#define FT8_SHIM_VERSION 20260040
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -560,6 +586,47 @@ int ft8_encode_message(const char* message, uint8_t* tones_out, int tones_capaci
  * Safe to call before the first ft8_decode_all invocation.
  */
 void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int osd_nhard_max);
+
+/*
+ * ft8_refine_candidate -- diagnostic-only per-candidate coherent sync
+ * refinement (r1-sync-refiner-instrument-validation, shim 20260040).
+ *
+ * Given the cycle's retained PCM and a candidate's coarse (freq_hz,
+ * time_offset) as reported by ftx_find_candidates()/ft8_decode_all's own
+ * freq_hz/dt convention, returns a refined (delta_f, delta_t) RELATIVE TO
+ * that coarse position, plus a sync quality score.
+ *
+ * Implemented in native/ft8_lib_vendor/refine/sync_refiner.c -- see that
+ * file for the three-stage search (coarse time -> frequency -> fine time)
+ * and the coherent-correlation method. NOT called from ft8_decode_all or
+ * any other production entry point in this file; reachable only from the
+ * validation harness and test code.
+ *
+ * Parameters:
+ *   pcm                    -- float32 samples, 12 kHz mono, normalised to [-1, 1]
+ *   pcm_len                -- must be 180 000 (15 s x 12 000 Hz)
+ *   coarse_freq_hz         -- coarse candidate frequency (Hz), i.e. tone 0's
+ *                             estimated frequency from the waterfall lattice
+ *   coarse_time_offset_s   -- coarse candidate time offset (s) from cycle start
+ *   out_delta_freq_hz      -- refined frequency correction (Hz), ADD to
+ *                             coarse_freq_hz for the refined estimate
+ *   out_delta_time_s       -- refined time correction (s), ADD to
+ *                             coarse_time_offset_s for the refined estimate
+ *   out_sync_score         -- coherent Costas correlation magnitude at the
+ *                             refined (delta_f, delta_t); larger = stronger
+ *                             sync confidence. Not calibrated against any
+ *                             existing score; diagnostic use only.
+ *
+ * Returns: 0 on success.
+ *          -1 if pcm_len != 180 000, or any pointer parameter is NULL.
+ *          -2 if an internal heap allocation failed.
+ */
+int ft8_refine_candidate(
+    const float* pcm, int pcm_len,
+    int   coarse_freq_hz, float coarse_time_offset_s,
+    float* out_delta_freq_hz,
+    float* out_delta_time_s,
+    float* out_sync_score);
 
 #ifdef __cplusplus
 }

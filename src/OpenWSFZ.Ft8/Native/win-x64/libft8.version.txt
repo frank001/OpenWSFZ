@@ -1,3 +1,60 @@
+=== CURRENT: r1-sync-refiner-instrument-validation (FT8_SHIM_VERSION 20260040) ===
+
+Built 2026-08-15 from this change's branch (feat/r1-sync-refiner-instrument-validation),
+on top of R0's vendored source tree (native/ft8_lib_vendor/, byte-identical to upstream
+kgoba/ft8_lib tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51) plus this change's new
+native/ft8_lib_vendor/refine/sync_refiner.c (OpenWSFZ-original, diagnostic-only, adds
+the ft8_refine_candidate export -- see ft8_shim.h's changelog entry for the full
+contract). No production entry point's ABI, struct layout, or decode behaviour changes.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    9b7f944b249d8ade8fc7120cbcabbcc75c3439dc4cdef466c6a877df4d7132fe
+  Linux x64   (build_linux.sh, GCC 14.2.0 via WSL2 Debian): SHA256
+    dfa7239f89125d8542001850edfaf64bcca68839cda5b314f7ab75fd752af4e6
+  macOS ARM64: NOT rebuilt this session -- no Mac available locally, same limitation R0
+    recorded (see "--- macOS ARM64 ---" section below); requires the one-shot
+    workflow_dispatch GitHub Actions path. Honesty note carried forward from R0.
+
+  NOTE: two earlier SHA256s (054a7c57a0fae548... and 7 further intermediate builds) were
+  produced during this session's implementation and debugging before the algorithm defect
+  described below was found and fixed; they were never the final build and are NOT
+  referenced by any committed artefact or report. Only the SHA256s above are final.
+
+  IMPLEMENTATION DEFECT FOUND AND FIXED DURING THIS CHANGE (recorded per HK-021/report
+  discipline -- a real finding, not speculation): the refiner's initial implementation
+  computed each Costas symbol's reference phase independently as
+  `2*pi*ref_hz*absolute_sample_index/fs2`. This is WRONG for a continuous-phase FSK (CPFSK)
+  signal -- it implicitly assumes each symbol's own tone had been running since sample 0,
+  when the true transmitted phase at symbol j is offset by the ACCUMULATED phase of all
+  preceding tones (data tones, for cross-block combining; the block's OWN preceding Costas
+  tones, for within-block combining). Diagnosed empirically (REFINE_DEBUG env-var
+  instrumentation, since removed): the correlation peak was smooth, sharp, and reproducible,
+  but consistently mislocated by several samples/Hz on a CLEAN, NOISELESS synthetic signal at
+  EXACT truth -- ruling out noise sensitivity. An independent Python re-implementation and an
+  idealised hand-built CPFSK toy signal (bypassing downconvert_decimate, the Python synth, and
+  GFSK shaping entirely) reproduced the identical mislocation, isolating the defect to the
+  correlator's phase-reference model itself. Fixed by (1) combining the three Costas blocks
+  non-coherently (magnitude-domain) across blocks, since inter-block data is unknown; (2)
+  within each block, using a running phase accumulator that integrates the KNOWN 7-symbol
+  Costas tone sequence continuously (matching qa/rr-study/synth/modulator.py's own
+  cumsum-inclusive phase-integration convention), rather than seven independent per-symbol
+  terms. Verified: the fix converges a clean synthetic signal's refined (df, dt) to
+  (0.0000 Hz, 0.5 ms) -- the 0.5 ms residual is Stage C's discretisation grid, comfortably
+  inside AC-1's 7.7 ms bar -- across four independent (freq, dt) test points. See
+  native/ft8_lib_vendor/refine/sync_refiner.c's costas_coherent_sum() doc comment for the
+  full derivation.
+
+`dumpbin /exports` (Windows) and `nm -D` (Linux) both confirm all twelve exported symbols
+present, including the new ft8_refine_candidate, with no existing symbol's address-table
+entry order disturbed in a way that would indicate an ABI break (task 1.5).
+
+NOTE: this file's entry below for FT8_SHIM_VERSION 20260038 predates R0's own
+20260039 rebuild (2026-08-14) -- R0 did not add a matching entry here, a pre-existing
+documentation gap this change did not attempt to backfill (out of this change's scope;
+flagged for the Captain/QA record).
+
+=== FT8_SHIM_VERSION 20260038 and earlier ===
+
 ft8_lib source:   kgoba/ft8_lib fork — branch msvc-compat (commit d18ed84)
                   (upstream: tag 2.0 / 50ee0c06361388a992c80a1af9c1189652b72e51)
 Shim version:     FT8_SHIM_VERSION = 20260038 (g2-hash-table-sizing-and-candidate-passband):
