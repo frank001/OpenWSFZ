@@ -67,15 +67,28 @@ class Decoder:
     One instance per PROCESS.  Never share across threads (spec 1.1).
     """
 
-    def __init__(self, path=DLL_PATH, verify=True):
+    def __init__(self, path=DLL_PATH, verify=True, expected_sha256=None,
+                 expected_shim_version=None, check_version=True):
+        """expected_sha256 (r0-reproducible-native-build, D4/--assert-dll-sha): overrides the
+        module-level DLL_SHA256 pin for callers that need to assert against a DIFFERENT binary
+        than the one this module's constants describe (e.g. a freshly built candidate under
+        comparison, or main's current pin rather than an unmerged branch's). Defaults to
+        DLL_SHA256 for backward compatibility -- existing callers are unaffected.
+
+        check_version: the shim version integer is a SECONDARY, redundant check on top of the
+        primary SHA256 identity -- it must be disabled by callers deliberately comparing across
+        two different (but both legitimately pinned) shim versions, e.g. R0's own AC-1/AC-2/AC-3
+        replay, which compares a 20260038 baseline against a 20260039 candidate by design. SHA256
+        verification (the actual identity check) still runs unconditionally when verify=True."""
         if verify:
+            want = expected_sha256 if expected_sha256 is not None else DLL_SHA256
             got = dll_sha256(path)
-            if got != DLL_SHA256:
+            if got != want:
                 raise RuntimeError(
                     "DLL SHA256 mismatch: expected %s got %s -- five unmerged "
                     "branches carry rebuilt DLLs and FT8_SHIM_VERSION collides "
                     "twice, so refusing to run on an unidentified binary"
-                    % (DLL_SHA256, got))
+                    % (want, got))
         self.dll = ctypes.CDLL(os.path.abspath(path))
         d = self.dll
 
@@ -91,8 +104,9 @@ class Decoder:
                                      ctypes.POINTER(FT8Result), ctypes.c_int]
 
         ver = d.ft8_lib_version_check()
-        if verify and ver != SHIM_VERSION:
-            raise RuntimeError("shim version %s, expected %s" % (ver, SHIM_VERSION))
+        want_ver = expected_shim_version if expected_shim_version is not None else SHIM_VERSION
+        if verify and check_version and ver != want_ver:
+            raise RuntimeError("shim version %s, expected %s" % (ver, want_ver))
         self.version = ver
         d.ft8_set_decode_params(DECODE_PARAMS[0], ctypes.c_float(DECODE_PARAMS[1]),
                                 DECODE_PARAMS[2])
@@ -179,7 +193,13 @@ def load_ref(window=WINDOW_20M):
     """REF = intersection of the two WSJT-X instances; also returns freq map."""
     a = load(os.path.join(REPO_ROOT, LEG_20M["wsjtx_a"]), *window)
     b = load(os.path.join(REPO_ROOT, LEG_20M["wsjtx_b"]), *window)
-    ref = {k: a[k] for k in a.keys() & b.keys()}
+    # r0-reproducible-native-build (D3): `a.keys() & b.keys()` is a set operation over string
+    # keys, whose iteration order is hash-randomised per process (PYTHONHASHSEED) even under a
+    # fixed random.Random(seed) elsewhere. Sorting at construction fixes the resulting dict's
+    # insertion/iteration order deterministically -- same pattern as x3_lattice_crowding.py /
+    # x4_spectral_locality.py. Without this, any downstream code that indexes into ref.keys()
+    # (e.g. before a seeded random draw) silently draws different keys across "identical" runs.
+    ref = {k: a[k] for k in sorted(a.keys() & b.keys())}
     return ref
 
 

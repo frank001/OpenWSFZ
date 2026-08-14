@@ -308,8 +308,34 @@ extern "C" {
  *              48 bytes); no new exported entry points.  ONE bump covers both items:
  *              20260034-20260037 are unavailable and 20260039-20260041 are reserved
  *              for the R0/R1/R2 programme.
+ *
+ * r0-reproducible-native-build (FT8_SHIM_VERSION 20260039):
+ *
+ *   Provenance/reproducibility marker only -- no ABI, struct layout, or decode-
+ *   behaviour change.  All eleven linked translation units now compile from a
+ *   vendored, version-controlled source tree (native/ft8_lib_vendor/) instead
+ *   of linking nine pre-built, untracked .obj files of unknown provenance.
+ *   AC-1 (mechanical diff, 250 contiguous cycles, artefacts/20260808_live_run_
+ *   0016-8080/wsjt-x/wav, 260808_004000..260808_014215): zero differences
+ *   against the previously-shipped 20260038 binary (SHA256 c559a049d103c1f3...).
+ *   AC-2 (two independent clean builds): zero differences against each other.
+ *
+ *   One genuine finding surfaced and fixed during this rebuild: ft8/message.c
+ *   (vendored, upstream-unmodified) calls stpcpy() with no prototype in scope
+ *   under MSVC, which silently falls back to "implicit extern returning int"
+ *   and truncates the returned char* to 32 bits -- MECHANICALLY CONFIRMED to
+ *   reproduce D-006's exact root cause (the fatal 32-bit pointer truncation
+ *   fixed at FT8_SHIM_VERSION 20260015 by hand-patching a single opcode byte
+ *   directly in the pre-built message.obj, with no source-level fix ever
+ *   written, because message.c was never recompiled until this change). Fixed
+ *   by force-including a correct prototype
+ *   (native/ft8_lib_build/patched/stpcpy_msvc_compat.h) only at compile time,
+ *   via rebuild_shim.bat's /FI flag on message.c -- zero bytes of the vendored
+ *   tree are touched. Verified at the disassembly level: both call-sites now
+ *   follow `call stpcpy` with a full 64-bit `mov`, not the truncating 32-bit
+ *   `movsxd` MSVC emits without the prototype.
  */
-#define FT8_SHIM_VERSION 20260038
+#define FT8_SHIM_VERSION 20260039
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

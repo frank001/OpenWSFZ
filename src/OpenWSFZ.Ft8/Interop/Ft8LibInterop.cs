@@ -234,8 +234,19 @@ internal static class Ft8LibInterop
     ///   managed layer, the ABI, or struct layout (48 bytes) — the bump exists so the startup
     ///   ABI check catches a stale (pre-G2) native binary. 20260034-20260037 are unavailable
     ///   and 20260039-20260041 are reserved for the R0/R1/R2 programme, hence a single bump.
+    /// 20260039 (r0-reproducible-native-build): provenance/reproducibility marker only — no
+    ///   ABI, struct layout (48 bytes), or decode-behaviour change. All eleven linked
+    ///   translation units now compile from a vendored, version-controlled source tree
+    ///   (<c>native/ft8_lib_vendor/</c>) instead of linking nine pre-built, untracked
+    ///   <c>.obj</c> files of unknown provenance. Verified byte-identical decode output
+    ///   against the previously-shipped 20260038 binary over 250 contiguous cycles (AC-1),
+    ///   and byte-identical decode output between two independent clean builds (AC-2). The
+    ///   bump exists so the startup ABI check catches a native binary built by the old,
+    ///   unreproducible object-linking process. See <c>ft8_shim.h</c>'s matching changelog
+    ///   entry for the one genuine finding this rebuild surfaced and fixed (a build-side-only
+    ///   compat header restoring the D-006 stpcpy pointer-truncation fix at the source level).
     /// </summary>
-    private const int ExpectedShimVersion = 20260038;
+    private const int ExpectedShimVersion = 20260039;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
