@@ -1,0 +1,34 @@
+scratch dir: C:\Users\Frank\AppData\Local\Temp\p1_jt9_eyud0nhw
+in-window wav files (260808_004000..260808_111500): 2529
+
+=== TIMING PROBE: 20 files/depth, chronological, first files in window, workers=8 ===
+d1 probe: 3.06s for 20 files (0.153s/file wall, workers=8)
+d3 probe: 9.97s for 20 files (0.499s/file wall, workers=8)
+extrapolated full-window total (both depths, at workers=8): 27.5 min (n=2529)
+
+DECISION: extrapolated 27.5 min <= 90.0 min budget -> FULL WINDOW (2529 files)
+
+reusing 20 probe files already decoded; decoding 2509 more files at each depth
+d1 remaining decode: 3.2 min
+d3 remaining decode: 12.6 min
+
+D1: raw=56910 dedup=56910
+D3: raw=69646 dedup=69646
+
+REF (raw intersection, full window, unrestricted): 69222
+REF restricted to replayed cycles (n=2529): 69222
+MISS = REF \ OpenWSFZ8080, restricted: 30782
+
+A = |MISS ^ (D3\D1)| / |REF| = 10766 / 69222 = 15.553 pp
+B = |D3\D1| / |D1|           = 12852 / 56910 = 22.583%
+C = |D1 ^ REF| / |REF|        = 53918 / 69222 = 77.891%
+
+ratio_d3_live = |D3| / |WSJT-X A live, replayed cycles| = 69646 / 69372 = 1.0039
+
+=== GATE ===
+>>> ROW 0d <<< (dedup removed nothing on either leg (n1 56910==56910, n3 69646==69646))
+
+clustered bootstrap on A: mean=15.561 se=0.347 ci95=[14.868537790984242, 16.30119125229657] (n_distinct_freq=2650, draws=1000, seed=20260809)
+binomial SE (for comparison ONLY, not to be cited): 0.138 -> design effect ~2.52x
+
+wrote qa/cycleframer-alignment-replay/p1_result.json

@@ -104,8 +104,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
 
     /// <summary>
     /// Return the process-lifetime count of Type 4 callsign announcements the native decoder
-    /// discarded because its session-scoped callsign hash table was already at its 256-slot
-    /// capacity (f-005-hash-table-saturation-diagnostic).
+    /// discarded because its session-scoped callsign hash table was already at its 4096-slot
+    /// capacity (f-005-hash-table-saturation-diagnostic; capacity raised from 256 to 4096 at
+    /// shim 20260038, g2-hash-table-sizing-and-candidate-passband).
     /// <para>
     /// A non-zero value means the hash table saturated during this session and one or more
     /// nonstandard-callsign announcements could not be stored — the exact condition F-001's

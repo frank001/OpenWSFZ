@@ -1,0 +1,54 @@
+{
+  "probe": {
+    "probe_n": 20,
+    "workers": 8,
+    "t1_probe_sec": 3.0573248863220215,
+    "t3_probe_sec": 9.973912000656128,
+    "rate_d1_sec_per_file": 0.15286624431610107,
+    "rate_d3_sec_per_file": 0.4986956000328064,
+    "full_n": 2529,
+    "extrapolated_min": 27.46333173930645,
+    "budget_min": 90.0
+  },
+  "path": "FULL_WINDOW",
+  "working_set_n": 2529,
+  "seed": null,
+  "n1_raw": 56910,
+  "n1_dedup": 56910,
+  "n3_raw": 69646,
+  "n3_dedup": 69646,
+  "ref_all_unrestricted": 69222,
+  "REF": 69222,
+  "MISS": 30782,
+  "D3_minus_D1": 12852,
+  "numerator": 10766,
+  "A": 15.552858917685128,
+  "B": 22.583025830258304,
+  "C": 77.89142180231718,
+  "ratio_d3_live": 1.0039497203482672,
+  "wa_live_replayed": 69372,
+  "row0": "ROW 0d",
+  "row0_reason": "dedup removed nothing on either leg (n1 56910==56910, n3 69646==69646)",
+  "final_row": "ROW 0d",
+  "bootstrap": {
+    "n_distinct_freq": 2650,
+    "n_draws": 1000,
+    "seed": 20260809,
+    "bootstrap_mean": 15.561276508747099,
+    "bootstrap_se": 0.3467846069756853,
+    "ci95_pct": [
+      14.868537790984242,
+      16.30119125229657
+    ]
+  },
+  "binomial_se_for_comparison_only": 0.13774489755902572,
+  "t_d1_rest_sec": 193.83504986763,
+  "t_d3_rest_sec": 754.5323176383972,
+  "working_ts_sample": [
+    "260808_004000",
+    "260808_004015",
+    "260808_004030",
+    "260808_004045",
+    "260808_004100"
+  ]
+}

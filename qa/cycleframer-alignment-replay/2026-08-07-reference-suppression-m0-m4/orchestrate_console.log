@@ -1,0 +1,41 @@
+[22:58:45Z] ORCH: === M0: preserve evidence ===
+[22:58:45Z] M0: copied C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT (499512 bytes, mtime 2026-08-06T22:33:44.478850+00:00) -> D:\Projects\claude\OpenWSFZ\artefacts\20260806_cross_decode_replay_2009\wsjtx-all-time\ALL.TXT
+[22:58:45Z] M0: copied run1/{our_ALL.TXT, pass_windows.json, daemon_stdout.log}
+[22:58:45Z] M0: copied run2/{our_ALL.TXT, pass_windows.json, daemon_stdout.log}
+[22:58:45Z] M0: copied run3/{our_ALL.TXT, pass_windows.json, daemon_stdout.log}
+[22:58:45Z] M0: copied run4/{our_ALL.TXT, pass_windows.json, daemon_stdout.log}
+[22:58:45Z] M0: copied run5/{our_ALL.TXT, pass_windows.json, daemon_stdout.log}
+[22:58:45Z] M0: copied summary_run1..5.json + full_anova_summary.json
+[22:58:45Z] M0: wrote D:\Projects\claude\OpenWSFZ\artefacts\20260806_cross_decode_replay_2009\README.md
+[22:58:45Z] M0: regenerating qa/ARTEFACT_INVENTORY.md
+wrote D:\Projects\claude\OpenWSFZ\qa\ARTEFACT_INVENTORY.md
+ARTEFACT_INVENTORY.md up to date
+[22:58:48Z] M0: inventory regenerated and confirmed fresh (--check passed)
+[22:58:48Z] ORCH: M0 complete.
+[22:58:48Z] ORCH: === M1 + M2: offline SNR/set-test gates ===
+[22:58:48Z] M1M2: loading preserved WSJT-X all-time ALL.TXT from D:\Projects\claude\OpenWSFZ\artefacts\20260806_cross_decode_replay_2009
+[22:58:48Z] M1M2: 7579 total rows in the preserved all-time file
+[22:58:48Z] M1M2: run1: 752 pass-1 WSJT-X decodes mapped to 20/20 corpus cycles, 0 duplicates, exact grid -- all four SS1.3 assertions hold
+[22:58:48Z] M1M2: run2: 754 pass-1 WSJT-X decodes mapped to 20/20 corpus cycles, 0 duplicates, exact grid -- all four SS1.3 assertions hold
+[22:58:48Z] M1M2: run3: 758 pass-1 WSJT-X decodes mapped to 20/20 corpus cycles, 0 duplicates, exact grid -- all four SS1.3 assertions hold
+[22:58:48Z] M1M2: run4: 759 pass-1 WSJT-X decodes mapped to 20/20 corpus cycles, 0 duplicates, exact grid -- all four SS1.3 assertions hold
+[22:58:48Z] M1M2: run5: 756 pass-1 WSJT-X decodes mapped to 20/20 corpus cycles, 0 duplicates, exact grid -- all four SS1.3 assertions hold
+[22:58:48Z] M1M2: tonight pooled: 783 distinct (cycle,msg) keys across 5 runs (union); 722 present in all 5 (intersection)
+[22:58:48Z] M1M2: loading archived original corpus ALL.TXT (owsfz + wsjt-x)
+[22:58:48Z] M1M2: archived (this window): wsjtx=328 keys, owsfz=466 keys
+[22:58:49Z] M1M2: M1: ROW 4 -- INCONCLUSIVE. M4 MUST NOT RUN. Report delta, p, both medians, both n, escalate.
+[22:58:49Z] M1M2: M2: ROW 1 -- CONFIRMED -- 'OpenWSFZ finds decodes WSJT-X cannot' is false on this window; that population is a reference-suppression artifact. Arm R.D's reciprocity premise is undermined on this window; R.D remains unauthorised pending M3.
+[22:58:49Z] M1M2: wrote D:\Projects\claude\OpenWSFZ\qa\cycleframer-alignment-replay\2026-08-07-reference-suppression-m0-m4\m1_m2_result.json
+[22:58:49Z] ORCH: M1 row: ROW 4. M2: ROW 1.
+[22:58:49Z] ORCH: === M3: low-density window replay (runs regardless of M1) ===
+[22:58:49Z] M3-select: confirmed corpus row for 20260803_live_run_1713 present in ARTEFACT_INVENTORY.md
+[22:58:49Z] M3-select: 4963 WSJT-X-side WAVs on disk, spanning 260803_171345 .. 260804_135730
+[22:58:49Z] M3-select: 4716 contiguous 20-cycle candidate windows (pre density-floor)
+[22:58:49Z] M3-select: 3415 windows survive the >=100 WSJT-X-total floor
+[22:58:49Z] M3-select: selected window (target 10th pct by mean_combined, rank 342/3415, actual rank pct=10.0): 260804_054145 .. 260804_054630, mean_combined=20.50/cycle, wsjtx_total=130
+[22:58:49Z] M3-select: busy-window mean_combined=39.70/cycle -> contrast=1.937
+[22:58:49Z] M3-select: CONTRAST 1.937 < 3.0 -- SS5.2 step 5 says DO NOT RUN M3. Escalating: corpus does not offer enough density leverage for this test.
+[22:58:49Z] M3-select: wrote D:\Projects\claude\OpenWSFZ\qa\cycleframer-alignment-replay\2026-08-07-reference-suppression-m0-m4\m3_window_selection.json
+[22:58:49Z] ORCH: M3 NOT RUN: density-leverage contrast below 3.0 (SS5.2 step 5). Escalating.
+[22:58:49Z] ORCH: === M4: SKIPPED -- M1 fired ROW 4, not ROW 1. M4 MUST NOT RUN. ===
+[22:58:49Z] ORCH: DONE. Report: D:\Projects\claude\OpenWSFZ\qa\cycleframer-alignment-replay\2026-08-07-reference-suppression-m0-m4\ORCHESTRATION_REPORT.md

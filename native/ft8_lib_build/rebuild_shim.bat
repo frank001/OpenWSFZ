@@ -4,10 +4,98 @@ call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build
 echo ERRORLEVEL after vcvars64: %ERRORLEVEL%
 if %ERRORLEVEL% neq 0 goto :err_env
 
+echo === r0-reproducible-native-build: clearing obj\ so every .obj below is produced by this invocation ===
+if exist "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\*.obj" del /Q "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\*.obj"
+
+echo === r0-reproducible-native-build: compiling the nine previously-prebuilt objects from native\ft8_lib_vendor ===
+
+echo === Compiling constants.c ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\constants.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\ft8\constants.c"
+echo ERRORLEVEL after cl (constants.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
+echo === Compiling crc.c ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\crc.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\ft8\crc.c"
+echo ERRORLEVEL after cl (crc.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
+echo === Compiling ldpc.c ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\ldpc.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\ft8\ldpc.c"
+echo ERRORLEVEL after cl (ldpc.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
+echo === Compiling text.c ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\text.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\ft8\text.c"
+echo ERRORLEVEL after cl (text.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
+echo === Compiling encode.c ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\encode.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\ft8\encode.c"
+echo ERRORLEVEL after cl (encode.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
+echo === Compiling message.c (r0: /FI stpcpy_msvc_compat.h -- see that file for the D-006 rationale) ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /FI "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\patched\stpcpy_msvc_compat.h" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\message.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\ft8\message.c"
+echo ERRORLEVEL after cl (message.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
+echo === Compiling monitor.c (patched, MSVC VLA compat) ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\common" ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\monitor.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\patched\common\monitor.c"
+echo ERRORLEVEL after cl (monitor.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
+echo === Compiling kiss_fft.c ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\kiss_fft.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\fft\kiss_fft.c"
+echo ERRORLEVEL after cl (kiss_fft.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
+echo === Compiling kiss_fftr.c ===
+cl ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\kiss_fftr.obj" ^
+  "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\fft\kiss_fftr.c"
+echo ERRORLEVEL after cl (kiss_fftr.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
 echo === Compiling patched decode.c ===
 cl ^
-  /I "C:\Temp\ft8_lib_headers\ft8" ^
-  /I "C:\Temp\ft8_lib_headers" ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor\ft8" ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
   /I "D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native" ^
   /std:c11 /O2 /W3 /c ^
   /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\decode.obj" ^
@@ -17,7 +105,7 @@ if %ERRORLEVEL% neq 0 goto :err_cl
 
 echo === Compiling ft8_shim.c ===
 cl ^
-  /I "C:\Temp\ft8_lib_headers" ^
+  /I "D:\Projects\claude\OpenWSFZ\native\ft8_lib_vendor" ^
   /I "D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native" ^
   /std:c11 /O2 /W3 /c ^
   /Fo"D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\ft8_shim.obj" ^

@@ -15,8 +15,8 @@ namespace OpenWSFZ.Ft8.Tests;
 /// <b>Run-order dependency (deliberate):</b> this class is intentionally NOT a member of
 /// <see cref="HashTableSaturationCollectionDefinition"/>. That collection is pinned to run
 /// strictly last by <see cref="RunHashTableSaturationCollectionLastOrderer"/> precisely
-/// because its saturation test is the <em>only</em> test in the assembly that fills the
-/// process-global 256-slot hash table to capacity and thereby causes any reject-when-full
+/// because its opt-in saturation test is the <em>only</em> test in the assembly that fills the
+/// process-global hash table to capacity and thereby causes any reject-when-full
 /// events. Every other test — including this one — therefore runs while the table is still
 /// unsaturated, so the reject counter is deterministically <c>0</c> here regardless of xUnit's
 /// otherwise-unstable cross-class ordering. (See <c>HashTableSaturationCollection.cs</c> for
@@ -37,8 +37,9 @@ public sealed class HashTableRejectCountTests
     public void GetHashTableRejectCount_BeforeAnySaturation_ReturnsZero()
     {
         // This class never runs after the pinned-last saturation test, and no other test in
-        // the assembly fills the 256-slot table, so no Type 4 announcement has ever been
-        // discarded at this point — the counter must still read its fresh-process value of 0.
+        // the assembly fills the table (4096 slots since g2/shim 20260038), so no Type 4
+        // announcement has ever been discarded at this point — the counter must still read
+        // its fresh-process value of 0.
         Ft8LibInterop.GetHashTableRejectCount().Should().Be(0,
             "with the table never at capacity, no announcement has been rejected, so the " +
             "managed-layer reject-count read must return 0 (spec: reject count is zero when " +

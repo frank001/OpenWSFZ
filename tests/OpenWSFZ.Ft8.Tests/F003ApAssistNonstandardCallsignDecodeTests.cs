@@ -31,7 +31,7 @@ namespace OpenWSFZ.Ft8.Tests;
 /// this test failed intermittently under the full <c>OpenWSFZ.Ft8.Tests</c> suite (never in
 /// isolation). Root cause, confirmed via repeated full-suite runs with TRX timeline capture:
 /// <see cref="HashedCallsignResolutionTests"/>'s
-/// <c>HashTableSaturation_RejectsNewEntriesOnceFull_ExistingEntriesSurvive</c> deliberately and
+/// <c>HashTableSizing_264DistinctCallsigns_AllResolveWithZeroRejects</c> deliberately and
 /// permanently fills the shared, never-reset native <c>g_session_hash_table</c> (256-slot
 /// capacity) — assembly-wide test order was not stable across runs, so whenever that test
 /// happened to execute before this one, this test's cycle-1 Type 4 announcement was silently

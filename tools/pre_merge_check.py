@@ -4,7 +4,7 @@ pre_merge_check.py — run every locally-runnable CI gate in one command before
 declaring a change "ready for merge."
 
 Usage:
-  python3 tools/pre_merge_check.py [--skip-aot] [--skip-selfcontained] [--skip-tests] [--skip-openspec] [--skip-wsl]
+  python3 tools/pre_merge_check.py [--skip-native-refresh] [--skip-aot] [--skip-selfcontained] [--skip-tests] [--skip-openspec] [--skip-wsl]
 
 Background (HK-006, see the QA memory note this script exists to satisfy):
 `daemon-background-mode` (PR #78) was declared "ready for merge" after only
@@ -28,7 +28,32 @@ to origin/main since that's this project's base branch for the overwhelming
 majority of PRs — override with --base-ref for the rare case it isn't
 (e.g. a stacked PR per HK-008).
 
+Gap found 2026-08-14 (r0-reproducible-native-build pre-merge review): a
+FT8_SHIM_VERSION bump landed with the Windows DLL rebuilt but the committed
+Linux `.so` and macOS `.dylib` left stale — invisible to every gate below
+except the WSL step, which failed with four opaque "Native library ABI
+mismatch" test errors rather than naming the actual, cheaply-checkable cause.
+Fixed by adding step_native_binary_freshness() below, which runs FIRST, before
+anything else: it reads the expected shim version straight from
+Ft8LibInterop.cs, checks all three committed platform binaries with the
+already-existing tools/check_native_version.py, and — this is the part beyond
+a plain check — REBUILDS any binary this machine has the toolchain for
+(Windows always, when running here; Linux via WSL Debian or natively; macOS
+only when running natively on macOS with clang) before the rest of the gates
+run, so a stale binary doesn't waste a full build+test cycle discovering what
+a five-second byte scan already knew. A binary this machine cannot rebuild
+(most commonly macOS, since this project's own development happens on
+Windows/WSL) is reported INCONCLUSIVE, same convention as the AOT/self-
+contained toolchain-missing case below — not silently skipped, not a hard
+FAIL for an environment gap. 🛑 This step WRITES to the working tree (a
+rebuilt binary replaces the stale committed one on disk) — it does not
+commit anything; review and commit the result yourself, same as any other
+`git status` change this script's build/publish steps already produce.
+
 What this runs, in order:
+  0. Native binary freshness check + auto-rebuild
+     (tools/check_native_version.py, native/ft8_lib_build/rebuild_shim.bat,
+     native/ft8_lib_build/build_linux.sh) — see "Gap found 2026-08-14" above.
   1. Gate G9a — doc/VERSION consistency        (tools/check_version_docs.py)
   1b. Gate G9b — mandatory VERSION bump on a    (tools/check_version_bump.py)
       newly-introduced User-facing: yes change   — see "Gap found 2026-07-25"
@@ -124,6 +149,10 @@ What this runs, in order:
      code regression) — see --skip-wsl to skip it outright.
 
 Flags:
+  --skip-native-refresh  Skip step 0 entirely (no INCONCLUSIVE/FAIL distinction
+                     — just not run, exactly like a stale-binary check never
+                     happened). Use when you've already refreshed the binaries
+                     yourself and don't want this step re-checking/rebuilding.
   --skip-aot        Skip step 8 entirely (no INCONCLUSIVE/FAIL distinction —
                      just not run). Use when you know the local toolchain is
                      unavailable and don't want the noise.
@@ -285,6 +314,203 @@ def _local_rid():
     if system == "Darwin":
         return "osx-arm64" if machine in ("arm64", "aarch64") else "osx-x64"
     return None
+
+
+# ---------------------------------------------------------------------------
+# Step 0: native binary freshness check + auto-rebuild
+# ---------------------------------------------------------------------------
+
+# (platform-key, committed binary path, human label)
+_NATIVE_BINARIES = (
+    ("win-x64", os.path.join("src", "OpenWSFZ.Ft8", "Native", "win-x64", "libft8.dll"), "Windows DLL"),
+    ("linux-x64", os.path.join("src", "OpenWSFZ.Ft8", "Native", "linux-x64", "libft8.so"), "Linux .so"),
+    ("osx-arm64", os.path.join("src", "OpenWSFZ.Ft8", "Native", "osx-arm64", "libft8.dylib"), "macOS .dylib"),
+)
+
+
+def _expected_shim_version():
+    """Reads ExpectedShimVersion straight from Ft8LibInterop.cs — the same
+    single source of truth ci.yml's own staleness checks parse (see its
+    "Check committed Linux/macOS .../dylib is current" steps)."""
+    path = os.path.join(REPO_ROOT, "src", "OpenWSFZ.Ft8", "Interop", "Ft8LibInterop.cs")
+    with open(path, encoding="utf-8") as fh:
+        src = fh.read()
+    match = re.search(r"ExpectedShimVersion\s*=\s*(\d+)", src)
+    if not match:
+        raise RuntimeError(f"could not find ExpectedShimVersion in {path}")
+    return int(match.group(1))
+
+
+def _binary_is_current(binary_path, expected):
+    code, output = _run([sys.executable, os.path.join("tools", "check_native_version.py"),
+                          binary_path, str(expected)])
+    return code == 0, output
+
+
+def _rebuild_win_x64():
+    """Rebuilds the Windows DLL via the authoritative native/ft8_lib_build/
+    rebuild_shim.bat (r0-reproducible-native-build) — Windows-only (MSVC via
+    vcvars64.bat)."""
+    if platform.system() != "Windows":
+        return None, f"not running on Windows (this machine is {platform.system()})"
+    bat = os.path.join(REPO_ROOT, "native", "ft8_lib_build", "rebuild_shim.bat")
+    code, output = _run(["cmd", "/c", bat])
+    return (code == 0), output
+
+
+def _rebuild_linux_x64():
+    """Rebuilds the Linux .so via native/ft8_lib_build/build_linux.sh — natively
+    if this machine already IS Linux, otherwise via `wsl -d Debian` (same
+    /mnt/<drive> auto-mount approach as step_wsl_debian(), reusing _wsl_path())."""
+    script = os.path.join(REPO_ROOT, "native", "ft8_lib_build", "build_linux.sh")
+    if platform.system() == "Linux":
+        code, output = _run(["bash", script])
+        return (code == 0), output
+
+    wsl_exe = shutil.which("wsl")
+    if wsl_exe is None:
+        return None, "wsl.exe not found on PATH — cannot reach a Linux toolchain from here"
+    wsl_script_path = _wsl_path(script)
+    if wsl_script_path is None:
+        return None, f"could not translate {script} to a WSL /mnt path"
+    code, output = _run([wsl_exe, "-d", _WSL_DISTRO, "--", "bash", wsl_script_path])
+    return (code == 0), output
+
+
+def _rebuild_osx_arm64():
+    """Rebuilds the macOS dylib — ONLY possible natively on macOS with clang
+    present. Mirrors ci.yml's "Build native macOS dylib (ARM64, Clang)" step
+    exactly (same flags, same tools/zero_dylib_uuid.py re-sign so the result is
+    deterministic), but built from the vendored tree (native/ft8_lib_vendor/,
+    r0-reproducible-native-build) rather than a live clone of frank001/ft8_lib —
+    same reasoning as build_linux.sh's own r0-followup fix: the vendored tree is
+    already proven content-identical (PROVENANCE.md) and needs no network fetch.
+    ⚠️ UNTESTED end-to-end — this project's own development happens on Windows/
+    WSL and no macOS machine was available when this was written. The command
+    sequence is transcribed from ci.yml's proven recipe, not independently
+    verified on real hardware; if it misbehaves, that is a bug report against
+    this function, not a mystery to re-derive from scratch."""
+    if platform.system() != "Darwin":
+        return None, f"not running on macOS (this machine is {platform.system()})"
+    if shutil.which("clang") is None:
+        return None, "clang not found on PATH — Xcode Command Line Tools not installed"
+
+    vendor = os.path.join(REPO_ROOT, "native", "ft8_lib_vendor")
+    patched_decode = os.path.join(REPO_ROOT, "native", "ft8_lib_build", "patched", "ft8", "decode.c")
+    patched_monitor = os.path.join(REPO_ROOT, "native", "ft8_lib_build", "patched", "common", "monitor.c")
+    shim_c = os.path.join(REPO_ROOT, "src", "OpenWSFZ.Ft8", "Native", "ft8_shim.c")
+    out_dylib = os.path.join(REPO_ROOT, "src", "OpenWSFZ.Ft8", "Native", "osx-arm64", "libft8.dylib")
+
+    with tempfile.TemporaryDirectory(prefix="owsfz_macos_rebuild_") as work:
+        clang = ["clang", "-std=c11", "-D_GNU_SOURCE", "-O2", "-Wall", "-fPIC",
+                 "-I", vendor, "-target", "arm64-apple-macos11.0"]
+        sources = [
+            os.path.join(vendor, "ft8", n) for n in
+            ("constants.c", "crc.c", "encode.c", "ldpc.c", "message.c", "text.c")
+        ] + [patched_decode, patched_monitor,
+             os.path.join(vendor, "fft", "kiss_fft.c"), os.path.join(vendor, "fft", "kiss_fftr.c")]
+        code, output = _run(clang + ["-c"] + sources, cwd=work)
+        if code != 0:
+            return False, output
+        code2, output2 = _run(clang + ["-c", shim_c], cwd=work)
+        if code2 != 0:
+            return False, output2
+        objs = [os.path.splitext(os.path.basename(s))[0] + ".o" for s in sources + [shim_c]]
+        link_code, link_output = _run(
+            ["clang", "-dynamiclib", "-target", "arm64-apple-macos11.0", "-o", out_dylib, *objs],
+            cwd=work)
+        if link_code != 0:
+            return False, link_output
+        uuid_code, uuid_output = _run(
+            [sys.executable, os.path.join(REPO_ROOT, "tools", "zero_dylib_uuid.py"), out_dylib])
+        return (uuid_code == 0), (output + output2 + link_output + uuid_output)
+
+
+_NATIVE_REBUILDERS = {
+    "win-x64": _rebuild_win_x64,
+    "linux-x64": _rebuild_linux_x64,
+    "osx-arm64": _rebuild_osx_arm64,
+}
+
+
+def step_native_binary_freshness():
+    """
+    Runs FIRST, before every other gate (see the module docstring's "Gap found
+    2026-08-14"). Checks all three committed platform binaries against
+    Ft8LibInterop.cs's ExpectedShimVersion via the existing
+    tools/check_native_version.py (a pure byte scan — works cross-platform
+    regardless of which OS this script itself is running on), and REBUILDS any
+    binary found stale that this machine has a toolchain for, so the expensive
+    steps below (full build+test, WSL, AOT/self-contained publish) never waste
+    a run discovering what a five-second check already knew.
+
+    A binary that's stale but can't be rebuilt here (wrong OS, missing
+    toolchain — most commonly macOS, since this project's own dev happens on
+    Windows/WSL) is INCONCLUSIVE, not FAIL — same convention as the AOT/
+    self-contained toolchain-missing case. A binary that's stale, gets rebuilt,
+    and is STILL stale afterward is a real FAIL — the rebuild script itself
+    didn't do what it claims to.
+
+    🛑 WRITES to the working tree when it rebuilds — does not commit. Review
+    and commit the result yourself (a `chore(native): rebuild ... to shim
+    NNNNN` commit, matching this project's established pattern) before
+    pushing.
+    """
+    result = GateResult("Native binary freshness (check + auto-rebuild)")
+    try:
+        expected = _expected_shim_version()
+    except (OSError, RuntimeError) as exc:
+        result.status = "FAIL"
+        result.detail = f"could not determine ExpectedShimVersion: {exc}"
+        return result
+
+    print(f"Expected FT8_SHIM_VERSION = {expected} (from Ft8LibInterop.cs)")
+
+    notes = []
+    any_fail = False
+    any_inconclusive = False
+    for platform_key, rel_path, label in _NATIVE_BINARIES:
+        abs_path = os.path.join(REPO_ROOT, rel_path)
+        if not os.path.exists(abs_path):
+            notes.append(f"{label}: MISSING at {rel_path} (not this gate's concern to create — "
+                         f"see BUILD.md)")
+            any_inconclusive = True
+            continue
+
+        current, _ = _binary_is_current(abs_path, expected)
+        if current:
+            notes.append(f"{label}: already current ({expected})")
+            continue
+
+        print(f"\n{label} is STALE (expected {expected}) — attempting a rebuild...")
+        rebuilder = _NATIVE_REBUILDERS[platform_key]
+        rebuilt, detail = rebuilder()
+        if rebuilt is None:
+            notes.append(f"{label}: STALE, could not rebuild here — {detail}")
+            any_inconclusive = True
+            continue
+        if not rebuilt:
+            notes.append(f"{label}: STALE, rebuild FAILED — see output above")
+            any_fail = True
+            continue
+
+        current_after, _ = _binary_is_current(abs_path, expected)
+        if current_after:
+            notes.append(f"{label}: was STALE — rebuilt, now current ({expected}). "
+                          f"REVIEW AND COMMIT {rel_path} before pushing.")
+        else:
+            notes.append(f"{label}: rebuild ran and exited 0 but the binary is STILL stale — "
+                          f"the rebuild script itself is wrong, not an environment gap")
+            any_fail = True
+
+    result.detail = "; ".join(notes)
+    if any_fail:
+        result.status = "FAIL"
+    elif any_inconclusive:
+        result.status = "INCONCLUSIVE"
+    else:
+        result.status = "PASS"
+    return result
 
 
 def step_g9a():
@@ -597,6 +823,7 @@ def step_wsl_debian(distro=_WSL_DISTRO):
 
 def main():
     args = sys.argv[1:]
+    skip_native_refresh = "--skip-native-refresh" in args
     skip_aot = "--skip-aot" in args
     skip_selfcontained = "--skip-selfcontained" in args
     skip_tests = "--skip-tests" in args
@@ -608,6 +835,18 @@ def main():
             base_ref = arg[len("--base-ref="):]
 
     results = []
+
+    # Runs FIRST, ahead of every other gate — see the module docstring's
+    # "Gap found 2026-08-14." A stale binary rebuilt here means the expensive
+    # steps below (build+test, WSL, publish) run against a current binary
+    # instead of discovering the staleness themselves, minutes later.
+    if skip_native_refresh:
+        skipped = GateResult("Native binary freshness (check + auto-rebuild)")
+        skipped.status = "SKIPPED"
+        skipped.detail = "--skip-native-refresh"
+        results.append(skipped)
+    else:
+        results.append(step_native_binary_freshness())
 
     results.append(step_g9a())
     results.append(step_g9b(base_ref))

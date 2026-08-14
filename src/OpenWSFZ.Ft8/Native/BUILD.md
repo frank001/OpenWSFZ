@@ -3,11 +3,15 @@
 ## Source
 
 - **Library**: frank001/ft8_lib fork — branch `msvc-compat` (commit `d18ed84`)
-- **Fork URL**: `https://github.com/frank001/ft8_lib.git` (submodule URL in `.gitmodules`)
+- **Fork URL**: `https://github.com/frank001/ft8_lib.git`
 - **Upstream**: `kgoba/ft8_lib`, tag `2.0` (commit `50ee0c06361388a992c80a1af9c1189652b72e51`)
 - **Fork changes**: MSVC VLA patches (`common/monitor.c`, `ft8/decode.c`) — see commit message on `msvc-compat` branch
-- **Licence**: MIT
-- **Submodule path**: `native/ft8_lib/` (repo root; superproject pointer pinned to `d18ed84`)
+- **Licence**: MIT (see `THIRD-PARTY-NOTICES.md` at the repo root)
+- **Integration**: **vendored** (plain committed files), not a git submodule — see
+  `native/ft8_lib_vendor/PROVENANCE.md` for the upstream HEAD SHA and content-identity proof.
+  `common/monitor.c` and `ft8/decode.c` carry genuine MSVC-compat modifications and stay at
+  `native/ft8_lib_build/patched/` rather than moving into the vendored tree, so that tree stays
+  byte-identical to upstream (r0-reproducible-native-build).
 
 > **Note (p15):** Always build from the `msvc-compat` branch for MSVC (Windows) builds.
 > GCC and Clang builds may use the unpatched submodule sources directly (those compilers
@@ -73,44 +77,63 @@ Waterfall memory: ~188 blocks × 2 × 2 × 448 bins × 1 byte (uint8_t) ≈ 337 
 ## Source Files Compiled into libft8.dll
 
 ```
-ft8/constants.c
-ft8/crc.c
-ft8/decode.c
-ft8/encode.c         (p15: required for ft8_encode() used in narrow tile suppression)
-ft8/ldpc.c
-ft8/message.c
-ft8/text.c
-common/monitor.c
-fft/kiss_fft.c
-fft/kiss_fftr.c
-ft8_shim.c           (our shim — orchestrates the pipeline)
+native/ft8_lib_vendor/ft8/constants.c
+native/ft8_lib_vendor/ft8/crc.c
+native/ft8_lib_build/patched/ft8/decode.c        (MSVC VLA compat patch)
+native/ft8_lib_vendor/ft8/encode.c               (p15: required for ft8_encode() used in narrow tile suppression)
+native/ft8_lib_vendor/ft8/ldpc.c
+native/ft8_lib_vendor/ft8/message.c              (r0: /FI stpcpy_msvc_compat.h — see that file)
+native/ft8_lib_vendor/ft8/text.c
+native/ft8_lib_build/patched/common/monitor.c    (MSVC VLA compat patch)
+native/ft8_lib_vendor/fft/kiss_fft.c
+native/ft8_lib_vendor/fft/kiss_fftr.c
+src/OpenWSFZ.Ft8/Native/ft8_shim.c               (our shim — orchestrates the pipeline)
 ```
 
+r0-reproducible-native-build: every one of these now compiles from tracked source on every
+`rebuild_shim.bat` invocation — no pre-built `.obj` file is linked. Nine of the eleven were
+previously linked from untracked, unreproducible pre-built objects; see
+`native/ft8_lib_vendor/PROVENANCE.md` for the vendoring provenance and
+`ft8_shim.h`'s `FT8_SHIM_VERSION 20260039` changelog entry for the one genuine finding this
+surfaced (the D-006 `stpcpy` pointer-truncation fix, previously a hand-patched opcode byte in
+`message.obj` with no source-level counterpart, restored via a build-side-only compat header).
+
 **Not included**: `common/audio.c`, `common/wave.c`
-(audio I/O and WAV I/O are not needed for the decode-only DLL).
+(audio I/O and WAV I/O are not needed for the decode-only DLL; also not vendored).
 
 ## Build Procedure (Windows x64, MSVC)
 
 Prerequisites: Visual Studio Build Tools with MSVC v143 (or later), x64 Native Tools
 Command Prompt.
 
-```batch
-cd native/ft8_lib
+**Use `native/ft8_lib_build/rebuild_shim.bat` — it is the authoritative build script and is kept
+in sync with the exports and source list above; do not hand-run the commands below except to
+understand what it does.**
 
-:: Compile ft8_lib source files
-:: Note: encode.c is now required by ft8_shim.c (p15 narrow suppression uses ft8_encode)
-cl /I. /std:c11 /O2 /W3 /c ^
-   ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c ft8/message.c ft8/text.c ^
-   common/monitor.c ^
-   fft/kiss_fft.c fft/kiss_fftr.c
+```batch
+:: Compile the nine files vendored under native/ft8_lib_vendor/ (constants, crc, ldpc, text,
+:: encode, message, kiss_fft, kiss_fftr — plus monitor, patched, below), each /I'd at the vendor
+:: root so both quote-form sibling includes and angle-bracket <ft8/...>/<common/...>/<fft/...>
+:: includes resolve. message.c additionally needs /FI stpcpy_msvc_compat.h (D-006, see above).
+cl /I native\ft8_lib_vendor /std:c11 /O2 /W3 /c ^
+   native\ft8_lib_vendor\ft8\constants.c native\ft8_lib_vendor\ft8\crc.c ^
+   native\ft8_lib_vendor\ft8\ldpc.c native\ft8_lib_vendor\ft8\text.c ^
+   native\ft8_lib_vendor\ft8\encode.c ^
+   native\ft8_lib_vendor\fft\kiss_fft.c native\ft8_lib_vendor\fft\kiss_fftr.c
+cl /I native\ft8_lib_vendor /FI native\ft8_lib_build\patched\stpcpy_msvc_compat.h ^
+   /std:c11 /O2 /W3 /c native\ft8_lib_vendor\ft8\message.c
+
+:: Compile the two MSVC-VLA-patched files (still outside the vendor tree — see PROVENANCE.md)
+cl /I native\ft8_lib_vendor\common /I native\ft8_lib_vendor /std:c11 /O2 /W3 /c ^
+   native\ft8_lib_build\patched\common\monitor.c
+cl /I native\ft8_lib_vendor\ft8 /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native ^
+   /std:c11 /O2 /W3 /c native\ft8_lib_build\patched\ft8\decode.c
 
 :: Compile our shim
-cl /I. /std:c11 /O2 /W3 /c ^
-   ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
+cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
+   src\OpenWSFZ.Ft8\Native\ft8_shim.c
 
-:: Link into DLL
-:: Note: use rebuild_shim.bat at native/ft8_lib_build/ for local Windows builds.
-:: The exports below must stay in sync with that script.
+:: Link into DLL — exports must stay in sync with rebuild_shim.bat
 link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_lib_version_check ^
    /EXPORT:ft8_decode_all ^

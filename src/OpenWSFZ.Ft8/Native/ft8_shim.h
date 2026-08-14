@@ -293,8 +293,68 @@ extern "C" {
  *              fires after a full probe confirms the callsign is genuinely new.  No change
  *              to the 256-slot capacity or eviction policy.  No ABI or struct layout change;
  *              no new exported entry points.
+ *
+ *   20260038 (g2-hash-table-sizing-and-candidate-passband): two independent native
+ *              constant changes, shipped together.  (a) HASH_TABLE_SIZE 256 → 4096:
+ *              the table keys on a 10-bit bucket (1024 values) placed at
+ *              (h10 * 23) % HASH_TABLE_SIZE, injective up to N = 1024, so N = 256
+ *              collided 4:1 by construction before the table was full.  Buys message
+ *              TEXT only (fewer <...>); CANNOT change the decode count.  (b) the
+ *              ft8_decode_all monitor_config_t candidate passband widened from
+ *              [200, 3000) Hz to [140, 3030) Hz, covering 99.90% of the pooled
+ *              three-corpus reference decode-frequency distribution (was ~99.09%);
+ *              a signal outside the passband is missed by construction, 100% of the
+ *              time.  Width +3.2%.  No ABI or struct layout change (FT8Result stays
+ *              48 bytes); no new exported entry points.  ONE bump covers both items:
+ *              20260034-20260037 are unavailable and 20260039-20260041 are reserved
+ *              for the R0/R1/R2 programme.
+ *
+ * r0-reproducible-native-build (FT8_SHIM_VERSION 20260039):
+ *
+ *   Provenance/reproducibility marker only -- no ABI, struct layout, or decode-
+ *   behaviour change.  All eleven linked translation units now compile from a
+ *   vendored, version-controlled source tree (native/ft8_lib_vendor/) instead
+ *   of linking nine pre-built, untracked .obj files of unknown provenance.
+ *   AC-1 (mechanical diff, 250 contiguous cycles, artefacts/20260808_live_run_
+ *   0016-8080/wsjt-x/wav, 260808_004000..260808_014215): zero differences
+ *   against the previously-shipped 20260038 binary (SHA256 c559a049d103c1f3...).
+ *   AC-2 (two independent clean builds): zero differences against each other.
+ *
+ *   One genuine finding surfaced and fixed during this rebuild: ft8/message.c
+ *   (vendored, upstream-unmodified) calls stpcpy() with no prototype in scope
+ *   under MSVC, which silently falls back to "implicit extern returning int"
+ *   and truncates the returned char* to 32 bits -- MECHANICALLY CONFIRMED to
+ *   reproduce D-006's exact root cause (the fatal 32-bit pointer truncation
+ *   fixed at FT8_SHIM_VERSION 20260015 by hand-patching a single opcode byte
+ *   directly in the pre-built message.obj, with no source-level fix ever
+ *   written, because message.c was never recompiled until this change). Fixed
+ *   by force-including a correct prototype
+ *   (native/ft8_lib_build/patched/stpcpy_msvc_compat.h) only at compile time,
+ *   via rebuild_shim.bat's /FI flag on message.c -- zero bytes of the vendored
+ *   tree are touched. Verified at the disassembly level: both call-sites now
+ *   follow `call stpcpy` with a full 64-bit `mov`, not the truncating 32-bit
+ *   `movsxd` MSVC emits without the prototype.
+ *
+ *   r0-review-followup (folded into this same 20260039, per the Captain's
+ *   ruling -- this build had not yet been pushed or merged, so this is
+ *   amending R0's own not-yet-shipped work rather than a separately versioned
+ *   change): native/ft8_lib_build/patched/common/monitor.c had carried
+ *   `#define LOG_LEVEL LOG_INFO` since its first port commit, dormant because
+ *   monitor.c was never actually compiled until this change made it so --
+ *   its four LOG_INFO calls (monitor_init's Block/Subblock/N_FFT/N_iFFT size
+ *   prints) started firing via fprintf(stderr, ...) on every single
+ *   ft8_decode_all call, interleaving into the daemon's structured stderr log
+ *   channel (StderrLoggerProvider.cs, FR-019) on every ~15s decode cycle,
+ *   forever. Raised to LOG_WARN (monitor.c has zero LOG_WARN/ERROR/FATAL call
+ *   sites today, so this silences exactly the noise while leaving LOG() live
+ *   for any future LOG_WARN-or-above diagnostic). ft8/debug.h itself is
+ *   untouched -- genuinely vendored, upstream-unmodified, correct as-is.
+ *   Re-verified AC-1/AC-2 on the same 250-cycle range against both the
+ *   pre-fix 20260039 build and the original 20260038 baseline: zero decode-
+ *   output differences either way (log-output-only change). DLL SHA256:
+ *   897f81dda95b83b24156a905b3aeec4a1cb98c64e5243564e6d0eb6b60643cb3.
  */
-#define FT8_SHIM_VERSION 20260033
+#define FT8_SHIM_VERSION 20260039
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -379,8 +439,8 @@ float ft8_get_last_noise_floor_db(void);
 /*
  * ft8_get_hash_table_reject_count — return the process-lifetime count of Type 4
  * callsign announcements discarded because the session-scoped callsign hash table
- * (g_session_hash_table) was already at its 256-slot capacity
- * (f-005-hash-table-saturation-diagnostic).
+ * (g_session_hash_table) was already at its HASH_TABLE_SIZE capacity (4096 since shim
+ * 20260038; 256 before) (f-005-hash-table-saturation-diagnostic).
  *
  * Read-only and side-effect-free: reading it never resets the counter or alters the
  * hash table.  Unlike the per-thread noise-floor / pass-count getters this reflects a

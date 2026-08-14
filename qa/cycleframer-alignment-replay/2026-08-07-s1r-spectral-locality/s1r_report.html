@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S.1r -- spectral locality re-evidenced at power: results</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="s1r-spectral-locality-re-evidenced-at-power-results">S.1r -- spectral locality re-evidenced at power: results</h1>
+<p>Generated 2026-08-07 17:24 UTC. Script: <code>s1r_spectral_locality.py</code>, same directory.</p>
+<p>Per Section 7 of <code>2026-08-07-1616-architect-to-qa-captain-rulings-and-d001-reconciliation.md</code>. S.1 is CLOSED; this re-evidences its limb only, at ~44x the sample the 08-04 conversational closure rested on. Reference: fresh WSJT-X on the identically replayed audio (never <code>jt9 -d 3</code>, never the archived corpus ALL.TXT).</p>
+<h2 id="per-run-summary">Per-run summary</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">run</th>
+<th style="text-align: right;">WSJT-X (pass 1)</th>
+<th style="text-align: right;">OpenWSFZ (pass 1)</th>
+<th style="text-align: right;">usable records</th>
+<th style="text-align: right;">excluded (single-decode cycle)</th>
+<th style="text-align: right;">excluded (band-edge)</th>
+<th style="text-align: right;">missed</th>
+<th style="text-align: right;">miss rate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">752</td>
+<td style="text-align: right;">461</td>
+<td style="text-align: right;">742</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">295</td>
+<td style="text-align: right;">39.8%</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">754</td>
+<td style="text-align: right;">457</td>
+<td style="text-align: right;">744</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">296</td>
+<td style="text-align: right;">39.8%</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">758</td>
+<td style="text-align: right;">461</td>
+<td style="text-align: right;">748</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">296</td>
+<td style="text-align: right;">39.6%</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">759</td>
+<td style="text-align: right;">465</td>
+<td style="text-align: right;">749</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">293</td>
+<td style="text-align: right;">39.1%</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">756</td>
+<td style="text-align: right;">463</td>
+<td style="text-align: right;">746</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">296</td>
+<td style="text-align: right;">39.7%</td>
+</tr>
+</tbody>
+</table>
+<p>Pooled usable records: <strong>3729</strong>. Pooled excluded (single-decode cycles, <code>sep</code> undefined): <strong>0</strong>. Pooled excluded (band-edge, outside [200,3000) Hz -- OpenWSFZ's hardcoded search band, per 2026-08-06-2323 Section 4, a certain defect unrelated to spectral locality): <strong>50</strong>. ⚠️ Discovered live while running this analysis (see the Methodology note below) -- not one of the confounds Section 7.6 anticipated in advance.</p>
+<h2 id="separation-sep-distribution-mandatory-lattice-check-section-73">Separation (<code>sep</code>) distribution -- mandatory lattice check (Section 7.3)</h2>
+<p>n=3729, mean=38.8 Hz, p10=5.0, p50=32.0, p90=81.0, min=0.0, max=275.0 Hz.</p>
+<h2 id="boundary-set-primary_50_150">Boundary set: <code>primary_50_150</code></h2>
+<ul>
+<li>Records dropped for density outside 30-49/cycle: 0</li>
+<li>Strata (sep x dens x snr) included (pooled n&gt;=20): 24; excluded: 8</li>
+<li>Excluded strata: clear (&gt;150) | 40-49 | strong (&gt;=-3), clear (&gt;150) | 35-39 | weak (-15..-10), clear (&gt;150) | 30-34 | mid (-10..-3), clear (&gt;150) | 35-39 | very weak (&lt;-15), clear (&gt;150) | 30-34 | strong (&gt;=-3), clear (&gt;150) | 35-39 | mid (-10..-3), clear (&gt;150) | 30-34 | weak (-15..-10), clear (&gt;150) | 35-39 | strong (&gt;=-3)</li>
+<li>Populated Separation levels: local (&lt;50), mid (50-150)</li>
+<li>Populated Density levels: 30-34, 35-39, 40-49</li>
+<li>Lattice OK (all 3 Separation and all 3 Density levels populated at n&gt;=20 somewhere): <strong>False</strong></li>
+<li>Coverage (surviving strata per level, out of 12 possible Density x SNR / Separation x SNR combinations): local (&lt;50)=12/12, mid (50-150)=12/12, clear (&gt;150)=0/12, 30-34=8/12, 35-39=8/12, 40-49=8/12</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>stratum (sep | dens | snr)</th>
+<th style="text-align: right;">pooled n</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clear (&gt;150)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>clear (&gt;150)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>clear (&gt;150)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>clear (&gt;150)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>clear (&gt;150)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>clear (&gt;150)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>clear (&gt;150)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>clear (&gt;150)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;50)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (50-150)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+</tbody>
+</table>
+<h2 id="boundary-set-sensitivity_25_100">Boundary set: <code>sensitivity_25_100</code></h2>
+<ul>
+<li>Records dropped for density outside 30-49/cycle: 0</li>
+<li>Strata (sep x dens x snr) included (pooled n&gt;=20): 29; excluded: 6</li>
+<li>Excluded strata: clear (&gt;100) | 40-49 | weak (-15..-10), clear (&gt;100) | 40-49 | very weak (&lt;-15), clear (&gt;100) | 30-34 | strong (&gt;=-3), clear (&gt;100) | 30-34 | mid (-10..-3), clear (&gt;100) | 30-34 | weak (-15..-10), clear (&gt;100) | 30-34 | very weak (&lt;-15)</li>
+<li>Populated Separation levels: clear (&gt;100), local (&lt;25), mid (25-100)</li>
+<li>Populated Density levels: 30-34, 35-39, 40-49</li>
+<li>Lattice OK (all 3 Separation and all 3 Density levels populated at n&gt;=20 somewhere): <strong>True</strong></li>
+<li>Coverage (surviving strata per level, out of 12 possible Density x SNR / Separation x SNR combinations): local (&lt;25)=12/12, mid (25-100)=12/12, clear (&gt;100)=5/12, 30-34=8/12, 35-39=12/12, 40-49=9/12</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>stratum (sep | dens | snr)</th>
+<th style="text-align: right;">pooled n</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>clear (&gt;100)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;25)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (25-100)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+</tbody>
+</table>
+<h2 id="boundary-set-sensitivity_75_200">Boundary set: <code>sensitivity_75_200</code></h2>
+<ul>
+<li>Records dropped for density outside 30-49/cycle: 0</li>
+<li>Strata (sep x dens x snr) included (pooled n&gt;=20): 19; excluded: 8</li>
+<li>Excluded strata: mid (75-200) | 40-49 | weak (-15..-10), mid (75-200) | 40-49 | very weak (&lt;-15), mid (75-200) | 30-34 | mid (-10..-3), clear (&gt;200) | 30-34 | mid (-10..-3), mid (75-200) | 30-34 | very weak (&lt;-15), clear (&gt;200) | 30-34 | strong (&gt;=-3), clear (&gt;200) | 35-39 | mid (-10..-3), clear (&gt;200) | 35-39 | strong (&gt;=-3)</li>
+<li>Populated Separation levels: local (&lt;75), mid (75-200)</li>
+<li>Populated Density levels: 30-34, 35-39, 40-49</li>
+<li>Lattice OK (all 3 Separation and all 3 Density levels populated at n&gt;=20 somewhere): <strong>False</strong></li>
+<li>Coverage (surviving strata per level, out of 12 possible Density x SNR / Separation x SNR combinations): local (&lt;75)=12/12, mid (75-200)=7/12, clear (&gt;200)=0/12, 30-34=6/12, 35-39=8/12, 40-49=5/12</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>stratum (sep | dens | snr)</th>
+<th style="text-align: right;">pooled n</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clear (&gt;200)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>clear (&gt;200)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>clear (&gt;200)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>clear (&gt;200)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>local (&lt;75)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">30-34</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">35-39</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+<tr>
+<td>mid (75-200)</td>
+<td style="text-align: right;">40-49</td>
+</tr>
+</tbody>
+</table>
+<h2 id="methodology-note-additive-model-not-saturated-interaction-model">Methodology note: additive model, not saturated interaction model</h2>
+<p>The pre-registered spec (Section 7.3) says to reuse the existing 3-way ANOVA machinery, one factor added. That machinery (<code>three_way_anova_with_replication</code>, <code>build_full_anova.py</code>) assumes a fully-crossed BALANCED design -- every (Separation x Density x SNR) cell populated with exactly 5 (Run) replicates. The real data does not support that: at the primary 50/150 Hz boundary the <code>clear (&gt;150 Hz)</code> Separation level survives the pooled-n&gt;=20 gate in 0 of its 12 possible (Density x SNR) combinations once the band-edge exclusion is applied (see the coverage line above and the band-edge note), which would make a saturated 3-way-interaction model rank-deficient even before the lattice check itself already routes this boundary to ROW 4. This analysis instead fits a strictly ADDITIVE model (main effects only, no interactions among Separation/Density/SNR) via ordinary least squares with sum-to-zero (deviation) contrast coding, Type II sums of squares (each term tested against a model containing the other two main effects), and the full model's own residual as the error term -- algebraically the unbalanced-data generalisation of the same idea, and it still delivers exactly what Section 7.4 asks for: least-squares marginal means from the fitted model, each term's effect controlled for the other two. The trade-off, stated plainly: any genuine Separation x Density (or other) interaction is NOT modelled and instead flows into the residual, which makes every F-test in this report MORE conservative (biased toward NULL), never less -- the safer failure direction for a pre-registered LIVE gate that already requires p&lt;0.01.</p>
+<h2 id="pre-registered-gate-section-75-primary-50150-hz-boundary-only">Pre-registered gate (Section 7.5), primary 50/150 Hz boundary ONLY</h2>
+<p>Sensitivity boundaries (25/100, 75/200) are reported above (pooled-n tables) but per Section 7.6 #4 never evaluate the gate.</p>
+<p><strong>Gate did not fire: lattice check failed (unpopulated level). Verdict: ROW 4 (no verdict / RC1 not narrowed).</strong></p>
+<h2 id="sensitivity-boundaries-reported-never-gated-section-76-4">Sensitivity boundaries -- reported, NEVER gated (Section 7.6 #4)</h2>
+<p>Per spec: 'reporting the others guards against a boundary artefact; letting them fire the gate would be fishing.' Shown for context only.</p>
+<table>
+<thead>
+<tr>
+<th>boundary</th>
+<th>lattice OK</th>
+<th style="text-align: right;">E_sep (pp)</th>
+<th style="text-align: right;">p_sep</th>
+<th>local limb</th>
+<th style="text-align: right;">E_dens (pp)</th>
+<th style="text-align: right;">p_dens</th>
+<th>global limb</th>
+<th>would-be row</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sensitivity_25_100</code></td>
+<td>True</td>
+<td style="text-align: right;">+49.02</td>
+<td style="text-align: right;">0.000000</td>
+<td>LIVE</td>
+<td style="text-align: right;">+11.23</td>
+<td style="text-align: right;">0.000002</td>
+<td>LIVE</td>
+<td>ROW 1</td>
+</tr>
+<tr>
+<td><code>sensitivity_75_200</code></td>
+<td>False</td>
+<td style="text-align: right;">--</td>
+<td style="text-align: right;">--</td>
+<td>--</td>
+<td style="text-align: right;">--</td>
+<td style="text-align: right;">--</td>
+<td>--</td>
+<td>ROW 4 (lattice check failed (unpopulated level))</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-this-does-and-does-not-establish">What this does and does not establish</h2>
+<p>Per spec Section 7.7: one window, density 30-49/cycle (silent on the ~7/cycle regime); decode-side, not pipeline-side; observational, not interventional; does not re-open S.1 and does not reverse the Captain's closure.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

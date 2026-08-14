@@ -1,0 +1,289 @@
+{
+  "per_run_summary": [
+    {
+      "run": 1,
+      "wx_total": 752,
+      "our_total": 461,
+      "n_usable_records": 742,
+      "n_excluded_single_decode": 0,
+      "n_excluded_band_edge": 10,
+      "n_missed": 295,
+      "miss_rate": 0.3975741239892183
+    },
+    {
+      "run": 2,
+      "wx_total": 754,
+      "our_total": 457,
+      "n_usable_records": 744,
+      "n_excluded_single_decode": 0,
+      "n_excluded_band_edge": 10,
+      "n_missed": 296,
+      "miss_rate": 0.3978494623655914
+    },
+    {
+      "run": 3,
+      "wx_total": 758,
+      "our_total": 461,
+      "n_usable_records": 748,
+      "n_excluded_single_decode": 0,
+      "n_excluded_band_edge": 10,
+      "n_missed": 296,
+      "miss_rate": 0.39572192513368987
+    },
+    {
+      "run": 4,
+      "wx_total": 759,
+      "our_total": 465,
+      "n_usable_records": 749,
+      "n_excluded_single_decode": 0,
+      "n_excluded_band_edge": 10,
+      "n_missed": 293,
+      "miss_rate": 0.39118825100133514
+    },
+    {
+      "run": 5,
+      "wx_total": 756,
+      "our_total": 463,
+      "n_usable_records": 746,
+      "n_excluded_single_decode": 0,
+      "n_excluded_band_edge": 10,
+      "n_missed": 296,
+      "miss_rate": 0.3967828418230563
+    }
+  ],
+  "sep_summary": {
+    "n": 3729,
+    "mean": 38.81255028157683,
+    "p10": 5.0,
+    "p50": 32.0,
+    "p90": 81.0,
+    "min": 0.0,
+    "max": 275.0
+  },
+  "results_by_boundary": {
+    "primary_50_150": {
+      "pooled_n": {
+        "local (<50) | 35-39 | strong (>=-3)": 438,
+        "mid (50-150) | 35-39 | strong (>=-3)": 221,
+        "mid (50-150) | 35-39 | mid (-10..-3)": 174,
+        "local (<50) | 35-39 | mid (-10..-3)": 468,
+        "mid (50-150) | 35-39 | weak (-15..-10)": 147,
+        "mid (50-150) | 35-39 | very weak (<-15)": 143,
+        "local (<50) | 35-39 | weak (-15..-10)": 328,
+        "local (<50) | 35-39 | very weak (<-15)": 243,
+        "mid (50-150) | 40-49 | strong (>=-3)": 140,
+        "local (<50) | 40-49 | strong (>=-3)": 248,
+        "mid (50-150) | 40-49 | weak (-15..-10)": 58,
+        "local (<50) | 40-49 | mid (-10..-3)": 217,
+        "local (<50) | 40-49 | weak (-15..-10)": 201,
+        "mid (50-150) | 40-49 | mid (-10..-3)": 48,
+        "local (<50) | 40-49 | very weak (<-15)": 92,
+        "clear (>150) | 40-49 | strong (>=-3)": 9,
+        "mid (50-150) | 40-49 | very weak (<-15)": 50,
+        "clear (>150) | 35-39 | weak (-15..-10)": 11,
+        "mid (50-150) | 30-34 | strong (>=-3)": 58,
+        "local (<50) | 30-34 | strong (>=-3)": 91,
+        "mid (50-150) | 30-34 | mid (-10..-3)": 35,
+        "local (<50) | 30-34 | mid (-10..-3)": 66,
+        "local (<50) | 30-34 | weak (-15..-10)": 68,
+        "mid (50-150) | 30-34 | weak (-15..-10)": 48,
+        "mid (50-150) | 30-34 | very weak (<-15)": 41,
+        "local (<50) | 30-34 | very weak (<-15)": 66,
+        "clear (>150) | 30-34 | mid (-10..-3)": 6,
+        "clear (>150) | 35-39 | very weak (<-15)": 2,
+        "clear (>150) | 30-34 | strong (>=-3)": 1,
+        "clear (>150) | 35-39 | mid (-10..-3)": 3,
+        "clear (>150) | 30-34 | weak (-15..-10)": 3,
+        "clear (>150) | 35-39 | strong (>=-3)": 5
+      },
+      "excluded_strata": [
+        "clear (>150) | 40-49 | strong (>=-3)",
+        "clear (>150) | 35-39 | weak (-15..-10)",
+        "clear (>150) | 30-34 | mid (-10..-3)",
+        "clear (>150) | 35-39 | very weak (<-15)",
+        "clear (>150) | 30-34 | strong (>=-3)",
+        "clear (>150) | 35-39 | mid (-10..-3)",
+        "clear (>150) | 30-34 | weak (-15..-10)",
+        "clear (>150) | 35-39 | strong (>=-3)"
+      ],
+      "n_excluded_strata": 8,
+      "n_included_strata": 24,
+      "populated_sep_levels": [
+        "local (<50)",
+        "mid (50-150)"
+      ],
+      "populated_dens_levels": [
+        "30-34",
+        "35-39",
+        "40-49"
+      ],
+      "lattice_ok": false,
+      "coverage_strata_per_level": {
+        "local (<50)": 12,
+        "mid (50-150)": 12,
+        "clear (>150)": 0,
+        "30-34": 8,
+        "35-39": 8,
+        "40-49": 8
+      },
+      "n_dens_out_of_range": 0
+    },
+    "sensitivity_25_100": {
+      "pooled_n": {
+        "mid (25-100) | 35-39 | strong (>=-3)": 369,
+        "clear (>100) | 35-39 | strong (>=-3)": 31,
+        "local (<25) | 35-39 | strong (>=-3)": 264,
+        "clear (>100) | 35-39 | mid (-10..-3)": 36,
+        "mid (25-100) | 35-39 | mid (-10..-3)": 314,
+        "local (<25) | 35-39 | mid (-10..-3)": 295,
+        "mid (25-100) | 35-39 | weak (-15..-10)": 239,
+        "mid (25-100) | 35-39 | very weak (<-15)": 200,
+        "local (<25) | 35-39 | weak (-15..-10)": 213,
+        "local (<25) | 35-39 | very weak (<-15)": 153,
+        "mid (25-100) | 40-49 | strong (>=-3)": 176,
+        "local (<25) | 40-49 | strong (>=-3)": 189,
+        "mid (25-100) | 40-49 | weak (-15..-10)": 144,
+        "clear (>100) | 40-49 | weak (-15..-10)": 5,
+        "local (<25) | 40-49 | mid (-10..-3)": 164,
+        "local (<25) | 40-49 | weak (-15..-10)": 110,
+        "mid (25-100) | 40-49 | mid (-10..-3)": 101,
+        "mid (25-100) | 40-49 | very weak (<-15)": 74,
+        "local (<25) | 40-49 | very weak (<-15)": 58,
+        "clear (>100) | 40-49 | strong (>=-3)": 32,
+        "clear (>100) | 40-49 | very weak (<-15)": 10,
+        "clear (>100) | 35-39 | weak (-15..-10)": 34,
+        "mid (25-100) | 30-34 | strong (>=-3)": 96,
+        "clear (>100) | 30-34 | strong (>=-3)": 14,
+        "mid (25-100) | 30-34 | mid (-10..-3)": 56,
+        "local (<25) | 30-34 | mid (-10..-3)": 42,
+        "clear (>100) | 30-34 | mid (-10..-3)": 9,
+        "mid (25-100) | 30-34 | weak (-15..-10)": 58,
+        "local (<25) | 30-34 | strong (>=-3)": 40,
+        "mid (25-100) | 30-34 | very weak (<-15)": 51,
+        "local (<25) | 30-34 | very weak (<-15)": 50,
+        "local (<25) | 30-34 | weak (-15..-10)": 44,
+        "clear (>100) | 35-39 | very weak (<-15)": 35,
+        "clear (>100) | 30-34 | weak (-15..-10)": 17,
+        "clear (>100) | 30-34 | very weak (<-15)": 6
+      },
+      "excluded_strata": [
+        "clear (>100) | 40-49 | weak (-15..-10)",
+        "clear (>100) | 40-49 | very weak (<-15)",
+        "clear (>100) | 30-34 | strong (>=-3)",
+        "clear (>100) | 30-34 | mid (-10..-3)",
+        "clear (>100) | 30-34 | weak (-15..-10)",
+        "clear (>100) | 30-34 | very weak (<-15)"
+      ],
+      "n_excluded_strata": 6,
+      "n_included_strata": 29,
+      "populated_sep_levels": [
+        "clear (>100)",
+        "local (<25)",
+        "mid (25-100)"
+      ],
+      "populated_dens_levels": [
+        "30-34",
+        "35-39",
+        "40-49"
+      ],
+      "lattice_ok": true,
+      "coverage_strata_per_level": {
+        "local (<25)": 12,
+        "mid (25-100)": 12,
+        "clear (>100)": 5,
+        "30-34": 8,
+        "35-39": 12,
+        "40-49": 9
+      },
+      "n_data_rows": 145,
+      "sep_labels": [
+        "local (<25)",
+        "mid (25-100)",
+        "clear (>100)"
+      ],
+      "dens_labels": [
+        "30-34",
+        "35-39",
+        "40-49"
+      ],
+      "snr_labels": [
+        "very weak (<-15)",
+        "weak (-15..-10)",
+        "mid (-10..-3)",
+        "strong (>=-3)"
+      ],
+      "n_dens_out_of_range": 0
+    },
+    "sensitivity_75_200": {
+      "pooled_n": {
+        "local (<75) | 35-39 | strong (>=-3)": 588,
+        "mid (75-200) | 35-39 | strong (>=-3)": 71,
+        "mid (75-200) | 35-39 | mid (-10..-3)": 71,
+        "local (<75) | 35-39 | mid (-10..-3)": 571,
+        "local (<75) | 35-39 | weak (-15..-10)": 419,
+        "local (<75) | 35-39 | very weak (<-15)": 327,
+        "mid (75-200) | 40-49 | strong (>=-3)": 42,
+        "local (<75) | 40-49 | strong (>=-3)": 355,
+        "local (<75) | 40-49 | weak (-15..-10)": 253,
+        "mid (75-200) | 40-49 | weak (-15..-10)": 6,
+        "local (<75) | 40-49 | mid (-10..-3)": 265,
+        "local (<75) | 40-49 | very weak (<-15)": 127,
+        "mid (75-200) | 40-49 | very weak (<-15)": 15,
+        "mid (75-200) | 35-39 | weak (-15..-10)": 67,
+        "mid (75-200) | 35-39 | very weak (<-15)": 61,
+        "local (<75) | 30-34 | strong (>=-3)": 119,
+        "mid (75-200) | 30-34 | strong (>=-3)": 30,
+        "local (<75) | 30-34 | mid (-10..-3)": 90,
+        "mid (75-200) | 30-34 | mid (-10..-3)": 11,
+        "local (<75) | 30-34 | weak (-15..-10)": 96,
+        "local (<75) | 30-34 | very weak (<-15)": 96,
+        "mid (75-200) | 30-34 | weak (-15..-10)": 23,
+        "clear (>200) | 30-34 | mid (-10..-3)": 6,
+        "mid (75-200) | 30-34 | very weak (<-15)": 11,
+        "clear (>200) | 30-34 | strong (>=-3)": 1,
+        "clear (>200) | 35-39 | mid (-10..-3)": 3,
+        "clear (>200) | 35-39 | strong (>=-3)": 5
+      },
+      "excluded_strata": [
+        "mid (75-200) | 40-49 | weak (-15..-10)",
+        "mid (75-200) | 40-49 | very weak (<-15)",
+        "mid (75-200) | 30-34 | mid (-10..-3)",
+        "clear (>200) | 30-34 | mid (-10..-3)",
+        "mid (75-200) | 30-34 | very weak (<-15)",
+        "clear (>200) | 30-34 | strong (>=-3)",
+        "clear (>200) | 35-39 | mid (-10..-3)",
+        "clear (>200) | 35-39 | strong (>=-3)"
+      ],
+      "n_excluded_strata": 8,
+      "n_included_strata": 19,
+      "populated_sep_levels": [
+        "local (<75)",
+        "mid (75-200)"
+      ],
+      "populated_dens_levels": [
+        "30-34",
+        "35-39",
+        "40-49"
+      ],
+      "lattice_ok": false,
+      "coverage_strata_per_level": {
+        "local (<75)": 12,
+        "mid (75-200)": 7,
+        "clear (>200)": 0,
+        "30-34": 6,
+        "35-39": 8,
+        "40-49": 5
+      },
+      "n_dens_out_of_range": 0
+    }
+  },
+  "primary_anova": null,
+  "verdict": {
+    "row": "ROW 4",
+    "reason": "lattice check failed (unpopulated level)",
+    "e_sep": null,
+    "p_sep": null,
+    "e_dens": null,
+    "p_dens": null
+  }
+}

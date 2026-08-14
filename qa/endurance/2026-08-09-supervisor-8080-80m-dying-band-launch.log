@@ -1,0 +1,10 @@
+2026-08-09T01:55:19Z SUPERVISOR ARMED (8080, 3-way decode comparison corpus vs WSJT-X FT991A/FT991A-Copy): watching D:/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260809T015438Z.log. max_retries=5 restart_wait_secs=300
+2026-08-09T01:55:19Z SUPERVISOR(8080-80m): watch phase on D:/Projects/claude/OpenWSFZ-8080-capture/logs/openswfz-20260809T015438Z.log
+DIGEST(8080-80m) (02:55:20Z): retries_so_far=0
+DIGEST(8080-80m) (03:55:20Z): retries_so_far=0
+DIGEST(8080-80m) (04:55:20Z): retries_so_far=0
+DIGEST(8080-80m) (05:55:21Z): retries_so_far=0
+DIGEST(8080-80m) (06:55:20Z): retries_so_far=0
+DIGEST(8080-80m) (07:55:20Z): retries_so_far=0
+DIGEST(8080-80m) (08:55:20Z): retries_so_far=0
+DIGEST(8080-80m) (09:55:20Z): retries_so_far=0

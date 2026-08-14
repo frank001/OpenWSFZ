@@ -1,0 +1,67 @@
+[2026-08-09T11:11:27Z] === P1a runner starting (PID 2062482), waiting for P2/P3 to finish ===
+[2026-08-09T11:26:28Z] still waiting for P2/P3 (15 min)
+[2026-08-09T11:41:29Z] still waiting for P2/P3 (30 min)
+[2026-08-09T11:56:31Z] still waiting for P2/P3 (45 min)
+[2026-08-09T12:11:31Z] still waiting for P2/P3 (60 min)
+[2026-08-09T12:14:31Z] proceeding after 63 min wait
+[2026-08-09T12:14:31Z] P1a: attempt 1/5 starting (legs: perfile, batched@150)
+in-window files: 2529
+REF 69222  MISS 30782
+  leg perfile starting ...
+    perfile done in 15.4 min (d1 56910/56910, d3 69646/69646)
+  leg batched starting ...
+    batched done in 21.8 min (d1 63624/63617, d3 75517/75504)
+{
+  "A_batched": 12.149316691225334,
+  "A_perfile": 15.552858917685128,
+  "MISS": 30782,
+  "NOT_BLIND": "A = 15.553 was seen before this run; prediction-scoring on A is suspended",
+  "REF": 69222,
+  "SE_dA": 0.09345218948301709,
+  "amendment": "A1.3 -- legs are perfile vs batched(150); -p 15 proven inert",
+  "arm": "P1a",
+  "dA": -3.4035422264597948,
+  "final_row": "V-ROW 2",
+  "n_cycles": 2529,
+  "per_invocation": {
+    "batched": {
+      "A": 12.149316691225334,
+      "B": 19.197698728327335,
+      "C": 85.39337204934847,
+      "D1_minus_D3": 326,
+      "D3_minus_D1": 12213,
+      "n1_dedup": 63617,
+      "n1_raw": 63624,
+      "n3_dedup": 75504,
+      "n3_raw": 75517,
+      "nest_frac": 0.005124416429570712,
+      "numerator": 8410,
+      "ratio_d3_live": 1.0883930115896903
+    },
+    "perfile": {
+      "A": 15.552858917685128,
+      "B": 22.583025830258304,
+      "C": 77.89142180231718,
+      "D1_minus_D3": 116,
+      "D3_minus_D1": 12852,
+      "n1_dedup": 56910,
+      "n1_raw": 56910,
+      "n3_dedup": 69646,
+      "n3_raw": 69646,
+      "nest_frac": 0.0020383060973466877,
+      "numerator": 10766,
+      "ratio_d3_live": 1.0039497203482672
+    }
+  },
+  "row0": null,
+  "row0_reason": null,
+  "spec": "2026-08-09-0115-architect-to-qa-spec-p1a-decode-depth-invocation-robustness.md",
+  "stage1_validity": "V-ROW 2",
+  "stage2_substantive": null,
+  "wa_live_replayed": 69372,
+  "wall_clock_min": 37.45844231446584,
+  "workers": 8
+}
+FINAL ROW: V-ROW 2
+[2026-08-09T12:51:59Z] P1a: COMPLETED on attempt 1
+[2026-08-09T12:52:00Z] === P1a runner exiting (rc=0), nothing left behind ===

@@ -1,0 +1,80 @@
+{
+  "A_batched": 12.149316691225334,
+  "A_perfile": 15.552858917685128,
+  "MISS": 30782,
+  "NOT_BLIND": "A = 15.553 was seen before this run; prediction-scoring on A is suspended",
+  "REF": 69222,
+  "SE_dA": 0.09345218948301709,
+  "amendment": "A1.3 -- legs are perfile vs batched(150); -p 15 proven inert",
+  "arm": "P1a",
+  "bootstrap": {
+    "A_batched": {
+      "ci95": [
+        11.84175610440463,
+        12.437509516015577
+      ],
+      "mean": 12.145601931247544,
+      "se": 0.15225183880055032
+    },
+    "A_perfile": {
+      "ci95": [
+        15.210254296574934,
+        15.872633846956832
+      ],
+      "mean": 15.548985574781094,
+      "se": 0.17492150472376627
+    },
+    "dA": {
+      "ci95": [
+        -3.5847578081796763,
+        -3.2220073775201854
+      ],
+      "mean": -3.403383643533549,
+      "se": 0.09345218948301709
+    },
+    "n_distinct_freq": 30513,
+    "n_draws": 1000,
+    "seed": 20260809
+  },
+  "dA": -3.4035422264597948,
+  "final_row": "V-ROW 2",
+  "n_cycles": 2529,
+  "per_invocation": {
+    "batched": {
+      "A": 12.149316691225334,
+      "B": 19.197698728327335,
+      "C": 85.39337204934847,
+      "D1_minus_D3": 326,
+      "D3_minus_D1": 12213,
+      "n1_dedup": 63617,
+      "n1_raw": 63624,
+      "n3_dedup": 75504,
+      "n3_raw": 75517,
+      "nest_frac": 0.005124416429570712,
+      "numerator": 8410,
+      "ratio_d3_live": 1.0883930115896903
+    },
+    "perfile": {
+      "A": 15.552858917685128,
+      "B": 22.583025830258304,
+      "C": 77.89142180231718,
+      "D1_minus_D3": 116,
+      "D3_minus_D1": 12852,
+      "n1_dedup": 56910,
+      "n1_raw": 56910,
+      "n3_dedup": 69646,
+      "n3_raw": 69646,
+      "nest_frac": 0.0020383060973466877,
+      "numerator": 10766,
+      "ratio_d3_live": 1.0039497203482672
+    }
+  },
+  "row0": null,
+  "row0_reason": null,
+  "spec": "2026-08-09-0115-architect-to-qa-spec-p1a-decode-depth-invocation-robustness.md",
+  "stage1_validity": "V-ROW 2",
+  "stage2_substantive": null,
+  "wa_live_replayed": 69372,
+  "wall_clock_min": 37.45844231446584,
+  "workers": 8
+}

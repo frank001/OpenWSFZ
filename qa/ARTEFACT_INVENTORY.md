@@ -11,7 +11,7 @@ Every column except **notes** is measured from disk on each run and
 cannot go stale silently. **notes** is interpretive and hand-written --
 treat it as a claim to verify, not a fact.
 
-Scanned: 2026-08-05 16:08 UTC | 28 runs | 106,156 total WAVs
+Scanned: 2026-08-10 17:09 UTC | 35 runs | 132,296 total WAVs
 
 | run | UTC span | legs (distinct cycles) | WAVs | notes *(interpretive)* |
 |---|---|---|---|---|
@@ -33,9 +33,16 @@ Scanned: 2026-08-05 16:08 UTC | 28 runs | 106,156 total WAVs
 | `20260728_live_run_2354-8081` | 260728_235400 -> 260729_145115 | `owsfz` 2,494 | - |  |
 | `20260729_live_run_1831-8080` | 260729_183130 -> 260730_183945 | `owsfz` 3,926<br>`wsjt-x` 5,757 | `owsfz` 5,795<br>`wsjt-x` 5,783 | Pre-drift-fix. Superseded by the 07-31 run for D-001 work. |
 | `20260729_live_run_1831-8081` | 260730_092815 -> 260730_154030 | `owsfz/10m` 1,490<br>`owsfz/20m` 1,364<br>`owsfz/80m` 1,932 | `owsfz` 5,773 |  |
-| `20260731_live_run_2004-8080` | 260731_200430 -> 260802_155200 | `owsfz` 10,475<br>`wsjt-x` 10,470<br>**HARDLINKED** `wsjt-x` = `20260731_live_run_2004-8081`/`wsjt-x` | `owsfz` 10,489<br>`wsjt-x` 10,469 | **D-001 Angle 1 corpus.** One WSJT-X instance (hardlinked into the -8081 folder too -- one capture, not two). Feeds legs A/B/C and null N3, which needs exactly this: jt9 over WSJT-X's own WAVs vs its own live count. N3 runnable offline, no capture needed. T4 unauthorised as of 2026-08-02. |
-| `20260731_live_run_2004-8081` | 260731_200430 -> 260802_155200 | `owsfz` 10,467<br>`wsjt-x` 10,470<br>**HARDLINKED** `wsjt-x` = `20260731_live_run_2004-8080`/`wsjt-x` | `owsfz` 10,512<br>`wsjt-x` 10,469 | Same WSJT-X capture as -8080 (hardlinked ALL.TXT + wav/). The owsfz leg IS distinct. Do not treat the two wsjt-x legs as independent captures. |
+| `20260731_live_run_2004-8080` | 260731_200430 -> 260802_155200 | `owsfz` 10,475<br>`wsjt-x` 10,470<br>**HARDLINKED** `wsjt-x` = `20260731_live_run_2004-8081`/`wsjt-x` *(provenance not recorded -- gathered before the G1 fix)* | `owsfz` 10,489<br>`wsjt-x` 10,469<br>**HARDLINKED** `wsjt-x/wav` 10469/10469 shared with `20260731_live_run_2004-8081`/`wsjt-x` (10469) *(provenance not recorded -- gathered before the G1 fix)* | **D-001 Angle 1 corpus.** One WSJT-X instance (hardlinked into the -8081 folder too -- one capture, not two). Feeds legs A/B/C and null N3, which needs exactly this: jt9 over WSJT-X's own WAVs vs its own live count. N3 runnable offline, no capture needed. T4 unauthorised as of 2026-08-02. |
+| `20260731_live_run_2004-8081` | 260731_200430 -> 260802_155200 | `owsfz` 10,467<br>`wsjt-x` 10,470<br>**HARDLINKED** `wsjt-x` = `20260731_live_run_2004-8080`/`wsjt-x` *(provenance not recorded -- gathered before the G1 fix)* | `owsfz` 10,512<br>`wsjt-x` 10,469<br>**HARDLINKED** `wsjt-x/wav` 10469/10469 shared with `20260731_live_run_2004-8080`/`wsjt-x` (10469) *(provenance not recorded -- gathered before the G1 fix)* | Same WSJT-X capture as -8080 (hardlinked ALL.TXT + wav/). The owsfz leg IS distinct. Do not treat the two wsjt-x legs as independent captures. |
 | `20260803_live_run_1713` | 260803_171330 -> 260804_135645 | `owsfz` 4,614<br>`wsjt-x` 4,531 | `owsfz` 4,971<br>`wsjt-x` 4,963 | **D-001 replication corpus -- DO NOT PROPOSE A CAPTURE RUN FOR D-001.** Answers project-state-2026-07-31 S5.4, which named the WSJT-X same-family control 'the single most decision-relevant unknown for the menu' and assumed the capture had not been run. It had -- two days later, into this folder. 20m (14.074), ONE contiguous 18.96h decisive epoch from 260803_185914, drift screen ROW 5 PASS (+0.0 ppm), post-be5960a. Both decoders on ONE verified audio path (median |r|=0.987 over 8 WAV pairs, lags <=34ms) -- unlike the split -8080/-8081 runs, so re-verify per corpus rather than inheriting either way. Density contrast 6.54x. Consumed by Tasks 1/3/5 and by Arm R.D (specced 2026-08-05, not run, not authorised). |
+| `20260806_cross_decode_replay_2009` | 260806_200930 -> 260806_223330 | `wsjtx-all-time` 212 | - |  |
+| `20260808_live_run_0016-8080` | 260808_000845 -> 260808_113745 | `owsfz` 2,745<br>`wsjt-x` 2,745 | `owsfz` 2,747<br>`wsjt-x` 2,748 |  |
+| `20260808_live_run_0016-8081` | 260808_003245 -> 260808_113745 | `owsfz` 2,652<br>`wsjt-x` 2,648 | `owsfz` 2,654<br>`wsjt-x` 2,650 |  |
+| `20260808_live_run_1154-8080-17m` | 260808_115445 -> 260808_193830 | `owsfz` 1,856<br>`wsjt-x` 1,856 | `owsfz` 1,856<br>`wsjt-x` 1,858 |  |
+| `20260808_live_run_1154-8081-17m` | 260808_115445 -> 260808_193830 | `owsfz` 1,855<br>`wsjt-x` 1,856 | `owsfz` 1,856<br>`wsjt-x` 1,859 |  |
+| `20260809_live_run_0155-8080-80m` | 260809_015445 -> 260809_101100 | `owsfz` 1,210<br>`wsjt-x` 1,197 | `owsfz` 1,988<br>`wsjt-x` 1,968 |  |
+| `20260809_live_run_0155-8081-80m` | 260809_015445 -> 260809_100415 | `owsfz` 1,207<br>`wsjt-x` 1,196 | `owsfz` 1,988<br>`wsjt-x` 1,968 |  |
 | `d001_b1b_second_corpus` | 260724_160730 -> 260724_163845 | `our_offline/k10_c0.10_n60/k10_c0.10_n60` 126 | - | Second corpus for the B.3 costed menu (2026-07-27). Menu decision still open. |
 | `d001_c2_phase2c` | 260725_180615 -> 260725_182645 | `ber/k10_cap140/k10_c0.10_n60` 68<br>`ber/k4_cap2000/k10_c0.10_n60` 68<br>`selfcheck/new_weight0/k10_c0.10_n60` 68<br>`selfcheck/pristine/k10_c0.10_n60` 0<br>`selfcheck/revert_check/k10_c0.10_n60` 68<br>`sweep/w0.00/k10_c0.10_n60` 68<br>`sweep/w0.25/k10_c0.10_n60` 68<br>`sweep/w0.50/k10_c0.10_n60` 68<br>`sweep/w0.75/k10_c0.10_n60` 68<br>`sweep/w1.00/k10_c0.10_n60` 68 | - |  |
 | `d001_r4_sensitivity_gap` | - | - | `buffers` 51 |  |
@@ -44,10 +51,48 @@ Scanned: 2026-08-05 16:08 UTC | 28 runs | 106,156 total WAVs
 | `p10-decoder-ground-truth_items` | 260528_235730 -> 260529_000800 | `(root)` 43 | `save` 42 |  |
 | `p12-ft8lib-port_UAT-01_items` | 260530_154500 -> 260530_165315 | `(root)` 274 | `save` 280 |  |
 
-## How to read the `legs` column
+## How to read the `legs` and `WAVs` columns
 
 `owsfz` is our daemon's `ALL.TXT`; `wsjt-x` is the comparison decoder's.
-**HARDLINKED** means two leg paths resolve to the same inode -- one
-capture gathered into two folders, not two independent captures. That
-is fine for anything needing a single instrument and fatal for anything
-assuming two.
+**HARDLINKED** means two paths resolve to the same inode -- one capture
+gathered into two folders, not two independent captures. That is fine for
+anything needing a single instrument and fatal for anything assuming two.
+
+**Since G1 (2026-08-10) the WAVs column carries its OWN, separate
+HARDLINKED check** -- a run's `ALL.TXT` can be repaired (independent, no
+longer shared) while its `wav/` files are still hardlinked to another leg,
+exactly what happened on the 2026-08-09 80m leg (1 968 WAVs, invisible to
+the ALL.TXT-only check for a full day). Always read both columns; a clean
+`legs` column does not imply a clean `WAVs` column.
+
+Every **HARDLINKED** annotation (either column) also carries a provenance
+tag, read from the run's own `contents.md` (written by
+`tools/gather_live_run_artefacts.py` since G1):
+
+- *(intentional -- operator asserted shared install)* -- the operator
+  passed `--wsjtx-shared-install`, on the record, because only one live
+  WSJT-X instance actually existed this session. Fine.
+- *(unverified duplicate -- the G1 guard was not asked to allow this)* --
+  `contents.md` has a provenance section (so this run post-dates the G1
+  fix) but no shared-install assertion. Needs a human look.
+- *(provenance not recorded -- gathered before the G1 fix)* -- no
+  provenance section exists at all. Cannot mechanically tell an
+  intentional share from an accidental duplicate; use the instance-identity
+  method in the G1 spec's §5.1 if it matters for a citation.
+
+## G1 §5.1/§5.2 retro-audit -- two-instance `wsjt-x` pairs
+
+Mechanical, regenerated every run (not a one-time prose note): every pair of
+run folders differing only by an `-8080`/`-8081` swap where BOTH sides
+gathered a leg literally named `wsjt-x`. This is the only shape the G1 defect
+can occur in -- a side that never gathers a `wsjt-x` leg has nothing for the
+other side to have silently duplicated.
+
+| pair | ALL.TXT hardlink | wav/ hardlink |
+|---|---|---|
+| `20260731_live_run_2004-8080` <-> `20260731_live_run_2004-8081` | **FLAGGED above** | **FLAGGED above** |
+| `20260808_live_run_0016-8080` <-> `20260808_live_run_0016-8081` | clean | clean |
+| `20260808_live_run_1154-8080-17m` <-> `20260808_live_run_1154-8081-17m` | clean | clean |
+| `20260809_live_run_0155-8080-80m` <-> `20260809_live_run_0155-8081-80m` | clean | clean |
+
+Runs with only ONE side gathering a `wsjt-x` leg (checked by hand, 2026-08-10: the `20260728_live_run_2354` and `20260729_live_run_1831` -8080/-8081 pairs) are excluded above by construction -- they are not at risk of this defect and do not need the deeper instance-identity check.

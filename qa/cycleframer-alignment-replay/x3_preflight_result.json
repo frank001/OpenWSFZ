@@ -1,0 +1,56 @@
+{
+  "base_leg_20m_reused": true,
+  "dll": {
+    "path": "D:\\Projects\\claude\\OpenWSFZ\\src\\OpenWSFZ.Ft8\\Native\\win-x64\\libft8.dll",
+    "sha256": "f2f30c890b253eb6b69aa1a89c26d2991ee70aa2a202c68361130344bb7d4015",
+    "shim_version": 20260033
+  },
+  "final_row": "PREFLIGHT ONLY -- stopping before shifted legs",
+  "n_regime_undefined_20m": 45925,
+  "ref_by_regime_20m": {
+    "FLOOR": {
+      "n": 17,
+      "n_clusters": 15
+    },
+    "MID": {
+      "n": 2046,
+      "n_clusters": 601
+    },
+    "OVERLAP": {
+      "n": 21234,
+      "n_clusters": 2231
+    }
+  },
+  "row0c_20m": {
+    "expected": 69222,
+    "pass": true,
+    "ref": 69222
+  },
+  "row0d_20m": {
+    "mid_pass": true,
+    "overlap_pass": true
+  },
+  "row0e": {
+    "bar": 0.75,
+    "method": "analytical_rescale_of_p3_SE_S_all",
+    "n_mid_clusters": 601,
+    "n_overlap_clusters": 2231,
+    "n_pooled_clusters": 30513,
+    "pass": true,
+    "se_I_scoped": 0.6423459155793043,
+    "se_mid_scoped": 0.5701276811191727,
+    "se_overlap_scoped": 0.29590995671502807,
+    "se_pooled_p3": 0.08001417082726753
+  },
+  "row0e_secondary_empirical_proxy": {
+    "av_count": 0,
+    "note": "measures base-leg recovery-LEVEL variance between regimes, not S_all's own shift-GAIN variance -- disclosed context, does not gate",
+    "proxy_ci95": [
+      -6.002508949619941,
+      4.908303978882132
+    ],
+    "proxy_mean": -0.6259806118092323,
+    "proxy_se": 2.8247417125896956,
+    "wall_clock_min": 0.004794410864512126
+  }
+}

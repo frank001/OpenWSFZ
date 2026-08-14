@@ -1,7 +1,19 @@
 ﻿#include "monitor.h"
 #include <common/common.h>
 
-#define LOG_LEVEL LOG_INFO
+/* r0-review-followup (2026-08-14): was LOG_LEVEL LOG_INFO since this file's first port commit.
+ * It never fired in production because monitor.c was never actually compiled (the shipped
+ * monitor.obj was a stale pre-built object) -- r0-reproducible-native-build made it compile for
+ * real, so its four LOG_INFO calls (monitor_init's Block/Subblock/N_FFT/N_iFFT size prints)
+ * started firing via fprintf(stderr, ...) on every single ft8_decode_all call, interleaving into
+ * the daemon's structured stderr log channel (StderrLoggerProvider.cs, FR-019) forever, on a
+ * 24/7 daemon decoding roughly every 15 seconds. Raised to LOG_WARN rather than undefined
+ * entirely: this file has zero LOG_WARN/LOG_ERROR/LOG_FATAL call sites today (grep-confirmed),
+ * so this silences exactly today's noise while leaving LOG() live for any future LOG_WARN-or-
+ * above diagnostic, rather than discarding the mechanism outright. ft8/debug.h itself
+ * (genuinely vendored, upstream-unmodified) is untouched -- the bug was this file's own
+ * #define, not the LOG macro machinery. */
+#define LOG_LEVEL LOG_WARN
 #include <ft8/debug.h>
 
 #include <stdlib.h>

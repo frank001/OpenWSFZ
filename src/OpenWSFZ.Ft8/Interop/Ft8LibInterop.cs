@@ -220,8 +220,40 @@ internal static class Ft8LibInterop
     ///   this managed layer, ABI, or struct layout (48 bytes) — the bump exists purely so the
     ///   startup ABI check catches a stale (pre-fix) native binary whose reject count cannot be
     ///   trusted once the hash table saturates.
+    /// 20260038 (g2-hash-table-sizing-and-candidate-passband): two native constant changes
+    ///   shipped under one version bump. (a) the native callsign hash table's
+    ///   <c>HASH_TABLE_SIZE</c> goes 256 to 4096. The table keys on a 10-bit bucket (1024
+    ///   distinct values) placed on first probe at <c>(h10 * 23) % HASH_TABLE_SIZE</c>, which
+    ///   is injective up to N = 1024, so the previous 256 collided 4:1 by construction before
+    ///   the table was ever full. This buys message TEXT only — fewer <c>&lt;...&gt;</c>
+    ///   placeholders where a resolvable callsign exists — and cannot change the decode count,
+    ///   because a hashed callsign's resolution failure never suppresses a decode.
+    ///   (b) the decode candidate passband widens from [200, 3000) Hz to [140, 3030) Hz,
+    ///   covering 99.90% of the pooled three-corpus reference decode-frequency distribution;
+    ///   a signal outside the passband is missed by construction. Neither item changes this
+    ///   managed layer, the ABI, or struct layout (48 bytes) — the bump exists so the startup
+    ///   ABI check catches a stale (pre-G2) native binary. 20260034-20260037 are unavailable
+    ///   and 20260039-20260041 are reserved for the R0/R1/R2 programme, hence a single bump.
+    /// 20260039 (r0-reproducible-native-build): provenance/reproducibility marker only — no
+    ///   ABI, struct layout (48 bytes), or decode-behaviour change. All eleven linked
+    ///   translation units now compile from a vendored, version-controlled source tree
+    ///   (<c>native/ft8_lib_vendor/</c>) instead of linking nine pre-built, untracked
+    ///   <c>.obj</c> files of unknown provenance. Verified byte-identical decode output
+    ///   against the previously-shipped 20260038 binary over 250 contiguous cycles (AC-1),
+    ///   and byte-identical decode output between two independent clean builds (AC-2). The
+    ///   bump exists so the startup ABI check catches a native binary built by the old,
+    ///   unreproducible object-linking process. See <c>ft8_shim.h</c>'s matching changelog
+    ///   entry for the one genuine finding this rebuild surfaced and fixed (a build-side-only
+    ///   compat header restoring the D-006 stpcpy pointer-truncation fix at the source level).
+    ///   r0-review-followup, folded into this same 20260039 per the Captain's ruling (this
+    ///   build was not yet pushed or merged): silenced <c>monitor.c</c>'s dormant
+    ///   <c>LOG_LEVEL LOG_INFO</c>, which R0 made fire for the first time — four lines per
+    ///   decode call into the daemon's structured stderr log channel, forever, on a 24/7
+    ///   daemon. Re-verified AC-1/AC-2 (zero decode-output differences); DLL SHA256
+    ///   <c>897f81dda95b83b24156a905b3aeec4a1cb98c64e5243564e6d0eb6b60643cb3</c>. See
+    ///   <c>ft8_shim.h</c>'s matching entry for full detail.
     /// </summary>
-    private const int ExpectedShimVersion = 20260033;
+    private const int ExpectedShimVersion = 20260039;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -395,8 +427,9 @@ internal static class Ft8LibInterop
 
     /// <summary>
     /// Return the process-lifetime count of Type 4 callsign announcements discarded because
-    /// the session-scoped hash table was already at its 256-slot capacity
-    /// (f-005-hash-table-saturation-diagnostic, shim 20260032).
+    /// the session-scoped hash table was already at its 4096-slot capacity
+    /// (f-005-hash-table-saturation-diagnostic, shim 20260032; capacity raised from 256
+    /// to 4096 at shim 20260038, g2-hash-table-sizing-and-candidate-passband).
     /// <para>
     /// Unlike the per-thread getters above, this reflects a <b>process-global</b> counter and
     /// may be read from any thread — including the daemon shutdown path — regardless of which
@@ -627,12 +660,13 @@ internal static class Ft8LibInterop
 
     /// <summary>
     /// Return the process-lifetime count of Type 4 callsign announcements discarded because
-    /// the native session-scoped callsign hash table was already at its 256-slot capacity
-    /// (f-005-hash-table-saturation-diagnostic, shim 20260032).
+    /// the native session-scoped callsign hash table was already at its 4096-slot capacity
+    /// (f-005-hash-table-saturation-diagnostic, shim 20260032; capacity raised from 256 to
+    /// 4096 at shim 20260038, g2-hash-table-sizing-and-candidate-passband).
     /// <para>
     /// This is a process-global counter (not thread-local): it may be read from any thread,
     /// including the daemon's graceful-shutdown path, regardless of which thread last called
-    /// <see cref="DecodeAll"/>.  A non-zero value means the 256-slot table filled during the
+    /// <see cref="DecodeAll"/>.  A non-zero value means the 4096-slot table filled during the
     /// session and one or more nonstandard-callsign announcements could not be stored — the
     /// exact saturation condition F-001's design flagged as a risk.  Reading the value has no
     /// side effects: it never resets the counter nor alters hash resolution behaviour.
