@@ -379,8 +379,28 @@ extern "C" {
  *   remain byte-for-byte unchanged -- this bump exists purely so the startup
  *   ABI check catches a native binary built without the new export. No
  *   struct layout change (FT8Result stays 48 bytes).
+ *
+ * r1b-sync-refiner-instrument-correction (FT8_SHIM_VERSION 20260041):
+ *
+ *   D1: ft8_refine_candidate() gains two new out-parameters,
+ *   out_coarse_dt_samp and out_fine_dt_samp, exposing the Stage A+B coarse-
+ *   time selection (best_dt_samp, @200 Hz, range [-12, 12]) and the Stage C
+ *   fine-time selection (best_fine_samp, @2000 Hz, range [-20, 20]) that the
+ *   search already computed internally but did not, prior to this change,
+ *   make observable -- only their sum left the function via out_delta_time_s.
+ *   Pure instrumentation of the existing search/correlation logic in
+ *   native/ft8_lib_vendor/refine/sync_refiner.c -- no algorithm change. The
+ *   three pre-existing out-parameters (out_delta_freq_hz, out_delta_time_s,
+ *   out_sync_score) continue to be populated identically to the 20260040
+ *   build. Diagnostic-only, no production call site -- identical boundary to
+ *   r1-sync-refiner-instrument-validation. Motivated by the Captain's ruling
+ *   on R1 (qa/rr-study/2026-08-14-2028-architect-to-qa-r1-ruling-and-r1b-
+ *   instrument-scope.md): AC-3's time-dimension FAIL could not be localised
+ *   to a search stage because the decomposition was unobservable; this
+ *   export makes it testable (see evaluate_acs.py's reflection_symmetry_test,
+ *   run separately on the combined, coarse-only, and fine-only values).
  */
-#define FT8_SHIM_VERSION 20260040
+#define FT8_SHIM_VERSION 20260041
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -616,6 +636,19 @@ void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int 
  *                             refined (delta_f, delta_t); larger = stronger
  *                             sync confidence. Not calibrated against any
  *                             existing score; diagnostic use only.
+ *   out_coarse_dt_samp     -- (r1b, shim 20260041) Stage A+B's own coarse-
+ *                             time selection, sample index at the ~200 Hz
+ *                             working rate, range [-12, 12]. Diagnostic only.
+ *   out_fine_dt_samp       -- (r1b, shim 20260041) Stage C's own fine-time
+ *                             selection, sample index at the ~2000 Hz working
+ *                             rate, range [-20, 20]. Diagnostic only.
+ *
+ *                             out_coarse_dt_samp / 200.0 + out_fine_dt_samp /
+ *                             2000.0 SHALL equal out_delta_time_s to within
+ *                             float32 rounding tolerance (the two new
+ *                             parameters are the decomposition of the
+ *                             existing out_delta_time_s sum, not a
+ *                             replacement for it).
  *
  * Returns: 0 on success.
  *          -1 if pcm_len != 180 000, or any pointer parameter is NULL.
@@ -626,7 +659,9 @@ int ft8_refine_candidate(
     int   coarse_freq_hz, float coarse_time_offset_s,
     float* out_delta_freq_hz,
     float* out_delta_time_s,
-    float* out_sync_score);
+    float* out_sync_score,
+    int*   out_coarse_dt_samp,
+    int*   out_fine_dt_samp);
 
 #ifdef __cplusplus
 }

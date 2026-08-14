@@ -27,21 +27,29 @@ AC2_MEAN_FREQ_HZ_MAX = 0.10
 AC2_MEAN_TIME_S_MAX  = 0.002
 AC1_AC2_MIN_SNR_DB   = -10.0
 
-AC3_SIGNIFICANCE = 0.01           # pre-registered chi-squared alpha
+AC3_SIGNIFICANCE = 0.01           # pre-registered significance level (both dimensions)
 AC3_FREQ_RANGE_HZ = (-2.5, 2.5)   # joint coarse search frequency range (sync_refiner.c)
-AC3_TIME_RANGE_S  = (-0.07, 0.07) # stage-A + stage-C combined time search range
 AC3_FREQ_STEP_HZ  = 0.5           # matches REFINE_FREQ_STEP_HZ -- freq output is DISCRETE
-AC3_TIME_NBINS    = 14            # time output is also discrete (0.5 ms grid) but much finer;
-                                   # binned into 14 x 10 ms bins for a valid chi-squared test
-                                   # (>=5 expected count per bin at n=1200 trials)
 
-# sync_refiner.c's two time-search grids (must match REFINE_COARSE_TIME_HALF_SAMPLES etc.):
-AC3_COARSE_STEP_S = 1.0 / 200.0    # 5 ms, d in [-12, 12]
-AC3_COARSE_HALF_N = 12
-AC3_FINE_STEP_S   = 1.0 / 2000.0   # 0.5 ms, d in [-20, 20]
-AC3_FINE_HALF_N   = 20
+# D2 (r1b-sync-refiner-instrument-correction): reflection-symmetry sub-tests replace the
+# R1 time-dimension chi-squared-against-convolution-null check (retired per the Captain's
+# ruling -- that null's independence assumption between Stage A+B and Stage C is known
+# false). The old AC3_TIME_RANGE_S / AC3_TIME_NBINS / AC3_COARSE_STEP_S / AC3_COARSE_HALF_N /
+# AC3_FINE_STEP_S / AC3_FINE_HALF_N constants that fed that logic are DELETED, not merely
+# unused -- design.md D2's reflection-symmetry test needs no grid model at all, only that
+# each search grid is symmetric about zero (true by inspection of sync_refiner.c).
+# Bonferroni-corrected so the family-wise false-positive rate across the three sub-tests
+# (combined, coarse-only, fine-only) stays at the pre-registered AC3_SIGNIFICANCE = 0.01.
+AC3_TIME_SUBTEST_ALPHA = AC3_SIGNIFICANCE / 3.0
 
 SNR_STRATA_ASCENDING = (-20.0, -15.0, -10.0, -5.0, 0.0, 5.0)
+
+# D4 (r1b-sync-refiner-instrument-correction): pooled SNR trend test, time dimension only
+# (successor to AC-4's per-stratum any-adjacent-pair-increases-fails rule, retired per the
+# Captain's ruling -- that rule had a ~99.9% chance of FAILing a flawless refiner at
+# n=400/stratum, HK-021(k), void by construction).
+AC4_SIGNIFICANCE = 0.01                    # matches AC-3's convention
+AC4_MIN_STRATUM_N = 200                    # standing power floor (spec's pre-existing bar)
 
 AC6_ESCALATION_HOURS = 8.0
 AC6_CANDIDATES_PER_CYCLE_RANGE = (100, 340)  # 340 = K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2 (worst case)
@@ -94,16 +102,35 @@ def evaluate_ac1_ac2(signal_results: list[dict]) -> dict:
     }
 
 
+def reflection_symmetry_test(x: np.ndarray, alpha: float) -> dict:
+    """D2 (r1b-sync-refiner-instrument-correction): reflection-symmetry test.
+
+    x: the per-trial values for ONE dimension (combined dt, coarse-only, or fine-only).
+
+    Compares the observed sample against its own negation via a two-sample
+    Kolmogorov-Smirnov test. Needs no grid model and no independence assumption between
+    search stages -- only that the search grid itself is symmetric about zero, which is
+    true by inspection of sync_refiner.c for both stages (design.md D2). ROW 0: a
+    degenerate (zero-variance) sub-population is reported as an instrument failure, never
+    silently as a PASS.
+    """
+    if np.std(x) == 0:
+        return {"pass": None, "instrument_failure": "degenerate: zero variance, cannot test"}
+    stat, p = stats.ks_2samp(x, -x)
+    return {"pass": bool(p >= alpha), "ks_statistic": float(stat), "p_value": float(p)}
+
+
 def evaluate_ac3(noise_results: list[dict]) -> dict:
-    """AC-3 (noise-only null): chi-squared goodness-of-fit against a DISCRETE
-    uniform null, not a Kolmogorov-Smirnov test against a continuous uniform.
+    """AC-3 (noise-only null): frequency dimension UNCHANGED from
+    r1-sync-refiner-instrument-validation (chi-squared goodness-of-fit against a DISCRETE
+    uniform null); time dimension REPLACED by D2's three reflection-symmetry sub-tests
+    (r1b-sync-refiner-instrument-correction, per the Captain's ruling on R1's AC-3 FAIL).
 
     HK-021(k) correction, recorded here (a test-construction fix, not a refiner
     fix -- discovered while diagnosing an initial KS-test-based AC-3 FAIL):
     ft8_refine_candidate's frequency output is drawn from an EXPLICIT DISCRETE
     grid (11 values, +/-2.5 Hz in 0.5 Hz steps -- design.md's own coarse search
-    grid, sync_refiner.c's joint 2-D search) and the time output is likewise
-    discrete (0.5 ms fine-search grid). A Kolmogorov-Smirnov test against a
+    grid, sync_refiner.c's joint 2-D search). A Kolmogorov-Smirnov test against a
     CONTINUOUS uniform null is the wrong instrument for a discrete, bounded
     output: at n=1200 trials it has enough power to reject ANY discretised
     distribution purely from the discreteness itself (the empirical step-CDF
@@ -114,73 +141,84 @@ def evaluate_ac3(noise_results: list[dict]) -> dict:
     exactly the class of defect HK-025 authorises correcting. Chi-squared
     goodness-of-fit against the correct discrete/binned uniform null is the
     mechanically appropriate test for this output's actual support.
+
+    r1's ORIGINAL time-dimension test (chi-squared against the convolution of the two
+    search grids' PMFs) rejected a null whose independence assumption (Stage A+B and
+    Stage C search independently) is known false, concentrated in exactly the two
+    single-path extreme bins where that false assumption does the most damage (the
+    Captain's ruling). D2's reflection-symmetry test makes NO independence assumption at
+    all -- it only needs each search grid's own symmetry about zero, verified directly
+    against sync_refiner.c's constants (design.md D2), and is run three times: on the
+    combined `Δt`, on the Stage A+B coarse selection alone (now separately identifiable
+    via D1's `coarse_dt_samp`), and on the Stage C fine selection alone
+    (`fine_dt_samp`) -- so a FAIL, if any, names which stage(s) it implicates.
     """
     freq = np.array([r["measured_delta_freq_hz"] for r in noise_results])
-    dt   = np.array([r["measured_delta_time_s"] for r in noise_results])
+    dt        = np.array([r["measured_delta_time_s"] for r in noise_results])
+    coarse_dt = np.array([r["coarse_dt_samp"] for r in noise_results], dtype=float)
+    fine_dt   = np.array([r["fine_dt_samp"] for r in noise_results], dtype=float)
     n = len(noise_results)
 
-    # ── Frequency: exact discrete categories (11 grid points) ───────────────
+    # ── Frequency: exact discrete categories (11 grid points) -- UNCHANGED from R1 ──
     freq_categories = np.round(np.arange(
         AC3_FREQ_RANGE_HZ[0], AC3_FREQ_RANGE_HZ[1] + 1e-6, AC3_FREQ_STEP_HZ), 6)
     freq_counts = np.array([np.sum(np.isclose(freq, c, atol=1e-3)) for c in freq_categories])
     n_unclassified_freq = n - int(freq_counts.sum())
     freq_expected = n / len(freq_categories)
     chi2_freq, p_freq = stats.chisquare(freq_counts, f_exp=[freq_expected] * len(freq_categories))
-
-    # ── Time: binned into AC3_TIME_NBINS equal-width bins, against the CORRECT
-    #    (non-flat) null -- see the HK-021(k) note below. ─────────────────────
-    # Range padded by 1 ms beyond the nominal search range to absorb float32
-    # boundary rounding (e.g. 0.070000000298 > 0.07 exactly) without silently
-    # dropping trials from the histogram.
-    time_range_padded = (AC3_TIME_RANGE_S[0] - 0.001, AC3_TIME_RANGE_S[1] + 0.001)
-    time_counts, bin_edges = np.histogram(dt, bins=AC3_TIME_NBINS, range=time_range_padded)
-
-    # HK-021(k) correction #2: dt_total = dt_coarse + dt_fine is the SUM of two
-    # independent (under a "no real signal" null) discrete-uniform search
-    # outputs -- a 25-point grid (+/-12 samples @ 200 Hz) and a 41-point grid
-    # (+/-20 samples @ 2000 Hz). The sum of two uniform variables is NOT itself
-    # uniform (basic convolution result: it is trapezoidal, tapering at the
-    # combined extremes, since reaching +/-0.07 s requires BOTH components to
-    # simultaneously sit at their own extreme). A flat/uniform null over
-    # [-0.07, 0.07] is therefore the WRONG null for this output even for a
-    # refiner with zero noise sensitivity, and rejects it purely from that
-    # structural mismatch (exactly analogous to the freq-dimension KS-vs-
-    # discrete mismatch above). The correct null is computed here directly by
-    # convolving the two search grids' PMFs (mechanical, per HK-021: computed,
-    # not asserted in prose) and binning it identically to the observed data.
-    coarse_vals = np.arange(-AC3_COARSE_HALF_N, AC3_COARSE_HALF_N + 1) * AC3_COARSE_STEP_S
-    fine_vals   = np.arange(-AC3_FINE_HALF_N, AC3_FINE_HALF_N + 1) * AC3_FINE_STEP_S
-    null_samples = (coarse_vals[:, None] + fine_vals[None, :]).ravel()  # all 25*41 sums, each equally likely
-    null_counts, _ = np.histogram(null_samples, bins=AC3_TIME_NBINS, range=time_range_padded)
-    time_expected = n * null_counts / null_counts.sum()
-    # chi-squared requires every expected count > 0; the convolution null is
-    # smooth enough in practice that this holds for AC3_TIME_NBINS=14, but
-    # guard explicitly rather than let scipy raise an opaque error.
-    if np.any(time_expected <= 0):
-        raise RuntimeError("AC-3 time null has a zero-expectation bin -- reduce AC3_TIME_NBINS")
-    chi2_time, p_time = stats.chisquare(time_counts, f_exp=time_expected)
-
     freq_pass = bool(p_freq >= AC3_SIGNIFICANCE)
-    time_pass = bool(p_time >= AC3_SIGNIFICANCE)
+
+    # ── Time: D2's three reflection-symmetry sub-tests, Bonferroni-corrected ────────
+    time_combined = reflection_symmetry_test(dt, AC3_TIME_SUBTEST_ALPHA)
+    time_coarse   = reflection_symmetry_test(coarse_dt, AC3_TIME_SUBTEST_ALPHA)
+    time_fine     = reflection_symmetry_test(fine_dt, AC3_TIME_SUBTEST_ALPHA)
+
+    time_subtests = {"combined": time_combined, "coarse_stage": time_coarse, "fine_stage": time_fine}
+    # ROW 0: any instrument_failure (degenerate sub-population) means the overall time
+    # sub-check is NOT reported PASS, regardless of the other two sub-tests' verdicts.
+    time_failed_stages = [name for name, r in time_subtests.items() if r["pass"] is not True]
+    time_pass = len(time_failed_stages) == 0
+
     ac3_pass = freq_pass and time_pass
 
     return {
         "n_trials": n,
         "pass": ac3_pass,
-        "test": "chi-squared goodness-of-fit (discrete/binned uniform null)",
+        "test": "frequency: chi-squared goodness-of-fit (discrete uniform null, unchanged from R1); "
+                "time: D2 reflection-symmetry (sample vs. own negation, KS test, 3 sub-tests)",
         "significance_level": AC3_SIGNIFICANCE,
         "freq_chi2_statistic": float(chi2_freq), "freq_pvalue": float(p_freq),
         "freq_categories": freq_categories.tolist(), "freq_counts": freq_counts.tolist(),
         "freq_n_unclassified": n_unclassified_freq, "freq_pass": freq_pass,
-        "time_chi2_statistic": float(chi2_time), "time_pvalue": float(p_time),
-        "time_nbins": AC3_TIME_NBINS, "time_counts": time_counts.tolist(),
-        "time_expected_counts": time_expected.tolist(),
-        "time_null_model": "convolution of coarse (25pt) and fine (41pt) search grids, not flat-uniform",
-        "time_range_s": AC3_TIME_RANGE_S, "time_pass": time_pass,
+        "time_subtest_alpha": AC3_TIME_SUBTEST_ALPHA,
+        "time_subtests": time_subtests,
+        "time_failed_stages": time_failed_stages,
+        "time_pass": time_pass,
     }
 
 
+def snr_trend_test(snr_db: np.ndarray, abs_time_error_s: np.ndarray, alpha: float) -> dict:
+    """D4 (r1b-sync-refiner-instrument-correction): one-sided Spearman rank-correlation
+    trend test, pooled across all in-power SNR strata (one row per TRIAL, not one row per
+    stratum -- design.md D4's own correction to R1's AC-4, which collapsed 400 observations
+    per stratum to a single RMS number first and had essentially no tolerance for the
+    sampling noise that collapse introduces).
+    """
+    rho, p = stats.spearmanr(snr_db, abs_time_error_s)
+    # one-sided: SNR increasing should correlate with error decreasing => rho < 0
+    p_one_sided = p / 2 if rho < 0 else 1.0 - p / 2
+    return {"pass": bool(rho < 0 and p_one_sided < alpha), "rho": float(rho), "p_value": float(p_one_sided)}
+
+
 def evaluate_ac4(signal_results: list[dict]) -> dict:
+    """AC-4: frequency dimension retired PERMANENTLY (R-1 of the Captain's ruling --
+    RMS(Δf) is a flat function of the 0.5 Hz search-grid quantisation, not of SNR, hence
+    unidentifiable as a monotonicity target; no successor frequency gate is registered
+    under any name). RMS(Δf) per stratum is still computed and reported for INFORMATION
+    ONLY -- it contributes to no pass/fail field below. Time dimension: D4's pooled
+    Spearman trend test replaces R1's per-stratum any-adjacent-pair-increases-fails rule
+    (deleted below, not merely stopped-calling, per task 4.3).
+    """
     per_stratum = {}
     for snr in SNR_STRATA_ASCENDING:
         rows = [r for r in signal_results if r["snr_db"] == snr]
@@ -188,22 +226,30 @@ def evaluate_ac4(signal_results: list[dict]) -> dict:
         time_err = np.array([r["measured_delta_time_s"] - r["true_time_offset_s"] for r in rows])
         per_stratum[snr] = {"n": len(rows), "rms_freq_hz": _rms(freq_err), "rms_time_s": _rms(time_err)}
 
-    broken_pairs = []
-    prev_snr = None
+    underpowered_strata = [snr for snr, s in per_stratum.items() if s["n"] < AC4_MIN_STRATUM_N]
+
+    pooled_snr, pooled_abs_time_err = [], []
     for snr in SNR_STRATA_ASCENDING:
-        if prev_snr is not None:
-            prev, cur = per_stratum[prev_snr], per_stratum[snr]
-            # allow tiny float noise (1e-9) so exact ties never spuriously fail
-            if cur["rms_freq_hz"] > prev["rms_freq_hz"] + 1e-9:
-                broken_pairs.append((prev_snr, snr, "freq", prev["rms_freq_hz"], cur["rms_freq_hz"]))
-            if cur["rms_time_s"] > prev["rms_time_s"] + 1e-9:
-                broken_pairs.append((prev_snr, snr, "time", prev["rms_time_s"], cur["rms_time_s"]))
-        prev_snr = snr
+        if snr in underpowered_strata:
+            continue
+        rows = [r for r in signal_results if r["snr_db"] == snr]
+        for r in rows:
+            pooled_snr.append(r["snr_db"])
+            pooled_abs_time_err.append(abs(r["measured_delta_time_s"] - r["true_time_offset_s"]))
+
+    trend = snr_trend_test(np.array(pooled_snr), np.array(pooled_abs_time_err), AC4_SIGNIFICANCE)
 
     return {
-        "pass": len(broken_pairs) == 0,
+        "pass": trend["pass"],
+        "test": "pooled one-sided Spearman rank-correlation trend test (time dimension only)",
+        "significance_level": AC4_SIGNIFICANCE,
+        "n_pooled_trials": len(pooled_snr),
+        "spearman_rho": trend["rho"],
+        "p_value_one_sided": trend["p_value"],
         "per_stratum": {str(k): v for k, v in per_stratum.items()},
-        "broken_pairs": broken_pairs,
+        "per_stratum_note": "rms_freq_hz is INFORMATIONAL ONLY -- frequency monotonicity is "
+                             "retired permanently (R-1); does not contribute to 'pass' above",
+        "underpowered_strata": [str(s) for s in underpowered_strata],
     }
 
 
@@ -303,8 +349,16 @@ def main():
           f"mean(dt err)={ac1_ac2['ac2']['mean_time_error_s']*1000:.3f} ms (<= {AC2_MEAN_TIME_S_MAX*1000})"
           f"{'  [SIGN-ERROR SUSPECTED]' if ac1_ac2['ac2']['sign_error_suspected'] else ''}")
     print(f"AC-3 (noise-only null):     {verdict(ac3['pass'])}  "
-          f"[chi2] freq p={ac3['freq_pvalue']:.4f}, time p={ac3['time_pvalue']:.4f} (alpha={AC3_SIGNIFICANCE})")
-    print(f"AC-4 (SNR monotonicity):    {verdict(ac4['pass'])}  broken_pairs={ac4['broken_pairs']}")
+          f"[chi2] freq p={ac3['freq_pvalue']:.4f} (alpha={AC3_SIGNIFICANCE}); "
+          f"[D2 reflection-symmetry, alpha={AC3_TIME_SUBTEST_ALPHA:.5f}] time: "
+          + ", ".join(
+              f"{name}={'FAIL' if r['pass'] is not True else 'PASS'}"
+              f"({'instrument_failure' if r['pass'] is None else 'p=%.4g' % r['p_value']})"
+              for name, r in ac3["time_subtests"].items()
+          ))
+    print(f"AC-4 (SNR trend, time only): {verdict(ac4['pass'])}  "
+          f"rho={ac4['spearman_rho']:.4f}, p={ac4['p_value_one_sided']:.4g} (alpha={AC4_SIGNIFICANCE}), "
+          f"n={ac4['n_pooled_trials']}, underpowered={ac4['underpowered_strata']}")
     if ac5 is not None:
         print(f"AC-5 (determinism):        {verdict(ac5['pass'])}")
     else:

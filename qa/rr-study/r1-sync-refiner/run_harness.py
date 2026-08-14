@@ -49,7 +49,7 @@ def run_signal_population(refiner: R.Refiner, trials: list[dict]) -> tuple[list[
     for t in trials:
         pcm = P.render_signal_pcm(t)
         t0 = time.perf_counter()
-        delta_f, delta_t, score, rc = refiner.refine(
+        delta_f, delta_t, score, coarse_dt_samp, fine_dt_samp, rc = refiner.refine(
             pcm, t["coarse_freq_hz"], t["coarse_time_offset_s"])
         timings.append(time.perf_counter() - t0)
 
@@ -63,6 +63,9 @@ def run_signal_population(refiner: R.Refiner, trials: list[dict]) -> tuple[list[
             "measured_delta_freq_hz": delta_f,
             "measured_delta_time_s": delta_t,
             "sync_score": score,
+            # r1b D1: additive fields -- existing fields above unchanged.
+            "coarse_dt_samp": coarse_dt_samp,
+            "fine_dt_samp": fine_dt_samp,
             "rc": rc,
         })
     return out, timings
@@ -73,7 +76,7 @@ def run_noise_population(refiner: R.Refiner, trials: list[dict]) -> tuple[list[d
     for t in trials:
         pcm = P.render_noise_pcm(t)
         t0 = time.perf_counter()
-        delta_f, delta_t, score, rc = refiner.refine(
+        delta_f, delta_t, score, coarse_dt_samp, fine_dt_samp, rc = refiner.refine(
             pcm, t["coarse_freq_hz"], t["coarse_time_offset_s"])
         timings.append(time.perf_counter() - t0)
 
@@ -84,6 +87,9 @@ def run_noise_population(refiner: R.Refiner, trials: list[dict]) -> tuple[list[d
             "measured_delta_freq_hz": delta_f,
             "measured_delta_time_s": delta_t,
             "sync_score": score,
+            # r1b D1: additive fields -- existing fields above unchanged.
+            "coarse_dt_samp": coarse_dt_samp,
+            "fine_dt_samp": fine_dt_samp,
             "rc": rc,
         })
     return out, timings

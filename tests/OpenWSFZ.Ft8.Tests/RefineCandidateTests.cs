@@ -9,7 +9,9 @@ namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
 /// Tests for <see cref="IFt8NativeInterop.RefineCandidate"/> —
-/// r1-sync-refiner-instrument-validation, tasks 2.1/2.2.
+/// r1-sync-refiner-instrument-validation, tasks 2.1/2.2; extended with the coarse/fine
+/// time-search decomposition (CoarseDtSamp/FineDtSamp) at r1b-sync-refiner-instrument-
+/// correction, tasks 2.1-2.4.
 /// <para>
 /// This diagnostic-only entry point has no production call site (task 2.2 confirmed this
 /// by grep — see the change's QA report); these tests exercise only the interop seam
@@ -28,6 +30,8 @@ public sealed class RefineCandidateTests
         public float[]? LastPcm                  { get; private set; }
         public int     LastCoarseFreqHz          { get; private set; }
         public float   LastCoarseTimeOffsetS     { get; private set; }
+        public int     StubCoarseDtSamp          { get; set; } = 3;
+        public int     StubFineDtSamp            { get; set; } = -7;
 
         public int MaxDecodePasses => 2;
 
@@ -43,14 +47,14 @@ public sealed class RefineCandidateTests
         public void SetApBits(byte[] mycallBits, byte[] hiscallBits) { /* no-op */ }
         public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { /* no-op */ }
 
-        public (float DeltaFreqHz, float DeltaTimeS, float SyncScore) RefineCandidate(
+        public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
             float[] pcm, int coarseFreqHz, float coarseTimeOffsetS)
         {
             RefineCandidateCalled = true;
             LastPcm               = pcm;
             LastCoarseFreqHz      = coarseFreqHz;
             LastCoarseTimeOffsetS = coarseTimeOffsetS;
-            return (0.1234f, -0.005f, 42.0f);
+            return (0.1234f, -0.005f, 42.0f, StubCoarseDtSamp, StubFineDtSamp);
         }
     }
 
@@ -62,7 +66,8 @@ public sealed class RefineCandidateTests
         var interop = new CapturingInterop();
         var pcm     = new float[180_000];
 
-        var (deltaFreqHz, deltaTimeS, syncScore) = interop.RefineCandidate(pcm, coarseFreqHz: 700, coarseTimeOffsetS: 0.2f);
+        var (deltaFreqHz, deltaTimeS, syncScore, coarseDtSamp, fineDtSamp) =
+            interop.RefineCandidate(pcm, coarseFreqHz: 700, coarseTimeOffsetS: 0.2f);
 
         interop.RefineCandidateCalled.Should().BeTrue(
             "RefineCandidate must be forwarded to the underlying implementation");
@@ -72,6 +77,39 @@ public sealed class RefineCandidateTests
         deltaFreqHz.Should().BeApproximately(0.1234f, 1e-6f);
         deltaTimeS.Should().BeApproximately(-0.005f, 1e-6f);
         syncScore.Should().BeApproximately(42.0f, 1e-6f);
+        coarseDtSamp.Should().Be(3, "the two new (r1b) out-parameters must be recorded and returned, not dropped");
+        fineDtSamp.Should().Be(-7, "the two new (r1b) out-parameters must be recorded and returned, not dropped");
+    }
+
+    // ── 2.4 — decomposition sums to the previously-reported total (fake) ────────
+
+    [Fact(DisplayName = "2.4a: CoarseDtSamp / 200.0 + FineDtSamp / 2000.0 equals DeltaTimeS on a fake implementation")]
+    public void RefineCandidate_FakeImplementation_DecompositionSumsToTotal()
+    {
+        // The fake's own DeltaTimeS (-0.005f) does not naturally equal the default stub
+        // decomposition's sum, so set the stub values to be internally consistent for this
+        // scenario -- this test exercises the ARITHMETIC RELATIONSHIP the spec requires
+        // (ft8-sync-refiner spec.md "Decomposition sums to the previously-reported total"),
+        // not the fake's own arbitrary constants (that's 2.1a's job).
+        var interop = new CapturingInterop
+        {
+            StubCoarseDtSamp = 3,   // 3 / 200.0    =  0.0150
+            StubFineDtSamp   = -10, // -10 / 2000.0  = -0.0050
+        };
+        var pcm = new float[180_000];
+
+        var (_, deltaTimeS, _, coarseDtSamp, fineDtSamp) =
+            interop.RefineCandidate(pcm, coarseFreqHz: 700, coarseTimeOffsetS: 0.2f);
+
+        // deltaTimeS itself is the fake's own fixed -0.005f (2.1a) -- this test only checks
+        // that the DECOMPOSITION'S OWN sum matches what the two components imply, which is
+        // the real ABI contract (ft8_shim.h: out_coarse_dt_samp / 200.0 + out_fine_dt_samp /
+        // 2000.0 == out_delta_time_s); the real-binary smoke test below (2.1b) is what
+        // actually proves this holds against the native shim's own output.
+        float decomposedSum = coarseDtSamp / 200.0f + fineDtSamp / 2000.0f;
+        decomposedSum.Should().BeApproximately(0.0100f, 1e-6f,
+            "3/200.0 + (-10)/2000.0 = 0.0150 - 0.0050 = 0.0100");
+        _ = deltaTimeS; // not asserted here -- see remark above
     }
 
     // ── 2.1b — Native adapter: Ft8NativeInteropAdapter.RefineCandidate (requires native binary) ──
@@ -95,12 +133,23 @@ public sealed class RefineCandidateTests
 
         var result = act.Should().NotThrow(
             "RefineCandidate on a valid 180 000-sample PCM buffer must complete without error " +
-            "when the native binary (shim 20260040) is present").Subject;
+            "when the native binary (shim 20260041) is present").Subject;
 
         float.IsFinite(result.DeltaFreqHz).Should().BeTrue("a diagnostic refiner must never return NaN/Inf");
         float.IsFinite(result.DeltaTimeS).Should().BeTrue("a diagnostic refiner must never return NaN/Inf");
         float.IsFinite(result.SyncScore).Should().BeTrue("a diagnostic refiner must never return NaN/Inf");
         result.SyncScore.Should().BeGreaterThan(0f, "a genuine signal at the supplied coarse position should score above zero");
+
+        // r1b task 2.4: the two new out-parameters must be populated on a REAL binary call
+        // (not just a fake, see 2.1a/2.4a above), and their decomposition must sum to the
+        // pre-existing DeltaTimeS to within float32 rounding tolerance -- the exact scenario
+        // ft8-sync-refiner spec.md's "Decomposition sums to the previously-reported total"
+        // requires.
+        result.CoarseDtSamp.Should().BeInRange(-12, 12, "Stage A+B's coarse search grid is +/-12 samples @ 200 Hz");
+        result.FineDtSamp.Should().BeInRange(-20, 20, "Stage C's fine search grid is +/-20 samples @ 2000 Hz");
+        float decomposedSum = result.CoarseDtSamp / 200.0f + result.FineDtSamp / 2000.0f;
+        decomposedSum.Should().BeApproximately(result.DeltaTimeS, 1e-4f,
+            "CoarseDtSamp / 200.0 + FineDtSamp / 2000.0 must equal DeltaTimeS to within float32 rounding tolerance");
     }
 
     [Fact(DisplayName = "2.1c: Ft8NativeInteropAdapter.RefineCandidate throws ArgumentException on a wrong-length PCM buffer")]

@@ -1,4 +1,33 @@
-=== CURRENT: r1-sync-refiner-instrument-validation (FT8_SHIM_VERSION 20260040) ===
+=== CURRENT: r1b-sync-refiner-instrument-correction (FT8_SHIM_VERSION 20260041) ===
+
+Built 2026-08-14 from this change's branch (feat/r1b-sync-refiner-instrument-correction),
+on top of r1-sync-refiner-instrument-validation's sync_refiner.c (20260040) plus this
+change's D1: two new out-parameters (out_coarse_dt_samp, out_fine_dt_samp) on
+ft8_refine_candidate, populated from the existing best_dt_samp/best_fine_samp locals --
+pure instrumentation, no algorithm change (see ft8_shim.h's changelog entry for the full
+contract). No production entry point's ABI, struct layout, or decode behaviour changes.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf
+  Linux x64   (build_linux.sh, GCC 14.2.0 via WSL2 Debian): SHA256
+    6f0c541964b17f71b820937c887a63df10db6adb4831ec08ee137b767ad91edd
+  macOS ARM64: NOT rebuilt this session -- no Mac available locally, same limitation R0 and
+    R1 recorded (third consecutive shim version with a stale macOS binary, named explicitly
+    per the ruling's own instruction not to inherit the gap silently again; non-blocking,
+    CI rebuilds from source).
+
+  NOTE (build tooling defect found and fixed during this session, unrelated to the refiner
+  itself): native/ft8_lib_build/build_linux.sh had CRLF line endings (inherited from a
+  Windows checkout/edit), which breaks bash's shebang-less execution under WSL2 ("$'\r':
+  command not found" on every line, and the script silently produced no libft8.so on the
+  first attempt). Fixed by normalising the file to LF line endings; behaviourally identical
+  otherwise. Flagged here per HK-018 so it is not silently re-discovered next time.
+
+  `dumpbin /exports` (Windows) and `nm -D` (Linux) both confirm all twelve exported symbols
+  present, unchanged from the 20260040 set (ft8_refine_candidate's own exported RVA moved,
+  as expected for a signature change, but no symbol was added or removed) -- task 2.2/6.2.
+
+=== r1-sync-refiner-instrument-validation (FT8_SHIM_VERSION 20260040) ===
 
 Built 2026-08-15 from this change's branch (feat/r1-sync-refiner-instrument-validation),
 on top of R0's vendored source tree (native/ft8_lib_vendor/, byte-identical to upstream

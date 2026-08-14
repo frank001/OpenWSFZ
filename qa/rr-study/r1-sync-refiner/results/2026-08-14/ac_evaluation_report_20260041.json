@@ -1,0 +1,174 @@
+{
+  "ac1": {
+    "bar_freq_hz": 0.3,
+    "bar_time_s": 0.0077,
+    "pass": true,
+    "rms_freq_hz": 0.1430208735738252,
+    "rms_time_s": 0.0011352749893583983
+  },
+  "ac2": {
+    "bar_freq_hz": 0.1,
+    "bar_time_s": 0.002,
+    "mean_freq_error_hz": -0.001855427282315694,
+    "mean_time_error_s": 0.00042948342292698074,
+    "pass": true,
+    "sign_error_suspected": false
+  },
+  "ac3": {
+    "freq_categories": [
+      -2.5,
+      -2.0,
+      -1.5,
+      -1.0,
+      -0.5,
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5
+    ],
+    "freq_chi2_statistic": 4.114999999999999,
+    "freq_counts": [
+      117,
+      116,
+      105,
+      106,
+      99,
+      100,
+      109,
+      114,
+      107,
+      108,
+      119
+    ],
+    "freq_n_unclassified": 0,
+    "freq_pass": true,
+    "freq_pvalue": 0.9420100202233382,
+    "n_trials": 1200,
+    "pass": false,
+    "significance_level": 0.01,
+    "test": "frequency: chi-squared goodness-of-fit (discrete uniform null, unchanged from R1); time: D2 reflection-symmetry (sample vs. own negation, KS test, 3 sub-tests)",
+    "time_failed_stages": [
+      "combined",
+      "fine_stage"
+    ],
+    "time_pass": false,
+    "time_subtest_alpha": 0.0033333333333333335,
+    "time_subtests": {
+      "coarse_stage": {
+        "ks_statistic": 0.035,
+        "p_value": 0.45442177348122004,
+        "pass": true
+      },
+      "combined": {
+        "ks_statistic": 0.1125,
+        "p_value": 4.942692080681244e-07,
+        "pass": false
+      },
+      "fine_stage": {
+        "ks_statistic": 0.9733333333333334,
+        "p_value": 0.0,
+        "pass": false
+      }
+    }
+  },
+  "ac4": {
+    "n_pooled_trials": 2400,
+    "p_value_one_sided": 0.00010990739695516259,
+    "pass": true,
+    "per_stratum": {
+      "-10.0": {
+        "n": 400,
+        "rms_freq_hz": 0.1432307340287689,
+        "rms_time_s": 0.0011746798832116274
+      },
+      "-15.0": {
+        "n": 400,
+        "rms_freq_hz": 0.1415683454801057,
+        "rms_time_s": 0.0012369681317747948
+      },
+      "-20.0": {
+        "n": 400,
+        "rms_freq_hz": 0.14420971645994188,
+        "rms_time_s": 0.0015146570999691618
+      },
+      "-5.0": {
+        "n": 400,
+        "rms_freq_hz": 0.14275742883057754,
+        "rms_time_s": 0.0011163408504422131
+      },
+      "0.0": {
+        "n": 400,
+        "rms_freq_hz": 0.14734521122398078,
+        "rms_time_s": 0.0011396165114997466
+      },
+      "5.0": {
+        "n": 400,
+        "rms_freq_hz": 0.1386165328664063,
+        "rms_time_s": 0.0011093158658289663
+      }
+    },
+    "per_stratum_note": "rms_freq_hz is INFORMATIONAL ONLY -- frequency monotonicity is retired permanently (R-1); does not contribute to 'pass' above",
+    "significance_level": 0.01,
+    "spearman_rho": -0.07535756555970267,
+    "test": "pooled one-sided Spearman rank-correlation trend test (time dimension only)",
+    "underpowered_strata": []
+  },
+  "ac5": {
+    "pairwise": [
+      {
+        "a": "qa/rr-study/r1-sync-refiner/results/2026-08-14/run_a_20260041.json",
+        "b": "qa/rr-study/r1-sync-refiner/results/2026-08-14/run_b_20260041.json",
+        "byte_identical": true
+      },
+      {
+        "a": "qa/rr-study/r1-sync-refiner/results/2026-08-14/run_a_20260041.json",
+        "b": "qa/rr-study/r1-sync-refiner/results/2026-08-14/run_c_20260041.json",
+        "byte_identical": true
+      },
+      {
+        "a": "qa/rr-study/r1-sync-refiner/results/2026-08-14/run_b_20260041.json",
+        "b": "qa/rr-study/r1-sync-refiner/results/2026-08-14/run_c_20260041.json",
+        "byte_identical": true
+      }
+    ],
+    "pass": true
+  },
+  "ac6": {
+    "candidates_per_cycle_range": [
+      100,
+      340
+    ],
+    "corpus_cycles_reference": 2529,
+    "gated": false,
+    "mean_per_candidate_wall_clock_s": 0.020327666712999213,
+    "n_calls_measured": 10800,
+    "projections": {
+      "100_candidates_per_cycle": {
+        "escalate": false,
+        "projected_full_corpus_hours": 1.428018586588195
+      },
+      "340_candidates_per_cycle": {
+        "escalate": false,
+        "projected_full_corpus_hours": 4.855263194399862
+      }
+    }
+  },
+  "per_cell_n": {
+    "snr=+0_class=grid": 200,
+    "snr=+0_class=random": 200,
+    "snr=+5_class=grid": 200,
+    "snr=+5_class=random": 200,
+    "snr=-10_class=grid": 200,
+    "snr=-10_class=random": 200,
+    "snr=-15_class=grid": 200,
+    "snr=-15_class=random": 200,
+    "snr=-20_class=grid": 200,
+    "snr=-20_class=random": 200,
+    "snr=-5_class=grid": 200,
+    "snr=-5_class=random": 200
+  },
+  "source_results_file": "qa/rr-study/r1-sync-refiner/results/2026-08-14/run_a_20260041.json",
+  "underpowered_cells": []
+}

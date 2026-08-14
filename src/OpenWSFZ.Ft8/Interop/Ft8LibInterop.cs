@@ -264,8 +264,21 @@ internal static class Ft8LibInterop
     ///   <see cref="SetDecodeParams"/> all remain byte-for-byte unchanged. No struct layout
     ///   change (<see cref="Ft8NativeResult"/> stays 48 bytes) — the bump exists purely so the
     ///   startup ABI check catches a binary built without the new export.
+    /// 20260041 (r1b-sync-refiner-instrument-correction): <see cref="RefineCandidate"/> gains
+    ///   two new output values — <c>CoarseDtSamp</c> (Stage A+B's own coarse-time selection,
+    ///   @200 Hz, range [-12, 12]) and <c>FineDtSamp</c> (Stage C's own fine-time selection,
+    ///   @2000 Hz, range [-20, 20]) — exposing the (coarse, fine) decomposition that
+    ///   previously left the native shim only as the summed <c>DeltaTimeS</c>. Pure
+    ///   instrumentation of the existing search in
+    ///   <c>native/ft8_lib_vendor/refine/sync_refiner.c</c>: no algorithm change, and the
+    ///   three pre-existing outputs (<c>DeltaFreqHz</c>, <c>DeltaTimeS</c>, <c>SyncScore</c>)
+    ///   remain byte-for-byte identical to the 20260040 build. <see cref="DecodeAll"/>,
+    ///   <see cref="GetLastPassCounts"/>, and <see cref="SetDecodeParams"/> are unaffected.
+    ///   No struct layout change (<see cref="Ft8NativeResult"/> stays 48 bytes) — the bump
+    ///   exists purely so the startup ABI check catches a binary built without the two new
+    ///   out-parameters.
     /// </summary>
-    private const int ExpectedShimVersion = 20260040;
+    private const int ExpectedShimVersion = 20260041;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -469,8 +482,10 @@ internal static class Ft8LibInterop
 
     /// <summary>
     /// Diagnostic-only per-candidate coherent sync refinement
-    /// (r1-sync-refiner-instrument-validation, shim 20260040). See
-    /// <c>ft8_shim.h</c>'s <c>ft8_refine_candidate</c> doc comment for the full contract.
+    /// (r1-sync-refiner-instrument-validation, shim 20260040; extended with the
+    /// coarse/fine time-search decomposition at r1b-sync-refiner-instrument-correction,
+    /// shim 20260041). See <c>ft8_shim.h</c>'s <c>ft8_refine_candidate</c> doc comment
+    /// for the full contract.
     /// </summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_refine_candidate", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeRefineCandidate(
@@ -478,7 +493,9 @@ internal static class Ft8LibInterop
         int           coarseFreqHz, float coarseTimeOffsetS,
         out float     outDeltaFreqHz,
         out float     outDeltaTimeS,
-        out float     outSyncScore);
+        out float     outSyncScore,
+        out int       outCoarseDtSamp,
+        out int       outFineDtSamp);
 
     // ── Public API ───────────────────────────────────────────────────────
 
@@ -758,10 +775,15 @@ internal static class Ft8LibInterop
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1]; must be exactly 180 000 samples.</param>
     /// <param name="coarseFreqHz">Coarse candidate frequency (Hz) — tone 0's estimated frequency.</param>
     /// <param name="coarseTimeOffsetS">Coarse candidate time offset (s) from cycle start.</param>
-    /// <returns>The refined <c>(Δf, Δt)</c> correction and the sync quality score.</returns>
+    /// <returns>
+    /// The refined <c>(Δf, Δt)</c> correction, the sync quality score, and the two
+    /// coarse/fine time-search selections whose sum (<c>CoarseDtSamp / 200.0 +
+    /// FineDtSamp / 2000.0</c>) equals <c>DeltaTimeS</c> to within float32 rounding
+    /// tolerance (r1b-sync-refiner-instrument-correction, shim 20260041).
+    /// </returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="pcm"/> is not exactly 180 000 samples.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the native shim returns a negative status code.</exception>
-    public static (float DeltaFreqHz, float DeltaTimeS, float SyncScore) RefineCandidate(
+    public static (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
         float[] pcm, int coarseFreqHz, float coarseTimeOffsetS)
     {
         if (pcm.Length != 180_000)
@@ -772,13 +794,14 @@ internal static class Ft8LibInterop
         EnsureInitialized();
 
         int rc = NativeRefineCandidate(pcm, pcm.Length, coarseFreqHz, coarseTimeOffsetS,
-            out float deltaFreqHz, out float deltaTimeS, out float syncScore);
+            out float deltaFreqHz, out float deltaTimeS, out float syncScore,
+            out int coarseDtSamp, out int fineDtSamp);
 
         if (rc != 0)
             throw new InvalidOperationException(
                 $"ft8_refine_candidate returned {rc} — unexpected error from native shim.");
 
-        return (deltaFreqHz, deltaTimeS, syncScore);
+        return (deltaFreqHz, deltaTimeS, syncScore, coarseDtSamp, fineDtSamp);
     }
 
     // ── Lazy initialisation ──────────────────────────────────────────────

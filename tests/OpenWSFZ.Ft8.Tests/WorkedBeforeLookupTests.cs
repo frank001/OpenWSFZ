@@ -34,8 +34,8 @@ public sealed class WorkedBeforeLookupTests
         public void SetApBits(byte[] mycallBits, byte[] hiscallBits) { }
         public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { }
 
-        public (float DeltaFreqHz, float DeltaTimeS, float SyncScore) RefineCandidate(
-            float[] pcm, int coarseFreqHz, float coarseTimeOffsetS) => (0f, 0f, 0f);
+        public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
+            float[] pcm, int coarseFreqHz, float coarseTimeOffsetS) => (0f, 0f, 0f, 0, 0);
     }
 
     private static float[] BuildLoudPcm()

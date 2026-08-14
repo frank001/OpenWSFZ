@@ -30,6 +30,18 @@
  * Diagnostic-only: this file's only entry point, ft8_refine_candidate(), has
  * no call site anywhere in decode.c or ft8_shim.c's ft8_decode_all -- it is
  * reachable only from the validation harness and test code (task 1.6).
+ *
+ * r1b-sync-refiner-instrument-correction (FT8_SHIM_VERSION 20260041), D1:
+ *
+ * ft8_refine_candidate() gains two new out-parameters, out_coarse_dt_samp and
+ * out_fine_dt_samp, populated directly from the best_dt_samp/best_fine_samp
+ * locals below (Stage A+B and Stage C's own selections). Pure instrumentation:
+ * no change to the search/correlation logic itself, and the three pre-existing
+ * out-parameters (out_delta_freq_hz, out_delta_time_s, out_sync_score) are
+ * populated exactly as before. Exists to make the AC-3 time-dimension finding
+ * documented below (best_fine_samp's noise-only bias) independently testable
+ * per-stage instead of only observable as the combined sum -- see
+ * qa/rr-study/r1-sync-refiner/evaluate_acs.py's reflection_symmetry_test.
  */
 
 #include "ft8_shim.h"       /* FT8_EXPECTED_SAMPLES, ft8_refine_candidate() prototype */
@@ -274,10 +286,13 @@ int ft8_refine_candidate(
     int coarse_freq_hz, float coarse_time_offset_s,
     float* out_delta_freq_hz,
     float* out_delta_time_s,
-    float* out_sync_score)
+    float* out_sync_score,
+    int*   out_coarse_dt_samp,
+    int*   out_fine_dt_samp)
 {
     if (pcm_len != REFINE_EXPECTED_SAMPLES) return -1;
-    if (!pcm || !out_delta_freq_hz || !out_delta_time_s || !out_sync_score) return -1;
+    if (!pcm || !out_delta_freq_hz || !out_delta_time_s || !out_sync_score
+        || !out_coarse_dt_samp || !out_fine_dt_samp) return -1;
 
     /* ── Stage 1: downconvert + decimate to ~200 Hz working rate ─────────── */
     int n_bb1 = pcm_len / REFINE_DECIM_COARSE;
@@ -400,9 +415,11 @@ int ft8_refine_candidate(
 
     float dt_fine_s = (float)best_fine_samp / fs2;
 
-    *out_delta_freq_hz = best_df;
-    *out_delta_time_s  = dt_coarse_s + dt_fine_s;
-    *out_sync_score    = best_score_c;
+    *out_delta_freq_hz  = best_df;
+    *out_delta_time_s   = dt_coarse_s + dt_fine_s;
+    *out_sync_score     = best_score_c;
+    *out_coarse_dt_samp = best_dt_samp;
+    *out_fine_dt_samp   = best_fine_samp;
 
     return 0;
 }

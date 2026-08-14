@@ -95,9 +95,12 @@ internal interface IFt8NativeInterop
 
     /// <summary>
     /// Diagnostic-only per-candidate coherent sync refinement
-    /// (r1-sync-refiner-instrument-validation, shim 20260040). Given the cycle's PCM and a
-    /// candidate's coarse <c>(freq_hz, dt)</c> position, returns a refined <c>(Δf, Δt)</c>
-    /// RELATIVE TO that coarse position plus a sync quality score.
+    /// (r1-sync-refiner-instrument-validation, shim 20260040; extended with the coarse/fine
+    /// time-search decomposition at r1b-sync-refiner-instrument-correction, shim 20260041).
+    /// Given the cycle's PCM and a candidate's coarse <c>(freq_hz, dt)</c> position, returns a
+    /// refined <c>(Δf, Δt)</c> RELATIVE TO that coarse position, a sync quality score, and the
+    /// two search-stage selections (<c>CoarseDtSamp</c>, <c>FineDtSamp</c>) whose sum equals
+    /// the returned <c>Δt</c> to within float32 rounding tolerance.
     /// <para>
     /// Reachable only from the validation harness and test code — no production call site
     /// invokes it.
@@ -106,6 +109,6 @@ internal interface IFt8NativeInterop
     /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1]; must be exactly 180 000 samples.</param>
     /// <param name="coarseFreqHz">Coarse candidate frequency (Hz).</param>
     /// <param name="coarseTimeOffsetS">Coarse candidate time offset (s) from cycle start.</param>
-    (float DeltaFreqHz, float DeltaTimeS, float SyncScore) RefineCandidate(
+    (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
         float[] pcm, int coarseFreqHz, float coarseTimeOffsetS);
 }
