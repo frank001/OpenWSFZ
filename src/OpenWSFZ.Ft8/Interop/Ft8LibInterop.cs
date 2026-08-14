@@ -245,6 +245,13 @@ internal static class Ft8LibInterop
     ///   unreproducible object-linking process. See <c>ft8_shim.h</c>'s matching changelog
     ///   entry for the one genuine finding this rebuild surfaced and fixed (a build-side-only
     ///   compat header restoring the D-006 stpcpy pointer-truncation fix at the source level).
+    ///   r0-review-followup, folded into this same 20260039 per the Captain's ruling (this
+    ///   build was not yet pushed or merged): silenced <c>monitor.c</c>'s dormant
+    ///   <c>LOG_LEVEL LOG_INFO</c>, which R0 made fire for the first time — four lines per
+    ///   decode call into the daemon's structured stderr log channel, forever, on a 24/7
+    ///   daemon. Re-verified AC-1/AC-2 (zero decode-output differences); DLL SHA256
+    ///   <c>897f81dda95b83b24156a905b3aeec4a1cb98c64e5243564e6d0eb6b60643cb3</c>. See
+    ///   <c>ft8_shim.h</c>'s matching entry for full detail.
     /// </summary>
     private const int ExpectedShimVersion = 20260039;
 

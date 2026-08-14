@@ -334,6 +334,25 @@ extern "C" {
  *   tree are touched. Verified at the disassembly level: both call-sites now
  *   follow `call stpcpy` with a full 64-bit `mov`, not the truncating 32-bit
  *   `movsxd` MSVC emits without the prototype.
+ *
+ *   r0-review-followup (folded into this same 20260039, per the Captain's
+ *   ruling -- this build had not yet been pushed or merged, so this is
+ *   amending R0's own not-yet-shipped work rather than a separately versioned
+ *   change): native/ft8_lib_build/patched/common/monitor.c had carried
+ *   `#define LOG_LEVEL LOG_INFO` since its first port commit, dormant because
+ *   monitor.c was never actually compiled until this change made it so --
+ *   its four LOG_INFO calls (monitor_init's Block/Subblock/N_FFT/N_iFFT size
+ *   prints) started firing via fprintf(stderr, ...) on every single
+ *   ft8_decode_all call, interleaving into the daemon's structured stderr log
+ *   channel (StderrLoggerProvider.cs, FR-019) on every ~15s decode cycle,
+ *   forever. Raised to LOG_WARN (monitor.c has zero LOG_WARN/ERROR/FATAL call
+ *   sites today, so this silences exactly the noise while leaving LOG() live
+ *   for any future LOG_WARN-or-above diagnostic). ft8/debug.h itself is
+ *   untouched -- genuinely vendored, upstream-unmodified, correct as-is.
+ *   Re-verified AC-1/AC-2 on the same 250-cycle range against both the
+ *   pre-fix 20260039 build and the original 20260038 baseline: zero decode-
+ *   output differences either way (log-output-only change). DLL SHA256:
+ *   897f81dda95b83b24156a905b3aeec4a1cb98c64e5243564e6d0eb6b60643cb3.
  */
 #define FT8_SHIM_VERSION 20260039
 

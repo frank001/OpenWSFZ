@@ -28,7 +28,7 @@ The `ft8_lib` library (the `frank001/ft8_lib` fork of upstream `kgoba/ft8_lib`, 
 
 ### Requirement: Shipped third-party notices file
 
-The repository SHALL contain `THIRD-PARTY-NOTICES.md` at its root, reproducing in full: the MIT licence text with Kārlis Goba's copyright notice (for `ft8_lib`, `ft8/` and `common/`), and the BSD-3-Clause licence text with Mark Borgerding's copyright notice (for KISS FFT, `fft/kiss_fft.c`/`kiss_fftr.c`/`_kiss_fft_guts.h`) — reproduced in full rather than referencing a `COPYING` file, since no such file exists in the vendored `fft/` directory despite the upstream header's "See COPYING file" comment. A scan of the vendored tree for the strings `GNU General Public`, `GPL`, and `Affero` SHALL find no hits other than the two known, Captain-ruled flagged-not-blocking WSJT-X-attribution comments in `ft8/constants.h` (lines 75 and 78, which credit WSJT-X as the historical source of two LDPC parity-table constants and are not themselves GPL-licensed text) — any other hit SHALL block this requirement from being satisfied.
+The repository SHALL contain `THIRD-PARTY-NOTICES.md` at its root, reproducing in full: the MIT licence text with Kārlis Goba's copyright notice (for `ft8_lib`, `ft8/` and `common/`), and the BSD-3-Clause licence text with Mark Borgerding's copyright notice (for KISS FFT, `fft/kiss_fft.c`/`kiss_fftr.c`/`_kiss_fft_guts.h`) — reproduced in full rather than referencing a `COPYING` file, since no such file exists in the vendored `fft/` directory despite the upstream header's "See COPYING file" comment. A case-insensitive scan of the vendored tree for the strings `GNU General Public`, `GPL`, and `Affero` SHALL find zero hits — this includes the two known, Captain-ruled flagged-not-blocking WSJT-X-attribution comments in `ft8/constants.h` (lines 75 and 78, which credit WSJT-X as the historical source of two LDPC parity-table constants, are not themselves GPL-licensed text, and — measured during r0-reproducible-native-build's implementation — do not contain any of the three scanned strings in the first place, reading only "From WSJT-X's ...") — any hit at all SHALL block this requirement from being satisfied.
 
 #### Scenario: Notices file contains both required licence texts
 
@@ -36,11 +36,15 @@ The repository SHALL contain `THIRD-PARTY-NOTICES.md` at its root, reproducing i
 - **THEN** it SHALL contain the full MIT licence text with Kārlis Goba's copyright, and the full
   BSD-3-Clause licence text with Mark Borgerding's copyright
 
-#### Scenario: GPL/AGPL scan finds only the two expected, flagged hits
+#### Scenario: GPL/AGPL scan finds zero hits
 
-- **WHEN** the vendored tree is scanned for `GNU General Public`, `GPL`, and `Affero`
-- **THEN** the only hits SHALL be the WSJT-X-attribution comments at `ft8/constants.h` lines 75 and
-  78, and any other hit SHALL be treated as a licence-policy violation
+- **WHEN** the vendored tree is scanned (case-insensitive) for `GNU General Public`, `GPL`, and
+  `Affero`
+- **THEN** the scan SHALL find zero hits — the WSJT-X-attribution comments at `ft8/constants.h`
+  lines 75 and 78 are confirmed present and unremoved (verified separately, by scanning for
+  `WSJT-X`) but do not themselves contain any of the three scanned strings, so they were never
+  going to register as hits under this scan — and any hit that does occur SHALL be treated as a
+  licence-policy violation
 
 #### Scenario: Fortran-only directory is absent
 
