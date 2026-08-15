@@ -1,0 +1,27 @@
+loaded manifest: 51186 rows, SHA256-pinning DLL...
+DLL verified: SHA256=04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf shim_version=20260041
+cycle 1/4053  rows 19/51186  48.7 rows/s  ETA 1050s
+cycle 201/4053  rows 3340/51186  48.2 rows/s  ETA 992s
+cycle 401/4053  rows 6291/51186  44.9 rows/s  ETA 1000s
+cycle 601/4053  rows 9225/51186  42.1 rows/s  ETA 996s
+cycle 801/4053  rows 12215/51186  40.7 rows/s  ETA 957s
+cycle 1001/4053  rows 14408/51186  40.2 rows/s  ETA 916s
+cycle 1201/4053  rows 16127/51186  39.7 rows/s  ETA 883s
+cycle 1401/4053  rows 17657/51186  39.4 rows/s  ETA 852s
+cycle 1601/4053  rows 18867/51186  39.1 rows/s  ETA 826s
+cycle 1801/4053  rows 20028/51186  38.9 rows/s  ETA 800s
+cycle 2001/4053  rows 21528/51186  38.7 rows/s  ETA 766s
+cycle 2201/4053  rows 23674/51186  38.5 rows/s  ETA 715s
+cycle 2401/4053  rows 26211/51186  38.3 rows/s  ETA 651s
+cycle 2601/4053  rows 28608/51186  38.2 rows/s  ETA 591s
+cycle 2801/4053  rows 31134/51186  38.1 rows/s  ETA 527s
+cycle 3001/4053  rows 34688/51186  38.0 rows/s  ETA 435s
+cycle 3201/4053  rows 38329/51186  37.9 rows/s  ETA 340s
+cycle 3401/4053  rows 41835/51186  37.8 rows/s  ETA 248s
+cycle 3601/4053  rows 44587/51186  37.7 rows/s  ETA 175s
+cycle 3801/4053  rows 47498/51186  37.7 rows/s  ETA 98s
+cycle 4001/4053  rows 50362/51186  37.6 rows/s  ETA 22s
+cycle 4053/4053  rows 51186/51186  37.6 rows/s  ETA 0s
+
+done: 51186/51186 rows in 1360.4s (26.58 ms/row)  rc!=0 count=0  stopped_early=False
+results written: D:\Projects\claude\OpenWSFZ\qa\rr-study\m1-sync-vs-extraction\results\m1_results.json
