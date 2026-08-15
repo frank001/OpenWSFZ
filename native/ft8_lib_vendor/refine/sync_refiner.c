@@ -39,9 +39,11 @@
  * no change to the search/correlation logic itself, and the three pre-existing
  * out-parameters (out_delta_freq_hz, out_delta_time_s, out_sync_score) are
  * populated exactly as before. Exists to make the AC-3 time-dimension finding
- * documented below (best_fine_samp's noise-only bias) independently testable
- * per-stage instead of only observable as the combined sum -- see
- * qa/rr-study/r1-sync-refiner/evaluate_acs.py's reflection_symmetry_test.
+ * documented below independently testable per-stage instead of only observable
+ * as the combined sum -- see qa/rr-study/r1-sync-refiner/evaluate_acs.py's
+ * reflection_symmetry_test. That export is what LOCATED the mechanism: the two
+ * stages disagree about t=0 and cancel, so the combined sum hid it for two
+ * rounds. See the block above Stage C below for the mechanism itself.
  */
 
 #include "ft8_shim.h"       /* FT8_EXPECTED_SAMPLES, ft8_refine_candidate() prototype */
@@ -355,29 +357,62 @@ int ft8_refine_candidate(
 
     /* ── Stage C: fine TIME search, baseband re-derived @ refined carrier ── */
     /*
-     * KNOWN UNRESOLVED FINDING (r1-sync-refiner-instrument-validation, AC-3
-     * time-dimension, escalated per design.md D5 -- NOT a "fix it here"
-     * comment; recorded so the next session does not have to re-derive this):
-     * on PURE NOISE input, best_fine_samp below shows a strong, reproducible
-     * bias toward negative values (observed ~90%+ of trials in one sample) --
-     * but ONLY when base_origin2 is built from a (best_dt_samp, best_df) pair
-     * that was ITSELF selected by the Stage A+B argmax on the SAME underlying
-     * noise. Confirmed NOT caused by: costas_coherent_sum's own math (a
-     * constant-DC synthetic input over a huge buffer gives a perfectly flat,
-     * unbiased score curve across the full d range); downconvert_decimate
-     * (an independent Python re-implementation reproduces the same bias);
-     * best_dt_samp or best_df being individually biased (each looks
-     * reasonably balanced across many independent trials); or a fixed/forced
-     * (non-selected) frequency or time offset (bias disappears when d/df are
-     * held fixed rather than argmax-selected). The mechanism appears to be a
-     * selection-bias / "double-dipping" interaction specific to feeding an
-     * ALREADY-NOISE-OPTIMISED (best_dt_samp, best_df) pair from Stage A+B into
-     * Stage C's own re-derivation and search over the SAME PCM, not a simple
-     * sign or indexing defect. This does not affect AC-1/AC-2 (both PASS on
-     * real signal trials, where the true signal dominates any noise-selection
-     * artifact) or AC-3's frequency sub-check (PASSES, p=0.94). Per D5, this
-     * is escalated rather than iterated on further in this session -- see the
-     * QA report's AC-3 section for the full empirical trail.
+     * MECHANISM LOCATED (r1b-sync-refiner-instrument-correction, Architect
+     * review R-5: qa/rr-study/2026-08-14-2201-architect-to-qa-r1b-review-and-
+     * r2-unblock.md). Recorded so the next session does not have to re-derive
+     * it -- and so nobody re-derives the WRONG one.
+     *
+     * WITHDRAWN: this comment previously asserted a selection-bias /
+     * "double-dipping" interaction between Stage A+B's argmax and Stage C's
+     * re-derivation over the same noise. THAT EXPLANATION IS WRONG. It cannot
+     * be right: the effect is present on SIGNAL at +5 dB and is flat across
+     * the whole -20..+5 dB range, where selection bias cannot operate. Do not
+     * reinstate it from the older R1 QA report, which still argues for it.
+     *
+     * The real mechanism is an INTER-STAGE TIME-ORIGIN DISAGREEMENT, and both
+     * halves of it are visible in this file:
+     *
+     *   - Stage A+B: costas_coherent_sum takes i0 = floorf(sym_start_f) with
+     *     sym_start_f = origin + p*sps and sps1 = 32.0 EXACTLY, so flooring
+     *     each symbol start is identical to flooring the ORIGIN once. Stage
+     *     A+B therefore measures against floor(t0*200) + best_dt_samp -- a
+     *     window sitting up to one 200 Hz sample (5 ms) EARLY.
+     *   - Stage C: base_origin2 below is rebuilt from the UN-floored
+     *     coarse_time_offset_s. It starts phi/200 s LATE, where
+     *     phi = frac(t0*200), and spends its search walking back by exactly
+     *     that amount.
+     *
+     * Predicted from those two lines alone: slope -5.000 ms per unit cell
+     * position. Measured: -4.692 +/- 0.226 ms (1.4 SE), r = -0.515,
+     * p = 2.7e-82.
+     *
+     * The stages CANCEL -- mean coarse_dt_samp ~ +0.95 (+4.7 ms) against mean
+     * fine_dt_samp ~ -8.9 (-4.5 ms), net error +0.43 ms -- which is why
+     * AC-1/AC-2 pass and why this hid for two rounds. Both stages are
+     * implicated and the SEAM owns the defect: R-6 explicitly WITHDREW the
+     * earlier "the defect lives in Stage C, not Stage A+B" claim, because the
+     * coarse slope has the same sign and magnitude with 17x the SE, and its
+     * p = 0.252 was an instrument failure, not a null.
+     *
+     * A constant ~-4.5 ms pedestal sits on top of the slope. The standing
+     * hypothesis is that "ref_phase += phase_step" in costas_coherent_sum
+     * increments BEFORE use and so costs one sample at EACH stage's own rate
+     * (5 ms @ 200 Hz vs 0.5 ms @ 2000 Hz). That hypothesis is UNTESTED and
+     * DIRECTIONAL and MUST NOT gate anything -- measure the residual only
+     * after the origin is fixed.
+     *
+     * Cost today: ROBUSTNESS MARGIN ONLY. It does not eat Stage C's capture
+     * range (on signal, 0/2400 trials reach +/-20; worst case ~7 ms against a
+     * 10 ms half-window) and it changes no decode outcome, because
+     * ft8_refine_candidate still has no production call site.
+     *
+     * 2026-08-15 UPDATE (M1: qa/rr-study/2026-08-15-1301-architect-to-qa-m1-
+     * ruling-and-m2-anchor-sweep-spec.md). Against REAL captured signals this
+     * bias DOMINATES Stage C's output. Mean fine_dt_samp measured -7.73 on
+     * hits, -7.74 on misses and -6.99 on EMPTY SPECTRUM -- essentially the
+     * same value whether or not a signal is present, at every SNR. Do not
+     * read fine_dt_samp as a position estimate on real data until the origin
+     * is fixed and the instrument is re-validated against real signals (M2).
      */
     int n_bb2 = pcm_len / REFINE_DECIM_FINE;
     float* bb2_re = (float*)malloc(sizeof(float) * (size_t)n_bb2);
