@@ -1,0 +1,27 @@
+loaded 1800 results (dll sha256=04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf shim=20260041)
+n_tied (mirror-image score plateaus, excluded from signed stats): 0
+
+HK-025 independent re-classification: concurs_with_architect=True refusal=False
+HIT=700 NULL=700 CONTROL=400
+
+control median dt_win = 0.0000 s (bar |.|<=0.10)  n_tied=0/400
+control median |coarse_dt_samp| at winner = 1.000 samples (bar <= 2)
+
+strata power (need n>=80 in both HIT and NULL):
+  [-24,-21)      n_hit=  100 n_null=  100  OK
+  [-21,-18)      n_hit=  100 n_null=  100  OK
+  [-18,-15)      n_hit=  100 n_null=  100  OK
+  [-15,-12)      n_hit=  100 n_null=  100  OK
+  [-12,-9)       n_hit=  100 n_null=  100  OK
+  [-9,-6)        n_hit=  100 n_null=  100  OK
+  [-6,inf)       n_hit=  100 n_null=  100  OK
+n_strata_ok = 7 (need >= 4)
+
+HIT edge-winner fraction (|dt_win|>=1.20s): 1/700 = 0.0014 (bar <= 0.10)
+NULL median dt_win: -0.1500 s (bar |.| <= 0.15)  n_tied=0/700
+
+HIT dt_win: median=0.4500  mode_frac_within(+-0.10s of median, /all HIT)=0.9129  outside_frac(>+-0.10s of median, /all HIT)=0.0871  n_tied=0/700
+
+>>> ROW 1 <<<
+
+report written: D:\Projects\claude\OpenWSFZ\qa\rr-study\m3-anchor-timebase\results\m3_gate_report.json
