@@ -198,6 +198,12 @@ that number is reachable at all before anyone is asked to build one.
 
 - **ROW 0a — instrument continuity.** At `df = 0`, V1 median BER ≠ 5.75% ±1 pp **or** V0
   ≠ 2.87% ±1 pp ⇒ this is not the same instrument N2 ran. Escalate.
+  🔴 **Note what this row references and why (HK-022, extended today on N2's own ROW 0a):
+  it anchors on V0 — the unmodified C production extractor — on real audio. That is an
+  EXTERNAL reference. N3 must NOT add a synthetic round-trip against `modulator.py` as a
+  validity check: N2's ROW 0a went green at exactly 0.0% while the same extractor read
+  chance-level BER on real audio, because generator and consumer shared the convention
+  error. A round-trip against your own generator tests self-consistency, not alignment.**
 - **ROW 0b — the grid is too narrow.** Order 1's median BER does not **flatten** (change by
   <1 pp across the outermost 1.0 Hz) at **both** grid ends ⇒ `W` is not identifiable from a
   truncated curve. Escalate. 🛑 **Do NOT extend the grid and re-read** — that is the HK-026
