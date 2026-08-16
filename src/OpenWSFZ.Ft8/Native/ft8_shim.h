@@ -399,8 +399,41 @@ extern "C" {
  *   to a search stage because the decomposition was unobservable; this
  *   export makes it testable (see evaluate_acs.py's reflection_symmetry_test,
  *   run separately on the combined, coarse-only, and fine-only values).
+ *
+ * n1-extract-llrs-at-position (FT8_SHIM_VERSION 20260042):
+ *
+ *   Adds ft8_extract_llrs_at() -- a new DIAGNOSTIC-ONLY export that runs the
+ *   existing, unmodified ft8_extract_likelihood() extraction path at a
+ *   caller-supplied (freq_hz, time_offset_s) position instead of one
+ *   ftx_find_candidates() already located. Builds the waterfall exactly as
+ *   ft8_decode_all does, snaps the requested position to the nearest point on
+ *   the same K_FREQ_OSR/K_TIME_OSR lattice every existing candidate already
+ *   lives on, and delegates to a new non-static probe in decode.c,
+ *   ftx_extract_likelihood_at() (following the exact non-static-probe pattern
+ *   ftx_compute_candidate_llr_stats already established). Returns the raw,
+ *   pre-normalisation 174 log-likelihoods -- ftx_normalize_logl() is
+ *   deliberately not applied, matching the sign-convention discipline
+ *   c2_phase2c_ber_measurement.py's hard_decision_ber() already documents and
+ *   depends on.
+ *
+ *   N1 (qa/rr-study/2026-08-15-1840-architect-to-qa-N1-ber-at-refined-position-
+ *   spec.md) needs this to extract LLRs twice per row -- once at a candidate's
+ *   own grid position (control), once at grid + ft8_refine_candidate's
+ *   (delta_f, delta_t) (treatment) -- on identical audio, which neither
+ *   ft8_decode_all's own output nor any existing export can do; both only
+ *   read back LLRs a decode run already captured at its own grid position.
+ *
+ *   No production call site: ft8_extract_llrs_at is reachable only from test
+ *   code and QA harnesses invoking it directly (e.g. Python ctypes).
+ *   ft8_decode_all, ft8_get_last_pass_counts, ft8_set_decode_params, and
+ *   ft8_refine_candidate all remain byte-for-byte unchanged -- this bump
+ *   exists purely so the startup ABI check catches a binary built without the
+ *   new export. No struct layout change (FT8Result stays 48 bytes). No C#
+ *   Ft8LibInterop/IFt8NativeInterop wiring added (design.md D5) -- the
+ *   consumer is the Python QA harness, the same pattern the raw-LLR-capture
+ *   export family already established without managed bindings.
  */
-#define FT8_SHIM_VERSION 20260041
+#define FT8_SHIM_VERSION 20260042
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -662,6 +695,53 @@ int ft8_refine_candidate(
     float* out_sync_score,
     int*   out_coarse_dt_samp,
     int*   out_fine_dt_samp);
+
+/*
+ * ft8_extract_llrs_at -- diagnostic-only extract-LLRs-at-position export
+ * (n1-extract-llrs-at-position, shim 20260042).
+ *
+ * Builds a waterfall from the supplied PCM exactly as ft8_decode_all does,
+ * snaps the caller-supplied (freq_hz, time_offset_s) to the nearest point on
+ * the SAME frequency/time lattice production candidates already live on
+ * (K_FREQ_OSR / K_TIME_OSR, unchanged), and runs the existing, unmodified
+ * ft8_extract_likelihood() extraction path at that position -- the exact
+ * logic production uses for every candidate, unmodified.
+ *
+ * Returns the RAW, PRE-NORMALISATION 174 log-likelihoods -- ftx_normalize_logl()
+ * is deliberately NOT applied. Normalisation is a positive scale factor and does
+ * not change hard-decision sign, but N1's harness (c2_phase2c_ber_measurement.py's
+ * hard_decision_ber()) documents and depends on the raw, unnormalised value.
+ *
+ * Not a continuous-position extractor: the waterfall itself is discretised at
+ * K_FREQ_OSR / K_TIME_OSR; this export snaps to the nearest lattice point
+ * exactly as every existing candidate already does.
+ *
+ * No production call site: reachable only from test code and QA harnesses
+ * invoking it directly (e.g. Python ctypes). ft8_decode_all's production
+ * decode path, candidate selection, and every existing exported symbol are
+ * unaffected.
+ *
+ * Parameters:
+ *   pcm            -- float32 samples, 12 kHz mono, normalised to [-1, 1]
+ *   pcm_len        -- must be 180 000 (15 s x 12 000 Hz)
+ *   freq_hz        -- requested centre frequency, Hz
+ *   time_offset_s  -- requested time offset from cycle start, seconds
+ *   out_llr174     -- caller-allocated FTX_LDPC_N (174) floats; receives the
+ *                     raw log-likelihoods on success, untouched otherwise
+ *
+ * Returns: 0 on success.
+ *          -1 if pcm_len != 180 000, or out_llr174 is NULL.
+ *          -2 if an access violation or other SEH fault occurs inside the
+ *             waterfall/extraction pipeline (MSVC / Windows builds only).
+ *          -3 if the resolved frequency bin falls outside the waterfall's
+ *             valid range [0, num_bins) -- rejected, not silently clamped:
+ *             a caller-supplied position, unlike ftx_find_candidates()'s own
+ *             output, carries no guarantee of being in-band.
+ */
+int ft8_extract_llrs_at(
+    const float* pcm, int pcm_len,
+    float freq_hz, float time_offset_s,
+    float* out_llr174);
 
 #ifdef __cplusplus
 }

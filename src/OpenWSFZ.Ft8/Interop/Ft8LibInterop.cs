@@ -277,8 +277,23 @@ internal static class Ft8LibInterop
     ///   No struct layout change (<see cref="Ft8NativeResult"/> stays 48 bytes) — the bump
     ///   exists purely so the startup ABI check catches a binary built without the two new
     ///   out-parameters.
+    /// 20260042 (n1-extract-llrs-at-position): adds <c>ft8_extract_llrs_at</c> — a new
+    ///   DIAGNOSTIC-ONLY native export that runs the existing, unmodified
+    ///   <c>ft8_extract_likelihood()</c> extraction path at a caller-supplied
+    ///   <c>(freq_hz, time_offset_s)</c> position instead of one <c>ftx_find_candidates()</c>
+    ///   already located, snapped to the same <c>K_FREQ_OSR</c>/<c>K_TIME_OSR</c> lattice every
+    ///   existing candidate already lives on. Returns raw, pre-normalisation LLRs
+    ///   (<c>ftx_normalize_logl</c> is deliberately not applied). No production call site:
+    ///   reachable only from test code and QA harnesses invoking it directly (e.g. Python
+    ///   <c>ctypes</c>) — deliberately NOT wired into this managed
+    ///   <see cref="Ft8LibInterop"/>/<c>IFt8NativeInterop</c> surface (design.md D5 of the
+    ///   n1-extract-llrs-at-position change: no managed consumer exists or is proposed).
+    ///   <see cref="DecodeAll"/>, <see cref="GetLastPassCounts"/>, <see cref="SetDecodeParams"/>,
+    ///   and <see cref="RefineCandidate"/> all remain byte-for-byte unchanged. No struct layout
+    ///   change (<see cref="Ft8NativeResult"/> stays 48 bytes) — the bump exists purely so the
+    ///   startup ABI check catches a binary built without the new export.
     /// </summary>
-    private const int ExpectedShimVersion = 20260041;
+    private const int ExpectedShimVersion = 20260042;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI

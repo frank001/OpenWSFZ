@@ -92,6 +92,17 @@ float ftx_compute_candidate_llr_stats(
     const ftx_candidate_t* cand,
     float*                 out_prenorm_variance);
 
+/* Non-static diagnostic probe — called from ft8_shim.c (N1, shim 20260042).
+ * Builds a synthetic candidate at the caller-supplied lattice position and runs
+ * the SAME static ft8_extract_likelihood() every production candidate uses —
+ * no change to that function, no change to its existing callers. Read-only
+ * with respect to the waterfall; does not call bp_decode or ftx_normalize_logl. */
+void ftx_extract_likelihood_at(
+    const ftx_waterfall_t* wf,
+    int16_t time_offset, int16_t freq_offset,
+    uint8_t time_sub,    uint8_t freq_sub,
+    float*  out_log174 /* [FTX_LDPC_N] */);
+
 /* AP-constrained decode — called from ft8_shim.c for pass 0 (Task A, shim 20260020).
  * Behaves identically to ftx_decode_candidate but applies the ap_overrides array
  * to log174 after extraction and before normalisation.  Entries with value 0.0f are
@@ -800,6 +811,40 @@ float ftx_compute_candidate_llr_stats(
         abs_sum += fabsf(log174[i]);
 
     return abs_sum / (float)FTX_LDPC_N;
+}
+
+/*
+ * ftx_extract_likelihood_at — diagnostic probe for N1 (shim 20260042).
+ *
+ * Runs the exact, unmodified static ft8_extract_likelihood() extraction path
+ * at a caller-supplied lattice position instead of one ftx_find_candidates()
+ * already located. Builds a throwaway ftx_candidate_t (score=0 — score plays
+ * no role in extraction, only in candidate ranking, which this probe bypasses
+ * entirely) and delegates immediately.
+ *
+ * Read-only with respect to the waterfall. Does not call bp_decode or
+ * ftx_normalize_logl — the caller (ft8_shim.c's ft8_extract_llrs_at) receives
+ * raw, pre-normalisation LLRs, matching N1's harness convention.
+ *
+ * No bounds checking on (time_offset, freq_offset, time_sub, freq_sub) here:
+ * ft8_extract_likelihood already bounds-checks time per-symbol and zero-fills
+ * gracefully (see the block-boundary check a few lines above in this file);
+ * get_cand_mag's freq_offset bounds check is the caller's responsibility
+ * (ft8_shim.c's ft8_extract_llrs_at, design.md D3) since only the caller knows
+ * the waterfall's num_bins before this probe is invoked.
+ */
+void ftx_extract_likelihood_at(
+    const ftx_waterfall_t* wf,
+    int16_t time_offset, int16_t freq_offset,
+    uint8_t time_sub,    uint8_t freq_sub,
+    float*  out_log174)
+{
+    ftx_candidate_t cand = {
+        .score = 0,
+        .time_offset = time_offset, .freq_offset = freq_offset,
+        .time_sub = time_sub,       .freq_sub = freq_sub,
+    };
+    ft8_extract_likelihood(wf, &cand, out_log174);
 }
 
 /*
