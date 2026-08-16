@@ -1,3 +1,5 @@
+**User-facing:** no
+
 ## Why
 
 The FT8 decoder currently extracts symbols at the quantised lattice point returned by candidate

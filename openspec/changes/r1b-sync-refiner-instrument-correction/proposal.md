@@ -1,3 +1,5 @@
+**User-facing:** no
+
 ## Why
 
 R1 (`feat/r1-sync-refiner-instrument-validation`, `af2f466`) was accepted by the Captain

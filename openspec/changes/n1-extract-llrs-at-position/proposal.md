@@ -1,3 +1,5 @@
+**User-facing:** no
+
 ## Why
 
 D-001's N1 arm (`qa/rr-study/2026-08-15-1840-architect-to-qa-N1-ber-at-refined-position-spec.md`,
