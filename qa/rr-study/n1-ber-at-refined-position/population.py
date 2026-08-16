@@ -62,6 +62,11 @@ def _attach_grid_anchor(wsjtx_rows: list[dict], cand_by_cycle: dict[str, list[di
             "grid_freq_hz": cand["freq_hz"],
             "grid_dt": cand["dt"],
             "population": pop_label,
+            # Additive field, N2 Sec.7.3 (tight-match stratification): WSJT-X's own
+            # reported freq for this row, kept separate from grid_freq_hz (our
+            # candidate's own lattice position) precisely so |diff| can be computed.
+            # N1 never reads this key -- byte-for-byte backward compatible.
+            "wsjtx_freq_hz": row["freq"],
         })
     if n_no_grid_match:
         print("  [%s] WARNING: %d/%d row(s) could not be re-matched to a grid candidate "
