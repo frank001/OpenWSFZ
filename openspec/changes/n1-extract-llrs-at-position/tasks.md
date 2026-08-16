@@ -56,7 +56,7 @@
 
 ## 4. Byte-identical production-replay check
 
-- [ ] 4.1 Re-run the same production-decode-equality replay R1/R1b used (≥200 contiguous cycles,
+- [x] 4.1 Re-run the same production-decode-equality replay R1/R1b used (≥200 contiguous cycles,
       pinned corpus, pre-change `20260041` vs. new `20260042`,
       `qa/cycleframer-alignment-replay/r0_ac1_ac2_replay.py` + `r0_ac1_ac2_diff.py` or their current
       equivalents) to confirm **zero** decode-output differences. This is the mechanical proof this
