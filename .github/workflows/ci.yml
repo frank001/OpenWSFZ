@@ -96,10 +96,22 @@ jobs:
           clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
             -target arm64-apple-macos11.0 -c \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/ft8_shim.c"
+          # sync_refiner.c (r1-sync-refiner-instrument-validation): this build step
+          # was never updated when that change added ft8_refine_candidate, so every
+          # macOS/Linux CI run silently linked a libft8 missing that export -- caught
+          # 2026-08-16 by RefineCandidateTests failing with EntryPointNotFoundException
+          # on this branch's first-ever CI run (n1-extract-llrs-at-position review).
+          # -I. resolves sync_refiner.c's own <ft8/constants.h>; the second -I adds
+          # ft8_shim.h, matching native/ft8_lib_build/build_linux.sh's already-proven
+          # local recipe exactly.
+          clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" \
+            -target arm64-apple-macos11.0 -c \
+            "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/sync_refiner.c"
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o
           # ld embeds a fresh, randomly-generated LC_UUID on every link (see
           # chore/ci-native-binary-reproducibility, 2026-07-03). Omitting it
           # via -Wl,-no_uuid is NOT viable — dyld refuses to dlopen a Mach-O
@@ -141,7 +153,7 @@ jobs:
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o
           python3 "$GITHUB_WORKSPACE/tools/zero_dylib_uuid.py" libft8.dylib
           if ! cmp -s /tmp/ft8_lib/libft8.dylib libft8.dylib; then
             echo "=== DIAGNOSTIC: sizes ==="
@@ -192,9 +204,20 @@ jobs:
             fft/kiss_fft.c fft/kiss_fftr.c
           gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/ft8_shim.c"
+          # sync_refiner.c (r1-sync-refiner-instrument-validation): this build step
+          # was never updated when that change added ft8_refine_candidate, so every
+          # macOS/Linux CI run silently linked a libft8 missing that export -- caught
+          # 2026-08-16 by RefineCandidateTests failing with EntryPointNotFoundException
+          # on this branch's first-ever CI run (n1-extract-llrs-at-position review).
+          # -I. resolves sync_refiner.c's own <ft8/constants.h>; the second -I adds
+          # ft8_shim.h, matching native/ft8_lib_build/build_linux.sh's already-proven
+          # local recipe exactly.
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" -c \
+            "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/sync_refiner.c"
           gcc -shared -o libft8.so \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o \
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o \
             -lm
           echo "=== Linux .so exports ==="
           nm -D libft8.so | grep "ft8_"
