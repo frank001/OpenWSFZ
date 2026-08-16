@@ -1,0 +1,362 @@
+{
+  "control_dt_offset_ok": true,
+  "control_median_abs_coarse_dt_samp": 1.0,
+  "dll_sha256": "04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf",
+  "hit_rail_frac": 0.24459123109324143,
+  "hit_rail_n": 5110,
+  "hk025_classification": {
+    "ROW 0a": {
+      "class": "VALIDITY",
+      "reason": "harness cannot relocate a known position / a call errored"
+    },
+    "ROW 0b": {
+      "class": "VALIDITY",
+      "reason": "insufficient population, not a measured null"
+    },
+    "ROW 0c": {
+      "class": "VALIDITY",
+      "reason": "coarse_dt_samp censored at the aperture rail"
+    },
+    "ROW 0d": {
+      "class": "VALIDITY",
+      "reason": "reference (NULL) arm has its own directional artefact"
+    },
+    "concurs_with_spec": true,
+    "refusal": false
+  },
+  "n_control": 400,
+  "n_hit": 20892,
+  "n_miss": 14082,
+  "n_null": 16212,
+  "n_rc_nonzero": 0,
+  "n_strata_ok": 7,
+  "null_median_signed_coarse_dt_samp": -2.0,
+  "null_ols_slope_vs_base_dt_s": {
+    "intercept": -1.1828376398743563,
+    "n": 16212,
+    "n_clusters": 4053,
+    "p_value": 4.3360859965636076e-06,
+    "se_slope": 0.22119313340383154,
+    "slope": 1.0176789820012497,
+    "t_stat": 4.600861547285361
+  },
+  "null_rail_frac": 0.16734517641253394,
+  "null_rail_n": 2713,
+  "primary_rho_conc": {
+    "ci_hi": -0.011934577515037691,
+    "ci_lo": -0.03633301108559561,
+    "label": "M4 primary HIT vs NULL",
+    "n_strata_usable": 7,
+    "per_stratum": [
+      {
+        "n_a": 293,
+        "n_b": 592,
+        "power_ok": true,
+        "rho_rb": 0.03093579928050927,
+        "se_bootstrap": 0.04283650926356532,
+        "stratum": "[-24,-21)"
+      },
+      {
+        "n_a": 749,
+        "n_b": 1395,
+        "power_ok": true,
+        "rho_rb": -0.04499284589727759,
+        "se_bootstrap": 0.027566386486206844,
+        "stratum": "[-21,-18)"
+      },
+      {
+        "n_a": 1742,
+        "n_b": 2410,
+        "power_ok": true,
+        "rho_rb": -0.020198560342240324,
+        "se_bootstrap": 0.01779949724143006,
+        "stratum": "[-18,-15)"
+      },
+      {
+        "n_a": 2634,
+        "n_b": 2560,
+        "power_ok": true,
+        "rho_rb": -0.05546578397873958,
+        "se_bootstrap": 0.01632581127426391,
+        "stratum": "[-15,-12)"
+      },
+      {
+        "n_a": 2978,
+        "n_b": 2203,
+        "power_ok": true,
+        "rho_rb": 0.021456027817247758,
+        "se_bootstrap": 0.015564114628187768,
+        "stratum": "[-12,-9)"
+      },
+      {
+        "n_a": 2662,
+        "n_b": 1739,
+        "power_ok": true,
+        "rho_rb": 0.0035014553213954525,
+        "se_bootstrap": 0.018878435361346625,
+        "stratum": "[-9,-6)"
+      },
+      {
+        "n_a": 9834,
+        "n_b": 5313,
+        "power_ok": true,
+        "rho_rb": -0.040272475665212526,
+        "se_bootstrap": 0.009945234265557622,
+        "stratum": "[-6,inf)"
+      }
+    ],
+    "pooled_rho_rb": -0.024133794300316654,
+    "pooled_se": 0.006224090196570899
+  },
+  "replication_leg": {
+    "agrees_with_primary": false,
+    "ci_hi": NaN,
+    "ci_lo": NaN,
+    "n_hit": 700,
+    "n_missing_dt45_call": 0,
+    "n_null": 700,
+    "per_stratum": [
+      {
+        "n_a": 100,
+        "n_b": 100,
+        "power_ok": false,
+        "rho_rb": 0.0686,
+        "se_bootstrap": 0.08146103180602778,
+        "stratum": "[-24,-21)"
+      },
+      {
+        "n_a": 100,
+        "n_b": 100,
+        "power_ok": false,
+        "rho_rb": -0.10740000000000005,
+        "se_bootstrap": 0.08343956264411075,
+        "stratum": "[-21,-18)"
+      },
+      {
+        "n_a": 100,
+        "n_b": 100,
+        "power_ok": false,
+        "rho_rb": 0.05119999999999991,
+        "se_bootstrap": 0.08140255933959485,
+        "stratum": "[-18,-15)"
+      },
+      {
+        "n_a": 100,
+        "n_b": 100,
+        "power_ok": false,
+        "rho_rb": 0.060899999999999954,
+        "se_bootstrap": 0.07875087701588598,
+        "stratum": "[-15,-12)"
+      },
+      {
+        "n_a": 100,
+        "n_b": 100,
+        "power_ok": false,
+        "rho_rb": -0.0011999999999999789,
+        "se_bootstrap": 0.08262481753028211,
+        "stratum": "[-12,-9)"
+      },
+      {
+        "n_a": 100,
+        "n_b": 100,
+        "power_ok": false,
+        "rho_rb": 0.04279999999999995,
+        "se_bootstrap": 0.08871703804738702,
+        "stratum": "[-9,-6)"
+      },
+      {
+        "n_a": 100,
+        "n_b": 100,
+        "power_ok": false,
+        "rho_rb": 0.061900000000000066,
+        "se_bootstrap": 0.07914582636072416,
+        "stratum": "[-6,inf)"
+      }
+    ],
+    "pooled_rho_conc": NaN,
+    "pooled_se": NaN,
+    "row_if_gated_alone": "ROW 3"
+  },
+  "row": "ROW 2",
+  "secondary": {
+    "S1_hit_vs_miss_score": {
+      "ci_hi": 0.013394175573537993,
+      "ci_lo": -0.013099084567484126,
+      "label": "S1 HIT vs MISS on score",
+      "n_strata_usable": 7,
+      "per_stratum": [
+        {
+          "n_a": 293,
+          "n_b": 1073,
+          "power_ok": true,
+          "rho_rb": -0.2522257458117173,
+          "se_bootstrap": 0.03443545070026218,
+          "stratum": "[-24,-21)"
+        },
+        {
+          "n_a": 749,
+          "n_b": 2293,
+          "power_ok": true,
+          "rho_rb": -0.1974588010063716,
+          "se_bootstrap": 0.02381484542913467,
+          "stratum": "[-21,-18)"
+        },
+        {
+          "n_a": 1742,
+          "n_b": 3097,
+          "power_ok": true,
+          "rho_rb": -0.11248487944520213,
+          "se_bootstrap": 0.01836670400524516,
+          "stratum": "[-18,-15)"
+        },
+        {
+          "n_a": 2634,
+          "n_b": 2712,
+          "power_ok": true,
+          "rho_rb": -0.07903048516898381,
+          "se_bootstrap": 0.01584895446773592,
+          "stratum": "[-15,-12)"
+        },
+        {
+          "n_a": 2978,
+          "n_b": 1846,
+          "power_ok": true,
+          "rho_rb": -0.05234394952657517,
+          "se_bootstrap": 0.015918679746554063,
+          "stratum": "[-12,-9)"
+        },
+        {
+          "n_a": 2662,
+          "n_b": 1254,
+          "power_ok": true,
+          "rho_rb": -0.0020918784907080212,
+          "se_bootstrap": 0.02032883291323108,
+          "stratum": "[-9,-6)"
+        },
+        {
+          "n_a": 9834,
+          "n_b": 1807,
+          "power_ok": true,
+          "rho_rb": 0.23830151629388752,
+          "se_bootstrap": 0.012937169534079215,
+          "stratum": "[-6,inf)"
+        }
+      ],
+      "pooled_rho_rb": 0.00014754550302693406,
+      "pooled_se": 0.0067584847298525815
+    },
+    "S2_hit_vs_miss_position": {
+      "ci_hi": 0.021128961488879543,
+      "ci_lo": -0.006361652569472189,
+      "label": "S2 HIT vs MISS positional",
+      "n_strata_usable": 7,
+      "per_stratum": [
+        {
+          "n_a": 293,
+          "n_b": 1073,
+          "power_ok": true,
+          "rho_rb": 0.012713549138169578,
+          "se_bootstrap": 0.03660599340529302,
+          "stratum": "[-24,-21)"
+        },
+        {
+          "n_a": 749,
+          "n_b": 2293,
+          "power_ok": true,
+          "rho_rb": -0.019394372027945916,
+          "se_bootstrap": 0.023153719966133787,
+          "stratum": "[-21,-18)"
+        },
+        {
+          "n_a": 1742,
+          "n_b": 3097,
+          "power_ok": true,
+          "rho_rb": 0.020207511658072885,
+          "se_bootstrap": 0.01697598758304943,
+          "stratum": "[-18,-15)"
+        },
+        {
+          "n_a": 2634,
+          "n_b": 2712,
+          "power_ok": true,
+          "rho_rb": -0.035415728738999674,
+          "se_bootstrap": 0.016016352697280842,
+          "stratum": "[-15,-12)"
+        },
+        {
+          "n_a": 2978,
+          "n_b": 1846,
+          "power_ok": true,
+          "rho_rb": 0.04552998624073834,
+          "se_bootstrap": 0.01604868786170145,
+          "stratum": "[-12,-9)"
+        },
+        {
+          "n_a": 2662,
+          "n_b": 1254,
+          "power_ok": true,
+          "rho_rb": 0.05423426402903653,
+          "se_bootstrap": 0.02038342227221671,
+          "stratum": "[-9,-6)"
+        },
+        {
+          "n_a": 9834,
+          "n_b": 1807,
+          "power_ok": true,
+          "rho_rb": -0.015390794324694146,
+          "se_bootstrap": 0.015686829584623387,
+          "stratum": "[-6,inf)"
+        }
+      ],
+      "pooled_rho_rb": 0.007383654459703676,
+      "pooled_se": 0.007012911749579523
+    },
+    "readable": false
+  },
+  "shim_version": 20260041,
+  "spec": "2026-08-15-1658-architect-to-qa-m4-corrected-anchor-spec.md",
+  "strata_power": [
+    {
+      "n_hit": 293,
+      "n_null": 592,
+      "power_ok": true,
+      "stratum": "[-24,-21)"
+    },
+    {
+      "n_hit": 749,
+      "n_null": 1395,
+      "power_ok": true,
+      "stratum": "[-21,-18)"
+    },
+    {
+      "n_hit": 1742,
+      "n_null": 2410,
+      "power_ok": true,
+      "stratum": "[-18,-15)"
+    },
+    {
+      "n_hit": 2634,
+      "n_null": 2560,
+      "power_ok": true,
+      "stratum": "[-15,-12)"
+    },
+    {
+      "n_hit": 2978,
+      "n_null": 2203,
+      "power_ok": true,
+      "stratum": "[-12,-9)"
+    },
+    {
+      "n_hit": 2662,
+      "n_null": 1739,
+      "power_ok": true,
+      "stratum": "[-9,-6)"
+    },
+    {
+      "n_hit": 9834,
+      "n_null": 5313,
+      "power_ok": true,
+      "stratum": "[-6,inf)"
+    }
+  ]
+}

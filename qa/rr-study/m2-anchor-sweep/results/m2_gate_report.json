@@ -1,0 +1,125 @@
+{
+  "control_median_abs_coarse_dt_samp": 1.0,
+  "control_median_ms": 5.0,
+  "dll_sha256": "04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf",
+  "edge_frac_hit": 0.5551839464882943,
+  "hit_vs_null_concentration": {
+    "ci_hi": 0.03930766961162175,
+    "ci_lo": -0.029676522561445894,
+    "label": "HIT vs NULL (concentration)",
+    "n_strata_usable": 7,
+    "per_stratum": [
+      {
+        "n_a": 293,
+        "n_b": 300,
+        "power_ok": true,
+        "rho_rb": 0.04825938566552912,
+        "se_bootstrap": 0.04850760488832163,
+        "stratum": "[-24,-21)"
+      },
+      {
+        "n_a": 300,
+        "n_b": 300,
+        "power_ok": true,
+        "rho_rb": 0.0472999999999999,
+        "se_bootstrap": 0.04383380861688503,
+        "stratum": "[-21,-18)"
+      },
+      {
+        "n_a": 300,
+        "n_b": 300,
+        "power_ok": true,
+        "rho_rb": -0.020777777777777784,
+        "se_bootstrap": 0.046303734790692,
+        "stratum": "[-18,-15)"
+      },
+      {
+        "n_a": 300,
+        "n_b": 300,
+        "power_ok": true,
+        "rho_rb": 0.019055555555555603,
+        "se_bootstrap": 0.04673067159139672,
+        "stratum": "[-15,-12)"
+      },
+      {
+        "n_a": 300,
+        "n_b": 300,
+        "power_ok": true,
+        "rho_rb": -0.04957777777777783,
+        "se_bootstrap": 0.04834392972410444,
+        "stratum": "[-12,-9)"
+      },
+      {
+        "n_a": 300,
+        "n_b": 300,
+        "power_ok": true,
+        "rho_rb": 0.023900000000000032,
+        "se_bootstrap": 0.043982192171146295,
+        "stratum": "[-9,-6)"
+      },
+      {
+        "n_a": 300,
+        "n_b": 300,
+        "power_ok": true,
+        "rho_rb": -0.047666666666666635,
+        "se_bootstrap": 0.0491215989508106,
+        "stratum": "[-6,inf)"
+      }
+    ],
+    "pooled_rho_rb": 0.004815573525087929,
+    "pooled_se": 0.017598008207415215
+  },
+  "n_control": 400,
+  "n_hit": 2093,
+  "n_hit_edge": 1162,
+  "n_null": 2100,
+  "n_strata_ok": 7,
+  "null_mean_df_anchor_hz": -0.5876190476190476,
+  "row": "ROW 0c",
+  "shim_version": 20260041,
+  "spec": "2026-08-15-1301-architect-to-qa-m1-ruling-and-m2-anchor-sweep-spec.md",
+  "strata_power": [
+    {
+      "n_hit": 293,
+      "n_null": 300,
+      "power_ok": true,
+      "stratum": "[-24,-21)"
+    },
+    {
+      "n_hit": 300,
+      "n_null": 300,
+      "power_ok": true,
+      "stratum": "[-21,-18)"
+    },
+    {
+      "n_hit": 300,
+      "n_null": 300,
+      "power_ok": true,
+      "stratum": "[-18,-15)"
+    },
+    {
+      "n_hit": 300,
+      "n_null": 300,
+      "power_ok": true,
+      "stratum": "[-15,-12)"
+    },
+    {
+      "n_hit": 300,
+      "n_null": 300,
+      "power_ok": true,
+      "stratum": "[-12,-9)"
+    },
+    {
+      "n_hit": 300,
+      "n_null": 300,
+      "power_ok": true,
+      "stratum": "[-9,-6)"
+    },
+    {
+      "n_hit": 300,
+      "n_null": 300,
+      "power_ok": true,
+      "stratum": "[-6,inf)"
+    }
+  ]
+}

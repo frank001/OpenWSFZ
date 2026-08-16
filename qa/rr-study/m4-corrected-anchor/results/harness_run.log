@@ -1,0 +1,29 @@
+loaded 51586 rows (real+control), SHA256-pinning DLL...
+  real=51186 control=400
+DLL verified: SHA256=04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf shim_version=20260041
+distinct cycles to load: 4056
+cycle 1/4056  rows 19/51586  50.09 rows/s  ETA 1030s
+cycle 201/4056  rows 3357/51586  49.01 rows/s  ETA 984s
+cycle 401/4056  rows 6332/51586  49.06 rows/s  ETA 922s
+cycle 601/4056  rows 9283/51586  49.37 rows/s  ETA 857s
+cycle 801/4056  rows 12297/51586  49.41 rows/s  ETA 795s
+cycle 1001/4056  rows 14508/51586  49.26 rows/s  ETA 753s
+cycle 1201/4056  rows 16240/51586  49.16 rows/s  ETA 719s
+cycle 1401/4056  rows 17789/51586  49.11 rows/s  ETA 688s
+cycle 1601/4056  rows 19013/51586  49.08 rows/s  ETA 664s
+cycle 1801/4056  rows 20177/51586  49.05 rows/s  ETA 640s
+cycle 2001/4056  rows 21694/51586  49.04 rows/s  ETA 610s
+cycle 2201/4056  rows 23837/51586  49.04 rows/s  ETA 566s
+cycle 2401/4056  rows 26404/51586  49.04 rows/s  ETA 514s
+cycle 2601/4056  rows 28835/51586  49.02 rows/s  ETA 464s
+cycle 2801/4056  rows 31360/51586  49.03 rows/s  ETA 413s
+cycle 3001/4056  rows 34925/51586  49.02 rows/s  ETA 340s
+cycle 3201/4056  rows 38595/51586  49.01 rows/s  ETA 265s
+cycle 3401/4056  rows 42121/51586  49.04 rows/s  ETA 193s
+cycle 3601/4056  rows 44917/51586  49.04 rows/s  ETA 136s
+cycle 3801/4056  rows 47829/51586  49.03 rows/s  ETA 77s
+cycle 4001/4056  rows 50710/51586  49.03 rows/s  ETA 18s
+cycle 4056/4056  rows 51586/51586  49.03 rows/s  ETA 0s
+
+done: 51586/51586 rows in 1052.2s (20.40 ms/row)  rc!=0=0  stopped_early=False
+results written: D:\Projects\claude\OpenWSFZ\qa\rr-study\m4-corrected-anchor\results\m4_results.json

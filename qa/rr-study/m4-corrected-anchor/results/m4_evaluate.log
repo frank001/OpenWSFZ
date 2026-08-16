@@ -1,0 +1,44 @@
+loaded 51586 results (dll sha256=04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf shim=20260041)
+
+HK-025 independent re-classification: concurs_with_spec=True refusal=False
+HIT=20892 MISS=14082 NULL=16212 CONTROL=400
+
+control median |coarse_dt_samp| = 1.000 (bar <= 3; uniform floor 6.0)
+n_rc_nonzero (whole run) = 0 ; control dt_offset all 0.0 = True
+
+strata power (need n>=200 in both HIT and NULL):
+  [-24,-21)      n_hit=  293 n_null=  592  OK
+  [-21,-18)      n_hit=  749 n_null= 1395  OK
+  [-18,-15)      n_hit= 1742 n_null= 2410  OK
+  [-15,-12)      n_hit= 2634 n_null= 2560  OK
+  [-12,-9)       n_hit= 2978 n_null= 2203  OK
+  [-9,-6)        n_hit= 2662 n_null= 1739  OK
+  [-6,inf)       n_hit= 9834 n_null= 5313  OK
+n_strata_ok = 7 (need >= 4)
+
+HIT railed (|coarse_dt_samp|=12): 5110/20892 = 0.2446 (bar <= 0.25; uniform floor 0.0800)
+NULL railed (|coarse_dt_samp|=12): 2713/16212 = 0.1673 (bar <= 0.25; uniform floor 0.0800)
+
+NULL median signed coarse_dt_samp = -2.000 (bar |.| <= 2 steps = 10 ms)
+NULL OLS slope(coarse_dt_samp ~ anchor_dt_s), cluster-robust: slope=1.0177 steps/s  se=0.2212  p=0.000004  n_clusters=4053  (bar: p<0.01 AND |slope|>2.0)
+
+rho_conc (HIT vs NULL), per stratum:
+  [-24,-21)      n_hit=  293 n_null=  592 power_ok=True  rho_conc=  0.0309 se=  0.0428
+  [-21,-18)      n_hit=  749 n_null= 1395 power_ok=True  rho_conc= -0.0450 se=  0.0276
+  [-18,-15)      n_hit= 1742 n_null= 2410 power_ok=True  rho_conc= -0.0202 se=  0.0178
+  [-15,-12)      n_hit= 2634 n_null= 2560 power_ok=True  rho_conc= -0.0555 se=  0.0163
+  [-12,-9)       n_hit= 2978 n_null= 2203 power_ok=True  rho_conc=  0.0215 se=  0.0156
+  [-9,-6)        n_hit= 2662 n_null= 1739 power_ok=True  rho_conc=  0.0035 se=  0.0189
+  [-6,inf)       n_hit= 9834 n_null= 5313 power_ok=True  rho_conc= -0.0403 se=  0.0099
+pooled (inverse-variance, 7 usable strata): rho_conc=-0.0241  SE=0.0062  95% CI=[-0.0363, -0.0119]
+
+>>> ROW 2 <<<
+
+secondary S1/S2 computed=True readable=False (per spec S5.4: withheld unless ROW 1)
+  S1 pooled rho_rb (HIT vs MISS, score) = 0.0001  CI=[-0.0131, 0.0134]  WITHHELD -- not a finding at this gate row
+  S2 pooled rho_conc (HIT vs MISS, position) = 0.0074  CI=[-0.0064, 0.0211]  WITHHELD -- not a finding at this gate row
+
+replication leg (M3's dt_offset=+0.45 column, n_hit=700 n_null=700, n_missing_call=0):
+  rho_conc=nan  CI=[nan, nan]  row-if-gated-alone=ROW 3  *** DISAGREES with primary -- ESCALATE, do not choose ***
+
+report written: D:\Projects\claude\OpenWSFZ\qa\rr-study\m4-corrected-anchor\results\m4_gate_report.json

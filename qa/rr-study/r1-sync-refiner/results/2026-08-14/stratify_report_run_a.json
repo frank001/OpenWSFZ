@@ -1,0 +1,116 @@
+{
+  "correlations": {
+    "cell_position_vs_dt": -0.06719658917823242,
+    "coarse_freq_hz_vs_dt": -0.007041026906974172,
+    "raw_coarse_time_offset_vs_dt": -0.033275843047917295
+  },
+  "decile_table_mean_dt_by_cell_position": [
+    {
+      "cell_position_range": [
+        0.003800301761884839,
+        0.10735617108887113
+      ],
+      "decile": 0,
+      "mean_dt_ms": -1.9624999025836587,
+      "n": 120
+    },
+    {
+      "cell_position_range": [
+        0.10735617108887113,
+        0.1958320625097599
+      ],
+      "decile": 1,
+      "mean_dt_ms": -3.958333306945861,
+      "n": 120
+    },
+    {
+      "cell_position_range": [
+        0.1958320625097599,
+        0.3029810128001863
+      ],
+      "decile": 2,
+      "mean_dt_ms": -0.774999944648395,
+      "n": 120
+    },
+    {
+      "cell_position_range": [
+        0.3029810128001863,
+        0.403067374732683
+      ],
+      "decile": 3,
+      "mean_dt_ms": -3.8624999617847307,
+      "n": 120
+    },
+    {
+      "cell_position_range": [
+        0.403067374732683,
+        0.5072991279962409
+      ],
+      "decile": 4,
+      "mean_dt_ms": -6.183333361210923,
+      "n": 120
+    },
+    {
+      "cell_position_range": [
+        0.5072991279962409,
+        0.6069031650538478
+      ],
+      "decile": 5,
+      "mean_dt_ms": -3.1541669236806533,
+      "n": 120
+    },
+    {
+      "cell_position_range": [
+        0.6069031650538478,
+        0.6908948579406644
+      ],
+      "decile": 6,
+      "mean_dt_ms": -7.287500022600094,
+      "n": 120
+    },
+    {
+      "cell_position_range": [
+        0.6908948579406644,
+        0.791252596369543
+      ],
+      "decile": 7,
+      "mean_dt_ms": -5.579166576111069,
+      "n": 120
+    },
+    {
+      "cell_position_range": [
+        0.791252596369543,
+        0.8902502692836427
+      ],
+      "decile": 8,
+      "mean_dt_ms": -14.058333398619045,
+      "n": 120
+    },
+    {
+      "cell_position_range": [
+        0.8902502692836427,
+        0.9986853069777055
+      ],
+      "decile": 9,
+      "mean_dt_ms": -7.34166637606298,
+      "n": 120
+    }
+  ],
+  "gates_any_acceptance_criterion": false,
+  "informal_symmetry_crosscheck": {
+    "ks_vs_own_negation": {
+      "ks_statistic": 0.1125,
+      "p_value": 4.942692080681244e-07
+    },
+    "note": "reproduction check only -- the gated test is evaluate_acs.py's reflection_symmetry_test (task 3.1), not this script",
+    "sign_test": {
+      "n_negative": 637,
+      "n_positive": 555,
+      "p_value": 0.018933286836530273
+    }
+  },
+  "mean_dt_ms": -5.416249977424741,
+  "median_dt_ms": -4.999999888241291,
+  "n_trials": 1200,
+  "source_results_file": "qa/rr-study/r1-sync-refiner/results/2026-08-14/run_a.json"
+}

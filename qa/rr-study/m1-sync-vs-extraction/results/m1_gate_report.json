@@ -1,0 +1,189 @@
+{
+  "dll_sha256": "04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf",
+  "hit_vs_miss": {
+    "ci_hi": -0.3101923192325087,
+    "ci_lo": -0.33530393541449444,
+    "label": "HIT vs MISS",
+    "n_strata_usable": 7,
+    "per_stratum": [
+      {
+        "n_a": 293,
+        "n_b": 1073,
+        "power_ok": true,
+        "rho_rb": -0.43014545674307947,
+        "se_bootstrap": 0.03205858736686263,
+        "stratum": "[-24,-21)"
+      },
+      {
+        "n_a": 749,
+        "n_b": 2293,
+        "power_ok": true,
+        "rho_rb": -0.3736204166974777,
+        "se_bootstrap": 0.020827115112272296,
+        "stratum": "[-21,-18)"
+      },
+      {
+        "n_a": 1742,
+        "n_b": 3097,
+        "power_ok": true,
+        "rho_rb": -0.37146666508494763,
+        "se_bootstrap": 0.01572316222800776,
+        "stratum": "[-18,-15)"
+      },
+      {
+        "n_a": 2634,
+        "n_b": 2712,
+        "power_ok": true,
+        "rho_rb": -0.3972095671981777,
+        "se_bootstrap": 0.014589746630165374,
+        "stratum": "[-15,-12)"
+      },
+      {
+        "n_a": 2978,
+        "n_b": 1846,
+        "power_ok": true,
+        "rho_rb": -0.42437353885154183,
+        "se_bootstrap": 0.014550701681433537,
+        "stratum": "[-12,-9)"
+      },
+      {
+        "n_a": 2662,
+        "n_b": 1254,
+        "power_ok": true,
+        "rho_rb": -0.3658543599624702,
+        "se_bootstrap": 0.02055884810898921,
+        "stratum": "[-9,-6)"
+      },
+      {
+        "n_a": 9834,
+        "n_b": 1807,
+        "power_ok": true,
+        "rho_rb": -0.06586480006401785,
+        "se_bootstrap": 0.013791095725721247,
+        "stratum": "[-6,inf)"
+      }
+    ],
+    "pooled_rho_rb": -0.32274812732350155,
+    "pooled_se": 0.006406024536220856
+  },
+  "hit_vs_null": {
+    "ci_hi": 0.917145520471148,
+    "ci_lo": 0.909198675035258,
+    "label": "HIT vs NULL",
+    "n_strata_usable": 7,
+    "per_stratum": [
+      {
+        "n_a": 293,
+        "n_b": 592,
+        "power_ok": true,
+        "rho_rb": 0.4054630569135689,
+        "se_bootstrap": 0.034738164105052975,
+        "stratum": "[-24,-21)"
+      },
+      {
+        "n_a": 749,
+        "n_b": 1395,
+        "power_ok": true,
+        "rho_rb": 0.462398131798192,
+        "se_bootstrap": 0.021236315766854728,
+        "stratum": "[-21,-18)"
+      },
+      {
+        "n_a": 1742,
+        "n_b": 2410,
+        "power_ok": true,
+        "rho_rb": 0.5051274111409121,
+        "se_bootstrap": 0.01533348554358751,
+        "stratum": "[-18,-15)"
+      },
+      {
+        "n_a": 2634,
+        "n_b": 2560,
+        "power_ok": true,
+        "rho_rb": 0.6398054883257402,
+        "se_bootstrap": 0.011683130171467647,
+        "stratum": "[-15,-12)"
+      },
+      {
+        "n_a": 2978,
+        "n_b": 2203,
+        "power_ok": true,
+        "rho_rb": 0.7506065817203296,
+        "se_bootstrap": 0.010218657025230244,
+        "stratum": "[-12,-9)"
+      },
+      {
+        "n_a": 2662,
+        "n_b": 1739,
+        "power_ok": true,
+        "rho_rb": 0.8271742657183137,
+        "se_bootstrap": 0.008856272211381907,
+        "stratum": "[-9,-6)"
+      },
+      {
+        "n_a": 9834,
+        "n_b": 5313,
+        "power_ok": true,
+        "rho_rb": 0.9510252843541964,
+        "se_bootstrap": 0.0022012825487372897,
+        "stratum": "[-6,inf)"
+      }
+    ],
+    "pooled_rho_rb": 0.913172097753203,
+    "pooled_se": 0.002027256488747421
+  },
+  "n_hit": 20892,
+  "n_miss": 14082,
+  "n_null": 16212,
+  "n_strata_ok": 7,
+  "row": "ROW 0b",
+  "sat_frac_hit": 0.4833429063756462,
+  "sat_frac_miss": 0.44134355915352935,
+  "sat_frac_null": 0.3760177646188009,
+  "shim_version": 20260041,
+  "spec": "2026-08-14-2217-architect-to-qa-spec-m1-sync-limited-or-extraction-limited.md",
+  "strata_power": [
+    {
+      "n_hit": 293,
+      "n_miss": 1073,
+      "power_ok": true,
+      "stratum": "[-24,-21)"
+    },
+    {
+      "n_hit": 749,
+      "n_miss": 2293,
+      "power_ok": true,
+      "stratum": "[-21,-18)"
+    },
+    {
+      "n_hit": 1742,
+      "n_miss": 3097,
+      "power_ok": true,
+      "stratum": "[-18,-15)"
+    },
+    {
+      "n_hit": 2634,
+      "n_miss": 2712,
+      "power_ok": true,
+      "stratum": "[-15,-12)"
+    },
+    {
+      "n_hit": 2978,
+      "n_miss": 1846,
+      "power_ok": true,
+      "stratum": "[-12,-9)"
+    },
+    {
+      "n_hit": 2662,
+      "n_miss": 1254,
+      "power_ok": true,
+      "stratum": "[-9,-6)"
+    },
+    {
+      "n_hit": 9834,
+      "n_miss": 1807,
+      "power_ok": true,
+      "stratum": "[-6,inf)"
+    }
+  ]
+}

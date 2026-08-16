@@ -414,6 +414,13 @@ float ftx_compute_candidate_llr_stats(
     const ftx_candidate_t* cand,
     float*                 out_prenorm_variance);
 
+/* N1 (shim 20260042): extract raw LLRs at a caller-supplied lattice position */
+void ftx_extract_likelihood_at(
+    const ftx_waterfall_t* wf,
+    int16_t time_offset, int16_t freq_offset,
+    uint8_t time_sub,    uint8_t freq_sub,
+    float*  out_log174);
+
 /* Task A (shim 20260020): AP-constrained decode */
 bool ftx_decode_candidate_ap(
     const ftx_waterfall_t*  wf,
@@ -1496,6 +1503,128 @@ int ft8_decode_all(
          * The managed layer receives -2, logs at WARNING, and skips the
          * decode cycle.                                                   */
         tls_hash_table = NULL;
+        return -2;
+    }
+#endif
+}
+
+/* ── N1 diagnostic: extract raw LLRs at a caller-supplied position ────────── */
+/*
+ * ft8_extract_llrs_at — diagnostic-only export (n1-extract-llrs-at-position,
+ * shim 20260042).
+ *
+ * Builds the waterfall from the supplied PCM exactly as ft8_decode_all does
+ * (same monitor_config_t literal — copied, not shared, per design.md D2's
+ * minimality instruction), snaps the caller-supplied (freq_hz, time_offset_s)
+ * to the nearest point on the SAME frequency/time lattice production
+ * candidates already live on (K_FREQ_OSR / K_TIME_OSR, unchanged), and runs
+ * the existing, unmodified ft8_extract_likelihood() extraction path there via
+ * the ftx_extract_likelihood_at() probe. Returns the raw, pre-normalisation
+ * 174 log-likelihoods — ftx_normalize_logl() is deliberately NOT called; N1's
+ * harness (c2_phase2c_ber_measurement.py's hard_decision_ber()) documents and
+ * depends on working from the raw, unnormalised value.
+ *
+ * No production call site: reachable only from test code and QA harnesses
+ * invoking it directly (e.g. Python ctypes). ft8_decode_all's production
+ * decode path, candidate selection, and every existing exported symbol are
+ * unaffected.
+ *
+ * Parameters:
+ *   pcm            — float32 samples, 12 kHz mono, normalised to [-1, 1]
+ *   pcm_len        — must be 180 000 (15 s x 12 000 Hz)
+ *   freq_hz        — requested centre frequency, Hz
+ *   time_offset_s  — requested time offset from cycle start, seconds
+ *   out_llr174     — caller-allocated FTX_LDPC_N (174) floats; receives the
+ *                    raw log-likelihoods on success, untouched otherwise
+ *
+ * Returns: 0 on success.
+ *          -1 if pcm_len != 180 000 or out_llr174 is NULL.
+ *          -2 if an access violation or other SEH fault occurs inside the
+ *             waterfall/extraction pipeline (MSVC / Windows builds only).
+ *          -3 if the resolved frequency bin falls outside the waterfall's
+ *             valid range [0, num_bins) — the position is rejected, not
+ *             silently clamped (design.md D3): a caller-supplied position,
+ *             unlike ftx_find_candidates()'s own output, carries no guarantee
+ *             of being in-band.
+ */
+int ft8_extract_llrs_at(
+    const float* pcm, int pcm_len,
+    float freq_hz, float time_offset_s,
+    float* out_llr174)
+{
+    if (pcm_len != FT8_EXPECTED_SAMPLES || out_llr174 == NULL) return -1;
+
+    /* monitor_t mon is declared before __try so the __except handler could
+     * reference it if ever needed — same discipline ft8_decode_all uses. */
+    monitor_t mon;
+
+#ifdef _MSC_VER
+    __try {
+#endif
+
+    monitor_config_t cfg = {
+        .f_min = 200.0f, .f_max = 3000.0f,
+        .sample_rate = FT8_SAMPLE_RATE,
+        .time_osr = K_TIME_OSR, .freq_osr = K_FREQ_OSR,
+        .protocol = FTX_PROTOCOL_FT8
+    };
+    monitor_init(&mon, &cfg);
+    for (int pos = 0; pos + mon.block_size <= pcm_len; pos += mon.block_size)
+        monitor_process(&mon, pcm + pos);
+
+    /* Inverse of ft8_decode_all's own forward mapping (this file, the
+     * "Frequency, time offset, and SNR" block):
+     *   freq_hz = (mon.min_bin + freq_offset + freq_sub / freq_osr) / symbol_period
+     *   dt      = (time_offset + time_sub / time_osr) * symbol_period          */
+    float raw_freq_bin = freq_hz * mon.symbol_period - mon.min_bin;
+    float raw_time_bin = time_offset_s / mon.symbol_period;
+
+    long total_freq_sub = lroundf(raw_freq_bin * mon.wf.freq_osr);
+    long total_time_sub = lroundf(raw_time_bin * mon.wf.time_osr);
+
+    long freq_offset = total_freq_sub / mon.wf.freq_osr;
+    long freq_sub     = total_freq_sub % mon.wf.freq_osr;
+    long time_offset  = total_time_sub / mon.wf.time_osr;
+    long time_sub      = total_time_sub % mon.wf.time_osr;
+    /* C's truncating %/ can give a negative sub for a negative dividend —
+     * normalise so freq_sub/time_sub stay in [0, osr).                       */
+    if (freq_sub < 0) { freq_sub += mon.wf.freq_osr; freq_offset--; }
+    if (time_sub  < 0) { time_sub  += mon.wf.time_osr;  time_offset--; }
+
+    /* D3 guard: get_cand_mag() does no bounds checking on freq_offset before
+     * indexing wf->mag — an out-of-[0,num_bins) value is an out-of-bounds
+     * read, not a graceful failure. Production never hits this because
+     * ftx_find_candidates() only enumerates in-range positions; this export
+     * accepts a caller-supplied position with no such guarantee.
+     * time_offset/time_sub are NOT guarded the same way — ft8_extract_likelihood
+     * already bounds-checks cand->time_offset + sym_idx against wf->num_blocks
+     * per-symbol and zero-fills gracefully; that existing behaviour is
+     * sufficient and is not duplicated here. */
+    if (freq_offset < 0 || freq_offset >= mon.wf.num_bins) {
+        monitor_free(&mon);
+        return -3;
+    }
+
+    ftx_extract_likelihood_at(&mon.wf,
+        (int16_t)time_offset, (int16_t)freq_offset,
+        (uint8_t)time_sub, (uint8_t)freq_sub,
+        out_llr174);
+    /* Deliberately NOT calling ftx_normalize_logl() — N1 and
+     * c2_phase2c_ber_measurement.py both require raw, pre-normalisation LLRs;
+     * normalisation is a positive scale factor and does not change
+     * hard-decision sign, but the harness's own documented convention is to
+     * work from the raw value. */
+
+    monitor_free(&mon);
+    return 0;
+
+#ifdef _MSC_VER
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        /* Same containment discipline as ft8_decode_all: monitor_free is
+         * intentionally skipped (the waterfall heap may be partially
+         * corrupted after an AV; a second fault in the handler is worse
+         * than the per-call waterfall memory leak). */
         return -2;
     }
 #endif

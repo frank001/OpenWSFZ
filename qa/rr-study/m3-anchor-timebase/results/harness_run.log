@@ -1,0 +1,37 @@
+loaded 1800 rows (real+control), SHA256-pinning DLL...
+DLL verified: SHA256=04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf shim_version=20260041
+distinct cycles to load: 1453
+cycle 1/1453  rows 2/1800  1.02 rows/s  ETA 1762s  tied=0
+cycle 51/1453  rows 73/1800  0.99 rows/s  ETA 1747s  tied=0
+cycle 101/1453  rows 133/1800  1.01 rows/s  ETA 1654s  tied=0
+cycle 151/1453  rows 193/1800  1.01 rows/s  ETA 1588s  tied=0
+cycle 201/1453  rows 254/1800  1.01 rows/s  ETA 1527s  tied=0
+cycle 251/1453  rows 312/1800  1.01 rows/s  ETA 1470s  tied=0
+cycle 301/1453  rows 372/1800  1.01 rows/s  ETA 1410s  tied=0
+cycle 351/1453  rows 428/1800  1.01 rows/s  ETA 1354s  tied=0
+cycle 401/1453  rows 488/1800  1.01 rows/s  ETA 1295s  tied=0
+cycle 451/1453  rows 544/1800  1.01 rows/s  ETA 1241s  tied=0
+cycle 501/1453  rows 598/1800  1.01 rows/s  ETA 1188s  tied=0
+cycle 551/1453  rows 652/1800  1.01 rows/s  ETA 1136s  tied=0
+cycle 601/1453  rows 712/1800  1.01 rows/s  ETA 1078s  tied=0
+cycle 651/1453  rows 770/1800  1.01 rows/s  ETA 1023s  tied=0
+cycle 701/1453  rows 834/1800  1.01 rows/s  ETA 959s  tied=0
+cycle 751/1453  rows 905/1800  1.01 rows/s  ETA 888s  tied=0
+cycle 801/1453  rows 979/1800  1.01 rows/s  ETA 814s  tied=0
+cycle 851/1453  rows 1038/1800  1.01 rows/s  ETA 756s  tied=0
+cycle 901/1453  rows 1097/1800  1.01 rows/s  ETA 697s  tied=0
+cycle 951/1453  rows 1158/1800  1.01 rows/s  ETA 636s  tied=0
+cycle 1001/1453  rows 1221/1800  1.01 rows/s  ETA 574s  tied=0
+cycle 1051/1453  rows 1285/1800  1.01 rows/s  ETA 510s  tied=0
+cycle 1101/1453  rows 1351/1800  1.01 rows/s  ETA 445s  tied=0
+cycle 1151/1453  rows 1417/1800  1.01 rows/s  ETA 379s  tied=0
+cycle 1201/1453  rows 1486/1800  1.01 rows/s  ETA 311s  tied=0
+cycle 1251/1453  rows 1550/1800  1.01 rows/s  ETA 247s  tied=0
+cycle 1301/1453  rows 1613/1800  1.01 rows/s  ETA 185s  tied=0
+cycle 1351/1453  rows 1676/1800  1.01 rows/s  ETA 123s  tied=0
+cycle 1401/1453  rows 1734/1800  1.01 rows/s  ETA 65s  tied=0
+cycle 1451/1453  rows 1797/1800  1.01 rows/s  ETA 3s  tied=0
+cycle 1453/1453  rows 1800/1800  1.01 rows/s  ETA 0s  tied=0
+
+done: 1800/1800 rows in 1781.4s (989.66 ms/row)  rc!=0=0  tied=0  stopped_early=False
+results written: D:\Projects\claude\OpenWSFZ\qa\rr-study\m3-anchor-timebase\results\m3_results.json

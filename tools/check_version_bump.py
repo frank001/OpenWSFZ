@@ -69,11 +69,29 @@ DATE_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-(.+)$")
 
 
 def _git(args):
-    """Run a git command, returning (exit_code, stdout, stderr)."""
+    """Run a git command, returning (exit_code, stdout, stderr).
+
+    encoding="utf-8" is explicit, not incidental: `git show`/`git diff` emit
+    UTF-8 regardless of platform, but Python's text=True on Windows decodes
+    subprocess output using the console's codepage (cp1252) unless told
+    otherwise. A proposal.md containing a legitimate non-ASCII character
+    (e.g. r1b-sync-refiner-instrument-correction's "4.9x10^-7" written with
+    Unicode superscripts) then crashes _readerthread with UnicodeDecodeError
+    on a mid-sequence continuation byte — surfacing as a confusing background
+    thread traceback while this function silently gets truncated/empty
+    output back, which read as "MISSING/MALFORMED **User-facing:** line" even
+    when the declaration was present. errors="replace" keeps this function
+    resilient to any future encoding surprise (a mis-decoded character would
+    show up as U+FFFD in the declaration scan, which fails the regex the same
+    way a truly missing line does — safe, not silent-wrong). Same class of
+    problem as HK-009 (Windows console cp1252 vs UTF-8), just in a tool
+    rather than application code."""
     result = subprocess.run(
         ["git"] + args,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     return result.returncode, result.stdout, result.stderr
 

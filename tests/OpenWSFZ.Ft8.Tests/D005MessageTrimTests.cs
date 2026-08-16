@@ -51,6 +51,9 @@ public sealed class D005MessageTrimTests
 
         public void SetApBits(byte[] mycallBits, byte[] hiscallBits) { /* no-op */ }
         public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { /* no-op */ }
+
+        public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
+            float[] pcm, int coarseFreqHz, float coarseTimeOffsetS) => (0f, 0f, 0f, 0, 0);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

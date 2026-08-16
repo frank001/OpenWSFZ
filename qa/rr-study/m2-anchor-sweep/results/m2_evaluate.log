@@ -1,0 +1,31 @@
+loaded 4593 results (dll sha256=04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf shim=20260041)
+HIT=2093 NULL=2100 CONTROL=400
+
+control median |coarse_dt_samp| = 1.000 samples (5.0 ms)  (bar <= 2 samples / 10 ms)
+
+strata power (need n>=200 in both HIT and NULL):
+  [-24,-21)      n_hit=  293 n_null=  300  OK
+  [-21,-18)      n_hit=  300 n_null=  300  OK
+  [-18,-15)      n_hit=  300 n_null=  300  OK
+  [-15,-12)      n_hit=  300 n_null=  300  OK
+  [-12,-9)       n_hit=  300 n_null=  300  OK
+  [-9,-6)        n_hit=  300 n_null=  300  OK
+  [-6,inf)       n_hit=  300 n_null=  300  OK
+n_strata_ok = 7 (need >= 4)
+
+HIT edge-winner fraction: 1162/2093 = 0.5552 (bar <= 0.20)
+NULL mean df_anchor: -0.5876 Hz (bar |.| <= 1.00)
+
+HIT vs NULL concentration contrast, per stratum:
+  [-24,-21)      n_hit=  293 n_null=  300 power_ok=True  rho_rb=  0.0483 se=  0.0485
+  [-21,-18)      n_hit=  300 n_null=  300 power_ok=True  rho_rb=  0.0473 se=  0.0438
+  [-18,-15)      n_hit=  300 n_null=  300 power_ok=True  rho_rb= -0.0208 se=  0.0463
+  [-15,-12)      n_hit=  300 n_null=  300 power_ok=True  rho_rb=  0.0191 se=  0.0467
+  [-12,-9)       n_hit=  300 n_null=  300 power_ok=True  rho_rb= -0.0496 se=  0.0483
+  [-9,-6)        n_hit=  300 n_null=  300 power_ok=True  rho_rb=  0.0239 se=  0.0440
+  [-6,inf)       n_hit=  300 n_null=  300 power_ok=True  rho_rb= -0.0477 se=  0.0491
+pooled (inverse-variance, 7 usable strata): rho_rb=0.0048  SE=0.0176  95% CI=[-0.0297, 0.0393]
+
+>>> ROW 0c <<<
+
+report written: D:\Projects\claude\OpenWSFZ\qa\rr-study\m2-anchor-sweep\results\m2_gate_report.json

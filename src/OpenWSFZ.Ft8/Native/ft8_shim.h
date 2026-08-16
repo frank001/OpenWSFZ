@@ -353,8 +353,87 @@ extern "C" {
  *   pre-fix 20260039 build and the original 20260038 baseline: zero decode-
  *   output differences either way (log-output-only change). DLL SHA256:
  *   897f81dda95b83b24156a905b3aeec4a1cb98c64e5243564e6d0eb6b60643cb3.
+ *
+ * r1-sync-refiner-instrument-validation (FT8_SHIM_VERSION 20260040):
+ *
+ *   Adds ft8_refine_candidate() -- a new DIAGNOSTIC-ONLY export implementing
+ *   a per-candidate coherent sync-refinement stage: downconverts the
+ *   candidate's region of PCM to complex baseband (phase retained, not the
+ *   existing uint8_t magnitude-only waterfall), correlates coherently
+ *   against the three Costas 7x7 sync arrays (complex values summed first,
+ *   magnitude taken last -- explicitly not the ft8_decode_multi_symbols()
+ *   shape, which is dead code that sums dB magnitudes), and searches
+ *   two-dimensionally (coarse time -> frequency -> fine time) to produce a
+ *   refined (delta_f, delta_t) plus a sync quality score. Implemented in the
+ *   new native/ft8_lib_vendor/refine/sync_refiner.c (OpenWSFZ-original code,
+ *   additive to the vendor tree per design.md D7 -- not a modification of
+ *   any byte-identical-to-upstream file).
+ *
+ *   Clean-room: written directly from this change's spec.md/design.md method
+ *   description; no WSJT-X source was available in or consulted during this
+ *   session (see sync_refiner.c's header comment).
+ *
+ *   No production call site: ft8_refine_candidate is reachable only from the
+ *   validation harness and test code introduced by this change.
+ *   ftx_decode_candidate() and ft8_decode_all's production decode path
+ *   remain byte-for-byte unchanged -- this bump exists purely so the startup
+ *   ABI check catches a native binary built without the new export. No
+ *   struct layout change (FT8Result stays 48 bytes).
+ *
+ * r1b-sync-refiner-instrument-correction (FT8_SHIM_VERSION 20260041):
+ *
+ *   D1: ft8_refine_candidate() gains two new out-parameters,
+ *   out_coarse_dt_samp and out_fine_dt_samp, exposing the Stage A+B coarse-
+ *   time selection (best_dt_samp, @200 Hz, range [-12, 12]) and the Stage C
+ *   fine-time selection (best_fine_samp, @2000 Hz, range [-20, 20]) that the
+ *   search already computed internally but did not, prior to this change,
+ *   make observable -- only their sum left the function via out_delta_time_s.
+ *   Pure instrumentation of the existing search/correlation logic in
+ *   native/ft8_lib_vendor/refine/sync_refiner.c -- no algorithm change. The
+ *   three pre-existing out-parameters (out_delta_freq_hz, out_delta_time_s,
+ *   out_sync_score) continue to be populated identically to the 20260040
+ *   build. Diagnostic-only, no production call site -- identical boundary to
+ *   r1-sync-refiner-instrument-validation. Motivated by the Captain's ruling
+ *   on R1 (qa/rr-study/2026-08-14-2028-architect-to-qa-r1-ruling-and-r1b-
+ *   instrument-scope.md): AC-3's time-dimension FAIL could not be localised
+ *   to a search stage because the decomposition was unobservable; this
+ *   export makes it testable (see evaluate_acs.py's reflection_symmetry_test,
+ *   run separately on the combined, coarse-only, and fine-only values).
+ *
+ * n1-extract-llrs-at-position (FT8_SHIM_VERSION 20260042):
+ *
+ *   Adds ft8_extract_llrs_at() -- a new DIAGNOSTIC-ONLY export that runs the
+ *   existing, unmodified ft8_extract_likelihood() extraction path at a
+ *   caller-supplied (freq_hz, time_offset_s) position instead of one
+ *   ftx_find_candidates() already located. Builds the waterfall exactly as
+ *   ft8_decode_all does, snaps the requested position to the nearest point on
+ *   the same K_FREQ_OSR/K_TIME_OSR lattice every existing candidate already
+ *   lives on, and delegates to a new non-static probe in decode.c,
+ *   ftx_extract_likelihood_at() (following the exact non-static-probe pattern
+ *   ftx_compute_candidate_llr_stats already established). Returns the raw,
+ *   pre-normalisation 174 log-likelihoods -- ftx_normalize_logl() is
+ *   deliberately not applied, matching the sign-convention discipline
+ *   c2_phase2c_ber_measurement.py's hard_decision_ber() already documents and
+ *   depends on.
+ *
+ *   N1 (qa/rr-study/2026-08-15-1840-architect-to-qa-N1-ber-at-refined-position-
+ *   spec.md) needs this to extract LLRs twice per row -- once at a candidate's
+ *   own grid position (control), once at grid + ft8_refine_candidate's
+ *   (delta_f, delta_t) (treatment) -- on identical audio, which neither
+ *   ft8_decode_all's own output nor any existing export can do; both only
+ *   read back LLRs a decode run already captured at its own grid position.
+ *
+ *   No production call site: ft8_extract_llrs_at is reachable only from test
+ *   code and QA harnesses invoking it directly (e.g. Python ctypes).
+ *   ft8_decode_all, ft8_get_last_pass_counts, ft8_set_decode_params, and
+ *   ft8_refine_candidate all remain byte-for-byte unchanged -- this bump
+ *   exists purely so the startup ABI check catches a binary built without the
+ *   new export. No struct layout change (FT8Result stays 48 bytes). No C#
+ *   Ft8LibInterop/IFt8NativeInterop wiring added (design.md D5) -- the
+ *   consumer is the Python QA harness, the same pattern the raw-LLR-capture
+ *   export family already established without managed bindings.
  */
-#define FT8_SHIM_VERSION 20260039
+#define FT8_SHIM_VERSION 20260042
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -560,6 +639,109 @@ int ft8_encode_message(const char* message, uint8_t* tones_out, int tones_capaci
  * Safe to call before the first ft8_decode_all invocation.
  */
 void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int osd_nhard_max);
+
+/*
+ * ft8_refine_candidate -- diagnostic-only per-candidate coherent sync
+ * refinement (r1-sync-refiner-instrument-validation, shim 20260040).
+ *
+ * Given the cycle's retained PCM and a candidate's coarse (freq_hz,
+ * time_offset) as reported by ftx_find_candidates()/ft8_decode_all's own
+ * freq_hz/dt convention, returns a refined (delta_f, delta_t) RELATIVE TO
+ * that coarse position, plus a sync quality score.
+ *
+ * Implemented in native/ft8_lib_vendor/refine/sync_refiner.c -- see that
+ * file for the three-stage search (coarse time -> frequency -> fine time)
+ * and the coherent-correlation method. NOT called from ft8_decode_all or
+ * any other production entry point in this file; reachable only from the
+ * validation harness and test code.
+ *
+ * Parameters:
+ *   pcm                    -- float32 samples, 12 kHz mono, normalised to [-1, 1]
+ *   pcm_len                -- must be 180 000 (15 s x 12 000 Hz)
+ *   coarse_freq_hz         -- coarse candidate frequency (Hz), i.e. tone 0's
+ *                             estimated frequency from the waterfall lattice
+ *   coarse_time_offset_s   -- coarse candidate time offset (s) from cycle start
+ *   out_delta_freq_hz      -- refined frequency correction (Hz), ADD to
+ *                             coarse_freq_hz for the refined estimate
+ *   out_delta_time_s       -- refined time correction (s), ADD to
+ *                             coarse_time_offset_s for the refined estimate
+ *   out_sync_score         -- coherent Costas correlation magnitude at the
+ *                             refined (delta_f, delta_t); larger = stronger
+ *                             sync confidence. Not calibrated against any
+ *                             existing score; diagnostic use only.
+ *   out_coarse_dt_samp     -- (r1b, shim 20260041) Stage A+B's own coarse-
+ *                             time selection, sample index at the ~200 Hz
+ *                             working rate, range [-12, 12]. Diagnostic only.
+ *   out_fine_dt_samp       -- (r1b, shim 20260041) Stage C's own fine-time
+ *                             selection, sample index at the ~2000 Hz working
+ *                             rate, range [-20, 20]. Diagnostic only.
+ *
+ *                             out_coarse_dt_samp / 200.0 + out_fine_dt_samp /
+ *                             2000.0 SHALL equal out_delta_time_s to within
+ *                             float32 rounding tolerance (the two new
+ *                             parameters are the decomposition of the
+ *                             existing out_delta_time_s sum, not a
+ *                             replacement for it).
+ *
+ * Returns: 0 on success.
+ *          -1 if pcm_len != 180 000, or any pointer parameter is NULL.
+ *          -2 if an internal heap allocation failed.
+ */
+int ft8_refine_candidate(
+    const float* pcm, int pcm_len,
+    int   coarse_freq_hz, float coarse_time_offset_s,
+    float* out_delta_freq_hz,
+    float* out_delta_time_s,
+    float* out_sync_score,
+    int*   out_coarse_dt_samp,
+    int*   out_fine_dt_samp);
+
+/*
+ * ft8_extract_llrs_at -- diagnostic-only extract-LLRs-at-position export
+ * (n1-extract-llrs-at-position, shim 20260042).
+ *
+ * Builds a waterfall from the supplied PCM exactly as ft8_decode_all does,
+ * snaps the caller-supplied (freq_hz, time_offset_s) to the nearest point on
+ * the SAME frequency/time lattice production candidates already live on
+ * (K_FREQ_OSR / K_TIME_OSR, unchanged), and runs the existing, unmodified
+ * ft8_extract_likelihood() extraction path at that position -- the exact
+ * logic production uses for every candidate, unmodified.
+ *
+ * Returns the RAW, PRE-NORMALISATION 174 log-likelihoods -- ftx_normalize_logl()
+ * is deliberately NOT applied. Normalisation is a positive scale factor and does
+ * not change hard-decision sign, but N1's harness (c2_phase2c_ber_measurement.py's
+ * hard_decision_ber()) documents and depends on the raw, unnormalised value.
+ *
+ * Not a continuous-position extractor: the waterfall itself is discretised at
+ * K_FREQ_OSR / K_TIME_OSR; this export snaps to the nearest lattice point
+ * exactly as every existing candidate already does.
+ *
+ * No production call site: reachable only from test code and QA harnesses
+ * invoking it directly (e.g. Python ctypes). ft8_decode_all's production
+ * decode path, candidate selection, and every existing exported symbol are
+ * unaffected.
+ *
+ * Parameters:
+ *   pcm            -- float32 samples, 12 kHz mono, normalised to [-1, 1]
+ *   pcm_len        -- must be 180 000 (15 s x 12 000 Hz)
+ *   freq_hz        -- requested centre frequency, Hz
+ *   time_offset_s  -- requested time offset from cycle start, seconds
+ *   out_llr174     -- caller-allocated FTX_LDPC_N (174) floats; receives the
+ *                     raw log-likelihoods on success, untouched otherwise
+ *
+ * Returns: 0 on success.
+ *          -1 if pcm_len != 180 000, or out_llr174 is NULL.
+ *          -2 if an access violation or other SEH fault occurs inside the
+ *             waterfall/extraction pipeline (MSVC / Windows builds only).
+ *          -3 if the resolved frequency bin falls outside the waterfall's
+ *             valid range [0, num_bins) -- rejected, not silently clamped:
+ *             a caller-supplied position, unlike ftx_find_candidates()'s own
+ *             output, carries no guarantee of being in-band.
+ */
+int ft8_extract_llrs_at(
+    const float* pcm, int pcm_len,
+    float freq_hz, float time_offset_s,
+    float* out_llr174);
 
 #ifdef __cplusplus
 }

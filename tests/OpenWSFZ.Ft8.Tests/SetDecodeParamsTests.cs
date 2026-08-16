@@ -43,6 +43,9 @@ public sealed class SetDecodeParamsTests
             LastOsdCorrThreshold  = osdCorrThreshold;
             LastOsdNhardMax       = osdNhardMax;
         }
+
+        public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
+            float[] pcm, int coarseFreqHz, float coarseTimeOffsetS) => (0f, 0f, 0f, 0, 0);
     }
 
     // ── 7.3a — Adapter correctly delegates SetDecodeParams ───────────────────

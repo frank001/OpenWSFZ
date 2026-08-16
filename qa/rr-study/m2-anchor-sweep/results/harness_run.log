@@ -1,0 +1,62 @@
+loaded 4593 rows (real+control), SHA256-pinning DLL...
+DLL verified: SHA256=04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf shim_version=20260041
+distinct cycles to load: 2732
+cycle 1/2732  rows 1/4593  0.79 rows/s  ETA 5804s
+cycle 51/2732  rows 102/4593  0.78 rows/s  ETA 5735s
+cycle 101/2732  rows 185/4593  0.78 rows/s  ETA 5621s
+cycle 151/2732  rows 269/4593  0.78 rows/s  ETA 5510s
+cycle 201/2732  rows 346/4593  0.78 rows/s  ETA 5418s
+cycle 251/2732  rows 421/4593  0.78 rows/s  ETA 5333s
+cycle 301/2732  rows 509/4593  0.78 rows/s  ETA 5227s
+cycle 351/2732  rows 580/4593  0.78 rows/s  ETA 5140s
+cycle 401/2732  rows 642/4593  0.78 rows/s  ETA 5064s
+cycle 451/2732  rows 712/4593  0.78 rows/s  ETA 4977s
+cycle 501/2732  rows 788/4593  0.78 rows/s  ETA 4883s
+cycle 551/2732  rows 873/4593  0.78 rows/s  ETA 4774s
+cycle 601/2732  rows 947/4593  0.78 rows/s  ETA 4677s
+cycle 651/2732  rows 1024/4593  0.78 rows/s  ETA 4575s
+cycle 701/2732  rows 1098/4593  0.78 rows/s  ETA 4481s
+cycle 751/2732  rows 1197/4593  0.78 rows/s  ETA 4355s
+cycle 801/2732  rows 1282/4593  0.78 rows/s  ETA 4247s
+cycle 851/2732  rows 1353/4593  0.78 rows/s  ETA 4156s
+cycle 901/2732  rows 1419/4593  0.78 rows/s  ETA 4071s
+cycle 951/2732  rows 1483/4593  0.78 rows/s  ETA 3990s
+cycle 1001/2732  rows 1553/4593  0.78 rows/s  ETA 3900s
+cycle 1051/2732  rows 1620/4593  0.78 rows/s  ETA 3813s
+cycle 1101/2732  rows 1689/4593  0.78 rows/s  ETA 3727s
+cycle 1151/2732  rows 1767/4593  0.78 rows/s  ETA 3628s
+cycle 1201/2732  rows 1842/4593  0.78 rows/s  ETA 3533s
+cycle 1251/2732  rows 1924/4593  0.78 rows/s  ETA 3428s
+cycle 1301/2732  rows 2019/4593  0.78 rows/s  ETA 3306s
+cycle 1351/2732  rows 2109/4593  0.78 rows/s  ETA 3190s
+cycle 1401/2732  rows 2208/4593  0.78 rows/s  ETA 3063s
+cycle 1451/2732  rows 2310/4593  0.78 rows/s  ETA 2932s
+cycle 1501/2732  rows 2417/4593  0.78 rows/s  ETA 2795s
+cycle 1551/2732  rows 2513/4593  0.78 rows/s  ETA 2672s
+cycle 1601/2732  rows 2604/4593  0.78 rows/s  ETA 2555s
+cycle 1651/2732  rows 2685/4593  0.78 rows/s  ETA 2451s
+cycle 1701/2732  rows 2774/4593  0.78 rows/s  ETA 2337s
+cycle 1751/2732  rows 2864/4593  0.78 rows/s  ETA 2221s
+cycle 1801/2732  rows 2950/4593  0.78 rows/s  ETA 2111s
+cycle 1851/2732  rows 3040/4593  0.78 rows/s  ETA 1996s
+cycle 1901/2732  rows 3133/4593  0.78 rows/s  ETA 1876s
+cycle 1951/2732  rows 3220/4593  0.78 rows/s  ETA 1764s
+cycle 2001/2732  rows 3309/4593  0.78 rows/s  ETA 1650s
+cycle 2051/2732  rows 3396/4593  0.78 rows/s  ETA 1538s
+cycle 2101/2732  rows 3491/4593  0.78 rows/s  ETA 1416s
+cycle 2151/2732  rows 3581/4593  0.78 rows/s  ETA 1300s
+cycle 2201/2732  rows 3679/4593  0.78 rows/s  ETA 1174s
+cycle 2251/2732  rows 3764/4593  0.78 rows/s  ETA 1065s
+cycle 2301/2732  rows 3840/4593  0.78 rows/s  ETA 967s
+cycle 2351/2732  rows 3921/4593  0.78 rows/s  ETA 863s
+cycle 2401/2732  rows 4003/4593  0.78 rows/s  ETA 757s
+cycle 2451/2732  rows 4091/4593  0.78 rows/s  ETA 644s
+cycle 2501/2732  rows 4181/4593  0.78 rows/s  ETA 529s
+cycle 2551/2732  rows 4277/4593  0.78 rows/s  ETA 405s
+cycle 2601/2732  rows 4358/4593  0.78 rows/s  ETA 302s
+cycle 2651/2732  rows 4441/4593  0.78 rows/s  ETA 195s
+cycle 2701/2732  rows 4534/4593  0.78 rows/s  ETA 76s
+cycle 2732/2732  rows 4593/4593  0.78 rows/s  ETA 0s
+
+done: 4593/4593 rows in 5894.7s (1283.42 ms/row)  rc!=0=0  stopped_early=False
+results written: D:\Projects\claude\OpenWSFZ\qa\rr-study\m2-anchor-sweep\results\m2_results.json
