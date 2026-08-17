@@ -222,7 +222,10 @@ at order 3, and that order 4 is where the lattice runs out — and close the N-s
 
 ## 6. N5 SPEC — does coherent order-3 extraction CONVERT on the FAILED population?
 
-🔴 **NOT ARMED. Awaiting the Captain per §5. QA does not start this on the strength of this document.**
+✅ **ARMED — Captain's ruling 2026-08-17 16:52Z, route N5-outcome. QA runs it (HK-025 refusal available).**
+🔴 **Read Amendment 1 (§6.1) FIRST — it wins over the body wherever they disagree. It was written
+BEFORE the harness existed and BEFORE any data was seen; the body below is retained as
+pre-registration provenance and must NOT be edited to match any outcome.**
 
 **The question.** Every N-series arm so far measured a *requirement* on a *control* population
 (matched hits, known-good). N5 asks the D-001 question directly: **at the shipping lattice anchor,
@@ -289,7 +292,74 @@ suspicion; the range is the better-calibrated half of my record.**
 
 ---
 
-## 7. Citation limits imposed by this ruling
+## 6.1 🔴 AMENDMENT 1 — 2026-08-17 16:58Z, BEFORE ARMING, BEFORE ANY HARNESS EXISTED
+
+I audited my own §6 against the committed N1 artefacts before handing it over, per the discipline
+that §2's new sibling (m) came out of. **Two defects, both mine, both fixed here rather than
+discovered by QA mid-run.** This makes seven; the audit is the only reason it is not an eighth
+found after the fact.
+
+### A1.1 — ROW 0a referenced a number that does not exist for N5's population
+
+§6's ROW 0a bars on "V0 median BER on the failed population ≠ 43.97% ± 2 pp". 🔴 **43.97% is
+`THE 135`'s median alone (n=126)** — `2026-08-16-1353-qa-to-architect-n1-results.md` line 15,
+where it reproduces W1's 44.0% exactly. **The combined `THE 135 + THE 567` population (n=405) has
+no published median**, so as written the precondition compares a 405-row statistic against a
+126-row reference and would fire or pass for reasons unrelated to instrument identity. HK-021(c)
+family — the metric is not identifiable from the reference it names.
+
+**ROW 0a IS REPLACED BY:**
+
+> **ROW 0a** — `THE 135` stratum alone (n≈126), V0 median BER ≠ **43.97% ± 2 pp** ⇒ not N1's
+> population/instrument, VALIDITY. 🛑 **Evaluated on the stratum, never on the pooled population.**
+> `THE 567`'s own median is reported for the record but **gates nothing** — no published reference
+> value exists for it.
+
+### A1.2 — the gate was blind to the direction that would falsify it
+
+`n1_stats.f_cross_row` counts **above→at-or-below only**, and its docstring is right to: pooling
+both directions "would hide a harmful refiner behind a helpful one — exactly the kind of unsigned
+statistic HK-021(l) forbids." ✅ **Reuse it VERBATIM; do not redefine it.**
+
+🔴 **But my §6 never required the reverse quantity to be reported at all — and for THIS treatment
+that is not a theoretical gap. N2 measured V3 making BER WORSE than V0 on the matched-hit control
+(2.87% → 8.05%, monotonically worse with coherent order).** A treatment already measured to degrade
+good rows can therefore push correctable rows *above* `B50` while gross `f_cross` looks fine. N1
+never had to care because refinement's `f_cross` was **0.0%** on both strata. V3 is a different
+treatment and the harm direction is *expected*, not hypothetical.
+
+**MANDATORY ADDITIONS:**
+
+> **`f_break`** = fraction of rows with `BER_V0 ≤ B50` that go **above** `B50` under V3 — its own
+> named, separately-reported statistic with its own cluster-bootstrap CI. 🛑 **NEVER pooled with
+> `f_cross` into a single number.**
+>
+> **`f_net` = `f_cross` − `f_break`**, expressed as a fraction of the whole measured population,
+> reported with a paired cluster-bootstrap CI (resample clusters once per draw, recompute both terms
+> on the same clusters).
+>
+> 🔴 **ROW 1 IS TIGHTENED: `CI_lo(f_cross) > 0.05` **AND** `CI_lo(f_net) > 0` .** A treatment that
+> converts 6% while breaking 6% has converted nothing, and the un-amended ROW 1 would have called
+> that a success. ROW 2 and ROW 3 are UNCHANGED (`f_cross` alone; a low gross crossing rate already
+> forecloses benefit regardless of `f_break`).
+
+⚠️ **Denominator, stated because it is not automatic:** `f_cross`'s denominator is rows with
+`BER_V0 > B50` (only those *can* cross down); `f_break`'s is rows with `BER_V0 ≤ B50`. **Report both
+denominators and their cluster counts explicitly** — N1's p10 = 17.2% for `THE 135` means the
+second group is small but non-empty, and 🔴 **if `f_break`'s denominator carries <30 rows, report
+`f_break` as descriptive-only and say so; do not let ROW 1's new `f_net` term turn on a handful of
+rows** (HK-021(j) — absence is not diagnostic at low expected counts).
+
+### A1.3 — predictions revised BEFORE the run, on evidence, and recorded as a change
+
+§6 predicted P(ROW 2) ≈ 45% · P(ROW 3) ≈ 40% · P(ROW 1) ≈ 10%. Two facts I had not weighted:
+**N1's `f_cross` was exactly 0.0% on all 405 rows** under refinement, and **N2's V3 was worse than
+V0 on the control at every coherent order.** Both point the same way.
+
+🔴 **REVISED: P(ROW 2) ≈ 65% · P(ROW 3) ≈ 25% · P(ROW 1) ≈ 5% · P(any ROW 0) ≈ 5%;
+`f_cross` ∈ 0.00–0.02; `f_break` > 0 (DIRECTIONAL — my weakest class at 2.5/5.5, nothing gates on it).**
+⚠️ **Recorded in advance and reversing my own §6 numbers on evidence, not adjusted afterward.**
+🛑 **Nothing gates on any of these, and categorical is 6/11 — read the row call with suspicion.**
 
 1. 🛑 **`H_3^cum` = 1.569 Hz may NEVER be quoted without its CI [1.437, 1.687] and the statement that
    it straddles the 1.5625 Hz cut.** No "the requirement is met"; no "an estimator is required."
@@ -310,5 +380,13 @@ suspicion; the range is the better-calibrated half of my record.**
 
 ## 8. Next
 
-🔴 **NOTHING IS ARMED.** The Captain rules on §5: N5-outcome, or close the N-series on §3's reading.
+✅ **CAPTAIN RULED 2026-08-17 16:52Z: route N5-outcome. §6 IS ARMED, as amended by §6.1.**
+🔴 **NEXT: QA RUNS N5 — HK-025 refusal available, and §6.1 is evidence you should use it.** Five of
+the last seven specs in this series carried a defect of mine; two of this one's I found myself only
+by auditing against the committed N1 artefacts instead of my own draft. **Re-derive the HK-025
+classification independently and refuse against this document if you disagree.**
+
+🛑 **Narrowing N4's CI is CLOSED and is not part of this (§1, §7.4).** No `src/`, no Developer
+session, no DLL, no capture run.
+
 A2 (AC-4 ROW 0) and A3 (re-run D3 emitting slope + SE + p) remain open and still must not become a round.
