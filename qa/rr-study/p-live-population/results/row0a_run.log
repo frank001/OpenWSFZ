@@ -1,0 +1,34 @@
+==========================================================================================
+P-LIVE ROW 0a -- audio-path correspondence, per corpus
+==========================================================================================
+
+-- 20260803_live_run_1713 --
+  n_common=4956 n_measured=4956 (210.0s)
+  median |r|=0.9904  median |lag|=15.46ms  min_r=0.0184 max_r=0.9999  frac(r>0.9)=0.998
+  -> clear (single verified path)
+
+-- 20260808_live_run_0016-8080 --
+  n_common=2735 n_measured=2735 (106.7s)
+  median |r|=0.9892  median |lag|=15.75ms  min_r=0.1966 max_r=0.9998  frac(r>0.9)=0.999
+  -> clear (single verified path)
+
+-- 20260808_live_run_0016-8081 --
+  n_common=2641 n_measured=2641 (101.6s)
+  median |r|=0.9889  median |lag|=15.92ms  min_r=0.1171 max_r=0.9998  frac(r>0.9)=0.999
+  -> clear (single verified path)
+
+-- 20260808_live_run_1154-8080-17m --
+  n_common=1856 n_measured=1856 (71.0s)
+  median |r|=0.9865  median |lag|=15.92ms  min_r=0.9261 max_r=0.9992  frac(r>0.9)=1.000
+  -> clear (single verified path)
+
+-- 20260809_live_run_0155-8080-80m --
+  n_common=1967 n_measured=1967 (76.0s)
+  median |r|=0.9781  median |lag|=16.58ms  min_r=0.5981 max_r=0.9988  frac(r>0.9)=0.999
+  -> clear (single verified path)
+
+==========================================================================================
+SUMMARY: at least one corpus fires ROW 0a: False
+==========================================================================================
+
+Wrote results/row0a_results.json
