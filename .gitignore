@@ -163,6 +163,12 @@ qa/rr-study/results/*/owsfz-all.txt
 qa/rr-study/results/*/wsjt-all.txt
 qa/rr-study/results/*/*_matched.csv
 
+# P-LIVE per-row BER dumps — tens of MB per stage, regenerable from the harness
+# plus the corpus. The committed *_report.json carries every gated statistic.
+# Retained copies live under artefacts/ (blanket-ignored above).
+# Ruling: qa/rr-study/2026-08-18-1616-architect-to-qa-p-live-stage1-ruling-anchor-provenance-defect.md Sec.5.3.1
+qa/rr-study/p-live-population/results/*_rows.json
+
 # Linux cross-platform R&R — runtime artefacts generated at repo root during WSL2 sessions.
 # These are operator files, not source, and may contain callsigns (NFR-021).
 linux-all.txt

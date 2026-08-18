@@ -1,0 +1,86 @@
+==========================================================================================
+P-LIVE STAGE 1R -- P-HIT positive control + dt_offset sweep
+(corrective control for the withdrawn Stage 1 run, ruling 2026-08-18-1616 Sec.5)
+==========================================================================================
+
+HK-025 independent re-classification: concurs_with_ruling=True refusal=False
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+ROW 0a' clear: DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed.
+
+Building P-HIT control population on PRIMARY (20260803_live_run_1713)...
+  full P-HIT population: n_rows=25411 n_clusters=4371
+  sampled (seed=20260818): n_rows=600 n_clusters=551
+
+Loading row contexts (true codeword + WAV) for the sample...
+  n_measured=556/600 n_clusters_measured=515 drop_reasons={'no_true_codeword': 44}
+
+ROW 0b': n_measured=556 (>=500) n_clusters=515 (>=200) -> clear
+
+==========================================================================================
+dt_offset sweep, 49 points (M3's own grid, -1.20..+1.20s step 0.05s, REUSED)
+==========================================================================================
+  dt_offset=-1.20s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-1.15s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-1.10s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=-1.05s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-1.00s  median_BER_V0=49.14%  n_ok=556/556
+  dt_offset=-0.95s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.90s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.85s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.80s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.75s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.70s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.65s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.60s  median_BER_V0=50.00%  n_ok=556/556
+  dt_offset=-0.55s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.50s  median_BER_V0=49.14%  n_ok=556/556
+  dt_offset=-0.45s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=-0.40s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=-0.35s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=-0.30s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.25s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.20s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.15s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=-0.10s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=-0.05s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=+0.00s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=+0.05s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=+0.10s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=+0.15s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=+0.20s  median_BER_V0=49.43%  n_ok=556/556
+  dt_offset=+0.25s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=+0.30s  median_BER_V0=48.28%  n_ok=556/556
+  dt_offset=+0.35s  median_BER_V0=48.28%  n_ok=556/556
+  dt_offset=+0.40s  median_BER_V0=48.28%  n_ok=556/556
+  dt_offset=+0.45s  median_BER_V0=47.70%  n_ok=556/556
+  dt_offset=+0.50s  median_BER_V0=46.55%  n_ok=556/556
+  dt_offset=+0.55s  median_BER_V0=45.40%  n_ok=556/556
+  dt_offset=+0.60s  median_BER_V0=13.22%  n_ok=556/556
+  dt_offset=+0.65s  median_BER_V0=5.75%  n_ok=556/556
+  dt_offset=+0.70s  median_BER_V0=6.90%  n_ok=556/556
+  dt_offset=+0.75s  median_BER_V0=39.94%  n_ok=556/556
+  dt_offset=+0.80s  median_BER_V0=45.98%  n_ok=556/556
+  dt_offset=+0.85s  median_BER_V0=47.70%  n_ok=556/556
+  dt_offset=+0.90s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=+0.95s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=+1.00s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=+1.05s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=+1.10s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=+1.15s  median_BER_V0=48.85%  n_ok=556/556
+  dt_offset=+1.20s  median_BER_V0=48.85%  n_ok=556/556
+
+Sweep complete in 147.2s.
+
+Swept optimum: dt_offset=+0.65s, median_BER_V0=5.75% (n_ok=556)
+
+==========================================================================================
+ROW 0f' / A / B / C -- evaluated on median BER_V0 at dt_offset=0.0 (raw WSJT-X dt)
+==========================================================================================
+ROW 0f': median_BER_V0(raw)=49.43% outside [0%,35%] two-sided -> FIRES
+  (lower bound structurally unreachable: BER_V0 in [0,1] by construction)
+
+ROW 0f' FIRES -> ROW A: median_BER_V0(raw)=49.43% >= 35%.
+VERDICT: ANCHOR BROKEN. Stage 1 is VOID, not null.
+Swept optimum offset (descriptive, for the corrective spec, NOT a re-run in this session): +0.65s
+STOP -- per the ruling, do not re-run Stage 1 in this session.

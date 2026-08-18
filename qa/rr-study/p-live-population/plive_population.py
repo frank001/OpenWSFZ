@@ -79,6 +79,53 @@ def corpus_paths(corpus_name: str) -> dict:
     }
 
 
+def build_p_hit_population(corpus_name: str) -> list[dict]:
+    """Stage 1R (ruling 2026-08-18-1616 Sec.5.1(a)) positive-control population:
+    the membership test of build_p_live_population(), INVERTED. A row is a WSJT-X
+    decode whose normalised message DOES appear in our own ALL.TXT for the same
+    ts -- i.e. a cycle both decoders decoded. Anchor is still WSJT-X's own
+    reported (freq, dt), unchanged by the inversion (ruling Sec.5.1(a): "Anchor
+    from WSJT-X's raw reported (freq, dt), exactly as Stage 1 did").
+
+    Rationale (ruling Sec.5.1(a)): these are rows our own decoder demonstrably
+    decoded, so the true codeword was recoverable from that audio and our
+    extraction reaches it when pointed correctly. If V0 extraction at WSJT-X's
+    raw DT reads ~chance on rows we ourselves decoded, the anchor is broken.
+
+    Returns [{ts, message, anchor_freq_hz, anchor_dt, corpus}], same shape as
+    build_p_live_population(). Sorted by (ts, freq, dt, message) before return --
+    NOT because this function iterates a hash set for output order (it doesn't;
+    order follows parse_all_txt's own file-order read), but so any caller that
+    samples from this list with a seeded RNG gets a construction-stable ordering
+    per MEMORY.md's hash-randomised-set-iteration rule, defensively.
+
+    NFR-021: message is present for in-process callers only, same note as
+    build_p_live_population -- and sharper here, since by construction every
+    P-HIT row's message appears in BOTH ALL.TXT files."""
+    paths = corpus_paths(corpus_name)
+    wsjtx_rows = C2.parse_all_txt(paths["wsjtx_all_txt"])
+    mine_rows = C2.parse_all_txt(paths["owsfz_all_txt"])
+
+    mine_msgset_by_cycle: dict[str, set[str]] = {}
+    for r in mine_rows:
+        mine_msgset_by_cycle.setdefault(r["ts"], set()).add(C2.normalize_hash_tokens(r["message"]))
+
+    out = []
+    for row in wsjtx_rows:
+        key = C2.normalize_hash_tokens(row["message"])
+        if key not in mine_msgset_by_cycle.get(row["ts"], set()):
+            continue
+        out.append({
+            "ts": row["ts"],
+            "message": row["message"],
+            "anchor_freq_hz": row["freq"],
+            "anchor_dt": row["dt"],
+            "corpus": corpus_name,
+        })
+    out.sort(key=lambda r: (r["ts"], r["anchor_freq_hz"], r["anchor_dt"], r["message"]))
+    return out
+
+
 def build_p_live_population(corpus_name: str) -> list[dict]:
     """Returns [{ts, message, anchor_freq_hz, anchor_dt, corpus}], one row per
     WSJT-X decode this corpus's own OpenWSFZ ALL.TXT does not contain (same ts,
@@ -111,4 +158,7 @@ if __name__ == "__main__":
     for _name in ALL_CORPORA:
         _pop = build_p_live_population(_name)
         _n_clusters = len({r["ts"] for r in _pop})
-        print("%s: n_rows=%d n_clusters=%d" % (_name, len(_pop), _n_clusters))
+        print("P-LIVE %s: n_rows=%d n_clusters=%d" % (_name, len(_pop), _n_clusters))
+    _hit_pop = build_p_hit_population(PRIMARY_CORPUS)
+    _hit_n_clusters = len({r["ts"] for r in _hit_pop})
+    print("P-HIT  %s: n_rows=%d n_clusters=%d" % (PRIMARY_CORPUS, len(_hit_pop), _hit_n_clusters))
