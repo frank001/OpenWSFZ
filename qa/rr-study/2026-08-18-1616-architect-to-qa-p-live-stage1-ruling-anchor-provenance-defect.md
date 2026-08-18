@@ -201,49 +201,63 @@ the date, and the one-line reason. **Nothing in that directory may be cited unti
 ROW B.** QA's original flag about the file's size was reasonable and is not the issue here; the
 issue is that a withdrawn run's outputs are sitting in the tree looking exactly like valid ones.
 
-### 5.3.1 `.gitignore` the per-row dumps — Captain's instruction, 2026-08-18
+### 5.3.1 Move the per-row dump to `artefacts/` — Captain's instruction, 2026-08-18
 
-🔴 **QA: stop `p_live_stage1_rows.json` being carried in the repo going forward.** This is
-repo/QA tooling, not `src/` — **no Developer session, HK-011 not engaged** — and there is direct
-precedent in `chore(gitignore): widen the diag-DLL ignore pattern`.
+🔴 **QA: move `p_live_stage1_rows.json` out of the repo tree into `artefacts/`, which is blanket-
+gitignored.** Verified, not assumed: `git check-ignore -v` reports `.gitignore:105 artefacts/`.
+⚠️ **Spelling is `artefacts/`, British, and there is no `artifacts/` on disk** — a mistyped
+destination creates a new untracked directory that is NOT ignored.
 
-⚠️ **`.gitignore` ALONE IS A NO-OP HERE, and this is the whole trap.** The file is **already
-tracked** — verified, not assumed: `git ls-files --error-unmatch` returns it, committed at
-`e1c70ea`. **`.gitignore` only affects UNtracked files.** Adding the pattern and stopping would
-leave the file tracked, still diffed on every future commit, while the `.gitignore` line creates a
-convincing impression that it was handled. **Two steps are required:**
+This is repo/QA housekeeping, not `src/` — **no Developer session, HK-011 not engaged.**
 
-1. **Add the pattern.** 🔴 **Use a pattern, not the one filename** — Stage 1R, and Stages 2–4 after
-   it, emit the same per-row artefact and the single-file form would need re-fixing every round:
+**Destination, per HK-016 (dated dir, `README.md`):**
 
-   ```gitignore
-   # P-LIVE per-row BER dumps — tens of MB per stage, regenerable from the harness
-   # plus the corpus. The committed *_report.json carries every gated statistic.
-   qa/rr-study/p-live-population/results/*_rows.json
-   ```
+```
+artefacts/2026-08-18-p-live-stage1-withdrawn/
+```
 
-2. **Untrack the existing file, keeping it on disk:**
+**Sequence:**
 
-   ```
-   git rm --cached qa/rr-study/p-live-population/results/p_live_stage1_rows.json
-   ```
+1. `mkdir -p artefacts/2026-08-18-p-live-stage1-withdrawn/`
+2. Move the file there.
+3. **Stage the deletion at the old path** — `git add -u qa/rr-study/p-live-population/results/`.
+   ⚠️ **Moving alone does not untrack it.** The file is tracked (committed at `e1c70ea`); until the
+   deletion is staged and committed, git still carries it and will report it as deleted-unstaged.
+4. Write the destination `README.md`: what the file is, which run produced it, that the run is
+   **WITHDRAWN by this ruling**, and how to regenerate it (`run_stage1.py` + the corpus, ~30 min).
 
-   🛑 **`--cached` is not optional.** A bare `git rm` deletes the working-tree copy, and that copy
-   is the only per-row record of the run.
+🔴 **Also add the pattern, for the NEXT round — this is a judgement call and I am stating it rather
+than smuggling it in.** The move fixes today's file; it does not stop Stage 1R writing a fresh
+`*_rows.json` into the same results directory and the same thing happening again. The harness still
+writes there by default:
+
+```gitignore
+# P-LIVE per-row BER dumps — tens of MB per stage, regenerable from the harness
+# plus the corpus. The committed *_report.json carries every gated statistic.
+# Retained copies live under artefacts/ (blanket-ignored).
+qa/rr-study/p-live-population/results/*_rows.json
+```
 
 **Three things this does NOT do, stated so the result is not over-read:**
 
 - 🛑 **It does not shrink the repo.** `e1c70ea` still contains all 29.6MB and always will.
   **Removing it from history means a rewrite, which is a Captain's call (HK-010/HK-014) and is NOT
   authorised here.** The gain is future noise, not disk.
-- 🛑 **It does not make the data safe to delete.** Until Stage 1R reports, keep the file on disk —
-  if ROW B fires, Stage 1's rows become citable again and re-running is ~30 minutes of compute.
-- ⚠️ **It does not apply retroactively to `row0a_results.json` (3.0MB)**, which stays tracked and
-  should — ROW 0a is **unaffected by this ruling** and its results remain live.
+- 🛑 **`artefacts/` is NOT version control.** Once moved, the file's only copy is on disk (plus the
+  NAS backup, `operational-note-artefacts-nas-backup-2026-07-30.md`). **That is acceptable only
+  because it is regenerable** — harness plus corpus, both committed. 🛑 **Do not move anything
+  there that is not regenerable or backed up.**
+- ⚠️ **It does not apply to `row0a_results.json` (3.0MB)**, which stays exactly where it is —
+  **ROW 0a is unaffected by this ruling and its result is still live.** Do not sweep it up.
 
-✅ **Verify mechanically before reporting done (HK-022):** after both steps, `git status` must show
-the deletion staged and `git check-ignore -v <path>` must name the new rule. **Do not report this
-as done on the strength of having edited `.gitignore`.**
+⚠️ **Discoverability cost, and the mitigation is mandatory:** moving a run's raw output out of its
+results directory means the next reader will not find it there. **The `WITHDRAWN.md` required above
+must name the new location explicitly.** A moved artefact with no pointer is a lost artefact.
+
+✅ **Verify mechanically before reporting done (HK-022):** `git status` shows the deletion **staged**;
+the file exists at the new path with a non-zero size; `git check-ignore -v` names a rule for both
+the new location and the future-round pattern. **Do not report this as done on the strength of
+having run `mv`.**
 
 ---
 
