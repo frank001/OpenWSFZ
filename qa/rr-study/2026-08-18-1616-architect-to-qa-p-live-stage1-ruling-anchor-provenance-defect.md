@@ -201,6 +201,50 @@ the date, and the one-line reason. **Nothing in that directory may be cited unti
 ROW B.** QA's original flag about the file's size was reasonable and is not the issue here; the
 issue is that a withdrawn run's outputs are sitting in the tree looking exactly like valid ones.
 
+### 5.3.1 `.gitignore` the per-row dumps — Captain's instruction, 2026-08-18
+
+🔴 **QA: stop `p_live_stage1_rows.json` being carried in the repo going forward.** This is
+repo/QA tooling, not `src/` — **no Developer session, HK-011 not engaged** — and there is direct
+precedent in `chore(gitignore): widen the diag-DLL ignore pattern`.
+
+⚠️ **`.gitignore` ALONE IS A NO-OP HERE, and this is the whole trap.** The file is **already
+tracked** — verified, not assumed: `git ls-files --error-unmatch` returns it, committed at
+`e1c70ea`. **`.gitignore` only affects UNtracked files.** Adding the pattern and stopping would
+leave the file tracked, still diffed on every future commit, while the `.gitignore` line creates a
+convincing impression that it was handled. **Two steps are required:**
+
+1. **Add the pattern.** 🔴 **Use a pattern, not the one filename** — Stage 1R, and Stages 2–4 after
+   it, emit the same per-row artefact and the single-file form would need re-fixing every round:
+
+   ```gitignore
+   # P-LIVE per-row BER dumps — tens of MB per stage, regenerable from the harness
+   # plus the corpus. The committed *_report.json carries every gated statistic.
+   qa/rr-study/p-live-population/results/*_rows.json
+   ```
+
+2. **Untrack the existing file, keeping it on disk:**
+
+   ```
+   git rm --cached qa/rr-study/p-live-population/results/p_live_stage1_rows.json
+   ```
+
+   🛑 **`--cached` is not optional.** A bare `git rm` deletes the working-tree copy, and that copy
+   is the only per-row record of the run.
+
+**Three things this does NOT do, stated so the result is not over-read:**
+
+- 🛑 **It does not shrink the repo.** `e1c70ea` still contains all 29.6MB and always will.
+  **Removing it from history means a rewrite, which is a Captain's call (HK-010/HK-014) and is NOT
+  authorised here.** The gain is future noise, not disk.
+- 🛑 **It does not make the data safe to delete.** Until Stage 1R reports, keep the file on disk —
+  if ROW B fires, Stage 1's rows become citable again and re-running is ~30 minutes of compute.
+- ⚠️ **It does not apply retroactively to `row0a_results.json` (3.0MB)**, which stays tracked and
+  should — ROW 0a is **unaffected by this ruling** and its results remain live.
+
+✅ **Verify mechanically before reporting done (HK-022):** after both steps, `git status` must show
+the deletion staged and `git check-ignore -v <path>` must name the new rule. **Do not report this
+as done on the strength of having edited `.gitignore`.**
+
 ---
 
 ## 6. Stage 2 is BLOCKED
