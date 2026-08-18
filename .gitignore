@@ -171,6 +171,6 @@ linux-daemon.log
 # Native build diagnostic variants — intermediate DLLs produced during
 # D-009 / libft8_cfg* ablation builds; not source-controlled.
 native/ft8_lib_build/libft8_cfg*.dll
-native/ft8_lib_build/libft8_diag.dll
+native/ft8_lib_build/libft8_diag*.dll
 native/ft8_lib_build/libft8_prod_backup.dll
 native/ft8_lib_build/rebuild_*.txt
