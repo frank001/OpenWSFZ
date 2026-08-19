@@ -1,0 +1,70 @@
+==========================================================================================
+D2 -- is the shared +0.650s offset a dt CONVENTION or a PHYSICAL displacement?
+==========================================================================================
+
+HK-025 independent re-classification: concurs_with_spec=True refusal=False
+
+==========================================================================================
+ROW 0b/0c/0d -- code-read preconditions, independently re-verified this session
+==========================================================================================
+  0b: {'fires': False, 'owsfz': 'ft8_shim.c:1432 -- dt = (cand->time_offset + time_sub/time_osr) * symbol_period; no protocol-start term anywhere in the shim (confirmed by reading the file this session).', 'wsjtx': 'harness/common.py Format-B regex group 5 = dt (0-based ALL.TXT field [5]); confirmed by reading the parser this session.'}
+  0c: {'fires': False, 'evidence': 'harness/matcher.py:31,125,150-175 -- matches on cycle slot, message text (_text_matches) and freq within FREQ_TOLERANCE_HZ=4.0 (_freq_matches). `dt` is carried into the output row but never read as a matching predicate. Confirmed by reading matcher.py this session.'}
+  0d: {'fires': False, 'answer': 'LIVE, via CycleFramer -- run_study.py\'s own docstring: "Runs scenarios in sequence (live playback into VB-CABLE), then collects" -- both WSJT-X and OpenWSFZ capture the SAME live-played audio through their normal capture paths, not from a shared static file.'}
+
+==========================================================================================
+PRIMARY run: 2026-08-05-3bd4cd0
+==========================================================================================
+  diagnostics: {'csv_files': 8, 'n_wsjt_usable_rows': 464, 'n_owsfz_usable_rows': 393, 'n_pairs': 379, 'n_clusters': 211, 'duplicate_keys': 0, 'scenarios_present': ['S1', 'S1b', 'S2', 'S3', 'S4', 'S7', 'S8']}
+  row_0a: fires=False manifest={'recorded_build_sha': '3bd4cd06b28ef7094155b041e93678782d73ffdc', 'recorded_shim': 20260033, 'dll_sha256': 'f2f30c890b253eb6b69aa1a89c26d2991ee70aa2a202c68361130344bb7d4015'}
+    note: matches MEMORY.md's standing main pin f2f30c89.../20260033 exactly.
+  delta_bootstrap (pre-registered, MEDIAN): point=-0.7000 mean=-0.7000 se=0.0000 ci95=[-0.7000, -0.7000] p=0 n_pairs=379 n_clusters=211
+  delta_distribution: value_counts={'-0.7': 279, '-0.6': 100} MEAN=-0.6736 (median=-0.7000) -- Delta is QUANTIZED, not a smooth cloud; mean is the better point estimate of a rounding-straddled constant
+  row_0f (resolution 1.96*SE<=0.05s): fires=False value=0.0000
+  row_0g (null CI95, AS PRE-REGISTERED): fires_mechanically=True null_ci95=[-0.7, -0.7] null_point=-0.7000
+  row_0g HK-025: shuffle_power=0.169 (bar>=0.20) classified_diagnostic=True -> Both branches predict the SAME observed result (tight non-zero null) for reasons that have nothing to do with whether the WSJT-X<->OpenWSFZ pairing is genuine. DIAGNOSTIC per HK-025 -- refused as a VOID gate for this dataset; not silently passed, not silently ignored.
+  *** ROW 0g MECHANICALLY FIRED but is HK-025-REFUSED as diagnostic for this dataset -- analysis CONTINUES past it, disclosed, not silently passed. ***
+  row_0h (HK-026 flatness): fires=False flat=True per_appraiser={'WSJT-X': {'best': 1.0, 'floor': 0.6521084337349398, 'ratio': 0.6521084337349398}, 'OpenWSFZ': {'best': 1.0, 'floor': 0.5466867469879518, 'ratio': 0.5466867469879518}}
+  slope(Delta ~ true_dt_s): slope=0.0158 se=0.0057 ci95=[np.float64(0.0046104043633438795), np.float64(0.026900796622146846)] p=0.005811 n=379 n_clusters=211
+  row_4: {'fires': True, 'ci_width': 0.0, 'ci_width_bar': 0.3, 'slope_excludes_zero': True}
+  FINAL ROW: 4
+
+==========================================================================================
+REPLICATION (descriptive only) run: 2026-08-15-8d6e1b1
+==========================================================================================
+  diagnostics: {'csv_files': 8, 'n_wsjt_usable_rows': 461, 'n_owsfz_usable_rows': 404, 'n_pairs': 388, 'n_clusters': 209, 'duplicate_keys': 0, 'scenarios_present': ['S1', 'S1b', 'S2', 'S3', 'S4', 'S7', 'S8']}
+  row_0a: fires=False manifest={'recorded_build_sha': '8d6e1b1f718aee9dfe72be253f46a7e34c476e5a', 'recorded_shim': 20260041, 'dll_sha256': '04cedc598593e89569b7212deef66efaa413322994216108841525ca2ebc45bf'}
+    note: branch feat/r1b-sync-refiner-instrument-correction; directory name matches recorded build SHA.
+  delta_bootstrap (pre-registered, MEDIAN): point=-0.6000 mean=-0.6000 se=0.0000 ci95=[-0.6000, -0.6000] p=0 n_pairs=388 n_clusters=209
+  delta_distribution: value_counts={'-0.7': 107, '-0.6': 281} MEAN=-0.6276 (median=-0.6000) -- Delta is QUANTIZED, not a smooth cloud; mean is the better point estimate of a rounding-straddled constant
+  row_0f (resolution 1.96*SE<=0.05s): fires=False value=0.0000
+  row_0g (null CI95, AS PRE-REGISTERED): fires_mechanically=True null_ci95=[-0.6000000000000001, -0.6000000000000001] null_point=-0.6000
+  row_0g HK-025: shuffle_power=0.062 (bar>=0.20) classified_diagnostic=True -> Both branches predict the SAME observed result (tight non-zero null) for reasons that have nothing to do with whether the WSJT-X<->OpenWSFZ pairing is genuine. DIAGNOSTIC per HK-025 -- refused as a VOID gate for this dataset; not silently passed, not silently ignored.
+  *** ROW 0g MECHANICALLY FIRED but is HK-025-REFUSED as diagnostic for this dataset -- analysis CONTINUES past it, disclosed, not silently passed. ***
+  row_0h (HK-026 flatness): fires=False flat=True per_appraiser={'WSJT-X': {'best': 1.0, 'floor': 0.6475903614457831, 'ratio': 0.6475903614457831}, 'OpenWSFZ': {'best': 1.0, 'floor': 0.5617469879518072, 'ratio': 0.5617469879518072}}
+  slope(Delta ~ true_dt_s): slope=-0.0161 se=0.0055 ci95=[np.float64(-0.026929121295177688), np.float64(-0.0052448757695447105)] p=0.003825 n=388 n_clusters=209
+
+==========================================================================================
+REPLICATION (descriptive only) run: 2026-06-20-d70aad5
+==========================================================================================
+  diagnostics: {'csv_files': 1, 'n_wsjt_usable_rows': 435, 'n_owsfz_usable_rows': 361, 'n_pairs': 351, 'n_clusters': 204, 'duplicate_keys': 0, 'scenarios_present': ['S7']}
+  row_0a: fires=False manifest={'recorded_build_sha': 'a97ab85c4f89cfd0a5b3f9b0e29d37fb26bad6b5', 'recorded_shim': 20260025, 'dll_sha256': '55b710fb254ddc1f8d35928db2408ce4c1984d93a2e3edcd9daf012d0a14a487'}
+    note: DIRECTORY NAME 'd70aad5' != recorded build SHA 'a97ab85c...' -- report.md's own table records the true build SHA; hashed that, not the directory label.
+  delta_bootstrap (pre-registered, MEDIAN): point=-0.5000 mean=-0.5000 se=0.0000 ci95=[-0.5000, -0.5000] p=0 n_pairs=351 n_clusters=204
+  delta_distribution: value_counts={'-0.6': 108, '-0.5': 243} MEAN=-0.5308 (median=-0.5000) -- Delta is QUANTIZED, not a smooth cloud; mean is the better point estimate of a rounding-straddled constant
+  row_0f (resolution 1.96*SE<=0.05s): fires=False value=0.0000
+  row_0g (null CI95, AS PRE-REGISTERED): fires_mechanically=True null_ci95=[-0.5, -0.5] null_point=-0.5000
+  row_0g HK-025: shuffle_power=0.048 (bar>=0.20) classified_diagnostic=True -> Both branches predict the SAME observed result (tight non-zero null) for reasons that have nothing to do with whether the WSJT-X<->OpenWSFZ pairing is genuine. DIAGNOSTIC per HK-025 -- refused as a VOID gate for this dataset; not silently passed, not silently ignored.
+  *** ROW 0g MECHANICALLY FIRED but is HK-025-REFUSED as diagnostic for this dataset -- analysis CONTINUES past it, disclosed, not silently passed. ***
+  row_0h (HK-026 flatness): fires=False flat=True per_appraiser={'WSJT-X': {'best': 1.0, 'floor': 0.9642857142857143, 'ratio': 0.9642857142857143}, 'OpenWSFZ': {'best': 1.0, 'floor': 0.7880952380952381, 'ratio': 0.7880952380952381}}
+  slope(Delta ~ true_dt_s): slope=0.0108 se=0.0056 ci95=[np.float64(-0.00038547470958327085), np.float64(0.02188816327229164)] p=0.05839 n=351 n_clusters=204
+
+==========================================================================================
+Sec.6 predictions, scored against the PRIMARY run
+==========================================================================================
+  row: {'predicted_probs': {'ROW 1': 0.45, 'ROW 3': 0.35, 'ROW 2': 0.12, 'ROW 4': 0.08}, 'actual': 'ROW 4', 'hit_prob_assigned': 0.08}
+  delta_point: {'predicted': -0.55, 'actual': -0.7, 'hit_80pct_interval': True}
+  slope: {'predicted': 0.0, 'predicted_ci_excludes': [-0.05, 0.05], 'actual_slope': 0.015755600492745363, 'actual_ci95': [np.float64(0.0046104043633438795), np.float64(0.026900796622146846)]}
+
+==========================================================================================
+FINAL ROW (primary run, 2026-08-05-3bd4cd0): 4
+==========================================================================================
