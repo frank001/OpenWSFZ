@@ -6,16 +6,24 @@ Operates under the 17:31Z amendment (jt9 primary). **Thresholds fixed 17:09Z, un
 
 ---
 
-## 1. Snapshot the boundary (FIRST, before anything)
+## 1. Boundary — SIMPLIFIED, the file is now empty
+
+✅ **The Captain truncated `ALL.TXT` to 0 bytes at 19:39 local (2026-08-19).** Verified.
 
 ```
-C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT
+C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT   ->  0 bytes
 ```
-Record **bytes + line count**. Architect baseline 17:09Z: **9 595 310 bytes / 146 167 lines**.
 
-🛑 **`ALL.TXT` ALREADY CONTAINS 431 `Q1ABC` LINES from the 2026-08-15 run.** A grep for
-`CQ Q1ABC FN42` over the whole file returns hundreds of false hits. **Every read is against the
-DELTA below the recorded line count. Never the whole file.**
+🔴 **No delta arithmetic. No line-count snapshot. Read the WHOLE file** — everything in it from
+now on is ours. The previous protocol's off-by-one risk, its dependency on nothing being written
+between snapshot and start, and the 431 stale `Q1ABC` lines from 2026-08-15 that would have been
+live false-positive bait are **all removed at once.** The Captain's instinct beat the Architect's
+protocol; recorded as such.
+
+⚠️ Still true and still binding: **never commit `ALL.TXT` or anything derived from it.** Once the
+Captain's three files are opened it will contain our synthetic decodes only, but that is a
+property of this moment, not a guarantee — grep before committing anything, every file
+individually.
 
 ## 2. jt9 sweep — all 20 files, one file per invocation (unattended)
 
@@ -53,14 +61,14 @@ First row that fires wins; stop there.
 Captain opens, in WSJT-X, at their own pace:
 `S3_part0_dt+0.0.wav` · `S3_part9_dt+2.7.wav` · `S3b_part9_dt-2.7.wav`
 
-**QA re-reads `ALL.TXT`, takes the delta below the §1 line count, and reads the result from there.**
-Do not ask the Captain what appeared. If the delta is empty, `File > Open` does not log to
+**QA reads `ALL.TXT` (now empty, so the whole file is the result) and reads the outcome from there.**
+Do not ask the Captain what appeared. If the file is still empty afterwards, `File > Open` does not log to
 `ALL.TXT` — **say so and escalate; do not substitute the Captain's eyes without asking.**
 
 🛑 **NOT part of G3's gate — cannot pass or fail it** (HK-025: cannot change G3's verdict).
 Separate consequence table, reported separately:
 
-| Delta shows | Consequence |
+| ALL.TXT shows | Consequence |
 |---|---|
 | All 3 texts present | No constraint. S3b grid stands as jt9 validated it. |
 | Control present, an extreme absent | 🔴 **`File > Open`'s aperture — not our synth — bounds the live run. S3b grid TRUNCATED. §5.1 HK-026 hazard CONFIRMED.** |
@@ -68,8 +76,8 @@ Separate consequence table, reported separately:
 
 ## 5. Report and STOP
 
-Report: both `ALL.TXT` figures · 20-row tally · `N` · row fired · exact jt9 command line · the
-twice-run diff result · spot-check delta in its own section.
+Report: `ALL.TXT` contents · 20-row tally · `N` · row fired · exact jt9 command line · the
+twice-run diff result · spot-check result in its own section.
 
 **Never commit `ALL.TXT` or anything derived from it.** `artefacts/` only (gitignored). Grep every
 file individually before committing (203 920-row `S1_matched.csv` precedent).
