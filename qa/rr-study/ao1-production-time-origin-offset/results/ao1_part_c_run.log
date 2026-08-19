@@ -1,0 +1,42 @@
+==========================================================================================
+AO1 PART C -- standalone run per 2026-08-19 11:55Z ruling
+==========================================================================================
+Ruling: qa/rr-study/2026-08-19-1155-architect-to-qa-ao1-row0f-ruling-part-c-unblocked.md
+Prior result this amends: results/ao1_report.json (2026-08-19 11:35Z),
+  final_row=3, row_0f.fires=true, part_c.evaluated=false (WITHHELD)
+
+MANDATORY DISCLOSURES (ruling Sec.6 -- must accompany every citation of the number below):
+  1. ROW 0f FIRED. Part C runs because L is independent of K, NOT because the
+     offset was shown constant. The offset has NOT been shown constant.
+  2. The Part C gate (run_ao1.py:662's qcheck['fires'] clause) was amended post-hoc
+     by the ruling above, after ROW 0f blocked it. Cite the ruling alongside this result.
+  3. A C3 (null) reading is attenuation-suspect and may NOT be cited as 'no recall
+     cost' -- drift (ruling Sec.2.1) can only push L toward zero. C1/C2/C4 do not
+     carry this caveat.
+
+Re-verifying DLL pin before arming (ruling Sec.5 step 1): D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+ROW 0a clear: DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed.
+
+==========================================================================================
+ROW 0g -- reference SNR-field parseability (re-evaluated fresh, not inherited from 11:35Z)
+==========================================================================================
+frac_ref_snr_unparseable=0.00% (bound <=5%) -> clear
+
+Building reference population on PRIMARY (20260803_live_run_1713) for Part C...
+  n=43423 reference rows
+
+==========================================================================================
+PART C -- recall cost at matched SNR (Sec.7)
+==========================================================================================
+  reference population: n=43423, SNR-unparseable dropped=0, usable=43423
+  modal dt stratum: [0.0,0.5) (n=35056, 80.7% of usable rows)
+  dt-stratum row counts: {'[-2.0,-1.5)': 93, '[-1.5,-1.0)': 122, '[-1.0,-0.5)': 297, '[-0.5,0.0)': 2537, '[0.0,0.5)': 35056, '[0.5,1.0)': 3399, '[1.0,1.5)': 1476, '[1.5,2.0)': 361, '[2.0,2.5)': 81, '[2.5,3.0)': 1}
+  L (point estimate) = +0.706pp, coverage=100.0% of usable rows in a defined cell
+  bootstrap: n_draws=2000 n_clusters=4531 SE=0.114pp CI95=[+0.492,+0.926]pp 1.96*SE=0.223pp
+
+ROW C0 first, strict: 1.96*SE=0.223pp (bound <1.0pp) -> clear
+ROW C2: L=+0.71pp in [0.2,2.0)pp AND CI_lo=+0.49pp (>0). Real but small.
+
+==========================================================================================
+PART C ROW: C2
+==========================================================================================

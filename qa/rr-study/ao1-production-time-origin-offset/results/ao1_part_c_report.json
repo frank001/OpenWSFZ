@@ -1,0 +1,48 @@
+{
+  "amends": "results/ao1_report.json (2026-08-19 11:35Z, final_row=3, row_0f.fires=true)",
+  "mandatory_disclosures": [
+    "ROW 0f FIRED -- L is independent of K, offset NOT shown constant",
+    "Part C gate amended post-hoc by the ruling above; cite it alongside this result",
+    "A C3 (null) reading is attenuation-suspect, may NOT be cited as 'no recall cost'; C1/C2/C4 do not carry this caveat"
+  ],
+  "part_c": {
+    "ci95": [
+      0.4923074100945932,
+      0.9263690398098787
+    ],
+    "coverage": 0.9999769707297975,
+    "dt_stratum_row_counts": {
+      "[-0.5,0.0)": 2537,
+      "[-1.0,-0.5)": 297,
+      "[-1.5,-1.0)": 122,
+      "[-2.0,-1.5)": 93,
+      "[0.0,0.5)": 35056,
+      "[0.5,1.0)": 3399,
+      "[1.0,1.5)": 1476,
+      "[1.5,2.0)": 361,
+      "[2.0,2.5)": 81,
+      "[2.5,3.0)": 1
+    },
+    "evaluated": true,
+    "l_point": 0.7056181759436786,
+    "modal_dt_stratum": "[0.0,0.5)",
+    "n_clusters": 4531,
+    "n_draws": 2000,
+    "n_snr_unparseable": 0,
+    "resolution_1_96se": 0.22308928715495235,
+    "row": "C2",
+    "se": 0.11382106487497569
+  },
+  "part_c_descriptive_only": false,
+  "row_0a": {
+    "fires": false,
+    "sha256_prefix": "6890d84c4bcf2e90",
+    "shim_version": 20260042
+  },
+  "row_0g": {
+    "bound": 0.05,
+    "fires": false,
+    "frac_ref_snr_unparseable": 0.0
+  },
+  "ruling": "qa/rr-study/2026-08-19-1155-architect-to-qa-ao1-row0f-ruling-part-c-unblocked.md"
+}
