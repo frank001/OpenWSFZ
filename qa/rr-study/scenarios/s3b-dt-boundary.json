@@ -1,5 +1,7 @@
 {
   "_comment": "S3b Negative-DT Boundary — companion attribute study to S3 (R&R-003, GitHub #1). Defined 2026-06-06.",
+  "_status": "NOT RUNNABLE -- DEFINED BUT NEVER RUN. Verified 2026-08-19. run_study.py does not register S3b and harness/run_scenario.py:820 hard-exits on it. synth/modulator.py:66 clamps a negative dt_s placement offset to zero, so a negative-DT part would render audio IDENTICAL to dt_s=0; tests/test_modulator.py:73 currently PINS that clamp as contract. Two builds are required before this scenario can produce any reading: (1) true early rendering in modulator.py (split the signal across the tail of one slot buffer and the head of the next), which REPLACES test_modulator.py:73 rather than deleting it; (2) run_scenario.py must arm playback abs(dt_s) seconds before _next_cycle_boundary() for S3b. See STUDY-SPEC.md section 16 (S3 redesign, corrected 2026-08-19) and qa/rr-study/2026-08-19-1558-architect-to-qa-ruling-d2-no-row-hk018-fires.md section 5.",
+  "_status_warning": "The description field below repeats a product finding from run aa053a9 ('OpenWSFZ still decodes most negative-DT signals but reports DT ~= 0') that is VOID: the clamp above means those parts were DT=0 audio and the decoder was correct. Do not cite it.",
   "_format_version": "1",
 
   "id": "S3b",
