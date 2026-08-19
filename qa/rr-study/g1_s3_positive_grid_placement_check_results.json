@@ -1,0 +1,94 @@
+{
+  "message": "CQ Q1ABC FN42",
+  "fs_hz": 48000,
+  "base_freq_hz": 1500,
+  "slot_length_s": 15.0,
+  "rows": [
+    {
+      "part_index": 0,
+      "label_dt_s": 0.0,
+      "measured_lag_s": 0.0,
+      "lag_samples": 0,
+      "error_s": 0.0,
+      "pass": true
+    },
+    {
+      "part_index": 1,
+      "label_dt_s": 0.3,
+      "measured_lag_s": 0.3,
+      "lag_samples": 14400,
+      "error_s": 0.0,
+      "pass": true
+    },
+    {
+      "part_index": 2,
+      "label_dt_s": 0.6,
+      "measured_lag_s": 0.6,
+      "lag_samples": 28800,
+      "error_s": 0.0,
+      "pass": true
+    },
+    {
+      "part_index": 3,
+      "label_dt_s": 0.9,
+      "measured_lag_s": 0.9,
+      "lag_samples": 43200,
+      "error_s": 0.0,
+      "pass": true
+    },
+    {
+      "part_index": 4,
+      "label_dt_s": 1.2,
+      "measured_lag_s": 1.2,
+      "lag_samples": 57600,
+      "error_s": 0.0,
+      "pass": true
+    },
+    {
+      "part_index": 5,
+      "label_dt_s": 1.5,
+      "measured_lag_s": 1.5,
+      "lag_samples": 72000,
+      "error_s": 0.0,
+      "pass": true
+    },
+    {
+      "part_index": 6,
+      "label_dt_s": 1.8,
+      "measured_lag_s": 1.8,
+      "lag_samples": 86400,
+      "error_s": 0.0,
+      "pass": true
+    },
+    {
+      "part_index": 7,
+      "label_dt_s": 2.1,
+      "measured_lag_s": 2.1,
+      "lag_samples": 100800,
+      "error_s": 0.0,
+      "pass": true
+    },
+    {
+      "part_index": 8,
+      "label_dt_s": 2.4,
+      "measured_lag_s": 2.36,
+      "lag_samples": 113280,
+      "error_s": -0.040000000000000036,
+      "pass": false
+    },
+    {
+      "part_index": 9,
+      "label_dt_s": 2.7,
+      "measured_lag_s": 2.36,
+      "lag_samples": 113280,
+      "error_s": -0.3400000000000003,
+      "pass": false
+    }
+  ],
+  "degenerate_pairs": [
+    [
+      8,
+      9
+    ]
+  ]
+}
