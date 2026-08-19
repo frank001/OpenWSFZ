@@ -41,17 +41,32 @@ def render_tones(
     snr_db: float | None = None,
     seed: int = 0,
     sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
-) -> np.ndarray:
+    *,
+    extended: bool = False,
+):
     """Modulate an explicit 79-tone vector (and optionally add seeded noise).
 
     Independent of the packing/LDPC layers — the DSP spine can be driven directly
     with a known tone vector, then reused unchanged by `encode_message`.
+
+    `extended` is forwarded to `modulator.modulate` unchanged (contracts C1/C2, Route B):
+    default `False` returns a single-slot array or raises; `True` returns
+    `(buffer, buffer_start_s)`. Noise, when requested, is added to the signal array either
+    way — the offset passes through untouched.
     """
-    clean = modulator.modulate(tones, base_freq_hz, dt_s, sample_rate_hz)
+    clean = modulator.modulate(tones, base_freq_hz, dt_s, sample_rate_hz, extended=extended)
+    if extended:
+        clean_signal, buffer_start_s = clean
+    else:
+        clean_signal, buffer_start_s = clean, 0.0
+
     if snr_db is None:
-        return clean
-    from . import channel
-    return channel.add_noise(clean, snr_db, seed, sample_rate_hz)
+        noisy_signal = clean_signal
+    else:
+        from . import channel
+        noisy_signal = channel.add_noise(clean_signal, snr_db, seed, sample_rate_hz)
+
+    return (noisy_signal, buffer_start_s) if extended else noisy_signal
 
 
 def encode_message(
@@ -61,9 +76,14 @@ def encode_message(
     snr_db: float | None = None,
     seed: int = 0,
     sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
-) -> np.ndarray:
+    *,
+    extended: bool = False,
+):
     """text -> rendered audio (all layers L2–L8 are implemented and operational)."""
-    return render_tones(message_to_tones(text), base_freq_hz, dt_s, snr_db, seed, sample_rate_hz)
+    return render_tones(
+        message_to_tones(text), base_freq_hz, dt_s, snr_db, seed, sample_rate_hz,
+        extended=extended,
+    )
 
 
 def encode_message_type4(
@@ -73,10 +93,15 @@ def encode_message_type4(
     snr_db: float | None = None,
     seed: int = 0,
     sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
-) -> np.ndarray:
+    *,
+    extended: bool = False,
+):
     """callsign -> rendered audio for a Type-4 "CQ <callsign>" announcement.
 
     rr-synth-nonstandard-callsign-packing: parallels `encode_message`, using
     `message_to_tones_type4` instead of the standard-message packer.
     """
-    return render_tones(message_to_tones_type4(callsign), base_freq_hz, dt_s, snr_db, seed, sample_rate_hz)
+    return render_tones(
+        message_to_tones_type4(callsign), base_freq_hz, dt_s, snr_db, seed, sample_rate_hz,
+        extended=extended,
+    )

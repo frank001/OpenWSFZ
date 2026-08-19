@@ -1,7 +1,9 @@
 {
   "_comment": "S3b Negative-DT Boundary — companion attribute study to S3 (R&R-003, GitHub #1). Defined 2026-06-06.",
-  "_status": "NOT RUNNABLE -- DEFINED BUT NEVER RUN. Verified 2026-08-19. run_study.py does not register S3b and harness/run_scenario.py:820 hard-exits on it. synth/modulator.py:66 clamps a negative dt_s placement offset to zero, so a negative-DT part would render audio IDENTICAL to dt_s=0; tests/test_modulator.py:73 currently PINS that clamp as contract. Two builds are required before this scenario can produce any reading: (1) true early rendering in modulator.py (split the signal across the tail of one slot buffer and the head of the next), which REPLACES test_modulator.py:73 rather than deleting it; (2) run_scenario.py must arm playback abs(dt_s) seconds before _next_cycle_boundary() for S3b. See STUDY-SPEC.md section 16 (S3 redesign, corrected 2026-08-19) and qa/rr-study/2026-08-19-1558-architect-to-qa-ruling-d2-no-row-hk018-fires.md section 5.",
-  "_status_warning": "The description field below repeats a product finding from run aa053a9 ('OpenWSFZ still decodes most negative-DT signals but reports DT ~= 0') that is VOID: the clamp above means those parts were DT=0 audio and the decoder was correct. Do not cite it.",
+  "_status": "BUILT, NOT YET RUN. Updated 2026-08-19 (Route B, §8 steps 2-4). synth/modulator.py now supports extended=True (contracts C1/C2): negative dt_s renders genuinely early audio instead of clamping to zero; tests/test_modulator.py:73 was REPLACED (not deleted) by test_negative_dt_shifts_signal_earlier. harness/run_scenario.py's hard-exit is REMOVED; this scenario now sets \"requires_extended_dt\": true, which routes it through the extended playback path (early-armed via _wait_for_cycle's early_by_s). run_study.py's _SCENARIO_REGISTRY registration is C4 (see that file). Offline placement proof (G1/G2, no decoder, no device): g1_g2_full_grid_placement_check.py — all 10 parts place to one sample, byte-identical across two runs. G3 (WSJT-X self-validation over the full grid) WAVs rendered by g3_full_grid_self_validation_render.py; GUI confirmation is a manual step (Captain's, per gate_render.py's existing convention) and has NOT been performed as of this note. G4 (>=95% decode at dt_s=0) not yet measured — requires a live run. STILL NOT RUN: needs the Captain's hardware (Voicemeeter AUX Input routing, per the standing capture-endpoint note) and an HK-013 supervisor for the ~4.2 h unattended sizing below.",
+  "_status_warning": "The description field below repeats a product finding from run aa053a9 ('OpenWSFZ still decodes most negative-DT signals but reports DT ~= 0') that is VOID: the pre-2026-08-19 clamp meant those parts were DT=0 audio and the decoder was correct. Do not cite it as a product finding — the negative-DT decode boundary is genuinely UNMEASURED until this scenario actually runs.",
+  "_sizing_note": "Route B spec §4 (HK-021(m)/(o) applied before running): 3 trials/part gives a decode-rate SE of ~29pp at p=0.5 -- cannot resolve a knee at all. Corrected to 100 trials/part below (1.96*SE ~= 9.8pp at p=0.5, tighter at the extremes) -- the MECHANICALLY required floor for this response, not a preference. At 10 parts x 100 trials x 2 appraisers x 15s, this is ~4.2h unattended (HK-013 supervisor + UTC-midnight rotation guard required). Spec: 'if 4.2 hours is not acceptable, cut PARTS, not TRIALS... bring me the tradeoff rather than splitting the difference' -- that choice (which 5 of the 10 parts to keep, if any are cut) is reserved for the Architect/Captain, not decided here. All 10 parts are left in place pending that call.",
+  "requires_extended_dt": true,
   "_format_version": "1",
 
   "id": "S3b",
@@ -16,7 +18,7 @@
     "base_freq_hz": 1500
   },
 
-  "harness_note": "Negative DT means the transmitter fires before the nominal slot boundary. The harness must schedule playback DT seconds early relative to the slot start. The synthesiser modulate() offset is clamped to 0 for negative values; timing must be enforced at the playback layer (subtract |dt_s| seconds from the cycle boundary before arming playback). Analysis key: matched (decoded) vs missed (not decoded) per (part, appraiser) — DO NOT compute Gage R&R on the DT response for this scenario.",
+  "harness_note": "Negative DT means the transmitter fires before the nominal slot boundary. \"requires_extended_dt\": true (above) routes this scenario through synth.modulator.modulate's extended=True contract (C1/C2) -- the returned buffer genuinely contains early audio, and harness/run_scenario.py's main loop arms playback `-buffer_start_s` seconds before the nominal cycle boundary (early_by_s, via _wait_for_cycle). Analysis key: matched (decoded) vs missed (not decoded) per (part, appraiser) — DO NOT compute Gage R&R on the DT response for this scenario.",
 
   "analysis": "attribute_decode_rate",
 
@@ -33,7 +35,7 @@
     {"part_index": 9, "dt_s": -2.7}
   ],
 
-  "trials": 3,
+  "trials": 100,
 
   "seed_formula": "hash('S3b', part_index, trial_index)"
 }
