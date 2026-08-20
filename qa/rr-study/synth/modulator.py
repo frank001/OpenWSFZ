@@ -38,11 +38,37 @@ def modulate(
     sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
     slot_length_s: float = SLOT_LENGTH_S,
     amplitude: float = 1.0,
-) -> np.ndarray:
-    """Render `tones` as GFSK audio into a `slot_length_s` buffer, offset by `dt_s`.
+    *,
+    extended: bool = False,
+):
+    """Render `tones` as GFSK audio, placed at `dt_s` relative to a `slot_length_s` slot.
 
-    `base_freq_hz` is the audio frequency of tone 0; tone k sits at
-    base + k * 6.25 Hz. Returns a float64 array of length slot_length_s * fs.
+    `base_freq_hz` is the audio frequency of tone 0; tone k sits at base + k * 6.25 Hz.
+
+    Route B / contracts C1-C2 (2026-08-19, following the 2026-08-19 discovery that the
+    prior implementation silently clamped `dt_s` at BOTH ends -- see
+    ``qa/rr-study/2026-08-19-1630-architect-to-qa-route-b-negative-dt-build-spec.md``):
+    placement is exact to one sample, or the call fails loudly. There is no longer any
+    `dt_s` value this function will silently mis-place.
+
+    Default (``extended=False``) -- SINGLE-SLOT CONTRACT, unchanged return shape/semantics
+    for every existing caller. Returns a `slot_length_s`-long float64 array with the signal
+    placed at sample ``round(dt_s * fs)``. If that placement does not fit entirely inside
+    ``[0, slot_length_s)`` -- true for any `dt_s` outside
+    ``[0, slot_length_s - transmission_s]`` (~[0.0, 2.36] s at the FT8 defaults: a 12.64 s
+    transmission in a 15 s slot) -- raises `ValueError` instead of clamping. This is the
+    replacement for the `24b6d9f` (2026-06-05) clamp that made S3 parts labelled 2.4 s and
+    2.7 s both render at 2.3600 s under two different truth labels for two and a half months.
+
+    ``extended=True`` -- MULTI-SLOT CONTRACT, opt-in, for S3b/negative-DT and any positive
+    `dt_s` beyond the single-slot cap. Returns ``(buffer, buffer_start_s)``: `buffer_start_s`
+    is the offset, in seconds, of `buffer` sample 0 relative to the nominal slot boundary,
+    always <= 0.0. Whenever the requested placement already fits inside a single slot,
+    `buffer_start_s` is exactly 0.0 and `buffer` is byte-identical to what `extended=False`
+    would return -- this mode is a superset of the single-slot contract, not a divergent one.
+    The caller (`run_scenario.py`, C3) must arm playback `buffer_start_s` seconds relative to
+    the nominal slot boundary so that `buffer` sample 0 reaches the device at time
+    ``boundary + buffer_start_s``.
     """
     if len(tones) != NUM_SYMBOLS:
         raise ValueError(f"expected {NUM_SYMBOLS} tones, got {len(tones)}")
@@ -75,9 +101,33 @@ def modulate(
     signal[:n_fade]  *= fade
     signal[-n_fade:] *= fade[::-1]
 
-    # Place into the full slot at the DT offset.
-    slot = np.zeros(int(round(slot_length_s * fs)), dtype=np.float64)
+    # Place at the DT offset -- exactly, or refuse (C1). No clamping past this point.
+    slot_samples = int(round(slot_length_s * fs))
     start = int(round(dt_s * fs))
-    start = max(0, min(start, len(slot) - len(signal)))
-    slot[start: start + len(signal)] = signal
-    return slot
+    end = start + len(signal)
+
+    if not extended:
+        if start < 0 or end > slot_samples:
+            max_dt_s = (slot_samples - len(signal)) / fs
+            raise ValueError(
+                f"dt_s={dt_s:.4f} places a {len(signal) / fs:.4f} s signal at samples "
+                f"[{start}, {end}) which does not fit inside a single {slot_length_s:.2f} s "
+                f"slot buffer [0, {slot_samples}). Single-slot dt_s must be in "
+                f"[0.0000, {max_dt_s:.4f}]. Pass extended=True to render across slot "
+                f"boundaries instead of raising (contracts C1/C2, Route B)."
+            )
+        slot = np.zeros(slot_samples, dtype=np.float64)
+        slot[start: end] = signal
+        return slot
+
+    # extended=True (C2): grow the buffer to bound both the nominal slot and the
+    # signal's actual placement, whichever is larger on each side. `buffer_start_samples`
+    # is <= 0 whenever the signal starts before the nominal slot (negative dt_s) and is
+    # exactly 0 whenever the placement already fits in a single slot -- see docstring.
+    buffer_start_samples = min(0, start)
+    buffer_end_samples = max(slot_samples, end)
+    buffer = np.zeros(buffer_end_samples - buffer_start_samples, dtype=np.float64)
+    local_start = start - buffer_start_samples
+    buffer[local_start: local_start + len(signal)] = signal
+    buffer_start_s = buffer_start_samples / fs
+    return buffer, buffer_start_s

@@ -1,6 +1,8 @@
 {
   "_comment": "S3 DT Offset — Gage R&R for timing offset (DT) response (STUDY-SPEC §6). Redesigned 2026-06-06 per R&R-003 (GitHub #1): parts restricted to positive DT only; WSJT-X convention offset corrected.",
+  "_regrid_ruling_note": "2026-08-20: requires_extended_dt flipped true per the S3 re-grid ruling (2026-08-20-1455-architect-to-qa-s3-regrid-ruling-and-g4-preregistration.md). Parts 8/9 (dt_s +2.4/+2.7) exceed the 2.36s single-slot cap now that the positive-clamp defect is fixed; option (b) — extended buffer into the next slot, same contract S3b already uses — was chosen over re-gridding to shorter DT values, because G3's primary gate (2026-08-19-1801Z, N=20/20) already measured exactly these two files rendered this way and both decoded clean on two independent instruments. No re-grid.",
   "_format_version": "1",
+  "requires_extended_dt": true,
 
   "id": "S3",
   "name": "DT offset",

@@ -149,7 +149,7 @@ Continuous studies use one response variable each (clean separation). All use
 | **S1b Low-SNR threshold** | Decode rate | {−24, −21, −18, −15} dB; fixed freq=1500 Hz, DT=0.2 s (4 parts; companion to S1) | 3 | Per-SNR decode rate per appraiser; informational |
 | **S2 Frequency sweep** | Frequency R&R | audio freq ∈ {300,567,834,…,2700} Hz; fixed SNR=0 dB | 3 | Frequency Gage R&R |
 | **S3 DT offset** | DT R&R | DT ∈ {0.0,+0.3,…,+2.7} s (10 steps, positive only — redesigned 2026-06-06 per R&R-003); fixed SNR=0 dB; WSJT-X DT corrected +0.55 s (convention offset) | 3 | DT Gage R&R |
-| **S3b Negative-DT boundary** | Decode rate vs DT < 0 | DT ∈ {0.0,−0.3,…,−2.7} s (10 steps, negative sweep); fixed SNR=0 dB (companion to S3; attribute, not GR&R) | 3 | Per-DT decode rate per appraiser; informational |
+| **S3b Negative-DT boundary** 🛑 **NEVER RUN / NOT RUNNABLE — see §16** | Decode rate vs DT < 0 | DT ∈ {0.0,−0.3,…,−2.7} s (10 steps, negative sweep); fixed SNR=0 dB (companion to S3; attribute, not GR&R). ⚠️ **`modulator.py:66` clamps negative `dt_s` to 0 and `run_scenario.py:820` hard-exits on S3b — no reading has ever been produced** | 3 | Per-DT decode rate per appraiser; informational |
 | **S4 Density / QRM** | Attribute agreement | cycles with N∈{1,5,10,20,30} simultaneous signals at mixed SNRs; ≥ 50 message instances total (per-message truth/matching redesigned 2026-07-07, `rr-density-qrm-scenario` / R&R-007 — see §9.3) | 3 | Recovery Kappa (vs truth & between apps) |
 | **S5 Noise / birdies** | False positives | signal-free cycles: white noise, pink noise, steady carriers/birdies | 30 | False-positive rate & agreement |
 | **S6 Off-air corpus** | External validity + appraiser consistency | 42 real off-air WAV files from local p10 corpus; K=3 runs; independently randomised order per run; both appraisers hear each WAV simultaneously | 3 | Within-appraiser consistency; between-appraiser Cohen's κ; SNR delta (D-002 field validation); order-effect test |
@@ -611,15 +611,62 @@ full change specification are in [`RR-005.md`](./RR-005.md).  Summary:
 The S3 GR&R failure (%GR&R = 51.7%, ndc = 1) had two distinct root causes, neither of which
 was fundamental measurement noise:
 
-1. **OpenWSFZ cannot measure negative DT offsets.**  For signals with true DT < 0 s, OpenWSFZ
-   still decodes the message but reports DT ≈ 0 regardless of the true value (at true DT = −2.0 s
-   the bias is +1.97 s).  Including these parts inflated the App × Part interaction with a decoder
-   capability boundary, not measurement noise.
+1. 🛑 **~~OpenWSFZ cannot measure negative DT offsets.~~ — CORRECTED 2026-08-19, THIS CLAIM IS VOID.
+   It was a SYNTH ARTEFACT, not a decoder capability boundary.**
+
+   The original text read: *"For signals with true DT < 0 s, OpenWSFZ still decodes the message but
+   reports DT ≈ 0 regardless of the true value (at true DT = −2.0 s the bias is +1.97 s).  Including
+   these parts inflated the App × Part interaction with a decoder capability boundary, not
+   measurement noise."*
+
+   **`synth/modulator.py` clamps the placement offset to zero:**
+
+   ```python
+   start = max(0, min(start, len(slot) - len(signal)))     # modulator.py:66
+   ```
+
+   introduced in `24b6d9f` (2026-06-05, the first synth commit) — i.e. **before** run `aa053a9`,
+   from which this finding was drawn. Any `dt_s < 0` therefore rendered audio **identical to
+   `dt_s = 0`**. OpenWSFZ reported ≈ 0 for a signal that genuinely sat at 0: **the decoder was
+   correct and the truth label was wrong.** The "+1.97 s bias at true DT = −2.0 s" measured the
+   synthesiser, not the product.
+
+   This was already documented on our side and never carried back to the conclusion it invalidates —
+   `QA-FINDINGS-rr-003.md` D-001 describes the clamp, `harness/run_scenario.py:820` hard-exits on
+   S3b (*"negative-DT playback is not yet implemented"*), and `tests/test_modulator.py:73` **pins the
+   clamp as contract**.
+
+   ⚠️ **Consequences, stated plainly:**
+   - **The restriction of S3 parts to DT ≥ 0 rests on a void premise.** It may still be the right
+     design for other reasons; the reason recorded here is not one of them.
+   - **The App × Part inflation is unexplained again.** Whatever drove it, "a decoder capability
+     boundary" is not a demonstrated cause.
+   - 🔴 **HK-026: the negative-DT half of OpenWSFZ's time response has never been measured by any
+     instrument we own, and cannot be measured on this bench today.** S3b has never run. Do not
+     build any mechanism claim — including for `AO1` Part C's `L = +0.706 pp` — on how our decoder
+     handles early-arriving signals until an instrument exists that can see there.
+
+   Found while ruling on `D2`; see
+   `2026-08-19-1558-architect-to-qa-ruling-d2-no-row-hk018-fires.md` §5.
 
 2. **WSJT-X has a ~−0.55 s systematic DT convention offset.**  WSJT-X defines DT relative to
    the FT8 nominal TX start (≈ 0.5–1.0 s into the slot) while the harness uses the UTC slot
    boundary (DT = 0).  This produced a ~−0.55 s offset in all WSJT-X DT reports and dominated
    the SS_appraiser term in the ANOVA, attributing a calibration artefact to Reproducibility error.
+
+   ⚠️ **Amended 2026-08-19: the offset is real, but it is NOT a stable constant.** `D2`
+   re-measured it decoder-versus-decoder on three archived runs and got **−0.531 / −0.628 /
+   −0.674 s** (those runs ran three *different* DLLs: shim 20260025 / 20260041 / 20260033), against
+   `AO1`'s independently measured `K = +0.650 s`. Spread ≈ **0.14 s**, confounded with build, date
+   and audio routing — larger than the `0.55` hard-coded here. A pure WSJT-X naming convention
+   cannot move when *our* build moves, so some part of this quantity is **not** notational and
+   remains unattributed.
+
+   🛑 **`wsjt_dt_correction_s: 0.55` is therefore a CALIBRATION CONSTANT OF UNKNOWN CURRENT
+   ACCURACY, not a measured invariant.** It is retained because the S3 ANOVA needs *a* correction
+   and 0.55 is the value the S3 history was computed with; do not cite it as the measured
+   WSJT-X–vs–harness offset, and do not treat a cross-run S3 bias comparison as convention-free.
+   See `2026-08-19-1558-architect-to-qa-ruling-d2-no-row-hk018-fires.md` §4 and §7.
 
 **Changes implemented** (branch `fix/rr-003-s3-dt-redesign`, closes GitHub #1):
 
@@ -634,6 +681,21 @@ was fundamental measurement noise:
   separates "does it decode early-starting signals?" from "does it report DT accurately?".
   `analysis: "attribute_decode_rate"` — the analyser renders a per-DT decode-rate table and chart.
 
+  🛑 **STATUS: DEFINED BUT NEVER RUN, AND NOT RUNNABLE (verified 2026-08-19).** S3b is **not** in
+  `run_study.py`'s `_SCENARIO_REGISTRY`, and `harness/run_scenario.py:820` hard-exits on it. Two
+  things must be built before it can ever produce a reading, and `QA-FINDINGS-rr-003.md` calls both
+  non-trivial:
+  1. **`synth/modulator.py`** must render a genuinely early signal instead of clamping to the slot
+     start (the signal spans the tail of one slot buffer and the head of the next — a split render
+     or a padded buffer). This **invalidates `tests/test_modulator.py:73`**, which currently pins
+     the clamp as contract; that test must be replaced, not deleted quietly.
+  2. **`harness/run_scenario.py`** must arm playback `|dt_s|` seconds *before* `_next_cycle_boundary()`
+     when the scenario is S3b.
+
+  🔴 Until then, **no per-DT decode-rate table for negative DT exists anywhere in this repo**, and
+  no claim about early-arriving signals is supportable from this bench. Route B of the `D2` ruling
+  is the work that changes this.
+
 - **`harness/analyse.py`** — `_apply_wsjt_dt_correction()` helper added; S3 path in `main()`
   applies the correction when `wsjt_dt_correction_s` is present in the scenario JSON.
   `_analyse_decode_rate()` and `_decode_rate_report_lines()` added for S3b. S7 path updated to use
@@ -642,6 +704,12 @@ was fundamental measurement noise:
 The DT GR&R is expected to improve substantially on the next run; the within-cell repeatability
 (σ ≈ 0.10–0.14 s per appraiser from run aa053a9) is physically meaningful and is the residual
 noise once the two artificial inflation sources are removed.
+
+⚠️ **Amended 2026-08-19:** only **one** of those two "inflation sources" survives scrutiny — the
+convention offset (root cause 2, itself now known not to be a stable constant). Root cause 1 was a
+synth artefact, so whatever the negative-DT parts contributed to the App × Part interaction is
+**unexplained**, not explained-and-removed. Any subsequent S3 GR&R improvement should not be
+attributed to removing a decoder capability boundary that was never demonstrated to exist.
 
 ### S5 routine scenario sizing — R&R-006 (GitHub #39) — **IMPLEMENTED 2026-07-04**
 

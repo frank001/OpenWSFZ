@@ -1,0 +1,89 @@
+==========================================================================================
+D1 -- which file carries the offset (locus discriminator)
+==========================================================================================
+
+HK-025 independent re-classification: concurs_with_spec=True refusal=False
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+ROW 0a clear: DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed.
+
+==========================================================================================
+Building matched-pair population on PRIMARY (20260803_live_run_1713) -- same code, same corpus as AO1
+==========================================================================================
+  {'n_ref_rows': 43423, 'n_our_rows': 64417, 'n_ref_snr_unparseable': 0, 'frac_ref_snr_unparseable': 0.0, 'n_ambiguous_ref_side': 0, 'n_ambiguous_our_side': 0, 'n_matched': 25411, 'n_matched_clusters': 4371}
+  drew the SAME seeded sample AO1 drew: seed=20260819 n=600 (AO1.AO1_SEED, AO1.SAMPLE_ROWS, unchanged)
+
+==========================================================================================
+Loading contexts from wsjt-x/wav/ (D:\Projects\claude\OpenWSFZ\artefacts\20260803_live_run_1713\wsjt-x\wav), anchored at the reference's own (freq, dt) -- run_ao1.load_contexts_for_sample, reused verbatim
+==========================================================================================
+  n_measured=551/600 n_clusters_measured=519 drop_reasons={'no_true_codeword': 49}
+
+==========================================================================================
+ROW 0b -- power: n_measured/n_clusters_measured on the wsjt-x-wav load
+==========================================================================================
+n_measured=551 (>=500) n_clusters_measured=519 (>=200) -> clear
+
+==========================================================================================
+MANDATORY SIGN UNIT TEST (Sec.6) -- exercises the real sweep code path
+==========================================================================================
+Construction: content untouched; the anchor FED TO THE SWEEP is displaced by a
+known delta (wrong_anchor = anchor_dt + delta). A too-late anchor needs an
+earlier-searching correction, so the sweep's minimum should land at
+dt_offset ~= -delta relative to that displaced anchor -- 'lands at its
+negation', the spec's own phrase (Sec.6). Two opposite-sign deltas exercised.
+  using n=20 real P-HIT contexts (WAV + true codeword already loaded)
+  baseline argmin O0=+0.70s
+  delta=+0.30s -> O_pos=+0.40s (expect O0-delta=+0.40s)
+  delta=-0.30s -> O_neg=+1.00s (expect O0-delta=+1.00s)
+  |O_pos - expect|=0.000s (<=0.05s) -> PASS
+  |O_neg - expect|=0.000s (<=0.05s) -> PASS
+  shift_pos=-0.30s shift_neg=+0.30s opposite signs -> PASS
+
+RESULT: PASS -- Part A / Stage 2 may be armed.
+
+==========================================================================================
+Sweeping K_ref -- wsjt-x/wav/, M3's 49-point grid, reused verbatim
+==========================================================================================
+  [D1_ref(wsjt-x wav)] swept 551 rows x 49 offsets in 119.2s (0 extraction failures)
+  K_ref: argmin=+0.650s median_BER_V0=6.32%
+
+==========================================================================================
+ROW 0d -- median BER_V0 at K_ref's argmin, two-sided plausibility
+==========================================================================================
+median_BER_V0(K_ref=+0.650s)=6.32% outside [1%,15%] two-sided -> clear
+
+==========================================================================================
+Recomputing AO1's own context set (owsfz/wav/, same sample) for ROW 0e's overlap test -- cheap (no re-sweep), and a sanity cross-check against AO1's stored counts
+==========================================================================================
+  n_measured=551/600 n_clusters_measured=519 drop_reasons={'no_true_codeword': 49}
+  recomputed: n_measured=551 n_clusters_measured=519 drop_reasons={'no_true_codeword': 49}
+  AO1's stored report (results/ao1_report.json / ao1_run.log line 16): n_measured=551 n_clusters_measured=519 drop_reasons={'no_true_codeword': 49}
+  sanity cross-check (same seeded sample, independently confirmed): MATCH
+
+==========================================================================================
+ROW 0e -- cycle-set overlap (filename-matched), wsjt-x-wav contexts vs owsfz-wav contexts
+==========================================================================================
+overlap=519 (>=400) [|ts_ref|=519 |ts_ao1|=519] -> clear
+
+==========================================================================================
+Reading K_ours from AO1's own stored report (D:\Projects\claude\OpenWSFZ\qa\rr-study\ao1-production-time-origin-offset\results\ao1_report.json) -- MEMORY.md: never hardcode 0.65/0.70s
+==========================================================================================
+  K_ours=+0.650s (AO1 final_row=3, expected '3' per the contradiction this spec exists to resolve)
+
+==========================================================================================
+MAIN ROWS -- strict order, theta=0.10s=2 steps, grid=0.05s, all comparisons in integer grid-step units
+==========================================================================================
+K_ref=+0.650s (+13 steps)  K_ours=+0.650s (+13 steps)  |K_ref-K_ours|=0 steps (theta=2 steps, ROW3 tol=2 steps)
+
+ROW 1 FIRES: |K_ref|>=theta AND |K_ref-K_ours|<=0.10s. Locus (A): SHARED. Both files carry the same offset. CycleFramer's window placement is NOT the defect -- the 12:17Z Developer recommendation is WITHDRAWN IN FULL. No OpenSpec change on this branch.
+
+==========================================================================================
+Sec.5 predictions, scored against this run
+==========================================================================================
+  row: predicted 1 (P~=0.80) -> HIT
+  k_ref_in_0.60_0.70: predicted [+0.60,+0.70]s -> HIT
+  abs_diff_0.00: predicted 0.00s (bit-identical argmin) -> HIT
+
+==========================================================================================
+FINAL ROW: 1
+==========================================================================================

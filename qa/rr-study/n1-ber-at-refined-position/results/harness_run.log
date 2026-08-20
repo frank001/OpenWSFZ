@@ -1,0 +1,54 @@
+==========================================================================================
+N1 -- BER at the refiner's vs. the grid position
+==========================================================================================
+
+[MANDATORY] Running the sign unit test first (spec Sec.4)...
+Sign unit test PASSED. Arming.
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed on BOTH bindings.
+
+==========================================================================================
+ROW 0b -- control-population wiring check
+==========================================================================================
+ROW 0b: n_control=195 n_measured=171 n_rc_nonzero=0 median_ber=2.87% (bound <=5%) -> clear
+ROW 0b clear.
+
+==========================================================================================
+Building the candidate-present-and-failed population (THE 135 + THE 567)
+==========================================================================================
+
+==========================================================================================
+Measuring GRID vs. REFINED for each row
+==========================================================================================
+  ... 100/441 rows processed (91 measured, 3.1s elapsed)
+  ... 200/441 rows processed (183 measured, 6.9s elapsed)
+  ... 400/441 rows processed (368 measured, 13.6s elapsed)
+
+Measured 405/441 rows (14.8s). Drop reasons: {'no_true_codeword': 36}
+
+==========================================================================================
+ROW 0c -- underpowered check
+==========================================================================================
+n_paired=405 (bound >=200) -> clear
+
+==========================================================================================
+ROW 0d -- did the refiner move anything?
+==========================================================================================
+median|delta_t|=0.0540s (floor 0.0050s), median|delta_f|=1.5000Hz (floor 0.25Hz) -> clear
+
+==========================================================================================
+Primary/secondary statistics
+==========================================================================================
+d_ber (paired median BER_grid - BER_refined): point_estimate=-0.57pp mean=-0.49pp se=0.43pp CI95=[-1.15, +0.00]pp p=0.6890 (n_rows=405 n_clusters=67 n_draws=2000)
+f_cross (fraction crossing ABOVE->BELOW B50=11.3%): 0.0%
+
+Per-population breakdown:
+  [135] n=126 d_ber point_estimate=-4.02pp CI95=[-6.90,-2.30]pp f_cross=0.0%
+  [567] n=279 d_ber point_estimate=+0.00pp CI95=[+0.00,+0.00]pp f_cross=0.0%
+
+==========================================================================================
+ROW 1/2/3 -- the gate, strict order
+==========================================================================================
+ROW 2 FIRES: |d_ber|=0.57pp (<=5pp) AND CI_hi=+0.00pp (<15pp).
+CONSEQUENCE: limb 1 is DEAD as a D-001 treatment. Extracting at a better position does not fix the reading -- the failure is in how the bits are formed (the non-coherent, magnitude-only, single-symbol metric), not where they are read. R2 as framed is dead; the next work is limb 2 (coherent multi-symbol LLRs).

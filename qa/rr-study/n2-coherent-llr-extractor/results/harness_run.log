@@ -1,0 +1,22 @@
+==========================================================================================
+N2 -- coherent multi-symbol LLR extractor vs. the grid-position baseline
+==========================================================================================
+
+[MANDATORY] Running the sign unit test first (spec Sec.5)...
+Sign unit test PASSED. Arming.
+
+==========================================================================================
+ROW 0a -- synthetic noiseless round-trip (Python-only, no DLL)
+==========================================================================================
+ROW 0a: V1_BER=0.00% V2_BER=0.00% V3_BER=0.00% (V3 must be exactly 0.0%) -> clear
+ROW 0a clear.
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed.
+
+==========================================================================================
+ROW 0b -- control-population wiring check (V0 and V1)
+==========================================================================================
+ROW 0b: n_control=195 n_measured=171 n_rc_nonzero=0 median_ber_v0=2.87% (target 2.87%+/-1pp) median_ber_v1=5.75% (bound <=5%) -> FIRES
+
+ROW 0b FIRES: the Python front end is reading a different position or scaling than the C baseline. Harness invalid, NO VERDICT. QA fixes and re-runs.

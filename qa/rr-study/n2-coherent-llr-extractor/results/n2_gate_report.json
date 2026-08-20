@@ -1,0 +1,23 @@
+{
+  "final_row": "0b",
+  "row_0a": {
+    "ber_v1": 0.0,
+    "ber_v2": 0.0,
+    "ber_v3": 0.0,
+    "fires": false,
+    "row": "0a"
+  },
+  "row_0b": {
+    "fires": true,
+    "median_ber_v0": 0.028735632183908046,
+    "median_ber_v1": 0.05747126436781609,
+    "n_control": 195,
+    "n_measured": 171,
+    "n_no_true_codeword": 24,
+    "n_rc_nonzero": 0,
+    "row": "0b",
+    "v0_target": 0.0287,
+    "v0_tol": 0.01,
+    "v1_max": 0.05
+  }
+}

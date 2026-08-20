@@ -1,0 +1,126 @@
+==========================================================================================
+P-LIVE STAGE 1 -- does order-3 coherent extraction CONVERT on the live-decode miss population?
+==========================================================================================
+
+[MANDATORY] Running BOTH sign unit tests fresh (ROW 0d, not inherited)...
+-- (a) n5_stats_sign_test.py (f_break/f_net logic) --
+-- (b) n4_sign_unit_test.py (V3_cum DSP correctness) --
+Both sign unit tests PASSED. Arming.
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed.
+
+
+==========================================================================================
+Corpus: 20260803_live_run_1713
+==========================================================================================
+  population (WSJT-X decoded, we did not): n_rows=18012 n_clusters=4113
+  ... 5000/18012 rows processed (4293 measured, 82.0s elapsed)
+  ... 10000/18012 rows processed (8644 measured, 170.6s elapsed)
+  ... 15000/18012 rows processed (12781 measured, 253.7s elapsed)
+  measured 15389/18012 rows (304.6s). drop reasons: {'no_true_codeword': 1605, 'v0_extract_rc_-3': 1018}
+  n_clusters_measured=3917
+  median BER_V0=49.43%  median hd_disagree_v0_v3=28.0/174 bits
+  f_cross (n_crossable=15389/15389 clusters=3917): point=0.0000% CI95=[0.0000, 0.0000]%
+  rule-of-three bound (n_clusters=3917): 0.0765%
+  f_break: n_breakable=0 < 30 -- DESCRIPTIVE ONLY (HK-021(j))
+  f_net (whole-population denom, n=15389): point=+0.0000% CI95=[+0.0000, +0.0000]%
+
+==========================================================================================
+Corpus: 20260808_live_run_0016-8080
+==========================================================================================
+  population (WSJT-X decoded, we did not): n_rows=33303 n_clusters=2743
+  ... 5000/33303 rows processed (4304 measured, 80.0s elapsed)
+  ... 10000/33303 rows processed (8887 measured, 163.4s elapsed)
+  ... 15000/33303 rows processed (13339 measured, 244.1s elapsed)
+  ... 20000/33303 rows processed (17703 measured, 324.6s elapsed)
+  ... 25000/33303 rows processed (22215 measured, 408.1s elapsed)
+  ... 30000/33303 rows processed (26536 measured, 488.1s elapsed)
+  measured 29441/33303 rows (542.7s). drop reasons: {'no_true_codeword': 3058, 'v0_extract_rc_-3': 804}
+  n_clusters_measured=2740
+  median BER_V0=49.43%  median hd_disagree_v0_v3=27.0/174 bits
+  f_cross (n_crossable=29441/29441 clusters=2740): point=0.0000% CI95=[0.0000, 0.0000]%
+  rule-of-three bound (n_clusters=2740): 0.1093%
+  f_break: n_breakable=0 < 30 -- DESCRIPTIVE ONLY (HK-021(j))
+  f_net (whole-population denom, n=29441): point=+0.0000% CI95=[+0.0000, +0.0000]%
+
+==========================================================================================
+Corpus: 20260808_live_run_0016-8081
+==========================================================================================
+  population (WSJT-X decoded, we did not): n_rows=31160 n_clusters=2646
+  ... 5000/31160 rows processed (4419 measured, 82.6s elapsed)
+  ... 10000/31160 rows processed (8969 measured, 168.1s elapsed)
+  ... 15000/31160 rows processed (13398 measured, 250.7s elapsed)
+  ... 20000/31160 rows processed (17788 measured, 332.5s elapsed)
+  ... 25000/31160 rows processed (22189 measured, 414.8s elapsed)
+  ... 30000/31160 rows processed (26589 measured, 499.2s elapsed)
+  measured 27609/31160 rows (519.4s). drop reasons: {'no_true_codeword': 2798, 'v0_extract_rc_-3': 753}
+  n_clusters_measured=2643
+  median BER_V0=49.43%  median hd_disagree_v0_v3=27.0/174 bits
+  f_cross (n_crossable=27609/27609 clusters=2643): point=0.0000% CI95=[0.0000, 0.0000]%
+  rule-of-three bound (n_clusters=2643): 0.1133%
+  f_break: n_breakable=0 < 30 -- DESCRIPTIVE ONLY (HK-021(j))
+  f_net (whole-population denom, n=27609): point=+0.0000% CI95=[+0.0000, +0.0000]%
+
+==========================================================================================
+Corpus: 20260808_live_run_1154-8080-17m
+==========================================================================================
+  population (WSJT-X decoded, we did not): n_rows=14276 n_clusters=1849
+  ... 5000/14276 rows processed (4551 measured, 84.3s elapsed)
+  ... 10000/14276 rows processed (9101 measured, 169.2s elapsed)
+  measured 13006/14276 rows (242.5s). drop reasons: {'no_true_codeword': 1076, 'v0_extract_rc_-3': 194}
+  n_clusters_measured=1846
+  median BER_V0=49.43%  median hd_disagree_v0_v3=28.0/174 bits
+  f_cross (n_crossable=13006/13006 clusters=1846): point=0.0000% CI95=[0.0000, 0.0000]%
+  rule-of-three bound (n_clusters=1846): 0.1622%
+  f_break: n_breakable=0 < 30 -- DESCRIPTIVE ONLY (HK-021(j))
+  f_net (whole-population denom, n=13006): point=+0.0000% CI95=[+0.0000, +0.0000]%
+
+==========================================================================================
+Corpus: 20260809_live_run_0155-8080-80m
+==========================================================================================
+  population (WSJT-X decoded, we did not): n_rows=2354 n_clusters=817
+  measured 2107/2354 rows (39.8s). drop reasons: {'no_true_codeword': 194, 'v0_extract_rc_-3': 53}
+  n_clusters_measured=790
+  median BER_V0=49.43%  median hd_disagree_v0_v3=28.0/174 bits
+  f_cross (n_crossable=2107/2107 clusters=790): point=0.0000% CI95=[0.0000, 0.0000]%
+  rule-of-three bound (n_clusters=790): 0.3785%
+  f_break: n_breakable=0 < 30 -- DESCRIPTIVE ONLY (HK-021(j))
+  f_net (whole-population denom, n=2107): point=+0.0000% CI95=[+0.0000, +0.0000]%
+
+==========================================================================================
+ROW 0c/0e/0f -- evaluated on PRIMARY (20260803_live_run_1713) ONLY, per Amendment A4.2
+==========================================================================================
+ROW 0c: n_measured=15389 (>=500) n_clusters=3917 (>=200) -> clear
+ROW 0e: median hd_disagree_v0_v3=28.0/174 (floor 5) -> clear
+ROW 0f (Amendment A4.1): median BER_V0=49.43% vs floor 41.97% (43.97%-2pp) -> clear
+ROW 0c/0e/0f all clear on PRIMARY.
+
+==========================================================================================
+ROW 1/2/3 -- the confirmatory gate, evaluated on PRIMARY (20260803_live_run_1713) ONLY (Amendment A4.2)
+==========================================================================================
+ROW 2 FIRES: CI_hi(f_cross)=0.0000% (<5%).
+CONSEQUENCE: limb 2's prize is upper-bounded below 5% of the crossable population -- BOTH LIMBS close.
+
+Rule-of-three bound on PRIMARY (n_clusters=3917): 0.0765% -- the headline if n_cross=0 (bootstrap CI is then degenerate by construction).
+
+Amendment A4.3 -- BER_V0 decile table over PRIMARY's crossable denominator (rows with BER_V0 > B50=11.3%), n=15389:
+  p0 = 33.91%
+  p10 = 44.25%
+  p20 = 45.98%
+  p30 = 47.13%
+  p40 = 48.28%
+  p50 = 49.43%
+  p60 = 50.57%
+  p70 = 51.72%
+  p80 = 52.87%
+  p90 = 54.60%
+  p100 = 64.37%
+
+==========================================================================================
+EXTENSION CORPORA -- descriptive replication, gating nothing, never pooled
+==========================================================================================
+  [20260808_live_run_0016-8080] n_measured=29441 clusters=2740 median_BER_V0=49.43% f_cross=0.0000% CI95=[0.0000,0.0000]% rule-of-three=0.1093%
+  [20260808_live_run_0016-8081] n_measured=27609 clusters=2643 median_BER_V0=49.43% f_cross=0.0000% CI95=[0.0000,0.0000]% rule-of-three=0.1133%
+  [20260808_live_run_1154-8080-17m] n_measured=13006 clusters=1846 median_BER_V0=49.43% f_cross=0.0000% CI95=[0.0000,0.0000]% rule-of-three=0.1622%
+  [20260809_live_run_0155-8080-80m] n_measured=2107 clusters=790 median_BER_V0=49.43% f_cross=0.0000% CI95=[0.0000,0.0000]% rule-of-three=0.3785%

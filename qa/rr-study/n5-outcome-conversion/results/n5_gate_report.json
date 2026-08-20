@@ -1,0 +1,227 @@
+{
+  "b50_threshold": 0.113,
+  "bootstrap": {
+    "f_break": {
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "n_draws": 1726,
+      "se": 0.0
+    },
+    "f_cross": {
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "n_draws": 2000,
+      "se": 0.0
+    },
+    "f_net": {
+      "ci95": [
+        -0.012285768751285992,
+        0.0
+      ],
+      "n_draws": 2000,
+      "se": 0.0034168617434262934
+    },
+    "n_clusters": 67,
+    "point": {
+      "f_break": 1.0,
+      "f_cross": 0.0,
+      "f_net": -0.0049382716049382715,
+      "n_break": 2,
+      "n_breakable": 2,
+      "n_clusters_breakable": 2,
+      "n_clusters_crossable": 67,
+      "n_cross": 0,
+      "n_crossable": 403,
+      "n_total": 405
+    },
+    "seed": 20260816
+  },
+  "d_ber_attribution_only": {
+    "ci95": [
+      -0.011494252873563204,
+      0.0
+    ],
+    "mean": -0.0039655172413793046,
+    "n_clusters": 67,
+    "n_draws": 2000,
+    "n_rows": 405,
+    "p_two_sided": 0.649,
+    "point_estimate": -0.005747126436781602,
+    "se": 0.0029362727321764954,
+    "seed": 20260816
+  },
+  "drop_reasons": {
+    "no_true_codeword": 36
+  },
+  "final_row": "2",
+  "gate_ci_f_cross": [
+    0.0,
+    0.0
+  ],
+  "gate_ci_f_net": [
+    -0.012285768751285992,
+    0.0
+  ],
+  "n_measured": 405,
+  "n_population": 441,
+  "per_population": {
+    "135": {
+      "bootstrap": {
+        "f_break": {
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "n_draws": 1724,
+          "se": 0.0
+        },
+        "f_cross": {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "n_draws": 2000,
+          "se": 0.0
+        },
+        "f_net": {
+          "ci95": [
+            -0.037391994357256216,
+            0.0
+          ],
+          "n_draws": 2000,
+          "se": 0.010311745394756424
+        },
+        "n_clusters": 51,
+        "point": {
+          "f_break": 1.0,
+          "f_cross": 0.0,
+          "f_net": -0.015873015873015872,
+          "n_break": 2,
+          "n_breakable": 2,
+          "n_clusters_breakable": 2,
+          "n_clusters_crossable": 51,
+          "n_cross": 0,
+          "n_crossable": 124,
+          "n_total": 126
+        },
+        "seed": 20260816
+      },
+      "n": 126
+    },
+    "567": {
+      "bootstrap": {
+        "f_break": {
+          "ci95": [
+            NaN,
+            NaN
+          ],
+          "n_draws": 0,
+          "se": NaN
+        },
+        "f_cross": {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "n_draws": 2000,
+          "se": 0.0
+        },
+        "f_net": {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "n_draws": 2000,
+          "se": 0.0
+        },
+        "n_clusters": 67,
+        "point": {
+          "f_break": NaN,
+          "f_cross": 0.0,
+          "f_net": 0.0,
+          "n_break": 0,
+          "n_breakable": 0,
+          "n_clusters_breakable": 0,
+          "n_clusters_crossable": 67,
+          "n_cross": 0,
+          "n_crossable": 279,
+          "n_total": 279
+        },
+        "seed": 20260816
+      },
+      "n": 279
+    }
+  },
+  "row_0a": {
+    "fires": false,
+    "median_v0_ber_135": 0.43965517241379315,
+    "median_v0_ber_567_non_gating": 0.4942528735632184,
+    "n_135": 126,
+    "n_567": 279,
+    "row": "0a",
+    "target": 0.4397,
+    "tol": 0.02
+  },
+  "row_0b": {
+    "fires": false,
+    "min_clusters": 30,
+    "min_rows": 200,
+    "n_clusters": 67,
+    "n_paired": 405,
+    "row": "0b"
+  },
+  "row_0c": {
+    "fires": false,
+    "floor_bits": 5,
+    "median_disagree_bits": 21.0,
+    "row": "0c"
+  },
+  "secondary_reachable_stratum": {
+    "bootstrap": {
+      "f_break": {
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "n_draws": 1835,
+        "se": 0.0
+      },
+      "f_cross": {
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "n_draws": 2000,
+        "se": 0.0
+      },
+      "f_net": {
+        "ci95": [
+          -0.25,
+          0.0
+        ],
+        "n_draws": 2000,
+        "se": 0.06604080639142627
+      },
+      "n_clusters": 9,
+      "point": {
+        "f_break": 1.0,
+        "f_cross": 0.0,
+        "f_net": -0.1,
+        "n_break": 2,
+        "n_breakable": 2,
+        "n_clusters_breakable": 2,
+        "n_clusters_crossable": 8,
+        "n_cross": 0,
+        "n_crossable": 18,
+        "n_total": 20
+      },
+      "seed": 20260816
+    },
+    "n_clusters_reachable": 9,
+    "n_reachable": 20
+  }
+}

@@ -1,0 +1,114 @@
+==========================================================================================
+AO1 -- the production time-origin offset
+==========================================================================================
+
+HK-025 independent re-classification: concurs_with_spec=True refusal=False
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+ROW 0a clear: DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed.
+
+==========================================================================================
+Building matched-pair population on PRIMARY (20260803_live_run_1713)
+==========================================================================================
+  {'n_ref_rows': 43423, 'n_our_rows': 64417, 'n_ref_snr_unparseable': 0, 'frac_ref_snr_unparseable': 0.0, 'n_ambiguous_ref_side': 0, 'n_ambiguous_our_side': 0, 'n_matched': 25411, 'n_matched_clusters': 4371}
+
+Drawing seeded K-sample (n<=600, seed=20260819) and loading contexts from OUR OWN archived audio (D:\Projects\claude\OpenWSFZ\artefacts\20260803_live_run_1713\owsfz\wav)...
+  n_measured=551/600 n_clusters_measured=519 drop_reasons={'no_true_codeword': 49}
+
+==========================================================================================
+MANDATORY SIGN UNIT TEST (Sec.6) -- exercises the real sweep code path
+==========================================================================================
+Construction: content untouched; the anchor FED TO THE SWEEP is displaced by a
+known delta (wrong_anchor = anchor_dt + delta). A too-late anchor needs an
+earlier-searching correction, so the sweep's minimum should land at
+dt_offset ~= -delta relative to that displaced anchor -- 'lands at its
+negation', the spec's own phrase (Sec.6). Two opposite-sign deltas exercised.
+  using n=20 real P-HIT contexts (WAV + true codeword already loaded)
+  baseline argmin O0=+0.65s
+  delta=+0.30s -> O_pos=+0.35s (expect O0-delta=+0.35s)
+  delta=-0.30s -> O_neg=+0.95s (expect O0-delta=+0.95s)
+  |O_pos - expect|=0.000s (<=0.05s) -> PASS
+  |O_neg - expect|=0.000s (<=0.05s) -> PASS
+  shift_pos=-0.30s shift_neg=+0.30s opposite signs -> PASS
+
+RESULT: PASS -- Part A / Stage 2 may be armed.
+
+==========================================================================================
+ROW 0b -- matched-pair dry count, full PRIMARY population
+==========================================================================================
+n_rows=25411 (>=2000) n_clusters=4371 (>=500) -> clear
+
+==========================================================================================
+ROW 0c -- reference dt grid-lock plausibility
+==========================================================================================
+cluster-median dt_ref=+0.200s, outside [-0.35,+0.35]s two-sided -> clear
+
+==========================================================================================
+R -- full PRIMARY matched population, cluster-bootstrapped, SIGNED
+==========================================================================================
+  R [PRIMARY]: point=+0.700s mean=+0.700s se=0.0000s CI95=[+0.700,+0.700]s p=0.0000 (n_rows=25411 n_clusters=4371 n_draws=2000)
+
+==========================================================================================
+K -- sweeping our own archived audio, anchored at the reference's (freq, dt), M3's 49-point grid
+==========================================================================================
+  n_measured=551/600 n_clusters_measured=519 drop_reasons={'no_true_codeword': 49}
+  [PRIMARY] swept 551 rows x 49 offsets in 151.6s (0 extraction failures)
+  K [PRIMARY]: argmin=+0.650s median_BER_V0=6.90%
+
+==========================================================================================
+ROW 0d -- median BER_V0 at K's argmin
+==========================================================================================
+median_BER_V0(K=+0.650s)=6.90% outside [1%,15%] two-sided -> clear
+
+==========================================================================================
+ROW 0f -- 4 chronological ts-quartiles' own argmin vs pooled K
+==========================================================================================
+    quartile 0: n_rows=138 ts=[260803_171530..260803_211630] argmin=+0.65s delta_vs_pooled=0.000s
+    quartile 1: n_rows=138 ts=[260803_211800..260804_062145] argmin=+0.65s delta_vs_pooled=0.000s
+    quartile 2: n_rows=138 ts=[260804_062445..260804_101515] argmin=+0.65s delta_vs_pooled=0.000s
+    quartile 3: n_rows=137 ts=[260804_101545..260804_135445] argmin=+0.60s delta_vs_pooled=0.050s
+max|quartile_argmin - pooled_K|=0.050s (bound <=0.05s) -> FIRES
+ROW 0f FIRES: offset is not one constant across the cycle timeline. Reported as drift; Part B still reports; Part C WITHHELD regardless of the main-row outcome.
+
+==========================================================================================
+ROW 0g -- reference SNR-field parseability (gates Part C only)
+==========================================================================================
+frac_ref_snr_unparseable=0.00% (bound <=5%) -> clear
+
+==========================================================================================
+PART B -- main rows 1-5, strict order, theta=0.10s
+==========================================================================================
+R=+0.700s |R|=0.700s   K=+0.650s |K|=0.650s   theta=0.10s
+
+ROW 3 FIRES: |R|>=theta AND |K|>=theta AND sign(K)=sign(R) AND |K-R|<=0.15s. PRODUCTION FRAMING DEFECT -- archive faithful to the live buffer. Route A is promoted from open to confirmed-in-part. Part C runs (if 0f clear).
+
+Part C SKIPPED: ROW 0f fired (offset not constant).
+
+==========================================================================================
+Descriptive replication -- R (and K if affordable) on the extension corpora, PER CORPUS, NEVER POOLED, HK-021(k): gates nothing
+==========================================================================================
+
+-- 20260808_live_run_0016-8080 --
+  {'n_ref_rows': 76967, 'n_our_rows': 45258, 'n_ref_snr_unparseable': 0, 'frac_ref_snr_unparseable': 0.0, 'n_ambiguous_ref_side': 1, 'n_ambiguous_our_side': 0, 'n_matched': 43662, 'n_matched_clusters': 2733}
+  R [20260808_live_run_0016-8080]: point=+0.700s mean=+0.700s se=0.0022s CI95=[+0.700,+0.700]s p=0.0000 (n_rows=43662 n_clusters=2733 n_draws=2000)
+  n_measured=555/600 n_clusters_measured=508 drop_reasons={'no_true_codeword': 45}
+  [20260808_live_run_0016-8080] swept 555 rows x 49 offsets in 122.0s (49 extraction failures)
+  K [20260808_live_run_0016-8080]: argmin=+0.650s median_BER_V0=6.32%
+
+-- 20260808_live_run_1154-8080-17m --
+  {'n_ref_rows': 39713, 'n_our_rows': 26345, 'n_ref_snr_unparseable': 0, 'frac_ref_snr_unparseable': 0.0, 'n_ambiguous_ref_side': 0, 'n_ambiguous_our_side': 0, 'n_matched': 25437, 'n_matched_clusters': 1856}
+  R [20260808_live_run_1154-8080-17m]: point=+0.700s mean=+0.700s se=0.0032s CI95=[+0.700,+0.700]s p=0.0000 (n_rows=25437 n_clusters=1856 n_draws=2000)
+  n_measured=563/600 n_clusters_measured=482 drop_reasons={'no_true_codeword': 37}
+  [20260808_live_run_1154-8080-17m] swept 563 rows x 49 offsets in 123.3s (0 extraction failures)
+  K [20260808_live_run_1154-8080-17m]: argmin=+0.650s median_BER_V0=6.32%
+
+-- 20260809_live_run_0155-8080-80m --
+  {'n_ref_rows': 10952, 'n_our_rows': 9032, 'n_ref_snr_unparseable': 0, 'frac_ref_snr_unparseable': 0.0, 'n_ambiguous_ref_side': 0, 'n_ambiguous_our_side': 0, 'n_matched': 8598, 'n_matched_clusters': 1179}
+  R [20260809_live_run_0155-8080-80m]: point=+0.700s mean=+0.696s se=0.0196s CI95=[+0.600,+0.700]s p=0.0000 (n_rows=8598 n_clusters=1179 n_draws=2000)
+  n_measured=578/600 n_clusters_measured=433 drop_reasons={'no_true_codeword': 22}
+  [20260809_live_run_0155-8080-80m] swept 578 rows x 49 offsets in 127.2s (0 extraction failures)
+  K [20260809_live_run_0155-8080-80m]: argmin=+0.650s median_BER_V0=4.02%
+
+==========================================================================================
+FINAL ROW: 3
+==========================================================================================

@@ -1,0 +1,99 @@
+==========================================================================================
+N5 -- does order-3 coherent extraction CONVERT on the FAILED population?
+==========================================================================================
+
+[MANDATORY] Running BOTH sign unit tests first (spec ROW 0d, re-run not inherited)...
+-- (a) n5_stats_sign_test.py (new f_break/f_net logic) --
+==============================================================================
+N5 mandatory sign unit test for f_break/f_net (new statistics, Amendment A1.2)
+==============================================================================
+(1) all rows cross (V0=0.21 V3=0.01) -> f_cross=1.000000 (want 1.0) n_breakable=0 (want 0) f_net=1.000000 (want +1.0) CI_lo(f_cross)=1.0000 (want >0) [PASS]
+(2) all rows break (V0=0.01 V3=0.21) -> f_break=1.000000 (want 1.0) n_crossable=0 (want 0) f_net=-1.000000 (want -1.0) CI_hi(f_net)=-1.0000 (want <0) [PASS]
+(3) half cross, half break (equal N) -> f_cross(own-denom)=1.000000 (=1.0, looks like a clean win) f_break(own-denom)=1.000000 (=1.0, equally bad) f_net=0.000000 (want ~0.0) CI(f_net)=[-0.3333333333333333, 0.3333333333333333] (must NOT clear 0) [PASS]
+    (this is the exact un-amended-ROW-1 failure Amendment A1.2 exists to close: f_cross alone reads a 100%% win here, f_net correctly reads zero)
+(4) f_cross (1.0000) and f_break (1.0000) remain separately reported, neither equals f_net (0.0000) -- not silently pooled [PASS]
+
+RESULT: PASS -- f_break/f_net sign behaviour verified, including the converts-while-breaking case Amendment A1.2 exists to catch. Real harness may be armed (pending n4_sign_unit_test.py's DSP-level pass too).
+-- (b) n4_sign_unit_test.py (V3_cum DSP correctness, re-run fresh) --
+==============================================================================
+N4 mandatory sign unit test (spec Sec.4.4, reused verbatim from N3)
+==============================================================================
+
+-- variant V1 --
+  df_inject=-1.75 -> argmin df*=+1.688 (want +1.75, tol 0.125) min_median_BER=2.87% [PASS]
+  df_inject=-0.50 -> argmin df*=+0.438 (want +0.50, tol 0.125) min_median_BER=2.87% [PASS]
+  df_inject=+0.50 -> argmin df*=-0.562 (want -0.50, tol 0.125) min_median_BER=2.87% [PASS]
+  df_inject=+1.25 -> argmin df*=-1.312 (want -1.25, tol 0.125) min_median_BER=2.87% [PASS]
+
+-- variant V3_cum --
+  df_inject=-1.75 -> argmin df*=+1.875 (want +1.75, tol 0.125) min_median_BER=0.57% [PASS]
+  df_inject=-0.50 -> argmin df*=+0.625 (want +0.50, tol 0.125) min_median_BER=0.57% [PASS]
+  df_inject=+0.50 -> argmin df*=-0.375 (want -0.50, tol 0.125) min_median_BER=0.57% [PASS]
+  df_inject=+1.25 -> argmin df*=-1.125 (want -1.25, tol 0.125) min_median_BER=0.57% [PASS]
+
+(184.0s elapsed)
+RESULT: PASS -- the sweep's minimum tracks a known frequency error with the correct sign, at >=2 opposite-sign injected offsets, for both order 1 and cumulative order 3, on N4's own two-resolution grid. Real harness may be armed.
+Both sign unit tests PASSED. Arming.
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed.
+
+==========================================================================================
+Building the candidate-present-and-failed population (THE 135 + THE 567, N1's exact pop)
+==========================================================================================
+THE 135: n_wsjtx=135 n_grid_matched=135
+  [567] WARNING: 261/567 row(s) could not be re-matched to a grid candidate (dropped)
+THE 567: n_wsjtx=567 n_grid_matched=306
+Combined candidate-present-and-failed population: n=441
+
+==========================================================================================
+Measuring V0 vs V3_cum for each row
+==========================================================================================
+  ... 100/441 rows processed (91 measured, 1.8s elapsed)
+  ... 200/441 rows processed (183 measured, 3.5s elapsed)
+  ... 400/441 rows processed (368 measured, 7.0s elapsed)
+
+Measured 405/441 rows (7.6s). Drop reasons: {'no_true_codeword': 36}
+
+==========================================================================================
+ROW 0a -- THE 135 stratum ALONE, V0 median BER vs N1's own 43.97%%+/-2pp (Amendment A1.1)
+==========================================================================================
+THE 135 (n=126): V0 median BER=43.97% (target 43.97%+/-2pp) -> clear
+THE 567 (n=279): V0 median BER=49.43% (NO published reference -- reported, GATES NOTHING)
+ROW 0a clear.
+
+==========================================================================================
+ROW 0b -- underpowered? (<200 paired rows OR <30 ts clusters, combined population)
+==========================================================================================
+n_paired=405 (bound >=200), n_clusters=67 (bound >=30) -> clear
+ROW 0b clear.
+
+==========================================================================================
+ROW 0c -- can the contrast move at all? (median V0-vs-V3_cum hard-decision disagreement)
+==========================================================================================
+median hard-decision disagreement V0 vs V3_cum = 21.0 bits/174 (floor 5) -> clear
+ROW 0c clear.
+
+==========================================================================================
+Primary/secondary statistics
+==========================================================================================
+f_cross (own denom, n_crossable=403/405 clusters=67): point=0.00% CI95=[0.00, 0.00]%
+f_break (own denom, n_breakable=2/405 clusters=2): point=100.00% -- DESCRIPTIVE ONLY, denominator <30 rows (HK-021(j))
+f_net = f_cross - f_break, both re-based on the WHOLE population (n=405): point=-0.49% CI95=[-1.23, +0.00]%
+
+d_ber (ATTRIBUTION ONLY, not primary -- failed population sits at ~44% median BER, 4x the correction threshold): point=-0.57pp CI95=[-1.15, +0.00]pp
+
+Secondary, NON-GATING: f_cross restricted to the reachable stratum BER_V0 < 20% (pre-registered from N1's published p10=17.2%)
+  n_reachable=20, clusters=9: f_cross point=0.00% CI95=[0.00, 0.00]%
+
+Per-population breakdown (non-gating context):
+  [135] n=126 f_cross=0.00% f_break=100.00% f_net=-1.59%
+  [567] n=279 f_cross=0.00% f_break=nan% f_net=+0.00%
+
+==========================================================================================
+ROW 1/2/3 -- the gate, strict order, AS AMENDED (A1.2)
+==========================================================================================
+ROW 2 FIRES: CI_hi(f_cross)=0.00% (<5%).
+CONSEQUENCE: limb 2's prize is upper-bounded below 5% of the crossable population -- against a ~23pp D-001 prize this is not the treatment. BOTH LIMBS close on outcome evidence and the 2026-08-11 diagnosis REOPENS.
+
+Wrote results/n5_results.json, results/n5_gate_report.json, results/harness_run.log

@@ -1,0 +1,114 @@
+==========================================================================================
+N4 -- the central-lobe frequency-accuracy requirement (REQUIREMENT MEASUREMENT)
+==========================================================================================
+
+[MANDATORY] Running the sign unit test first (spec Sec.4.4)...
+==============================================================================
+N4 mandatory sign unit test (spec Sec.4.4, reused verbatim from N3)
+==============================================================================
+
+-- variant V1 --
+  df_inject=-1.75 -> argmin df*=+1.688 (want +1.75, tol 0.125) min_median_BER=2.87% [PASS]
+  df_inject=-0.50 -> argmin df*=+0.438 (want +0.50, tol 0.125) min_median_BER=2.87% [PASS]
+  df_inject=+0.50 -> argmin df*=-0.562 (want -0.50, tol 0.125) min_median_BER=2.87% [PASS]
+  df_inject=+1.25 -> argmin df*=-1.312 (want -1.25, tol 0.125) min_median_BER=2.87% [PASS]
+
+-- variant V3_cum --
+  df_inject=-1.75 -> argmin df*=+1.875 (want +1.75, tol 0.125) min_median_BER=0.57% [PASS]
+  df_inject=-0.50 -> argmin df*=+0.625 (want +0.50, tol 0.125) min_median_BER=0.57% [PASS]
+  df_inject=+0.50 -> argmin df*=-0.375 (want -0.50, tol 0.125) min_median_BER=0.57% [PASS]
+  df_inject=+1.25 -> argmin df*=-1.125 (want -1.25, tol 0.125) min_median_BER=0.57% [PASS]
+
+(183.2s elapsed)
+RESULT: PASS -- the sweep's minimum tracks a known frequency error with the correct sign, at >=2 opposite-sign injected offsets, for both order 1 and cumulative order 3, on N4's own two-resolution grid. Real harness may be armed.
+Sign unit test PASSED. Arming.
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed.
+
+==========================================================================================
+Building Slice A (identity, N3's exact population) / Slice B (held out, the gate)
+==========================================================================================
+  [control] WARNING: 5/200 row(s) could not be re-matched (dropped)
+MATCHED-HIT CONTROL: n_wsjtx=200 n_grid_matched=195
+  [control] WARNING: 32/1235 row(s) could not be re-matched (dropped)
+MATCHED-HIT CONTROL: n_wsjtx=1235 n_grid_matched=1203
+Slice A: n=195 (target: N3's own 171)
+Slice B: n=717 rows, 40 clusters (target >=600 rows / >=40 clusters, cap 700)
+Population provenance: {'full_pool_n': 1203, 'slice_a_n': 195, 'remaining_pool_n_before_overlap_exclusion': 1008, 'overlap_ts_excluded': ['260725_180930'], 'remaining_pool_n': 1000, 'remaining_clusters': 56, 'slice_b_n': 717, 'slice_b_clusters_used': 40, 'slice_b_cap_exceeded_before_target': True, 'seed': 20260817}
+
+==========================================================================================
+Sweeping df over 71 points (-10.000..10.000 Hz, two resolutions), 5 curves/row
+==========================================================================================
+-- Slice A --
+    ... 100/195 rows processed (90 measured, 85.4s elapsed)
+  Measured 171/195 rows (162.2s). Drop reasons: {'no_true_codeword': 24}
+-- Slice B --
+    ... 100/717 rows processed (93 measured, 88.7s elapsed)
+    ... 200/717 rows processed (186 measured, 177.6s elapsed)
+    ... 300/717 rows processed (280 measured, 267.7s elapsed)
+    ... 400/717 rows processed (371 measured, 354.1s elapsed)
+    ... 500/717 rows processed (462 measured, 441.1s elapsed)
+    ... 600/717 rows processed (550 measured, 526.9s elapsed)
+    ... 700/717 rows processed (643 measured, 615.5s elapsed)
+  Measured 658/717 rows (629.7s). Drop reasons: {'no_true_codeword': 59}
+
+==========================================================================================
+ROW 0a -- Slice A instrument continuity (external reference: N1's V0, N2's V1)
+==========================================================================================
+V0 median=2.87% (target 2.87%+/-1pp) V1@df=0 median=5.17% (target 5.75%+/-1pp) -> clear
+ROW 0a clear.
+
+==========================================================================================
+ROW 0b -- is Slice B powered? (PRECISION per spec Sec.6, not VALIDITY)
+==========================================================================================
+n_measured_b=658 (bound >=400), n_clusters_b=40 (bound >=30) -> clear
+ROW 0b clear.
+
+==========================================================================================
+ROW 0c/0d/0e -- order-1 lobe existence, containment, aliasing (on Slice B)
+==========================================================================================
+min(order-1 median BER over grid)=4.60% (bound <=11.3%), lobe found=True -> 0c clear
+ROW 0c clear.
+
+order-1 median BER at +-10.0Hz: left=50.57% right=51.15% (must both be >=11.3%) -> 0d clear
+ROW 0d clear.
+
+any below-B50 grid point outside the contiguous central lobe? -> 0e clear
+ROW 0e clear.
+
+==========================================================================================
+Primary/secondary statistics -- H_n (point estimate) for all five curves, both slices
+==========================================================================================
+  V1       Slice A H=1.701 Hz df*=+0.188  |  Slice B H=1.916 Hz df*=-0.125
+  V2_cum   Slice A H=1.593 Hz df*=+0.000  |  Slice B H=1.757 Hz df*=+0.000
+  V2_pure  Slice A H=1.333 Hz df*=+0.125  |  Slice B H=1.458 Hz df*=+0.000
+  V3_cum   Slice A H=1.520 Hz df*=+0.188  |  Slice B H=1.569 Hz df*=-0.062
+  V3_pure  Slice A H=1.145 Hz df*=+0.188  |  Slice B H=1.145 Hz df*=-0.125
+(Slice A is NON-GATING context only -- spec Sec.4.1: 'I already know A's values; that is exactly why it cannot gate.')
+
+==========================================================================================
+Cluster bootstrap on Slice B -- 2000 resamples over ts, H_n CI for all 5 curves + D
+==========================================================================================
+  V1       point=1.916Hz  ci95=[1.812, 2.058]Hz  (n_draws=2000, no_lobe_draws=0)
+  V2_cum   point=1.757Hz  ci95=[1.635, 1.869]Hz  (n_draws=2000, no_lobe_draws=0)
+  V2_pure  point=1.458Hz  ci95=[1.343, 1.583]Hz  (n_draws=2000, no_lobe_draws=0)
+  V3_cum   point=1.569Hz  ci95=[1.437, 1.687]Hz  (n_draws=2000, no_lobe_draws=0)
+  V3_pure  point=1.145Hz  ci95=[0.958, 1.270]Hz  (n_draws=2000, no_lobe_draws=0)
+  D = H_1 - H_3^cum: point=0.347Hz ci95=[0.281, 0.462]Hz p=0.0000 (n_draws=2000)
+
+==========================================================================================
+ROW 1/2/3/4 -- the gate, strict order, on CI(H_3^cum)
+==========================================================================================
+ROW 4 (residue -- CI straddles a cut): CI(H_3^cum)=[1.437, 1.687]Hz.
+CONSEQUENCE: report the interval and escalate. Do NOT pick a side.
+
+==========================================================================================
+Sec.5.1 secondary -- does the requirement tighten with order? NOTHING HERE GATES.
+==========================================================================================
+D = H_1 - H_3^cum = 0.347Hz, ci95=[0.281, 0.462]Hz, p=0.0000 -- tightens with order (D>0)
+Pure-vs-cumulative agreement (Sec.2.2's confound separator):
+  V2_pure  H=1.458 Hz  vs  V2_cum   H=1.757 Hz
+  V3_pure  H=1.145 Hz  vs  V3_cum   H=1.569 Hz
+
+Wrote results/n4_results.json, results/n4_gate_report.json, results/harness_run.log

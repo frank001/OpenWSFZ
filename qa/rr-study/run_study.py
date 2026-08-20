@@ -44,6 +44,16 @@ _SCENARIO_REGISTRY: dict[str, Path] = {
     "S1b": _SCENARIOS / "s1b-snr-threshold.json",
     "S2":  _SCENARIOS / "s2-freq-sweep.json",
     "S3":  _SCENARIOS / "s3-dt-offset.json",
+    # C4 (Route B, 2026-08-19): registered so a TARGETED run (--scenarios S3b) can reach
+    # it. Deliberately NOT added to _CONTROLLED_SCENARIO_IDS below -- like S8, it is not
+    # part of the default batch. It is an attribute (decode-rate) study, not a Gage R&R
+    # (see its own "analysis": "attribute_decode_rate" and harness_note), it needs
+    # --device "Voicemeeter AUX Input" explicitly (this module's --device default below is
+    # still "CABLE Input", which is unreliable on this machine per HK-020/the standing
+    # capture-endpoint note), and at its corrected sizing (100 trials/part, see
+    # scenarios/s3b-dt-boundary.json's _sizing_note) a full run is ~4.2h unattended and
+    # needs an HK-013 supervisor -- not something the default batch should trigger blind.
+    "S3b": _SCENARIOS / "s3b-dt-boundary.json",
     "S4":  _SCENARIOS / "s4-density.json",
     "S5":  _SCENARIOS / "s5-noise.json",
     "S7":  _SCENARIOS / "s7-compounding.json",

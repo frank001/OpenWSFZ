@@ -190,9 +190,22 @@ def _next_cycle_boundary() -> float:
     return float(now_s + (SLOT_SECONDS - rem))
 
 
-def _wait_for_cycle(boundary_ts: float) -> datetime:
-    """Sleep until 500 ms before *boundary_ts*, then return the cycle UTC datetime."""
-    target = boundary_ts - _CYCLE_PREWARM_S
+def _wait_for_cycle(boundary_ts: float, early_by_s: float = 0.0) -> datetime:
+    """Sleep until 500 ms before *boundary_ts - early_by_s*, then return the cycle UTC
+    datetime (always the NOMINAL boundary — the truth-label reference point — regardless
+    of `early_by_s`).
+
+    `early_by_s` (C3, Route B, 2026-08-19): seconds earlier than the nominal boundary that
+    playback must be armed so an extended-mode buffer's sample 0 (which sits
+    `-buffer_start_s` seconds before the nominal boundary whenever `buffer_start_s < 0`,
+    per `synth.modulator.modulate`'s C2 contract) reaches the device at the time its truth
+    label claims, rather than late. 0.0 for the ordinary single-slot case. Must be >= 0.0
+    by convention (`buffer_start_s` is never positive) — the caller is responsible for
+    choosing a `boundary_ts` far enough in the future that the resulting sleep target is
+    not already in the past (see the call site, which advances to the next-next boundary
+    rather than let this function play catch-up).
+    """
+    target = boundary_ts - early_by_s - _CYCLE_PREWARM_S
     remaining = target - time.time()
     if remaining > 0:
         time.sleep(remaining)
@@ -205,8 +218,9 @@ def _wait_for_cycle(boundary_ts: float) -> datetime:
 # ---------------------------------------------------------------------------
 
 def _render_single(scenario: dict, part: dict, trial_index: int,
-                   seed: int) -> "numpy.ndarray":
-    """Render a single-message part (S1, S1b, S2, S3, S11) using the clean-room synthesiser.
+                   seed: int) -> "tuple[numpy.ndarray, float]":
+    """Render a single-message part (S1, S1b, S2, S3, S3b, S11) using the clean-room
+    synthesiser. Returns ``(samples, buffer_start_s)`` -- see C3 note below.
 
     The signal is encoded clean (no noise), then **wideband** AWGN is added
     (no ``noise_cutoff_hz``).  Single-signal scenarios intentionally use wideband
@@ -228,17 +242,29 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
     Type-1 packer — everything else about this function (noise model, dt/freq
     handling) is identical and message-type-agnostic. Absent from S1/S1b/S2/S3
     (all standard-message scenarios), so they are unaffected.
+
+    C3 (Route B, 2026-08-19): a scenario file may set a top-level
+    ``"requires_extended_dt": true`` to render via ``synth.modulator.modulate``'s
+    ``extended=True`` contract (C1/C2) instead of the single-slot default. Only S3b sets
+    this today. **S3 deliberately does NOT** — its two parts beyond the 2.36 s single-slot
+    cap (labelled 2.4 s and 2.7 s) will raise ``ValueError`` rather than silently
+    saturate (the §0 defect this build fixes), until the Architect+Captain rule on
+    whether to re-grid S3 or flip this flag for it too (reserved, not QA's call — see
+    §0 of the spec). ``buffer_start_s`` is 0.0 whenever ``requires_extended_dt`` is unset
+    or the placement already fits in one slot; the caller (the main loop, below) must arm
+    playback that many seconds relative to the nominal cycle boundary.
     """
     from synth import channel, encoder
 
     fixed = scenario.get("fixed", {})
     msg_ids = list(scenario["message_texts"].keys())
-    # S1/S1b/S2/S3/S11 use only the first message_id
+    # S1/S1b/S2/S3/S3b/S11 use only the first message_id
     text = scenario["message_texts"][msg_ids[0]]
 
     base_freq_hz = part.get("base_freq_hz", fixed.get("base_freq_hz", 1500.0))
     dt_s = part.get("dt_s", fixed.get("dt_s", 0.0))
     snr_db = part.get("snr_db", fixed.get("snr_db", 0.0))
+    extended = bool(scenario.get("requires_extended_dt", False))
 
     if scenario.get("message_kind") == "type4":
         tokens = text.strip().split()
@@ -253,9 +279,12 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
             dt_s=float(dt_s),
             snr_db=None,
             sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+            extended=extended,
         )
-        return channel.add_noise(clean, float(snr_db), seed,
-                                 sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ)
+        clean_signal, buffer_start_s = clean if extended else (clean, 0.0)
+        noisy = channel.add_noise(clean_signal, float(snr_db), seed,
+                                  sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ)
+        return noisy, buffer_start_s
 
     clean = encoder.encode_message(
         text,
@@ -263,10 +292,13 @@ def _render_single(scenario: dict, part: dict, trial_index: int,
         dt_s=float(dt_s),
         snr_db=None,
         sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+        extended=extended,
     )
+    clean_signal, buffer_start_s = clean if extended else (clean, 0.0)
     # Wideband noise — no noise_cutoff_hz.  See docstring.
-    return channel.add_noise(clean, float(snr_db), seed,
-                             sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ)
+    noisy = channel.add_noise(clean_signal, float(snr_db), seed,
+                              sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ)
+    return noisy, buffer_start_s
 
 
 # ---------------------------------------------------------------------------
@@ -810,19 +842,14 @@ def _run(args: argparse.Namespace) -> None:
 
     scenario_id: str = scenario["id"]
 
-    # S3b negative-DT playback is not yet implemented.  The synthesiser clamps
-    # negative dt_s to zero, so every part would render as DT=0 and produce
-    # near-100% decode rates — the exact opposite of what the study measures.
-    # Remove this guard once the early-playback timing is wired up (subtract
-    # |dt_s| seconds from _next_cycle_boundary() before arming playback, and
-    # allow the modulator to shift energy into the tail of the previous slot).
-    # See harness_note in scenarios/s3b-dt-boundary.json.
-    if scenario_id == "S3b":
-        sys.exit(
-            "ERROR: S3b negative-DT playback is not yet implemented.\n"
-            "The playback layer must arm |dt_s| seconds early per part.\n"
-            "See harness_note in scenarios/s3b-dt-boundary.json."
-        )
+    # S3b negative-DT playback (Route B, 2026-08-19, C3): the hard-exit that used to sit
+    # here is REMOVED in this same change that makes S3b correct, per the spec's explicit
+    # instruction (§1 C3) not to remove it earlier. S3b's scenario JSON now sets
+    # "requires_extended_dt": true, which routes it through _render_single's extended=True
+    # path (C1/C2 in synth/modulator.py) and the early-arm playback logic in the main loop
+    # below (`early_by_s = -buffer_start_s`, `_wait_for_cycle`). See harness_note in
+    # scenarios/s3b-dt-boundary.json and g1_g2_full_grid_placement_check.py for the
+    # offline placement proof this rests on.
 
     # S8 has no 'parts' array — a single implicit part covers all trials.
     # A 'pairs' scenario (rr-linked-cycle-effectiveness-scenario, e.g. S9) has
@@ -923,6 +950,11 @@ def _run(args: argparse.Namespace) -> None:
             s7_signals_meta = None  # populated only for S7/S8/S4 (one truth row per signal)
             s8_signals_meta = None
             s4_signals_meta = None
+            # buffer_start_s: seconds `samples`' sample-0 sits relative to the nominal
+            # cycle boundary. 0.0 for every rendering path except the extended-DT (C2/C3)
+            # single-signal path below, where it may be negative (S3b) or, in principle,
+            # positive-beyond-cap. Read by the cycle-boundary-alignment block further down.
+            buffer_start_s = 0.0
             if is_s8:
                 samples, s8_signals_meta = _render_band_scene(scenario, seed)
                 # Per-slot truth fields unused for S8 (logged per signal below).
@@ -956,14 +988,14 @@ def _run(args: argparse.Namespace) -> None:
                 true_freq_hz = ""
                 msg_text = ""
             else:
-                # S1, S1b, S2, S3 — single signal
+                # S1, S1b, S2, S3, S3b — single signal
                 fixed = scenario.get("fixed", {})
                 true_snr_db = part.get("snr_db", fixed.get("snr_db", 0.0))
                 true_dt_s = part.get("dt_s", fixed.get("dt_s", 0.0))
                 true_freq_hz = part.get("base_freq_hz", fixed.get("base_freq_hz", 1500.0))
                 msg_ids = list(scenario["message_texts"].keys())
                 msg_text = scenario["message_texts"][msg_ids[0]]
-                samples = _render_single(scenario, part, trial_index, seed)
+                samples, buffer_start_s = _render_single(scenario, part, trial_index, seed)
 
             samples = samples.astype("float32")
 
@@ -1003,8 +1035,15 @@ def _run(args: argparse.Namespace) -> None:
                 snap = now_s - (now_s % SLOT_SECONDS)
                 cycle_utc = datetime.fromtimestamp(snap, tz=timezone.utc).replace(microsecond=0)
             else:
+                # early_by_s (C3): extended-mode buffers with buffer_start_s < 0 (S3b)
+                # must be armed that many seconds before the nominal boundary. Advance to
+                # the NEXT-next boundary if the first candidate doesn't leave enough lead
+                # time for prewarm + the early offset — see _wait_for_cycle's docstring.
+                early_by_s = -buffer_start_s
                 boundary_ts = _next_cycle_boundary()
-                cycle_utc = _wait_for_cycle(boundary_ts)
+                while boundary_ts - early_by_s - _CYCLE_PREWARM_S <= time.time():
+                    boundary_ts += SLOT_SECONDS
+                cycle_utc = _wait_for_cycle(boundary_ts, early_by_s)
             cycle_utc_str = cycle_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
             snr_str = f"SNR={true_snr_db} dB" if true_snr_db != "" else "SNR=N/A"
