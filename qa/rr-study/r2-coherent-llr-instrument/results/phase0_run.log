@@ -1,0 +1,43 @@
+==========================================================================================
+B2 PHASE 0 -- OpenSpec change r2-coherent-llr-instrument, QA's harness + ROW 0c/0d
+==========================================================================================
+
+HK-025 independent re-classification: concurs_with_spec=True refusal=False
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+ROW 0a clear: DLL SHA256 asserted (6890d84c4bcf2e90...), shim version 20260042 confirmed.
+
+==========================================================================================
+Population re-derivation (dry count, before any DLL call)
+==========================================================================================
+  P-LIVE 20260803_live_run_1713: n_rows=18012 n_clusters=4113
+
+==========================================================================================
+ROW 0c -- mandatory sign unit test (both sub-checks testable against the CURRENT build; neither touches ft8_coherent_llr_at, which does not exist yet)
+==========================================================================================
+  SIGNAL sub-check source: 20 real P-HIT rows (seed=20260820) from a 25411-row/4371-cluster population, at anchor_dt + 0.65s (Stage 2's own corrected anchor)
+  SIGNAL sub-check: n=18 measured (2 dropped), median(n_err)=12.50 mean(n_err)=22.78 (gate is on the median; bar <= 15) -> PASS
+    per-trial n_err: [0, 1, 55, 21, 10, 60, 14, 52, 16, 0, 11, 4, 54, 5, 8, 0, 16, 83]
+  NOISE sub-check: n=20 trials, null mean=87.0 sd=6.60, measured mean(n_err)=84.00 (bar [80,94]) -> PASS
+    per-trial n_err (bar [60,114] each): [68, 94, 88, 80, 86, 79, 75, 92, 86, 78, 90, 100, 74, 84, 82, 89, 84, 81, 83, 87] -> PASS
+
+ROW 0c RESULT: PASS -- both directions pass; the sign convention this harness reuses for ber_grid is correct.
+
+==========================================================================================
+ROW 0d -- ber_grid reproduces Stage 2's median 31.03%% within 1.0pp
+==========================================================================================
+  ... 3000/18012 processed (2589 measured, 17.7s elapsed)
+  ... 6000/18012 processed (5211 measured, 37.0s elapsed)
+  ... 9000/18012 processed (7738 measured, 57.4s elapsed)
+  ... 12000/18012 processed (10218 measured, 75.7s elapsed)
+  ... 15000/18012 processed (12781 measured, 93.7s elapsed)
+  ... 18000/18012 processed (15380 measured, 111.7s elapsed)
+  measured 15389/18012 rows (111.7s). n_clusters_measured=3917. drop_reasons={'no_true_codeword': 1605, 'grid_extract_rc_-3': 1018}
+
+  fresh median_ber_grid = 31.0345% (n_rows=15389, n_clusters=3917, 112.0s)
+  Stage 2's own median_ber_grid = 31.0345% (cited as 31.03%)
+  |delta| = 0.0000pp (bar <= 1.0pp) -> PASS
+
+==========================================================================================
+B2 PHASE 0: ROW 0c PASS, ROW 0d PASS. Harness validated against the current build. STOPPING per HK-011 -- Phase 1 (ft8_coherent_llr_at) needs a Captain-opened Developer session.
+==========================================================================================

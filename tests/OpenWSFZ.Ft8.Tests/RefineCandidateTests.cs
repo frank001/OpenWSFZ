@@ -56,6 +56,8 @@ public sealed class RefineCandidateTests
             LastCoarseTimeOffsetS = coarseTimeOffsetS;
             return (0.1234f, -0.005f, 42.0f, StubCoarseDtSamp, StubFineDtSamp);
         }
+
+        public float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS) => new float[174];
     }
 
     // ── 2.1a — Fake delegation ────────────────────────────────────────────────

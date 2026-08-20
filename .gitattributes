@@ -1,0 +1,12 @@
+# Shell scripts must always check out with LF line endings, regardless of a
+# contributor's local core.autocrlf setting, or bash chokes on the trailing
+# \r baked into every line (e.g. "$'\r': command not found") when the script
+# is run from a Windows checkout under WSL/git-bash. No .gitattributes file
+# existed before this entry, so core.autocrlf=true (common on Windows) has
+# silently reintroduced CRLF into native/ft8_lib_build/build_linux.sh on every
+# fresh checkout, even after that file's LF-normalisation fix was committed
+# during r1-sync-refiner-instrument-validation (see libft8.version.txt) --
+# the fix only ever applied to the blob in that one working tree, not to any
+# other checkout. Found and fixed during r2-coherent-llr-instrument (task 5.2)
+# when the exact same failure recurred.
+*.sh text eol=lf

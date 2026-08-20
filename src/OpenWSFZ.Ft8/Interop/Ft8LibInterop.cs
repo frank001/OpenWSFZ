@@ -292,8 +292,33 @@ internal static class Ft8LibInterop
     ///   and <see cref="RefineCandidate"/> all remain byte-for-byte unchanged. No struct layout
     ///   change (<see cref="Ft8NativeResult"/> stays 48 bytes) — the bump exists purely so the
     ///   startup ABI check catches a binary built without the new export.
+    /// 20260043 (r2-coherent-llr-instrument, Route B2 Phase 1): adds
+    ///   <c>ft8_coherent_llr_at</c> (surfaced here as <see cref="CoherentLlrAt"/>) — a new
+    ///   DIAGNOSTIC-ONLY export forming 174 coherent per-bit LLRs at a candidate's
+    ///   EXISTING, UNREFINED grid position (design.md D1: NEVER calls
+    ///   <c>ft8_refine_candidate</c>/<see cref="RefineCandidate"/> internally — Route B2's
+    ///   limb 1, candidate position refinement, is dead three times over, so limb 2
+    ///   (coherent multi-symbol LLR formation) is tested in isolation). Same physical-unit
+    ///   position convention as <c>ft8_extract_llrs_at</c> (<c>freq_hz</c>,
+    ///   <c>time_offset_s</c>) so the Phase 1 gate harness satisfies the candidate-identity
+    ///   requirement by calling both with the identical two values. Implemented in the new
+    ///   <c>native/ft8_lib_vendor/refine/coherent_llr.c</c> (OpenWSFZ-original,
+    ///   clean-room — no WSJT-X source was consulted); reuses
+    ///   <c>sync_refiner.c</c>'s own downconversion via the new
+    ///   <c>native/ft8_lib_vendor/refine/refine_common.h</c> (a linkage-only change to
+    ///   <c>sync_refiner.c</c> — two functions lost their <c>static</c> qualifier, no
+    ///   algorithm/logic change). No production call site: reachable only from test code
+    ///   and the Phase 1 gate harness this change's own <c>tasks.md</c> §4.3 will build.
+    ///   <see cref="DecodeAll"/>, <see cref="GetLastPassCounts"/>,
+    ///   <see cref="SetDecodeParams"/>, and <see cref="RefineCandidate"/> all remain
+    ///   byte-for-byte unchanged — <c>decode.c</c> has ZERO edits from this change. No
+    ///   struct layout change (<see cref="Ft8NativeResult"/> stays 48 bytes) — the bump
+    ///   exists purely so the startup ABI check catches a binary built without the new
+    ///   export. UNVALIDATED: a new correlator with no prior measurement — Phase 1's own
+    ///   ROW 0c (a mandatory two-sided sign unit test, run once by the gate harness) is
+    ///   the guard against a sign or bit-attribution defect.
     /// </summary>
-    private const int ExpectedShimVersion = 20260042;
+    private const int ExpectedShimVersion = 20260043;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -511,6 +536,17 @@ internal static class Ft8LibInterop
         out float     outSyncScore,
         out int       outCoarseDtSamp,
         out int       outFineDtSamp);
+
+    /// <summary>
+    /// Diagnostic-only per-candidate coherent multi-symbol LLR formation
+    /// (r2-coherent-llr-instrument, Route B2 Phase 1, shim 20260043). See
+    /// <c>ft8_shim.h</c>'s <c>ft8_coherent_llr_at</c> doc comment for the full contract.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_llr_at", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCoherentLlrAt(
+        [In] float[] pcm, int pcmLen,
+        float         freqHz, float timeOffsetS,
+        [Out] float[] outLog174);
 
     // ── Public API ───────────────────────────────────────────────────────
 
@@ -817,6 +853,71 @@ internal static class Ft8LibInterop
                 $"ft8_refine_candidate returned {rc} — unexpected error from native shim.");
 
         return (deltaFreqHz, deltaTimeS, syncScore, coarseDtSamp, fineDtSamp);
+    }
+
+    /// <summary>
+    /// Number of per-bit LLRs <see cref="CoherentLlrAt"/> returns (FTX_LDPC_N — the FT8
+    /// LDPC(174,91) codeword length: 77 payload bits + 83 CRC/parity bits, same constant
+    /// production's <c>log174</c> array uses).
+    /// </summary>
+    public const int CoherentLlrCount = 174;
+
+    /// <summary>
+    /// Diagnostic-only per-candidate coherent multi-symbol LLR formation
+    /// (r2-coherent-llr-instrument, Route B2 Phase 1, shim 20260043).
+    /// <para>
+    /// Given the cycle's PCM and a candidate's EXISTING, UNREFINED grid position (the same
+    /// physical-unit <c>(freq_hz, time_offset_s)</c> convention <see cref="DecodeAll"/> and
+    /// the native-only <c>ft8_extract_llrs_at</c> already use), returns 174 coherent
+    /// per-bit LLRs, normalised to the same scale production's <c>log174</c> uses.
+    /// </para>
+    /// <para>
+    /// NEVER calls <c>ft8_refine_candidate</c>/<see cref="RefineCandidate"/> internally
+    /// (design.md D1) — the position given is used as-is. Calling this with the SAME
+    /// <c>(freqHz, timeOffsetS)</c> passed to the (native-only) <c>ft8_extract_llrs_at</c>
+    /// guarantees both extractions ran at the identical candidate position (the Phase 1
+    /// gate's own candidate-identity requirement), with no extra bookkeeping.
+    /// </para>
+    /// <para>
+    /// Reachable only from test code and the Phase 1 gate harness this change's own
+    /// <c>tasks.md</c> §4.3 will build — no production call site in <see cref="DecodeAll"/>
+    /// or elsewhere invokes it.
+    /// </para>
+    /// <para>
+    /// UNVALIDATED: a new correlator with no prior measurement. See this class's
+    /// <see cref="ExpectedShimVersion"/> changelog entry (20260043) for the validity
+    /// caveat — Phase 1's own two-sided sign unit test is the guard.
+    /// </para>
+    /// </summary>
+    /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1]; must be exactly 180 000 samples.</param>
+    /// <param name="freqHz">Candidate grid frequency (Hz) — tone 0's frequency, unrefined.</param>
+    /// <param name="timeOffsetS">Candidate grid time offset (s) from cycle start, unrefined.</param>
+    /// <returns>174 coherent per-bit LLRs (<see cref="CoherentLlrCount"/>), normalised.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="pcm"/> is not exactly 180 000 samples.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the native shim returns a negative status code (-1: invalid input;
+    /// -2: allocation failure; -3: the resolved frequency bin falls outside the valid
+    /// passband — rejected, not silently clamped, since a caller-supplied position carries
+    /// no <c>ftx_find_candidates()</c>-style in-band guarantee).
+    /// </exception>
+    public static float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS)
+    {
+        if (pcm.Length != 180_000)
+            throw new ArgumentException(
+                $"PCM buffer must be exactly 180 000 samples (15 s × 12 kHz). Got {pcm.Length}.",
+                nameof(pcm));
+
+        EnsureInitialized();
+
+        var log174 = new float[CoherentLlrCount];
+        int rc = NativeCoherentLlrAt(pcm, pcm.Length, freqHz, timeOffsetS, log174);
+
+        if (rc != 0)
+            throw new InvalidOperationException(
+                $"ft8_coherent_llr_at returned {rc} — unexpected error from native shim " +
+                "(-1 invalid input, -2 allocation failure, -3 frequency out of the valid passband).");
+
+        return log174;
     }
 
     // ── Lazy initialisation ──────────────────────────────────────────────
