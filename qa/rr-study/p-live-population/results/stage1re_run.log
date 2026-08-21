@@ -1,0 +1,109 @@
+==========================================================================================
+P-LIVE STAGE 1RE -- limb 2 at scale, on the CORRECTED anchor
+(spec 2026-08-21-1538, sequenced ahead of Phase B per the Captain's authorisation)
+==========================================================================================
+
+HK-025 independent re-classification: concurs_with_spec=True refusal=False
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+Pin (this spec's header, NOT run_stage1.py's stale one): SHA256=1889408787a2c7ea... shim=20260043
+ROW 0a clear: DLL SHA256 asserted, shim version 20260043 confirmed.
+
+==========================================================================================
+PART A -- verbatim reuse of run_stage2.run_part_a (spec Sec.2)
+==========================================================================================
+
+==========================================================================================
+PART A -- P-HIT sweep on 20260803_live_run_1713
+==========================================================================================
+  full P-HIT population: n_rows=25411 n_clusters=4371
+  sampled (seed=20260818): n_rows=600 n_clusters=551
+  loading row contexts (true codeword + WAV)...
+  n_measured=556/600 n_clusters_measured=515 drop_reasons={'no_true_codeword': 44}
+
+==========================================================================================
+MANDATORY SIGN UNIT TEST (Sec.6) -- exercises the real sweep code path
+==========================================================================================
+Construction: content untouched; the anchor FED TO THE SWEEP is displaced by a
+known delta (wrong_anchor = anchor_dt + delta). A too-late anchor needs an
+earlier-searching correction, so the sweep's minimum should land at
+dt_offset ~= -delta relative to that displaced anchor -- 'lands at its
+negation', the spec's own phrase (Sec.6). Two opposite-sign deltas exercised.
+  using n=20 real P-HIT contexts (WAV + true codeword already loaded)
+  baseline argmin O0=+0.70s
+  delta=+0.30s -> O_pos=+0.40s (expect O0-delta=+0.40s)
+  delta=-0.30s -> O_neg=+1.00s (expect O0-delta=+1.00s)
+  |O_pos - expect|=0.000s (<=0.05s) -> PASS
+  |O_neg - expect|=0.000s (<=0.05s) -> PASS
+  shift_pos=-0.30s shift_neg=+0.30s opposite signs -> PASS
+
+RESULT: PASS -- Part A / Stage 2 may be armed.
+  [20260803_live_run_1713] swept 556 rows x 49 offsets in 175.8s (0 extraction failures)
+  swept optimum (pooled median BER_V0): dt_offset=+0.65s median_BER=5.75%
+
+ROW 0c: median_BER_V0(OFFSET=+0.65s)=5.75% outside [1%,15%] two-sided -> clear
+  quartile 0: n_rows=139 n_clusters=125 ts=[260803_171815..260803_203445] argmin=+0.65s delta_vs_pooled=0.00s
+  quartile 1: n_rows=139 n_clusters=131 ts=[260803_203730..260804_061700] argmin=+0.65s delta_vs_pooled=0.00s
+  quartile 2: n_rows=139 n_clusters=130 ts=[260804_062115..260804_102045] argmin=+0.65s delta_vs_pooled=0.00s
+  quartile 3: n_rows=139 n_clusters=129 ts=[260804_102115..260804_135615] argmin=+0.65s delta_vs_pooled=0.00s
+
+ROW 0d: max |quartile_offset - pooled_offset| = 0.000s (bound <=0.05s) -> clear
+
+ROW 0b (Part A's own row_0c, band [1%,15%]): clear
+ROW 0d (Part A's own row_0d, offset stability, tol 0.05s): clear
+
+Part A clear. OFFSET = +0.65s (swept argmin, derived on THIS run, not inherited).
+(within one lattice cell of Stage 1R's +0.65s -- Sec.2's own escalation trigger does not fire; proceeding.)
+
+==========================================================================================
+FULL P-LIVE MEASUREMENT on PRIMARY (20260803_live_run_1713) at anchor_dt +0.65s -- V0 grid vs V3_cum coherent
+(no truncation, no sampling -- spec Sec.5: cluster count is the entire point)
+==========================================================================================
+  P-LIVE population (pre-extraction): n_rows=18012 n_clusters=4113
+  ... 3000/18012 processed (2589 measured, 67.2s elapsed)
+  ... 6000/18012 processed (5211 measured, 141.8s elapsed)
+  ... 9000/18012 processed (7738 measured, 220.6s elapsed)
+  ... 12000/18012 processed (10218 measured, 289.7s elapsed)
+  ... 15000/18012 processed (12781 measured, 362.0s elapsed)
+  ... 18000/18012 processed (15380 measured, 435.9s elapsed)
+  measured 15389/18012 rows (436.1s). n_clusters_measured=3917. drop_reasons={'no_true_codeword': 1605, 'v0_extract_rc_-3': 1018}
+
+  median BER_V0(OFFSET)=31.03%
+ROW 0c: median_BER_V0=31.03% outside [8%,40%] two-sided -> clear
+ROW 0e: n_measured=15389 (>=500) n_clusters_measured=3917 (>=200) -> clear
+
+ROW 0c/0e both clear. Preconditions satisfied -- proceeding to the primary statistic.
+
+==========================================================================================
+PRIMARY STATISTIC -- f_net = (n_cross - n_break) / n_crossable, cluster bootstrap by ts
+==========================================================================================
+  n_crossable=14934 (clusters=3880) n_cross=369 n_breakable=455 (clusters=420) n_break=276
+  f_cross (own denom, descriptive): point=2.4709% CI95=[2.2343,2.7173]% n_draws=2000
+  f_break (own denom, descriptive): point=60.6593% CI95=[55.8442,65.7438]% n_draws=2000
+  f_net (SIGNED, HK-021(l), primary): point=+0.6227% CI95=[+0.2975,+0.9591]% n_draws=2000 n_clusters=3917
+  rule-of-three bound (n_clusters=3917): 0.0765%  [the headline if n_cross=0 -- the bootstrap CI is then degenerate by construction]
+
+==========================================================================================
+ROW 1 / 2 / 3 / 4 -- the gate
+==========================================================================================
+  gate metric: CI_hi(f_net) = 0.9591% (rule-of-three used because n_cross=369; CI_hi(f_net) used otherwise)
+
+ROW 1 FIRES: CI_lo(f_net)=+0.2975% > 0%.
+CONSEQUENCE: LIMB 2 CONVERTS. Coherent LLRs convert real misses at scale. Route B2 is strongly motivated; Phase B becomes high-value. Point estimate f_net=+0.6227% against the ~42pp gap -- a conversion rate is NOT yet a recovered-message count.
+
+Amendment-style descriptive: BER_V0-at-OFFSET decile table over the crossable denominator (rows with BER_V0 > B50=11.3%), n=14934:
+  p0 = 11.49%
+  p10 = 16.09%
+  p20 = 19.54%
+  p30 = 22.99%
+  p40 = 27.59%
+  p50 = 31.61%
+  p60 = 35.63%
+  p70 = 39.66%
+  p80 = 43.10%
+  p90 = 47.13%
+  p100 = 61.49%
+
+==========================================================================================
+FINAL ROW: 1
+==========================================================================================
