@@ -14,6 +14,8 @@ B-pos-A arithmetic below, **origin + C1 fusion in one Developer session**.
 
 ## 0. Status and chain of custody
 
+🔴 **AMENDMENT 1 (2026-08-21 16:44Z) — POINTER, NOT A REWRITE. Everything in this spec stands unchanged.** On the Captain's ruling the Phase B Developer session ALSO builds **B4 — `ft8_ldpc_decode_llrs`, a diagnostic-only export** that decodes a caller-supplied LLR vector through production's own `ftx_normalize_logl` → `bp_decode` → OSD → CRC-14 sequence, so limb 2's numbers become CRC-verified message counts instead of B50 crossings; and QA carries the **C1 cascade pin** into `design.md`. **B4 is INERT and does NOT change §5's ordering or §6's ROW 0g pre-registration** — a B4 test failure is reported, not a stop for ROW 0g. Spec: `qa/rr-study/2026-08-21-1644-architect-to-qa-phase-b-amendment-1-ldpc-decode-llrs-export-and-cascade-pin.md`. Motivation: `qa/rr-study/2026-08-21-1634-architect-to-qa-ruling-stage1re-n5-fbreak-and-null-calibration.md` §3 (`f_net` has no null; the threshold geometry is positive on its own). ⚠️ **If the amendment appears to conflict with anything below, THIS spec wins and QA escalates.**
+
 🔴 **This is a `native/` change. HK-011 IS engaged.** The chain, in order, no step skipped:
 
 1. **QA** authors the OpenSpec change + `dev-tasks/*.md` from this spec (HK-015 — the dev-task is
