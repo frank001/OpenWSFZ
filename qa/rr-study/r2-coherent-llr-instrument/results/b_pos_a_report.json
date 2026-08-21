@@ -1,0 +1,142 @@
+{
+  "argmin_shape": {
+    "coherent": {
+      "cell_counts": {
+        "-1,-1": 7,
+        "-1,0": 42,
+        "-1,1": 3,
+        "-2,-1": 9,
+        "-2,0": 105,
+        "-2,1": 5,
+        "-3,-1": 2,
+        "-3,0": 17,
+        "-3,1": 2,
+        "0,0": 1
+      },
+      "frac_at_mode": 0.5440414507772021,
+      "frac_m_at_mode": 0.616580310880829,
+      "m_counts": {
+        "-1": 52,
+        "-2": 119,
+        "-3": 21,
+        "0": 1
+      },
+      "mode_cell": {
+        "m": -2,
+        "n": 0
+      },
+      "mode_m": -2,
+      "n_cells": 21,
+      "n_complete": 193,
+      "null": 0.047619047619047616
+    },
+    "grid": {
+      "cell_counts": {
+        "-1,0": 25,
+        "0,-1": 6,
+        "0,0": 117,
+        "0,1": 7,
+        "1,-1": 4,
+        "1,0": 34
+      },
+      "frac_at_mode": 0.6062176165803109,
+      "frac_m_at_mode": 0.6735751295336787,
+      "m_counts": {
+        "-1": 25,
+        "0": 130,
+        "1": 38
+      },
+      "mode_cell": {
+        "m": 0,
+        "n": 0
+      },
+      "mode_m": 0,
+      "n_cells": 21,
+      "n_complete": 193,
+      "null": 0.047619047619047616
+    }
+  },
+  "best_cells": {
+    "coherent": {
+      "cluster_median_n_err": 20.0,
+      "m": -2,
+      "n": 0,
+      "n_clusters": 190
+    },
+    "grid": {
+      "cluster_median_n_err": 11.0,
+      "m": 0,
+      "n": 0,
+      "n_clusters": 190
+    }
+  },
+  "d_global": {
+    "cells": {
+      "coherent": {
+        "m": -2,
+        "n": 0
+      },
+      "grid": {
+        "m": 0,
+        "n": 0
+      }
+    },
+    "ci95": [
+      -7.0,
+      -4.0
+    ],
+    "d_control_reference": {
+      "ci95": [
+        -71.0,
+        -65.0
+      ],
+      "point_estimate": -67.0
+    },
+    "n_clusters": 190,
+    "n_draws": 2000,
+    "n_rows": 193,
+    "p_two_sided": 0.0,
+    "point_estimate": -6.0
+  },
+  "dll_pin": {
+    "sha256_prefix": "1889408787a2c7ea",
+    "shim_version": 20260043
+  },
+  "final": "diagnostic_complete",
+  "p1": {
+    "control_bootstrap_ci95": [
+      -71.0,
+      -65.0
+    ],
+    "d_control": -67.0,
+    "expected": {
+      "d_control": -67.0,
+      "n_clusters": 190,
+      "n_delivered": 193
+    },
+    "n_clusters_bootstrap": 190,
+    "n_clusters_delivered": 190,
+    "n_delivered": 193,
+    "passed": true
+  },
+  "p2": {
+    "final_m_range": [
+      -3,
+      -2,
+      -1,
+      0,
+      1,
+      2,
+      3
+    ],
+    "unresolved_boundary": false,
+    "widen_steps": 0
+  },
+  "sample": {
+    "drop_reasons": {
+      "no_true_codeword": 7
+    },
+    "n_control_delivered": 193,
+    "n_sampled": 200
+  }
+}

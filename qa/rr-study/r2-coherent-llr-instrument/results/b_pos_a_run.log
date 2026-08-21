@@ -1,0 +1,52 @@
+==========================================================================================
+B-POS-A -- the lattice-position arm (DIAGNOSTIC ONLY -- no ROW, no gate, no verdict)
+Spec: qa/rr-study/2026-08-21-1330-architect-to-qa-spec-b-pos-a-lattice-position-arm.md
+ROW 0g stands FIRED. Task 4.3 stays VOID. ROW 3 is NOT declared. Route B2 is NOT dead.
+==========================================================================================
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll (pinned to CURRENT merged binary, shim 20260043)
+DLL pin confirmed: SHA256 1889408787a2c7ea..., shim version 20260043
+
+Building P-HIT population + deterministic sample (VERBATIM reuse of ROW 0g-2's own population/sample/seed/anchor, spec Sec.3.1 / HK-018) ...
+  sampled 200 rows (seed=20260821) from a 25411-row/4371-cluster population
+  n_sampled=200 control-delivered=193 drop_reasons={'no_true_codeword': 7}
+
+------------------------------------------------------------------------------------------
+PRECONDITION P1 -- control cell (m=0,n=0) must reproduce ROW 0g-2 EXACTLY
+------------------------------------------------------------------------------------------
+  P1 control cell (m=0,n=0): n_delivered=193 n_clusters=190 d_control=-67.000
+
+P1 PASSED: control cell reproduces ROW 0g-2 exactly (n_delivered=193 n_clusters=190 d_control=-67.0).
+
+------------------------------------------------------------------------------------------
+Sweeping the initial 7 x 3 = 21-cell grid over 193 control-delivered rows ...
+------------------------------------------------------------------------------------------
+  swept 3860 new row-cells in 62.7s
+
+------------------------------------------------------------------------------------------
+PRECONDITION P2 -- chosen global optimum must be INTERIOR (HK-026)
+------------------------------------------------------------------------------------------
+  grid global best cell: m=0 n=0 cluster-median n_err=11.000 (n_clusters=190)
+  coherent global best cell: m=-2 n=0 cluster-median n_err=20.000 (n_clusters=190)
+
+P2 clear: both paths' chosen optima are interior to the initial [-3, 3] range.
+
+==========================================================================================
+SEC 5.2 -- SECONDARY: does an own-best global offset close the gap?
+==========================================================================================
+  chosen cells (quanta): grid (m=0,n=0) coherent (m=-2,n=0)
+  d_global (median n_err_grid[best] - n_err_coh[best]) = -6.000, cluster-bootstrap CI95=[-7.000, -4.000] (n_rows=193, n_clusters=190, n_draws=2000)
+  for reference, d_control (shared m=0,n=0) = -67.0 CI95=[-71.0, -65.0]
+
+==========================================================================================
+SEC 5.1 -- PRIMARY: is the coherent path's own-best displacement CONSTANT or SCATTERED?
+==========================================================================================
+  coherent: modal cell (m=-2,n=0) frac_at_mode=0.544 (105/193 complete rows; null~1/21=0.048) -- WINNER'S-CURSE BIAS NAMED PER SPEC SEC.3.2/5.1: this is a per-row argmin, biased toward whichever path varies more across position (expected: coherent).
+  coherent: m-axis marginal mode = -2, frac=0.617 (informational only, not the spec's own 1/n_cells null statistic)
+  grid: modal cell (m=0,n=0) frac_at_mode=0.606 (117/193 complete rows; null~1/21=0.048) -- WINNER'S-CURSE BIAS NAMED PER SPEC SEC.3.2/5.1: this is a per-row argmin, biased toward whichever path varies more across position (expected: coherent).
+  grid: m-axis marginal mode = 0, frac=0.674 (informational only, not the spec's own 1/n_cells null statistic)
+
+==========================================================================================
+B-POS-A DONE. DIAGNOSTIC ONLY -- no verdict, no gate, no ROW. Numbers above are for the Architect to read against Sec.6's blind predictions and Sec.7's branches.
+ROW 0g still stands FIRED; task 4.3 still VOID; ROW 3 still not declared; Route B2 still not dead; design.md D1 still not amended (1201 spec Sec.5 ruling still owed).
+==========================================================================================
