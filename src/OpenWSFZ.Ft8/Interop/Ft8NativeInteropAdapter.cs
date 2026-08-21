@@ -45,4 +45,7 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
     public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
         float[] pcm, int coarseFreqHz, float coarseTimeOffsetS)
         => Ft8LibInterop.RefineCandidate(pcm, coarseFreqHz, coarseTimeOffsetS);
+
+    public float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS)
+        => Ft8LibInterop.CoherentLlrAt(pcm, freqHz, timeOffsetS);
 }

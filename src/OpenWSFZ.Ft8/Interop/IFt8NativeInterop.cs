@@ -111,4 +111,21 @@ internal interface IFt8NativeInterop
     /// <param name="coarseTimeOffsetS">Coarse candidate time offset (s) from cycle start.</param>
     (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
         float[] pcm, int coarseFreqHz, float coarseTimeOffsetS);
+
+    /// <summary>
+    /// Diagnostic-only per-candidate coherent multi-symbol LLR formation
+    /// (r2-coherent-llr-instrument, Route B2 Phase 1, shim 20260043). Given the cycle's
+    /// PCM and a candidate's EXISTING, UNREFINED grid <c>(freqHz, timeOffsetS)</c>, returns
+    /// 174 coherent per-bit LLRs, normalised to the same scale production's <c>log174</c>
+    /// uses. NEVER calls <c>ft8_refine_candidate</c>/<see cref="RefineCandidate"/>
+    /// internally (design.md D1).
+    /// <para>
+    /// Reachable only from test code and the Phase 1 gate harness — no production call
+    /// site invokes it.
+    /// </para>
+    /// </summary>
+    /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1]; must be exactly 180 000 samples.</param>
+    /// <param name="freqHz">Candidate grid frequency (Hz) — tone 0's frequency, unrefined.</param>
+    /// <param name="timeOffsetS">Candidate grid time offset (s) from cycle start, unrefined.</param>
+    float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS);
 }

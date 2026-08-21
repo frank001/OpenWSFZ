@@ -44,9 +44,22 @@
  * reflection_symmetry_test. That export is what LOCATED the mechanism: the two
  * stages disagree about t=0 and cancel, so the combined sum hid it for two
  * rounds. See the block above Stage C below for the mechanism itself.
+ *
+ * r2-coherent-llr-instrument (FT8_SHIM_VERSION 20260043), task 1.1/1.2:
+ *
+ * design_lowpass_hann() and downconvert_decimate() below lost their `static`
+ * qualifier so the new sibling file coherent_llr.c (ft8_coherent_llr_at(), the
+ * new Route B2 Phase 1 diagnostic export) can call the SAME compiled
+ * functions instead of reimplementing them (HK-018) -- prototypes now live in
+ * refine_common.h, included below. This is a linkage-only change: no
+ * algorithm, constant, search range, or byte of logic in either function
+ * changed, and neither function gained a new caller within THIS file.
+ * ft8_refine_candidate() itself, and everything downstream of it, is
+ * unaffected.
  */
 
 #include "ft8_shim.h"       /* FT8_EXPECTED_SAMPLES, ft8_refine_candidate() prototype */
+#include "refine_common.h"  /* design_lowpass_hann / downconvert_decimate prototypes (r2, task 1.1/1.2) */
 #include <ft8/constants.h>  /* kFT8_Costas_pattern */
 
 #include <math.h>
@@ -95,8 +108,9 @@
 typedef struct { float re, im; } refine_cplx_t;
 
 /* Hann-windowed-sinc lowpass FIR, unit DC gain. Standard filter design,
- * derived independently (no external source consulted). */
-static void design_lowpass_hann(float* taps, int ntaps, float cutoff_hz, float fs_hz)
+ * derived independently (no external source consulted).
+ * Non-static since r2-coherent-llr-instrument task 1.1/1.2 (see refine_common.h). */
+void design_lowpass_hann(float* taps, int ntaps, float cutoff_hz, float fs_hz)
 {
     int   mid = ntaps / 2;
     float fc  = cutoff_hz / fs_hz; /* normalised cutoff, cycles/sample */
@@ -124,8 +138,10 @@ static void design_lowpass_hann(float* taps, int ntaps, float cutoff_hz, float f
  *
  * Writes floor(n/decim) complex samples to out_re/out_im. Zero-padded at the
  * buffer edges. Returns the number of output samples written.
+ *
+ * Non-static since r2-coherent-llr-instrument task 1.1/1.2 (see refine_common.h).
  */
-static int downconvert_decimate(
+int downconvert_decimate(
     const float* pcm, int n, float fs_in,
     float carrier_hz,
     const float* taps, int ntaps,

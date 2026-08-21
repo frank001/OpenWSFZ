@@ -108,10 +108,22 @@ jobs:
             -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" \
             -target arm64-apple-macos11.0 -c \
             "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/sync_refiner.c"
+          # coherent_llr.c (r2-coherent-llr-instrument): same gap as sync_refiner.c
+          # above, reopened -- this inline recipe is a SEPARATE, hand-duplicated
+          # copy of native/ft8_lib_build/build_linux.sh's own build steps and was
+          # not updated when Route B2 Phase 1 added ft8_coherent_llr_at, so this
+          # job silently linked a libft8 missing that export until caught by
+          # CoherentLlrAtTests 2.1b/2.1d failing with EntryPointNotFoundException
+          # on PR #128's first CI run. Same -I flags as sync_refiner.c above
+          # (refine_common.h resolves via -I., ft8_shim.h via the second -I).
+          clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" \
+            -target arm64-apple-macos11.0 -c \
+            "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/coherent_llr.c"
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o
           # ld embeds a fresh, randomly-generated LC_UUID on every link (see
           # chore/ci-native-binary-reproducibility, 2026-07-03). Omitting it
           # via -Wl,-no_uuid is NOT viable — dyld refuses to dlopen a Mach-O
@@ -153,7 +165,7 @@ jobs:
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o
           python3 "$GITHUB_WORKSPACE/tools/zero_dylib_uuid.py" libft8.dylib
           if ! cmp -s /tmp/ft8_lib/libft8.dylib libft8.dylib; then
             echo "=== DIAGNOSTIC: sizes ==="
@@ -215,9 +227,20 @@ jobs:
           gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
             -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" -c \
             "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/sync_refiner.c"
+          # coherent_llr.c (r2-coherent-llr-instrument): same gap as sync_refiner.c
+          # above, reopened -- this inline recipe is a SEPARATE, hand-duplicated
+          # copy of native/ft8_lib_build/build_linux.sh's own build steps and was
+          # not updated when Route B2 Phase 1 added ft8_coherent_llr_at, so this
+          # job silently linked a libft8 missing that export until caught by
+          # CoherentLlrAtTests 2.1b/2.1d failing with EntryPointNotFoundException
+          # on PR #128's first CI run. Same -I flags as sync_refiner.c above
+          # (refine_common.h resolves via -I., ft8_shim.h via the second -I).
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" -c \
+            "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/coherent_llr.c"
           gcc -shared -o libft8.so \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o \
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o \
             -lm
           echo "=== Linux .so exports ==="
           nm -D libft8.so | grep "ft8_"

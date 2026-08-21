@@ -90,6 +90,11 @@ native/ft8_lib_vendor/fft/kiss_fftr.c
 src/OpenWSFZ.Ft8/Native/ft8_shim.c               (our shim — orchestrates the pipeline)
 native/ft8_lib_vendor/refine/sync_refiner.c      (r1: diagnostic-only coherent sync refiner,
                                                    OpenWSFZ-original, no production call site)
+native/ft8_lib_vendor/refine/coherent_llr.c      (r2: diagnostic-only coherent multi-symbol LLR
+                                                   formation, OpenWSFZ-original, no production
+                                                   call site — reuses sync_refiner.c's own
+                                                   downconvert_decimate/design_lowpass_hann via
+                                                   refine_common.h)
 ```
 
 r0-reproducible-native-build: every one of these now compiles from tracked source on every
@@ -140,6 +145,11 @@ cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
 cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
    native\ft8_lib_vendor\refine\sync_refiner.c
 
+:: Compile the coherent LLR export (r2-coherent-llr-instrument, diagnostic-only,
+:: OpenWSFZ-original — no call site in decode.c/ft8_shim.c)
+cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
+   native\ft8_lib_vendor\refine\coherent_llr.c
+
 :: Link into DLL — exports must stay in sync with rebuild_shim.bat
 link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_lib_version_check ^
@@ -154,8 +164,10 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_set_decode_params ^
    /EXPORT:ft8_get_hash_table_reject_count ^
    /EXPORT:ft8_refine_candidate ^
+   /EXPORT:ft8_extract_llrs_at ^
+   /EXPORT:ft8_coherent_llr_at ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
-   monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj
+   monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj coherent_llr.obj
 
 :: Copy to repo location
 copy libft8.dll ..\..\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
@@ -181,10 +193,12 @@ gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
     fft/kiss_fft.c fft/kiss_fftr.c
 gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
     ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
+gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
+    refine/sync_refiner.c refine/coherent_llr.c
 
 gcc -shared -o libft8.so \
     constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o \
+    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o \
     -lm
 
 # Note: ft8_get_last_noise_floor_db is exported automatically (no explicit -Wl,--export-dynamic needed)
@@ -194,7 +208,9 @@ gcc -shared -o libft8.so \
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
-Verify exports (all twelve symbols must appear (r1-sync-refiner-instrument-validation adds ft8_refine_candidate)):
+Verify exports (all fourteen symbols must appear — r1-sync-refiner-instrument-validation adds
+ft8_refine_candidate, n1-extract-llrs-at-position adds ft8_extract_llrs_at,
+r2-coherent-llr-instrument adds ft8_coherent_llr_at):
 
 ```bash
 nm -D libft8.so | grep "ft8_"
@@ -234,17 +250,22 @@ clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -
     fft/kiss_fft.c fft/kiss_fftr.c
 clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -c \
     ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
+clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -c \
+    refine/sync_refiner.c refine/coherent_llr.c
 
 clang -dynamiclib -target arm64-apple-macos11.0 \
     -o libft8.dylib \
     constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o
+    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o
 ```
 
 > **Note:** `-D_GNU_SOURCE` is required for `stpcpy` on macOS as well (same reason as
 > Linux — see note in the Linux section above).
 
-Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all twelve symbols must appear (r1-sync-refiner-instrument-validation adds ft8_refine_candidate)):
+Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all fourteen
+symbols must appear — r1-sync-refiner-instrument-validation adds ft8_refine_candidate,
+n1-extract-llrs-at-position adds ft8_extract_llrs_at, r2-coherent-llr-instrument adds
+ft8_coherent_llr_at):
 
 ```bash
 nm -gU libft8.dylib | grep "ft8_"

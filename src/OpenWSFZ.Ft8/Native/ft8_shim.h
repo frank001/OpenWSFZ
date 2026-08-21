@@ -432,8 +432,60 @@ extern "C" {
  *   Ft8LibInterop/IFt8NativeInterop wiring added (design.md D5) -- the
  *   consumer is the Python QA harness, the same pattern the raw-LLR-capture
  *   export family already established without managed bindings.
+ *
+ * r2-coherent-llr-instrument (FT8_SHIM_VERSION 20260043), Route B2 Phase 1,
+ * tasks 1.1-1.5:
+ *
+ *   Adds ft8_coherent_llr_at() -- a new DIAGNOSTIC-ONLY export implementing
+ *   per-candidate coherent multi-symbol LLR formation AT THE CANDIDATE'S
+ *   EXISTING, UNREFINED GRID POSITION (design.md D1: NEVER calls
+ *   ft8_refine_candidate or any other position-search routine -- Route B2's
+ *   limb 1, candidate position refinement, is dead three times over (M4,
+ *   N1, P-LIVE Stage 2); this export tests limb 2, coherent multi-symbol LLR
+ *   formation, in isolation so a null result cannot be blamed on a bad
+ *   position estimate). Downconverts to complex baseband at the candidate's
+ *   grid frequency (phase retained), reusing sync_refiner.c's own
+ *   downconvert_decimate()/design_lowpass_hann() (now non-static, shared via
+ *   the new native/ft8_lib_vendor/refine/refine_common.h -- a linkage-only
+ *   change to sync_refiner.c, no algorithm/constant/logic changed); for each
+ *   of the 58 data symbols, coherently correlates against each of the 8 tone
+ *   hypotheses (complex accumulation across the symbol, magnitude last);
+ *   forms 1-, 2- and 3-symbol coherent metrics over every Costas-block-
+ *   boundary-respecting window; combines into 174 per-bit LLRs via max-log
+ *   over tone hypotheses (this file's own bit-index convention, NOT decode.c's
+ *   unreachable ft8_decode_multi_symbols convention -- see coherent_llr.c's
+ *   own header comment for the full derivation and rationale); normalises to
+ *   the same scale ftx_normalize_logl() produces (formula duplicated locally
+ *   in coherent_llr.c -- decode.c has ZERO edits from this change).
+ *   Implemented in the new native/ft8_lib_vendor/refine/coherent_llr.c
+ *   (OpenWSFZ-original, clean-room -- no WSJT-X source was consulted).
+ *
+ *   Signature deliberately matches ft8_extract_llrs_at's own shape --
+ *   (pcm, pcm_len, freq_hz, time_offset_s, out_log174), not the proposal's
+ *   illustrative (freq_idx, time_idx, out_diag) sketch -- so the Phase 1
+ *   gate harness satisfies the candidate-identity requirement (spec.md
+ *   "Candidate identity between the grid and coherent extractions") simply
+ *   by calling both exports with the identical two floats. See
+ *   coherent_llr.c's own header comment, "SIGNATURE CHOICE", for the full
+ *   rationale.
+ *
+ *   No production call site: reachable only from test code and the Phase 1
+ *   gate harness (this change's own tasks.md §4.3, not yet built).
+ *   ftx_decode_candidate(), ft8_decode_all's production decode path, and
+ *   every other existing exported symbol (including ft8_refine_candidate and
+ *   ft8_extract_llrs_at) remain byte-for-byte unchanged -- decode.c has zero
+ *   edits from this change, and the bump exists purely so the startup ABI
+ *   check catches a binary built without the new export. No struct layout
+ *   change (FT8Result stays 48 bytes).
+ *
+ *   UNVALIDATED: this is a new correlator with no prior measurement. Per
+ *   design.md's own Risks section, this export's own ROW 0c (a mandatory
+ *   two-sided sign unit test, run once by the Phase 1 gate harness) is the
+ *   guard against a sign or bit-attribution defect -- nothing from this
+ *   export should be trusted for any downstream measurement until that test
+ *   passes.
  */
-#define FT8_SHIM_VERSION 20260042
+#define FT8_SHIM_VERSION 20260043
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -742,6 +794,60 @@ int ft8_extract_llrs_at(
     const float* pcm, int pcm_len,
     float freq_hz, float time_offset_s,
     float* out_llr174);
+
+/*
+ * ft8_coherent_llr_at -- diagnostic-only per-candidate coherent multi-symbol
+ * LLR formation (r2-coherent-llr-instrument, Route B2 Phase 1, shim 20260043).
+ *
+ * Given the cycle's retained PCM and a candidate's EXISTING, UNREFINED grid
+ * position (freq_hz, time_offset_s -- the same physical-unit convention
+ * ft8_extract_llrs_at already uses, snapped to the identical K_FREQ_OSR/
+ * K_TIME_OSR lattice), forms 174 coherent per-bit LLRs by downconverting to
+ * complex baseband (phase retained, reusing sync_refiner.c's own
+ * downconvert_decimate), correlating coherently against each of the 8 tone
+ * hypotheses per data symbol (complex accumulation across the symbol,
+ * magnitude last), combining 1-, 2- and 3-symbol coherent windows via
+ * max-log per bit, and normalising to the scale ftx_normalize_logl produces.
+ * Implemented in native/ft8_lib_vendor/refine/coherent_llr.c -- see that
+ * file for the full algorithm, the bit-index convention (deliberately NOT
+ * decode.c's own unreachable ft8_decode_multi_symbols convention), and the
+ * signature-choice rationale.
+ *
+ * NEVER calls ft8_refine_candidate() or any other position-search routine
+ * (design.md D1) -- the position given is used as-is. Reachable only from
+ * test code and the Phase 1 gate harness; ftx_decode_candidate() and
+ * ft8_decode_all's production decode path are unaffected.
+ *
+ * Calling this with the SAME (freq_hz, time_offset_s) already passed to
+ * ft8_extract_llrs_at guarantees both extractions ran at the identical
+ * candidate position (spec.md's own candidate-identity requirement) with no
+ * extra bookkeeping.
+ *
+ * Parameters:
+ *   pcm            -- float32 samples, 12 kHz mono, normalised to [-1, 1]
+ *   pcm_len        -- must be 180 000 (15 s x 12 000 Hz)
+ *   freq_hz        -- requested centre frequency, Hz (tone 0's frequency)
+ *   time_offset_s  -- requested time offset from cycle start, seconds
+ *   out_log174     -- caller-allocated FTX_LDPC_N (174) floats; receives the
+ *                     normalised coherent log-likelihoods on success,
+ *                     untouched otherwise
+ *
+ * Returns: 0 on success.
+ *          -1 if pcm_len != 180 000, or pcm/out_log174 is NULL.
+ *          -2 if a heap allocation failed.
+ *          -3 if the resolved frequency bin falls outside the waterfall's
+ *             valid range -- rejected, not silently clamped (same discipline
+ *             ft8_extract_llrs_at already uses for a caller-supplied
+ *             position with no ftx_find_candidates()-style in-band
+ *             guarantee).
+ *
+ * UNVALIDATED: a new correlator with no prior measurement -- see this
+ * file's r2-coherent-llr-instrument changelog entry above.
+ */
+int ft8_coherent_llr_at(
+    const float* pcm, int pcm_len,
+    float freq_hz, float time_offset_s,
+    float* out_log174);
 
 #ifdef __cplusplus
 }

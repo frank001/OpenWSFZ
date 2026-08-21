@@ -36,6 +36,9 @@ $GCC -I"$SRC_DIR" -c "$SRC_DIR/ft8_shim.c" -o "$OBJ_DIR/ft8_shim.o"
 echo "Compiling sync_refiner.c (r1-sync-refiner-instrument-validation, OpenWSFZ-original, diagnostic-only)..."
 $GCC -I"$SRC_DIR" -c "$LIB_SRC/refine/sync_refiner.c" -o "$OBJ_DIR/sync_refiner.o"
 
+echo "Compiling coherent_llr.c (r2-coherent-llr-instrument, OpenWSFZ-original, diagnostic-only)..."
+$GCC -I"$SRC_DIR" -c "$LIB_SRC/refine/coherent_llr.c" -o "$OBJ_DIR/coherent_llr.o"
+
 echo "Linking libft8.so..."
 gcc -shared -o "$BUILD_DIR/libft8.so" \
     "$OBJ_DIR/constants.o" \
@@ -50,6 +53,7 @@ gcc -shared -o "$BUILD_DIR/libft8.so" \
     "$OBJ_DIR/kiss_fftr.o" \
     "$OBJ_DIR/ft8_shim.o" \
     "$OBJ_DIR/sync_refiner.o" \
+    "$OBJ_DIR/coherent_llr.o" \
     -lm
 
 echo "Verifying exports..."

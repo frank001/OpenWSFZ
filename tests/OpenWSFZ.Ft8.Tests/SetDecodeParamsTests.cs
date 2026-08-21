@@ -46,6 +46,8 @@ public sealed class SetDecodeParamsTests
 
         public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
             float[] pcm, int coarseFreqHz, float coarseTimeOffsetS) => (0f, 0f, 0f, 0, 0);
+
+        public float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS) => new float[174];
     }
 
     // ── 7.3a — Adapter correctly delegates SetDecodeParams ───────────────────

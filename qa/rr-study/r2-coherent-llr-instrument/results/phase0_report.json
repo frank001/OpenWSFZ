@@ -1,0 +1,115 @@
+{
+  "final": "row_0_all_pass",
+  "hk025": {
+    "classification": {
+      "0a": {
+        "class": "VALIDITY",
+        "reason": "unidentified binary invalidates every downstream number"
+      },
+      "0c": {
+        "class": "VALIDITY",
+        "reason": "sign convention unverified -- every BER this harness reports could be silently inverted, indistinguishable from a correct null result"
+      },
+      "0d": {
+        "class": "VALIDITY",
+        "reason": "harness/population diverges from Stage 2's own already-published number on the identical population at the identical offset"
+      }
+    },
+    "concurs_with_spec": true,
+    "refusal": false
+  },
+  "population_dry_count": {
+    "corpus": "20260803_live_run_1713",
+    "n_clusters": 4113,
+    "n_rows": 18012
+  },
+  "row_0a": {
+    "fires": false,
+    "sha256_prefix": "6890d84c4bcf2e90",
+    "shim_version": 20260042
+  },
+  "row_0c": {
+    "noise": {
+      "bar_mean": [
+        80.0,
+        94.0
+      ],
+      "bar_per_trial": [
+        60.0,
+        114.0
+      ],
+      "mean_n_err": 84.0,
+      "mean_passed": true,
+      "n_trials": 20,
+      "passed": true,
+      "per_trial": [
+        68,
+        94,
+        88,
+        80,
+        86,
+        79,
+        75,
+        92,
+        86,
+        78,
+        90,
+        100,
+        74,
+        84,
+        82,
+        89,
+        84,
+        81,
+        83,
+        87
+      ],
+      "trials_passed": true
+    },
+    "passed": true,
+    "signal": {
+      "bar_max": 15,
+      "gated_on": "median",
+      "mean_n_err": 22.77777777777778,
+      "median_n_err": 12.5,
+      "n_dropped": 2,
+      "n_trials": 18,
+      "passed": true,
+      "per_trial": [
+        0,
+        1,
+        55,
+        21,
+        10,
+        60,
+        14,
+        52,
+        16,
+        0,
+        11,
+        4,
+        54,
+        5,
+        8,
+        0,
+        16,
+        83
+      ],
+      "source": "real P-HIT rows at Stage 2's corrected anchor"
+    }
+  },
+  "row_0d": {
+    "delta_pp": 0.0,
+    "drop_reasons": {
+      "grid_extract_rc_-3": 1018,
+      "no_true_codeword": 1605
+    },
+    "elapsed_s": 111.97455191612244,
+    "fresh_median_ber_grid": 0.3103448275862069,
+    "n_clusters_measured": 3917,
+    "n_measured": 15389,
+    "passed": true,
+    "stage2_median_ber_grid": 0.3103448275862069,
+    "tolerance_pp": 0.01
+  }
+}
