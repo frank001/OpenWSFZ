@@ -176,6 +176,17 @@ LLRs did nothing at all".
 | 0d | `ber_grid` reproduces Stage 2's median **31.03%** on the same population | within 1.0 pp |
 | 0e | **Candidate identity**: coherent and magnitude LLRs computed at the *same* `(freq_idx, time_idx)`, asserted per row | 100% — candidate mismatch inflates BER toward 50% and would fake a null |
 | 0f | Determinism: run twice, **mechanically diff** the outputs (HK-022) | 0 rows differ — diffed, never asserted |
+| 0g | **Instrument gain** (AMENDMENT 1, 2026-08-21, Captain-authorised): coherent must not lose to magnitude-only on a **noise-free** signal, and must not be confidently worse on real P-HIT rows | 0g-1: `median(n_err_coh_min) ≤ 5` **and** signed `d_clean ≥ 0`; 0g-2: **not** `CI_hi(d_real) < 0` |
+
+> 🔴 **AMENDMENT 1 — 2026-08-21 10:38Z, BEFORE THE GATE WAS RUN.** ROW 0g added on the
+> Captain's instruction. Full pre-registration, including the two-sided degeneracy
+> guards, the HK-025 classification, the resolvable-distance statement and the code-read
+> hazard that motivates it:
+> **`qa/rr-study/2026-08-21-1038-architect-to-qa-spec-b2-phase1-row0g-instrument-gain-check.md`**.
+> ROW 0g is evaluated **after 0a–0f and before `f_net`**, unconditionally — not held in
+> reserve for a bad outcome. **If it fires the gate is VOID and ROW 3 MUST NOT be
+> declared.** No other part of this spec — the population, `f_net`, `C_ber`, or the
+> ROW 1/2/3/4 bars — is changed by this amendment.
 
 ### The rows — strictly ordered, first match wins, provably exclusive
 

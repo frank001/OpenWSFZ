@@ -129,6 +129,46 @@ authorises starting this section.**
       harness with a second (`ber_coh`) extraction call at the *same* `(freq_idx,
       time_idx)` as the grid extraction (candidate-identity requirement, Phase 1 spec
       §3 ROW 0e), then the pre-registered ROW 1/2/3/4 evaluation (design.md D6).
+      🔴 **STILL BLOCKED ON 4.4 (ROW 0g) — ROW 0g ran 2026-08-21 and FIRED (0g-2). Per
+      the pre-registration's own consequence, this task's gate is VOID and MUST NOT be
+      evaluated: no ROW 1/2/3/4 may be read, ROW 3 MUST NOT be declared, Route B2 MUST
+      NOT be called dead. NOT RUN this session.** See
+      `qa/rr-study/2026-08-21-1100-qa-to-architect-row0g-fires-phase1-gate-void.md`.
+      Unblocks only on a native fix (HK-011 Developer session) followed by a ROW 0g
+      re-run that passes — never on a re-read of 0g's own output with a different
+      metric.
+- [x] 4.4 **ROW 0g — instrument-gain check, runs BEFORE the 4.3 gate.** Pre-registration:
+      `qa/rr-study/2026-08-21-1038-architect-to-qa-spec-b2-phase1-row0g-instrument-gain-check.md`
+      (Captain-authorised 2026-08-21). Two limbs, **both against the CURRENT merged
+      binary — no native change, no Developer session, HK-011 not engaged**:
+      **0g-1** clean-signal ceiling (20 noise-free synthetic signals, `time_offset_s`
+      swept over `m3_common.TIME_ANCHOR_OFFSETS_S` to sidestep the design.md D3
+      convention gap, each path minimised independently) — bars
+      `median(n_err_coh_min) ≤ 5` **and** signed `d_clean ≥ 0`, with floor- and
+      stub-degeneracy guards (HK-021(n));
+      **0g-2** paired on 200 real P-HIT rows at the `+0.65s` anchor, signed `d_real`
+      cluster-bootstrapped by `ts` (HK-021(i)) — fires if `CI_hi(d_real) < 0`.
+      🔴 **RESULT: 0g-1 PASS (0g-1a median(n_err_coh_min)=3.00≤5; 0g-1b d_clean=+3.00≥0,
+      via the floor-degeneracy noise rerun at snr≈-19dB; no stub degeneracy). 0g-2
+      FIRES DECISIVELY: d_real=-67.0 bits, cluster-bootstrap CI95=[-71.0,-65.0] (190
+      clusters) — coherent path's median n_err=79/174 on real P-HIT rows, near the
+      pure-noise null of 84-87, against grid's median n_err=10. ROW 0g OVERALL: FIRES.**
+      Harness: `qa/rr-study/r2-coherent-llr-instrument/coherent_llr_ctypes.py`,
+      `row0g_instrument_gain_check.py`; results in `results/row0g_report.json` /
+      `results/row0g_run.log`. Full writeup:
+      `qa/rr-study/2026-08-21-1100-qa-to-architect-row0g-fires-phase1-gate-void.md`.
+      🔴 **Consequence applied: the Phase 1 gate (§4.3) is VOID, no ROW 1/2/3/4 read,
+      ROW 3 NOT declared, Route B2 NOT called dead.** Rationale that motivated the
+      check (a code-read hazard, NOT the mechanism confirmed by the result): the fusion
+      in `coherent_llr.c` selects per bit on raw `fabsf` across `n_syms` windows never
+      normalised by window length, biased toward `n_syms=3` on scale alone; combined
+      with the unresolved advance-before-use rotator convention at `n_syms=2/3`. The
+      MEASURED failure shape (near-total collapse to chance on real audio, while
+      matching-or-beating grid on driftless synthetic tones) is more severe than that
+      hazard's own "gain-reduced but correctly-signed" description — flagged as a new,
+      unverified hypothesis (real signal frequency/phase drift over the ~12.6s message
+      exposing a coherent-path sensitivity a static synth tone never exercises) in the
+      writeup's §3, for whoever picks up the native fix.
 
 ## 5. Shim version and cross-platform build — Phase 1
 
