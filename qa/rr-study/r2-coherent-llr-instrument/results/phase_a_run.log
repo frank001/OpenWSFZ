@@ -1,0 +1,99 @@
+==========================================================================================
+PHASE A -- de-confounding ROW 0g-2 (diagnostic only; no ROW; no verdict; ROW 0g not re-read -- spec 2026-08-21-1201-architect-to-qa-b2-row0g-native-fix-triage-and-phase-a-deconfounding.md Sec.3/Sec.6)
+==========================================================================================
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll (pinned to the CURRENT MERGED binary, shim 20260043)
+DLL pin confirmed: SHA256 1889408787a2c7ea..., shim version 20260043
+
+==========================================================================================
+CALIBRATION -- finding an operating snr_db clear of the noiseless floor degeneracy (0g-1's own finding: noiseless reads median(n_err)=0 for both paths)
+==========================================================================================
+  snr_db= -4.0 -> median(n_err_grid_min)=0.00
+  snr_db= -8.0 -> median(n_err_grid_min)=0.00
+  snr_db=-12.0 -> median(n_err_grid_min)=0.00
+  snr_db=-16.0 -> median(n_err_grid_min)=0.00
+  snr_db=-18.0 -> median(n_err_grid_min)=4.50
+  snr_db=-19.0 -> median(n_err_grid_min)=8.00
+  LANDED at snr_db=-19.0 (grid median=8.00, target [5,25])
+
+==========================================================================================
+CALIBRATION -- finding the SHARED time anchor (grid path's own best offset over the 49-point sweep at delta_f=0, snr_db=-19.0) -- coherent is read AT this same offset, never independently optimised (design.md D1)
+==========================================================================================
+  shared anchor: time_offset_s=0.150  grid_median=8.00  coh_median_at_same_offset=69.00
+
+==========================================================================================
+PHASE A1 -- frequency residual (render off-nominal, call at nominal 1500.0000 Hz), 49-point time sweep retained per path (M=20, snr_db=-19.0 calibrated)
+==========================================================================================
+  delta_f= -1.5625 Hz  median(n_err_grid)= 17.50  median(n_err_coh)= 28.50  d_clean= -11.50
+  delta_f= -1.3021 Hz  median(n_err_grid)= 16.50  median(n_err_coh)= 26.50  d_clean= -10.00
+  delta_f= -1.0417 Hz  median(n_err_grid)= 14.50  median(n_err_coh)= 21.00  d_clean=  -4.50
+  delta_f= -0.7812 Hz  median(n_err_grid)= 11.00  median(n_err_coh)= 13.50  d_clean=  -4.00
+  delta_f= -0.5208 Hz  median(n_err_grid)=  9.00  median(n_err_coh)=  9.50  d_clean=  +0.50
+  delta_f= -0.2604 Hz  median(n_err_grid)=  9.50  median(n_err_coh)=  6.50  d_clean=  +3.50
+  delta_f= +0.0000 Hz  median(n_err_grid)=  8.00  median(n_err_coh)=  6.00  d_clean=  +3.00
+  delta_f= +0.2604 Hz  median(n_err_grid)= 10.00  median(n_err_coh)=  6.50  d_clean=  +3.00
+  delta_f= +0.5208 Hz  median(n_err_grid)=  8.50  median(n_err_coh)=  8.00  d_clean=  +2.00
+  delta_f= +0.7812 Hz  median(n_err_grid)= 11.00  median(n_err_coh)= 10.50  d_clean=  -1.00
+  delta_f= +1.0417 Hz  median(n_err_grid)= 13.00  median(n_err_coh)= 19.00  d_clean=  -7.00
+  delta_f= +1.3021 Hz  median(n_err_grid)= 17.00  median(n_err_coh)= 27.00  d_clean= -10.00
+  delta_f= +1.5625 Hz  median(n_err_grid)= 16.00  median(n_err_coh)= 31.00  d_clean= -15.50
+
+  anchor (delta_f~=0, actual 0.0000 Hz): median_grid=8.00 median_coh=6.00
+  worst swept |delta_f| (-1.5625 Hz): median_grid=17.50 (+9.50) median_coh=28.50 (+22.50)
+
+==========================================================================================
+PHASE A2 -- timing residual (render at nominal placement, call time_offset_s = shared anchor 0.150s + delta_t -- see module docstring for why the shift is applied call-side), fixed single call (no per-path sweep), M=20, snr_db=-19.0 calibrated
+==========================================================================================
+  delta_t= -0.120 s  median(n_err_grid)=70.50 (20/20)  median(n_err_coh)=6.00 (20/20)
+  delta_t= -0.110 s  median(n_err_grid)=47.00 (20/20)  median(n_err_coh)=46.00 (20/20)
+  delta_t= -0.100 s  median(n_err_grid)=47.00 (20/20)  median(n_err_coh)=46.00 (20/20)
+  delta_t= -0.090 s  median(n_err_grid)=47.00 (20/20)  median(n_err_coh)=46.00 (20/20)
+  delta_t= -0.080 s  median(n_err_grid)=47.00 (20/20)  median(n_err_coh)=46.00 (20/20)
+  delta_t= -0.070 s  median(n_err_grid)=47.00 (20/20)  median(n_err_coh)=46.00 (20/20)
+  delta_t= -0.060 s  median(n_err_grid)=47.00 (20/20)  median(n_err_coh)=46.00 (20/20)
+  delta_t= -0.050 s  median(n_err_grid)=47.00 (20/20)  median(n_err_coh)=46.00 (20/20)
+  delta_t= -0.040 s  median(n_err_grid)=47.00 (20/20)  median(n_err_coh)=46.00 (20/20)
+  delta_t= -0.030 s  median(n_err_grid)=8.00 (20/20)  median(n_err_coh)=69.00 (20/20)
+  delta_t= -0.020 s  median(n_err_grid)=8.00 (20/20)  median(n_err_coh)=69.00 (20/20)
+  delta_t= -0.010 s  median(n_err_grid)=8.00 (20/20)  median(n_err_coh)=69.00 (20/20)
+  delta_t= +0.000 s  median(n_err_grid)=8.00 (20/20)  median(n_err_coh)=69.00 (20/20)
+  delta_t= +0.010 s  median(n_err_grid)=8.00 (20/20)  median(n_err_coh)=69.00 (20/20)
+  delta_t= +0.020 s  median(n_err_grid)=8.00 (20/20)  median(n_err_coh)=69.00 (20/20)
+  delta_t= +0.030 s  median(n_err_grid)=8.00 (20/20)  median(n_err_coh)=69.00 (20/20)
+  delta_t= +0.040 s  median(n_err_grid)=8.00 (20/20)  median(n_err_coh)=69.00 (20/20)
+  delta_t= +0.050 s  median(n_err_grid)=44.50 (20/20)  median(n_err_coh)=70.50 (20/20)
+  delta_t= +0.060 s  median(n_err_grid)=44.50 (20/20)  median(n_err_coh)=70.50 (20/20)
+  delta_t= +0.070 s  median(n_err_grid)=44.50 (20/20)  median(n_err_coh)=70.50 (20/20)
+  delta_t= +0.080 s  median(n_err_grid)=44.50 (20/20)  median(n_err_coh)=70.50 (20/20)
+  delta_t= +0.090 s  median(n_err_grid)=44.50 (20/20)  median(n_err_coh)=70.50 (20/20)
+  delta_t= +0.100 s  median(n_err_grid)=44.50 (20/20)  median(n_err_coh)=70.50 (20/20)
+  delta_t= +0.110 s  median(n_err_grid)=44.50 (20/20)  median(n_err_coh)=70.50 (20/20)
+  delta_t= +0.120 s  median(n_err_grid)=44.50 (20/20)  median(n_err_coh)=70.50 (20/20)
+
+  grid : own-minimum reference delta_t=-0.030s (relative only) slope_right=3.649999999999999 slope_left=1.5666666666666649 n_err/10ms
+  coh  : own-minimum reference delta_t=-0.120s (relative only) slope_right=1.3634782608695653 slope_left=None n_err/10ms
+
+==========================================================================================
+PHASE A3 -- joint frequency+timing residual at realistic magnitudes, fixed single call at shared anchor 0.150s + delta_t (M=20 per condition, snr_db=-19.0 calibrated)
+==========================================================================================
+  CONTROL delta_f=0.0 delta_t=0.0: median_grid=8.00 median_coh=69.00 d_clean=-61.00 (n_ok=20/20)
+  delta_f=+0.745 Hz delta_t=+0.070 s: median_grid=46.00 median_coh=72.50 d_clean=-28.00 (n_ok=20/20)
+  delta_f=-0.745 Hz delta_t=+0.070 s: median_grid=44.00 median_coh=70.50 d_clean=-30.00 (n_ok=20/20)
+  delta_f=+0.745 Hz delta_t=+0.150 s: median_grid=69.50 median_coh=70.00 d_clean=-3.50 (n_ok=20/20)
+  delta_f=-0.745 Hz delta_t=+0.150 s: median_grid=71.00 median_coh=74.50 d_clean=-2.00 (n_ok=20/20)
+  delta_f=+0.745 Hz delta_t=+0.270 s: median_grid=71.50 median_coh=77.50 d_clean=-4.50 (n_ok=20/20)
+  delta_f=-0.745 Hz delta_t=+0.270 s: median_grid=71.50 median_coh=71.00 d_clean=-2.00 (n_ok=20/20)
+  delta_f=+0.745 Hz delta_t=-0.070 s: median_grid=46.50 median_coh=50.00 d_clean=-3.00 (n_ok=20/20)
+  delta_f=-0.745 Hz delta_t=-0.070 s: median_grid=45.00 median_coh=48.50 d_clean=-4.00 (n_ok=20/20)
+  delta_f=+0.745 Hz delta_t=-0.150 s: median_grid=70.00 median_coh=11.00 d_clean=+59.00 (n_ok=20/20)
+  delta_f=-0.745 Hz delta_t=-0.150 s: median_grid=70.00 median_coh=13.00 d_clean=+56.50 (n_ok=20/20)
+  delta_f=+0.745 Hz delta_t=-0.270 s: median_grid=72.50 median_coh=72.00 d_clean=+0.00 (n_ok=20/20)
+  delta_f=-0.745 Hz delta_t=-0.270 s: median_grid=72.00 median_coh=74.00 d_clean=+0.00 (n_ok=20/20)
+
+  most-negative d_clean overall (CONTROL included): delta_f=+0.000 Hz delta_t=+0.000 s -> d_clean=-61.00  (0g-2's d_real = -67.0, CI95=[-71.0, -65.0])
+  -> the WORST point is the CONTROL itself: the shared D1 anchor (grid's own best position, 0.150s) ALONE, with ZERO injected delta_f/delta_t, already produces this collapse. Every explicitly-injected residual tested made the joint contrast LESS negative than the control, not more -- injecting delta_t moves the shared call position OFF grid's plateau, which degrades grid roughly as much as it degrades coherent (or, for delta_t=-0.15s, moves toward COHERENT's own optimum and reverses the sign entirely, d_clean=+56 to +59).
+  Reaches roughly half or more of 0g-2's magnitude but does not enter its CI. Driven overwhelmingly by the CONTROL (the D1-mandated shared, un-refined position itself), not by the explicitly injected residual magnitudes -- see the note above. Channel (C4) not excluded, but C1-the fusion rule (baked into ft8_coherent_llr_at, measured here as-is)-combined with the grid/coherent OPTIMAL-POSITION MISMATCH (see A2's own-minimum readout above -- a variant of C3 not anticipated in the spec's own framing: the two paths' true optima differ measurably even at delta_f=0) is the leading candidate.
+
+==========================================================================================
+PHASE A COMPLETE (280.5s, operating snr_db=-19.0, shared anchor=0.150s). This produced NO ROW, NO PASS/FAIL, NO f_net. ROW 0g stands exactly as run: FIRED, gate VOID, Route B2 not dead, ROW 3 not declared.
+==========================================================================================
