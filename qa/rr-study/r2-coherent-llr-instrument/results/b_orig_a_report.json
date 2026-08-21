@@ -1,0 +1,119 @@
+{
+  "base_dt_s": 0.5,
+  "base_freq_hz": 1500.0,
+  "dll_pin": {
+    "sha256_prefix": "1889408787a2c7ea",
+    "shim_version": 20260043
+  },
+  "elapsed_s": 54.60219717025757,
+  "final": "row_1_fired",
+  "mode_c": {
+    "frac_at_mode": 0.9183673469387755,
+    "histogram": {
+      "-1": 8,
+      "0": 90
+    },
+    "mode": 0,
+    "n_decidable": 98
+  },
+  "mode_g": {
+    "frac_at_mode": 0.8673469387755102,
+    "histogram": {
+      "1": 13,
+      "2": 85
+    },
+    "mode": 2,
+    "n_decidable": 98
+  },
+  "n_trials": 100,
+  "noise_seed_base": 21160821,
+  "operating_snr_db": -19.0,
+  "row": 1,
+  "row0a": {
+    "frac_undecidable": 0.02,
+    "n_total": 100,
+    "n_undecidable": 2,
+    "passed": true
+  },
+  "row0a_remedy_attempted": false,
+  "row0b": {
+    "bar": 0.95,
+    "frac_agree": 1.0,
+    "max_abs_diff_s": 0.0035656377062323052,
+    "mean_abs_diff_s": 0.00356563567366847,
+    "n_agree": 100,
+    "n_total": 100,
+    "passed": true,
+    "tol_s": 0.04
+  },
+  "row0c": {
+    "m_range_final": [
+      -4,
+      -3,
+      -2,
+      -1,
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "passed": true,
+    "widened": false
+  },
+  "row_text": "CONFIRMED. The one-symbol displacement is the waterfall origin convention; the GRID path is the displaced one; coherent is correct in raw-PCM terms. The displacement is no longer unexplained. A narrow, D1-compatible origin correction becomes the named Phase B fix; B3 stays HELD; the Architect brings the Captain the Sec.5 ruling with these numbers.",
+  "secondary_sign_agreement": {
+    "curve": {
+      "-1": {
+        "mean_agreement": 0.7159770114942529,
+        "n_trials": 100
+      },
+      "-2": {
+        "mean_agreement": 0.9082758620689655,
+        "n_trials": 100
+      },
+      "-3": {
+        "mean_agreement": 0.7305747126436781,
+        "n_trials": 100
+      },
+      "-4": {
+        "mean_agreement": 0.5974712643678161,
+        "n_trials": 100
+      },
+      "-5": {
+        "mean_agreement": 0.5840229885057471,
+        "n_trials": 100
+      },
+      "-6": {
+        "mean_agreement": 0.5712643678160919,
+        "n_trials": 100
+      },
+      "0": {
+        "mean_agreement": 0.605632183908046,
+        "n_trials": 100
+      },
+      "1": {
+        "mean_agreement": 0.5800574712643678,
+        "n_trials": 100
+      },
+      "2": {
+        "mean_agreement": 0.570919540229885,
+        "n_trials": 100
+      }
+    },
+    "m_range": [
+      -6,
+      -5,
+      -4,
+      -3,
+      -2,
+      -1,
+      0,
+      1,
+      2
+    ],
+    "peak_m": -2
+  },
+  "seed": 20260821,
+  "time_quantum_s": 0.08
+}
