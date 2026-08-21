@@ -224,3 +224,213 @@ authorises starting this section.**
       Captain reviews and decides on merge; this task does not declare readiness
       unprompted. **Stopping here. No `src/` touched, no DLL rebuilt, no Developer
       session opened.**
+
+---
+
+# Phase B — origin fix (B1), fusion fix (B2), LDPC-decode diagnostic export (B4,
+# Amendment 1), and the cascade pin (C1)
+
+**Authority:** `qa/rr-study/2026-08-21-1525-architect-to-qa-spec-phase-b-origin-and-
+fusion-fix-and-row0g-rerun.md`, amended by `qa/rr-study/2026-08-21-1644-architect-to-
+qa-phase-b-amendment-1-ldpc-decode-llrs-export-and-cascade-pin.md`. **If any task below
+appears to conflict with either spec, the specs win — escalate, don't guess.**
+
+🔴 **§7-10 are a `native/` change. HK-011 is engaged; nothing below authorises starting
+them.** Only a Captain-opened Developer session runs `opsx:apply` on §7-10 (build and
+tests only — never `pre_merge_check.py`, HK-006). The Captain reviews the diff before
+any push or merge (HK-010/HK-014). §11 is QA's own follow-on run, not the Developer
+session's. §12 (C1) is docs-only and needed no Developer session — it is applied
+already, by this same authoring pass (design.md Decision D-B2-1).
+
+## 7. B1 — the waterfall-origin correction (native)
+
+**BLOCKED on a Captain-opened Developer session (HK-011).**
+
+- [ ] 7.1 In `ft8_coherent_llr_at` (`native/ft8_lib_vendor/refine/coherent_llr.c`),
+      after the existing lattice snap produces `time_offset_s_grid` (currently used
+      directly to form `origin_sample_f` at line 437), apply the correction:
+      `correction_symbols = 1/time_osr − freq_osr/2 − 0.5` (== `-1.0` at production's
+      own `K_TIME_OSR = K_FREQ_OSR = 2`), `origin_sample_f = (time_offset_s_grid +
+      correction_symbols * symbol_period) * fs`. **Derive `time_osr`/`freq_osr`/
+      `symbol_period` from `mon.wf.time_osr`/`mon.wf.freq_osr`/`mon.symbol_period` —
+      all three are already read in this function (lines 394-398) — captured before
+      `monitor_free(&mon)` at line 413. Do NOT hardcode `-0.16f` or `-1.0f`.**
+- [ ] 7.2 Add a comment at the correction naming *why* it exists — the look-back window
+      and the `b + (s+1)/T − F/2` window-centre derivation — pointing at
+      `qa/rr-study/2026-08-21-1412-architect-to-qa-origin-convention-finding-and-spec-
+      b-orig-a.md`. A bare unexplained constant is how this defect survived the C port.
+- [ ] 7.3 Confirm the derived `-1.0` symbol correction (at production OSR) matches
+      `qa/rr-study/n2-coherent-llr-extractor/coherent_extract.py:227`'s own
+      `TIME_ORIGIN_CORRECTION_SAMPLES_2K = -SPS_2K` constant, calibrated empirically in
+      the Python prototype since the N2 session. **If it does not match, stop and
+      escalate — do not proceed to rebuild.**
+
+## 8. B2 — the fusion normalisation (native, same session as §7)
+
+- [ ] 8.1 Before the cross-`n_syms` magnitude comparison at `coherent_llr.c:480`
+      (`if (n_syms == 1 || fabsf(candidate) > fabsf(out_log174[gb]))`), standardise
+      each window's per-bit LLRs to a common, window-size-independent scale before
+      comparing (design.md D9) — e.g. divide each window's `bit_llr[]` by
+      `scale = stddev(mag[0..n_tones))` for that window, guarding `scale > 0` (leave
+      the window's LLRs unscaled, or exclude it, if not). A better-justified
+      alternative is acceptable if the reasoning is recorded in the commit/code
+      comment. Do **not** fix this by restricting `n_syms` — the 1-, 2- and 3-symbol
+      windows must all remain in the comparison; that coherence is Route B2's entire
+      premise.
+- [ ] 8.2 Add the mandatory unit test (design.md D9, `specs/ft8-coherent-llr/spec.md`'s
+      "Fusion selects by normalised reliability, not by window length" scenario):
+      construct two windows whose magnitudes carry equal discriminative information but
+      differ in absolute scale by a known factor; assert their normalised per-bit LLRs
+      agree to a stated tolerance, and assert the pre-normalisation values do **not**.
+      C-side or Python-side, Developer's choice of placement — record which, and why.
+
+## 9. B4 — `ft8_ldpc_decode_llrs` diagnostic export (native, Amendment 1, same session)
+
+- [ ] 9.1 Add `ft8_ldpc_decode_llrs` to `native/ft8_lib_build/patched/ft8/decode.c`
+      (forced placement — `ftx_normalize_logl` at `decode.c:391` and `osd_decode` at
+      `decode.c:507` are both `static` there), exactly as `ftx_extract_likelihood_at`
+      (`decode.c:838`) already does, with a thin wrapper in `ft8_shim.c` (the
+      established two-file pattern). Signature per the 1644Z spec §B.2:
+      `int ft8_ldpc_decode_llrs(const float* llr174, int max_iters, int osd_depth,
+      uint8_t* out_a91, int* out_ldpc_errors, int* out_path, int* out_crc_ok)`.
+      **Do not un-`static` anything, do not move `osd_decode`, do not duplicate the
+      CRC or normalisation arithmetic into the shim.**
+- [ ] 9.2 Implement in this order, mirroring `decode.c:641-713` and nothing else (1644Z
+      spec §B.3): (1) `memcpy` the caller's vector into a local `float
+      log174[FTX_LDPC_N]` — never modify the caller's buffer, `bp_decode` writes
+      through its argument; (2) degenerate guard FIRST (copy `decode.c:799`'s own guard
+      in spirit — zero variance ⇒ `ftx_normalize_logl` would divide by zero ⇒ return a
+      negative rc, do not normalise); (3) `ftx_normalize_logl(log174)` — **mandatory**,
+      removes any global scale difference between the grid and coherent LLR vectors
+      before BP sees them, without it B4 measures scale, not quality; (4) save the
+      normalised vector for OSD (`decode.c:643-646`); (5) `bp_decode(log174,
+      max_iters, plain174, out_ldpc_errors)`; (6) pack to `a91`, extract/compute CRC-14
+      (`decode.c:707-713`), compare; (7) **if and only if the CRC fails and
+      `osd_depth >= 0`**, run the OSD fallback exactly as production does (including
+      its existing two-feature accept/reject gate), re-check the CRC, report which path
+      succeeded in `out_path` (`0` = BP converged, `1` = OSD fallback, `-1` = neither).
+- [ ] 9.3 Confirm `decode.c`'s existing functions are byte-for-byte unchanged (diff
+      against the pre-change source) and that no production call site anywhere in
+      `decode.c`/`ft8_shim.c` calls `ft8_ldpc_decode_llrs` (grep-confirmed). B4 gets no
+      `Ft8LibInterop`/`IFt8NativeInterop` C# binding (design.md D10) — reachable only
+      from test code and QA harnesses via the native-library loading mechanism.
+- [ ] 9.4 Native or Python smoke tests (Developer's choice of placement, per the
+      `n1-extract-llrs-at-position` precedent design.md D10 cites), covering all five
+      mandatory acceptance checks from the 1644Z spec §C — **all two-sided/floor bars
+      below are load-bearing, not advisory:**
+      - **B4-a** (positive control): encode a known message, build its exact codeword
+        LLRs (`+1`/`-1` scaled, no noise), decode → `crc_ok == 1` **and** the `a91`
+        payload matches the encoded message bit-for-bit.
+      - **B4-b** (negative control, HK-021(n)): pure Gaussian LLRs, fixed seed, 20
+        trials → `crc_ok == 0` on **all 20**.
+      - **B4-c**: the caller's input buffer, read back after the call, is byte-identical
+        to before.
+      - **B4-d**: zero-variance input → negative rc, no crash, no NaN.
+      - **B4-e** (the only check with known ground truth, HK-026): take rows
+        `ft8_decode_all` DID decode live, extract with `ft8_extract_llrs_at` at the
+        grid candidate's own position, feed B4 → **≥ 90% agreement** (`crc_ok == 1`) on
+        rows production decoded, and the recovered message text matches. **If it lands
+        below 90%, STOP and escalate — B4 is not reproducing the production decode
+        path and no C2 number can be read.** (Report per-row `out_path` so a
+        BP-vs-OSD split remains possible later without re-running anything — Amendment
+        1 §G.)
+      🔴 **B4-a through B4-d are mandatory and gate this task. B4-e failing does NOT
+      block ROW 0g (§11.3 below) — B4 is inert, nothing calls it — but it MUST be
+      reported and MUST stop any C2 work (C2 is not this change's scope regardless).**
+
+## 10. Version, pin, cross-platform build — Phase B (native, same session)
+
+**BLOCKED on the same Developer session as §7-9.**
+
+- [ ] 10.1 Bump `FT8_SHIM_VERSION`/`ExpectedShimVersion` from `20260043` to `20260044`.
+      🔴 **Assert mechanically that `20260044` is unused across all branches before
+      adopting it** — do not infer freedom from the number being the next integer (the
+      board already records two collisions across five unmerged `d001-*` branches).
+      Header history entry in the established style (`ft8_shim.h`).
+- [ ] 10.2 Rebuild all three platform binaries you have toolchain access to; record
+      each SHA256 honestly (state, don't skip silently, if a platform is unavailable —
+      same standard R0/Phase 1 used for macOS). `dumpbin /exports`/`nm -D`/platform
+      equivalent: confirm `ft8_ldpc_decode_llrs` is present, every previously-exported
+      symbol is unchanged, and it is the **only** addition.
+- [ ] 10.3 Re-run a production-decode-equality replay (≥200 contiguous cycles,
+      `qa/cycleframer-alignment-replay/r0_ac1_ac2_replay.py` +
+      `r0_ac1_ac2_diff.py`, reused verbatim — HK-018) between the pre-Phase-B and new
+      binaries: zero decode-output differences, mechanically diffed, on every platform
+      rebuilt.
+- [ ] 10.4 **Re-pin the harnesses in one place.**
+      `qa/rr-study/r2-coherent-llr-instrument/coherent_llr_ctypes.py:40-41`'s
+      `CURRENT_DLL_SHA256`/`CURRENT_SHIM_VERSION` — read the rebuilt DLL's actual
+      SHA256 from disk, do not copy it from a report. Confirms the four harnesses that
+      import these constants (`row0g_instrument_gain_check.py`,
+      `b_pos_a_lattice_position.py`, `b_orig_a_origin_convention.py`,
+      `phase_a_deconfounding.py`) all pick up the new pin.
+- [ ] 10.5 Verify mechanically whether `.github/workflows/ci.yml`'s fourth build recipe
+      needs an edit for the new `decode.c` export (B4 adds a new *symbol*, even though
+      no new source *file* — re-check rather than inheriting Phase 1's "no edit needed"
+      answer). State the result either way.
+- [ ] 10.6 `dotnet build`: 0 warnings. `dotnet test`: full suite green (regression check
+      only — Phase B adds no C# code, design.md D10). Confirm nothing in
+      `Ft8LibInterop`'s ABI self-test path broke from the version bump alone.
+- 🛑 The Developer session runs **build + tests only**. `pre_merge_check.py` is the
+      Captain's initiative alone (HK-006).
+
+## 11. Acceptance ordering — QA, after the Developer session, in this exact order
+
+**BLOCKED on §7-10 landing.** Two changes (B1, B2) share one Developer session, which
+normally destroys attribution; this ordering restores it (2026-08-21 15:25Z spec §5).
+
+- [ ] 11.1 **FIRST — re-run `b_orig_a_origin_convention.py` exactly as it ran at
+      2026-08-21 15:00Z** (same seed, same N, same spec) — the acceptance test for B1
+      alone. Required: `mode(G)` = `+2`, **unchanged** (control — the grid path must be
+      untouched); `mode(C)` moves `0` → `+2` (B1 works: coherent now agrees with grid's
+      own cell). 🔴 **If `mode(C)` does not move to `+2`, B1 is wrong or mis-applied —
+      STOP, do not run §11.3, escalate. If `mode(G)` moves at all, something touched
+      the grid path that should not have — STOP and escalate; this is a genuine
+      control.** Report `frac_at_mode` for both; a drop in `frac_at_mode(C)` well below
+      0.918 is worth flagging (possible B2 variance) but is not itself a stop
+      condition.
+- [ ] 11.2 **SECOND — confirm the B2 unit test (§8.2) passes.**
+- [ ] 11.3 **THIRD, only if 11.1 and 11.2 both pass — re-run ROW 0g AS PRE-REGISTERED**
+      (`qa/rr-study/2026-08-21-1038-architect-to-qa-spec-b2-phase1-row0g-instrument-
+      gain-check.md`, `specs/ft8-coherent-llr/spec.md`'s ROW 0g Requirement above):
+      same population, same sample, same seed, same anchor, same bars, both limbs —
+      **not a variant, not a re-read of existing output with a better metric.**
+      - Floor: fewer than 100 rows or 60 clusters delivered ⇒ STOP and escalate rather
+        than run (HK-021(i)).
+      - `d_clean`/`d_real` are **signed** — never gate on `|d|` (HK-021(l)).
+      - **ROW 0g PASSES** ⇒ the Phase 1 gate (§4.3 above) is evaluated exactly as
+        pre-registered in the 2026-08-19 spec §3.
+      - **ROW 0g FIRES** ⇒ §4.3 stays VOID, no ROW 1/2/3/4 may be read, ROW 3 must not
+        be declared, Route B2 must not be called dead — report which limb fired and
+        STOP.
+      - A PASS is not a certificate of correctness — it says the correlator is not
+        grossly defective in the ways ROW 0g names.
+- [ ] 11.4 **Attribution statement, recorded regardless of outcome:** if 11.1 passes and
+      ROW 0g still fires at 11.3, B1 is confirmed working and the residual belongs to
+      fusion/frequency, not to position (2026-08-21 15:25Z spec §5.3).
+
+## 12. C1 — pin the cascade shape in `design.md` (docs only, QA, no Developer session)
+
+- [x] 12.1 Added Decision **D-B2-1** to `design.md` (the coherent path is a fallback
+      leg behind the grid path, never a replacement — grid decodes first; the coherent
+      leg runs only where the grid decode's CRC-14 already failed, on that candidate,
+      emitting only if its own CRC-14 passes), verbatim per the 1644Z spec §E, in this
+      document's own house style. `openspec validate r2-coherent-llr-instrument
+      --strict` confirmed passing after the edit. Does **not** amend design.md D1 — the
+      2026-08-21 12:01Z spec §5 ruling on D1 remains the Captain's and remains owed.
+
+## 13. Reporting and wrap-up — Phase B
+
+- [ ] 13.1 Write the Phase B QA→Architect report: B1/B2 diffs (or a statement that the
+      Developer session recorded an alternative, equally-justified fusion rule per
+      §8.1), the §11 acceptance-ordering results in order (11.1 mode(C)/mode(G), 11.2
+      unit test, 11.3 ROW 0g both limbs), the §9.4 B4 acceptance results (B4-a through
+      -e, explicit on whether B4-e cleared 90%), the new SHA256s per platform, and the
+      §10.4 re-pin confirmation.
+- [ ] 13.2 State plainly whether the Phase 1 kill gate (`tasks.md` §4.3) is now
+      unblocked, still void, or newly void for a different reason — say so, or say
+      what's still missing. Do not declare Route B2 dead or alive; that verdict, if any
+      fires, belongs to §4.3 itself, evaluated only after §11.3 passes.
+- [ ] 13.3 Stop. No push, no merge, no `pre_merge_check.py` (HK-014/HK-010/HK-006) — the
+      Captain reviews the diff and decides on merge; this task does not declare
+      readiness unprompted.
