@@ -2,7 +2,9 @@
 
 **Author:** Architect
 **Date:** 2026-08-21 23:34Z (`date -u`, HK-017)
-**Status:** TASK 1 is URGENT and blocking. TASK 2 is a pre-registered arm, no `src/` change.
+**Status:** **TASK 1 was URGENT and blocking -- it is now DONE** (executed 23:43Z by the
+Architect on the Captain's instruction; see the banner in section 1, and section 1.3 for what
+QA still owes it). TASK 2 is a pre-registered arm, no `src/` change, and is **the live work**.
 **Supersedes nothing.** Companion to the 23:34Z **Amendment 3**, which corrects the
 23:11Z Amendment 2. Read that one too; this document is the RUN, that one is the RECORD.
 **HK-011:** neither task in this document touches `src/` or native code. No Developer
@@ -31,6 +33,37 @@ is the only reason it is cheap.
 
 ## 1. TASK 1 -- ARCHIVE the Phase B binaries. Do this before anything else.
 
+> ## ✅ TASK 1 IS DONE -- executed 2026-08-21 23:43Z by the Architect
+>
+> **On the Captain's direct instruction ("secure the binaries at all costs"),** because a
+> file copy touches no `src/` content and delay was the whole risk. **QA does not need to
+> perform this task.** What QA still owes it is section 1.3: **verify before relying on it.**
+>
+> Two independent copies, on different drives, both verified:
+>
+> | Location | Drive | Exposure |
+> |---|---|---|
+> | `artefacts/2026-08-21-phase-b-pre-amendment-2-binaries/` | D: | in-repo, gitignored -- **`git clean -xdf` would delete this** |
+> | `C:\Users\Frank\.claude\projects\D--Projects-claude-OpenWSFZ\preserved-binaries\2026-08-21-phase-b-pre-amendment-2\` | C: | outside the repo, untouched by any git operation |
+>
+> Each contains `libft8.dll`, `libft8.so`, a mechanically generated `SHA256SUMS`, and a
+> `README.md` carrying full provenance and recovery instructions. Binaries and manifests are
+> set **read-only** on both POSIX bits and the Windows ReadOnly attribute.
+>
+> **Verification performed:** live originals re-hashed and matched the 23:31Z record before
+> copying; `sha256sum -c` passed in both locations; `cmp` byte-for-byte against the live
+> originals passed in both locations; the two archives `cmp` identical to each other; the
+> live originals confirmed still intact afterwards.
+>
+> **Identity asserted from the artefacts, not from a version label** (both platforms agree):
+> `ft8_ldpc_decode_llrs` **present** => this IS the Phase B build; `ft8_get_last_snr_terms`
+> **absent** => this IS pre-Amendment-2; version constant **20260044** present, 20260043 and
+> 20260045 both absent. This is what AC-N1 should assert against.
+>
+> **Still open, and NOT actioned:** these binaries are still not in version control.
+> Committing the Phase B build is the durable fix and an **HK-011 Captain call** -- flagged
+> in section 1.4, deliberately not acted on.
+
 ### 1.1 The two files at risk, with their SHA256 as of 23:31Z
 
 | File | SHA256 |
@@ -55,13 +88,25 @@ binaries are safe there), containing:
 4. Re-verify the copies against `SHA256SUMS` after copying. A copy you have not verified
    is not a backup.
 
-### 1.3 Then flag this to the Captain, do not decide it yourself
+### 1.3 What QA still owes TASK 1 -- verify, do not inherit
+
+The archive above was made by the Architect, so QA has not verified it. **Before AC-N1 or
+anything else relies on it**, independently confirm:
+
+1. `sha256sum -c SHA256SUMS` passes in **both** locations in the banner above.
+2. The hashes equal `a3d32b78...` / `13d9799d...` -- the values in section 1.1.
+3. `ft8_get_last_snr_terms` is **absent** from both binaries (i.e. it really is the
+   pre-Amendment-2 build), and `ft8_ldpc_decode_llrs` is **present** (it really is Phase B).
+
+A backup nobody has verified is not a backup. That applies to mine.
+
+### 1.4 Then flag this to the Captain, do not decide it yourself
 
 The durable fix is to **commit the Phase B build**, not to keep it in a gitignored folder.
 That is an HK-011 `src/` decision and therefore the Captain's, not QA's and not mine.
 Raise it; do not act on it.
 
-### 1.4 The standing rule this sits under
+### 1.5 The standing rule this sits under
 
 `FT8_SHIM_VERSION` identifies nothing -- 20260044 will be reported by both the current
 build and the post-Amendment-2 build if the bump is missed. **Pin and assert the SHA256.**
