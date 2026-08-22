@@ -59,6 +59,9 @@ public sealed class CoherentLlrAtTests
             return StubLog174;
         }
 
+        public (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded)
+            => (new float[maxDecoded], new float[maxDecoded]);
+
         private static float[] BuildStubLog174()
         {
             var log174 = new float[174];

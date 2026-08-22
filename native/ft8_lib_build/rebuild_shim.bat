@@ -151,6 +151,7 @@ link /DLL ^
   /EXPORT:ft8_extract_llrs_at ^
   /EXPORT:ft8_coherent_llr_at ^
   /EXPORT:ft8_ldpc_decode_llrs ^
+  /EXPORT:ft8_get_last_snr_terms ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\constants.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\crc.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\decode.obj" ^

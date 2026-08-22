@@ -26,11 +26,17 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "qa", "rr-study", "n1-extract-llrs-at
 
 from extract_llrs_ctypes import ExtractLLRs  # noqa: E402
 
-# Amendment 2/3 pin (task 16.4) -- read from disk this session, matches
-# coherent_llr_ctypes.py's own pin byte-for-byte (both modules re-pin independently
-# rather than importing one from the other, so each stays importable standalone).
-CURRENT_DLL_SHA256 = "f0c081b968b04515f3fe76b853b423c77be1495d8e645115ceb3434f9e81fe58"
-CURRENT_SHIM_VERSION = 20260045
+# Prior pin (Amendment 2, corrected by Amendment 3, shim 20260045, task 16.4):
+#   CURRENT_DLL_SHA256 = "f0c081b968b04515f3fe76b853b423c77be1495d8e645115ceb3434f9e81fe58"
+#   CURRENT_SHIM_VERSION = 20260045
+# Current pin (fix-negative-time-offset-snr-collapse, shim 20260046, tasks.md 7.1):
+# re-verified against the freshly rebuilt win-x64 libft8.dll on disk this QA session
+# (sha256sum'd directly, not copied from a report) -- do not reuse the pre-fix pin.
+# Matches coherent_llr_ctypes.py's own pin byte-for-byte (both modules re-pin
+# independently rather than importing one from the other, so each stays importable
+# standalone) -- coherent_llr_ctypes.py's own pin is a separate, not-yet-updated file.
+CURRENT_DLL_SHA256 = "bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f"
+CURRENT_SHIM_VERSION = 20260046
 
 
 class SnrTermsDecoder(ExtractLLRs):

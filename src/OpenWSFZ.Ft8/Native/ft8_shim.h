@@ -543,8 +543,87 @@ extern "C" {
  *   D10) -- the consumer is the Python QA harness and this session's own
  *   native/Python smoke tests, the same pattern ft8_extract_llrs_at
  *   already established.
+ *
+ * r2-coherent-llr-instrument Amendment 2 (corrected by Amendment 3),
+ * FT8_SHIM_VERSION 20260045, task 16.1: asserted unused across all branches
+ * (local and origin) before adoption. Two changes in one rebuild ("one
+ * rebuild, not two"):
+ *
+ *   (1) Widens ftx_ldpc_decode_llrs's degenerate-variance guard
+ *   (patched/ft8/decode.c:940, added by B4) from exact-equality
+ *   `variance == 0.0f` to `!(variance > 0.0f)`, matching coh_window_scale's
+ *   own guard (coherent_llr.c, added by B2) -- also catches a
+ *   float-cancellation NEGATIVE variance the exact-equality check alone
+ *   would miss, which could otherwise let a near-constant-but-not-bit-exact
+ *   input slip past the guard into ftx_normalize_logl's sqrtf(24.0f/
+ *   variance) and produce NaN. B4-d re-run after the edit: still negative
+ *   rc, still no crash, no NaN, on the same all-3.5f zero-variance input.
+ *   ftx_ldpc_decode_llrs has no production call site (grep-confirmed) and
+ *   no C# binding, so this is provably off the production decode path.
+ *
+ *   (2) Adds ft8_get_last_snr_terms() -- a new diagnostic-only TLS getter
+ *   exposing signal_db/local_noise_db (the SNR formula's two terms,
+ *   ft8_shim.c:1474) for every decode from the most recent ft8_decode_all
+ *   call on this thread, index-aligned with results[]/FT8Result[] from
+ *   that same call. Two new _Thread_local float arrays (tls_signal_db,
+ *   tls_local_noise_db) plus a count, written at the same pre-increment
+ *   index results[] uses for each decode -- read-only, no control-flow,
+ *   ordering, or value change to any existing decode-path computation.
+ *   Built to localise a large, conditional SNR-reporting error (measured
+ *   against the true_dt == 0 vs true_dt > 0 split, arm B-dt-A) to one of
+ *   its two terms. Unlike B4, this export DOES get a C# Ft8LibInterop/
+ *   IFt8NativeInterop binding (Ft8LibInterop.GetLastSnrTerms).
+ *
+ *   No production call site for either change. ftx_decode_candidate(),
+ *   ft8_decode_all's production decode path, and every other existing
+ *   exported symbol remain byte-for-byte unchanged in ABI. No struct
+ *   layout change (FT8Result stays 48 bytes).
+ *
+ * fix-negative-time-offset-snr-collapse (FT8_SHIM_VERSION 20260046):
+ * corrects a defect in ft8_decode_all's production signal_db loop
+ * (ft8_shim.c:1485-1513) -- unlike every prior entry above, this DOES
+ * touch the production decode path.
+ *
+ *   Defect: for any candidate whose time_offset < 0 (an ordinary outcome
+ *   of ftx_find_candidates()'s -10..+19 search range, meaning the signal's
+ *   true sync position precedes the nominal 15 s decode window), the
+ *   per-block symbol index used to read tones[] was derived as
+ *   tones[b - b0] where b0 is time_offset CLAMPED to a non-negative floor
+ *   -- not the true, unclamped time_offset. This silently re-anchored
+ *   symbol 0 to the wrong absolute block, so every one of the up to 79
+ *   averaged samples was read from the wrong tone bin, under-reporting
+ *   SNR by roughly 15-20 dB. The loop's upper bound (b1 = b0 + FT8_NN)
+ *   was computed from the same clamped b0, so no iterations were skipped
+ *   either -- the corruption was total, not partial.
+ *
+ *   Fix: b1 is now computed from the unclamped time_offset
+ *   (time_offset + FT8_NN, then clipped to mon.wf.num_blocks as before),
+ *   and the per-iteration symbol index is tones[b - time_offset]
+ *   (unclamped). b0 itself is unchanged -- it still exists solely to
+ *   keep the waterfall block read non-negative. Both bounds move
+ *   together: fixing the index alone without narrowing b1 to match would
+ *   let tone_col run past FT8_NN - 1, an out-of-bounds read of the
+ *   79-element tones[] array. ft8_lib's own convention
+ *   (patched/ft8/decode.c:160,226: `if (block_abs < 0) continue;`,
+ *   computed from the unclamped time_offset) already handles this
+ *   correctly; this shim now mirrors it.
+ *
+ *   Confirmed mechanically: qa/rr-study/2026-08-22-1454-qa-to-architect-
+ *   b-dt-c3-results.md (arm B-dt-C3) measured a 17.4 dB step in reported
+ *   SNR co-located exactly with the block at which time_offset turns
+ *   negative -- ~210x larger than the largest deficit a benign "signal
+ *   partly outside the window" explanation could produce there (0.083 dB).
+ *
+ *   cnt (the sample count signal_db is averaged over) may now legitimately
+ *   be smaller than 79 for early-arriving signals -- thinned by missing
+ *   leading blocks, which is correct, rather than corrupted by wrong
+ *   ones, which was the prior behaviour. No change to
+ *   compute_local_noise_floor_db (the SNR formula's other term, unaffected
+ *   by this defect). No ABI break, no struct layout change (FT8Result
+ *   stays 48 bytes), no new export -- this is a correctness fix to an
+ *   always-active production code path.
  */
-#define FT8_SHIM_VERSION 20260044
+#define FT8_SHIM_VERSION 20260046
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -675,6 +754,37 @@ int ft8_get_last_llr_stats(
     float* out_mean_abs,
     float* out_prenorm_variance,
     int*   out_fail_count,
+    int    capacity);
+
+/*
+ * ft8_get_last_snr_terms — return the two terms of the per-signal SNR
+ * formula for every decode returned by the most recent ft8_decode_all call
+ * on THIS thread (Amendment 2, corrected by Amendment 3, shim 20260045).
+ *
+ *   snr = signal_db - local_noise_db - 26.5f      (ft8_shim.c:1474)
+ *
+ * out_signal_db[i] / out_local_noise_db[i] correspond to results[i] from
+ * that same call -- INDEX-ALIGNED, same order (AC-N3, the count contract:
+ * this function's own return value must equal ft8_decode_all's own return
+ * value for the same call).
+ *
+ * Either out pointer may be NULL to request only the other array. If BOTH
+ * are NULL, the function writes nothing and returns the count it would
+ * have written (Amendment 3 correction 4(c)).
+ * Writes at most `capacity` entries; returns the number written.
+ * Returns -1 if capacity < 0.
+ *
+ * Read-only diagnostic getter: no production call site anywhere calls this
+ * function; it is reachable only from test code and QA harnesses, exactly
+ * like ft8_get_last_pass_counts / ft8_get_last_candidate_counts /
+ * ft8_get_last_llr_stats.
+ *
+ * Threading: same contract as ft8_get_last_pass_counts -- must be called
+ * from the thread that called ft8_decode_all.
+ */
+int ft8_get_last_snr_terms(
+    float* out_signal_db,
+    float* out_local_noise_db,
     int    capacity);
 
 /*

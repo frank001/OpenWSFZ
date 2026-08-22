@@ -927,7 +927,16 @@ int ftx_ldpc_decode_llrs(
     /* Step 2: degenerate guard FIRST, copying decode.c's own
      * ftx_compute_candidate_llr_stats guard (above, "variance == 0.0f")
      * in spirit: zero variance means ftx_normalize_logl would divide by
-     * zero. Return a negative rc without normalising (B4-d). */
+     * zero. Return a negative rc without normalising (B4-d).
+     *
+     * Amendment 2 §7 (2026-08-21 22:09Z QA code review): widened from
+     * exact-equality `variance == 0.0f` to `!(variance > 0.0f)`, matching
+     * coh_window_scale's own guard (coherent_llr.c, added by B2/task 8.1).
+     * `!(variance > 0.0f)` also catches a float-cancellation NEGATIVE
+     * variance that exact equality alone would miss, which could otherwise
+     * let a near-constant-but-not-bit-exact input slip past the guard into
+     * ftx_normalize_logl's sqrtf(24.0f/variance) and produce NaN —
+     * contradicting B4-d's own "no crash, no NaN" charter. */
     {
         float sum = 0.0f, sum2 = 0.0f;
         for (int i = 0; i < FTX_LDPC_N; ++i)
@@ -937,7 +946,7 @@ int ftx_ldpc_decode_llrs(
         }
         float inv_n = 1.0f / FTX_LDPC_N;
         float variance = (sum2 - (sum * sum * inv_n)) * inv_n;
-        if (variance == 0.0f)
+        if (!(variance > 0.0f))
             return -2;
     }
 

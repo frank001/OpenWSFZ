@@ -128,4 +128,18 @@ internal interface IFt8NativeInterop
     /// <param name="freqHz">Candidate grid frequency (Hz) — tone 0's frequency, unrefined.</param>
     /// <param name="timeOffsetS">Candidate grid time offset (s) from cycle start, unrefined.</param>
     float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS);
+
+    /// <summary>
+    /// Return the two terms of the per-signal SNR formula for every decode
+    /// returned by the most recent <see cref="DecodeAll"/> call on this thread
+    /// (Amendment 2, corrected by Amendment 3, shim 20260045).
+    /// <para>
+    /// <c>snr = signal_db - local_noise_db - 26.5f</c>. <c>SignalDb[i]</c> /
+    /// <c>LocalNoiseDb[i]</c> correspond to the <c>i</c>-th result from that
+    /// same <see cref="DecodeAll"/> call — INDEX-ALIGNED, same order.
+    /// </para>
+    /// MUST be called on the same thread as <see cref="DecodeAll"/>.
+    /// </summary>
+    /// <param name="maxDecoded">Maximum number of decodes to query (array capacity).</param>
+    (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded);
 }

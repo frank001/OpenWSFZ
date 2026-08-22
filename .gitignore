@@ -172,6 +172,16 @@ qa/rr-study/p-live-population/results/*_rows.json
 # Linux cross-platform R&R — runtime artefacts generated at repo root during WSL2 sessions.
 # These are operator files, not source, and may contain callsigns (NFR-021).
 linux-all.txt
+
+# r2-coherent-llr-instrument AC-N1 replay corpora — full decode replays of the real
+# WINDOW_20M 20m off-air window (b_dt_c1/c3 sibling arms' report.json/run.log carry no
+# "message" field and are unaffected). Confirmed by QA 2026-08-22 (fix-negative-time-
+# offset-snr-collapse review): every replay_*.json file's "message" values are real,
+# assignable-format amateur callsigns (e.g. SJ6AVS, VA7ZM, KB7AWG) — NFR-021 violation,
+# merge-blocking, regardless of how the change proposal that produces them describes
+# them ("committed"). Never commit; regenerate locally via the harness against the
+# pinned DLL when a regression check needs to be re-run.
+qa/rr-study/r2-coherent-llr-instrument/results/replay_*.json
 linux-daemon.log
 
 # Native build diagnostic variants — intermediate DLLs produced during

@@ -582,6 +582,14 @@ static _Thread_local int   tls_llr_fail_count[K_MAX_PASSES];
 static _Thread_local int   tls_num_passes       = 0;
 static _Thread_local float tls_last_noise_floor_db = 0.0f;
 
+/* Amendment 2 (shim 20260045): per-decode SNR-formula terms, index-aligned
+ * with results[]/FT8Result[] from the same ft8_decode_all call. See
+ * ft8_get_last_snr_terms's own header comment in ft8_shim.h for the full
+ * contract. */
+static _Thread_local float tls_signal_db[K_MAX_DECODED];
+static _Thread_local float tls_local_noise_db[K_MAX_DECODED];
+static _Thread_local int   tls_num_decoded_snr_terms = 0;
+
 /* ── Thread-local AP decode state (Task A, shim 20260020) ────────────────── */
 /*
  * AP bit constraints supplied by ft8_set_ap_bits().  Copied into an override
@@ -1170,6 +1178,32 @@ int ft8_get_last_llr_stats(
     return n;
 }
 
+/* ── Per-decode SNR-terms query (Amendment 2, shim 20260045) ─────────────── */
+/*
+ * ft8_get_last_snr_terms — see ft8_shim.h for the full contract (NULL/
+ * both-NULL/negative-capacity handling, index-alignment guarantee).
+ */
+int ft8_get_last_snr_terms(
+    float* out_signal_db,
+    float* out_local_noise_db,
+    int    capacity)
+{
+    if (capacity < 0)
+        return -1;
+
+    int n = (tls_num_decoded_snr_terms < capacity) ? tls_num_decoded_snr_terms : capacity;
+
+    for (int i = 0; i < n; i++)
+    {
+        if (out_signal_db != NULL)
+            out_signal_db[i] = tls_signal_db[i];
+        if (out_local_noise_db != NULL)
+            out_local_noise_db[i] = tls_local_noise_db[i];
+    }
+
+    return n;
+}
+
 /* ── AP decode setter (Task A, shim 20260020) ────────────────────────────── */
 /*
  * ft8_set_ap_bits — supply known AP bit constraints for the next decode cycle.
@@ -1276,6 +1310,7 @@ int ft8_decode_all(
     for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_mean_abs_sum[i]    = 0.0f;
     for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_prenorm_var_sum[i] = 0.0f; /* Task B */
     for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_fail_count[i]      = 0;
+    tls_num_decoded_snr_terms = 0; /* Amendment 2, shim 20260045 */
     tls_num_passes = 0;
 
     /* ── 4a. Cross-pass suppression accumulator ─────────────────────────── */
@@ -1454,13 +1489,28 @@ int ft8_decode_all(
                 int pt = mon.wf.freq_osr * mon.wf.num_bins;
                 int nb = mon.wf.num_bins;
                 int b0 = (int)cand->time_offset; if (b0 < 0) b0 = 0;
-                int b1 = b0 + FT8_NN;
+                /* fix-negative-time-offset-snr-collapse (shim 20260046): b1 and the
+                 * per-block symbol index below must both be derived from the TRUE,
+                 * unclamped cand->time_offset, not from the b0 that was just floored
+                 * to 0. Before this fix, tones[b - b0] silently re-anchored symbol 0
+                 * to whatever absolute block b0 landed on for any time_offset < 0
+                 * candidate (an ordinary outcome of ftx_find_candidates()'s -10..+19
+                 * search range) -- every one of the up-to-79 averaged samples was
+                 * read from the wrong tone bin, undercounting SNR by ~15-20 dB.
+                 * ft8_lib's own convention (patched/ft8/decode.c:160,226) computes
+                 * the absolute block from the unclamped time_offset and skips
+                 * (never re-anchors) out-of-range blocks; this mirrors that.
+                 * Confirmed mechanically: qa/rr-study/2026-08-22-1454-qa-to-architect
+                 * -b-dt-c3-results.md (17.4 dB step co-located with the sign change).
+                 * b1 is narrowed to match so tone_col = b - time_offset can never run
+                 * past FT8_NN - 1 (see design.md Decision 1). */
+                int b1 = (int)cand->time_offset + FT8_NN;
                 if (b1 > mon.wf.num_blocks) b1 = mon.wf.num_blocks;
                 int fi = (int)cand->time_sub * pt + (int)cand->freq_sub * nb +
                          (int)cand->freq_offset;
                 for (int b = b0; b < b1; b++) {
                     const WF_ELEM_T* row = mon.wf.mag + b * bs + fi;
-                    int tone_col = (int)tones[b - b0];
+                    int tone_col = (int)tones[b - (int)cand->time_offset];
                     /* RQ-2 guard: tones[x] ∈ [0,7]; for signals near f_max the
                      * active tone bin may overflow num_bins — skip those samples
                      * rather than read past the waterfall row boundary.        */
@@ -1472,6 +1522,14 @@ int ft8_decode_all(
             }
             float local_noise_db = compute_local_noise_floor_db(&mon.wf, (int)cand->freq_offset);
             float snr = signal_db - local_noise_db - 26.5f;
+
+            /* Amendment 2 (shim 20260045): record the SNR formula's two terms,
+             * at the SAME pre-increment index results[] is about to use for
+             * this decode -- this is the whole index-alignment contract
+             * (AC-N3) for ft8_get_last_snr_terms. Read-only: does not alter
+             * signal_db/local_noise_db/snr or any control flow below. */
+            tls_signal_db[num_decoded]      = signal_db;
+            tls_local_noise_db[num_decoded] = local_noise_db;
 
             FT8Result* r = &results[num_decoded++];
             r->freq_hz = (int)roundf(freq_hz);
@@ -1500,6 +1558,11 @@ int ft8_decode_all(
     /* ── 6. Cleanup ──────────────────────────────────────────────────────── */
     tls_hash_table = NULL;
     monitor_free(&mon);
+
+    /* Amendment 2 (shim 20260045): report back how many entries
+     * ft8_get_last_snr_terms should return -- must equal this call's own
+     * return value (AC-N3, the count contract). */
+    tls_num_decoded_snr_terms = num_decoded;
 
     return num_decoded;
 
