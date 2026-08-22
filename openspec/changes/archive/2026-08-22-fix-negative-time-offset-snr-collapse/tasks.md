@@ -170,15 +170,19 @@
 
 ## 8. Spec Sync
 
-- [ ] 8.1 Merge this change's `specs/ft8-decoder/spec.md` delta (ADDED requirement:
+- [x] 8.1 Merge this change's `specs/ft8-decoder/spec.md` delta (ADDED requirement:
       "Reported SNR is correct for candidates whose sync position precedes the decode
-      window") into `openspec/specs/ft8-decoder/spec.md`.
-- [ ] 8.2 Merge this change's `specs/ft8lib-interop/spec.md` delta into
+      window") into `openspec/specs/ft8-decoder/spec.md`. Done 2026-08-22 — clean
+      append (no existing requirement by this name), no conflicts.
+- [x] 8.2 Merge this change's `specs/ft8lib-interop/spec.md` delta into
       `openspec/specs/ft8lib-interop/spec.md` — note this delta also repairs that base
       file's pre-existing stale version references (it read `20260042` /
       `20260030` against an actual shipped `20260045`); confirm the merged text reads
       `20260046` throughout and the intermediate `20260043`–`20260045` history is now
-      present, not just this change's own entry.
+      present, not just this change's own entry. Done 2026-08-22 — both requirements
+      ("ABI self-test on first load", "Native library binaries are committed for all
+      three reference platforms") replaced in place; `openspec validate --strict --all`
+      confirmed 62/62 passing after the merge.
 
 ## 9. Housekeeping
 
