@@ -48,6 +48,13 @@ The validation harness or a companion analysis script SHALL compute, from the no
 
 ---
 
+## RENAMED Requirements
+
+- FROM: `### Requirement: RMS error is monotone non-increasing in SNR (AC-4)`
+- TO: `### Requirement: RMS error is monotone non-increasing in SNR, time dimension only, via a pooled trend test (successor to AC-4)`
+
+---
+
 ## MODIFIED Requirements
 
 ### Requirement: RMS error is monotone non-increasing in SNR, time dimension only, via a pooled trend test (successor to AC-4)

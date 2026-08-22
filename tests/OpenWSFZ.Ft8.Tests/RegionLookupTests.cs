@@ -109,6 +109,9 @@ public sealed class RegionLookupTests
             float[] pcm, int coarseFreqHz, float coarseTimeOffsetS) => (0f, 0f, 0f, 0, 0);
 
         public float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS) => new float[174];
+
+        public (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded)
+            => (Array.Empty<float>(), Array.Empty<float>());
     }
 
     private static float[] BuildLoudPcm()

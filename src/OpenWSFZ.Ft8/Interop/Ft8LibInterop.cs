@@ -318,7 +318,57 @@ internal static class Ft8LibInterop
     ///   ROW 0c (a mandatory two-sided sign unit test, run once by the gate harness) is
     ///   the guard against a sign or bit-attribution defect.
     /// </summary>
-    private const int ExpectedShimVersion = 20260043;
+    /// <remarks>
+    /// r2-coherent-llr-instrument Phase B + Amendment 1 (shim 20260044, task 10.1): B1/B2
+    /// correct <see cref="CoherentLlrAt"/>'s underlying native values in place (origin
+    /// unit-conversion, cross-window fusion normalisation) -- no signature change, no new
+    /// export for either. Amendment 1's B4 adds a wholly new diagnostic-only native
+    /// export, <c>ft8_ldpc_decode_llrs</c> -- no C# <see cref="IFt8NativeInterop"/>
+    /// binding is added for it (design.md D10): the consumer is a Python QA harness and
+    /// native/Python smoke tests, not managed code. The bump exists purely so this ABI
+    /// self-test catches a binary built without B4's new export or B1/B2's fix --
+    /// <see cref="DecodeAll"/>, <see cref="GetLastPassCounts"/>,
+    /// <see cref="SetDecodeParams"/>, <see cref="RefineCandidate"/> and
+    /// <see cref="CoherentLlrAt"/>'s own signature all remain byte-for-byte unchanged. No
+    /// struct layout change (<see cref="Ft8NativeResult"/> stays 48 bytes).
+    /// </remarks>
+    /// <remarks>
+    /// Amendment 2 (corrected by Amendment 3), shim 20260045, task 16.1: two changes in
+    /// one rebuild. (1) Widens the degenerate-variance guard inside <c>decode.c</c>'s
+    /// <c>ftx_ldpc_decode_llrs</c> (added by B4) from exact-equality <c>variance ==
+    /// 0.0f</c> to <c>!(variance &gt; 0.0f)</c>, matching <c>coh_window_scale</c>'s own
+    /// guard -- catches a float-cancellation negative variance the exact-equality check
+    /// would miss (B4-d re-run confirms: still negative rc, no crash, no NaN). This
+    /// export has no C# binding and the guard is provably off the production decode
+    /// path (<c>ftx_ldpc_decode_llrs</c> is called only from the diagnostic export,
+    /// never from <see cref="DecodeAll"/>'s own native path). (2) Adds
+    /// <see cref="GetLastSnrTerms"/> -- a new diagnostic-only TLS getter exposing the two
+    /// terms (<c>signal_db</c>, <c>local_noise_db</c>) of the per-signal SNR formula for
+    /// every decode from the most recent <see cref="DecodeAll"/> call, index-aligned with
+    /// its results. Read-only: no control-flow, ordering, or value change to any existing
+    /// decode-path computation. <see cref="DecodeAll"/>, <see cref="GetLastPassCounts"/>,
+    /// <see cref="SetDecodeParams"/>, <see cref="RefineCandidate"/>, and
+    /// <see cref="CoherentLlrAt"/> all remain byte-for-byte unchanged in ABI. No struct
+    /// layout change (<see cref="Ft8NativeResult"/> stays 48 bytes).
+    /// </remarks>
+    /// <remarks>
+    /// fix-negative-time-offset-snr-collapse, shim 20260046: corrects a defect in
+    /// <see cref="DecodeAll"/>'s underlying native <c>signal_db</c> loop (the SNR
+    /// formula's numerator). For any candidate whose sync position precedes the decode
+    /// window (<c>time_offset &lt; 0</c>, an ordinary outcome of the native candidate
+    /// search's <c>-10..+19</c> range), the per-block symbol index used to read the
+    /// candidate's own re-encoded tones was derived from <c>time_offset</c> clamped to a
+    /// non-negative floor instead of the true, unclamped value -- silently re-anchoring
+    /// every averaged sample to the wrong tone bin and under-reporting SNR by roughly
+    /// 15-20 dB. Fix: the symbol index (and the loop's own upper bound, narrowed to
+    /// match) is now derived from the unclamped <c>time_offset</c>, matching the vendored
+    /// decoder's own out-of-range convention (skip, never re-anchor). Confirmed
+    /// mechanically: <c>qa/rr-study/2026-08-22-1454-qa-to-architect-b-dt-c3-results.md</c>
+    /// (a 17.4 dB step co-located exactly with the sign change). No change to
+    /// <see cref="DecodeAll"/>'s signature or any other exported entry point's ABI. No
+    /// struct layout change (<see cref="Ft8NativeResult"/> stays 48 bytes). No new export.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260046;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -447,6 +497,21 @@ internal static class Ft8LibInterop
         [Out] float[] outMeanAbs,
         [Out] float[] outPrenormVariance,
         [Out] int[]   outFailCount,
+        int           capacity);
+
+    /// <summary>
+    /// Return the two terms of the per-signal SNR formula for every decode
+    /// returned by the most recent <see cref="NativeDecodeAll"/> call on this
+    /// thread (Amendment 2, corrected by Amendment 3, shim 20260045). See
+    /// <c>ft8_shim.h</c>'s <c>ft8_get_last_snr_terms</c> doc comment for the
+    /// full contract (NULL/both-NULL/negative-capacity handling, index
+    /// alignment with <c>results[]</c>).
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_snr_terms",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastSnrTerms(
+        [Out] float[] outSignalDb,
+        [Out] float[] outLocalNoiseDb,
         int           capacity);
 
     /// <summary>
@@ -678,6 +743,37 @@ internal static class Ft8LibInterop
             return ([], [], []);
 
         return (meanAbs[..numPasses], prenormVariance[..numPasses], failCount[..numPasses]);
+    }
+
+    /// <summary>
+    /// Return the two terms of the per-signal SNR formula for every decode
+    /// returned by the most recent <see cref="DecodeAll"/> call on this thread
+    /// (Amendment 2, corrected by Amendment 3, shim 20260045).
+    /// <para>
+    /// <c>snr = signal_db - local_noise_db - 26.5f</c>. <c>SignalDb[i]</c> /
+    /// <c>LocalNoiseDb[i]</c> correspond to the <c>i</c>-th result from that
+    /// same <see cref="DecodeAll"/> call — INDEX-ALIGNED, same order.
+    /// </para>
+    /// Must be called on the same thread that called <see cref="DecodeAll"/>.
+    /// </summary>
+    /// <param name="maxDecoded">Maximum number of decodes to query (array capacity).</param>
+    /// <returns>
+    /// Arrays trimmed to the actual returned count, which must equal the
+    /// count <see cref="DecodeAll"/> itself returned for the same call
+    /// (AC-N3, the count contract).
+    /// </returns>
+    public static (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded)
+    {
+        EnsureInitialized();
+
+        var signalDb     = new float[maxDecoded];
+        var localNoiseDb = new float[maxDecoded];
+        int numDecoded    = NativeGetLastSnrTerms(signalDb, localNoiseDb, maxDecoded);
+
+        if (numDecoded <= 0)
+            return ([], []);
+
+        return (signalDb[..numDecoded], localNoiseDb[..numDecoded]);
     }
 
     /// <summary>

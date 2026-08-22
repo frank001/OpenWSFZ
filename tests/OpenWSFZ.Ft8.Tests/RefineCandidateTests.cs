@@ -58,6 +58,9 @@ public sealed class RefineCandidateTests
         }
 
         public float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS) => new float[174];
+
+        public (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded)
+            => (Array.Empty<float>(), Array.Empty<float>());
     }
 
     // ── 2.1a — Fake delegation ────────────────────────────────────────────────

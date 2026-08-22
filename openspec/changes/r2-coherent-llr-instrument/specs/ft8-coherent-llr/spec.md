@@ -1,8 +1,29 @@
 ## ADDED Requirements
 
-### Requirement: Per-candidate coherent multi-symbol LLR formation, diagnostic-only (Phase 1 — not yet implemented)
+### Requirement: Per-candidate coherent multi-symbol LLR formation, diagnostic-only (Phase 1 — shipped 2026-08-21, shim `20260043`; origin and fusion corrected under Phase B, shim `20260044`)
 
 The native shim SHALL expose a diagnostic entry point (e.g. `ft8_coherent_llr_at`) that, given the cycle's retained PCM (12 kHz, 180 000 samples) and a candidate's *existing, unrefined* grid `(freq_idx, time_idx)` from `ftx_find_candidates()`, returns 174 coherent per-bit LLRs, computed by (1) downconverting the PCM to complex baseband at the candidate's grid frequency with phase retained, reusing `sync_refiner.c`'s existing downconversion rather than reimplementing it; (2) for each of the 58 data symbols, correlating coherently against each of the 8 tone hypotheses — complex accumulation across the symbol, magnitude taken last; (3) forming 1-, 2- and 3-symbol coherent metrics and combining them into per-bit LLRs via max-log over the tone hypotheses consistent with each bit; and (4) normalising to the same scale `ftx_normalize_logl` expects, so the output is drop-in comparable with the existing magnitude-only `log174`. This entry point SHALL NOT call `ft8_refine_candidate` anywhere in its implementation — the candidate position it is given SHALL be used as-is, never refined internally. It SHALL be reachable only from a diagnostic/validation harness — no production decode call site SHALL invoke it, and `ftx_decode_candidate()` SHALL remain byte-for-byte unchanged by this change.
+
+**Phase B correctness properties (native fix, design.md D8/D9), both mandatory for the
+kill gate below to be trusted:**
+
+- **Correlation origin.** The raw-PCM sample index the coherent correlation begins from
+  SHALL be derived from the candidate's lattice time-offset by accounting for the
+  analysis window's own look-back buffer and multi-symbol span — a naive
+  lattice-time-to-seconds conversion used directly as the correlation origin
+  understates the true window centre by `freq_osr/2 + 0.5 − 1/time_osr` symbols (one
+  full symbol period at production's own `K_TIME_OSR = K_FREQ_OSR = 2`) and SHALL NOT
+  be used. The correction SHALL be derived from `mon.wf.time_osr`, `mon.wf.freq_osr`
+  and `mon.symbol_period` at call time, never hardcoded as a literal.
+- **Cross-window fusion.** When selecting among the 1-, 2- and 3-symbol coherent
+  metrics for a given bit, the comparison SHALL be made on each window's LLRs after
+  they have been standardised to a common, window-size-independent scale (e.g. each
+  window divided by its own magnitude spread) — a raw, unnormalised magnitude
+  comparison across differently-sized coherent-sum windows SHALL NOT be used, since a
+  coherent sum's magnitude scales with window length and such a comparison is a
+  near-constant structural preference for the longest window rather than a reliability
+  comparison. `n_syms` SHALL NOT be restricted to defeat this requirement — the 1-, 2-
+  and 3-symbol windows SHALL all remain in the comparison.
 
 #### Scenario: Coherent LLR export is callable as a standalone diagnostic, at the grid position it is given
 
@@ -14,9 +35,35 @@ The native shim SHALL expose a diagnostic entry point (e.g. `ft8_coherent_llr_at
 - **WHEN** `Ft8LibInterop.DecodeAll` is called on any of the three reference platforms after Phase 1 ships
 - **THEN** the returned decode results SHALL be byte-for-byte identical to the pre-change baseline for the same input PCM
 
+#### Scenario: The origin correction reproduces the grid path's own cell against known ground truth (Phase B acceptance for B1)
+
+- **WHEN** the B-orig-A harness (`b_orig_a_origin_convention.py`, re-run unchanged after B1 lands) sweeps a corrected time origin against synthetic signals of known ground-truth `dt`, and separately minimises the grid path's own error over the same offsets
+- **THEN** the coherent path's own-best-cell mode SHALL move to agree with the grid path's own-best-cell mode (both `+2` quanta from ground truth in the pre-registered B-orig-A run), and the grid path's own-best-cell mode SHALL be unchanged by this fix
+
+#### Scenario: Fusion selects by normalised reliability, not by window length (Phase B mandatory unit test for B2)
+
+- **WHEN** two coherent-sum windows are constructed whose per-tone magnitudes carry equal discriminative information but differ from each other in absolute scale by a known factor
+- **THEN** their normalised per-bit LLRs SHALL agree to a stated tolerance, and the same two windows' PRE-normalisation LLRs SHALL NOT agree to that tolerance — proving the normalisation, not merely the window construction, is what produces the agreement
+
 ---
 
-### Requirement: The pre-registered kill gate on `f_net`, strict order, mutually exclusive rows (Phase 1 — not yet implemented)
+### Requirement: Instrument-gain validity pre-check gates the kill gate (ROW 0g — first ran 2026-08-21, mandatory re-run after any native change to `ft8_coherent_llr_at`)
+
+Before the kill gate below is evaluated, an instrument-gain check SHALL run against the merged binary and pass both of its limbs, since a correlator too defective to be trusted would make any `f_net` reading uninterpretable rather than merely noisy. **0g-1 (clean-signal ceiling):** on noise-free synthetic signals swept over a set of time-offset anchors, each of the grid and coherent paths minimised independently over those offsets, `median(n_err_coh_min) ≤ 5` bits AND signed `d_clean = n_err_grid_min − n_err_coh_min ≥ 0`. **0g-2 (paired real-row check):** on a real P-HIT sample at the population's own corrected anchor, signed `d_real` (grid minus coherent bit-error count) cluster-bootstrapped 95% CI by `ts`; FIRES if `CI_hi(d_real) < 0`. The check SHALL evaluate both limbs and report FIRES if either limb's bar is not met. On a FIRE, the kill-gate Requirement below is VOID: no ROW 1/2/3/4 SHALL be read or reported, ROW 3 SHALL NOT be declared, and Route B2 SHALL NOT be called dead on the strength of a voided gate. **This check SHALL be re-run, unchanged from its own pre-registration (same population, same sample, same seed, same anchor, same bars — never a variant, never a re-read of prior output with a different metric), after any native change to `ft8_coherent_llr_at`**, before the kill gate is evaluated against that changed binary.
+
+#### Scenario: ROW 0g passes both limbs — the kill gate may be evaluated
+
+- **WHEN** 0g-1's median and signed-delta bars are both met, and 0g-2's `CI_hi(d_real) ≥ 0`
+- **THEN** the kill-gate Requirement below SHALL be evaluated exactly as pre-registered
+
+#### Scenario: ROW 0g fires — the kill gate is void, and stays void until a native fix passes a re-run
+
+- **WHEN** either limb's bar is not met (as occurred 2026-08-21 against shim `20260043`: 0g-2 fired decisively, `d_real = -67.0` bits, cluster-bootstrap CI95 `[-71.0, -65.0]`, 190 clusters)
+- **THEN** the report SHALL state which limb fired, the kill gate SHALL NOT be evaluated, ROW 3 SHALL NOT be declared, Route B2 SHALL NOT be called dead, and the gate SHALL remain void until a native fix to `ft8_coherent_llr_at` is followed by a fresh, unchanged re-run of this same check that passes
+
+---
+
+### Requirement: The pre-registered kill gate on `f_net`, strict order, mutually exclusive rows (Phase 1 — built, blocked on ROW 0g passing)
 
 Over the P-LIVE Stage 2 population (reference decoded, we did not, candidate present), paired per cluster: `n_in` = clusters with `n_err_grid > 19` and `n_err_coh ≤ 19`; `n_out` = clusters with `n_err_grid ≤ 19` and `n_err_coh > 19`; `f_net = (n_in − n_out) / n_clusters`, cluster-bootstrapped 95% CI by `ts`. The gate SHALL evaluate, in this strict order, first match wins: **ROW 1 (STRONG)** if `CI_lo(f_net) > 15%` ⇒ Phase 2 authorised, expected recall gain ≈ `f_net × 37pp` quoted as an estimate only; **ROW 2 (MATERIAL, NOT SUFFICIENT)** if `CI_lo(f_net) > 5%` and not ROW 1 ⇒ Phase 2 authorised as a product improvement, with an explicit Captain re-decision that the project's stated purpose is not met by this outcome; **ROW 3 (KILL)** if `CI_hi(f_net) < 5%` ⇒ Route B2 is dead in full, no re-read with a better metric; **ROW 4 (residue)** otherwise ⇒ no verdict, report the interval, escalate. A companion secondary statistic `C_ber` (median BER_coh − median BER_grid, signed, cluster-bootstrapped) SHALL be reported alongside `f_net` always, gating nothing, so a null on `f_net` can be distinguished from "coherent LLRs did nothing at all."
 
@@ -32,7 +79,7 @@ Over the P-LIVE Stage 2 population (reference decoded, we did not, candidate pre
 
 ---
 
-### Requirement: Candidate identity between the grid and coherent extractions (Phase 1 — not yet implemented)
+### Requirement: Candidate identity between the grid and coherent extractions (Phase 1 — built, blocked on ROW 0g passing)
 
 For every row in the gate's population, the grid-position LLRs and the coherent LLRs SHALL be computed at the identical `(freq_idx, time_idx)` — asserted per row, not merely assumed. A candidate-position mismatch between the two extractions would inflate BER toward 50% for one side and could fake a null result.
 

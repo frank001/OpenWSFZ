@@ -1,0 +1,62 @@
+==========================================================================================
+B-dt-C3 -- OFFLINE NEGATIVE true_dt SWEEP (spec 2026-08-22-1433)
+==========================================================================================
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll (pinned, shim 20260046)
+DLL pin confirmed: SHA256 bc8efcf148046f19..., shim version 20260046
+
+------------------------------------------------------------------------------------------
+RENDER + PLACEMENT (Sec.3.2, Sec.6 ROW 0(c))
+------------------------------------------------------------------------------------------
+Fixed noise sigma (from p1, true_dt=0.0, untruncated 180000-sample render): 1.005084
+  placement part 0 (true_dt=+0.08): expected_lag=960 measured_lag=960 err=0
+  placement part 1 (true_dt=+0.00): expected_lag=0 measured_lag=0 err=0
+  placement part 2 (true_dt=-0.08): expected_lag=-960 measured_lag=-960 err=0
+  placement part 3 (true_dt=-0.16): expected_lag=-1920 measured_lag=-1920 err=0
+  placement part 4 (true_dt=-0.24): expected_lag=-2880 measured_lag=-2880 err=0
+  placement part 5 (true_dt=-0.32): expected_lag=-3840 measured_lag=-3840 err=0
+  placement part 6 (true_dt=-0.48): expected_lag=-5760 measured_lag=-5760 err=0
+  placement part 7 (true_dt=-0.72): expected_lag=-8640 measured_lag=-8640 err=0
+  placement part 8 (true_dt=-0.96): expected_lag=-11520 measured_lag=-11520 err=0
+  placement part 9 (true_dt=-1.20): expected_lag=-14400 measured_lag=-14400 err=0
+
+Sweep: 50/50 (part,trial) cells produced a matched decode
+
+==========================================================================================
+ROW 0 -- VALIDITY
+==========================================================================================
+  (a) decode floor p0..p5: p0 n=5, p1 n=5, p2 n=5, p3 n=5, p4 n=5, p5 n=5
+      fires: False
+  (b) exact reproduction (p1 trials 0-2, B-dt-C1 part-0 seeds):
+      n=3  reported_snr=2.000000 (ref 2.000)  reported_dt=0.160000 (ref 0.160)  signal_db=-7.575949 (ref -7.576 +/- 0.001)
+      fires: False
+  (c) placement: max |measured_lag - expected_lag| = 0 sample(s) (tol 1)
+      fires: False
+  (d) straddle: analysis set = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; has T(p)>=0: True; has T(p)<0: True
+      fires: False
+
+ROW 0 clear (all four limbs). Analysis set = parts [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] (p_max = 9).
+
+==========================================================================================
+ROW 1 / 2 / 3 -- max_p Delta(p) = 0.400 dB at p_step = 8; p_sign = 4
+==========================================================================================
+=> ROW 1: max Delta(p) < 8.0 dB -- NO STEP.
+   The collapse did not reproduce offline even with reported_dt driven
+   negative. Clamp mechanism is NOT the explanation. STOP, escalate.
+
+------------------------------------------------------------------------------------------
+SEC.7 -- REPORTED, NOT GATED
+------------------------------------------------------------------------------------------
+  part 0 (true_dt=+0.08): n=5/5  E=2.000  T=0.240  T-true_dt=0.160  signal_db=-7.575  local_noise_db=-36.000  rival=0.000 dB
+  part 1 (true_dt=+0.00): n=5/5  E=2.000  T=0.160  T-true_dt=0.160  signal_db=-7.596  local_noise_db=-36.000  rival=0.000 dB
+  part 2 (true_dt=-0.08): n=5/5  E=2.000  T=0.080  T-true_dt=0.160  signal_db=-7.643  local_noise_db=-36.000  rival=-0.028 dB
+  part 3 (true_dt=-0.16): n=5/5  E=2.000  T=0.000  T-true_dt=0.160  signal_db=-7.915  local_noise_db=-36.000  rival=-0.055 dB
+  part 4 (true_dt=-0.24): n=5/5  E=2.000  T=-0.080  T-true_dt=0.160  signal_db=-7.672  local_noise_db=-36.000  rival=-0.083 dB
+  part 5 (true_dt=-0.32): n=5/5  E=1.800  T=-0.160  T-true_dt=0.160  signal_db=-7.929  local_noise_db=-36.000  rival=-0.111 dB
+  part 6 (true_dt=-0.48): n=5/5  E=1.800  T=-0.320  T-true_dt=0.160  signal_db=-7.987  local_noise_db=-36.000  rival=-0.168 dB
+  part 7 (true_dt=-0.72): n=5/5  E=2.000  T=-0.560  T-true_dt=0.160  signal_db=-7.628  local_noise_db=-36.000  rival=-0.255 dB
+  part 8 (true_dt=-0.96): n=5/5  E=1.600  T=-0.800  T-true_dt=0.160  signal_db=-7.977  local_noise_db=-36.000  rival=-0.343 dB
+  part 9 (true_dt=-1.20): n=5/5  E=1.800  T=-1.040  T-true_dt=0.160  signal_db=-7.638  local_noise_db=-35.900  rival=-0.433 dB
+
+local_noise_db spread across all parts with >=1 matched decode: 0.100 dB
+Negative-side (T(p)<0, analysis set) flatness max(E)-min(E): 0.400 dB
+==========================================================================================

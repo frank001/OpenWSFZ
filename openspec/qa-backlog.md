@@ -451,3 +451,53 @@ Summary: persist a real last-sent-message field on `QsoCallerService` (mirroring
 single `LastTxMessage` field (not one per row), and have the frontend cache that value per row
 locally at the moment each transition fires — falling back to the existing template for any row not
 yet transmitted this session, and clearing the cache on partner-change/Idle.
+
+---
+
+## N13 — `OpenWSFZ.Daemon.Tests` reports a different total test count run to run — 603 vs 571, no Skipped, nothing in the log to explain the gap
+
+**Status:** OPEN, unconfirmed — observed three times across one QA session
+(`fix/negative-time-offset-snr-collapse`, 2026-08-22); not yet reproduced under controlled
+isolation or diagnosed to a specific test class. Logged per the Captain's instruction rather than
+chased to ground in the moment.
+**Severity:** Unknown pending investigation — potentially significant if genuine (a CI leg
+"passing" while silently exercising 32 fewer tests than another leg of the same suite is a
+coverage-integrity problem, not merely a flake), Low if it turns out to be build-lock/process
+contention from concurrent local `dotnet test` invocations (this session ran several close
+together, including a comparison run against a separate `git worktree`).
+**Source:** QA (AI-assisted), 2026-08-22, `tools/pre_merge_check.py` runs (twice) plus ad-hoc
+`dotnet test OpenWSFZ.slnx -c Release --no-build` comparison runs on this branch and on a
+`git worktree` checkout of `origin/main`.
+**File:** unknown — `OpenWSFZ.Daemon.Tests.dll`'s own summary line is the only evidence; no error,
+warning, or "Skipped" count accompanies the drop, and stdout gives no indication which 32 tests
+were absent.
+
+Observed sequence, all `Total`/`Passed` equal (0 Failed, 0 Skipped every time), same built
+binaries within each pair:
+
+1. `pre_merge_check.py` run 1 (before this session's G9b fix) — Windows leg: **603**; WSL Debian
+   leg (same run, separately restored/built under WSL): **571**.
+2. Ad-hoc comparison — `origin/main` via a fresh `git worktree`, Windows, full solution build +
+   `dotnet test --no-build`: **603**.
+3. Ad-hoc comparison — this branch, in-place, Windows, `dotnet test --no-build` against binaries
+   already on disk (no rebuild): **571**.
+4. `pre_merge_check.py` run 2 (after the G9b fix) — Windows leg: **603**; WSL Debian leg: **571**.
+
+The count alternates 603/571/603/571/603/571 across these six observations. That is consistent
+with either (a) a genuine Windows-vs-WSL discovery discrepancy (pattern 1 and 4 both show
+Windows=603, WSL=571, and both are the same script run in the same order) — in which case run 2's
+603 fits (Windows) but run 3's 571 does not (also Windows, yet matches the WSL figure) — or (b)
+run-order/contention effects from this session's own back-to-back invocations (runs 2 and 3
+happened in quick succession, one against a separate worktree), which would make the apparent
+603/571 split coincidental rather than platform-driven. Neither hypothesis is confirmed; they are
+not mutually exclusive either (a real platform-specific test subset that additionally interacts
+badly with concurrent local runs). No test name, exception, or `[Trait]`/`[SkippableFact]`
+filtering was captured in any of the four raw logs — the summary line is the only artifact.
+
+**Next step, if/when this recurs:** before re-running, diff `dotnet test --list-tests` output
+between a 603 run and a 571 run on the same platform to name the missing 32 tests directly, rather
+than inferring from the bare count; separately, run the Windows and WSL legs with no other local
+`dotnet` process active to rule out contention per the N7 precedent. Grep `OpenWSFZ.Daemon.Tests`
+for `[MemberData]`, `[ClassData]`, or any test that enumerates the filesystem/ports/environment at
+discovery time, since a static xUnit assembly should not vary its own discovered-test count at all
+absent something environment-dependent driving that enumeration.

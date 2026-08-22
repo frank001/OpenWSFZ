@@ -484,8 +484,146 @@ extern "C" {
  *   guard against a sign or bit-attribution defect -- nothing from this
  *   export should be trusted for any downstream measurement until that test
  *   passes.
+ *
+ * r2-coherent-llr-instrument Phase B + Amendment 1 (FT8_SHIM_VERSION
+ * 20260044): asserted unused across all branches (local and origin) before
+ * adoption, per task 10.1.
+ *
+ *   B1 -- fixes ft8_coherent_llr_at's raw-PCM correlation origin
+ *   (coherent_llr.c): the lattice-snapped time_offset_s_grid names the
+ *   START of the waterfall analysis window, not its centre; the analysis
+ *   window's own look-back buffer + multi-symbol span means the true
+ *   correlation origin sits (freq_osr/2 + 0.5 - 1/time_osr) symbols earlier
+ *   -- one full symbol (-0.16 s) at production's own K_TIME_OSR =
+ *   K_FREQ_OSR = 2. Derived at runtime from mon.wf.time_osr/mon.wf.freq_osr/
+ *   mon.symbol_period (never hardcoded). Root cause: qa/rr-study/2026-08-21-
+ *   1412-architect-to-qa-origin-convention-finding-and-spec-b-orig-a.md.
+ *   Confirmed against known ground truth (B-orig-A, ROW 1: mode(coherent)
+ *   moved 0 -> +2 quanta, agreeing with the grid path's own mode; the grid
+ *   path's own mode was unchanged, confirming this fix touches only the
+ *   coherent path). Does not amend design.md D1 -- the candidate position
+ *   used is still the existing grid position, unrefined; this is a unit
+ *   conversion of that position's own representation, not a position
+ *   search.
+ *
+ *   B2 -- fixes ft8_coherent_llr_at's cross-window fusion comparison
+ *   (coherent_llr.c): the 1-/2-/3-symbol coherent windows were compared by
+ *   raw fabsf() magnitude, which structurally favours the longest window
+ *   (a coherent sum's magnitude scales with window length) regardless of
+ *   its actual reliability. Each window's per-bit LLRs are now divided by
+ *   that window's own magnitude standard deviation (coh_window_scale)
+ *   before the comparison, guarded against a degenerate zero-spread window
+ *   (left unscaled rather than divided by zero). n_syms is NOT restricted
+ *   -- all three window sizes remain in the comparison; only the scale
+ *   they are compared at changes. Mandatory unit test: task 8.2.
+ *
+ *   B4 (Amendment 1) -- adds ft8_ldpc_decode_llrs(), a new DIAGNOSTIC-ONLY
+ *   export that decodes a caller-supplied 174-element raw LLR vector
+ *   through production's own ftx_normalize_logl -> bp_decode -> OSD
+ *   (conditional) -> CRC-14 sequence, mirroring ftx_decode_candidate
+ *   (patched/ft8/decode.c:641-713) exactly. Forced placement: the
+ *   decode.c-resident implementation, ftx_ldpc_decode_llrs, lives in
+ *   patched/ft8/decode.c (ftx_normalize_logl and osd_decode are both
+ *   static there), with this thin wrapper the only code in ft8_shim.c --
+ *   the established two-file pattern ft8_extract_llrs_at/
+ *   ftx_extract_likelihood_at already set. Lets a future analysis arm (C2,
+ *   specced later, not this change) convert a diagnostic LLR vector into a
+ *   CRC-verified decode count instead of a modelled BER-threshold
+ *   crossing.
+ *
+ *   No production call site: reachable only from test code and QA
+ *   harnesses. ftx_decode_candidate(), ft8_decode_all's production decode
+ *   path, and every other existing exported symbol (including
+ *   ft8_extract_llrs_at and the pre-Phase-B behaviour of
+ *   ft8_coherent_llr_at's own call signature) remain byte-for-byte
+ *   unchanged in ABI -- B1/B2 change the VALUES ft8_coherent_llr_at
+ *   returns, not its signature; B4 is a wholly new export. No struct
+ *   layout change (FT8Result stays 48 bytes). No C# Ft8LibInterop/
+ *   IFt8NativeInterop wiring added for ft8_ldpc_decode_llrs (design.md
+ *   D10) -- the consumer is the Python QA harness and this session's own
+ *   native/Python smoke tests, the same pattern ft8_extract_llrs_at
+ *   already established.
+ *
+ * r2-coherent-llr-instrument Amendment 2 (corrected by Amendment 3),
+ * FT8_SHIM_VERSION 20260045, task 16.1: asserted unused across all branches
+ * (local and origin) before adoption. Two changes in one rebuild ("one
+ * rebuild, not two"):
+ *
+ *   (1) Widens ftx_ldpc_decode_llrs's degenerate-variance guard
+ *   (patched/ft8/decode.c:940, added by B4) from exact-equality
+ *   `variance == 0.0f` to `!(variance > 0.0f)`, matching coh_window_scale's
+ *   own guard (coherent_llr.c, added by B2) -- also catches a
+ *   float-cancellation NEGATIVE variance the exact-equality check alone
+ *   would miss, which could otherwise let a near-constant-but-not-bit-exact
+ *   input slip past the guard into ftx_normalize_logl's sqrtf(24.0f/
+ *   variance) and produce NaN. B4-d re-run after the edit: still negative
+ *   rc, still no crash, no NaN, on the same all-3.5f zero-variance input.
+ *   ftx_ldpc_decode_llrs has no production call site (grep-confirmed) and
+ *   no C# binding, so this is provably off the production decode path.
+ *
+ *   (2) Adds ft8_get_last_snr_terms() -- a new diagnostic-only TLS getter
+ *   exposing signal_db/local_noise_db (the SNR formula's two terms,
+ *   ft8_shim.c:1474) for every decode from the most recent ft8_decode_all
+ *   call on this thread, index-aligned with results[]/FT8Result[] from
+ *   that same call. Two new _Thread_local float arrays (tls_signal_db,
+ *   tls_local_noise_db) plus a count, written at the same pre-increment
+ *   index results[] uses for each decode -- read-only, no control-flow,
+ *   ordering, or value change to any existing decode-path computation.
+ *   Built to localise a large, conditional SNR-reporting error (measured
+ *   against the true_dt == 0 vs true_dt > 0 split, arm B-dt-A) to one of
+ *   its two terms. Unlike B4, this export DOES get a C# Ft8LibInterop/
+ *   IFt8NativeInterop binding (Ft8LibInterop.GetLastSnrTerms).
+ *
+ *   No production call site for either change. ftx_decode_candidate(),
+ *   ft8_decode_all's production decode path, and every other existing
+ *   exported symbol remain byte-for-byte unchanged in ABI. No struct
+ *   layout change (FT8Result stays 48 bytes).
+ *
+ * fix-negative-time-offset-snr-collapse (FT8_SHIM_VERSION 20260046):
+ * corrects a defect in ft8_decode_all's production signal_db loop
+ * (ft8_shim.c:1485-1513) -- unlike every prior entry above, this DOES
+ * touch the production decode path.
+ *
+ *   Defect: for any candidate whose time_offset < 0 (an ordinary outcome
+ *   of ftx_find_candidates()'s -10..+19 search range, meaning the signal's
+ *   true sync position precedes the nominal 15 s decode window), the
+ *   per-block symbol index used to read tones[] was derived as
+ *   tones[b - b0] where b0 is time_offset CLAMPED to a non-negative floor
+ *   -- not the true, unclamped time_offset. This silently re-anchored
+ *   symbol 0 to the wrong absolute block, so every one of the up to 79
+ *   averaged samples was read from the wrong tone bin, under-reporting
+ *   SNR by roughly 15-20 dB. The loop's upper bound (b1 = b0 + FT8_NN)
+ *   was computed from the same clamped b0, so no iterations were skipped
+ *   either -- the corruption was total, not partial.
+ *
+ *   Fix: b1 is now computed from the unclamped time_offset
+ *   (time_offset + FT8_NN, then clipped to mon.wf.num_blocks as before),
+ *   and the per-iteration symbol index is tones[b - time_offset]
+ *   (unclamped). b0 itself is unchanged -- it still exists solely to
+ *   keep the waterfall block read non-negative. Both bounds move
+ *   together: fixing the index alone without narrowing b1 to match would
+ *   let tone_col run past FT8_NN - 1, an out-of-bounds read of the
+ *   79-element tones[] array. ft8_lib's own convention
+ *   (patched/ft8/decode.c:160,226: `if (block_abs < 0) continue;`,
+ *   computed from the unclamped time_offset) already handles this
+ *   correctly; this shim now mirrors it.
+ *
+ *   Confirmed mechanically: qa/rr-study/2026-08-22-1454-qa-to-architect-
+ *   b-dt-c3-results.md (arm B-dt-C3) measured a 17.4 dB step in reported
+ *   SNR co-located exactly with the block at which time_offset turns
+ *   negative -- ~210x larger than the largest deficit a benign "signal
+ *   partly outside the window" explanation could produce there (0.083 dB).
+ *
+ *   cnt (the sample count signal_db is averaged over) may now legitimately
+ *   be smaller than 79 for early-arriving signals -- thinned by missing
+ *   leading blocks, which is correct, rather than corrupted by wrong
+ *   ones, which was the prior behaviour. No change to
+ *   compute_local_noise_floor_db (the SNR formula's other term, unaffected
+ *   by this defect). No ABI break, no struct layout change (FT8Result
+ *   stays 48 bytes), no new export -- this is a correctness fix to an
+ *   always-active production code path.
  */
-#define FT8_SHIM_VERSION 20260043
+#define FT8_SHIM_VERSION 20260046
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -616,6 +754,37 @@ int ft8_get_last_llr_stats(
     float* out_mean_abs,
     float* out_prenorm_variance,
     int*   out_fail_count,
+    int    capacity);
+
+/*
+ * ft8_get_last_snr_terms — return the two terms of the per-signal SNR
+ * formula for every decode returned by the most recent ft8_decode_all call
+ * on THIS thread (Amendment 2, corrected by Amendment 3, shim 20260045).
+ *
+ *   snr = signal_db - local_noise_db - 26.5f      (ft8_shim.c:1474)
+ *
+ * out_signal_db[i] / out_local_noise_db[i] correspond to results[i] from
+ * that same call -- INDEX-ALIGNED, same order (AC-N3, the count contract:
+ * this function's own return value must equal ft8_decode_all's own return
+ * value for the same call).
+ *
+ * Either out pointer may be NULL to request only the other array. If BOTH
+ * are NULL, the function writes nothing and returns the count it would
+ * have written (Amendment 3 correction 4(c)).
+ * Writes at most `capacity` entries; returns the number written.
+ * Returns -1 if capacity < 0.
+ *
+ * Read-only diagnostic getter: no production call site anywhere calls this
+ * function; it is reachable only from test code and QA harnesses, exactly
+ * like ft8_get_last_pass_counts / ft8_get_last_candidate_counts /
+ * ft8_get_last_llr_stats.
+ *
+ * Threading: same contract as ft8_get_last_pass_counts -- must be called
+ * from the thread that called ft8_decode_all.
+ */
+int ft8_get_last_snr_terms(
+    float* out_signal_db,
+    float* out_local_noise_db,
     int    capacity);
 
 /*
@@ -848,6 +1017,61 @@ int ft8_coherent_llr_at(
     const float* pcm, int pcm_len,
     float freq_hz, float time_offset_s,
     float* out_log174);
+
+/*
+ * ft8_ldpc_decode_llrs -- diagnostic-only LLR-vector decode probe (B4,
+ * r2-coherent-llr-instrument Phase B Amendment 1, shim 20260044).
+ *
+ * Decodes a caller-supplied 174-element RAW (pre-normalisation) LLR vector
+ * through production's own bp_decode -> OSD (conditional) -> CRC-14
+ * sequence, mirroring ftx_decode_candidate (patched/ft8/decode.c:641-713)
+ * exactly, so a diagnostic LLR vector (from ft8_extract_llrs_at or
+ * ft8_coherent_llr_at) can be converted into a CRC-verified decode count
+ * rather than a modelled BER-threshold crossing. See
+ * patched/ft8/decode.c's ftx_ldpc_decode_llrs (this function's underlying
+ * implementation -- this is a thin wrapper, ft8_shim.c has no logic of its
+ * own beyond a NULL check) for the full 7-step sequence and a note on why
+ * its control flow mirrors decode.c's own literal branch structure rather
+ * than the Amendment 1 spec's plain-English paraphrase of it.
+ *
+ * Reachable only from test code and QA harnesses invoking it directly
+ * (e.g. Python ctypes) -- no production call site in ft8_decode_all or
+ * anywhere else in this file. No C# Ft8LibInterop/IFt8NativeInterop
+ * binding is added for this export (design.md D10).
+ *
+ * Parameters:
+ *   llr174           -- IN: 174 RAW, pre-normalisation LLRs. Never
+ *                        modified (B4-c) -- copied internally before
+ *                        bp_decode, which writes through its argument.
+ *   max_iters        -- IN: bp_decode iteration cap.
+ *   osd_depth        -- IN: OSD ndeep passed to osd_decode; < 0 disables
+ *                        the OSD fallback entirely (BP-only probe run).
+ *   out_a91          -- OUT: 91 bits (12 bytes), payload+CRC; may be NULL
+ *                        if the caller only needs crc_ok/out_path.
+ *   out_ldpc_errors  -- OUT: bp_decode's own error count (reset to 0 if
+ *                        the OSD fallback is the path that succeeded).
+ *   out_path         -- OUT: 0 = BP converged, 1 = OSD fallback succeeded,
+ *                        -1 = neither (no CRC-valid codeword found).
+ *   out_crc_ok       -- OUT: 1 iff the extracted CRC-14 equals the
+ *                        computed CRC-14 on the accepted codeword; 0
+ *                        otherwise (including when out_path == -1).
+ *
+ * Returns: 0 on success -- a decode was attempted and every output
+ *          parameter is valid; out_crc_ok is the actual answer, this
+ *          return code only reports whether the probe ran.
+ *          -1 if llr174 or any non-optional OUT pointer is NULL.
+ *          -2 if the input LLR vector has zero variance (degenerate;
+ *             ftx_normalize_logl would divide by zero) -- no
+ *             normalisation attempted, no crash, no NaN (B4-d).
+ */
+int ft8_ldpc_decode_llrs(
+    const float* llr174,
+    int          max_iters,
+    int          osd_depth,
+    uint8_t*     out_a91,
+    int*         out_ldpc_errors,
+    int*         out_path,
+    int*         out_crc_ok);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,54 @@
+{
+  "ac_n2_pass": true,
+  "ac_n2_tol": 0.501,
+  "ac_n3_pass": true,
+  "ac_n4": {
+    "cases": {
+      "both_null": {
+        "n": 16,
+        "passed": true
+      },
+      "capacity_0": {
+        "n": 0,
+        "no_overrun": true,
+        "noise_len": 0,
+        "passed": true,
+        "sig_len": 0
+      },
+      "capacity_1": {
+        "n": 1,
+        "no_overrun": true,
+        "noise_len": 1,
+        "passed": true,
+        "sig_len": 1
+      },
+      "capacity_count_minus_1": {
+        "capacity": 15,
+        "n": 15,
+        "no_overrun": true,
+        "noise_len": 15,
+        "passed": true,
+        "sig_len": 15
+      },
+      "negative_capacity": {
+        "n": -1,
+        "passed": true
+      }
+    },
+    "count": 16,
+    "passed": true,
+    "ts": "260808_004000"
+  },
+  "ac_n4_pass": true,
+  "final": "gates_evaluated",
+  "n2_max_abs_err": 0.5,
+  "n_cycles_av": 0,
+  "n_cycles_run": 250,
+  "n_cycles_zero_decode": 0,
+  "n_decodes_total": 4842,
+  "window": {
+    "first_ts": "260808_004000",
+    "last_ts": "260808_014215",
+    "n_cycles_offered": 250
+  }
+}

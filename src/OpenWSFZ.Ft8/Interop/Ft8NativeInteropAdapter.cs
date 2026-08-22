@@ -48,4 +48,7 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     public float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS)
         => Ft8LibInterop.CoherentLlrAt(pcm, freqHz, timeOffsetS);
+
+    public (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded)
+        => Ft8LibInterop.GetLastSnrTerms(maxDecoded);
 }

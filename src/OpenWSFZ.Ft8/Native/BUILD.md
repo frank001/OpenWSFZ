@@ -166,6 +166,7 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_refine_candidate ^
    /EXPORT:ft8_extract_llrs_at ^
    /EXPORT:ft8_coherent_llr_at ^
+   /EXPORT:ft8_ldpc_decode_llrs ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
    monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj coherent_llr.obj
 
@@ -208,9 +209,10 @@ gcc -shared -o libft8.so \
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
-Verify exports (all fourteen symbols must appear — r1-sync-refiner-instrument-validation adds
+Verify exports (all fifteen symbols must appear — r1-sync-refiner-instrument-validation adds
 ft8_refine_candidate, n1-extract-llrs-at-position adds ft8_extract_llrs_at,
-r2-coherent-llr-instrument adds ft8_coherent_llr_at):
+r2-coherent-llr-instrument Phase 1 adds ft8_coherent_llr_at, Phase B Amendment 1 adds
+ft8_ldpc_decode_llrs):
 
 ```bash
 nm -D libft8.so | grep "ft8_"
@@ -262,10 +264,10 @@ clang -dynamiclib -target arm64-apple-macos11.0 \
 > **Note:** `-D_GNU_SOURCE` is required for `stpcpy` on macOS as well (same reason as
 > Linux — see note in the Linux section above).
 
-Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all fourteen
+Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; all fifteen
 symbols must appear — r1-sync-refiner-instrument-validation adds ft8_refine_candidate,
-n1-extract-llrs-at-position adds ft8_extract_llrs_at, r2-coherent-llr-instrument adds
-ft8_coherent_llr_at):
+n1-extract-llrs-at-position adds ft8_extract_llrs_at, r2-coherent-llr-instrument Phase 1 adds
+ft8_coherent_llr_at, Phase B Amendment 1 adds ft8_ldpc_decode_llrs):
 
 ```bash
 nm -gU libft8.dylib | grep "ft8_"
