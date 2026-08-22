@@ -1,0 +1,83 @@
+==========================================================================================
+B-ORIG-A -- the waterfall-origin-convention arm (GATED: ROW 1-4, Sec.6.4)
+Spec: qa/rr-study/2026-08-21-1412-architect-to-qa-origin-convention-finding-and-spec-b-orig-a.md
+ROW 0g stands FIRED. Task 4.3 stays VOID. Route B2 is NOT dead. Does NOT itself amend design.md D1 -- ROW 1 only readies the Sec.5 ruling text for the Captain.
+Prediction (Sec.7, NON-SCORING -- blinding compromised by Phase A Sec.0.2): ROW 1 fires ~80%.
+==========================================================================================
+
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll (pinned to CURRENT merged binary, shim 20260046)
+DLL pin confirmed: SHA256 bc8efcf148046f19..., shim version 20260046
+
+------------------------------------------------------------------------------------------
+Building 100 synthetic trials (dt_cmd spans a full 0.16s symbol, freq fixed at nominal lattice point n=0) ...
+------------------------------------------------------------------------------------------
+  sub-symbol dt_cmd fractions (8 distinct values spanning one 0.16s symbol): (np.float64(0.0), np.float64(0.02), np.float64(0.04), np.float64(0.06), np.float64(0.08), np.float64(0.1), np.float64(0.12), np.float64(0.14))
+  built 100 trials (messages distinct via r2_sign_test._message_for_trial, N_SUBSYM=8 recurring dt_cmd values, BASE_DT_S=0.500)
+
+------------------------------------------------------------------------------------------
+PRECONDITION ROW 0b -- truth axis measured (decoder-independent energy onset), not asserted from dt_cmd (HK-026)
+------------------------------------------------------------------------------------------
+  ROW 0b: truth axis (measured onset vs commanded dt_cmd) -- tol=0.040s (0.5 quantum), n_agree=100/100 (1.000), bar=0.95 -> PASS
+  ROW 0b: max |t_true - dt_cmd| observed = 0.0036s, mean = 0.0036s
+
+ROW 0b PASSED.
+
+------------------------------------------------------------------------------------------
+Calibrating operating SNR (Phase A's own SNR-ladder function, reused verbatim, HK-018) ...
+------------------------------------------------------------------------------------------
+
+==========================================================================================
+CALIBRATION -- finding an operating snr_db clear of the noiseless floor degeneracy (0g-1's own finding: noiseless reads median(n_err)=0 for both paths)
+==========================================================================================
+  snr_db= -4.0 -> median(n_err_grid_min)=0.00
+  snr_db= -8.0 -> median(n_err_grid_min)=0.00
+  snr_db=-12.0 -> median(n_err_grid_min)=0.00
+  snr_db=-16.0 -> median(n_err_grid_min)=0.00
+  snr_db=-18.0 -> median(n_err_grid_min)=4.50
+  snr_db=-19.0 -> median(n_err_grid_min)=8.00
+  LANDED at snr_db=-19.0 (grid median=8.00, target [5,25])
+
+------------------------------------------------------------------------------------------
+Sweeping the initial 9-point m-range over 100 trials at snr_db=-19.0 ...
+------------------------------------------------------------------------------------------
+  swept 900 new row-cells (snr_db=-19.0) in 15.7s
+
+------------------------------------------------------------------------------------------
+PRECONDITION ROW 0a -- argmin resolvable
+------------------------------------------------------------------------------------------
+  ROW 0a: 1/100 trials undecidable (grid-or-coherent argmin tied across >=2 cells), frac=0.010, bar<=0.10
+
+ROW 0a PASSED.
+
+------------------------------------------------------------------------------------------
+PRECONDITION ROW 0c -- optima interior
+------------------------------------------------------------------------------------------
+  grid   (G = g_i - k_true_i): mode=+2 frac_at_mode=0.859 (n_decidable=99) histogram={1: 14, 2: 85}
+  coherent (C = c_i - k_true_i): mode=+2 frac_at_mode=0.889 (n_decidable=99) histogram={1: 11, 2: 88}
+
+ROW 0c PASSED (final swept range +/-4).
+
+==========================================================================================
+ROW 1-4 EVALUATION (Sec.6.4)
+==========================================================================================
+  mode(G)=+2 frac_at_mode(G)=0.859 | mode(C)=+2 frac_at_mode(C)=0.889 | bar=0.80
+
+  ROW 4 FIRES: NOT REPRODUCED. mode(G)-mode(C)=+0, outside {+1,+2,+3} -> the displacement is not a property of the synthetic chain -> it is signal- or population-dependent (C4 or unnamed) -> the convention explanation is DEAD; B3 returns as the leading candidate; escalate hard.
+
+------------------------------------------------------------------------------------------
+SECONDARY (Sec.6.5, NOT GATED) -- sign-agreement rate: coherent @ (k+2+m) vs grid @ (k+2), as a function of m. Confounded by C1 fusion across n_syms -- report only, no conclusion drawn, does not influence the ROW.
+------------------------------------------------------------------------------------------
+  m= -6  mean_sign_agreement=0.5405  (n_trials=100)
+  m= -5  mean_sign_agreement=0.5565  (n_trials=100)
+  m= -4  mean_sign_agreement=0.5697  (n_trials=100)
+  m= -3  mean_sign_agreement=0.5826  (n_trials=100)
+  m= -2  mean_sign_agreement=0.5948  (n_trials=100)
+  m= -1  mean_sign_agreement=0.7373  (n_trials=100)
+  m= +0  mean_sign_agreement=0.9199  (n_trials=100)
+  m= +1  mean_sign_agreement=0.7172  (n_trials=100)
+  m= +2  mean_sign_agreement=0.6036  (n_trials=100)
+  peak at m=+0 (mean_agreement=0.9199) -- derivation predicts m=-2, reported for context ONLY, not scored, not gating.
+
+==========================================================================================
+B-ORIG-A DONE (63.1s). ROW 4 fired. ROW 0g still stands FIRED; task 4.3 still VOID; Route B2 still not dead; design.md D1 still not amended (Sec.5 ruling still the Captain's).
+==========================================================================================

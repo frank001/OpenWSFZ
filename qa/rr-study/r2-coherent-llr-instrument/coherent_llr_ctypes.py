@@ -45,11 +45,20 @@ from extract_llrs_ctypes import BUFFER_SAMPLES, FTX_LDPC_N, ExtractLLRs  # noqa:
 # Prior pin (Phase B + Amendment 1, shim 20260044, feat/r2-coherent-llr-phase-b, 7ed8b0c):
 #   CURRENT_DLL_SHA256 = "a3d32b7839a0fd73dcc8d35bd514d60f962f3267179fd77cbd8a1ebd6ecc8d45"
 #   CURRENT_SHIM_VERSION = 20260044
-# Current pin (Amendment 2, corrected by Amendment 3, shim 20260045, task 16.4): read
-# from the rebuilt src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll on disk this session, not
-# copied from a report.
-CURRENT_DLL_SHA256 = "f0c081b968b04515f3fe76b853b423c77be1495d8e645115ceb3434f9e81fe58"
-CURRENT_SHIM_VERSION = 20260045
+# Prior pin (Amendment 2, corrected by Amendment 3, shim 20260045, task 16.4):
+#   CURRENT_DLL_SHA256 = "f0c081b968b04515f3fe76b853b423c77be1495d8e645115ceb3434f9e81fe58"
+#   CURRENT_SHIM_VERSION = 20260045
+# Current pin (§11 acceptance re-run, shim 20260046, fix-negative-time-offset-snr-
+# collapse, PR #130, merged to main 1f96be7): re-pinned to the post-merge binary on
+# disk. This bump is ORTHOGONAL to B1/B2 -- confirmed via `git diff 7ed8b0c HEAD --
+# native/ft8_lib_vendor/refine/coherent_llr.c` returning empty (coherent_llr.c is
+# byte-for-byte unchanged since the Phase B build commit; the intervening bumps are
+# the Amendment 2/3 diagnostic getter and an unrelated ft8_shim.c SNR-reporting fix,
+# neither touching the origin/fusion code this arm exercises). SHA256 read from disk
+# this session, matches src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt's recorded
+# value byte-for-byte.
+CURRENT_DLL_SHA256 = "bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f"
+CURRENT_SHIM_VERSION = 20260046
 
 
 class CoherentExtractLLRs(ExtractLLRs):

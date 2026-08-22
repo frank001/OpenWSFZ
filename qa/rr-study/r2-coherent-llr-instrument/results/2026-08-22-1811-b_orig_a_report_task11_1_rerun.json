@@ -1,0 +1,119 @@
+{
+  "base_dt_s": 0.5,
+  "base_freq_hz": 1500.0,
+  "dll_pin": {
+    "sha256_prefix": "bc8efcf148046f19",
+    "shim_version": 20260046
+  },
+  "elapsed_s": 63.097405195236206,
+  "final": "row_4_fired",
+  "mode_c": {
+    "frac_at_mode": 0.8888888888888888,
+    "histogram": {
+      "1": 11,
+      "2": 88
+    },
+    "mode": 2,
+    "n_decidable": 99
+  },
+  "mode_g": {
+    "frac_at_mode": 0.8585858585858586,
+    "histogram": {
+      "1": 14,
+      "2": 85
+    },
+    "mode": 2,
+    "n_decidable": 99
+  },
+  "n_trials": 100,
+  "noise_seed_base": 21160821,
+  "operating_snr_db": -19.0,
+  "row": 4,
+  "row0a": {
+    "frac_undecidable": 0.01,
+    "n_total": 100,
+    "n_undecidable": 1,
+    "passed": true
+  },
+  "row0a_remedy_attempted": false,
+  "row0b": {
+    "bar": 0.95,
+    "frac_agree": 1.0,
+    "max_abs_diff_s": 0.0035656377062323052,
+    "mean_abs_diff_s": 0.00356563567366847,
+    "n_agree": 100,
+    "n_total": 100,
+    "passed": true,
+    "tol_s": 0.04
+  },
+  "row0c": {
+    "m_range_final": [
+      -4,
+      -3,
+      -2,
+      -1,
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "passed": true,
+    "widened": false
+  },
+  "row_text": "NOT REPRODUCED. mode(G)-mode(C)=+0, outside {+1,+2,+3} -> the displacement is not a property of the synthetic chain -> it is signal- or population-dependent (C4 or unnamed) -> the convention explanation is DEAD; B3 returns as the leading candidate; escalate hard.",
+  "secondary_sign_agreement": {
+    "curve": {
+      "-1": {
+        "mean_agreement": 0.7372988505747127,
+        "n_trials": 100
+      },
+      "-2": {
+        "mean_agreement": 0.5948275862068966,
+        "n_trials": 100
+      },
+      "-3": {
+        "mean_agreement": 0.5825862068965517,
+        "n_trials": 100
+      },
+      "-4": {
+        "mean_agreement": 0.5696551724137932,
+        "n_trials": 100
+      },
+      "-5": {
+        "mean_agreement": 0.5564942528735632,
+        "n_trials": 100
+      },
+      "-6": {
+        "mean_agreement": 0.5405172413793103,
+        "n_trials": 100
+      },
+      "0": {
+        "mean_agreement": 0.9199425287356322,
+        "n_trials": 100
+      },
+      "1": {
+        "mean_agreement": 0.7172413793103448,
+        "n_trials": 100
+      },
+      "2": {
+        "mean_agreement": 0.6035632183908046,
+        "n_trials": 100
+      }
+    },
+    "m_range": [
+      -6,
+      -5,
+      -4,
+      -3,
+      -2,
+      -1,
+      0,
+      1,
+      2
+    ],
+    "peak_m": 0
+  },
+  "seed": 20260821,
+  "time_quantum_s": 0.08
+}

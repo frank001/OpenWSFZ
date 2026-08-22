@@ -524,7 +524,7 @@ already, by this same authoring pass (design.md Decision D-B2-1).
 **BLOCKED on §7-10 landing.** Two changes (B1, B2) share one Developer session, which
 normally destroys attribution; this ordering restores it (2026-08-21 15:25Z spec §5).
 
-- [ ] 11.1 **FIRST — re-run `b_orig_a_origin_convention.py` exactly as it ran at
+- [x] 11.1 **FIRST — re-run `b_orig_a_origin_convention.py` exactly as it ran at
       2026-08-21 15:00Z** (same seed, same N, same spec) — the acceptance test for B1
       alone. Required: `mode(G)` = `+2`, **unchanged** (control — the grid path must be
       untouched); `mode(C)` moves `0` → `+2` (B1 works: coherent now agrees with grid's
@@ -534,8 +534,33 @@ normally destroys attribution; this ordering restores it (2026-08-21 15:25Z spec
       control.** Report `frac_at_mode` for both; a drop in `frac_at_mode(C)` well below
       0.918 is worth flagging (possible B2 variance) but is not itself a stop
       condition.
-- [ ] 11.2 **SECOND — confirm the B2 unit test (§8.2) passes.**
-- [ ] 11.3 **THIRD, only if 11.1 and 11.2 both pass — re-run ROW 0g AS PRE-REGISTERED**
+      **Done 2026-08-22, re-run against the current merged binary (shim `20260046` —
+      re-pinned in `coherent_llr_ctypes.py`; `coherent_llr.c` confirmed byte-for-byte
+      unchanged since the Phase B build commit `7ed8b0c` via empty `git diff`, so the
+      later Amendment 2/3 + fix-negative-time-offset-snr-collapse bumps are orthogonal
+      to this test). Result: `mode(G)=+2` (unchanged, control intact ✓), `mode(C)=+2`
+      (moved from its pre-fix `+0` — B1 confirmed working ✓), `frac_at_mode(G)=0.859`,
+      `frac_at_mode(C)=0.889` (a touch under the 0.918 flag line — noted per the task's
+      own instruction, not a stop condition). The script's own internal ROW-evaluation
+      logic printed "ROW 4 FIRES: NOT REPRODUCED... the convention explanation is
+      DEAD" — this is a false alarm for this use: that logic was written to detect the
+      PRE-fix diagnostic pattern (`mode(G)−mode(C)` a nonzero displacement); now that
+      B1 has closed the gap to zero, its own designed trigger condition is gone, which
+      is the success case here, not a failure. Judged against this task's own stated
+      criterion, not the script's stale self-narration.**
+      **⚠️ Harness gap (third occurrence of the same defect class already flagged for
+      `b_dt_c3_*.py`): this script also writes to a fixed, unsuffixed path
+      (`results/b_orig_a_run.log`/`.json`) and clobbered its own committed pre-fix
+      baseline on disk. Caught via `git status`; today's output preserved at
+      `results/2026-08-22-1811-b_orig_a_*_task11_1_rerun.{log,json}`, original
+      baseline restored via `git checkout --`. See `openspec/qa-backlog.md` N14.**
+- [x] 11.2 **SECOND — confirm the B2 unit test (§8.2) passes.**
+      **Done 2026-08-22 — recompiled and ran `test_b2_fusion_normalization.c` fresh
+      under MSVC (vcvars64) against the unchanged `coherent_llr.c`: exit code 0, ALL
+      PASS, identical arithmetic to the 2026-08-21 confirmed run (ratio 3.7000 exactly
+      pre-normalisation, |diff|=0.000000 post-normalisation on all 3 bits). Throwaway
+      build artefacts removed after, per the file's own header instruction.**
+- [x] 11.3 **THIRD, only if 11.1 and 11.2 both pass — re-run ROW 0g AS PRE-REGISTERED**
       (`qa/rr-study/2026-08-21-1038-architect-to-qa-spec-b2-phase1-row0g-instrument-
       gain-check.md`, `specs/ft8-coherent-llr/spec.md`'s ROW 0g Requirement above):
       same population, same sample, same seed, same anchor, same bars, both limbs —
@@ -550,9 +575,34 @@ normally destroys attribution; this ordering restores it (2026-08-21 15:25Z spec
         STOP.
       - A PASS is not a certificate of correctness — it says the correlator is not
         grossly defective in the ways ROW 0g names.
-- [ ] 11.4 **Attribution statement, recorded regardless of outcome:** if 11.1 passes and
+      **Done 2026-08-22, same seed (`20260821`), same population (25,411-row/4,371-
+      cluster), same anchor (+0.65s), same bars, both limbs, against the current
+      merged binary (shim `20260046`, same re-pin/orthogonality basis as 11.1). Floor
+      clear: 193/200 rows measured, 190 clusters delivered (well above the 100-row/
+      60-cluster floor). ROW 0g-1 (clean-signal ceiling): PASS. ROW 0g-2 (200 real
+      P-HIT rows): `d_real = -3.000`, cluster-bootstrap CI95 `[-5.000, -2.000]`
+      (n_draws=2000, n_clusters=190) → **FIRES** (`CI_hi = -2.000 < 0`). Per the
+      pre-registered consequence: §4.3 stays VOID, no ROW 1/2/3/4 may be read, Route B2
+      must not be called dead. STOPPING here per this task's own instruction — no
+      further ROW evaluation attempted.
+      **The magnitude is the real finding: pre-fix `d_real = -67.000` (CI95
+      `[-71.000, -65.000]`) → post-Phase-B `d_real = -3.000` (CI95 `[-5.000, -2.000]`).
+      Phase B closed ~96% of the median bit-error gap (67 → 3 bits) without closing
+      it entirely. Same harness-gap pattern as 11.1: `row0g_run.log`/`.json` clobbered
+      their own committed baseline; preserved at
+      `results/2026-08-22-1811-row0g_*_task11_3_rerun.{log,json}`, original restored.**
+- [x] 11.4 **Attribution statement, recorded regardless of outcome:** if 11.1 passes and
       ROW 0g still fires at 11.3, B1 is confirmed working and the residual belongs to
       fusion/frequency, not to position (2026-08-21 15:25Z spec §5.3).
+      **Done 2026-08-22 — exactly this case: 11.1 passed (B1 confirmed working,
+      `mode(C)` moved to `+2` and agrees with grid), and ROW 0g still fires at 11.3.
+      Per spec §5.3: the residual belongs to fusion/frequency, not to position — B1's
+      origin correction is not in question. The residual itself shrank drastically
+      (67 → 3 median bit-errors) even though it did not close, which is new evidence
+      B2 (fusion normalisation) is also doing real, substantial work — not proof B2 is
+      complete or sufficient, only that position was never the whole story and B2's
+      contribution is large, not marginal. §4.3 remains VOID; Route B2's ultimate
+      viability remains unanswered, per the pre-registered consequence rule.**
 
 ## 12. C1 — pin the cascade shape in `design.md` (docs only, QA, no Developer session)
 

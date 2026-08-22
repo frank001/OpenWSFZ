@@ -501,3 +501,53 @@ than inferring from the bare count; separately, run the Windows and WSL legs wit
 for `[MemberData]`, `[ClassData]`, or any test that enumerates the filesystem/ports/environment at
 discovery time, since a static xUnit assembly should not vary its own discovered-test count at all
 absent something environment-dependent driving that enumeration.
+
+---
+
+## N14 — `qa/rr-study/r2-coherent-llr-instrument/*.py` harness scripts write to a fixed,
+unsuffixed output path and silently clobber their own committed baseline on re-run
+
+**Status:** OPEN, confirmed — now observed on **three** independent scripts, not one.
+The first occurrence (`b_dt_c3_offline_negative_dt.py`, flagged during the
+`fix-negative-time-offset-snr-collapse` acceptance run 2026-08-22) was recorded as
+"harness gap, flagged not fixed" in `BOARD.md`. This session found the identical defect
+class in `b_orig_a_origin_convention.py` and `row0g_instrument_gain_check.py` while
+running tasks 11.1 and 11.3 of `r2-coherent-llr-instrument` against the post-merge
+binary — both scripts overwrote their committed `results/*_run.log`/`*_report.json`
+the moment they were re-run, with no warning, no confirmation prompt, and no
+suffixing by date, seed, or DLL pin.
+**Severity:** Medium — no data was actually lost either time this session (caught via
+`git status` immediately after each run, since these particular files happen to be
+git-tracked and committed; the overwrite was reverted with `git checkout --` before
+anything else touched them), but the pattern is now confirmed structural, not a
+one-off typo in a single script. A re-run against an **untracked** results directory,
+or a re-run followed immediately by an unrelated `git add -A`/broad commit before
+anyone thinks to check `git status`, would destroy the original evidence
+permanently — exactly the class of loss HK-016/HK-017's "gather artefacts, timestamp
+them" discipline exists to prevent.
+**Source:** QA (AI-assisted), 2026-08-22, `r2-coherent-llr-instrument` tasks 11.1/11.3
+acceptance re-run (`fix-negative-time-offset-snr-collapse`, PR #130, merged).
+**File:** `qa/rr-study/r2-coherent-llr-instrument/b_dt_c3_offline_negative_dt.py`,
+`b_orig_a_origin_convention.py`, `row0g_instrument_gain_check.py` — likely every script
+in this directory that writes a `results/<fixed-name>.{log,json}` pair without a date/
+seed/pin suffix; not yet audited for the full list.
+
+This session's workaround, applied both times: before running, note the file is
+git-tracked; after running, `cp` the freshly-written output to a dated, task-suffixed
+filename (e.g. `results/2026-08-22-1811-row0g_run_task11_3_rerun.log`) *then*
+`git checkout --` the original path to restore the committed baseline. This works but
+relies on the operator remembering to do it every single time, for every script in this
+family — exactly the kind of manual discipline this project's own HK culture
+(HK-016/HK-017/HK-022) exists to replace with a mechanical guarantee.
+
+**Suggested fix:** either (a) have each script derive its own output filename from a
+run-identifying value already in scope — the DLL SHA/shim version it just pinned
+against, a UTC timestamp, or an explicit `--tag`/`--out-suffix` CLI argument defaulting
+to one of those — or (b) add a shared guard in whatever common harness module these
+scripts already import (e.g. `p23_common`/`run_stage1` per the imports seen in
+`row0g_instrument_gain_check.py`) that refuses to overwrite an existing, git-tracked
+result file without an explicit `--force`, printing the exact `cp`+`git checkout`
+workaround above as the remedy. Audit the rest of
+`qa/rr-study/r2-coherent-llr-instrument/*.py` (and probably sibling `qa/rr-study/*`
+directories from earlier phases) for the same fixed-path pattern before assuming it is
+contained to these three.
