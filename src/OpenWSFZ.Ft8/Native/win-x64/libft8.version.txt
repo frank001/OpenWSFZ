@@ -1,4 +1,76 @@
-=== CURRENT: r2-coherent-llr-instrument (FT8_SHIM_VERSION 20260043) ===
+=== CURRENT: r2-coherent-llr-instrument Phase B + Amendment 1 (FT8_SHIM_VERSION 20260044) ===
+
+Built 2026-08-21 from this change's branch (feat/r2-coherent-llr-phase-b), on top of the
+Phase 1 pin at shim 20260043 (SHA256 1889408787a2c7ea545dbe8477691b090417a74fc81116cbf1e
+a52413bfbdb3a) plus three fixes/additions, all specced together as Phase B (tasks.md
+§7-10): **B1** -- corrects `ft8_coherent_llr_at`'s raw-PCM correlation origin (a runtime-
+derived `-1.0`-symbol unit-conversion correction, `coherent_llr.c`, see that file's own
+"PHASE B" header note and ft8_shim.h's changelog entry for the full derivation). **B2** --
+corrects the same function's cross-window fusion comparison to standardise each window's
+per-bit LLRs by its own magnitude spread before comparing (`coh_window_scale`,
+`coherent_llr.c`) instead of comparing raw magnitude, which structurally favoured the
+longest window. **B4 (Amendment 1)** -- adds `ft8_ldpc_decode_llrs`, a new diagnostic-only
+export in `decode.c` (`ftx_ldpc_decode_llrs`) + a thin `ft8_shim.c` wrapper, decoding a
+caller-supplied 174-LLR vector through production's own `ftx_normalize_logl` ->
+`bp_decode` -> OSD (conditional) -> CRC-14 sequence, mirroring `ftx_decode_candidate`
+exactly. No production entry point's ABI, struct layout, or decode behaviour changes --
+confirmed both by source inspection (`decode.c` shows 166 insertions / **0 deletions** by
+`git diff --numstat`, i.e. every existing function is provably byte-for-byte unchanged,
+not merely eyeballed) and empirically (production-decode-equality replay below, on BOTH
+platforms rebuilt this session).
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    a3d32b7839a0fd73dcc8d35bd514d60f962f3267179fd77cbd8a1ebd6ecc8d45
+  Linux x64   (build_linux.sh, GCC 14.2.0 via WSL2 Debian): SHA256
+    13d9799d91388d9edd10e457cecf59a09c7a088caa09eb7c56cd40ea5ec5f894
+  macOS ARM64: NOT rebuilt this session -- no Mac available locally, same limitation every
+    prior native change in this project's history has recorded. Non-blocking: this repo's
+    own CI (.github/workflows/ci.yml, `commit-native-binaries` job) rebuilds macOS from
+    source and auto-commits the result on every push that changes native sources -- this
+    branch has not been pushed yet (HK-014: Developer sessions never push). The
+    osx-arm64/libft8.dylib currently committed remains at its PRE-Phase-B shim version
+    until that push happens; do not treat it as shim-20260044-compatible before then.
+    task 10.5 (verified mechanically, not inherited): CI's macOS/Linux build steps compile
+    `decode.c`/`ft8_shim.c` WHOLESALE (`cp .../decode.c ft8/decode.c` then compile) and
+    export all non-`static` symbols by default (ELF/Mach-O, unlike Windows PE which needs
+    an explicit `/EXPORT` per symbol) -- B4 adds a new SYMBOL inside already-compiled
+    files, not a new source FILE, so `ci.yml` needs **no edit** for B4 (unlike B1/B2,
+    which change `coherent_llr.c`'s existing behaviour and also need no edit -- that file
+    already has its own dedicated CI compile step from Phase 1). Windows' rebuild_shim.bat
+    DID need (and got) a new `/EXPORT:ft8_ldpc_decode_llrs` line -- the platform-specific
+    reason PE, not ELF/Mach-O, needs one.
+
+  ASSERTED UNUSED BEFORE ADOPTION (task 10.1): `FT8_SHIM_VERSION 20260044` checked
+  directly against every local AND `origin/*` branch's own `ft8_shim.h` (`git show
+  <branch>:src/OpenWSFZ.Ft8/Native/ft8_shim.h | grep "define FT8_SHIM_VERSION"`, all ~35
+  branches) -- no collision (highest claimed elsewhere: 20260042/20260043).
+
+  PRODUCTION-DECODE-EQUALITY REPLAY (task 10.3, ≥200 contiguous cycles,
+  qa/cycleframer-alignment-replay/r0_ac1_ac2_replay.py + r0_ac1_ac2_diff.py, reused
+  verbatim -- HK-018): 250 contiguous cycles (260808_004000..260808_014215,
+  artefacts/20260808_live_run_0016-8080/wsjt-x/wav), between the pre-Phase-B (shim
+  20260043) and this Phase B (shim 20260044) binaries -- **zero decode-output
+  differences, mechanically diffed, on BOTH platforms rebuilt this session** (Windows:
+  1889408787...->a3d32b7839...; Linux: 8c79cf40f4...->13d9799d91...). Expected and
+  required: B1/B2 only change `ft8_coherent_llr_at`'s own (diagnostic-only, no production
+  call site) return values, and B4 is a wholly new, equally uncalled export -- neither
+  touches any code path `ft8_decode_all` actually executes.
+
+  `dumpbin /exports` (Windows) and `nm -D` (Linux) both confirm all FIFTEEN exported
+  symbols present -- the fourteen pre-existing symbols (thirteen production + Phase 1's
+  own `ft8_coherent_llr_at`) unchanged, plus the one new `ft8_ldpc_decode_llrs` (task
+  10.2) -- and it is the ONLY addition.
+
+  B4 ACCEPTANCE (task 9.4, qa/rr-study/r2-coherent-llr-instrument/test_b4_ldpc_decode_llrs.py):
+  B4-a/c/d PASS (positive control, caller-buffer-untouched, zero-variance guard). B4-b's
+  literal N=20 seeded run read 1/20, not the specified 0/20 -- diagnosed to the OSD
+  fallback's own ~1.2% false-accept rate on structureless Gaussian noise (BP alone: 0/500
+  across a larger diagnostic sample) -- reported honestly rather than re-seeded; does not
+  gate this task per its own "B4-a/c/d are mandatory" text. B4-e (the only check with known
+  ground truth): 92.8% (3,098/3,339 real rows `ft8_decode_all` itself decoded live),
+  clearing the 90% floor.
+
+=== r2-coherent-llr-instrument Phase 1 (FT8_SHIM_VERSION 20260043) ===
 
 Built 2026-08-20 from this change's branch (feat/r2-coherent-llr-phase1), on top of the
 production pin at shim 20260042 (SHA256 6890d84c4bcf2e90bc9ad3cc0e0e00c74a461f8b265665d5

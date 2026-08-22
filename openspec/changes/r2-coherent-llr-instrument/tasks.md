@@ -246,7 +246,7 @@ already, by this same authoring pass (design.md Decision D-B2-1).
 
 **BLOCKED on a Captain-opened Developer session (HK-011).**
 
-- [ ] 7.1 In `ft8_coherent_llr_at` (`native/ft8_lib_vendor/refine/coherent_llr.c`),
+- [x] 7.1 In `ft8_coherent_llr_at` (`native/ft8_lib_vendor/refine/coherent_llr.c`),
       after the existing lattice snap produces `time_offset_s_grid` (currently used
       directly to form `origin_sample_f` at line 437), apply the correction:
       `correction_symbols = 1/time_osr − freq_osr/2 − 0.5` (== `-1.0` at production's
@@ -255,19 +255,28 @@ already, by this same authoring pass (design.md Decision D-B2-1).
       `symbol_period` from `mon.wf.time_osr`/`mon.wf.freq_osr`/`mon.symbol_period` —
       all three are already read in this function (lines 394-398) — captured before
       `monitor_free(&mon)` at line 413. Do NOT hardcode `-0.16f` or `-1.0f`.**
-- [ ] 7.2 Add a comment at the correction naming *why* it exists — the look-back window
+      Done: `correction_symbols` derived at runtime from the three already-captured
+      variables (never hardcoded); `origin_sample_f = (time_offset_s_grid +
+      correction_symbols * symbol_period) * fs`, compiled and linked clean (0 warnings).
+- [x] 7.2 Add a comment at the correction naming *why* it exists — the look-back window
       and the `b + (s+1)/T − F/2` window-centre derivation — pointing at
       `qa/rr-study/2026-08-21-1412-architect-to-qa-origin-convention-finding-and-spec-
       b-orig-a.md`. A bare unexplained constant is how this defect survived the C port.
-- [ ] 7.3 Confirm the derived `-1.0` symbol correction (at production OSR) matches
+      Done: comment at the correction site plus a "PHASE B" note in the file's own
+      header, both pointing at the 1412Z finding document.
+- [x] 7.3 Confirm the derived `-1.0` symbol correction (at production OSR) matches
       `qa/rr-study/n2-coherent-llr-extractor/coherent_extract.py:227`'s own
       `TIME_ORIGIN_CORRECTION_SAMPLES_2K = -SPS_2K` constant, calibrated empirically in
       the Python prototype since the N2 session. **If it does not match, stop and
       escalate — do not proceed to rebuild.**
+      Confirmed: `TIME_ORIGIN_CORRECTION_SAMPLES_2K = -SPS_2K = -320` samples @ 2000 Hz
+      = -1 symbol period (that file's own line 226 comment) — matches
+      `correction_symbols = -1.0` at `K_TIME_OSR = K_FREQ_OSR = 2` exactly. No
+      escalation; proceeded to rebuild.
 
 ## 8. B2 — the fusion normalisation (native, same session as §7)
 
-- [ ] 8.1 Before the cross-`n_syms` magnitude comparison at `coherent_llr.c:480`
+- [x] 8.1 Before the cross-`n_syms` magnitude comparison at `coherent_llr.c:480`
       (`if (n_syms == 1 || fabsf(candidate) > fabsf(out_log174[gb]))`), standardise
       each window's per-bit LLRs to a common, window-size-independent scale before
       comparing (design.md D9) — e.g. divide each window's `bit_llr[]` by
@@ -277,16 +286,35 @@ already, by this same authoring pass (design.md Decision D-B2-1).
       comment. Do **not** fix this by restricting `n_syms` — the 1-, 2- and 3-symbol
       windows must all remain in the comparison; that coherence is Route B2's entire
       premise.
-- [ ] 8.2 Add the mandatory unit test (design.md D9, `specs/ft8-coherent-llr/spec.md`'s
+      Done exactly as suggested: new static `coh_window_scale(mag, n_tones)` (population
+      stddev, same variance formula as `coh_normalize_logl`), called once per window in
+      the main fusion loop before `coh_bits_from_window`'s output is compared/stored;
+      `scale > 0.0f` guard leaves a degenerate window's `bit_llr[]` unscaled rather than
+      dividing by zero. `n_syms` unrestricted — all three window sizes remain in the loop.
+- [x] 8.2 Add the mandatory unit test (design.md D9, `specs/ft8-coherent-llr/spec.md`'s
       "Fusion selects by normalised reliability, not by window length" scenario):
       construct two windows whose magnitudes carry equal discriminative information but
       differ in absolute scale by a known factor; assert their normalised per-bit LLRs
       agree to a stated tolerance, and assert the pre-normalisation values do **not**.
       C-side or Python-side, Developer's choice of placement — record which, and why.
+      Done: **C-side**, `native/ft8_lib_vendor/refine/tests/test_b2_fusion_normalization.c`
+      (standalone, not linked into `libft8.dll`/`rebuild_shim.bat` — see that file's own
+      header for why C-side, and the exact build/run command). `#include`s
+      `coherent_llr.c` directly to reach `coh_bits_from_window`/`coh_window_scale` (both
+      `static`) — this scenario is about the internal per-window magnitude array and the
+      static normalisation arithmetic directly, which the full `ft8_coherent_llr_at()`
+      pipeline can only vary indirectly (via coherent gain over window length — exactly
+      the confound B2 corrects for, not a clean independent test of the arithmetic).
+      Compiled and run this session: **ALL PASS** — `mag_b = 3.7 * mag_a` (n_syms=1, 8
+      tones) makes `raw_llr_b == 3.7 * raw_llr_a` exactly on all 3 bits (pre-
+      normalisation disagreement, asserted), and `norm_llr_a == norm_llr_b` to float32
+      rounding on all 3 bits after each window is divided by its own `coh_window_scale`
+      (post-normalisation agreement, asserted) — plus a guard-path check
+      (`coh_window_scale` on an all-equal, zero-spread window returns exactly `0.0f`).
 
 ## 9. B4 — `ft8_ldpc_decode_llrs` diagnostic export (native, Amendment 1, same session)
 
-- [ ] 9.1 Add `ft8_ldpc_decode_llrs` to `native/ft8_lib_build/patched/ft8/decode.c`
+- [x] 9.1 Add `ft8_ldpc_decode_llrs` to `native/ft8_lib_build/patched/ft8/decode.c`
       (forced placement — `ftx_normalize_logl` at `decode.c:391` and `osd_decode` at
       `decode.c:507` are both `static` there), exactly as `ftx_extract_likelihood_at`
       (`decode.c:838`) already does, with a thin wrapper in `ft8_shim.c` (the
@@ -295,7 +323,15 @@ already, by this same authoring pass (design.md Decision D-B2-1).
       uint8_t* out_a91, int* out_ldpc_errors, int* out_path, int* out_crc_ok)`.
       **Do not un-`static` anything, do not move `osd_decode`, do not duplicate the
       CRC or normalisation arithmetic into the shim.**
-- [ ] 9.2 Implement in this order, mirroring `decode.c:641-713` and nothing else (1644Z
+      Done, matching `ftx_extract_likelihood_at`/`ft8_extract_llrs_at`'s exact two-file
+      split: the actual implementation, `ftx_ldpc_decode_llrs` (that exact signature),
+      lives in `decode.c` right after `ftx_extract_likelihood_at`, calling
+      `ftx_normalize_logl`/`osd_decode`/`pack_bits` in place (all still `static`,
+      unmoved). `ft8_shim.c` forward-declares it and exports the ABI-facing
+      `ft8_ldpc_decode_llrs` (the exact signature from ft8_shim.h) as a thin wrapper —
+      a NULL check plus a direct pass-through call, no logic of its own (this export
+      needs no monitor/waterfall plumbing at all, unlike `ft8_extract_llrs_at`).
+- [x] 9.2 Implement in this order, mirroring `decode.c:641-713` and nothing else (1644Z
       spec §B.3): (1) `memcpy` the caller's vector into a local `float
       log174[FTX_LDPC_N]` — never modify the caller's buffer, `bp_decode` writes
       through its argument; (2) degenerate guard FIRST (copy `decode.c:799`'s own guard
@@ -309,12 +345,28 @@ already, by this same authoring pass (design.md Decision D-B2-1).
       `osd_depth >= 0`**, run the OSD fallback exactly as production does (including
       its existing two-feature accept/reject gate), re-check the CRC, report which path
       succeeded in `out_path` (`0` = BP converged, `1` = OSD fallback, `-1` = neither).
-- [ ] 9.3 Confirm `decode.c`'s existing functions are byte-for-byte unchanged (diff
+      Done, all 7 steps in this exact order. **Recorded deviation from this task's own
+      plain-English step 6/7 ORDER (HK-022, not hidden):** steps 6/7 above read as
+      "pack+CRC-check THEN run OSD iff the CRC failed", but the actual control flow
+      implemented gates on `bp_decode`'s own `out_ldpc_errors > 0` (BP did not converge)
+      before ever packing/CRC-checking BP's own output — this is `decode.c:641-713`'s
+      OWN literal branch structure (a non-converged BP codeword is never CRC-checked at
+      all there; OSD runs in its place), and per this task's own governing instruction
+      ("mirroring `decode.c:641-713` and nothing else") that literal control flow, not
+      the paraphrase, is what was mirrored. Recorded in the function's own header
+      comment in `decode.c`. `out_ldpc_errors` reset to `0` on a successful OSD path,
+      mirroring `ftx_decode_candidate`'s own `status->ldpc_errors = 0`.
+- [x] 9.3 Confirm `decode.c`'s existing functions are byte-for-byte unchanged (diff
       against the pre-change source) and that no production call site anywhere in
       `decode.c`/`ft8_shim.c` calls `ft8_ldpc_decode_llrs` (grep-confirmed). B4 gets no
       `Ft8LibInterop`/`IFt8NativeInterop` C# binding (design.md D10) — reachable only
       from test code and QA harnesses via the native-library loading mechanism.
-- [ ] 9.4 Native or Python smoke tests (Developer's choice of placement, per the
+      Confirmed by `git diff --numstat`: `decode.c` shows 166 insertions / **0
+      deletions** (purely additive — every existing function is byte-for-byte
+      unchanged, not merely eyeballed). Grep-confirmed zero references to
+      `ft8_ldpc_decode_llrs`/`ftx_ldpc_decode_llrs` anywhere in `decode.c`/`ft8_shim.c`
+      outside their own definitions/forward-declarations/wrapper. No C# binding added.
+- [x] 9.4 Native or Python smoke tests (Developer's choice of placement, per the
       `n1-extract-llrs-at-position` precedent design.md D10 cites), covering all five
       mandatory acceptance checks from the 1644Z spec §C — **all two-sided/floor bars
       below are load-bearing, not advisory:**
@@ -338,39 +390,132 @@ already, by this same authoring pass (design.md Decision D-B2-1).
       block ROW 0g (§11.3 below) — B4 is inert, nothing calls it — but it MUST be
       reported and MUST stop any C2 work (C2 is not this change's scope regardless).**
 
+      Done: **Python ctypes** (`qa/rr-study/r2-coherent-llr-instrument/ldpc_decode_ctypes.py`
+      binding + `test_b4_ldpc_decode_llrs.py`), the same pattern this project's every
+      other diagnostic-export acceptance check has used (this repo has no native C test
+      runner). Results against the freshly-rebuilt DLL (SHA256
+      `a3d32b7839a0fd73dcc8d35bd514d60f962f3267179fd77cbd8a1ebd6ecc8d45`, shim `20260044`):
+      - **B4-a PASS**: known message `"Q1OFZ Q1TST JO33"`, exact ±1-scaled codeword LLRs
+        → `crc_ok=1`, `path=0` (BP), recovered a91 payload (the 77 message bits — the
+        CRC-14 region `[77,91)` is zeroed by `decode.c:709-710`'s own mirrored
+        arithmetic and is never expected to equal the transmitted CRC bits; `out_crc_ok`
+        is the correct/separate answer for that) matches bit-for-bit.
+      - **B4-b: reported honestly, not smoothed over (HK-022).** The literal spec run
+        (fixed seed, N=20, `osd_depth=2`) read **1/20** on this session's first run, not
+        0/20. Diagnosed with a 500-trial characterisation at the same seed: **BP alone
+        NEVER accepts pure Gaussian LLR noise (0/500)**; the false accepts come
+        **exclusively from the OSD fallback** (production's own unmodified two-feature
+        gate) at a measured **~1.2%** rate (6/500). This is a genuine, reproducible
+        property of running OSD directly against structureless IID noise with none of
+        production's own upstream candidate-quality filtering (sync-score gating,
+        `K_MIN_SCORE_PASS2`, etc. all run before a real candidate ever reaches
+        `bp_decode`/OSD) — not a defect B4 introduces; B4 mirrors `decode.c:641-713`
+        (OSD fallback and its existing gate included) exactly, and this is what that
+        faithful mirror reveals about OSD's own noise floor in isolation. At `n=20` and
+        an ~1.2% true rate, `P(0 fails) ≈ 0.78`, so treating a "lucky" re-rolled 0/20 as
+        confirmation would misrepresent the underlying behaviour; reported instead of
+        re-seeded. B4-a/c/d (the hard mandatory gate per this task's own text) all PASS
+        regardless.
+      - **B4-c PASS**: caller's `llr174` ctypes buffer, read back after the call
+        (bypassing the Python convenience wrapper, which would otherwise mask a C-side
+        mutation by rebuilding a fresh buffer per call), byte-identical before/after.
+      - **B4-d PASS**: an all-`3.5` (zero-variance) input → `rc=-2` (negative), no crash,
+        no NaN.
+      - **B4-e: 92.8% (3,098/3,339 rows), CLEARS the 90% floor.** First 150 chronological
+        WAVs of `PRIMARY_CORPUS` (`20260803_live_run_1713`), every row `ft8_decode_all`
+        itself decoded live, `ft8_extract_llrs_at` at that row's own grid position, fed
+        to B4. Message-text cross-check (a re-encode-oracle proxy — no message-bit
+        decoder is exposed via ctypes, so production's own decoded text is re-encoded
+        via `ft8_encode_message` and compared bit-for-bit against B4's own recovered
+        payload, rather than decoding B4's a91 to text directly): 2,526/2,843
+        re-encodable rows matched; the 317 mismatches are **not random** — most carry an
+        exact, structural 5-bit gap concentrated on `...RR73`-suffixed Type-1 messages
+        (the re-encode does not round-trip that field identically), a known limitation
+        of the proxy itself, not of B4 — `crc_ok` (the spec-mandated primary metric,
+        unambiguous CRC-14 match) is unaffected and is what the 90% floor is measured
+        against. **No STOP condition; §11.3/the handback proceed.**
+
 ## 10. Version, pin, cross-platform build — Phase B (native, same session)
 
 **BLOCKED on the same Developer session as §7-9.**
 
-- [ ] 10.1 Bump `FT8_SHIM_VERSION`/`ExpectedShimVersion` from `20260043` to `20260044`.
+- [x] 10.1 Bump `FT8_SHIM_VERSION`/`ExpectedShimVersion` from `20260043` to `20260044`.
       🔴 **Assert mechanically that `20260044` is unused across all branches before
       adopting it** — do not infer freedom from the number being the next integer (the
       board already records two collisions across five unmerged `d001-*` branches).
       Header history entry in the established style (`ft8_shim.h`).
-- [ ] 10.2 Rebuild all three platform binaries you have toolchain access to; record
+      Done: checked every local AND `origin/*` branch's own `ft8_shim.h` directly
+      (`git show <branch>:.../ft8_shim.h | grep FT8_SHIM_VERSION`, ~35 branches) — no
+      collision (highest claimed elsewhere: 20260042/20260043). Header history entry
+      added to `ft8_shim.h`.
+- [x] 10.2 Rebuild all three platform binaries you have toolchain access to; record
       each SHA256 honestly (state, don't skip silently, if a platform is unavailable —
       same standard R0/Phase 1 used for macOS). `dumpbin /exports`/`nm -D`/platform
       equivalent: confirm `ft8_ldpc_decode_llrs` is present, every previously-exported
       symbol is unchanged, and it is the **only** addition.
-- [ ] 10.3 Re-run a production-decode-equality replay (≥200 contiguous cycles,
+      Windows (`rebuild_shim.bat`, MSVC 19.44.35223): SHA256
+      `a3d32b7839a0fd73dcc8d35bd514d60f962f3267179fd77cbd8a1ebd6ecc8d45`. Linux
+      (`build_linux.sh` via WSL2 Debian, GCC 14.2.0): SHA256
+      `13d9799d91388d9edd10e457cecf59a09c7a088caa09eb7c56cd40ea5ec5f894`. macOS: NOT
+      rebuilt — no Mac available locally (same limitation every prior native change has
+      recorded); CI's `commit-native-binaries` job rebuilds it on push, not yet pushed
+      (HK-014). `dumpbin /exports`/`nm -D` both confirm all FIFTEEN symbols present
+      (fourteen pre-existing + the one new `ft8_ldpc_decode_llrs`), no existing symbol
+      lost, the new export is the only addition. Full detail:
+      `src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt`.
+- [x] 10.3 Re-run a production-decode-equality replay (≥200 contiguous cycles,
       `qa/cycleframer-alignment-replay/r0_ac1_ac2_replay.py` +
       `r0_ac1_ac2_diff.py`, reused verbatim — HK-018) between the pre-Phase-B and new
       binaries: zero decode-output differences, mechanically diffed, on every platform
       rebuilt.
-- [ ] 10.4 **Re-pin the harnesses in one place.**
+      Done: 250 contiguous cycles (`260808_004000`..`260808_014215`) — **PASS, zero
+      differences**, on BOTH platforms rebuilt this session (Windows:
+      `1889408787...`→`a3d32b7839...`; Linux: `8c79cf40f4...`→`13d9799d91...`).
+      `qa/rr-study/r2-coherent-llr-instrument/results/replay_{win,linux}_{prephaseb,phaseb}.json`.
+- [x] 10.4 **Re-pin the harnesses in one place.**
       `qa/rr-study/r2-coherent-llr-instrument/coherent_llr_ctypes.py:40-41`'s
       `CURRENT_DLL_SHA256`/`CURRENT_SHIM_VERSION` — read the rebuilt DLL's actual
       SHA256 from disk, do not copy it from a report. Confirms the four harnesses that
       import these constants (`row0g_instrument_gain_check.py`,
       `b_pos_a_lattice_position.py`, `b_orig_a_origin_convention.py`,
       `phase_a_deconfounding.py`) all pick up the new pin.
-- [ ] 10.5 Verify mechanically whether `.github/workflows/ci.yml`'s fourth build recipe
+      Done: re-pinned to `a3d32b7839a0fd73dcc8d35bd514d60f962f3267179fd77cbd8a1ebd6ecc8d45`
+      / `20260044`, read from the rebuilt DLL on disk (not copied from a report).
+      Grep-confirmed all four named harnesses import `CURRENT_DLL_SHA256`/
+      `CURRENT_SHIM_VERSION` from this one module, so all four pick up the new pin.
+- [x] 10.5 Verify mechanically whether `.github/workflows/ci.yml`'s fourth build recipe
       needs an edit for the new `decode.c` export (B4 adds a new *symbol*, even though
       no new source *file* — re-check rather than inheriting Phase 1's "no edit needed"
       answer). State the result either way.
-- [ ] 10.6 `dotnet build`: 0 warnings. `dotnet test`: full suite green (regression check
+      **No edit needed**, verified mechanically (not inherited): CI's macOS/Linux steps
+      copy `decode.c`/compile `ft8_shim.c` wholesale from their tracked paths and export
+      all non-`static` symbols by default (ELF `nm -D`/Mach-O `nm -gU`, unlike Windows
+      PE which requires an explicit `/EXPORT` per symbol) — B4 adds a new *symbol*
+      inside already-compiled, already-tracked files, not a new source *file*, so no CI
+      recipe line needs to change. Windows' `rebuild_shim.bat` DID need (and got, task
+      10.2) a new `/EXPORT:ft8_ldpc_decode_llrs` line — the PE-specific reason.
+- [x] 10.6 `dotnet build`: 0 warnings. `dotnet test`: full suite green (regression check
       only — Phase B adds no C# code, design.md D10). Confirm nothing in
       `Ft8LibInterop`'s ABI self-test path broke from the version bump alone.
+      Done, but **recorded honestly with a self-caught defect (HK-022), not silently
+      fixed and reported clean:** the first `dotnet test` pass in this session ran
+      against the rebuilt (shim `20260044`) DLL while `Ft8LibInterop.ExpectedShimVersion`
+      was still hardcoded `20260043` — this task's own C# constant is genuinely part of
+      "Version, pin" (§10's own title) and was missed on the first pass. Result:
+      **127 failures, all in `OpenWSFZ.Daemon.Tests.dll`** (every QSO state-machine test
+      that exercises the real decode pipeline timed out at `Idle`, never reaching
+      `WaitReport`/`WaitRr73` — consistent with `LoadAndVerify` throwing
+      `InvalidOperationException` on the ABI mismatch before any decode could run).
+      `ExpectedShimVersion` bumped to `20260044` in `Ft8LibInterop.cs` (with a doc-comment
+      addendum matching this project's established style — Amendment 1's B4 needs no
+      `IFt8NativeInterop` binding, design.md D10, so this is the ENTIRE C# change Phase B
+      makes). Re-ran `dotnet build` (0 warnings, 0 errors) then `dotnet test` (captured
+      exit code directly, not just eyeballed): **`EXITCODE:0`, all ten suites green** —
+      `OpenWSFZ.Ft8.Tests.dll` 314/314 (unchanged count — Phase B adds no new C# tests,
+      design.md D10), `OpenWSFZ.Daemon.Tests.dll` 603/603 (the previously-127-failing
+      suite, now clean), everything else green. `Ft8LibInterop`'s ABI self-test path is
+      confirmed working exactly as designed — it caught a real, self-inflicted version
+      mismatch immediately and loudly, which is the entire point of that check.
 - 🛑 The Developer session runs **build + tests only**. `pre_merge_check.py` is the
       Captain's initiative alone (HK-006).
 

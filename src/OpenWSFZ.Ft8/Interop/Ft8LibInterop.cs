@@ -318,7 +318,21 @@ internal static class Ft8LibInterop
     ///   ROW 0c (a mandatory two-sided sign unit test, run once by the gate harness) is
     ///   the guard against a sign or bit-attribution defect.
     /// </summary>
-    private const int ExpectedShimVersion = 20260043;
+    /// <remarks>
+    /// r2-coherent-llr-instrument Phase B + Amendment 1 (shim 20260044, task 10.1): B1/B2
+    /// correct <see cref="CoherentLlrAt"/>'s underlying native values in place (origin
+    /// unit-conversion, cross-window fusion normalisation) -- no signature change, no new
+    /// export for either. Amendment 1's B4 adds a wholly new diagnostic-only native
+    /// export, <c>ft8_ldpc_decode_llrs</c> -- no C# <see cref="IFt8NativeInterop"/>
+    /// binding is added for it (design.md D10): the consumer is a Python QA harness and
+    /// native/Python smoke tests, not managed code. The bump exists purely so this ABI
+    /// self-test catches a binary built without B4's new export or B1/B2's fix --
+    /// <see cref="DecodeAll"/>, <see cref="GetLastPassCounts"/>,
+    /// <see cref="SetDecodeParams"/>, <see cref="RefineCandidate"/> and
+    /// <see cref="CoherentLlrAt"/>'s own signature all remain byte-for-byte unchanged. No
+    /// struct layout change (<see cref="Ft8NativeResult"/> stays 48 bytes).
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260044;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI

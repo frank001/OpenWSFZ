@@ -421,6 +421,17 @@ void ftx_extract_likelihood_at(
     uint8_t time_sub,    uint8_t freq_sub,
     float*  out_log174);
 
+/* B4 (shim 20260044): decode a caller-supplied 174-LLR vector through
+ * production's own bp_decode -> OSD (conditional) -> CRC-14 sequence. */
+int ftx_ldpc_decode_llrs(
+    const float* llr174,
+    int          max_iters,
+    int          osd_depth,
+    uint8_t*     out_a91,
+    int*         out_ldpc_errors,
+    int*         out_path,
+    int*         out_crc_ok);
+
 /* Task A (shim 20260020): AP-constrained decode */
 bool ftx_decode_candidate_ap(
     const ftx_waterfall_t*  wf,
@@ -1628,4 +1639,32 @@ int ft8_extract_llrs_at(
         return -2;
     }
 #endif
+}
+
+/*
+ * ft8_ldpc_decode_llrs — diagnostic-only export (B4, r2-coherent-llr-
+ * instrument Phase B Amendment 1, shim 20260044).
+ *
+ * Thin wrapper over decode.c's ftx_ldpc_decode_llrs — see ft8_shim.h and
+ * that function's own header comment for the full contract, the exact
+ * 7-step sequence, and the B4-a..e acceptance checks. Unlike
+ * ft8_extract_llrs_at / ft8_coherent_llr_at, this export needs no
+ * monitor_t/waterfall plumbing at all — it operates purely on a
+ * caller-supplied LLR vector, so there is nothing here beyond the NULL
+ * check and a direct pass-through call.
+ */
+int ft8_ldpc_decode_llrs(
+    const float* llr174,
+    int          max_iters,
+    int          osd_depth,
+    uint8_t*     out_a91,
+    int*         out_ldpc_errors,
+    int*         out_path,
+    int*         out_crc_ok)
+{
+    if (llr174 == NULL || out_ldpc_errors == NULL || out_path == NULL || out_crc_ok == NULL)
+        return -1;
+
+    return ftx_ldpc_decode_llrs(llr174, max_iters, osd_depth, out_a91,
+                                 out_ldpc_errors, out_path, out_crc_ok);
 }

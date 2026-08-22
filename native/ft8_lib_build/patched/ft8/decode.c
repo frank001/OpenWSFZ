@@ -848,6 +848,172 @@ void ftx_extract_likelihood_at(
 }
 
 /*
+ * ftx_ldpc_decode_llrs — diagnostic-only LLR-vector decode probe (B4,
+ * r2-coherent-llr-instrument Phase B Amendment 1, shim 20260044).
+ *
+ * Decodes a caller-supplied 174-element RAW (pre-normalisation) LLR vector
+ * through production's own bp_decode -> OSD (conditional) -> CRC-14
+ * sequence, mirroring ftx_decode_candidate (this file, above) exactly and
+ * nothing else, so a diagnostic LLR vector (from ft8_extract_llrs_at or
+ * ft8_coherent_llr_at) can be converted into a CRC-verified decode count
+ * instead of a modelled BER-threshold crossing (2026-08-21 16:44Z Amendment
+ * 1 spec §B). No waterfall is involved at all — this probe never sees one,
+ * only the LLR vector handed to it — so unlike ftx_extract_likelihood_at
+ * there is no lattice/monitor plumbing to mirror.
+ *
+ * Control-flow note (HK-022, recorded not hidden): the Amendment 1 spec's
+ * plain-English step list (§B.3) describes steps 6/7 as "pack + CRC-check,
+ * THEN run OSD iff the CRC failed". This function instead gates on
+ * bp_decode's own out_ldpc_errors (> 0 means BP did not converge to a
+ * zero-parity codeword), exactly as ftx_decode_candidate's real control
+ * flow does — a non-converged BP codeword is never CRC-checked at all in
+ * that function, OSD runs in its place. The spec's own governing
+ * instruction (tasks.md 9.2) is "mirroring decode.c:641-713 and nothing
+ * else"; that literal control flow, not the paraphrase, is mirrored here,
+ * so a converged-BP-but-CRC-invalid codeword (a case the paraphrase's
+ * wording would otherwise route through OSD, which production never does)
+ * behaves identically to ftx_decode_candidate.
+ *
+ * Never modifies the caller's llr174 buffer (B4-c) — copies into a local
+ * before calling bp_decode, which writes through its argument.
+ *
+ * No production call site: reachable only from test code and QA harnesses.
+ * Every existing function in this file, including ftx_decode_candidate
+ * itself, is unchanged by this addition (task 9.3).
+ *
+ * Parameters:
+ *   llr174           — IN: 174 RAW, pre-normalisation LLRs (not modified).
+ *   max_iters        — IN: bp_decode iteration cap.
+ *   osd_depth        — IN: OSD ndeep passed to osd_decode; < 0 disables the
+ *                      OSD fallback entirely (BP-only probe).
+ *   out_a91          — OUT: 91 bits (12 bytes), payload+CRC; may be NULL.
+ *   out_ldpc_errors  — OUT: bp_decode's own error count (reset to 0 if the
+ *                      OSD fallback is the path that succeeded, matching
+ *                      ftx_decode_candidate's own status->ldpc_errors = 0).
+ *   out_path         — OUT: 0 = BP converged, 1 = OSD fallback succeeded,
+ *                      -1 = neither (no CRC-valid codeword found).
+ *   out_crc_ok       — OUT: 1 iff the extracted CRC-14 equals the computed
+ *                      CRC-14 on the accepted codeword; 0 otherwise
+ *                      (including when out_path == -1).
+ *
+ * Returns: 0 on success — a decode was attempted and every output
+ *          parameter is valid; out_crc_ok is the actual answer, this
+ *          return code only reports whether the probe ran.
+ *          -1 if llr174 or any non-optional OUT pointer is NULL.
+ *          -2 if the input LLR vector has zero variance (degenerate;
+ *             ftx_normalize_logl would divide by zero) — no normalisation
+ *             attempted, no crash, no NaN (B4-d).
+ */
+int ftx_ldpc_decode_llrs(
+    const float* llr174,
+    int          max_iters,
+    int          osd_depth,
+    uint8_t*     out_a91,
+    int*         out_ldpc_errors,
+    int*         out_path,
+    int*         out_crc_ok)
+{
+    if (llr174 == NULL || out_ldpc_errors == NULL || out_path == NULL || out_crc_ok == NULL)
+        return -1;
+
+    *out_path   = -1;
+    *out_crc_ok = 0;
+
+    /* Step 1: copy — never modify the caller's own buffer (B4-c); bp_decode
+     * writes through its argument. */
+    float log174[FTX_LDPC_N];
+    memcpy(log174, llr174, sizeof(log174));
+
+    /* Step 2: degenerate guard FIRST, copying decode.c's own
+     * ftx_compute_candidate_llr_stats guard (above, "variance == 0.0f")
+     * in spirit: zero variance means ftx_normalize_logl would divide by
+     * zero. Return a negative rc without normalising (B4-d). */
+    {
+        float sum = 0.0f, sum2 = 0.0f;
+        for (int i = 0; i < FTX_LDPC_N; ++i)
+        {
+            sum  += log174[i];
+            sum2 += log174[i] * log174[i];
+        }
+        float inv_n = 1.0f / FTX_LDPC_N;
+        float variance = (sum2 - (sum * sum * inv_n)) * inv_n;
+        if (variance == 0.0f)
+            return -2;
+    }
+
+    /* Step 3: normalise — MANDATORY. Removes any global scale difference
+     * between differently-scaled LLR extractions (e.g. the grid vs.
+     * coherent exports) before BP sees them; without this step the probe
+     * would measure LLR scale, not LLR quality. */
+    ftx_normalize_logl(log174);
+
+    /* Step 4: save the normalised vector for the OSD fallback, exactly as
+     * ftx_decode_candidate does (above, "Save normalised LLRs before
+     * bp_decode potentially modifies them in place"). */
+    float llr_for_osd[FTX_LDPC_N];
+    memcpy(llr_for_osd, log174, sizeof(log174));
+
+    /* Step 5: belief propagation. */
+    uint8_t plain174[FTX_LDPC_N];
+    bp_decode(log174, max_iters, plain174, out_ldpc_errors);
+
+    if (*out_ldpc_errors > 0)
+    {
+        /* BP did not converge. Production's ftx_decode_candidate runs the
+         * OSD fallback here unconditionally (ndeep hardcoded to 2); this
+         * probe exposes that depth as osd_depth and treats < 0 as "OSD
+         * disabled" (a BP-only probe run). */
+        if (osd_depth < 0)
+            return 0; /* out_path stays -1, out_crc_ok stays 0 */
+
+        if (!osd_decode(llr_for_osd, osd_depth, plain174))
+            return 0; /* OSD found no CRC-valid codeword; out_path stays -1 */
+
+        /* Same two-feature accept/reject gate ftx_decode_candidate applies
+         * after a successful osd_decode call (above): OSD_CORR_THRESHOLD /
+         * OSD_NHARD_MAX, identical arithmetic. */
+        float osd_corr = 0.0f;
+        float osd_norm = 0.0f;
+        int   nhard    = 0;
+        for (int i = 0; i < FTX_LDPC_N; ++i)
+        {
+            float hard_pm1 = (plain174[i] == 0) ? 1.0f : -1.0f;
+            osd_corr += hard_pm1 * llr_for_osd[i];
+            osd_norm += fabsf(llr_for_osd[i]);
+            int hd = (llr_for_osd[i] > 0.0f) ? 0 : 1;
+            if (plain174[i] != (uint8_t)hd) ++nhard;
+        }
+        if (nhard > OSD_NHARD_MAX)
+            return 0; /* gate rejected; out_path stays -1 */
+        if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
+            return 0; /* gate rejected; out_path stays -1 */
+
+        *out_path        = 1; /* OSD fallback produced the accepted codeword */
+        *out_ldpc_errors = 0; /* mirrors ftx_decode_candidate's own reset */
+    }
+    else
+    {
+        *out_path = 0; /* BP converged */
+    }
+
+    /* Step 6: pack, extract/compute CRC-14, compare — the same arithmetic
+     * ftx_decode_candidate uses (above). */
+    uint8_t a91[FTX_LDPC_K_BYTES];
+    pack_bits(plain174, FTX_LDPC_K, a91);
+
+    uint16_t crc_extracted = ftx_extract_crc(a91);
+    a91[9]  &= 0xF8;
+    a91[10] &= 0x00;
+    uint16_t crc_calculated = ftx_compute_crc(a91, 96 - 14);
+
+    *out_crc_ok = (crc_extracted == crc_calculated) ? 1 : 0;
+    if (out_a91 != NULL)
+        memcpy(out_a91, a91, sizeof(a91));
+
+    return 0;
+}
+
+/*
  * ftx_decode_candidate_ap — AP-constrained decode (Task A, shim 20260020).
  *
  * Implements directed a priori (AP) decode: after extracting soft-decision

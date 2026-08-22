@@ -1,7 +1,20 @@
 /*
  * coherent_llr.c -- per-candidate coherent multi-symbol LLR formation,
  * diagnostic-only (r2-coherent-llr-instrument, Route B2 Phase 1,
- * FT8_SHIM_VERSION 20260043).
+ * FT8_SHIM_VERSION 20260043; corrected under Phase B, FT8_SHIM_VERSION
+ * 20260044 -- see "PHASE B" note below).
+ *
+ * PHASE B (FT8_SHIM_VERSION 20260044, design.md D8/D9): two defects
+ * diagnosed after Phase 1's own ROW 0g fired against the as-shipped
+ * 20260043 binary (near-chance bit error on real audio) are fixed in this
+ * revision, both in-place -- this function's signature and its "no
+ * ft8_refine_candidate call" contract (design.md D1) are UNCHANGED:
+ *   B1 -- the raw-PCM correlation origin (origin_sample_f) applies a
+ *         runtime-derived unit-conversion correction; see the comment at
+ *         its own computation site below.
+ *   B2 -- the cross-n_syms fusion comparison standardises each window's
+ *         per-bit LLRs by that window's own magnitude spread before
+ *         comparing; see coh_window_scale's header comment.
  *
  * PLACEMENT (task 1.2, design.md Open Question 1): placed under
  * native/ft8_lib_vendor/refine/, alongside sync_refiner.c, exactly the
@@ -332,6 +345,34 @@ static void coh_bits_from_window(const float* mag, int n_syms, float* out_bit_ll
 }
 
 /*
+ * coh_window_scale -- B2 (design.md D9, Phase B): this window's own magnitude
+ * spread, used to standardise its per-bit LLRs to a common, window-size-
+ * independent scale before the cross-n_syms fusion comparison. A coherent
+ * sum's magnitude scales with window length (more symbols accumulated ==
+ * larger sums), so comparing raw fabsf() magnitude across differently-sized
+ * windows is a near-constant structural preference for the longest window,
+ * not a reliability comparison (2026-08-21 15:25Z spec §1.2). Population
+ * standard deviation of this window's own n_tones magnitudes -- same
+ * variance formula as coh_normalize_logl/ftx_normalize_logl, applied here to
+ * mag[] instead of log174[]. Returns 0.0f for a degenerate (zero-spread)
+ * window; the caller leaves that window's LLRs unscaled rather than divide
+ * by zero (design.md D9's own guard).
+ */
+static float coh_window_scale(const float* mag, int n_tones)
+{
+    float sum = 0.0f, sum2 = 0.0f;
+    for (int n = 0; n < n_tones; n++)
+    {
+        sum  += mag[n];
+        sum2 += mag[n] * mag[n];
+    }
+    float inv_n = 1.0f / (float)n_tones;
+    float variance = (sum2 - (sum * sum * inv_n)) * inv_n;
+    if (!(variance > 0.0f)) return 0.0f; /* degenerate: caller leaves this window's LLRs unscaled */
+    return sqrtf(variance);
+}
+
+/*
  * coh_normalize_logl -- same formula as decode.c's static ftx_normalize_logl
  * (compute the population variance of log174, scale by sqrt(24/variance)).
  * Deliberately DUPLICATED rather than exposed non-static from decode.c --
@@ -434,7 +475,27 @@ int ft8_coherent_llr_at(
 
     float fs  = COH_RATE_HZ;
     float sps = fs * COH_SYMBOL_PERIOD_S;              /* 32 samples/symbol @ 200 Hz, exact */
-    float origin_sample_f = time_offset_s_grid * fs;
+
+    /* ── B1 (design.md D8, Phase B): waterfall-origin correction ──
+     * time_offset_s_grid names the START of the analysis window at the
+     * waterfall's own quantisation, but monitor_process's sliding look-back
+     * buffer (nfft = block_size * freq_osr, Hann-windowed, peak at nfft/2)
+     * means waterfall cell (block b, sub s) actually analyses PCM samples
+     * centred at symbol-time b + (s+1)/time_osr - freq_osr/2, not b + s/time_osr
+     * as a naive lattice-time-to-seconds conversion (used directly, as this
+     * origin was before this fix) assumes. The correction below is the
+     * resulting displacement, derived at runtime from mon.wf.time_osr /
+     * mon.wf.freq_osr / mon.symbol_period (captured above before
+     * monitor_free(&mon)) -- never hardcoded, since a hardcoded literal would
+     * silently go wrong if K_TIME_OSR/K_FREQ_OSR ever changed. Evaluates to
+     * exactly -1.0 symbol (-0.16 s) at production's own K_TIME_OSR =
+     * K_FREQ_OSR = 2, matching qa/rr-study/n2-coherent-llr-extractor/
+     * coherent_extract.py:227's independently, empirically-calibrated
+     * TIME_ORIGIN_CORRECTION_SAMPLES_2K = -SPS_2K constant (task 7.3). Full
+     * derivation: qa/rr-study/2026-08-21-1412-architect-to-qa-origin-
+     * convention-finding-and-spec-b-orig-a.md. */
+    float correction_symbols = 1.0f / (float)time_osr - (float)freq_osr / 2.0f - 0.5f;
+    float origin_sample_f = (time_offset_s_grid + correction_symbols * symbol_period) * fs;
 
     /* Per-tone rotation increment, precomputed ONCE (8 entries; depends only
      * on fs and the 8 fixed tone frequencies -- see coh_window_metrics'
@@ -457,6 +518,9 @@ int ft8_coherent_llr_at(
 
     for (int n_syms = 1; n_syms <= COH_MAX_NSYMS; n_syms++)
     {
+        int n_tones = 1;
+        for (int i = 0; i < n_syms; i++) n_tones *= 8;
+
         int n_starts = FT8_ND - n_syms + 1;
         for (int k0 = 0; k0 < n_starts; k0++)
         {
@@ -468,6 +532,23 @@ int ft8_coherent_llr_at(
 
             float bit_llr[3 * COH_MAX_NSYMS];
             coh_bits_from_window(mag, n_syms, bit_llr);
+
+            /* B2 (design.md D9): standardise THIS window's per-bit LLRs to
+             * a common, window-size-independent scale before the
+             * cross-n_syms comparison below -- see coh_window_scale's own
+             * header comment. n_syms is NOT restricted to defeat this (the
+             * 1-, 2- and 3-symbol windows all remain in the comparison,
+             * unchanged from before this fix); only the SCALE each
+             * window's candidate is compared at changes. */
+            float scale = coh_window_scale(mag, n_tones);
+            if (scale > 0.0f)
+            {
+                float inv_scale = 1.0f / scale;
+                for (int i = 0; i < 3 * n_syms; i++)
+                    bit_llr[i] *= inv_scale;
+            }
+            /* else: degenerate window (zero magnitude spread) -- leave its
+             * bit_llr unscaled rather than divide by zero (design.md D9). */
 
             for (int s = 0; s < n_syms; s++)
             {
