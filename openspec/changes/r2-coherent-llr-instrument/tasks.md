@@ -616,19 +616,30 @@ normally destroys attribution; this ordering restores it (2026-08-21 15:25Z spec
 
 ## 13. Reporting and wrap-up — Phase B
 
-- [ ] 13.1 Write the Phase B QA→Architect report: B1/B2 diffs (or a statement that the
+- [x] 13.1 Write the Phase B QA→Architect report: B1/B2 diffs (or a statement that the
       Developer session recorded an alternative, equally-justified fusion rule per
       §8.1), the §11 acceptance-ordering results in order (11.1 mode(C)/mode(G), 11.2
       unit test, 11.3 ROW 0g both limbs), the §9.4 B4 acceptance results (B4-a through
       -e, explicit on whether B4-e cleared 90%), the new SHA256s per platform, and the
       §10.4 re-pin confirmation.
-- [ ] 13.2 State plainly whether the Phase 1 kill gate (`tasks.md` §4.3) is now
+      **Done 2026-08-22 —
+      `qa/rr-study/2026-08-22-1834-qa-to-architect-phase-b-wrapup-and-row0g-acceptance.md`.**
+- [x] 13.2 State plainly whether the Phase 1 kill gate (`tasks.md` §4.3) is now
       unblocked, still void, or newly void for a different reason — say so, or say
       what's still missing. Do not declare Route B2 dead or alive; that verdict, if any
       fires, belongs to §4.3 itself, evaluated only after §11.3 passes.
-- [ ] 13.3 Stop. No push, no merge, no `pre_merge_check.py` (HK-014/HK-010/HK-006) — the
+      **Done 2026-08-22 — §4.3 stays VOID, same reason as before (ROW 0g-2 still
+      fires), not a new one. Not newly void — the original 2026-08-21 void condition
+      simply never lifted. Route B2 not declared dead or alive; see the 2026-08-22-1834
+      report §0/§6 for the full number (`d_real` closed from −67.000 to −3.000, still
+      `CI_hi < 0`).**
+- [x] 13.3 Stop. No push, no merge, no `pre_merge_check.py` (HK-014/HK-010/HK-006) — the
       Captain reviews the diff and decides on merge; this task does not declare
       readiness unprompted.
+      **Done 2026-08-22 — nothing pushed, nothing merged (B1/B2/B4's code was already
+      on `main` via PR #130 before this report; this task closes the
+      acceptance-verification loop around it, not a new merge). `pre_merge_check.py` not
+      run. Handed to the Captain per the 2026-08-22-1834 report §8 — QA stops here.**
 
 ---
 
