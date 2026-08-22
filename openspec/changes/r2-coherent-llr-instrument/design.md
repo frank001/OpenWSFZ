@@ -39,6 +39,27 @@ The change is one OpenSpec change across all of Phase 0/1/B because it specifies
 capability end-to-end, matching R1's own precedent (build-with-acceptance-criteria);
 they are not one *session* of work.
 
+Phase B shipped (`main`-bound branch `feat/r2-coherent-llr-phase-b`, commit `7ed8b0c`)
+and arm **B-dt-A** then ran against it: `M0` (mean reported-minus-true SNR on matched
+decodes at `true_dt == 0`) moved from `-14.333`/`-13.9 dB` (pre-B1) to `-14.104 dB`
+(post-B1) — **+0.229 dB, sub-quantum, i.e. B1 did not move it.** ROW 2 fired
+(`qa/rr-study/2026-08-22-1218-…-b-dt-a-results.md`). This is the condition **Amendment
+2** (`qa/rr-study/2026-08-21-2311-…-phase-b-amendment-2-snr-terms-getter.md`), as
+corrected in full by **Amendment 3**
+(`qa/rr-study/2026-08-21-2334-…-phase-b-amendment-3-snr-terms-correction.md`), was
+written to require before proceeding: a new diagnostic-only export,
+`ft8_get_last_snr_terms`, that exposes the two terms (`signal_db`, `local_noise_db`)
+of the per-signal SNR formula that has been unobservable since the `fix-d004-local-
+noise-floor` estimator (`FT8_SHIM_VERSION 20260012`) replaced the global noise floor
+those terms are computed against. **Amendment 3 retracted Amendment 2's own central
+claim** — the error is not a single- vs multi-signal ("crowding") split, it is a
+`true_dt == 0` vs `true_dt > 0` split, identifiable from data already on disk (HK-018
+fired on the Architect for asserting it "cannot be identified from outside the shim"
+when it already had been, by one stratification). `tasks.md` §14-19 specify this
+Amendment; §14.1 additionally bundles in the same rebuild a one-line widening of
+`ftx_ldpc_decode_llrs`'s degenerate-variance guard (B4's own `decode.c:940`) flagged
+in the 2026-08-21 22:09Z QA code review, since both share the one Developer session.
+
 ## Goals / Non-Goals
 
 **Goals (Phase 0, this session):**
@@ -86,6 +107,20 @@ session):**
   or falls back behind the grid path in any eventual production wiring. Docs only, no
   Developer session, no run.
 
+**Goals (Amendment 2, corrected by Amendment 3 — specified here, not yet built,
+conditional on B-dt-A ROW 2, which has fired):**
+- Add `ft8_get_last_snr_terms`, a diagnostic-only, per-decode, index-aligned parallel-
+  array export (Decision D11) exposing `signal_db` and `local_noise_db` — the two
+  terms of `snr = signal_db - local_noise_db - 26.5f`, computed today at
+  `ft8_shim.c:1473-1474` but never separately observable. Read-only; no production
+  call site.
+- Bundle the `ftx_ldpc_decode_llrs` degenerate-variance guard widening (Decision D12)
+  into the same rebuild.
+- Run the corrected AC-N5 measurement (`tasks.md` §17.4): S3 (DT sweep) + S8,
+  stratified by `true_dt`, reporting which of the two terms carries the
+  `true_dt == 0` collapse. No threshold, no pass/fail — the mechanism has not been
+  observed yet; a gate on it now would be HK-021 theatre (Amendment 2 §0).
+
 **Non-Goals (any phase):**
 - Not wiring `ft8_coherent_llr_at` into `ftx_decode_candidate()` or any production
   decode call — that is Phase 2's scope entirely, gated on Phase 1's ROW 1/ROW 2 (now
@@ -111,6 +146,11 @@ session):**
 - Not declaring N5's `4.37%` figure a bound on limb 2 again, anywhere — retired
   permanently by the Captain's 2026-08-21 16:34Z ruling (an ordinary zero, `lambda`
   ≈ 1.97, not evidence of anything about limb 2's ceiling).
+- **Amendment 2/3 does NOT reopen H5** (closed gate, standing prohibition), does NOT
+  change the SNR formula, and does NOT change suppression or `K_SOFT_SUPP_SNR_*` —
+  `DEFECT-snr-reported-gain-error.md` §4 (the correction shape) remains an open
+  decision this Amendment does not make. Does NOT license C2 or C3. Does NOT bear on
+  ROW 0g/task 4.3/Route B2/B3 — none of those are re-evaluated by this Amendment.
 
 ## Decisions
 
@@ -253,6 +293,38 @@ native/Python smoke tests, exactly as `ft8_extract_llrs_at` already established 
 managed P/Invoke surface would be unused production-adjacent code for a diagnostic-only
 probe with no C# caller.
 
+**D11 — `ft8_get_last_snr_terms` is a parallel array, per-decode (not per-cycle), and
+exports BOTH terms — three design decisions, each an identifiability requirement, not
+a preference (Amendment 2 §2.2, unchanged by Amendment 3 §7).**
+(a) A parallel array, not a new `FT8Result` field — a struct field is an ABI break
+with managed-marshalling consequences at every existing call site; the parallel-array
+getter is the pattern `ft8_get_last_candidate_counts`/`ft8_get_last_llr_stats` already
+establish. (b) Per-decode, not a per-cycle aggregate — the open anomaly (the S8
+650 Hz/1650 Hz split) is a BETWEEN-DECODE, WITHIN-CYCLE difference; an aggregate is
+mathematically incapable of resolving it, and the B-dt-A finding (the collapse is keyed
+to `true_dt`, a per-decode property carried in `FT8Result.dt`) strengthens this rather
+than weakening it. (c) Both terms, not just the noise floor — `signal_db` is nominally
+recoverable as `snr + local_noise_db + 26.5`, but `FT8Result.snr` is int-rounded
+(`ft8_shim.c:1479`), so that recovery is only good to ±0.5 dB and is not an
+INDEPENDENT check: it assumes the very formula under test (this is what makes AC-N2 a
+real identifiability check rather than a tautology). Contract for the two NULL cases,
+corrected by Amendment 3 §4(c): either pointer may be NULL to request only the other
+array; if both are NULL, the function writes nothing and returns the count it would
+have written.
+
+**D12 — the `ftx_ldpc_decode_llrs` degenerate-variance guard widening rides the same
+rebuild as D11, because it is a one-line fix discovered auditing B4's own code in the
+2026-08-21 22:09Z QA review, and Amendment 2 §7 explicitly folds it in ("one rebuild,
+not two") rather than opening a second Developer session for it.** `variance == 0.0f`
+(exact equality) is narrower than its sibling `coh_window_scale`'s own guard
+(`!(variance > 0.0f)`, added by B2 in the SAME diff) — a near-constant-but-not-bit-
+exact input could produce a small float-cancellation NEGATIVE variance, slip past the
+exact-equality guard, and reach `sqrtf(24.0f/variance)`, producing NaN and
+contradicting B4-d's own "no crash, no NaN" charter. Widening it to match its sibling
+closes that gap. This is purely a hardening of an already-inert diagnostic export
+(`ft8_ldpc_decode_llrs` has no production call site) — it does not change any value
+B4 returns on any input that previously passed the guard.
+
 ## Risks / Trade-offs
 
 - **[Risk, named in the Phase 1 spec, restated] The shared-machinery risk.** Limb 2
@@ -294,6 +366,17 @@ probe with no C# caller.
   threshold's geometry, not a real decode gain, and Route B2's value collapses to
   whatever Phase B's origin fix alone recovers. That outcome must be reportable without
   it being treated as a failure of QA or of B4's construction (Amendment 1 §G).
+- **[Risk, Amendment 2/3] AC-N5 is REPORTED, not gated, because the DT mechanism has
+  not been observed yet — a threshold now would be HK-021 theatre.** A third mechanism
+  proposal may be needed after AC-N5 runs (the Architect's own recorded confidence:
+  40%, unaffected by the retraction). Two prior mechanism proposals on this same
+  dataset (neighbour distance, single-vs-multi-signal crowding) were both refuted by
+  data already gathered — Amendment 3 §6 flags its own remaining predictions for a
+  calibration discount as a result. **Boundary shape between DT 0.0 and 0.2/0.3, and
+  negative DT, are entirely unmeasured** (`s3b-dt-boundary.json`, built-not-run) —
+  AC-N5's own S3/S8 measurement must not be used to interpolate across that gap
+  (HK-026); if the mechanism lands there, the report must say so and name a wider-
+  aperture instrument rather than extrapolate.
 
 ## Migration Plan
 
@@ -314,6 +397,16 @@ re-decision the Phase 1 spec names for a ROW 2 outcome (§3: "the project's stat
 purpose is not met by this outcome and he should hear that in those words"). C2 (the
 B4-based re-analysis) and Phase 2 are independent forks off Phase B landing — C2 does
 not require a ROW 1/2 gate outcome, only a merged, SHA256-pinned binary.
+
+Amendment 2/3 (D11/D12) is the same discipline again, a third time: one more
+`FT8_SHIM_VERSION` bump (`20260044` → `20260045`), all three platforms rebuilt, zero
+production call sites added or changed. `ft8_get_last_snr_terms` is wholly new and
+diagnostic-only; the guard widening (D12) only tightens an already-inert export's own
+input validation and changes no value on any input that previously passed. Rollback is
+a plain `git revert`; nothing downstream of Phase B (§11's still-unrun acceptance
+ordering, task 4.3's still-void kill gate) depends on this Amendment landing, and this
+Amendment does not depend on §11 having run either — they are independent forks off
+the same Phase B binary, same as C2/Phase 2 above.
 
 ## Open Questions
 
@@ -336,3 +429,8 @@ not require a ROW 1/2 gate outcome, only a merged, SHA256-pinned binary.
    with/without split, and requires `out_path` be reported per row precisely so that
    split remains possible without re-running anything. Not decided here; C2's own
    pre-registration (specced later, not this change) makes the call.
+5. **[New, Amendment 2/3] What fixes the `true_dt == 0` SNR collapse, once AC-N5
+   localises it to a term** — not decided here. This Amendment builds and runs the
+   instrument only; a correction (to `DEFECT-snr-reported-gain-error.md` §4's still-
+   open shape decision, or elsewhere) earns its own pre-registration, per the same
+   discipline Amendment 2 §0 states for itself ("this is an instrument, not an arm").

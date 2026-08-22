@@ -2,16 +2,26 @@
 
 ### Requirement: ABI self-test on first load
 
-On the first call that triggers `NativeLibrary.Load`, `Ft8LibInterop` SHALL invoke a sentinel function (`ft8_lib_version_check`) that returns a known integer constant embedded at compile time in the shim. **Phase 1 of this change shipped `ft8_coherent_llr_at` at `FT8_SHIM_VERSION = 20260043`** (r0-reproducible-native-build lineage through `n1-extract-llrs-at-position`'s `ft8_extract_llrs_at` diagnostic export at `20260042`). **Phase B of this change (the B1 origin-correction fix, the B2 fusion-normalisation fix, and Amendment 1's B4 `ft8_ldpc_decode_llrs` diagnostic export) SHALL advance the expected constant to `20260044`**, asserted mechanically unused across all other branches before adoption (the board records two prior collisions across five unmerged `d001-*` branches) rather than inferred from being the next integer. No existing production entry point's ABI, struct layout, or decode behaviour SHALL change at either bump; `DecodeAll`, `GetLastPassCounts`, `SetDecodeParams`, and every other existing exported symbol all remain byte-for-byte unchanged. If the returned value does not match the expected constant, `Ft8LibInterop` SHALL throw `InvalidOperationException` with a message that names the library path and the mismatched version values. This requirement applies on all three reference platforms.
+On the first call that triggers `NativeLibrary.Load`, `Ft8LibInterop` SHALL invoke a sentinel function (`ft8_lib_version_check`) that returns a known integer constant embedded at compile time in the shim. **Phase 1 of this change shipped `ft8_coherent_llr_at` at `FT8_SHIM_VERSION = 20260043`** (r0-reproducible-native-build lineage through `n1-extract-llrs-at-position`'s `ft8_extract_llrs_at` diagnostic export at `20260042`). **Phase B of this change (the B1 origin-correction fix, the B2 fusion-normalisation fix, and Amendment 1's B4 `ft8_ldpc_decode_llrs` diagnostic export) advanced the expected constant to `20260044`, shipped** (`feat/r2-coherent-llr-phase-b`, commit `7ed8b0c`). **Amendment 2, as corrected by Amendment 3 (the `ft8_get_last_snr_terms` diagnostic export, conditional on arm B-dt-A's ROW 2 firing — it fired) SHALL advance the expected constant again, `20260044` → `20260045`**, asserted mechanically unused across all other branches before adoption (the board records two prior collisions across five unmerged `d001-*` branches) rather than inferred from being the next integer. No existing production entry point's ABI, struct layout, or decode behaviour SHALL change at any bump; `DecodeAll`, `GetLastPassCounts`, `SetDecodeParams`, and every other existing exported symbol all remain byte-for-byte unchanged. If the returned value does not match the expected constant, `Ft8LibInterop` SHALL throw `InvalidOperationException` with a message that names the library path and the mismatched version values. This requirement applies on all three reference platforms.
 
-#### Scenario: Correct library passes the ABI self-test (Phase B, once shipped)
+#### Scenario: Correct library passes the ABI self-test (Phase B, shipped)
 
 - **WHEN** `Ft8LibInterop` loads the platform-appropriate `libft8` binary compiled from the committed shim source at Phase B's own `FT8_SHIM_VERSION = 20260044`
 - **THEN** the version check SHALL pass silently and decode calls SHALL proceed normally
 
-#### Scenario: Pre-Phase-B library (20260043) fails fast with a clear error, once Phase B ships
+#### Scenario: Pre-Phase-B library (20260043) fails fast with a clear error
 
 - **WHEN** `Ft8LibInterop` loads a `libft8` binary compiled at version `20260043` (Phase 1, the pin every ROW 0g/B-pos-A/B-orig-A harness ran against before Phase B) after Phase B's managed code expects its own newer constant
+- **THEN** `Ft8LibInterop` SHALL throw `InvalidOperationException` before any decode call is attempted, with a message identifying the library path and the version mismatch
+
+#### Scenario: Correct library passes the ABI self-test (Amendment 2/3, once shipped)
+
+- **WHEN** `Ft8LibInterop` loads the platform-appropriate `libft8` binary compiled from the committed shim source at Amendment 2/3's own `FT8_SHIM_VERSION = 20260045`
+- **THEN** the version check SHALL pass silently and decode calls SHALL proceed normally
+
+#### Scenario: Pre-Amendment-2 library (20260044) fails fast with a clear error, once Amendment 2/3 ships
+
+- **WHEN** `Ft8LibInterop` loads a `libft8` binary compiled at version `20260044` (Phase B, the pin arm B-dt-A ran against) after Amendment 2/3's managed code expects its own newer constant
 - **THEN** `Ft8LibInterop` SHALL throw `InvalidOperationException` before any decode call is attempted, with a message identifying the library path and the version mismatch
 
 ## ADDED Requirements
@@ -85,3 +95,49 @@ The shim SHALL export a native function, `ft8_ldpc_decode_llrs(llr174, max_iters
 
 - **WHEN** the new binary's exported symbol table is compared against the prior `20260043` build, and `decode.c`'s existing functions are diffed against their pre-change source
 - **THEN** every previously-exported symbol SHALL be present with an unchanged signature, `ft8_ldpc_decode_llrs` SHALL be the only new export this Requirement adds, and the diff on every existing `decode.c` function SHALL be zero
+
+---
+
+### Requirement: Diagnostic SNR-terms native export and P/Invoke entry point (Amendment 2, corrected in full by Amendment 3 — not yet implemented, conditional on arm B-dt-A's ROW 2, which fired)
+
+The shim SHALL export a native function, `ft8_get_last_snr_terms(out_signal_db, out_local_noise_db, capacity)`, that returns the two per-decode terms of the SNR formula `snr = signal_db - local_noise_db - 26.5f` (`ft8_shim.c:1473-1474`) for every decode returned by the most recent `ft8_decode_all` call on the calling thread, so that a measured collapse in reported SNR (mean reported-minus-true SNR of `-11.9..-14.6 dB` on affected decodes, stable `+0.5..+1.0 dB` on WSJT-X across the same audio) can be localised to one of its two otherwise-unobservable terms rather than remaining an assertion. `out_signal_db[i]`/`out_local_noise_db[i]` SHALL correspond to `results[i]` from that same `ft8_decode_all` call — index-aligned, same order, same count. Either output pointer MAY be `NULL` to request only the other array; if both are `NULL`, the function SHALL write nothing and SHALL return the count it would have written. The function SHALL return `-1` if `capacity < 0`. The export SHALL be read-only: it SHALL NOT alter control flow, ordering, or any value already computed for `FT8Result` — it exposes the `signal_db`/`local_noise_db` locals already computed at `ft8_shim.c:1450-1474`, it does not add a second, independent computation of them. `Ft8LibInterop` SHALL expose a corresponding managed method (e.g. `GetLastSnrTerms`) via P/Invoke, matching the existing `GetLastCandidateCounts`/`GetLastLlrStats` parallel-array diagnostic-getter pattern (unlike `ft8_ldpc_decode_llrs`, which per design.md D10 gets no C# binding — this export does, per the amendment's own §4). `IFt8NativeInterop` SHALL add a corresponding method so a `FakeInterop` implementation can record the call without loading the native DLL, matching the existing pattern for `GetLastCandidateCounts`/`GetLastLlrStats`/`CoherentLlrAt`.
+
+#### Scenario: Export is present in all three platform binaries
+
+- **WHEN** the platform-appropriate `libft8` binary is loaded
+- **THEN** the symbol `ft8_get_last_snr_terms` SHALL be resolvable via the `DllImport`/`NativeLibrary` mechanism on Windows, Linux, and macOS without error
+
+#### Scenario: Arrays are index-aligned with the decode results from the same call (AC-N3)
+
+- **WHEN** `ft8_get_last_snr_terms` is called immediately after an `ft8_decode_all` call that returned `n` decodes, with `capacity >= n`
+- **THEN** the function SHALL return exactly `n`, and `out_signal_db[i]`/`out_local_noise_db[i]` SHALL correspond to `results[i]` for every `i` in `[0, n)`
+
+#### Scenario: The two terms reconstruct the reported SNR within the int-rounding quantum (AC-N2)
+
+- **WHEN** `ft8_get_last_snr_terms` is called after a decode and its two arrays are compared against the corresponding `FT8Result.snr` value
+- **THEN** `abs((signal_db[i] - local_noise_db[i] - 26.5) - snr[i])` SHALL be `<= 0.5 + 1e-3` for every decode `i` — the `+1e-3` is a float-representation allowance for the `(int)roundf` quantum, not a loosening of the criterion (resolved against the readout quantum, HK-021(o))
+
+#### Scenario: Capacity is honoured exactly, including the both-NULL and negative-capacity cases (AC-N4)
+
+- **WHEN** `ft8_get_last_snr_terms` is called with `capacity` values of `0`, `1`, and `count-1` (on a cycle with `count >= 3`, since `count-1` is degenerate below that), with both pointers non-`NULL`, with one pointer `NULL`, with both pointers `NULL`, and with a negative `capacity`
+- **THEN** the function SHALL write exactly `capacity` entries and return `capacity` for each non-negative case with no overrun; SHALL write nothing and return the count it would have written when both output pointers are `NULL`; and SHALL return `-1` without writing anything when `capacity < 0`
+
+#### Scenario: The export is read-only and changes no decode-path value (AC-N1)
+
+- **WHEN** a binary built with this export is replayed against the same audio as the pre-Amendment-2 archived Phase B binary (`a3d32b78...` win / `13d9799d...` linux, or the equivalent committed working-tree binary, `7ed8b0c`), for at least 200 contiguous cycles on every platform rebuilt
+- **THEN** every decode-output field SHALL be byte-for-byte identical between the two binaries — zero differences — since this export only reads values `ft8_decode_all` already computed and writes them to TLS storage, it does not participate in decode control flow
+
+#### Scenario: No production call site invokes the export
+
+- **WHEN** the `OpenWSFZ.Daemon` and `OpenWSFZ.Ft8` production decode path (everything reachable from `DecodeAll`) is inspected after this Amendment lands
+- **THEN** it SHALL contain no call to `GetLastSnrTerms`/`ft8_get_last_snr_terms` outside of test code and QA harnesses
+
+#### Scenario: `IFt8NativeInterop.GetLastSnrTerms` is callable on a fake implementation
+
+- **WHEN** a test supplies an `IFt8NativeInterop` implementation that records `GetLastSnrTerms` calls
+- **THEN** calling it with a representative `maxDecoded` value SHALL record the call and return a deterministic fake result without loading the native DLL
+
+#### Scenario: Existing exports and decode paths are unaffected
+
+- **WHEN** the new binary's exported symbol table is compared against the prior `20260044` build, and `ft8_shim.c`'s existing decode-path logic (beyond the two-line TLS write this export adds) is diffed against its pre-change source
+- **THEN** every previously-exported symbol (all fifteen) SHALL be present with an unchanged signature, `ft8_get_last_snr_terms` SHALL be the only new export this Requirement adds, and the diff on every existing decode-path computation SHALL be zero
