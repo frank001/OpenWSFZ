@@ -609,7 +609,7 @@ not the Developer session's.
 
 **BLOCKED on a Captain-opened Developer session (HK-011).**
 
-- [ ] 14.1 Widen `ftx_ldpc_decode_llrs`'s degenerate-variance guard
+- [x] 14.1 Widen `ftx_ldpc_decode_llrs`'s degenerate-variance guard
       (`native/ft8_lib_build/patched/ft8/decode.c:940`, added by B4/task 9.2) from the
       exact-equality `variance == 0.0f` to `!(variance > 0.0f)`, matching its sibling
       `coh_window_scale`'s own guard (`coherent_llr.c`, added by B2/task 8.1) — the
@@ -620,7 +620,7 @@ not the Developer session's.
       `sqrtf(24.0f/variance)` and produce NaN — contradicting B4-d's own "no crash, no
       NaN" charter. Re-run B4-d (`tasks.md` §9.4) after the edit — still negative `rc`,
       still no crash, no NaN, on the same all-`3.5f` zero-variance input.
-- [ ] 14.2 Add the `ft8_get_last_snr_terms` diagnostic export. Two new
+- [x] 14.2 Add the `ft8_get_last_snr_terms` diagnostic export. Two new
       `_Thread_local` float arrays sized `K_MAX_DECODED` (`ft8_shim.c:552`) —
       `tls_signal_db`/`tls_local_noise_db` — plus a count, declared alongside the
       existing TLS diagnostic state (`ft8_shim.c:577-583`). Reset the count to `0` at
@@ -662,13 +662,13 @@ not the Developer session's.
       ```
       Declare in `ft8_shim.h` alongside the other `ft8_get_last_*` getters (near
       `ft8_get_last_llr_stats`, `:674`), implement in `ft8_shim.c`.
-- [ ] 14.3 Windows — add `/EXPORT:ft8_get_last_snr_terms ^` to
+- [x] 14.3 Windows — add `/EXPORT:ft8_get_last_snr_terms ^` to
       `native/ft8_lib_build/rebuild_shim.bat`'s explicit export list (currently 15
       lines, `:139-153`; this is the 16th). Linux — no change (`build_linux.sh`,
       `gcc -shared`, default visibility). Verify the export is present in the built DLL
       mechanically (`dumpbin /exports`), not inferred from the build succeeding — name
       the Windows/Linux asymmetry in the report if it recurs, per Amendment 2 §4.
-- [ ] 14.4 Confirm `decode.c`'s existing functions (beyond the 14.1 guard-widening edit
+- [x] 14.4 Confirm `decode.c`'s existing functions (beyond the 14.1 guard-widening edit
       itself) and `ft8_shim.c`'s existing decode-path logic (beyond the 14.2 two-line
       TLS-write addition) are otherwise byte-for-byte unchanged, and that no production
       call site anywhere calls `ft8_get_last_snr_terms` (grep-confirmed) — it is
@@ -679,7 +679,7 @@ not the Developer session's.
 
 ## 15. Managed binding (same Developer session as §14)
 
-- [ ] 15.1 Add `Ft8LibInterop.GetLastSnrTerms` (P/Invoke to `ft8_get_last_snr_terms`,
+- [x] 15.1 Add `Ft8LibInterop.GetLastSnrTerms` (P/Invoke to `ft8_get_last_snr_terms`,
       `NativeGetLastSnrTerms`), matching the existing `GetLastCandidateCounts`/
       `GetLastLlrStats` pattern (`Ft8LibInterop.cs:640-696`) — Amendment 2 §4
       explicitly calls for a managed binding here, unlike B4 (design.md D10 does NOT
@@ -687,7 +687,7 @@ not the Developer session's.
       `(float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded)`,
       trimming to the actual returned count exactly as `GetLastLlrStats` does
       (`counts[..numPasses]` pattern, `:686-694`).
-- [ ] 15.2 Add the corresponding `IFt8NativeInterop.GetLastSnrTerms(int maxDecoded)`
+- [x] 15.2 Add the corresponding `IFt8NativeInterop.GetLastSnrTerms(int maxDecoded)`
       method (same tuple signature) so a `FakeInterop` can record calls without
       loading the native DLL. Update all existing `IFt8NativeInterop` implementers
       with a stub (`Ft8NativeInteropAdapter` + the nine test fakes across
@@ -701,19 +701,19 @@ not the Developer session's.
 
 ## 16. Version, pin, cross-platform build (same Developer session as §14-15)
 
-- [ ] 16.1 Bump `FT8_SHIM_VERSION`/`ExpectedShimVersion` from `20260044` to `20260045`.
+- [x] 16.1 Bump `FT8_SHIM_VERSION`/`ExpectedShimVersion` from `20260044` to `20260045`.
       🔴 **Assert mechanically that `20260045` is unused across all branches before
       adopting it** — do not infer freedom from the number being the next integer
       (task 10.1's own method: `git show <branch>:.../ft8_shim.h | grep
       FT8_SHIM_VERSION` across every local AND `origin/*` branch). Header history entry
       in the established style (`ft8_shim.h`).
-- [ ] 16.2 Rebuild all three platform binaries you have toolchain access to; record
+- [x] 16.2 Rebuild all three platform binaries you have toolchain access to; record
       each SHA256 honestly (state, don't skip silently, if a platform is unavailable —
       same standard every prior native change in this project has used).
       `dumpbin /exports`/`nm -D`/platform equivalent: confirm `ft8_get_last_snr_terms`
       is present, every previously-exported symbol (all fifteen) is unchanged, and it
       is the only addition.
-- [ ] 16.3 **AC-N1 — INERTNESS. GATES. Corrected precondition, Amendment 3 §3.**
+- [x] 16.3 **AC-N1 — INERTNESS. GATES. Corrected precondition, Amendment 3 §3.**
       Precondition: the archived Phase B binary from the companion preservation
       document's TASK 1 exists and verifies against its recorded SHA256
       (`a3d32b78...` win / `13d9799d...` linux) — **as of commit `7ed8b0c` this is also
@@ -726,16 +726,45 @@ not the Developer session's.
       — grep confirms `ftx_ldpc_decode_llrs` is called only from the diagnostic export,
       never from `ft8_decode_all`) changed decode behaviour, which means it is not
       read-only.
-- [ ] 16.4 **Re-pin the harnesses in one place**, exactly as task 10.4 did:
+- [x] 16.4 **Re-pin the harnesses in one place**, exactly as task 10.4 did:
       `qa/rr-study/r2-coherent-llr-instrument/coherent_llr_ctypes.py`'s
       `CURRENT_DLL_SHA256`/`CURRENT_SHIM_VERSION` — read the rebuilt DLL's actual
       SHA256 from disk, do not copy it from a report. Confirms every harness that
       imports these constants picks up the new pin.
-- [ ] 16.5 `dotnet build`: 0 warnings. `dotnet test`: full suite green plus the new
+- [x] 16.5 `dotnet build`: 0 warnings. `dotnet test`: full suite green plus the new
       `GetLastSnrTerms` coverage (§15.2). Confirm nothing in `Ft8LibInterop`'s ABI
       self-test path broke from the version bump alone (task 10.6's own self-caught
       defect is the standing cautionary example — bump the C# `ExpectedShimVersion`
       constant in the SAME pass as the native bump, not a later one).
+      Done, with an environmental caveat recorded honestly (HK-022), not smoothed over.
+      A live, unrelated `rr_study_daemon` (PID 37432, running since before this session
+      started — its `.pid` file was already present at session start) holds a lock on
+      `bin\Release\net10.0\` and is bound to port 8080; per this project's guardrails
+      that process was NOT touched. `dotnet build -c Release` therefore fails on a file
+      lock (MSB3021) — worked around by building/testing in **Debug** configuration
+      instead (separate output directory, no lock conflict): `dotnet build` — 0 warnings,
+      0 errors, whole repo. `dotnet test` (whole repo): `OpenWSFZ.Ft8.Tests.dll` **317/317**
+      green (314 pre-existing + the three new `GetLastSnrTermsTests` — 15.2a fake
+      delegation, 15.2b silent-buffer empty-arrays, 15.2c real-fixture index-alignment/
+      reconstructed-SNR sanity against the freshly rebuilt shim-20260045 DLL), confirming
+      `ExpectedShimVersion` (bumped to 20260045 in the SAME pass as the native bump, per
+      task 10.6's own cautionary example) matches the rebuilt binary with no ABI-mismatch
+      throw. `OpenWSFZ.Daemon.Tests.dll` 603/603 green, `OpenWSFZ.Web.Tests.dll` 276/276,
+      `OpenWSFZ.Rig.Tests.dll` 41/41, `OpenWSFZ.Audio.Tests.dll` 19/19,
+      `OpenWSFZ.Config.Tests.dll` 100/100, `TraceabilityCheck.Tests.dll` 34/34,
+      `LicenseInventoryCheck.Tests.dll` 24/24, `OpenWSFZ.TestSupport.Tests.dll` 9/9 —
+      all green. **`OpenWSFZ.E2E.Tests.dll`: 2 of 7 FAILED** (`FR-002`/`FR-007`, both
+      "Daemon did not emit welcome banner on stdout within 10 s"). Root-caused, not
+      assumed: manually ran the stale published binary
+      (`src/OpenWSFZ.Daemon/bin/Release/net10.0/win-x64/publish/OpenWSFZ.Daemon.exe`,
+      itself last refreshed 2026-08-21, unrelated to this session's diff) directly and
+      captured its own stderr — `System.IO.IOException: Failed to bind to address
+      http://0.0.0.0:8080: address already in use` (`AddressInUseException`), i.e. the
+      SAME port the live `rr_study_daemon` already holds. Both failures are this one
+      pre-existing port collision, not a regression from §14-16's own diff — this
+      published binary would fail identically regardless of any change in this session.
+      Not re-run with a workaround port: the E2E harness's own port defaulting is out of
+      this session's scope (§14-16), and the live daemon must not be touched.
 - 🛑 The Developer session runs **build + tests only**. `pre_merge_check.py` is the
       Captain's initiative alone (HK-006).
 
@@ -743,19 +772,32 @@ not the Developer session's.
 
 **BLOCKED on §14-16 landing.**
 
-- [ ] 17.1 **AC-N2 — IDENTIFIABILITY. GATES. Corrected tolerance, Amendment 3 §4(a).**
+- [x] 17.1 **AC-N2 — IDENTIFIABILITY. GATES. Corrected tolerance, Amendment 3 §4(a).**
       Over ≥100 cycles, for EVERY decode:
       `abs((signal_db[i] - local_noise_db[i] - 26.5) - snr[i]) <= 0.5 + 1e-3` (the
       `+1e-3` is a float-representation allowance for the int-rounding quantum, not a
       loosening of the criterion — resolved against the readout quantum, HK-021(o)).
       Any violation ⇒ **STOP** — the arrays are not the formula's terms and every
       downstream reading is void.
-- [ ] 17.2 **AC-N3 — COUNT CONTRACT. GATES.** Returned count == the decode count from
+      **PASS.** 250 contiguous cycles, same corpus/window AC-N1's own replay uses
+      (`artefacts/20260808_live_run_0016-8080/wsjt-x/wav`, WINDOW_20M, no live capture
+      needed — HK-018), 4,842 total decodes, **0 violations**, max
+      `|reconstructed − reported|` = **0.50000 dB** against the 0.5010 bar — sitting
+      exactly on the int-rounding quantum boundary. This is not a coincidence: it
+      independently confirms Amendment 3's own `+1e-3` correction was load-bearing, not
+      cosmetic — a strict `<= 0.5` bar (Amendment 2's original wording) would have FAILED
+      on this very run from float representation alone, on a formula that is otherwise
+      exactly correct. Harness:
+      `qa/rr-study/r2-coherent-llr-instrument/ac_n2_n3_n4_identifiability.py`; results in
+      `results/ac_n2_n3_n4_report.json` / `results/ac_n2_n3_n4_run.log`.
+- [x] 17.2 **AC-N3 — COUNT CONTRACT. GATES.** Returned count == the decode count from
       the same `ft8_decode_all` call (i.e. `ft8_get_last_snr_terms`'s own return value
       == `ft8_decode_all`'s own return value), every cycle. Mismatch ⇒ **STOP** (index
       alignment is the whole contract; without it the arrays cannot be joined to
       decodes).
-- [ ] 17.3 **AC-N4 — CAPACITY. GATES. Corrected degenerate case, Amendment 3 §4(b).**
+      **PASS.** Same 250-cycle run as 17.1, 0 AV-caught cycles, **0 mismatches across
+      250 cycles.** Same harness/results as 17.1.
+- [x] 17.3 **AC-N4 — CAPACITY. GATES. Corrected degenerate case, Amendment 3 §4(b).**
       Run on a cycle with `count >= 3`, asserted BEFORE the case is evaluated; if no
       such cycle occurs in the run, report that and re-run on a denser scenario rather
       than evaluating the degenerate `capacity = count − 1` case (HK-021(n)). With
@@ -763,7 +805,16 @@ not the Developer session's.
       `capacity`, no overrun. Negative capacity returns `-1`. **Both-out-pointers-NULL
       case (Amendment 3 §4(c)): writes nothing, returns the count it would have
       written.**
-- [ ] 17.4 **AC-N5 — THE MEASUREMENT. REPORTED, NOT GATED. Corrected in full by
+      **PASS, all five cases.** First `count >= 3` cycle found immediately (`ts=
+      260808_004000`, `count=16` — the very first cycle in the window; no denser-scenario
+      fallback needed). `capacity=0` → n=0, empty arrays. `capacity=1` → n=1, one entry.
+      `capacity=count-1=15` → n=15, 15 entries. `capacity=-5` → n=-1, both arrays `None`.
+      Both-NULL (`capacity=count+10=26`) → n=16 (the count it would have written), no
+      crash. **No-overrun independently verified past the trim-to-n wrapper**: each case
+      re-run with a raw ctypes call against a canary buffer pre-filled with a sentinel
+      value beyond `capacity` — confirmed untouched in every case, not merely inferred
+      from the returned/trimmed array length. Same harness/results as 17.1.
+- [x] 17.4 **AC-N5 — THE MEASUREMENT. REPORTED, NOT GATED. Corrected in full by
       Amendment 3 §5 — supersedes Amendment 2's crowding-framed version entirely.**
       Run S3 (the DT sweep) and S8. For every decode report `signal_db`,
       `local_noise_db`, the reconstructed SNR, and `true_dt`. **Stratify by `true_dt`,
@@ -773,16 +824,46 @@ not the Developer session's.
       (HK-026 — this instrument's own output cannot bound its own blind spot; the DT
       0.0↔0.2 boundary shape and negative DT remain unmeasured per the board, and this
       task does not change that).
-- [ ] 17.5 Report against the Amendment 3 §6 corrected predictions (replacing
+      **MEASURED.** 🔴 **`signal_db` carries the collapse; `local_noise_db` does not.**
+      S3 parts 0-7 (`dt_s` 0.0-2.1; parts 8/9 skipped — extended-buffer placement is a
+      separate methodology question this measurement does not need, see the harness's
+      own docstring) + S8 (all 12 stations, 5 trials), 85/87 rows matched to a truth
+      station by nearest frequency (2 unmatched — both `true_dt=0.0`, excluded, not
+      smoothed into either stratum; 16 S8 decodes flagged ambiguous under the E/F
+      near-collision and G/H co-frequency capture pairs, but every ambiguous pair shares
+      `true_dt=0.0` so the stratification itself is unaffected by the ambiguity):
+      | Term | `true_dt=0` (n=59) mean | `true_dt>0` (n=26) mean | Δ(mean) |
+      |---|---|---|---|
+      | `signal_db` | −14.562 | −8.547 | **−6.014 dB** |
+      | `local_noise_db` | −35.525 | −35.750 | +0.225 dB |
+      | reconstructed SNR | −5.536 | +0.703 | −6.239 dB |
+      | reported SNR | −5.508 | +0.885 | −6.393 dB |
+      `local_noise_db`'s Δ is inside AC-N5's own §17.5 3 dB reference band by an order of
+      magnitude; `signal_db`'s Δ (−6.0 dB) accounts for essentially the entire
+      reconstructed-SNR collapse (−6.24 dB) on its own. **Methodology note, recorded
+      per HK-022, not smoothed over:** this could not reuse the live `run_study.py`
+      pipeline the earlier B-dt-A arm used, because `ft8_get_last_snr_terms` has no
+      production call site (task 14.4) — the live daemon's own `ALL.TXT` can never carry
+      these two terms regardless of how the audio reaches it. Instead this is a direct,
+      offline `ft8_decode_all` + `ft8_get_last_snr_terms` call over PCM synthesised by
+      `synth.encoder`/`synth.channel` (the SAME functions `run_scenario.py`'s live-
+      playback path calls), reparameterised from the playback rate
+      (`DEFAULT_SAMPLE_RATE_HZ=48000`) to the decoder's own native rate (12,000 Hz,
+      `BUFFER_SAMPLES=180,000`) — the exact adaptation `row0g_instrument_gain_check.py`'s
+      own clean-signal trials already established (HK-018), not a novel construction.
+      Harness: `qa/rr-study/r2-coherent-llr-instrument/ac_n5_dt_stratified_measurement.py`;
+      results in `results/ac_n5_report.json` / `results/ac_n5_run.log`.
+- [x] 17.5 Report against the Amendment 3 §6 corrected predictions (replacing
       Amendment 2 §8's two crowding-framed rows):
-      | Prediction | Confidence |
-      |---|---|
-      | AC-N1 zero-diff, first attempt | 95% |
-      | AC-N2 passes, first attempt | 85% |
-      | The `true_dt == 0` collapse localises to `signal_db`, not `local_noise_db` | 80% |
-      | `local_noise_db` at `true_dt == 0` is within 3 dB of its `true_dt > 0` value | 65% |
-      | A third mechanism proposal is needed after AC-N5 (data doesn't immediately explain it) | 40% |
-      Score each HIT/MISS/UNSCORED against the actual AC-N5 result.
+      | Prediction | Confidence | Result |
+      |---|---|---|
+      | AC-N1 zero-diff, first attempt | 95% | **HIT** (0/250 both platforms, re-verified independently at code-review time) |
+      | AC-N2 passes, first attempt | 85% | **HIT** (0 violations/4,842 decodes; landed exactly on the quantum boundary) |
+      | The `true_dt == 0` collapse localises to `signal_db`, not `local_noise_db` | 80% | **HIT** (−6.01 dB vs +0.23 dB) |
+      | `local_noise_db` at `true_dt == 0` is within 3 dB of its `true_dt > 0` value | 65% | **HIT** (+0.23 dB) |
+      | A third mechanism proposal is needed after AC-N5 (data doesn't immediately explain it) | 40% | **not mechanically scoreable by this task — AC-N5 answers WHERE (`signal_db`), not WHY `signal_db`'s own computation depends on `dt`; the Architect's call whether that constitutes "immediately explained"** |
+      4/5 mechanically scoreable predictions HIT; the fifth is inherently a judgment
+      call, reported not forced.
 
 ## 18. What this Amendment does NOT license (unchanged from Amendment 2 §6, restated)
 
@@ -801,12 +882,14 @@ not the Developer session's.
 
 ## 19. Reporting and wrap-up — Amendment 2 (corrected by Amendment 3)
 
-- [ ] 19.1 Write the QA→Architect report: AC-N1 (precondition + result, both
+- [x] 19.1 Write the QA→Architect report: AC-N1 (precondition + result, both
       platforms), AC-N2/AC-N3/AC-N4 (all three, gating), AC-N5 (the DT-stratified
       `signal_db`/`local_noise_db` measurement, S3 + S8, no threshold), the §17.5
       prediction scoring, the new SHA256s per platform, and the §16.4 re-pin
       confirmation. State plainly which term (`signal_db` or `local_noise_db`) carries
       the `true_dt == 0` collapse — this is the entire reason the getter was built.
-- [ ] 19.2 Stop. No push, no merge, no `pre_merge_check.py` (HK-014/HK-010/HK-006) —
+      Done: `qa/rr-study/2026-08-22-1349-qa-to-architect-amendment2-ac-n1-n5-results.md`.
+      **`signal_db` carries it (Δ −6.01 dB); `local_noise_db` does not (Δ +0.23 dB).**
+- [x] 19.2 Stop. No push, no merge, no `pre_merge_check.py` (HK-014/HK-010/HK-006) —
       the Captain reviews the diff and decides on merge; this task does not declare
-      readiness unprompted.
+      readiness unprompted. **Stopping here.**

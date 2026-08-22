@@ -1,0 +1,19 @@
+==========================================================================================
+tasks.md 17.1-17.3 -- AC-N2/AC-N3/AC-N4 (all GATING)
+==========================================================================================
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll (pinned to Amendment 2/3, shim 20260045)
+DLL pin confirmed: SHA256 f0c081b968b04515..., shim version 20260045
+Corpus: WINDOW_20M, 250/2529 cycles available, using first 250 (260808_004000 .. 260808_014215)
+
+AC-N4: first count>=3 cycle found at ts=260808_004000 (count=16) -- running capacity cases.
+  capacity_0               -> PASS  {'n': 0, 'sig_len': 0, 'noise_len': 0, 'no_overrun': True, 'passed': True}
+  capacity_1               -> PASS  {'n': 1, 'sig_len': 1, 'noise_len': 1, 'no_overrun': True, 'passed': True}
+  capacity_count_minus_1   -> PASS  {'capacity': 15, 'n': 15, 'sig_len': 15, 'noise_len': 15, 'no_overrun': True, 'passed': True}
+  negative_capacity        -> PASS  {'n': -1, 'passed': True}
+  both_null                -> PASS  {'n': 16, 'passed': True}
+
+------------------------------------------------------------------------------------------
+AC-N2/AC-N3 summary: 250 cycles decoded (0 AV-skipped, 0 zero-decode), 4842 total decodes checked, max |reconstructed - reported| = 0.50000 dB (tol 0.5010)
+AC-N2: PASS (0 violations across 4842 decodes)
+AC-N3: PASS (0 mismatches across 250 cycles)
+AC-N4: PASS (ts=260808_004000, count=16)
