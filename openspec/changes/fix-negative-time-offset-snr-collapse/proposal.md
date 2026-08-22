@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 The FT8 decoder reports a catastrophically wrong SNR — typically 15–20 dB too low — for
