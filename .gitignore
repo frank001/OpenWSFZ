@@ -163,6 +163,15 @@ qa/rr-study/results/*/owsfz-all.txt
 qa/rr-study/results/*/wsjt-all.txt
 qa/rr-study/results/*/*_matched.csv
 
+# Fourth naming convention, found 2026-08-22: a harness wrote a SUFFIXED copy
+# ("owsfz-all.txt.livecopy-preclear") of an ignored file. The exact-filename rules above
+# matched the original and walked straight past the copy, leaving real off-air callsigns
+# untracked-but-committable in a public repo. Same NFR-021 risk; same never-commit rule.
+# Prefix-matched so no future suffix can reopen the same hole (cf. qa-backlog N14 --
+# harnesses choosing output filenames the repo's guards do not anticipate).
+qa/rr-study/results/*/owsfz-all.txt.*
+qa/rr-study/results/*/wsjt-all.txt.*
+
 # P-LIVE per-row BER dumps — tens of MB per stage, regenerable from the harness
 # plus the corpus. The committed *_report.json carries every gated statistic.
 # Retained copies live under artefacts/ (blanket-ignored above).
