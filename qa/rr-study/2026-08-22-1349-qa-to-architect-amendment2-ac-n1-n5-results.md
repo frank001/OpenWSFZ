@@ -5,11 +5,15 @@ session) + §17 (AC-N2/N3/N4/N5, this QA session), `feat/r2-coherent-llr-phase-b
 
 ## 0. Summary
 
-**`signal_db` carries the `true_dt == 0` SNR collapse; `local_noise_db` does not.**
-`signal_db` moves −6.01 dB between the `true_dt == 0` and `true_dt > 0` strata;
-`local_noise_db` moves +0.23 dB (noise). This is the entire reason `ft8_get_last_snr_terms`
-was built (Amendment 2 §1), and it now has a direct, index-aligned, per-decode answer
-rather than an inference from `ALL.TXT`-level aggregates.
+**`signal_db` is where any `true_dt`-dependence must live; `local_noise_db` does not
+move.** `local_noise_db` moves +0.23 dB (noise) between the `true_dt == 0` and
+`true_dt > 0` strata. `signal_db` moves −6.01 dB pooled — **but see the 2026-08-22
+14:11Z correction in §5.2 below: that pooled figure is scenario-confounded and is NOT
+the size of the live collapse; within S3 alone, where scenario is held fixed, `true_dt
+== 0` shows no deficit.** This localisation (which term carries the effect) is still
+the entire reason `ft8_get_last_snr_terms` was built (Amendment 2 §1), and it now has a
+direct, index-aligned, per-decode answer rather than an inference from `ALL.TXT`-level
+aggregates.
 
 All three gating checks (AC-N2, AC-N3, AC-N4) **PASS**. AC-N1 (Developer session,
 `tasks.md` §16.3) **PASS**, independently re-verified by me at code-review time before this
@@ -115,11 +119,44 @@ by the ambiguity (flagged, not silently resolved).
 | reported SNR | −5.508 / −6.000 | +0.885 / +1.500 | −6.393 dB |
 
 **`local_noise_db`'s Δ (+0.23 dB) is inside the §17.5 3 dB reference band by an order of
-magnitude — it does not move.** **`signal_db`'s Δ (−6.01 dB) accounts for essentially
-the entire reconstructed-SNR collapse (−6.24 dB) on its own.** The two terms'
-reconstructed SNR and the raw reported SNR agree closely (−5.536 vs −5.508 at `dt=0`;
-+0.703 vs +0.885 at `dt>0`) — consistent with AC-N2's own near-exact identity, an
-internal cross-check this measurement gets for free.
+magnitude — it does not move.** The two terms' reconstructed SNR and the raw reported
+SNR agree closely (−5.536 vs −5.508 at `dt=0`; +0.703 vs +0.885 at `dt>0`) — consistent
+with AC-N2's own near-exact identity, an internal cross-check this measurement gets for
+free.
+
+**CORRECTION, 2026-08-22 14:11Z (HK-015 — stated by the Architect, this edit is QA's
+own, made in place rather than by annotation).** The `−6.01 dB` `signal_db` Δ above
+**may not be cited as the size of the live `true_dt == 0` SNR collapse.** Re-grouping
+the same 85 matched rows by scenario as well as by `true_dt` shows the stratifier is
+very nearly collinear with scenario:
+
+| cell | n | mean `signal_db` |
+|---|---|---|
+| S3, `true_dt == 0` | 3 | **−7.58** |
+| S3, `true_dt > 0` | 21 | **−7.99** |
+| S8, `true_dt == 0` | 56 | −14.94 |
+| S8, `true_dt > 0` | 5 | −10.90 |
+
+56 of the 59 `dt=0` rows are S8; 21 of the 26 `dt>0` rows are S3. The pooled `−6.01 dB`
+is therefore largely an S8-vs-S3 level contrast wearing a `dt` label, not a `dt` effect
+in its own right — §5.3's note on asymmetric sample sizes understated this; it is a
+confound, and it is load-bearing for the headline number above.
+
+**Within S3 — the one place `fixed.snr_db = 0` holds across every part and only `dt`
+varies — `true_dt = 0` (part 0) shows no deficit at all**: reported SNR `+2.0` against
+`+0.67 .. +2.0` across parts 1-7. Compare the live B-dt-A arm at that identical cell:
+**−15.67 dB** (`2026-08-22-1218-qa-to-architect-b-dt-a-results.md`, §5.1/§5.3). **The
+phenomenon did not reproduce offline** in this measurement. That is a finding, not a
+harness defect — it is what let the Architect narrow the mechanism to a `time_offset`
+sign effect rather than a `true_dt` magnitude effect, and it is TASK 1 (arm B-dt-C1)'s
+starting point.
+
+The honest statement of what this section establishes: **`local_noise_db` does not move
+between the strata; `signal_db` is where any `dt`-dependence must live, by construction
+of the reconstructed-SNR formula; the *size* of the live collapse is not what this
+pooled measurement returned, because the pooling confounds `true_dt` with scenario.**
+AC-N2/N3/N4 and the getter itself are untouched by this correction — the three gates
+stand, and this note revises only the reported, ungated §5.2 reading above.
 
 ### 5.3 Honesty notes
 
@@ -139,7 +176,7 @@ internal cross-check this measurement gets for free.
 |---|---|---|
 | AC-N1 zero-diff, first attempt | 95% | **HIT** (0/250 both platforms) |
 | AC-N2 passes, first attempt | 85% | **HIT** (0 violations/4,842 decodes) |
-| The `true_dt == 0` collapse localises to `signal_db`, not `local_noise_db` | 80% | **HIT** (−6.01 dB vs +0.23 dB) |
+| The `true_dt == 0` collapse localises to `signal_db`, not `local_noise_db` | 80% | **HIT on localisation** (−6.01 dB vs +0.23 dB) — **but see §5.2 correction: the −6.01 dB pooled figure is scenario-confounded, not a clean measure of the collapse itself** |
 | `local_noise_db` at `true_dt == 0` is within 3 dB of its `true_dt > 0` value | 65% | **HIT** (+0.23 dB) |
 | A third mechanism proposal is needed after AC-N5 | 40% | **not mechanically scoreable by this task** — AC-N5 answers WHERE (`signal_db`), not WHY `signal_db`'s own computation depends on `dt`. Left for the Architect's call. |
 

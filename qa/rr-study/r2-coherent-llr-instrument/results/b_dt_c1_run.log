@@ -1,0 +1,40 @@
+==========================================================================================
+B-dt-C1 -- OFFLINE reported_dt SIGN CHECK AT true_dt == 0 (spec 2026-08-22-1411)
+==========================================================================================
+Loading DLL: D:\Projects\claude\OpenWSFZ\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll (pinned to Amendment 2/3, shim 20260045)
+DLL pin confirmed: SHA256 f0c081b968b04515..., shim version 20260045
+
+------------------------------------------------------------------------------------------
+S3: 8/10 parts in scope (dt_s <= 2.1), 3 trials each, rendered at 12000 Hz
+S3: 24/24 (part,trial) cells produced a matched decode
+
+==========================================================================================
+ROW 0 -- VALIDITY
+==========================================================================================
+  part0 matched = 3 (need >= 3)
+  parts1-7 matched = 21 (need >= 12)
+  D_off = 2.000 (ref 2.0 +/- 1.0 dB)
+  limb (a) fires: False
+  limb (b) fires: False
+
+ROW 0 clear (both limbs). Proceeding to ROW 1/ROW 2.
+
+==========================================================================================
+ROW 1 / ROW 2 -- dt_off_0 = 0.1600 s
+==========================================================================================
+=> ROW 1: dt_off_0 >= 0.0 -- MECHANISM SUPPORTED.
+   Same true_dt (0.0), opposite time_offset sign, opposite outcome.
+   Proceed to TASK 2 (B-dt-C2); recommend Sec.1.1 fix as a Developer session.
+
+------------------------------------------------------------------------------------------
+4.5 REPORTED, NOT GATED
+------------------------------------------------------------------------------------------
+  part 0: n=3  reported_dt=0.160  signal_db=-7.576  local_noise_db=-36.000  reported_snr=2.000
+  part 1: n=3  reported_dt=0.480  signal_db=-7.823  local_noise_db=-35.833  reported_snr=1.667
+  part 2: n=3  reported_dt=0.773  signal_db=-8.551  local_noise_db=-35.833  reported_snr=0.667
+  part 3: n=3  reported_dt=1.040  signal_db=-7.814  local_noise_db=-35.833  reported_snr=1.667
+  part 4: n=3  reported_dt=1.360  signal_db=-7.614  local_noise_db=-36.000  reported_snr=2.000
+  part 5: n=3  reported_dt=1.680  signal_db=-7.766  local_noise_db=-36.000  reported_snr=2.000
+  part 6: n=3  reported_dt=1.973  signal_db=-8.559  local_noise_db=-36.000  reported_snr=1.000
+  part 7: n=3  reported_dt=2.240  signal_db=-7.785  local_noise_db=-36.000  reported_snr=2.000
+==========================================================================================
