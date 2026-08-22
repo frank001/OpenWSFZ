@@ -182,10 +182,25 @@
 
 ## 9. Housekeeping
 
-- [ ] 9.1 Update the D-001 entries in `MEMORY.md`/`BOARD.md` to record: this fix
+- [x] 9.1 Update the D-001 entries in `MEMORY.md`/`BOARD.md` to record: this fix
       shipped (shim `20260046`), the AC-N1 regression result, the B-dt-C3 acceptance
       result, and that this closes one confirmed contributing mechanism without
       claiming to close D-001 itself (per proposal.md's own scope limit).
+      Done 2026-08-22 16:57Z (Architect). Both files updated. Recorded MORE sharply
+      than this task's own wording: the measured recall effect is **zero** (4,842
+      decodes pre and post, 0 new, 0 lost, independently re-derived from the raw
+      replay JSON), so the entries state this is NOT a D-001 treatment and must not
+      be logged as progress against the ~42 pp gap. Two structural reasons recorded
+      (`signal_db` runs only after a successful decode, so it cannot reach D-001's
+      87.9% candidate-present-and-failed bucket; the `suppress_candidate_tiles`
+      feedback path was dormant -- 0 ramp crossings). The prospectively-closed latent
+      hole (a STRONG early signal would have gone unsuppressed and masked its pass-1
+      neighbours) is recorded so it is not lost.
+      Also run and recorded: a stratifier check over every D-001 harness (X1/X2/X3/
+      X4/C2/P2/P3/AO1) -- **no D-001 recall figure is affected, zero re-derivations
+      needed**. The one real consequence lands outside D-001, on
+      `DEFECT-snr-reported-gain-error.md`, whose slope this fix makes stale; that
+      document is amended in place (new §1a + a second leg for its §3 rejection).
 - [ ] 9.2 If a live/off-air comparison is later run to characterise this fix's effect
       on real traffic (design.md's Open Questions — not required for this change to
       merge), record it as a follow-up QA item rather than expanding this change's own

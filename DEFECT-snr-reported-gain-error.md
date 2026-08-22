@@ -49,6 +49,60 @@ The committed per-decode scatter (`qa/endurance/2026-07-29-5016363/anova_report_
 scatter.png`, n=24 201) confirms this visually: the cloud crosses `y = x` near -20 dB and falls
 progressively further below it as signal strength rises.
 
+## 1a. AMENDMENT 2026-08-22 16:57Z — the slope above is STALE as of shim `20260046`
+
+**Author:** Architect. **Trigger:** the negative-`time_offset` SNR fix
+(`c3a9ea8`, `FT8_SHIM_VERSION` 20260045 -> 20260046,
+`openspec/changes/fix-negative-time-offset-snr-collapse/`), which corrects a
+`signal_db` indexing defect affecting every candidate whose sync position precedes
+the decode window.
+
+**The §1 slope and intercept were measured on pre-fix output and may no longer be
+quoted as current.** The verdict is unchanged -- the slope is still nowhere near
+1.00 and this defect still stands -- but the headline numbers move.
+
+**Sizing (an ESTIMATE, not a re-measurement).** Measured on the WINDOW_20M replay
+pair `qa/rr-study/r2-coherent-llr-instrument/results/replay_win_amend2.json`
+(pre-fix) vs `replay_win_negdt_fix.json` (post-fix), 250 cycles, 4,842 decodes,
+identical on both platforms:
+
+| quantity | value |
+|---|---:|
+| decodes with `dt < 0` (pre-fix) | 117 (2.42 %) |
+| decodes whose SNR changed | 95 (1.96 %) |
+| mean change on those | **+5.54 dB** |
+| their mean SNR (pre-fix) | -24.7 dB (corpus median -11.0 dB) |
+| aggregate corpus mean SNR shift | **+0.109 dB** |
+| estimated OLS slope shift | **-0.021** (0.6865 -> ~0.666) |
+
+**The aggregate shift is negligible; the slope shift is not.** The affected decodes
+sit at the *low* end of the range, so they ROTATE the fit rather than translate it.
+The estimated -0.021 is roughly **5x the published 95 % CI half-width (+-0.0041)**,
+i.e. it moves the point estimate outside its own interval.
+
+🔴 **Direction, stated because it is counter-intuitive: the fix moves the slope AWAY
+from 1.00.** The negative-`dt` defect was slightly MASKING this gain error. Corrected,
+the gain error reads marginally WORSE, not better.
+
+⚠️ **Three limits on the figures above -- do not over-read them:**
+
+1. **This is a projection, not a re-measurement.** It applies WINDOW_20M's 2.42 %
+   `dt < 0` rate to §1's fit. The three corpora §1 actually measured may carry a
+   different rate.
+2. **Re-deriving requires an AUDIO REPLAY through the fixed binary.**
+   `measurement_a2_snr_gain_regression.py` parses archived `ALL.TXT`, so re-running
+   it as-is reproduces the stale pre-fix SNRs verbatim and would look like a
+   confirmation. The WAVs exist (`20260729_live_run_1831-8081`, 5,773 `owsfz` WAVs
+   per `qa/ARTEFACT_INVENTORY.md`), so this is feasible but not cheap.
+3. **§1's corpora are jt9-referenced, and offline `jt9 -d 3` is VOIDed as a reference
+   decoder** (see `MEMORY.md`). Per the project's own rule -- bias corrupts LEVELS far
+   more than SLOPES -- the slope half of §1 largely survives that; it is the "we read
+   low by 3.20-8.04 dB" LEVEL column that is the more suspect half, independently of
+   this fix.
+
+**No re-run is proposed.** This amendment exists so the §1 numbers are not re-quoted
+as current.
+
 ## 2. Why this matters
 
 - **Certain, and it reaches the wider network.** Reported SNR is wrong in QSO records and in
@@ -71,7 +125,20 @@ progressively further below it as signal strength rises.
 signals before the pass-1 candidate search. Under-reported SNR could mean strong signals are
 under-suppressed, an attractive mechanism linking this defect to D-001's core gap.
 
-**This is already tested and rejected.** `ft8_shim.c`'s own history records
+✅ **DIRECTLY MEASURED 2026-08-22, and the rejection now has a second, independent
+leg.** On the 250-cycle WINDOW_20M replay above, the negative-`time_offset` fix changed
+95 decodes' SNR by up to +15 dB and produced **zero new decodes and zero lost decodes**.
+The reason is mechanical, not luck: every affected decode sits below the ramp's own
+`K_SOFT_SUPP_SNR_MIN_DB = -5.0` floor both before (-34..-12 dB) and after (-33..-10 dB)
+the correction, so the attenuation factor stayed pinned at 1.0 on every one of them --
+**0 ramp crossings, 0 factor movement**, an identical pass-1 waterfall. On this corpus
+the suppression path was provably dormant. ⚠️ **That is a statement about this corpus,
+not a general one:** a STRONG early signal (`time_offset < 0`, true SNR well above -5 dB)
+would have been under-reported INTO the no-suppression zone pre-fix and left unsuppressed,
+masking weaker neighbours in pass 1. WINDOW_20M contained no such signal. The fix closes
+that hole prospectively; it did not cash out here.
+
+**The H5 result below is already tested and rejected.** `ft8_shim.c`'s own history records
 `diag-d001-h5-suppression-tuning` (`FT8_SHIM_VERSION 20260011`), which shifted the ramp 10 dB and
 was **REJECTED at -10.75 pp** (S7 46.24% vs H4 56.99%): "Over-suppression confirmed."
 
@@ -117,3 +184,7 @@ git-ignored `artefacts/`.
 - `src/OpenWSFZ.Ft8/Native/ft8_shim.c` — SNR formula, `compute_local_noise_floor_db`,
   `K_SOFT_SUPP_*`, the H5 rejection record.
 - D-002 (June 2026, constant-bias correction) — superseded assumption this defect corrects.
+- `openspec/changes/fix-negative-time-offset-snr-collapse/` + `c3a9ea8` (shim `20260046`) --
+  the negative-`time_offset` `signal_db` fix that makes §1's slope stale; see §1a.
+- `qa/rr-study/2026-08-22-1623-qa-to-architect-fix-negative-time-offset-snr-collapse-acceptance.md`
+  -- QA's acceptance of that fix (B-dt-C3 re-run, `max_p delta(p)` 17.4 dB -> 0.400 dB).
