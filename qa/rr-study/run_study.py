@@ -63,6 +63,21 @@ _SCENARIO_REGISTRY: dict[str, Path] = {
 # Controlled scenarios run by default (S8 handled separately via prompt / --skip-s8)
 _CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7"]
 
+# R&R-009 (2026-08-23): per-scenario part restriction applied ONLY to the default
+# controlled battery (--scenarios bypasses this entirely -- a targeted
+# `--scenarios S5` run still gets all four parts unless --parts is also given).
+# S5 parts 2 (steady carrier @1500Hz) and 3 (multi-carrier "birdies") have
+# detected exactly 1 false positive between them across every historical S1-S8
+# run in qa/rr-study/results/ -- parts 0/1 (AWGN) account for the other 52+
+# events, including the one real regression this scenario ever caught (the
+# 2026-06-20 OSD FAIL, D-009). Restricting the routine battery to parts 0,1
+# (60 slots, still comfortably above MIN_N_FOR_FP_GATE=49) saves ~30 min/run
+# without touching the gate's statistical validity. Parts 2/3 remain available
+# for an occasional targeted recheck: `--scenarios S5 --parts 2,3`.
+_DEFAULT_BATTERY_PART_OVERRIDES: dict[str, str] = {
+    "S5": "0,1",
+}
+
 
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command via the venv Python, streaming output in real time."""
@@ -109,6 +124,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # ── Build scenario list ────────────────────────────────────────────────
+    scenario_part_overrides: dict[str, str] = {}
     if args.scenarios:
         requested = [s.strip() for s in args.scenarios.split(",")]
         unknown   = [s for s in requested if s not in _SCENARIO_REGISTRY]
@@ -123,6 +139,7 @@ def main() -> None:
     else:
         scenario_ids   = list(_CONTROLLED_SCENARIO_IDS)
         scenario_files = [_SCENARIO_REGISTRY[s] for s in scenario_ids]
+        scenario_part_overrides = dict(_DEFAULT_BATTERY_PART_OVERRIDES)
 
         if not args.skip_s8:
             ans = input("Run S8 realistic band scene first? [Y/n]: ").strip().lower()
@@ -152,6 +169,11 @@ def main() -> None:
     print(f"  Scenarios       : {', '.join(scenario_ids)}")
     if args.parts:
         print(f"  Parts filter    : {args.parts}")
+    elif scenario_part_overrides:
+        for sid, parts in scenario_part_overrides.items():
+            if sid in scenario_ids:
+                print(f"  Parts filter    : {sid} restricted to parts {parts} "
+                      f"(R&R-009 default-battery override; see run_study.py)")
     print()
 
     # ── Step 0: Pre-flight warm-up check ──────────────────────────────────
@@ -166,12 +188,13 @@ def main() -> None:
         _py("harness/warmup.py", "--device", args.device)
 
     # ── Step 1: Run all scenarios ──────────────────────────────────────────
-    for sf in scenario_files:
+    for sid, sf in zip(scenario_ids, scenario_files):
         if not sf.exists():
             sys.exit(f"ERROR: scenario file not found: {sf}")
         run_args = ["harness/run_scenario.py", str(sf), "--device", args.device]
-        if args.parts:
-            run_args += ["--parts", args.parts]
+        parts_for_this = args.parts or scenario_part_overrides.get(sid)
+        if parts_for_this:
+            run_args += ["--parts", parts_for_this]
         _py(*run_args)
         print(f"  [OK] {sf.name} complete\n", flush=True)
         time.sleep(_POST_SCENARIO_SETTLE_S)

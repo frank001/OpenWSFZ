@@ -8,6 +8,8 @@
   "description": "Signal-free cycles. 30 trials per noise type (120 total slots). Drives: false-positive rate and between-appraiser agreement on false positives.",
   "trials_note": "Raised from 3 to 30 (12 -> 120 total slots) 2026-07-04, R&R-006 (GitHub #39). At the previous N=12, harness/analyse.py's MIN_N_FOR_FP_GATE (=49) meant this scenario could never clear the ratified R&R-004 95% Clopper-Pearson UB gate even at zero observed events -- every routine run reported the S5 metric as INFO, never a real PASS/FAIL. 120 matches the N already assumed by STUDY-SPEC.md Section 10's ratification text and worked examples (k=2 events -> UB 5.15% PASS; k=3 -> UB 6.33% FAIL), rather than introducing a new, undocumented sample size.",
 
+  "parts_note": "R&R-009 (2026-08-23): the routine run_study.py battery restricts itself to parts 0,1 by default (qa/rr-study/run_study.py's _DEFAULT_BATTERY_PART_OVERRIDES) -- parts 2 (steady carrier @1500Hz) and 3 (multi-carrier birdies) detected exactly 1 false positive between them across every historical run in qa/rr-study/results/, versus 52+ from parts 0/1 (AWGN), including the only real regression this scenario has ever caught (2026-06-20 OSD FAIL). This file's own 'parts' list is unchanged and all four remain fully runnable, e.g. for a targeted recheck: `python run_study.py --scenarios S5 --parts 2,3`.",
+
   "message_ids": [],
 
   "harness_note": "No FT8 signal is synthesised. Each part renders a 15 s audio buffer containing only the specified interference. Any decode reported by either appraiser is a false positive.",

@@ -754,6 +754,47 @@ ratified, despite §10's own ratification note already describing worked example
 Routine full-suite runtime increases by roughly (120 − 12) × ~15 s ≈ 27 minutes for the S5 part
 alone — accepted as the cost of the routine suite ever producing a real S5 verdict at all.
 
+### S5 default-battery part restriction — R&R-009 — **IMPLEMENTED 2026-08-23**
+
+**Trigger.** Captain review of `qa/rr-study/results/` history questioned whether S5's parts 2
+(steady carrier @ 1500 Hz) and 3 (multi-carrier "birdies") were earning their share of the
+routine battery's runtime.
+
+**Finding.** Reconstructing per-part attribution (`_fp_row()` never records `part_index`; done
+here by joining each run's `S5_matched.csv` false-positive rows against `truth.csv`'s per-slot
+`part_index`, restricted to `cycle_utc` values that actually belong to S5 — the matcher's
+`main()` parses the *entire* session `ALL.TXT` unscoped by time, so an unfiltered join
+over-attributes decodes from other scenarios) across every historical S1–S8 run:
+
+| Part | Interference | Total FP events, all history |
+|---|---|---|
+| 0 — AWGN moderate (−20 dBFS) | white noise | 37 |
+| 1 — AWGN hot (−10 dBFS) | white noise | 15 |
+| 2 — steady carrier @ 1500 Hz | single CW tone | 1 |
+| 3 — multi-carrier birdies | six CW tones | 0 |
+
+Parts 2/3 combined: 1 of 53 total events ever recorded, and no contribution to the only real
+regression this scenario has caught (the 2026-06-20 OSD FAIL, D-009 — driven entirely by parts
+0/1, 11 of 12 failing slots). WSJT-X has never registered an S5 false positive on any part, in
+any run.
+
+**Change.** `run_study.py`'s default controlled battery now restricts S5 to `--parts 0,1` via
+`_DEFAULT_BATTERY_PART_OVERRIDES` — 60 slots, still comfortably above `MIN_N_FOR_FP_GATE` = 49,
+so the §10 gate's statistical validity is unaffected. `scenarios/s5-noise.json` itself is
+unchanged (all four parts remain defined) and a targeted run still gets all of them:
+`python run_study.py --scenarios S5 --parts 2,3` (or omit `--parts` for all four). Only the
+*routine, unattended* battery is narrowed.
+
+**Cost saved.** ~30 minutes per full S1–S8 run (60 of S5's 120 slots × ~15 s).
+
+**Changes implemented:**
+
+- **`run_study.py`** — `_DEFAULT_BATTERY_PART_OVERRIDES` constant; scenario-build and run-loop
+  wiring so the override applies only when `--scenarios` is not given and no explicit `--parts`
+  overrides it.
+- **`scenarios/s5-noise.json`** — new `parts_note` field recording this rationale.
+- **STUDY-SPEC.md §16** (this document) — this entry.
+
 ### S6 empirical repeatability finding + ANOVA extension — R&R-008 — **IMPLEMENTED 2026-07-11**
 (see `results/corpus-2026-07-10/report.md`)
 
