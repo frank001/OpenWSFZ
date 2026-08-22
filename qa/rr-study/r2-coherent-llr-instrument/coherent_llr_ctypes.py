@@ -31,14 +31,19 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "qa", "rr-study", "n1-extract-llrs-at
 
 from extract_llrs_ctypes import BUFFER_SAMPLES, FTX_LDPC_N, ExtractLLRs  # noqa: E402
 
-# The binary this change's own task 5.2 rebuilt and QA's 2026-08-21 10:22Z merge review
-# verified as MERGED TO MAIN (PR #128, a420016) -- re-hashed from disk this session
-# (matches src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt's recorded SHA256
-# byte-for-byte). Deliberately NOT run_stage1.DEFAULT_DLL_SHA256/EXPECTED_SHIM_VERSION,
-# which pin the PRE-merge binary (shim 20260042) -- ROW 0g's own precondition (spec
-# Sec.0) is that it runs against the CURRENT merged binary.
-CURRENT_DLL_SHA256 = "1889408787a2c7ea545dbe8477691b090417a74fc81116cbf1ea52413bfbdb3a"
-CURRENT_SHIM_VERSION = 20260043
+# Phase B (task 10.4): re-pinned to the binary this session's own task 10.2 rebuilt
+# (B1 origin fix + B2 fusion fix + B4 ft8_ldpc_decode_llrs export) -- read from disk
+# this session, not copied from a report (matches
+# src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt's recorded SHA256 byte-for-byte).
+# Confirms row0g_instrument_gain_check.py / b_pos_a_lattice_position.py /
+# b_orig_a_origin_convention.py / phase_a_deconfounding.py all pick up the new pin
+# (all four import CURRENT_DLL_SHA256/CURRENT_SHIM_VERSION from this module).
+#
+# Prior pin (Phase 1, shim 20260043, merged to main PR #128, a420016):
+#   CURRENT_DLL_SHA256 = "1889408787a2c7ea545dbe8477691b090417a74fc81116cbf1ea52413bfbdb3a"
+#   CURRENT_SHIM_VERSION = 20260043
+CURRENT_DLL_SHA256 = "a3d32b7839a0fd73dcc8d35bd514d60f962f3267179fd77cbd8a1ebd6ecc8d45"
+CURRENT_SHIM_VERSION = 20260044
 
 
 class CoherentExtractLLRs(ExtractLLRs):
