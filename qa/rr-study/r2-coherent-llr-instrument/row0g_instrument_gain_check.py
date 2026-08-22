@@ -55,6 +55,7 @@ from run_stage1 import WavCache  # noqa: E402
 from run_stage1r import deterministic_sample  # noqa: E402 -- seeded, sort-stabilised (HK-018)
 from n1_stats import cluster_bootstrap_median_diff  # noqa: E402 -- reused verbatim (HK-018)
 from m3_common import TIME_ANCHOR_OFFSETS_S  # noqa: E402 -- reused verbatim (HK-018)
+from results_guard import guard_paths  # noqa: E402 -- N14
 
 import r2_population as R2POP  # noqa: E402
 from r2_sign_test import _message_for_trial  # noqa: E402 -- reused verbatim (HK-018)
@@ -424,8 +425,11 @@ def main() -> int:
 
 
 def _write(out_dir: str, bundle: dict, log_lines: list[str]) -> None:
-    P.write_json(os.path.join(out_dir, "row0g_report.json"), bundle)
-    with open(os.path.join(out_dir, "row0g_run.log"), "w", encoding="ascii", errors="replace") as fh:
+    report_path = os.path.join(out_dir, "row0g_report.json")
+    log_path = os.path.join(out_dir, "row0g_run.log")
+    guard_paths([report_path, log_path], REPO_ROOT)  # N14
+    P.write_json(report_path, bundle)
+    with open(log_path, "w", encoding="ascii", errors="replace") as fh:
         fh.write("\n".join(log_lines) + "\n")
 
 

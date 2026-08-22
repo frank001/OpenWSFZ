@@ -34,6 +34,7 @@ from scipy import signal as _sig  # noqa: E402
 import p23_common as P  # noqa: E402
 from harness.common import compute_seed  # noqa: E402
 from harness.run_scenario import _load_messages  # noqa: E402
+from results_guard import guard_paths  # noqa: E402 -- N14
 from snr_terms_ctypes import SnrTermsDecoder, CURRENT_DLL_SHA256, CURRENT_SHIM_VERSION  # noqa: E402
 
 SCENARIOS_DIR = Path(_QA_ROOT) / "scenarios"
@@ -398,8 +399,11 @@ def main() -> int:
 
 
 def _write(out_dir: str, bundle: dict, log_lines: list[str]) -> None:
-    P.write_json(os.path.join(out_dir, "b_dt_c3_report.json"), bundle)
-    with open(os.path.join(out_dir, "b_dt_c3_run.log"), "w", encoding="ascii", errors="replace") as fh:
+    report_path = os.path.join(out_dir, "b_dt_c3_report.json")
+    log_path = os.path.join(out_dir, "b_dt_c3_run.log")
+    guard_paths([report_path, log_path], REPO_ROOT)  # N14
+    P.write_json(report_path, bundle)
+    with open(log_path, "w", encoding="ascii", errors="replace") as fh:
         fh.write("\n".join(log_lines) + "\n")
 
 

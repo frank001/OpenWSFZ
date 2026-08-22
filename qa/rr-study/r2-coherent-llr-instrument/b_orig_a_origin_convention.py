@@ -75,6 +75,7 @@ from extract_llrs_ctypes import FTX_LDPC_N, BUFFER_SAMPLES, hard_decision_ber  #
 from run_stage1 import DEFAULT_DLL_PATH  # noqa: E402
 from r2_sign_test import _message_for_trial  # noqa: E402 -- reused verbatim (HK-018)
 from coherent_llr_ctypes import CoherentExtractLLRs, CURRENT_DLL_SHA256, CURRENT_SHIM_VERSION  # noqa: E402
+from results_guard import guard_paths  # noqa: E402 -- N14
 import phase_a_deconfounding as PHASE_A  # noqa: E402 -- SNR-ladder calibration, reused verbatim
 
 SEED = 20260821  # this arm's own seed (session date, HK-017-style provenance)
@@ -377,9 +378,11 @@ def main() -> int:
         log_lines.append(msg)
 
     def finish(bundle: dict, code: int) -> int:
-        P.write_json(os.path.join(out_dir, "b_orig_a_report.json"), bundle)
-        with open(os.path.join(out_dir, "b_orig_a_run.log"), "w", encoding="ascii",
-                  errors="replace") as fh:
+        report_path = os.path.join(out_dir, "b_orig_a_report.json")
+        log_path = os.path.join(out_dir, "b_orig_a_run.log")
+        guard_paths([report_path, log_path], REPO_ROOT)  # N14
+        P.write_json(report_path, bundle)
+        with open(log_path, "w", encoding="ascii", errors="replace") as fh:
             fh.write("\n".join(log_lines) + "\n")
         return code
 

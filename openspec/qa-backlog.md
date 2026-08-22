@@ -507,7 +507,23 @@ absent something environment-dependent driving that enumeration.
 ## N14 — `qa/rr-study/r2-coherent-llr-instrument/*.py` harness scripts write to a fixed,
 unsuffixed output path and silently clobber their own committed baseline on re-run
 
-**Status:** OPEN, confirmed — now observed on **three** independent scripts, not one.
+**Status:** PARTIALLY FIXED (2026-08-22 19:39Z, QA, docs/qa-tooling only — qa-tooling
+is QA-ownable per the Captain's standing note, HK-011 does not bite). Added
+`qa/rr-study/r2-coherent-llr-instrument/results_guard.py` (shared `guard_paths()`
+helper, suggested fix (b) from the original writeup: refuse to overwrite a
+git-tracked results file without `--force`, reading `--force` off `sys.argv` so no
+call site needs its own argparse) and wired it into all three confirmed offenders'
+write paths (`b_dt_c3_offline_negative_dt.py`, `b_orig_a_origin_convention.py`,
+`row0g_instrument_gain_check.py`) — each now raises `SystemExit` with the exact
+`cp`-then-`git checkout --` remedy before it would clobber a tracked baseline,
+instead of silently overwriting it. Smoke-tested directly against a real tracked
+file (`row0g_report.json`): fires without `--force`, passes with it, and a
+nonexistent path never fires. **Still OPEN:** the note's own last line — audit the
+rest of `qa/rr-study/r2-coherent-llr-instrument/*.py` (this directory has 14 more
+scripts) and sibling `qa/rr-study/*` phase directories for the same fixed-path
+pattern — was NOT done; only the three scripts already confirmed by name were
+fixed. This was previously:
+OPEN, confirmed — now observed on **three** independent scripts, not one.
 The first occurrence (`b_dt_c3_offline_negative_dt.py`, flagged during the
 `fix-negative-time-offset-snr-collapse` acceptance run 2026-08-22) was recorded as
 "harness gap, flagged not fixed" in `BOARD.md`. This session found the identical defect
