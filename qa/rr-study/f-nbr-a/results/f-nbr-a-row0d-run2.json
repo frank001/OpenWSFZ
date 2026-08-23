@@ -1,0 +1,996 @@
+{
+  "dll_sha256": "bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f",
+  "dll_shim_version": 20260046,
+  "part_a": {
+    "harness_faults": 0,
+    "n_trials": 100,
+    "path_counts": {
+      "-1": 95,
+      "1": 5
+    },
+    "per_trial": [
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 15,
+        "path": -1,
+        "success": false,
+        "trial": 0
+      },
+      {
+        "crc_ok": 1,
+        "harness_fault": false,
+        "ldpc_errors": 0,
+        "path": 1,
+        "success": false,
+        "trial": 1
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 12,
+        "path": -1,
+        "success": false,
+        "trial": 2
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 3
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 11,
+        "path": -1,
+        "success": false,
+        "trial": 4
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 14,
+        "path": -1,
+        "success": false,
+        "trial": 5
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 6
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 5,
+        "path": -1,
+        "success": false,
+        "trial": 7
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 8
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 9,
+        "path": -1,
+        "success": false,
+        "trial": 9
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 15,
+        "path": -1,
+        "success": false,
+        "trial": 10
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 2,
+        "path": -1,
+        "success": false,
+        "trial": 11
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 12
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 13
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 14
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 7,
+        "path": -1,
+        "success": false,
+        "trial": 15
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 5,
+        "path": -1,
+        "success": false,
+        "trial": 16
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 6,
+        "path": -1,
+        "success": false,
+        "trial": 17
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 15,
+        "path": -1,
+        "success": false,
+        "trial": 18
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 9,
+        "path": -1,
+        "success": false,
+        "trial": 19
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 20
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 21
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 13,
+        "path": -1,
+        "success": false,
+        "trial": 22
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 15,
+        "path": -1,
+        "success": false,
+        "trial": 23
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 2,
+        "path": -1,
+        "success": false,
+        "trial": 24
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 25
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 6,
+        "path": -1,
+        "success": false,
+        "trial": 26
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 5,
+        "path": -1,
+        "success": false,
+        "trial": 27
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 5,
+        "path": -1,
+        "success": false,
+        "trial": 28
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 17,
+        "path": -1,
+        "success": false,
+        "trial": 29
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 30
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 31
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 5,
+        "path": -1,
+        "success": false,
+        "trial": 32
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 33
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 5,
+        "path": -1,
+        "success": false,
+        "trial": 34
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 35
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 10,
+        "path": -1,
+        "success": false,
+        "trial": 36
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 37
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 38
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 9,
+        "path": -1,
+        "success": false,
+        "trial": 39
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 13,
+        "path": -1,
+        "success": false,
+        "trial": 40
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 41
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 12,
+        "path": -1,
+        "success": false,
+        "trial": 42
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 6,
+        "path": -1,
+        "success": false,
+        "trial": 43
+      },
+      {
+        "crc_ok": 1,
+        "harness_fault": false,
+        "ldpc_errors": 0,
+        "path": 1,
+        "success": false,
+        "trial": 44
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 14,
+        "path": -1,
+        "success": false,
+        "trial": 45
+      },
+      {
+        "crc_ok": 1,
+        "harness_fault": false,
+        "ldpc_errors": 0,
+        "path": 1,
+        "success": false,
+        "trial": 46
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 17,
+        "path": -1,
+        "success": false,
+        "trial": 47
+      },
+      {
+        "crc_ok": 1,
+        "harness_fault": false,
+        "ldpc_errors": 0,
+        "path": 1,
+        "success": false,
+        "trial": 48
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 19,
+        "path": -1,
+        "success": false,
+        "trial": 49
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 8,
+        "path": -1,
+        "success": false,
+        "trial": 50
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 8,
+        "path": -1,
+        "success": false,
+        "trial": 51
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 16,
+        "path": -1,
+        "success": false,
+        "trial": 52
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 9,
+        "path": -1,
+        "success": false,
+        "trial": 53
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 7,
+        "path": -1,
+        "success": false,
+        "trial": 54
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 55
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 56
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 7,
+        "path": -1,
+        "success": false,
+        "trial": 57
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 10,
+        "path": -1,
+        "success": false,
+        "trial": 58
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 12,
+        "path": -1,
+        "success": false,
+        "trial": 59
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 7,
+        "path": -1,
+        "success": false,
+        "trial": 60
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 7,
+        "path": -1,
+        "success": false,
+        "trial": 61
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 2,
+        "path": -1,
+        "success": false,
+        "trial": 62
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 63
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 64
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 15,
+        "path": -1,
+        "success": false,
+        "trial": 65
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 11,
+        "path": -1,
+        "success": false,
+        "trial": 66
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 67
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 13,
+        "path": -1,
+        "success": false,
+        "trial": 68
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 7,
+        "path": -1,
+        "success": false,
+        "trial": 69
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 13,
+        "path": -1,
+        "success": false,
+        "trial": 70
+      },
+      {
+        "crc_ok": 1,
+        "harness_fault": false,
+        "ldpc_errors": 0,
+        "path": 1,
+        "success": false,
+        "trial": 71
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 16,
+        "path": -1,
+        "success": false,
+        "trial": 72
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 8,
+        "path": -1,
+        "success": false,
+        "trial": 73
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 74
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 9,
+        "path": -1,
+        "success": false,
+        "trial": 75
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 5,
+        "path": -1,
+        "success": false,
+        "trial": 76
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 9,
+        "path": -1,
+        "success": false,
+        "trial": 77
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 8,
+        "path": -1,
+        "success": false,
+        "trial": 78
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 13,
+        "path": -1,
+        "success": false,
+        "trial": 79
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 8,
+        "path": -1,
+        "success": false,
+        "trial": 80
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 81
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 82
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 7,
+        "path": -1,
+        "success": false,
+        "trial": 83
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 7,
+        "path": -1,
+        "success": false,
+        "trial": 84
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 6,
+        "path": -1,
+        "success": false,
+        "trial": 85
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 86
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 87
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 88
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 89
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 3,
+        "path": -1,
+        "success": false,
+        "trial": 90
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 11,
+        "path": -1,
+        "success": false,
+        "trial": 91
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 15,
+        "path": -1,
+        "success": false,
+        "trial": 92
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 7,
+        "path": -1,
+        "success": false,
+        "trial": 93
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 11,
+        "path": -1,
+        "success": false,
+        "trial": 94
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 13,
+        "path": -1,
+        "success": false,
+        "trial": 95
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 9,
+        "path": -1,
+        "success": false,
+        "trial": 96
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 97
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 9,
+        "path": -1,
+        "success": false,
+        "trial": 98
+      },
+      {
+        "crc_ok": 0,
+        "harness_fault": false,
+        "ldpc_errors": 4,
+        "path": -1,
+        "success": false,
+        "trial": 99
+      }
+    ],
+    "successes": 0
+  },
+  "part_b": {
+    "Abar_ci_hi": 0.1373855621444708,
+    "Abar_ci_lo": 0.1332110293053946,
+    "Abar_point": 0.13527873076982785,
+    "Z_ci_hi": 0.6606815716437576,
+    "Z_ci_lo": 0.6527402317969723,
+    "Z_point": 0.6566900041914402,
+    "bootstrap_seed": 20260823,
+    "n_boot": 2000,
+    "n_clusters": 4614,
+    "n_rows": 64417,
+    "snr_histogram": {
+      "-38": 1,
+      "-37": 1,
+      "-35": 3,
+      "-34": 3,
+      "-33": 1,
+      "-32": 11,
+      "-31": 11,
+      "-30": 31,
+      "-29": 56,
+      "-28": 82,
+      "-27": 100,
+      "-26": 151,
+      "-25": 191,
+      "-24": 231,
+      "-23": 303,
+      "-22": 465,
+      "-21": 680,
+      "-20": 1024,
+      "-19": 1464,
+      "-18": 1855,
+      "-17": 2251,
+      "-16": 2663,
+      "-15": 2814,
+      "-14": 3084,
+      "-13": 2972,
+      "-12": 2854,
+      "-11": 2967,
+      "-10": 2943,
+      "-9": 2837,
+      "-8": 2748,
+      "-7": 2541,
+      "-6": 2585,
+      "-5": 2379,
+      "-4": 2210,
+      "-3": 2067,
+      "-2": 1939,
+      "-1": 1769,
+      "0": 1585,
+      "1": 1498,
+      "2": 1385,
+      "3": 1230,
+      "4": 1047,
+      "5": 976,
+      "6": 824,
+      "7": 803,
+      "8": 713,
+      "9": 574,
+      "10": 526,
+      "11": 427,
+      "12": 412,
+      "13": 326,
+      "14": 262,
+      "15": 238,
+      "16": 197,
+      "17": 161,
+      "18": 114,
+      "19": 128,
+      "20": 110,
+      "21": 89,
+      "22": 68,
+      "23": 76,
+      "24": 57,
+      "25": 54,
+      "26": 38,
+      "27": 31,
+      "28": 19,
+      "29": 27,
+      "30": 28,
+      "31": 22,
+      "32": 14,
+      "33": 15,
+      "34": 17,
+      "35": 11,
+      "36": 11,
+      "37": 8,
+      "38": 5,
+      "39": 1,
+      "40": 1,
+      "42": 1,
+      "43": 1
+    }
+  },
+  "part_c": {
+    "c1": {
+      "n_trials": 100,
+      "r_ablate": 100,
+      "r_baseline": 0
+    },
+    "c2": {
+      "rows": [
+        {
+          "delta_hz": 6.25,
+          "f_freq_hz": 1156.25,
+          "hits": 0,
+          "n_trials": 100
+        },
+        {
+          "delta_hz": 12.0,
+          "f_freq_hz": 1162.0,
+          "hits": 0,
+          "n_trials": 100
+        },
+        {
+          "delta_hz": 18.75,
+          "f_freq_hz": 1168.75,
+          "hits": 0,
+          "n_trials": 100
+        },
+        {
+          "delta_hz": 25.0,
+          "f_freq_hz": 1175.0,
+          "hits": 27,
+          "n_trials": 100
+        },
+        {
+          "delta_hz": 31.25,
+          "f_freq_hz": 1181.25,
+          "hits": 98,
+          "n_trials": 100
+        },
+        {
+          "delta_hz": 50.0,
+          "f_freq_hz": 1200.0,
+          "hits": 100,
+          "n_trials": 100
+        },
+        {
+          "delta_hz": 100.0,
+          "f_freq_hz": 1250.0,
+          "hits": 100,
+          "n_trials": 100
+        }
+      ]
+    },
+    "c3": {
+      "rows": [
+        {
+          "hits": 100,
+          "n_trials": 100,
+          "snr_f_db": -2.0
+        },
+        {
+          "hits": 0,
+          "n_trials": 100,
+          "snr_f_db": -5.0
+        },
+        {
+          "hits": 0,
+          "n_trials": 100,
+          "snr_f_db": -8.0
+        },
+        {
+          "hits": 0,
+          "n_trials": 100,
+          "snr_f_db": -11.0
+        }
+      ]
+    }
+  },
+  "row0": {
+    "0a": true,
+    "0b": true,
+    "0b_matches": 25,
+    "0c": true,
+    "0e": true,
+    "0f": true,
+    "all_pass": true
+  },
+  "stopped_at_row0": false
+}
