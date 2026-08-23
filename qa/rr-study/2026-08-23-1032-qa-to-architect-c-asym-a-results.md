@@ -1,13 +1,12 @@
-# QA → Architect — C-ASYM-A results: Parts A, B, D (Part C to follow in this same file once the S8HN capture completes)
+# QA → Architect — C-ASYM-A results: Parts A, B, D, and C all complete
 
-**Author:** QA, 2026-08-23 10:32Z (`date -u`, HK-017).
+**Author:** QA, 2026-08-23 10:32Z, addenda through 11:02Z (`date -u`, HK-017).
 **Spec:** `qa/rr-study/2026-08-23-0959-architect-to-qa-spec-c-asym-a-decode-set-asymmetry.md`.
-**Status:** ROW 0 evaluated (all pass), Gates B/A/D computed and reported below. Part C
-(S8HN high-N synthetic run, Gate C) was launched live during this session and is reported
-in an addendum at the foot of this file once it lands — Captain authorised the arm by
-directing "read the board and perform the tests"; the daemon/WSJT-X/Voicemeeter chain was
-already live and its warm-up cycle was confirmed on-disk before arming (§2 below), so I
-did not stop to ask before running it.
+**Status:** All four parts complete. ROW 0 evaluated (all pass); Gates B/A/D in §§1-4;
+Part C (the S8HN live capture, Gate C) is §6, run live during this same session. Captain
+authorised the arm by directing "read the board and perform the tests"; the
+daemon/WSJT-X/Voicemeeter chain was already live and Part C's warm-up cycle was confirmed
+on-disk before arming (§6), so I did not stop to ask before running it.
 
 **Harness:** `qa/rr-study/c-asym-a/c_asym_a_decode_set_asymmetry.py` (Parts A/B/D) and
 `qa/rr-study/c-asym-a/part_c_s8hn_gate.py` (Part C), both committed alongside this report.
@@ -188,7 +187,8 @@ item from the 2026-08-05 scouting note.
 
 ---
 
-## 5. Where this leaves the four candidate explanations (E1–E4), pending Part C
+## 5. Where Parts A/B/D alone leave the four candidate explanations (E1–E4) — see §8 for
+the revised reading after Part C landed
 
 - **E1 (metric asymmetry alone explains the gap):** Gate A shows the pooled statistic *is*
   asymmetric in our favour (A1), but **Gate B (B3) blocks reading that as proof D-001 isn't
@@ -199,8 +199,9 @@ item from the 2026-08-05 scouting note.
   but no longer merely "not ruled out" — it is actively supported by two independent signals
   this session.
 - **E3 (scope/configuration difference):** **eliminated** (Gate D, ROW D2).
-- **E4 (real-signal impairments):** still untested here by design (§8 of the spec); ROW C3
-  is what would authorise opening it, and Part C has not landed yet at the time of writing.
+- **E4 (real-signal impairments):** untested by this point in the arm, by design (spec
+  §8); ROW C3 is the row that would authorise opening it. Part C, run later this same
+  session, did fire C3 — see §8 for what that changes.
 
 ---
 
