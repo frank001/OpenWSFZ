@@ -1,0 +1,82 @@
+  Targeted run: S8HN
+
+======================================================================
+OpenWSFZ R&R Study -- live run
+======================================================================
+  WSJT-X ALL.TXT  : C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT
+  OpenWSFZ ALL.TXT: D:\Projects\claude\OpenWSFZ\ALL.TXT
+  Device          : Voicemeeter AUX Input
+  Scenarios       : S8HN
+
+  WARNING: pre-flight warm-up check skipped (--skip-warmup).
+  Ensure both apps are in Monitor/decode mode before proceeding.
+
+
+>>> D:\Projects\claude\OpenWSFZ\qa\rr-study\.venv\Scripts\python.exe harness/run_scenario.py D:\Projects\claude\OpenWSFZ\qa\rr-study\scenarios\s8hn-band-scene-highn.json --device Voicemeeter AUX Input
+
+Run directory: results\2026-08-23-73c1288
+  Device 'Voicemeeter AUX Input' matched 3 host-API entries; selected [80] Voicemeeter AUX Input (VB-Audio Voicemeeter VAIO) via Windows WASAPI (48000 Hz).
+[S8HN] Part 1/1  Trial 1/25  SNR=N/A  seed=377652189  cycle=2026-08-23T10:35:30Z … done
+[S8HN] Part 1/1  Trial 2/25  SNR=N/A  seed=367151581  cycle=2026-08-23T10:36:00Z … done
+[S8HN] Part 1/1  Trial 3/25  SNR=N/A  seed=1515122330  cycle=2026-08-23T10:36:30Z … done
+[S8HN] Part 1/1  Trial 4/25  SNR=N/A  seed=1552634760  cycle=2026-08-23T10:37:00Z … done
+[S8HN] Part 1/1  Trial 5/25  SNR=N/A  seed=1469482083  cycle=2026-08-23T10:37:30Z … done
+[S8HN] Part 1/1  Trial 6/25  SNR=N/A  seed=880430594  cycle=2026-08-23T10:38:00Z … done
+[S8HN] Part 1/1  Trial 7/25  SNR=N/A  seed=1528455687  cycle=2026-08-23T10:38:30Z … done
+[S8HN] Part 1/1  Trial 8/25  SNR=N/A  seed=1979038  cycle=2026-08-23T10:39:00Z … done
+[S8HN] Part 1/1  Trial 9/25  SNR=N/A  seed=226664545  cycle=2026-08-23T10:39:30Z … done
+[S8HN] Part 1/1  Trial 10/25  SNR=N/A  seed=1964511511  cycle=2026-08-23T10:40:00Z … done
+[S8HN] Part 1/1  Trial 11/25  SNR=N/A  seed=1127377714  cycle=2026-08-23T10:40:30Z … done
+[S8HN] Part 1/1  Trial 12/25  SNR=N/A  seed=701260888  cycle=2026-08-23T10:41:00Z … done
+[S8HN] Part 1/1  Trial 13/25  SNR=N/A  seed=321623125  cycle=2026-08-23T10:41:30Z … done
+[S8HN] Part 1/1  Trial 14/25  SNR=N/A  seed=910696867  cycle=2026-08-23T10:42:00Z … done
+[S8HN] Part 1/1  Trial 15/25  SNR=N/A  seed=861970880  cycle=2026-08-23T10:42:30Z … done
+[S8HN] Part 1/1  Trial 16/25  SNR=N/A  seed=1575469128  cycle=2026-08-23T10:43:00Z … done
+[S8HN] Part 1/1  Trial 17/25  SNR=N/A  seed=1534134794  cycle=2026-08-23T10:43:30Z … done
+[S8HN] Part 1/1  Trial 18/25  SNR=N/A  seed=449342969  cycle=2026-08-23T10:44:00Z … done
+[S8HN] Part 1/1  Trial 19/25  SNR=N/A  seed=433243659  cycle=2026-08-23T10:44:30Z … done
+[S8HN] Part 1/1  Trial 20/25  SNR=N/A  seed=383822510  cycle=2026-08-23T10:45:00Z … done
+[S8HN] Part 1/1  Trial 21/25  SNR=N/A  seed=1430634507  cycle=2026-08-23T10:45:30Z … done
+[S8HN] Part 1/1  Trial 22/25  SNR=N/A  seed=439284180  cycle=2026-08-23T10:46:00Z … done
+[S8HN] Part 1/1  Trial 23/25  SNR=N/A  seed=1041550832  cycle=2026-08-23T10:46:30Z … done
+[S8HN] Part 1/1  Trial 24/25  SNR=N/A  seed=1422217577  cycle=2026-08-23T10:47:00Z … done
+[S8HN] Part 1/1  Trial 25/25  SNR=N/A  seed=2145214959  cycle=2026-08-23T10:47:30Z … done
+
+Scenario S8HN complete — 25 trials injected. Truth: results\2026-08-23-73c1288\truth.csv
+  [OK] s8hn-band-scene-highn.json complete
+
+
+Run directory: results\2026-08-23-73c1288
+
+Collecting decode logs ...
+  Copied WSJT-X   -> wsjt-all.txt
+  Copied OpenWSFZ -> owsfz-all.txt
+
+Running matcher ...
+
+>>> D:\Projects\claude\OpenWSFZ\qa\rr-study\.venv\Scripts\python.exe harness/matcher.py --run-dir D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-23-73c1288 --scenario S8HN --wsjt D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-23-73c1288\wsjt-all.txt --owsfz D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-23-73c1288\owsfz-all.txt
+
+Matching scenario S8HN — 300 truth rows
+  WSJT-X:    284 FT8 lines parsed, 0 skipped
+  OpenWSFZ:  722 FT8 lines parsed, 0 skipped
+  Written: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-23-73c1288\S8HN_matched.csv
+
+Match summary:
+  WSJT-X: 283/300 matched (94.3%);  17 misses;  1 FP
+  OpenWSFZ: 275/300 matched (91.7%);  25 misses;  447 FP
+  [OK] S8HN matched
+
+
+Running analyser ...
+
+>>> D:\Projects\claude\OpenWSFZ\qa\rr-study\.venv\Scripts\python.exe harness/analyse.py --run-dir D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-23-73c1288
+
+Analysing: S8HN
+
+Report written: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-23-73c1288\report.md
+Overall verdict: PASS
+Trend row appended: D:\Projects\claude\OpenWSFZ\qa\rr-study\trend.csv
+
+======================================================================
+Study complete.  Report: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-23-73c1288\report.md
+======================================================================

@@ -1,0 +1,30 @@
+{
+  "_comment": "S8HN -- High-N Realistic Band Scene. A copy of s8-band-scene.json with id S8HN and trials raised from 5 to 25, built for C-ASYM-A Part C (qa/rr-study/2026-08-23-0959-architect-to-qa-spec-c-asym-a-decode-set-asymmetry.md Sec.4.3). At the standing S8's N=5 (60 decodes/appraiser) the 95% half-width on M_syn is ~0.07 against a 0.10 gate bar -- not resolvable (HK-021(m)). 12 stations x 25 trials = 300 injected messages/appraiser, half-width ~0.034 at M_syn=0.10. Deliberately NOT a modification of s8-band-scene.json or S8's registry entry -- the ratified study is left exactly as it is -- and deliberately NOT added to run_study.py's _CONTROLLED_SCENARIO_IDS (reached only via --scenarios S8HN, like S3b).",
+  "_format_version": "1",
+
+  "id": "S8HN",
+  "name": "Realistic Band Scene -- High-N (C-ASYM-A Part C)",
+  "description": "Fixed 12-station band profile across 450-2550 Hz at realistic SNR spread (-15 to +3 dB), identical signal set to S8. Includes a near-collision pair (E/F, 12 Hz apart) and a capture pair (G/H, co-frequency, 6 dB ratio). 25 trials vary only AWGN seed. Metric: M_syn (the D-001 statistic computed where injected truth is known) side by side with recovery_ours / recovery_theirs -- gated per C-ASYM-A Sec.5 Gate C.",
+
+  "trials": 25,
+
+  "signals": [
+    {"station": "A", "message_text": "CQ Q1ABC FN42",      "freq_hz":  450, "snr_db":  -8, "dt_s": 0.0},
+    {"station": "B", "message_text": "Q1ABC Q9XYZ -10",    "freq_hz":  650, "snr_db":  -3, "dt_s": 0.0},
+    {"station": "C", "message_text": "Q9XYZ Q1ABC R-08",   "freq_hz":  850, "snr_db": -12, "dt_s": 0.0},
+    {"station": "D", "message_text": "CQ Q1AW FN31",       "freq_hz": 1050, "snr_db":   0, "dt_s": 0.0},
+    {"station": "E", "message_text": "Q1AW Q1ABC +05",     "freq_hz": 1150, "snr_db":  -5, "dt_s": 0.0},
+    {"station": "F", "message_text": "Q1ABC Q1AW RR73",    "freq_hz": 1162, "snr_db":  -8, "dt_s": 0.0,
+     "_note": "Near-collision with E: 12 Hz apart (< 2 tone bins). Report separately per Sec.4.3 -- exclude from M_syn's primary denominator, report both ways."},
+    {"station": "G", "message_text": "CQ Q9XYZ EN37",      "freq_hz": 1500, "snr_db":   0, "dt_s": 0.0},
+    {"station": "H", "message_text": "Q9XYZ Q1AW 73",      "freq_hz": 1500, "snr_db":  -6, "dt_s": 0.0,
+     "_note": "Capture pair with G: co-frequency, 6 dB weaker"},
+    {"station": "I", "message_text": "Q1AW Q9XYZ RR73",    "freq_hz": 1650, "snr_db":  -3, "dt_s": 0.5,
+     "_note": "0.5 s late start -- exercises time-offset separation"},
+    {"station": "J", "message_text": "Q9XYZ Q1ABC +03",    "freq_hz": 1900, "snr_db": -15, "dt_s": 0.0},
+    {"station": "K", "message_text": "CQ Q1AW EN37",       "freq_hz": 2150, "snr_db":  -8, "dt_s": 0.0},
+    {"station": "L", "message_text": "Q1ABC Q9XYZ R-05",   "freq_hz": 2550, "snr_db":   3, "dt_s": 0.0}
+  ],
+
+  "seed_formula": "compute_seed('S8HN', 0, trial_index)"
+}

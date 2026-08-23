@@ -1,0 +1,208 @@
+{
+  "gate_a": {
+    "a_point": 0.306479148036745,
+    "ci_hi": 0.31064097618419184,
+    "ci_lo": 0.30239355722257427,
+    "halfwidth": 0.004123709480808785,
+    "m_ours": 15080.0,
+    "m_theirs": 34124.0,
+    "n_boot_valid": 2000,
+    "row": "A1",
+    "stratified_descriptive_only": [
+      {
+        "a": 0.0,
+        "bin_lo_db": -40,
+        "m_ours": 0,
+        "m_theirs": 2
+      },
+      {
+        "a": 0.0,
+        "bin_lo_db": -35,
+        "m_ours": 0,
+        "m_theirs": 24
+      },
+      {
+        "a": 0.0,
+        "bin_lo_db": -30,
+        "m_ours": 0,
+        "m_theirs": 321
+      },
+      {
+        "a": 0.6190817790530847,
+        "bin_lo_db": -25,
+        "m_ours": 1726,
+        "m_theirs": 1062
+      },
+      {
+        "a": 0.5011584567341594,
+        "bin_lo_db": -20,
+        "m_ours": 4975,
+        "m_theirs": 4952
+      },
+      {
+        "a": 0.34214556298863547,
+        "bin_lo_db": -15,
+        "m_ours": 4245,
+        "m_theirs": 8162
+      },
+      {
+        "a": 0.23893989983305508,
+        "bin_lo_db": -10,
+        "m_ours": 2290,
+        "m_theirs": 7294
+      },
+      {
+        "a": 0.1624405705229794,
+        "bin_lo_db": -5,
+        "m_ours": 1025,
+        "m_theirs": 5285
+      },
+      {
+        "a": 0.12311358220810167,
+        "bin_lo_db": 0,
+        "m_ours": 465,
+        "m_theirs": 3312
+      },
+      {
+        "a": 0.11492673992673992,
+        "bin_lo_db": 5,
+        "m_ours": 251,
+        "m_theirs": 1933
+      },
+      {
+        "a": 0.07009760425909495,
+        "bin_lo_db": 10,
+        "m_ours": 79,
+        "m_theirs": 1048
+      },
+      {
+        "a": 0.036885245901639344,
+        "bin_lo_db": 15,
+        "m_ours": 18,
+        "m_theirs": 470
+      },
+      {
+        "a": 0.025906735751295335,
+        "bin_lo_db": 20,
+        "m_ours": 5,
+        "m_theirs": 188
+      },
+      {
+        "a": 0.017543859649122806,
+        "bin_lo_db": 25,
+        "m_ours": 1,
+        "m_theirs": 56
+      },
+      {
+        "a": 0.0,
+        "bin_lo_db": 30,
+        "m_ours": 0,
+        "m_theirs": 15
+      }
+    ]
+  },
+  "gate_b": {
+    "bootstrap_construction_used_for_row": "presence (hit/miss on distinct original cycles)",
+    "ci_hi": 0.16562230054524324,
+    "ci_lo": 0.13198233685142702,
+    "delta_s_point": 0.24883733803334096,
+    "halfwidth": 0.01681998184690811,
+    "n_boot_valid": 2000,
+    "n_identities": {
+      "both": 2997,
+      "ours_only": 6533,
+      "theirs_only": 2945
+    },
+    "n_no_extractable_identity": {
+      "both": 490,
+      "ours_only": 1820,
+      "theirs_only": 230
+    },
+    "n_present_at_point": {
+      "both": 2997,
+      "ours_only": 6533,
+      "theirs_only": 2945
+    },
+    "n_records_used": {
+      "both": 22078,
+      "ours_only": 34124,
+      "theirs_only": 15080
+    },
+    "naive_multiplicity_boot": {
+      "ci_hi": 0.10629163261768568,
+      "ci_lo": 0.065676137452681,
+      "disclosure": "NOT used for the gate -- see singleton_frac_boot() docstring.",
+      "halfwidth": 0.02030774758250234,
+      "n_boot_valid": 2000,
+      "point_estimate_outside_own_ci": true,
+      "row_if_used": "B2"
+    },
+    "row": "B3",
+    "s_both": 0.1688355021688355,
+    "s_ours": 0.5293127200367366,
+    "s_theirs": 0.2804753820033956
+  },
+  "gate_d": {
+    "band_ours_dt_s": {
+      "p1": -0.8,
+      "p99": 2.2
+    },
+    "band_ours_freq_hz": {
+      "p1": 244.0,
+      "p99": 2841.0
+    },
+    "f_out": 0.07725464190981432,
+    "f_out_ci_hi": 0.08141628325665133,
+    "f_out_ci_lo": 0.07323032223983096,
+    "f_out_halfwidth": 0.004092980508410185,
+    "freq_quantum_note": "WSJT-X reports integer Hz; our lattice is 3.125 Hz -- both negligible against a [P1,P99] span of hundreds of Hz (HK-021(o)).",
+    "n_theirs_only": 15080,
+    "row": "D2",
+    "t_out": 0.0059018567639257296,
+    "t_out_ci_hi": 0.007686243594797004,
+    "t_out_ci_lo": 0.004638526273938109,
+    "t_out_halfwidth": 0.0015238586604294476
+  },
+  "meta": {
+    "epoch_start": "2026-08-03T18:59:14+00:00",
+    "n_boot": 2000,
+    "n_cycles": 4221,
+    "seed": 20260823
+  },
+  "row0": {
+    "0a": {
+      "both": 22078,
+      "ours_only": 34124,
+      "pass": true,
+      "theirs_only": 15080,
+      "total_ours": 56202,
+      "total_theirs": 37158
+    },
+    "0b": {
+      "ours": {
+        "distinct": 56202,
+        "rows": 56202
+      },
+      "pass": true,
+      "theirs": {
+        "distinct": 37158,
+        "rows": 37158
+      }
+    },
+    "0c": {
+      "bar_hi": 0.9,
+      "bar_lo": 0.1,
+      "both_over_union": 0.3097275609550798,
+      "pass": true
+    },
+    "0d": {
+      "bar": 500,
+      "n_cycles": 4221,
+      "pass": true
+    },
+    "void": false
+  },
+  "row0e": {
+    "pass": true
+  }
+}

@@ -58,6 +58,11 @@ _SCENARIO_REGISTRY: dict[str, Path] = {
     "S5":  _SCENARIOS / "s5-noise.json",
     "S7":  _SCENARIOS / "s7-compounding.json",
     "S8":  _SCENARIOS / "s8-band-scene.json",
+    # C-ASYM-A Part C (2026-08-23): High-N copy of S8 (trials 5 -> 25) so M_syn's 95%
+    # half-width resolves the spec's 0.10 gate bar (HK-021(m)). Reached only via
+    # --scenarios S8HN, like S3b -- deliberately NOT in _CONTROLLED_SCENARIO_IDS and does
+    # NOT touch S8's own entry above or s8-band-scene.json itself.
+    "S8HN": _SCENARIOS / "s8hn-band-scene-highn.json",
 }
 
 # Controlled scenarios run by default (S8 handled separately via prompt / --skip-s8)

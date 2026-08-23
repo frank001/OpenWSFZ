@@ -1,0 +1,56 @@
+{
+  "ci": {
+    "m_syn_excl_f": {
+      "ci_hi": 0.0,
+      "ci_lo": 0.0,
+      "halfwidth": 0.0,
+      "n_boot_valid": 2000,
+      "point": 0.0
+    },
+    "m_syn_incl_f": {
+      "ci_hi": 0.08960573476702509,
+      "ci_lo": 0.08680555555555555,
+      "halfwidth": 0.001400089605734768,
+      "n_boot_valid": 2000,
+      "point": 0.08833922261484099
+    },
+    "recovery_ours": {
+      "ci_hi": 0.9166666666666666,
+      "ci_lo": 0.9166666666666666,
+      "halfwidth": 0.0,
+      "n_boot_valid": 2000,
+      "point": 0.9166666666666666
+    },
+    "recovery_theirs": {
+      "ci_hi": 0.96,
+      "ci_lo": 0.93,
+      "halfwidth": 0.014999999999999958,
+      "n_boot_valid": 2000,
+      "point": 0.9433333333333334
+    }
+  },
+  "false_positives_informational_not_gated": {
+    "candidate_totals": {
+      "OpenWSFZ": 308,
+      "WSJT-X": 300
+    },
+    "counts": {
+      "OpenWSFZ": 8
+    },
+    "excluded_stale_all_txt_contamination": {},
+    "valid_cycle_count": 25
+  },
+  "meta": {
+    "matched_csv": "D:\\Projects\\claude\\OpenWSFZ\\qa\\rr-study\\results\\2026-08-23-73c1288\\S8HN_matched.csv",
+    "n_boot": 2000,
+    "n_signals": 300,
+    "n_trials": 25,
+    "seed": 20260823
+  },
+  "row": "C3",
+  "station_f": {
+    "n_signals": 25,
+    "ours_recovered": 0,
+    "theirs_recovered": 25
+  }
+}

@@ -85,13 +85,16 @@ def _load_scenario(path: Path, messages: dict[str, str]) -> dict:
     for field in ("id", "trials"):
         if field not in scenario:
             sys.exit(f"ERROR: scenario file missing required field '{field}': {path}")
-    # S8 uses a top-level 'signals' array instead of 'parts'; a linked-pair
-    # scenario (rr-linked-cycle-effectiveness-scenario) uses a top-level
-    # 'pairs' array instead of both; all others require 'parts'.
-    if (scenario.get("id") != "S8"
+    # S8 (and S8HN, C-ASYM-A Part C, 2026-08-23: a High-N copy of S8's schema) use a
+    # top-level 'signals' array instead of 'parts'; a linked-pair scenario
+    # (rr-linked-cycle-effectiveness-scenario) uses a top-level 'pairs' array instead of
+    # both; all others require 'parts'. Keyed on the SCHEMA (signals/pairs presence), not
+    # a literal id string, so any future band-scene-shaped scenario is recognised the same
+    # way S8 already is -- matches the existing 'pairs' convention immediately below.
+    if ("signals" not in scenario
             and "parts" not in scenario
             and "pairs" not in scenario):
-        sys.exit(f"ERROR: scenario file missing required field 'parts' (or 'pairs'): {path}")
+        sys.exit(f"ERROR: scenario file missing required field 'parts' (or 'signals'/'pairs'): {path}")
 
     # Resolve message texts
     msg_ids = scenario.get("message_ids") or []
@@ -862,7 +865,10 @@ def _run(args: argparse.Namespace) -> None:
     is_s5 = (scenario_id == "S5")
     is_s4 = (scenario_id == "S4")
     is_s7 = (scenario_id == "S7")
-    is_s8 = (scenario_id == "S8")
+    # Schema-keyed (not a literal id check) so S8HN (C-ASYM-A Part C, 2026-08-23 --
+    # a High-N copy of S8's schema) is dispatched identically to S8. See _load_scenario's
+    # matching comment above.
+    is_s8 = "signals" in scenario
     is_pairs = "pairs" in scenario
 
     # ── Part filter ────────────────────────────────────────────────────────────
