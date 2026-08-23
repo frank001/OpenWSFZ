@@ -80,6 +80,21 @@ blind.
 ⚠️ **My last prediction was badly wrong.** F-NBR-A Gate A fired A2 when I had predicted A1 with
 `R_forced ≥ 0.95` — the opposite corner. Weight §8 accordingly.
 
+### 0.5 Running order — this arm is LAST of the four, and independent
+
+Added 2026-08-23 21:27Z, after the gap attribution ledger changed the priority ordering.
+
+| # | arm | why here |
+|---|---|---|
+| 1 | `GAP-CENSUS-A` | Defines the partition every result is quoted against |
+| 2 | `G2A-REMEASURE-A` | Depends on 1's bucket definitions and null construction |
+| 3 | G2(b) `140 Hz` rung | Independent; unblocked by the 2026-08-23 withdrawal memo |
+| **4** | **`OSD-FA-A` (this one)** | **Independent of all three — may run at any time.** Sequenced last because the ledger puts bucket C's non-DSP siblings ahead of it on measured size, not because anything blocks it. |
+
+⚠️ **Nothing in this arm depends on the other three, and nothing in them depends on this one.**
+If QA has capacity to run two in parallel, this is the one to pair with any other. **The
+sequencing is a priority statement, not a dependency.**
+
 ---
 
 ## §1. The question

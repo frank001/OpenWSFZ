@@ -65,6 +65,20 @@ without it**, and §5 makes it mandatory.
 ⚠️ My five-offset null has a wide spread (658–1053). It is a sizing estimate, **not** an
 adequate null. §5.2 specifies the real one.
 
+### 0.4 Running order — this arm is FIRST
+
+Four arms are now specced and unrun. **Run them in this order unless the Captain directs
+otherwise:**
+
+| # | arm | why here |
+|---|---|---|
+| **1** | **`GAP-CENSUS-A` (this one)** | Cheapest, and it defines the partition every other arm's result is quoted against. Its bucket C is the population `OSD-FA-A` is really asking about. |
+| 2 | `G2A-REMEASURE-A` | Depends on this arm's bucket definitions and its null construction (§5.2), which it reuses verbatim. |
+| 3 | G2(b) `140 Hz` rung | Independent; unblocked by the 2026-08-23 withdrawal memo. May run in parallel — different harness, different corpus. |
+| 4 | `OSD-FA-A` | The DSP-side arm. Independent of all three, sequenced last because the ledger puts its subject in the smaller half. |
+
+**1 and 2 are strictly ordered. 3 may run at any time. 4 is independent.**
+
 ---
 
 ## §1. The question
