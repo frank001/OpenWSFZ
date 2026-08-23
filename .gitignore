@@ -182,6 +182,10 @@ qa/rr-study/p-live-population/results/*_rows.json
 # These are operator files, not source, and may contain callsigns (NFR-021).
 linux-all.txt
 
+# Same rule, Windows side of the same xplat pilot (found 2026-08-23 NFR-021 151-file audit —
+# qa/rr-study/results/2026-07-01-b03998f/windows-all.txt was tracked and contaminated).
+windows-all.txt
+
 # r2-coherent-llr-instrument AC-N1 replay corpora — full decode replays of the real
 # WINDOW_20M 20m off-air window (b_dt_c1/c3 sibling arms' report.json/run.log carry no
 # "message" field and are unaffected). Confirmed by QA 2026-08-22 (fix-negative-time-
