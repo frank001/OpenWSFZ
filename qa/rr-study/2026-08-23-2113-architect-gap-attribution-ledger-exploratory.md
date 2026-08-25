@@ -32,6 +32,26 @@ against a null too crude to reproduce the structure that generates accidental ma
 ⚠️ **Bucket A is unaffected and got stronger** — it is a census with no null in it at all, and it is
 the item this whole ledger was written to find. The `140 Hz` rung is armed as of the same date.
 
+### 🛑 SECOND CORRECTION BANNER — added 2026-08-25 17:25Z. B1 KEEPS ITS SIZE AND LOSES ITS LEVER.
+
+`G2A-REMEASURE-A` ran (QA, `2026-08-25-1716-qa-to-architect-g2a-remeasure-a-results.md`) and is
+adjudicated in `2026-08-25-1725-architect-to-qa-g2a-remeasure-adjudication-and-140hz-baseline-ruling.md`.
+
+| item | as written below | corrected | status |
+|---|---|---|---|
+| **B1 size** | 1.60 pp, "recoverable by hash resolution" | **~1.55 pp, recoverable by NOTHING KNOWN** | ⚠️ **UNRESOLVED, still not citable.** Population confirmed; **cause unknown**. |
+| **G2(a) (Table 2, "Hash-text resolution +1.60 pp")** | +1.60 pp, "already merged, never re-measured" | **0.00 pp** | 🛑 **CLOSED AS A D-001 ROUTE.** Re-measured: `hashTableRejectCount` −37.6 % (the sizing defect was real and is fixed) while `rate_unresolved` moved **−0.0019 pp, CI [−0.0135, +0.0097]** — flat, with ample power. **A rejected table INSERT is not what produces an unresolved `<...>` LOOKUP.** |
+| **non-DSP total** | ≈5.0 pp | **≈5.0 pp (unchanged arithmetically)** | ⚠️ but one of its four items now has **no route**, so the *actionable* total is **≈3.5 pp** (A 2.66 + AO1 0.71 + D-009 0.11) until B1 gets a cause. |
+
+🛑 **A measured `ΔB1` of ~0.24 pp exists in that arm and is NOT entered here and may NOT be cited** —
+the two binaries differed by eleven native commits (R1/R1b, R2 Phase B among them), so the shift is
+not attributable to G2(a); and it is a **contrast**, not a share, so it was never a revision of the
+1.55 pp level in the first place.
+
+🔴 **Next question for bucket B1 (`B1-COVERAGE-A`, sketched, not armed):** when we render `<...>`,
+had our own decode stream ever seen that callsign in plaintext? If mostly no, **B1 collapses into
+bucket C** and no hash-table work of any kind can recover it.
+
 ---
 
 🔴 **EXPLORATORY. NOT A PRE-REGISTERED RESULT. NO ROW. DO NOT CITE ANY FIGURE BELOW AS A RESULT.**
