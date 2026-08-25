@@ -1,0 +1,41 @@
+ROW 0a: population = raw distinct (ts, whitespace-normalised message) keys, both legs' full ALL.TXT, corpus artefacts/20260803_live_run_1713, NO epoch filter, NO hash/band exclusions.
+ROW 0a: ours=64417 theirs=43423 both=24729 theirs_only=18694 -> D-001=43.05%
+ROW 0a: RECONCILIATION -- no committed, citable baseline exists to reproduce. The 42.2% figure (2026-08-05 Arm R.D spec Sec.0/Sec.1) was computed on this SAME corpus but over a DIFFERENT, filtered basis -- the 'decisive epoch' subset (56,202/37,158 rows), not the full raw ALL.TXT (64,417/43,423 rows here) -- and its own spec explicitly disclaims it as 'Architect feasibility scouting ... must not be cited as a verdict'. The 43.05% figure in this arm's own Sec.0.2 is likewise disclosed as exploratory/uncitable (Sec.0.1). Neither is a committed baseline in the ROW 0a sense; this row's population is stated fresh and independently, and its D-001=43.05% agrees with Sec.0.2's 43.05% because both use the SAME raw-key basis (the difference from 42.2% is basis, not disagreement).
+ROW 0b: A=1154 B1=754 B2=1133 C=15653 sum=18694 theirs_only=18694
+ROW 0b: bucket C independent recomputation (Sec.3.2/HK-022): main=15653 independent=15653 exact-set-agree=True
+ROW 0b: PASS
+ROW 0c: our decodes below f_min=200.0 Hz: n=0
+ROW 0c: PASS
+ROW 0f: n_wavs_sampled=60 chain=owsfz
+ROW 0f: median power [140,200) = 82.44 dB (arbitrary ref)
+ROW 0f: median power [5000,5900) noise floor = 38.90 dB (arbitrary ref)
+ROW 0f: median margin ([140,200) - noise floor) = 41.68 dB, bar = 3.0 dB
+ROW 0f: PASS -- confirmed real signal
+Part A: bucket A (below f_min) count=1154, S_A=0.0617 (6.17% of theirs-only), pp-of-D-001=2.66
+Part A: ROW A1 -- The passband is a funded item. The G2(b) ladder -- specced, five Architect reviews, never armed -- is recommended for arming ahead of the next DSP arm.
+Part A: S_A is a CEILING on recovery -- it assumes every sub-f_min reference decode would be recoverable through a passband that is dozens of dB down at that frequency (ROW 0f: median margin over the noise floor there is 41.7 dB, well above it, but that is not the same as 'decodable'). The realised fraction is what G2(b) was built to measure, not what this row reports.
+Part B: observed co-locations B1(hash)=754 B2(other)=1133
+Part B: unresolved-hash rate -- ours=6.74% reference=6.61% (near parity if close; the 2026-08-08 leg that motivated G2(a) showed 5.5% vs 1.7%)
+Part B: running null 1 (circular frequency shift), 200 trials...
+Part B: null 1 (circular shift) B1: mean=60.1 sd=7.7 half-width=1.07 (0.002pp)
+Part B: null 1 (circular shift) B2: mean=774.0 sd=29.0 half-width=4.02 (0.009pp)
+Part B: running null 2 (cycle-label permutation), 200 trials...
+Part B: null 2 (cycle permutation) B1: mean=67.3 sd=8.1 half-width=1.12 (0.003pp)
+Part B: null 2 (cycle permutation) B2: mean=1209.2 sd=38.4 half-width=5.32 (0.012pp)
+Part B: ROW 0e -- worst-case null half-width = 0.012pp, bar <= 0.25pp -> PASS
+Part B: null1 vs null2 disagreement -- B1=0.017pp B2=1.002pp, bar=0.25pp -> DISAGREE (Bucket B -> UNRESOLVED)
+Part B: excess B1 = 693.9 (95% CI 668.1..719.8), 1.60pp (CI 1.54..1.66pp)
+Part B: excess B2 = 359.0 (95% CI 294.8..423.3), 0.83pp (CI 0.68..0.97pp)
+Part B: ROW B3 -- Text recovery is not established (ROW 0e failed or the two nulls disagree beyond the bar). Report the counts and the null; propose nothing.
+Part C: bucket C (genuine DSP miss) count=15653, pp-of-D-001=36.05
+Part C: SNR stratum composition (pinned L1 edges [-15.0, -10.0, -5.0, 2.0]):
+Part C:   (-inf, -15]    n=8331 (53.2%)
+Part C:   (-15, -10]     n=3906 (25.0%)
+Part C:   (-10, -5]      n=2029 (13.0%)
+Part C:   (-5, 2]        n=959 (6.1%)
+Part C:   (2, +inf)      n=428 (2.7%)
+Part C: band stratification not applicable -- this corpus is single-band (20m, 14.074 MHz) on both legs; nothing to stratify by band on.
+Part C: bucket-C decodes per cycle (cycles carrying >=1) -- n_cycles=3944 median=4.0 mean=3.97 max=18
+Part C: diagnostic -- max OURS decodes in any one cycle = 30, against K_MAX_DECODED caps (340, 540) (no consequence; informational only)
+Part C: diagnostic -- miss rate [200,250) = 260/1186 = 21.9%, baseline [700,3000) = 11004/25624 = 42.9% (no consequence; informational only, per Sec.6)
+run_once: elapsed=28.7s

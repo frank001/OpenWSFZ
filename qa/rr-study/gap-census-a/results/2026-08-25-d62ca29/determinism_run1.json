@@ -1,0 +1,170 @@
+{
+  "corpus": "artefacts/20260803_live_run_1713",
+  "counts": {
+    "A": 1154,
+    "B1": 754,
+    "B2": 1133,
+    "C": 15653
+  },
+  "d001_pct": 43.050917716417565,
+  "n_theirs_only": 18694,
+  "part_a": {
+    "S_A": 0.06173103669626618,
+    "S_A_bar": 0.04,
+    "n_A": 1154,
+    "pp_of_d001": 2.657577781360109,
+    "reading": "The passband is a funded item. The G2(b) ladder -- specced, five Architect reviews, never armed -- is recommended for arming ahead of the next DSP arm.",
+    "row": "A1",
+    "row0f_ok": true
+  },
+  "part_b": {
+    "excess": {
+      "B1": {
+        "ci": [
+          668.0676212810663,
+          719.7823787189336
+        ],
+        "count": 693.925,
+        "pp": 1.5980586325219355,
+        "pp_ci": [
+          1.5385109763974536,
+          1.657606288646417
+        ]
+      },
+      "B2": {
+        "ci": [
+          294.7670939418209,
+          423.312906058179
+        ],
+        "count": 359.03999999999996,
+        "pp": 0.8268429173479492,
+        "pp_ci": [
+          0.6788271053170462,
+          0.9748587293788522
+        ]
+      }
+    },
+    "hash_rate": {
+      "ours": 0.06743561482217426,
+      "reference": 0.0660940054809663
+    },
+    "null1_circular_shift": {
+      "B1": {
+        "half_width": 1.0667802824723656,
+        "half_width_pp": 0.002456717137167781,
+        "mean": 60.075,
+        "sd": 7.697361560950609
+      },
+      "B2": {
+        "half_width": 4.019332315922328,
+        "half_width_pp": 0.009256228993672311,
+        "mean": 773.96,
+        "sd": 29.001524097881475
+      },
+      "n_trials": 200
+    },
+    "null2_cycle_permutation": {
+      "B1": {
+        "half_width": 1.1234466714368636,
+        "half_width_pp": 0.002587215695453708,
+        "mean": 67.33,
+        "sd": 8.106238338465012
+      },
+      "B2": {
+        "half_width": 5.316405424135756,
+        "half_width_pp": 0.012243293701807236,
+        "mean": 1209.205,
+        "sd": 38.36056536340412
+      },
+      "n_trials": 200
+    },
+    "nulls_agree": false,
+    "nulls_disagreement_pp": {
+      "B1": 0.016707735531860984,
+      "B2": 1.002337470925546
+    },
+    "observed": {
+      "B1": 754.0,
+      "B2": 1133.0
+    },
+    "reading": "Text recovery is not established (ROW 0e failed or the two nulls disagree beyond the bar). Report the counts and the null; propose nothing.",
+    "row": "B3",
+    "row0e": {
+      "bar_pp": 0.25,
+      "pass": true,
+      "worst_half_width_pp": 0.012243293701807236
+    }
+  },
+  "part_c": {
+    "density_by_cycle_summary": {
+      "max": 18,
+      "mean": 3.968813387423935,
+      "median": 4.0,
+      "n_cycles_with_c": 3944
+    },
+    "diagnostics": {
+      "k_max_decoded_caps": [
+        340,
+        540
+      ],
+      "max_ours_decodes_per_cycle": 30,
+      "miss_rate_200_250": {
+        "n_miss": 260,
+        "n_total": 1186,
+        "rate": 0.21922428330522767
+      },
+      "miss_rate_700_3000_baseline": {
+        "n_miss": 11004,
+        "n_total": 25624,
+        "rate": 0.4294411489228848
+      }
+    },
+    "n_C": 15653,
+    "pp_of_d001": 36.04771664785943,
+    "snr_strata": {
+      "(-10, -5]": 2029,
+      "(-15, -10]": 3906,
+      "(-5, 2]": 959,
+      "(-inf, -15]": 8331,
+      "(2, +inf)": 428
+    }
+  },
+  "row0": {
+    "0a": {
+      "d001_pct": 43.050917716417565,
+      "n_both": 24729,
+      "n_ours": 64417,
+      "n_theirs": 43423,
+      "n_theirs_only": 18694,
+      "pass": true
+    },
+    "0b": {
+      "c_agrees": true,
+      "counts": {
+        "A": 1154,
+        "B1": 754,
+        "B2": 1133,
+        "C": 15653
+      },
+      "exhaustive_ok": true,
+      "n_theirs_only": 18694,
+      "pass": true,
+      "sum": 18694
+    },
+    "0c": {
+      "n_below_f_min": 0,
+      "pass": true
+    },
+    "all_pass": true
+  },
+  "row0f": {
+    "bar_db": 3.0,
+    "chain": "owsfz",
+    "median_db_140_200": 82.43931626566462,
+    "median_db_noise_floor": 38.90102587663824,
+    "median_margin_db": 41.67624066621384,
+    "n_wavs_sampled": 60,
+    "pass": true
+  },
+  "spec": "2026-08-23-2113-architect-to-qa-spec-gap-census-a.md"
+}
