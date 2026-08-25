@@ -4,6 +4,36 @@
 improvements from all the tests we have done with the potential small percentage of improvement.
 At the end of that table I want all the potential improvements added together."*
 
+---
+
+## 🛑 CORRECTION BANNER — added 2026-08-25 15:50Z. READ BEFORE USING ANY BUCKET-B FIGURE BELOW.
+
+`GAP-CENSUS-A` ran (QA, 2026-08-25, `2026-08-25-1531-qa-to-architect-gap-census-a-results.md`) and
+the Architect's follow-up measured the nulls themselves
+(`2026-08-25-1550-architect-to-qa-null-validity-finding-and-g2a-remeasure-amendment.md`).
+**The numbers below are corrected as follows. The originals are left in place, unedited, so the
+error is legible.**
+
+| item | as written below | corrected | status |
+|---|---:|---:|---|
+| **A** — below `f_min` | 2.66 pp | **2.66 pp** | ✅ **CONFIRMED**, QA-derived, ROW A1 fired, ROW 0f verified against the raw WAV spectrum |
+| **B1** — unresolved `<...>` hash | 1.60 pp | **~1.55 pp** | ⚠️ **UNRESOLVED** — robust across three null constructions (±4%), but Part B's gate did not clear; **not citable** |
+| **B2** — text differs otherwise | 0.78 pp | **~0 pp** | 🛑 **WITHDRAWN — accidental co-location, not an effect** |
+| **C** — genuine DSP miss | ≈38.01 pp | **≈36.05 pp** (QA-derived; basis reconciled) | descriptive |
+| **non-DSP total** | **≈5.9 pp** | **≈5.0 pp** | A + B1 + AO1 (0.71) + D-009 (0.11) |
+
+**Root cause of the B2 error:** the circular-shift null this document's §0.3 introduced — and the
+`GAP-CENSUS-A` spec then made *primary* — rigidly translates each cycle's decodes over the full
+span, which **flattens the band's occupancy profile and so under-counts accidental co-location by
+≈1.85×.** It is the flattering null, not the conservative one. **This is the third correction to
+bucket B in three days (4.35 pp → 0.83 pp → ~0), each one the same error: a co-location count read
+against a null too crude to reproduce the structure that generates accidental matches.**
+
+⚠️ **Bucket A is unaffected and got stronger** — it is a census with no null in it at all, and it is
+the item this whole ledger was written to find. The `140 Hz` rung is armed as of the same date.
+
+---
+
 🔴 **EXPLORATORY. NOT A PRE-REGISTERED RESULT. NO ROW. DO NOT CITE ANY FIGURE BELOW AS A RESULT.**
 The census figures were computed by the Architect while answering a question in conversation.
 They are pre-registered for independent derivation by QA as `GAP-CENSUS-A`
