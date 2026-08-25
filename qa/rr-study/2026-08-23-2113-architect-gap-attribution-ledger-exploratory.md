@@ -32,7 +32,29 @@ against a null too crude to reproduce the structure that generates accidental ma
 ⚠️ **Bucket A is unaffected and got stronger** — it is a census with no null in it at all, and it is
 the item this whole ledger was written to find. The `140 Hz` rung is armed as of the same date.
 
-### 🛑 SECOND CORRECTION BANNER — added 2026-08-25 17:25Z. B1 KEEPS ITS SIZE AND LOSES ITS LEVER.
+### 🛑🛑 THIRD CORRECTION BANNER — added 2026-08-25 17:35Z. **THE SECOND BANNER BELOW IS WITHDRAWN IN FULL. DO NOT READ IT AS CURRENT.**
+
+`qa/rr-study/2026-08-25-1735-architect-WITHDRAWAL-part-a-metric-was-blind-to-the-treatment.md`.
+
+🔴 **The statistic the second banner rests on could not move.** `has_hash_marker()` is
+`<[^>]*>` — it matches a **resolved** `<CALL>` exactly as it matches an **unresolved** `<...>`, and
+G2(a)'s whole effect is to turn the second into the first. Re-derived from the same dumps, splitting
+the two: **unresolved decodes fall 8.9532 % → 4.9804 % (6,409 → 3,566), and resolved ones rise
+501 → 3,347.** The "any bracket" rate the gate read is flat to four decimals **by construction**.
+
+| item | second banner said | **corrected** |
+|---|---|---|
+| **G2(a)** | 0.00 pp, closed as a D-001 route | 🔴 **IT WORKS.** `H` = **3.97 pp** (0.0397) ⇒ **ROW A1**, inside the Architect's predicted 0.03–0.05. **2,846 more decodes resolved.** |
+| **B1 lever** | lost, no known route | ✅ **restored and demonstrated** |
+| **B1 size** | ~1.55 pp | 🛑 **UNKNOWN.** B1 uses the **same broken predicate** ⇒ must be re-derived on L2 before any figure is quoted. `ΔB1` ≈ 0.24 pp stays uncitable for two independent reasons now. |
+| **actionable non-DSP total** | ≈3.5 pp | **≈5.0 pp**, pending B1's re-derivation |
+
+🔴 **Structural fact from `ft8_shim.c`: the session table is never evicted and never re-initialised
+⇒ once full it is FROZEN for the life of the process, and L2's 63,956 rejects prove 4096 still
+saturates.** `ft8_get_hash_table_reject_count()` is exported and monotonic, so the first cycle it
+goes non-zero **is** the freeze moment — measurable by polling, with no rebuild.
+
+### 🛑 SECOND CORRECTION BANNER — 2026-08-25 17:25Z — **WITHDRAWN 17:35Z, left in place so the error is legible. Every claim below is superseded by the banner above.**
 
 `G2A-REMEASURE-A` ran (QA, `2026-08-25-1716-qa-to-architect-g2a-remeasure-a-results.md`) and is
 adjudicated in `2026-08-25-1725-architect-to-qa-g2a-remeasure-adjudication-and-140hz-baseline-ruling.md`.
