@@ -1,0 +1,24 @@
+==============================================================================
+G2A-REMEASURE-A -- rederive_corrected_predicate.py -- repo main @ 9a2845b
+Corrected predicate: has_unresolved_hash_marker() = re.compile(r'<\.*>')
+(matches <...> / <> / <.> only -- NOT a resolved <CALL>)
+==============================================================================
+Loading decode dumps...
+L1 rows=71583  L2(run1) rows=71600  L2(run2) rows=71600
+Determinism check (corrected predicate): L2 run1 unresolved=3566, run2 unresolved=3566 -> PASS
+------------------------------------------------------------------------------
+PART A (corrected predicate)
+------------------------------------------------------------------------------
+Part A: rate_unresolved(L1) = 6409/71583 = 8.9532%
+Part A: rate_unresolved(L2) = 3566/71600 = 4.9804%
+Part A: H (point) = 3.9728%
+Part A: H 95% CI (cycle-clustered bootstrap, n_boot=2000, n_cycles=4627) = [3.8331%, 4.1133%]
+Part A: ROW A1 -- The fix works and the programme's evidence base is stale. Every D-001 figure captured pre-merge understates our text quality, and the headline gap must be restated on a post-fix basis before any further DSP arm is funded.
+Part A: unresolved decode counts -- L1=6409/71583  L2=3566/71600
+------------------------------------------------------------------------------
+BUCKET B1/B2 (corrected predicate, descriptive population re-sizing)
+------------------------------------------------------------------------------
+B1[L1(pre-G2a)]: count=985 (95% CI [959, 1011], cycle-clustered bootstrap) of n_theirs_only=18617 -> 2.2684% of D-001 (CI [2.2085%, 2.3283%])
+B2[L1(pre-G2a)]: count=1509 (95% CI [1472, 1547]) of n_theirs_only=18617 -> 3.4751% of D-001
+B1[L2(post-G2a, CITABLE per Sec.4.1)]: count=470 (95% CI [458, 483], cycle-clustered bootstrap) of n_theirs_only=18508 -> 1.0824% of D-001 (CI [1.0547%, 1.1123%])
+B2[L2(post-G2a, CITABLE per Sec.4.1)]: count=1916 (95% CI [1870, 1959]) of n_theirs_only=18508 -> 4.4124% of D-001

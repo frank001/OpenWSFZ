@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -49,6 +50,21 @@ L2_SHIM_VERSION = 20260046
 
 L1_SNR_EDGES = [-15, -10, -5, 2]  # pinned, never re-derived (gap-census-a Part C)
 
+# 2026-08-25 17:35Z WITHDRAWAL Sec.1 -- gap-census-a's has_hash_marker() is
+# `<[^>]*>`, which matches a RESOLVED `<CALL>` exactly as it matches an
+# UNRESOLVED `<...>`. ft8_lib's lookup_callsign() (message.c:606/610) emits
+# the literal string "<...>" on a failed hash lookup, or add_brackets(c11) --
+# an actual resolved callsign, which is never empty and never contains '.'
+# -- on success. This predicate isolates the failed-lookup case only. Written
+# generally (zero-or-more dots, not exactly three) in case a hash type ever
+# emits a differently-sized placeholder; grep of message.c on this tree finds
+# only the one literal "<...>" call site (checked this session).
+_UNRESOLVED_HASH_RE = re.compile(r"<\.*>")
+
+
+def has_unresolved_hash_marker(message: str) -> bool:
+    return bool(_UNRESOLVED_HASH_RE.search(message))
+
 
 def load_decode_dump(path: str) -> dict:
     with open(path, encoding="utf-8") as fh:
@@ -69,6 +85,28 @@ def rows_from_dump(dump: dict) -> list[dict]:
             "freq_hz": float(r["freq_hz"]),
             "message_norm": gc.normalise_text(msg),
             "has_hash": gc.has_hash_marker(msg),
+        })
+    return out
+
+
+def rows_from_dump_corrected(dump: dict) -> list[dict]:
+    """Same shape as rows_from_dump, but `has_hash` is the CORRECTED
+    unresolved-only predicate (WITHDRAWAL Sec.1/Sec.4.1), not
+    gc.has_hash_marker's any-bracket predicate. The field is still named
+    'has_hash' so it drops straight into part_a.run_part_a / partition.py's
+    classify_partition unmodified -- neither consumes anything but the
+    boolean. Raw message text is discarded immediately, same as
+    rows_from_dump (NFR-021)."""
+    out = []
+    for r in dump["records"]:
+        msg = r["message"]
+        out.append({
+            "ts": r["ts"],
+            "snr": float(r["snr"]),
+            "dt": float(r["dt"]),
+            "freq_hz": float(r["freq_hz"]),
+            "message_norm": gc.normalise_text(msg),
+            "has_hash": has_unresolved_hash_marker(msg),
         })
     return out
 

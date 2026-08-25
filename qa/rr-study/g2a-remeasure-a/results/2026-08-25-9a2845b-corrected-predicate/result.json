@@ -1,0 +1,79 @@
+{
+  "bucket_b1_b2": {
+    "l1_pre": {
+      "b1_count": {
+        "ci": [
+          959.0,
+          1011.0
+        ],
+        "point": 985.0
+      },
+      "b1_pp_of_d001": {
+        "ci": [
+          2.2085070124127766,
+          2.3282592174653987
+        ],
+        "point": 2.2683831149390876
+      },
+      "b2_count": {
+        "ci": [
+          1472.0,
+          1547.0
+        ],
+        "point": 1509.0
+      },
+      "b2_pp_of_d001": {
+        "point": 3.4751168735462774
+      },
+      "n_theirs_only": 18617
+    },
+    "l2_post_citable": {
+      "b1_count": {
+        "ci": [
+          458.0,
+          483.0
+        ],
+        "point": 470.0
+      },
+      "b1_pp_of_d001": {
+        "ci": [
+          1.0547405752711696,
+          1.1123137507772378
+        ],
+        "point": 1.0823756995140823
+      },
+      "b2_count": {
+        "ci": [
+          1870.0,
+          1959.0
+        ],
+        "point": 1916.0
+      },
+      "b2_pp_of_d001": {
+        "point": 4.412408170785068
+      },
+      "n_theirs_only": 18508
+    }
+  },
+  "determinism_ok": true,
+  "l2_unresolved_counts_by_run": {
+    "run1": 3566,
+    "run2": 3566
+  },
+  "part_a": {
+    "bar": 0.02,
+    "h_ci": [
+      0.03833126632409932,
+      0.04113320517856832
+    ],
+    "h_point": 0.03972796161068484,
+    "n_boot": 2000,
+    "n_l1": 71583,
+    "n_l2": 71600,
+    "rate_l1": 0.08953243088442786,
+    "rate_l2": 0.04980446927374302,
+    "reading": "The fix works and the programme's evidence base is stale. Every D-001 figure captured pre-merge understates our text quality, and the headline gap must be restated on a post-fix basis before any further DSP arm is funded.",
+    "row": "A1",
+    "seed": 20260825001
+  }
+}
