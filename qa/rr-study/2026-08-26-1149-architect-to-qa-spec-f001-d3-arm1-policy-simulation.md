@@ -156,6 +156,7 @@ discipline was used.
 | **0d** | Predicate reuse | The token predicate is `common_b1`'s, **imported**, not re-implemented (assert by import, not by eye) | **VOID.** |
 | **0e** | Determinism + independent input | `CUR` and `LRU` runs give byte-identical per-callsign outcomes on a re-run, and `L2_run2` reproduces `CUR`'s freeze cycle | **VOID.** |
 | **0f** | Population reproduction | `\|L_fail\|` = **307** decodes / **40** callsigns, matching `result.json` | **VOID.** Different population, different arm. |
+| **0g** | 🔴 **Predicate-movement exhibit (HK-021(q), adopted 2026-08-26).** The comparator must be shown to distinguish policies at all. | `SZ8` holds **32,768 slots against 16,320 distinct session callsigns, so it NEVER FILLS** ⇒ **every `L_fail` decode whose `ts` is later than its callsign's `T_plain` MUST resolve under `SZ8`.** Report that subset's size, then require **100 %** of it. Paste one redacted worked example (`CS-xxxxxx`, its `T_plain`, its B1 `ts`, resolved-under-`SZ8` / failed-under-`CUR`) into the report. | **VOID.** If a table that cannot fill still fails to resolve a callsign it demonstrably contains, the simulator's lookup path is broken and no policy number from it means anything. |
 
 **ROW 0b's bracket, justified before the run** (HK-021(m), two-sided per HK-021(n)): the insert stream
 is the **emitted-decode proxy**, measured at **96.5 %** recovery (`B1-COVERAGE-A` ROW 0d). Missing
@@ -246,6 +247,18 @@ in §5.3 gates anything.
   🔴 **HK-025 stands — QA may refuse this spec on (k) grounds without my agreement.**
 - **(o) readout quantum:** the primary's quantum is one callsign of 40 = 2.5 pp; every threshold above
   is stated in whole callsigns, not in proportions.
+- **(p) bounded confound + PRE-REGISTER THE BUILD** *(adopted 2026-08-26, after this spec's first
+  draft)*: this arm runs **one** binary's dump, not an A/B of two builds, so the build corollary is
+  satisfied trivially — the dump's `dll_sha256`/`shim_version` are pinned in §2 and nothing is compared
+  across binaries. The confound that *does* exist is the **emitted-decode proxy**, and its tolerance is
+  stated as a number in two places rather than as a note: **ROW 0b's `[767, 1150]` / `[25, 40]`
+  brackets**, and **§5.2's declaration that `net` is a LOWER bound.** ⚠️ **Arm 2 will not get off this
+  lightly — it IS a binary A/B, and (p) requires its two legs to be built back-to-back from one working
+  tree differing only in the table change. That belongs in arm 2's §2, not in QA's first hour.**
+- **(q) predicate-movement exhibit** *(adopted 2026-08-26, after this spec's first draft — **ROW 0g was
+  added by amendment to satisfy it**)*: §4 ROW 0g, with a pasted worked example. Without it this spec
+  had no row that could tell "every policy behaves identically" apart from "the simulator compares
+  nothing", which is exactly the failure (q) exists to catch.
 - **(r) predicates shipped as code:** §1, and the token predicate is imported rather than restated.
 - **(s) exposure-adjusted threshold:** 🔴 **checked and it does not apply** — no gate in this arm splits
   a population on a point in time. Recorded here so the check is visibly run, not silently skipped.
