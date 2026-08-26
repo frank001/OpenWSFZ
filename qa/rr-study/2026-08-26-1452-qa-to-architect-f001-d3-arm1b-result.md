@@ -43,8 +43,8 @@ not under-powered.
 
 **ROW A1 fires.** The pre-registered resolution bands (spec Sec.5, stated *before* this run) separated
 "under ~3%" (0/115) from "over ~9%" (10/115) with nothing in between; ROW A1's bar is a lower bound
->5%. **The measured lower bound is 43.25% -- more than 8x the boundary case the spec anticipated as
-"barely confirmed."** None of the four blind predictions (spec Sec.7) anticipated this magnitude;
+>5%. **The measured lower bound is 43.25% -- 8.6x the boundary case the spec anticipated as "barely
+confirmed"** (43.25% / 5%). None of the four blind predictions (spec Sec.7) anticipated this magnitude;
 prediction #1 explicitly expected A3 (indeterminate), "a handful [of disagreeing callsigns], not zero
 and not fifteen" -- the actual count is 59. **Scored: WRONG, and wrong by a wide margin, in the
 direction of under-estimating the defect.**
@@ -53,19 +53,35 @@ direction of under-estimating the defect.**
 hash ambiguity, so this rate is a **lower bound on the joint error rate**, not proof our decoder alone
 is at fault.
 
-## An un-pre-registered but strongly corroborating finding (Sec.6, descriptive, NOT gated, NOT attribution)
+🔴 **Scoping caveat that must travel with 51.3% forever (added 2026-08-26, ruling Sec.3): this is the
+callsign-level rate on the subset where BOTH decoders resolved the slot** -- 243 of the 1,899 resolved
+type-4 decodes (12.8%), 243 of 3,232 type-4 decodes overall (7.5%). Decode-level rate: **92 / 243 =
+37.9%**. The other **1,544** resolved type-4 decodes have **no reference row at all**; nothing
+licenses extrapolating 51.3% onto them.
 
-Of the 92 disagreeing decode-pairs, **92/92 (100%) of the reference's names appear elsewhere in OUR
-OWN corpus as a directly, independently plaintext-decoded callsign** -- this build did, at some other
-point in the session, correctly decode that exact station with no hash involved at all. By contrast
-only 30/92 (32.6%) of *our* wrong names appear anywhere in the reference's plaintext corpus. And the 92
-decode-pairs collapse to exactly 59 distinct (ours, theirs) name pairs -- **every disagreeing callsign
-returns the identical wrong name every time it recurs**, never a noisy mismatch. That is the signature
-of a stable chain-order collision (the correct entry sits later on the same 12-bit probe chain,
-unreachable because the lookup returns the first match and never checks for a second --
-`ft8_shim.c:649-651`), not of decode noise or a pairing failure. Reported here as strong circumstantial
-corroboration, exactly as Sec.6 scopes it: descriptive, never folded into `p_dis`, never asserted as
-attribution.
+## An un-pre-registered finding, AMENDED (Sec.6, descriptive, NOT gated, NOT attribution)
+
+🛑 **AMENDED 2026-08-26 (Architect ruling Sec.2): the headline half of this finding was at base rate,
+not evidence, and must stop being quoted as corroboration.** Base rates measured after the fact
+(`artefacts/2026-08-26-arm1b-ruling-probe/base_rates.py`): our corpus holds 16,320 distinct
+plaintext-decoded callsigns against the reference's 4,179, so P(a reference plaintext name appears in
+OUR plaintext corpus) is **89.3%** by distinct name / **98.7%** occurrence-weighted. Against that null,
+"92/92 (100%) of the reference's names appear elsewhere in our own corpus" sits on the null and is not
+evidence.
+
+✅ **What survives, read correctly, is the asymmetry and the matched control the arm itself did not
+run:** only 21/59 (35.6%) of *our* wrong names appear anywhere in the reference's plaintext corpus
+(against a 22.9% distinct-name / 83.1% occurrence-weighted base rate), while **58/59 (98.3%)** of them
+appear in **our own** plaintext corpus -- real stations this build heard, just not the one in that
+message. The **matched control**: the 56 AGREEING names appear plaintext in the reference corpus
+**56/56 (100.0%)** vs the 59 DISAGREEING names at **21/59 (35.6%)** -- Fisher exact two-sided **p =
+1.4e-15**. And the 92 decode-pairs collapse to exactly 59 distinct (ours, theirs) name pairs -- **every
+disagreeing callsign returns the identical wrong name every time it recurs**, never a noisy mismatch.
+That is the signature of a stable chain-order collision (the correct entry sits later on the same
+12-bit probe chain, unreachable because the lookup returns the first match and never checks for a
+second -- `ft8_shim.c:649-651`), not of decode noise or a pairing failure. Post-hoc, descriptive,
+non-gating, and **still not attribution** (the control is selected on mutual agreement, and the two
+corpora differ in size): 51.3% remains a **lower bound** on the joint error rate.
 
 ---
 

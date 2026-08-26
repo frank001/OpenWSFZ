@@ -1,0 +1,24 @@
+==============================================================================
+F-001 D3 ARM 1C -- run_arm1c.py -- repo main @ 2b4c792
+==============================================================================
+Loading decode dumps + reference ALL.TXT (no rebuild, no replay)...
+------------------------------------------------------------------------------
+ROW 0a -- input identity
+  L2_run1: {'dll_sha256': 'bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f', 'shim_version': 20260046, 'n_decodes': 71600, 'n_records': 71600} ; reference rows=43423 (expect 43423)
+  ROW 0a: PASS
+------------------------------------------------------------------------------
+ROW 0b -- population reproduction (load-bearing)
+  ARM 1B reproduction: k=243 (expect 243) n=115 (expect 115) disagreeing=92 (expect 92)
+  VERIFIED survivors: 206 over 105 callsigns (bar [190,220] / [98,112])
+  ROW 0b: PASS
+------------------------------------------------------------------------------
+ROW 0c -- predicate coherence (load-bearing)
+  queries checked=1868 ; clause1 (none<=>zero) exceptions=0 ; clause2 (sim-resolved => matches>=1) exceptions=0
+  descriptive only, NOT gated here: simulator found NOTHING where the real build resolved = 20/1868 (1.1%)
+  ROW 0c: PASS (bar: 100%, zero exceptions on both structural clauses)
+------------------------------------------------------------------------------
+ROW 0d -- differential-stratifier-error test (load-bearing, HK-021(h))
+  fidelity(disagree)=95.7% (88/92) ; fidelity(agree)=78.1% (118/151) ; signed diff=17.5pp
+  which way it cuts: cost over-stated (filter preferentially drops RIGHT names)
+  ROW 0d: FAIL (bar: |diff| <= 15pp)
+  -> VOID at ROW 0d: differential stratifier error exceeds 15pp -- arm VOID beyond this bound
