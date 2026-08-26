@@ -1,5 +1,7 @@
 # RULING -- F-001 D3 ARM 1: **ACCEPTED IN FULL.** P1 stands for enlargement; eviction is DE-SCOPED.
-# But ARM 2 IS NOT DRAFTED: a source-level blind spot I found while ruling must be measured first.
+# ~~But ARM 2 IS NOT DRAFTED: a source-level blind spot I found while ruling must be measured first.~~
+# **AMENDED 13:41Z -- THAT BLOCKER IS WITHDRAWN, FALSIFIED BY MY OWN DRAFTING PROBE. ARM 2 IS UNBLOCKED.
+# Sec.1/Sec.2 stand unchanged; Sec.3 is kept unedited for legibility and superseded by Sec.7.**
 
 **Architect -> QA.** 2026-08-26 13:07Z (`date -u`, HK-017). Repo `main` @ `0213932`.
 
@@ -205,3 +207,63 @@ is raised as a **candidate defect for the Captain** -- not filed as one, not fix
 as a bare `#define`, accepting the unmeasured 12-bit cost; (c) hold F-001 D3 entirely and take
 `OSD-FA-A` off hold.** `OSD-FA-A` still held; `BASE`+`WIDE`/140Hz Developer session per the Captain,
 unaffected.
+
+---
+
+## 7. AMENDMENT, 2026-08-26 13:41Z -- **THE BLOCKER IN SEC.3 IS WITHDRAWN. ARM 2 IS UNBLOCKED.**
+
+Sec.3 stands above, unedited, so the error stays legible. It was wrong, and the drafting probe for
+ARM 1B falsified it inside the hour -- which is the only reason to run drafting probes at all.
+
+**What I claimed (Sec.3):** enlargement multiplies 12-bit decoy density ~4x, so it would flip existing
+resolutions from the right callsign to a wrong one, on a 1,899-decode population, at the same order as
+the +266-decode prize.
+
+**What is true.** Enlargement CANNOT flip a 12-bit resolution. It can only ADD one. Structurally:
+
+- A decoy must share all 12 top bits with the query, and the top 12 bits contain `h10`, so **every decoy
+  lives in the query's own bucket** -- foreign spill from other buckets can never match.
+- Within a bucket, `hash_table_add` places each entry at the first empty slot walking forward from the
+  shared start index, and fill-and-freeze never deletes, so **chain order == insertion order in BOTH
+  legs**. Enlargement does not reorder anything; it only stops the table rejecting late arrivals.
+- An entry CUR rejected was rejected *after* the freeze, so in the enlarged leg it lands *after* every
+  entry already on that chain. It can therefore only be reached when no earlier entry matched --
+  i.e. only where CUR resolved **nothing**.
+
+**Measured, all 1,868 simulable 12-bit queries in the corpus, paired (same insert stream, same queries,
+only `HASH_TABLE_SIZE` differing):**
+
+| comparison | paired queries | discordant | CUR had no entry, enlarged leg named it | both named, **names differ** |
+|---|---:|---:|---:|---:|
+| `SZ4` vs `CUR` | 1,868 | **15** | 15 | **0** |
+| `SZ8` vs `CUR` | 1,868 | **15** | 15 | **0** |
+
+**Zero flips out of 1,868.** The worst case enlargement can do on the 12-bit path in this corpus is 15
+newly-resolved slots that might be wrong, against +266 decodes gained. That is not a blocker; it is a
+counter-metric.
+
+**Also measured while drafting (this is what makes ARM 1B possible at all):** the 12-bit path IS
+simulable offline. A CUR-sized simulated table reproduces the REAL decoder's rendered name on
+**1,727/1,868 = 92.5%** of those queries. The identity that makes it exact: for any resolved slot the
+shim returned an entry satisfying `(stored_n22 >> 10) == query_n12`, and `stored_n22` is the hash of the
+rendered name -- so **`n12(rendered name)` IS the query hash, whether the rendered name is right or
+wrong.** The query stream is recoverable from the dump with no circularity.
+
+**Consequences, replacing Sec.4's ordering:**
+
+1. **Arm 2 (enlargement `#define`) is UNBLOCKED and may be drafted whenever the Captain wants it.** My
+   size recommendation (32,768, on load factor -- alpha 0.498 vs 0.996) is unaffected.
+2. **ARM 1B survives, re-scoped and smaller.** It no longer gates arm 2. It answers the question that is
+   still genuinely open and that Sec.3 got right: **is the CURRENT build printing wrong callsigns on the
+   12-bit path?** That is a product question, not a D-001 question, and 15 of its decodes double as arm
+   2's counter-metric.
+3. **The candidate defect in Sec.3 item 1 stays open at reduced priority.** What changed is that
+   enlargement does not make it worse.
+
+**Score me on this one, in both directions:** Sec.3's population (56.7%, 1,899 decodes) and mechanism
+were right and are unretracted; **Sec.3's magnitude was wrong, and it was wrong in the direction that
+would have cost the project an arm's delay.** The arithmetic looked like a measurement and was not one --
+which is exactly what its own "REASONING, not a measurement" label was for. The label did its job; I
+should have run the probe before writing the paragraph, not after.
+
+Probe scripts (gitignored, counts-only, NFR-021 clean): `artefacts/2026-08-26-arm1b-probe/`.
