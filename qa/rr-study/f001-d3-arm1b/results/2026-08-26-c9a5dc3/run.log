@@ -1,0 +1,151 @@
+==============================================================================
+F-001 D3 ARM 1B -- run_arm1b.py -- repo main @ c9a5dc3
+==============================================================================
+Loading decode dumps + reference ALL.TXT (no rebuild, no replay)...
+------------------------------------------------------------------------------
+ROW 0a -- dump identity
+  L2_run1: {'dll_sha256': 'bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f', 'shim_version': 20260046, 'n_decodes': 71600, 'n_records': 71600}
+  reference ALL.TXT rows = 43423 (expect 43423)
+  ROW 0a: PASS
+------------------------------------------------------------------------------
+ROW 0b -- population reproduction (load-bearing)
+  resolved type-4 (nonstd) decodes = 1899 (bar [1850,1950])
+  resolved standard decodes        = 1448 (bar [1400,1500])
+  ROW 0b: PASS
+------------------------------------------------------------------------------
+ROW 0c -- predicate reuse (assert by import)
+  is_callsign_token / n22_of / SimTable are the SAME objects as common_b1/common_arm1's: True
+  ROW 0c: PASS
+------------------------------------------------------------------------------
+ROW 0d -- free validity test (Sec.0.3 fact 3)
+  resolved-both pairs = 243 ; disagreeing = 92 ; failed n12 test (matching failures, dropped) = 0 (0.0%)
+  ROW 0d: PASS (bar: dropped disagreements <=10%)
+------------------------------------------------------------------------------
+ROW 0e -- determinism + independent input
+  rerun byte-identical (flags/k/n_disagree_total all equal): True
+  L2_run2 independent replicate: k=243 vs L2_run1's k=243 (bar [228,258]): True
+  ROW 0e: PASS
+------------------------------------------------------------------------------
+ROW 0f -- predicate-movement exhibit (HK-021(q))
+  worked example: original=CS-068661 reference=CS-068661 (agree) -> mutated=CS-55f0cb
+  classifier moved agree->disagree: True ; mutated pair now FAILS ROW 0d's n12 test: True
+  ROW 0f: PASS
+------------------------------------------------------------------------------
+ROW 0g -- 12-bit simulator fidelity (Part B only; Part A is proxy-free)
+  simulated CUR (N=4096) queries=1868  reproduces-real-name=1727  fidelity=92.5% (bar >=85%, Architect probe: 92.5%)
+  ROW 0g: PASS
+==============================================================================
+Part A -- Sec.5 gates, unit = callsign
+  k (kept paired decodes) = 243 ; distinct callsigns (n) = 115
+  top-5 decode concentration = [20, 19, 7, 7, 7] = 24.7% of k
+  cs-disagree = 59 ; cs-agree = 56
+  p_dis = 0.5130  CP one-sided 95% lower=0.4325 upper=0.5931
+  -> ROW A1
+------------------------------------------------------------------------------
+Sec.6 -- coverage table (descriptive, NOT folded into p_dis)
+  ours=resolved   theirs=no_match   : 1544
+  ours=resolved   theirs=resolved   : 243
+  ours=resolved   theirs=unresolved : 112
+  ours=unresolved theirs=no_match   : 1123
+  ours=unresolved theirs=resolved   : 110
+  ours=unresolved theirs=unresolved : 100
+  ours decodes with >1 bracket slot (excluded by slot()): 2
+  disagreeing pairs (n=92), plaintext tiebreaker (descriptive, NOT attribution):
+    ours=CS-252665 theirs=CS-f0302d  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-0dd46f theirs=CS-ee9580  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-0dd46f theirs=CS-ee9580  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-252665 theirs=CS-f0302d  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-cc0adc theirs=CS-1f2a33  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-3a51a3 theirs=CS-c7173c  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-3a51a3 theirs=CS-c7173c  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-3a51a3 theirs=CS-c7173c  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-950eaa theirs=CS-2cc179  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-89ae16 theirs=CS-ee6581  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-89ae16 theirs=CS-ee6581  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-3a51a3 theirs=CS-c7173c  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-ff3b10 theirs=CS-6bba64  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-ff3b10 theirs=CS-6bba64  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-ff3b10 theirs=CS-6bba64  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-ff3b10 theirs=CS-6bba64  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-ff3b10 theirs=CS-6bba64  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-535775 theirs=CS-bd5532  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-ff3b10 theirs=CS-6bba64  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-ff3b10 theirs=CS-6bba64  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-8befe9 theirs=CS-98b964  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-8befe9 theirs=CS-98b964  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-a55508 theirs=CS-94c4d9  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-3b29c8 theirs=CS-03c409  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-7c663c theirs=CS-3457b5  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-0c98f4 theirs=CS-a1ccdb  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-90aee0 theirs=CS-1e3999  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-c154dc theirs=CS-37710a  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-4e8343 theirs=CS-c17f0b  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-b5ed64 theirs=CS-1ce6e6  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-b5ed64 theirs=CS-1ce6e6  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-535775 theirs=CS-bd5532  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-e38218 theirs=CS-2dbcd5  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-e38218 theirs=CS-2dbcd5  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-e38218 theirs=CS-2dbcd5  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-d9306b theirs=CS-d6e352  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-e80dff theirs=CS-cacfae  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-2be142 theirs=CS-1b3816  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-fc19e0 theirs=CS-6c3d0f  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-fc19e0 theirs=CS-6c3d0f  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-2be142 theirs=CS-1b3816  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-af787b theirs=CS-60f61b  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-4ab14d theirs=CS-0157e0  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-4ab14d theirs=CS-0157e0  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-4ab14d theirs=CS-0157e0  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-483386 theirs=CS-cabfc3  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-34e7da theirs=CS-22cf99  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-955773 theirs=CS-a5179d  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-3fae9e theirs=CS-7002aa  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-cb0c9b theirs=CS-4d82ab  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-7093fc theirs=CS-5de623  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-17ed6b theirs=CS-e0b2eb  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-5724c9 theirs=CS-6e491c  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-4b5a90 theirs=CS-4d379d  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-4b5a90 theirs=CS-4d379d  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-41908e theirs=CS-98891f  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-38e4cb theirs=CS-e7e9b4  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-11ede9 theirs=CS-04922a  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-0ae278 theirs=CS-6f0193  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-bae1bb theirs=CS-9b5229  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-f806fc theirs=CS-e0b846  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-bae1bb theirs=CS-9b5229  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-a99b7d theirs=CS-95848a  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-ed8d4a theirs=CS-14afa3  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-915bb2 theirs=CS-aff501  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-fcded3 theirs=CS-741dd0  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-37be55 theirs=CS-16f219  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-9263aa theirs=CS-1aed08  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-37be55 theirs=CS-16f219  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-37be55 theirs=CS-16f219  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-37be55 theirs=CS-16f219  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-d689f8 theirs=CS-293d00  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-37be55 theirs=CS-16f219  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-4b8939 theirs=CS-d725fe  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-da0f25 theirs=CS-98a914  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-c4a51a theirs=CS-a8e6f2  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-da0f25 theirs=CS-98a914  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-831e60 theirs=CS-2ac02f  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-828ebf theirs=CS-55508e  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-4b8939 theirs=CS-d725fe  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-c2a51f theirs=CS-45684e  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-b2ce1d theirs=CS-a1e5d7  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-00ba88 theirs=CS-780ab6  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-00ba88 theirs=CS-780ab6  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-7c0dc7 theirs=CS-d4048e  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-790cb5 theirs=CS-73958e  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-37be55 theirs=CS-16f219  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-7bb696 theirs=CS-4f6dc1  ours-seen-in-theirs-plain=True  theirs-seen-in-ours-plain=True
+    ours=CS-37be55 theirs=CS-16f219  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-28b2d9 theirs=CS-1ad60d  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-28b2d9 theirs=CS-1ad60d  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+    ours=CS-e14378 theirs=CS-15611f  ours-seen-in-theirs-plain=False  theirs-seen-in-ours-plain=True
+==============================================================================
+Part B -- enlargement counter-metric, adjudicated against the reference
+  SZ4 vs CUR: paired=1868 discordant=15 (CUR-had-none=15 SZ4-had-none=0 both-named-differ=0)
+     of the CUR-had-none new resolutions: reference confirms=1 contradicts=0 no-reference=14
+  SZ8 vs CUR: paired=1868 discordant=15 (CUR-had-none=15 SZ8-had-none=0 both-named-differ=0)
+     of the CUR-had-none new resolutions: reference confirms=1 contradicts=0 no-reference=14
