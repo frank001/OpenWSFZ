@@ -1,0 +1,75 @@
+==============================================================================
+F-001 D3 ARM 1 -- run_arm1.py -- repo main @ e9e8898
+==============================================================================
+Loading decode dumps + wav cycle index (no rebuild, no replay)...
+  cycle index: 4971 wav cycles (expect 4971)
+------------------------------------------------------------------------------
+ROW 0a -- dump identity
+  L2_run1: {'dll_sha256': 'bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f', 'shim_version': 20260046, 'n_decodes': 71600, 'n_records': 71600}
+  ROW 0a: PASS
+------------------------------------------------------------------------------
+ROW 0b -- simulator fidelity (load-bearing)
+  CUR @ N=4096 on L2_run1: freeze ts=260803_203430 -> cycle index 801 (bar [767,1150])
+  CUR @ N=256 on L1: freeze ts=260803_171945 -> cycle index 26 (bar [25,40])
+  ROW 0b: PASS
+------------------------------------------------------------------------------
+ROW 0c -- hash-port sanity
+  distinct session plaintext callsign-shaped tokens = 16320 (expect 16320)
+  n22_of() non-None rate = 100.0000% (0 charset failures)
+  n22 collisions: 29 colliding buckets, 29 colliding pairs (birthday expectation ~32)
+  ROW 0c: PASS (bar: >=99% non-None; 10<=collision pairs<=100)
+------------------------------------------------------------------------------
+ROW 0d -- predicate reuse (assert by import)
+  is_callsign_token is the SAME function object across common_arm1/common_b1/run_b1_coverage_a: True
+  ROW 0d: PASS
+------------------------------------------------------------------------------
+ROW 0e -- determinism + independent input
+  CUR byte-identical on rerun: True ; LRU byte-identical on rerun: True
+  L2_run2 CUR freeze cycle index = 801 vs L2_run1's 801: reproduces = True
+  ROW 0e: PASS
+------------------------------------------------------------------------------
+ROW 0f -- population reproduction
+  |L_fail| (B1-cap decodes) = 307 (expect 307)   distinct CS-cap callsigns = 40 (expect 40)
+  rows located for lookup replay = 307, missing (candidate-search failed) = 0
+  ROW 0f: PASS
+------------------------------------------------------------------------------
+ROW 0g -- predicate-movement exhibit (HK-021(q))
+  SZ8 (32768 slots) final table occupancy = 16320 / 32768 against 16320 distinct session callsigns (never fills)
+  SZ8 reject_count = 0 (must be 0)
+  SZ8 gained = 307 / 307 L_fail decodes (bar: 100%)
+  WORKED EXAMPLE: CS-0596df  T_plain=260803_234700  B1 ts=260803_235000  resolved-under-SZ8=True  failed-under-CUR(empirical B1-cap)=True
+  ROW 0g: PASS
+==============================================================================
+Sec.5 -- running all policies
+  CUR    N=4096   evict=-     gained=  0 lost= 41 false=  0 net= -41  table_count=4096 reject=62538
+  SZ2    N=8192   evict=-     gained=194 lost= 41 false=  0 net= 153  table_count=8192 reject=41847
+  SZ4    N=16384  evict=-     gained=307 lost= 41 false=  0 net= 266  table_count=16320 reject=0
+  SZ8    N=32768  evict=-     gained=307 lost= 41 false=  0 net= 266  table_count=16320 reject=0
+  LRU    N=4096   evict=LRU   gained=302 lost=1098 false=  2 net=-798  table_count=4096 reject=0
+  LFU    N=4096   evict=LFU   gained=275 lost=701 false=  4 net=-430  table_count=4096 reject=0
+  LRU-S  N=1024   evict=LRU   gained=302 lost=1473 false=  1 net=-1172  table_count=1024 reject=0
+  Leave-one-out target located: CS-235335
+==============================================================================
+Sec.5.1 -- PRIMARY: callsign-level net recall (k=40)
+  SZ2    improved= 7 worsened= 0 unchanged=33 n_discordant= 7 p=0.0156 net= 153 -> ROW P1
+       leave-one-out (CS-235335 removed, k=39): improved=6 worsened=0 n_discordant=6 p=0.0312
+  SZ4    improved=40 worsened= 0 unchanged= 0 n_discordant=40 p=0.0000 net= 266 -> ROW P1
+       leave-one-out (CS-235335 removed, k=39): improved=39 worsened=0 n_discordant=39 p=0.0000
+  SZ8    improved=40 worsened= 0 unchanged= 0 n_discordant=40 p=0.0000 net= 266 -> ROW P1
+       leave-one-out (CS-235335 removed, k=39): improved=39 worsened=0 n_discordant=39 p=0.0000
+  LRU    improved=36 worsened= 0 unchanged= 4 n_discordant=36 p=0.0000 net=-798 -> ROW P3
+       leave-one-out (CS-235335 removed, k=39): improved=35 worsened=0 n_discordant=35 p=0.0000
+  LFU    improved=35 worsened= 0 unchanged= 5 n_discordant=35 p=0.0000 net=-430 -> ROW P3
+       leave-one-out (CS-235335 removed, k=39): improved=34 worsened=0 n_discordant=34 p=0.0000
+  LRU-S  improved=36 worsened= 0 unchanged= 4 n_discordant=36 p=0.0000 net=-1172 -> ROW P3
+       leave-one-out (CS-235335 removed, k=39): improved=35 worsened=0 n_discordant=35 p=0.0000
+  Best net policy: SZ4 (net=266) -> overall P2 (CLOSE F-001 D3): False
+==============================================================================
+Sec.5.3 -- descriptive (ungated)
+  CUR    (baseline): recovers 0/307 addressable B1-cap decodes, net=-41
+  SZ2    (enlargement/bounded-session): recovers 194/307 addressable B1-cap decodes, net=153
+  SZ4    (enlargement/bounded-session): recovers 307/307 addressable B1-cap decodes, net=266
+  SZ8    (enlargement/bounded-session): recovers 307/307 addressable B1-cap decodes, net=266
+  LRU    (eviction/unbounded-daemon): recovers 302/307 addressable B1-cap decodes, net=-798
+  LFU    (eviction/unbounded-daemon): recovers 275/307 addressable B1-cap decodes, net=-430
+  LRU-S  (eviction/unbounded-daemon): recovers 302/307 addressable B1-cap decodes, net=-1172

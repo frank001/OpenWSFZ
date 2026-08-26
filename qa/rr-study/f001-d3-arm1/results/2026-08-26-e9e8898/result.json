@@ -1,0 +1,208 @@
+{
+  "best_net_policy": "SZ4",
+  "dominant_callsign_redacted": "CS-235335",
+  "hash_type_note": "100 percent of lookups used the 22-bit fallback (see common_arm1.py module docstring); residency (Sec.5.1) is unaffected, Sec.5.2 false-resolution counts are indicative only.",
+  "inputs": {
+    "freeze_idx_l1_n256": 26,
+    "freeze_idx_l2run1_n4096": 801,
+    "n_b1cap_decodes": 307,
+    "n_cs_cap": 40,
+    "n_decodes_l2run1": 71600,
+    "n_distinct_session_tokens": 16320
+  },
+  "overall_p2_close_f001_d3": false,
+  "policies": {
+    "CUR": {
+      "eviction": null,
+      "false_res": 0,
+      "freeze_row_ts": "260803_203430",
+      "gained": 0,
+      "lost": 41,
+      "n_charset_fail_inserts": 0,
+      "n_lookups": 3517,
+      "net": -41,
+      "reject_count": 62538,
+      "size": 4096,
+      "table_count": 4096
+    },
+    "LFU": {
+      "eviction": "LFU",
+      "false_res": 4,
+      "freeze_row_ts": null,
+      "gained": 275,
+      "lost": 701,
+      "n_charset_fail_inserts": 0,
+      "n_lookups": 3517,
+      "net": -430,
+      "reject_count": 0,
+      "size": 4096,
+      "table_count": 4096
+    },
+    "LRU": {
+      "eviction": "LRU",
+      "false_res": 2,
+      "freeze_row_ts": null,
+      "gained": 302,
+      "lost": 1098,
+      "n_charset_fail_inserts": 0,
+      "n_lookups": 3517,
+      "net": -798,
+      "reject_count": 0,
+      "size": 4096,
+      "table_count": 4096
+    },
+    "LRU-S": {
+      "eviction": "LRU",
+      "false_res": 1,
+      "freeze_row_ts": null,
+      "gained": 302,
+      "lost": 1473,
+      "n_charset_fail_inserts": 0,
+      "n_lookups": 3517,
+      "net": -1172,
+      "reject_count": 0,
+      "size": 1024,
+      "table_count": 1024
+    },
+    "SZ2": {
+      "eviction": null,
+      "false_res": 0,
+      "freeze_row_ts": "260804_041000",
+      "gained": 194,
+      "lost": 41,
+      "n_charset_fail_inserts": 0,
+      "n_lookups": 3517,
+      "net": 153,
+      "reject_count": 41847,
+      "size": 8192,
+      "table_count": 8192
+    },
+    "SZ4": {
+      "eviction": null,
+      "false_res": 0,
+      "freeze_row_ts": null,
+      "gained": 307,
+      "lost": 41,
+      "n_charset_fail_inserts": 0,
+      "n_lookups": 3517,
+      "net": 266,
+      "reject_count": 0,
+      "size": 16384,
+      "table_count": 16320
+    },
+    "SZ8": {
+      "eviction": null,
+      "false_res": 0,
+      "freeze_row_ts": null,
+      "gained": 307,
+      "lost": 41,
+      "n_charset_fail_inserts": 0,
+      "n_lookups": 3517,
+      "net": 266,
+      "reject_count": 0,
+      "size": 32768,
+      "table_count": 16320
+    }
+  },
+  "primary_sec5_1": {
+    "LFU": {
+      "leave_one_out": {
+        "n_discordant": 34,
+        "n_improved": 34,
+        "n_worsened": 0,
+        "p_value_two_sided": 1.1641532182693481e-10
+      },
+      "n_discordant": 35,
+      "n_improved": 35,
+      "n_unchanged": 5,
+      "n_worsened": 0,
+      "net_decode_level": -430,
+      "p_value_two_sided": 5.820766091346741e-11,
+      "row": "P3"
+    },
+    "LRU": {
+      "leave_one_out": {
+        "n_discordant": 35,
+        "n_improved": 35,
+        "n_worsened": 0,
+        "p_value_two_sided": 5.820766091346741e-11
+      },
+      "n_discordant": 36,
+      "n_improved": 36,
+      "n_unchanged": 4,
+      "n_worsened": 0,
+      "net_decode_level": -798,
+      "p_value_two_sided": 2.9103830456733704e-11,
+      "row": "P3"
+    },
+    "LRU-S": {
+      "leave_one_out": {
+        "n_discordant": 35,
+        "n_improved": 35,
+        "n_worsened": 0,
+        "p_value_two_sided": 5.820766091346741e-11
+      },
+      "n_discordant": 36,
+      "n_improved": 36,
+      "n_unchanged": 4,
+      "n_worsened": 0,
+      "net_decode_level": -1172,
+      "p_value_two_sided": 2.9103830456733704e-11,
+      "row": "P3"
+    },
+    "SZ2": {
+      "leave_one_out": {
+        "n_discordant": 6,
+        "n_improved": 6,
+        "n_worsened": 0,
+        "p_value_two_sided": 0.03125
+      },
+      "n_discordant": 7,
+      "n_improved": 7,
+      "n_unchanged": 33,
+      "n_worsened": 0,
+      "net_decode_level": 153,
+      "p_value_two_sided": 0.015625,
+      "row": "P1"
+    },
+    "SZ4": {
+      "leave_one_out": {
+        "n_discordant": 39,
+        "n_improved": 39,
+        "n_worsened": 0,
+        "p_value_two_sided": 3.637978807091713e-12
+      },
+      "n_discordant": 40,
+      "n_improved": 40,
+      "n_unchanged": 0,
+      "n_worsened": 0,
+      "net_decode_level": 266,
+      "p_value_two_sided": 1.8189894035458565e-12,
+      "row": "P1"
+    },
+    "SZ8": {
+      "leave_one_out": {
+        "n_discordant": 39,
+        "n_improved": 39,
+        "n_worsened": 0,
+        "p_value_two_sided": 3.637978807091713e-12
+      },
+      "n_discordant": 40,
+      "n_improved": 40,
+      "n_unchanged": 0,
+      "n_worsened": 0,
+      "net_decode_level": 266,
+      "p_value_two_sided": 1.8189894035458565e-12,
+      "row": "P1"
+    }
+  },
+  "row0": {
+    "0a": "PASS",
+    "0b": "PASS",
+    "0c": "PASS",
+    "0d": "PASS",
+    "0e": "PASS",
+    "0f": "PASS",
+    "0g": "PASS"
+  }
+}
