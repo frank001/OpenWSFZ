@@ -1,0 +1,62 @@
+==============================================================================
+B1-COVERAGE-A -- run_b1_coverage_a.py -- repo main @ 2ed5f7d
+==============================================================================
+Loading decode dumps (no rebuild, no replay)...
+------------------------------------------------------------------------------
+ROW 0a -- dump identity
+  L2_run1: {'dll_sha256': 'bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f', 'shim_version': 20260046, 'n_decodes': 71600, 'n_records': 71600}
+  n_theirs (reference ALL.TXT rows) = 43423 (pinned 43423)
+  ROW 0a: PASS
+------------------------------------------------------------------------------
+ROW 0b -- population reproduction
+  n_theirs_only = 18508 (expect 18508)
+  |B1| = 470 (expect 470)
+  ROW 0b: PASS
+------------------------------------------------------------------------------
+Sec.2.2 -- textual corroboration of B1 (independent re-derivation)
+  nameable                339
+  one_diff_ambiguous        2
+  two_diff                 71
+  token_count_differs      58
+  nameable=339 (72.1% of B1) vs Architect's disclosed 339 (72.1%)
+------------------------------------------------------------------------------
+Sec.2.5 -- plaintext-emission index: 16320 distinct callsign-shaped tokens, whole session
+  distinct named callsigns in B1 (k) = 47
+------------------------------------------------------------------------------
+ROW 0c -- predicate-movement exhibit (HK-021(q))
+  NAMED example: key ts=260803_172015 -> CS-7d2fd5 (bucket=B1-ord)
+  B1-amb example: key ts=260803_171615, category=token_count_differs, n_candidates=1 (declined -- no unique template-consistent candidate)
+  Session-wide plaintext emission example: CS-c3e2a1 first seen plaintext at ts=260803_171330
+  ROW 0c: PASS
+------------------------------------------------------------------------------
+ROW 0d -- proxy calibration against known table occupancy at freeze
+  D (distinct plaintext callsign-shaped tokens, ts <= 260803_202600) = 3954
+  D / 4096 = 0.9653
+  ROW 0d: PASS (bar 0.75 <= D/4096 <= 1.25)
+------------------------------------------------------------------------------
+ROW 0e -- determinism (same input, run twice)
+  byte-identical (b1 keys, key buckets, named callsigns): PASS
+------------------------------------------------------------------------------
+ROW 0f -- independent-input replicate (L2_run2)
+  |B1| run1=470 run2=470, key sets identical: True
+  named callsigns identical key-for-key: True
+  key buckets identical key-for-key: True
+  ROW 0f: PASS
+==============================================================================
+PART A -- addressability, unit = named callsign
+  k = 47   CS-cov=2  CS-cap=40  CS-ord=5
+  p_cap = 0.8511 (95% CI [0.7447, 0.9362], callsign-level bootstrap n_boot=2000)
+  ROW A1 fires
+==============================================================================
+PART B -- capacity vs bit-error, unit = named callsign in CS-cap
+  |CS-cap| = 40   cap-frozen=40  cap-resident=0
+  p_frozen = 1.0000 (95% CI [1.0000, 1.0000])
+  ROW B1 fires
+==============================================================================
+PART C -- descriptive
+  Four-way B1 partition (decode counts): {'B1-amb': 131, 'B1-ord': 30, 'B1-cov': 2, 'B1-cap': 307}
+  Decodes-per-named-callsign histogram (descending): [178, 19, 17, 16, 15, 13, 10, 7, 5, 5, 4, 4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  Textually-corroborated B1 = 339 decodes = 0.7807 pp of D-001 (n_theirs=43423)
+  |B1-ord and same-cycle| = 0
+  Dominant callsign: CS-235335, 178 B1 decodes, T_plain=260804_000230, bucket=CS-cap, vs freeze 260803_202600 (post-freeze)
+  Distinct plaintext callsign-shaped tokens, whole session = 16320 vs HASH_TABLE_SIZE=4096 (x4.0)

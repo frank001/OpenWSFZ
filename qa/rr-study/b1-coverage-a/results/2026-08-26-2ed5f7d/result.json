@@ -1,0 +1,111 @@
+{
+  "part_a": {
+    "cs_cap": 40,
+    "cs_cov": 2,
+    "cs_ord": 5,
+    "k": 47,
+    "p_cap": {
+      "ci": [
+        0.7446808510638298,
+        0.9361702127659575
+      ],
+      "point": 0.851063829787234
+    },
+    "row": "A1"
+  },
+  "part_b": {
+    "cap_frozen": 40,
+    "cap_resident": 0,
+    "n_cs_cap": 40,
+    "p_frozen": {
+      "ci": [
+        1.0,
+        1.0
+      ],
+      "point": 1.0
+    },
+    "row": "B1"
+  },
+  "part_c": {
+    "b1_ord_same_cycle": 0,
+    "b1_total": 470,
+    "corroborated_b1_decodes": 339,
+    "corroborated_b1_pp_of_d001": 0.780692259862285,
+    "decodes_per_callsign_desc": [
+      178,
+      19,
+      17,
+      16,
+      15,
+      13,
+      10,
+      7,
+      5,
+      5,
+      4,
+      4,
+      3,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "distinct_plaintext_tokens_session": 16320,
+    "hash_table_size": 4096,
+    "key_bucket_counts": {
+      "B1-amb": 131,
+      "B1-cap": 307,
+      "B1-cov": 2,
+      "B1-ord": 30
+    },
+    "sec2_2_categories": {
+      "nameable": 339,
+      "one_diff_ambiguous": 2,
+      "token_count_differs": 58,
+      "two_diff": 71
+    }
+  },
+  "row0": {
+    "0a": "PASS",
+    "0b": "PASS",
+    "0c": "PASS",
+    "0d": "PASS",
+    "0e": "PASS",
+    "0f": "PASS"
+  },
+  "row0d": {
+    "D": 3954,
+    "freeze_cycle_ts": "260803_202600",
+    "ratio": 0.96533203125
+  }
+}
