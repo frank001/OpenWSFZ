@@ -1,0 +1,104 @@
+{
+  "contingency_unique_but_wrong": 28,
+  "part_b": {
+    "cur_size": 4096,
+    "n_ambiguous_cur": 950,
+    "n_ambiguous_sz8": 1465,
+    "n_total_cur": 1868,
+    "n_total_sz8": 1868,
+    "sz8_size": 32768
+  },
+  "row0": {
+    "0a": "PASS",
+    "0b": "PASS",
+    "0c": "PASS",
+    "0d": "PASS",
+    "0e": "PASS",
+    "0f": "PASS",
+    "0g": "PASS",
+    "0h": "STATED"
+  },
+  "row0b_detail": {
+    "arm1b_k": 243,
+    "arm1b_n_cs": 115,
+    "arm1b_n_disagree_pairs": 92,
+    "n_in_leg": 243,
+    "n_known": 206,
+    "n_rowc": 59,
+    "n_rowd": 56,
+    "n_unknown_agree": 33,
+    "n_unknown_disagree": 4
+  },
+  "row0c_detail": {
+    "n_checked": 1868,
+    "n_coherence_fail": 0
+  },
+  "row0d_detail": {
+    "c_unknown_units": 3,
+    "d_unknown_units": 7
+  },
+  "row0e_detail": {
+    "lost_max": 27,
+    "lost_min": 20,
+    "n_leak": 0,
+    "rescued_max": 36,
+    "rescued_min": 33
+  },
+  "row0f_detail": {
+    "byte_identical": true,
+    "hashseed_a": "11111",
+    "hashseed_b": "999983"
+  },
+  "row0g_detail": {
+    "candidates_tried": 1,
+    "matches12_after": 2,
+    "matches12_before": 1,
+    "original_redacted": "CS-068661",
+    "synthetic_entry_inserted": true,
+    "unit_after": "ambiguous",
+    "unit_before": "unambiguous"
+  },
+  "row0h_detail": {
+    "frozen_share": 144,
+    "n_checked": 1868,
+    "n_gate_decodes": 243,
+    "n_sim_none_but_real_resolved": 20
+  },
+  "row_c": {
+    "cp_lower_one_sided_95_of_min": 0.44416495563393077,
+    "cp_upper_one_sided_95_of_max": 0.7168961347310363,
+    "gate": "C3",
+    "n": 59,
+    "p_rescue_max": 0.6101694915254238,
+    "p_rescue_min": 0.559322033898305,
+    "rescued_max": 36,
+    "rescued_min": 33
+  },
+  "row_d": {
+    "cp_lower_one_sided_95_of_min": 0.2507692792928381,
+    "cp_upper_one_sided_95_of_max": 0.5995010055958698,
+    "gate": "D3",
+    "lost_max": 27,
+    "lost_min": 20,
+    "n": 56,
+    "p_lost_max": 0.48214285714285715,
+    "p_lost_min": 0.35714285714285715
+  },
+  "row_e": {
+    "arm1b_baseline_agree": 151,
+    "arm1b_baseline_n": 243,
+    "arm1b_baseline_p": 0.6213991769547325,
+    "interval_hi": 0.751937984496124,
+    "interval_lo": 0.6956521739130435,
+    "pass_unknown_as_false": {
+      "p": 0.751937984496124,
+      "unambig_agree": 97,
+      "unambig_disagree": 32
+    },
+    "pass_unknown_as_true": {
+      "p": 0.6956521739130435,
+      "unambig_agree": 64,
+      "unambig_disagree": 28
+    }
+  }
+}
