@@ -28,6 +28,14 @@ JS8, JT9, JT65, WSPR, and related).
 > <sub>The version above is sourced from the root [`VERSION`](VERSION) file and
 > CI-checked (gate G9) — do not hand-edit it here; edit `VERSION` instead.</sub>
 
+### 📡 Start here: the [Programme Dossier](docs/programme-dossier.md)
+
+**[`docs/programme-dossier.md`](docs/programme-dossier.md) is the single continuity record for
+this project** — current state, the full defect register, every investigated angle and *why it
+closed*, standing prohibitions, open decisions and the ranked improvement set. If you are picking
+this project up, resuming after a break, or about to propose decoder work, read it first: several
+of the obvious avenues are already closed by measurement, and the dossier says which.
+
 All development phases to date are merged and archived. FT8 decoding
 **and transmitting** are fully functional against live audio and recorded fixtures.
 A complete automated six-message FT8 QSO exchange has been validated via
@@ -68,6 +76,10 @@ VoiceMeeter software loopback.
 | f-004 — operator visibility | Native shim ABI version exposed in the UI; TX/Call-CQ button visual states (armed vs transmitting); log viewer (Settings Logs tab + standalone full-log page); waterfall display modifiers | ✅ merged |
 
 ## Decoder Measurement System Analysis (Gage R&R)
+
+> **Note.** The "latest validated results" table below is a historical snapshot and is not
+> refreshed every sweep. For the current standing of the study — and of the decode gap it
+> measures — see the [Programme Dossier](docs/programme-dossier.md).
 
 OpenWSFZ runs a continuous **Gage R&R / Measurement System Analysis** against WSJT-X to
 quantify decoder quality across four dimensions:
