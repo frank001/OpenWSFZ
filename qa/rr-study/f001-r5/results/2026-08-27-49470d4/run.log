@@ -1,0 +1,67 @@
+==============================================================================
+F-001 R5 -- run_r5.py -- repo main @ 49470d4
+==============================================================================
+Loading ALL.TXT logs (no rebuild, no replay, no capture)...
+------------------------------------------------------------------------------
+ROW 0a -- input identity
+  ours   sha256=58fcd9d52f74d1bc7da5d7e63f8917b17954d2832c30b665aa322bb96ad2f028 Rx=64417 Tx=0 (expect Rx=64417 Tx=0)
+  theirs sha256=2e0163eef98e7a2b6f3ee51f4ef9409e26a8d038f220f834a68c739607e9b63d Rx=43423 Tx=0 (expect Rx=43423 Tx=0)
+  ROW 0a: PASS
+------------------------------------------------------------------------------
+ROW 0b -- population (Sec.0.2 shape table) reproduction
+  ours shapes: {'2tok_bracket_first': 177, '2tok_bracket_second': 18, '3tok_dest_resolved': 293, '3tok_dest_unresolved': 2640, '3tok_src': 1206, 'other': 9} (total=4343)
+  expect      : {'2tok_bracket_first': 177, '2tok_bracket_second': 18, '3tok_dest_resolved': 293, '3tok_dest_unresolved': 2640, '3tok_src': 1206, 'other': 9} (total=4343)
+  theirs shapes: {'2tok_bracket_first': 191, '2tok_bracket_second': 8, '3tok_dest_resolved': 626, '3tok_dest_unresolved': 1179, '3tok_src': 737, 'other': 126} (total=2867, dest=1805, dest_resolved=626)
+  expect        : total=2867 dest=1805 dest_resolved=626
+  ROW 0b: PASS
+------------------------------------------------------------------------------
+ROW 0c -- hash reproduction (module identity + occupancy)
+  module identity (n22_of/n12_of imported from common_arm1, not re-typed): True
+  distinct plain calls=11233 (expect 11233) ; occupied codes=3848 (expect 3848)
+  occupancy histogram={1: 714, 2: 1009, 3: 914, 4: 645, 5: 339, 6: 153, 7: 40, 8: 22, 9: 10, 10: 2}
+  expect             ={1: 714, 2: 1009, 3: 914, 4: 645, 5: 339, 6: 153, 7: 40, 8: 22, 9: 10, 10: 2}
+  ROW 0c: PASS
+------------------------------------------------------------------------------
+Sec.0.2 informational reproduction (reported, does not gate ROW 0c)
+  OWNCALL bucket size=9 (OWNCALL itself present=False) -> other colliding=9 (Sec.0.2 said 8)
+  DISCREPANCY, independently confirmed (grep -w PD2FZ both ALL.TXT files = 0 hits): PD2FZ never appears as a plain token in either corpus, so it is NOT a member of the 11,233-call set. The drafting probe's 'bucket_size - 1' silently assumed OWNCALL's own presence without checking; the true count of OTHER callsigns sharing our 12-bit code in this corpus is 9, not 8. Off by one, and in the direction that UNDERSTATES exposure.
+  theirs resolved hashed refs (n22 computable)=1553 (Sec.0.2 said 1553) ; carrying OWNCALL's n12=0 (Sec.0.2 said 0)
+------------------------------------------------------------------------------
+ROW 0d -- predicate-movement exhibit
+  movement exhibit (False->True) found: True
+  both-False exhibit found: True
+  ROW 0d: PASS
+------------------------------------------------------------------------------
+ROW 0e -- transcription check (try_parse_message)
+  two-token=195 (expect 195) three-token=4146 (expect 4146) exceptions=0 (expect 0)
+  ROW 0e: PASS
+==============================================================================
+Sec.5 -- gates
+------------------------------------------------------------------------------
+G1 -- the reframing itself, falsifiable
+  DISCLOSED READING: two G1a counts reported. LITERAL (Sec.5's own wording, all 4343 single-bracket decodes) = 1211. RESTRICTED (Sec.1 outcome #2's own wording, hashed-dest only, 2933 decodes) = 0.
+  G1b (to_us_l1l2 fires) = 1599
+  standard-form-only subset: G1a_literal=930 G1a_restricted=0 G1b=1042
+  -> Literal G1a is NONZERO (1211) but every hit is attributable to non-hash bracket-at-src/other messages whose PLAIN dest legitimately matches a real own-call -- ordinary correct behaviour, not a hash counter-example. Restricted G1a (hashed-dest only) is exactly 0. G1 HOLDS under the reading that tests Sec.0.1(a)'s actual claim; the literal-reading mismatch is a drafting-precision issue, flagged for the Architect, not self-ruled.
+------------------------------------------------------------------------------
+G2 -- layer worth (descriptive, NOT gated)
+  recovered by L1 alone (2-token accept)  = 18
+  recovered by L2 alone (bracket strip)   = 292
+  recovered by L1+L2 together             = 388
+------------------------------------------------------------------------------
+G3 -- false-positive cost of the own-hash rule
+  hashed-dest ours decodes=2933 ; have ANY reference row=1043 (35.6%) ; reference resolved=347 (11.8%)
+  KNOWN theirs_name pairs=347 ; UNKNOWN pairs=2586 (bucket_max_size=10)
+  MIN pass (UNKNOWN->0,0)  : fp_min=944 n_fires_min=1291 p=0.731216 CP one-sided 95% lower=0.710155
+  MAX pass (UNKNOWN->bmax) : fp_max=26804 n_fires_max=27151 p=0.987220 CP one-sided 95% upper=0.988321
+  -> G3-2_UNFAVOURABLE
+  straddle: 0.0100 threshold straddled=False ; 0.0500 threshold straddled=False (position, not width -- HK-021(w))
+  power check: n_fires_min=1291 (spec's own-power note flags concern if this is < 400)
+  STD-only subset (6904 of 11233 own-calls are standard-form): fp_min=518 n_fires_min=547 p=0.946984 CP one-sided 95% lower=0.928414 -> G3-2_UNFAVOURABLE
+------------------------------------------------------------------------------
+G4 -- containment by partner binding
+  NOT COMPUTABLE: this corpus is receive-only and carries no QSO state machine, so 'the hypothetical own-call's actual QSO partner' has no operational referent here. QsoAnswererService.cs:1081/:1163's fromPartner is bound to explicit protocol state (WaitReport/WaitRr73 with a specific partner call already latched); any text-proximity proxy invented after the fact would not be measuring that conjunction, only something shaped like it. Per Sec.5/G4's own instruction, reported as NOT COMPUTABLE rather than papered over with an invented proxy.
+------------------------------------------------------------------------------
+ROW 0f -- determinism, OUT OF PROCESS, different PYTHONHASHSEED
+  seed A=24601 seed B=271828 -- result.json byte-identical: True
+  ROW 0f: PASS

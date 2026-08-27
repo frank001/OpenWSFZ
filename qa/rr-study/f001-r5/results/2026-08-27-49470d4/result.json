@@ -1,0 +1,120 @@
+{
+  "row0": {
+    "0a": "PASS",
+    "0b": "PASS",
+    "0c": "PASS",
+    "0d": "PASS",
+    "0e": "PASS",
+    "0f": "PASS",
+    "0g": "PASS"
+  },
+  "row0c_detail": {
+    "cp_upper_one_sided_95_of_collision_rate": 0.0019271376376735956,
+    "hist": {
+      "1": 714,
+      "2": 1009,
+      "3": 914,
+      "4": 645,
+      "5": 339,
+      "6": 153,
+      "7": 40,
+      "8": 22,
+      "9": 10,
+      "10": 2
+    },
+    "n_calls": 11233,
+    "n_carrying": 0,
+    "n_occupied": 3848,
+    "n_other_colliding": 9,
+    "n_refs": 1553,
+    "other_colliding_discrepancy": true,
+    "own_in_own_bucket": false,
+    "spec_said_other_colliding": 8
+  },
+  "row0d_detail": {
+    "both_false_exhibit": {
+      "after": false,
+      "before": false
+    },
+    "movement_exhibit": {
+      "after": true,
+      "before": false,
+      "redacted_own_hyp": "CS-f2109d"
+    }
+  },
+  "row0e_detail": {
+    "n_exceptions": 0,
+    "n_three_tok": 4146,
+    "n_two_tok": 195
+  },
+  "row0f_detail": {
+    "byte_identical": true,
+    "hashseed_a": "24601",
+    "hashseed_b": "271828"
+  },
+  "row0g_detail": {
+    "n_hits": 0
+  },
+  "row0h_detail": {
+    "n_hashed_dest": 2933,
+    "n_matched_any_reference": 1043,
+    "n_resolved": 347,
+    "share_matched": 0.3556085918854415,
+    "share_resolved": 0.11830889873849301
+  },
+  "row_g1": {
+    "g1a_literal": 1211,
+    "g1a_restricted": 0,
+    "g1b": 1599,
+    "n_hashed_dest_population": 2933,
+    "n_own_calls": 11233,
+    "n_population": 4343,
+    "std_subset": {
+      "g1a_literal": 930,
+      "g1a_restricted": 0,
+      "g1b": 1042,
+      "n_own_calls_std": 6904
+    },
+    "verdict": "G1_HOLDS_RESTRICTED_LITERAL_NONZERO"
+  },
+  "row_g2": {
+    "recovered_l1_alone": 18,
+    "recovered_l1l2_together": 388,
+    "recovered_l2_alone": 292
+  },
+  "row_g3": {
+    "bucket_max_size": 10,
+    "cp_lower_one_sided_95_of_min": 0.7101552108181859,
+    "cp_upper_one_sided_95_of_max": 0.9883205419670457,
+    "fp_max": 26804,
+    "fp_min": 944,
+    "gate": "G3-2_UNFAVOURABLE",
+    "n_fires_max": 27151,
+    "n_fires_min": 1291,
+    "n_hashed_dest": 2933,
+    "n_matched_any_reference": 1043,
+    "n_resolved": 347,
+    "n_unknown": 2586,
+    "p_max": 0.9872196235866082,
+    "p_min": 0.7312161115414407,
+    "std_subset": {
+      "bucket_max_size": 8,
+      "cp_lower_one_sided_95_of_min": 0.9284138563732381,
+      "cp_upper_one_sided_95_of_max": 0.9990228621425689,
+      "fp_max": 21206,
+      "fp_min": 518,
+      "gate": "G3-2_UNFAVOURABLE",
+      "n_fires_max": 21235,
+      "n_fires_min": 547,
+      "n_own_calls_std": 6904,
+      "p_max": 0.9986343301153756,
+      "p_min": 0.946983546617916
+    },
+    "straddle_0100": false,
+    "straddle_0500": false
+  },
+  "row_g4": {
+    "reason": "no QSO state machine in a receive-only corpus",
+    "status": "NOT_COMPUTABLE"
+  }
+}
