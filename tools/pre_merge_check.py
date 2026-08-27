@@ -5,6 +5,17 @@ declaring a change "ready for merge."
 
 Usage:
   python3 tools/pre_merge_check.py [--skip-native-refresh] [--skip-aot] [--skip-selfcontained] [--skip-tests] [--skip-openspec] [--skip-wsl]
+  python3 tools/pre_merge_check.py -h | --help    Print this docstring and exit 0. Does
+                                                    nothing else — no build, no subprocess,
+                                                    no working-tree write. Checked FIRST, ahead
+                                                    of every other argument, so it can never be
+                                                    silently swallowed the way an unrecognised
+                                                    flag otherwise would be (this script has no
+                                                    argparse — every flag below is matched by a
+                                                    plain `in args` check, so a typo'd or
+                                                    unfamiliar flag previously just ran the
+                                                    full gate with no warning; -h/--help is the
+                                                    one exception carved out of that).
 
 Background (HK-006, see the QA memory note this script exists to satisfy):
 `daemon-background-mode` (PR #78) was declared "ready for merge" after only
@@ -199,7 +210,13 @@ import tempfile
 # reporting "no feedback" while WSL was running): identical script, same
 # print() calls, redirected to a file — nothing appears until process exit
 # without this line; each line appears in real time with it.
-sys.stdout.reconfigure(line_buffering=True)
+# encoding="utf-8" alongside line_buffering: this docstring and several step
+# labels below use non-ASCII markers (e.g. the STOP-sign emoji above); the
+# default Windows console codepage is cp1252, which can't encode them and
+# raises UnicodeEncodeError the moment they're printed (HK-009). Every other
+# platform's default stdout encoding is already UTF-8-compatible, so this is
+# a no-op there.
+sys.stdout.reconfigure(line_buffering=True, encoding="utf-8")
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -823,6 +840,22 @@ def step_wsl_debian(distro=_WSL_DISTRO):
 
 def main():
     args = sys.argv[1:]
+
+    # Checked before anything else runs, and before any other flag is parsed —
+    # this script has no argparse, so every other flag below is matched by a
+    # bare `in args` check. That meant an unrecognised argument (a typo, or
+    # someone reasonably trying `--help`) was previously silently swallowed
+    # and the full gate ran anyway: no build skipped, no working-tree write
+    # avoided, nothing — just the entire multi-minute run, native rebuild
+    # included, for someone who only wanted to read the usage. Confirmed
+    # 2026-08-27 (QA session): `--help` piped through `head -50` cut the
+    # native macOS dylib rebuild off mid-stream via a broken pipe rather than
+    # printing usage. `-h`/`--help` short-circuits here, before REPO_ROOT is
+    # touched or any subprocess is spawned.
+    if "-h" in args or "--help" in args:
+        print(__doc__)
+        return 0
+
     skip_native_refresh = "--skip-native-refresh" in args
     skip_aot = "--skip-aot" in args
     skip_selfcontained = "--skip-selfcontained" in args
