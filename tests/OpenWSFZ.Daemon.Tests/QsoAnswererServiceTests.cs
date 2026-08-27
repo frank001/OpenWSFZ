@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OpenWSFZ.Abstractions;
@@ -39,6 +40,33 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
     private QsoAnswererService?      _sut;
     private CancellationTokenSource? _stopCts;
+    // F-001 R5 Action 4.5: captures formatted log text so a shape-(B) log-line-unchanged
+    // assertion can be made mechanical rather than relying on manual review.
+    private RecordingLogger<QsoAnswererService> _recordingLogger = new();
+
+    /// <summary>
+    /// Minimal <see cref="ILogger{TCategoryName}"/> that records every formatted log message,
+    /// in order — no existing capture helper exists in this test project (F-001 R5 Action 4.5).
+    /// </summary>
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = new();
+
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Messages.Add(formatter(state, exception));
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+            public void Dispose() { }
+        }
+    }
 
     public async Task InitializeAsync()
     {
@@ -68,8 +96,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // affected by this override.
         var earlyInWindow = new FakeTimeProvider(
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)); // :00 = A-phase, 0 s in
+        _recordingLogger = new RecordingLogger<QsoAnswererService>();
         _sut    = new QsoAnswererService(_channel.Reader, store, _ptt, new TxEventBus(),
-                      adifLog, new AudioOffsetEventBus(), NullLogger<QsoAnswererService>.Instance,
+                      adifLog, new AudioOffsetEventBus(), _recordingLogger,
                       watchdogDurationOverride: TimeSpan.FromMinutes(4),
                       timeProvider: earlyInWindow);
         _stopCts = new CancellationTokenSource();
@@ -451,6 +480,55 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         // Partner sends to a third station.
         Send(Make($"Q2OTHER {PartnerCall} +03"));
         await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+    }
+
+    // ── F-001 R5 L1+L2 developer slice ───────────────────────────────────────
+    // dev-tasks/2026-08-27-1645-f001-r5-l1l2-developer-slice.md
+
+    [Fact(DisplayName = "F-001 R5 L2 site 3: bracket-wrapped own-callsign dest recognised as toUs in WaitReport")]
+    public async Task WaitReport_BracketWrappedOwnCallsignReport_AdvancesToWaitRr73()
+    {
+        // Reach WaitReport.
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
+        await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Partner's message resolved our hashed callsign to "<Q1OFZ>" — a correctly resolved
+        // own-call reference must now be recognised as addressed to us (L2), same as the
+        // plain-string form exercised by WaitReport_SignalReport_AdvancesToWaitRr73 above.
+        Send(Make($"<{OurCallsign}> {PartnerCall} +05"));
+        await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
+        await _ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact(DisplayName = "F-001 R5 L1 site 1: TryParseMessage accepts the 2-token Type-4 form (QsoAnswererService copy)")]
+    public void TryParseMessage_AcceptsTwoTokenForm()
+    {
+        var result = QsoAnswererService.TryParseMessage(
+            $"<{OurCallsign}> RR73", out var dest, out var src, out var payload);
+
+        result.Should().BeTrue();
+        dest.Should().Be($"<{OurCallsign}>");
+        src.Should().Be("RR73");
+        payload.Should().Be(string.Empty);
+    }
+
+    [Fact(DisplayName = "F-001 R5 Sec.2 shape (B): 'partner working another station' log keeps the raw bracketed dest")]
+    public async Task WaitReport_PartnerWorksOtherWithBracketedDest_LogStaysBracketed()
+    {
+        // Reach WaitReport.
+        Send(Make($"CQ {PartnerCall} {PartnerGrid}"));
+        await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        // Partner sends to a bracket-wrapped hashed-callsign destination that is neither "CQ"
+        // nor our own callsign. Shape (B) (Sec.2 of the dev-task, Captain-recorded 2026-08-27)
+        // normalises only inside the toUs comparison helper, never inside TryParseMessage's
+        // dest output — so the log line here must still show the raw bracketed token.
+        Send(Make("<Q2OTHER> " + PartnerCall + " +03"));
+        await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+
+        _recordingLogger.Messages.Should().Contain(m => m.Contains("<Q2OTHER>"),
+            "shape (B): the log line consumes the raw dest token, never a bracket-stripped one");
     }
 
     [Fact(DisplayName = "D-CALLER-020: Partner re-transmitting own CQ in WaitReport does not abort — retries then exhausts")]

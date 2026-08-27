@@ -903,6 +903,46 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
+    // ── F-001 R5 L2 site 5: bracket-wrapped own-callsign dest ────────────────
+    // dev-tasks/2026-08-27-1645-f001-r5-l1l2-developer-slice.md
+
+    [Fact(DisplayName = "F-001 R5 L2 site 5: bracket-wrapped own-callsign R+report from partner triggers TxRr73")]
+    public async Task WaitRr73_BracketWrappedOwnCallsignRogerReport_TriggersTxRr73()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.First,
+            RetryCount          = 3,
+            WatchdogMinutes     = 4,
+        };
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        await sut.StartAsync(stopCts.Token);
+
+        // CQ → WaitAnswer → TxReport → WaitRr73.
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+
+        Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(5));
+
+        // Partner's R+07 resolved our hashed callsign to "<Q1OFZ>" instead of the plain
+        // string — a correctly resolved own-call reference must now be recognised (L2), same
+        // as the plain-string form exercised by WaitRr73_RogerReportFromPartner_TriggersTxRr73.
+        Send(channel, Make($"<{OurCallsign}> {PartnerCall} R+07"));
+
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(5));
+
+        // KeyDownAsync: CQ + report + RR73 = 3 transmissions.
+        await ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
     // ── 5.9: Partner working another station aborts ───────────────────────────
 
     [Fact(DisplayName = "5.9: HandleWaitRr73Async — partner working another station aborts")]
@@ -1354,6 +1394,25 @@ public sealed class QsoCallerServiceTests
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
         await ptt.DisposeAsync();
+    }
+
+    // ── F-001 R5 L1 site 2: TryParseMessage 2-token form ─────────────────────
+    // dev-tasks/2026-08-27-1645-f001-r5-l1l2-developer-slice.md — mirrors
+    // QsoAnswererServiceTests.TryParseMessage_AcceptsTwoTokenForm; QsoCallerService carries an
+    // independent copy of TryParseMessage, and this is the mechanical check that a
+    // single-copy fix fails (AC-1): if only the QsoAnswererService copy were updated, this
+    // test would fail while that one passes.
+
+    [Fact(DisplayName = "F-001 R5 L1 site 2: TryParseMessage accepts the 2-token Type-4 form (QsoCallerService copy)")]
+    public void TryParseMessage_AcceptsTwoTokenForm()
+    {
+        var result = QsoCallerService.TryParseMessage(
+            $"<{OurCallsign}> RR73", out var dest, out var src, out var payload);
+
+        result.Should().BeTrue();
+        dest.Should().Be($"<{OurCallsign}>");
+        src.Should().Be("RR73");
+        payload.Should().Be(string.Empty);
     }
 
     // ── TryParseResponder portable-suffix tests (fix-caller-state-bugs) ───────

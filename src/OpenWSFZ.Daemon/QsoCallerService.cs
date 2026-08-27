@@ -934,8 +934,10 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             if (!TryParseMessage(r.Message, out var dest, out var src, out var payload))
                 continue;
 
+            // F-001 R5 L2: normalise a bracket-wrapped dest before comparing (Shape B,
+            // dev-tasks/2026-08-27-1645-f001-r5-l1l2-developer-slice.md Sec.2/4.3).
             bool fromPartner = src.Equals(partner, StringComparison.OrdinalIgnoreCase);
-            bool toUs        = dest.Equals(ours,   StringComparison.OrdinalIgnoreCase);
+            bool toUs        = QsoMessageParsing.DestMatchesOwnCallsign(dest, ours);
 
             if (fromPartner && toUs)
             {
@@ -1345,6 +1347,14 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     /// <summary>
     /// Returns <c>true</c> if <paramref name="msg"/> is a standard three-part FT8
     /// exchange message (<c>dest src payload</c>) and extracts the three parts.
+    ///
+    /// <para>
+    /// Also accepts the 2-token Type-4 shorthand (<c>dest src</c>, e.g. <c>&lt;PD2FZ&gt;
+    /// RR73</c>) — F-001 R5 L1, <c>dev-tasks/2026-08-27-1645-f001-r5-l1l2-developer-slice.md</c>
+    /// Action 4.2. This is an independent copy of <see cref="QsoAnswererService.TryParseMessage"/>
+    /// — both must move together, or a single-copy fix is a defect (AC-1).
+    /// <paramref name="payload"/> is <see cref="string.Empty"/> in that case.
+    /// </para>
     /// </summary>
     internal static bool TryParseMessage(
         string msg, out string dest, out string src, out string payload)
@@ -1357,6 +1367,15 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             payload = parts[2];
             return true;
         }
+
+        if (parts.Length == 2)
+        {
+            dest    = parts[0];
+            src     = parts[1];
+            payload = string.Empty;
+            return true;
+        }
+
         dest = src = payload = string.Empty;
         return false;
     }
@@ -1371,6 +1390,17 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     /// (<c>PD2FZ</c>), because some FT8 decoder implementations drop the portable suffix
     /// when packing the destination token.
     /// </summary>
+    /// <remarks>
+    /// 🔴 F-001 R5 Sec.3 (<c>dev-tasks/2026-08-27-1645-f001-r5-l1l2-developer-slice.md</c>):
+    /// deliberately NOT extended with L1 (2-token acceptance) or L2 (bracket-strip
+    /// normalisation). This is the one site with no <c>fromPartner</c> conjunction to contain
+    /// a false hash-fire (the unengaged <c>WaitAnswer</c> state — no partner bound yet), and
+    /// G3 measured a 71.02% CP-lower-bound false-fire rate for an own-hash-equivalent match
+    /// with no partner bound. Captain decision, recorded 2026-08-27: restrict this slice to
+    /// the partner-bound sites (1–5) only; site 6 waits for L3 (the real hash compare) plus a
+    /// mitigation in a second slice. This omission is deliberate, not an oversight — do not
+    /// "fix" it as a missed call site without a new recorded decision.
+    /// </remarks>
     internal static bool TryParseResponder(
         string msg, string ourCallsign, out string partner, out double freqHz,
         out string? grid, ILogger? logger = null)

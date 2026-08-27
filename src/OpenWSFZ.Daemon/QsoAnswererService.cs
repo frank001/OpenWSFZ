@@ -1074,9 +1074,11 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             if (!TryParseMessage(r.Message, out var dest, out var src, out var payload))
                 continue;
 
-            // A message from our partner to us?
+            // A message from our partner to us? F-001 R5 L2: dest may be a bracket-wrapped
+            // hashed-callsign resolution (e.g. "<PD2FZ>") — normalise before comparing
+            // (Shape B, dev-tasks/2026-08-27-1645-f001-r5-l1l2-developer-slice.md Sec.2/4.3).
             bool fromPartner = src.Equals(partner,  StringComparison.OrdinalIgnoreCase);
-            bool toUs        = dest.Equals(ours,    StringComparison.OrdinalIgnoreCase);
+            bool toUs        = QsoMessageParsing.DestMatchesOwnCallsign(dest, ours);
 
             if (fromPartner && toUs)
             {
@@ -1157,8 +1159,9 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             if (!TryParseMessage(r.Message, out var dest, out var src, out var payload))
                 continue;
 
+            // F-001 R5 L2: normalise a bracket-wrapped dest before comparing (Shape B).
             bool fromPartner = src.Equals(partner, StringComparison.OrdinalIgnoreCase);
-            bool toUs        = dest.Equals(ours,   StringComparison.OrdinalIgnoreCase);
+            bool toUs        = QsoMessageParsing.DestMatchesOwnCallsign(dest, ours);
 
             if (fromPartner && toUs &&
                 (payload.Equals("RR73", StringComparison.OrdinalIgnoreCase) ||
@@ -1627,6 +1630,15 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// <summary>
     /// Returns <c>true</c> if <paramref name="msg"/> is a standard three-part FT8
     /// exchange message (<c>dest src payload</c>) and extracts the three parts.
+    ///
+    /// <para>
+    /// Also accepts the 2-token Type-4 shorthand (<c>dest src</c>, e.g. <c>&lt;PD2FZ&gt;
+    /// RR73</c>) — F-001 R5 L1, <c>dev-tasks/2026-08-27-1645-f001-r5-l1l2-developer-slice.md</c>
+    /// Action 4.1. <paramref name="payload"/> is <see cref="string.Empty"/> in that case (matching
+    /// the R5 harness's own transcription); this never reaches a crashing
+    /// <c>payload.Equals(...)</c> downstream — those are all simple comparisons against
+    /// non-empty literals.
+    /// </para>
     /// </summary>
     internal static bool TryParseMessage(
         string msg, out string dest, out string src, out string payload)
@@ -1637,6 +1649,14 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             dest    = parts[0];
             src     = parts[1];
             payload = parts[2];
+            return true;
+        }
+
+        if (parts.Length == 2)
+        {
+            dest    = parts[0];
+            src     = parts[1];
+            payload = string.Empty;
             return true;
         }
 
