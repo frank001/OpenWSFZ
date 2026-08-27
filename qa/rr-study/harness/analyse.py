@@ -1197,12 +1197,23 @@ def _analyse_band_scene(df_matched: pd.DataFrame,
     df["true_freq_hz"] = pd.to_numeric(df["true_freq_hz"], errors="coerce")
     df["true_snr_db"]  = pd.to_numeric(df["true_snr_db"],  errors="coerce")
 
-    # Build station label map from scenario metadata (freq_hz → station letter)
-    station_map: dict[float, str] = {}
+    # Build station label map from scenario metadata ((freq_hz, snr_db) → station
+    # letter).
+    #
+    # Keyed on the PAIR, never on frequency alone: S8's capture pair (G/H) is
+    # deliberately CO-FREQUENCY (both 1500 Hz, 0 dB and -6 dB — that is the whole
+    # point of them).  A frequency-only key silently overwrote one station with
+    # the other, and the per-station breakdown below then pooled both into a
+    # single row carrying the surviving station's label, the *other* station's
+    # SNR (via .iloc[0]) and both stations' counts — so a 12-station scenario
+    # rendered as 11 rows and the capture pair, the one case the breakdown exists
+    # to resolve, was the one case it could not.  Found by Architect review
+    # 2026-08-27 (R2, qa/rr-study/2026-08-27-2043-architect-to-qa-review-*.md).
+    station_map: dict[tuple[float, float], str] = {}
     for sig in (scen_meta or {}).get("signals", []):
         try:
-            station_map[float(sig["freq_hz"])] = sig.get("station", "?")
-        except (KeyError, ValueError):
+            station_map[(float(sig["freq_hz"]), float(sig["snr_db"]))] = sig.get("station", "?")
+        except (KeyError, ValueError, TypeError):
             pass
 
     # Overall decode rate per appraiser
@@ -1215,19 +1226,27 @@ def _analyse_band_scene(df_matched: pd.DataFrame,
         decoded[appr]  = int(sub["matched"].sum())
         overall[appr]  = 100.0 * decoded[appr] / injected[appr] if injected[appr] else float("nan")
 
-    # Per-station breakdown (unique freq_hz values)
-    freqs = sorted(df["true_freq_hz"].dropna().unique())
+    # Per-station breakdown (unique (freq_hz, snr_db) PAIRS — see station_map above).
+    # Ordered by frequency, then by descending SNR so a co-frequency capture pair
+    # lists the strong member first, matching the scenario's own signal order.
+    pairs = sorted(
+        set(
+            df[["true_freq_hz", "true_snr_db"]]
+            .dropna()
+            .itertuples(index=False, name=None)
+        ),
+        key=lambda p: (p[0], -p[1]),
+    )
     per_station: list[dict] = []
-    for freq in freqs:
+    for freq, snr in pairs:
+        sel = (df["true_freq_hz"] == freq) & (df["true_snr_db"] == snr)
         row: dict = {
-            "station":  station_map.get(freq, "?"),
+            "station":  station_map.get((freq, snr), "?"),
             "freq_hz":  int(freq),
-            "snr_db":   df[df["true_freq_hz"] == freq]["true_snr_db"].dropna().iloc[0]
-                        if not df[df["true_freq_hz"] == freq]["true_snr_db"].dropna().empty
-                        else float("nan"),
+            "snr_db":   snr,
         }
         for appr in APPRAISERS:
-            sub = df[(df["true_freq_hz"] == freq) & (df["appraiser"] == appr)]
+            sub = df[sel & (df["appraiser"] == appr)]
             row[appr] = (int(sub["matched"].sum()), len(sub))
         per_station.append(row)
 
@@ -1877,7 +1896,15 @@ def _write_report(
             "",
             "| Metric | Value | Verdict |",
             "|---|---|---|",
-            f"| %Tolerance (GR&R) | {_fmt_num(metrics['pct_tolerance'])}% | {_verdict_grr(metrics['pct_contribution_grr'])} |",
+            # The §10 gate is %Contribution, so %Contribution is the row that
+            # carries the verdict.  %Tolerance and %Study Var are reported for
+            # reference with an explicit "—", never beside a verdict computed
+            # from a different number: this row previously printed the
+            # %Tolerance VALUE next to the %CONTRIBUTION VERDICT, so S3 rendered
+            # as "89.79% | PASS" — a figure AIAG would call unacceptable sitting
+            # next to the word PASS.  Architect review 2026-08-27 (R4).
+            f"| %Contribution (GR&R) | {_fmt_num(metrics['pct_contribution_grr'])}% | {_verdict_grr(metrics['pct_contribution_grr'])} |",
+            f"| %Tolerance (GR&R) | {_fmt_num(metrics['pct_tolerance'])}% | — |",
             f"| %Study Var (GR&R) | {_fmt_num(metrics['pct_study_var_grr'])}% | — |",
             f"| ndc | {metrics['ndc']} | {_verdict_ndc(metrics['ndc'])} |",
             "",

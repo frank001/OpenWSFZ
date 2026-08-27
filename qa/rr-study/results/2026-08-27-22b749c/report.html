@@ -345,8 +345,23 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 <td>Baseline compared against</td>
 <td><code>2026-08-22-f5dec23</code> (<code>results/2026-08-22-f5dec23/report.md</code>) — the last full S1–S8 sweep</td>
 </tr>
+<tr>
+<td>Revision</td>
+<td><strong>Rev 2, 2026-08-27 20:43Z</strong> — corrected per Architect review <code>dee9d90</code> (see banner below)</td>
+</tr>
 </tbody>
 </table>
+<blockquote>
+<p>🔴 <strong>Rev 2 — this report was corrected after Architect review.</strong> Overall verdict <strong>PASS is
+unchanged</strong>; all three ratified §10 gates were independently re-derived from the matched CSVs
+and confirmed. Four corrections were applied, each marked in place:
+<strong>(R1)</strong> the S4/S5 pooled-κ "three consecutive declines" finding is <strong>WITHDRAWN</strong> — confounded
+by R&amp;R-009's N change; <strong>(R2)</strong> the S8 per-station table rendered 11 rows for a 12-station
+scenario (co-frequency pair G/H collapsed) — harness fixed, table and PNG regenerated;
+<strong>(R3)</strong> the Station F recommendation was <strong>stale</strong> — F-NBR-A already ran it on 2026-08-23;
+<strong>(R4)</strong> the Study Metrics tables printed the %Tolerance value beside a verdict computed from
+%Contribution. Review: <code>qa/rr-study/2026-08-27-2043-architect-to-qa-review-s1s8-sweep-22b749c.md</code>.</p>
+</blockquote>
 <hr />
 <h2 id="section-1-study-hypothesis">Section 1 — Study Hypothesis</h2>
 <h3 id="purpose">Purpose</h3>
@@ -392,10 +407,15 @@ provenance, both process/build-side, neither a decoder-semantics change:</p>
   does not by itself rule out an intermittent defect. See Section 5.</li>
 <li><strong>H₀-C (S7/S8 co-channel recovery):</strong> consistent with <code>f5dec23</code>, allowing for ordinary seed
   variation. <strong>Holds</strong> — see Section 5.</li>
-<li><strong>H₀-D (S4/S5 pooled kappa, advisory):</strong> stable, not trending. <strong>Rejected, watch-item opened</strong> —
-  OpenWSFZ-vs-truth kappa has now declined for three consecutive full sweeps (0.687 → 0.625 →
-  0.588); see Section 5. Still advisory only, pending Captain ratification of the pooled method
-  (STUDY-SPEC §9.3).</li>
+<li><strong>H₀-D (S4/S5 pooled kappa, advisory):</strong> stable, not trending. 🔴 <strong>NOT EVALUABLE — the
+  rejection originally recorded here is WITHDRAWN</strong> (Architect review 2026-08-27 20:43Z, R1).
+  This report initially rejected H₀-D on a "three consecutive declines" reading
+  (0.687 → 0.625 → 0.588). That series is confounded: the pooled κ population <em>contains the S5
+  negatives</em>, which R&amp;R-009 cut from 120 to 60 <strong>in this run</strong>, and those negatives are all
+  correctly classified, so removing 60 of them lowers κ mechanically with no behavioural change.
+  Like-for-like on 60 negatives the series is <strong>0.596 → 0.516 → 0.588</strong> — a dip and a recovery,
+  not a decline. See Section 5. Still advisory only, pending Captain ratification of the pooled
+  method (STUDY-SPEC §9.3).</li>
 </ul>
 <hr />
 <h2 id="s1-reported_snr_db">S1 — reported_snr_db</h2>
@@ -447,9 +467,14 @@ provenance, both process/build-side, neither a decoder-semantics change:</p>
 </thead>
 <tbody>
 <tr>
+<td>%Contribution (GR&amp;R)</td>
+<td>0.34%</td>
+<td>PASS</td>
+</tr>
+<tr>
 <td>%Tolerance (GR&amp;R)</td>
 <td>31.62%</td>
-<td>PASS</td>
+<td>—</td>
 </tr>
 <tr>
 <td>%Study Var (GR&amp;R)</td>
@@ -545,9 +570,14 @@ provenance, both process/build-side, neither a decoder-semantics change:</p>
 </thead>
 <tbody>
 <tr>
+<td>%Contribution (GR&amp;R)</td>
+<td>0.00%</td>
+<td>PASS</td>
+</tr>
+<tr>
 <td>%Tolerance (GR&amp;R)</td>
 <td>56.83%</td>
-<td>PASS</td>
+<td>—</td>
 </tr>
 <tr>
 <td>%Study Var (GR&amp;R)</td>
@@ -611,9 +641,14 @@ provenance, both process/build-side, neither a decoder-semantics change:</p>
 </thead>
 <tbody>
 <tr>
+<td>%Contribution (GR&amp;R)</td>
+<td>0.43%</td>
+<td>PASS</td>
+</tr>
+<tr>
 <td>%Tolerance (GR&amp;R)</td>
 <td>89.79%</td>
-<td>PASS</td>
+<td>—</td>
 </tr>
 <tr>
 <td>%Study Var (GR&amp;R)</td>
@@ -1177,11 +1212,18 @@ provenance, both process/build-side, neither a decoder-semantics change:</p>
 <td>0/5</td>
 </tr>
 <tr>
-<td>H</td>
+<td>G</td>
 <td>1500</td>
 <td>0.00</td>
-<td>8/10</td>
-<td>10/10</td>
+<td>5/5</td>
+<td>5/5</td>
+</tr>
+<tr>
+<td>H</td>
+<td>1500</td>
+<td>-6.00</td>
+<td><strong>3/5</strong></td>
+<td><strong>5/5</strong></td>
 </tr>
 <tr>
 <td>I</td>
@@ -1213,6 +1255,21 @@ provenance, both process/build-side, neither a decoder-semantics change:</p>
 </tr>
 </tbody>
 </table>
+<blockquote>
+<p><strong>Corrected 2026-08-27 20:43Z (Architect review R2).</strong> This table previously rendered
+<strong>11 rows for a 12-station scenario</strong>: <code>analyse.py</code> keyed its station map on frequency
+alone, so the co-frequency capture pair <strong>G/H (both 1500 Hz)</strong> collapsed into a single
+row carrying H's label, G's SNR and both stations' pooled counts (<code>| H | 1500 | 0.00 |
+8/10 | 10/10 |</code>). The harness is fixed (pairs keyed on <code>(freq_hz, snr_db)</code>) and this
+table and its PNG are regenerated. <strong>The overall S8 rates above are unchanged</strong> — they
+were always computed over all rows and were never affected.</p>
+<p><strong>What the collapsed row was hiding:</strong> WSJT-X's only two S8 misses are both on <strong>H, the
+weak (−6 dB) member of the capture pair, where OpenWSFZ scores 5/5</strong> — the one place in
+S8 where OpenWSFZ outperforms the reference decoder. Note the apparent tension with S7's
+capture family (OpenWSFZ 25% on weak capture signals): H is <em>exactly</em> co-frequency
+(ΔF = 0 Hz), whereas S7's failing capture parts sit at ΔF = 7–11 Hz. See the review's
+§6.2 — that contrast is now a live mechanism lead, not a discrepancy.</p>
+</blockquote>
 <p><img alt="S8 band scene" src="S8_band_scene.png" /></p>
 <h2 id="summary">Summary</h2>
 <table>
@@ -1368,8 +1425,8 @@ ratification per STUDY-SPEC §9.3 — unchanged in status from every prior sweep
 <td>Kappa vs truth (WSJT-X / OpenWSFZ)</td>
 <td>0.632 / 0.625</td>
 <td>0.568 / 0.588</td>
-<td>both down</td>
-<td>Third consecutive decline — see finding below</td>
+<td><strong>not comparable</strong></td>
+<td>🔴 R&amp;R-009 changed the κ population (120→60 negatives). Like-for-like: 0.539→0.568 and 0.516→0.588, i.e. <strong>both UP</strong>. See the withdrawn finding below</td>
 </tr>
 <tr>
 <td>Kappa between appraisers</td>
@@ -1425,19 +1482,89 @@ of its FP events — i.e. this run's 0/60 is a genuine improvement over the equi
 time, not an artefact of the smaller default N. One clean rerun is consistent with "ordinary tail
 variance," but does not by itself rule out an intermittent defect recurring under different seeds —
 recommend treating this as resolved-for-now rather than closed.</p>
+<p><strong>Strength of the improvement (added 2026-08-27 20:43Z, Architect review §1).</strong> On the
+like-for-like basis above, 4/60 → 0/60 is <strong>Fisher exact p = 0.119 two-sided (0.059 one-sided)</strong>.
+The recovery is real but is <em>not</em> statistically strong on its own, which is precisely why the
+"resolved-for-now, not closed" posture above is the correct one and should not be upgraded on
+this evidence.</p>
 <h3 id="finding-s8-station-f-now-five-consecutive-full-sweeps-at-05-for-openwsfz">Finding — S8 station F: now FIVE consecutive full sweeps at 0/5 for OpenWSFZ</h3>
 <p>Station F (1162 Hz, −8 dB, 12 Hz from its near-collision partner E) has scored 0/5 for OpenWSFZ on
 every one of the last five full S1–S8 sweeps (2026-08-05, 08-15, 08-21, 08-22, and this run —
 different trial seeds each time, same station geometry), while E scores 5/5 every time and WSJT-X
 decodes F 5/5 every time. This is now a well-established, cheaply-reproducible pattern independent
-of seed — recommend it actually get the targeted look that has been queued and deferred across the
-last two reports.</p>
-<h3 id="finding-s4s5-pooled-kappa-advisory-third-consecutive-decline">Finding — S4/S5 pooled kappa (advisory): third consecutive decline</h3>
-<p>OpenWSFZ-vs-truth kappa: 0.687 (08-21) → 0.625 (08-22) → <strong>0.588 (this run)</strong>. WSJT-X-vs-truth:
-0.632 (08-22) → <strong>0.568</strong> (this run). Both remain advisory-only pending Captain ratification of the
-pooled S4/S5 method (STUDY-SPEC §9.3), and the FAIL/MARGINAL bands are unchanged — but three sweeps
-of monotonic decline on the OpenWSFZ figure specifically is a real pattern, not obviously noise.
-Recommend flagging for attention once the method itself is ratified; not gate-blocking today.</p>
+of seed.</p>
+<p>🔴 <strong>Corrected 2026-08-27 20:43Z (Architect review R3, HK-018).</strong> This finding originally
+recommended that Station F "actually get the targeted look that has been queued and deferred
+across the last two reports." <strong>It already got one, four days before this sweep ran</strong> —
+<code>qa/rr-study/2026-08-23-1214-qa-to-architect-f-nbr-a-results.md</code> (F-NBR-A), which this report
+failed to consult (it belongs to the D-001 thread, not this one — exactly the situation HK-018
+exists for). F-NBR-A established:</p>
+<ul>
+<li><strong>C1 — cause, not correlation.</strong> Removing station E, nothing else changed, flips F from
+  <strong>0/100 to 100/100</strong>. E is necessary and sufficient in this scene.</li>
+<li><strong>C2 — footprint.</strong> Complete exclusion through 3 tone bins (18.75 Hz), sharp transition at 4
+  bins (25 Hz, 27%), resolved by 5 bins (31.25 Hz, 98%).</li>
+<li><strong>C3 — level dependence.</strong> A ~3 dB knife-edge: F recovers 100/100 the instant it is 3 dB
+  stronger than E, 0/100 when merely equal.</li>
+<li><strong>Gate A fired A2</strong> — the locus is <strong>extraction</strong>, not candidate selection.</li>
+</ul>
+<p>The open question is therefore no longer "why does F fail". It is C2's residual — whether the
+3–5 bin footprint is a tile boundary or a comb/leakage effect — <strong>and then a fix</strong>. See the
+Architect review's §6 for how this connects to the S7 miss distribution.</p>
+<h3 id="finding-s4s5-pooled-kappa-withdrawn-the-decline-was-an-artefact-of-the-n-change">Finding — S4/S5 pooled kappa: 🔴 WITHDRAWN, the decline was an artefact of the N change</h3>
+<p><strong>This finding is withdrawn in full</strong> (Architect review 2026-08-27 20:43Z, R1). As originally
+written it read: OpenWSFZ-vs-truth κ 0.687 (08-21) → 0.625 (08-22) → 0.588 (this run), "three
+sweeps of monotonic decline … a real pattern, not obviously noise."</p>
+<p>It is not. The pooled κ population is <em>S4 positives + S5 negatives</em>, and <strong>R&amp;R-009 cut the S5
+negatives from 120 to 60 in this run</strong> — the same N change this report caveats carefully for the
+S5 gate two findings above, and then failed to carry into a metric computed over the same slots.
+Those negatives are all correctly classified (specificity 100%), and easy true-negatives inflate
+κ, so dropping 60 of them lowers κ mechanically with no change in decoder behaviour.</p>
+<p>Recomputed with all three sweeps on the same 60-negative basis:</p>
+<table>
+<thead>
+<tr>
+<th>Sweep</th>
+<th>κ as reported</th>
+<th>κ like-for-like (60 neg)</th>
+<th>95% CI (like-for-like)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>08-21</td>
+<td>0.687</td>
+<td>0.596</td>
+<td>[0.49, 0.71]</td>
+</tr>
+<tr>
+<td>08-22</td>
+<td>0.625</td>
+<td>0.516</td>
+<td>[0.40, 0.64]</td>
+</tr>
+<tr>
+<td>08-27 (this run)</td>
+<td>0.588</td>
+<td><strong>0.588</strong></td>
+<td>[0.48, 0.70]</td>
+</tr>
+</tbody>
+</table>
+<p>Not a decline — a dip at 08-22, driven by that sweep's 4 FP events, and a <strong>recovery to the 08-21
+level</strong>. WSJT-X behaves the same way like-for-like (0.558 → 0.539 → 0.568, flat).</p>
+<p><strong>Robustness.</strong> Restricting to S5 parts <strong>2+3</strong> instead of 0+1 reproduces the same drop
+(08-21 0.687 → 0.609; 08-22 0.625 → 0.568), so the effect tracks the sample size, not which parts
+were kept.</p>
+<p><strong>Second, independent reason the original finding fails.</strong> Even uncorrected, the reported CIs
+overlap heavily — this report prints [0.48, 0.69] for its own figure and compared point estimates
+across sweeps without testing whether the differences clear their own intervals. They do not.
+There was no detectable trend to reject H₀-D on, before the confound is even considered.</p>
+<p>⇒ <strong>H₀-D is NOT EVALUABLE across the R&amp;R-009 boundary.</strong> 🔴 <strong>For the Captain:</strong> pooled κ needs a
+<strong>fixed negative count</strong> ratified, or it stays non-comparable to all eleven prior sweeps.</p>
+<p>⚠️ <strong>Do not lose the number κ was masking in both directions:</strong> OpenWSFZ's S4 <strong>recovery is
+66.67%</strong> (72 TP / 36 FN). That figure is unaffected by any of the above and is the one worth
+attention.</p>
 <h3 id="process-defect-and-fix-recommended-this-runs-own-harness-incident">Process defect and fix recommended (this run's own harness incident)</h3>
 <p><code>harness/run_scenario.py</code> derives its output directory (<code>make_run_dir()</code> in <code>harness/common.py</code>)
 from the <strong>live</strong> <code>git rev-parse --short HEAD</code> independently on every single scenario invocation,
@@ -1460,11 +1587,16 @@ of raw message text before writing this section.</p>
 <ol>
 <li><strong>Fix the run-directory identity defect in <code>run_scenario.py</code>/<code>run_study.py</code></strong> (above) — cheap,
    qa-tooling only, prevents a repeat regardless of QA discipline.</li>
-<li><strong>Station F (S8)</strong> — now five-for-five reproducible zero for OpenWSFZ. Recommend this actually
-   gets the targeted look queued twice already; cheap to reproduce, independent of seed.</li>
-<li><strong>S4/S5 pooled kappa (advisory)</strong> — three-sweep decline on the OpenWSFZ figure. Not
-   gate-blocking (method still unratified), but worth a specific look once STUDY-SPEC §9.3 is
-   settled.</li>
+<li>🔴 <strong>Station F (S8) — REWRITTEN (R3).</strong> The original recommendation asked for a "targeted
+   look"; F-NBR-A already delivered one on 2026-08-23 (E causally necessary and sufficient,
+   exclusion zone ≤ 18.75 Hz, ~3 dB knife-edge, locus = extraction). The live question is C2's
+   residual (tile vs comb/leakage) <strong>and a fix</strong>, not another look. Per the Architect review §6,
+   this defect accounts for <strong>all five</strong> of OpenWSFZ's S8 misses and is the same zone that
+   contains <strong>all 46</strong> of its S7 misses (ΔF 5–19 Hz).</li>
+<li>🔴 <strong>S4/S5 pooled kappa — WITHDRAWN (R1).</strong> There is no decline to act on; the series was
+   confounded by R&amp;R-009's N change and the CIs overlapped in any case. What the Captain owes
+   instead is a ruling on a <strong>fixed negative count</strong> for the pooled population, without which κ
+   remains non-comparable across the R&amp;R-009 boundary.</li>
 <li><strong>QA does not commit, merge, or push the result directory from this run</strong> without the Captain's
    go-ahead — awaiting direction, same standing rule as every prior sweep, doubly so this time
    given the mid-run incident above.</li>
