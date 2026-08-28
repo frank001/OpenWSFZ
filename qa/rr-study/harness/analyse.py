@@ -2302,9 +2302,22 @@ def main() -> None:
             print(f"  FAIL — {f}")
 
     # --- Trend CSV ---
-    _append_trend(_QA_ROOT, run_dir, git_sha, continuous_results,
-                  kappa_results, fp_results, bias_results)
-    print(f"Trend row appended: {_QA_ROOT / 'trend.csv'}")
+    # Item 2, 2026-08-27 Architect work order: a --scenario-filtered run is by
+    # definition not a full battery, so it must not append a row to the
+    # historical trend series -- silently appending from an ad-hoc/partial
+    # regeneration corrupts a series everyone else reads (observed this
+    # session: an S8-only regen into a scratch directory dirtied the real
+    # trend.csv; caught and reverted by hand only because someone looked).
+    # Safe-by-default: suppression is automatic, not an opt-in flag.
+    if scenario_filter:
+        print(
+            f"Trend row NOT appended -- this was a --scenario-filtered run "
+            f"({', '.join(scenario_filter)}), not a full battery."
+        )
+    else:
+        _append_trend(_QA_ROOT, run_dir, git_sha, continuous_results,
+                      kappa_results, fp_results, bias_results)
+        print(f"Trend row appended: {_QA_ROOT / 'trend.csv'}")
 
 
 if __name__ == "__main__":

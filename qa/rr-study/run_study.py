@@ -19,13 +19,20 @@ import sys
 import time
 from pathlib import Path
 
+# Resolve qa/rr-study as a package root so ``harness`` is importable, same
+# convention as harness/run_scenario.py.
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+
+from harness.common import make_run_dir  # noqa: E402
+
 # ── Timing ─────────────────────────────────────────────────────────────────
 # Pause after each scenario to let the final cycle's decodes propagate into
 # ALL.TXT before the log-collection step reads it.
 _POST_SCENARIO_SETTLE_S: int = 5
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-_HERE = Path(__file__).resolve().parent
 _VENV_PYTHON = _HERE / ".venv" / "Scripts" / "python.exe"
 _SCENARIOS = _HERE / "scenarios"
 _RESULTS = _HERE / "results"
@@ -92,18 +99,6 @@ def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return result
 
 
-def _find_run_dir() -> Path:
-    """Return the most-recently-modified run directory in results/."""
-    dirs = sorted(
-        (d for d in _RESULTS.iterdir() if d.is_dir()),
-        key=lambda d: d.stat().st_mtime,
-        reverse=True,
-    )
-    if not dirs:
-        sys.exit("ERROR: no run directory found after scenario run.")
-    return dirs[0]
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", default="CABLE Input",
@@ -165,6 +160,18 @@ def main() -> None:
             f"Prefer --scenarios <single-id> --parts <indices> for targeted work.\n"
         )
 
+    # Pin the run directory ONCE, before any scenario runs, and pass it
+    # explicitly to every harness/run_scenario.py invocation below (Item 1,
+    # 2026-08-27 Architect work order). run_scenario.py otherwise resolves
+    # its own output directory fresh from the *live* git HEAD SHA on every
+    # invocation -- a commit landing mid-battery (however unrelated to src/)
+    # silently splits the run's truth data across two directories and
+    # crashes the matcher on whichever scenario falls on the wrong side of
+    # the split. This bit a real run on 2026-08-27; see that run's report.md
+    # Section 1 and qa/rr-study/2026-08-27-2141-architect-to-qa-outstanding-
+    # work-order.md Item 1.
+    run_dir = make_run_dir(_RESULTS)
+
     print("=" * 70)
     print("OpenWSFZ R&R Study -- live run")
     print("=" * 70)
@@ -172,6 +179,7 @@ def main() -> None:
     print(f"  OpenWSFZ ALL.TXT: {OWSFZ_ALL_TXT}")
     print(f"  Device          : {args.device}")
     print(f"  Scenarios       : {', '.join(scenario_ids)}")
+    print(f"  Run directory   : {run_dir.relative_to(_HERE)}  (pinned for the whole battery)")
     if args.parts:
         print(f"  Parts filter    : {args.parts}")
     elif scenario_part_overrides:
@@ -196,7 +204,11 @@ def main() -> None:
     for sid, sf in zip(scenario_ids, scenario_files):
         if not sf.exists():
             sys.exit(f"ERROR: scenario file not found: {sf}")
-        run_args = ["harness/run_scenario.py", str(sf), "--device", args.device]
+        run_args = [
+            "harness/run_scenario.py", str(sf),
+            "--device", args.device,
+            "--run-dir", str(run_dir),
+        ]
         parts_for_this = args.parts or scenario_part_overrides.get(sid)
         if parts_for_this:
             run_args += ["--parts", parts_for_this]
@@ -204,8 +216,6 @@ def main() -> None:
         print(f"  [OK] {sf.name} complete\n", flush=True)
         time.sleep(_POST_SCENARIO_SETTLE_S)
 
-    # ── Step 2: Locate run directory ───────────────────────────────────────
-    run_dir = _find_run_dir()
     print(f"\nRun directory: {run_dir.relative_to(_HERE)}")
 
     # ── Step 3: Collect log files ──────────────────────────────────────────
