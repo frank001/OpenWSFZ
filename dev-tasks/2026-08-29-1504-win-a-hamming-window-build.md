@@ -82,10 +82,18 @@ Lines 27-34 currently read (each line prefixed `// `):
 //     return a0 - a1 * x1;
 // }
 ```
-Strip exactly the `// ` (or `//` on the blank line) from each of those 8 lines and nothing else —
-no reformatting, no reflow, no changed constants. Result must be byte-identical to the commented
-form with only the comment markers removed. This is the upstream Kārlis Goba MIT-licensed function,
-untouched in substance (§1.6 of the spec — no WSJT-X source consulted, none needed).
+Strip exactly the `// ` from each of those **7 commented lines** — line 31 (the blank line between
+`const float a1 = 1 - a0;` and `float x1 = ...`) is byte-verified (`od -c`, Architect's ruling §0)
+to be a **true empty line, no `//`, no trailing whitespace**. It is not part of the comment and
+carries nothing to strip. 🔴 **Leave it completely untouched — do not delete it, collapse it, or
+"tidy" the spacing.** It is deliberately load-bearing: it is what makes the corrected ROW 0c
+predicate's line-count check (9 removed + 9 added) land exactly right, and removing or altering it
+will VOID ROW 0c on a build that is otherwise substantively correct — which is the intended,
+correct behaviour of that check, not a false negative to work around. Every other line (7 of the
+8) gets `// ` stripped and nothing else — no reformatting, no reflow, no changed constants. Result
+must be byte-identical to the commented form with only those 7 comment markers removed. This is
+the upstream Kārlis Goba MIT-licensed function, untouched in substance (§1.6 of the spec — no
+WSJT-X source consulted, none needed).
 
 ### 1.2 Swap the active window line, keep the file's own convention
 
