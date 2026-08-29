@@ -113,7 +113,23 @@ uncommenting one of them as originally written would silently drop FFT normalisa
 standing-prohibited input-scaling change. Do not copy the commented line verbatim; write the
 `fft_norm`-preserving form above.
 
-### 1.3 🔴 Report to the Architect, don't resolve unilaterally: ROW 0c's literal wording
+### 1.3a ✅ RULED, 2026-08-29 15:13Z — read this before §1.3 below
+
+The Architect has ruled on this (`qa/rr-study/2026-08-29-1513-architect-to-qa-ruling-win-a-row-0c-wording.md`,
+commit `3edca62`): the "exactly one changed line" text was the Architect's own drafting error, not
+a QA misreading — confirmed independently against `monitor.c` this session. ROW 0c is replaced,
+**in effect**, by the `row_0c_ok(diff_files, monitor_diff_lines)` predicate in that ruling's §2 —
+spec `fb25010` itself is left untouched, per this project's convention (same as `dee9d90`). It
+checks four things mechanically: file scope (only `monitor.c`), exact per-line content including
+whitespace, exact line count (9 removed + 9 added = 18, catching a duplicate/reorder a bare
+set-equality check would miss), and the `fft_norm` trap (the removed/added sets are keyed so a
+build that uncomments the line verbatim without inserting `fft_norm *` fails automatically). **The
+edit prescribed in §1.1/§1.2 below already produces exactly this diff — nothing to change in what
+you build**, only in what QA checks it against when arming. §1.3 immediately below is kept for
+context (why the original wording was wrong) but is now superseded by the ruling for the actual
+check QA will run.
+
+### 1.3 🔴 Report to the Architect, don't resolve unilaterally: ROW 0c's literal wording (SUPERSEDED — see §1.3a)
 
 With §1.1+§1.2 applied, `git diff` of this file against `main`@`2ae939c` will show the 8
 uncommented `hamming_i` lines **plus** the window-line swap — more than the "exactly one changed
@@ -235,10 +251,13 @@ export list).
 These are what QA will check when arming the gate — reproduce them yourself before handing back,
 so a problem is caught here rather than during arming:
 
-- **AC-1** — `git diff` of `monitor.c` shows exactly: the 8 uncommented `hamming_i` lines
-  (comment markers only removed, nothing else changed) + the window-line swap in §1.2 (comment
-  markers moved, `fft_norm` preserved character-for-character on the active line). No other line
-  in the file differs from `main`@`2ae939c`.
+- **AC-1** — `row_0c_ok(diff_files, monitor_diff_lines)` from the ruling doc
+  (`qa/rr-study/2026-08-29-1513-architect-to-qa-ruling-win-a-row-0c-wording.md` §2) returns
+  `True` against your diff: only `monitor.c` touched, the 7 uncommented `hamming_i` lines
+  (comment markers only removed, blank line 31 untouched) + the window-line swap in §1.2 (`fft_norm`
+  preserved character-for-character on the active line), exactly 9 lines removed and 9 added, no
+  other line in the file differs from `main`@`2ae939c`. Run it yourself before handing back rather
+  than leaving it for QA to discover a mismatch at arming time.
 - **AC-2** — `FT8_SHIM_VERSION` (ft8_shim.h) and `ExpectedShimVersion` (Ft8LibInterop.cs) both read
   `20260047`; no other file references the old `20260046` in a way that now mismatches.
 - **AC-3** — `dump_window_baseline.exe` and `dump_window_treatment.exe` (§2) both run and print 8
