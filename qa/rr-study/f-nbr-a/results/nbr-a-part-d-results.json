@@ -1,0 +1,38 @@
+{
+  "d1_hits": {
+    "V1": 0,
+    "V2": 0,
+    "V3": 0
+  },
+  "d1_mean_r": 0.0,
+  "d1_report": {
+    "V1": "0/100, UB 3%",
+    "V2": "0/100, UB 3%",
+    "V3": "0/100, UB 3%"
+  },
+  "d2_mean_r": 1.0,
+  "d2_pair1_hits": {
+    "V1": 100,
+    "V2": 100
+  },
+  "d2_pair2_hits": {
+    "V1": 100,
+    "V3": 100
+  },
+  "d3_hits": {
+    "W1": 100,
+    "W2": 100,
+    "W3": 100
+  },
+  "d3_mean_r": 1.0,
+  "d3_report": {
+    "W1": "100/100",
+    "W2": "100/100",
+    "W3": "100/100"
+  },
+  "dll_sha256": "bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f",
+  "dll_shim_version": 20260046,
+  "reading": "density, not count: P2 belongs to the near-neighbour family",
+  "run_finished_utc": "2026-08-29T21:05:40Z",
+  "run_note": "Run independently of the sweep after ROW 0c VOID -- Part D is explicitly non-gating and uses fixed 0dB absolute levels, not L*, so it has no dependency on ROW 0c calibration succeeding."
+}
