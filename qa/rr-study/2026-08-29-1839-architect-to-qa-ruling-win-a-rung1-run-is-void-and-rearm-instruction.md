@@ -119,7 +119,7 @@ name in a report becomes the citation everyone repeats later.
 | **V2** | 🔴 **ROW 0b was never run**, so the gate's cost limb is uncalibrated. | No repeat baseline leg exists to compare. | §4 ROW 0b requires the baseline leg run **twice** with `abs(c_hit_1 − c_hit_2) <= 4`. §6.1 derives `c_hit >= 165` **from that measurement** — without it the benefit bar has no derivation. |
 | **V3** | 🔴 **ROW 0e was never run.** No artefact exists anywhere in the tree. | Searched `qa/rr-study/` and the run dir; only the spec itself mentions sidelobes. | §4 ROW 0e is a **VOID** row. §6.2 makes ROW 4's consequence explicitly conditional: "*given 0e confirmed the leakage itself moved*". Without 0e a null cannot be distinguished from an untested premise — the exact failure 0e exists to prevent (HK-021(q)). |
 | **V4** | 🔴 **The instrument changed between the two things being compared.** | `git diff --stat qa/rr-study/harness/run_scenario.py` → **182 insertions, 77 deletions**, uncommitted, first live use in this very run. | §3 pins "the SAME harness". HK-021(p) — pre-register the build; the harness is part of the build. |
-| **V5** | ⚠️ **Scope**: the full S1–S8 battery was run. | `report.md` Sections for S1, S1b, S2, S3, S4, S8. | Captain's authorisation, recorded verbatim at spec head, item 2: "**Scope: S7 + S5 only.** Not the full S1–S8 battery … **no other scenario is to be run on either leg.**" |
+| **V5** | ⚠️ **Scope**: the full S1–S8 battery was run. 🔴 **AMENDED 18:47Z — see §7. The Captain confirms he directed this. V5 is WITHDRAWN as a fault and reclassified as the origin of V4; it is no longer counted as one of the void causes.** | `report.md` Sections for S1, S1b, S2, S3, S4, S8. | Captain's authorisation, recorded verbatim at spec head, item 2: "**Scope: S7 + S5 only.** Not the full S1–S8 battery … **no other scenario is to be run on either leg.**" |
 
 🔴 **V4 and V5 are causally linked, and that is the finding QA nearly reached.** S3's 24-trial,
 ~360 s batched buffer — the thing that broke the timing — **exists only because S1–S8 was run.**
@@ -293,3 +293,86 @@ a fix now; recording it so the guard is not mistaken for broader cover than it h
 - 🛑 Per HK-014 this ruling is committed locally and **not pushed**. Per HK-025, if any ROW 0 row in
   §4.4 reads as diagnostic rather than verdict-changing, QA may refuse the run on its own authority
   and does not need my agreement.
+
+---
+
+## 7. ADDENDUM — 2026-08-29 18:47Z: the Captain answered §2's question, and V5 is withdrawn
+
+**Captain, verbatim: "I did direct a full S1-S8 sweep."**
+
+### 7.1 What this changes
+
+✅ **V5 is WITHDRAWN as a fault. QA did not breach scope — QA followed a direct instruction from the
+Captain, who outranks a spec pin. The fault was in the record, and the record was mine to keep.**
+
+The void causes are therefore **four, not five: V1, V2, V3, V4** — and every one of them is
+structural. 🔴 **The verdict does not move.** V1 alone — no baseline leg — is fatal on its own, and
+V2 and V3 are independently fatal. A Captain-directed S1–S8 sweep run as **two legs in one session on
+an unchanged harness** would have been a perfectly valid arm: wasteful, but valid. Breadth is not
+what killed this run. **The missing baseline is.**
+
+⚠️ **V5's causal role survives its withdrawal as a fault.** S3's ~360 s batched buffer still exists
+only because S1–S8 ran, and that buffer is still what broke the timing. The causal chain in §2 stands
+exactly as written; what changes is that it originates in an **unrecorded scope amendment**, not in a
+QA error.
+
+### 7.2 🔴 My failure, stated plainly
+
+The Captain's direction was legitimate and needed no permission. What was missing is that it silently
+overrode a **pre-registered pin** — spec §3 and the Captain's own earlier authorisation item 2 — and
+nothing in the written record reconciled the two. My 16:03Z ruling closed with "**QA arms S7+S5 in
+ONE session against the two pins. No further Architect input needed before the run**", which left QA
+holding a spec that said S7+S5 and an instruction that said S1–S8, with no recorded way to reconcile
+them and an explicit signal that I was out of the loop.
+
+**That is an Architect record failure, not a QA judgement failure**, and §2's request for the
+Captain's read is now answered against me. I am recording it here rather than letting it sit as an
+open question in a table.
+
+### 7.3 The reclassification that follows, and it is better news than §0
+
+The run's identity was mis-stated, and correcting it recovers real value:
+
+| the run, read as… | status |
+|---|---|
+| **the `WIN-A` arm** (`report.md:21` — "this is the pre-registered treatment evaluation for the WIN-A arm") | 🔴 **VOID.** V1–V4. Unchanged by this addendum. |
+| **a full S1–S8 status sweep on the treatment branch** (what the Captain actually directed) | ⚠️ **Valid in kind, compromised in its numbers by V4 alone** — the first-live-use harness change. Its *qualitative* findings stand and are good. |
+
+🔴 **The most likely account of the whole episode, and I think it is the correct one: the Captain
+directed a status sweep; QA executed it faithfully; QA then labelled it "the pre-registered treatment
+evaluation for the WIN-A arm," which it was not and was never instructed to be.** The arm has not
+been attempted yet. That is a much smaller failure than a void arm, and it is a labelling failure at
+that — an important distinction, because *the run itself was not the wrong run to have performed.*
+
+⚠️ **This does NOT rescue the trend row (§4.5), and I want to be explicit about why**, since the
+reclassification would otherwise seem to. Even read purely as a status sweep, V4 stands: a 259-line
+first-live-use harness change, and a reference appraiser that missed its own pinned 210/215 by ten
+observations. Its absolute numbers are **not comparable to the rest of the series**, which is the
+entire purpose of a trend. **Pull the row.**
+
+### 7.4 The systemic fix I am proposing, for the Captain to ratify or reject
+
+This failure has a repeatable shape and no existing HK rule covers it. Every rule we have governs the
+Architect → QA → Developer chain; **none governs a direction entering that chain from the side.**
+
+> **Candidate HK-029 — a direction that changes a pre-registered value is recorded as an amendment
+> BEFORE the run.** Any instruction — including and especially the Captain's — that alters a pinned
+> scope, population, build, or instrument is written into the record as a dated amendment before
+> arming. Either QA or the Architect may record it; neither needs the other's agreement to do so.
+> A pre-registration that a verbal instruction can silently overwrite is not a pre-registration.
+> **Tell:** the run's own report has to explain why it differs from the spec. **Cost of the miss:**
+> the reader cannot tell an authorised change from a process failure — which is exactly the hour
+> that was spent here, and exactly the wrong conclusion I reached about QA in §2.
+
+🔴 **I recommend adopting it.** ⚠️ I am not adopting it unilaterally — HK rules are Captain-ratified,
+and a rule that constrains the Captain's own instructions is the last one an Architect should mint on
+his own authority.
+
+### 7.5 The one open question this leaves — re-arm scope
+
+Spec §3 pins the arm at S7+S5. The Captain's demonstrated preference is a full sweep. **These are now
+in open conflict and I will not guess which way to resolve it**, because it determines the run QA
+executes next. Put to the Captain in this session; my recommendation and its cost are recorded there.
+
+🛑 **Whichever scope is chosen, it is to be recorded as an amendment to this ruling before QA arms.**
+That is HK-029 applied to the very next decision, whether or not the rule is ratified.
