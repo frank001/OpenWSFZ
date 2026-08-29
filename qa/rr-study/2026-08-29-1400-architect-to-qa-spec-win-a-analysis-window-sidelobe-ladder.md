@@ -3,8 +3,15 @@
 **Author:** Architect → QA
 **Date (UTC, `date -u`, HK-017):** 2026-08-29 14:00:38Z
 **Type:** 🔴 **BUILD SPEC with a pre-registered gate.** Produces a D-001 finding in either direction.
-**Authorised by:** Captain, 2026-08-29, in this session.
 **Blocked until:** a Developer session produces the Rung-1 build (HK-011, HK-021(p) — see §7).
+
+**Captain's authorisation, 2026-08-29, recorded verbatim in effect:**
+
+1. ✅ **Developer build session APPROVED** — §7 may proceed; QA drafts the dev-task.
+2. ✅ **Scope: S7 + S5 only.** Not the full S1–S8 battery. §3's pins and §6.3's FP check already
+   reflect this; no other scenario is to be run on either leg.
+3. ✅ **Rung 2 (Blackman) stays behind a fresh pre-registration** — a ROW 3 verdict does not
+   auto-license it. §6.2 already states this and is unchanged.
 
 ---
 
