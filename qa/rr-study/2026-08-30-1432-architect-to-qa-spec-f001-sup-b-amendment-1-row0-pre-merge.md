@@ -325,6 +325,42 @@ under the expected name — QA to locate"*. **It is
 | 7 | Reading legs: `S-80M`, `S-20M` (corrected window), + ROW 0g per band | QA |
 | 8 | Report per spec Sec.9.3 | QA |
 
+### A8.1 Machine cost, measured — not estimated
+
+Three prior full replays of **the exact `BASE` binary** (`bc8efcf1…`, shim 20260046) are on disk at
+`artefacts/2026-08-25-g2a-remeasure-a/`: 4,971 cycles in **3,491.3 / 3,490.0 / 3,489.4 s** ⇒
+**0.702 s/cycle, with 1.9 s of spread across three runs (0.05%)** at 14.4 decodes/cycle.
+
+In-window cycle counts, counted off the WAV directories with this amendment's windows:
+
+| leg | corpus | cycles | at 0.702 s/cycle |
+|---|---|---|---|
+| pilot ×2 (`--n-files 100`) | `S-17M` | 200 | ~2 min |
+| ROW 0b `BASE` | `S-17M` | 1,856 | ~22 min |
+| ROW 0b `INST` *(= the `S-17M` reading leg)* | `S-17M` | 1,856 | ~22 min |
+| ROW 0e `INST` run 2 | `S-17M` | 1,856 | ~22 min |
+| reading | `S-80M` | 1,986 | ~23 min |
+| reading | `S-20M` (corrected 8 h window) | **1,920** *(= exactly 8 h / 15 s, contiguous)* | ~22 min |
+| | **total** | **9,674** | **≈ 1 h 53 min** |
+
+⚠️ **Treat this as ~1.5–2.5 h, not 1 h 53 min.** Decode time tracks **candidate count**, which tracks
+band occupancy, and the 0.702 s/cycle reference was measured on a **20m** corpus. `S-80M` should run
+**faster** (1,986 WAVs but only 1,210 cycles carry decodes — the daytime 80m dead band), `S-17M` and
+`S-20M` are comparable to the reference. **The step-4 pilot exists to replace this figure with a
+measured one before the full legs are committed to.** Output JSONs run ~3 MB per leg (~20 MB total,
+by scaling the 7.6 MB / 4,971-cycle reference) — storage is not a constraint, but they are
+NFR-021-bearing (Sec.A3.3).
+
+🔴 **What the ~2 h buys, stated plainly: a MEASUREMENT, not necessarily a VERDICT.** Spec Sec.7.1's
+power disclosure is unchanged — **`MARGINAL` is the modal outcome on both busy bands at this scale of
+`n`**, and resolving 40% to ±5pp needs ~700 displaying lookups per band. `SUP-B` is a **replay** arm
+over a **fixed** corpus, so no amount of machine time here changes `n`. **If it lands MARGINAL, that
+is reported as `MARGINAL, escalated` — it is not a failed run and it does not authorise a capture.**
+
+⚠️ **The machine time is not the long pole.** Extending the harness (Sec.A3.2), writing the **two
+non-shared** ROW 0b comparators (Sec.A5), the NFR-021 scan (Sec.A3.3) and the Sec.9.3 report are
+analyst time, and they exceed two hours.
+
 🛑 **Step 6 is a hard stop.** No push, no merge, **no `pre_merge_check.py`** (HK-006 — Captain's
 initiative only). ⚠️ **HK-025 is undiminished: QA may refuse any row on HK-021(k) grounds, naming the
 row and its evaluation, and stop — no partial run, no Architect agreement needed.** ⚠️ **If this
