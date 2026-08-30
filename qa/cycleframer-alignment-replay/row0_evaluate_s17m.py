@@ -1,17 +1,26 @@
 #!/usr/bin/env python3
-"""ROW 0: evaluate 0a, 0c, 0d-i, 0e mechanically against the S-17M full-corpus
-legs. 0b is delegated to row0b_means1_canonical_diff.py / row0b_means2_field_
-compare.py (kept separate deliberately -- see their own docstrings on why).
-0d-ii is a static source check, done by inspection, not here. 0f is
-qa/rr-study/nfr021_pre_merge_scan.py, run separately against the committed
-diff.
+"""ROW 0: evaluate 0a, 0c, 0c-ii, 0c-iii, 0d-i, 0e mechanically against the
+S-17M full-corpus legs. 0b is delegated to row0b_means1_canonical_diff.py /
+row0b_means2_field_compare.py (kept separate deliberately -- see their own
+docstrings on why). 0d-ii is a static source check, done by inspection, not
+here. 0f is qa/rr-study/nfr021_pre_merge_scan.py, run separately against the
+committed diff.
+
+Amendment 2 (execution pack Sec.C4): 0c-ii and 0c-iii are NEW, INST-only
+rows backing the per-code cluster table (shim 20260048+); 0e is WIDENED to
+also diff the full table elementwise, not just the three per-cycle scalars.
 
 Spec: qa/rr-study/2026-08-30-1149-...-instrumented-suppression-sizing.md Sec.5
       qa/rr-study/2026-08-30-1432-...-amendment-1-row0-pre-merge.md Sec.A5/A6
-Manifest: qa/rr-study/2026-08-30-1507-qa-sup-b-row0-manifest.md
+      qa/rr-study/2026-08-30-1608-...-amendment-2-cluster-instrumentation.md
+      qa/rr-study/2026-08-30-1617-...-amendment-2-execution-pack.md Sec.C4
+Manifest: qa/rr-study/2026-08-30-1507-qa-sup-b-row0-manifest.md (Amendment 2
+pin: INST -> shim 20260048)
 
 HK-025: rows run in STRICT ORDER; the first failure stops evaluation of
-everything after it (no partial credit, no skipping ahead).
+everything after it (no partial credit, no skipping ahead). 0c-ii MUST
+precede 0c-iii -- masking preserves the sum, so 0c-iii can reconcile green
+over a code silently written into the wrong bucket (Sec.C4.1).
 
 Usage: python row0_evaluate_s17m.py <base_json> <inst_run1_json> <inst_run2_json>
 """
@@ -22,8 +31,12 @@ import sys
 
 BASE_SHA = "bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f"
 BASE_SHIM = 20260046
-INST_SHA = "37cbb4acb93c0006d65c40defb0da21366160d3a6b07e283660eed358bd6ac26"
-INST_SHIM = 20260047
+# Amendment 2 pin (execution pack Sec.C7.1 step 3): re-hashed mechanically
+# this session against the committed src/OpenWSFZ.Ft8/Native/win-x64/
+# libft8.dll, not copied from libft8.version.txt unchecked.
+INST_SHA = "e22524e8fb4964496e34a2c3f08d6e10d8f6f48eaadb0626fe6a8799fa84e33e"
+INST_SHIM = 20260048
+H12_CODE_SPACE = 4096
 
 
 def load(path):
@@ -66,6 +79,39 @@ def row_0c(inst):
     return ok
 
 
+def row_0c_ii(inst):
+    print("=== ROW 0c-ii -- code-width invariant (INST only, evaluated BEFORE "
+          "0c-iii) ===")
+    oor = inst.get("h12_code_out_of_range")
+    ok = oor == 0
+    print(f"  h12_code_out_of_range = {oor!r} (want 0)")
+    print(f"ROW 0c-ii: {'PASS' if ok else 'VOID -- an out-of-range code masked into '
+          'the wrong bucket, per Sec.C4.1 0c-iii would still reconcile green'}")
+    return ok
+
+
+def row_0c_iii(inst):
+    print("=== ROW 0c-iii -- table<->scalar reconciliation (INST only, three "
+          "exact equalities) ===")
+    tbl = inst.get("h12_by_code")
+    if tbl is None:
+        print("ROW 0c-iii: VOID -- h12_by_code missing from this leg's JSON")
+        return False
+    checks = [
+        ("displaying", sum(tbl["displaying"]), inst["h12_displaying_count_final"]),
+        ("ambiguous", sum(tbl["ambiguous"]), inst["h12_ambiguous_count_final"]),
+        ("divergent", sum(tbl["divergent"]), inst["h12_divergent_count_final"]),
+    ]
+    ok = True
+    for name, table_sum, scalar in checks:
+        eq = table_sum == scalar
+        print(f"  sum(h12_by_code.{name})={table_sum} == "
+              f"h12_{name}_count_final={scalar}: {'OK' if eq else 'MISMATCH'}")
+        ok = ok and eq
+    print(f"ROW 0c-iii: {'PASS' if ok else 'VOID -- table does not reconcile with the scalars'}")
+    return ok
+
+
 def row_0d_i(inst):
     print("=== ROW 0d-i -- denominator is displays, not attempts ===")
     prev_d = 0
@@ -92,7 +138,8 @@ def row_0d_i(inst):
 
 
 def row_0e(inst_run1, inst_run2):
-    print("=== ROW 0e -- determinism (two INST replays, identical counter series) ===")
+    print("=== ROW 0e -- determinism (two INST replays: per-cycle triples, "
+          "PLUS the full per-code table, elementwise -- Amendment 2 widening) ===")
     f1, f2 = inst_run1["per_file"], inst_run2["per_file"]
     if len(f1) != len(f2):
         print(f"  STRUCTURAL MISMATCH: run1 {len(f1)} cycles, run2 {len(f2)} cycles")
@@ -111,8 +158,35 @@ def row_0e(inst_run1, inst_run2):
     ok = not diffs
     if diffs:
         print(f"  {len(diffs)} differing cycle(s), first 5: {diffs[:5]}")
-    print(f"ROW 0e: {'PASS' if ok else 'VOID -- a non-deterministic instrument cannot be read'} "
-          f"({len(f1)} cycles compared)")
+    print(f"  per-cycle triples: {'OK' if ok else 'DIFFER'} ({len(f1)} cycles compared)")
+
+    tbl1, tbl2 = inst_run1.get("h12_by_code"), inst_run2.get("h12_by_code")
+    oor1, oor2 = inst_run1.get("h12_code_out_of_range"), inst_run2.get("h12_code_out_of_range")
+    if tbl1 is None or tbl2 is None:
+        print("  h12_by_code: MISSING from at least one run")
+        table_ok = False
+    else:
+        table_diffs = []
+        for field in ("displaying", "ambiguous", "divergent"):
+            a, b = tbl1[field], tbl2[field]
+            if len(a) != len(b):
+                table_diffs.append(f"{field}: length {len(a)} vs {len(b)}")
+                continue
+            for c in range(len(a)):
+                if a[c] != b[c]:
+                    table_diffs.append(f"{field}[{c}]: run1={a[c]} run2={b[c]}")
+        oor_ok = oor1 == oor2
+        if not oor_ok:
+            table_diffs.append(f"h12_code_out_of_range: run1={oor1} run2={oor2}")
+        table_ok = not table_diffs
+        if table_diffs:
+            print(f"  h12_by_code: {len(table_diffs)} differing cell(s)/field(s), "
+                  f"first 5: {table_diffs[:5]}")
+        else:
+            print(f"  h12_by_code: OK ({H12_CODE_SPACE} x 3 cells + out_of_range, "
+                  f"all identical elementwise)")
+    ok = ok and table_ok
+    print(f"ROW 0e: {'PASS' if ok else 'VOID -- a non-deterministic instrument cannot be read'}")
     return ok
 
 
@@ -134,13 +208,23 @@ def main():
     if not row_0c(inst_run1):
         return 1
     print()
+    # Amendment 2 order (Sec.C4): 0c-ii MUST precede 0c-iii -- masking
+    # preserves the sum, so 0c-iii could reconcile green over a code
+    # silently scrambled into the wrong bucket (Sec.C4.1).
+    if not row_0c_ii(inst_run1):
+        return 1
+    print()
+    if not row_0c_iii(inst_run1):
+        return 1
+    print()
     if not row_0d_i(inst_run1):
         return 1
     print()
     if not row_0e(inst_run1, inst_run2):
         return 1
     print()
-    print("ROWS 0a, 0c, 0d-i, 0e: ALL PASS (0b/0d-ii/0f evaluated separately)")
+    print("ROWS 0a, 0c, 0c-ii, 0c-iii, 0d-i, 0e: ALL PASS "
+          "(0b/0d-ii/0f evaluated separately)")
     return 0
 
 

@@ -81,6 +81,21 @@ def build_decoder(dll_path):
     d.ft8_get_h12_displaying_count.restype = ctypes.c_int
     d.ft8_get_h12_ambiguous_count.restype = ctypes.c_int
     d.ft8_get_h12_divergent_count.restype = ctypes.c_int
+    # Amendment 2 (execution pack Sec.C3.1, shim 20260048+): per-code cluster
+    # table getter. BASE (20260046) and the pre-Amendment-2 INST pin
+    # (20260047) do not export this symbol -- binding it unconditionally
+    # would raise a ctypes AttributeError at bind time on those builds. Bind
+    # only when the loaded shim actually carries it; do NOT wrap this in a
+    # bare try/except (Sec.C3.2's explicit instruction) -- that would let a
+    # silently-unbound getter make ROW 0c-ii/0c-iii unevaluable while still
+    # looking green.
+    if dec.version >= 20260048:
+        d.ft8_get_h12_by_code.restype = ctypes.c_int
+        d.ft8_get_h12_by_code.argtypes = [ctypes.POINTER(ctypes.c_int),
+                                           ctypes.POINTER(ctypes.c_int),
+                                           ctypes.POINTER(ctypes.c_int),
+                                           ctypes.c_int,
+                                           ctypes.POINTER(ctypes.c_int)]
     return dec
 
 
@@ -164,6 +179,28 @@ def main():
             print(f"  [{args.label}] {idx + 1}/{len(files)} "
                   f"({time.perf_counter() - t_start:.0f}s)", flush=True)
 
+    # Amendment 2 (execution pack Sec.C3.2): read the per-code cluster table
+    # ONCE, at end of run -- never per cycle (48 KB x 1,856 cycles would add
+    # ~90 MB of copying per leg for nothing; the per-cycle trajectory already
+    # comes from the three scalars above). None on BASE/pre-Amendment-2 INST
+    # (no export bound); populated on shim 20260048+.
+    h12_by_code = None
+    h12_code_out_of_range = None
+    if dec.version >= 20260048:
+        H12_CODE_SPACE = 4096
+        Buf = ctypes.c_int * H12_CODE_SPACE
+        _disp, _amb, _div = Buf(), Buf(), Buf()
+        _oor = ctypes.c_int(-1)  # not 0 -- a getter that silently fails to
+                                  # write it must not look clean (Sec.C3.2).
+        _n = dec.dll.ft8_get_h12_by_code(_disp, _amb, _div, H12_CODE_SPACE,
+                                          ctypes.byref(_oor))
+        if _n != H12_CODE_SPACE:
+            raise RuntimeError(
+                f"ft8_get_h12_by_code returned {_n}, expected {H12_CODE_SPACE}")
+        h12_by_code = {"displaying": list(_disp), "ambiguous": list(_amb),
+                        "divergent": list(_div)}
+        h12_code_out_of_range = _oor.value
+
     out = {
         "label": args.label,
         "dll_path": args.dll_path,
@@ -178,6 +215,8 @@ def main():
         "h12_displaying_count_final": dec.dll.ft8_get_h12_displaying_count(),
         "h12_ambiguous_count_final": dec.dll.ft8_get_h12_ambiguous_count(),
         "h12_divergent_count_final": dec.dll.ft8_get_h12_divergent_count(),
+        "h12_by_code": h12_by_code,
+        "h12_code_out_of_range": h12_code_out_of_range,
         "k_max_candidates": K_MAX_CANDIDATES,
         "k_max_candidates_pass2": K_MAX_CANDIDATES_PASS2,
         "per_file": per_file,

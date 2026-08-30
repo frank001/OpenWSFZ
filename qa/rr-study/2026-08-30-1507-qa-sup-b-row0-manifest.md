@@ -31,7 +31,31 @@ Both match their standing pins: `BASE` = the `main` pin recorded on `BOARD.md`; 
 | leg | shim version | `.so` SHA256 |
 |---|---:|---|
 | `BASE` | `20260046` | `b982a96d7bc915cffeaf720b74d6507d60e5ecd302c20d853c7b321dc68eecc9` |
-| `INST` | `20260047` | `4970ec5fcc37e0ab291b4d3442b1f91b0fab5f982cc4703f19bc8764cf58384e` |
+| `INST` (superseded, Amendment 1) | `20260047` | `4970ec5fcc37e0ab291b4d3442b1f91b0fab5f982cc4703f19bc8764cf58384e` |
+| `INST` (Amendment 2, current) | `20260048` | `4686a4f7eec31d2190c545586d39d95cab6e10e0758fbb59f7fab44e77498b62` |
+
+## Amendment 2 re-pin (execution pack Sec.C7.1 step 3) — 2026-08-30 17:52Z
+
+`BASE` is unchanged (`bc8efcf1…`/`20260046`) — Amendment 2 re-pins `INST` only, superseding the
+`20260047` row above for every ROW 0 run from this point on. Precondition verified per Sec.4/Sec.C7.1:
+`git diff --stat` empty at `47447e3` (`git status` clean) before this pin and before any leg starts.
+
+Re-hashed mechanically this session (`sha256sum` against the committed working-tree binaries at
+HEAD `47447e3`), not copied from `libft8.version.txt` unchecked:
+
+```
+e22524e8fb4964496e34a2c3f08d6e10d8f6f48eaadb0626fe6a8799fa84e33e *src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll
+4686a4f7eec31d2190c545586d39d95cab6e10e0758fbb59f7fab44e77498b62 *src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so
+```
+
+Both match `libft8.version.txt`'s own recorded SHA256 for the `f001-sup-b-amendment-2-cluster-
+instrumentation (FT8_SHIM_VERSION 20260048)` entry, and match the 17:43Z QA code review's
+independently-derived hashes (`BOARD.md`).
+
+| leg | shim version | win-x64 DLL SHA256 |
+|---|---:|---|
+| `BASE` | `20260046` | `bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f` (unchanged) |
+| `INST` | `20260048` | `e22524e8fb4964496e34a2c3f08d6e10d8f6f48eaadb0626fe6a8799fa84e33e` |
 
 ## Traps carried forward (Sec.A3.4, not restated in full)
 
