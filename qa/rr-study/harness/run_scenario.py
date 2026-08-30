@@ -30,6 +30,11 @@ from synth.constants import DEFAULT_SAMPLE_RATE_HZ
 _PLAYBACK_PEAK_LEVEL: float = 0.9   # target peak amplitude after normalisation;
                                      # keeps headroom below PortAudio's ±1.0 clip limit
 _CYCLE_PREWARM_S: float = 0.5       # seconds before cycle boundary to wake and arm playback
+# Exact sample count of one ordinary (unextended) 15 s slot at the playback rate.
+# Used to detect the S3 re-grid's two oversized parts (dt_s=+2.4/+2.7 render to
+# 721920/736320 samples, not 720000) so they are excluded from back-to-back
+# batched playback -- see the batching comment above the main loop.
+_SLOT_SAMPLES: int = int(SLOT_SECONDS * DEFAULT_SAMPLE_RATE_HZ)
 
 # Half-cosine fade-out applied to the last _FADEOUT_DURATION_S seconds of every
 # rendered slot.  The FT8 signal is fully transmitted by ~12.64 s (79 symbols ×
@@ -946,6 +951,125 @@ def _run(args: argparse.Namespace) -> None:
     total_trials = len(parts) * n_trials
     played = 0
 
+    # 2026-08-29 finding (rr_study_2026-08-27_s1s8_full_run.log's `cycle=` timestamps):
+    # every part in every S1-S8 scenario was landing on alternating 15 s boundaries
+    # (30 s/trial) instead of back-to-back ones -- confirmed on all seven default-
+    # battery scenarios, ~2x the wall-clock a full run needs.
+    #
+    # Root cause is NOT simply "the boundary was re-derived from a fresh time.time()
+    # query" (a running counter alone was tried and, on simulation, reproduces the
+    # exact same bug): sd.wait() blocks until an entire 15 s buffer has finished
+    # playing, so it returns almost exactly ON the very next cycle boundary. The
+    # catch-up guard (`boundary_ts - early_by_s - _CYCLE_PREWARM_S <= time.time()`)
+    # exists to guarantee real PREWARM lead time to arm playback before its target --
+    # and there is by definition none left once you are already sitting at that
+    # target, so the guard (correctly, by its own logic) skips a full slot every trial
+    # regardless of how the candidate boundary was computed.
+    #
+    # A tolerance-based relaxation of that guard (accept firing a bit "late") was
+    # considered and REJECTED: S3 (default battery, not just the excluded S3b) times
+    # its dt_s truth value by playing the buffer at a precise real-world instant, so
+    # tolerating even a second of lateness before firing would silently inflate the
+    # observed DT by that same amount -- exactly what HK-021 exists to catch.
+    #
+    # Fix: batch every ordinary (buffer_start_s == 0.0) trial's already-rendered 15 s
+    # buffer and hand the WHOLE run to ONE sd.play()/sd.wait() call (_flush_batch()
+    # below) instead of one call per trial. Only the batch's first trial needs the
+    # existing PREWARM-based cold-start arming (unchanged, same guard as before);
+    # every trial after it starts at an exact integer multiple of SLOT_SECONDS into
+    # that same continuous audio stream, so its real-world timing is exact to the
+    # sample clock -- not merely "close enough" -- with no further Python-side clock
+    # query or sleep involved. Extended-mode trials (S3b's buffer_start_s < 0,
+    # early_by_s > 0) are excluded from batching: any pending batch is flushed before
+    # one is played, and it continues to use the original, completely unmodified
+    # per-trial early-arm path -- that mechanism is validated and DT-precision-
+    # sensitive, and nothing about it changes here. Content, seeds, and truth.csv are
+    # unaffected either way -- this only removes wasted wall-clock time between
+    # ordinary trials. Skipped entirely in --dry-run (unchanged, still per-trial).
+    next_boundary_ts = _next_cycle_boundary()
+    _pending_batch: list[dict] = []
+
+    def _write_truth_row(item: dict, cycle_utc_str: str) -> None:
+        """Append item's truth row(s) -- identical dispatch to the original
+        inline S8/S7/S4/else logic, just parameterised over a queued item."""
+        if is_s8 and item["s8_signals_meta"] is not None:
+            for sig in item["s8_signals_meta"]:
+                _append_truth(run_dir, {
+                    "scenario_id": scenario_id, "part_index": item["part_index"],
+                    "trial_index": item["trial_index"], "seed": item["seed"],
+                    "true_snr_db": sig["snr_db"], "true_dt_s": sig["dt_s"],
+                    "true_freq_hz": sig["freq_hz"], "message_text": sig["message_text"],
+                    "cycle_utc": cycle_utc_str,
+                })
+        elif is_s7 and item["s7_signals_meta"] is not None:
+            for sig in item["s7_signals_meta"]:
+                _append_truth(run_dir, {
+                    "scenario_id": scenario_id, "part_index": item["part_index"],
+                    "trial_index": item["trial_index"], "seed": item["seed"],
+                    "true_snr_db": sig["snr_db"], "true_dt_s": sig["dt_s"],
+                    "true_freq_hz": sig["freq_hz"], "message_text": sig["message_text"],
+                    "cycle_utc": cycle_utc_str,
+                })
+        elif is_s4 and item["s4_signals_meta"] is not None:
+            for sig in item["s4_signals_meta"]:
+                _append_truth(run_dir, {
+                    "scenario_id": scenario_id, "part_index": item["part_index"],
+                    "trial_index": item["trial_index"], "seed": item["seed"],
+                    "true_snr_db": sig["snr_db"], "true_dt_s": sig["dt_s"],
+                    "true_freq_hz": sig["freq_hz"], "message_text": sig["message_text"],
+                    "cycle_utc": cycle_utc_str,
+                })
+        else:
+            _append_truth(run_dir, {
+                "scenario_id": scenario_id, "part_index": item["part_index"],
+                "trial_index": item["trial_index"], "seed": item["seed"],
+                "true_snr_db": item["true_snr_db"], "true_dt_s": item["true_dt_s"],
+                "true_freq_hz": item["true_freq_hz"], "message_text": item["msg_text"],
+                "cycle_utc": cycle_utc_str,
+            })
+
+    def _flush_batch() -> None:
+        nonlocal next_boundary_ts, played
+        if not _pending_batch:
+            return
+        first_boundary = next_boundary_ts
+        # Same catch-up semantics as the original per-trial guard, applied once
+        # to the batch's first trial (cold-start / post-extended-mode re-arm).
+        while first_boundary - _CYCLE_PREWARM_S <= time.time():
+            first_boundary += SLOT_SECONDS
+        n = len(_pending_batch)
+        batch_samples = np.concatenate([it["samples"] for it in _pending_batch])
+        cycle_strs = [
+            datetime.fromtimestamp(first_boundary + i * SLOT_SECONDS, tz=timezone.utc)
+            .replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+            for i in range(n)
+        ]
+        _wait_for_cycle(first_boundary, 0.0)
+        for it, cu_str in zip(_pending_batch, cycle_strs):
+            snr_str = f"SNR={it['true_snr_db']} dB" if it["true_snr_db"] != "" else "SNR=N/A"
+            print(
+                f"[{scenario_id}] Part {it['part_index'] + 1}/{len(parts)}  "
+                f"Trial {it['trial_index'] + 1}/{n_trials}  {snr_str}  "
+                f"seed={it['seed']}  cycle={cu_str}"
+            )
+        import sounddevice as sd
+        try:
+            sd.play(batch_samples, samplerate=DEFAULT_SAMPLE_RATE_HZ, device=device_idx, blocking=False)
+            sd.wait()
+        except sd.PortAudioError as exc:
+            print(f"\nERROR: PortAudio playback failed: {exc}")
+            print("Available output devices:")
+            for i2, d in enumerate(sd.query_devices()):
+                if d["max_output_channels"] > 0:
+                    print(f"  [{i2}] {d['name']}")
+            sys.exit(1)
+        print(f"  … {n} trial(s) played back-to-back ({batch_samples.shape[0]} samples)")
+        for it, cu_str in zip(_pending_batch, cycle_strs):
+            _write_truth_row(it, cu_str)
+            played += 1
+        next_boundary_ts = first_boundary + n * SLOT_SECONDS
+        _pending_batch.clear()
+
     for part in parts:
         part_index: int = part["part_index"]
         for trial_index in range(n_trials):
@@ -1034,35 +1158,66 @@ def _run(args: argparse.Namespace) -> None:
                 _dump_slot_wav(args.dump_wav_dir, scenario_id, part_index,
                                trial_index, seed, samples)
 
-            # Cycle boundary alignment (skipped in dry-run mode)
+            item = {
+                "part_index": part_index, "trial_index": trial_index, "seed": seed,
+                "samples": samples, "buffer_start_s": buffer_start_s,
+                "true_snr_db": true_snr_db, "true_dt_s": true_dt_s,
+                "true_freq_hz": true_freq_hz, "msg_text": msg_text,
+                "s7_signals_meta": s7_signals_meta, "s8_signals_meta": s8_signals_meta,
+                "s4_signals_meta": s4_signals_meta,
+            }
+
             if args.dry_run:
-                # In dry-run, use the current time snapped to the nearest past boundary
+                # Unchanged: per-trial, immediate, no real waiting or batching.
                 now_s = int(time.time())
                 snap = now_s - (now_s % SLOT_SECONDS)
                 cycle_utc = datetime.fromtimestamp(snap, tz=timezone.utc).replace(microsecond=0)
-            else:
-                # early_by_s (C3): extended-mode buffers with buffer_start_s < 0 (S3b)
-                # must be armed that many seconds before the nominal boundary. Advance to
-                # the NEXT-next boundary if the first candidate doesn't leave enough lead
-                # time for prewarm + the early offset — see _wait_for_cycle's docstring.
+                cycle_utc_str = cycle_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+                snr_str = f"SNR={true_snr_db} dB" if true_snr_db != "" else "SNR=N/A"
+                print(
+                    f"[{scenario_id}] Part {part_index + 1}/{len(parts)}  "
+                    f"Trial {trial_index + 1}/{n_trials}  {snr_str}  seed={seed}  "
+                    f"cycle={cycle_utc_str} … [DRY RUN] would play {len(samples)} samples at 48 kHz"
+                )
+                _write_truth_row(item, cycle_utc_str)
+                played += 1
+            elif buffer_start_s != 0.0 or len(samples) != _SLOT_SAMPLES:
+                # Extended/oversized trial: flush any pending ordinary batch first
+                # so ordering and next_boundary_ts stay correct, then handle this
+                # trial via the ORIGINAL, completely unmodified single-trial
+                # early-arm path (see the module-level comment above the loop).
+                #
+                # Two distinct cases land here, both correctly excluded from
+                # batching (which assumes every item is exactly one slot long,
+                # starting exactly on its boundary):
+                #  - buffer_start_s < 0 (S3b): early-armed, starts BEFORE the
+                #    nominal boundary.
+                #  - len(samples) != _SLOT_SAMPLES (S3 parts 8/9, dt_s=+2.4/+2.7):
+                #    buffer_start_s is 0.0 (starts ON the boundary, no early arm)
+                #    but the rendered buffer is LONGER than one slot -- the S3
+                #    re-grid ruling (2026-08-20) lets these two parts' signal run
+                #    into the next slot rather than clamping. Confirmed by direct
+                #    render: 721920/736320 samples vs the normal 720000 (2026-08-29).
+                #    The guard below (using real time.time(), unchanged from the
+                #    original code) self-corrects next_boundary_ts's resulting
+                #    undershoot on whichever trial follows, exactly as the
+                #    pre-existing per-trial design always has -- at most one
+                #    isolated wasted slot around these two parts, never a
+                #    mistimed/corrupted DT label.
+                _flush_batch()
                 early_by_s = -buffer_start_s
-                boundary_ts = _next_cycle_boundary()
+                boundary_ts = next_boundary_ts
                 while boundary_ts - early_by_s - _CYCLE_PREWARM_S <= time.time():
                     boundary_ts += SLOT_SECONDS
                 cycle_utc = _wait_for_cycle(boundary_ts, early_by_s)
-            cycle_utc_str = cycle_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-            snr_str = f"SNR={true_snr_db} dB" if true_snr_db != "" else "SNR=N/A"
-            status_prefix = (
-                f"[{scenario_id}] Part {part_index + 1}/{len(parts)}  "
-                f"Trial {trial_index + 1}/{n_trials}  "
-                f"{snr_str}  seed={seed}  cycle={cycle_utc_str}"
-            )
-            print(f"{status_prefix} …", end=" ", flush=True)
-
-            if args.dry_run:
-                print(f"[DRY RUN] would play {len(samples)} samples at 48 kHz")
-            else:
+                next_boundary_ts = boundary_ts + SLOT_SECONDS
+                cycle_utc_str = cycle_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+                snr_str = f"SNR={true_snr_db} dB" if true_snr_db != "" else "SNR=N/A"
+                print(
+                    f"[{scenario_id}] Part {part_index + 1}/{len(parts)}  "
+                    f"Trial {trial_index + 1}/{n_trials}  {snr_str}  seed={seed}  "
+                    f"cycle={cycle_utc_str} …", end=" ", flush=True,
+                )
                 import sounddevice as sd
                 try:
                     sd.play(samples, samplerate=DEFAULT_SAMPLE_RATE_HZ, device=device_idx, blocking=False)
@@ -1075,63 +1230,13 @@ def _run(args: argparse.Namespace) -> None:
                             print(f"  [{i}] {d['name']}")
                     sys.exit(1)
                 print("done")
-
-            # Log truth row(s).  S4, S7, and S8 write one row per signal so the
-            # matcher scores each message independently (rr-density-qrm-scenario
-            # extended this to S4, which previously wrote a single pooled row per
-            # cycle — see RR-007); all other scenarios write a single per-slot row.
-            if is_s8 and s8_signals_meta is not None:
-                for sig in s8_signals_meta:
-                    _append_truth(run_dir, {
-                        "scenario_id":  scenario_id,
-                        "part_index":   part_index,
-                        "trial_index":  trial_index,
-                        "seed":         seed,
-                        "true_snr_db":  sig["snr_db"],
-                        "true_dt_s":    sig["dt_s"],
-                        "true_freq_hz": sig["freq_hz"],
-                        "message_text": sig["message_text"],
-                        "cycle_utc":    cycle_utc_str,
-                    })
-            elif is_s7 and s7_signals_meta is not None:
-                for sig in s7_signals_meta:
-                    _append_truth(run_dir, {
-                        "scenario_id": scenario_id,
-                        "part_index": part_index,
-                        "trial_index": trial_index,
-                        "seed": seed,
-                        "true_snr_db": sig["snr_db"],
-                        "true_dt_s": sig["dt_s"],
-                        "true_freq_hz": sig["freq_hz"],
-                        "message_text": sig["message_text"],
-                        "cycle_utc": cycle_utc_str,
-                    })
-            elif is_s4 and s4_signals_meta is not None:
-                for sig in s4_signals_meta:
-                    _append_truth(run_dir, {
-                        "scenario_id": scenario_id,
-                        "part_index": part_index,
-                        "trial_index": trial_index,
-                        "seed": seed,
-                        "true_snr_db": sig["snr_db"],
-                        "true_dt_s": sig["dt_s"],
-                        "true_freq_hz": sig["freq_hz"],
-                        "message_text": sig["message_text"],
-                        "cycle_utc": cycle_utc_str,
-                    })
+                _write_truth_row(item, cycle_utc_str)
+                played += 1
             else:
-                _append_truth(run_dir, {
-                    "scenario_id": scenario_id,
-                    "part_index": part_index,
-                    "trial_index": trial_index,
-                    "seed": seed,
-                    "true_snr_db": true_snr_db,
-                    "true_dt_s": true_dt_s,
-                    "true_freq_hz": true_freq_hz,
-                    "message_text": msg_text,
-                    "cycle_utc": cycle_utc_str,
-                })
-            played += 1
+                # Ordinary trial: queue for one continuous back-to-back play.
+                _pending_batch.append(item)
+
+    _flush_batch()
 
     truth_rel = (run_dir / "truth.csv").relative_to(qa_rr_root)
     print(

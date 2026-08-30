@@ -1,0 +1,12 @@
+[2026-08-29T20:57:49Z] ROW 0a
+[2026-08-29T20:57:49Z] ROW 0a: native/ft8_lib_build/libft8.dll sha256=bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f match=True
+[2026-08-29T20:57:49Z] ROW 0a: src/.../win-x64/libft8.dll      sha256=bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f match=True
+[2026-08-29T20:57:49Z] ROW 0a: PASS
+[2026-08-29T20:57:49Z] 0a=PASS, 0b already validated separately via --determinism-check
+[2026-08-29T20:58:47Z] ROW 0c: delta=12.0000Hz L=0.0dB (F snr=-5.0dB) hits=0/100 R=0.000
+[2026-08-29T20:59:44Z] ROW 0c: delta=12.0000Hz L=-1.0dB (F snr=-6.0dB) hits=10/100 R=0.100
+[2026-08-29T21:00:40Z] ROW 0c: delta=12.0000Hz L=-2.0dB (F snr=-7.0dB) hits=0/100 R=0.000
+[2026-08-29T21:01:35Z] ROW 0c: delta=12.0000Hz L=-3.0dB (F snr=-8.0dB) hits=0/100 R=0.000
+[2026-08-29T21:01:35Z] ROW 0c: L* = None
+[2026-08-29T21:01:35Z] ROW 0c: VOID -- no L in the calibration set yields 0.15<=R<=0.60
+[2026-08-29T21:01:35Z] Wrote D:\Projects\claude\OpenWSFZ\qa\rr-study\f-nbr-a\results\nbr-a-results.json

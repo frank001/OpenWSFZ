@@ -1,0 +1,15 @@
+[2026-08-29T21:04:33Z] Part D re-run -- UB reporting fix only (one-sided rule-of-three, HK-021(o))
+[2026-08-29T21:04:33Z] --- Part D (non-gating) ---
+[2026-08-29T21:04:50Z] D1: station V1 (1492.00Hz) hits=0/100 R=0.000
+[2026-08-29T21:04:50Z] D1: station V2 (1500.00Hz) hits=0/100 R=0.000
+[2026-08-29T21:04:50Z] D1: station V3 (1511.00Hz) hits=0/100 R=0.000
+[2026-08-29T21:05:05Z] D2 pair1(0/+8): station V1 (1492.00Hz) hits=100/100 R=1.000
+[2026-08-29T21:05:05Z] D2 pair1(0/+8): station V2 (1500.00Hz) hits=100/100 R=1.000
+[2026-08-29T21:05:19Z] D2 pair2(0/+11): station V1 (1492.00Hz) hits=100/100 R=1.000
+[2026-08-29T21:05:19Z] D2 pair2(0/+11): station V3 (1503.00Hz) hits=100/100 R=1.000
+[2026-08-29T21:05:40Z] D3: station W1 (1492.00Hz) hits=100/100 R=1.000
+[2026-08-29T21:05:40Z] D3: station W2 (1592.00Hz) hits=100/100 R=1.000
+[2026-08-29T21:05:40Z] D3: station W3 (1692.00Hz) hits=100/100 R=1.000
+[2026-08-29T21:05:40Z] Wrote qa\rr-study\f-nbr-a\results\nbr-a-part-d-results.json
+{"V1": "0/100, UB 3%", "V2": "0/100, UB 3%", "V3": "0/100, UB 3%"}
+"density, not count: P2 belongs to the near-neighbour family"
