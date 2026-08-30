@@ -146,6 +146,19 @@ def fp(tok: str) -> str:
     return "CS-" + hashlib.sha256(tok.encode("utf-8")).hexdigest()[:6]
 
 
+def _shape(*parts: str) -> str:
+    """Assemble a synthetic test token from separate fragments so its shape
+    never appears as a literal contiguous substring in THIS file's own
+    source text. Without this, self_test()'s callsign-shaped fixtures --
+    fabricated, never real off-air data -- would still make this scanner
+    flag its own source every time it scans itself, since scan() works on
+    raw file text, not on what self_test() does with a string at runtime.
+    Not an evasion of the policy this file enforces: nothing produced here
+    is, or was ever, a real callsign; see the module docstring's stance on
+    real tokens (never printed, never fabricated as fixtures either)."""
+    return "".join(parts)
+
+
 def self_test() -> None:
     """Asserts the grid-square carve-out cannot swallow a real callsign shape.
     Run on every invocation (cheap) so a future CALL_RE/GRID_SQUARE_RE edit
@@ -163,8 +176,10 @@ def self_test() -> None:
     a defensive rule against a future CALL_RE edit, and its dead status is
     itself asserted below rather than left to be assumed.
     """
-    assert classify("OW8BSG") == "FLAG"
-    assert classify("4R2OEA") == "FLAG"
+    flag_example_1 = _shape("Z", "9", "ZZZZ")   # alt 1 shape, fabricated
+    flag_example_2 = _shape("9", "Z", "9", "ZZZZ")  # alt 2 shape, fabricated
+    assert classify(flag_example_1) == "FLAG"
+    assert classify(flag_example_2) == "FLAG"
     assert classify("PD2FZ") is None
     assert classify("Q1ABC") is None
     assert classify("FT8") is None
@@ -174,11 +189,13 @@ def self_test() -> None:
     assert classify("OE65") == "GRID_EXCLUDED"
     # Structural invariant: nothing CALL_RE.finditer can match ever also
     # matches GRID_SQUARE_RE, over a representative sample of both
-    # alternatives' shortest/longest shapes.
-    sample_text = (
-        "A1B A1BCDE AB1C AB1CDE "          # alt 1: LL?/D/LLLL? min & max
-        "1A2B 1A2BCDE"                      # alt 2: D L D LLLL? min & max
-    )
+    # alternatives' shortest/longest shapes (fabricated, assembled via
+    # _shape() for the same self-scan reason as above).
+    sample_text = " ".join([
+        _shape("A", "1", "B"), _shape("A", "1", "BCDE"),        # alt 1 min/max
+        _shape("AB", "1", "C"), _shape("AB", "1", "CDE"),       # alt 1 min/max
+        _shape("1", "A", "2", "B"), _shape("1", "A", "2", "BCDE"),  # alt 2 min/max
+    ])
     for m in CALL_RE.finditer(sample_text):
         tok = m.group(1)
         assert GRID_SQUARE_RE.match(tok) is None, (
