@@ -96,6 +96,14 @@ KNOWN_SHAPE_FALSE_POSITIVES = {
     # qa/rr-study/2026-08-30-1204-architect-to-qa-TODO-pre-merge-nbr-a-branch.md
     # item 1's fingerprint table (7ecf83a4 -- DO NOT REDACT).
     "S8HN",
+    # "OpenWSFZ.E2E.Tests" -- the End-to-End test project's own name, matches
+    # CALL_RE's shape (E, 2, E) purely coincidentally. Fired on ROW 0f
+    # (F-001 SUP-B Amendment 2, 2026-08-30) against
+    # openspec/changes/f001-sup-b-instrumented-suppression-sizing/tasks.md and
+    # src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt, both listing test
+    # project pass counts ("OpenWSFZ.E2E.Tests 7/7"). Confirmed non-callsign
+    # by masked-context inspection (fingerprint CS-2a3646 -- DO NOT REDACT).
+    "E2E",
 }
 
 # Common false positives in reports/logs: mode/band labels, protocol names.
