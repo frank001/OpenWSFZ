@@ -170,6 +170,7 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_get_h12_displaying_count ^
    /EXPORT:ft8_get_h12_ambiguous_count ^
    /EXPORT:ft8_get_h12_divergent_count ^
+   /EXPORT:ft8_get_h12_by_code ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
    monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj coherent_llr.obj
 

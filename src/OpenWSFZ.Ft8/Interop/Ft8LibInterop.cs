@@ -382,7 +382,20 @@ internal static class Ft8LibInterop
     /// <c>announce_stamp</c> field is never marshalled to C#). No change to the
     /// 4096-slot capacity or eviction policy.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260047;
+    /// <remarks>
+    /// f001-sup-b-amendment-2-cluster-instrumentation, shim 20260048: adds one new exported
+    /// read-only getter, <c>ft8_get_h12_by_code</c>, returning a 4096-row per-code breakdown of
+    /// the three shim-20260047 scalars. This binding is DELIBERATE: <c>ft8_get_h12_by_code</c>
+    /// is NOT added to <see cref="IFt8NativeInterop"/>, has no <c>DllImport</c> here, and no C#
+    /// caller anywhere. The reading that needs it (spec Sec.6.2's clustered bootstrap) is
+    /// produced by the Python/ctypes replay harness driving the native DLL directly, the same
+    /// route the three 20260047 scalars already use for that purpose — a 4096-row table has no
+    /// place in an FR-019 log line, which is the only thing the managed counters serve. This
+    /// bump exists solely as the ABI self-test: <see cref="ExpectedShimVersion"/> must track
+    /// <c>FT8_SHIM_VERSION</c> on every native change regardless of whether the new export gets
+    /// a managed binding, per the pattern every prior entry in this file follows.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260048;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI

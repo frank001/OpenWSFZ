@@ -1,4 +1,70 @@
-=== CURRENT: f001-sup-b-instrumented-suppression-sizing (FT8_SHIM_VERSION 20260047) ===
+=== CURRENT: f001-sup-b-amendment-2-cluster-instrumentation (FT8_SHIM_VERSION 20260048) ===
+
+Built 2026-08-30 from branch qa/sup-b-2026-08-30, on top of the
+f001-sup-b-instrumented-suppression-sizing pin at shim 20260047 (SHA256
+37cbb4acb93c0006d65c40defb0da21366160d3a6b07e283660eed358bd6ac26), per QA's Developer handoff
+(dev-tasks/2026-08-30-sup-b-amendment2-h12-cluster-table.md, implementing
+qa/rr-study/2026-08-30-1608-architect-to-qa-spec-f001-sup-b-amendment-2-cluster-instrumentation.md
+Sec.B2 and qa/rr-study/2026-08-30-1617-architect-to-qa-spec-f001-sup-b-amendment-2-execution-pack.md
+Sec.C2).
+
+MEASURE-ONLY. Adds one new exported read-only getter, ft8_get_h12_by_code(), returning a complete
+4096-row per-code (n12) breakdown of the three shim-20260047 scalars -- displaying/ambiguous/
+divergent counts indexed by the 12-bit callsign-hash code, plus an out-of-range violation count.
+Backs spec Sec.6.2's clustered 95% bootstrap over distinct n12 codes, which the three cumulative
+scalars alone could not identify.
+
+Mechanism: one new thread-local (tls_h12_code), set unconditionally inside cb_lookup_hash's
+existing FTX_CALLSIGN_HASH_12_BITS branch; one new fixed 4096 x 3 static table
+(g_h12_by_code_displaying/ambiguous/divergent) plus a g_h12_code_out_of_range counter, incremented
+inside the SAME unchanged guard condition, at the SAME emission site, as the three existing
+scalars. hash_table_lookup's body, cb_lookup_hash's return value, and the existing three scalars
+are all byte-for-byte unchanged. No struct layout change (this is a new file-scope static array,
+not a change to any existing struct). No C# binding -- the reading is produced by the Python/
+ctypes replay harness directly; see Ft8LibInterop.cs's own changelog entry for why.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    e22524e8fb4964496e34a2c3f08d6e10d8f6f48eaadb0626fe6a8799fa84e33e
+  Linux x64   (build_linux.sh, GCC 14.2.0 via WSL2 Debian): SHA256
+    4686a4f7eec31d2190c545586d39d95cab6e10e0758fbb59f7fab44e77498b62
+  macOS ARM64: NOT rebuilt this session -- no Mac available locally, same limitation every prior
+    native change in this project's history has recorded. Non-blocking: CI's
+    `commit-native-binaries` job rebuilds macOS from source and auto-commits the result on every
+    push that changes native sources -- this branch has not been pushed yet (HK-014/HK-011:
+    Developer sessions build and test only, they do not push). The osx-arm64/libft8.dylib
+    currently committed remains at its pre-this-change shim version until that push happens; do
+    not treat it as shim-20260048-compatible before then.
+
+  `dumpbin /exports` (Windows) confirms all TWENTY exported symbols present -- the nineteen
+  pre-existing symbols unchanged, plus the one new ft8_get_h12_by_code -- and it is the ONLY
+  addition. `nm -D` (Linux) confirms the same twenty plus ft8_encode (ELF's
+  default-export-all-non-static behaviour, pre-existing, not part of this change).
+
+  Local `dotnet build` (Release, full solution) + full `dotnet test` (excluding
+  pre_merge_check.py, per HK-006/HK-011): build 0 errors, 0 warnings. OpenWSFZ.Ft8.Tests
+  319/319 passed, unchanged from the prior (20260047) pass -- no test file is added or edited by
+  this change. Two pre-existing, unrelated failures recurred in OpenWSFZ.Daemon.Tests, both
+  already tracked separately and confirmed to have zero file overlap with this diff (which
+  touches only ft8_shim.c/.h, Ft8LibInterop.cs, rebuild_shim.bat, BUILD.md, this file, and the two
+  rebuilt binaries):
+    - FR-064 ExternalReportingServiceTests.Follower_AbsoluteExclusion_AppliesBeforeRelay --
+      the flake MEMORY.md already records as a standing merge blocker (2nd hit), Captain-directed
+      fix not yet applied; not attributable to this change.
+    - CycleArchiveServiceTests.Manifest_WritesOneRowPerArchivedCycle_InOrder -- the same timing
+      flake recorded against the 20260047 pass's own version-log entry below, reproduced again,
+      same non-overlapping subsystem (manifest/cycle-archive code, not hash-table or FT8 decode
+      code).
+  All other test projects green: OpenWSFZ.Rig.Tests 41/41, OpenWSFZ.Audio.Tests 19/19,
+  OpenWSFZ.Config.Tests 100/100, OpenWSFZ.Web.Tests 276/276, OpenWSFZ.E2E.Tests 7/7,
+  OpenWSFZ.TestSupport.Tests 9/9, TraceabilityCheck.Tests 34/34, LicenseInventoryCheck.Tests
+  24/24.
+
+  NOTE: `ExpectedShimVersion` in Ft8LibInterop.cs was bumped to 20260048 alongside the shim
+  version, with NO other managed-side change (dev-task Sec.3) -- this is the deliberately correct
+  outcome for this pass, unlike the prior pass where the bump alone (with a genuinely-needed
+  managed binding elsewhere) was initially missed.
+
+=== f001-sup-b-instrumented-suppression-sizing (FT8_SHIM_VERSION 20260047) ===
 
 Built 2026-08-30 from branch qa/sup-b-2026-08-30, on top of the fix-negative-time-offset-
 snr-collapse pin at shim 20260046 (SHA256 bc8efcf148046f199c057b62c7987c4b69f2dc62d72509

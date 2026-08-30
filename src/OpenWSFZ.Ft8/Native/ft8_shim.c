@@ -719,6 +719,19 @@ static int g_h12_displaying = 0;
 static int g_h12_ambiguous  = 0;
 static int g_h12_divergent  = 0;
 
+/* SUP-B Amendment 2 (shim 20260048): per-code (n12) cluster table for Sec.6.2's
+ * clustered bootstrap. The 12-bit code is already in scope at the counting site
+ * (cb_lookup_hash) and the code space is exactly 4096 by construction, so this
+ * is a fixed-size static array -- no allocation, no growth, no hashing, no
+ * iteration order. A complete sufficient statistic for the bootstrap;
+ * per-lookup rows are NOT produced. Same best-effort, not-thread-local
+ * convention as g_hash_table_reject_count and the three scalars above. */
+#define H12_CODE_SPACE 4096          /* 12-bit hash type: codes are 0..4095 by construction */
+static int      g_h12_by_code_displaying[H12_CODE_SPACE];
+static int      g_h12_by_code_ambiguous [H12_CODE_SPACE];
+static int      g_h12_by_code_divergent [H12_CODE_SPACE];
+static int      g_h12_code_out_of_range = 0;   /* MUST stay 0 -- see ROW 0c-ii */
+
 static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t hash)
 {
     uint16_t h10 = (hash >> 12) & 0x3FFu;
@@ -773,10 +786,11 @@ static bool              g_hash_table_initialised = false;
  * that decode succeeds AND is about to be emitted. message.c:431 is the ONLY
  * 12-bit lookup call site and fires at most once per message, so this simple
  * reset-then-read bracket is sufficient -- no accumulation, no stack. */
-static _Thread_local bool tls_h12_lookup_performed = false;
-static _Thread_local bool tls_h12_resolved         = false;
-static _Thread_local int  tls_h12_multiplicity     = 0;
-static _Thread_local bool tls_h12_divergent        = false;
+static _Thread_local bool     tls_h12_lookup_performed = false;
+static _Thread_local bool     tls_h12_resolved         = false;
+static _Thread_local int      tls_h12_multiplicity     = 0;
+static _Thread_local bool     tls_h12_divergent        = false;
+static _Thread_local uint32_t tls_h12_code             = 0; /* SUP-B Amendment 2: the 12-bit code itself */
 
 static _Thread_local callsign_table_t* tls_hash_table = NULL;
 static bool cb_lookup_hash(ftx_callsign_hash_type_t t, uint32_t h, char* cs) {
@@ -785,6 +799,7 @@ static bool cb_lookup_hash(ftx_callsign_hash_type_t t, uint32_t h, char* cs) {
     if (t == FTX_CALLSIGN_HASH_12_BITS) {
         tls_h12_lookup_performed = true;
         tls_h12_resolved         = found;
+        tls_h12_code             = h; /* SUP-B Amendment 2: set unconditionally in this branch */
         if (found) {
             hash_table_count_h12_multiplicity(tls_hash_table, h, &tls_h12_multiplicity, &tls_h12_divergent);
         } else {
@@ -1176,6 +1191,33 @@ int ft8_get_hash_table_reject_count(void) { return g_hash_table_reject_count; }
 int ft8_get_h12_displaying_count(void) { return g_h12_displaying; }
 int ft8_get_h12_ambiguous_count(void)  { return g_h12_ambiguous; }
 int ft8_get_h12_divergent_count(void)  { return g_h12_divergent; }
+
+/*
+ * ft8_get_h12_by_code — SUP-B Amendment 2 (shim 20260048). Copies the full
+ * 4096-row per-code cluster table into caller-supplied buffers. Returns
+ * H12_CODE_SPACE (4096) on success; -1 if capacity < H12_CODE_SPACE or any
+ * pointer (including out_of_range) is NULL -- caller must check for -1, not
+ * assume success. *out_of_range receives g_h12_code_out_of_range (ROW 0c-ii).
+ * Read-only, process-lifetime cumulative, zero on daemon restart, same
+ * lifecycle as the three scalar getters above. Intended caller is the Python
+ * replay harness by ctypes (once per run, at the end -- NOT per cycle: this
+ * copies 48 KB, and per-cycle would add ~90 MB of copying per leg for
+ * nothing), not IFt8NativeInterop -- see Ft8LibInterop.cs's own changelog
+ * entry for why no C# binding exists.
+ */
+int ft8_get_h12_by_code(int* displaying, int* ambiguous, int* divergent,
+                         int capacity, int* out_of_range)
+{
+    if (!displaying || !ambiguous || !divergent || !out_of_range || capacity < H12_CODE_SPACE)
+        return -1;
+    for (int c = 0; c < H12_CODE_SPACE; c++) {
+        displaying[c] = g_h12_by_code_displaying[c];
+        ambiguous[c]  = g_h12_by_code_ambiguous[c];
+        divergent[c]  = g_h12_by_code_divergent[c];
+    }
+    *out_of_range = g_h12_code_out_of_range;
+    return H12_CODE_SPACE;
+}
 
 /* ── Encode entry point ──────────────────────────────────────────────────── */
 /*
@@ -1575,6 +1617,18 @@ int ft8_decode_all(
                 g_h12_displaying++;
                 if (tls_h12_multiplicity >= 2) g_h12_ambiguous++;
                 if (tls_h12_divergent)         g_h12_divergent++;
+
+                /* SUP-B Amendment 2: cluster identity for Sec.6.2. Mask defensively
+                 * so an out-of-range code can never write out of bounds -- and COUNT
+                 * the violation, because masking alone would hide it (ROW 0c-ii is
+                 * why this counter exists: masking preserves the SUM, so a mismasked
+                 * code would still reconcile with 0c-iii's totals while cluster
+                 * identity was silently scrambled). */
+                if (tls_h12_code >= H12_CODE_SPACE) g_h12_code_out_of_range++;
+                uint32_t c = tls_h12_code & (H12_CODE_SPACE - 1u);
+                g_h12_by_code_displaying[c]++;
+                if (tls_h12_multiplicity >= 2) g_h12_by_code_ambiguous[c]++;
+                if (tls_h12_divergent)         g_h12_by_code_divergent[c]++;
             }
 
             /* Frequency, time offset, and SNR */

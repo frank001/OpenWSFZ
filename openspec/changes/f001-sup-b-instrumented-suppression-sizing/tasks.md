@@ -87,56 +87,65 @@ this document.*
 
 ### 8. Native Shim
 
-- [ ] 8.1 Add the fixed 4,096×3 static table (`g_h12_by_code_displaying`/`_ambiguous`/`_divergent`)
+- [x] 8.1 Add the fixed 4,096×3 static table (`g_h12_by_code_displaying`/`_ambiguous`/`_divergent`)
       and the `g_h12_code_out_of_range` counter, beside the three existing scalars.
-- [ ] 8.2 Add `tls_h12_code`, set unconditionally inside `cb_lookup_hash`'s existing 12-bit branch
+- [x] 8.2 Add `tls_h12_code`, set unconditionally inside `cb_lookup_hash`'s existing 12-bit branch
       (dev-task §1.2).
-- [ ] 8.3 Add the table increments inside the existing, UNCHANGED emission-site guard, masking
+- [x] 8.3 Add the table increments inside the existing, UNCHANGED emission-site guard, masking
       defensively (`c = code & 0xFFF`) and counting any out-of-range violation rather than silently
       absorbing it (design.md D4).
-- [ ] 8.4 Add `ft8_get_h12_by_code`, returning `4096` on success or `-1` on any bad argument
+- [x] 8.4 Add `ft8_get_h12_by_code`, returning `4096` on success or `-1` on any bad argument
       (capacity or NULL pointer, `out_of_range` included).
 
 ### 9. Native Shim — Version Bump
 
-- [ ] 9.1 `FT8_SHIM_VERSION` `20260047` → `20260048`, with a changelog entry naming the mechanism
+- [x] 9.1 `FT8_SHIM_VERSION` `20260047` → `20260048`, with a changelog entry naming the mechanism
       and confirming no C# binding exists for the new export.
 
 ### 10. Binary Rebuild
 
-- [ ] 10.1 Windows x64 rebuild; record SHA256.
-- [ ] 10.2 Linux x64 rebuild (WSL2 Debian); record SHA256.
+- [x] 10.1 Windows x64 rebuild; record SHA256. `e22524e8fb4964496e34a2c3f08d6e10d8f6f48eaadb0626
+      fe6a8799fa84e33e` (MSVC 19.44.35223, matches the 20260047 pass's own compiler exactly).
+- [x] 10.2 Linux x64 rebuild (WSL2 Debian); record SHA256. `4686a4f7eec31d2190c545586d39d95cab6e10e
+      0758fbb59f7fab44e77498b62` (GCC 14.2.0, matches the 20260047 pass's own compiler exactly).
 - [ ] 10.3 macOS ARM64 — expect the same "not rebuilt locally" deferral as every prior native
       change; CI rebuilds it on the eventual push.
-- [ ] 10.4 `libft8.version.txt` (`win-x64/`, the actual on-disk location — dev-task §0 corrects the
+- [x] 10.4 `libft8.version.txt` (`win-x64/`, the actual on-disk location — dev-task §0 corrects the
       execution pack's own cited path) updated with both SHA256 values and the dumpbin/nm
       twenty-export confirmation.
 
 ### 11. Managed Interop — ONE constant, nothing else
 
-- [ ] 11.1 `Ft8LibInterop.cs` line 385, `ExpectedShimVersion` → `20260048`, plus its changelog
+- [x] 11.1 `Ft8LibInterop.cs` line 385, `ExpectedShimVersion` → `20260048`, plus its changelog
       comment. **Confirm via `git diff --stat` that no other line in this file changed, and that
       `IFt8NativeInterop.cs`, `Ft8NativeInteropAdapter.cs`, `Ft8Decoder.cs`, and all 11 implementers
       do not appear in the diff at all** — this is the acceptance criterion for the "ft8lib-interop"
-      spec delta's own "No managed binding exists for the export" scenario.
+      spec delta's own "No managed binding exists for the export" scenario. Confirmed: `git diff`
+      on this file shows only the one `ExpectedShimVersion` line plus its new `<remarks>` block;
+      none of the four named files appear anywhere in `git status --short`.
 
 ### 12. Native Build — Export List
 
-- [ ] 12.1 `rebuild_shim.bat`: one new `/EXPORT:ft8_get_h12_by_code` line (twenty exports total).
-- [ ] 12.2 `BUILD.md`: the matching one-line addition only — do NOT backfill its pre-existing,
+- [x] 12.1 `rebuild_shim.bat`: one new `/EXPORT:ft8_get_h12_by_code` line (twenty exports total).
+- [x] 12.2 `BUILD.md`: the matching one-line addition only — do NOT backfill its pre-existing,
       unrelated `ft8_get_last_snr_terms` omission as part of this diff (design.md Risks).
 
 ### 13. Build and Test
 
-- [ ] 13.1 Local build (Windows at minimum) succeeds with no unresolved P/Invoke entry points.
-- [ ] 13.2 `dotnet test` full suite green — expect `OpenWSFZ.Ft8.Tests` at 319/319 unchanged (no
-      test file is added or edited by Phase 2), and confirm any pre-existing unrelated flake
-      (FR-064's `ExternalReportingServiceTests`, the `CycleArchiveServiceTests` timing test) has
-      zero file overlap with this diff before treating it as unrelated.
-- [ ] 13.3 `git diff --stat` against the branch HEAD at Phase 2's start (`5c01d60`) touches only the
+- [x] 13.1 Local build (Windows at minimum) succeeds with no unresolved P/Invoke entry points.
+      `dotnet build OpenWSFZ.slnx -c Release`: 0 Warning(s), 0 Error(s).
+- [x] 13.2 `dotnet test` full suite — `OpenWSFZ.Ft8.Tests` 319/319, unchanged from the 20260047
+      pass (no test file added or edited by Phase 2). Two pre-existing, already-tracked flakes
+      recurred in `OpenWSFZ.Daemon.Tests` (FR-064 `ExternalReportingServiceTests` and
+      `CycleArchiveServiceTests`'s manifest timing test) — confirmed zero file overlap with this
+      diff (native shim, interop constant, build scripts, binaries only) before treating them as
+      unrelated, per this task's own instruction. All other projects green (Rig 41/41, Audio
+      19/19, Config 100/100, Web 276/276, E2E 7/7, TestSupport 9/9, TraceabilityCheck 34/34,
+      LicenseInventoryCheck 24/24). Full detail in `libft8.version.txt`'s new entry.
+- [x] 13.3 `git diff --stat` against the branch HEAD at Phase 2's start (`5c01d60`) touches only the
       eight files the execution pack Sec.C2 and this change's `ft8lib-interop` spec delta name —
       nothing else.
-- [ ] 13.4 Commit on `qa/sup-b-2026-08-30`. Does not push, does not merge, does not run
+- [x] 13.4 Commit on `qa/sup-b-2026-08-30`. Does not push, does not merge, does not run
       `pre_merge_check.py` (HK-006/HK-011/HK-014).
 
 ### 14. QA — extend the harness and evaluator (qa-tooling, HK-011 does not apply)
