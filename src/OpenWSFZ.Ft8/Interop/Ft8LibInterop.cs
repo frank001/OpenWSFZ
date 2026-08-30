@@ -368,7 +368,21 @@ internal static class Ft8LibInterop
     /// <see cref="DecodeAll"/>'s signature or any other exported entry point's ABI. No
     /// struct layout change (<see cref="Ft8NativeResult"/> stays 48 bytes). No new export.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260046;
+    /// <remarks>
+    /// f001-sup-b-instrumented-suppression-sizing, shim 20260047: adds three new
+    /// exported read-only getters -- <see cref="GetH12DisplayingCount"/>,
+    /// <see cref="GetH12AmbiguousCount"/>, <see cref="GetH12DivergentCount"/> --
+    /// counting how many EMITTED decodes resolved via the 12-bit nonstandard-callsign
+    /// hash path, how many of those hit an ambiguous (&gt;=2-entry) probe chain, and
+    /// how many of THOSE had their most-recently-announced match differ from the
+    /// first (displayed) one. MEASURE-ONLY: <see cref="DecodeAll"/>'s hash-table
+    /// lookup return value and the callsign it writes are byte-for-byte unchanged;
+    /// the new counting walk is a separate, read-only native function. No struct
+    /// layout change visible across the ABI boundary (the native-only
+    /// <c>announce_stamp</c> field is never marshalled to C#). No change to the
+    /// 4096-slot capacity or eviction policy.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260047;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -569,6 +583,30 @@ internal static class Ft8LibInterop
     /// </summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_get_hash_table_reject_count", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeGetHashTableRejectCount();
+
+    /// <summary>
+    /// SUP-B (shim 20260047): process-lifetime count of EMITTED decodes whose display
+    /// resolved via the 12-bit nonstandard-callsign hash path. See
+    /// <see cref="IFt8NativeInterop.GetH12DisplayingCount"/> for the full contract.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_h12_displaying_count", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetH12DisplayingCount();
+
+    /// <summary>
+    /// SUP-B (shim 20260047): of <see cref="NativeGetH12DisplayingCount"/>, how many resolved
+    /// against an ambiguous (≥2-entry) probe chain. See
+    /// <see cref="IFt8NativeInterop.GetH12AmbiguousCount"/> for the full contract.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_h12_ambiguous_count", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetH12AmbiguousCount();
+
+    /// <summary>
+    /// SUP-B (shim 20260047): of <see cref="NativeGetH12DisplayingCount"/>, how many had their
+    /// most-recently-announced matching entry differ from the first (displayed) one. See
+    /// <see cref="IFt8NativeInterop.GetH12DivergentCount"/> for the full contract.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_h12_divergent_count", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetH12DivergentCount();
 
     /// <summary>
     /// Encode a text message to 79 tone indices via <c>ft8_encode_message</c> in the native shim.
@@ -866,6 +904,33 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         return NativeGetHashTableRejectCount();
+    }
+
+    /// <summary>
+    /// SUP-B (shim 20260047). See <see cref="IFt8NativeInterop.GetH12DisplayingCount"/>.
+    /// </summary>
+    public static int GetH12DisplayingCount()
+    {
+        EnsureInitialized();
+        return NativeGetH12DisplayingCount();
+    }
+
+    /// <summary>
+    /// SUP-B (shim 20260047). See <see cref="IFt8NativeInterop.GetH12AmbiguousCount"/>.
+    /// </summary>
+    public static int GetH12AmbiguousCount()
+    {
+        EnsureInitialized();
+        return NativeGetH12AmbiguousCount();
+    }
+
+    /// <summary>
+    /// SUP-B (shim 20260047). See <see cref="IFt8NativeInterop.GetH12DivergentCount"/>.
+    /// </summary>
+    public static int GetH12DivergentCount()
+    {
+        EnsureInitialized();
+        return NativeGetH12DivergentCount();
     }
 
     /// <summary>
