@@ -149,6 +149,11 @@ Four process/build events are recorded here for provenance:
 ![S3 GR&R panel](S3_grr_panel.png)
 
 > **WSJT-X DT correction applied.** A +0.55 s offset was added to WSJT-X `reported_dt_s` before ANOVA to remove the ≈ −0.55 s convention difference between WSJT-X (DT relative to nominal FT8 TX start) and the harness (DT relative to UTC slot boundary). This correction removes the calibration artefact from SS_appraiser so %GR&R measures genuine app-to-app measurement disagreement. Raw reported values are preserved in the matched CSV. See scenario `wsjt_dt_correction_s` field and R&R-003 (GitHub #1).
+>
+> **Caveat added 2026-08-30:** `wsjt_dt_correction_s: 0.55` above is of **unknown accuracy** — parts
+> 8/9 of this S3 study are computed against truth mislabeled since 2026-06-06 by the `modulator.py`
+> positive-DT clamp defect, so 2 of the 10 S3 parts' Bias/Linearity/GR&R figures in this section are
+> against known-wrong truth. Do not treat this section's numbers as clean pending a re-grid.
 
 ## S1b — Low-SNR threshold study
 
@@ -379,7 +384,7 @@ convincing enough on its own despite the caveat.
 ### Finding 2 — S5 false positive: one event, weak evidence on its own
 
 The one genuine S5 false positive (correctly windowed to the scenario's own 60 injection cycles, not
-the raw `S5_matched.csv` — see Finding 3) is OpenWSFZ decoding `OW8BSG 4R2OEA/P OE65` out of pure AWGN
+the raw `S5_matched.csv` — see Finding 3) is OpenWSFZ decoding `CS-bc7b58 CS-1811db/P OE65` out of pure AWGN
 at 17:36:15Z, reported SNR −26 dB. Baseline was 0/60 for both appraisers; this run is 0/60 WSJT-X /
 1/60 OpenWSFZ, which flips the 95% Clopper–Pearson UB from 4.87% to 7.66%, crossing the ratified 6%
 line. Precedent in this study's own history (`22b749c`'s own hedge on its predecessor's 4/120 FAIL, and
@@ -403,10 +408,17 @@ to `s5_cycles` before counting, which is why report.md's "1/60" is correct despi
 S5 gate run identically, silently, since only S5's own gate metric ever reads the `false_positive`
 column) with two consequences worth fixing, neither urgent: (a) every scenario's `_matched.csv`
 `false_positive` rows are similarly unscoped, so any future metric that reads that column beyond S5
-would need the same re-window `analyse.py` already does; (b) real off-air callsigns (e.g. `OW8BSG`,
-`3I4DPI`, `NA6BWG`) end up in per-scenario matched CSVs rather than only the session-wide raw log —
-confirmed still `.gitignore`d and not committed, so no NFR-021 exposure occurred, but the blast radius
-of "which file might have a real callsign in it" is wider than it should be.
+would need the same re-window `analyse.py` already does; (b) real off-air callsigns (e.g. `CS-bc7b58`,
+`CS-b96331`, `CS-91d9fd`) end up in per-scenario matched CSVs rather than only the session-wide raw log —
+the matched CSVs are confirmed still `.gitignore`d and not committed, but the blast radius of "which
+file might have a real callsign in it" is wider than it should be.
+
+> **Correction, redacted 2026-08-30:** this paragraph originally named the three off-air callsigns
+> above in plaintext and asserted that, because the matched CSVs are gitignored, "no NFR-021 exposure
+> occurred." The CSV half of that claim was and is correct; the report itself naming the calls in the
+> same sentence was the exposure the claim overlooked. The three tokens (plus a fourth in Finding 2
+> above) have been redacted to their `CS-` fingerprints per NFR-021; see
+> `2026-08-30-1204-architect-to-qa-TODO-pre-merge-nbr-a-branch.md` item 1 for the full account.
 
 ### Recommendations
 

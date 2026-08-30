@@ -4921,3 +4921,45 @@ OpenWSFZ v0.48 listening on http://127.0.0.1:8080 - open this in your browser.
 [23:12:41 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
 [23:12:45 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
 [23:12:46 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:12:51 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:12:56 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:12:59 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:13:01 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:06 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:11 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:15 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:13:16 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:21 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:26 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:30 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:13:31 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:36 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:41 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:45 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:13:46 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:51 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:56 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:13:59 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:14:01 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:06 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:11 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:15 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:14:16 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:21 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:26 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:30 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:14:31 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:36 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:41 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:45 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:14:46 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:51 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:14:56 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:15:00 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:15:01 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:15:06 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:15:11 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:15:15 INF] Cycle skipped - RMS 0.000E+000 is below silence guard (threshold 1.000E-006).
+[23:15:16 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:15:21 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True
+[23:15:26 INF] Heartbeat: captureActive=True, audioActive=True, dataFlowing=True

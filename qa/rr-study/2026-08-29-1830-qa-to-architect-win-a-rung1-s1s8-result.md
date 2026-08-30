@@ -69,7 +69,7 @@ convention that's been the pattern all through this arm.
 ## 3. Finding 2 -- S5: one genuine event, weak evidence on its own
 
 Correctly windowed to S5's own 60 injection cycles (see Finding 3 for why that windowing matters): one
-OpenWSFZ false positive, `OW8BSG 4R2OEA/P OE65` decoded out of pure AWGN at 17:36:15Z, reported SNR
+OpenWSFZ false positive, `CS-bc7b58 CS-1811db/P OE65` decoded out of pure AWGN at 17:36:15Z, reported SNR
 -26 dB. WSJT-X 0/60. Baseline was 0/60 both appraisers. Flips the 95% Clopper-Pearson UB from 4.87% to
 7.66%, crossing the ratified 6% gate. This study's own precedent (`22b749c`'s hedge on `f5dec23`'s
 4/120 FAIL) treats a single small-N FP swing as ordinary tail variance pending a second occurrence --
