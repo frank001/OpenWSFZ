@@ -564,18 +564,23 @@ table) of `report.md` automatically. **The QA engineer must complete:**
 2. **Section 5 — Recommendations:** For each FAIL or MARGINAL metric, state the
    defect ID, hypothesis, and next diagnostic step.
 
-3. **Render HTML:**
+3. **Section 6 — Extended historical trend table** (standard as of 2026-08-27,
+   Captain's ruling): compare this sweep's headline metrics against the full
+   run-to-run history (`trend.csv`/`trend_xplat.csv` and prior `report.md`s),
+   not just the immediately preceding sweep.
+
+4. **Render HTML:**
    ```powershell
    python qa/rr-study/render_report.py <path/to/report.md>
    ```
 
-4. **Commit the result directory:**
+5. **Commit the result directory:**
    ```bash
    git add qa/rr-study/results/<run-dir>/
    git commit -m "qa(rr-study): cross-platform R&R run <date> — <brief finding>"
    ```
 
-> A `report.md` committed without Sections 1 and 5 is a merge-blocking defect
+> A `report.md` committed without Sections 1, 5, and 6 is a merge-blocking defect
 > (NFR-024). See MEMORY.md HK-001.
 
 ---

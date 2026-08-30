@@ -1,0 +1,639 @@
+{
+  "S_max": 0.4,
+  "consequence": {
+    "consequence": "ROW_0_VALIDITY_FAIL -- NO VALID PRIMARY READING",
+    "escalate": true,
+    "reason": "ROW 0b (the load-bearing positive control) fails its pre-registered 0.85-1.30 bracket for every primary corpus that has one -- Sec.2.3's pre-resize-corpus assumption is NOT supported. Per Sec.4/HK-021(k) this VOIDs the corpus outright; it is dispositive and upstream of Sec.5.5's S-vs-S_max table, which never applies to a voided corpus.",
+    "survived_corpora": {},
+    "voided_corpora": {
+      "S-17M": [
+        "row_0b"
+      ],
+      "S-20M": [
+        "row_0b"
+      ],
+      "S-80M": [
+        "row_0b"
+      ]
+    }
+  },
+  "corpora": {
+    "L-20M": {
+      "contrast_full_span": {
+        "D": 0.1614,
+        "D_ci95": [
+          0.0883,
+          0.3195
+        ],
+        "D_null": 0.1892,
+        "D_over_S": 0.4783,
+        "R_residency": 4096,
+        "S": 0.3375,
+        "S_ci95": [
+          0.1862,
+          0.5732
+        ],
+        "S_null": 0.418,
+        "distinct_callsigns": 129,
+        "distinct_n12_codes": 129,
+        "marginal_40pct": true,
+        "n": 477,
+        "n_diverges": 77,
+        "n_suppressed": 161,
+        "verdict": "MARGINAL"
+      },
+      "dropped_arrival_charset": 0,
+      "excluded_charset": 0,
+      "excluded_misses": 83,
+      "final_residency": 4096,
+      "n_lookup_candidates": 560,
+      "row_0a": {
+        "declared_span_h": 43.79,
+        "first_ts": "260731_200430",
+        "last_ts": "260802_155200",
+        "n_rows": 184918,
+        "pass": true,
+        "row": "0a",
+        "span_h": 43.792
+      },
+      "row_0b": {
+        "note": "no log located for this corpus",
+        "pass": null,
+        "row": "0b"
+      },
+      "row_0c": {
+        "mismatches": [],
+        "n_codes_with_2plus": 1072,
+        "pass": true,
+        "row": "0c"
+      },
+      "row_0d": {
+        "class": "DIAGNOSTIC (HK-021(k), both branches read -- never a gate)",
+        "has_moving_exhibit": true,
+        "has_stationary_exhibit": true,
+        "moving_exhibit_n12": 2119,
+        "moving_exhibit_n_matches": 2,
+        "row": "0d"
+      },
+      "row_0g": {
+        "D_count": 77,
+        "S_count": 161,
+        "pass": true,
+        "row": "0g"
+      }
+    },
+    "S-17M": {
+      "curve": {
+        "1": {
+          "D": 0.0952,
+          "D_ci95": [
+            0.0,
+            0.2381
+          ],
+          "D_null": 0.0476,
+          "D_over_S": 1.0,
+          "R_residency": 584,
+          "S": 0.0952,
+          "S_ci95": [
+            0.0,
+            0.2381
+          ],
+          "S_null": 0.0696,
+          "distinct_callsigns": 18,
+          "distinct_n12_codes": 18,
+          "marginal_40pct": false,
+          "n": 21,
+          "n_diverges": 2,
+          "n_suppressed": 2,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        },
+        "2": {
+          "D": 0.0606,
+          "D_ci95": [
+            0.0,
+            0.1786
+          ],
+          "D_null": 0.0455,
+          "D_over_S": 0.6667,
+          "R_residency": 1142,
+          "S": 0.0909,
+          "S_ci95": [
+            0.0,
+            0.2333
+          ],
+          "S_null": 0.1329,
+          "distinct_callsigns": 21,
+          "distinct_n12_codes": 21,
+          "marginal_40pct": false,
+          "n": 33,
+          "n_diverges": 2,
+          "n_suppressed": 3,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        },
+        "4": {
+          "D": 0.0909,
+          "D_ci95": [
+            0.0,
+            0.2308
+          ],
+          "D_null": 0.0682,
+          "D_over_S": 0.6667,
+          "R_residency": 2180,
+          "S": 0.1364,
+          "S_ci95": [
+            0.0345,
+            0.2889
+          ],
+          "S_null": 0.2426,
+          "distinct_callsigns": 27,
+          "distinct_n12_codes": 27,
+          "marginal_40pct": false,
+          "n": 44,
+          "n_diverges": 4,
+          "n_suppressed": 6,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        },
+        "6": {
+          "D": 0.12,
+          "D_ci95": [
+            0.0233,
+            0.2581
+          ],
+          "D_null": 0.09,
+          "D_over_S": 0.6667,
+          "R_residency": 3069,
+          "S": 0.18,
+          "S_ci95": [
+            0.0727,
+            0.3415
+          ],
+          "S_null": 0.3283,
+          "distinct_callsigns": 30,
+          "distinct_n12_codes": 30,
+          "marginal_40pct": false,
+          "n": 50,
+          "n_diverges": 6,
+          "n_suppressed": 9,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        }
+      },
+      "dropped_arrival_charset": 0,
+      "excluded_charset": 0,
+      "excluded_misses": 54,
+      "final_residency": 3784,
+      "n_lookup_candidates": 109,
+      "primary": {
+        "D": 0.1636,
+        "D_ci95": [
+          0.0615,
+          0.325
+        ],
+        "D_null": 0.1212,
+        "D_over_S": 0.6923,
+        "R_residency": 3784,
+        "S": 0.2364,
+        "S_ci95": [
+          0.1159,
+          0.4074
+        ],
+        "S_null": 0.3918,
+        "distinct_callsigns": 34,
+        "distinct_n12_codes": 34,
+        "marginal_40pct": true,
+        "n": 55,
+        "n_diverges": 9,
+        "n_suppressed": 13,
+        "verdict": "MARGINAL"
+      },
+      "row_0a": {
+        "declared_span_h": 7.73,
+        "first_ts": "260808_115445",
+        "last_ts": "260808_193830",
+        "n_rows": 26345,
+        "pass": true,
+        "row": "0a",
+        "span_h": 7.729
+      },
+      "row_0b": {
+        "observed_freeze_cycle": 50,
+        "pass": false,
+        "ratio": 1.46,
+        "row": "0b",
+        "row0b_start_ts": null,
+        "simulated_freeze_cycle": 73
+      },
+      "row_0c": {
+        "mismatches": [],
+        "n_codes_with_2plus": 968,
+        "pass": true,
+        "row": "0c"
+      },
+      "row_0d": {
+        "class": "DIAGNOSTIC (HK-021(k), both branches read -- never a gate)",
+        "has_moving_exhibit": true,
+        "has_stationary_exhibit": true,
+        "moving_exhibit_n12": 3893,
+        "moving_exhibit_n_matches": 2,
+        "row": "0d"
+      },
+      "row_0g": {
+        "D_count": 9,
+        "S_count": 13,
+        "pass": true,
+        "row": "0g"
+      }
+    },
+    "S-20M": {
+      "curve": {
+        "1": {
+          "D": 0.069,
+          "D_ci95": [
+            0.0,
+            0.24
+          ],
+          "D_null": 0.0805,
+          "D_over_S": 0.5,
+          "R_residency": 807,
+          "S": 0.1379,
+          "S_ci95": [
+            0.0,
+            0.4
+          ],
+          "S_null": 0.0953,
+          "distinct_callsigns": 12,
+          "distinct_n12_codes": 12,
+          "marginal_40pct": true,
+          "n": 29,
+          "n_diverges": 2,
+          "n_suppressed": 4,
+          "verdict": "MARGINAL"
+        },
+        "2": {
+          "D": 0.0625,
+          "D_ci95": [
+            0.0,
+            0.2105
+          ],
+          "D_null": 0.0729,
+          "D_over_S": 0.5,
+          "R_residency": 1230,
+          "S": 0.125,
+          "S_ci95": [
+            0.0,
+            0.3636
+          ],
+          "S_null": 0.1426,
+          "distinct_callsigns": 14,
+          "distinct_n12_codes": 14,
+          "marginal_40pct": false,
+          "n": 32,
+          "n_diverges": 2,
+          "n_suppressed": 4,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        },
+        "4": {
+          "D": 0.0541,
+          "D_ci95": [
+            0.0,
+            0.2
+          ],
+          "D_null": 0.0631,
+          "D_over_S": 0.5,
+          "R_residency": 1939,
+          "S": 0.1081,
+          "S_ci95": [
+            0.0,
+            0.32
+          ],
+          "S_null": 0.2181,
+          "distinct_callsigns": 16,
+          "distinct_n12_codes": 16,
+          "marginal_40pct": false,
+          "n": 37,
+          "n_diverges": 2,
+          "n_suppressed": 4,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        },
+        "6": {
+          "D": 0.0435,
+          "D_ci95": [
+            0.0,
+            0.1538
+          ],
+          "D_null": 0.0725,
+          "D_over_S": 0.3333,
+          "R_residency": 3144,
+          "S": 0.1304,
+          "S_ci95": [
+            0.0,
+            0.3333
+          ],
+          "S_null": 0.3352,
+          "distinct_callsigns": 21,
+          "distinct_n12_codes": 21,
+          "marginal_40pct": false,
+          "n": 46,
+          "n_diverges": 2,
+          "n_suppressed": 6,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        },
+        "8": {
+          "D": 0.0943,
+          "D_ci95": [
+            0.0152,
+            0.2308
+          ],
+          "D_null": 0.1226,
+          "D_over_S": 0.4545,
+          "R_residency": 4096,
+          "S": 0.2075,
+          "S_ci95": [
+            0.0732,
+            0.4412
+          ],
+          "S_null": 0.418,
+          "distinct_callsigns": 26,
+          "distinct_n12_codes": 26,
+          "marginal_40pct": true,
+          "n": 53,
+          "n_diverges": 5,
+          "n_suppressed": 11,
+          "verdict": "MARGINAL"
+        }
+      },
+      "dropped_arrival_charset": 0,
+      "excluded_charset": 0,
+      "excluded_misses": 20,
+      "final_residency": 4096,
+      "n_lookup_candidates": 113,
+      "primary_1_8h": {
+        "D": 0.0943,
+        "D_ci95": [
+          0.0152,
+          0.2308
+        ],
+        "D_null": 0.1226,
+        "D_over_S": 0.4545,
+        "R_residency": 4096,
+        "S": 0.2075,
+        "S_ci95": [
+          0.0732,
+          0.4412
+        ],
+        "S_null": 0.418,
+        "distinct_callsigns": 26,
+        "distinct_n12_codes": 26,
+        "marginal_40pct": true,
+        "n": 53,
+        "n_diverges": 5,
+        "n_suppressed": 11,
+        "verdict": "MARGINAL"
+      },
+      "row_0a": {
+        "declared_span_h": 11.48,
+        "first_ts": "260808_000845",
+        "last_ts": "260808_113745",
+        "n_rows": 45258,
+        "pass": true,
+        "row": "0a",
+        "span_h": 11.483
+      },
+      "row_0b": {
+        "observed_freeze_cycle": 25,
+        "pass": false,
+        "ratio": 1.48,
+        "row": "0b",
+        "row0b_start_ts": "260808_001605",
+        "simulated_freeze_cycle": 37
+      },
+      "row_0c": {
+        "mismatches": [],
+        "n_codes_with_2plus": 1058,
+        "pass": true,
+        "row": "0c"
+      },
+      "row_0d": {
+        "class": "DIAGNOSTIC (HK-021(k), both branches read -- never a gate)",
+        "has_moving_exhibit": true,
+        "has_stationary_exhibit": true,
+        "moving_exhibit_n12": 931,
+        "moving_exhibit_n_matches": 2,
+        "row": "0d"
+      },
+      "row_0g": {
+        "D_count": 18,
+        "S_count": 42,
+        "pass": true,
+        "row": "0g"
+      },
+      "secondary_full_span": {
+        "D": 0.1935,
+        "D_ci95": [
+          0.0789,
+          0.3733
+        ],
+        "D_null": 0.2688,
+        "D_over_S": 0.4286,
+        "R_residency": 4096,
+        "S": 0.4516,
+        "S_ci95": [
+          0.2404,
+          0.6944
+        ],
+        "S_null": 0.418,
+        "distinct_callsigns": 38,
+        "distinct_n12_codes": 38,
+        "marginal_40pct": true,
+        "n": 93,
+        "n_diverges": 18,
+        "n_suppressed": 42,
+        "verdict": "MARGINAL"
+      }
+    },
+    "S-80M": {
+      "curve": {
+        "1": {
+          "D": 0.1,
+          "D_ci95": [
+            0.0,
+            0.3158
+          ],
+          "D_null": 0.05,
+          "D_over_S": 1.0,
+          "R_residency": 374,
+          "S": 0.1,
+          "S_ci95": [
+            0.0,
+            0.3158
+          ],
+          "S_null": 0.045,
+          "distinct_callsigns": 10,
+          "distinct_n12_codes": 10,
+          "marginal_40pct": false,
+          "n": 20,
+          "n_diverges": 2,
+          "n_suppressed": 2,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        },
+        "2": {
+          "D": 0.1562,
+          "D_ci95": [
+            0.0,
+            0.3462
+          ],
+          "D_null": 0.0938,
+          "D_over_S": 0.8333,
+          "R_residency": 674,
+          "S": 0.1875,
+          "S_ci95": [
+            0.0,
+            0.3889
+          ],
+          "S_null": 0.08,
+          "distinct_callsigns": 18,
+          "distinct_n12_codes": 18,
+          "marginal_40pct": false,
+          "n": 32,
+          "n_diverges": 5,
+          "n_suppressed": 6,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        },
+        "4": {
+          "D": 0.1714,
+          "D_ci95": [
+            0.0294,
+            0.3636
+          ],
+          "D_null": 0.1,
+          "D_over_S": 0.8571,
+          "R_residency": 1069,
+          "S": 0.2,
+          "S_ci95": [
+            0.0488,
+            0.4167
+          ],
+          "S_null": 0.1248,
+          "distinct_callsigns": 20,
+          "distinct_n12_codes": 20,
+          "marginal_40pct": true,
+          "n": 35,
+          "n_diverges": 6,
+          "n_suppressed": 7,
+          "verdict": "MARGINAL"
+        },
+        "6": {
+          "D": 0.1667,
+          "D_ci95": [
+            0.0278,
+            0.3421
+          ],
+          "D_null": 0.0972,
+          "D_over_S": 0.8571,
+          "R_residency": 1112,
+          "S": 0.1944,
+          "S_ci95": [
+            0.0435,
+            0.3947
+          ],
+          "S_null": 0.1296,
+          "distinct_callsigns": 21,
+          "distinct_n12_codes": 21,
+          "marginal_40pct": false,
+          "n": 36,
+          "n_diverges": 6,
+          "n_suppressed": 7,
+          "verdict": "AT_OR_BELOW_S_MAX"
+        },
+        "8": {
+          "D": 0.1892,
+          "D_ci95": [
+            0.0488,
+            0.375
+          ],
+          "D_null": 0.1081,
+          "D_over_S": 0.875,
+          "R_residency": 1139,
+          "S": 0.2162,
+          "S_ci95": [
+            0.0526,
+            0.4211
+          ],
+          "S_null": 0.1326,
+          "distinct_callsigns": 22,
+          "distinct_n12_codes": 22,
+          "marginal_40pct": true,
+          "n": 37,
+          "n_diverges": 7,
+          "n_suppressed": 8,
+          "verdict": "MARGINAL"
+        }
+      },
+      "dropped_arrival_charset": 0,
+      "excluded_charset": 0,
+      "excluded_misses": 0,
+      "final_residency": 1143,
+      "n_lookup_candidates": 37,
+      "primary": {
+        "D": 0.1892,
+        "D_ci95": [
+          0.0488,
+          0.375
+        ],
+        "D_null": 0.1081,
+        "D_over_S": 0.875,
+        "R_residency": 1143,
+        "S": 0.2162,
+        "S_ci95": [
+          0.0526,
+          0.4211
+        ],
+        "S_null": 0.133,
+        "distinct_callsigns": 22,
+        "distinct_n12_codes": 22,
+        "marginal_40pct": true,
+        "n": 37,
+        "n_diverges": 7,
+        "n_suppressed": 8,
+        "verdict": "MARGINAL"
+      },
+      "row_0a": {
+        "declared_span_h": 8.27,
+        "first_ts": "260809_015445",
+        "last_ts": "260809_101100",
+        "n_rows": 9032,
+        "pass": true,
+        "row": "0a",
+        "span_h": 8.271
+      },
+      "row_0b": {
+        "observed_freeze_cycle": 57,
+        "pass": false,
+        "ratio": 2.6667,
+        "row": "0b",
+        "row0b_start_ts": null,
+        "simulated_freeze_cycle": 152
+      },
+      "row_0c": {
+        "mismatches": [],
+        "n_codes_with_2plus": 125,
+        "pass": true,
+        "row": "0c"
+      },
+      "row_0d": {
+        "class": "DIAGNOSTIC (HK-021(k), both branches read -- never a gate)",
+        "has_moving_exhibit": true,
+        "has_stationary_exhibit": true,
+        "moving_exhibit_n12": 2300,
+        "moving_exhibit_n_matches": 2,
+        "row": "0d"
+      },
+      "row_0g": {
+        "D_count": 7,
+        "S_count": 8,
+        "pass": true,
+        "row": "0g"
+      }
+    }
+  },
+  "spec_commit": "a6a1b2f"
+}
