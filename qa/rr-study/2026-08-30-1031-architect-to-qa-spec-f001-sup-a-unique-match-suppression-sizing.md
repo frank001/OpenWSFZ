@@ -2,7 +2,8 @@
 
 **Architect → QA.** Written 2026-08-30 10:31Z (`date -u`, filename and byline agree — HK-017).
 
-**Status: SPEC ONLY. Not authorised to run until Sec.2.4's PO bar is filled in.**
+**Status: ✅ ARMED — RUNNABLE BY QA. The PO set `S_max` = 40% at 2026-08-30 10:53Z (Sec.2.4), which
+was the only blocking input. The bar is now FROZEN and may not be moved after any result is seen.**
 Offline re-analysis. **No capture, no rebuild, no replay, no `src/`, no `native/`, no Developer
 session.** Runnable in minutes once armed.
 
@@ -186,18 +187,54 @@ callsigns (the arrival stream) are unaffected either way.
 
 🛑 **This assumption is not taken on trust — ROW 0b tests it against the real instrument** (Sec.4).
 
-### 2.4 🔴 BLOCKING INPUT — the PO's bar, to be filled in BEFORE the run
+### 2.4 ✅ THE PO'S BAR — SET 2026-08-30 10:53Z, THIS ARM IS NO LONGER BLOCKED
 
 Per the programme's own precedent (`DEFECT-decode-panel-perceived-latency`: *"pre-commit the
 acceptable number with the Product Owner BEFORE measuring"*), the acceptability bar is the PO's, not
-mine, and it must be recorded here before QA arms the run:
+mine. **It was set before any `S` was computed, and it is now fixed:**
 
-> **Maximum acceptable suppression rate in normal (1–8 h) operation: `____ %`.**
-> Above this, the unique-match remedy is too expensive to ship as an unconditional rule and must be
-> narrowed (e.g. applied only where an unsolicited Tx could result).
+> ## **Maximum acceptable suppression rate in normal (1–8 h) operation: `S_max` = 40%.**
+>
+> **`S > 40%` ⇒ the unconditional unique-match rule is too expensive to ship and must be narrowed**
+> (e.g. applied only where an unsolicited Tx could result). **`S ≤ 40%` ⇒ affordable as an
+> unconditional rule.**
 
-🛑 **QA must not run this arm with that blank unfilled.** A number chosen after seeing the result is
-not a bar.
+**Derivation, so the bar is auditable rather than a preference:** it is anchored to the **measured
+37.9% decode-level misresolution rate** on this same path (`ARM 1B`, rounded up). Below it, the rule
+plausibly removes no more names than were already wrong. ⚠️ **That is an EXPECTATION argument, not a
+measurement** — see 2.4.2.
+
+🛑 **THE BAR IS NOW FROZEN. It may not be moved after any `S` is seen, in either direction, by anyone.
+Moving it post-hoc is the prohibited re-read and it would void this arm.**
+
+### 2.4.1 🔴 HK-021(m): MY OWN PREDICTION STRADDLES THIS BAR, AND I AM SAYING SO BEFORE THE RUN
+
+Sec.7 predicts **17m at 33–48%** and **20m (1–8 h) at 36–52%**. **Both straddle 40%.** ⇒ **a
+straddle is a LIKELY outcome on the two busy bands, not a tail** — this is exactly the N4 fault
+(a cut placed where the answer lands) and it must be predicted as modal, not discovered afterwards.
+
+**Resolution is NOT the problem** — with thousands of lookups per session the clustered CI should be
+a few points wide, comfortably able to separate 33% from 48%. **The problem is that the true value
+may simply sit near the line.** So:
+
+> **Pre-registered handling of a straddle: the verdict is taken on the POINT ESTIMATE, with the CI
+> reported beside it. If the 95% CI SPANS 40%, the session is reported as `MARGINAL` — NOT as
+> resolved in either direction — and it ESCALATES to the PO rather than automatically triggering the
+> narrowed rule.**
+
+🛑 **`MARGINAL` is a real outcome with a real consequence (escalate). It is not a failure, and it is
+not to be resolved by re-reading the point estimate against the bar and calling it done.**
+
+### 2.4.2 What the bar is NOT measured against, stated plainly
+
+🔴 **`S_max` bounds TOTAL suppression, not the loss of CORRECT names** — SUP-A deliberately does not
+measure the right/wrong split of the suppressed set (Sec.0.2: it needs a truth source, which is
+`ARM 1C`'s hazard).
+
+**The structural argument that makes 40% defensible anyway:** suppression targets exactly the
+ambiguous lookups, and ambiguity is the *cause* of misresolution — a multiplicity-1 lookup is
+unambiguous. **So the suppressed set is ENRICHED for wrong names by construction.** ⚠️ **Enriched is
+not "mostly wrong", and this spec does not claim it is.** The bar is conservative on purpose.
 
 ---
 
@@ -472,11 +509,16 @@ record in one place.
 
 ### 5.5 The consequence, pre-registered against the PO's Sec.2.4 bar
 
-- **All three primary `S` below the bar** ⇒ the unconditional unique-match rule is affordable in
+**Evaluate against `S_max` = 40% (Sec.2.4), in this order, first match governs:**
+
+- **Any primary session `MARGINAL`** (95% CI spans 40%, per Sec.2.4.1) ⇒ **ESCALATE to the PO. Do
+  not resolve it against the point estimate and do not proceed to the rows below for that session.**
+  Other sessions are still read on their own terms.
+- **All three primary `S` at or below 40%** ⇒ the unconditional unique-match rule is affordable in
   normal operation. **This authorises a pre-registered Developer arm to be DRAFTED — nothing more.**
-- **Any primary `S` above the bar** ⇒ the unconditional rule is too expensive; the remedy must be
-  narrowed (e.g. to the unsolicited-Tx case, which is where `R5`'s G3-2 measured a 73.1% wrong rate).
-  **No narrowing is designed here** — it earns its own spec.
+- **Any primary `S` above 40%** (CI clear of the bar) ⇒ the unconditional rule is too expensive; the
+  remedy must be narrowed (e.g. to the unsolicited-Tx case, which is where `R5`'s G3-2 measured a
+  73.1% wrong rate). **No narrowing is designed here** — it earns its own spec.
 - **Split verdict across bands** ⇒ report as such and **escalate**; do not average it away.
 
 ### 5.6 🆕 (Amendment 1) — the divergence ceiling `D`
