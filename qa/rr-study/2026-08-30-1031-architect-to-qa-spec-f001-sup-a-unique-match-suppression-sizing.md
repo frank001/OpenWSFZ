@@ -8,6 +8,38 @@ session.** Runnable in minutes once armed.
 
 ---
 
+## 🆕 AMENDMENT 1 — 2026-08-30 10:53Z, ordered by the Captain ("add SUP-A")
+
+**Amended IN PLACE because this spec has never run and is not authorised.** The pre-amendment text
+is preserved in git at commit **`71fb7d8`**; diff against it to see exactly what changed.
+
+🛑 **AMENDMENT 1 ADDS ONLY. It moves no bar, changes no existing row, and narrows no population. If
+any reading of it appears to loosen anything in Sec.1–Sec.9, THE ORIGINAL SPEC WINS AND THE
+AMENDMENT IS THE DEFECT.**
+
+**What it adds, and why now.** A read-for-method pass over WSJT-X's `lib/77bit/packjt77.f90`
+(2026-08-30, Captain-ordered, licence-clean — read only, nothing copied or ported) established that
+WSJT-X stores 12-bit hashes in a **direct-indexed** array, `calls12(0:4095)`, written as
+`calls12(n12)=cw`. **Last write wins.** It has **no ambiguity detection whatsoever** — so it has *not*
+solved misresolution — but its overwrite policy means a 12-bit lookup there returns the **most
+recently announced** callsign for that code.
+
+**Ours returns the OLDEST resident match on the probe chain.** The two designs resolve an identical
+collision in **opposite directions**.
+
+⇒ **A second candidate remedy exists that costs NO suppressed names: prefer the most-recently-
+announced matching entry rather than the first.** It composes with unique-match rather than
+replacing it.
+
+🛑 **Its BENEFIT cannot be measured here** — that needs a truth source, which is `ARM 1C`'s hazard and
+is excluded by Sec.0.2. **Its CEILING can**, from a pure table property costing one extra field on
+the chain walk Sec.3 already performs. **Amendment 1 measures the ceiling and nothing else.**
+
+Additions: **Sec.3.2** (predicate), **Sec.4 ROW 0g** (a consistency assertion), **Sec.5.6** (the
+reading), **Sec.7.1** (prediction). Nothing else in this document changes.
+
+---
+
 ## Sec.0 — Why this exists, and what it deliberately is NOT
 
 ### 0.1 The decision it serves
@@ -237,9 +269,68 @@ gap; nothing else in this spec does.**
 ⚠️ **Sort every set at construction** before any seeded or ordered use — hash-randomised set
 iteration is a standing defect in this programme and it has already broken seeded determinism once.
 
----
+### 3.2 🆕 (Amendment 1) The divergence predicate — first-match vs most-recent-match
 
-## Sec.4 — ROW 0: preconditions, each classified per HK-025
+**Replaces the Sec.3 chain walk with a strictly wider one. Same walk, one extra field. `first` and
+`n_matches` are computed identically — if they change at all, that is a defect.**
+
+```python
+def lookup12_multiplicity(tbl, n12: int):
+    """ft8_shim.c:637-655 at sh = 10, plus Amendment 1's recency field.
+
+    Returns (first_callsign_or_None, n_matches, most_recent_callsign_or_None).
+
+    first         -- what the SHIPPED build displays today (first match wins).
+    n_matches     -- resident entries on the SAME chain matching the 12-bit code.
+    most_recent   -- of those matches, the one with the HIGHEST last_used, i.e.
+                     the most recently ANNOUNCED. This is the analogue of
+                     WSJT-X's calls12(n12)=cw overwrite, which executes on every
+                     announcement.
+
+    Ties on last_used are broken toward the EARLIER chain position, so that
+    most_recent == first whenever recency cannot distinguish them. That makes
+    the divergence count CONSERVATIVE (it can only under-report D, never
+    inflate it).
+    """
+    sh = 10
+    h10 = (n12 >> (12 - sh)) & 0x3FF
+    idx = (h10 * 23) % tbl.n
+    first, n_matches = None, 0
+    best_idx, best_used = None, None
+    for _ in range(tbl.n):
+        st = tbl.state[idx]
+        if st == EMPTY:
+            break
+        if st == OCCUPIED and ((tbl.hash[idx] & 0x3FFFFF) >> sh) == n12:
+            n_matches += 1
+            if first is None:
+                first = tbl.callsign[idx]
+            if best_used is None or tbl.last_used[idx] > best_used:
+                best_used, best_idx = tbl.last_used[idx], idx
+        idx = (idx + 1) % tbl.n
+    most_recent = tbl.callsign[best_idx] if best_idx is not None else None
+    return first, n_matches, most_recent
+
+
+def diverges(first, n_matches, most_recent) -> bool:
+    """True iff a prefer-most-recent policy would display a DIFFERENT name."""
+    assert first is not None, "caller must exclude non-displaying lookups"
+    return most_recent != first
+```
+
+🔴 **IMPLEMENTATION TRAP, and it will silently corrupt the result if missed: `SimTable.lookup()`
+(the 22-bit form, `common_arm1.py:136-151`) REFRESHES `last_used` on every hit.** That is `ARM 1`'s
+disclosed "favourable form" and it is fine there — **here it would contaminate `last_used` with
+LOOKUP recency when the metric requires ANNOUNCEMENT recency.**
+
+⇒ **Either do not call the 22-bit `lookup()` on the same `SimTable` instance, or use a
+non-refreshing copy of it.** `lookup12_multiplicity` above deliberately does **not** refresh.
+`SimTable.add()` **must** keep refreshing — that is exactly the announcement recency being measured.
+
+⚠️ **Chain order and insertion order:** entries sharing a 12-bit code necessarily share `h10`
+(Sec.0.4), start at the same index, and take the first free slot scanning forward with no deletion
+⇒ **within one code, chain position IS insertion order.** ROW 0g asserts a consequence of this
+rather than trusting it.
 
 **Evaluate in strict order. Stop at the first fire. Every row is mutually exclusive by construction.**
 
@@ -251,6 +342,7 @@ iteration is a standing defect in this programme and it has already broken seede
 | 0d | predicate movement | **PRECISION** | **differs** | 🛑 **DIAGNOSTIC — REPORT, DO NOT GATE** |
 | 0e | determinism | VALIDITY | n/a | ✅ gate |
 | 0f | NFR-021 | compliance | n/a | ✅ gate |
+| 0g 🆕 | `D ≤ S` consistency | VALIDITY | n/a | ✅ gate |
 
 ### ROW 0a — corpus identity — VALIDITY
 
@@ -318,6 +410,21 @@ Re-run **out of process** under two different `PYTHONHASHSEED` values; `result.j
 Zero callsign-shaped tokens in any committed artefact. **Counts only, never callsigns.** Scan every
 file individually before committing. Non-zero ⇒ **do not commit; escalate.**
 
+### ROW 0g 🆕 (Amendment 1) — `D ≤ S` consistency — VALIDITY
+
+**Assert, per session: `D ≤ S`, and every lookup counted in `D` has `n_matches ≥ 2`.**
+
+This is not a finding, it is an **arithmetic identity**: divergence requires at least two matching
+entries, so a diverging lookup is necessarily a suppressed one. **Violation is an implementation
+defect in the chain walk — most likely `last_used` contaminated by the 22-bit `lookup()` refresh
+(Sec.3.2's trap), or `first` not being taken from the earliest chain position. ⇒ VOID that session;
+do not report `D` or `S` for it.**
+
+*This row also indirectly tests the Sec.3.2 claim that chain position equals insertion order: if it
+did not hold, `first` would not be the earliest-inserted entry and the identity could still pass —
+so ROW 0g is necessary but NOT sufficient for that claim, and the claim is not otherwise gated.
+Stated so nobody reads a 0g PASS as confirming it.*
+
 ---
 
 ## Sec.5 — Readings, pre-registered
@@ -372,6 +479,54 @@ record in one place.
   **No narrowing is designed here** — it earns its own spec.
 - **Split verdict across bands** ⇒ report as such and **escalate**; do not average it away.
 
+### 5.6 🆕 (Amendment 1) — the divergence ceiling `D`
+
+```
+D = |{ 12-bit displaying lookups where most_recent != first }|
+    ---------------------------------------------------------
+    |{ 12-bit displaying lookups                            }|
+```
+
+Report `D` **per session**, beside `S`, with the same callsign-clustered CI and the same
+no-pooling rule. Also report the **conditional** form `D / S` — of the ambiguous lookups, the share
+where recency actually disagrees with insertion order. That is the informative quantity; `D` alone
+is bounded by `S` and will track it.
+
+**Base rate, in the same sentence (HK-021(u)).** If announcement recency were independent of
+insertion order, then among lookups with `m` matches the earliest-inserted entry is most-recently-
+announced with probability `1/m`, giving
+
+```
+D_null = sum over displaying lookups of (1 - 1/n_matches) / (count of displaying lookups)
+```
+
+🔴 **`D / S` compared against its null is the whole reading.** `D` ≈ `D_null` ⇒ recency and insertion
+order are unrelated, and a prefer-most-recent policy is a coin-flip relabelling. `D` ≪ `D_null` ⇒ the
+oldest resident entry usually IS the most recently active station (long-lived regulars), and
+**prefer-most-recent buys little.** `D` ≫ `D_null` is not expected and would need explaining before
+being believed.
+
+### 5.6.1 🛑 What `D` is NOT — three prohibitions, all binding
+
+1. 🛑 **`D` is a CEILING ON CHANGE, never a benefit.** It counts lookups where the displayed name
+   would *differ*, not where it would *improve*. **An unknown share of any change is in the wrong
+   direction.** `D` may never be reported as "the misresolution rate a recency policy would fix",
+   in any document, summary, or issue comment.
+2. 🛑 **`D` is NOT our disagreement rate with WSJT-X.** It is computed on OUR table, from OUR decode
+   stream. WSJT-X's `calls12` is direct-indexed, differently sized, and populated from a different
+   (larger) decode stream. **Do not use `D` to predict agreement with WSJT-X, and do not cite it
+   alongside `ARM 1B`'s 51.3% as though the two measured the same thing.**
+3. 🛑 **`D` authorises no build.** HK-021(p) is unchanged: no prefer-most-recent binary exists either.
+
+### 5.6.2 Consequence, pre-registered
+
+- **`D` small (and `D/S` at or below its null)** ⇒ the prefer-most-recent option is **near-dead**;
+  it can barely move a name. **Record it as closed on a number and stop** — this is the cheap
+  outcome and it is the point of running it.
+- **`D` material** ⇒ the option is **LIVE but UNMEASURED**. It then earns its own pre-registration
+  with a truth source and a two-sided gate (a recency policy can make things WORSE), **which is a
+  different and more expensive arm than this one.** Do not design it here.
+
 ---
 
 ## Sec.6 — What this authorises
@@ -406,6 +561,24 @@ stating it before the run: on a busy band a 7–8 h session is already at ~90% t
 "normal operation" does NOT automatically mean "cheap suppression". My earlier claim to the PO that
 the cost is "lower than 50.9%" is true but may be much less reassuring than it sounded.**
 
+### 7.1 🆕 (Amendment 1) — prediction for `D`
+
+**I predict `D / S` lands BELOW its null — i.e. prefer-most-recent buys less than the arithmetic
+would suggest. Confidence: LOW, and I am flagging it as low.**
+
+**Reasoning, so it is scoreable:** an FT8 band is dominated by a persistent core of stations that
+call repeatedly for hours. Where two callsigns share a 12-bit code, the earlier-inserted one is
+disproportionately likely to be one of those regulars and therefore *also* recently announced ⇒
+`first` and `most_recent` coincide more often than chance. **If that is right, the recency prior I
+inferred from WSJT-X's structure is real but small, and the option dies cheaply.**
+
+🔴 **The honest counterweight, recorded before the run: this reasoning cuts against the conclusion I
+drew an hour ago from WSJT-X's design.** I argued its overwrite policy encodes a useful recency
+prior; here I predict recency rarely differs from insertion order. **Both can be true only if the
+prior is real but rarely binding — which is precisely what `D` measures.** If `D` comes back large,
+my Sec.7.1 reasoning is wrong and the WSJT-X reading is stronger than I credited. **Either way one of
+my two positions loses, and that is the point of writing both down.**
+
 **Power (HK-021(v)):** this is a **sizing measurement, not a threshold gate** — there is no
 hypothesis to be underpowered against. With thousands of lookups per session the clustered CI on `S`
 should be a few points wide, which is ample against a bar stated to the nearest 5%. **If the CI on
@@ -426,6 +599,9 @@ it.**
   That quantity is not measured here (Sec.0.2).
 - 🛑 **The `L-20M` figure may never be quoted as a product cost**, and the existing **50.9%** must
   from now on be cited as *"at saturation, i.e. an instrument-run figure"*.
+- 🆕 🛑 **`D` (Amendment 1) travels with all three prohibitions in Sec.5.6.1, every time it is
+  quoted: it is a ceiling on CHANGE not on benefit; it is NOT our disagreement rate with WSJT-X; and
+  it authorises no build.** A bare `D` in a summary is a misquotation of this spec.
 - Commit harness, `result.json` and run log together; nothing pushed (HK-014 binds me, not QA;
   follow the branch's standing convention).
 
