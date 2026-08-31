@@ -54,7 +54,7 @@ S7 — the last scenario played on 2026-08-30, and by far the longest continuous
 (215 truth rows, ~26 minutes) — showed both appraisers' decode counts collapsing to garbage part-way
 through its own play window: genuine decodes through roughly the first 18–19 minutes, then exclusively
 very-low-SNR (−26 to −28 dB) nonsense-text decodes on **both** independent decoders simultaneously
-(`TOOO8GPJRDM`, `I02STU <...> CF92`, `KV8DHA OV1EPK MM65` — not injected traffic), while the daemon's own
+(`TOOO8GPJRDM`, `I02STU <...> CF92`, `[NFR-021 redacted: callsign-shaped noise tokens] MM65` — not injected traffic), while the daemon's own
 heartbeat and noise-floor readings stayed healthy throughout. This ruled out a decoder-side cause (the
 same binary read S1–S5 correctly in the same run) and pointed at the audio chain failing to carry the
 injected signal, progressively, over the course of one very long continuous playback buffer — the same
