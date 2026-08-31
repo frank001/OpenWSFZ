@@ -1,0 +1,394 @@
+======================================================================
+R&R Study -- resuming
+======================================================================
+  Resume from  : S3
+  Will play    : S3, S4, S5, S7
+  Will match   : S1, S3, S4, S5, S7
+  Device       : Voicemeeter AUX Input
+
+
+>>> D:\Projects\claude\OpenWSFZ\qa\rr-study\.venv\Scripts\python.exe harness/run_scenario.py D:\Projects\claude\OpenWSFZ\qa\rr-study\scenarios\s3-dt-offset.json --device Voicemeeter AUX Input
+
+Run directory: results\2026-08-30-2e60949
+  Device 'Voicemeeter AUX Input' matched 3 host-API entries; selected [80] Voicemeeter AUX Input (VB-Audio Voicemeeter VAIO) via Windows WASAPI (48000 Hz).
+[S3] Part 1/10  Trial 1/3  SNR=0 dB  seed=1030001410  cycle=2026-08-30T19:49:00Z
+[S3] Part 1/10  Trial 2/3  SNR=0 dB  seed=59102629  cycle=2026-08-30T19:49:15Z
+[S3] Part 1/10  Trial 3/3  SNR=0 dB  seed=917633151  cycle=2026-08-30T19:49:30Z
+[S3] Part 2/10  Trial 1/3  SNR=0 dB  seed=1727488921  cycle=2026-08-30T19:49:45Z
+[S3] Part 2/10  Trial 2/3  SNR=0 dB  seed=1935099702  cycle=2026-08-30T19:50:00Z
+[S3] Part 2/10  Trial 3/3  SNR=0 dB  seed=1247340308  cycle=2026-08-30T19:50:15Z
+[S3] Part 3/10  Trial 1/3  SNR=0 dB  seed=2123842217  cycle=2026-08-30T19:50:30Z
+[S3] Part 3/10  Trial 2/3  SNR=0 dB  seed=741456992  cycle=2026-08-30T19:50:45Z
+[S3] Part 3/10  Trial 3/3  SNR=0 dB  seed=859851708  cycle=2026-08-30T19:51:00Z
+[S3] Part 4/10  Trial 1/3  SNR=0 dB  seed=1497291008  cycle=2026-08-30T19:51:15Z
+[S3] Part 4/10  Trial 2/3  SNR=0 dB  seed=2122590732  cycle=2026-08-30T19:51:30Z
+[S3] Part 4/10  Trial 3/3  SNR=0 dB  seed=1592902622  cycle=2026-08-30T19:51:45Z
+[S3] Part 5/10  Trial 1/3  SNR=0 dB  seed=1269981715  cycle=2026-08-30T19:52:00Z
+[S3] Part 5/10  Trial 2/3  SNR=0 dB  seed=1736958637  cycle=2026-08-30T19:52:15Z
+[S3] Part 5/10  Trial 3/3  SNR=0 dB  seed=204596110  cycle=2026-08-30T19:52:30Z
+[S3] Part 6/10  Trial 1/3  SNR=0 dB  seed=1505505932  cycle=2026-08-30T19:52:45Z
+[S3] Part 6/10  Trial 2/3  SNR=0 dB  seed=574426862  cycle=2026-08-30T19:53:00Z
+[S3] Part 6/10  Trial 3/3  SNR=0 dB  seed=2081296688  cycle=2026-08-30T19:53:15Z
+[S3] Part 7/10  Trial 1/3  SNR=0 dB  seed=1872296474  cycle=2026-08-30T19:53:30Z
+[S3] Part 7/10  Trial 2/3  SNR=0 dB  seed=1187247710  cycle=2026-08-30T19:53:45Z
+[S3] Part 7/10  Trial 3/3  SNR=0 dB  seed=1223745501  cycle=2026-08-30T19:54:00Z
+[S3] Part 8/10  Trial 1/3  SNR=0 dB  seed=626911129  cycle=2026-08-30T19:54:15Z
+[S3] Part 8/10  Trial 2/3  SNR=0 dB  seed=1969339727  cycle=2026-08-30T19:54:30Z
+[S3] Part 8/10  Trial 3/3  SNR=0 dB  seed=115451501  cycle=2026-08-30T19:54:45Z
+  … 24 trial(s) played back-to-back (17280000 samples)
+[S3] Part 9/10  Trial 1/3  SNR=0 dB  seed=1467476825  cycle=2026-08-30T19:55:15Z … done
+[S3] Part 9/10  Trial 2/3  SNR=0 dB  seed=154111274  cycle=2026-08-30T19:55:45Z … done
+[S3] Part 9/10  Trial 3/3  SNR=0 dB  seed=1142253482  cycle=2026-08-30T19:56:15Z … done
+[S3] Part 10/10  Trial 1/3  SNR=0 dB  seed=395916349  cycle=2026-08-30T19:56:45Z … done
+[S3] Part 10/10  Trial 2/3  SNR=0 dB  seed=1232141577  cycle=2026-08-30T19:57:15Z … done
+[S3] Part 10/10  Trial 3/3  SNR=0 dB  seed=1753739609  cycle=2026-08-30T19:57:45Z … done
+
+Scenario S3 complete — 30 trials injected. Truth: results\2026-08-30-2e60949\truth.csv
+[OK] s3-dt-offset.json complete
+
+>>> D:\Projects\claude\OpenWSFZ\qa\rr-study\.venv\Scripts\python.exe harness/run_scenario.py D:\Projects\claude\OpenWSFZ\qa\rr-study\scenarios\s4-density.json --device Voicemeeter AUX Input
+
+Run directory: results\2026-08-30-2e60949
+  Device 'Voicemeeter AUX Input' matched 3 host-API entries; selected [80] Voicemeeter AUX Input (VB-Audio Voicemeeter VAIO) via Windows WASAPI (48000 Hz).
+[S4] Part 1/5  Trial 1/3  SNR=N/A  seed=1380025803  cycle=2026-08-30T19:58:30Z
+[S4] Part 1/5  Trial 2/3  SNR=N/A  seed=1028796488  cycle=2026-08-30T19:58:45Z
+[S4] Part 1/5  Trial 3/3  SNR=N/A  seed=1457782904  cycle=2026-08-30T19:59:00Z
+[S4] Part 2/5  Trial 1/3  SNR=N/A  seed=1710814298  cycle=2026-08-30T19:59:15Z
+[S4] Part 2/5  Trial 2/3  SNR=N/A  seed=1662193313  cycle=2026-08-30T19:59:30Z
+[S4] Part 2/5  Trial 3/3  SNR=N/A  seed=196226190  cycle=2026-08-30T19:59:45Z
+[S4] Part 3/5  Trial 1/3  SNR=N/A  seed=139150452  cycle=2026-08-30T20:00:00Z
+[S4] Part 3/5  Trial 2/3  SNR=N/A  seed=1124369827  cycle=2026-08-30T20:00:15Z
+[S4] Part 3/5  Trial 3/3  SNR=N/A  seed=820497043  cycle=2026-08-30T20:00:30Z
+[S4] Part 4/5  Trial 1/3  SNR=N/A  seed=11459573  cycle=2026-08-30T20:00:45Z
+[S4] Part 4/5  Trial 2/3  SNR=N/A  seed=1313953807  cycle=2026-08-30T20:01:00Z
+[S4] Part 4/5  Trial 3/3  SNR=N/A  seed=205499031  cycle=2026-08-30T20:01:15Z
+[S4] Part 5/5  Trial 1/3  SNR=N/A  seed=984663940  cycle=2026-08-30T20:01:30Z
+[S4] Part 5/5  Trial 2/3  SNR=N/A  seed=484615558  cycle=2026-08-30T20:01:45Z
+[S4] Part 5/5  Trial 3/3  SNR=N/A  seed=330630277  cycle=2026-08-30T20:02:00Z
+  … 15 trial(s) played back-to-back (10800000 samples)
+
+Scenario S4 complete — 15 trials injected. Truth: results\2026-08-30-2e60949\truth.csv
+[OK] s4-density.json complete
+
+>>> D:\Projects\claude\OpenWSFZ\qa\rr-study\.venv\Scripts\python.exe harness/run_scenario.py D:\Projects\claude\OpenWSFZ\qa\rr-study\scenarios\s5-noise.json --device Voicemeeter AUX Input
+
+Run directory: results\2026-08-30-2e60949
+  Device 'Voicemeeter AUX Input' matched 3 host-API entries; selected [80] Voicemeeter AUX Input (VB-Audio Voicemeeter VAIO) via Windows WASAPI (48000 Hz).
+[S5] Part 1/4  Trial 1/30  SNR=-20 dB  seed=1561858501  cycle=2026-08-30T20:02:30Z
+[S5] Part 1/4  Trial 2/30  SNR=-20 dB  seed=960283802  cycle=2026-08-30T20:02:45Z
+[S5] Part 1/4  Trial 3/30  SNR=-20 dB  seed=892021093  cycle=2026-08-30T20:03:00Z
+[S5] Part 1/4  Trial 4/30  SNR=-20 dB  seed=1972790602  cycle=2026-08-30T20:03:15Z
+[S5] Part 1/4  Trial 5/30  SNR=-20 dB  seed=522357441  cycle=2026-08-30T20:03:30Z
+[S5] Part 1/4  Trial 6/30  SNR=-20 dB  seed=434100809  cycle=2026-08-30T20:03:45Z
+[S5] Part 1/4  Trial 7/30  SNR=-20 dB  seed=1987541040  cycle=2026-08-30T20:04:00Z
+[S5] Part 1/4  Trial 8/30  SNR=-20 dB  seed=1550731733  cycle=2026-08-30T20:04:15Z
+[S5] Part 1/4  Trial 9/30  SNR=-20 dB  seed=978267978  cycle=2026-08-30T20:04:30Z
+[S5] Part 1/4  Trial 10/30  SNR=-20 dB  seed=1361001477  cycle=2026-08-30T20:04:45Z
+[S5] Part 1/4  Trial 11/30  SNR=-20 dB  seed=1672796167  cycle=2026-08-30T20:05:00Z
+[S5] Part 1/4  Trial 12/30  SNR=-20 dB  seed=363339928  cycle=2026-08-30T20:05:15Z
+[S5] Part 1/4  Trial 13/30  SNR=-20 dB  seed=920581965  cycle=2026-08-30T20:05:30Z
+[S5] Part 1/4  Trial 14/30  SNR=-20 dB  seed=1985403058  cycle=2026-08-30T20:05:45Z
+[S5] Part 1/4  Trial 15/30  SNR=-20 dB  seed=1613680917  cycle=2026-08-30T20:06:00Z
+[S5] Part 1/4  Trial 16/30  SNR=-20 dB  seed=1930000429  cycle=2026-08-30T20:06:15Z
+[S5] Part 1/4  Trial 17/30  SNR=-20 dB  seed=216305983  cycle=2026-08-30T20:06:30Z
+[S5] Part 1/4  Trial 18/30  SNR=-20 dB  seed=312112809  cycle=2026-08-30T20:06:45Z
+[S5] Part 1/4  Trial 19/30  SNR=-20 dB  seed=1052303369  cycle=2026-08-30T20:07:00Z
+[S5] Part 1/4  Trial 20/30  SNR=-20 dB  seed=217579570  cycle=2026-08-30T20:07:15Z
+[S5] Part 1/4  Trial 21/30  SNR=-20 dB  seed=99964177  cycle=2026-08-30T20:07:30Z
+[S5] Part 1/4  Trial 22/30  SNR=-20 dB  seed=490683040  cycle=2026-08-30T20:07:45Z
+[S5] Part 1/4  Trial 23/30  SNR=-20 dB  seed=1940961689  cycle=2026-08-30T20:08:00Z
+[S5] Part 1/4  Trial 24/30  SNR=-20 dB  seed=1454648504  cycle=2026-08-30T20:08:15Z
+[S5] Part 1/4  Trial 25/30  SNR=-20 dB  seed=558398644  cycle=2026-08-30T20:08:30Z
+[S5] Part 1/4  Trial 26/30  SNR=-20 dB  seed=1286326493  cycle=2026-08-30T20:08:45Z
+[S5] Part 1/4  Trial 27/30  SNR=-20 dB  seed=905618129  cycle=2026-08-30T20:09:00Z
+[S5] Part 1/4  Trial 28/30  SNR=-20 dB  seed=649442228  cycle=2026-08-30T20:09:15Z
+[S5] Part 1/4  Trial 29/30  SNR=-20 dB  seed=1033628820  cycle=2026-08-30T20:09:30Z
+[S5] Part 1/4  Trial 30/30  SNR=-20 dB  seed=815515411  cycle=2026-08-30T20:09:45Z
+[S5] Part 2/4  Trial 1/30  SNR=-10 dB  seed=1885087324  cycle=2026-08-30T20:10:00Z
+[S5] Part 2/4  Trial 2/30  SNR=-10 dB  seed=1655700015  cycle=2026-08-30T20:10:15Z
+[S5] Part 2/4  Trial 3/30  SNR=-10 dB  seed=1021903553  cycle=2026-08-30T20:10:30Z
+[S5] Part 2/4  Trial 4/30  SNR=-10 dB  seed=1644975509  cycle=2026-08-30T20:10:45Z
+[S5] Part 2/4  Trial 5/30  SNR=-10 dB  seed=1168327485  cycle=2026-08-30T20:11:00Z
+[S5] Part 2/4  Trial 6/30  SNR=-10 dB  seed=821699653  cycle=2026-08-30T20:11:15Z
+[S5] Part 2/4  Trial 7/30  SNR=-10 dB  seed=1390326187  cycle=2026-08-30T20:11:30Z
+[S5] Part 2/4  Trial 8/30  SNR=-10 dB  seed=62755090  cycle=2026-08-30T20:11:45Z
+[S5] Part 2/4  Trial 9/30  SNR=-10 dB  seed=1060521833  cycle=2026-08-30T20:12:00Z
+[S5] Part 2/4  Trial 10/30  SNR=-10 dB  seed=589950212  cycle=2026-08-30T20:12:15Z
+[S5] Part 2/4  Trial 11/30  SNR=-10 dB  seed=1305069655  cycle=2026-08-30T20:12:30Z
+[S5] Part 2/4  Trial 12/30  SNR=-10 dB  seed=28593644  cycle=2026-08-30T20:12:45Z
+[S5] Part 2/4  Trial 13/30  SNR=-10 dB  seed=1865301797  cycle=2026-08-30T20:13:00Z
+[S5] Part 2/4  Trial 14/30  SNR=-10 dB  seed=2060094721  cycle=2026-08-30T20:13:15Z
+[S5] Part 2/4  Trial 15/30  SNR=-10 dB  seed=1948411728  cycle=2026-08-30T20:13:30Z
+[S5] Part 2/4  Trial 16/30  SNR=-10 dB  seed=391197292  cycle=2026-08-30T20:13:45Z
+[S5] Part 2/4  Trial 17/30  SNR=-10 dB  seed=1222798800  cycle=2026-08-30T20:14:00Z
+[S5] Part 2/4  Trial 18/30  SNR=-10 dB  seed=1741812164  cycle=2026-08-30T20:14:15Z
+[S5] Part 2/4  Trial 19/30  SNR=-10 dB  seed=761716013  cycle=2026-08-30T20:14:30Z
+[S5] Part 2/4  Trial 20/30  SNR=-10 dB  seed=1418527271  cycle=2026-08-30T20:14:45Z
+[S5] Part 2/4  Trial 21/30  SNR=-10 dB  seed=783127692  cycle=2026-08-30T20:15:00Z
+[S5] Part 2/4  Trial 22/30  SNR=-10 dB  seed=1964437265  cycle=2026-08-30T20:15:15Z
+[S5] Part 2/4  Trial 23/30  SNR=-10 dB  seed=957459067  cycle=2026-08-30T20:15:30Z
+[S5] Part 2/4  Trial 24/30  SNR=-10 dB  seed=8860321  cycle=2026-08-30T20:15:45Z
+[S5] Part 2/4  Trial 25/30  SNR=-10 dB  seed=1947352502  cycle=2026-08-30T20:16:00Z
+[S5] Part 2/4  Trial 26/30  SNR=-10 dB  seed=530962326  cycle=2026-08-30T20:16:15Z
+[S5] Part 2/4  Trial 27/30  SNR=-10 dB  seed=1487894653  cycle=2026-08-30T20:16:30Z
+[S5] Part 2/4  Trial 28/30  SNR=-10 dB  seed=336917293  cycle=2026-08-30T20:16:45Z
+[S5] Part 2/4  Trial 29/30  SNR=-10 dB  seed=362942692  cycle=2026-08-30T20:17:00Z
+[S5] Part 2/4  Trial 30/30  SNR=-10 dB  seed=125804357  cycle=2026-08-30T20:17:15Z
+[S5] Part 3/4  Trial 1/30  SNR=-20 dB  seed=1138448492  cycle=2026-08-30T20:17:30Z
+[S5] Part 3/4  Trial 2/30  SNR=-20 dB  seed=1850764392  cycle=2026-08-30T20:17:45Z
+[S5] Part 3/4  Trial 3/30  SNR=-20 dB  seed=321598820  cycle=2026-08-30T20:18:00Z
+[S5] Part 3/4  Trial 4/30  SNR=-20 dB  seed=121880670  cycle=2026-08-30T20:18:15Z
+[S5] Part 3/4  Trial 5/30  SNR=-20 dB  seed=476275882  cycle=2026-08-30T20:18:30Z
+[S5] Part 3/4  Trial 6/30  SNR=-20 dB  seed=1101140010  cycle=2026-08-30T20:18:45Z
+[S5] Part 3/4  Trial 7/30  SNR=-20 dB  seed=993856876  cycle=2026-08-30T20:19:00Z
+[S5] Part 3/4  Trial 8/30  SNR=-20 dB  seed=494561765  cycle=2026-08-30T20:19:15Z
+[S5] Part 3/4  Trial 9/30  SNR=-20 dB  seed=569656867  cycle=2026-08-30T20:19:30Z
+[S5] Part 3/4  Trial 10/30  SNR=-20 dB  seed=1938674575  cycle=2026-08-30T20:19:45Z
+[S5] Part 3/4  Trial 11/30  SNR=-20 dB  seed=1527196527  cycle=2026-08-30T20:20:00Z
+[S5] Part 3/4  Trial 12/30  SNR=-20 dB  seed=1240012615  cycle=2026-08-30T20:20:15Z
+[S5] Part 3/4  Trial 13/30  SNR=-20 dB  seed=1128565587  cycle=2026-08-30T20:20:30Z
+[S5] Part 3/4  Trial 14/30  SNR=-20 dB  seed=1398407335  cycle=2026-08-30T20:20:45Z
+[S5] Part 3/4  Trial 15/30  SNR=-20 dB  seed=1843803682  cycle=2026-08-30T20:21:00Z
+[S5] Part 3/4  Trial 16/30  SNR=-20 dB  seed=1476197660  cycle=2026-08-30T20:21:15Z
+[S5] Part 3/4  Trial 17/30  SNR=-20 dB  seed=1921035023  cycle=2026-08-30T20:21:30Z
+[S5] Part 3/4  Trial 18/30  SNR=-20 dB  seed=1351552590  cycle=2026-08-30T20:21:45Z
+[S5] Part 3/4  Trial 19/30  SNR=-20 dB  seed=1167112926  cycle=2026-08-30T20:22:00Z
+[S5] Part 3/4  Trial 20/30  SNR=-20 dB  seed=1353429191  cycle=2026-08-30T20:22:15Z
+[S5] Part 3/4  Trial 21/30  SNR=-20 dB  seed=1002632261  cycle=2026-08-30T20:22:30Z
+[S5] Part 3/4  Trial 22/30  SNR=-20 dB  seed=1152143633  cycle=2026-08-30T20:22:45Z
+[S5] Part 3/4  Trial 23/30  SNR=-20 dB  seed=1274144205  cycle=2026-08-30T20:23:00Z
+[S5] Part 3/4  Trial 24/30  SNR=-20 dB  seed=236274386  cycle=2026-08-30T20:23:15Z
+[S5] Part 3/4  Trial 25/30  SNR=-20 dB  seed=1250788590  cycle=2026-08-30T20:23:30Z
+[S5] Part 3/4  Trial 26/30  SNR=-20 dB  seed=1053143358  cycle=2026-08-30T20:23:45Z
+[S5] Part 3/4  Trial 27/30  SNR=-20 dB  seed=1195050127  cycle=2026-08-30T20:24:00Z
+[S5] Part 3/4  Trial 28/30  SNR=-20 dB  seed=1857563192  cycle=2026-08-30T20:24:15Z
+[S5] Part 3/4  Trial 29/30  SNR=-20 dB  seed=926067461  cycle=2026-08-30T20:24:30Z
+[S5] Part 3/4  Trial 30/30  SNR=-20 dB  seed=2039212308  cycle=2026-08-30T20:24:45Z
+[S5] Part 4/4  Trial 1/30  SNR=-20 dB  seed=1714205886  cycle=2026-08-30T20:25:00Z
+[S5] Part 4/4  Trial 2/30  SNR=-20 dB  seed=1934708211  cycle=2026-08-30T20:25:15Z
+[S5] Part 4/4  Trial 3/30  SNR=-20 dB  seed=1951162110  cycle=2026-08-30T20:25:30Z
+[S5] Part 4/4  Trial 4/30  SNR=-20 dB  seed=1445156187  cycle=2026-08-30T20:25:45Z
+[S5] Part 4/4  Trial 5/30  SNR=-20 dB  seed=332708724  cycle=2026-08-30T20:26:00Z
+[S5] Part 4/4  Trial 6/30  SNR=-20 dB  seed=1838982444  cycle=2026-08-30T20:26:15Z
+[S5] Part 4/4  Trial 7/30  SNR=-20 dB  seed=1432963864  cycle=2026-08-30T20:26:30Z
+[S5] Part 4/4  Trial 8/30  SNR=-20 dB  seed=1060432322  cycle=2026-08-30T20:26:45Z
+[S5] Part 4/4  Trial 9/30  SNR=-20 dB  seed=328444916  cycle=2026-08-30T20:27:00Z
+[S5] Part 4/4  Trial 10/30  SNR=-20 dB  seed=2116983884  cycle=2026-08-30T20:27:15Z
+[S5] Part 4/4  Trial 11/30  SNR=-20 dB  seed=1100042289  cycle=2026-08-30T20:27:30Z
+[S5] Part 4/4  Trial 12/30  SNR=-20 dB  seed=635744766  cycle=2026-08-30T20:27:45Z
+[S5] Part 4/4  Trial 13/30  SNR=-20 dB  seed=961338442  cycle=2026-08-30T20:28:00Z
+[S5] Part 4/4  Trial 14/30  SNR=-20 dB  seed=1294474057  cycle=2026-08-30T20:28:15Z
+[S5] Part 4/4  Trial 15/30  SNR=-20 dB  seed=1681705495  cycle=2026-08-30T20:28:30Z
+[S5] Part 4/4  Trial 16/30  SNR=-20 dB  seed=710608608  cycle=2026-08-30T20:28:45Z
+[S5] Part 4/4  Trial 17/30  SNR=-20 dB  seed=384136078  cycle=2026-08-30T20:29:00Z
+[S5] Part 4/4  Trial 18/30  SNR=-20 dB  seed=414741158  cycle=2026-08-30T20:29:15Z
+[S5] Part 4/4  Trial 19/30  SNR=-20 dB  seed=1550145401  cycle=2026-08-30T20:29:30Z
+[S5] Part 4/4  Trial 20/30  SNR=-20 dB  seed=247667753  cycle=2026-08-30T20:29:45Z
+[S5] Part 4/4  Trial 21/30  SNR=-20 dB  seed=1583609065  cycle=2026-08-30T20:30:00Z
+[S5] Part 4/4  Trial 22/30  SNR=-20 dB  seed=796570551  cycle=2026-08-30T20:30:15Z
+[S5] Part 4/4  Trial 23/30  SNR=-20 dB  seed=1559731172  cycle=2026-08-30T20:30:30Z
+[S5] Part 4/4  Trial 24/30  SNR=-20 dB  seed=844389843  cycle=2026-08-30T20:30:45Z
+[S5] Part 4/4  Trial 25/30  SNR=-20 dB  seed=1173993624  cycle=2026-08-30T20:31:00Z
+[S5] Part 4/4  Trial 26/30  SNR=-20 dB  seed=412349045  cycle=2026-08-30T20:31:15Z
+[S5] Part 4/4  Trial 27/30  SNR=-20 dB  seed=1487682954  cycle=2026-08-30T20:31:30Z
+[S5] Part 4/4  Trial 28/30  SNR=-20 dB  seed=1191930151  cycle=2026-08-30T20:31:45Z
+[S5] Part 4/4  Trial 29/30  SNR=-20 dB  seed=66415985  cycle=2026-08-30T20:32:00Z
+[S5] Part 4/4  Trial 30/30  SNR=-20 dB  seed=1759722470  cycle=2026-08-30T20:32:15Z
+  … 120 trial(s) played back-to-back (86400000 samples)
+
+Scenario S5 complete — 120 trials injected. Truth: results\2026-08-30-2e60949\truth.csv
+[OK] s5-noise.json complete
+
+>>> D:\Projects\claude\OpenWSFZ\qa\rr-study\.venv\Scripts\python.exe harness/run_scenario.py D:\Projects\claude\OpenWSFZ\qa\rr-study\scenarios\s7-compounding.json --device Voicemeeter AUX Input
+
+Run directory: results\2026-08-30-2e60949
+  Device 'Voicemeeter AUX Input' matched 3 host-API entries; selected [80] Voicemeeter AUX Input (VB-Audio Voicemeeter VAIO) via Windows WASAPI (48000 Hz).
+[S7] Part 1/21  Trial 1/5  SNR=N/A  seed=1928618341  cycle=2026-08-30T20:33:00Z
+[S7] Part 1/21  Trial 2/5  SNR=N/A  seed=1519748887  cycle=2026-08-30T20:33:15Z
+[S7] Part 1/21  Trial 3/5  SNR=N/A  seed=1888808097  cycle=2026-08-30T20:33:30Z
+[S7] Part 1/21  Trial 4/5  SNR=N/A  seed=1567484507  cycle=2026-08-30T20:33:45Z
+[S7] Part 1/21  Trial 5/5  SNR=N/A  seed=1587104087  cycle=2026-08-30T20:34:00Z
+[S7] Part 2/21  Trial 1/5  SNR=N/A  seed=1163046826  cycle=2026-08-30T20:34:15Z
+[S7] Part 2/21  Trial 2/5  SNR=N/A  seed=641673168  cycle=2026-08-30T20:34:30Z
+[S7] Part 2/21  Trial 3/5  SNR=N/A  seed=1425528308  cycle=2026-08-30T20:34:45Z
+[S7] Part 2/21  Trial 4/5  SNR=N/A  seed=961284984  cycle=2026-08-30T20:35:00Z
+[S7] Part 2/21  Trial 5/5  SNR=N/A  seed=990723452  cycle=2026-08-30T20:35:15Z
+[S7] Part 3/21  Trial 1/5  SNR=N/A  seed=98455044  cycle=2026-08-30T20:35:30Z
+[S7] Part 3/21  Trial 2/5  SNR=N/A  seed=1384128433  cycle=2026-08-30T20:35:45Z
+[S7] Part 3/21  Trial 3/5  SNR=N/A  seed=1361330484  cycle=2026-08-30T20:36:00Z
+[S7] Part 3/21  Trial 4/5  SNR=N/A  seed=1078092554  cycle=2026-08-30T20:36:15Z
+[S7] Part 3/21  Trial 5/5  SNR=N/A  seed=924921264  cycle=2026-08-30T20:36:30Z
+[S7] Part 4/21  Trial 1/5  SNR=N/A  seed=763598906  cycle=2026-08-30T20:36:45Z
+[S7] Part 4/21  Trial 2/5  SNR=N/A  seed=1480126732  cycle=2026-08-30T20:37:00Z
+[S7] Part 4/21  Trial 3/5  SNR=N/A  seed=348040279  cycle=2026-08-30T20:37:15Z
+[S7] Part 4/21  Trial 4/5  SNR=N/A  seed=750677479  cycle=2026-08-30T20:37:30Z
+[S7] Part 4/21  Trial 5/5  SNR=N/A  seed=258894362  cycle=2026-08-30T20:37:45Z
+[S7] Part 5/21  Trial 1/5  SNR=N/A  seed=139254338  cycle=2026-08-30T20:38:00Z
+[S7] Part 5/21  Trial 2/5  SNR=N/A  seed=1221387494  cycle=2026-08-30T20:38:15Z
+[S7] Part 5/21  Trial 3/5  SNR=N/A  seed=1203773898  cycle=2026-08-30T20:38:30Z
+[S7] Part 5/21  Trial 4/5  SNR=N/A  seed=43333996  cycle=2026-08-30T20:38:45Z
+[S7] Part 5/21  Trial 5/5  SNR=N/A  seed=1033654550  cycle=2026-08-30T20:39:00Z
+[S7] Part 6/21  Trial 1/5  SNR=N/A  seed=600798252  cycle=2026-08-30T20:39:15Z
+[S7] Part 6/21  Trial 2/5  SNR=N/A  seed=1358512429  cycle=2026-08-30T20:39:30Z
+[S7] Part 6/21  Trial 3/5  SNR=N/A  seed=475029750  cycle=2026-08-30T20:39:45Z
+[S7] Part 6/21  Trial 4/5  SNR=N/A  seed=686156291  cycle=2026-08-30T20:40:00Z
+[S7] Part 6/21  Trial 5/5  SNR=N/A  seed=1322737522  cycle=2026-08-30T20:40:15Z
+[S7] Part 7/21  Trial 1/5  SNR=N/A  seed=1641734052  cycle=2026-08-30T20:40:30Z
+[S7] Part 7/21  Trial 2/5  SNR=N/A  seed=67837340  cycle=2026-08-30T20:40:45Z
+[S7] Part 7/21  Trial 3/5  SNR=N/A  seed=1202997263  cycle=2026-08-30T20:41:00Z
+[S7] Part 7/21  Trial 4/5  SNR=N/A  seed=902359725  cycle=2026-08-30T20:41:15Z
+[S7] Part 7/21  Trial 5/5  SNR=N/A  seed=291698731  cycle=2026-08-30T20:41:30Z
+[S7] Part 8/21  Trial 1/5  SNR=N/A  seed=526185734  cycle=2026-08-30T20:41:45Z
+[S7] Part 8/21  Trial 2/5  SNR=N/A  seed=318655740  cycle=2026-08-30T20:42:00Z
+[S7] Part 8/21  Trial 3/5  SNR=N/A  seed=1737849473  cycle=2026-08-30T20:42:15Z
+[S7] Part 8/21  Trial 4/5  SNR=N/A  seed=438300082  cycle=2026-08-30T20:42:30Z
+[S7] Part 8/21  Trial 5/5  SNR=N/A  seed=994742111  cycle=2026-08-30T20:42:45Z
+[S7] Part 9/21  Trial 1/5  SNR=N/A  seed=434073307  cycle=2026-08-30T20:43:00Z
+[S7] Part 9/21  Trial 2/5  SNR=N/A  seed=1584181983  cycle=2026-08-30T20:43:15Z
+[S7] Part 9/21  Trial 3/5  SNR=N/A  seed=69311790  cycle=2026-08-30T20:43:30Z
+[S7] Part 9/21  Trial 4/5  SNR=N/A  seed=449200011  cycle=2026-08-30T20:43:45Z
+[S7] Part 9/21  Trial 5/5  SNR=N/A  seed=63363653  cycle=2026-08-30T20:44:00Z
+[S7] Part 10/21  Trial 1/5  SNR=N/A  seed=244638474  cycle=2026-08-30T20:44:15Z
+[S7] Part 10/21  Trial 2/5  SNR=N/A  seed=1024747382  cycle=2026-08-30T20:44:30Z
+[S7] Part 10/21  Trial 3/5  SNR=N/A  seed=1710014650  cycle=2026-08-30T20:44:45Z
+[S7] Part 10/21  Trial 4/5  SNR=N/A  seed=884232894  cycle=2026-08-30T20:45:00Z
+[S7] Part 10/21  Trial 5/5  SNR=N/A  seed=381684354  cycle=2026-08-30T20:45:15Z
+[S7] Part 11/21  Trial 1/5  SNR=N/A  seed=1725325771  cycle=2026-08-30T20:45:30Z
+[S7] Part 11/21  Trial 2/5  SNR=N/A  seed=225898935  cycle=2026-08-30T20:45:45Z
+[S7] Part 11/21  Trial 3/5  SNR=N/A  seed=121109330  cycle=2026-08-30T20:46:00Z
+[S7] Part 11/21  Trial 4/5  SNR=N/A  seed=1579862089  cycle=2026-08-30T20:46:15Z
+[S7] Part 11/21  Trial 5/5  SNR=N/A  seed=535444324  cycle=2026-08-30T20:46:30Z
+[S7] Part 12/21  Trial 1/5  SNR=N/A  seed=204855309  cycle=2026-08-30T20:46:45Z
+[S7] Part 12/21  Trial 2/5  SNR=N/A  seed=469311326  cycle=2026-08-30T20:47:00Z
+[S7] Part 12/21  Trial 3/5  SNR=N/A  seed=1591257218  cycle=2026-08-30T20:47:15Z
+[S7] Part 12/21  Trial 4/5  SNR=N/A  seed=912460123  cycle=2026-08-30T20:47:30Z
+[S7] Part 12/21  Trial 5/5  SNR=N/A  seed=1430561939  cycle=2026-08-30T20:47:45Z
+[S7] Part 13/21  Trial 1/5  SNR=N/A  seed=516013663  cycle=2026-08-30T20:48:00Z
+[S7] Part 13/21  Trial 2/5  SNR=N/A  seed=603633460  cycle=2026-08-30T20:48:15Z
+[S7] Part 13/21  Trial 3/5  SNR=N/A  seed=71905326  cycle=2026-08-30T20:48:30Z
+[S7] Part 13/21  Trial 4/5  SNR=N/A  seed=1310018168  cycle=2026-08-30T20:48:45Z
+[S7] Part 13/21  Trial 5/5  SNR=N/A  seed=1348406889  cycle=2026-08-30T20:49:00Z
+[S7] Part 14/21  Trial 1/5  SNR=N/A  seed=1579884569  cycle=2026-08-30T20:49:15Z
+[S7] Part 14/21  Trial 2/5  SNR=N/A  seed=1427301707  cycle=2026-08-30T20:49:30Z
+[S7] Part 14/21  Trial 3/5  SNR=N/A  seed=773490239  cycle=2026-08-30T20:49:45Z
+[S7] Part 14/21  Trial 4/5  SNR=N/A  seed=811508310  cycle=2026-08-30T20:50:00Z
+[S7] Part 14/21  Trial 5/5  SNR=N/A  seed=1152378489  cycle=2026-08-30T20:50:15Z
+[S7] Part 15/21  Trial 1/5  SNR=N/A  seed=169517745  cycle=2026-08-30T20:50:30Z
+[S7] Part 15/21  Trial 2/5  SNR=N/A  seed=1958578526  cycle=2026-08-30T20:50:45Z
+[S7] Part 15/21  Trial 3/5  SNR=N/A  seed=300372675  cycle=2026-08-30T20:51:00Z
+[S7] Part 15/21  Trial 4/5  SNR=N/A  seed=1706399720  cycle=2026-08-30T20:51:15Z
+[S7] Part 15/21  Trial 5/5  SNR=N/A  seed=1200012924  cycle=2026-08-30T20:51:30Z
+[S7] Part 16/21  Trial 1/5  SNR=N/A  seed=1755520088  cycle=2026-08-30T20:51:45Z
+[S7] Part 16/21  Trial 2/5  SNR=N/A  seed=1047827504  cycle=2026-08-30T20:52:00Z
+[S7] Part 16/21  Trial 3/5  SNR=N/A  seed=1284285689  cycle=2026-08-30T20:52:15Z
+[S7] Part 16/21  Trial 4/5  SNR=N/A  seed=734715196  cycle=2026-08-30T20:52:30Z
+[S7] Part 16/21  Trial 5/5  SNR=N/A  seed=1450783488  cycle=2026-08-30T20:52:45Z
+[S7] Part 17/21  Trial 1/5  SNR=N/A  seed=313172177  cycle=2026-08-30T20:53:00Z
+[S7] Part 17/21  Trial 2/5  SNR=N/A  seed=95670008  cycle=2026-08-30T20:53:15Z
+[S7] Part 17/21  Trial 3/5  SNR=N/A  seed=762227068  cycle=2026-08-30T20:53:30Z
+[S7] Part 17/21  Trial 4/5  SNR=N/A  seed=804352794  cycle=2026-08-30T20:53:45Z
+[S7] Part 17/21  Trial 5/5  SNR=N/A  seed=1354763437  cycle=2026-08-30T20:54:00Z
+[S7] Part 18/21  Trial 1/5  SNR=N/A  seed=1440417717  cycle=2026-08-30T20:54:15Z
+[S7] Part 18/21  Trial 2/5  SNR=N/A  seed=1958295760  cycle=2026-08-30T20:54:30Z
+[S7] Part 18/21  Trial 3/5  SNR=N/A  seed=1141094124  cycle=2026-08-30T20:54:45Z
+[S7] Part 18/21  Trial 4/5  SNR=N/A  seed=678609270  cycle=2026-08-30T20:55:00Z
+[S7] Part 18/21  Trial 5/5  SNR=N/A  seed=2097649527  cycle=2026-08-30T20:55:15Z
+[S7] Part 19/21  Trial 1/5  SNR=N/A  seed=54616312  cycle=2026-08-30T20:55:30Z
+[S7] Part 19/21  Trial 2/5  SNR=N/A  seed=952590612  cycle=2026-08-30T20:55:45Z
+[S7] Part 19/21  Trial 3/5  SNR=N/A  seed=42992291  cycle=2026-08-30T20:56:00Z
+[S7] Part 19/21  Trial 4/5  SNR=N/A  seed=1754123281  cycle=2026-08-30T20:56:15Z
+[S7] Part 19/21  Trial 5/5  SNR=N/A  seed=2136748643  cycle=2026-08-30T20:56:30Z
+[S7] Part 20/21  Trial 1/5  SNR=N/A  seed=2055416690  cycle=2026-08-30T20:56:45Z
+[S7] Part 20/21  Trial 2/5  SNR=N/A  seed=2007325368  cycle=2026-08-30T20:57:00Z
+[S7] Part 20/21  Trial 3/5  SNR=N/A  seed=1837273558  cycle=2026-08-30T20:57:15Z
+[S7] Part 20/21  Trial 4/5  SNR=N/A  seed=1703565559  cycle=2026-08-30T20:57:30Z
+[S7] Part 20/21  Trial 5/5  SNR=N/A  seed=989415578  cycle=2026-08-30T20:57:45Z
+[S7] Part 21/21  Trial 1/5  SNR=N/A  seed=11753295  cycle=2026-08-30T20:58:00Z
+[S7] Part 21/21  Trial 2/5  SNR=N/A  seed=127051996  cycle=2026-08-30T20:58:15Z
+[S7] Part 21/21  Trial 3/5  SNR=N/A  seed=1814410164  cycle=2026-08-30T20:58:30Z
+[S7] Part 21/21  Trial 4/5  SNR=N/A  seed=622957244  cycle=2026-08-30T20:58:45Z
+[S7] Part 21/21  Trial 5/5  SNR=N/A  seed=1019946476  cycle=2026-08-30T20:59:00Z
+  … 105 trial(s) played back-to-back (75600000 samples)
+
+Scenario S7 complete — 105 trials injected. Truth: results\2026-08-30-2e60949\truth.csv
+[OK] s7-compounding.json complete
+
+Run directory: results\2026-08-30-2e60949
+
+Collecting decode logs ...
+  Copied WSJT-X   -> wsjt-all.txt
+  Copied OpenWSFZ -> owsfz-all.txt
+
+Running matcher ...
+Matching scenario S1 — 30 truth rows
+  WSJT-X:    316 FT8 lines parsed, 0 skipped
+  OpenWSFZ:  308 FT8 lines parsed, 0 skipped
+  Written: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-30-2e60949\S1_matched.csv
+
+Match summary:
+  WSJT-X: 30/30 matched (100.0%);  0 misses;  286 FP
+  OpenWSFZ: 30/30 matched (100.0%);  0 misses;  278 FP
+[OK] S1 matched
+Matching scenario S3 — 30 truth rows
+  WSJT-X:    316 FT8 lines parsed, 0 skipped
+  OpenWSFZ:  308 FT8 lines parsed, 0 skipped
+  Written: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-30-2e60949\S3_matched.csv
+
+Match summary:
+  WSJT-X: 30/30 matched (100.0%);  0 misses;  286 FP
+  OpenWSFZ: 30/30 matched (100.0%);  0 misses;  278 FP
+[OK] S3 matched
+Matching scenario S4 — 198 truth rows
+  WSJT-X:    316 FT8 lines parsed, 0 skipped
+  OpenWSFZ:  308 FT8 lines parsed, 0 skipped
+  Written: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-30-2e60949\S4_matched.csv
+
+Match summary:
+  WSJT-X: 100/198 matched (50.5%);  98 misses;  216 FP
+  OpenWSFZ: 96/198 matched (48.5%);  102 misses;  212 FP
+[OK] S4 matched
+Matching scenario S5 — 120 truth rows
+  WSJT-X:    316 FT8 lines parsed, 0 skipped
+  OpenWSFZ:  308 FT8 lines parsed, 0 skipped
+  Written: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-30-2e60949\S5_matched.csv
+
+Match summary:
+  WSJT-X: 0/120 matched (0.0%);  120 misses;  316 FP
+  OpenWSFZ: 0/120 matched (0.0%);  120 misses;  308 FP
+[OK] S5 matched
+Matching scenario S7 — 215 truth rows
+  WSJT-X:    316 FT8 lines parsed, 0 skipped
+  OpenWSFZ:  308 FT8 lines parsed, 0 skipped
+  Written: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-30-2e60949\S7_matched.csv
+
+Match summary:
+  WSJT-X: 57/215 matched (26.5%);  158 misses;  259 FP
+  OpenWSFZ: 36/215 matched (16.7%);  179 misses;  272 FP
+[OK] S7 matched
+
+Running analyser ...
+Analysing: S1, S3, S4, S5, S7
+  S1: %GR&R=0.3%  ndc=27
+    -> S1_grr_panel.png
+  S3: WSJT-X DT correction applied (+0.55 s) - removes ~-0.55 s convention offset from SS_appraiser
+  S3: %GR&R=0.4%  ndc=21
+    -> S3_grr_panel.png
+  S1 bias (WSJT-X): +0.85 dB  slope=-0.003
+  S1 bias (OpenWSFZ): +1.28 dB  slope=-0.020
+  S5 FP events (WSJT-X): 0/120 slots (event rate 0.00%; 95% UB 2.47%; decode rate 0.00%)
+  S5 FP events (OpenWSFZ): 2/120 slots (event rate 1.67%; 95% UB 5.15%; decode rate 1.67%)
+  Kappa WSJT-X_vs_truth: 0.651 (advisory)
+  Kappa OpenWSFZ_vs_truth: 0.633 (advisory)
+  Kappa between_appraisers: 0.814 (advisory)
+  Kappa WSJT-X_vs_truth (SNR>=-12dB only): 0.739 (informational)
+  Kappa OpenWSFZ_vs_truth (SNR>=-12dB only): 0.775 (informational)
+  Kappa between_appraisers (SNR>=-12dB only): 0.870 (informational)
+  S7 recovery (per-message): WSJT-X 26.51%  OpenWSFZ 16.74%
+
+Report written: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-30-2e60949\report.md
+Overall verdict: PASS
+Trend row appended: D:\Projects\claude\OpenWSFZ\qa\rr-study\trend.csv
+
+======================================================================
+Study complete.  Report: D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-08-30-2e60949\report.md
+======================================================================

@@ -36,6 +36,22 @@ _CYCLE_PREWARM_S: float = 0.5       # seconds before cycle boundary to wake and 
 # batched playback -- see the batching comment above the main loop.
 _SLOT_SAMPLES: int = int(SLOT_SECONDS * DEFAULT_SAMPLE_RATE_HZ)
 
+# Cap on how many ordinary trials one back-to-back batch (_flush_batch below)
+# concatenates into a single continuous sd.play()/sd.wait() call, added
+# 2026-08-31 (qa/rr-study results/2026-08-30-2e60949 Section 5, Finding 1).
+# S7's first live run under unbounded batching (215 truth rows, ~26 min in
+# one continuous buffer) showed both appraisers' decode counts collapsing to
+# noise-hallucinated garbage roughly 18-19 minutes in, while every shorter
+# batched scenario in the same session (S1/S2/S4/S5, each well under this cap
+# at 15 trials/300 s at most) read clean. 20 trials = 300 s = 5 min gives real
+# headroom under that ~18 minute failure point without being tuned to it --
+# the exact root cause (buffer-length-dependent real-hardware behaviour,
+# candidates: Voicemeeter/WASAPI buffer drift, USB, or the hardware failure
+# earlier that same session leaving the interface still settling) was not
+# isolated. Every scenario's own trial-ordering, seeds, and truth.csv content
+# are unaffected -- this only adds intermediate flush points.
+_MAX_BATCH_TRIALS: int = 20
+
 # Half-cosine fade-out applied to the last _FADEOUT_DURATION_S seconds of every
 # rendered slot.  The FT8 signal is fully transmitted by ~12.64 s (79 symbols ×
 # 0.160 s/symbol); the fade window (14.8–15.0 s) falls entirely within the
@@ -1235,6 +1251,14 @@ def _run(args: argparse.Namespace) -> None:
             else:
                 # Ordinary trial: queue for one continuous back-to-back play.
                 _pending_batch.append(item)
+                if len(_pending_batch) >= _MAX_BATCH_TRIALS:
+                    # Bound continuous-buffer duration (see _MAX_BATCH_TRIALS
+                    # comment) -- flush now rather than let one scenario's
+                    # batch grow unboundedly long. next_boundary_ts is left
+                    # correctly advanced by _flush_batch() itself, so the
+                    # very next queued trial (if any) picks up exactly where
+                    # this batch left off, same as an ordinary flush.
+                    _flush_batch()
 
     _flush_batch()
 
