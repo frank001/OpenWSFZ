@@ -64,6 +64,27 @@ internal interface IFt8NativeInterop
     int GetHashTableRejectCount();
 
     /// <summary>
+    /// Process-lifetime count of EMITTED decodes whose display resolved via the 12-bit
+    /// nonstandard-callsign hash path (f001-sup-b-instrumented-suppression-sizing, shim
+    /// 20260047). Denominator for spec Sec.3.1's S and D. Process-global, read-only.
+    /// </summary>
+    int GetH12DisplayingCount();
+
+    /// <summary>
+    /// Of <see cref="GetH12DisplayingCount"/>, how many resolved against a probe chain
+    /// holding ≥2 matching entries (shim 20260047). Process-global, read-only.
+    /// </summary>
+    int GetH12AmbiguousCount();
+
+    /// <summary>
+    /// Of <see cref="GetH12DisplayingCount"/>, how many had their most-recently-announced
+    /// matching entry differ from the first (displayed) match (shim 20260047). A ceiling
+    /// on change, not a benefit — see spec Sec.6.5's three prohibitions before citing this
+    /// anywhere. Process-global, read-only.
+    /// </summary>
+    int GetH12DivergentCount();
+
+    /// <summary>
     /// Return per-pass LLR statistics for LDPC-failing candidates from the most
     /// recent <see cref="DecodeAll"/> call on this thread (redesigned at shim 20260020).
     /// <para>

@@ -622,8 +622,43 @@ extern "C" {
  *   by this defect). No ABI break, no struct layout change (FT8Result
  *   stays 48 bytes), no new export -- this is a correctness fix to an
  *   always-active production code path.
+ *
+ *   20260047 — f001-sup-b-instrumented-suppression-sizing: adds three new
+ *              exported read-only getters -- ft8_get_h12_displaying_count(),
+ *              ft8_get_h12_ambiguous_count(), ft8_get_h12_divergent_count() --
+ *              counting how many EMITTED decodes resolved via the 12-bit
+ *              nonstandard-callsign hash path, how many of those hit an
+ *              ambiguous (>=2-entry) probe chain, and how many of THOSE had
+ *              their most-recently-announced match differ from the first
+ *              (displayed) one. Adds a uint32_t announce_stamp field to
+ *              callsign_entry_t (64 KB -> 80 KB table, not ABI-visible --
+ *              never marshalled to C#), stamped in hash_table_add only, never
+ *              in hash_table_lookup. MEASURE-ONLY: hash_table_lookup's return
+ *              value and the callsign it writes are byte-for-byte unchanged;
+ *              the new counting walk is a separate, read-only function.
+ *              hash_table_add's existing reject-on-full and already-known
+ *              no-op behaviour is unchanged. No change to the 4096-slot
+ *              capacity or eviction policy.
+ *
+ *   20260048 — f001-sup-b-amendment-2-cluster-instrumentation: adds one new
+ *              exported read-only getter, ft8_get_h12_by_code(), returning a
+ *              complete 4096-row per-code (n12) breakdown of the three
+ *              20260047 scalars -- displaying/ambiguous/divergent counts
+ *              indexed by the 12-bit callsign-hash code itself, plus an
+ *              out-of-range violation count. Backs spec Sec.6.2's clustered
+ *              95% bootstrap, which needs cluster IDENTITY, not just
+ *              cumulative totals. Mechanism: one new thread-local
+ *              (tls_h12_code, set unconditionally in cb_lookup_hash's
+ *              existing 12-bit branch) and one new fixed 4096 x 3 static
+ *              table incremented alongside the existing scalars, inside the
+ *              SAME unchanged guard condition, at the SAME emission site.
+ *              hash_table_lookup and cb_lookup_hash's return/output values
+ *              are unaffected. No struct layout change, no ABI break to any
+ *              existing export. The three 20260047 scalars are unchanged and
+ *              remain the sufficient-statistic source for anything that does
+ *              not need cluster identity.
  */
-#define FT8_SHIM_VERSION 20260046
+#define FT8_SHIM_VERSION 20260048
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -718,6 +753,25 @@ float ft8_get_last_noise_floor_db(void);
  * Returns 0 if the table has never reached capacity this session.
  */
 int ft8_get_hash_table_reject_count(void);
+
+/*
+ * ft8_get_h12_displaying_count / ft8_get_h12_ambiguous_count /
+ * ft8_get_h12_divergent_count — SUP-B (shim 20260047). See ft8_shim.c for the
+ * full doc comment. Process-global, read-only, process-lifetime cumulative,
+ * zero on daemon restart. MEASURE-ONLY: no effect on decode output.
+ */
+int ft8_get_h12_displaying_count(void);
+int ft8_get_h12_ambiguous_count(void);
+int ft8_get_h12_divergent_count(void);
+
+/*
+ * ft8_get_h12_by_code — SUP-B Amendment 2 (shim 20260048). See ft8_shim.c for
+ * the full doc comment. Process-global, read-only, process-lifetime
+ * cumulative, zero on daemon restart. MEASURE-ONLY: no effect on decode
+ * output. Returns H12_CODE_SPACE (4096) on success, -1 on any bad argument.
+ */
+int ft8_get_h12_by_code(int* displaying, int* ambiguous, int* divergent,
+                         int capacity, int* out_of_range);
 
 /*
  * ft8_get_last_candidate_counts — return per-pass candidate counts from the

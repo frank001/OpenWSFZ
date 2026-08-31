@@ -152,6 +152,10 @@ link /DLL ^
   /EXPORT:ft8_coherent_llr_at ^
   /EXPORT:ft8_ldpc_decode_llrs ^
   /EXPORT:ft8_get_last_snr_terms ^
+  /EXPORT:ft8_get_h12_displaying_count ^
+  /EXPORT:ft8_get_h12_ambiguous_count ^
+  /EXPORT:ft8_get_h12_divergent_count ^
+  /EXPORT:ft8_get_h12_by_code ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\constants.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\crc.obj" ^
   "D:\Projects\claude\OpenWSFZ\native\ft8_lib_build\obj\decode.obj" ^

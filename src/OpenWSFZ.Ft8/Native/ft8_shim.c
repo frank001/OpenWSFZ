@@ -629,7 +629,7 @@ static _Thread_local int     tls_ap_num_hiscall_bits = 0;
  * g_hash_table_reject_count is retained to detect.
  */
 #define HASH_TABLE_SIZE 4096
-typedef struct { char callsign[12]; uint32_t hash; } callsign_entry_t;
+typedef struct { char callsign[12]; uint32_t hash; uint32_t announce_stamp; } callsign_entry_t;
 typedef struct { callsign_entry_t entries[HASH_TABLE_SIZE]; int count; } callsign_table_t;
 
 static void hash_table_init(callsign_table_t* tbl) { memset(tbl, 0, sizeof(*tbl)); }
@@ -654,6 +654,44 @@ static bool hash_table_lookup(callsign_table_t* tbl,
     callsign[0] = '\0'; return false;
 }
 
+/* SUP-B (shim 20260047): 12-bit-path unique-match sizing instrumentation (TRAP 1).
+ * MEASURE-ONLY -- never called from anywhere that could change what a lookup
+ * returns. Replays the SAME probe sequence hash_table_lookup uses (identical
+ * h10/idx derivation, identical EMPTY-slot termination, identical
+ * HASH_TABLE_SIZE bound) but continues past the first match purely to count
+ * every matching entry and to compare the FIRST match against the
+ * MOST-RECENTLY-ANNOUNCED one (by announce_stamp, TRAP 2). Read-only: never
+ * writes to tbl, never allocates. sh is fixed at 10 because this is only ever
+ * called for FTX_CALLSIGN_HASH_12_BITS (see cb_lookup_hash below) -- if a
+ * future caller needs this for another hash width, thread sh through as a
+ * parameter rather than hardcoding a different constant here. */
+static void hash_table_count_h12_multiplicity(const callsign_table_t* tbl, uint32_t hash,
+                                               int* out_count, bool* out_divergent)
+{
+    const uint8_t  sh  = 10; /* FTX_CALLSIGN_HASH_12_BITS, matches hash_table_lookup's own ternary */
+    uint16_t       h10 = (hash >> (12 - sh)) & 0x3FFu;
+    int            idx = (h10 * 23) % HASH_TABLE_SIZE;
+    int            count = 0;
+    int            first_match_idx = -1;
+    int            most_recent_idx = -1;
+    uint32_t       most_recent_stamp = 0;
+
+    for (int probe = 0; probe < HASH_TABLE_SIZE; probe++) {
+        if (tbl->entries[idx].callsign[0] == '\0') break;
+        if (((tbl->entries[idx].hash & 0x3FFFFFu) >> sh) == hash) {
+            count++;
+            if (first_match_idx < 0) first_match_idx = idx;
+            if (tbl->entries[idx].announce_stamp >= most_recent_stamp) {
+                most_recent_stamp = tbl->entries[idx].announce_stamp;
+                most_recent_idx   = idx;
+            }
+        }
+        idx = (idx + 1) % HASH_TABLE_SIZE;
+    }
+    *out_count     = count;
+    *out_divergent = (count >= 2) && (most_recent_idx != first_match_idx);
+}
+
 /* f-001-hashed-callsign-resolution (shim 20260031): counter for hash_table_add's
  * reject-when-full guard.  f-005-hash-table-saturation-diagnostic (shim 20260032) now
  * exposes it read-only via ft8_get_hash_table_reject_count() — the 256-slot saturation
@@ -663,6 +701,36 @@ static bool hash_table_lookup(callsign_table_t* tbl,
  * any decode-affecting decision, so an occasional missed increment under concurrent
  * decode is an acceptable trade-off against adding synchronisation to the hot path. */
 static int g_hash_table_reject_count = 0;
+
+/* SUP-B (shim 20260047): monotonic recency stamp for the 12-bit-path divergence
+ * ceiling D. Incremented in hash_table_add ONLY -- on a genuinely new insert and
+ * on a repeat announcement of an already-known callsign (both are "announcements"
+ * that should refresh recency). hash_table_lookup must NEVER write this -- doing
+ * so would contaminate announcement recency with lookup recency (the exact defect
+ * named in SUP-A Amendment 1's SimTable.lookup() last_used refresh). Same
+ * best-effort, not-thread-local convention as g_hash_table_reject_count above:
+ * an occasional missed/racy increment under concurrent decode is an acceptable
+ * trade-off against synchronising the hot path (see that counter's own comment). */
+static uint32_t g_h12_announce_clock = 0;
+
+/* SUP-B (shim 20260047): the three counters spec Sec.3.1 defines. Same
+ * best-effort, not-thread-local convention as g_hash_table_reject_count. */
+static int g_h12_displaying = 0;
+static int g_h12_ambiguous  = 0;
+static int g_h12_divergent  = 0;
+
+/* SUP-B Amendment 2 (shim 20260048): per-code (n12) cluster table for Sec.6.2's
+ * clustered bootstrap. The 12-bit code is already in scope at the counting site
+ * (cb_lookup_hash) and the code space is exactly 4096 by construction, so this
+ * is a fixed-size static array -- no allocation, no growth, no hashing, no
+ * iteration order. A complete sufficient statistic for the bootstrap;
+ * per-lookup rows are NOT produced. Same best-effort, not-thread-local
+ * convention as g_hash_table_reject_count and the three scalars above. */
+#define H12_CODE_SPACE 4096          /* 12-bit hash type: codes are 0..4095 by construction */
+static int      g_h12_by_code_displaying[H12_CODE_SPACE];
+static int      g_h12_by_code_ambiguous [H12_CODE_SPACE];
+static int      g_h12_by_code_divergent [H12_CODE_SPACE];
+static int      g_h12_code_out_of_range = 0;   /* MUST stay 0 -- see ROW 0c-ii */
 
 static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t hash)
 {
@@ -682,7 +750,9 @@ static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t
         if (tbl->entries[idx].callsign[0] == '\0') break; /* empty slot — genuinely new, room found */
         if (((tbl->entries[idx].hash & 0x3FFFFFu) == hash) &&
             !strcmp(tbl->entries[idx].callsign, callsign)) {
-            tbl->entries[idx].hash &= 0x3FFFFFu; return; /* already known — no-op, NOT a reject */
+            tbl->entries[idx].hash &= 0x3FFFFFu;
+            tbl->entries[idx].announce_stamp = ++g_h12_announce_clock; /* SUP-B TRAP 2: re-announcement refreshes recency */
+            return; /* already known — no-op, NOT a reject */
         }
         idx = (idx + 1) % HASH_TABLE_SIZE;
     }
@@ -697,6 +767,7 @@ static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t
     strncpy(tbl->entries[idx].callsign, callsign, 11);
     tbl->entries[idx].callsign[11] = '\0';
     tbl->entries[idx].hash = hash;
+    tbl->entries[idx].announce_stamp = ++g_h12_announce_clock; /* SUP-B TRAP 2: new insert */
 }
 
 /* f-001-hashed-callsign-resolution (shim 20260031): session-scoped hash table for
@@ -709,10 +780,34 @@ static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t
 static callsign_table_t g_session_hash_table;
 static bool              g_hash_table_initialised = false;
 
+/* SUP-B (shim 20260047): per-message 12-bit-lookup scratch (TRAP 3). Reset to
+ * lookup_performed=false in ft8_decode_all immediately before each message's
+ * ftx_message_decode call (see below) and read immediately after, iff
+ * that decode succeeds AND is about to be emitted. message.c:431 is the ONLY
+ * 12-bit lookup call site and fires at most once per message, so this simple
+ * reset-then-read bracket is sufficient -- no accumulation, no stack. */
+static _Thread_local bool     tls_h12_lookup_performed = false;
+static _Thread_local bool     tls_h12_resolved         = false;
+static _Thread_local int      tls_h12_multiplicity     = 0;
+static _Thread_local bool     tls_h12_divergent        = false;
+static _Thread_local uint32_t tls_h12_code             = 0; /* SUP-B Amendment 2: the 12-bit code itself */
+
 static _Thread_local callsign_table_t* tls_hash_table = NULL;
 static bool cb_lookup_hash(ftx_callsign_hash_type_t t, uint32_t h, char* cs) {
     if (!tls_hash_table) { cs[0] = '\0'; return false; }
-    return hash_table_lookup(tls_hash_table, t, h, cs);
+    bool found = hash_table_lookup(tls_hash_table, t, h, cs); /* UNCHANGED return path -- TRAP 1 */
+    if (t == FTX_CALLSIGN_HASH_12_BITS) {
+        tls_h12_lookup_performed = true;
+        tls_h12_resolved         = found;
+        tls_h12_code             = h; /* SUP-B Amendment 2: set unconditionally in this branch */
+        if (found) {
+            hash_table_count_h12_multiplicity(tls_hash_table, h, &tls_h12_multiplicity, &tls_h12_divergent);
+        } else {
+            tls_h12_multiplicity = 0;
+            tls_h12_divergent    = false;
+        }
+    }
+    return found;
 }
 static void cb_save_hash(const char* cs, uint32_t h) {
     if (tls_hash_table) hash_table_add(tls_hash_table, cs, h);
@@ -1082,6 +1177,47 @@ float ft8_get_last_noise_floor_db(void) { return tls_last_noise_floor_db; }
  * never reached capacity this session.
  */
 int ft8_get_hash_table_reject_count(void) { return g_hash_table_reject_count; }
+
+/* ── 12-bit-path unique-match sizing (SUP-B, shim 20260047) ───────────────── */
+/*
+ * ft8_get_h12_displaying_count / ft8_get_h12_ambiguous_count /
+ * ft8_get_h12_divergent_count — process-lifetime counts backing spec Sec.3.1's
+ * S = h12Ambiguous / h12Displaying and D = h12Divergent / h12Displaying.
+ * MEASURE-ONLY: these three getters and the counters behind them have zero
+ * effect on decode output (spec Sec.3.4). Read-only, never reset, same
+ * lifecycle as ft8_get_hash_table_reject_count (0 on daemon restart, may be
+ * read from any thread).
+ */
+int ft8_get_h12_displaying_count(void) { return g_h12_displaying; }
+int ft8_get_h12_ambiguous_count(void)  { return g_h12_ambiguous; }
+int ft8_get_h12_divergent_count(void)  { return g_h12_divergent; }
+
+/*
+ * ft8_get_h12_by_code — SUP-B Amendment 2 (shim 20260048). Copies the full
+ * 4096-row per-code cluster table into caller-supplied buffers. Returns
+ * H12_CODE_SPACE (4096) on success; -1 if capacity < H12_CODE_SPACE or any
+ * pointer (including out_of_range) is NULL -- caller must check for -1, not
+ * assume success. *out_of_range receives g_h12_code_out_of_range (ROW 0c-ii).
+ * Read-only, process-lifetime cumulative, zero on daemon restart, same
+ * lifecycle as the three scalar getters above. Intended caller is the Python
+ * replay harness by ctypes (once per run, at the end -- NOT per cycle: this
+ * copies 48 KB, and per-cycle would add ~90 MB of copying per leg for
+ * nothing), not IFt8NativeInterop -- see Ft8LibInterop.cs's own changelog
+ * entry for why no C# binding exists.
+ */
+int ft8_get_h12_by_code(int* displaying, int* ambiguous, int* divergent,
+                         int capacity, int* out_of_range)
+{
+    if (!displaying || !ambiguous || !divergent || !out_of_range || capacity < H12_CODE_SPACE)
+        return -1;
+    for (int c = 0; c < H12_CODE_SPACE; c++) {
+        displaying[c] = g_h12_by_code_displaying[c];
+        ambiguous[c]  = g_h12_by_code_ambiguous[c];
+        divergent[c]  = g_h12_by_code_divergent[c];
+    }
+    *out_of_range = g_h12_code_out_of_range;
+    return H12_CODE_SPACE;
+}
 
 /* ── Encode entry point ──────────────────────────────────────────────────── */
 /*
@@ -1464,12 +1600,36 @@ int ft8_decode_all(
              * If ftx_message_decode fails (e.g. Type-4 hash not yet known),
              * bail here so the slot stays free for a later retry.          */
             char text[FTX_MAX_MESSAGE_LENGTH + 1];
+            tls_h12_lookup_performed = false; /* SUP-B TRAP 3: fresh scratch for THIS message */
             if (ftx_message_decode(&msg, &s_hash_if, text) != FTX_MESSAGE_RC_OK)
                 continue;
 
             /* Text decode succeeded — commit to the dedup table */
             memcpy(&decoded_msgs[walk], &msg, sizeof(msg));
             decoded_ht[walk] = &decoded_msgs[walk];
+
+            /* SUP-B (shim 20260047): from here on this message is unconditionally
+             * headed for results[] below (nothing between here and there can still
+             * discard it) -- this IS the emission point ROW 0d checks against, not
+             * the ftx_message_decode call above. Count DISPLAYS, not decode
+             * attempts (TRAP 3, HK-022). */
+            if (tls_h12_lookup_performed && tls_h12_resolved) {
+                g_h12_displaying++;
+                if (tls_h12_multiplicity >= 2) g_h12_ambiguous++;
+                if (tls_h12_divergent)         g_h12_divergent++;
+
+                /* SUP-B Amendment 2: cluster identity for Sec.6.2. Mask defensively
+                 * so an out-of-range code can never write out of bounds -- and COUNT
+                 * the violation, because masking alone would hide it (ROW 0c-ii is
+                 * why this counter exists: masking preserves the SUM, so a mismasked
+                 * code would still reconcile with 0c-iii's totals while cluster
+                 * identity was silently scrambled). */
+                if (tls_h12_code >= H12_CODE_SPACE) g_h12_code_out_of_range++;
+                uint32_t c = tls_h12_code & (H12_CODE_SPACE - 1u);
+                g_h12_by_code_displaying[c]++;
+                if (tls_h12_multiplicity >= 2) g_h12_by_code_ambiguous[c]++;
+                if (tls_h12_divergent)         g_h12_by_code_divergent[c]++;
+            }
 
             /* Frequency, time offset, and SNR */
             float freq_hz = (mon.min_bin + cand->freq_offset +
