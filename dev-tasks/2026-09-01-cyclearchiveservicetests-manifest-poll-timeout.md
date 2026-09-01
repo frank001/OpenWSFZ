@@ -1,9 +1,29 @@
 # Developer handoff: `CycleArchiveServiceTests` manifest-poll flake under full-suite load
 
 **Authored by:** QA, 2026-09-01 (per HK-000/HK-015), timestamp per `date -u` at commit time (HK-017).
-**Status:** ✅ Root-caused; one modest fix recommended, not multiple options — this one doesn't carry
-the same design-decision weight as the `FR-020` finding. A Developer session applies it (HK-011); no
-`src/` or `tests/` edit made here.
+**Status:** ✅ Root-caused, fix applied (commit `233fb6e` on `fix/cyclearchiveservicetests-poll-timeout`,
+off `main`@`2c1a71e`, not pushed), QA-verified. 🟡 **Fix is PARTIAL, not complete — Captain ruling
+2026-09-01: ACCEPT AS DOCUMENTED, for now.** Across 3 full-load runs at the widened 15s budget, the
+target test still timed out once (see "Developer session result" below) — the widened poll reduces
+the flake, it does not eliminate it. This is one observation, not a rate (HK-021(v) — a 1-in-3 sample
+is not a measured frequency and must never be cited as one, e.g. "~33%"). The Captain was offered
+three options — widen further, accept as documented, or investigate a deeper mechanism — and chose
+**accept as documented**. Nothing further is authorised on this defect right now: no further timeout
+widening, no deeper investigation, unless a future session reopens it. This branch is otherwise ready
+for the same diff review / merge ruling as `FR-020` (HK-010) — "accept as documented" resolves the
+residual-flake question, it is not itself a merge instruction.
+
+### Developer session result (2026-09-01, agent-implemented, QA-verified independently)
+
+Diff: `tests/OpenWSFZ.Daemon.Tests/CycleArchiveServiceTests.cs`, 26 insertions, 1 file — 5 manifest-poll
+`Poll.UntilAsync` calls widened 5s→15s with citing comments (the named target plus 4 siblings sharing
+the identical real-disk-I/O-behind-a-default-timeout shape); 3 different `DequeuedCountForTests`-based
+polls correctly left unwidened (they poll an in-memory counter set before the writer loop's real disk
+I/O, not the same mechanism — verified, not assumed). `src/CycleArchiveService.cs` untouched, as
+required. Gate G10 passed. Test evidence: `OpenWSFZ.Daemon.Tests` in isolation 621/621 ×2; full-solution
+run 1 — target test timed out at the new 15s budget under real contention (`OpenWSFZ.Ft8.Tests`
+concurrently running ~1m36s); full-solution runs 2 and 3 — clean. QA independently confirmed the diff
+matches this report exactly.
 **Branch:** create a fresh short branch off `main`@`2c1a71e` — do not combine with the
 `BroadcastSpectrum` or `FR-020` fixes; three independent defects, three independent diffs.
 **Discovered:** twice now — once in the FR-064 developer session's own full-suite run ("seen on run
@@ -89,20 +109,18 @@ unilaterally, same rule as the other two dev-tasks today.
 
 ## 4. Definition of done
 
-- [ ] `Manifest_WritesOneRowPerArchivedCycle_InOrder`'s `Poll.UntilAsync` call given an explicit,
-      wider timeout (e.g. 15s) with a comment citing this dev-task
-- [ ] Sibling polls in the same file reviewed per §2 — widen any that share the exact same
-      unwidened-default-against-real-disk-I/O shape, or note explicitly why a given one doesn't need
-      it
-- [ ] `dotnet test OpenWSFZ.slnx -c Release` — full suite, run at least twice consecutively (this
-      flake only reproduced under full-suite parallel load — an isolated single-test run is not
-      sufficient evidence either way)
-- [ ] Gate G10 (`tools/check_test_delay_sync.py`) still passes — confirm a widened `Poll.UntilAsync`
-      timeout argument doesn't trip it (it shouldn't; it isn't a new `Task.Delay`)
-- [ ] `git diff main --stat` — confirm the diff is limited to `CycleArchiveServiceTests.cs`
-- [ ] NFR-021 scan run after commit — clean
-- [ ] Commit message states the structural argument (a correctly-shaped poll under-budgeted for this
-      repo's own worst-case parallel load), not "N green runs ⇒ fixed"
+- [x] `Manifest_WritesOneRowPerArchivedCycle_InOrder`'s `Poll.UntilAsync` call given an explicit,
+      wider timeout (15s) with a comment citing this dev-task
+- [x] Sibling polls in the same file reviewed per §2 — 4 more widened (same shape), 3
+      `DequeuedCountForTests`-based polls correctly left unwidened with reasoning recorded
+- [x] `dotnet test OpenWSFZ.slnx -c Release` — full suite, run 3 times — 2 clean, 1 still timed out
+      at the new budget (see status box above; this is the residual risk the Captain has now ruled on)
+- [x] Gate G10 (`tools/check_test_delay_sync.py`) still passes
+- [x] `git diff main --stat` — confirmed limited to `CycleArchiveServiceTests.cs`
+- [x] NFR-021 / callsign scan — clean (manual review, no dedicated general-purpose scanner exists)
+- [x] Commit message states the structural argument, not "N green runs ⇒ fixed"
 
-🛑 **Then stop.** No push, no merge, no request for either (HK-010/HK-014). No `pre_merge_check.py`
-(HK-006 — Captain's initiative only).
+🛑 **Developer session stopped correctly** — no push, no merge, no `pre_merge_check.py` run
+(HK-010/HK-014/HK-006). ✅ **Captain ruling recorded above: accept the residual flake as documented,
+for now.** Branch `fix/cyclearchiveservicetests-poll-timeout` is ready for the Captain's own diff
+review and merge ruling (HK-010) whenever convenient — same footing as `FR-020`.
