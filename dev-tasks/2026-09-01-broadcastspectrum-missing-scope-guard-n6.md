@@ -11,6 +11,22 @@ QA branch (docs-only).
 during the FR-064 pre-merge review (`fix/fr064-heartbeat-race`). Confirmed present on `main`@`75ea2c1`
 directly — unrelated to that branch's diff.
 
+### 🔴 Correction, 2026-09-01 ~18:40Z — §4's original "one line, test-unrelated file" claim was WRONG
+
+A Developer session (`fix/websockethub-broadcastspectrum-scope-guard`, off `main`@`2c1a71e`) correctly
+**stopped instead of improvising**, per this document's own §4 escalation instruction, and reported
+back rather than invent a scope value. It found what QA's original read of the call site missed:
+`BroadcastSpectrum`'s actual call path is `spectrumBus.Publish(bins)` →
+`SpectrumEventBus.Publish(int[] bins) => WebSocketHub.BroadcastSpectrum(bins)`
+(`src/OpenWSFZ.Web/SpectrumEventBus.cs:16`) — a façade with **no scope-carrying capability at all**,
+unlike `DecodeEventBus`'s `Guid appScope = default` constructor pattern
+(`src/OpenWSFZ.Web/DecodeEventBus.cs:19-30`). Worse: `Program.cs:224` constructs `spectrumBus` and
+`:237-261` registers the lambda that calls `Publish` — both **before** `appScope` is even declared, at
+`Program.cs:300` (`var appScope = Guid.NewGuid();`, itself already hoisted once, per its own comment
+at `:295-299`, specifically so `DecodeEventBus` could have it — `spectrumBus` was evidently missed
+when that hoist happened). §4 below is corrected accordingly; independently re-verified by QA against
+the current tree, not taken on the Developer session's word alone.
+
 ---
 
 ## 0. The failing test and what it caught
@@ -93,9 +109,42 @@ Both runs: `N6` fails with a leaked `spectrum` frame. Not observed to fail in a 
 higher parallel contention gives `SpectrumAnalyser.SpectrumReady` more opportunities to fire mid-test;
 the underlying bug is present on every platform since it is unconditional, not host-dependent.
 
-## 4. The fix — one line, test-unrelated file
+## 4. The fix — CORRECTED: three files, one safe reordering, not "one line"
 
-Give `BroadcastSpectrum` a `Guid scope` parameter and the same guard its three siblings already carry:
+### 4a. `Program.cs` — hoist `appScope`'s declaration
+
+Move `var appScope = Guid.NewGuid();` from its current position (`:300`) to **before** the
+`// ── Spectrum analyser ──` section (`:222`, i.e. before `spectrumBus`'s construction at `:224` and
+the `SpectrumReady` lambda registered at `:237-261`). This is safe to verify mechanically: nothing
+between the old and new positions currently references `appScope` (grep the whole file — every use is
+at `:300` or later), and `Guid.NewGuid()` has no dependency on anything else in the file. Do not move
+anything else; this is a single-statement hoist, not a broader reorder.
+
+### 4b. `SpectrumEventBus.cs` — give it the same scope-carrying pattern `DecodeEventBus` already has
+
+```csharp
+public sealed class SpectrumEventBus
+{
+    private readonly Guid _appScope;
+
+    public SpectrumEventBus(Guid appScope = default) => _appScope = appScope;
+
+    public bool HasClients => WebSocketHub.HasClients;
+
+    public void Publish(int[] bins) => WebSocketHub.BroadcastSpectrum(_appScope, bins);
+}
+```
+
+Matches `DecodeEventBus`'s exact shape (`src/OpenWSFZ.Web/DecodeEventBus.cs:19-41`) — optional
+`default` so any test that constructs `SpectrumEventBus` directly without a real scope in play
+continues to work unchanged (same reasoning `DecodeEventBus`'s own doc comment gives).
+
+### 4c. `Program.cs` — pass the now-earlier-available scope at construction
+
+`var spectrumBus = new SpectrumEventBus();` → `var spectrumBus = new SpectrumEventBus(appScope);`
+(now legal, since 4a moved `appScope`'s declaration above this line).
+
+### 4d. `WebSocketHub.cs` — the originally-planned guard, unchanged from before this correction
 
 ```csharp
 internal static void BroadcastSpectrum(Guid scope, int[] bins)
@@ -114,27 +163,30 @@ internal static void BroadcastSpectrum(Guid scope, int[] bins)
 }
 ```
 
-This is a **`src/` change**, unlike FR-064's test-only fix — `BroadcastSpectrum`'s one call site
-(`Program.cs`, wired via `spectrumAnalyser.SpectrumReady += magnitudes => { ... }`, see
-`Program.cs:237-259`) will need the app-instance's scope threaded through to the call. Confirm the
-call site has the scope value available (it should — `WebApp.Create` already threads a scope `Guid`
-through to `WebSocketHub.HandleAsync`/`RegisterSocket` for this exact instance) before editing the
-signature; if it does not, stop and escalate rather than inventing a scope value.
+**Zero-overlap note:** `FR-020`'s dev-task also touches `Program.cs`, at `:733-735` and two other
+`StartPipeline` call sites — textually distant from this fix's `:222-300` region, but both fixes now
+touch the same file. Not a reason to serialize the two Developer sessions; just something whoever
+merges second needs to rebase/re-diff cleanly against, not assume disjoint.
 
 ## 5. Definition of done
 
-- [ ] `BroadcastSpectrum` takes a `scope` parameter and filters `ActiveSockets` by it, matching the
-      `BroadcastDecodes`/`BroadcastCatStatus`/`BroadcastTxState` pattern exactly
-- [ ] Call site(s) updated to pass the correct instance scope — confirm the value is already
-      available at the call site; do not invent one
+- [ ] `appScope`'s declaration hoisted per §4a — confirm via grep that nothing between the old and new
+      positions referenced it before the move (mechanical check, not a judgment call)
+- [ ] `SpectrumEventBus` takes an optional `Guid appScope = default` constructor parameter per §4b,
+      matching `DecodeEventBus`'s exact pattern
+- [ ] `Program.cs`'s `spectrumBus` construction passes `appScope` per §4c
+- [ ] `BroadcastSpectrum` takes a `scope` parameter and filters `ActiveSockets` by it per §4d, matching
+      the `BroadcastDecodes`/`BroadcastCatStatus`/`BroadcastTxState` pattern exactly
 - [ ] `N6` (`Broadcast_FromDifferentAppInstance_DoesNotReachThisFixturesSocket`) passes under WSL
       Debian full-suite load, run at least twice consecutively (this flake only reproduced under
       full-suite parallel load, per §3 — an isolated single-test run is not sufficient evidence
       either way, same caveat as FR-064's dev-task)
 - [ ] `dotnet test OpenWSFZ.slnx -c Release` — full suite, green, both under native Windows and WSL
       Debian
-- [ ] `git diff main --stat` — confirm the diff is limited to `WebSocketHub.cs` and its call site(s);
-      no incidental changes elsewhere
+- [ ] `git diff main --stat` — confirm the diff is limited to `WebSocketHub.cs`, `SpectrumEventBus.cs`,
+      and `Program.cs` (the single hoisted line plus the one changed constructor call) — no incidental
+      changes elsewhere, and specifically no changes to `Program.cs:733-735` or the other `FR-020`
+      territory
 - [ ] NFR-021 scan run after commit — clean
 - [ ] Commit message states the structural argument (the fourth broadcast method never received the
       scope guard its three siblings did), not "N green runs ⇒ fixed"
