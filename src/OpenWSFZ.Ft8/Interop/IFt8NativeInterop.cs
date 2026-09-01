@@ -85,6 +85,15 @@ internal interface IFt8NativeInterop
     int GetH12DivergentCount();
 
     /// <summary>
+    /// Process-lifetime count of EMITTED decodes whose 12-bit callsign was suppressed because
+    /// its probe chain held ≥2 matching entries (f001-h12-unique-match-suppression, shim
+    /// 20260049). By design, arithmetically identical to <see cref="GetH12AmbiguousCount"/> on
+    /// every run — a wiring invariant between the decision site and the counting site, not new
+    /// information; see the native getter's own doc comment. Process-global, read-only.
+    /// </summary>
+    int GetH12SuppressedCount();
+
+    /// <summary>
     /// Return per-pass LLR statistics for LDPC-failing candidates from the most
     /// recent <see cref="DecodeAll"/> call on this thread (redesigned at shim 20260020).
     /// <para>

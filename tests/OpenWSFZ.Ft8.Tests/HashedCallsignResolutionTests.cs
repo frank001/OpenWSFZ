@@ -449,6 +449,101 @@ public sealed class HashedCallsignResolutionTests
             "genuinely new callsign turned away for lack of room may increment it");
     }
 
+    // ── 3.7: f001-h12-unique-match-suppression — Option A (design D1/D2), AC-5 ───
+
+    [Fact(DisplayName = "f001-h12-unique-match-suppression: a unique 12-bit match still renders the resolved callsign")]
+    public void UniqueH12Match_StillRendersResolvedCallsign()
+    {
+        var (first, _, code) = FindEmptyColliding12BitPair("Q1H12A");
+
+        var announceResults = Ft8LibInterop.DecodeAll(BuildPcmFromType4(first, DefaultFreqHz));
+        announceResults.Should().Contain(r => r.Message.Contains(first),
+            "the announcement must decode before the hash-reference lookup below means anything");
+
+        byte[] hashRefBits = TestFt8Encoder.PackType4HashReference(code, "Q1H12ADE1");
+        float[] pcm = TestFt8Encoder.BuildPcmFromType4Bits(hashRefBits, DefaultFreqHz);
+        var results = Ft8LibInterop.DecodeAll(pcm);
+
+        results.Should().Contain(r => r.Message.Contains(first) && r.Message.Contains("Q1H12ADE1"),
+            "a 12-bit code with exactly one occupant must still resolve to the literal callsign, " +
+            "unchanged from pre-f001-h12-unique-match-suppression behaviour — AC-5's 'unique " +
+            "match' direction");
+    }
+
+    [Fact(DisplayName = "f001-h12-unique-match-suppression: an ambiguous 12-bit chain suppresses the callsign, but the decode survives")]
+    public void AmbiguousH12Chain_SuppressesCallsign_DecodeSurvives()
+    {
+        var (first, second, code) = FindEmptyColliding12BitPair("Q1H12B");
+
+        Ft8LibInterop.DecodeAll(BuildPcmFromType4(first, DefaultFreqHz))
+            .Should().Contain(r => r.Message.Contains(first));
+        Ft8LibInterop.DecodeAll(BuildPcmFromType4(second, DefaultFreqHz))
+            .Should().Contain(r => r.Message.Contains(second));
+
+        int suppressedBefore = Ft8LibInterop.GetH12SuppressedCount();
+
+        byte[] hashRefBits = TestFt8Encoder.PackType4HashReference(code, "Q1H12BDE1");
+        float[] pcm = TestFt8Encoder.BuildPcmFromType4Bits(hashRefBits, DefaultFreqHz);
+        var results = Ft8LibInterop.DecodeAll(pcm);
+
+        results.Should().Contain(r => r.Message.Contains("<...>") && r.Message.Contains("Q1H12BDE1"),
+            "AC-1/AC-3: the decode must survive with the unresolved placeholder standing in for " +
+            "the ambiguous 12-bit slot; everything else about the message is unchanged");
+        results.Should().NotContain(r => r.Message.Contains(first) || r.Message.Contains(second),
+            "AC-3: neither ambiguous candidate's callsign may appear in the output");
+        (Ft8LibInterop.GetH12SuppressedCount() - suppressedBefore).Should().Be(1,
+            "AC-4: the suppressed counter must move by exactly one for this one suppressed display");
+    }
+
+    /// <summary>
+    /// Finds two DISTINCT Q-prefix synthetic callsigns whose 12-bit hash code
+    /// (<see cref="TestFt8Encoder.Compute12BitCode"/>) is IDENTICAL, and whose code is verified —
+    /// via a live, read-only probe (<see cref="IsCodeCurrentlyEmpty"/>) — to have ZERO occupants
+    /// right now. <paramref name="prefix"/> must be unique to the caller and ≤7 chars (prefix +
+    /// a 4-digit suffix must stay ≤11 chars, pack58's limit).
+    /// </summary>
+    private static (string First, string Second, int Code) FindEmptyColliding12BitPair(string prefix)
+    {
+        const int poolSize = 12_000; // >> 4096: virtually every code has 2+ candidates by then
+        var byCode = new Dictionary<int, List<string>>();
+        for (int i = 0; i < poolSize; i++)
+        {
+            string candidate = $"{prefix}{i:D4}";
+            int code = TestFt8Encoder.Compute12BitCode(candidate);
+            if (!byCode.TryGetValue(code, out var list))
+                byCode[code] = list = new List<string>();
+            list.Add(candidate);
+        }
+
+        foreach (var (code, candidates) in byCode)
+        {
+            if (candidates.Count < 2) continue;
+            if (IsCodeCurrentlyEmpty(code))
+                return (candidates[0], candidates[1], code);
+        }
+        throw new InvalidOperationException(
+            $"No 12-bit code near prefix '{prefix}' is both a same-code pair AND currently " +
+            "empty -- either the shared table is far more occupied than any prior test in this " +
+            "class left it (check whether the opt-in G2 saturation test ran first; it " +
+            "permanently fills the table and is documented to run last for exactly this reason), " +
+            "or Compute12BitCode has drifted from message.c:576-577.");
+    }
+
+    /// <summary>
+    /// Live, read-only probe: true iff <paramref name="code"/> currently has zero occupants in
+    /// the process-global hash table. Costs one throwaway table entry of its own (the probe
+    /// message's literal "de" call is auto-registered by unpack58, message.c:890-892) — harmless,
+    /// the table has thousands of slots to spare and is never reset (design D1/D3).
+    /// </summary>
+    private static bool IsCodeCurrentlyEmpty(int code)
+    {
+        byte[] bits = TestFt8Encoder.PackType4HashReference(code, "Q1H12PROBE");
+        float[] pcm = TestFt8Encoder.BuildPcmFromType4Bits(bits, DefaultFreqHz);
+        var results = Ft8LibInterop.DecodeAll(pcm);
+        var probe = results.FirstOrDefault(r => r.Message.Contains("Q1H12PROBE"));
+        return probe.Message?.Contains("<...>") == true;
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static readonly double[] BatchFreqsHz = { 500, 750, 1000, 1250, 1500, 1750, 2000, 2250 };

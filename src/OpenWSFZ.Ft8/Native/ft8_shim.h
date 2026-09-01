@@ -657,8 +657,27 @@ extern "C" {
  *              existing export. The three 20260047 scalars are unchanged and
  *              remain the sufficient-statistic source for anything that does
  *              not need cluster identity.
+ *
+ *   20260049 — f001-h12-unique-match-suppression: implements the Option A decision
+ *              ("NO NAME BEATS A WRONG NAME", qa/rr-study 2026-09-01) that SUP-B's
+ *              instrumentation was built to size. UNLIKE 20260047 and 20260048, THIS
+ *              BUMP CHANGES DECODE OUTPUT: cb_lookup_hash now returns "not found" for a
+ *              12-bit callsign-hash lookup whose probe chain holds >=2 matching entries
+ *              (tls_h12_multiplicity >= 2), so an ambiguous match renders the existing
+ *              "<...>" placeholder instead of a (possibly wrong) name. The decode itself
+ *              is never affected -- native/ft8_lib_vendor/ is not modified, and its
+ *              lookup_callsign already handles a "not found" 12-bit result as a normal,
+ *              non-error render path (message.c:594-614,431). hash_table_lookup,
+ *              hash_table_add and announce_stamp are byte-for-byte unchanged; the 22-bit
+ *              and 10-bit hash paths are untouched. Adds one new exported read-only
+ *              getter, ft8_get_h12_suppressed_count(), incremented at the SAME emission
+ *              site as the three SUP-B scalars (never inside cb_lookup_hash -- that would
+ *              count decode attempts, not displays). The three SUP-B scalars
+ *              (displaying/ambiguous/divergent) are UNCHANGED in meaning and continue to
+ *              report what *would* have been displayed, so every reading already taken
+ *              under 20260047/20260048 stays comparable to a run at this version.
  */
-#define FT8_SHIM_VERSION 20260048
+#define FT8_SHIM_VERSION 20260049
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -763,6 +782,14 @@ int ft8_get_hash_table_reject_count(void);
 int ft8_get_h12_displaying_count(void);
 int ft8_get_h12_ambiguous_count(void);
 int ft8_get_h12_divergent_count(void);
+
+/*
+ * ft8_get_h12_suppressed_count — f001-h12-unique-match-suppression (shim 20260049). See
+ * ft8_shim.c for the full doc comment. Process-global, read-only, process-lifetime cumulative,
+ * zero on daemon restart. UNLIKE its three siblings above, this getter's underlying counter
+ * corresponds to a change in decode OUTPUT (a suppressed callsign renders "<...>").
+ */
+int ft8_get_h12_suppressed_count(void);
 
 /*
  * ft8_get_h12_by_code — SUP-B Amendment 2 (shim 20260048). See ft8_shim.c for

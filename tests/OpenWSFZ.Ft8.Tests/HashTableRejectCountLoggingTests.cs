@@ -45,6 +45,7 @@ public sealed class HashTableRejectCountLoggingTests
         public int GetH12DisplayingCount() => 0;
         public int GetH12AmbiguousCount()  => 0;
         public int GetH12DivergentCount()  => 0;
+        public int GetH12SuppressedCount() => 0;
         public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
             => (new float[maxPasses], new float[maxPasses], new int[maxPasses]);
 
