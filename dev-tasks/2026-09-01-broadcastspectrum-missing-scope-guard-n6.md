@@ -170,26 +170,36 @@ merges second needs to rebase/re-diff cleanly against, not assume disjoint.
 
 ## 5. Definition of done
 
-- [ ] `appScope`'s declaration hoisted per §4a — confirm via grep that nothing between the old and new
-      positions referenced it before the move (mechanical check, not a judgment call)
-- [ ] `SpectrumEventBus` takes an optional `Guid appScope = default` constructor parameter per §4b,
-      matching `DecodeEventBus`'s exact pattern
-- [ ] `Program.cs`'s `spectrumBus` construction passes `appScope` per §4c
-- [ ] `BroadcastSpectrum` takes a `scope` parameter and filters `ActiveSockets` by it per §4d, matching
+- [x] `appScope`'s declaration hoisted per §4a — confirmed clean in the diff, nothing between old and
+      new positions referenced it
+- [x] `SpectrumEventBus` takes an optional `Guid appScope = default` constructor parameter per §4b,
+      matching `DecodeEventBus`'s exact pattern (including a matching doc comment)
+- [x] `Program.cs`'s `spectrumBus` construction passes `appScope` per §4c
+- [x] `BroadcastSpectrum` takes a `scope` parameter and filters `ActiveSockets` by it per §4d, matching
       the `BroadcastDecodes`/`BroadcastCatStatus`/`BroadcastTxState` pattern exactly
-- [ ] `N6` (`Broadcast_FromDifferentAppInstance_DoesNotReachThisFixturesSocket`) passes under WSL
-      Debian full-suite load, run at least twice consecutively (this flake only reproduced under
-      full-suite parallel load, per §3 — an isolated single-test run is not sufficient evidence
-      either way, same caveat as FR-064's dev-task)
-- [ ] `dotnet test OpenWSFZ.slnx -c Release` — full suite, green, both under native Windows and WSL
-      Debian
-- [ ] `git diff main --stat` — confirm the diff is limited to `WebSocketHub.cs`, `SpectrumEventBus.cs`,
-      and `Program.cs` (the single hoisted line plus the one changed constructor call) — no incidental
-      changes elsewhere, and specifically no changes to `Program.cs:733-735` or the other `FR-020`
-      territory
-- [ ] NFR-021 scan run after commit — clean
-- [ ] Commit message states the structural argument (the fourth broadcast method never received the
+- [x] `N6` passes under WSL Debian full-suite load — run twice under WSL, twice under native Windows
+      (4 full-suite runs total); `OpenWSFZ.Web.Tests` (containing N6) 276/276 on **every** run
+- [x] `dotnet test OpenWSFZ.slnx -c Release` — full suite, green across all 4 runs for the relevant
+      projects; the one incidental failure seen (`CycleArchiveServiceTests`, once, one native run) is
+      the already-tracked, already Captain-ruled-on sibling defect, not this fix
+- [x] `git diff main --stat` — confirmed limited to exactly the three files in §4, nothing in
+      `FR-020` territory
+- [x] NFR-021 — manual scan clean (0 callsign-shaped tokens); **also surfaced a real, separate finding
+      worth keeping on record:** `qa/rr-study/nfr021_pre_merge_scan.py`'s `TEXT_SUFFIXES` doesn't
+      include `.cs` — it silently scans zero of the files this diff touched. That script is scoped to
+      R&R-study artefacts (csv/md/html/etc.), not general source review, so this isn't a defect in
+      itself, but it's a reminder that script is not a substitute for a real NFR-021 check on `src/`
+      changes — manual review remains necessary until a general-purpose scanner exists.
+- [x] Commit message states the structural argument (the fourth broadcast method never received the
       scope guard its three siblings did), not "N green runs ⇒ fixed"
 
-🛑 **Then stop.** No push, no merge, no request for either (HK-010/HK-014). No `pre_merge_check.py`
-(HK-006 — Captain's initiative only).
+✅ **DONE. Commit `621f569` on `fix/websockethub-broadcastspectrum-scope-guard` (off `main`@`2c1a71e`,
+not pushed).** QA independently verified: rebuilt clean, re-ran the target test standalone (pass),
+read the full diff line by line — matches this checklist exactly, no incidental changes. One
+operational note from the Developer session, not a task concern: its worktree was torn down and
+recreated mid-task at a session boundary; no work was lost since nothing had been committed at that
+point.
+
+🛑 **Developer session stopped correctly** — no push, no merge, no `pre_merge_check.py` run
+(HK-010/HK-014/HK-006). **Ready for the Captain's own diff review and merge ruling (HK-010)** — same
+footing as `FR-020` and `CycleArchiveServiceTests`.

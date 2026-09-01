@@ -1,9 +1,16 @@
 # Developer handoff: `WebTestFactory`-hosted tests silently start REAL audio capture — `FR-020` flake
 
 **Authored by:** QA, 2026-09-01 (17:40 UTC, `date -u`, HK-017), per HK-000/HK-015.
-**Status:** ✅ **Option (a) DECIDED — Captain authorised "go with your recommendations" 2026-09-01;
-QA's recommendation, with the supporting verification below, stands as the decision.** A Developer
-session implements it (HK-011) — no `src/` or `tests/` edit made under this document itself.
+**Status:** ✅ **DONE. Option (a) DECIDED and implemented — commit `767ca52` on
+`fix/webtestfactory-configstore-di-seam` (off `main`@`2c1a71e`, not pushed).** QA independently
+verified: rebuilt clean, re-ran the target test standalone (pass), confirmed the "other two
+`StartPipeline` call sites don't need the fix" reasoning by reading `configStore.OnSaved`'s
+subscription directly (bound to the raw pre-DI instance, never fires under `WebTestFactory`'s
+substituted `IConfigStore`). Strongest evidence: WSL — the exact environment that reproduced the
+original flake — 2× isolated pass, 2× consecutive full-suite clean, with the real
+`~/.config/OpenWSFZ/config.json` (`audioDeviceId: "pulse"`, `decodingEnabled: true`) confirmed still
+present. **Ready for the Captain's own diff review and merge ruling (HK-010)** — same footing as
+`N6` and `CycleArchiveServiceTests`.
 **Branch:** create a fresh short branch off `main`@`2c1a71e` (post-FR-064-merge) — do not ride this on
 the sibling `BroadcastSpectrum` dev-task's branch; this is a second, independent defect.
 
