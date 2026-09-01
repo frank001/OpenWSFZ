@@ -731,8 +731,16 @@ app.Lifetime.ApplicationStarted.Register(() =>
         initialDecoder.OsdCorrThreshold,
         initialDecoder.OsdNhardMax);
 
-    var deviceName = configStore.Current.AudioDeviceId;
-    if (deviceName is not null && configStore.Current.DecodingEnabled)
+    // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
+    // not the raw pre-DI `configStore` local, so a WebApplicationFactory-hosted test host's
+    // IConfigStore substitution (WebTestFactory) actually governs this decision. In production
+    // this is the exact same instance (WebApp.cs registers `configStore` itself as the
+    // IConfigStore singleton), so behaviour is unchanged there. Mirrors the DI-resolved
+    // IConfigStore pattern already used elsewhere in this file (app.Services.GetRequiredService
+    // below, and sp.GetRequiredService<IConfigStore>() at :609,:624,:652,:670).
+    var autoStartConfigStore = app.Services.GetRequiredService<IConfigStore>();
+    var deviceName = autoStartConfigStore.Current.AudioDeviceId;
+    if (deviceName is not null && autoStartConfigStore.Current.DecodingEnabled)
         StartPipeline(deviceName);
 
     // Decode-pump: reads completed PCM windows, decodes, broadcasts results.
