@@ -1,12 +1,28 @@
 # Developer handoff: `WebTestFactory`-hosted tests silently start REAL audio capture — `FR-020` flake
 
 **Authored by:** QA, 2026-09-01 (17:40 UTC, `date -u`, HK-017), per HK-000/HK-015.
-**Status:** 🔴 Diagnosis + fix OPTIONS, not a single approved fix (HK-011) — §5 below needs a Captain
-decision between two shapes before a Developer session implements either. No `src/` or `tests/` edit
-made or authorised by this document.
-**Branch:** create a fresh short branch off `main` once the Captain has picked an option — do not ride
-this on `fix/fr064-heartbeat-race` or the sibling `BroadcastSpectrum` dev-task's eventual branch; this
-is a third, independent defect.
+**Status:** ✅ **Option (a) DECIDED — Captain authorised "go with your recommendations" 2026-09-01;
+QA's recommendation, with the supporting verification below, stands as the decision.** A Developer
+session implements it (HK-011) — no `src/` or `tests/` edit made under this document itself.
+**Branch:** create a fresh short branch off `main`@`2c1a71e` (post-FR-064-merge) — do not ride this on
+the sibling `BroadcastSpectrum` dev-task's branch; this is a second, independent defect.
+
+### Decision — option (a), not (b)
+
+§5 originally left this as an open choice. Verified before deciding, not asserted:
+`WebApp.cs:123`, `builder.Services.AddSingleton<IConfigStore>(configStore ?? new
+InMemoryConfigStore());` registers the **exact same `configStore` instance** Program.cs constructs
+at `:39` into the DI container. That means resolving `IConfigStore` via
+`app.Services.GetRequiredService<IConfigStore>()` **after** `app.Build()`, instead of reading the raw
+pre-DI local variable, is **behaviourally identical in production** — same object, same value, every
+time — and only diverges from today's behaviour in the one case we want it to: a
+`WebApplicationFactory`-hosted test host, where `WebTestFactory` has already substituted a different
+registration. This is also not a foreign pattern: `Program.cs:609,624,652,670` already resolve
+`IConfigStore` via `sp.GetRequiredService<IConfigStore>()` elsewhere in this same file. Option (a) is
+therefore the structurally complete fix, at effectively zero production risk, consistent with an
+idiom already in use — not merely the safer-looking of two options. Option (b) is not being taken:
+it would have left the general pattern (pre-DI local-variable reads racing DI substitution) in place
+for the next subsystem to hit it differently.
 **Discovered:** incidentally, alongside the `BroadcastSpectrum` finding, during the same
 `pre_merge_check.py` WSL-gate investigation on `fix/fr064-heartbeat-race`.
 
@@ -118,9 +134,9 @@ whatever real, operator-specific state happens to be sitting on the machine that
 something CI or a differently-configured developer machine would necessarily ever reproduce, and not
 something a differently-configured machine could rely on NOT reproducing either.
 
-## 5. Fix — two shapes, needs a Captain decision before implementation
+## 5. Fix — option (a) DECIDED (see the boxed decision note under the header)
 
-### Option (a) — give the capture-pipeline decision a DI seam
+### Option (a) — DECIDED. Give the capture-pipeline decision a DI seam
 
 Change `Program.cs:733-735` (and the two other `StartPipeline` call sites at `:917-925` and
 `:1080-1088`) to resolve `IConfigStore` through `app.Services` (post-`Build()`) rather than the raw
@@ -136,7 +152,7 @@ before the auto-start decision runs.
   Program.cs's config usage. Do not attempt a wholesale refactor of `configStore` usage under this
   dev-task; scope is exactly the `StartPipeline` gating decision.
 
-### Option (b) — isolate the config file path for the test host, test-only
+### Option (b) — NOT TAKEN. Recorded for context only: isolate the config file path, test-only
 
 `ConfigPathResolver.Resolve` (`src/OpenWSFZ.Config/ConfigPathResolver.cs:29-39`) already honors an
 `OPENWSFZ_CONFIG` environment variable ahead of the platform default. Have `WebTestFactory` (or a
@@ -152,10 +168,12 @@ real file at all.
   but not the general pattern (DI substitution racing against pre-`Build()` local-variable reads).
 - Lower risk, smaller diff, faster to land.
 
-**Do not choose between these unilaterally.** Option (a) is the more complete fix but is a genuine
-production-code change with a wider blast radius to review; option (b) is safe and fast but leaves the
-general pattern in place for the next person who hits it a different way. This is the Captain's call,
-same footing as FR-064's own option (a)/(b) choice was the Captain's call via the R1 ruling.
+**Not chosen — recorded so nobody re-derives it from scratch.** Option (a) is the more complete fix
+and, per the decision note above, carries effectively zero production risk (same DI-registered
+instance either way) — that's what tipped the decision away from (b), not just a preference for
+"more correct." Option (b) remains a legitimate fallback if a Developer session finds option (a)'s
+scope has grown unexpectedly wide once in the code — stop and escalate rather than silently falling
+back to it (same rule FR-064's own brief used for its own option (a)/(b) choice).
 
 ## 6. Ruled out as a third option
 
@@ -164,22 +182,26 @@ same footing as FR-064's own option (a)/(b) choice was the Captain's call via th
   actually specifies — "no audio capture is running in tests" is a real, intended guarantee, not
   incidental to the assertion. Weakening the test hides the isolation gap instead of closing it.
 
-## 7. Definition of done (once the Captain has picked (a) or (b))
+## 7. Definition of done
 
-- [ ] Chosen option implemented, scoped exactly as described in §5 for that option — no drive-by
-      changes to unrelated `configStore` usage
+- [ ] `Program.cs:733-735`'s `StartPipeline` gating decision (and *only* that decision — see §5's
+      scope note) resolves `IConfigStore` via `app.Services.GetRequiredService<IConfigStore>()`
+      post-`Build()`, not the raw pre-DI local variable
+- [ ] The two other `StartPipeline` call sites (`:917-925`, `:1080-1088`) reviewed for the same
+      pattern — apply the same fix there if they read the pre-DI local variable too; if they don't
+      (e.g. already inside a DI-resolved context), say so explicitly rather than silently skipping
+- [ ] No wholesale refactor of `configStore` usage elsewhere in `Program.cs` — scope is exactly the
+      audio auto-start gating decision(s)
 - [ ] `FR-020` (`GetStatus_IncludesAudioActiveField`) passes under WSL Debian full-suite load, run at
       least twice consecutively (this flake only reproduced under full-suite parallel load — an
       isolated single-test run is not sufficient evidence either way)
 - [ ] `dotnet test OpenWSFZ.slnx -c Release` — full suite, green, under both native Windows and WSL
       Debian
-- [ ] If option (a): confirm no other `Program.cs` startup decision that should also read through DI
-      was accidentally left on the old path, and no other test in the solution was relying on the old
-      (buggy) behaviour
-- [ ] If option (b): confirm the isolated `OPENWSFZ_CONFIG` temp path is cleaned up appropriately
-      (no leaked temp directories across test runs) and does not collide across parallel test
-      collections
-- [ ] `git diff main --stat` matches the chosen option's expected file set (§5)
+- [ ] Confirm no other test in the solution was relying on the old (buggy) behaviour — e.g. any test
+      that assumed `StartPipeline` fires against the operator's real device inside a
+      `WebApplicationFactory` host
+- [ ] `git diff main --stat` — confirm the diff is limited to `Program.cs` (and, if needed per the
+      second checklist item, the other call sites) — no incidental changes elsewhere
 - [ ] NFR-021 scan run after commit — clean
 - [ ] Commit message states the structural argument (tests were reading the operator's real config
       file/starting real capture hardware, not "flaky assertion"), not "N green runs ⇒ fixed"
