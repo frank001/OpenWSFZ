@@ -188,6 +188,32 @@ public sealed class ExternalReportingServiceTests
         return System.Text.Encoding.UTF8.GetString(datagram.AsSpan(16, (int)len));
     }
 
+    /// <summary>
+    /// Reads the WSJT-X-protocol "Message" field out of a raw Decode datagram — the second of two
+    /// length-prefixed UTF-8 strings that follow the fixed-size decode fields (New: bool,
+    /// TimeMsSinceMidnightUtc: uint32, SnrDb: int32, DeltaTimeSeconds: double,
+    /// DeltaFrequencyHz: uint32, then the Mode string), per
+    /// <see cref="WsjtxDatagram.EncodeDecode"/>'s own field order (`WsjtxDatagram.cs:173`-187).
+    /// Used to assert on decoded message content rather than a relay body's raw base64 bytes
+    /// (FR-064 leak-guard, dev-task §3 — `r.Body.Contains("Q1UNK")` can never fire since the
+    /// datagram bytes are base64-encoded before they ever reach the body).
+    /// </summary>
+    private static string ReadDecodeMessage(byte[] datagram)
+    {
+        var idLen = BinaryPrimitives.ReadUInt32BigEndian(datagram.AsSpan(12, 4));
+        var offset = 16 + (int)idLen;
+        offset += 1; // New (bool)
+        offset += 4; // TimeMsSinceMidnightUtc (uint32)
+        offset += 4; // SnrDb (int32)
+        offset += 8; // DeltaTimeSeconds (double)
+        offset += 4; // DeltaFrequencyHz (uint32)
+        var modeLen = BinaryPrimitives.ReadUInt32BigEndian(datagram.AsSpan(offset, 4));
+        offset += 4 + (int)modeLen; // skip Mode string
+        var messageLen = BinaryPrimitives.ReadUInt32BigEndian(datagram.AsSpan(offset, 4));
+        offset += 4;
+        return System.Text.Encoding.UTF8.GetString(datagram.AsSpan(offset, (int)messageLen));
+    }
+
     // ── Outbound: two simultaneous targets (task 3.7) ───────────────────────
 
     [Fact(DisplayName = "FR-053: Two enabled targets both receive a Decode datagram")]
@@ -1415,8 +1441,21 @@ public sealed class ExternalReportingServiceTests
             // First batch: empty results — establishes _lastStatus/_lastStatusSentUtc via the
             // Status-changed-or-due grouping check in DecodeLoopAsync, producing exactly one POST
             // (Status only, no Decode datagrams to group with it).
+            //
+            // The baseline below must not be a raw count: the follower's unconditional startup
+            // Heartbeat (TimerLoopAsync's body runs immediately on tick 1, before the first
+            // Task.Delay) and this batch's own Status POST are two independent producers racing to
+            // satisfy a "Count >= 1" predicate — whichever lands first "completes" the poll while
+            // the other is still in flight, so the read of countAfterFirstBatch below can catch
+            // either 1 or 2 depending purely on scheduling (FR-064 flake, corrected diagnosis
+            // 2026-09-01: draining one before writing the batch does not fix this, since the Status
+            // POST does not exist until the batch is written). Wait for BOTH known startup
+            // emissions by content instead of a count, per the :1365 idiom already in this file.
             channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow, []));
-            await Poll.UntilAsync(() => handler.Requests.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+            await Poll.UntilAsync(
+                () => handler.Requests.Any(r => r.Body.Contains("\"type\":\"Heartbeat\""))
+                   && handler.Requests.Any(r => r.Body.Contains("\"type\":\"Status\"")),
+                timeout: TimeSpan.FromSeconds(5));
             var countAfterFirstBatch = handler.Requests.Count;
 
             // Second batch: one Region:null (unknown-region) decode, same Status as before (not
@@ -1431,7 +1470,18 @@ public sealed class ExternalReportingServiceTests
             await Task.Delay(TimeSpan.FromMilliseconds(300));
             handler.Requests.Count.Should().Be(countAfterFirstBatch,
                 "a batch containing only an absolutely-excluded Decode result must produce no relay POST");
-            handler.Requests.Should().NotContain(r => r.Body.Contains("Q1UNK"));
+
+            // Was `NotContain(r => r.Body.Contains("Q1UNK"))` — structurally incapable of failing:
+            // every relayed body is a RelayBatchRequest whose datagrams are base64-encoded
+            // (ExternalReportingService.cs:856), so the plaintext message can never appear in
+            // r.Body regardless of whether the exclusion logic works. Deserialise and inspect the
+            // decoded datagrams instead, per the :1371 idiom already in this file.
+            var leakedMessages = handler.Requests
+                .Select(r => JsonSerializer.Deserialize<RelayBatchRequest>(r.Body, RelayJsonOptions)!)
+                .SelectMany(b => b.Datagrams)
+                .Where(d => d.Type == "Decode")
+                .Select(d => ReadDecodeMessage(Convert.FromBase64String(d.BytesBase64)));
+            leakedMessages.Should().NotContain(msg => msg.Contains("Q1UNK"));
         }
         finally
         {
