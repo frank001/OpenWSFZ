@@ -219,9 +219,11 @@ var captureManager = new CaptureManager(audioSource, loggerFactory.CreateLogger<
 var audioMonitor    = new AudioActivityMonitor();
 var dataFlowMonitor = new DataFlowMonitor();
 
+var appScope = Guid.NewGuid();
+
 // ── Spectrum analyser ─────────────────────────────────────────────────────
 var spectrumAnalyser = new SpectrumAnalyser();
-var spectrumBus      = new SpectrumEventBus();
+var spectrumBus      = new SpectrumEventBus(appScope);
 
 // Wire monitors and spectrum analyser to the capture callback.
 // audioMonitor tracks amplitude for the heartbeat UI (FR-020).
@@ -297,7 +299,6 @@ startupLogger.LogInformation("Native FT8 decoder shim ABI version: {ShimVersion}
 // Threaded through to WebApp.Create, ITxEventBus, and AudioOffsetEventBus below so all four
 // share one scope rather than each independently minting its own (which would defeat N6's
 // scope-guard fix).
-var appScope = Guid.NewGuid();
 var decodeEventBus = new DecodeEventBus(appScope);
 // fix-decode-filter-new-value-admission, design.md Decision 4: broadcasts a daemon-driven
 // DecodeFilterState change (new-value auto-admission) to every connected client, mirroring
@@ -730,8 +731,16 @@ app.Lifetime.ApplicationStarted.Register(() =>
         initialDecoder.OsdCorrThreshold,
         initialDecoder.OsdNhardMax);
 
-    var deviceName = configStore.Current.AudioDeviceId;
-    if (deviceName is not null && configStore.Current.DecodingEnabled)
+    // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
+    // not the raw pre-DI `configStore` local, so a WebApplicationFactory-hosted test host's
+    // IConfigStore substitution (WebTestFactory) actually governs this decision. In production
+    // this is the exact same instance (WebApp.cs registers `configStore` itself as the
+    // IConfigStore singleton), so behaviour is unchanged there. Mirrors the DI-resolved
+    // IConfigStore pattern already used elsewhere in this file (app.Services.GetRequiredService
+    // below, and sp.GetRequiredService<IConfigStore>() at :609,:624,:652,:670).
+    var autoStartConfigStore = app.Services.GetRequiredService<IConfigStore>();
+    var deviceName = autoStartConfigStore.Current.AudioDeviceId;
+    if (deviceName is not null && autoStartConfigStore.Current.DecodingEnabled)
         StartPipeline(deviceName);
 
     // Decode-pump: reads completed PCM windows, decodes, broadcasts results.

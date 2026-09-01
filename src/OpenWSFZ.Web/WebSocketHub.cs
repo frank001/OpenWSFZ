@@ -396,17 +396,19 @@ internal static class WebSocketHub
     /// <param name="bins">
     /// Array of 512 integers in [0, 255], mapping 0–2994 Hz frequency bins.
     /// </param>
-    internal static void BroadcastSpectrum(int[] bins)
+    internal static void BroadcastSpectrum(Guid scope, int[] bins)
     {
         if (ActiveSockets.IsEmpty) return;
-
         var msg     = new WsSpectrumMessage(Type: "spectrum", Payload: bins);
         var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsSpectrumMessage);
         var bytes   = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);
 
-        foreach (var (ws, _) in ActiveSockets)
+        foreach (var (ws, socketScope) in ActiveSockets)
+        {
+            if (socketScope != scope) continue;   // scope guard — same pattern as BroadcastDecodes
             _ = SendWithTimeoutAsync(ws, segment);
+        }
     }
 
     /// <summary>
