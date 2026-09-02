@@ -383,6 +383,56 @@ internal static class TestFt8Encoder
     }
 
     /// <summary>
+    /// f001-h12-unique-match-suppression: mirrors kgoba/ft8_lib's message.c:576-577 hash formula
+    /// EXACTLY (<c>n22 = (47055833459UL * n58) >> 42 &amp; 0x3FFFFF</c>, <c>n12 = n22 >> 10</c>)
+    /// so tests can pre-compute, without any native call, which literal callsigns will collide
+    /// on the 12-bit path. <paramref name="callsign"/> must use
+    /// <see cref="EncodeNonstandardCall58"/>'s charset (space, 0-9, A-Z, /).
+    /// </summary>
+    public static int Compute12BitCode(string callsign)
+    {
+        ulong n58 = EncodeNonstandardCall58(callsign);
+        ulong n22 = (47055833459UL * n58) >> 42 & 0x3FFFFFul;
+        return (int)(n22 >> 10);
+    }
+
+    /// <summary>
+    /// Packs a Type 4 (i3=4) message whose call_to slot is resolved via the 12-bit hash table
+    /// (icq=0, iflip=0 — message.c:434/437: call_1 = call_3 = the hash-resolved call, and the
+    /// icq=0 branch renders call_1 into call_to) and whose call_de slot carries
+    /// <paramref name="otherCallsignText"/> as literal 58-bit text. This is the "X, you are Y"
+    /// shape f001-h12-unique-match-suppression's Option A actually changes — unlike
+    /// <see cref="PackType4CqAnnounce"/>'s icq=1 "CQ" shape, where the 12-bit slot is present in
+    /// the payload but structurally discarded by message.c:437's else branch and never rendered.
+    /// </summary>
+    public static byte[] PackType4HashReference(int n12Code, string otherCallsignText, int nrpt = 0)
+    {
+        var bits = new byte[77];
+        ulong n58 = EncodeNonstandardCall58(otherCallsignText);
+        PackBitsInto(bits,  0, 12, (ulong)n12Code); // n12 -- 12-bit hash reference -> call_to
+        PackBitsInto(bits, 12, 58, n58);            // n58 -- literal text -> call_de
+        PackBitsInto(bits, 70,  1, 0);              // iflip = 0
+        PackBitsInto(bits, 71,  2, (ulong)nrpt);
+        PackBitsInto(bits, 73,  1, 0);              // icq = 0 -- call_to renders call_1, not "CQ"
+        PackBitsInto(bits, 74,  3, 4);              // i3 = 4
+        return bits;
+    }
+
+    /// <summary>
+    /// Builds a 180 000-sample PCM buffer from an already-packed 77-bit Type 4 payload — the
+    /// shared tail of <see cref="PackType4CqAnnounce"/>'s own pipeline (AppendCrc14 →
+    /// LdpcEncode → BitsToSymbols → SymbolsToPcm), factored out so
+    /// <see cref="PackType4HashReference"/>'s raw bits can go through the same path.
+    /// </summary>
+    public static float[] BuildPcmFromType4Bits(byte[] type4Bits, double baseFreqHz)
+    {
+        byte[] info = AppendCrc14(type4Bits);
+        byte[] cw   = LdpcEncode(info);
+        int[]  syms = BitsToSymbols(cw);
+        return SymbolsToPcm(syms, baseFreqHz);
+    }
+
+    /// <summary>
     /// Computes the 58-bit mixed-radix encoding of a callsign for the Type 4 message's
     /// full-text slot, matching kgoba/ft8_lib's <c>pack58</c> (message.c): up to 11
     /// characters from the charset {space, 0-9, A-Z, /}, right-padded with space

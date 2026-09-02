@@ -27,7 +27,7 @@ public sealed class H12InstrumentationLoggingTests
     /// Fake interop returning fixed, caller-controlled 12-bit-path counts and an empty decode
     /// result set — this test only cares about the h12 log line, not decode output.
     /// </summary>
-    private sealed class FixedH12CountsInterop(int displaying, int ambiguous, int divergent) : IFt8NativeInterop
+    private sealed class FixedH12CountsInterop(int displaying, int ambiguous, int divergent, int suppressed) : IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
 
@@ -40,6 +40,7 @@ public sealed class H12InstrumentationLoggingTests
         public int    GetH12DisplayingCount()                => displaying;
         public int    GetH12AmbiguousCount()                 => ambiguous;
         public int    GetH12DivergentCount()                 => divergent;
+        public int    GetH12SuppressedCount()                => suppressed;
         public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
             => (new float[maxPasses], new float[maxPasses], new int[maxPasses]);
 
@@ -107,8 +108,9 @@ public sealed class H12InstrumentationLoggingTests
         const int displaying = 17;
         const int ambiguous  = 5;
         const int divergent  = 2;
+        const int suppressed = 5; // == ambiguous, matching the real AC-4 invariant
         var logger  = new RecordingLogger<Ft8Decoder>();
-        var interop = new FixedH12CountsInterop(displaying, ambiguous, divergent);
+        var interop = new FixedH12CountsInterop(displaying, ambiguous, divergent, suppressed);
         var decoder = new Ft8Decoder(
             new FakeClock(new DateTime(2026, 8, 30, 9, 0, 0, DateTimeKind.Utc)),
             logger,
@@ -121,20 +123,21 @@ public sealed class H12InstrumentationLoggingTests
                  && e.Message.Contains("h12Displaying")
                  && e.Message.Contains("h12Ambiguous")
                  && e.Message.Contains("h12Divergent")
+                 && e.Message.Contains("h12Suppressed")
                  && e.Message.Contains(displaying.ToString())
                  && e.Message.Contains(ambiguous.ToString())
-                 && e.Message.Contains(divergent.ToString()),
-            "h12Displaying/h12Ambiguous/h12Divergent must be logged at Information level every " +
-            "cycle (the same cadence and level as the existing hashTableRejectCount line), " +
-            "carrying the values the three new getters actually returned, so a raw daemon log " +
-            "can reconstruct the S-over-time curve without needing ad hoc /api/v1/status polling");
+                 && e.Message.Contains(divergent.ToString())
+                 && e.Message.Contains(suppressed.ToString()),
+            "h12Displaying/h12Ambiguous/h12Divergent/h12Suppressed must all be logged at " +
+            "Information level every cycle, carrying the values the four getters actually " +
+            "returned");
     }
 
     [Fact(DisplayName = "SUP-B: h12 log line reflects all-zero counts, not just truthy non-zero ones")]
     public async Task DecodeAsync_ZeroH12Counts_LogsZeroExplicitly()
     {
         var logger  = new RecordingLogger<Ft8Decoder>();
-        var interop = new FixedH12CountsInterop(displaying: 0, ambiguous: 0, divergent: 0);
+        var interop = new FixedH12CountsInterop(displaying: 0, ambiguous: 0, divergent: 0, suppressed: 0);
         var decoder = new Ft8Decoder(
             new FakeClock(new DateTime(2026, 8, 30, 9, 0, 0, DateTimeKind.Utc)),
             logger,
@@ -146,7 +149,8 @@ public sealed class H12InstrumentationLoggingTests
             e => e.Level == LogLevel.Information
                  && e.Message.Contains("h12Displaying=0")
                  && e.Message.Contains("h12Ambiguous=0")
-                 && e.Message.Contains("h12Divergent=0"),
+                 && e.Message.Contains("h12Divergent=0")
+                 && e.Message.Contains("h12Suppressed=0"),
             "all-zero h12 counts must still be logged explicitly every cycle (regular cadence, " +
             "not conditional on a non-zero/truthy value) so a session's early cycles establish a " +
             "proper baseline for the later S-over-time trend this logging exists to support");

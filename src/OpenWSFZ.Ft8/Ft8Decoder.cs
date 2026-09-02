@@ -128,6 +128,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// <summary>SUP-B (shim 20260047). See <see cref="IFt8NativeInterop.GetH12DivergentCount"/>.</summary>
     public int GetH12DivergentCount() => _interop.GetH12DivergentCount();
 
+    /// <summary>f001-h12-unique-match-suppression (shim 20260049). See <see cref="IFt8NativeInterop.GetH12SuppressedCount"/>.</summary>
+    public int GetH12SuppressedCount() => _interop.GetH12SuppressedCount();
+
     /// <param name="clock">Wall-clock provider for aligning cycle timestamps.</param>
     /// <param name="logger">Optional structured logger; pass null to suppress all log output.</param>
     /// <param name="grammarStore">
@@ -456,17 +459,20 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
             "Cycle {Time}: hashTableRejectCount={HashTableRejectCount} (process-lifetime cumulative).",
             timeStr, _interop.GetHashTableRejectCount());
 
-        // ── SUP-B (shim 20260047): 12-bit-path unique-match sizing ──────────────
+        // ── SUP-B (shim 20260047) + f001-h12-unique-match-suppression (shim 20260049):
+        // 12-bit-path unique-match sizing AND the suppression it now sizes ─────────
         // Per-cycle CUMULATIVE (not a delta), matching hashTableRejectCount's own
         // convention immediately above and spec Sec.3.3's rationale: this gives S
         // as a function of elapsed session time, which is the product question
         // being answered, and lets a raw daemon log reconstruct the S-over-time
-        // curve spec Sec.6.2 needs without ad hoc endpoint polling.
+        // curve spec Sec.6.2 needs without ad hoc endpoint polling. h12Suppressed is
+        // arithmetically identical to h12Ambiguous by design (see the native getter's
+        // own doc comment) -- it is a live wiring-invariant check, not new information.
         _logger?.LogInformation(
             "Cycle {Time}: h12Displaying={H12Displaying} h12Ambiguous={H12Ambiguous} " +
-            "h12Divergent={H12Divergent} (process-lifetime cumulative).",
+            "h12Divergent={H12Divergent} h12Suppressed={H12Suppressed} (process-lifetime cumulative).",
             timeStr, _interop.GetH12DisplayingCount(), _interop.GetH12AmbiguousCount(),
-            _interop.GetH12DivergentCount());
+            _interop.GetH12DivergentCount(), _interop.GetH12SuppressedCount());
 
         // ── D-003 noise-floor diagnostic ─────────────────────────────────────
         // Log the histogram-median noise floor returned by ft8_get_last_noise_floor_db.

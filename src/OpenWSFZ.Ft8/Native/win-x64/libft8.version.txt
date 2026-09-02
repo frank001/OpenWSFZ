@@ -1,4 +1,56 @@
-=== CURRENT: f001-sup-b-amendment-2-cluster-instrumentation (FT8_SHIM_VERSION 20260048) ===
+=== CURRENT: f001-h12-unique-match-suppression (FT8_SHIM_VERSION 20260049) ===
+
+Built 2026-09-01 from branch feat/f001-h12-unique-match-suppression, on top of the
+f001-sup-b-amendment-2-cluster-instrumentation pin at shim 20260048 (SHA256
+e22524e8fb4964496e34a2c3f08d6e10d8f6f48eaadb0626fe6a8799fa84e33e), per QA's Developer handoff
+(dev-tasks/2026-09-01-f001-h12-unique-match-suppression.md, implementing the Architect brief
+qa/rr-study/2026-09-01-1949-architect-to-qa-brief-f001-option-a-unique-match-suppression.md and
+the PO's Option A decision (qa/rr-study/2026-09-01-1510-po-decision-f001-sup-b-step7-option-a.md,
+"NO NAME BEATS A WRONG NAME").
+
+UNLIKE 20260047/20260048, THIS BUMP CHANGES DECODE OUTPUT. cb_lookup_hash now returns "not found"
+for a 12-bit callsign-hash lookup whose probe chain holds >=2 matching entries
+(tls_h12_multiplicity >= 2), so an ambiguous match renders the existing "<...>" placeholder
+instead of a (possibly wrong) name. native/ft8_lib_vendor/ is NOT modified -- message.c's own
+lookup_callsign (594-614) and its sole 12-bit call site, decode_nonstd (431, which discards the
+return value), already treat a "not found" 12-bit result as a normal, non-error render path, so
+the decode itself always survives. hash_table_lookup, hash_table_add and announce_stamp are
+byte-for-byte unchanged; the 22-bit and 10-bit hash paths are untouched.
+
+Adds one new exported read-only getter, ft8_get_h12_suppressed_count(), incremented at the SAME
+emission site as the three SUP-B scalars (never inside cb_lookup_hash, which also fires for
+decode attempts later discarded -- TRAP 3 again). By construction this is arithmetically
+identical to ft8_get_h12_ambiguous_count() on every run -- a wiring invariant between the
+decision site and the counting site, not new information. The three SUP-B scalars
+(displaying/ambiguous/divergent) are unchanged in meaning.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    ce02c7ba10e216349c3cc6d2460a6106379a4593bb730c807dbe8128ecca153e
+  Linux x64   (build_linux.sh, GCC 14.2.0 via WSL2 Debian): SHA256
+    d6aa3d6164d3d9b1f8f01f08a627da66ec6298af30a2bbd4ac17460bfde55eae
+  macOS ARM64: NOT rebuilt this session -- no Mac available locally, same limitation every prior
+    native change in this project's history has recorded. Non-blocking: CI's
+    `commit-native-binaries` job rebuilds macOS from source and auto-commits the result on every
+    push that changes native sources -- this branch has not been pushed yet (HK-014/HK-011:
+    Developer sessions build and test only, they do not push). The osx-arm64/libft8.dylib
+    currently committed remains at its pre-this-change shim version until that push happens; do
+    not treat it as shim-20260049-compatible before then.
+
+  `nm -D` (Linux) confirms all TWENTY-ONE exported symbols present -- the twenty pre-existing
+  symbols unchanged, plus the one new ft8_get_h12_suppressed_count -- and it is the ONLY
+  addition (plus ft8_encode, ELF's default-export-all-non-static behaviour, pre-existing, not
+  part of this change). Windows link (rebuild_shim.bat) added the matching
+  `/EXPORT:ft8_get_h12_suppressed_count` line -- the Windows-only trap (design D5): a symbol
+  present in the header/.c but missing from this export list builds and links clean, then fails
+  only at runtime on P/Invoke resolution.
+
+  `ExpectedShimVersion` in Ft8LibInterop.cs bumped to 20260049 alongside the shim version, with
+  a new GetH12SuppressedCount() binding threaded through IFt8NativeInterop /
+  Ft8NativeInteropAdapter / Ft8Decoder, plus the interface-breaking-change stub
+  (`GetH12SuppressedCount() => 0;`) added to all twelve test doubles implementing
+  IFt8NativeInterop.
+
+=== f001-sup-b-amendment-2-cluster-instrumentation (FT8_SHIM_VERSION 20260048) ===
 
 Built 2026-08-30 from branch qa/sup-b-2026-08-30, on top of the
 f001-sup-b-instrumented-suppression-sizing pin at shim 20260047 (SHA256

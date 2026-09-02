@@ -36,6 +36,7 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
     public int GetH12DisplayingCount() => Ft8LibInterop.GetH12DisplayingCount();
     public int GetH12AmbiguousCount()  => Ft8LibInterop.GetH12AmbiguousCount();
     public int GetH12DivergentCount()  => Ft8LibInterop.GetH12DivergentCount();
+    public int GetH12SuppressedCount() => Ft8LibInterop.GetH12SuppressedCount();
 
     public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
         => Ft8LibInterop.GetLastLlrStats(maxPasses);

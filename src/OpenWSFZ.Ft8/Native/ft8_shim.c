@@ -719,6 +719,11 @@ static int g_h12_displaying = 0;
 static int g_h12_ambiguous  = 0;
 static int g_h12_divergent  = 0;
 
+/* f001-h12-unique-match-suppression (shim 20260049): how many of g_h12_ambiguous's displays
+ * were actually suppressed (== all of them, by design -- see the getter's own comment below
+ * for why this is a wiring invariant, not new information). */
+static int g_h12_suppressed = 0;
+
 /* SUP-B Amendment 2 (shim 20260048): per-code (n12) cluster table for Sec.6.2's
  * clustered bootstrap. The 12-bit code is already in scope at the counting site
  * (cb_lookup_hash) and the code space is exactly 4096 by construction, so this
@@ -791,6 +796,7 @@ static _Thread_local bool     tls_h12_resolved         = false;
 static _Thread_local int      tls_h12_multiplicity     = 0;
 static _Thread_local bool     tls_h12_divergent        = false;
 static _Thread_local uint32_t tls_h12_code             = 0; /* SUP-B Amendment 2: the 12-bit code itself */
+static _Thread_local bool     tls_h12_suppressed       = false; /* f001-h12-unique-match-suppression D3 */
 
 static _Thread_local callsign_table_t* tls_hash_table = NULL;
 static bool cb_lookup_hash(ftx_callsign_hash_type_t t, uint32_t h, char* cs) {
@@ -798,16 +804,27 @@ static bool cb_lookup_hash(ftx_callsign_hash_type_t t, uint32_t h, char* cs) {
     bool found = hash_table_lookup(tls_hash_table, t, h, cs); /* UNCHANGED return path -- TRAP 1 */
     if (t == FTX_CALLSIGN_HASH_12_BITS) {
         tls_h12_lookup_performed = true;
-        tls_h12_resolved         = found;
+        tls_h12_resolved         = found; /* f001-h12-unique-match-suppression D3: "the table
+                                            * resolved it" -- unchanged meaning, NOT gated on
+                                            * suppression. SUP-B's counters depend on this. */
         tls_h12_code             = h; /* SUP-B Amendment 2: set unconditionally in this branch */
         if (found) {
             hash_table_count_h12_multiplicity(tls_hash_table, h, &tls_h12_multiplicity, &tls_h12_divergent);
+            /* f001-h12-unique-match-suppression D1/D2: "NO NAME BEATS A WRONG NAME" -- suppress
+             * (return not-found) when the probe chain holds >=2 candidates. Multiplicity, NOT
+             * divergence (divergent is a strictly narrower signal SUP-B kept separate). Do not
+             * touch cs: it already holds hash_table_lookup's resolved callsign, and
+             * lookup_callsign (message.c:594) overwrites it with "<...>" on a false return and
+             * never reads it again -- clearing it here would be redundant, not "helpful". */
+            tls_h12_suppressed = (tls_h12_multiplicity >= 2);
         } else {
             tls_h12_multiplicity = 0;
             tls_h12_divergent    = false;
+            tls_h12_suppressed   = false;
         }
     }
-    return found;
+    return found && !tls_h12_suppressed; /* f001-h12-unique-match-suppression D1: the ONLY line
+                                           * that changes decode output in this whole diff. */
 }
 static void cb_save_hash(const char* cs, uint32_t h) {
     if (tls_hash_table) hash_table_add(tls_hash_table, cs, h);
@@ -1191,6 +1208,21 @@ int ft8_get_hash_table_reject_count(void) { return g_hash_table_reject_count; }
 int ft8_get_h12_displaying_count(void) { return g_h12_displaying; }
 int ft8_get_h12_ambiguous_count(void)  { return g_h12_ambiguous; }
 int ft8_get_h12_divergent_count(void)  { return g_h12_divergent; }
+
+/*
+ * ft8_get_h12_suppressed_count -- f001-h12-unique-match-suppression (shim 20260049).
+ * Process-lifetime count of EMITTED decodes whose 12-bit callsign was suppressed (probe chain
+ * multiplicity >= 2). Incremented at the EMISSION point, never in cb_lookup_hash (design D4 /
+ * SUP-B TRAP 3 again -- the callback also fires for messages whose ftx_message_decode later
+ * fails and is discarded; counting there would measure decode ATTEMPTS, not displays). By
+ * construction this is arithmetically identical to ft8_get_h12_ambiguous_count() on every run --
+ * it is a WIRING INVARIANT between the decision site (cb_lookup_hash) and the counting site
+ * (the emission block), not new information: a divergence between the two proves a wiring
+ * fault; it cannot detect an error in the multiplicity computation itself, since both counters
+ * descend from the same tls_h12_multiplicity (AC-5's behavioural scenarios cover that instead).
+ * Read-only, process-global, zero on daemon restart, same lifecycle as its three siblings.
+ */
+int ft8_get_h12_suppressed_count(void) { return g_h12_suppressed; }
 
 /*
  * ft8_get_h12_by_code — SUP-B Amendment 2 (shim 20260048). Copies the full
@@ -1601,6 +1633,8 @@ int ft8_decode_all(
              * bail here so the slot stays free for a later retry.          */
             char text[FTX_MAX_MESSAGE_LENGTH + 1];
             tls_h12_lookup_performed = false; /* SUP-B TRAP 3: fresh scratch for THIS message */
+            tls_h12_suppressed       = false; /* f001-h12-unique-match-suppression: same bracket,
+                                                * so it can never leak between messages */
             if (ftx_message_decode(&msg, &s_hash_if, text) != FTX_MESSAGE_RC_OK)
                 continue;
 
@@ -1617,6 +1651,7 @@ int ft8_decode_all(
                 g_h12_displaying++;
                 if (tls_h12_multiplicity >= 2) g_h12_ambiguous++;
                 if (tls_h12_divergent)         g_h12_divergent++;
+                if (tls_h12_suppressed)        g_h12_suppressed++; /* f001-h12-unique-match-suppression */
 
                 /* SUP-B Amendment 2: cluster identity for Sec.6.2. Mask defensively
                  * so an out-of-range code can never write out of bounds -- and COUNT

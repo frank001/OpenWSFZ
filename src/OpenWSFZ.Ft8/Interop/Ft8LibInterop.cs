@@ -395,7 +395,14 @@ internal static class Ft8LibInterop
     /// <c>FT8_SHIM_VERSION</c> on every native change regardless of whether the new export gets
     /// a managed binding, per the pattern every prior entry in this file follows.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260048;
+    /// <remarks>
+    /// f001-h12-unique-match-suppression, shim 20260049: implements the Option A decision — a
+    /// 12-bit callsign-hash lookup whose probe chain holds ≥2 matching entries now renders the
+    /// existing "&lt;...&gt;" placeholder instead of a (possibly wrong) name. UNLIKE every prior
+    /// entry in this changelog, this bump changes decode OUTPUT, not just diagnostics. Adds one
+    /// new exported read-only getter, <see cref="GetH12SuppressedCount"/>, bound below.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260049;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -620,6 +627,13 @@ internal static class Ft8LibInterop
     /// </summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_get_h12_divergent_count", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeGetH12DivergentCount();
+
+    /// <summary>
+    /// f001-h12-unique-match-suppression (shim 20260049). See
+    /// <see cref="IFt8NativeInterop.GetH12SuppressedCount"/> for the full contract.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_h12_suppressed_count", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetH12SuppressedCount();
 
     /// <summary>
     /// Encode a text message to 79 tone indices via <c>ft8_encode_message</c> in the native shim.
@@ -944,6 +958,16 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         return NativeGetH12DivergentCount();
+    }
+
+    /// <summary>
+    /// f001-h12-unique-match-suppression (shim 20260049). See
+    /// <see cref="IFt8NativeInterop.GetH12SuppressedCount"/>.
+    /// </summary>
+    public static int GetH12SuppressedCount()
+    {
+        EnsureInitialized();
+        return NativeGetH12SuppressedCount();
     }
 
     /// <summary>
