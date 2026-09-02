@@ -221,35 +221,45 @@ decision authority is `qa/rr-study/2026-09-01-1510-po-decision-f001-sup-b-step7-
 
 ## 10. Spec Sync
 
-- [ ] 10.1 🔴 **Check the archive ordering FIRST.** `f001-sup-b-instrumented-suppression-sizing` has
+- [x] 10.1 🔴 **Check the archive ordering FIRST.** `f001-sup-b-instrumented-suppression-sizing` has
       **not** been spec-synced — the base `ft8lib-interop` spec still reads `20260046` and the base
       `hashed-callsign-resolution` spec carries none of the 12-bit sizing Requirements. This change's
       deltas are written against `SUP-B`'s deltas as their baseline. **Sync and archive `SUP-B`
       first**, or this change's `MODIFIED` block overwrites version history that was never recorded.
-      **Not yet done as of this record correction** — this is exactly the ordering hazard this QA
-      spec (`qa/2026-09-02-1521-…`) exists to handle. Covered by that spec's Task C (SUP-B
-      spec-sync + archive, first) and Task D (this change's own spec-sync + archive, second).
-- [ ] 10.2 Merge this change's `specs/hashed-callsign-resolution/spec.md` delta into
+      **Done, evidence:** `SUP-B` spec-synced and archived first, under `qa/2026-09-02-1521-…`
+      Task C, confirmed by that spec's §5 gate (`grep -c 20260048` on the base spec `>= 1`, and
+      `openspec/changes/f001-sup-b-instrumented-suppression-sizing` absent) before this task started.
+- [x] 10.2 Merge this change's `specs/hashed-callsign-resolution/spec.md` delta into
       `openspec/specs/hashed-callsign-resolution/spec.md`.
-      **Not yet done** — Task D of `qa/2026-09-02-1521-…`, gated on 10.1/Task C completing first.
-- [ ] 10.3 Merge this change's `specs/ft8lib-interop/spec.md` delta into
+      **Done, evidence:** `qa/2026-09-02-1521-…` Task D — both ADDED Requirements ("12-bit hash
+      resolution requires a unique probe-chain match", "Suppression is observable and does not
+      blind the existing sizing instrument") appended.
+- [x] 10.3 Merge this change's `specs/ft8lib-interop/spec.md` delta into
       `openspec/specs/ft8lib-interop/spec.md`.
-      **Not yet done** — Task D of `qa/2026-09-02-1521-…`, gated on 10.1/Task C completing first.
-- [ ] 10.4 `openspec validate --strict --all` passes after both merges.
-      **Not yet done** — part of Task D / the §6 verification gate of `qa/2026-09-02-1521-…`.
+      **Done, evidence:** `qa/2026-09-02-1521-…` Task D — ABI self-test Requirement's expected
+      constant advanced to `20260049`, with the note that this bump is behaviour-bearing (unlike
+      `20260047`/`20260048`); new "Previous library (20260048)" scenario added; the "Native library
+      binaries are committed" Requirement's pin advanced to `20260049`; the new "Diagnostic 12-bit
+      suppression-count native export and P/Invoke entry point" Requirement appended. Full
+      `20260046`→`20260047`→`20260048`→`20260049` history preserved in the paragraph prose.
+- [x] 10.4 `openspec validate --strict --all` passes after both merges.
+      **Done, evidence:** `openspec validate --strict --all` → 61 passed, 0 failed, immediately
+      after both merges, before archiving this change.
 
 ## 11. Housekeeping
 
-- [ ] 11.1 Update `BOARD.md` (and `MEMORY.md`'s one-line index) in the **same edit** as the merge
+- [x] 11.1 Update `BOARD.md` (and `MEMORY.md`'s one-line index) in the **same edit** as the merge
       result — not later, not in a topic file only (HK-024).
-      **Partially done** (the merge itself is recorded on `BOARD.md`); **this task's own
-      spec-archival housekeeping is Task I of `qa/2026-09-02-1521-…`**, done in the same pass as
-      this record correction.
+      **Done** — as part of `qa/2026-09-02-1521-…` Task I (BOARD.md/MEMORY.md updated in the same
+      pass as this archive).
 - [ ] 11.2 Branch hygiene (HK-003): delete merged branches and any worktrees created for this change.
-      **Not yet done** — covered by Task H of `qa/2026-09-02-1521-…` (branch/worktree sweep).
-- [ ] 11.3 Confirm the archived change validates after `opsx:archive`.
-      **Not yet done** — this change has not been archived yet; Task D of
-      `qa/2026-09-02-1521-…` performs the archive and its own `openspec validate` gate confirms it.
+      **Not yet done as of this edit** — Task H of `qa/2026-09-02-1521-…` (branch/worktree sweep)
+      runs later in the same pass and covers `feat/f001-h12-unique-match-suppression` specifically;
+      will be ticked once that task actually executes, not before.
+- [x] 11.3 Confirm the archived change validates after `opsx:archive`.
+      **Done, evidence:** `openspec validate --strict --all` → 61 passed, 0 failed, immediately
+      after archiving this change to
+      `openspec/changes/archive/2026-09-02-f001-h12-unique-match-suppression/`.
 - [ ] 11.4 Open, separately: whether any downstream consumer (ADIF log, decode-panel filtering, QSO
       answerer) is sensitive to `<...>` becoming **more frequent**. The placeholder already occurs
       today, so the path is exercised — but its frequency changes here and nobody has checked
