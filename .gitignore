@@ -149,6 +149,11 @@ owsfz-s5-all.txt
 owsfz-s7-all.txt
 openswfz-*.log
 
+# pre_merge_check.py run logs at repo root — Captain-run tooling artefacts, may carry
+# real callsigns from a live run's test/E2E output; NFR-021 risk, never worth tracking
+# (qa/2026-09-02-1521-... Task G — closes the standing "console-log .gitignore gap" TODO).
+pre_merge_check_*.log
+
 # Same rule, different naming convention: the ablation-study harness (run_ablation.py)
 # writes the plain filename "owsfz-all.txt" inside a directory suffixed "-s5" instead of
 # encoding "s5" into the filename itself (e.g. cfg1-s5/owsfz-all.txt). Same NFR-021 risk,

@@ -122,3 +122,206 @@ pipeline to attempt to record a callsign's hash counts, not only Type 4 messages
 - **WHEN** the daemon completes a graceful shutdown
 - **THEN** the session's final reject-count value SHALL be written to the daemon log, so it is
   available for review without requiring a live diagnostic query during the session
+
+---
+
+### Requirement: Observable 12-bit hash-path unique-match sizing (Phase 1 — shipped 2026-08-30, shim `20260047`)
+
+The native decode pipeline SHALL expose, read-only and without altering resolution behaviour, three
+process-lifetime counts: how many EMITTED decodes displayed a callsign resolved via the 12-bit hash
+path; of those, how many resolved against a probe chain holding two or more matching entries
+(ambiguous); and of those, how many had their most-recently-*announced* matching entry differ from
+the first (displayed) match (divergent). "Emitted" means the message is unconditionally headed for
+the decode results returned to the caller — a lookup performed during an attempt that is later
+discarded or deduplicated SHALL NOT be counted. Ambiguity and divergence SHALL be determined by
+replaying the same probe sequence the existing lookup uses, in a function that never calls, and is
+never called by, the existing lookup function — this measurement SHALL NOT alter what any lookup
+returns or the callsign text it writes, on any input. Divergence SHALL be judged against
+*announcement* recency, not lookup recency: recency SHALL be refreshed only when a callsign is
+announced (a genuinely new table insert, or a repeat announcement of an already-known callsign),
+never when a callsign is merely looked up.
+
+#### Scenario: A single unambiguous match is not counted as ambiguous or divergent
+
+- **WHEN** an emitted decode's 12-bit lookup resolves against a probe chain holding exactly one
+  matching entry
+- **THEN** the displaying count SHALL increment
+- **AND** the ambiguous and divergent counts SHALL NOT increment for that decode
+
+#### Scenario: An ambiguous match whose most recent announcement is also the first agrees, not diverges
+
+- **WHEN** an emitted decode's 12-bit lookup resolves against a probe chain holding two or more
+  matching entries, and the most-recently-announced of them is the same entry as the first
+  (displayed) match
+- **THEN** the displaying and ambiguous counts SHALL both increment
+- **AND** the divergent count SHALL NOT increment for that decode
+
+#### Scenario: An ambiguous match whose most recent announcement differs from the displayed one diverges
+
+- **WHEN** an emitted decode's 12-bit lookup resolves against a probe chain holding two or more
+  matching entries, and the most-recently-announced of them differs from the first (displayed)
+  match
+- **THEN** the displaying, ambiguous, and divergent counts SHALL all increment
+
+#### Scenario: A lookup performed during a discarded or deduplicated attempt is not counted
+
+- **WHEN** a candidate's 12-bit lookup is performed during `ftx_message_decode`, but the resulting
+  message is subsequently discarded (fails text decode) or deduplicated before reaching the caller's
+  results
+- **THEN** none of the three counts SHALL increment for that attempt
+
+#### Scenario: The three counts are observable from the managed layer without a debugger
+
+- **WHEN** the managed layer reads any of the three counts, at any point during or after a session
+- **THEN** the read SHALL return the current process-lifetime cumulative value
+- **AND** the read SHALL NOT reset any count, alter the hash table's contents, or affect subsequent
+  resolution behaviour in any way
+
+#### Scenario: Per-cycle visibility
+
+- **WHEN** a decode cycle completes
+- **THEN** the daemon log SHALL record the three counts' current cumulative values for that cycle,
+  so the measurement is reconstructible from an ordinary log without a live diagnostic query
+
+---
+
+### Requirement: Observable 12-bit hash-path per-code cluster identity (Phase 2 — Amendment 2, shipped 2026-08-30, shim `20260048`)
+
+The native decode pipeline SHALL expose, read-only, a complete per-code breakdown of the three
+counts from the preceding Requirement — one displaying/ambiguous/divergent triple per distinct
+12-bit code, across the full 4,096-value code space — so that a statistical interval over the
+unique-match sizing measurement can resample distinct codes (clusters) rather than individual
+lookups, since one ambiguous code may generate many lookups and a lookup-level interval would
+understate the true uncertainty. A code value that cannot be represented in 12 bits SHALL be
+masked into range before being counted, AND the number of times this masking was required SHALL
+itself be counted and exposed, separately from the per-code table, so that a code-width violation
+is visible rather than silently absorbed into the wrong bucket. This Requirement adds no per-lookup
+record of any kind — the per-code table is the complete measurement; a design that additionally
+produced per-lookup rows would be out of scope for the statistic this Requirement exists to support.
+
+#### Scenario: The per-code table sums to the same totals as the three cumulative counts
+
+- **WHEN** the per-code displaying, ambiguous, and divergent tables are each summed across every
+  code in the 4,096-value space, at any point in a session
+- **THEN** each sum SHALL equal the corresponding cumulative count from the preceding Requirement,
+  provided no code-width violation has occurred (see the next scenario for the case where one has)
+
+#### Scenario: A code-width violation is counted, not silently masked away
+
+- **WHEN** a 12-bit hash-path lookup's code value falls outside the representable 12-bit range
+- **THEN** the violation count SHALL increment
+- **AND** the lookup SHALL still be recorded, masked into range, in the per-code table — the
+  violation count exists precisely so this masking is never mistaken for a violation-free run by a
+  reconciliation check on the per-code table's own totals alone
+
+#### Scenario: A code that never displays is absent from the participating population, not a zero entry
+
+- **WHEN** the per-code table is read for the purpose of building a resample population of
+  participating codes
+- **THEN** a code whose displaying count is zero SHALL be excluded from that population — it SHALL
+  NOT be treated as a code that participated zero times, since including it would change the
+  population's size for a code that was never actually observed
+
+#### Scenario: The per-code table is observable from outside the managed C# surface
+
+- **WHEN** the per-code table is read
+- **THEN** it SHALL be obtainable via the native library's exported interface (e.g. by a
+  measurement harness driving the library directly), without requiring a managed
+  `IFt8NativeInterop`/`Ft8LibInterop` binding to exist for it — this Requirement does not mandate a
+  managed binding, since no managed consumer of a 4,096-row table exists
+
+---
+
+### Requirement: 12-bit hash resolution requires a unique probe-chain match (shipped 2026-09-01, shim `20260049`)
+
+The native decode pipeline SHALL display a 12-bit-hash-resolved callsign **only when its probe chain
+holds exactly one matching entry**. When the chain holds two or more matching entries, the decoded
+text SHALL use the existing unresolved-hash placeholder (`<...>`), and **the decode itself SHALL be
+retained** — suppression withholds a name, it never discards a decode.
+
+A 12-bit callsign hash is a many-to-one reference over the amateur callsign population, so a probe
+chain in the session-scoped hash table can hold more than one matching entry. When it does, no
+candidate callsign is more justified than any other, and displaying the first is a claim the data
+does not support.
+
+This rule SHALL apply unconditionally on all bands and under all operating conditions. It SHALL NOT
+be gated on a band, a runtime flag, a configuration setting, or an operator preference.
+
+Scope is the 12-bit hash path only. The 22-bit and 10-bit hash paths SHALL be unaffected.
+
+#### Scenario: An ambiguous probe chain suppresses the callsign
+
+- **WHEN** a Type 1/2/3 message references a 12-bit callsign hash
+- **AND** the session hash table's probe chain for that hash holds two or more matching entries
+  (for example, synthetic callsigns `Q1ABC` and `Q2XYZ` both announced earlier in the session and
+  colliding on the same 12-bit code)
+- **THEN** the decoded text SHALL contain `<...>` in that callsign's position
+- **AND** the decoded text SHALL NOT contain either candidate callsign
+
+#### Scenario: A unique probe-chain match still resolves
+
+- **WHEN** a Type 1/2/3 message references a 12-bit callsign hash
+- **AND** the probe chain for that hash holds exactly one matching entry
+- **THEN** the decoded text SHALL contain that callsign, exactly as it did before this change
+
+#### Scenario: Suppression never costs a decode
+
+- **WHEN** a decode cycle contains messages whose 12-bit hash references are ambiguous
+- **THEN** the number of decodes reported for that cycle SHALL be identical to the number reported
+  by a run of the same audio without this rule
+- **AND** each affected decode's frequency, time offset, SNR and payload SHALL be unchanged — the
+  callsign token is the only field that differs
+
+#### Scenario: The 22-bit hash path is unaffected
+
+- **WHEN** a Type 1/2/3 message references a 22-bit callsign hash, whether or not that hash resolves
+- **THEN** the resolution behaviour SHALL be exactly as it is today, with no suppression applied
+
+---
+
+### Requirement: Suppression is observable and does not blind the existing sizing instrument (shipped 2026-09-01, shim `20260049`)
+
+The 12-bit hash-path sizing counters SHALL continue to count what **would** have been displayed
+after this rule ships, so that readings taken before and after the change remain directly
+comparable and the effect of the rule can be re-measured at any time.
+
+Consequently the internal "the table resolved this hash" signal SHALL retain its existing meaning —
+it SHALL reflect the hash table's own result and SHALL NOT be falsified to express a suppression
+decision. Suppression SHALL be carried by a separate signal.
+
+A process-lifetime count of suppressed callsigns SHALL be exported natively, bound in managed code,
+and reported in the existing per-cycle 12-bit hash-path log line.
+
+#### Scenario: The existing sizing counters are unchanged by suppression
+
+- **WHEN** a decode cycle emits messages whose 12-bit hash references are ambiguous and are
+  therefore suppressed
+- **THEN** the displaying, ambiguous and divergent counts SHALL increment exactly as they did before
+  this change, counting what would have been displayed
+- **AND** the per-code cluster table SHALL likewise be unaffected by the suppression decision
+
+#### Scenario: The suppression count agrees with the ambiguous count
+
+- **WHEN** a run completes
+- **THEN** the suppressed count SHALL equal the ambiguous count exactly
+
+⚠️ This scenario is a **wiring invariant** between the site where suppression is decided and the
+site where it is counted; a disagreement proves those two sites disagree. It cannot detect an error
+in the multiplicity computation itself, because both counts descend from it — that is the first
+Requirement's scenarios' job.
+
+#### Scenario: The suppressed count is reported per cycle
+
+- **WHEN** a decode cycle completes
+- **THEN** the cumulative suppressed count SHALL appear in the same per-cycle log line that already
+  reports the displaying, ambiguous and divergent counts
+
+#### Scenario: Counting suppression does not count decode attempts
+
+- **WHEN** a message's 12-bit hash lookup is performed and suppressed, but the message's text decode
+  subsequently fails and the message is never emitted
+- **THEN** the suppressed count SHALL NOT increment for that message
+
+⚠️ The hash-lookup callback runs during text decode, which also runs for messages that are then
+discarded. A count taken at the callback would measure decode **attempts**, not **displays**, and
+would not agree with the ambiguous count.
