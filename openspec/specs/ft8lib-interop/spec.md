@@ -46,12 +46,22 @@ The load path SHALL be `AppContext.BaseDirectory`. A `NativeLibrary.SetDllImport
 
 ### Requirement: ABI self-test on first load
 
-On the first call that triggers `NativeLibrary.Load`, `Ft8LibInterop` SHALL invoke a sentinel function (`ft8_lib_version_check`) that returns a known integer constant embedded at compile time in the shim. The expected constant SHALL be **`20260046`** (fix-negative-time-offset-snr-collapse: `ft8_decode_all`'s `signal_db` loop derives the waterfall-block-to-symbol-index mapping from a candidate's `time_offset` **clamped** to a non-negative floor, instead of the true, unclamped value — for any candidate whose sync position precedes the decode window (`time_offset < 0`, an ordinary outcome of `ftx_find_candidates()`'s `-10..+19` search range), every one of the 79 averaged samples is read from the wrong tone bin, under-reporting SNR by roughly 15–20 dB; confirmed mechanically (`qa/rr-study/2026-08-22-1454-...-b-dt-c3-results.md`, a 17.4 dB step co-located exactly with the sign change, ~210× the largest deficit a benign "signal partly outside the window" explanation could produce there). The fix derives the symbol index from the unclamped `time_offset`, matching `ft8_lib`'s own out-of-range convention (`patched/ft8/decode.c:160,226`), and correspondingly narrows the loop's own upper bound so no symbol index can run past `FT8_NN`; `DecodeAll`'s ABI, `FT8Result` struct layout, and every other existing exported symbol remain byte-for-byte unchanged — this is a behaviour-bearing rebuild, not an ABI break. ⚠️ Version history immediately prior to this entry is **repaired here, not merely extended**: the base spec this text was copied from still read `20260042` despite `main`'s actual `FT8_SHIM_VERSION` already standing at `20260045` at the time this change was drafted (the pre-existing "spec-sync backlog" this same paragraph has flagged since `20260042`) — bumps `20260043` = r2-coherent-llr-instrument Phase 1 (diagnostic-only `ft8_coherent_llr_at`, no production call site), `20260044` = r2-coherent-llr-instrument Phase B + Amendment 1 (B1 origin-conversion fix and B2 fusion-scale fix to `ft8_coherent_llr_at`, both diagnostic-only; B4 adds diagnostic-only `ft8_ldpc_decode_llrs`), `20260045` = r2-coherent-llr-instrument Amendment 2 corrected by Amendment 3 (widens `ftx_ldpc_decode_llrs`'s degenerate-variance guard; adds the diagnostic-only `ft8_get_last_snr_terms` getter) are now recorded rather than left undocumented. Full prior history (`20260041` and earlier) is unchanged and carries forward from the version this text supersedes: 20260041 = r1b-sync-refiner-instrument-correction (`ft8_refine_candidate` gains its coarse/fine time-search decomposition out-parameters), 20260040 = r1-sync-refiner-instrument-validation (diagnostic-only per-candidate coherent sync-refinement export added, no production call site), 20260039 = r0-reproducible-native-build (shim rebuilt from a fully vendored, version-controlled source tree with byte-identical decode behaviour to the prior `20260038` build), 20260038 = g2-hash-table-sizing-and-candidate-passband, 20260031 = f-001-hashed-callsign-resolution, 20260030 = decoder-settings-page runtime-configurable OSD gate parameters, 20260029 = D-009 K_MIN_SCORE_PASS2 raised 1→10, 20260028 = D-009 OSD nhard gate, 20260025 = OSD fallback + 50-iter BP, 20260021 = H6 AP decode hiscall offset fix; ⚠️ the intermediate bumps between `20260032` and `20260037` remain undocumented, an existing tracked spec-sync backlog item, not introduced or expanded by this change. If the returned value does not match the expected constant, `Ft8LibInterop` SHALL throw `InvalidOperationException` with a message that names the library path and the mismatched version values. This requirement applies on all three reference platforms.
+On the first call that triggers `NativeLibrary.Load`, `Ft8LibInterop` SHALL invoke a sentinel function (`ft8_lib_version_check`) that returns a known integer constant embedded at compile time in the shim. The expected constant SHALL be **`20260048`** (`f001-sup-b-instrumented-suppression-sizing` Phase 2 — see below; the description immediately following is of `20260046`, the version this entry advanced from, preserved verbatim). `20260046` was fix-negative-time-offset-snr-collapse: `ft8_decode_all`'s `signal_db` loop derives the waterfall-block-to-symbol-index mapping from a candidate's `time_offset` **clamped** to a non-negative floor, instead of the true, unclamped value — for any candidate whose sync position precedes the decode window (`time_offset < 0`, an ordinary outcome of `ftx_find_candidates()`'s `-10..+19` search range), every one of the 79 averaged samples is read from the wrong tone bin, under-reporting SNR by roughly 15–20 dB; confirmed mechanically (`qa/rr-study/2026-08-22-1454-...-b-dt-c3-results.md`, a 17.4 dB step co-located exactly with the sign change, ~210× the largest deficit a benign "signal partly outside the window" explanation could produce there). The fix derives the symbol index from the unclamped `time_offset`, matching `ft8_lib`'s own out-of-range convention (`patched/ft8/decode.c:160,226`), and correspondingly narrows the loop's own upper bound so no symbol index can run past `FT8_NN`; `DecodeAll`'s ABI, `FT8Result` struct layout, and every other existing exported symbol remain byte-for-byte unchanged — this is a behaviour-bearing rebuild, not an ABI break. Two further bumps have since shipped, both MEASURE-ONLY (no production decode output changed at either): `20260047` = `f001-sup-b-instrumented-suppression-sizing` Phase 1 — three process-lifetime 12-bit hash-path sizing getters (`ft8_get_h12_displaying_count`/`_ambiguous_count`/`_divergent_count`), diagnostic-only, no existing entry point's ABI or behaviour altered; `20260048` = the same change's Phase 2 (Amendment 2) — one further diagnostic-only export, `ft8_get_h12_by_code`, a per-code (12-bit code space, 4,096 values) cluster breakdown of the same three counts, deliberately given no managed `IFt8NativeInterop`/`Ft8LibInterop` binding (its only intended consumer is a measurement harness driving the native library directly). ⚠️ Version history immediately prior to this entry is **repaired here, not merely extended**: the base spec this text was copied from still read `20260042` despite `main`'s actual `FT8_SHIM_VERSION` already standing at `20260045` at the time this change was drafted (the pre-existing "spec-sync backlog" this same paragraph has flagged since `20260042`) — bumps `20260043` = r2-coherent-llr-instrument Phase 1 (diagnostic-only `ft8_coherent_llr_at`, no production call site), `20260044` = r2-coherent-llr-instrument Phase B + Amendment 1 (B1 origin-conversion fix and B2 fusion-scale fix to `ft8_coherent_llr_at`, both diagnostic-only; B4 adds diagnostic-only `ft8_ldpc_decode_llrs`), `20260045` = r2-coherent-llr-instrument Amendment 2 corrected by Amendment 3 (widens `ftx_ldpc_decode_llrs`'s degenerate-variance guard; adds the diagnostic-only `ft8_get_last_snr_terms` getter) are now recorded rather than left undocumented. Full prior history (`20260041` and earlier) is unchanged and carries forward from the version this text supersedes: 20260041 = r1b-sync-refiner-instrument-correction (`ft8_refine_candidate` gains its coarse/fine time-search decomposition out-parameters), 20260040 = r1-sync-refiner-instrument-validation (diagnostic-only per-candidate coherent sync-refinement export added, no production call site), 20260039 = r0-reproducible-native-build (shim rebuilt from a fully vendored, version-controlled source tree with byte-identical decode behaviour to the prior `20260038` build), 20260038 = g2-hash-table-sizing-and-candidate-passband, 20260031 = f-001-hashed-callsign-resolution, 20260030 = decoder-settings-page runtime-configurable OSD gate parameters, 20260029 = D-009 K_MIN_SCORE_PASS2 raised 1→10, 20260028 = D-009 OSD nhard gate, 20260025 = OSD fallback + 50-iter BP, 20260021 = H6 AP decode hiscall offset fix; ⚠️ the intermediate bumps between `20260032` and `20260037` remain undocumented, an existing tracked spec-sync backlog item, not introduced or expanded by this change. If the returned value does not match the expected constant, `Ft8LibInterop` SHALL throw `InvalidOperationException` with a message that names the library path and the mismatched version values. This requirement applies on all three reference platforms.
 
 #### Scenario: Correct library passes the ABI self-test
 
-- **WHEN** `Ft8LibInterop` loads the platform-appropriate `libft8` binary compiled from the committed shim source at `FT8_SHIM_VERSION = 20260046`
+- **WHEN** `Ft8LibInterop` loads the platform-appropriate `libft8` binary compiled from the committed shim source at `FT8_SHIM_VERSION = 20260048`
 - **THEN** the version check SHALL pass silently and decode calls SHALL proceed normally
+
+#### Scenario: Previous library (20260047) fails fast with a clear error
+
+- **WHEN** `Ft8LibInterop` loads a `libft8` binary compiled at version `20260047` (`f001-sup-b-instrumented-suppression-sizing` Phase 1 — the three sizing getters exist but the per-code cluster table export does not) after Phase 2's managed code expects its own newer constant
+- **THEN** `Ft8LibInterop` SHALL throw `InvalidOperationException` before any decode call is attempted, with a message identifying the library path and the version mismatch
+
+#### Scenario: Previous library (20260046) fails fast with a clear error
+
+- **WHEN** `Ft8LibInterop` loads a `libft8` binary compiled at version `20260046` (fix-negative-time-offset-snr-collapse, pre-`f001-sup-b-instrumented-suppression-sizing`) after Phase 1's managed code expects its own newer constant
+- **THEN** `Ft8LibInterop` SHALL throw `InvalidOperationException` before any decode call is attempted, with a message identifying the library path and the version mismatch
 
 #### Scenario: Previous library (20260045) fails fast with a clear error
 
@@ -169,7 +179,7 @@ Pre-compiled native library binaries, built from the committed `ft8_shim.c` + `k
 | Linux x64 | `src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so` | `<Content CopyToOutputDirectory="Always" Link="libft8.so" />` |
 | macOS ARM64 | `src/OpenWSFZ.Ft8/Native/osx-arm64/libft8.dylib` | `<Content CopyToOutputDirectory="Always" Link="libft8.dylib" />` |
 
-A companion `libft8.version.txt` SHALL record, for each platform binary: source commit SHA, compiler toolchain and version, build date, SNR formula, and the pass count (**2**). `BUILD.md` SHALL document the exact compiler commands required to reproduce each binary. The binaries SHALL be built from the **`FT8_SHIM_VERSION = 20260046`** shim (fix-negative-time-offset-snr-collapse: corrects the `signal_db` loop's symbol-index derivation for candidates with `time_offset < 0`; see the ABI self-test requirement above for the full history this advances from — this requirement's own version reference was found several versions stale at drafting time, `20260030`, and is repaired here as part of the same edit).
+A companion `libft8.version.txt` SHALL record, for each platform binary: source commit SHA, compiler toolchain and version, build date, SNR formula, and the pass count (**2**). `BUILD.md` SHALL document the exact compiler commands required to reproduce each binary. The binaries SHALL be built from the **`FT8_SHIM_VERSION = 20260048`** shim (`f001-sup-b-instrumented-suppression-sizing` Phase 2 — the per-code cluster table export; see the ABI self-test requirement above for the full history this advances from, including the `20260046` fix-negative-time-offset-snr-collapse rebuild and Phase 1's `20260047` — this requirement's own version reference was found several versions stale at drafting time, `20260030`, and is repaired here as part of the same edit).
 
 #### Scenario: All three binaries are present in the test output directory after build
 
@@ -356,4 +366,107 @@ The shim SHALL export a native function, `ft8_get_last_snr_terms(out_signal_db, 
 
 - **WHEN** the new binary's exported symbol table is compared against the prior `20260044` build, and `ft8_shim.c`'s existing decode-path logic (beyond the two-line TLS write this export adds) is diffed against its pre-change source
 - **THEN** every previously-exported symbol (all fifteen) SHALL be present with an unchanged signature, `ft8_get_last_snr_terms` SHALL be the only new export this Requirement adds, and the diff on every existing decode-path computation SHALL be zero
+
+---
+
+### Requirement: Diagnostic 12-bit hash-path sizing getters and P/Invoke entry points (Phase 1 — shipped 2026-08-30, shim `20260047`)
+
+The shim SHALL export three native functions — `ft8_get_h12_displaying_count()`,
+`ft8_get_h12_ambiguous_count()`, `ft8_get_h12_divergent_count()` — each returning the corresponding
+process-lifetime cumulative count defined by the `hashed-callsign-resolution` capability's
+"Observable 12-bit hash-path unique-match sizing" Requirement. `Ft8LibInterop` SHALL expose
+corresponding managed methods (`GetH12DisplayingCount`, `GetH12AmbiguousCount`,
+`GetH12DivergentCount`) via P/Invoke, matching the existing `GetHashTableRejectCount` diagnostic-
+getter pattern. `IFt8NativeInterop` SHALL add corresponding methods so that test doubles can supply
+deterministic fixed values without loading the native DLL.
+
+#### Scenario: All three getters are exported by all three platform binaries
+
+- **WHEN** the platform-appropriate `libft8` binary is loaded
+- **THEN** the symbols `ft8_get_h12_displaying_count`, `ft8_get_h12_ambiguous_count`, and
+  `ft8_get_h12_divergent_count` SHALL each be resolvable via the platform's native-library loading
+  mechanism on Windows, Linux, and macOS without error
+
+#### Scenario: Reading the counts has no side effects
+
+- **WHEN** any of the three managed getters is called, at any point during or after a session
+- **THEN** the call SHALL return the current cumulative value
+- **AND** SHALL NOT reset any count, alter the hash table's contents, or affect subsequent decode
+  behaviour in any way
+
+#### Scenario: A per-cycle log line records all three counts together
+
+- **WHEN** a decode cycle completes
+- **THEN** the daemon's per-cycle log line SHALL record all three counts' current cumulative
+  values, labelled `h12Displaying`, `h12Ambiguous`, and `h12Divergent`, explicitly as
+  process-lifetime cumulative (not per-cycle deltas), even when all three are zero
+
+#### Scenario: IFt8NativeInterop's three methods are callable on a fake implementation
+
+- **WHEN** a test supplies an `IFt8NativeInterop` implementation that returns fixed values for the
+  three new methods
+- **THEN** calling each SHALL return its configured fixed value without loading the native DLL
+
+---
+
+### Requirement: Diagnostic 12-bit hash-path per-code cluster table native export (Phase 2 — Amendment 2, shipped 2026-08-30, shim `20260048`)
+
+The shim SHALL export one native function, `ft8_get_h12_by_code(displaying, ambiguous, divergent,
+capacity, out_of_range)`, copying the complete 4,096-row per-code table defined by the
+`hashed-callsign-resolution` capability's "Observable 12-bit hash-path per-code cluster identity"
+Requirement into caller-supplied buffers, and writing the code-width-violation count into
+`out_of_range`. It SHALL return the code-space size (4,096) on success, and `-1` if `capacity` is
+less than the code-space size or if any pointer argument, `out_of_range` included, is `NULL` — a
+caller MUST check for `-1` rather than assume success. **This export SHALL NOT be added to
+`IFt8NativeInterop`, and SHALL get no `Ft8LibInterop` P/Invoke binding, no `Ft8NativeInteropAdapter`
+method, no `Ft8Decoder` wrapper, and no test-double stub in any existing `IFt8NativeInterop`
+implementer** — its only intended consumer is a measurement harness driving the native library
+directly (e.g. via Python `ctypes`), following the precedent this capability already established
+for `ft8_ldpc_decode_llrs` (a diagnostic-only export with no managed binding, `r2-coherent-llr-
+instrument` Decision D10).
+
+#### Scenario: The export is present in all three platform binaries
+
+- **WHEN** the platform-appropriate `libft8` binary is loaded
+- **THEN** the symbol `ft8_get_h12_by_code` SHALL be resolvable via the platform's native-library
+  loading mechanism on Windows, Linux, and macOS without error
+
+#### Scenario: A capacity smaller than the code space is rejected, not partially filled
+
+- **WHEN** `ft8_get_h12_by_code` is called with `capacity` less than 4,096
+- **THEN** the function SHALL return `-1` and SHALL NOT write to any output buffer
+
+#### Scenario: A NULL pointer argument, including out_of_range, is rejected
+
+- **WHEN** `ft8_get_h12_by_code` is called with any of its five pointer arguments `NULL`
+- **THEN** the function SHALL return `-1` and SHALL NOT write to any output buffer
+
+#### Scenario: A successful call copies the full table and the violation count
+
+- **WHEN** `ft8_get_h12_by_code` is called with `capacity >= 4096` and all five pointers non-`NULL`
+- **THEN** the function SHALL return `4096`, SHALL write exactly 4,096 entries to each of the three
+  count buffers, and SHALL write the current code-width-violation count to `out_of_range`
+
+#### Scenario: No production call site invokes the export
+
+- **WHEN** the `OpenWSFZ.Daemon` and `OpenWSFZ.Ft8` production decode path (everything reachable
+  from `DecodeAll`) is inspected after Phase 2 lands
+- **THEN** it SHALL contain no call to `ft8_get_h12_by_code` outside of QA measurement harnesses
+
+#### Scenario: No managed binding exists for the export
+
+- **WHEN** `IFt8NativeInterop.cs`, `Ft8LibInterop.cs`, `Ft8NativeInteropAdapter.cs`, `Ft8Decoder.cs`,
+  and every existing `IFt8NativeInterop` implementer are inspected after Phase 2 lands
+- **THEN** none of them SHALL reference `ft8_get_h12_by_code`, `GetH12ByCode`, or any equivalent
+  managed name — this is a deliberate scope boundary (design.md Decision D5), not an omission to be
+  filled in later
+
+#### Scenario: Existing exports and decode paths are unaffected
+
+- **WHEN** the new binary's exported symbol table is compared against the prior `20260047` build,
+  and `ft8_shim.c`'s existing decode-path logic (beyond the additive table-write inside the
+  existing, unchanged emission-site guard) is diffed against its pre-Phase-2 source
+- **THEN** every previously-exported symbol (all nineteen) SHALL be present with an unchanged
+  signature, `ft8_get_h12_by_code` SHALL be the only new export this Requirement adds, and the diff
+  on every existing decode-path computation SHALL be zero
 
