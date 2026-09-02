@@ -99,10 +99,18 @@
       instance left at `role: "leader"` with no followers, per design.md's Migration Plan.
 - [x] 7.2 Run `openspec validate --strict --all` and confirm this change's delta specs archive cleanly
       against `external-reporting` and `configuration`.
-- [ ] 7.3 Per `decode-panel-filtering-live-verification-policy`-style precedent for this capability:
+- [x] 7.3 Per `decode-panel-filtering-live-verification-policy`-style precedent for this capability:
       once implemented, hand back to QA for a live two-instance verification against a real
       GridTracker2 (and, if reachable that session, confirmation that PSK Reporter actually receives
       spots) — this is the change's actual acceptance criterion and cannot be fully confirmed by
       automated tests alone (GridTracker2's own instance-selection/PSK-relay behaviour that motivated
-      this change was itself only discoverable live, not from either codebase). Not performed as part
-      of authoring these artifacts (QA session, no `src/` changes made here per HK-011).
+      this change was itself only discoverable live, not from either codebase).
+      **Done, evidence:** live two-instance run 2026-07-29 (leader `OpenWSFZ-40m`:8090, follower
+      `OpenWSFZ-20m`:8091), both relaying to one real local GridTracker2 (`127.0.0.1:2237`) under one
+      shared identity — 776 relay POSTs (all HTTP 200 bar one transient), 195 decode cycles each side
+      matched 1:1, and the degrade/reconcile fallback genuinely exercised (real HTTP 503 at 18:56:11,
+      self-recovered 18:56:26). Committed `19983f5` (on `main`), full write-up
+      `qa/external-reporting-single-connection-live-verify/README.md`. The PSK-Reporter-forwarding
+      half of this task is explicitly conditional ("if reachable that session") and the README records
+      it as confounded/not established by that evidence — the GridTracker2-relay acceptance criterion
+      itself is met and is what this task requires.
