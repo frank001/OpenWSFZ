@@ -172,6 +172,7 @@ yet" is a point estimate not a trend**, and the S5 gate at N=60 is underpowered 
 gate be read against this offline estimator.
 
 ### ROW 2 — the separation is real and mechanistic
+🛑 **SUPERSEDED BY AMENDMENT 1 (see end of file). Retained as pre-registration provenance — do not execute this version.**
 **Fires iff** the maximum `signal_db − local_noise_db` over all false accepts (M2) is **strictly
 below** the 1st percentile of the same quantity over genuine decodes (M3).
 ⇒ An emission-side plausibility floor is **sizeable and cheap**, and — because it is expressed in
@@ -181,6 +182,7 @@ makes §0.2's discriminant circular.
 full: QA authors the `dev-tasks/*.md` and stops.
 
 ### ROW 3 — the separation does not hold
+🛑 **SUPERSEDED BY AMENDMENT 1 (see end of file). Retained as pre-registration provenance — do not execute this version.**
 **Fires iff** the two distributions of M2 overlap at all.
 ⇒ **The emission-filter route is dead on this evidence and is not to be re-proposed without a new
 pre-registration.** Say so plainly; do not soften it into "needs more data."
@@ -216,3 +218,100 @@ on this arm's rows.
   instrument.
 - 🛑 Efficacy of any resulting filter against **real off-air** false accepts is not measurable here
   and must not be implied. This arm measures a synthetic AWGN population only.
+
+---
+
+## Amendment 1 — 2026-09-02 20:05Z, BEFORE M1–M4 RUNS
+
+**Made by the Architect after ROW 0 passed and before any M-row was measured.** §0–§6 above are the
+original pre-registration and are **not edited** — this amendment supersedes ROW 2 and ROW 3 only,
+and the superseded text stays above as provenance.
+
+Two things changed: I found a drafting fault in my own ROW 2/ROW 3 pair, and I de-blinded myself
+against a related population while auditing the ROW 0 result directory. Both are disclosed here.
+
+### A1.0 🔴 DISCLOSURE — I have seen data adjacent to this arm's headline, and it anchors the new thresholds
+
+While running the NFR-021 redaction pass over the ROW 0 output I audited
+`row0d_s1_complement_decodes.csv` and computed, on **signal-present S1** slots, the excess
+distribution for truth-matching vs non-matching decodes and a sweep of emission-cut thresholds.
+The numbers are in the ROW 0 report §7.3, labelled exploratory, no row.
+
+**Consequences, stated rather than buried:**
+
+- 🛑 **Architect prediction-scoring is SUSPENDED for ROW 2/ROW 3 of this arm.** I have seen a
+  closely-related separation and cannot make a blind directional call.
+- 🔴 The two thresholds introduced below (**6 dB margin**, **10% removal**) are **anchored on that
+  exploratory reading** — a ~15 dB observed margin and a 23–30% observed removal. They are set to
+  be clearly clearable by what I saw, but not trivially so. That is a judgement calibrated on
+  peeked data, and it is a real cost of my having looked. A reader who wants an unanchored gate
+  should reject these numbers and set their own before QA runs.
+- ✅ What I have **not** seen: any S5 noise-only M1/M2/M4 result. The population this arm's headline
+  ranges over is untouched. §7.3 is signal-present S1.
+
+### A1.1 The fault in the superseded ROW 2 / ROW 3
+
+ROW 2 fired only on **disjointness** (max false-accept excess strictly below the 1st percentile of
+genuine excess), and ROW 3 fired on "the two distributions overlap at all" with the consequence
+*"the emission-filter route is dead on this evidence and is not to be re-proposed."*
+
+Disjointness is the wrong property. **An emission filter does not need the distributions to be
+disjoint — it needs a threshold at which the cost is acceptable.** A spurious decode with a large
+excess and a genuine decode with a small one can coexist while a low cut still removes a useful
+share of the former at zero cost to the latter. As drafted:
+
+- ROW 3 would fire on any overlap, however far above the useful threshold it sits, and would
+  **permanently close a route the same data shows to be live and quantified.**
+- ROW 3's consequence also over-ranges its population (HK-021(x)): it says "dead", unqualified,
+  from a measurement made entirely on noise-only slots.
+
+### A1.2 ROW 2 (revised) — a threshold with a margin exists
+
+**Fires iff there exists a threshold `T ≥ 0 dB` on `excess = signal_db − local_noise_db` such that
+all three hold:**
+
+| | condition | why this and not something else |
+|---|---|---|
+| (a) | **zero** M3 genuine decodes have `excess ≤ T` | the cut must be free on the measured complement, not merely cheap |
+| (b) | `percentile_1(M3 excess) − T ≥ 6.0 dB` | a bare zero-count is a readout artefact at finite n; the margin is what makes it robust. 6 dB = 2× in amplitude, and **less than half** the exploratory margin — see A1.0 |
+| (c) | **≥ 10%** of M2 false accepts have `excess ≤ T` | below this the filter cannot justify a `src/` change and an ABI bump |
+
+⇒ **An emission-side plausibility floor is sizeable and cheap. Report `T`, the removal fraction at
+`T`, and the margin.** 🔴 Still a **SIZING, never a ship decision** — any actual filter is a `src/`
+change ⇒ HK-011 in full: QA authors the `dev-tasks/*.md` and stops.
+
+**Power, at my own stated expectation (HK-021(v)):** with M3 at n ≥ 2,000 genuine decodes the
+readout quantum on condition (a) is 1/2,000 = 0.05%, so a clean zero bounds the true loss rate at
+**95% UB ≈ 0.15%** (rule of three). That is the strongest statement (a) can support and it must be
+quoted that way — **never as "costs nothing"**. Condition (b) carries the robustness that (a)
+cannot at this n; this is why the margin term exists rather than a tighter count threshold I could
+not resolve.
+
+### A1.3 ROW 3 (revised) — no such threshold exists
+
+**Fires iff no `T ≥ 0 dB` satisfies (a), (b) and (c) simultaneously.**
+
+⇒ **The emission-filter route is unfavourable *for S5-class noise-only false accepts at the levels
+this harness delivers*, and is not to be re-proposed for that population without a new
+pre-registration.** Say it plainly — do not soften it to "needs more data."
+
+🔴 **Scope it exactly that way and no wider (HK-021(x)).** This arm measures noise-only slots. It
+may not close the route for signal-present spurious decodes, for real off-air conditions, or for
+any threshold family other than a floor on `excess`.
+
+### A1.4 Rows remain mutually exclusive and exhaustive
+
+Revised ROW 2 and revised ROW 3 are exact complements by construction ("a valid `T` exists" /
+"none does"), so exactly one fires. ROW 4 ("anything else") is now **unreachable for the M2/M3
+separation question** and is retained only for M1/M4 outcomes that fire no rate row. Note this in
+the report rather than silently leaving a dead row.
+
+### A1.5 One addition to M3
+
+M3 must record, alongside each genuine decode's excess, **whether its message text matches the
+injected truth for its own `(part, trial)` slot**. ROW 0d's original "336 genuine decodes" conflated
+250 truth-matching decodes with 86 spurious ones riding alongside real signal (ROW 0 report §7.2);
+without the match flag, M3's "genuine" population would inherit exactly that contamination — and
+since the spurious rows sit at the **low** end of the excess distribution, they would poison
+condition (a) directly and force a false ROW 3. **This is the single most load-bearing line in the
+amendment.**
