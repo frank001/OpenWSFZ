@@ -1,0 +1,32 @@
+{
+  "_comment": "AWGN-FP ROW 0c validity check -- level-dependence probe, +10 dB variant. Exact copy of ../../scenarios/s5-noise.json parts 0/1 with level_dbfs shifted by +10 dB (part 0: -20 -> -10, part 1: -10 -> 0). scenario id/part_index/trial_index are UNCHANGED so harness.common.compute_seed() derives the identical 60 seeds as ROW 0b's anchor -- same noise realisations, different amplitude scale only, per the spec's 'repeat 0b's 60 slots at the rendered level +/-10 dB' instruction. Not used for any live sweep; offline-render-only, part of qa/rr-study/2026-09-02-1906-architect-to-qa-spec-awgn-fp-offline-replay.md.",
+  "_format_version": "1",
+
+  "id": "S5",
+  "name": "Noise / birdies (ROW 0c, +10 dB)",
+  "response": "False-positive decoded / not-decoded (attribute)",
+  "description": "ROW 0c level-dependence probe: identical seeds to S5 parts 0/1, level_dbfs shifted +10 dB.",
+
+  "message_ids": [],
+
+  "harness_note": "No FT8 signal is synthesised. Each part renders a 15 s audio buffer containing only the specified interference. Any decode reported by either appraiser is a false positive.",
+
+  "parts": [
+    {
+      "part_index": 0,
+      "noise_type": "awgn",
+      "level_dbfs": -10,
+      "note": "ROW 0c: S5 part 0 baseline -20 dBFS, shifted +10 dB."
+    },
+    {
+      "part_index": 1,
+      "noise_type": "awgn",
+      "level_dbfs": 0,
+      "note": "ROW 0c: S5 part 1 baseline -10 dBFS, shifted +10 dB."
+    }
+  ],
+
+  "trials": 30,
+
+  "seed_formula": "hash('S5', part_index, trial_index)"
+}
