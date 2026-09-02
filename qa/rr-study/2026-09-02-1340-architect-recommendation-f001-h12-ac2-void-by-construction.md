@@ -221,11 +221,19 @@ reaches for it again. Any future sizing work needs the padding counter from §9 
 
 Neither blocks the merge; both should be carried rather than dropped.
 
-1. 🔴 **`qa/rr-study/nfr021_pre_merge_scan.py` omits `.cs` and `.h` from `TEXT_SUFFIXES`.** The
-   "NFR-021 CLEAN" tick on this diff only ever scanned 9 of 22 changed files, missing every `.cs`
-   file — including the two carrying new literal callsigns. Manually verified clean, but **the
-   tool's verdict must not be trusted on a C#-shaped diff until `.cs`/`.h` are added.** This is a
-   live tooling defect independent of the AC-2 decision and is the more urgent of the two.
+1. 🔴 **`qa/rr-study/nfr021_pre_merge_scan.py`'s `TEXT_SUFFIXES` is missing more than the review
+   note said, and the gap is now measured.** The list is
+   `{".csv", ".md", ".html", ".txt", ".log", ".json", ".py", ".c", ""}` (`:112`) — so it omits
+   `.cs`, `.h`, **`.yaml` and `.bat`** as well. Measured against `main` on this branch **right
+   now**: 37 files changed, **14 scanned** (9 `.md` + 3 `.py` + 1 `.txt` + 1 `.c`), **21
+   text-bearing files silently skipped** — 18 `.cs`, 1 `.h`, 1 `.yaml`, 1 `.bat` — plus the `.so`
+   and `.dll` correctly reported as binary. Every `.cs` file carrying a new literal callsign is in
+   the skipped set. The review note's "9 of 22" understated it and named only `.cs`/`.h`.
+   **The tool's CLEAN verdict must not be trusted on any diff that is not purely
+   `.md`/`.py`/`.c`/`.txt` until those four suffixes are added.** This is a live tooling defect,
+   independent of the AC-2 decision, and the more urgent of the two.
+   ⚠️ It bites this document too, in the honest direction: the CLEAN reported for *this* commit
+   covers both of its files (`.md` + `.py`, both in the list) — trustworthy here, and only here.
 2. ⚠️ **`ft8_shim.c:826`'s `return found && !tls_h12_suppressed;` sits outside the 12-bit
    `if`-block**, so it also governs the 22-bit branch. Verified safe today: `ftx_message_decode`
    dispatches to exactly one decoder, `decode_nonstd` is the only 12-bit issuer, and the flag is
