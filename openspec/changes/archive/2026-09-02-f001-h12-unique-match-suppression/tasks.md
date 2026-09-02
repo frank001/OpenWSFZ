@@ -252,10 +252,11 @@ decision authority is `qa/rr-study/2026-09-01-1510-po-decision-f001-sup-b-step7-
       result — not later, not in a topic file only (HK-024).
       **Done** — as part of `qa/2026-09-02-1521-…` Task I (BOARD.md/MEMORY.md updated in the same
       pass as this archive).
-- [ ] 11.2 Branch hygiene (HK-003): delete merged branches and any worktrees created for this change.
-      **Not yet done as of this edit** — Task H of `qa/2026-09-02-1521-…` (branch/worktree sweep)
-      runs later in the same pass and covers `feat/f001-h12-unique-match-suppression` specifically;
-      will be ticked once that task actually executes, not before.
+- [x] 11.2 Branch hygiene (HK-003): delete merged branches and any worktrees created for this change.
+      **Done, evidence:** checked during `qa/2026-09-02-1521-…` Task H — `feat/f001-h12-unique-match-suppression`
+      no longer exists as a local branch (already removed, most likely GitHub's automatic branch
+      deletion on PR #138's merge; it was not in Task H's 19-branch list because it was already
+      gone before that sweep ran). No worktree was ever created for this change.
 - [x] 11.3 Confirm the archived change validates after `opsx:archive`.
       **Done, evidence:** `openspec validate --strict --all` → 61 passed, 0 failed, immediately
       after archiving this change to
