@@ -252,6 +252,35 @@ compare be **gated to exclude the suppressed subset** (i.e. fire only when `tls_
 Option A's ruling intact, and without it L3 and Option A are in direct contradiction on the same
 decodes. 🛑 **I am stating this once, per my role; the ruling is the PO's.**
 
+### 6.1 ✅ PO RULING, 2026-09-02 — GATED. Binding on this spec and everything downstream.
+
+**The PO has ruled: L3's compare is gated on `tls_h12_multiplicity == 1`.** The recommendation
+above is now a requirement, not a preference. Recorded here rather than only on the board so the
+constraint travels with the spec (HK-024).
+
+Consequences QA must carry into the dev-task, stated so they are not re-litigated at build time:
+
+1. **The new measure-only export `ft8_get_h12_unresolved_by_code` (shim `20260050`) must itself
+   honour the gate** — it counts an unresolved lookup **only** when that lookup's own
+   `tls_h12_multiplicity == 1`. Gating downstream in analysis is **not** equivalent: the export
+   would otherwise carry the suppressed population across the ABI, which is the exposure the ruling
+   exists to prevent.
+2. 🔴 **The gate SHRINKS L3's population, and the spec's power arithmetic must be re-derived, not
+   inherited.** §5's sizing was computed against the ungated ~2,640 unresolved lookups. The gated
+   population is that set minus the ambiguous subset (**847 lookups on `s17m`**, the only corpus
+   where it has been counted). `U149` was **already** underpowered by construction at the ungated N
+   (`E_uniform ≈ 0.64`); it is strictly worse now. **The 4,096-code distribution remains the primary
+   reading and the single cell remains unreadable** — the ruling does not change that, it deepens
+   it.
+3. **ROW 0 gains a precondition:** the gated and ungated unresolved counts must both be reported
+   for the same run, and their difference must be **non-zero and consistent with the corpus's known
+   ambiguous count**. A gated count equal to the ungated one means the gate is not wired, and every
+   row below it is void — a green reading from an unwired gate is the exact HK-022 failure this
+   check exists to catch.
+4. 🛑 Unchanged by the ruling: **efficacy remains structurally unmeasurable** (zero `Tx` lines in
+   every corpus we hold). This arm sizes **COST ONLY**, and a cost-only result must never be read as
+   "L3 is unfavourable."
+
 ---
 
 ## 7. What QA does, in order
