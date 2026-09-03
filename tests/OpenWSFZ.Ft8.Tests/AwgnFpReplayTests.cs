@@ -253,6 +253,84 @@ public sealed class AwgnFpReplayTests
         slots.Should().OnlyContain(s => s.Decodes.Count >= 0);
     }
 
+    // ── M1/M2/M4 — full-scale S5 AWGN population, N=2000/part ─────────────────────────
+    //
+    // Population rendered offline via harness/run_scenario.py --dry-run --dump-wav-dir against
+    // awgn-fp-replay/scenarios/s5-noise-m1m4.json (an exact copy of scenarios/s5-noise.json with
+    // trials 30 -> 2000; trials 0-29 reproduce ROW 0b's own 60 seeds exactly, see that scenario
+    // file's own header comment). Per spec Section 3: M1 is the per-slot event rate (read directly
+    // off this Fact's slots CSV); M2 is `signal_db - local_noise_db` for every false accept, and
+    // M4 is the reported-SNR histogram of the same population -- both are computed from this
+    // Fact's decodes CSV by the Python analysis step (m1_m4_analysis.py), not in C#, since no
+    // native call is needed for either and the statistics are more directly checked in the
+    // language the pre-registered thresholds were derived in (Amendment 1).
+
+    [Fact(DisplayName = "M1/M2/M4: offline replay of the N=2000/part S5 AWGN population")]
+    public void M1M2M4_S5AwgnPopulation_N2000PerPart()
+    {
+        AssertBinaryPin();
+
+        string root = Path.Combine(FindRepoRoot(), "qa", "rr-study", "awgn-fp-replay");
+        string outDir = Path.Combine(root, "results");
+        string wavDir = Path.Combine(root, "_work", "m1m4_s5");
+
+        var slots = DecodeDirectory(wavDir, outDir, "m1m4_s5");
+
+        slots.Should().HaveCount(4000, "s5-noise-m1m4.json renders parts 0+1 at 2000 trials each");
+
+        int events = slots.Count(s => s.Decodes.Count > 0);
+        double rate = 100.0 * events / slots.Count;
+
+        _out.WriteLine($"M1 (pooled): slots={slots.Count}  events(>=1 decode)={events}  rate={rate:0.###}%");
+        foreach (var part in slots.Select(s => s.Part).Distinct().OrderBy(p => p))
+        {
+            var partSlots = slots.Where(s => s.Part == part).ToList();
+            int partEvents = partSlots.Count(s => s.Decodes.Count > 0);
+            _out.WriteLine($"M1 (part {part}): slots={partSlots.Count}  events={partEvents}  " +
+                            $"rate={100.0 * partEvents / partSlots.Count:0.###}%");
+        }
+        WriteVerdictLine(outDir, "m1m4_s5",
+            $"slots={slots.Count} events={events} rate_pct={rate:0.###}");
+
+        // Mechanical sanity only -- M1/M2/M4's own pre-registered rows (ROW 1-3, Amendment 1) are
+        // evaluated by the Python analysis step, per spec Section 5 step 5 / HK-025: they are not
+        // asserted red/green here.
+        slots.Should().OnlyContain(s => s.Decodes.Count >= 0);
+    }
+
+    // ── M3 — full-scale S1 genuine-decode population, N=230/part ──────────────────────
+    //
+    // Population rendered offline via harness/run_scenario.py --dry-run --dump-wav-dir against
+    // awgn-fp-replay/scenarios/s1-m3-complement-n2300.json (an exact copy of
+    // s1-m3-complement.json -- itself a copy of scenarios/s1-snr-ladder.json -- with trials 25 ->
+    // 230; trials 0-24 reproduce ROW 0d's own 250 seeds exactly). Amendment 1 A1.5: the truth-match
+    // flag per genuine decode is computed by the Python analysis step by joining this Fact's
+    // decodes CSV against the render's own truth.csv on (part, trial, seed) -- not here, since the
+    // decode CSV already carries every field the join needs and duplicating truth.csv parsing in
+    // C# would be a second, divergent implementation of the same join ROW 0d's own report already
+    // did once in Python.
+
+    [Fact(DisplayName = "M3: offline replay of the N=230/part S1 genuine-decode population")]
+    public void M3_S1GenuinePopulation_N230PerPart()
+    {
+        AssertBinaryPin();
+
+        string root = Path.Combine(FindRepoRoot(), "qa", "rr-study", "awgn-fp-replay");
+        string outDir = Path.Combine(root, "results");
+        string wavDir = Path.Combine(root, "_work", "m3_s1");
+
+        var slots = DecodeDirectory(wavDir, outDir, "m3_s1");
+
+        slots.Should().HaveCount(2300, "s1-m3-complement-n2300.json renders 10 parts x 230 trials");
+
+        int totalDecodes = slots.Sum(s => s.Decodes.Count);
+        _out.WriteLine($"M3: slots={slots.Count}  total_decodes={totalDecodes}");
+        WriteVerdictLine(outDir, "m3_s1",
+            $"slots={slots.Count} total_decodes={totalDecodes}");
+
+        slots.Should().OnlyContain(s => s.Decodes.Count >= 0);
+    }
+
     // ── Shared decode/report machinery ──────────────────────────────────────────────────
 
     private sealed class DecodeRow

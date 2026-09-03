@@ -1,0 +1,48 @@
+{
+  "_comment": "AWGN-FP M1/M2/M4 population. Exact copy of ../../scenarios/s5-noise.json (same id 'S5', same parts 0/1 AWGN definitions) with 'trials' raised from 30 to 2000 (60 -> 4000 total slots across parts 0+1) per qa/rr-study/2026-09-02-1906-architect-to-qa-spec-awgn-fp-offline-replay.md Section 3 (M1: 'N >= 2,000 per part') and Section 4 ROW 1 (pooled N >= 4,000). Reuses the shipped generator unmodified (harness.common.compute_seed('S5', part_index, trial_index)) -- trials 0-29 of parts 0/1 reproduce the EXACT 60 seeds ROW 0b already replayed (this sweep's in-chain S5 anchor); trials 30-1999 extend the same deterministic seed formula to new trial_index values, not a second noise source. Rendered via the REAL, unmodified peak-normalising path (harness/run_scenario.py --dry-run --dump-wav-dir, no level-preserving substitution) -- unlike the S5-LEVEL arm's ROW 0h probe, M1/M2/M4 must reproduce exactly what the in-chain sweeps actually deliver, and per S5-LEVEL's own finding parts 0/1 render to the same actual level either way, so normalisation does not compromise this population. Restricted to parts 0,1 via --parts 0,1 (parts 2/3 are out of scope per the spec's Section 1 scoping note; this file still defines them, unmodified, for import-time consistency with the real scenario -- they are never rendered at N=2000). Not used for any live sweep; offline-render-only.",
+  "_format_version": "1",
+
+  "id": "S5",
+  "name": "Noise / birdies (AWGN-FP M1/M2/M4 population, N=2000/part)",
+  "response": "False-positive decoded / not-decoded (attribute)",
+  "description": "2000 trials per noise type, parts 0/1 only rendered (--parts 0,1) = 4000 total slots, for the AWGN-FP arm's M1 (per-slot event rate) / M2 (excess for false accepts) / M4 (reported-SNR histogram).",
+
+  "message_ids": [],
+
+  "harness_note": "No FT8 signal is synthesised. Each part renders a 15 s audio buffer containing only the specified interference. Any decode reported is a false positive.",
+
+  "parts": [
+    {
+      "part_index": 0,
+      "noise_type": "awgn",
+      "level_dbfs": -20,
+      "note": "White (AWGN) noise. Replicate of part 1 at the actually-delivered level -- see scenarios/s5-noise.json's own corrected note (S5-LEVEL, 2026-09-03) for the measurement."
+    },
+    {
+      "part_index": 1,
+      "noise_type": "awgn",
+      "level_dbfs": -10,
+      "note": "White (AWGN) noise. Replicate of part 0 at the actually-delivered level -- see scenarios/s5-noise.json's own corrected note (S5-LEVEL, 2026-09-03) for the measurement."
+    },
+    {
+      "part_index": 2,
+      "noise_type": "steady_carrier",
+      "carrier_freq_hz": 1500,
+      "level_dbfs": -20,
+      "note": "Single steady CW carrier at the FT8 passband centre. OUT OF SCOPE for this arm (spec Section 1) -- defined here for consistency only, never rendered at N=2000 (this file is always invoked with --parts 0,1)."
+    },
+    {
+      "part_index": 3,
+      "noise_type": "multi_carrier",
+      "carrier_freqs_hz": [400, 800, 1200, 1600, 2000, 2400],
+      "level_dbfs": -20,
+      "note": "Multiple steady carriers ('birdies'). OUT OF SCOPE for this arm (spec Section 1) -- same as part 2's note."
+    }
+  ],
+
+  "trials": 2000,
+
+  "seed_formula": "hash('S5', part_index, trial_index)",
+
+  "channel_note": "Pink noise and swept carriers are deferred — channel.py currently implements AWGN only."
+}

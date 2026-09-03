@@ -1,0 +1,50 @@
+==============================================================================
+AWGN-FP -- M1/M2/M3/M4 analysis, ROW 1 / ROW 2 (revised) / ROW 3 (revised)
+==============================================================================
+
+Loaded m1m4_s5: 4000 slots, 454 decode rows
+
+--- M1: per-slot false-accept event rate ---
+  part 0: n=2000  events=225  rate=11.2500%
+  part 1: n=2000  events=210  rate=10.5000%
+  pooled: n=4000  events=435  rate=10.8750%
+
+--- M2: excess (signal_db - local_noise_db) over 454 false accepts ---
+  min=-1.944  p01=-1.595  median=-0.142  max=1.622
+
+--- M4: reported-SNR histogram (1 dB bins) ---
+  [-28,-27) dB: 27
+  [-27,-26) dB: 233
+  [-26,-25) dB: 182
+  [-25,-24) dB: 12
+
+Loaded m3_s1: 3056 decode rows, 2300 truth rows
+
+--- M3: excess for GENUINE (truth-matching) decodes only (Amendment 1 A1.5) ---
+  genuine (truth-matching): 2300
+  spurious riding alongside real signal (excluded from M3, reported for the record): 756
+  min=14.987  p01=15.146  median=29.301  max=42.627
+
+==============================================================================
+ROW 1 -- chronic vs. recent-regression
+==============================================================================
+Pooled M1 (parts 0/1): n=4000 (floor: >=4000, met=True)  rate=10.8750%
+Pre-registered band: [1.15%, 3.85%]
+(context, not gating) This run's own exact 95% Clopper-Pearson CI on the pooled rate: [9.9265%, 11.8810%]
+ROW 1 FIRES: False
+=> Pooled rate falls OUTSIDE the historical chronic-rate band -- report the number, do not assert chronic-vs-regression either way from ROW 1 alone.
+
+==============================================================================
+ROW 2 (revised) / ROW 3 (revised) -- does a threshold T with an acceptable margin exist?
+==============================================================================
+p1(M3 excess) = 15.146 dB   min(M3 excess) = 14.987 dB
+Candidate T (tightest allowed by condition (b), also honouring T>=0): 9.146 dB
+Condition (a): M3 genuine decodes with excess <= T: 0 (need 0) -- HOLDS
+Condition (b): p1(M3) - T = 6.000 dB (need >= 6.0 dB) -- HOLDS
+Condition (c): M2 false accepts with excess <= T: 454/454 = 100.00% (need >= 10%) -- HOLDS
+
+ROW 2 (revised) FIRES: True
+=> An emission-side plausibility floor at T=9.146 dB is sizeable and cheap: removes 100.00% of false accepts at ZERO measured cost to genuine decodes (margin 6.000 dB). SIZING ONLY, never a ship decision (spec A1.2) -- any actual filter is a src/ change, HK-011 in full.
+Power at n=2300: readout quantum on (a) = 0.0435%; a clean zero bounds the true loss rate at 95% UB ~= 0.1304% (rule of three). Must be quoted this way -- NEVER as "costs nothing".
+
+ROW 3 (revised) FIRES: False
