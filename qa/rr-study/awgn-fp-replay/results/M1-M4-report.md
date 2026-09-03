@@ -64,6 +64,17 @@ separation claim, not an absolute-rate claim), but it does bound how far ROW 2's
 This run's own exact 95% Clopper–Pearson CI on the pooled rate: **[9.93%, 11.88%]** — a tight,
 high-precision reading, exactly what N=60 could never deliver (spec §0's whole reason for existing).
 
+🔴 **CORRECTED 2026-09-03 (`AWGN-FP` Amendment 2 A2.4, ordered on the board):** the **`events`**
+column above is a **slot count** — `slots.Count(s => s.Decodes.Count > 0)`, i.e. the number of
+distinct slots carrying **≥1** decode, which is what a per-slot rate must be built from (a slot
+can carry more than one false-accept decode). **This is not the same number as the total decode
+*row* count** — `m1m4_s5_decodes.csv` carries **454 decode rows** (one row per individual decode,
+not per slot) over these same **435** eventful slots. §4 below originally stated "454 … matches
+M1 exactly," which conflated the two; that sentence is corrected. **Nothing on this page changes
+as a result** — the pooled rate above was already computed as `435/4,000`, never `454/4,000`.
+
+
+
 ## 3. ROW 1 — chronic vs. recent-regression, and the validity gap it surfaces
 
 **Pre-registered band** (exact Clopper–Pearson 95% CI for the pooled in-chain rate over every full
@@ -119,8 +130,13 @@ clear."**
 
 ## 4. M2/M4 — the false-accept population's own signature
 
-454 false accepts across 4,000 slots (matches M1 exactly, since S5 is signal-free — every decode
-is by definition a false accept).
+454 false-accept **decode rows** across 4,000 slots (every decode is by definition a false accept,
+since S5 is signal-free) — landing on **435 distinct slots** (M1's own `events` count, §2; a slot
+can carry more than one decode). 🔴 **CORRECTED 2026-09-03 (`AWGN-FP` Amendment 2 A2.4):** this
+originally read "454 false accepts … matches M1 exactly," which is wrong — **454 decode rows over
+435 slots**, two different units, not the same number under two names (HK-021(i): a decode row is
+not an event). **ROW 2 is unaffected**: its own condition (c) below reads `454/454 = 100.00%` on
+the decode-row population by its own construction, so it is correct either way this is stated.
 
 - **Reported SNR: 100% (454/454) at ≤ −25 dB** — histogram: [−28,−27) 27 · [−27,−26) 233 ·
   [−26,−25) 182 · [−25,−24) 12. This is the *exact* signature the spec's §0.1 table documented
