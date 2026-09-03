@@ -676,8 +676,26 @@ extern "C" {
  *              (displaying/ambiguous/divergent) are UNCHANGED in meaning and continue to
  *              report what *would* have been displayed, so every reading already taken
  *              under 20260047/20260048 stays comparable to a run at this version.
+ *
+ *   20260050 — f001-l3-unresolved-by-code-export: MEASURE-ONLY, like 20260047/
+ *              20260048 before it -- changes no decode output. Adds one new
+ *              exported read-only getter, ft8_get_h12_unresolved_by_code(),
+ *              the complement of ft8_get_h12_by_code (20260048): a complete
+ *              4096-row per-code breakdown of 12-bit hash-path lookups that
+ *              found NO matching table entry at all, i.e.
+ *              tls_h12_lookup_performed && !tls_h12_resolved, counted in a
+ *              new else if on the SAME guard family as the existing
+ *              resolved-branch emission site (design.md D4 -- never a second,
+ *              independent if). g_h12_code_out_of_range is REUSED, not
+ *              duplicated (design.md D3). Like ft8_get_h12_by_code, this
+ *              export gets NO IFt8NativeInterop/Ft8LibInterop binding
+ *              (design.md D2) -- its only caller is QA's own Python/ctypes
+ *              replay harness. hash_table_lookup, hash_table_add,
+ *              announce_stamp, cb_lookup_hash's return value, and
+ *              ft8_get_h12_by_code's own table/counters are byte-for-byte
+ *              unchanged.
  */
-#define FT8_SHIM_VERSION 20260049
+#define FT8_SHIM_VERSION 20260050
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -799,6 +817,18 @@ int ft8_get_h12_suppressed_count(void);
  */
 int ft8_get_h12_by_code(int* displaying, int* ambiguous, int* divergent,
                          int capacity, int* out_of_range);
+
+/*
+ * ft8_get_h12_unresolved_by_code — F-001 L3 (shim 20260050). See ft8_shim.c
+ * for the full doc comment. The complement of ft8_get_h12_by_code: a
+ * complete 4096-row per-code table of UNRESOLVED 12-bit hash-path lookups.
+ * Process-global, read-only, process-lifetime cumulative, zero on daemon
+ * restart. MEASURE-ONLY: no effect on decode output. Returns
+ * H12_CODE_SPACE (4096) on success, -1 on any bad argument. *out_of_range
+ * receives the SAME shared g_h12_code_out_of_range counter as
+ * ft8_get_h12_by_code (design.md D3 -- not duplicated).
+ */
+int ft8_get_h12_unresolved_by_code(int* counts, int capacity, int* out_of_range);
 
 /*
  * ft8_get_last_candidate_counts — return per-pass candidate counts from the

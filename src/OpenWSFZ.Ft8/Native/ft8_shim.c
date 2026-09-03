@@ -735,7 +735,9 @@ static int g_h12_suppressed = 0;
 static int      g_h12_by_code_displaying[H12_CODE_SPACE];
 static int      g_h12_by_code_ambiguous [H12_CODE_SPACE];
 static int      g_h12_by_code_divergent [H12_CODE_SPACE];
+static int      g_h12_unresolved_by_code[H12_CODE_SPACE];   /* F-001 L3 (shim 20260050) */
 static int      g_h12_code_out_of_range = 0;   /* MUST stay 0 -- see ROW 0c-ii */
+/* g_h12_code_out_of_range is REUSED for the unresolved branch too, not duplicated -- see design.md D3. */
 
 static void hash_table_add(callsign_table_t* tbl, const char* callsign, uint32_t hash)
 {
@@ -1251,6 +1253,30 @@ int ft8_get_h12_by_code(int* displaying, int* ambiguous, int* divergent,
     return H12_CODE_SPACE;
 }
 
+/*
+ * ft8_get_h12_unresolved_by_code — F-001 L3 (shim 20260050). Copies the
+ * complete 4096-row per-code table of UNRESOLVED 12-bit hash-path lookups
+ * (the complement of ft8_get_h12_by_code's resolved-and-displayed
+ * population) into the caller-supplied counts buffer. Returns
+ * H12_CODE_SPACE (4096) on success; -1 if capacity < H12_CODE_SPACE or any
+ * pointer (including out_of_range) is NULL -- caller must check for -1, not
+ * assume success. *out_of_range receives the SHARED g_h12_code_out_of_range
+ * counter (design.md D3 -- not duplicated). Read-only, process-lifetime
+ * cumulative, zero on daemon restart, same lifecycle as ft8_get_h12_by_code.
+ * Intended caller is QA's own Python replay harness by ctypes, NOT
+ * IFt8NativeInterop -- see Ft8LibInterop.cs's own changelog entry for why no
+ * C# binding exists (design.md D2).
+ */
+int ft8_get_h12_unresolved_by_code(int* counts, int capacity, int* out_of_range)
+{
+    if (!counts || !out_of_range || capacity < H12_CODE_SPACE)
+        return -1;
+    for (int c = 0; c < H12_CODE_SPACE; c++)
+        counts[c] = g_h12_unresolved_by_code[c];
+    *out_of_range = g_h12_code_out_of_range;
+    return H12_CODE_SPACE;
+}
+
 /* ── Encode entry point ──────────────────────────────────────────────────── */
 /*
  * ft8_encode_message — encode an FT8 text message to 79 tone indices.
@@ -1664,6 +1690,17 @@ int ft8_decode_all(
                 g_h12_by_code_displaying[c]++;
                 if (tls_h12_multiplicity >= 2) g_h12_by_code_ambiguous[c]++;
                 if (tls_h12_divergent)         g_h12_by_code_divergent[c]++;
+            } else if (tls_h12_lookup_performed && !tls_h12_resolved) {
+                /* F-001 L3 sizing (shim 20260050): the complement of the branch above.
+                 * PO ruling (board, 2026-09-03, "RULING 2"; design.md D1): count only
+                 * "exclude the suppressed subset" -- under this shim,
+                 * !tls_h12_resolved already IS that population (tls_h12_multiplicity
+                 * is unconditionally 0 here; see cb_lookup_hash's else branch,
+                 * ft8_shim.c:820-823 -- a suppressed/ambiguous match always has
+                 * tls_h12_resolved == true and lands in the OTHER branch). */
+                if (tls_h12_code >= H12_CODE_SPACE) g_h12_code_out_of_range++;
+                uint32_t c = tls_h12_code & (H12_CODE_SPACE - 1u);
+                g_h12_unresolved_by_code[c]++;
             }
 
             /* Frequency, time offset, and SNR */

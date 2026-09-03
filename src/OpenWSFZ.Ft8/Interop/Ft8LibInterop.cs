@@ -402,7 +402,20 @@ internal static class Ft8LibInterop
     /// entry in this changelog, this bump changes decode OUTPUT, not just diagnostics. Adds one
     /// new exported read-only getter, <see cref="GetH12SuppressedCount"/>, bound below.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260049;
+    /// <remarks>
+    /// f001-l3-unresolved-by-code-export, shim 20260050: MEASURE-ONLY, like 20260047/20260048 —
+    /// changes no decode output. Adds one new native export,
+    /// <c>ft8_get_h12_unresolved_by_code</c>, the complement of <c>ft8_get_h12_by_code</c>
+    /// (20260048): a complete 4096-row per-code breakdown of 12-bit hash-path lookups that found
+    /// NO matching table entry at all. Like <c>ft8_get_h12_by_code</c>, this export gets
+    /// deliberately NO managed binding here (design.md Decision D2, mirroring
+    /// f001-sup-b-instrumented-suppression-sizing Decision D5) — its only caller is QA's own
+    /// Python/ctypes replay harness, driving the native library directly. This bump exists
+    /// solely as the ABI self-test: <see cref="ExpectedShimVersion"/> must track
+    /// <c>FT8_SHIM_VERSION</c> on every native change regardless of whether the new export gets
+    /// a managed binding, per the pattern every prior entry in this file follows.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260050;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
