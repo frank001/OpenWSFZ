@@ -1,0 +1,38 @@
+FP-PARITY -- ROW 0q and ROW 0m (this session's assigned scope only)
+Spec: qa/rr-study/2026-09-03-1616-architect-to-qa-spec-fp-parity-and-inchain-floor.md
+
+=== ROW 0q: the int SNR conversion -- truncation or rounding? ===
+ROW 0q: 3510 decode rows loaded (m1m4_s5_decodes.csv: 454, m3_s1_decodes.csv: 3056)
+ROW 0q: NOTE -- spec text says '2,754 rows already on disk' for these two files; the actual row count is 3510 (454 + 3056). 2,754 = 454 + 2,300 is M1M4's full count plus M3's GENUINE-ONLY subset (M1-M4-report.md S5); this check instead classifies EVERY decode row in both files (the int<->float cast rule is a shim-level property of every decode, genuine or spurious -- restricting to genuine-only is not stated anywhere else in ROW 0q's own text). Flagged as a drafting inconsistency, not acted on as a scope restriction.
+ROW 0q: agreement counts out of 3510 rows:
+  round_half_away_from_zero: 3510/3510 (100.00%)
+  round_half_to_even: 3505/3510 (99.86%)
+  truncate_toward_zero: 2004/3510 (57.09%)
+  floor: 1775/3510 (50.57%)
+ROW 0q: rules with 100% agreement across all 3510 rows: ['round_half_away_from_zero']
+ROW 0q FIRES (not unanimous / not exactly one matching rule) = False
+ROW 0q PASSED (does not fire) -> the int SNR conversion is 'round_half_away_from_zero', confirmed on all 3510 decode rows, matching ft8_shim.c:1732's `r->snr = (int)roundf(snr);` (C roundf = round-half-away-from-zero) read directly from source.
+ROW 0q consequence: this is NOT truncation, so there is no truncation-upward bias. The mechanical rounding error is at most 0.5 dB in EITHER direction (not systematically upward) -- the conservative correction for a FLOOR (ROW 1, not run this session) is to subtract 0.5 dB from any reconstructed-from-int F, since round-half-away-from-zero can report an excess up to 0.5 dB HIGHER than the true float excess for negative values.
+
+=== ROW 0m: in-chain S5 AWGN numerator, recounted independently ===
+Method: harness.common.parse_all_txt/normalise_slot (a shared, non-aggregating line-format parser also used BY matcher.py, but carrying none of matcher.py's Pass-2/OR-dedupe/attribution-join logic -- that logic, not the timestamp parser, is what HK-026 bars reusing). No *_matched.csv read anywhere in this function.
+  7d36038 (2026-08-21-7d36038): denom(S5 p0/1 cycles)=60  recounted_k=1  published_k=1 (match=True)  published_denom=120 (==60: False)  ALLTXT_lines_parsed=405 skipped=0  S5_cycles_outside_ALLTXT_span=0  max_gap_s=2280.0
+  f5dec23 (2026-08-22-f5dec23): denom(S5 p0/1 cycles)=60  recounted_k=4  published_k=4 (match=True)  published_denom=120 (==60: False)  ALLTXT_lines_parsed=438 skipped=0  S5_cycles_outside_ALLTXT_span=0  max_gap_s=1935.0
+  22b749c (2026-08-27-22b749c): denom(S5 p0/1 cycles)=60  recounted_k=0  published_k=0 (match=True)  published_denom=60 (==60: True)  ALLTXT_lines_parsed=430 skipped=0  S5_cycles_outside_ALLTXT_span=0  max_gap_s=1185.0
+  872ba65 (2026-08-29-872ba65): denom(S5 p0/1 cycles)=60  recounted_k=1  published_k=1 (match=True)  published_denom=60 (==60: True)  ALLTXT_lines_parsed=417 skipped=0  S5_cycles_outside_ALLTXT_span=0  max_gap_s=795.0
+  2e60949 (2026-08-30-2e60949): denom(S5 p0/1 cycles)=60  recounted_k=2  published_k=2 (match=True)  published_denom=120 (==60: False)  ALLTXT_lines_parsed=308 skipped=0  S5_cycles_outside_ALLTXT_span=0  max_gap_s=1335.0
+  3b52608 (2026-09-02-3b52608): denom(S5 p0/1 cycles)=60  recounted_k=4  published_k=4 (match=True)  published_denom=60 (==60: True)  ALLTXT_lines_parsed=448 skipped=0  S5_cycles_outside_ALLTXT_span=0  max_gap_s=315.0
+
+ROW 0m: any k_i mismatch=False  any published denom != 60=True  FIRES=True
+ROW 0m: recounted pooled rate = 12/360 = 3.333% [95% CP CI 1.934%, 5.345%]
+ROW 0m FIRES -> per spec Sec.4: the recounted Sigma(k_i)/360 and its exact Clopper-Pearson 95% CI REPLACE [1.15%, 3.85%] as the in-chain comparator for all future work; the 2.22% figure is RETIRED, not merely corrected.
+
+=== SUMMARY (this session) ===
+ROW 0q (int SNR conversion is a single, unanimous rule): PASS (unanimous)
+ROW 0m (recount matches published numbers exactly, incl. denominator==60): FIRES
+
+=== NOT RUN THIS SESSION (out of the handoff's priority-2 scope) ===
+ROW 0n (normalisation parity, paired re-decode) -- needs a supervised decode run (HK-013/HK-023), not zero-run; not on the handoff's priority list for this pass.
+ROW 0o (decode-param parity), ROW 0p (WAV->decoder path identity) -- quick assertions but likewise not on the handoff's explicit priority-2 list.
+ROW 1 (F, the in-chain genuine excess floor) -- depends on ROW 0q's correction (now available) but needs an S1b sweep located/confirmed on disk first, and on ROW 0n/0o/0p closing clean per spec Sec.5 step 4-5 ordering.
+ROW 2/ROW 3 (emission floor viability) -- depend on ROW 1.
