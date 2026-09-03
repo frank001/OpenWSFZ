@@ -315,3 +315,111 @@ without the match flag, M3's "genuine" population would inherit exactly that con
 since the spurious rows sit at the **low** end of the excess distribution, they would poison
 condition (a) directly and force a false ROW 3. **This is the single most load-bearing line in the
 amendment.**
+
+---
+
+# AMENDMENT 2 — 2026-09-03 16:16Z: post-result corrections to THIS SPEC's own defects
+
+**Written after reading QA's M1–M4 report (2026-09-03 15:35Z). It corrects three things in the
+spec above, none of them QA's.** ROW 2's verdict is **not** disturbed: it fired on its own
+pre-registered text, evaluated correctly, and the arm is complete. What is corrected is (A2.1) the
+ROW 1 comparator's arithmetic, (A2.2) a claim in ROW 0c about *where* the offline/in-chain risk
+lives, and (A2.3) the reading that ROW 2's `T` is a shippable number. A2.4 orders one record
+correction in QA's report.
+
+## A2.1 🔴 ROW 1's pre-registered band mixes two different denominators — the Architect's error
+
+§4 ROW 1 names its six-sweep set as `7d36038` 1/**120** · `f5dec23` 4/**120** · `22b749c` 0/**60** ·
+`872ba65` 1/**60** · `2e60949` 2/**120** · `3b52608` 4/**60** ⇒ 12/540 = 2.22%.
+
+**Three of those denominators are not the AWGN population.** `s5-noise.json` has four parts × 30
+trials = 120 slots, of which **only parts 0/1 are AWGN**; parts 2/3 are carrier and multi-carrier —
+confirmed by the `S5-LEVEL` report's own exhaustive ROW 0f enumeration, not by inference. The
+offline arm measured **parts 0/1 only**. ⇒ The band was built on a denominator that is 2× too large
+for half its members, and it is therefore **not the like-for-like comparator this spec claimed**.
+
+✅ **Corrected comparator, stated so it cannot be reselected later:** on a consistent 60-slot AWGN
+denominator the pooled in-chain figure is **12/360 = 3.33%**, not 2.22%. 🔴 **Do not treat 3.33% as
+ratified either** — it is a *re-arithmetic of the same rows*, and A2.1 does not establish that each
+numerator counted only parts 0/1. **The numerator provenance is now itself a measurement**, and it
+is ROW 0m of the follow-up arm (`2026-09-03-1616-architect-to-qa-spec-fp-parity-and-inchain-floor.md`).
+
+**Consequence for the reading, asserted (HK-021(t)):** QA's ROW 1 non-fire **stands** — 10.875% is
+outside `[1.15%, 3.85%]` and outside any plausible re-derivation of it. But **the "≈5×" magnitude
+does not stand.** Against the corrected denominator it is **≈3.3×**, and the citable form until the
+follow-up lands is: *"the offline instrument's own chronic rate is 10.875% [9.93%, 11.88%]; the
+in-chain pooled comparator is between 2.22% and 3.33% depending on a denominator defect not yet
+resolved; the ratio is therefore between ~3× and ~5× and is not yet quotable as a single number."*
+
+## A2.2 🔴 ROW 0c's stated "biggest validity risk" is wrong about the mechanism — capture *gain* cannot matter
+
+§4 ROW 0c and §0 both name the risk as *"the in-chain audio passes through Voicemeeter and capture
+gain, and the offline path does not."* **The gain half of that is impossible**, from source:
+
+- `Ft8Decoder.cs:271` — `float[] normalisedPcm = NormalisePcm(pcm, PcmNormalisationTargetRms)`,
+  target RMS **0.20** (`:52`, the D-002 SNR-bias fix), applied to **every** in-chain buffer before
+  `DecodeAll` (`:303`).
+- ⇒ The in-chain decoder's absolute operating level is **fixed by construction**. Voicemeeter gain,
+  capture gain and playback volume are all divided out downstream of themselves. They cannot move
+  the in-chain rate at all.
+- ⇒ What survives from the real capture path is **spectral colouring, ADC quantisation/dither, and
+  downsampling filter response** — never gain. Narrower, and testable.
+
+🔴 **And it exposes a genuine parity defect in this arm's own instrument, in the opposite
+direction:** `AwgnFpReplayTests.cs:425` calls `Ft8LibInterop.DecodeAll(pcm)` on **raw WAV samples**,
+skipping `NormalisePcm` entirely. At the measured render RMS (−20.87 dBFS ≈ 0.090, `S5-LEVEL` ROW
+0g) the offline instrument decodes **≈6.9 dB quieter than any in-chain decode of the same audio**,
+with per-slot level variance the in-chain path does not have.
+⚠️ **Honest weight:** ROW 0c's own ±10 dB flatness (6/7/7) is evidence *against* this explaining
+the rate gap, and the daemon's operating point sits inside the range ROW 0c swept. So this is
+ranked as **instrument hygiene that must be fixed before any further absolute-rate reading**, not
+as the leading hypothesis. It is ROW 0n of the follow-up arm.
+
+## A2.3 🛑 `T = 9.146 dB` IS NOT A SHIPPABLE THRESHOLD — it cuts into real decodes
+
+ROW 2's `T` was chosen as the tightest value condition (b) allows, which is correct per the
+amendment. But translate it onto the axis the decoder reports: `ft8_shim.c:1719` is
+`snr = signal_db − local_noise_db − 26.5`, so `excess = snr + 26.5`, and
+
+> **`T = 9.146 dB` is a cut at reported SNR = −17.35 dB.**
+
+The ratified-era **lowest genuine OpenWSFZ decode** recorded in this project is **−17/−18 dB**
+(spec §0.1) ⇒ excess **9.5 / 8.5 dB**. ⇒ **A genuine decode at −18 dB is removed by this `T`, and
+one at −17 dB survives it by 0.35 dB.**
+
+The reason ROW 2 read that as zero-cost is that M3's weakest genuine decode is excess **14.99 dB =
+−11.5 dB reported SNR** — the S1 ladder's floor sits **≈6 dB above** the in-chain genuine floor.
+⇒ The "13.4 dB gap at zero cost, 95% UB 0.130%" is a property of a **truncated population**, not of
+the decoder (HK-021(x): the falsification population does not range over the claim's population).
+🔴 **This is my drafting fault again, not QA's**: condition (b) anchors the margin to `p1(M3)`, a
+percentile of whatever ladder M3 happens to contain, with no requirement that the ladder reach the
+weakest decode the decoder actually emits.
+
+✅ **The route is not damaged — only the number is.** Every one of the 454 false accepts has excess
+≤ **+1.62 dB**, so a cut anywhere from ~2 dB upward removes **100%** of them. The design point must
+be anchored to the **mechanism** (a CRC-valid codeword with no excess over the decoder's own noise
+estimate cannot be a real signal), not to a margin fitted on a synthetic ladder. Indicative, **not
+pre-registered and not a ruling**: `T ≈ 2 dB` removes 454/454 while sitting ≈6.5 dB below the
+weakest genuine decode on record.
+
+🛑 **Therefore: no emission-filter dev-task is authored on `T = 9.146`.** PO ruling, 2026-09-03:
+**hold the filter dev-task** until the **in-chain genuine excess floor** is measured on the
+separate terms — not converted from a reported SNR, since `c3a9ea8` rescaled that axis inside the
+very era the −17/−18 dB figure spans. That measurement is ROW 1 of the follow-up arm.
+
+## A2.4 Record correction QA owes on the M1–M4 report (units, not arithmetic)
+
+Report §4 states *"454 false accepts across 4,000 slots (matches M1 exactly …)"*. It does not match:
+M1's **435** is a count of **slots with ≥1 decode**
+(`AwgnFpReplayTests.cs`: `slots.Count(s => s.Decodes.Count > 0)`); **454** is a count of **decode
+rows**. 454 rows over 435 slots. **The rate 10.875% is a per-slot rate and must stay one** — this is
+the rows-vs-clusters trap the board already bans (HK-021(i)); an in-chain comparator built by
+cycle-dedupe is a *cluster* count and must be compared to 435/4,000, never to 454/4,000.
+✅ **ROW 2 is unaffected** — condition (c) is a fraction of the M2 population, 454/454 = 100% either
+way. Correct the sentence, add the slot-vs-row distinction to §2's table, and do not restate any
+other figure.
+
+## A2.5 Standing disclosure, unchanged
+
+🛑 The Architect remains **de-blinded** on the excess distributions (A1.0). Prediction scoring stays
+**suspended** for ROW 2/ROW 3 and is suspended for every threshold number in A2.3 as well.

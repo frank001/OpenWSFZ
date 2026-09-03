@@ -132,3 +132,70 @@ an uncommitted directory (see §6).
 The PO has ruled that this gets its own look. The PO has **not** ruled between Option 1 and
 Option 2 — §3 is written to be handed back with a recommendation, not executed. Do the ROW 0 checks
 and the scope statement, then stop and report.
+
+---
+
+# AMENDMENT 1 — 2026-09-03 16:16Z: ✅ PO RULING — **OPTION 2**, and how to execute it safely
+
+**The PO has ruled Option 2: delete `level_dbfs`, declare S5 single-level.** Ruling taken on QA's
+2026-09-03 report (all four ROW 0 PASS) plus the Architect's and QA's concurring recommendations.
+§7 above is discharged.
+
+🔴 **Option 2 is not a free edit, and this amendment exists because I nearly handed it over as
+one.** Two code paths read the key, and one of them is not the amplitude path.
+
+## A1.1 What the deletion actually changes, read from the code (not assumed)
+
+1. **`harness/run_scenario.py:514` — `level_dbfs = part.get("level_dbfs", -20)`.** The default is
+   `-20`. ⇒ For the **three uniform-`-20` files** (`s5-noise-wide.json`, `s5-noise-wide-n300.json`,
+   `s5-noise-diag40.json`) deleting the key feeds the amplitude formula the **identical constant**.
+   Byte-identity there is provable from the default, not merely expected.
+2. **The same line for `s5-noise.json` part 1 (`-10`)** changes the pre-normalisation amplitude
+   from `10^(-10/20) = 0.3162` to `10^(-20/20) = 0.1`. Peak normalisation then divides by the
+   buffer's own peak, so the delivered audio is **mathematically identical** — but two different
+   float multiplies followed by a division are **not guaranteed bit-identical**. That is what ROW 0j
+   below is for.
+3. 🔴 **`harness/run_scenario.py:1113` — `true_snr_db = part.get("level_dbfs", "")`.** This is a
+   *second, unrelated* consumer: it writes `truth.csv`'s `true_snr_db` column for S5. Deleting the
+   key changes that column from `-20`/`-10` to the **empty string** for every S5 row. Architect's
+   own read of the consumers: S5 is absent from `analyse.py`'s `DECODE_RATE_CONFIG`, and every
+   downstream read coerces (`pd.to_numeric(..., errors="coerce")` at `analyse.py:601/868/998/1198`,
+   `analyse_xplat.py:130/245`), so this *should* be inert — **"should" is not a verdict**, which is
+   what ROW 0l is for.
+
+## A1.2 🛑 Scope bar — do NOT delete the key from `qa/rr-study/awgn-fp-replay/scenarios/`
+
+`s5-noise-row0c-minus10.json` / `-plus10.json` use `level_dbfs` **functionally**: they are rendered
+through the level-*preserving* renderer, where the key is the only thing that creates the ±10 dB
+legs ROW 0c measured. `s5-noise-m1m4.json` is a dated artefact of a completed arm. **All three stay
+exactly as they are.** After this deletion `s5-noise-m1m4.json` no longer matches its parent
+`scenarios/s5-noise.json`; that divergence is intended — **say so in the commit message** and leave
+the artefact pinned, so the M1–M4 result stays reproducible from the file it was actually run from.
+
+## A1.3 Pre-registered checks on the deletion itself (mechanical, HK-021)
+
+Run in order. Rows are mutually exclusive and exhaustive; each branch changes the verdict.
+
+- **ROW 0j — delivered audio unchanged, byte level.** Render S5 parts 0/1 for the 60 in-chain seeds
+  through the **real, unmodified** `--dry-run --dump-wav-dir` path, before and after the deletion.
+  SHA256 all 120 files. **PASS iff 60/60 pairs are identical.** ⇒ Option 2 lands with the
+  fifteen-sweep comparability argument fully intact, which is the entire reason it was preferred.
+- **ROW 0k — fires only if ROW 0j fails: is the difference decode-invisible?** Decode all 120 WAVs
+  through the existing `AwgnFpReplayTests` seam. **PASS iff every slot's decode set is identical
+  across the pair** (count, message, freq, DT, reported SNR). ⇒ Option 2 lands, **with the byte
+  difference disclosed in the report and on the board** — never silently.
+- **ROW 0l — `truth.csv` consumers survive the empty `true_snr_db`.** Regenerate a truth.csv with
+  the key deleted; run `analyse.py` (and `render_report.py`) over an existing S5 matched CSV.
+  **PASS iff no exception is raised and no S5 figure changes.**
+- 🛑 **STOP branch, and it is a real one: if ROW 0k fails, do not chase bit-parity and do not tune
+  the renderer.** Revert the deletion, leave the four scenario files exactly as they are, and report
+  that the honest outcome is **record-correction-only** — which QA's §4 pass has already delivered
+  in full. A mislabelled key that is provably inert costs less than a re-baseline nobody asked for.
+  Escalate to the Architect; do not re-decide the option yourself.
+
+## A1.4 Record correction — one addition to what QA has already done
+
+QA's §4 corrections stand as made. Add one line, dated, to `STUDY-SPEC.md`'s R&R-009 correction
+paragraph: that the key was **deleted** on the PO's 2026-09-03 Option 2 ruling, with the ROW 0j/0k
+outcome stated as measured. The 37/15 event-count data stays untouched — the ban on rewriting
+historical sweep reports (§4 item 3) is unaffected by this ruling.
