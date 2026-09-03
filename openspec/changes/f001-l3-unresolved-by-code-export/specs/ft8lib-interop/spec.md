@@ -69,7 +69,7 @@ D4).
 
 #### Scenario: A NULL pointer argument, including out_of_range, is rejected
 
-- **WHEN** `ft8_get_h12_unresolved_by_code` is called with any of its three pointer arguments `NULL`
+- **WHEN** `ft8_get_h12_unresolved_by_code` is called with any of its two pointer arguments `NULL`
 - **THEN** the function SHALL return `-1` and SHALL NOT write to any output buffer
 
 #### Scenario: A successful call copies the full table and the shared violation count
