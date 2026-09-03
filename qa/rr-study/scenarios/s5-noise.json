@@ -19,13 +19,13 @@
       "part_index": 0,
       "noise_type": "awgn",
       "level_dbfs": -20,
-      "note": "White (AWGN) noise at a moderate level — channel.py add_noise with no signal."
+      "note": "White (AWGN) noise — channel.py add_noise with no signal. CORRECTED 2026-09-03 (S5-LEVEL, qa/rr-study/2026-09-02-2002-architect-to-qa-spec-s5-level-normalisation-scope-and-repair.md): the declared level_dbfs is NOT what run_scenario.py actually delivers for pure AWGN -- its peak-normalise-to-0.9 step cancels the amplitude term. Part 0 and part 1 render to the same actual RMS level (measured 0.37 dB apart, s5_level_scope.py ROW 0g) and are two replicates of one condition, not a level contrast. Do not read this field as controlling delivered level until/unless the harness repair (Option 1 in the spec) ships."
     },
     {
       "part_index": 1,
       "noise_type": "awgn",
       "level_dbfs": -10,
-      "note": "White (AWGN) noise at a higher level (hotter band)."
+      "note": "White (AWGN) noise. CORRECTED 2026-09-03 (S5-LEVEL) -- same correction as part 0's note: this is a replicate of part 0's delivered level, not a hotter one. See part 0's note for the measurement."
     },
     {
       "part_index": 2,

@@ -1,0 +1,37 @@
+S5-LEVEL ROW 0 -- mechanical scope checks
+Spec: qa/rr-study/2026-09-02-2002-architect-to-qa-spec-s5-level-normalisation-scope-and-repair.md
+
+=== ROW 0f: enumerate scenarios/*.json containing level_dbfs ===
+  s5-noise-diag40.json: values=[-20] distinct=[-20]
+  s5-noise-wide-n300.json: values=[-20] distinct=[-20]
+  s5-noise-wide.json: values=[-20] distinct=[-20]
+  s5-noise.json: values=[-20, -10, -20, -20] distinct=[-20, -10]
+ROW 0f: files_with_level_dbfs=4 (expect 4)  files_with_gt1_distinct_value=1 (expect 1)  PASS=True
+
+ROW 0f identifies the sole varying file: s5-noise.json
+
+=== ROW 0g: actual RMS dBFS per part, REAL run_scenario.py --dry-run --dump-wav-dir baseline render (peak-normalised) ===
+  part 0: n=30  mean_rms_dbfs=-20.87  min=-22.69  max=-20.26
+  part 1: n=30  mean_rms_dbfs=-21.24  min=-22.23  max=-20.49
+ROW 0g: per-part mean spread = 0.37 dB (threshold <= 2.0 dB)  PASS=True
+ROW 0g PASSED -> confirms the declared 10 dB step (part0 -20 dBFS / part1 -10 dBFS) is NOT what the normalised, actually-shipped render delivers: both land within 2 dB of each other.
+
+=== ROW 0h: actual RMS dBFS per part, level-preserving re-render (render_row0c_level_preserving.py, no peak-renormalise) ===
+  part 0 (declared -20 dBFS): n=30  mean_rms_dbfs=-26.18
+  part 1 (declared -10 dBFS): n=30  mean_rms_dbfs=-16.19
+ROW 0h: part1 - part0 = 9.99 dB (target 10.0 +/- 1.0 dB)  PASS=True
+ROW 0h PASSED -> the level-preserving path DOES deliver the declared 10 dB step; AWGN-FP ROW 0c's reading (rendered via this same path) stands as a genuine +/-10 dB level-dependence check.
+
+=== ROW 0i: grep run_scenario.py for the two normalisation call sites ===
+  '_finalize_playback_samples' occurs on lines: [609, 747, 751]
+  '_PLAYBACK_PEAK_LEVEL' occurs on lines: [30, 610, 621, 1158]
+ROW 0i: helper_present=True  helper_applies_constant=True  second_independent_call_site_applies_constant=True  PASS=True
+ROW 0i PASSED -> both the helper function and the main render loop apply the same _PLAYBACK_PEAK_LEVEL constant; offline (--dump-wav-dir) and live-playback renders normalise identically.
+
+=== SUMMARY ===
+ROW 0f (exactly 4 files, exactly 1 varying): PASS
+ROW 0g (normalised render cancels the step, spread <= 2 dB): PASS
+ROW 0h (level-preserving render restores 10 +/- 1 dB step): PASS
+ROW 0i (both normalisation call sites present and consistent): PASS
+
+ALL ROW 0 CHECKS: PASS

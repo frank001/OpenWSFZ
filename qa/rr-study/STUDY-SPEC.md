@@ -768,10 +768,30 @@ over-attributes decodes from other scenarios) across every historical S1–S8 ru
 
 | Part | Interference | Total FP events, all history |
 |---|---|---|
-| 0 — AWGN moderate (−20 dBFS) | white noise | 37 |
-| 1 — AWGN hot (−10 dBFS) | white noise | 15 |
+| 0 — AWGN (−20 dBFS declared) | white noise | 37 |
+| 1 — AWGN (−10 dBFS declared) | white noise | 15 |
 | 2 — steady carrier @ 1500 Hz | single CW tone | 1 |
 | 3 — multi-carrier birdies | six CW tones | 0 |
+
+🔴 **Correction, 2026-09-03 (`S5-LEVEL`, QA, mechanically re-verified — see
+`qa/rr-study/2026-09-02-2002-architect-to-qa-spec-s5-level-normalisation-scope-and-repair.md` and
+`qa/rr-study/s5_level_scope.py`):** parts 0 and 1 above were originally labelled "moderate" and
+"hot"/"hotter band," implying a delivered 10 dB level contrast. **They are not a level contrast.**
+`harness/run_scenario.py` peak-normalises every rendered slot to a fixed 0.9 peak
+(`_PLAYBACK_PEAK_LEVEL`) before either live playback or `--dump-wav-dir` output; for a pure-AWGN
+buffer this cancels the `level_dbfs` amplitude term algebraically. Measured directly on the real,
+unmodified scenario (`s5_level_scope.py` ROW 0g, 30 slots/part): part 0 mean −20.87 dBFS actual
+RMS, part 1 mean −21.24 dBFS actual RMS — a **0.37 dB** spread, not 10 dB. This has been true of
+every delivered S5 render since the scenario file's parts were authored (2026-06-20) — it is not a
+regression and not specific to any one historical run. **Parts 0 and 1 are two replicates of one
+condition**, not a level contrast; their separate row totals above (37 vs. 15 FP events) remain
+correct as *counts* and are retained unedited, but must not be read as evidence of level
+dependence. (A level-*preserving* re-render confirms the declared 10 dB step is deliverable when
+the normalisation step is skipped — `s5_level_scope.py` ROW 0h, 9.99 dB measured — so the defect
+is in the routine harness path only, not in the scenario's own numbers or the noise generator.)
+The §10 false-positive gate's arithmetic (`4/60`, `1/60`, `3.3%/N=120`, etc.) is **unaffected**:
+it counts AWGN slots (60 = 2 parts × 30 trials) delivered at one actual level, which is exactly
+what was measured either way.
 
 Parts 2/3 combined: 1 of 53 total events ever recorded, and no contribution to the only real
 regression this scenario has caught (the 2026-06-20 OSD FAIL, D-009 — driven entirely by parts
