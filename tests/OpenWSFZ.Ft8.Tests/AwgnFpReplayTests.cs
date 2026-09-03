@@ -253,6 +253,77 @@ public sealed class AwgnFpReplayTests
         slots.Should().OnlyContain(s => s.Decodes.Count >= 0);
     }
 
+    // ── ROW 0k (S5-LEVEL Amendment 1 A1.3) — fires only because ROW 0j (byte-identity,
+    //    computed offline by SHA256, not here) FAILED for S5 part 1: deleting `level_dbfs`
+    //    changes the pre-normalisation amplitude term from 10^(-10/20) to the harness default
+    //    10^(-20/20), and although peak-normalisation makes the two renders MATHEMATICALLY
+    //    identical, they are not BIT identical (max 1 LSB / 16-bit sample, 788 of 5,400,000
+    //    samples across the 30 part-1 pairs — measured directly on the WAVs before this Fact
+    //    was written). ROW 0k asks whether that 1-LSB difference is decode-invisible: PASS iff
+    //    every slot's decode set (count, message, freq, DT, reported SNR) is identical between
+    //    the pre-deletion baseline (row0b_baseline, level_dbfs present) and the post-deletion
+    //    render (row0j_after, level_dbfs deleted) for the same 60 (part, trial, seed) keys.
+    //    Non-assertive per this file's own convention (see the class doc comment) — a FAIL here
+    //    is the real STOP branch (spec A1.3: revert the deletion, record-correction-only), not a
+    //    test-infra defect, so it is reported, not asserted red.
+
+    [Fact(DisplayName = "ROW 0k: S5-LEVEL deletion decode sets identical before/after (fires because ROW 0j found a 1-LSB byte difference)")]
+    public void Row0k_S5LevelDeletion_DecodeSetsIdenticalBeforeAfter()
+    {
+        AssertBinaryPin();
+
+        string root = Path.Combine(FindRepoRoot(), "qa", "rr-study", "awgn-fp-replay");
+        string outDir = Path.Combine(root, "results");
+
+        var before = DecodeDirectory(Path.Combine(root, "_work", "row0b_baseline"), outDir, "row0k_before");
+        var after = DecodeDirectory(Path.Combine(root, "_work", "row0j_after"), outDir, "row0k_after");
+
+        before.Should().HaveCount(60);
+        after.Should().HaveCount(60);
+
+        var beforeByKey = before.ToDictionary(s => (s.Part, s.Trial, s.Seed));
+        var afterByKey = after.ToDictionary(s => (s.Part, s.Trial, s.Seed));
+
+        beforeByKey.Keys.Should().BeEquivalentTo(afterByKey.Keys,
+            "row0b_baseline and row0j_after must cover the identical 60 (part,trial,seed) keys");
+
+        int identicalSlots = 0;
+        var mismatches = new List<string>();
+        foreach (var key in beforeByKey.Keys)
+        {
+            var b = beforeByKey[key];
+            var a = afterByKey[key];
+
+            string DecodeSetOf(SlotResult s) => string.Join("|", s.Decodes
+                .OrderBy(d => d.FreqHz).ThenBy(d => d.Dt).ThenBy(d => d.Message, StringComparer.Ordinal)
+                .Select(d => $"{d.Message}/{d.FreqHz}/{d.Dt:0.###}/{d.ReportedSnrDb}"));
+
+            string bSet = DecodeSetOf(b);
+            string aSet = DecodeSetOf(a);
+            if (bSet == aSet)
+            {
+                identicalSlots++;
+            }
+            else
+            {
+                mismatches.Add($"(part={key.Part},trial={key.Trial},seed={key.Seed}): before=[{bSet}] after=[{aSet}]");
+            }
+        }
+
+        bool row0kPasses = identicalSlots == 60;
+        _out.WriteLine($"ROW 0k: slots=60  identical_decode_sets={identicalSlots}  PASS={row0kPasses}");
+        foreach (var m in mismatches) _out.WriteLine($"ROW 0k mismatch: {m}");
+        WriteVerdictLine(outDir, "row0k_s5_level_deletion",
+            $"slots=60 identical_decode_sets={identicalSlots} PASS={row0kPasses}" +
+            (mismatches.Count > 0 ? " mismatches=" + string.Join(";", mismatches) : ""));
+
+        // Non-assertive by design (see class doc comment and this Fact's own header): ROW 0k's
+        // FAIL branch is a real STOP requiring an Architect/QA decision (spec A1.3), not a broken
+        // test. The verdict is computed and written for the report to quote verbatim.
+        before.Should().OnlyContain(s => s.Decodes.Count >= 0);
+        after.Should().OnlyContain(s => s.Decodes.Count >= 0);
+    }
+
     // ── M1/M2/M4 — full-scale S5 AWGN population, N=2000/part ─────────────────────────
     //
     // Population rendered offline via harness/run_scenario.py --dry-run --dump-wav-dir against

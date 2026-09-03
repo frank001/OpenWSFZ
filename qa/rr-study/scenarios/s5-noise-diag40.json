@@ -15,8 +15,7 @@
     {
       "part_index": 0,
       "noise_type": "awgn",
-      "level_dbfs": -20,
-      "note": "Wideband AWGN. level_dbfs is statistically inert for pure AWGN — peak-normalisation cancels amplitude."
+      "note": "Wideband AWGN. `level_dbfs` DELETED 2026-09-03 (S5-LEVEL, PO ruling Option 2, Amendment 1) — it was statistically inert for pure AWGN anyway (peak-normalisation cancels amplitude); this file's uniform single declared value cancelled identically with the harness default, so the deletion changes no delivered audio (byte-identical by construction)."
     }
   ],
 

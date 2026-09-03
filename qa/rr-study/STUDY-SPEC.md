@@ -793,6 +793,20 @@ The §10 false-positive gate's arithmetic (`4/60`, `1/60`, `3.3%/N=120`, etc.) i
 it counts AWGN slots (60 = 2 parts × 30 trials) delivered at one actual level, which is exactly
 what was measured either way.
 
+🔴 **`level_dbfs` DELETED, 2026-09-03 (PO ruling, Option 2, `S5-LEVEL` spec Amendment 1):** the key
+above was removed from all four `level_dbfs`-bearing scenario files (`s5-noise.json` and its three
+uniform-`-20` siblings) — S5 is now declared single-level, matching what was already being
+delivered. Pre-registered checks on the deletion itself (Amendment 1 A1.3, `s5_level_deletion_
+verify.py`): **ROW 0j** (byte-identity) found parts 0/1 are NOT bit-identical before/after — part 0
+is (default `-20` = previously-declared `-20`), part 1 is not (default `-20` vs previously-declared
+`-10`, a different pre-normalisation amplitude that peak-normalisation makes mathematically but not
+bit-identical; measured max **1 LSB**, 788 of 5,400,000 samples across the 30 part-1 pairs). **ROW
+0k** (decode-invisibility, `tests/OpenWSFZ.Ft8.Tests/AwgnFpReplayTests.cs`) then PASSED — all 60
+slots' decode sets (count, message, freq, DT, reported SNR) are identical — so Option 2 lands as
+specified, **disclosed rather than silent**. **ROW 0l** confirmed `harness/analyse.py` and
+`render_report.py` are inert to the resulting empty `true_snr_db` column for S5 (identical exit
+codes, byte-identical stdout and `report.md`, before vs. after).
+
 Parts 2/3 combined: 1 of 53 total events ever recorded, and no contribution to the only real
 regression this scenario has caught (the 2026-06-20 OSD FAIL, D-009 — driven entirely by parts
 0/1, 11 of 12 failing slots). WSJT-X has never registered an S5 false positive on any part, in

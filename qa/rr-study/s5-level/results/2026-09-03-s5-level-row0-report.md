@@ -109,3 +109,96 @@ AWGN buffers only; no decode, no message text, no `*_matched.csv`-style output w
 read. Scanned by inspection (all three files) rather than the project's `nfr021_pre_merge_scan.py`
 CALL_RE, since there is no callsign-shaped surface here to miss — confirmed by reading, not
 assumed.
+
+---
+
+## 7. AMENDMENT 1 EXECUTION — 2026-09-03 ~16:40Z (QA) — Option 2 deletion + ROW 0j/0k/0l
+
+**PO ruled Option 2** (delete `level_dbfs`, S5 single-level) on §5's recommendation plus the
+Architect's concurring one. This section extends the report (project convention: extend, never
+overwrite) with the deletion's own execution and the three pre-registered checks the amendment
+requires before trusting it (spec Amendment 1 A1.3). Script:
+`qa/rr-study/s5_level_deletion_verify.py` (HK-021(r)), raw output:
+`qa/rr-study/s5_level_deletion_verify_results.txt`. ROW 0k's decode comparison is a new xunit Fact,
+`Row0k_S5LevelDeletion_DecodeSetsIdenticalBeforeAfter` in
+`tests/OpenWSFZ.Ft8.Tests/AwgnFpReplayTests.cs` (HK-015: the decode seam is `internal`, only
+reachable from a test assembly — same reasoning as every other `AWGN-FP` decode check). Zero
+`src/`/`native/` diff (`git diff --stat -- src/ native/` empty, re-verified after every edit in
+this section).
+
+### 7.1 What was deleted, and what stayed
+
+`level_dbfs` removed from all four scenario files it appeared in (`s5-noise.json`,
+`s5-noise-wide.json`, `s5-noise-wide-n300.json`, `s5-noise-diag40.json`) — the parts' `note` fields
+updated in place to record the deletion, dated. Per spec A1.2, `qa/rr-study/awgn-fp-replay/
+scenarios/` (`s5-noise-row0c-minus10.json`, `-plus10.json`, `s5-noise-m1m4.json`) was **not**
+touched — confirmed by grep, the key is still present there, functionally (the ROW 0c ±10 dB legs
+depend on it) or as a pinned, dated artefact of the completed M1–M4 arm.
+
+### 7.2 ROW 0j — byte-identity — **FAIL** (part 1 only, 1 LSB max)
+
+Rendered S5 parts 0/1 for the same 60 in-chain seeds through the real, unmodified
+`--dry-run --dump-wav-dir` path after the deletion (`awgn-fp-replay/_work/row0j_after/`), SHA256'd
+against the pre-existing pre-deletion population (`_work/row0b_baseline/`, the `AWGN-FP` arm's own
+ROW 0b anchor render — reused, not re-rendered, so ROW 0j introduces no second render of the
+"before" state).
+
+| Part | Declared before | Default after deletion | Pairs identical |
+|---|---|---|---|
+| 0 | −20 dBFS | −20 dBFS (same) | **30/30** |
+| 1 | −10 dBFS | −20 dBFS (default) | **0/30** |
+
+**60/60 required for PASS; got 30/60 → ROW 0j FAILS.** Not a surprise — spec A1.1 point 2 flagged
+this exact risk ("two different float multiplies followed by a division are not guaranteed
+bit-identical"). Measured directly on the WAV samples (int16 PCM): **max absolute difference 1
+LSB**, affecting **788 of 5,400,000 samples** (0.0146%) across the 30 mismatched part-1 pairs —
+floating-point rounding noise from peak-normalisation dividing by a different pre-normalisation
+amplitude, not a mechanism failure. Per spec A1.3, ROW 0j's FAIL routes to ROW 0k.
+
+### 7.3 ROW 0k — decode-invisibility — **PASS**
+
+Decoded both 60-slot populations (`row0b_baseline` before, `row0j_after` after) through the
+existing `AwgnFpReplayTests` seam and compared, per slot, the full decode set (count, message,
+freq, DT, reported SNR).
+
+**60/60 slots identical → ROW 0k PASSES.** The 1-LSB difference does not move the decoder's output
+at all, on any of the 60 slots. Per spec A1.3: **"Option 2 lands, with the byte difference
+disclosed in the report and on the board — never silently."** This section is that disclosure. The
+STOP branch (revert, record-correction-only) is **not** taken.
+
+NFR-021: the two decode CSVs this Fact produced (`row0k_before_decodes.csv`,
+`row0k_after_decodes.csv`) carry the same class of noise-hallucinated callsign-shaped message text
+as every other `AWGN-FP` decode CSV. Redacted before commit: `redact_row0k_decodes.py` (same
+method as `redact_m1_m4_decodes.py` — imports the project's own scanner, HK-022, guards every
+flagged token against both renders' `truth.csv` `message_text` columns first — 0 of 6 flagged
+tokens found in truth, S5 being signal-free the guard set is 0 messages anyway), byte-level
+UTF-8-BOM/CRLF-preserving rewrite (9 CRLF before/after, both files), re-scanned to 0. Map:
+`REDACTION-MAP-ROW0K.md` (`K`-infix placeholders, distinct from ROW 0's `<RDCTnn>` and M1–M4's
+`<RDCTMnn>`).
+
+### 7.4 ROW 0l — `truth.csv` consumers survive the empty `true_snr_db` — **PASS**
+
+Copied the historical `2026-09-02-3b52608` sweep's CSVs into a gitignored scratch directory (under
+`awgn-fp-replay/_work/`, removed again at the end of the run — never left on disk, never
+committed), ran `harness/analyse.py --run-dir` once unmodified (baseline), then blanked
+`true_snr_db` on every S5 row of both `S5_matched.csv` (1,030 rows) and `truth.csv` (60 rows) —
+exactly what `run_scenario.py:1113`'s new default (`part.get("level_dbfs", "")` → `""`) produces —
+and ran `analyse.py` again.
+
+**Both runs exit 0. `stdout` and `report.md` are byte-identical before vs. after** (Python
+`==` comparison on the full text, not a diff-count heuristic). `render_report.py` also exits 0 on
+the resulting `report.md`. Confirms directly — not merely by code-reading the `pd.to_numeric(...,
+errors="coerce")` coercions spec A1.1 point 3 cites — that no S5 figure (FP event rate, decode
+rate, 95% UB, κ) changes: **WSJT-X 0/60 (UB 4.87%), OpenWSFZ 4/60 (event rate 6.67%, UB 14.61%)**,
+identical in both runs.
+
+### 7.5 Verdict
+
+**All three A1.3 checks resolved: ROW 0j FAIL (disclosed, 1 LSB, part 1 only) → ROW 0k PASS
+(decode-invisible) → Option 2 EXECUTED, not reverted.** ROW 0l PASS confirms the empty
+`true_snr_db` column is inert downstream. `STUDY-SPEC.md`'s R&R-009 correction paragraph carries
+the required dated addition (spec A1.4) recording the deletion and this section's outcome.
+
+**Nothing in §1–§5 above is disturbed by this section** — the ROW 0 scope checks were run before
+the deletion, against the then-current (level_dbfs-bearing) scenario files, and remain a correct
+record of what those files looked like at that time.
