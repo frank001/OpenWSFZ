@@ -8,10 +8,22 @@ approved work — only the **Captain** opens a Developer session against it. The
 Captain reviews the `src/`/`native/` diff before any push or merge (HK-010/HK-014). QA does not
 declare "ready for merge."
 
-🔴 **§0 below is a BLOCKING precondition, not background reading.** QA found a numeric
-inconsistency in the PO's own ruling while preparing this handoff. **Do not start §2 until it is
-resolved** — implementing the literal wording as written would build an export whose new counters
-are mathematically guaranteed to always read zero (see §0.2), which would fail the dev-task's own
+✅ **§0 RESOLVED, 2026-09-03 16:16Z — no longer blocking.** The PO ruled (Architect review of QA's
+reports, re-verified from source): the gate is **`tls_h12_lookup_performed && !tls_h12_resolved`**
+— §0.3/§0.4's mechanically-consistent reading, i.e. **build the FIRST §2.2 variant** (the one at
+§2.2's top, gated on `tls_h12_lookup_performed && !tls_h12_resolved`). The literal
+`tls_h12_multiplicity == 1` wording was the **Architect's own drafting slip** in spec §6's
+parenthetical, not a considered PO choice of the (provably empty, per §0.2) alternative population
+— it is withdrawn. **Do not build the second §2.2 variant** (the `&& tls_h12_multiplicity == 1`
+one) at all; §0.4's "confirm before building" condition is now satisfied in favour of the first.
+Full ruling: `qa/rr-study/2026-09-02-1631-architect-to-qa-spec-f001-l3-own-hash-compare-sizing.md`
+Amendment 1; board entry 2026-09-03 16:16Z, "RULING 2." **The rest of §0 below is kept verbatim as
+the record of why the question was raised and how it was resolved — do not delete it.**
+
+🔴 **§0 below was a BLOCKING precondition, not background reading, before the ruling above
+landed.** QA found a numeric inconsistency in the PO's own ruling while preparing this handoff.
+Implementing the literal wording as written would have built an export whose new counters are
+mathematically guaranteed to always read zero (see §0.2), which would fail the dev-task's own
 ROW 0g floor and waste a full rebuild-and-verify cycle for nothing.
 
 **Behaviour change: NONE INTENDED to any existing production path.** The new export is
@@ -91,16 +103,16 @@ and ungated non-zero, which item 3 flags as **the exact unwired-gate failure it 
 under `!tls_h12_resolved`, gated = ungated minus the ~847 `s17m` suppressed lookups, matching
 item 3's own worked expectation.
 
-### 0.4 What QA is doing about it, and what the Developer should do
+### 0.4 What QA did about it, and what the Developer should do — ✅ RESOLVED, see the top of §0
 
-**QA is not unilaterally overriding a PO ruling.** This document is being handed to the Captain
+**QA did not unilaterally override the PO ruling.** This document was handed to the Captain
 alongside a flag to re-confirm with the Architect/PO: *"exclude the suppressed subset" implemented
 as `tls_h12_lookup_performed && !tls_h12_resolved` (⇔ `tls_h12_multiplicity == 0` given the
 current shim) — confirm this is the intended population, since the literal `== 1` wording counts
-nothing.* §2 below specs the export **both ways**, clearly labelled, so the Developer can build
-the confirmed one without a second round-trip once the Captain has an answer. **Do not build
-before that confirmation lands** — building the literal `== 1` version would pass every mechanical
-check in this document and still be a wasted rebuild, per §0.2.
+nothing.* **That confirmation has now landed** (top of §0): build `tls_h12_lookup_performed &&
+!tls_h12_resolved`, the **first** §2.2 variant. §2 below still specs the export **both ways**,
+clearly labelled, kept for provenance — the Developer builds only the first variant; do not build
+the second (`&& tls_h12_multiplicity == 1`) one.
 
 ---
 
@@ -133,7 +145,7 @@ static int g_h12_unresolved_by_code[H12_CODE_SPACE];   /* new */
 ends at `:1667`, same `if (tls_h12_lookup_performed...)` guard family, same scope, same "count
 DISPLAYS not decode attempts" discipline as the TRAP-3 comment at `:1648` already documents)
 
-**Pending §0.4's confirmation, build this branch** (the mechanically-consistent reading):
+**✅ CONFIRMED (§0 top) — build this branch** (the mechanically-consistent reading):
 
 ```c
 } else if (tls_h12_lookup_performed && !tls_h12_resolved) {
@@ -149,13 +161,10 @@ DISPLAYS not decode attempts" discipline as the TRAP-3 comment at `:1648` alread
 }
 ```
 
-**If the Captain/Architect instead confirms the literal `tls_h12_multiplicity == 1` wording as
-deliberate** (i.e. they want a population that is currently empty, perhaps as a forward-looking
-hook for a future change to how multiplicity is computed on the not-found branch): add
-`&& tls_h12_multiplicity == 1` to the `else if` condition above, and flag in the PR description
-that ROW 0g (`U_total < 500` ⇒ STOP) is then **expected** to fire on every existing corpus — that
-STOP is a correct, complete, publishable result under spec §5's own ROW 0 convention, not a defect
-in this branch's implementation.
+**NOT to be built — kept for provenance only.** The literal `tls_h12_multiplicity == 1` wording
+was the Architect's own drafting slip (§0, top), not a considered choice of the alternative,
+currently-empty population — the variant below (adding `&& tls_h12_multiplicity == 1` to the
+`else if` condition above) is **withdrawn** and must not be implemented.
 
 ### 2.3 New getter (`ft8_shim.c`, immediately after `ft8_get_h12_by_code`, `:1252`)
 
@@ -240,9 +249,9 @@ but a Developer-side failure caught here is much cheaper than one caught downstr
 
 ## 3. Acceptance criteria (what QA checks on review)
 
-- §0's confirmation obtained and recorded in the PR description **before** any code was written
-  (mechanically checkable: the commit message or PR description names which of the two §2.2
-  variants was built and why).
+- §0's confirmation (recorded at the top of §0 in this document, 2026-09-03) is cited in the PR
+  description, naming the built variant (the first §2.2 variant, `tls_h12_lookup_performed &&
+  !tls_h12_resolved`) and confirming the second variant was not built.
 - `ft8_get_h12_unresolved_by_code` exists, matches `ft8_get_h12_by_code`'s signature/NULL/capacity
   contract exactly, is declared in `ft8_shim.h` alongside its sibling.
 - The new emission-site branch is the **complement** of the existing `if` at `:1650` by
