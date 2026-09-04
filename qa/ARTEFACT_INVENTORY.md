@@ -11,7 +11,7 @@ Every column except **notes** is measured from disk on each run and
 cannot go stale silently. **notes** is interpretive and hand-written --
 treat it as a claim to verify, not a fact.
 
-Scanned: 2026-09-04 15:07 UTC | 38 runs | 139,105 total WAVs
+Scanned: 2026-09-04 19:53 UTC | 38 runs | 139,105 total WAVs
 
 | run | UTC span | legs (distinct cycles) | WAVs | notes *(interpretive)* |
 |---|---|---|---|---|
@@ -99,3 +99,35 @@ other side to have silently duplicated.
 | `20260809_live_run_0155-8080-80m` <-> `20260809_live_run_0155-8081-80m` | clean | clean |
 
 Runs with only ONE side gathering a `wsjt-x` leg (checked by hand, 2026-08-10: the `20260728_live_run_2354` and `20260729_live_run_1831` -8080/-8081 pairs) are excluded above by construction -- they are not at risk of this defect and do not need the deeper instance-identity check.
+
+## Rendered corpora (`qa/rr-study/**/_work/`) -- second root, ACTION B (2026-09-04)
+
+**Rendered corpora, not captured runs.** Everything above this section is scanned
+from `artefacts/`; this section is a SEPARATE root, `qa/rr-study/**/_work/`, and
+`artefacts/` has **zero visibility into it** -- its response is FLAT here (HK-026).
+A 1.4 GB corpus (`m1m4_s5`) sat invisible to `--check` for two days because of this
+gap (2026-09-04 15:07Z ruling). Read this section too before concluding a rendered
+corpus doesn't exist, and before proposing any render/replay run.
+
+These are synthetic WAVs a harness wrote for an offline replay arm -- **there is no
+ALL.TXT, no live decoder leg, and no UTC span column: it would be meaningless** (a
+WAV's mtime here is render time, not capture time). WAV counts only, via the same
+`os.walk` name check `count_wavs` uses elsewhere in this file -- **no per-file
+`stat`, no inode/hardlink check** on this root. Hardlink detection does not apply:
+unlike `artefacts/`, these corpora are independently rendered per arm rather than
+gathered from one shared physical instrument, so cross-corpus sharing is not the
+failure mode this root exists to catch. A subdirectory with zero WAVs (e.g. a
+`*_truth/` companion holding only `truth.csv`) is not a WAV corpus and is omitted.
+
+| `_work` dir | subdir | WAVs |
+|---|---|---|
+| `qa/rr-study/awgn-fp-replay/_work` | `m1m4_s5` | 4,000 |
+| `qa/rr-study/awgn-fp-replay/_work` | `m3_s1` | 2,300 |
+| `qa/rr-study/awgn-fp-replay/_work` | `row0b_baseline` | 60 |
+| `qa/rr-study/awgn-fp-replay/_work` | `row0c_lp_baseline` | 60 |
+| `qa/rr-study/awgn-fp-replay/_work` | `row0c_lp_minus10` | 60 |
+| `qa/rr-study/awgn-fp-replay/_work` | `row0c_lp_plus10` | 60 |
+| `qa/rr-study/awgn-fp-replay/_work` | `row0c_minus10` | 60 |
+| `qa/rr-study/awgn-fp-replay/_work` | `row0c_plus10` | 60 |
+| `qa/rr-study/awgn-fp-replay/_work` | `row0d_s1_complement` | 250 |
+| `qa/rr-study/awgn-fp-replay/_work` | `row0j_after` | 60 |
