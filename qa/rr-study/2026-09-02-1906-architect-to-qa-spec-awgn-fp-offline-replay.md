@@ -440,6 +440,30 @@ construction**, and `AssertBinaryPin()` gates every other row in the class ⇒ *
 instrument precondition was sited in the always-run xunit suite.** Any legitimate shim bump reds
 `main`. It will fire again on the already-queued `20260051`/`20260052` renumber.
 
+### A3.0.1 🔴 AND IT IS WORSE THAN THE PIN — found 2026-09-04 while checking whether `main` could be pushed
+
+`AwgnFpReplayTests.cs` was added in **`84d69e9`, which is inside the never-pushed range** ⇒ **CI has
+never run this class once.** Checked, not assumed:
+
+1. **CI runs `dotnet test -c Release --no-build` UNFILTERED** (`.github/workflows/ci.yml:325`, gate
+   G1) on **all three** matrix legs.
+2. **Every corpus-dependent fact asserts the corpus exists rather than skipping** —
+   `AwgnFpReplayTests.cs:459`, `Directory.Exists(wavDir).Should().BeTrue(...)` — against
+   `qa/rr-study/awgn-fp-replay/_work/…`, which is **`.gitignore:222` with ZERO tracked files**
+   (`git ls-files` = 0). **A CI runner can never hold that corpus.**
+
+⇒ **The class is structurally incompatible with CI by construction.** It is a *local measurement
+harness* that happens to be written as xunit facts against untracked artefacts. **It would have
+red-lined G1 on the next push with or without a shim bump.** A3.1's filter is therefore not merely
+convenient — **it is the only thing that makes this range pushable at all**, and it must land
+**before** `main` is pushed, not after.
+
+✅ **Two things checked and cleared, recorded so they are not re-flagged as defects:** ROW 0a is
+**not** Windows-only — `OpenWSFZ.Ft8.csproj:23-25` copies all three natives to the output directory
+on every platform, so the file hash is platform-independent. And the stale `osx-arm64` dylib does
+**not** block: CI's *"Check committed macOS dylib is current"* step is `continue-on-error: true`
+(`ci.yml:74`), and the `macos-latest` leg rebuilds it — the standing note holds.
+
 ## A3.1 RULING 1 (PO, 2026-09-04) — the pin moves behind its trait. It does NOT get re-pinned.
 
 🛑 **Do NOT change `PinnedShaWinX64`'s value.** `ce02c7ba…153e` is the `20260049` identity and it
