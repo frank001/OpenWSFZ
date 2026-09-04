@@ -1,0 +1,50 @@
+AWGN-FP A3.2 -- ROW 0r: M1 S5 decode-set carry-forward, 20260049 -> 20260050
+Spec: qa/rr-study/2026-09-02-1906-architect-to-qa-spec-awgn-fp-offline-replay.md Amendment 3 A3.2
+
+Step 1: extracting src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll from commit 3b52608
+Step 2: actual SHA256  = ce02c7ba10e216349c3cc6d2460a6106379a4593bb730c807dbe8128ecca153e
+        pinned SHA256  = ce02c7ba10e216349c3cc6d2460a6106379a4593bb730c807dbe8128ecca153e
+MATCH -- the 20260049 pin is confirmed as a real, hash-verified artefact.
+
+git diff --stat 4a7fb3d HEAD -- <before CSVs>: EMPTY (untouched)
+
+Step 3: population -- before=4000 slots, after=4000 slots
+
+=== ROW 0r RESULT ===
+Slots compared: 4000
+Slots with a differing decode set: 246
+ROW 0r FIRES (any slot's decode set differs) = True
+
+FIRST 10 DIFFERING SLOTS (scenario,part,trial,seed):
+  ('S5', 0, 2, 892021093):
+    before(20260049): [('<...> 57OFC6KE94R RR73', 900, 3.12, -27), ('<...> <RDCTM628> DP87', 2819, -1.28, -27)]
+    after (20260050): [('<...> 57OFC6KE94R RR73', 900, 3.12, -27), ('<...> <RDCTR280> DP87', 2819, -1.28, -27)]
+  ('S5', 0, 5, 434100809):
+    before(20260049): [('O39 VB <RDCTM800>/P R QL84', 716, -0.88, -26)]
+    after (20260050): [('O39 VB <RDCTR356>/P R QL84', 716, -0.88, -26)]
+  ('S5', 0, 74, 147673637):
+    before(20260049): [('<RDCTM308> <RDCTM99> R CB44', 1081, 2.64, -27)]
+    after (20260050): [('<RDCTR147> <RDCTR46> R CB44', 1081, 2.64, -27)]
+  ('S5', 0, 77, 189845876):
+    before(20260049): [('<RDCTM105> D31GBJ/R JC64', 2606, 2.88, -27)]
+    after (20260050): [('<RDCTR48> D31GBJ/R JC64', 2606, 2.88, -27)]
+  ('S5', 0, 88, 24036291):
+    before(20260049): [('<RDCTM744>/P <RDCTM30>/P R LJ68', 881, -0.96, -26)]
+    after (20260050): [('<RDCTR328>/P <RDCTR13>/P R LJ68', 881, -0.96, -26)]
+  ('S5', 0, 98, 1270057056):
+    before(20260049): [('/<RDCTM139> /D 6W4 <...> 73', 1634, -1.2, -27)]
+    after (20260050): [('/<RDCTR67> /D 6W4 <...> 73', 1634, -1.2, -27)]
+  ('S5', 0, 108, 211075191):
+    before(20260049): [('<RDCTM24> 431 KL/R RH04', 2075, -1.6, -26)]
+    after (20260050): [('<RDCTR10> 431 KL/R RH04', 2075, -1.6, -26)]
+  ('S5', 0, 122, 503525738):
+    before(20260049): [('<RDCTM27> <RDCTM189> JQ32', 1022, -1.12, -27)]
+    after (20260050): [('<RDCTR12> <RDCTR95> JQ32', 1022, -1.12, -27)]
+  ('S5', 0, 143, 604425247):
+    before(20260049): [('<RDCTM657> W H63PYF R QN33', 1016, -0.72, -27)]
+    after (20260050): [('<RDCTR292> W H63PYF R QN33', 1016, -0.72, -27)]
+  ('S5', 0, 163, 90738479):
+    before(20260049): [('772PJM <RDCTM315> BC90', 2719, -1.12, -28), ('CQ 21FT75YPZB7', 2231, 3.04, -26)]
+    after (20260050): [('772PJM <RDCTR151> BC90', 2719, -1.12, -28), ('CQ 21FT75YPZB7', 2231, 3.04, -26)]
+
+ROW 0r FIRES -> M1-M4, ROW 0q and ROW 0m are VOID on 20260050 and must be re-run before P3 proceeds. Per A3.2: do NOT investigate why they differ here -- that is a new pre-registration, not a patch to this one.
