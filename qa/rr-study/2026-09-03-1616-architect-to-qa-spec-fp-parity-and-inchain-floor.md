@@ -461,3 +461,63 @@ must not be run as a formality** when P3 closes.
 **Reporting obligation added to A1.3's existing list, for whoever writes the ROW 2/ROW 3 verdict:**
 alongside the lowest-5 table, state **the binary each of those decodes was recorded on**, and quote
 the four-sweep leave-one-out `F` next to the five-sweep `F`.
+
+## A2.4 🔴 CORRECTION to A2.1/A2.2, same day — `3.333%` is a **post-regression** figure, and I used it as if it were a baseline
+
+**Architect, 2026-09-04 14:32Z** (`date -u`, HK-017). PO-corrected. **This does not withdraw A2.1 or
+A2.2** — ROW 0m is still not void, and the `≤20260049` label still stands. It adds the second label
+they should have carried from the start.
+
+**What happened.** Hours after ratifying `12/360 = 3.333%`, I used it to argue that the
+2026-09-03 sweep's `2/60 = 3.33%` was *"dead on expectation ⇒ no FP regression."* That argument is
+circular. **`12/360` is pooled over `7d36038` (2026-08-21) → `3b52608` (2026-09-02) — entirely
+inside the regressed window.** A sweep agreeing with it is not evidence that nothing changed; it is
+evidence the elevated rate is now **stable**.
+
+The regression is real. From Section 6 of the sweep report, ratified-gate era at N≥60:
+**2026-08-05→08-21 = 2/360 (0.556%)** vs **2026-08-22→09-03 = 13/480 (2.708%)** — **4.88×, Fisher
+one-sided p = 0.0154** — with WSJT-X at **0/840** on the identical slots (p = 2.9×10⁻⁵). New arm:
+`2026-09-04-1432-architect-to-qa-spec-fp-regression-bisect.md`. New standing rule: **HK-031**.
+
+🛑 **The comparator now carries TWO labels, and both are mandatory:**
+
+> **`12/360 = 3.333%` [1.934%, 5.345%] — in-chain, `≤20260049`, POST-REGRESSION.**
+
+- ✅ **Valid for** what this arm uses it for: the offline-vs-in-chain **instrument parity** contrast
+  (`10.875 / 3.333 ≈ 3.26×`). Both sides are measured in the same era, so the ratio is unaffected.
+- 🛑 **Never valid** as the answer to *"is today's rate normal?"*, or as the baseline in any
+  regression, trend, or acceptance argument. For that, the pre-regression figure is
+  **2/360 = 0.556%**, and `FP-REGRESSION` owns it.
+
+**Generalised, because this is the reusable part** (HK-031):
+
+> **Before citing any pooled comparator as "expected", check the date span it was pooled over against
+> the date span of the effect being tested. If they overlap, the comparator is describing the effect,
+> not bounding it.**
+
+## A2.5 ROW 0p is re-pinned to `20260050` — the pin moved legitimately, the row did not weaken
+
+**ROW 0p currently fires by construction and P3 cannot run.** It asserts *"binary SHA256 equal to the
+pinned `ce02c7ba…153e`"* — the `20260049` identity. The tracked
+`src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll` now hashes to **`6b2e16a6…de34f85c`**. Verified by direct
+computation today, not assumed.
+
+That is not an instrument fault: the shim bumped legitimately at `ac6150d`, and `AWGN-FP` A3.2's ROW
+0r was the gate that decided whether the landed rows carry forward. **ROW 0r has now run and fired,
+message-text-only, with 0/435 slots differing in decode count, `freq_hz`, `dt_s` or
+`reported_snr_db`.**
+
+**RULING — ROW 0p's pin becomes `6b2e16a6…de34f85c` (`20260050`), and its assertion is otherwise
+unchanged** (180,000 samples, no resample, no DC removal, AP bits cleared, one `DecodeAll` per slot).
+
+🔴 **Two things this ruling does NOT do:**
+
+1. It does **not** re-baseline M1–M4. Those rows were measured on `20260049` and stay attributed to
+   it. ROW 0p asserts *the instrument in use is the one this run's rows are attributed to* — after
+   this re-pin, a P3 row is attributed to `20260050`, and **must say so in its report**.
+2. It does **not** dissolve ROW 0p into a formality. **The row still fires, and still means STOP,**
+   if the binary in use is neither pin. Per A3.3 it will re-fire on the queued `20260051`/`20260052`
+   renumber, and it should.
+
+⚠️ **A3.1's reporting mandate applies to every P3 report**: quote the exact `--filter` line **and**
+ROW 0a's printed actual/pinned SHA pair. A filtered-out suite is silent, not green.
