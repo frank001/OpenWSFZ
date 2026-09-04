@@ -790,8 +790,27 @@ dependence. (A level-*preserving* re-render confirms the declared 10 dB step is 
 the normalisation step is skipped — `s5_level_scope.py` ROW 0h, 9.99 dB measured — so the defect
 is in the routine harness path only, not in the scenario's own numbers or the noise generator.)
 The §10 false-positive gate's arithmetic (`4/60`, `1/60`, `3.3%/N=120`, etc.) is **unaffected**:
-it counts AWGN slots (60 = 2 parts × 30 trials) delivered at one actual level, which is exactly
-what was measured either way.
+every FP event it has ever counted arose on an AWGN slot delivered at one actual level, which is
+exactly what was measured either way.
+
+🔴 **SCOPING CORRECTION, 2026-09-04 (Architect; PO-ratified).** The parenthetical previously here —
+*"(60 = 2 parts × 30 trials)"* — described the **post-R&R-009 default battery only**, but read as
+though the gate's denominator were **always** 60. It is not, and taking it at face value **falsely
+refutes the composition finding** of the 2026-09-04 18:11Z ruling. The denominator is:
+
+| Era | Default battery | §10 denominator | AWGN slots within it |
+|---|---|---|---|
+| Before `58bc7ac` (R&R-009, effective from the 2026-08-27 sweep) | all four parts | **N = 120** | 60 |
+| From `58bc7ac` onward | parts 0,1 only | **N = 60** | 60 |
+
+⇒ **the numerator is AWGN-only in both eras, but the denominator is not.** Pre-R&R-009 runs gated on
+120 slots of which 60 were carrier/birdie — **denominator with no numerator** (parts 2/3 produced
+1 of 53 all-time FP events; `FP-COMPOSITION` 2026-09-04 measured 15/15 of the recent events in parts
+0/1, **zero** in parts 2/3). The identical FP propensity therefore reads **~2× higher** at N=60, so
+**a cross-era rate comparison must be normalised per AWGN slot before it means anything** — the
+run reports' own gate lines are the authority for which era a sweep belongs to, never this section
+and never Section 6's `S5 FP` column (which mixes rates and 95% UBs). See **HK-031** as extended
+2026-09-04: *a denominator change is a redesign even when the metric's name does not change.*
 
 🔴 **`level_dbfs` DELETED, 2026-09-03 (PO ruling, Option 2, `S5-LEVEL` spec Amendment 1):** the key
 above was removed from all four `level_dbfs`-bearing scenario files (`s5-noise.json` and its three
