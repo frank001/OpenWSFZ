@@ -265,3 +265,88 @@ the level does not matter, so I expect parity to change little. P(ROW 0o fires) 
 P(ROW 0q non-unanimous) ≈ **0.10**. P(ROW 2) ≈ **0.40** / P(ROW 3) ≈ **0.60** — I expect S1b to
 produce truth-matching decodes near its −24 dB rung, which would put `F` close enough to `C` that
 the 6 dB margin fails. **If ROW 3 fires, that is the arm working, not the route failing.**
+
+---
+
+# AMENDMENT 1 — 2026-09-04: ROW 1's population is located, named and frozen; and ROW 2/3 is a knife edge
+
+Occasioned by the PO's 2026-09-03 S1–S8 sweep (`1241679`, `results/2026-09-03-35378b9/`), read
+2026-09-04. **No row is re-drafted. Nothing is softened. Two things are fixed in place and one thing
+is disclosed before the reading.**
+
+## A1.1 The "S1b sweep not yet located" blocker is discharged — the data was never missing
+
+§4 ROW 1 reads *"over every post-`c3a9ea8` sweep on disk, on the S1b population"*. That set is now
+enumerated, **verified present, and FROZEN as pre-registration** so it cannot be reselected after the
+reading:
+
+| Sweep dir | S1b truth rows | `owsfz-all.txt` | `truth.csv` |
+|---|---|---|---|
+| `results/2026-08-27-22b749c` | 12 | ✅ | ✅ |
+| `results/2026-08-29-872ba65` | 12 | ✅ | ✅ |
+| `results/2026-08-30-2e60949` | 12 | ✅ | ✅ |
+| `results/2026-09-02-3b52608` | 12 | ✅ | ✅ |
+| `results/2026-09-03-35378b9` | 12 | ✅ | ✅ |
+
+**5 sweeps × 12 = 60 S1b slots.** All five verified on disk 2026-09-04. All five post-date `c3a9ea8`
+(2026-08-22 18:33 +02:00), so §2.2's restriction holds for every one — checked, not assumed.
+
+⚠️ **`2e60949` disambiguation:** use **`2026-08-30-2e60949`**. `2026-08-31-2e60949` is an S7-only
+rerun sharing the short SHA and carries **no** S1b data — the identical trap ROW 0m already hit.
+
+🛑 **No sweep may be added to or removed from this list after ROW 1 is read.** A sixth sweep run
+later is a **new** pre-registration, not an extension of this one.
+
+🔴 This is HK-018 firing again: the blocker was recorded on the board as "not yet located" while five
+sweeps' worth of raw data sat on disk the whole time.
+
+## A1.2 ROW 1's truncation statement is knowable in advance, and it is hard
+
+2026-09-03's S1b, **OpenWSFZ**: `0/3 @ −24` · **`0/3 @ −21`** · `3/3 @ −18` · `3/3 @ −15`.
+(WSJT-X on the same slots: `0/3` · **`2/3`** · `2/3` · `3/3`.)
+
+⇒ The weakest rung producing OpenWSFZ truth-matching decodes is **−18 dB, at a 100% rate**. §2.3 and
+ROW 1's own >50% rule therefore **force `F` to be reported as an UPPER BOUND on the true floor**, not
+as the floor. Non-negotiable, and now known before the run rather than discovered in it.
+
+🔴 **And the −21 rung is not a marginal miss.** WSJT-X took **2/3** there, so a genuine population
+demonstrably exists **≥3 dB below anything OpenWSFZ's S1b ladder can see**. The instrument's response
+is **flat where the boundary sits** — HK-026 in its plainest form. The ≥4 dB the 6.0 dB policy margin
+allocates to ladder truncation (§4 ROW 2) is doing real work here, not hedging.
+
+## A1.3 🔴 ROW 2 vs ROW 3 will be decided by ONE decode's readout quantum — disclosed before the run
+
+`C` is unmoved by the new sweep: its two in-chain false accepts (−26 dB, −27 dB) reconstruct to
+`excess` **+0.5** and **−0.5 dB**, both far below the `C = +1.622 dB` ceiling. **They raise `n` on the
+in-chain false-accept population and do not move `C`** ⇒ **`T = C + 1.0 = 2.622 dB`, unchanged.**
+
+ROW 2 fires iff `F − T ≥ 6.0` ⇒ iff **`F ≥ 8.622 dB`**. With `excess = Snr + 26.5` (§2.2) and ROW 0q's
+conservative −0.5 correction:
+
+| Weakest truth-matching reported SNR | `excess` | after −0.5 | Verdict |
+|---|---|---|---|
+| −18 dB | 8.5 | **8.0** | **ROW 3** (margin 5.38) |
+| −17 dB | 9.5 | **9.0** | **ROW 2** (margin 6.38) |
+
+S1 bias is **+0.82 dB**, so a −17 reading on a −18 dB injection is **expected, not exotic**.
+
+🛑 **The gate stands exactly as written.** The 6.0 dB is a declared policy margin, the PO has seen it,
+and I am **not** re-drafting it now that I can see where it lands — that is reading a closed gate with
+a better metric, which is barred.
+
+🔴 **But a verdict resting on n≈1 must show that it does.** QA reports, alongside the ROW 2/ROW 3
+verdict and in the same section:
+
+1. the **lowest 5** reconstructed `excess` values, sorted, each with its **injected rung**, its
+   **reported SNR**, and its **sweep ID**;
+2. **how many distinct decodes sit within ±1 dB of the 8.622 dB fire line**;
+3. `n`, the 1 dB quantum, and the A1.2 truncation statement — §4's existing 🛑 (*"`F` is never quoted
+   without `n`, the quantum, and the truncation statement"*), restated because this is where it bites.
+
+## A1.4 Prediction correction — my §7 reasoning is falsified, whatever the verdict
+
+§7 predicted P(ROW 3) ≈ 0.60 **because** *"I expect S1b to produce truth-matching decodes near its
+−24 dB rung, which would put `F` close enough to `C`"*. **That reasoning is now wrong on the data:**
+OpenWSFZ produces **nothing** at −24 or −21. If ROW 3 fires it will be for the **opposite** reason —
+the ladder truncates **high**, not low. Scoring stays suspended (A1.0); this is recorded so the
+prediction is not later read as having been right.

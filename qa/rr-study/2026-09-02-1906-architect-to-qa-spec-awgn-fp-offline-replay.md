@@ -423,3 +423,99 @@ other figure.
 
 🛑 The Architect remains **de-blinded** on the excess distributions (A1.0). Prediction scoring stays
 **suspended** for ROW 2/ROW 3 and is suspended for every threshold number in A2.3 as well.
+
+---
+
+# AMENDMENT 3 — 2026-09-04: the shim bump voided ROW 0a. Two PO rulings, and a new ROW 0r.
+
+## A3.0 What happened, mechanically
+
+`ac6150d` (Developer session, 2026-09-03 17:27Z) added `ft8_get_h12_unresolved_by_code` and rebuilt
+the win-x64 and linux-x64 binaries, taking `main` from shim `20260049` to `20260050`. ROW 0a's pin
+(`tests/OpenWSFZ.Ft8.Tests/AwgnFpReplayTests.cs:58`, `PinnedShaWinX64`) is therefore **void by
+construction**, and `AssertBinaryPin()` gates every other row in the class ⇒ **8 failing tests on
+`main`**. The Developer flagged it and left task 5.2 unchecked rather than patching it. Correct call.
+
+🔴 **The defect is structural, not this bump's fault.** An **in-flight measurement arm's run-time
+instrument precondition was sited in the always-run xunit suite.** Any legitimate shim bump reds
+`main`. It will fire again on the already-queued `20260051`/`20260052` renumber.
+
+## A3.1 RULING 1 (PO, 2026-09-04) — the pin moves behind its trait. It does NOT get re-pinned.
+
+🛑 **Do NOT change `PinnedShaWinX64`'s value.** `ce02c7ba…153e` is the `20260049` identity and it
+remains the identity of every already-landed row (M1–M4, ROW 0q, ROW 0m). Re-pinning it would
+silently reattribute those results to a binary they were never measured on — the exact failure the
+standing rule (*"`FT8_SHIM_VERSION` identifies NOTHING — pin the SHA256"*) exists to prevent.
+
+Mechanical instruction:
+
+1. The class **already carries `[Trait("Category", "AwgnFpReplay")]`** (`AwgnFpReplayTests.cs:46`).
+   No new plumbing. Exclude it from the repo's default test invocation **and CI's** with
+   `--filter "Category!=AwgnFpReplay"`.
+2. The arm's own runs invoke `--filter "Category=AwgnFpReplay"` explicitly. **ROW 0a's semantics are
+   unchanged for a measurement run** — it still fires on any binary mismatch, and every row in the
+   class is still void if it does not hold for the whole run (HK-021(p)).
+3. **Scope bar: `tests/` and test-invocation config only.** Verify `git diff --stat -- src/ native/`
+   is empty and **say so in the report**. ⇒ zero `src/`/`native/` diff ⇒ **no HK-011 Developer
+   session; QA does this.**
+
+🔴 **HK-022 drafting question — what error can this change NOT detect?** A filtered-out suite is
+**silent, not green-with-meaning**: after this change, `main` being green no longer says anything
+about whether the arm ever ran. ⇒ **Mitigation, required, not optional:** every future `AWGN-FP` /
+`FP-PARITY` result report must quote (a) the exact `--filter` command line used and (b) ROW 0a's own
+printed `actual`/`pinned` SHA pair from **that run's** stdout. **A report carrying neither is not a
+result** and may not be cited.
+
+## A3.2 RULING 2 (PO, 2026-09-04) — ROW 0r, the carry-forward gate. NEW, pre-registered here.
+
+The already-landed rows were measured on `20260049`. Whether they survive the bump is a
+**measurement on the two binaries**, not an argument about the source diff.
+
+🛑 **The "additive export, never called in the decode path" argument may NOT be substituted for this
+row.** It is an assertion about source. ROW 0r is evidence about binaries. This deliberately reuses
+the **`S5-LEVEL` ROW 0j/0k pattern**, which is already proven on this project (byte-identity failed,
+decode-invisibility passed, the change landed **disclosed**).
+
+**Obtaining the `20260049` binary — it must be the real artefact, never a rebuild:**
+
+```
+git show 3b52608:src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll > <work>/libft8-20260049.dll
+```
+
+Then **assert its SHA256 equals `PinnedShaWinX64` before using it.** 🛑 **If that assertion fails,
+STOP** — you do not hold the pinned binary and no carry-forward claim of any kind can be made.
+
+**Population:** the arm's own pinned corpus — **every** M1 S5 slot under
+`qa/rr-study/awgn-fp-replay/_work/m1m4_s5/`, no sampling, no truncation. ⚠️ Standing trap: do not
+reach for any population helper taking a `limit=` (`compute_matched_hit_control` truncates in **file
+order**, it does not sample — it was off ≈3.8× in past use).
+
+**Method:** decode every slot twice — once through each binary — in the same process configuration
+with the same decode params, and diff the **decode set per slot** (message text, frequency, SNR, DT),
+**not** the per-slot count and **not** the aggregate event total.
+
+**FIRES iff any slot's decode set differs between the two binaries.**
+
+- ⇒ **Does not fire:** M1–M4, ROW 0q and ROW 0m **carry forward to `20260050` as DISCLOSED
+  carry-forwards.** The report states both SHAs, the slot count, and "decode-identical", and every
+  future citation of those rows carries that disclosure. **Landed, not silently — same as
+  `S5-LEVEL` Option 2.**
+- ⇒ **Fires:** those rows are **void on `20260050`**. Report which slots differ and how many. **They
+  are re-run on `20260050` before any of ROW 0n/0o/0p/1/2/3 proceeds.** Do **not** investigate *why*
+  they differ — that is a new pre-registration, not a patch to this one.
+
+The two branches are **exact complements**; exactly one fires.
+
+🔴 **HK-022 — what can ROW 0r NOT detect?** The M1 S5 corpus is **noise-only**. ROW 0r therefore
+cannot detect a binary difference that appears only on **genuine** signals. ⇒ **The carry-forward
+claim is scoped to the false-accept rows only.** **ROW 0d / M3's genuine-decode population is NOT
+carried forward by this row.** If ROW 0n/0o or `FP-PARITY` ROW 1 needs M3, **M3's own corpus is
+added to ROW 0r's population and that addition is stated** — otherwise the genuine side is an
+undisclosed gap.
+
+## A3.3 This will refire — stated once, so it is not rediscovered
+
+The queued `20260051`/`20260052` shim renumber will void the pin again. A3.1 makes that a non-event
+for `main`'s greenness; it does **not** make it a non-event for the arm. **ROW 0r is re-run for every
+shim bump the arm spans**, against that bump's own predecessor binary, or the arm's rows stop being
+attributable. `20260050` is **not** a renumber target (it is L3's, reserved).
