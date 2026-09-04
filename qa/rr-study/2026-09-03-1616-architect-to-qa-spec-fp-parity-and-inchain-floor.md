@@ -350,3 +350,114 @@ verdict and in the same section:
 OpenWSFZ produces **nothing** at −24 or −21. If ROW 3 fires it will be for the **opposite** reason —
 the ladder truncates **high**, not low. Scoring stays suspended (A1.0); this is recorded so the
 prediction is not later read as having been right.
+
+---
+
+# AMENDMENT 2 — 2026-09-04 14:11Z: ROW 0m survives the shim bump; the comparator gets a binary label; ROW 1's population straddles the bump
+
+**Architect, 2026-09-04 14:11Z** (`date -u`, HK-017). **Both rulings below were taken by the PO on
+2026-09-04, both on the Architect's recommendation.** Docs-only; `git diff --stat -- src/ native/`
+empty, verified before commit (HK-014).
+
+🔴 **Numbering collision, stated once so it cannot be misread:** the `AWGN-FP` spec
+(`2026-09-02-1906-…-awgn-fp-offline-replay.md`) *also* has an `A2.1`–`A2.5`. **These are
+`FP-PARITY` A2.1–A2.3 and are a different document.** When citing either, name the spec.
+
+**Trigger:** QA's ROW 0r run (`50879fa`, execution pack P2) **fired** — 246 of 4,000 M1 slots have a
+differing decode set between `20260049` and `20260050`, **message-text-only** (0/435 slots differ in
+decode count, `freq_hz`, `dt_s` or `reported_snr_db`). `AWGN-FP` A3.2's consequence clause names
+"M1–M4 / ROW 0q / ROW 0m" as void. QA re-ran ROW 0q (re-confirmed) and **correctly refused to close
+ROW 0m unilaterally**, flagging it to the Architect as HK-021(k)/HK-025 territory. That refusal was
+right, and this amendment adjudicates it.
+
+## A2.1 🔴 RULING — ROW 0m is **NOT void**. It is ratified as standing, unchanged.
+
+**Two independent grounds, both verified at source rather than inherited from QA's report (HK-018):**
+
+1. **Data path** (QA's own ground, confirmed). `fp_parity_checks.py:198 row0m_independent_recount`
+   reads only `results/<sweep>/truth.csv` and `results/<sweep>/owsfz-all.txt`, parsed through
+   `harness/common.py`'s `parse_all_txt` / `normalise_slot`. It **never** opens the M1 offline
+   corpus, `m1m4_s5_{slots,decodes}.csv`, or any `*_matched.csv`. The population ROW 0r fired on is
+   not in this row's input set.
+
+2. **The decisive ground, which QA did not give.** `fp_parity_checks.py:34-41` — all six sweeps in
+   `_NAMED_SWEEPS` are dated **2026-08-21, 08-22, 08-27, 08-29, 08-30 and 09-02**. Every one was
+   recorded **before** the 2026-09-03 17:27Z bump (`ac6150d`). More fundamentally: **ROW 0m performs
+   no decode at all.** It re-counts frozen archives against published numbers. A binary swapped on
+   2026-09-03 cannot retroactively alter a text file written on 2026-08-21. **There is nothing for a
+   carry-forward gate to carry.**
+
+### 🔴 The distinction `AWGN-FP` A3.2 should have drawn, and did not — the Architect's drafting gap, not QA's
+
+A3.2's void clause is scoped by **row name**. It should have been scoped by **what the row's metric is
+a function of**:
+
+- A row whose metric is **a function of the binary** is voided by a shim bump and must be re-run.
+  **ROW 0q is exactly this** — SNR rounding is a property of `ft8_shim.c`'s `roundf`, so QA was right
+  to re-run it against the fresh `20260050` CSV (it re-confirmed unchanged, as expected given 0/435
+  numeric differences).
+- A row whose metric is **a function of an archive** is not. **ROW 0m is exactly this.** Re-running it
+  would re-read the identical frozen files and return the identical six `k_i`.
+
+This correction is mirrored into the `AWGN-FP` spec as **A3.4**, which is where the defective wording
+lives. It is a **scope clarification of an existing ruling, not a new gate and not a re-reading of a
+closed one** — no pre-registration is reopened by it.
+
+**Consequence:** the in-chain comparator **`12/360 = 3.333%` [95% CP CI 1.934%, 5.345%], n = 360**
+**stands ratified.** Had A3.2's blanket wording been applied literally, the arm would have been left
+with **no valid in-chain comparator at all** — `2.22%` is already retired — and the citable
+`10.875 / 3.333 ≈ 3.26×` gap would have gone with it.
+
+## A2.2 🔴 The comparator now carries a binary label: it is a **`≤20260049`** comparator
+
+ROW 0m's population is **closed and wholly pre-bump**. That is what makes A2.1 work, and it has a
+price that must be paid explicitly rather than discovered later:
+
+🛑 **Every future citation of `3.333%` states the binary scope: `12/360 = 3.333%` (in-chain,
+`≤20260049`).**
+
+🛑 **Pooling any `20260050`-or-later sweep into that comparator is a NEW pre-registration, not an
+extension of ROW 0m.** In particular, the 2026-09-03 `35378b9` sweep (2/60) may **not** simply be
+added to make `14/420`.
+
+**Why the obvious shortcut is barred (HK-021(x)).** It is tempting to argue that ROW 0r already
+licenses the pool, since it found **0/435** differences in decode count and numerics and ROW 0m's
+`k_i` is a decode-**presence** count. That argument is **not available here**: ROW 0r's evidence
+comes from the **M1 offline, noise-only replay corpus**, which is a *different population* from the
+in-chain sweeps ROW 0m ranges over. A falsification gate is scoped to the population its claim ranges
+over. The inference is plausible — it is not evidence, and A3.2's own bar on substituting a source-
+level "it can't matter" argument applies with equal force to a cross-population one.
+
+## A2.3 ROW 1's frozen population **straddles the shim bump** — disclosed; the verdict survives
+
+QA cleared P4a as *"unaffected — disjoint data path (in-chain sweeps, not the M1 corpus)."* **That is
+true and it is incomplete.** Amendment 1 A1.1 froze five sweeps; the fifth,
+**`2026-09-03-35378b9`, is the first sweep ever run on `20260050`** (board, PO sweep 2026-09-03
+19:52Z). So ROW 1's 60 slots are **48 recorded on ≤`20260049` + 12 recorded on `20260050`**. Corpus
+disjointness from M1 does not address this; nothing in QA's report did.
+
+**Leave-one-out, run against the raw output rather than asserted** (`row1_excess_floor_results.txt`,
+lines 38–51 list all 14 near-line decodes). Excluding `35378b9` removes one `+8.00` and two `+9.00`:
+
+| Population | −18 rung rate | Minimum corrected `excess` | Sets `F` |
+|---|---|---|---|
+| All 5 sweeps (as frozen) | 15/15 | **+8.00 dB** | `3b52608` @ `17:00:15Z`, `35378b9` @ `18:05:00Z` |
+| 4 pre-bump sweeps only | 12/12 | **+8.00 dB** | `3b52608` @ `2026-09-02T17:00:15Z` |
+
+⇒ **`F = +8.00 dB` is unchanged, and the >50% bottom-rung truncation statement still holds
+(0/12 at −21 dB, 0/12 at −24 dB).** **RULING: disclose, do not re-run, and do not re-freeze** — the
+frozen population stands as A1.1 froze it. Re-opening a deliberately frozen pre-registration for a
+provably null change would cost the freeze its meaning.
+
+### 🔴 But record how narrow that was
+
+`F` is set by **exactly two decodes, one on each side of the bump.** Had the single pre-bump `+8.00`
+(`3b52608` @ `17:00:15Z`) read −17 dB instead of −18 dB, the leave-one-out `F` would be `+9.00 ≥
+8.622` ⇒ **ROW 2 would fire instead of ROW 3 — and ROW 2 authorises a dev-task.** A1.3 predicted in
+advance that the verdict would turn on one decode's 1 dB readout quantum; it did, and it now also
+turns on which binary recorded that decode. **This does not change today's reading. It is why P4b
+must not be run as a formality** when P3 closes.
+
+**Reporting obligation added to A1.3's existing list, for whoever writes the ROW 2/ROW 3 verdict:**
+alongside the lowest-5 table, state **the binary each of those decodes was recorded on**, and quote
+the four-sweep leave-one-out `F` next to the five-sweep `F`.

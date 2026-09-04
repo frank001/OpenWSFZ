@@ -543,3 +543,39 @@ The queued `20260051`/`20260052` shim renumber will void the pin again. A3.1 mak
 for `main`'s greenness; it does **not** make it a non-event for the arm. **ROW 0r is re-run for every
 shim bump the arm spans**, against that bump's own predecessor binary, or the arm's rows stop being
 attributable. `20260050` is **not** a renumber target (it is L3's, reserved).
+
+## A3.4 🔴 CORRECTION to A3.2's own void clause — scope it by what the metric is a function of, not by row name
+
+**Architect, 2026-09-04 14:11Z** (`date -u`, HK-017). **PO-ratified 2026-09-04**, on the Architect's
+recommendation. This is a **scope clarification of A3.2, not a new gate**; no pre-registration is
+reopened by it, and ROW 0r's own fire condition is untouched.
+
+A3.2's consequence clause reads *"M1–M4 / ROW 0q / ROW 0m are void on `20260050`"* — it enumerates
+**row names**. That was my drafting error. The correct scope is:
+
+> **A row is voided by a shim bump iff its metric is a function of the binary. A row whose metric is a
+> function of a frozen archive is not voided, because a bump cannot alter a file already written.**
+
+Applied to the rows A3.2 named, on QA's 2026-09-04 run (`50879fa`):
+
+| Row | Metric is a function of | Voided by the bump? |
+|---|---|---|
+| M1–M4 | decodes produced **by** the binary | **Yes** — correctly re-run |
+| ROW 0q | SNR rounding rule in `ft8_shim.c` (`roundf`) | **Yes** — correctly re-run; re-confirmed unchanged |
+| **ROW 0m** | a **recount of six frozen sweep archives** (`truth.csv` + `owsfz-all.txt`), all dated **≤ 2026-09-02**, i.e. all pre-bump; **performs no decode at all** | 🔴 **NO — not void.** Ratified as standing |
+
+**QA was right to refuse to close ROW 0m unilaterally** and to flag it rather than either voiding it
+or waving it through (HK-021(k)/HK-025). Adjudicated in full, with both verification grounds and the
+consequences for the `3.333%` comparator, in **`FP-PARITY` Amendment 2 A2.1–A2.2**
+(`2026-09-03-1616-…-spec-fp-parity-and-inchain-floor.md`) — that is the citable location; this entry
+exists so the defective wording is corrected where it lives.
+
+🛑 **A3.3 is unchanged and this does not soften it.** ROW 0r still re-runs for **every** shim bump the
+arm spans, including the queued `20260051`/`20260052` renumber. A3.4 narrows only which *already
+landed* rows a fire voids — it does not narrow what ROW 0r itself must check.
+
+⚠️ **Consequence carried out of A3.2's fire, so it is not lost:** the ratified in-chain comparator is
+now cited as **`12/360 = 3.333%` (in-chain, `≤20260049`)**. Pooling any `20260050`-or-later sweep into
+it is a **new pre-registration** — ROW 0r's `0/435` numeric-invariance result comes from the M1
+offline noise-only corpus and cannot license a pool over the in-chain population (HK-021(x)). See
+`FP-PARITY` A2.2.
