@@ -1314,7 +1314,11 @@ def main() -> None:
         help=(
             "Override the auto-generated results/<date>-<sha7> directory. "
             "Use to keep calibration-step runs in separate directories (Lesson 14). "
-            "Relative paths are resolved from qa/rr-study/results/."
+            "Relative paths are resolved from the CURRENT WORKING DIRECTORY (same "
+            "convention as analyse.py --run-dir), NOT auto-prefixed with "
+            "qa/rr-study/results/ -- include that prefix yourself (e.g. "
+            "'results/<name>', matching RUNBOOK.md's own examples) or the run "
+            "directory will land next to results/ instead of inside it."
         ),
     )
     args = parser.parse_args()

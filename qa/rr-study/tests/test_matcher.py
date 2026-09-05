@@ -15,11 +15,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sys
 
+import pytest
+
 # Make qa/rr-study importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from harness.common import AllTxtRecord
-from harness.matcher import _match_appraiser
+from harness.matcher import _apply_since, _match_appraiser, _parse_since
 
 CYCLE = datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -183,3 +185,72 @@ def test_s7_s8_style_multi_signal_cycle_still_matches_correctly():
                if not r["matched"] and not r["false_positive"]}
     assert matched == {"CQ Q1ABC FN42", "Q3GHI Q1ABC -10"}
     assert missed == {"Q2DEF Q1ABC FN42", "Q4JKL Q1ABC RR73"}
+
+
+# ---------------------------------------------------------------------------
+# --since cutoff (S5-STANDALONE 2026-09-05 finding, §6.1) — pass-2 has no
+# time window of its own, so a pre-run warm-up decode left in either ALL.TXT
+# gets counted as an in-scenario false positive. --since lets the operator
+# drop it mechanically instead of hand-editing the log files.
+# ---------------------------------------------------------------------------
+
+def test_parse_since_returns_none_when_not_given():
+    assert _parse_since(None) is None
+
+
+def test_parse_since_parses_utc_and_rejects_bad_format():
+    dt = _parse_since("2026-09-05T13:38:30Z")
+    assert dt == datetime(2026, 9, 5, 13, 38, 30, tzinfo=timezone.utc)
+    with pytest.raises(SystemExit):
+        _parse_since("not-a-timestamp")
+
+
+def test_apply_since_is_a_noop_when_cutoff_is_none():
+    records = [_record("CQ Q1ABC FN42", 500.0)]
+    assert _apply_since(records, None, "OpenWSFZ") == records
+
+
+def test_apply_since_drops_only_records_strictly_before_cutoff():
+    cutoff = datetime(2026, 9, 5, 13, 38, 30, tzinfo=timezone.utc)
+    warmup = _record("CQ Q1ABC FN42", 700.0, cycle=datetime(2026, 9, 5, 13, 36, 45, tzinfo=timezone.utc))
+    on_cutoff = _record("CQ Q2DEF FN42", 700.0, cycle=cutoff)
+    after = _record("CQ Q3GHI FN42", 700.0, cycle=datetime(2026, 9, 5, 13, 38, 45, tzinfo=timezone.utc))
+    kept = _apply_since([warmup, on_cutoff, after], cutoff, "OpenWSFZ")
+    assert kept == [on_cutoff, after]
+
+
+def test_since_end_to_end_reproduces_manual_warm_up_filter():
+    """Regression guard for the S5-STANDALONE 2026-09-05 finding: feeding an
+    unfiltered log (warm-up decode still present) through --since must yield
+    the same FP count as manually cutting the warm-up line, for a signal-free
+    S5-style scenario."""
+    warmup_cycle = datetime(2026, 9, 5, 13, 36, 45, tzinfo=timezone.utc)
+    first_run_cycle = datetime(2026, 9, 5, 13, 38, 30, tzinfo=timezone.utc)
+    truth_rows = [{
+        "scenario_id":  "S5",
+        "part_index":   0,
+        "trial_index":  0,
+        "seed":         1,
+        "message_text": "",
+        "true_snr_db":  "",
+        "true_dt_s":    0.0,
+        "true_freq_hz": "",
+        "cycle_utc":    first_run_cycle.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "_cycle_dt":    first_run_cycle,
+    }]
+    unfiltered = [
+        _record("CQ Q1ABC FN42", 700.0, cycle=warmup_cycle),   # pre-run warm-up
+        _record("CQ Q9ZZZ AB12", 900.0, cycle=first_run_cycle),  # genuine in-run FP
+    ]
+
+    # Without --since: pass-2 has no window, so both fall through as FPs.
+    unfiltered_rows = _match_appraiser(truth_rows, unfiltered, "OpenWSFZ", "S5")
+    assert sum(1 for r in unfiltered_rows if r["false_positive"]) == 2
+
+    # With --since set to the run's own first truth-row cycle: only the
+    # genuine in-run FP survives -- matches the manual-filter result.
+    filtered = _apply_since(unfiltered, first_run_cycle, "OpenWSFZ")
+    filtered_rows = _match_appraiser(truth_rows, filtered, "OpenWSFZ", "S5")
+    fps = [r for r in filtered_rows if r["false_positive"]]
+    assert len(fps) == 1
+    assert fps[0]["message_text"] == "CQ Q9ZZZ AB12"

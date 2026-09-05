@@ -2,10 +2,23 @@
 
 Usage:
     python harness/matcher.py --run-dir <dir> --scenario <id> [--wsjt <path>] [--owsfz <path>]
+        [--since YYYY-MM-DDTHH:MM:SSZ]
 
 Joins injected-truth metadata (truth.csv) with the ALL.TXT decode logs from
 WSJT-X and OpenWSFZ, normalising timestamps to the FT8 15-second cycle slot,
 and emits a tidy long-format matched CSV for downstream analysis.
+
+NOTE on pass-2 (false-positive extraction): it has no time-window filter of
+its own — every unconsumed decode record anywhere in the supplied ALL.TXT is
+counted as a false positive for the scenario being matched (see
+`_match_appraiser`). For signal-free scenarios this includes any stray
+decode outside the run's own injection window, e.g. a pre-run warm-up
+decode — pass `--since` (the run's own first truth-row cycle_utc) to drop
+those before matching. `analyse.py`'s own `_fp_rate` separately re-scopes
+FPs to the S5 injection window before computing the STUDY-SPEC §10 gate, so
+an un-cut warm-up line does not by itself corrupt the gate figure -- but it
+does inflate this script's own raw per-appraiser FP count in its printed
+summary and in the written `*_matched.csv`, which is what `--since` fixes.
 """
 from __future__ import annotations
 
@@ -45,6 +58,31 @@ _TRUTH_COLUMNS_REQUIRED = {
 # ---------------------------------------------------------------------------
 # Input loading
 # ---------------------------------------------------------------------------
+
+def _parse_since(value: str | None) -> datetime | None:
+    """Parse --since into a tz-aware UTC datetime, or None if not given."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        sys.exit(
+            f"ERROR: --since must be YYYY-MM-DDTHH:MM:SSZ (UTC), got: {value!r}"
+        )
+
+
+def _apply_since(
+    records: list[AllTxtRecord], since_dt: datetime | None, appraiser: str
+) -> list[AllTxtRecord]:
+    """Drop records strictly before since_dt, reporting how many were cut."""
+    if since_dt is None:
+        return records
+    kept = [r for r in records if r.utc >= since_dt]
+    dropped = len(records) - len(kept)
+    if dropped:
+        print(f"  {appraiser}: --since {since_dt.isoformat()} dropped {dropped} record(s)")
+    return kept
+
 
 def _resolve_paths(args: argparse.Namespace) -> tuple[Path, Path, Path]:
     """Return (truth_path, wsjt_path, owsfz_path), resolving from --run-dir if needed."""
@@ -297,6 +335,19 @@ def main() -> None:
     parser.add_argument("--truth", help="Explicit path to truth.csv")
     parser.add_argument("--wsjt", help="Explicit path to WSJT-X ALL.TXT")
     parser.add_argument("--owsfz", help="Explicit path to OpenWSFZ ALL.TXT")
+    parser.add_argument(
+        "--since",
+        metavar="YYYY-MM-DDTHH:MM:SSZ",
+        help=(
+            "Drop any ALL.TXT decode record with a cycle timestamp strictly "
+            "before this UTC instant, from BOTH logs, before matching. Use to "
+            "exclude a pre-run warm-up decode from the pass-2 false-positive "
+            "count without hand-editing the log files (see the S5-STANDALONE "
+            "2026-09-05 finding: an uncut warm-up line otherwise gets counted "
+            "as an in-scenario FP). Pass the run's own first truth-row "
+            "cycle_utc value."
+        ),
+    )
     args = parser.parse_args()
 
     if not args.run_dir and not (args.truth and args.wsjt and args.owsfz):
@@ -324,6 +375,14 @@ def main() -> None:
     owsfz_records, owsfz_skipped = parse_all_txt(owsfz_path)
     print(f"  WSJT-X:    {len(wsjt_records)} FT8 lines parsed, {wsjt_skipped} skipped")
     print(f"  OpenWSFZ:  {len(owsfz_records)} FT8 lines parsed, {owsfz_skipped} skipped")
+
+    # Optional --since cutoff: drop pre-run warm-up decodes from BOTH logs
+    # before matching (see class of defect in the S5-STANDALONE 2026-09-05
+    # finding — pass-2 has no time window of its own, see module docstring).
+    since_dt = _parse_since(args.since)
+    if since_dt is not None:
+        wsjt_records = _apply_since(wsjt_records, since_dt, "WSJT-X")
+        owsfz_records = _apply_since(owsfz_records, since_dt, "OpenWSFZ")
 
     # Match each appraiser
     all_rows: list[dict] = []
