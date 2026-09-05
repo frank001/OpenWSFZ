@@ -1,5 +1,49 @@
 **User-facing:** yes
 
+---
+
+# 🛑 WITHDRAWN — NOT IMPLEMENTED, NOT TO BE APPLIED (PO-ruled 2026-09-05)
+
+**Nothing in this change was built.** No `tasks.md` was ever authored; no Developer session ran; no
+`src/` line was written. **The requirements in `specs/**` describe a capability that DOES NOT EXIST
+and must never be folded into `openspec/specs/`.**
+
+**Why it was withdrawn — measured, not assumed.** Two pre-registered arms tested seven candidate
+predicates for the marking rule:
+
+- **`FP-MARK`** — the geographic set (R-CONT / R-CQZ / R-ENT) was **unsatisfiable**: no
+  `grid → region` classifier exists in this project, and the one independent validation reference
+  (`ADIF.log`) is **76.9% concentrated in five grid fields** — flat exactly where the observed false
+  positives land (HK-026). R-ENT retired; R-CONT/R-CQZ suspended.
+- **`FP-MARK-2`** — the no-new-instrument set: **R-UNALLOC and R-SUFFIX both failed their
+  sensitivity control** (25.9% / 21.1% against a 40% bar, post-`f-002` scoped). **R-HASH cleared its
+  false-flag band and was still rejected on base-rate arithmetic**: it marks 16.7% of FPs against
+  7.63% of real decodes — a **likelihood ratio of 2.19×** and a **badge precision of 2.2–16.0%**,
+  i.e. **6 to 46 badges shown per true false positive caught**. R-SOLO is 2.15×.
+
+⇒ 🛑 **No cheaply-available feature separates false positives from real traffic well enough to mark
+on.** A badge that wrong trains the operator to ignore it, which is worse than no badge.
+
+**What was NOT withdrawn, and must not be read as dismissed:**
+
+- The **hash-addressed FP class is real** — 29.2% of labelled FPs carry a hash reference, 12/21 in
+  the **addressee** slot — and remains an accepted **High**-severity defect
+  (`DEFECT-twelve-bit-hash-misresolution.md`). This change simply is not its remedy.
+- **Option B** (importing public-domain boundary data to build a real grid classifier) remains
+  available and un-tried. It is the only route that ever looked strong on sensitivity; its
+  false-flag rate is unmeasurable without the import.
+- The **`SuppressUnknownRegion` pricing arm** was commissioned in the same ruling and is unrelated to
+  this change — it prices an **already-shipping suppressor**, not a proposed marker.
+
+**Rulings:** `qa/rr-study/2026-09-05-1640-architect-to-qa-ruling-fp-mark-row0-block.md` ·
+`qa/rr-study/2026-09-05-1850-architect-to-qa-ruling-fp-mark-2-adjudication.md` (§5 option 1,
+PO-ratified 2026-09-05).
+
+🔴 **Everything below this banner is the original proposal, retained as the record of what was
+designed and why. It is history, not intent.**
+
+---
+
 ## Why
 
 Decoder false positives are not evenly shaped, and the decode panel currently presents them exactly
