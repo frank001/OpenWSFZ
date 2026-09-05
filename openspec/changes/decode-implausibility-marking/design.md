@@ -35,30 +35,60 @@ this design is trying to prevent.
 
 ## D2 — 🔴 The predicate is this change's ONE open parameter
 
-The rule flags a decode when its grid is geographically inconsistent with the entity its callsign's
-prefix resolves to. **Which construction of "inconsistent"** is not decided here:
+**Amended 2026-09-05 18:23 UTC.** The original candidate set was **geographic** (R-CONT / R-CQZ /
+R-ENT). It is **withdrawn**: those predicates all required a **grid → continent/zone/entity**
+classifier, and no such instrument exists anywhere in this project — `ICallsignRegionStore` answers
+only the reverse direction (prefix → region), and `CountryFilePlistConverter.cs:168` discards the
+source release's per-entity `Latitude`/`Longitude` outright. **R-ENT is retired as unsatisfiable;
+R-CONT/R-CQZ are suspended** — not on cost, but because an approximate classifier makes every flag
+either the rule working *or* the classifier misplacing the grid, with nothing able to separate the
+two, and the only independent reference (`ADIF.log`, 715 verified callsign+grid pairs) is **76.9%
+concentrated in five grid fields** — flat exactly where the observed FPs land (HK-026). Full
+reasoning: `qa/rr-study/2026-09-05-1640-architect-to-qa-ruling-fp-mark-row0-block.md`.
 
-| ID | Flags when… | Sensitivity on the six inspected FPs *(illustration, not a result)* |
+**PO ruled Option A, 2026-09-05:** re-draft around predicates that need **no new instrument**. The
+current candidate set, pre-registered in
+`qa/rr-study/2026-09-05-1823-architect-to-qa-spec-fp-mark-2-no-geo-candidates.md`:
+
+| ID | Flags when… | Existing instrument |
 |---|---|---|
-| **R-CONT** | grid's continent ≠ prefix's continent | 4/5 — a VK6 call with a PNG grid stays inside OC |
-| **R-CQZ** | grid's CQ zone ≠ prefix's CQ zone | 5/5 |
-| **R-ENT** | grid square ∉ the DXCC entity's square set | 5/5 |
+| **R-UNALLOC** | any callsign-position token's prefix does not resolve to any entity | pinned region table + `TryMatchPrefix` |
+| **R-SUFFIX** | **both** callsign-position tokens carry a portable/rover suffix | `CallsignTokenHelpers.StripPortableSuffix` |
+| **R-HASH** | **token 0** (the addressee position) is a hash reference `<…>` | message text |
+| **R-SOLO** | the callsign appears exactly once in its session | within-session counting |
 
-**All three are categorical and carry no tunable parameter** — no distance, no threshold — per the
-PO's constraint that the feature introduce no threshold.
+**All four are categorical and carry no tunable parameter**, per the PO's no-threshold constraint.
+They are measured **independently and never combined** — a combined rule needs weights, and weights
+are a threshold by another name. If several ship, the panel marks with a **reason code**, not a score.
 
-🛑 **`FP-MARK` measures all three and reports all three rates. The PO picks one from that table.
+🛑 **`FP-MARK-2` measures all four and reports all four rates. The PO picks from that table.
 Selecting the candidate with the best number after seeing the numbers is HK-021(y) outcome-selection
 in a new costume and is forbidden.** Until the pick is made this change must not be applied.
 
-**Fixed here so it cannot drift:** Maidenhead decode — char 0 = longitude field, 20° per step from
-180°W; char 1 = latitude field, 10° per step from 90°S; digits = 2°/1° squares; use the **square
-centre**.
+**Undefined-input contract:** where a candidate's input is absent (no callsign-position token for
+R-UNALLOC, fewer than two for R-SUFFIX), the decode is **NOT marked**. Marking requires positive
+evidence, never absence of evidence.
 
-**Undefined-input contract (all candidates):** a decode with no grid, or with a prefix the region
-store cannot resolve, is **NOT marked**. Marking requires positive evidence of contradiction, never
-absence of evidence — "unresolvable" is already `decode-noise-suppression`'s territory, and
-overloading it here would double-count the same decode against two different controls.
+🔴 **R-UNALLOC overlaps an already-shipping control.** `decode-noise-suppression`'s
+`SuppressUnknownRegion` is the same predicate implemented as **suppression**, and its
+false-suppression rate has never been measured. If R-UNALLOC is ratified, implementation MUST NOT
+double-count a decode against both controls — the pipeline order in D4 (suppression first) already
+prevents it, since a suppressed decode is never reached by the marking stage.
+
+### D2.1 🛑 A callsign-shape predicate was considered and excluded — record the reason
+
+The obvious fifth candidate, a stricter callsign-shape grammar, is **excluded and must not be
+reintroduced without new PO direction**:
+
+- It cannot be built by tightening `IsPlausibleMessage`. That filter's failure branch does `continue`
+  at `Ft8Decoder.cs:348`, **dropping the decode before `ALL.TXT`.** Tightening it would change
+  `ALL.TXT` ⇒ **move the S5 AWGN FP metric, which has no established baseline** ⇒ the change would be
+  undetectable and the guard violated.
+- Every labelled FP already **passed** the shipped grammar, so "fails the shipped grammar" flags
+  nothing, and "fails a stricter grammar" is a **tunable parameter** — the threshold the PO ruled out.
+
+**If a shape predicate is ever wanted, it must be a separate marking evaluation, never a change to
+the decoder's drop filter.**
 
 ---
 
