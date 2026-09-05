@@ -221,3 +221,34 @@ rather than discovered afterwards. Beyond recording it here I will not re-litiga
 **Architect, 2026-09-05 15:17 UTC.** Committed locally, **not pushed** (HK-014; `main` far ahead of
 `origin/main` carrying `ac6150d`'s `src/`+`native/` diff ⇒ HK-029 exception N/A). `git diff --stat --
 src/ native/` empty at `HEAD`.
+
+---
+
+## 8. ✅ PO RATIFICATION — 2026-09-05, all five items of §7 accepted as written
+
+The PO ratified **"ratify and close"**. Effective immediately:
+
+1. 🛑 **`3.25×` / `p = 0.0765` is RETIRED.** Never cite again, in any form, for any purpose —
+   on the same footing as `4.88×`. Both are now on the standing never-cite list.
+2. ✅ **Guards §4 (a)–(g) are STANDING** and bind every future description of this result.
+3. ✅ **The `FP-REGRESSION` live-arm line is CLOSED.** Do not commission another live S5 arm for
+   this question.
+4. ✅ **§8 (offline `AWGN-FP` seam) is NOT to be run.** Sole reversal trigger, as recorded in §5:
+   a release decision that needs the sub-2.25× answer *now*.
+5. ⬜ **A baseline pre-registration was offered and NOT taken up** ⇒ 🛑 **there is still no
+   established AWGN FP baseline.** `21/840 = 2.500%` is not one and must not become one by
+   repetition (guard (e)).
+
+🛑 **The distinction that must not drift:** "no *supported* regression" is not "no regression".
+Guards (a), (b) and (c) are why.
+
+### 8.1 ⏳ What remains open, and it is QA's
+
+| # | Item | Why it matters |
+|---|---|---|
+| 1 | **Re-run `analyse.py` on the *unfiltered* `S5-STANDALONE` logs**; the §10 gate line must still read `6/300` / `0/300` | Confirms §2 mechanically rather than by Architect code-reading. 🔴 **If it does not reproduce, this ruling re-opens.** Cheap and decisive |
+| 2 | `matcher.py` gains a `--since` cutoff | §6.1 — cosmetic, but the exposure is real if a stray decode ever lands *inside* an S5 cycle, and it has cost operator attention twice |
+| 3 | `run_scenario.py --run-dir` resolution vs its own `--help` | §6.2 — **the more serious of the two**; an NFR-021 near-miss that placed raw callsign logs outside `.gitignore` coverage |
+
+**PO-ratified 2026-09-05.** Recorded here because QA's source of truth is this repository, not the
+Architect's board.
