@@ -281,13 +281,28 @@ def _verdict_s5_narrowband(fp_info: dict) -> str:
 
     Not a Clopper-Pearson UB gate like `_verdict_fp`: A1.2 derives the
     threshold directly on the readout quantum (whole events), so there is no
-    small-N "unevaluable" regime analogous to `MIN_N_FOR_FP_GATE` here -- a
-    clean run (0 or 1 events) PASSes at any N this scenario actually runs.
+    small-N STATISTICAL "unevaluable" regime analogous to `MIN_N_FOR_FP_GATE`
+    here -- a clean run (0 or 1 events) genuinely PASSes at any N this
+    scenario actually runs.
+
+    There IS a separate, non-statistical regime: zero narrowband slots
+    injected at all (`n_slots == 0`), meaning Check B did not run this
+    battery -- e.g. a targeted --parts 0,1 recheck, or a future battery
+    override reintroducing R&R-009's restriction. Asserting PASS there would
+    reproduce EXACTLY the coverage blindness Amendment 1 exists to remove
+    (Section 1.2 / HK-026: a control that never ran is not the same as a
+    control that ran clean, and nothing would announce the difference).
+    INFO -- mirroring `_verdict_fp`'s actual convention, not the inverse of
+    it -- excluded from the overall verdict, raw counts still reported.
+    Caught in PR #144 review before merge; a zero-slot Check B input must
+    never read PASS (see the regression tests pinning this).
     """
+    n_slots = fp_info.get("n_slots", 0)
+    if not n_slots:
+        return "INFO"
     n_events = fp_info.get("n_fp_events", float("nan"))
     if isinstance(n_events, float) and math.isnan(n_events):
-        return "PASS"  # undefined (zero narrowband slots injected) -- vacuously
-                        # passing, mirroring _verdict_fp's convention.
+        return "INFO"  # defensive -- should be unreachable once n_slots > 0
     return "FAIL" if n_events >= THRESH_S5_NARROWBAND_FAIL else "PASS"
 
 
@@ -1865,14 +1880,24 @@ def _collect_verdicts(
     # Check B — narrowband (S5 parts 2/3), S5-GATE-SIZING Amendment 1. Scored on
     # its OWN 60-slot denominator, its own row, its own line in `fails` — NEVER
     # merged with Gate A above into one S5 verdict (that pooling is the defect
-    # this design removes). No INFO/MIN_N_FOR_FP_GATE demotion: see
-    # `_verdict_s5_narrowband`'s docstring for why that regime does not apply here.
+    # this design removes). No STATISTICAL small-N demotion (see
+    # `_verdict_s5_narrowband`'s docstring) — but zero narrowband slots injected
+    # (Check B did not run this battery) DOES demote to INFO, same convention
+    # as Gate A's MIN_N_FOR_FP_GATE path above: excluded from the gate table
+    # and the overall verdict, traced in `notes`, never a manufactured PASS.
     for appr, info in (fp_narrowband_results or {}).items():
-        n_events = info.get("n_fp_events", float("nan"))
-        if isinstance(n_events, float) and math.isnan(n_events):
-            continue
-        n_slots = info["n_slots"]
+        n_slots = info.get("n_slots", 0)
         v = _verdict_s5_narrowband(info)
+        if v == "INFO":
+            notes.append(
+                f"FP events Check B (narrowband, S5/{appr}) not evaluated: "
+                f"0 narrowband slots injected — Check B did not run this "
+                f"battery (e.g. a --parts 0,1 targeted recheck). This is a "
+                f"coverage gap, not a PASS — see a run that includes S5 "
+                f"parts 2/3 for real coverage."
+            )
+            continue
+        n_events = info["n_fp_events"]
         value_str = f"{int(n_events)}/{n_slots} slots (FAIL iff >= {THRESH_S5_NARROWBAND_FAIL})"
         verdict_rows.append(("FP events, Check B (narrowband)", f"S5/{appr}", value_str, v))
         if v == "FAIL":
@@ -2074,12 +2099,12 @@ def _write_report(
         lines += ["| Appraiser | FP events / slots | Verdict |",
                   "|---|---|---|"]
         for appr, info in fp_narrowband_results.items():
-            n_events = info.get("n_fp_events", float("nan"))
-            if isinstance(n_events, float) and math.isnan(n_events):
-                lines.append(f"| {appr} | — | — |")
-                continue
-            n_slots = info["n_slots"]
             v = _verdict_s5_narrowband(info)
+            if v == "INFO":
+                lines.append(f"| {appr} | — | INFO |")
+                continue
+            n_events = info["n_fp_events"]
+            n_slots = info["n_slots"]
             lines.append(f"| {appr} | {int(n_events)} / {n_slots} | {v} |")
         lines += [
             "",
@@ -2089,10 +2114,15 @@ def _write_report(
             f"Threshold derived in the spec's A1.2 from the measured all-history per-slot "
             f"narrowband base rate (0.2347%, `s5_narrowband_exposure_verify.py`, ROW 0 "
             f"cleared 2026-09-06), well under the ~1% re-derivation trigger. This is a raw "
-            f"event-count check, not a Clopper–Pearson UB gate — `MIN_N_FOR_FP_GATE`'s INFO "
-            f"demotion does not apply. **Never pooled with Gate A above into one S5 rate or "
-            f"one verdict line** — the same 180 slots scored as one gate detect a regression "
-            f"21% of the time; scored as two, Gate A alone detects it 77% of the time._",
+            f"event-count check, not a Clopper–Pearson UB gate, so there is no STATISTICAL "
+            f"small-N demotion analogous to `MIN_N_FOR_FP_GATE` — but **INFO** here means "
+            f"something distinct: zero narrowband slots were injected at all (Check B did not "
+            f"run this battery, e.g. a targeted `--parts 0,1` recheck). That is a coverage "
+            f"gap, never a PASS — asserting PASS with no slots run would reproduce the exact "
+            f"blindness this design exists to remove. **Never pooled with Gate A above into "
+            f"one S5 rate or one verdict line** — the same 180 slots scored as one gate detect "
+            f"a regression 21% of the time; scored as two, Gate A alone detects it 77% of the "
+            f"time._",
             "",
         ]
 
