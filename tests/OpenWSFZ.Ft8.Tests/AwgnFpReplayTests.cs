@@ -51,12 +51,12 @@ public sealed class AwgnFpReplayTests
 
     public AwgnFpReplayTests(ITestOutputHelper output) => _out = output;
 
-    // ── ROW 0a pin — win-x64 SHA256, shim 20260050, from
-    //    src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt line 1 (f001-l3-unresolved-by-code-export,
-    //    "CURRENT" block at the top of the file as of this arm's base commit main@ac6150d). A
+    // ── ROW 0a pin — win-x64 SHA256, shim 20260049, from
+    //    src/OpenWSFZ.Ft8/Native/win-x64/libft8.version.txt line 28 (f001-h12-unique-match-suppression,
+    //    "CURRENT" block at the top of the file as of this arm's base commit main@3b52608). A
     //    FT8_SHIM_VERSION string is NOT an identity (standing rule) — this is the binary's own hash. ──
     private const string PinnedShaWinX64 =
-        "6b2e16a6991ae953d18c85e5f0fea99d1e003c84b90ae5a69a8f1cfade34f85c";
+        "ce02c7ba10e216349c3cc6d2460a6106379a4593bb730c807dbe8128ecca153e";
 
     private static readonly Regex SlotFileNameRe =
         new(@"^(?<scenario>[A-Za-z0-9]+)_p(?<part>\d+)_t(?<trial>\d+)_s(?<seed>\d+)\.wav$",
@@ -71,7 +71,7 @@ public sealed class AwgnFpReplayTests
 
     // ── ROW 0a — binary identity ────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ROW 0a: loaded libft8.dll SHA256 matches the pinned shim 20260050 manifest value")]
+    [Fact(DisplayName = "ROW 0a: loaded libft8.dll SHA256 matches the pinned shim 20260049 manifest value")]
     public void Row0a_BinaryIdentity_MatchesPinnedSha256()
     {
         string dllPath = Path.Combine(AppContext.BaseDirectory, "libft8.dll");
