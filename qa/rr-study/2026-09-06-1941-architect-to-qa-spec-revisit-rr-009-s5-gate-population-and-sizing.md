@@ -69,8 +69,11 @@ This is the **second** time this scenario has been out of sync with its own gate
 (GitHub #39, 2026-07-04) found `s5-noise.json` sized at 12 slots against a gate needing 120, raised
 `trials` 3→30 *explicitly* "rather than inventing a new, undocumented sample size", and booked the
 cost as *"accepted as the cost of the routine suite ever producing a real S5 verdict at all."*
-**R&R-009 undid that sizing seven weeks later on the runtime argument R&R-006 had already heard and
-rejected, without re-ratifying the threshold it was a precondition of.**
+**R&R-009 halved that N seven weeks later — by a different mechanism (parts, not trials) but to the
+same effect — without re-ratifying the threshold it was a precondition of.** ⚠️ Stated precisely,
+because the looser version overclaims: R&R-006 did not *reject* a proposal to cut runtime, it
+**accepted a cost** in order to make the routine suite's N match the gate. R&R-009 reclaimed part of
+that cost without revisiting what it had bought.
 
 Consequence, stated before the design discussion so it cannot be mistaken for a benefit: reverting
 would have made the last three sweeps read **FAIL (4/120, 7.47%) / PASS (2/120, 5.15%) /
