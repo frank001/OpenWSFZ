@@ -140,8 +140,15 @@ Paired against ROW 0s's baseline, slot-by-slot, all 4,000 slots:
 - **Δ (signed, normalised − un-normalised) = −0.550 pp**
 - Readout quantum: **1/4,000 = 0.025%**
 - Exact McNemar two-sided p-value: **0.4287**
-- 95% exact conditional CI on Δ (Clopper-Pearson on `c/(b+c)`, transformed to the Δ scale — an
-  exact, non-bootstrap method per HK-021(o)): **[−1.870, +0.774] pp**
+- 95% exact conditional CI on Δ: **[−1.870, +0.774] pp** — method, named for reproducibility per the
+  Architect's adjudication (`2026-09-06-1025-...-p3-adjudication.md`): exact (Clopper-Pearson)
+  binomial CI on `p = c/(b+c)` via `scipy.stats.binomtest(c, n_disc).proportion_ci(confidence_level=0.95,
+  method="exact")`, then transformed to the Δ scale via `Δ_bound = (2·p_bound − 1) · n_disc / N`
+  (implemented in `p3_parity.py`'s `row0n_paired_mcnemar()`) — an exact, non-bootstrap method per
+  HK-021(o). The Architect's independent paired-Wald recomputation gives **[−1.850, +0.750] pp**,
+  0.02 pp apart; both include zero and both put `|Δ|` far under the 2.0 pp band. This report's
+  figure (Clopper-Pearson-transformed) is the citable one; the two methods' agreement to 0.02 pp is
+  itself part of the evidence that 0n-iii is not a close call.
 
 **CI includes 0 ⇒ verdict 0n-iii.** The two agree. Consequence, binding per the spec regardless of
 this branch: **the normalised figure (`10.325%`) is the only citable offline absolute rate from this
