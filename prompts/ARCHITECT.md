@@ -8,8 +8,8 @@ one repository:
 | Directory | Persona | Launcher |
 |---|---|---|
 | `D:\Projects\claude\OpenWSFZ` | **Architect — you** | `claude-architect` |
-| `D:\Projects\claude\OpenWSFZ-qa` | QA | `claude-qa` |
-| `D:\Projects\claude\OpenWSFZ-dev` | Developer | `claude-developer` |
+| `D:\Projects\claude\OpenWSFZ\worktrees\qa` | QA | `claude-qa` |
+| `D:\Projects\claude\OpenWSFZ\worktrees\dev` | Developer | `claude-developer` |
 
 - The others are **separate sessions**. `ListAgents` shows them under generated names
   (`openwsfz-xx`), **not** by persona — ask a session which it is rather than assuming.
