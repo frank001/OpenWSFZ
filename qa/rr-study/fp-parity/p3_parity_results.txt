@@ -1,0 +1,36 @@
+FP-PARITY Amendment 3 (P3) -- ROW 0s, ROW 0n, ROW 0n-C
+Spec: qa/rr-study/2026-09-06-0951-architect-to-qa-spec-fp-parity-p3-normalisation-and-param-parity.md
+Every P3 figure below: offline, 20260050 (A3.2). Pooling with any <=20260049 offline figure is a NEW pre-registration, not an extension.
+
+=== ROW 0s -- un-normalised 20260050 baseline, recomputed as an assertion ===
+Source: D:\Projects\claude\OpenWSFZ\qa\rr-study\fp-parity\results\m1m4_s5_20260050_slots.csv
+slots = 4000  (expected 4000)
+events (n_decodes>=1) = 435  (expected 435)
+event rate = 10.875%  (expected 10.875%, exact fraction compare)
+ROW 0s FIRES = False
+Does not fire -> this file is P3's un-normalised leg and 10.875% is a 20260050 figure, not merely a carried-over one.
+What this row cannot detect (HK-022): whether ROW 0r's own decode was correctly configured -- that is ROW 0p/0o's job, both already run and both non-firing, before this row, in FpParityP3Tests.cs. It also cannot detect a per-slot numeric (freq_hz/dt_s/reported_snr_db) change against 20260049 -- that is ROW 0r's own claim (0/435 differ), already run and landed; this row never opens decodes.csv and does not re-verify it (Architect-ratified defect #4, spec section 0.1).
+
+=== ROW 0n -- normalisation parity, exactly paired, N=4,000 ===
+Source (normalised leg): D:\Projects\claude\OpenWSFZ\qa\rr-study\fp-parity\_out\p3_norm_slots.csv
+baseline slots = 4000  normalised slots = 4000
+n (paired slots) = 4000  readout quantum = 0.025%
+both-event = 72  neither = 3224  b (un-only, lost) = 363  c (norm-only, gained) = 341  n_discordant = 704
+un-normalised rate = 10.875%   normalised rate = 10.325%
+Delta (signed, normalised - un-normalised) = -0.550 pp
+Exact McNemar two-sided p-value = 0.4287
+95% exact conditional CI on Delta = [-1.870, +0.774] pp
+CI excludes zero = False  |Delta| >= 2.0pp = False
+ROW 0n VERDICT = 0n-iii
+Consequence: The two agree. The normalised figure still becomes the citable offline rate (it is the only one under the production contract), and the ~6.9 dB offline/production level difference is excluded as an explanation of the gap.
+Binding in all three branches: the normalised figure is the only citable offline absolute rate from this day forward -- a non-fire does not restore 10.875%, it means the two agree.
+
+=== ROW 0n-C -- false-accept ceiling under the production contract ===
+Source: D:\Projects\claude\OpenWSFZ\qa\rr-study\fp-parity\_out\p3_norm_decodes.csv
+Standing ceiling T = C + 1.0 = 2.622 dB (C = 1.622 dB, offline, un-normalised, 20260049)
+n (decode rows, all treated as false accepts -- S5 is noise-only) = 432
+excess (signal_db - local_noise_db): min = -2.113 dB, median = -0.018 dB, max C' = 1.652 dB
+Signed C' - 1.622 dB = +0.030 dB
+ROW 0n-C FIRES (any normalised-leg false accept has excess > 2.622 dB) = False  (0 of 432 rows exceed T)
+Does not fire -> T = 2.622 dB carries forward to 20260050, normalised, and P4b may proceed on this ground.
+Honest limit of the non-fire branch (HK-021(t)): shows no false accept on this 4,000-slot noise-only population exceeded T. Does NOT show C is stable -- a sample maximum over n=432 is not a stable statistic.
