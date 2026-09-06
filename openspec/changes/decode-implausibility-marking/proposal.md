@@ -1,4 +1,12 @@
-**User-facing:** yes
+**User-facing:** no
+
+> ⚠️ **This declaration was `yes` while the change was live, and is `no` because the change was
+> WITHDRAWN before anything was built** (see the banner below). It is not a re-classification of
+> what the change *would have* done — as designed it *was* operator-visible. Nothing shipped: no
+> `tasks.md`, no `src/` line, no entry in `openspec/specs/`, so there is no operator-visible
+> behaviour and correspondingly **no VERSION bump is owed**. Corrected 2026-09-06 after
+> `check_version_bump.py` (G9b) correctly flagged the stale `yes` — its own guidance is *"If none of
+> these changes is actually operator-visible, correct its User-facing declaration to no instead."*
 
 ---
 
