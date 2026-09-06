@@ -1,0 +1,67 @@
+FP-PARITY P4b -- ROW 2 / ROW 3 verdict (Amendment 4)
+Spec: qa/rr-study/2026-09-06-1436-architect-to-qa-spec-fp-parity-p4b-row2-row3-verdict.md
+Method: identical to row1_excess_floor.py (harness.common.parse_all_txt against raw owsfz-all.txt + truth.csv, NEVER matcher.py -- HK-026), parameterised over which sweeps are pooled.
+
+=== Five-sweep F (Amendment 1 A1.1 frozen population, cross-check) ===
+  2026-08-27-22b749c [<=20260049]: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=430 skipped=0
+  2026-08-29-872ba65 [<=20260049]: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=417 skipped=0
+  2026-08-30-2e60949 [<=20260049]: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=308 skipped=0
+  2026-09-02-3b52608 [<=20260049]: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=448 skipped=0
+  2026-09-03-35378b9 [20260050]: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=443 skipped=0
+Five-sweep: pooled population 60 S1b slots across 5 sweep(s), n=30 truth-matching decodes
+Cross-check vs committed row1_excess_floor_results.txt: IDENTICAL (F, p01, p05, lowest-5, near-line all match exactly). row1_excess_floor_results.txt unmodified by this run's re-derivation.
+
+=== Four-sweep leave-one-out F (drops every sweep labelled "20260050") ===
+Dropped (derived from the era table, not hardcoded): ['2026-09-03-35378b9']
+  2026-08-27-22b749c [<=20260049]: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=430 skipped=0
+  2026-08-29-872ba65 [<=20260049]: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=417 skipped=0
+  2026-08-30-2e60949 [<=20260049]: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=308 skipped=0
+  2026-09-02-3b52608 [<=20260049]: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=448 skipped=0
+Four-sweep LOO: pooled population 48 S1b slots across 4 sweep(s), n=24 truth-matching decodes
+
+=== T (cited, not recomputed) ===
+C = 1.622 dB (base FP-PARITY spec sec.2, citing qa/rr-study/awgn-fp-replay/results/M1-M4-report.md sec.4, n=454 offline false accepts)
+T = C + 1.0 = 2.622 dB (base spec sec.4)
+Confirmed production-valid by FP-PARITY P3 ROW 0n-C (2026-09-06-1025-architect-to-qa-ruling-p3-adjudication.md sec.2.4): C' = +1.652 dB, C'-C = +0.030 dB, 0 of 432 rows exceed T -- non-fire. This script does not re-open that measurement.
+
+=== ROW 2 / ROW 3 -- the verdict ===
+F (five-sweep, A1.1 frozen population)        = +8.00 dB
+F (four-sweep leave-one-out, A1.3 disclosure) = +8.00 dB
+T                                             = 2.622 dB
+F - T (five-sweep)      = +5.378 dB  vs 6.0 dB bar => ROW 3
+F - T (four-sweep LOO)  = +5.378 dB  vs 6.0 dB bar => ROW 3
+
+=== A1.3 disclosure block, five-sweep population, binary-attributed ===
+Lowest 5 reconstructed (corrected) excess values:
+  excess=+8.00 dB  reported_snr=-18 dB  injected_rung=-18 dB  sweep=2026-09-02-3b52608  binary=<=20260049  cycle_utc=2026-09-02T17:00:15Z
+  excess=+8.00 dB  reported_snr=-18 dB  injected_rung=-18 dB  sweep=2026-09-03-35378b9  binary=20260050  cycle_utc=2026-09-03T18:05:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  binary=<=20260049  cycle_utc=2026-08-27T18:06:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  binary=<=20260049  cycle_utc=2026-08-27T18:06:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  binary=<=20260049  cycle_utc=2026-08-27T18:07:00Z
+
+Distinct decodes within +-1 dB of the ROW2/3 fire line (8.62 dB, T=2.622 dB, now confirmed production-valid): 14
+  excess=+8.00 dB  reported_snr=-18 dB  injected_rung=-18 dB  sweep=2026-09-02-3b52608  binary=<=20260049  cycle_utc=2026-09-02T17:00:15Z
+  excess=+8.00 dB  reported_snr=-18 dB  injected_rung=-18 dB  sweep=2026-09-03-35378b9  binary=20260050  cycle_utc=2026-09-03T18:05:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  binary=<=20260049  cycle_utc=2026-08-27T18:06:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  binary=<=20260049  cycle_utc=2026-08-27T18:06:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  binary=<=20260049  cycle_utc=2026-08-27T18:07:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-29-872ba65  binary=<=20260049  cycle_utc=2026-08-29T17:00:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-29-872ba65  binary=<=20260049  cycle_utc=2026-08-29T17:00:45Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-29-872ba65  binary=<=20260049  cycle_utc=2026-08-29T17:01:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-30-2e60949  binary=<=20260049  cycle_utc=2026-08-30T19:16:15Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-30-2e60949  binary=<=20260049  cycle_utc=2026-08-30T19:16:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-09-02-3b52608  binary=<=20260049  cycle_utc=2026-09-02T17:00:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-09-02-3b52608  binary=<=20260049  cycle_utc=2026-09-02T17:00:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-09-03-35378b9  binary=20260050  cycle_utc=2026-09-03T18:04:45Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-09-03-35378b9  binary=20260050  cycle_utc=2026-09-03T18:05:15Z
+
+Both five-sweep and four-sweep-LOO F agree on which side of the 6.0 dB bar the margin falls -- rendering the verdict.
+
+=== VERDICT: ROW 3 FIRES ===
+ROW 3 -- the margin is not there. FIRES iff F - T < 6.0 dB. => No dev-task is authored. State plainly: the emission-side floor cannot be set with the project's required margin on the evidence available, because the genuine population reaches down to within F - T dB of the false-accept ceiling. PARKED, not closed -- closing the route requires a population that reaches the decoder's true floor, which S1b's bottom rung may not. Do not soften this into "needs more data" and do not re-run with a smaller margin.
+
+ROW 2 and ROW 3 are exact complements by construction; exactly one fires.
+
+=== Standing disclosures, restated (spec sec.3) ===
+F stays labelled an UPPER BOUND, not the floor: bottom-rung (-18 dB) decodes at 100% pooled (15/15) => the true floor is demonstrably lower and unmeasured by this instrument (HK-026).
+No new decode, no new sweep, no src/ or native/ change. Every input is a re-read of truth.csv/owsfz-all.txt already on disk for the five frozen sweeps (A1.1).
