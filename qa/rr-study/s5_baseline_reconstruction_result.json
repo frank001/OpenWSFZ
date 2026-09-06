@@ -1,0 +1,483 @@
+{
+  "row0a_fires": false,
+  "row0b_fires": false,
+  "row0b_pairs": [
+    {
+      "trial": 0,
+      "seed_a": 1561858501,
+      "seed_b": 1561858501,
+      "sha_s5": "03734beb738a5d4b3de85bc6a6b9f0138233c8bbc44ce22749a275477dbba398",
+      "sha_wide": "03734beb738a5d4b3de85bc6a6b9f0138233c8bbc44ce22749a275477dbba398",
+      "match": true
+    },
+    {
+      "trial": 1,
+      "seed_a": 960283802,
+      "seed_b": 960283802,
+      "sha_s5": "90ace92da0993e361b4f908e454c5bc787110ed6ba1f78ee02d1005d94b70205",
+      "sha_wide": "90ace92da0993e361b4f908e454c5bc787110ed6ba1f78ee02d1005d94b70205",
+      "match": true
+    },
+    {
+      "trial": 2,
+      "seed_a": 892021093,
+      "seed_b": 892021093,
+      "sha_s5": "b78de822d869d8902ae2b1e42d2f3a7f29c61e597b72df9584fb2b185a780858",
+      "sha_wide": "b78de822d869d8902ae2b1e42d2f3a7f29c61e597b72df9584fb2b185a780858",
+      "match": true
+    },
+    {
+      "trial": 3,
+      "seed_a": 1972790602,
+      "seed_b": 1972790602,
+      "sha_s5": "a0f6ee7fd28b0ffd8519ef62ce82a565fa731c15516b60753f30f484a454d5cf",
+      "sha_wide": "a0f6ee7fd28b0ffd8519ef62ce82a565fa731c15516b60753f30f484a454d5cf",
+      "match": true
+    },
+    {
+      "trial": 4,
+      "seed_a": 522357441,
+      "seed_b": 522357441,
+      "sha_s5": "6e8572b9d2b42524ebc23af18f263d08195d00169b241b92250b8949bab538f4",
+      "sha_wide": "6e8572b9d2b42524ebc23af18f263d08195d00169b241b92250b8949bab538f4",
+      "match": true
+    },
+    {
+      "trial": 5,
+      "seed_a": 434100809,
+      "seed_b": 434100809,
+      "sha_s5": "495f9a790b3738002c1fccc5b45273e1d9ae8810691968b7a1adf12dff3f2934",
+      "sha_wide": "495f9a790b3738002c1fccc5b45273e1d9ae8810691968b7a1adf12dff3f2934",
+      "match": true
+    },
+    {
+      "trial": 6,
+      "seed_a": 1987541040,
+      "seed_b": 1987541040,
+      "sha_s5": "b838dca6f7a0d717b0687c0a15353d6f5ed08191c274319203b14d12138e2ad7",
+      "sha_wide": "b838dca6f7a0d717b0687c0a15353d6f5ed08191c274319203b14d12138e2ad7",
+      "match": true
+    },
+    {
+      "trial": 7,
+      "seed_a": 1550731733,
+      "seed_b": 1550731733,
+      "sha_s5": "3fea1bf15a3ffc546a70daea0e8440e7993fba620fdb16e2a9cc6ebf1e8a6ed6",
+      "sha_wide": "3fea1bf15a3ffc546a70daea0e8440e7993fba620fdb16e2a9cc6ebf1e8a6ed6",
+      "match": true
+    },
+    {
+      "trial": 8,
+      "seed_a": 978267978,
+      "seed_b": 978267978,
+      "sha_s5": "ad927c79356d7b9825b549ca29b1ab0cd447e003cb7cd31506688d7e8c877885",
+      "sha_wide": "ad927c79356d7b9825b549ca29b1ab0cd447e003cb7cd31506688d7e8c877885",
+      "match": true
+    },
+    {
+      "trial": 9,
+      "seed_a": 1361001477,
+      "seed_b": 1361001477,
+      "sha_s5": "cafe359248626f48a44ca58a01b7b33846c4cf901625e509948f0111c4359681",
+      "sha_wide": "cafe359248626f48a44ca58a01b7b33846c4cf901625e509948f0111c4359681",
+      "match": true
+    },
+    {
+      "trial": 10,
+      "seed_a": 1672796167,
+      "seed_b": 1672796167,
+      "sha_s5": "60fc0864908cbe1e5e1668b95f4df33829cf96e50e268f470a7cadf265df3670",
+      "sha_wide": "60fc0864908cbe1e5e1668b95f4df33829cf96e50e268f470a7cadf265df3670",
+      "match": true
+    },
+    {
+      "trial": 11,
+      "seed_a": 363339928,
+      "seed_b": 363339928,
+      "sha_s5": "4ac9f1f2f85960cc363a09b5e8272259a8cc02b7a52a30de8c63098939f1a86b",
+      "sha_wide": "4ac9f1f2f85960cc363a09b5e8272259a8cc02b7a52a30de8c63098939f1a86b",
+      "match": true
+    },
+    {
+      "trial": 12,
+      "seed_a": 920581965,
+      "seed_b": 920581965,
+      "sha_s5": "18a9fd9c9e010c937f10f2b2f467cda95f07554386897c5423419e416d4b445f",
+      "sha_wide": "18a9fd9c9e010c937f10f2b2f467cda95f07554386897c5423419e416d4b445f",
+      "match": true
+    },
+    {
+      "trial": 13,
+      "seed_a": 1985403058,
+      "seed_b": 1985403058,
+      "sha_s5": "c3618e3e47b2db32147a01b4a01f85adc0362bf428b2279b09c69f0586948a5b",
+      "sha_wide": "c3618e3e47b2db32147a01b4a01f85adc0362bf428b2279b09c69f0586948a5b",
+      "match": true
+    },
+    {
+      "trial": 14,
+      "seed_a": 1613680917,
+      "seed_b": 1613680917,
+      "sha_s5": "0d0d145ba8c13a3b0274f1983e9f37ff43c450d2f78c889d7eb895375e48775d",
+      "sha_wide": "0d0d145ba8c13a3b0274f1983e9f37ff43c450d2f78c889d7eb895375e48775d",
+      "match": true
+    },
+    {
+      "trial": 15,
+      "seed_a": 1930000429,
+      "seed_b": 1930000429,
+      "sha_s5": "d88e104adb96ec4bafa4d454d61d34c0c8f755bc6885be8e60818ff3d8791d37",
+      "sha_wide": "d88e104adb96ec4bafa4d454d61d34c0c8f755bc6885be8e60818ff3d8791d37",
+      "match": true
+    },
+    {
+      "trial": 16,
+      "seed_a": 216305983,
+      "seed_b": 216305983,
+      "sha_s5": "f05b603560d23613b263d745ef35be5323d946421c6cbf365cdb2ce6c55035e5",
+      "sha_wide": "f05b603560d23613b263d745ef35be5323d946421c6cbf365cdb2ce6c55035e5",
+      "match": true
+    },
+    {
+      "trial": 17,
+      "seed_a": 312112809,
+      "seed_b": 312112809,
+      "sha_s5": "7d938562513eddde8f65f65f8912c011ae0eb673b1ddca87579bcf8733976472",
+      "sha_wide": "7d938562513eddde8f65f65f8912c011ae0eb673b1ddca87579bcf8733976472",
+      "match": true
+    },
+    {
+      "trial": 18,
+      "seed_a": 1052303369,
+      "seed_b": 1052303369,
+      "sha_s5": "c74a8790dc898db2106ab40052469ab619c4c10a1ccfcb33ed1f3ee958a95f32",
+      "sha_wide": "c74a8790dc898db2106ab40052469ab619c4c10a1ccfcb33ed1f3ee958a95f32",
+      "match": true
+    },
+    {
+      "trial": 19,
+      "seed_a": 217579570,
+      "seed_b": 217579570,
+      "sha_s5": "a39e123fece5ce9675e62f6a244e151fe3f7971509cea26623aaf6589d12c09c",
+      "sha_wide": "a39e123fece5ce9675e62f6a244e151fe3f7971509cea26623aaf6589d12c09c",
+      "match": true
+    },
+    {
+      "trial": 20,
+      "seed_a": 99964177,
+      "seed_b": 99964177,
+      "sha_s5": "4f50ecd7a0b572924c27a82fe7dcdabb2e4c573e76f6424f1b6601cad8fb8188",
+      "sha_wide": "4f50ecd7a0b572924c27a82fe7dcdabb2e4c573e76f6424f1b6601cad8fb8188",
+      "match": true
+    },
+    {
+      "trial": 21,
+      "seed_a": 490683040,
+      "seed_b": 490683040,
+      "sha_s5": "2519ed4cdcf3322c236471b6e7740778946b81b75e26920d74cf1a706dd5c57a",
+      "sha_wide": "2519ed4cdcf3322c236471b6e7740778946b81b75e26920d74cf1a706dd5c57a",
+      "match": true
+    },
+    {
+      "trial": 22,
+      "seed_a": 1940961689,
+      "seed_b": 1940961689,
+      "sha_s5": "7baa366dfd8ea38e237dc048c99ae2cb99487263945e2cab35fe954522f59d8e",
+      "sha_wide": "7baa366dfd8ea38e237dc048c99ae2cb99487263945e2cab35fe954522f59d8e",
+      "match": true
+    },
+    {
+      "trial": 23,
+      "seed_a": 1454648504,
+      "seed_b": 1454648504,
+      "sha_s5": "485d50b80f9de73515532f39d6a3364d7e33e430a3c7006c3b6fa8e5ed5585c7",
+      "sha_wide": "485d50b80f9de73515532f39d6a3364d7e33e430a3c7006c3b6fa8e5ed5585c7",
+      "match": true
+    },
+    {
+      "trial": 24,
+      "seed_a": 558398644,
+      "seed_b": 558398644,
+      "sha_s5": "f2eb56bf2f74088e6d11e6e82d3bf6a0d823a99d876498d2875de54e5b30de8d",
+      "sha_wide": "f2eb56bf2f74088e6d11e6e82d3bf6a0d823a99d876498d2875de54e5b30de8d",
+      "match": true
+    },
+    {
+      "trial": 25,
+      "seed_a": 1286326493,
+      "seed_b": 1286326493,
+      "sha_s5": "d11f80e34b540d81b9b9b167c97273846b347071edcec9830d2fe0ef5b07a483",
+      "sha_wide": "d11f80e34b540d81b9b9b167c97273846b347071edcec9830d2fe0ef5b07a483",
+      "match": true
+    },
+    {
+      "trial": 26,
+      "seed_a": 905618129,
+      "seed_b": 905618129,
+      "sha_s5": "63e0dab378ece790018264434a1120d1b18f830a9c70031257836a78c1f6f113",
+      "sha_wide": "63e0dab378ece790018264434a1120d1b18f830a9c70031257836a78c1f6f113",
+      "match": true
+    },
+    {
+      "trial": 27,
+      "seed_a": 649442228,
+      "seed_b": 649442228,
+      "sha_s5": "e3ef33895b04c9d808fabf3af8452d51fc2c00e772a3d47514ec3d1d36d4ebe1",
+      "sha_wide": "e3ef33895b04c9d808fabf3af8452d51fc2c00e772a3d47514ec3d1d36d4ebe1",
+      "match": true
+    },
+    {
+      "trial": 28,
+      "seed_a": 1033628820,
+      "seed_b": 1033628820,
+      "sha_s5": "38521510ca3035f5baf383f1aebfa9284d81155dadcefaa1ea0b863217fdde67",
+      "sha_wide": "38521510ca3035f5baf383f1aebfa9284d81155dadcefaa1ea0b863217fdde67",
+      "match": true
+    },
+    {
+      "trial": 29,
+      "seed_a": 815515411,
+      "seed_b": 815515411,
+      "sha_s5": "17aa9bdc6b1b9d2f44286b3947af716eff8f7cfc66cdbff429bdb58c259dda2b",
+      "sha_wide": "17aa9bdc6b1b9d2f44286b3947af716eff8f7cfc66cdbff429bdb58c259dda2b",
+      "match": true
+    }
+  ],
+  "row0c_fires": true,
+  "row0c_new_admissible": [
+    "2026-07-07-df4cc89"
+  ],
+  "row0c_admissible": [
+    "2026-07-04-a3738fc-f002-s5-n300",
+    "2026-07-07-df4cc89",
+    "2026-08-05-3bd4cd0",
+    "2026-08-15-8d6e1b1",
+    "2026-08-21-7d36038",
+    "2026-08-22-f5dec23",
+    "2026-08-27-22b749c",
+    "2026-08-29-872ba65",
+    "2026-08-30-2e60949",
+    "2026-09-02-3b52608",
+    "2026-09-03-35378b9",
+    "d011-fp-recheck-2026-07-04"
+  ],
+  "row0c_excluded": {
+    "2026-06-06-4c34ef6": [
+      "pre-R&R-004 (2026-06-06 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "AWGN slot count 6 < 49 -- gate is INFO by construction at this N"
+    ],
+    "2026-06-06-6bab388": [
+      "pre-R&R-004 (2026-06-06 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "AWGN slot count 6 < 49 -- gate is INFO by construction at this N"
+    ],
+    "2026-06-07-4b3a4ca": [
+      "pre-R&R-004 (2026-06-07 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "AWGN slot count 6 < 49 -- gate is INFO by construction at this N"
+    ],
+    "2026-06-14-815b652": [
+      "pre-R&R-004 (2026-06-14 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "AWGN slot count 6 < 49 -- gate is INFO by construction at this N"
+    ],
+    "2026-06-20-6e821fa": [
+      "pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "AWGN slot count 6 < 49 -- gate is INFO by construction at this N"
+    ],
+    "2026-06-20-8eea3c4": [
+      "pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "AWGN slot count 12 < 49 -- gate is INFO by construction at this N"
+    ],
+    "2026-06-20-ccda50c-s5-wide": [
+      "pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "AWGN slot count 23 < 49 -- gate is INFO by construction at this N",
+      "run directory carries its own INCOMPLETE.md"
+    ],
+    "2026-06-20-d40b4cd": [
+      "pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "AWGN slot count 6 < 49 -- gate is INFO by construction at this N"
+    ],
+    "2026-06-22-f11f438": [
+      "pre-R&R-004 (2026-06-22 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "AWGN slot count 6 < 49 -- gate is INFO by construction at this N"
+    ],
+    "2026-07-01-b03998f": [
+      "pre-R&R-004 (2026-07-01 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "AWGN slot count 6 < 49 -- gate is INFO by construction at this N"
+    ],
+    "2026-07-04-793a298": [
+      "AWGN slot count 6 < 49 -- gate is INFO by construction at this N"
+    ],
+    "d009-ablation-2026-06-21/cfg1-s5": [
+      "pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format"
+    ],
+    "d009-ablation-2026-06-21/cfg2-s5": [
+      "pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format"
+    ],
+    "d009-ablation-2026-06-21/cfg4-s5": [
+      "pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format"
+    ],
+    "d009-k10-confirm-s5": [
+      "no run date found (no report.md 'Run date' row, no dated dirname)",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "run directory carries its own CONTAMINATED.md -- excluded on the record's own say-so, not this script's judgement"
+    ],
+    "d009-k10-confirm-s5-clean": [
+      "no run date found (no report.md 'Run date' row, no dated dirname)",
+      "report.md missing, or its S5 table is not the ratified 6-column format"
+    ],
+    "diag-nhard-2026-06-20": [
+      "pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format",
+      "AWGN slot count 44 < 49 -- gate is INFO by construction at this N"
+    ],
+    "diag-pass1-sweep-2026-06-21/p0-minscore1/s5": [
+      "pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format"
+    ],
+    "diag-pass1-sweep-2026-06-21/p1-minscore3/s5": [
+      "pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format"
+    ],
+    "diag-pass1-sweep-2026-06-21/p2-minscore5/s5": [
+      "pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format"
+    ],
+    "diag-pass1-sweep-2026-06-21/p3-minscore7/s5": [
+      "pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format"
+    ],
+    "diag-pass1-sweep-2026-06-21/p4-minscore10/s5": [
+      "pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate",
+      "report.md missing, or its S5 table is not the ratified 6-column format"
+    ]
+  },
+  "row0d_fires": true,
+  "row1": {
+    "pre": [
+      2,
+      180,
+      [
+        0.0013484509916209149,
+        0.039558843402180785
+      ]
+    ],
+    "july_standalone": [
+      8,
+      300,
+      [
+        0.011581567754333921,
+        0.05186581196093093
+      ]
+    ],
+    "july_battery": [
+      0,
+      60,
+      [
+        0.0,
+        0.05962949228616691
+      ]
+    ],
+    "label": "not identifiable -- context confounded with era",
+    "fisher_p": null
+  },
+  "row2": {
+    "population": [
+      "2026-08-05-3bd4cd0",
+      "2026-08-15-8d6e1b1",
+      "2026-08-21-7d36038",
+      "2026-08-22-f5dec23",
+      "2026-08-27-22b749c",
+      "2026-08-29-872ba65",
+      "2026-08-30-2e60949",
+      "2026-09-02-3b52608",
+      "2026-09-03-35378b9"
+    ],
+    "dates": [
+      "2026-08-05",
+      "2026-08-15",
+      "2026-08-21",
+      "2026-08-22",
+      "2026-08-27",
+      "2026-08-29",
+      "2026-08-30",
+      "2026-09-02",
+      "2026-09-03"
+    ],
+    "n_awgn": [
+      60,
+      60,
+      60,
+      60,
+      60,
+      60,
+      60,
+      60,
+      60
+    ],
+    "k_awgn": [
+      0,
+      1,
+      1,
+      4,
+      0,
+      1,
+      2,
+      4,
+      2
+    ],
+    "total_events": 15,
+    "observed_stat": 76.0,
+    "p_full": 0.0610045,
+    "leave_one_out": [
+      [
+        "2026-08-05-3bd4cd0",
+        0.185102
+      ],
+      [
+        "2026-08-15-8d6e1b1",
+        0.0904975
+      ],
+      [
+        "2026-08-21-7d36038",
+        0.0909375
+      ],
+      [
+        "2026-08-22-f5dec23",
+        0.0169555
+      ],
+      [
+        "2026-08-27-22b749c",
+        0.0573905
+      ],
+      [
+        "2026-08-29-872ba65",
+        0.0580005
+      ],
+      [
+        "2026-08-30-2e60949",
+        0.073894
+      ],
+      [
+        "2026-09-02-3b52608",
+        0.180799
+      ],
+      [
+        "2026-09-03-35378b9",
+        0.0452045
+      ]
+    ],
+    "fires": false,
+    "seed": 20260904,
+    "mc_draws": 2000000
+  }
+}

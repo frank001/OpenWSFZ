@@ -1,0 +1,7 @@
+2026-09-02T19:37:02Z row0c: minus10_events=6 in_band=True plus10_events=6 in_band=True level_dependent=False
+2026-09-02T19:37:07Z row0b_baseline: slots=60 events=6 band=[2,10] in_band=True
+2026-09-02T19:37:21Z row0c_corrected: baseline_events=6 in_band=True minus10_events=7 in_band=True plus10_events=7 in_band=True level_dependent=False
+2026-09-02T19:37:51Z row0d_s1_complement: slots=250 total_genuine_decodes=336 threshold=200 passes=True
+2026-09-03T15:26:25Z m3_s1: slots=2300 total_decodes=3056
+2026-09-03T15:32:02Z m1m4_s5: slots=4000 events=435 rate_pct=10.875
+2026-09-03T16:38:55Z row0k_s5_level_deletion: slots=60 identical_decode_sets=60 PASS=True

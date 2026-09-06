@@ -1,0 +1,58 @@
+{
+  "m1": {
+    "per_part": {
+      "0": {
+        "n": 2000,
+        "events": 225,
+        "rate_pct": 11.25
+      },
+      "1": {
+        "n": 2000,
+        "events": 210,
+        "rate_pct": 10.5
+      }
+    },
+    "pooled_n": 4000,
+    "pooled_events": 435,
+    "pooled_rate_pct": 10.875
+  },
+  "m2": {
+    "n": 454,
+    "min": -1.9440000000000026,
+    "p01": -1.595209999999999,
+    "median": -0.14199999999999946,
+    "max": 1.6219999999999999
+  },
+  "m3": {
+    "n_genuine": 2300,
+    "n_spurious_riding_along": 756,
+    "min": 14.987000000000002,
+    "p01": 15.146,
+    "median": 29.301000000000002,
+    "max": 42.626999999999995
+  },
+  "m4_histogram_1db_bins": {
+    "-27": 233,
+    "-26": 182,
+    "-25": 12,
+    "-28": 27
+  },
+  "row1": {
+    "fires": false,
+    "pooled_rate_pct": 10.875,
+    "band": [
+      1.15,
+      3.85
+    ],
+    "n_floor_met": true
+  },
+  "row2_revised": {
+    "fires": true,
+    "T_db": 9.146,
+    "removal_fraction": 1.0,
+    "margin_db": 6.0
+  },
+  "row3_revised": {
+    "fires": false
+  }
+}

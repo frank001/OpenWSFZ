@@ -116,6 +116,14 @@ This tier is the **single most important** part of the suite. It is what proves 
 * **Where it runs:** **scheduled nightly GitHub Actions workflow** on Linux only. Not on every PR.
 * **Failure handling:** a soak failure files a tracking issue but does **not** retroactively fail recent PRs &mdash; it gates the next release tag.
 
+### 4.7 Measurement-arm tests (excluded from CI and the default suite)
+
+* **Scope:** xUnit test classes that exist to *run and record* one QA/Architect measurement arm (e.g. an offline AWGN false-accept replay), not to assert a repository invariant. They typically pin a specific native binary by SHA256 and depend on a large, machine-local corpus that is deliberately **not** committed to git.
+* **Convention:** any such class carries `[Trait("Category", "&lt;ArmName&gt;")]` (e.g. `AwgnFpReplay`, from `AWGN-FP` Amendment 3) and is excluded from both the default local run and CI via `--filter "Category!=&lt;ArmName&gt;"`. `AwgnFpReplayTests.cs` is the first instance: it asserts a pinned `libft8` SHA256 in every row and reads from `qa/rr-study/awgn-fp-replay/_work/`, which is `.gitignore`'d and holds no tracked files &mdash; no CI runner can ever satisfy its preconditions, so it must never run unfiltered.
+* **Why not delete or `[Skip]` them instead:** the class is a working harness the arm re-runs by hand, deliberately, against a specific pinned binary, whenever that arm's next row is due. Skipping would need to be toggled on and off by hand for every such run and risks being left on; a category filter keeps it runnable with one explicit flag and invisible otherwise.
+* **Consequence &mdash; a filtered-out suite is silent, not green.** `main` being all-green after this exclusion says nothing about whether the arm's own binary pin still holds. Any report that cites results from a `Category=&lt;ArmName&gt;` class must quote **both** the exact `--filter`/inclusion command line used **and** that class's own printed pin-verification output (actual vs. pinned SHA) from that run's stdout. A report carrying neither is not a citable result.
+* **Any future measurement-arm test class follows this same convention** &mdash; its own trait, excluded the same way, documented here &mdash; rather than landing in the default suite and depending on manual discipline to avoid running in CI.
+
 ---
 
 ## 5. Test Data Strategy

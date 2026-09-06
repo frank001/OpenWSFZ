@@ -1,0 +1,55 @@
+FP-PARITY ROW 1 -- in-chain genuine excess floor F (P4a, no binary, no dependency)
+Spec: qa/rr-study/2026-09-03-1616-architect-to-qa-spec-fp-parity-and-inchain-floor.md sec.4 ROW 1 + Amendment 1
+Method: harness.common.parse_all_txt against raw owsfz-all.txt + truth.csv. NEVER matcher.py (HK-026 -- its FP column is still unscoped).
+  2026-08-27-22b749c: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=430 skipped=0
+  2026-08-29-872ba65: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=417 skipped=0
+  2026-08-30-2e60949: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=308 skipped=0
+  2026-09-02-3b52608: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=448 skipped=0
+  2026-09-03-35378b9: 12 S1b slots, 6 truth-matching decodes, ALLTXT_lines_parsed=443 skipped=0
+
+Pooled population: 60 S1b slots across 5 sweeps (pre-registered, frozen, Amendment 1 A1.1)
+Truth-matching decodes: n=30
+
+Per-rung decode rate (pooled across all 5 sweeps):
+  -15 dB injected: 15/15 (100.0%)
+  -18 dB injected: 15/15 (100.0%)
+  -21 dB injected: 0/15 (0.0%)
+  -24 dB injected: 0/15 (0.0%)
+
+=== ROW 1 RESULT ===
+F (min corrected excess) = +8.00 dB
+p01 = +8.00 dB   p05 = +8.45 dB
+n = 30 truth-matching decodes over 60 slots
+Readout quantum: 1.0 dB (Ft8NativeResult.Snr is int)
+Weakest injected rung producing any truth-matching decode: -18 dB, decode rate at that rung = 15/15 (100.0%)
+
+Truncation statement (sec.2.3, mandatory alongside any F): bottom-rung decode rate is 100.0% (> 50%) => F MUST be reported as an UPPER BOUND on the true floor, never as the floor.
+🛑 F is an UPPER BOUND, not the floor. Matches A1.2's advance disclosure: OpenWSFZ's S1b ladder produces 0/15 pooled at -24 dB and -21 dB (see per-rung table above); the true floor is demonstrably lower (WSJT-X took 2/3 at -21 dB on the 2026-09-03 sweep alone) -- the instrument's response is flat where the boundary sits (HK-026).
+
+=== A1.3 disclosure block -- required whenever this table lands near the fire line ===
+Lowest 5 reconstructed (corrected) excess values:
+  excess=+8.00 dB  reported_snr=-18 dB  injected_rung=-18 dB  sweep=2026-09-02-3b52608  cycle_utc=2026-09-02T17:00:15Z
+  excess=+8.00 dB  reported_snr=-18 dB  injected_rung=-18 dB  sweep=2026-09-03-35378b9  cycle_utc=2026-09-03T18:05:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  cycle_utc=2026-08-27T18:06:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  cycle_utc=2026-08-27T18:06:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  cycle_utc=2026-08-27T18:07:00Z
+
+Distinct decodes within +-1 dB of the ROW2/3 fire line (8.62 dB, using T=2.622 dB which is NOT yet confirmed production-valid -- printed for context only, see note below): 14
+  excess=+8.00 dB  reported_snr=-18 dB  injected_rung=-18 dB  sweep=2026-09-02-3b52608  cycle_utc=2026-09-02T17:00:15Z
+  excess=+8.00 dB  reported_snr=-18 dB  injected_rung=-18 dB  sweep=2026-09-03-35378b9  cycle_utc=2026-09-03T18:05:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  cycle_utc=2026-08-27T18:06:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  cycle_utc=2026-08-27T18:06:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-27-22b749c  cycle_utc=2026-08-27T18:07:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-29-872ba65  cycle_utc=2026-08-29T17:00:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-29-872ba65  cycle_utc=2026-08-29T17:00:45Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-29-872ba65  cycle_utc=2026-08-29T17:01:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-30-2e60949  cycle_utc=2026-08-30T19:16:15Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-08-30-2e60949  cycle_utc=2026-08-30T19:16:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-09-02-3b52608  cycle_utc=2026-09-02T17:00:00Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-09-02-3b52608  cycle_utc=2026-09-02T17:00:30Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-09-03-35378b9  cycle_utc=2026-09-03T18:04:45Z
+  excess=+9.00 dB  reported_snr=-17 dB  injected_rung=-18 dB  sweep=2026-09-03-35378b9  cycle_utc=2026-09-03T18:05:15Z
+
+=== ROW 2 / ROW 3 -- NOT DECIDED HERE (P4b holds for P3 / ROW 0n, 0o) ===
+T = C + 1.0 = 1.622 + 1.0 = 2.622 dB is an OFFLINE-anchored quantity; sec.3's two repairs (NormalisePcm parity ROW 0n, decode-param parity ROW 0o) are what make it production-valid, per the execution pack's explicit P4a/P4b split. F = +8.00 dB is reported now because it needs no binary at all.
+For context only (already published in Amendment 1 A1.3, NOT re-derived, NOT a verdict): ROW 2 fires iff F >= 8.622 dB. This run's F = +8.00 dB < 8.622 dB => would currently land on ROW 3 IF T were already confirmed production-valid, which it is not yet (P3 not run).

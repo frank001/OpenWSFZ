@@ -319,10 +319,21 @@ jobs:
       #          exits non-zero here and blocks merge on all three legs.
       #          The fixture test is expected to be red until the decoder is
       #          fixed in a follow-on change (see RECOVERY_PLAN.md Phase 2).
+      #
+      #          Category=AwgnFpReplay is excluded here (AWGN-FP Amendment 3,
+      #          A3.1): AwgnFpReplayTests.cs is a local measurement-arm
+      #          harness, not a repository invariant — it pins a specific
+      #          native binary SHA256 and asserts against an untracked,
+      #          machine-local corpus (qa/rr-study/awgn-fp-replay/_work/,
+      #          .gitignore:222, zero tracked files) that no CI runner ever
+      #          holds. It would red-line this gate on every run regardless
+      #          of correctness. The arm runs it explicitly, out of band,
+      #          with its own pinned binary; see TESTING_STRATEGY.md.
       # -----------------------------------------------------------------
       - name: Test (Release)
         run: >
           dotnet test -c Release --no-build
+          --filter "Category!=AwgnFpReplay"
           --logger trx
           --collect:"XPlat Code Coverage"
           --results-directory TestResults/

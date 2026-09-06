@@ -15,8 +15,7 @@
     {
       "part_index": 0,
       "noise_type": "awgn",
-      "level_dbfs": -20,
-      "note": "Wideband AWGN. NOTE: level_dbfs is statistically INERT for pure AWGN in S5 — run_scenario.py peak-normalises every buffer to 0.9 before playback, and for signal-free AWGN the amplitude cancels (samples * 0.9 / peak is independent of level_dbfs). Independent samples come ONLY from the per-trial seed, not from varying the level. Do NOT add extra AWGN levels expecting added statistical power; add trials instead."
+      "note": "Wideband AWGN. `level_dbfs` DELETED 2026-09-03 (S5-LEVEL, PO ruling Option 2, Amendment 1) — it was statistically INERT for pure AWGN in S5 anyway: run_scenario.py peak-normalises every buffer to 0.9 before playback, and for signal-free AWGN the amplitude cancels (samples * 0.9 / peak is independent of level_dbfs). This file's uniform single declared value cancels identically with the harness default, so the deletion changes no delivered audio (byte-identical by construction — see the S5-LEVEL spec Amendment 1 A1.1). Independent samples come ONLY from the per-trial seed, not from varying the level. Do NOT add trials expecting added statistical power from a level axis; S5 is single-level."
     }
   ],
 

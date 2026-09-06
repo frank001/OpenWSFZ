@@ -1,0 +1,33 @@
+{
+  "_comment": "AWGN-FP M3 population (full arm, not ROW 0d). Exact copy of s1-m3-complement.json (itself a copy of ../../scenarios/s1-snr-ladder.json, same id 'S1', same 10 parts, same fixed base_freq_hz/dt_s) with 'trials' raised from 25 to 230 (250 -> 2300 total slots) so M3 ('the same [excess] quantity for genuine decodes', spec Section 3 item 3) clears the >= 2,000 genuine-decode floor with margin. ROW 0d (this arm's own instrument-validity check, N=25/part) measured 250/250 truth-matching decodes -- 100% recall in that reading -- so 2300 slots is expected to yield roughly 2300 genuine matches, comfortably over 2,000 even allowing for some shortfall at scale. Reuses the shipped generator unmodified (harness.common.compute_seed('S1', part_index, trial_index)) -- trials 0-24 of every part reproduce the EXACT seeds ROW 0d already used; trials 25-229 extend the same deterministic seed formula to new trial_index values, not a second signal/noise source. Not used for any live sweep; offline-render-only.",
+  "_format_version": "1",
+
+  "id": "S1",
+  "name": "SNR ladder (AWGN-FP M3 population, N=230/part)",
+  "response": "SNR (dB)",
+  "description": "10 parts x 230 trials (2300 slots), R&R-005's >=95%-decode-rate range (-12..+15 dB), rendered offline for the AWGN-FP M3 genuine-decode population.",
+
+  "message_ids": ["MSG-01"],
+
+  "fixed": {
+    "base_freq_hz": 1500,
+    "dt_s": 0.2
+  },
+
+  "parts": [
+    {"part_index": 0, "snr_db": -12.0, "_offset": "0.0"},
+    {"part_index": 1, "snr_db":  -8.1, "_offset": "0.9"},
+    {"part_index": 2, "snr_db":  -5.8, "_offset": "0.2"},
+    {"part_index": 3, "snr_db":  -2.3, "_offset": "0.7"},
+    {"part_index": 4, "snr_db":   0.4, "_offset": "0.4"},
+    {"part_index": 5, "snr_db":   3.5, "_offset": "0.5"},
+    {"part_index": 6, "snr_db":   6.6, "_offset": "0.6"},
+    {"part_index": 7, "snr_db":   9.3, "_offset": "0.3"},
+    {"part_index": 8, "snr_db":  12.8, "_offset": "0.8"},
+    {"part_index": 9, "snr_db":  15.1, "_offset": "0.1"}
+  ],
+
+  "trials": 230,
+
+  "seed_formula": "hash('S1', part_index, trial_index)"
+}

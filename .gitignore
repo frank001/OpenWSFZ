@@ -208,3 +208,15 @@ native/ft8_lib_build/libft8_cfg*.dll
 native/ft8_lib_build/libft8_diag*.dll
 native/ft8_lib_build/libft8_prod_backup.dll
 native/ft8_lib_build/rebuild_*.txt
+
+# AWGN-FP offline seeded-replay arm (2026-09-02). `_work/` holds the rendered WAV
+# populations -- 610 files / 210 MB for ROW 0 alone, and the M1-M4 measurement run
+# will render N>=2,000 per part. These are DETERMINISTICALLY REGENERABLE from the
+# seeds recorded in the committed results/*_slots.csv (that is the whole point of a
+# seeded replay), so committing them buys nothing and would push ~1 GB of binary
+# into a repo that already carries a standing "purge the large per-row dumps" TODO.
+# Each *_slots.csv carries one row per slot with its seed -- 60 for each ROW 0 leg,
+# 250 for the ROW 0d complement, all distinct. The per-run truth.csv files live
+# under _work/ and are ignored with it; regenerate both via
+# harness/run_scenario.py --dry-run --dump-wav-dir using those seeds.
+qa/rr-study/awgn-fp-replay/_work/

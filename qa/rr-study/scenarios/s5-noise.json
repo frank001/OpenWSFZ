@@ -18,27 +18,23 @@
     {
       "part_index": 0,
       "noise_type": "awgn",
-      "level_dbfs": -20,
-      "note": "White (AWGN) noise at a moderate level — channel.py add_noise with no signal."
+      "note": "White (AWGN) noise — channel.py add_noise with no signal. CORRECTED 2026-09-03 (S5-LEVEL, qa/rr-study/2026-09-02-2002-architect-to-qa-spec-s5-level-normalisation-scope-and-repair.md): the declared level_dbfs was NOT what run_scenario.py actually delivered for pure AWGN -- its peak-normalise-to-0.9 step cancelled the amplitude term. Part 0 and part 1 rendered to the same actual RMS level (measured 0.37 dB apart, s5_level_scope.py ROW 0g) and were two replicates of one condition, not a level contrast. `level_dbfs` DELETED 2026-09-03 (PO ruling, Option 2, Amendment 1) -- S5 is declared single-level; the harness default (-20 dBFS pre-normalisation amplitude) now applies uniformly. Byte-identity of the delivered audio before/after this deletion asserted by ROW 0j (60/60 SHA256 match)."
     },
     {
       "part_index": 1,
       "noise_type": "awgn",
-      "level_dbfs": -10,
-      "note": "White (AWGN) noise at a higher level (hotter band)."
+      "note": "White (AWGN) noise. CORRECTED 2026-09-03 (S5-LEVEL) -- same correction as part 0's note: this was a replicate of part 0's delivered level, not a hotter one. `level_dbfs` DELETED 2026-09-03 (PO ruling, Option 2, Amendment 1) -- see part 0's note."
     },
     {
       "part_index": 2,
       "noise_type": "steady_carrier",
       "carrier_freq_hz": 1500,
-      "level_dbfs": -20,
       "note": "Single steady CW carrier at the FT8 passband centre."
     },
     {
       "part_index": 3,
       "noise_type": "multi_carrier",
       "carrier_freqs_hz": [400, 800, 1200, 1600, 2000, 2400],
-      "level_dbfs": -20,
       "note": "Multiple steady carriers ('birdies') spread across the FT8 passband."
     }
   ],

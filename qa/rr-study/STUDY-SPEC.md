@@ -768,10 +768,63 @@ over-attributes decodes from other scenarios) across every historical S1–S8 ru
 
 | Part | Interference | Total FP events, all history |
 |---|---|---|
-| 0 — AWGN moderate (−20 dBFS) | white noise | 37 |
-| 1 — AWGN hot (−10 dBFS) | white noise | 15 |
+| 0 — AWGN (−20 dBFS declared) | white noise | 37 |
+| 1 — AWGN (−10 dBFS declared) | white noise | 15 |
 | 2 — steady carrier @ 1500 Hz | single CW tone | 1 |
 | 3 — multi-carrier birdies | six CW tones | 0 |
+
+🔴 **Correction, 2026-09-03 (`S5-LEVEL`, QA, mechanically re-verified — see
+`qa/rr-study/2026-09-02-2002-architect-to-qa-spec-s5-level-normalisation-scope-and-repair.md` and
+`qa/rr-study/s5_level_scope.py`):** parts 0 and 1 above were originally labelled "moderate" and
+"hot"/"hotter band," implying a delivered 10 dB level contrast. **They are not a level contrast.**
+`harness/run_scenario.py` peak-normalises every rendered slot to a fixed 0.9 peak
+(`_PLAYBACK_PEAK_LEVEL`) before either live playback or `--dump-wav-dir` output; for a pure-AWGN
+buffer this cancels the `level_dbfs` amplitude term algebraically. Measured directly on the real,
+unmodified scenario (`s5_level_scope.py` ROW 0g, 30 slots/part): part 0 mean −20.87 dBFS actual
+RMS, part 1 mean −21.24 dBFS actual RMS — a **0.37 dB** spread, not 10 dB. This has been true of
+every delivered S5 render since the scenario file's parts were authored (2026-06-20) — it is not a
+regression and not specific to any one historical run. **Parts 0 and 1 are two replicates of one
+condition**, not a level contrast; their separate row totals above (37 vs. 15 FP events) remain
+correct as *counts* and are retained unedited, but must not be read as evidence of level
+dependence. (A level-*preserving* re-render confirms the declared 10 dB step is deliverable when
+the normalisation step is skipped — `s5_level_scope.py` ROW 0h, 9.99 dB measured — so the defect
+is in the routine harness path only, not in the scenario's own numbers or the noise generator.)
+The §10 false-positive gate's arithmetic (`4/60`, `1/60`, `3.3%/N=120`, etc.) is **unaffected**:
+every FP event it has ever counted arose on an AWGN slot delivered at one actual level, which is
+exactly what was measured either way.
+
+🔴 **SCOPING CORRECTION, 2026-09-04 (Architect; PO-ratified).** The parenthetical previously here —
+*"(60 = 2 parts × 30 trials)"* — described the **post-R&R-009 default battery only**, but read as
+though the gate's denominator were **always** 60. It is not, and taking it at face value **falsely
+refutes the composition finding** of the 2026-09-04 18:11Z ruling. The denominator is:
+
+| Era | Default battery | §10 denominator | AWGN slots within it |
+|---|---|---|---|
+| Before `58bc7ac` (R&R-009, effective from the 2026-08-27 sweep) | all four parts | **N = 120** | 60 |
+| From `58bc7ac` onward | parts 0,1 only | **N = 60** | 60 |
+
+⇒ **the numerator is AWGN-only in both eras, but the denominator is not.** Pre-R&R-009 runs gated on
+120 slots of which 60 were carrier/birdie — **denominator with no numerator** (parts 2/3 produced
+1 of 53 all-time FP events; `FP-COMPOSITION` 2026-09-04 measured 15/15 of the recent events in parts
+0/1, **zero** in parts 2/3). The identical FP propensity therefore reads **~2× higher** at N=60, so
+**a cross-era rate comparison must be normalised per AWGN slot before it means anything** — the
+run reports' own gate lines are the authority for which era a sweep belongs to, never this section
+and never Section 6's `S5 FP` column (which mixes rates and 95% UBs). See **HK-031** as extended
+2026-09-04: *a denominator change is a redesign even when the metric's name does not change.*
+
+🔴 **`level_dbfs` DELETED, 2026-09-03 (PO ruling, Option 2, `S5-LEVEL` spec Amendment 1):** the key
+above was removed from all four `level_dbfs`-bearing scenario files (`s5-noise.json` and its three
+uniform-`-20` siblings) — S5 is now declared single-level, matching what was already being
+delivered. Pre-registered checks on the deletion itself (Amendment 1 A1.3, `s5_level_deletion_
+verify.py`): **ROW 0j** (byte-identity) found parts 0/1 are NOT bit-identical before/after — part 0
+is (default `-20` = previously-declared `-20`), part 1 is not (default `-20` vs previously-declared
+`-10`, a different pre-normalisation amplitude that peak-normalisation makes mathematically but not
+bit-identical; measured max **1 LSB**, 788 of 5,400,000 samples across the 30 part-1 pairs). **ROW
+0k** (decode-invisibility, `tests/OpenWSFZ.Ft8.Tests/AwgnFpReplayTests.cs`) then PASSED — all 60
+slots' decode sets (count, message, freq, DT, reported SNR) are identical — so Option 2 lands as
+specified, **disclosed rather than silent**. **ROW 0l** confirmed `harness/analyse.py` and
+`render_report.py` are inert to the resulting empty `true_snr_db` column for S5 (identical exit
+codes, byte-identical stdout and `report.md`, before vs. after).
 
 Parts 2/3 combined: 1 of 53 total events ever recorded, and no contribution to the only real
 regression this scenario has caught (the 2026-06-20 OSD FAIL, D-009 — driven entirely by parts

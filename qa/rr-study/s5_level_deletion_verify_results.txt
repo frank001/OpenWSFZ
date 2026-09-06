@@ -1,0 +1,34 @@
+S5-LEVEL Amendment 1 A1.3 -- pre-registered checks on the deletion itself
+Spec: qa/rr-study/2026-09-02-2002-architect-to-qa-spec-s5-level-normalisation-scope-and-repair.md (AMENDMENT 1)
+
+=== ROW 0j: SHA256 byte-identity, row0b_baseline (before) vs row0j_after (after) ===
+ROW 0j: total_pairs=60  identical=30  mismatched=30  PASS=False
+ROW 0j: mismatches by part_index: {'001': 30}
+ROW 0j FAILED -> not byte-identical. ROW 0k (decode-invisibility) is the next gate, per spec A1.3 -- see the C# Fact's own verdict, read below.
+
+=== ROW 0k: decode-invisibility (read from tests/.../AwgnFpReplayTests.cs's own verdict) ===
+ROW 0k: 2026-09-03T16:38:55Z row0k_s5_level_deletion: slots=60 identical_decode_sets=60 PASS=True
+ROW 0k PASSED -> the 1-LSB byte difference from ROW 0j is decode-invisible: Option 2 lands, disclosed, not silently.
+
+=== ROW 0l: truth.csv consumers (analyse.py, render_report.py) survive the empty true_snr_db ===
+ROW 0l: baseline run (unmodified copy) exit_code=0
+  Analysing: S1, S1b, S2, S3, S4, S5, S7, S8
+    S5 FP events (WSJT-X): 0/60 slots (event rate 0.00%; 95% UB 4.87%; decode rate 0.00%)
+    S5 FP events (OpenWSFZ): 4/60 slots (event rate 6.67%; 95% UB 14.61%; decode rate 6.67%)
+ROW 0l: blanked true_snr_db on 1030 S5_matched.csv rows, 60 truth.csv rows
+ROW 0l: post-deletion-simulation run exit_code=0
+  Analysing: S1, S1b, S2, S3, S4, S5, S7, S8
+    S5 FP events (WSJT-X): 0/60 slots (event rate 0.00%; 95% UB 4.87%; decode rate 0.00%)
+    S5 FP events (OpenWSFZ): 4/60 slots (event rate 6.67%; 95% UB 14.61%; decode rate 6.67%)
+ROW 0l: no_exception=True  stdout_byte_identical=True  report_md_byte_identical=True  PASS=True
+ROW 0l: render_report.py exit_code=0 (must be 0)
+ROW 0l: scratch dir D:\Projects\claude\OpenWSFZ\qa\rr-study\awgn-fp-replay\_work\row0l_scratch removed (was gitignored under _work/, contained a copy of a real historical results dir -- not left on disk)
+ROW 0l: D:\Projects\claude\OpenWSFZ\qa\rr-study\trend.csv restored to its pre-run state (analyse.py's two scratch-dir runs above each appended a row to it)
+ROW 0l PASSED -> analyse.py and render_report.py are provably inert to the empty S5 true_snr_db column, not merely 'should be' inert by code reading.
+
+=== SUMMARY ===
+ROW 0j (byte-identical before/after): FAIL
+ROW 0k (decode-invisible, fires only because 0j failed): PASS
+ROW 0l (truth.csv consumers survive): PASS
+
+VERDICT: Option 2 lands: not byte-identical (1-LSB quantisation, S5 part 1 only) but decode-invisible -- disclosed, not silent, per spec A1.3.

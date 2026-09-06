@@ -57,6 +57,14 @@ ARTEFACTS = os.path.join(REPO, "artefacts")
 # inventory written there would be invisible to QA and to review. It lives in
 # qa/ so drift is caught in a diff like any other tracked file.
 OUTPUT = os.path.join(REPO, "qa", "ARTEFACT_INVENTORY.md")
+# ACTION B (2026-09-04, PO-ratified via the 15:07Z artefact-inventory-gap ruling):
+# a SECOND measured-from-disk root. `artefacts/` above has ZERO visibility into
+# `qa/rr-study/**/_work/` -- rendered offline-replay corpora (synthetic WAVs written by a
+# harness), not captured live runs. A 1.4 GB corpus (`m1m4_s5`) sat invisible to `--check`
+# for two days because of this gap (HK-026: the instrument's response is FLAT there). A
+# hand-written pointer was rejected -- it would reintroduce the "cannot go stale silently"
+# defect this whole script exists to prevent -- so this root is scanned the same way.
+RR_STUDY = os.path.join(REPO, "qa", "rr-study")
 
 _TS = re.compile(r"^(\d{6}_\d{6})")
 
@@ -283,6 +291,48 @@ def scan() -> list[dict]:
     return rows
 
 
+def find_work_dirs(root: str) -> list[str]:
+    """Every directory literally named `_work` under `root` (ACTION B) --
+    `qa/rr-study/**/_work/`. These hold RENDERED corpora (synthetic WAVs written by a
+    harness for an offline replay arm), not CAPTURED live runs -- no ALL.TXT, no live
+    decoder leg, no meaningful UTC span. Does not descend into a `_work` dir looking for a
+    nested one -- none exist on disk and the shape is not expected to nest."""
+    out: list[str] = []
+    for dirpath, dirnames, _ in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        if os.path.basename(dirpath) == "_work":
+            out.append(dirpath)
+            dirnames[:] = []
+    return sorted(out)
+
+
+def scan_work_corpora() -> list[dict]:
+    """Second root (ACTION B). One row per WAV-bearing immediate subdirectory of a
+    `_work` dir -- WAV count only, via `count_wavs`'s `os.walk` name check (no per-file
+    `stat`; this root has held 1.4+ GB in one corpus alone). No inode/hardlink check here
+    -- unlike `artefacts/`, these corpora are independently rendered per arm rather than
+    gathered from a shared physical instrument, so cross-corpus hardlinking is not the
+    failure mode this root exists to catch. A subdirectory with zero WAVs (e.g. a
+    `*_truth/` companion holding only `truth.csv`) is not a WAV corpus and is omitted."""
+    rows: list[dict] = []
+    if not os.path.isdir(RR_STUDY):
+        return rows
+    for work_dir in find_work_dirs(RR_STUDY):
+        rel_work = os.path.relpath(work_dir, REPO).replace("\\", "/")
+        try:
+            subnames = sorted(os.listdir(work_dir))
+        except OSError:
+            continue
+        for sub in subnames:
+            p = os.path.join(work_dir, sub)
+            if not os.path.isdir(p):
+                continue
+            n = count_wavs(p)
+            if n:
+                rows.append(dict(work_dir=rel_work, subdir=sub, wavs=n))
+    return rows
+
+
 def find_wsjtx_pairs(rows: list[dict]) -> list[tuple[dict, dict]]:
     """G1 §5.1/§5.2 retro-audit, made a standing mechanical check rather than a one-time
     prose note: every pair of runs whose names differ only by an -8080/-8081 (or other port)
@@ -313,7 +363,7 @@ def find_wsjtx_pairs(rows: list[dict]) -> list[tuple[dict, dict]]:
     return sorted(pairs, key=lambda p: p[0]["name"])
 
 
-def render(rows: list[dict]) -> str:
+def render(rows: list[dict], work_rows: list[dict] | None = None) -> str:
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     out: list[str] = []
     out.append("# Artefact inventory -- what has already been collected")
@@ -399,6 +449,35 @@ def render(rows: list[dict]) -> str:
                 "-8080/-8081 pairs) are excluded above by construction -- they are not at "
                 "risk of this defect and do not need the deeper instance-identity check.")
     out.append("")
+    out.append("## Rendered corpora (`qa/rr-study/**/_work/`) -- second root, ACTION B (2026-09-04)")
+    out.append("")
+    out.append("**Rendered corpora, not captured runs.** Everything above this section is scanned")
+    out.append("from `artefacts/`; this section is a SEPARATE root, `qa/rr-study/**/_work/`, and")
+    out.append("`artefacts/` has **zero visibility into it** -- its response is FLAT here (HK-026).")
+    out.append("A 1.4 GB corpus (`m1m4_s5`) sat invisible to `--check` for two days because of this")
+    out.append("gap (2026-09-04 15:07Z ruling). Read this section too before concluding a rendered")
+    out.append("corpus doesn't exist, and before proposing any render/replay run.")
+    out.append("")
+    out.append("These are synthetic WAVs a harness wrote for an offline replay arm -- **there is no")
+    out.append("ALL.TXT, no live decoder leg, and no UTC span column: it would be meaningless** (a")
+    out.append("WAV's mtime here is render time, not capture time). WAV counts only, via the same")
+    out.append("`os.walk` name check `count_wavs` uses elsewhere in this file -- **no per-file")
+    out.append("`stat`, no inode/hardlink check** on this root. Hardlink detection does not apply:")
+    out.append("unlike `artefacts/`, these corpora are independently rendered per arm rather than")
+    out.append("gathered from one shared physical instrument, so cross-corpus sharing is not the")
+    out.append("failure mode this root exists to catch. A subdirectory with zero WAVs (e.g. a")
+    out.append("`*_truth/` companion holding only `truth.csv`) is not a WAV corpus and is omitted.")
+    out.append("")
+    work_rows = work_rows or []
+    if work_rows:
+        out.append("| `_work` dir | subdir | WAVs |")
+        out.append("|---|---|---|")
+        for r in work_rows:
+            out.append("| `%s` | `%s` | %s |" % (r["work_dir"], r["subdir"], f"{r['wavs']:,}"))
+        out.append("")
+    else:
+        out.append("No `_work` directory with a WAV-bearing subdirectory currently on disk.")
+        out.append("")
     return "\n".join(out)
 
 
@@ -412,7 +491,7 @@ def main() -> int:
         print("no artefacts/ directory at %s" % ARTEFACTS)
         return 2
 
-    text = render(scan())
+    text = render(scan(), scan_work_corpora())
 
     if args.check:
         try:

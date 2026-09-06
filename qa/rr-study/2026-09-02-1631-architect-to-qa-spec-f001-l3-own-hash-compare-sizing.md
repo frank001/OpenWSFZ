@@ -310,3 +310,102 @@ joining the unresolved population) and `U149` ∈ {0, 1}.
 - 🛑 "row 149 = 0" from `ft8_get_h12_by_code` is **out of scope for L3 forever** (Sec.0.1).
 - 🛑 This arm licenses **no** `src/` behaviour change. The new export is MEASURE-ONLY; shipping L3
   itself is a separate proposal with its own pre-registration.
+
+---
+
+# AMENDMENT 1 — 2026-09-03 16:16Z (Architect, on a PO ruling taken the same session)
+
+**Two changes. A1.1 corrects the Architect's own drafting error in §6 and records the PO's
+ratification of the corrected wording. A1.2–A1.4 apply a standing board instruction this spec
+should have carried from the start and did not.** Both land **before any code exists and before any
+L3 datum has been read** — this is pre-registration, not post-hoc widening. §6/§6.1's original text
+is retained above, unedited, as provenance.
+
+## A1.1 The `tls_h12_multiplicity == 1` wording was mine, is wrong, and is superseded
+
+QA's dev-task (`dev-tasks/2026-09-03-f001-l3-unresolved-by-code-export.md` §0) found, before
+writing any code, that the gate as literally worded is the **empty set**. Re-verified independently
+by the Architect against `src/OpenWSFZ.Ft8/Native/ft8_shim.c`:
+
+- `hash_table_lookup` (`:637-655`) and `hash_table_count_h12_multiplicity` (`:668-693`) walk the
+  **identical** probe chain — same `h10`/`idx` derivation, same first-empty-slot termination, same
+  `HASH_TABLE_SIZE` bound. So `found == false` ⇒ a multiplicity count over that same chain is
+  **provably** zero. That is exactly why `cb_lookup_hash` hardcodes `tls_h12_multiplicity = 0` at
+  `:821` rather than computing it.
+- Conversely `tls_h12_multiplicity == 1` ⇒ `found == true && !tls_h12_suppressed` ⇒
+  `cb_lookup_hash` returns `true` (`:826`) — the **resolved, real-name-displayed** L2 case.
+- ⇒ "unresolved **and** `multiplicity == 1`" cannot occur. An export gated exactly as worded would
+  pass every mechanical wiring check and then read `U_total = 0` on every corpus, which §5's ROW 0g
+  requires QA to read as instrument failure.
+
+🔴 **The fault is the Architect's, and the PO's ruling is not at fault.** §6's substance —
+*"gated to exclude the suppressed subset"* — is correct and is what the PO ratified. The
+parenthetical *"(i.e. fire only when `tls_h12_multiplicity == 1`)"* that I appended to it is a
+drafting slip: the suppressed subset is `multiplicity >= 2`, so its complement inside the
+*unresolved* population is `multiplicity == 0`, not `== 1`.
+
+✅ **PO RULING, 2026-09-03, binding and superseding the parenthetical in §6/§6.1:**
+
+> **The gate is `tls_h12_lookup_performed && !tls_h12_resolved`.**
+
+This implements "exclude the suppressed subset" exactly: a suppressed/ambiguous lookup always has
+`tls_h12_resolved == true` and is therefore excluded **by construction**, not by a comparison that
+could be mis-wired. Everything else in §6.1 — items 2, 3 and 4 — stands as written, as amended
+below. Build the §2.2 **first** variant in QA's dev-task; the literal-`== 1` variant is now
+**withdrawn, not optional**.
+
+## A1.2 🔴 The board's padding-contamination instruction binds this arm, and this spec did not carry it
+
+Standing board instruction (2026-08 `SUP-B`/AC-2 session): *"`g_h12_ambiguous` is CONTAMINATED as a
+sizing statistic — ~70% of its 847 are slot-0 padding lookups that were never user-visible … **any
+future sizing work needs the padding counter FIRST.**"* **L3 is sizing work on a lookup counter.**
+§8's third bullet records the 847-vs-250 ban for the *resolved* counter and then fails to apply the
+same reasoning to the unresolved one this arm creates. That is my omission (HK-018).
+
+**Why it applies, from source, not by analogy:** `ftx_message_encode_nonstd` (`message.c:256-261`)
+hard-wires `n12 = 0` for every `icq != 0` message, and the decoder looks slot 0 up unconditionally
+(`message.c:431`) and discards it (`:451`). Those lookups are **padding, not a hash of anything**,
+and they reach `cb_lookup_hash` like any other. When code 0 has no matching table entry they land
+in **exactly the population this arm's new export counts.**
+
+✅ **And the fix is free, because the export is per-code:** padding is **always code 0**. So `U[0]`
+isolates it and no new counter, no second export, and no shim change beyond `20260050` is needed.
+The `ft8_get_h12_ambiguous_padding_count()` proposal recorded on the board as a follow-up is **not
+required for L3** — do not build it for this arm.
+
+## A1.3 Consequent gate changes (replacing the affected parts of §5 and §6.1 item 3)
+
+1. **The citable sizing population is `U_clean = U_total − U[0]`, never `U_total`.** Report both,
+   always adjacent, and never quote a bare `U_total` as a sizing figure. State the irreducible
+   residue explicitly rather than hiding it: a genuine callsign whose real 12-bit hash is 0 also
+   lands in row 0 and is discarded with the padding — expected at ≈1/4096 of genuine unresolved
+   lookups, which is **not** separable by any instrument this arm has and must be reported as a
+   known one-sided bias, not as noise.
+2. 🔴 **ROW 0g's floor is re-expressed on the padding-free count: `U_clean < 500` ⇒ STOP.** Read
+   against `U_total` it is an HK-022 false green — the floor would pass on a population that is
+   mostly padding. Both numbers get printed either way.
+3. **§5's power arithmetic is re-derived on `U_clean`, not on `U_total` and not on §6.1 item 2's
+   already-shrunk figure.** §6.1 item 2's conclusion is **unchanged and now stronger**: the
+   4,096-code distribution remains the primary reading and the single `U149` cell remains
+   unreadable. Do not present the re-derivation as rescuing it.
+4. **§6.1 item 3's precondition is re-anchored to a same-run measurement.** As written it compares
+   the gated/ungated difference to *"the corpus's known ambiguous count"* (847 on `s17m`) — a
+   historical figure this project has already ruled contaminated for interpretation. Replace with:
+   the difference between the ungated unresolved count and the gated one **must equal the same
+   run's own `ft8_get_h12_suppressed_count()`** (already shipped — **do not add an export for
+   this**). Mechanical, same-run, and it fails exactly when the gate is unwired, which is what the
+   check exists for.
+   ⚠️ **State what this check cannot detect** (HK-022's drafting question): under the A1.1 gate the
+   equality is near-tautological — it catches a mis-wired branch and **nothing else**, and in
+   particular it is **blind to padding contamination.** That blindness is precisely why A1.3 item 2
+   exists; the two checks are not redundant.
+
+## A1.4 What Amendment 1 does not change
+
+- The dev-task is **still blocked on nothing else** — with A1.1 ratified it is unblocked for the
+  Captain to open a Developer session. HK-011 in full; the Architect neither builds nor pushes.
+- `20260050` stays pinned in ROW 0a. Never substituted (see the same-day shim-renumber dev-task).
+- COST-ONLY (§0.3, §8) is untouched. A cost-only result is still not a verdict on L3.
+- 🛑 Prediction scoring: §7's blind predictions stand for ROW 1–3, but the `U_total` ≈ 2,600–3,600
+  expectation is now expressed on a population this amendment redefines — **re-state it as
+  `U_clean`, or withdraw it, before running; do not score it against the redefined quantity.**

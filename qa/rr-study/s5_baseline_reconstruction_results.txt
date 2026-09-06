@@ -1,0 +1,161 @@
+S5-BASELINE -- reconstruct the S5 AWGN false-positive baseline
+Spec: qa/rr-study/2026-09-04-1911-architect-to-qa-spec-s5-baseline-reconstruction.md
+
+=== ROW 0c: census completeness (enumerated directly from disk, qa/rr-study/results/, never from ARTEFACT_INVENTORY.md or Section 6) ===
+  34 run directories under results/ carry a truth.csv with >=1 scenario_id=='S5' row.
+
+  Admissible (12):
+    2026-07-04-a3738fc-f002-s5-n300      date=2026-07-04 era=2026-07      context=standalone n_awgn=300 k_awgn(OpenWSFZ)=8
+    d011-fp-recheck-2026-07-04           date=2026-07-04 era=2026-07      context=standalone n_awgn=120 k_awgn(OpenWSFZ)=7
+    2026-07-07-df4cc89                   date=2026-07-07 era=2026-07      context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=0
+    2026-08-05-3bd4cd0                   date=2026-08-05 era=pre-window   context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=0
+    2026-08-15-8d6e1b1                   date=2026-08-15 era=pre-window   context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=1
+    2026-08-21-7d36038                   date=2026-08-21 era=pre-window   context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=1
+    2026-08-22-f5dec23                   date=2026-08-22 era=post-window  context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=4
+    2026-08-27-22b749c                   date=2026-08-27 era=post-window  context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=0
+    2026-08-29-872ba65                   date=2026-08-29 era=post-window  context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=1
+    2026-08-30-2e60949                   date=2026-08-30 era=post-window  context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=2
+    2026-09-02-3b52608                   date=2026-09-02 era=post-window  context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=4
+    2026-09-03-35378b9                   date=2026-09-03 era=post-window  context=battery    n_awgn= 60 k_awgn(OpenWSFZ)=2
+
+  Excluded (22):
+    d009-k10-confirm-s5                  date=None: no run date found (no report.md 'Run date' row, no dated dirname); report.md missing, or its S5 table is not the ratified 6-column format; run directory carries its own CONTAMINATED.md -- excluded on the record's own say-so, not this script's judgement
+    d009-k10-confirm-s5-clean            date=None: no run date found (no report.md 'Run date' row, no dated dirname); report.md missing, or its S5 table is not the ratified 6-column format
+    2026-06-06-4c34ef6                   date=2026-06-06: pre-R&R-004 (2026-06-06 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format; AWGN slot count 6 < 49 -- gate is INFO by construction at this N
+    2026-06-06-6bab388                   date=2026-06-06: pre-R&R-004 (2026-06-06 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format; AWGN slot count 6 < 49 -- gate is INFO by construction at this N
+    2026-06-07-4b3a4ca                   date=2026-06-07: pre-R&R-004 (2026-06-07 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format; AWGN slot count 6 < 49 -- gate is INFO by construction at this N
+    2026-06-14-815b652                   date=2026-06-14: pre-R&R-004 (2026-06-14 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format; AWGN slot count 6 < 49 -- gate is INFO by construction at this N
+    2026-06-20-6e821fa                   date=2026-06-20: pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format; AWGN slot count 6 < 49 -- gate is INFO by construction at this N
+    2026-06-20-8eea3c4                   date=2026-06-20: pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format; AWGN slot count 12 < 49 -- gate is INFO by construction at this N
+    2026-06-20-ccda50c-s5-wide           date=2026-06-20: pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format; AWGN slot count 23 < 49 -- gate is INFO by construction at this N; run directory carries its own INCOMPLETE.md
+    2026-06-20-d40b4cd                   date=2026-06-20: pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format; AWGN slot count 6 < 49 -- gate is INFO by construction at this N
+    diag-nhard-2026-06-20                date=2026-06-20: pre-R&R-004 (2026-06-20 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format; AWGN slot count 44 < 49 -- gate is INFO by construction at this N
+    d009-ablation-2026-06-21/cfg1-s5     date=2026-06-21: pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format
+    d009-ablation-2026-06-21/cfg2-s5     date=2026-06-21: pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format
+    d009-ablation-2026-06-21/cfg4-s5     date=2026-06-21: pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format
+    diag-pass1-sweep-2026-06-21/p0-minscore1/s5 date=2026-06-21: pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format
+    diag-pass1-sweep-2026-06-21/p1-minscore3/s5 date=2026-06-21: pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format
+    diag-pass1-sweep-2026-06-21/p2-minscore5/s5 date=2026-06-21: pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format
+    diag-pass1-sweep-2026-06-21/p3-minscore7/s5 date=2026-06-21: pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format
+    diag-pass1-sweep-2026-06-21/p4-minscore10/s5 date=2026-06-21: pre-R&R-004 (2026-06-21 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; report.md missing, or its S5 table is not the ratified 6-column format
+    2026-06-22-f11f438                   date=2026-06-22: pre-R&R-004 (2026-06-22 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; AWGN slot count 6 < 49 -- gate is INFO by construction at this N
+    2026-07-01-b03998f                   date=2026-07-01: pre-R&R-004 (2026-07-01 < 2026-07-04) -- plain decode-rate metric, not the ratified event-rate gate; AWGN slot count 6 < 49 -- gate is INFO by construction at this N
+    2026-07-04-793a298                   date=2026-07-04: AWGN slot count 6 < 49 -- gate is INFO by construction at this N
+
+ROW 0c (vs the pre-registration's own known table): FIRES
+  New admissible run(s) not in the pre-registration's table: ['2026-07-07-df4cc89']
+  Consequence: NOT a stop. Added above; ROW 0d/ROW 1/ROW 2 run on the full set.
+
+=== ROW 0a: reproduction gate (evaluated first) ===
+Cannot detect: an error present identically in both the generator and the report (shared-code blind spot). ROW 0b is the independent check on the stimulus side.
+  2026-07-04-a3738fc-f002-s5-n300      WSJT-X   recomputed=(0, 300) reported=(0, 300) OK
+  2026-07-04-a3738fc-f002-s5-n300      OpenWSFZ recomputed=(8, 300) reported=(8, 300) OK
+  2026-07-07-df4cc89                   WSJT-X   recomputed=(0, 120) reported=(0, 120) OK
+  2026-07-07-df4cc89                   OpenWSFZ recomputed=(0, 120) reported=(0, 120) OK
+  2026-08-05-3bd4cd0                   WSJT-X   recomputed=(0, 120) reported=(0, 120) OK
+  2026-08-05-3bd4cd0                   OpenWSFZ recomputed=(0, 120) reported=(0, 120) OK
+  2026-08-15-8d6e1b1                   WSJT-X   recomputed=(0, 120) reported=(0, 120) OK
+  2026-08-15-8d6e1b1                   OpenWSFZ recomputed=(1, 120) reported=(1, 120) OK
+  2026-08-21-7d36038                   WSJT-X   recomputed=(0, 120) reported=(0, 120) OK
+  2026-08-21-7d36038                   OpenWSFZ recomputed=(1, 120) reported=(1, 120) OK
+  2026-08-22-f5dec23                   WSJT-X   recomputed=(0, 120) reported=(0, 120) OK
+  2026-08-22-f5dec23                   OpenWSFZ recomputed=(4, 120) reported=(4, 120) OK
+  2026-08-27-22b749c                   WSJT-X   recomputed=(0, 60) reported=(0, 60) OK
+  2026-08-27-22b749c                   OpenWSFZ recomputed=(0, 60) reported=(0, 60) OK
+  2026-08-29-872ba65                   WSJT-X   recomputed=(0, 60) reported=(0, 60) OK
+  2026-08-29-872ba65                   OpenWSFZ recomputed=(1, 60) reported=(1, 60) OK
+  2026-08-30-2e60949                   WSJT-X   recomputed=(0, 120) reported=(0, 120) OK
+  2026-08-30-2e60949                   OpenWSFZ recomputed=(2, 120) reported=(2, 120) OK
+  2026-09-02-3b52608                   WSJT-X   recomputed=(0, 60) reported=(0, 60) OK
+  2026-09-02-3b52608                   OpenWSFZ recomputed=(4, 60) reported=(4, 60) OK
+  2026-09-03-35378b9                   WSJT-X   recomputed=(0, 60) reported=(0, 60) OK
+  2026-09-03-35378b9                   OpenWSFZ recomputed=(2, 60) reported=(2, 60) OK
+  d011-fp-recheck-2026-07-04           WSJT-X   recomputed=(0, 120) reported=(0, 120) OK
+  d011-fp-recheck-2026-07-04           OpenWSFZ recomputed=(7, 120) reported=(7, 120) OK
+ROW 0a: does not fire
+
+=== ROW 0b: audio-condition equivalence (THE LOAD-BEARING ROW) ===
+  s5-noise.json id='S5'  s5-noise-wide.json id='S5'
+  NOTE: both files declare id=='S5'. compute_seed(scenario_id, part_index, trial_index) is keyed on this string, not the filename -- so the per-trial seed is IDENTICAL for both files by construction. What this row actually tests is whether the two files' part-0 CONFIGURATION (noise_type, and whatever level_dbfs each declares or omits) renders to the same buffer given that shared seed -- disclosed, not hidden.
+  s5-noise.json part 0 config: {'part_index': 0, 'noise_type': 'awgn', 'note': 'White (AWGN) noise — channel.py add_noise with no signal. CORRECTED 2026-09-03 (S5-LEVEL, qa/rr-study/2026-09-02-2002-architect-to-qa-spec-s5-level-normalisation-scope-and-repair.md): the declared level_dbfs was NOT what run_scenario.py actually delivered for pure AWGN -- its peak-normalise-to-0.9 step cancelled the amplitude term. Part 0 and part 1 rendered to the same actual RMS level (measured 0.37 dB apart, s5_level_scope.py ROW 0g) and were two replicates of one condition, not a level contrast. `level_dbfs` DELETED 2026-09-03 (PO ruling, Option 2, Amendment 1) -- S5 is declared single-level; the harness default (-20 dBFS pre-normalisation amplitude) now applies uniformly. Byte-identity of the delivered audio before/after this deletion asserted by ROW 0j (60/60 SHA256 match).'}
+  s5-noise-wide.json part 0 config: {'part_index': 0, 'noise_type': 'awgn', 'note': "Wideband AWGN. `level_dbfs` DELETED 2026-09-03 (S5-LEVEL, PO ruling Option 2, Amendment 1) — it was statistically INERT for pure AWGN in S5 anyway: run_scenario.py peak-normalises every buffer to 0.9 before playback, and for signal-free AWGN the amplitude cancels (samples * 0.9 / peak is independent of level_dbfs). This file's uniform single declared value cancels identically with the harness default, so the deletion changes no delivered audio (byte-identical by construction — see the S5-LEVEL spec Amendment 1 A1.1). Independent samples come ONLY from the per-trial seed, not from varying the level. Do NOT add trials expecting added statistical power from a level axis; S5 is single-level."}
+  trial  0: seed=1561858501 sha_s5=03734beb738a5d4b... sha_wide=03734beb738a5d4b... MATCH
+  trial  1: seed=960283802 sha_s5=90ace92da0993e36... sha_wide=90ace92da0993e36... MATCH
+  trial  2: seed=892021093 sha_s5=b78de822d869d890... sha_wide=b78de822d869d890... MATCH
+  trial  3: seed=1972790602 sha_s5=a0f6ee7fd28b0ffd... sha_wide=a0f6ee7fd28b0ffd... MATCH
+  trial  4: seed=522357441 sha_s5=6e8572b9d2b42524... sha_wide=6e8572b9d2b42524... MATCH
+  trial  5: seed=434100809 sha_s5=495f9a790b373800... sha_wide=495f9a790b373800... MATCH
+  trial  6: seed=1987541040 sha_s5=b838dca6f7a0d717... sha_wide=b838dca6f7a0d717... MATCH
+  trial  7: seed=1550731733 sha_s5=3fea1bf15a3ffc54... sha_wide=3fea1bf15a3ffc54... MATCH
+  trial  8: seed=978267978 sha_s5=ad927c79356d7b98... sha_wide=ad927c79356d7b98... MATCH
+  trial  9: seed=1361001477 sha_s5=cafe359248626f48... sha_wide=cafe359248626f48... MATCH
+  trial 10: seed=1672796167 sha_s5=60fc0864908cbe1e... sha_wide=60fc0864908cbe1e... MATCH
+  trial 11: seed=363339928 sha_s5=4ac9f1f2f85960cc... sha_wide=4ac9f1f2f85960cc... MATCH
+  trial 12: seed=920581965 sha_s5=18a9fd9c9e010c93... sha_wide=18a9fd9c9e010c93... MATCH
+  trial 13: seed=1985403058 sha_s5=c3618e3e47b2db32... sha_wide=c3618e3e47b2db32... MATCH
+  trial 14: seed=1613680917 sha_s5=0d0d145ba8c13a3b... sha_wide=0d0d145ba8c13a3b... MATCH
+  trial 15: seed=1930000429 sha_s5=d88e104adb96ec4b... sha_wide=d88e104adb96ec4b... MATCH
+  trial 16: seed=216305983 sha_s5=f05b603560d23613... sha_wide=f05b603560d23613... MATCH
+  trial 17: seed=312112809 sha_s5=7d938562513eddde... sha_wide=7d938562513eddde... MATCH
+  trial 18: seed=1052303369 sha_s5=c74a8790dc898db2... sha_wide=c74a8790dc898db2... MATCH
+  trial 19: seed=217579570 sha_s5=a39e123fece5ce96... sha_wide=a39e123fece5ce96... MATCH
+  trial 20: seed=99964177 sha_s5=4f50ecd7a0b57292... sha_wide=4f50ecd7a0b57292... MATCH
+  trial 21: seed=490683040 sha_s5=2519ed4cdcf3322c... sha_wide=2519ed4cdcf3322c... MATCH
+  trial 22: seed=1940961689 sha_s5=7baa366dfd8ea38e... sha_wide=7baa366dfd8ea38e... MATCH
+  trial 23: seed=1454648504 sha_s5=485d50b80f9de735... sha_wide=485d50b80f9de735... MATCH
+  trial 24: seed=558398644 sha_s5=f2eb56bf2f74088e... sha_wide=f2eb56bf2f74088e... MATCH
+  trial 25: seed=1286326493 sha_s5=d11f80e34b540d81... sha_wide=d11f80e34b540d81... MATCH
+  trial 26: seed=905618129 sha_s5=63e0dab378ece790... sha_wide=63e0dab378ece790... MATCH
+  trial 27: seed=649442228 sha_s5=e3ef33895b04c9d8... sha_wide=e3ef33895b04c9d8... MATCH
+  trial 28: seed=1033628820 sha_s5=38521510ca3035f5... sha_wide=38521510ca3035f5... MATCH
+  trial 29: seed=815515411 sha_s5=17aa9bdc6b1b9d2f... sha_wide=17aa9bdc6b1b9d2f... MATCH
+ROW 0b: 30/30 trial pairs byte-identical. does not fire
+
+=== ROW 0d: identifiability of battery context (THE ROW THAT DECIDES WHAT MAY BE REPORTED) ===
+  era x context cross-tabulation (run count):
+    2026-07     : standalone=2 | battery=1
+      2026-07/standalone: ['2026-07-04-a3738fc-f002-s5-n300', 'd011-fp-recheck-2026-07-04']
+      2026-07/battery: ['2026-07-07-df4cc89']
+    pre-window  : standalone=0 | battery=3
+      pre-window/battery: ['2026-08-05-3bd4cd0', '2026-08-15-8d6e1b1', '2026-08-21-7d36038']
+    post-window : standalone=0 | battery=6
+      post-window/battery: ['2026-08-22-f5dec23', '2026-08-27-22b749c', '2026-08-29-872ba65', '2026-08-30-2e60949', '2026-09-02-3b52608', '2026-09-03-35378b9']
+  ROW 0d FIRES -- for at least one era, one context is fully unpopulated:
+    era=pre-window: populated=['battery'] empty=['standalone']
+    era=post-window: populated=['battery'] empty=['standalone']
+  Consequence: ROW 1's cross-era contrast MUST NOT be reported as a p-value or a ratio. Reporting as counts + exact CP intervals, labelled 'not identifiable -- context confounded with era'.
+
+=== ROW 1: is the pre-window below the shipped-configuration baseline? ===
+  Pre-window (battery context):        2/180 = 1.111%  95% CP CI [0.135%, 3.956%]  runs=['2026-08-05-3bd4cd0', '2026-08-15-8d6e1b1', '2026-08-21-7d36038']
+  July shipped-config (standalone):    8/300 = 2.667%  95% CP CI [1.158%, 5.187%]  runs=['2026-07-04-a3738fc-f002-s5-n300']
+  July shipped-config (battery, informational only -- n=1 run, does not resolve the confound alone): 0/60 = 0.000%  95% CP CI [0.000%, 5.963%]  runs=['2026-07-07-df4cc89']
+  ROW 0d FIRED: reporting as counts + exact CP intervals ONLY. Label: 'not identifiable -- context confounded with era'.
+  Position (HK-021(w)): the pre-window CI [0.135%, 3.956%] and the July shipped-config CI [1.158%, 5.187%] DO overlap.
+
+=== ROW 2: boundary-free trend (conditional permutation test, no change point) ===
+  Population: 9 battery-context runs, pre-window+post-window eras: ['2026-08-05-3bd4cd0', '2026-08-15-8d6e1b1', '2026-08-21-7d36038', '2026-08-22-f5dec23', '2026-08-27-22b749c', '2026-08-29-872ba65', '2026-08-30-2e60949', '2026-09-02-3b52608', '2026-09-03-35378b9']
+  Per-run (date, N_awgn, k_awgn): [('2026-08-05', 60, 0), ('2026-08-15', 60, 1), ('2026-08-21', 60, 1), ('2026-08-22', 60, 4), ('2026-08-27', 60, 0), ('2026-08-29', 60, 1), ('2026-08-30', 60, 2), ('2026-09-02', 60, 4), ('2026-09-03', 60, 2)]
+  Total events (condition on this): 15
+  Observed statistic (sum of events * chronological rank): 76.0
+  Conditional permutation p (one-sided, later-than-expected), N=2,000,000 draws, seed=20260904: p=0.0610045 (MC quantum 5.0e-07)
+    drop 2026-08-05-3bd4cd0       -> p=0.1851
+    drop 2026-08-15-8d6e1b1       -> p=0.0905
+    drop 2026-08-21-7d36038       -> p=0.0909
+    drop 2026-08-22-f5dec23       -> p=0.0170
+    drop 2026-08-27-22b749c       -> p=0.0574
+    drop 2026-08-29-872ba65       -> p=0.0580
+    drop 2026-08-30-2e60949       -> p=0.0739
+    drop 2026-09-02-3b52608       -> p=0.1808
+    drop 2026-09-03-35378b9       -> p=0.0452
+ROW 2: does not fire (p_full<0.05: False; any leave-one-out p>0.10: True)
+  Consequence: the trend is load-bearing on individual runs (named above). This does NOT restore 'no regression' -- direction is unchanged (18:11Z).
+
+=== SUMMARY (mechanical row outcomes only -- no adjudication; spec Section 6) ===
+  ROW 0a (reproduction):            does not fire
+  ROW 0b (audio equivalence):       does not fire
+  ROW 0c (census vs known table):   FIRES -- new: ['2026-07-07-df4cc89']
+  ROW 0d (context x era confound):  FIRES
+  ROW 1 label:                      not identifiable -- context confounded with era
+  ROW 2 (boundary-free trend):      does not fire (p=0.0610)
+
+=== HARD STOP per spec Section 6 -- pausing and handing back here (HK-030) ===
