@@ -44,7 +44,7 @@ distributions (`AWGN-FP` A1.0). **Prediction scoring stays suspended.** §7 is c
 | ROW 0q (int-SNR rule) | ✅ **RE-CONFIRMED on `20260050`** — `round_half_away_from_zero`, unanimous over 3,510 rows | ROW 0r report §4 |
 | ROW 1 (`F = +8.00 dB`) | ✅ Stands, **straddle disclosed** (48 slots ≤`20260049` + 12 on `20260050`); leave-one-out `F` unchanged | `FP-PARITY` A2.3 |
 | M1–M4 message-text results | 🛑 **VOID on `20260050`** (`AWGN-FP` A3.2) | ROW 0r fired: 246/435 event slots differ in message text |
-| M1–M4 **numeric** results | ⚠️ **Re-measured and unchanged** — see ROW 0s, which asserts it rather than assuming it | ROW 0r §2: `0/435` differ in decode count, `freq_hz`, `dt_s`, `reported_snr_db`; *"no slot appears or disappears"* |
+| M1–M4 **numeric** results | ⚠️ **Re-measured and unchanged.** 🔴 **CORRECTED BY A3.3 — cite ROW 0r for this, NOT ROW 0s.** ~~see ROW 0s, which asserts it rather than assuming it~~ — **ROW 0s reads `slots.csv` alone and could not detect a numeric change if one existed; its whole scope is the aggregate event count.** | ROW 0r §2: `0/435` differ in decode count, `freq_hz`, `dt_s`, `reported_snr_db`; *"no slot appears or disappears"* |
 | `AwgnFpReplayTests.PinnedShaWinX64` | ✅ `ce02c7ba…153e`, the `20260049` landed-row identity — **restored `7cf11d7`, PO-directed** | `AWGN-FP` A3.1; `tests/…/AwgnFpReplayTests.cs:58` |
 | `_work/m1m4_s5/` corpus | ✅ **4,000 WAVs present** — enumerated directly, because `ARTEFACT_INVENTORY.md`'s only root is `artefacts/` and cannot see `_work/` (HK-026) | direct `ls` |
 | `qa/ARTEFACT_INVENTORY.md` | 🔴 **STALE** — `--check` fails. Regenerate before §5 step 1 | `python qa/artefact_inventory.py --check` |
@@ -224,6 +224,9 @@ design has no baseline and ROW 0n must be re-scoped to decode both legs fresh (w
 ~8 minutes, but it is a different row and needs saying, not doing).
 ⚠️ **What this row cannot detect** (HK-022): whether ROW 0r's own decode was correctly configured.
 That is ROW 0p's job, and ROW 0p runs **before** ROW 0n for exactly this reason.
+🔴 **Nor can it detect a numeric-field change** (`freq_hz`, `dt_s`, `reported_snr_db`, decode count)
+— it reads `slots.csv` **alone** and never opens `decodes.csv`. **That is ROW 0r's claim and ROW 0r
+has already made it** (`0/435`). **Added by A3.3; see the amendment at the foot of this document.**
 
 ### ROW 0o — decode-param parity
 
