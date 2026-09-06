@@ -80,7 +80,15 @@ What this runs, in order:
   2. Build the solution in Release              (dotnet build -c Release)
   3. The full local test suite                  (dotnet test -c Release, minus E2E
                                                    unless a published binary already
-                                                   exists — see --skip-tests)
+                                                   exists — see --skip-tests; also
+                                                   excludes Category=AwgnFpReplay per
+                                                   TESTING_STRATEGY.md §4.7 — that class
+                                                   writes raw decoder output over
+                                                   privacy-redacted committed CSVs on
+                                                   every run and must never run
+                                                   unfiltered, see qa/2026-09-06-0913-qa-
+                                                   nfr021-awgnfpreplaytests-clobber-
+                                                   incident.md)
   4. Gate G3  — requirement traceability        (tools/TraceabilityCheck)
   5. Lint — UDP capture margin check            (tools/check_udp_capture_margin.py)
      — added 2026-07-19 alongside step 9 below, same incident. Flags a
@@ -271,7 +279,7 @@ else
 fi
 cd "{repo_path}" || {{ echo "OWSFZ_CD_FAILED"; exit 126; }}
 "$DOTNET" build OpenWSFZ.slnx -c Release
-"$DOTNET" test OpenWSFZ.slnx -c Release --no-build
+"$DOTNET" test OpenWSFZ.slnx -c Release --no-build --filter "Category!=AwgnFpReplay"
 """.strip()
 
 
@@ -590,7 +598,18 @@ def step_build():
 
 def step_tests():
     result = GateResult("Full test suite (Release)")
-    code, _ = _run(["dotnet", "test", "OpenWSFZ.slnx", "-c", "Release", "--no-build"])
+    # --filter excludes Category=AwgnFpReplay per TESTING_STRATEGY.md §4.7: that class
+    # pins a specific native binary, reads from qa/rr-study/awgn-fp-replay/_work/ (
+    # .gitignore'd, no CI runner can ever populate it), and — the incident this filter
+    # exists to prevent — writes fresh, unredacted decoder output over the privacy-
+    # redacted committed CSVs under qa/rr-study/{awgn-fp-replay,fp-parity}/results/ on
+    # every run when _work/ happens to be populated locally (2026-09-06, see
+    # qa/2026-09-06-0913-qa-nfr021-awgnfpreplaytests-clobber-incident.md). It must
+    # never run unfiltered, here or in the WSL leg below.
+    code, _ = _run([
+        "dotnet", "test", "OpenWSFZ.slnx", "-c", "Release", "--no-build",
+        "--filter", "Category!=AwgnFpReplay",
+    ])
     result.status = "PASS" if code == 0 else "FAIL"
     return result
 
