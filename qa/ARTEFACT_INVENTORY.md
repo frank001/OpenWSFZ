@@ -11,13 +11,13 @@ Every column except **notes** is measured from disk on each run and
 cannot go stale silently. **notes** is interpretive and hand-written --
 treat it as a claim to verify, not a fact.
 
-Scanned: 2026-09-04 19:53 UTC | 38 runs | 139,105 total WAVs
+Scanned: 2026-09-06 10:01 UTC | 38 runs | 139,475 total WAVs
 
 | run | UTC span | legs (distinct cycles) | WAVs | notes *(interpretive)* |
 |---|---|---|---|---|
 | `2026-08-30-rr-s1s8-sup-b-shim20260048` | - | - | `cycle-audio` 5,719 |  |
 | `2026-09-02-rr-s1s8-3b52608` | - | - | `cycle-audio` 755 |  |
-| `2026-09-03-rr-s1s8-35378b9` | - | - | `cycle-audio` 335 |  |
+| `2026-09-03-rr-s1s8-35378b9` | - | - | `cycle-audio` 705 |  |
 | `20260613_live run 1h40_items` | - | - | `save` 406 |  |
 | `20260614 WSJT-X Direct to OpenWSFZ` | 260614_173915 -> 260614_174530 | `(root)` 13 | - |  |
 | `20260614_live_run` | - | - | `save` 2,171 |  |

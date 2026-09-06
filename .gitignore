@@ -220,3 +220,12 @@ native/ft8_lib_build/rebuild_*.txt
 # under _work/ and are ignored with it; regenerate both via
 # harness/run_scenario.py --dry-run --dump-wav-dir using those seeds.
 qa/rr-study/awgn-fp-replay/_work/
+
+# FP-PARITY P3 (2026-09-06, Amendment 3, section 3.2): FpParityP3Tests writes its
+# normalised-decode CSVs here, never into fp-parity/results/ -- the mandatory clobber
+# guard (12 redaction-mapped committed CSVs were overwritten in one day by an
+# unfiltered AwgnFpReplayTests run) requires the write path itself to be untracked,
+# checked by the fixture BEFORE it opens any file. Promotion into results/ is a
+# separate, deliberate redact-then-rescan-then-commit step -- never this directory's
+# own content.
+qa/rr-study/fp-parity/_out/
