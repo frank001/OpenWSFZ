@@ -44,7 +44,7 @@ distributions (`AWGN-FP` A1.0). **Prediction scoring stays suspended.** §7 is c
 | ROW 0q (int-SNR rule) | ✅ **RE-CONFIRMED on `20260050`** — `round_half_away_from_zero`, unanimous over 3,510 rows | ROW 0r report §4 |
 | ROW 1 (`F = +8.00 dB`) | ✅ Stands, **straddle disclosed** (48 slots ≤`20260049` + 12 on `20260050`); leave-one-out `F` unchanged | `FP-PARITY` A2.3 |
 | M1–M4 message-text results | 🛑 **VOID on `20260050`** (`AWGN-FP` A3.2) | ROW 0r fired: 246/435 event slots differ in message text |
-| M1–M4 **numeric** results | ⚠️ **Re-measured and unchanged** — see ROW 0s, which asserts it rather than assuming it | ROW 0r §2: `0/435` differ in decode count, `freq_hz`, `dt_s`, `reported_snr_db`; *"no slot appears or disappears"* |
+| M1–M4 **numeric** results | ⚠️ **Re-measured and unchanged.** 🔴 **CORRECTED BY A3.3 — cite ROW 0r for this, NOT ROW 0s.** ~~see ROW 0s, which asserts it rather than assuming it~~ — **ROW 0s reads `slots.csv` alone and could not detect a numeric change if one existed; its whole scope is the aggregate event count.** | ROW 0r §2: `0/435` differ in decode count, `freq_hz`, `dt_s`, `reported_snr_db`; *"no slot appears or disappears"* |
 | `AwgnFpReplayTests.PinnedShaWinX64` | ✅ `ce02c7ba…153e`, the `20260049` landed-row identity — **restored `7cf11d7`, PO-directed** | `AWGN-FP` A3.1; `tests/…/AwgnFpReplayTests.cs:58` |
 | `_work/m1m4_s5/` corpus | ✅ **4,000 WAVs present** — enumerated directly, because `ARTEFACT_INVENTORY.md`'s only root is `artefacts/` and cannot see `_work/` (HK-026) | direct `ls` |
 | `qa/ARTEFACT_INVENTORY.md` | 🔴 **STALE** — `--check` fails. Regenerate before §5 step 1 | `python qa/artefact_inventory.py --check` |
@@ -224,6 +224,9 @@ design has no baseline and ROW 0n must be re-scoped to decode both legs fresh (w
 ~8 minutes, but it is a different row and needs saying, not doing).
 ⚠️ **What this row cannot detect** (HK-022): whether ROW 0r's own decode was correctly configured.
 That is ROW 0p's job, and ROW 0p runs **before** ROW 0n for exactly this reason.
+🔴 **Nor can it detect a numeric-field change** (`freq_hz`, `dt_s`, `reported_snr_db`, decode count)
+— it reads `slots.csv` **alone** and never opens `decodes.csv`. **That is ROW 0r's claim and ROW 0r
+has already made it** (`0/435`). **Added by A3.3; see the amendment at the foot of this document.**
 
 ### ROW 0o — decode-param parity
 
@@ -376,5 +379,44 @@ A1.0); these may not be cited, and no row's threshold was chosen with reference 
 6. Any HK-021 fault found in **this** spec: flag and escalate (HK-025), do not silently repair. **Three
    of my own row definitions needed correcting before P3 could run at all (§1); assume there is a
    fourth.**
+
+**Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>**
+
+---
+
+# AMENDMENT A3.3 — 2026-09-06 10:25Z: §0.1 over-attributed scope to ROW 0s
+
+**Architect, 2026-09-06 10:25Z** (`date -u`, HK-017). **Found by QA in review, before executing —
+accepted in full.** 🛑 **DEFERRED DELIBERATELY until QA handed back the working tree, so the record
+shows a scope correction and not a goalpost moving mid-run.** Docs-only.
+
+🔴 **NOTHING IN THIS AMENDMENT CHANGES A PREDICATE, A THRESHOLD, A VERDICT, OR A STOP BRANCH.** P3
+executed against §4 exactly as written, and its results are unaffected.
+
+**The defect.** §0.1's inheritance table read: *"M1–M4 **numeric** results — ⚠️ Re-measured and
+unchanged — **see ROW 0s**, which asserts it rather than assuming it."* ROW 0s's own predicate (§4)
+reads `m1m4_s5_20260050_slots.csv` **alone** and recomputes only `4,000 slots / 435 events /
+10.875%`. It **never opens `decodes.csv`**, never cross-references `20260049`'s `freq_hz`, `dt_s` or
+`reported_snr_db`, and **could not detect a numeric-field change if one existed.** The table
+therefore handed a confirmatory scope to a row whose predicate cannot carry it.
+
+**The correction — two claims, two rows:**
+
+| Claim | The row that actually supports it |
+|---|---|
+| Decode **count**, `freq_hz`, `dt_s`, `reported_snr_db` unchanged across the `20260049`→`20260050` bump (`0/435`) | **ROW 0r** — already measured and landed, `2026-09-04-row0r-carry-forward-report.md` §2 |
+| The **aggregate event count** on `20260050` is `4,000 / 435 / 10.875%`, recomputed rather than inherited from anyone's reading of ROW 0r's prose | **ROW 0s** — and that is its **entire** scope |
+
+🛑 **"See ROW 0s" for numeric invariance is an OVER-CITATION and must not be made.** Cite **ROW 0r**.
+
+**Added to ROW 0s's "what this row cannot detect" note (HK-022):** it cannot detect a numeric-field
+change. That is ROW 0r's job and ROW 0r has already done it.
+
+🔴 **The pattern, recorded because it is the useful part:** this is the **fourth** defect found in
+this spec, and **all four are scope-and-citation faults — not one touches a fire condition.** That
+is either the truth about this spec or the Architect's blind spot, and it cannot be told apart from
+the inside. **A future review of an Architect spec should attack the predicates first**, on the
+working assumption that the prose is the weak surface and the gates are not — or that the gates have
+simply never been caught.
 
 **Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>**
