@@ -75,20 +75,23 @@ _SCENARIO_REGISTRY: dict[str, Path] = {
 # Controlled scenarios run by default (S8 handled separately via prompt / --skip-s8)
 _CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7"]
 
-# R&R-009 (2026-08-23): per-scenario part restriction applied ONLY to the default
-# controlled battery (--scenarios bypasses this entirely -- a targeted
-# `--scenarios S5` run still gets all four parts unless --parts is also given).
-# S5 parts 2 (steady carrier @1500Hz) and 3 (multi-carrier "birdies") have
-# detected exactly 1 false positive between them across every historical S1-S8
-# run in qa/rr-study/results/ -- parts 0/1 (AWGN) account for the other 52+
-# events, including the one real regression this scenario ever caught (the
-# 2026-06-20 OSD FAIL, D-009). Restricting the routine battery to parts 0,1
-# (60 slots, still comfortably above MIN_N_FOR_FP_GATE=49) saves ~30 min/run
-# without touching the gate's statistical validity. Parts 2/3 remain available
-# for an occasional targeted recheck: `--scenarios S5 --parts 2,3`.
-_DEFAULT_BATTERY_PART_OVERRIDES: dict[str, str] = {
-    "S5": "0,1",
-}
+# R&R-009 (2026-08-23) restricted S5's routine battery to parts 0,1, reasoning
+# that parts 2 (steady carrier @1500Hz) and 3 (multi-carrier "birdies") had
+# detected only 1 false positive between them across history versus 52+ from
+# parts 0/1 (AWGN). SUPERSEDED 2026-09-06 (S5-GATE-SIZING spec, Amendment 1,
+# PO ruling Option 3): that restriction silently halved the ratified AWGN
+# gate's own N (120->60, STUDY-SPEC.md Section 16) and removed the routine
+# battery's only coverage of the narrowband-hallucination failure mode on an
+# HK-026 argument (a zero-event history cannot bound its own future
+# usefulness). Parts 2/3 are restored to the default battery -- their trial
+# count now comes from scenarios/s5-noise.json itself (parts 0/1 carry a
+# per-part "trials": 60 override; parts 2/3 use the file's default of 30),
+# and harness/analyse.py scores the two populations as separate, never-pooled
+# verdict rows (Gate A / Check B). This dict is left in place, empty, as the
+# mechanism for any FUTURE default-battery part restriction -- do not repopulate
+# it for S5 without a new spec revisiting the population question the way this
+# one did.
+_DEFAULT_BATTERY_PART_OVERRIDES: dict[str, str] = {}
 
 
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:

@@ -882,6 +882,13 @@ def _run(args: argparse.Namespace) -> None:
     # setup code (run_dir, device_idx, the part-filter guard immediately below)
     # doesn't need a third special case threaded through it.
     parts: list[dict] = scenario.get("parts", [{"part_index": 0}])
+    # `scenario["trials"]` is the DEFAULT trial count, used by any part that does
+    # not carry its own "trials" override. Added 2026-09-06 (S5-GATE-SIZING,
+    # Amendment 1, Option 3) so one scenario file can run unequal populations per
+    # part -- S5 Gate A (parts 0/1) at 60 trials/part against Check B (parts 2/3)
+    # at 30 -- without a second scenario file or a second run_scenario.py pass.
+    # Every other scenario's "parts" entries omit "trials" and are therefore
+    # byte-for-byte unaffected (part.get("trials", n_trials) == n_trials).
     n_trials: int = scenario["trials"]
     is_s5 = (scenario_id == "S5")
     is_s4 = (scenario_id == "S4")
@@ -964,7 +971,7 @@ def _run(args: argparse.Namespace) -> None:
         _run_pairs(scenario, run_dir, args, device_idx, qa_rr_root)
         return
 
-    total_trials = len(parts) * n_trials
+    total_trials = sum(part.get("trials", n_trials) for part in parts)
     played = 0
 
     # 2026-08-29 finding (rr_study_2026-08-27_s1s8_full_run.log's `cycle=` timestamps):
@@ -1065,7 +1072,7 @@ def _run(args: argparse.Namespace) -> None:
             snr_str = f"SNR={it['true_snr_db']} dB" if it["true_snr_db"] != "" else "SNR=N/A"
             print(
                 f"[{scenario_id}] Part {it['part_index'] + 1}/{len(parts)}  "
-                f"Trial {it['trial_index'] + 1}/{n_trials}  {snr_str}  "
+                f"Trial {it['trial_index'] + 1}/{it['n_trials_for_part']}  {snr_str}  "
                 f"seed={it['seed']}  cycle={cu_str}"
             )
         import sounddevice as sd
@@ -1088,7 +1095,8 @@ def _run(args: argparse.Namespace) -> None:
 
     for part in parts:
         part_index: int = part["part_index"]
-        for trial_index in range(n_trials):
+        part_n_trials: int = part.get("trials", n_trials)
+        for trial_index in range(part_n_trials):
             seed = compute_seed(scenario_id, part_index, trial_index)
 
             # Render PCM
@@ -1181,6 +1189,7 @@ def _run(args: argparse.Namespace) -> None:
                 "true_freq_hz": true_freq_hz, "msg_text": msg_text,
                 "s7_signals_meta": s7_signals_meta, "s8_signals_meta": s8_signals_meta,
                 "s4_signals_meta": s4_signals_meta,
+                "n_trials_for_part": part_n_trials,
             }
 
             if args.dry_run:
@@ -1192,7 +1201,7 @@ def _run(args: argparse.Namespace) -> None:
                 snr_str = f"SNR={true_snr_db} dB" if true_snr_db != "" else "SNR=N/A"
                 print(
                     f"[{scenario_id}] Part {part_index + 1}/{len(parts)}  "
-                    f"Trial {trial_index + 1}/{n_trials}  {snr_str}  seed={seed}  "
+                    f"Trial {trial_index + 1}/{part_n_trials}  {snr_str}  seed={seed}  "
                     f"cycle={cycle_utc_str} … [DRY RUN] would play {len(samples)} samples at 48 kHz"
                 )
                 _write_truth_row(item, cycle_utc_str)
@@ -1231,7 +1240,7 @@ def _run(args: argparse.Namespace) -> None:
                 snr_str = f"SNR={true_snr_db} dB" if true_snr_db != "" else "SNR=N/A"
                 print(
                     f"[{scenario_id}] Part {part_index + 1}/{len(parts)}  "
-                    f"Trial {trial_index + 1}/{n_trials}  {snr_str}  seed={seed}  "
+                    f"Trial {trial_index + 1}/{part_n_trials}  {snr_str}  seed={seed}  "
                     f"cycle={cycle_utc_str} …", end=" ", flush=True,
                 )
                 import sounddevice as sd

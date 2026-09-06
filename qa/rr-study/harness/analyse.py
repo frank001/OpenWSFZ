@@ -142,6 +142,20 @@ THRESH_FP_UB95 = 6.0        # FP gate (STUDY-SPEC §10, ratified 2026-07-04, R&R
 FP_UB_CONF = 0.95           # one-sided confidence level for the CP upper bound
 THRESH_BIAS_PASS = 2.0      # |bias| ≤ 2 dB → PASS; > 2 dB → FAIL
 
+# S5-GATE-SIZING, Amendment 1 (PO ruling Option 3, 2026-09-06 20:29 UTC): S5's
+# single gate is split into two, each scored on its OWN denominator and NEVER
+# pooled into one rate, one denominator, or one verdict line -- pooling is the
+# defect the amendment removes (the same 180 slots scored as one gate detect a
+# problem 21% of the time; scored as two, Gate A detects it 77%).
+S5_AWGN_PARTS = (0, 1)          # Gate A — regression tripwire, ratified 6% UB (unchanged)
+S5_NARROWBAND_PARTS = (2, 3)    # Check B — coverage net, FAIL iff events >= THRESH_S5_NARROWBAND_FAIL
+THRESH_S5_NARROWBAND_FAIL = 2   # derived in A1.2 from the measured all-history per-slot narrowband
+                                # base rate (0.2347%, qa/rr-study/s5_narrowband_exposure_verify.py,
+                                # 2026-09-06 ROW 0 clearance) -- well under A1.2's ~1% re-derivation
+                                # trigger. NOT a Clopper-Pearson UB gate: the readout quantum IS the
+                                # threshold (HK-021(o)), so MIN_N_FOR_FP_GATE's INFO demotion does
+                                # not apply to this check.
+
 # Decodable-SNR floor for the informational restricted-population attribute-Kappa
 # variant (rr-density-qrm-scenario / R&R-007).  Established by R&R-005 for the
 # redesigned S1 ladder as "the reliable decode floor for both apps"; reused here to
@@ -257,6 +271,24 @@ def _verdict_fp(fp_info: dict) -> str:
     if n_slots < MIN_N_FOR_FP_GATE:
         return "INFO"
     return "PASS" if ub <= THRESH_FP_UB95 else "FAIL"
+
+
+def _verdict_s5_narrowband(fp_info: dict) -> str:
+    """Check B (S5-GATE-SIZING Amendment 1, PO ruling Option 3, 2026-09-06):
+    FAIL iff the narrowband (S5 parts 2/3) FP event count on its OWN 60-slot
+    denominator is >= THRESH_S5_NARROWBAND_FAIL. Never pooled with Gate A's
+    AWGN slots -- that pooling is exactly the defect Amendment 1 removes.
+
+    Not a Clopper-Pearson UB gate like `_verdict_fp`: A1.2 derives the
+    threshold directly on the readout quantum (whole events), so there is no
+    small-N "unevaluable" regime analogous to `MIN_N_FOR_FP_GATE` here -- a
+    clean run (0 or 1 events) PASSes at any N this scenario actually runs.
+    """
+    n_events = fp_info.get("n_fp_events", float("nan"))
+    if isinstance(n_events, float) and math.isnan(n_events):
+        return "PASS"  # undefined (zero narrowband slots injected) -- vacuously
+                        # passing, mirroring _verdict_fp's convention.
+    return "FAIL" if n_events >= THRESH_S5_NARROWBAND_FAIL else "PASS"
 
 
 def _verdict_bias(bias: float) -> str:
@@ -657,6 +689,36 @@ def _bias_linearity(df_matched: pd.DataFrame, run_dir: Path) -> dict:
 # ---------------------------------------------------------------------------
 # Task 4.7 — False-positive rate (S5)
 # ---------------------------------------------------------------------------
+
+def _s5_cycle_part_map(df_matched: pd.DataFrame) -> dict:
+    """cycle_utc -> part_index for S5, built ONLY from the false_positive ==
+    False (per-slot baseline) rows.
+
+    S5's false-positive DECODE rows (false_positive == True) do NOT carry a
+    usable part_index: matcher.py cannot attribute an unmatched extra decode
+    to any specific truth row, so that field is written NaN for them (verified
+    directly against a committed run's S5_matched.csv, 2026-09-06 --
+    `qa/rr-study/s5_narrowband_exposure_verify.py`'s report). Filtering
+    df_matched on ITS OWN part_index column before computing an FP rate would
+    therefore silently discard every FP event -- exactly the instrument blind
+    spot HK-026 warns about, and the reason `fp_composition_per_part.py` joins
+    against truth.csv by cycle_utc rather than trusting S5_matched.csv's own
+    column. Baseline rows DO carry a correct part_index (confirmed: 30 per
+    part per appraiser at N=120), so build the map from those and look up any
+    row -- baseline or FP decode alike -- by its cycle_utc instead.
+    """
+    truth_rows = df_matched[df_matched["false_positive"] == False]
+    return dict(zip(truth_rows["cycle_utc"], truth_rows["part_index"]))
+
+
+def _fp_rate_for_parts(df_matched: pd.DataFrame, parts: tuple[int, ...]) -> dict[str, dict]:
+    """`_fp_rate`, scoped to the given S5 part_index values via cycle_utc
+    membership rather than df_matched's own (unreliable for FP rows)
+    part_index column -- see `_s5_cycle_part_map`'s docstring."""
+    part_map = _s5_cycle_part_map(df_matched)
+    cycles = {c for c, p in part_map.items() if p in parts}
+    return _fp_rate(df_matched[df_matched["cycle_utc"].isin(cycles)])
+
 
 def _fp_rate(df_matched: pd.DataFrame) -> dict[str, dict]:
     """Compute false-positive metrics per appraiser for S5.
@@ -1736,6 +1798,7 @@ def _collect_verdicts(
     kappa_results: dict[str, dict],
     fp_results: dict[str, dict],
     bias_results: dict[str, dict],
+    fp_narrowband_results: dict[str, dict] | None = None,
 ) -> tuple[list[tuple[str, str, float | str, str]], str, list[str], list[str]]:
     """Collect all metric verdicts and return (rows, overall_verdict, fails, notes)."""
     verdict_rows: list[tuple[str, str, float | str, str]] = []
@@ -1791,12 +1854,31 @@ def _collect_verdicts(
                 f"(N ≥ {MIN_N_FOR_FP_GATE}) for the ratified verdict."
             )
             continue
-        verdict_rows.append(("FP event rate (95% UB)", f"S5/{appr}", value_str, v))
+        verdict_rows.append(("FP event rate (95% UB), Gate A", f"S5/{appr}", value_str, v))
         if v == "FAIL":
             fails.append(
-                f"FP event rate ({appr}) = {int(n_events)} events in {n_slots} slots "
+                f"FP event rate Gate A ({appr}) = {int(n_events)} events in {n_slots} slots "
                 f"(event rate {event_rate:.1f}%, 95% UB {ub95:.2f}%); "
                 f"gate requires 95% UB ≤ {THRESH_FP_UB95:.0f}%"
+            )
+
+    # Check B — narrowband (S5 parts 2/3), S5-GATE-SIZING Amendment 1. Scored on
+    # its OWN 60-slot denominator, its own row, its own line in `fails` — NEVER
+    # merged with Gate A above into one S5 verdict (that pooling is the defect
+    # this design removes). No INFO/MIN_N_FOR_FP_GATE demotion: see
+    # `_verdict_s5_narrowband`'s docstring for why that regime does not apply here.
+    for appr, info in (fp_narrowband_results or {}).items():
+        n_events = info.get("n_fp_events", float("nan"))
+        if isinstance(n_events, float) and math.isnan(n_events):
+            continue
+        n_slots = info["n_slots"]
+        v = _verdict_s5_narrowband(info)
+        value_str = f"{int(n_events)}/{n_slots} slots (FAIL iff >= {THRESH_S5_NARROWBAND_FAIL})"
+        verdict_rows.append(("FP events, Check B (narrowband)", f"S5/{appr}", value_str, v))
+        if v == "FAIL":
+            fails.append(
+                f"FP events Check B narrowband ({appr}) = {int(n_events)} events in "
+                f"{n_slots} slots; check requires < {THRESH_S5_NARROWBAND_FAIL}"
             )
 
     for appr, info in bias_results.items():
@@ -1849,6 +1931,7 @@ def _write_report(
     attr_results: dict | None = None,
     decode_rate_results: list[dict] | None = None,
     hcr_results: dict | None = None,
+    fp_narrowband_results: dict | None = None,
 ) -> Path:
     lines: list[str] = []
     run_date = run_dir.name.split("-")[0:3]
@@ -1949,7 +2032,7 @@ def _write_report(
         lines += _attribute_report_lines(attr_results)
 
     if fp_results:
-        lines += ["### False-positive rate (S5)", ""]
+        lines += ["### False-positive rate (S5) — Gate A (AWGN, parts 0/1)", ""]
         lines += ["| Appraiser | FP events / slots | Event rate | 95% UB | Decode rate | Verdict |",
                   "|---|---|---|---|---|---|"]
         for appr, info in fp_results.items():
@@ -1971,16 +2054,45 @@ def _write_report(
             )
         lines += [
             "",
-            f"_Gate (STUDY-SPEC §10, ratified 2026-07-04, R&R-004): the per-slot FP "
-            f"**event rate**, gated on its one-sided 95% Clopper–Pearson **upper bound** "
-            f"(PASS iff 95% UB ≤ {THRESH_FP_UB95:.0f}%). The UB is defined for all event "
-            f"counts (≈ 3 / N_slots at 0 events) and bounds the true per-slot FP "
-            f"probability at 95% confidence rather than the Poisson-noisy point estimate. "
+            f"_Gate (STUDY-SPEC §10, ratified 2026-07-04, R&R-004; population re-affirmed "
+            f"S5-GATE-SIZING Amendment 1, 2026-09-06): the per-slot FP **event rate** on "
+            f"AWGN slots (parts 0/1) ONLY, gated on its one-sided 95% Clopper–Pearson "
+            f"**upper bound** (PASS iff 95% UB ≤ {THRESH_FP_UB95:.0f}%). The UB is defined "
+            f"for all event counts (≈ 3 / N_slots at 0 events) and bounds the true per-slot "
+            f"FP probability at 95% confidence rather than the Poisson-noisy point estimate. "
             f"Decode rate is reported for reference only. **INFO** means the gate is not "
             f"evaluated at this N: below {MIN_N_FOR_FP_GATE} slots, even zero observed "
             f"events cannot clear the {THRESH_FP_UB95:.0f}% ceiling, so no outcome at this "
             f"sample size can produce a PASS or a meaningful FAIL — see a properly powered "
-            f"run (N ≥ {MIN_N_FOR_FP_GATE}) for the ratified §10 verdict._",
+            f"run (N ≥ {MIN_N_FOR_FP_GATE}) for the ratified §10 verdict. **Never pooled "
+            f"with Check B below** — see that table's own note._",
+            "",
+        ]
+
+    if fp_narrowband_results:
+        lines += ["### False-positive rate (S5) — Check B (narrowband, parts 2/3)", ""]
+        lines += ["| Appraiser | FP events / slots | Verdict |",
+                  "|---|---|---|"]
+        for appr, info in fp_narrowband_results.items():
+            n_events = info.get("n_fp_events", float("nan"))
+            if isinstance(n_events, float) and math.isnan(n_events):
+                lines.append(f"| {appr} | — | — |")
+                continue
+            n_slots = info["n_slots"]
+            v = _verdict_s5_narrowband(info)
+            lines.append(f"| {appr} | {int(n_events)} / {n_slots} | {v} |")
+        lines += [
+            "",
+            f"_Check (S5-GATE-SIZING Amendment 1, PO ruling Option 3, 2026-09-06 20:29 UTC): "
+            f"a coverage net for narrowband hallucination (steady carrier / birdies), scored "
+            f"on its OWN {60}-slot denominator — FAIL iff events ≥ {THRESH_S5_NARROWBAND_FAIL}. "
+            f"Threshold derived in the spec's A1.2 from the measured all-history per-slot "
+            f"narrowband base rate (0.2347%, `s5_narrowband_exposure_verify.py`, ROW 0 "
+            f"cleared 2026-09-06), well under the ~1% re-derivation trigger. This is a raw "
+            f"event-count check, not a Clopper–Pearson UB gate — `MIN_N_FOR_FP_GATE`'s INFO "
+            f"demotion does not apply. **Never pooled with Gate A above into one S5 rate or "
+            f"one verdict line** — the same 180 slots scored as one gate detect a regression "
+            f"21% of the time; scored as two, Gate A alone detects it 77% of the time._",
             "",
         ]
 
@@ -2137,7 +2249,8 @@ def main() -> None:
     git_sha = _git_sha()
     continuous_results: dict = {}
     kappa_results: dict = {}
-    fp_results: dict = {}
+    fp_results: dict = {}               # Gate A — S5 parts 0/1 (AWGN), ratified 6% UB
+    fp_narrowband_results: dict = {}    # Check B — S5 parts 2/3 (narrowband), FAIL iff events >= 2
     bias_results: dict = {}
 
     # Load scenario metadata upfront — used for per-scenario correction fields
@@ -2207,22 +2320,46 @@ def main() -> None:
             print(f"  {sid} decode rate ({appr}): {_fmt_num(rate)}%  (informational)")
 
     # --- Attribute scenarios ---
-    # False-positive rate (S5) — gated metric (§10 95% UB gate, R&R-004).
+    # False-positive rate (S5) — S5-GATE-SIZING Amendment 1 (2026-09-06, PO ruling
+    # Option 3): TWO separate checks, each on its own part_index-scoped slice of
+    # matched["S5"], each with its own denominator. NEVER pool these into one rate
+    # or one combined S5 verdict — that pooling is exactly the defect this design
+    # removes (see the constants' comment above and s5_narrowband_exposure_verify.py).
     if "S5" in matched:
-        fp_results = _fp_rate(matched["S5"])
+        s5_df = matched["S5"]
+
+        # Gate A — AWGN (parts 0/1), ratified §10 6% UB gate, unchanged population
+        # definition (only R&R-009's default-battery restriction is superseded).
+        fp_results = _fp_rate_for_parts(s5_df, S5_AWGN_PARTS)
         for appr, info in fp_results.items():
             n_events = info.get("n_fp_events", float("nan"))
             if isinstance(n_events, float) and math.isnan(n_events):
-                print(f"  S5 FP ({appr}): undefined (no S5 slots injected)")
+                print(f"  S5 Gate A FP ({appr}): undefined (no AWGN slots injected)")
                 continue
             n_slots     = info["n_slots"]
             event_rate  = info["event_rate"]
             decode_rate = info["decode_rate"]
             ub95        = info["event_rate_ub95"]
             print(
-                f"  S5 FP events ({appr}): {int(n_events)}/{n_slots} slots "
+                f"  S5 Gate A FP events ({appr}): {int(n_events)}/{n_slots} slots "
                 f"(event rate {_fmt_num(event_rate)}%; 95% UB {_fmt_num(ub95)}%; "
                 f"decode rate {_fmt_num(decode_rate)}%)"
+            )
+
+        # Check B — narrowband (parts 2/3), coverage net, FAIL iff events >= 2 on
+        # its own 60-slot denominator (A1.2). Absent entirely from a run that only
+        # exercised parts 0/1 (e.g. a targeted --parts 0,1 recheck) — _fp_rate's
+        # own n_slots==0 branch reports NaN, handled the same way as Gate A above.
+        fp_narrowband_results = _fp_rate_for_parts(s5_df, S5_NARROWBAND_PARTS)
+        for appr, info in fp_narrowband_results.items():
+            n_events = info.get("n_fp_events", float("nan"))
+            if isinstance(n_events, float) and math.isnan(n_events):
+                print(f"  S5 Check B FP ({appr}): undefined (no narrowband slots injected)")
+                continue
+            n_slots = info["n_slots"]
+            print(
+                f"  S5 Check B FP events ({appr}): {int(n_events)}/{n_slots} slots "
+                f"(FAIL iff >= {THRESH_S5_NARROWBAND_FAIL})"
             )
 
     # Pooled attribute agreement (S4 positives + S5 negatives) — advisory κ.
@@ -2279,7 +2416,8 @@ def main() -> None:
 
     # --- Verdicts ---
     verdict_rows, overall, fails, notes = _collect_verdicts(
-        continuous_results, kappa_results, fp_results, bias_results
+        continuous_results, kappa_results, fp_results, bias_results,
+        fp_narrowband_results=fp_narrowband_results,
     )
 
     # --- Write report ---
@@ -2292,6 +2430,7 @@ def main() -> None:
         attr_results=attr_results,
         decode_rate_results=decode_rate_results,
         hcr_results=hcr_results,
+        fp_narrowband_results=fp_narrowband_results,
     )
     print(f"\nReport written: {report_path}")
     print(f"Overall verdict: {overall}")

@@ -442,7 +442,8 @@ AIAG conventions, for ratification:
 | %GR&R (per response) | < 10% | 10–30% | > 30% |
 | ndc | ≥ 5 | — | < 2 |
 | Attribute Kappa (vs truth, between apps) | ≥ 0.90 | 0.70–0.90 | < 0.70 |
-| False-positive rate (S5 per-slot event rate, 95% UB) | ≤ 6% | — | > 6% |
+| **Gate A** — S5 AWGN per-slot event rate, parts 0/1 only (95% UB) | ≤ 6% | — | > 6% |
+| **Check B** — S5 narrowband event count, parts 2/3 only, own 60-slot denominator | < 2 events | — | ≥ 2 events |
 | SNR bias (OpenWSFZ vs truth) | ≤ ±2 dB mean AND slope ≤ 0.1 | — | mean > ±2 dB OR slope > 0.1 |
 
 Evaluated every run; a regression past these bands raises a defect for the Developer.
@@ -496,6 +497,28 @@ Evaluated every run; a regression past these bands raises a defect for the Devel
 > account and the real recovery/κ figures from `results/2026-07-07-df4cc89/`. Gate
 > status is unchanged: still advisory, still pending both stated conditions, still
 > the Captain's decision to make.
+>
+> **S5 split into Gate A / Check B (2026-09-06, S5-GATE-SIZING, Amendment 1, PO
+> ruling Option 3) — see §16's own section for the full account.** R&R-009
+> (2026-08-23) halved S5's routine-battery N from 120 to 60 by restricting it to
+> parts 0/1, which silently broke the tolerance the 6% threshold above was
+> ratified against (at N=120 the tolerance is ≤ 2 events; at N=60 it is zero) and
+> removed the routine battery's only coverage of narrowband hallucination. The
+> single row above is now **two, scored on their own denominators and never
+> pooled**: **Gate A** (AWGN, parts 0/1, 60 trials each = 120 slots) carries the
+> original 6% threshold unchanged — no re-ratification, because Gate A's
+> population is what 6% always described. **Check B** (narrowband, parts 2/3, 30
+> trials each = 60 slots) is a new coverage-net row, `FAIL iff events ≥ 2`,
+> derived (not chosen) from the measured all-history per-slot narrowband base
+> rate of 0.2347% (426 slots, 1 event — `qa/rr-study/s5_narrowband_exposure_verify.py`,
+> ROW 0 cleared 2026-09-06), well under the design's ~1% re-derivation trigger.
+> `scenarios/s5-noise.json` carries a per-part `"trials"` override (parts 0/1: 60;
+> parts 2/3: the file default, 30) and `run_study.py`'s
+> `_DEFAULT_BATTERY_PART_OVERRIDES` no longer restricts S5 — all four parts run
+> by default again. **No code path may combine Gate A and Check B into one S5
+> rate, and no report line may present one** — the same 180 slots scored as one
+> gate detect a regression 21% of the time; scored as two, Gate A alone detects
+> it 77% of the time.
 
 ---
 
@@ -847,6 +870,91 @@ unchanged (all four parts remain defined) and a targeted run still gets all of t
   overrides it.
 - **`scenarios/s5-noise.json`** — new `parts_note` field recording this rationale.
 - **STUDY-SPEC.md §16** (this document) — this entry.
+
+🔴 **SUPERSEDED 2026-09-06 by R&R-010 below.** The restriction above silently halved the ratified
+6% gate's own N (120→60) without re-ratifying the tolerance the threshold was defined against, and
+removed the routine battery's only coverage of the narrowband-hallucination failure mode. This
+entry is kept unedited as the historical record; R&R-010 is the current design.
+
+### S5 population split into Gate A / Check B — R&R-010 — **IMPLEMENTED 2026-09-06**
+
+**Trigger.** PO review of the 2026-09-06 sweep (`4c7d5ad`, S5 FAIL at 3/60) asked why an FP
+increase persisted alongside an unrelated S7 instrument jump, and whether R&R-009 should be
+revisited. Full account: `qa/rr-study/2026-09-06-1941-architect-to-qa-spec-revisit-rr-009-s5-gate-
+population-and-sizing.md` (Architect spec + Amendments) and
+`qa/rr-study/2026-09-06-2041-qa-to-architect-row0-narrowband-exposure-verified-t2-stands.md` (QA's
+ROW 0 clearance).
+
+**Finding.** R&R-004's ratification text names N=120 and writes the tolerance into the gate
+definition itself ("at N=120 this tolerates ≤ 2 FP events; k=2 → UB 5.15% PASS; k=3 → UB 6.33%
+FAIL"). At R&R-009's N=60 the tolerance is zero — one false positive in 60 slots fails a gate
+labelled 6%. R&R-006 (GitHub #39) had raised trials 3→30 specifically to reach the N the gate was
+ratified against; R&R-009 halved that N seven weeks later, by a different mechanism (parts, not
+trials), without re-ratifying the threshold. Separately, parts 2/3's near-zero event history had
+been used (HK-026 violation) to justify dropping the routine battery's only coverage of narrowband
+hallucination — a control that never fires is passing, not idle, and a flat response cannot bound
+its own blind spot.
+
+**PO ruling (Amendment 1, Option 3, 2026-09-06 20:29 UTC).** Split the single S5 gate into two,
+scored on their own denominators, **never pooled** — the same 180 slots scored as one gate detect a
+regression 21% of the time; scored as two, Gate A alone detects it 77% of the time:
+
+| | Population | Slots | Rule |
+|---|---|---|---|
+| **Gate A** — regression tripwire | parts 0/1 (AWGN), 60 trials each | 120 | ratified 6% UB, **unchanged, no re-ratification** — Gate A's population is what 6% always described |
+| **Check B** — coverage net | parts 2/3 (narrowband), 30 trials each | 60 | **FAIL iff events ≥ 2** |
+
+Check B's threshold was carried as an open ROW 0 precondition (the "1 of 53" base rate behind it is
+an event share, not a per-slot rate, and its denominator was unverified) until QA verified the
+narrowband exposure across every historical run that ever exercised parts 2/3:
+**426 slots, 1 event → 0.2347% per-slot base rate**, well under the ~1% re-derivation trigger, so
+`T=2` stands as derived. Reproduction check (`s5_narrowband_exposure_verify.py`'s ROW C1) recomputes
+all nine `fp_composition_per_part.py` reference gate lines exactly before the full-history number is
+trusted.
+
+**A second defect found during execution, corrected in the same pass:** S5's false-positive DECODE
+rows never carried a usable `part_index` in `S5_matched.csv` (matcher.py cannot attribute an
+unmatched extra decode to any specific truth row — verified directly, part_index is written NaN for
+every such row). A part split that filtered on that column directly would have silently discarded
+every FP event from both Gate A and Check B. `harness/analyse.py`'s `_fp_rate_for_parts` instead
+scopes by `cycle_utc` membership, built from the (correctly part-labelled) per-slot baseline rows —
+the same join method `fp_composition_per_part.py` already used for exactly this reason.
+
+**Change.**
+
+- **`scenarios/s5-noise.json`** — parts 0/1 (Gate A) carry a per-part `"trials": 60` override;
+  parts 2/3 (Check B) use the file's existing default (30). Description, `trials_note`, and
+  `parts_note` updated to record the supersession.
+- **`run_study.py`** — `_DEFAULT_BATTERY_PART_OVERRIDES` no longer restricts S5; all four parts run
+  by default again (the mechanism is left in place, empty, for any future restriction that
+  revisits the population question the way this one did).
+- **`harness/run_scenario.py`** — added per-part `"trials"` override support (`part.get("trials",
+  n_trials)`), backward-compatible: any part without its own override behaves exactly as before.
+- **`harness/analyse.py`** — `_s5_cycle_part_map` / `_fp_rate_for_parts` (cycle_utc-scoped split);
+  `_verdict_s5_narrowband` (Check B's `FAIL iff ≥ 2`); two separate verdict rows, two separate
+  report tables, never pooled. `trend.csv`'s existing `fp_rate_s5` column is unchanged in meaning
+  (it always tracked the AWGN/Gate A quantity) — Check B does not yet have its own trend-line
+  column; a future addition needs a header migration for the already-committed file and is left as
+  follow-up work, not silently bolted on.
+- **`qa/rr-study/s5_narrowband_exposure_verify.py`** — the ROW 0 exposure verification, kept as a
+  standing re-derivation tool.
+- **STUDY-SPEC.md §10 and §16** (this document) — this entry and the acceptance-thresholds table.
+
+**Cost.** ~30 min/sweep for Gate A's restored N=120, plus Check B's ~15 min — reclaiming most of
+R&R-009's saved time, made explicitly this time (R&R-006 had already accepted this cost once).
+
+**Not addressed by this change** (STUDY-SPEC.md §8 of the spec doc, verbatim): this does not lower
+the false-positive rate, does not reopen `FP-PARITY` P4b (still PARKED), does not make the board
+green, and does not license the 2026-08-31 S7 jump as progress.
+
+**For whoever next appends a row to a report's "Section 6 — Historical trend" table** (most
+recently `results/2026-09-03-35378b9/report.md`; not edited retroactively here — that table is a
+per-sweep, dated record and this design postdates it): the `S5 FP` column now spans **three**
+denominator classes — N=120 pre-R&R-009 (4-part, pooled), N=60 R&R-009-era (2-part, AWGN only), and
+this design (Gate A 120-slot AWGN + Check B 60-slot narrowband, reported as two figures, never one).
+Give the new row the same class of footnote the table already carries for the S1/S3 redesigns, and
+normalise any cross-era rate comparison per AWGN slot first (HK-031) — never read the column
+directly across a denominator change.
 
 ### S6 empirical repeatability finding + ANOVA extension — R&R-008 — **IMPLEMENTED 2026-07-11**
 (see `results/corpus-2026-07-10/report.md`)
