@@ -13,6 +13,69 @@ progress."
 
 ---
 
+# 🟢 AMENDMENT 1 — PO RULING, 2026-09-06 20:29 UTC: **OPTION 3 (TWO GATES) ADOPTED**
+
+The Captain ruled **Option 3** on the §8.1 population question: **split the single S5 gate into two,
+each scored on its own denominator.** §5's recommendation is hereby the specified design, and §8.1 is
+closed. §8.2 (threshold) resolves with it: **6% carries over unchanged and needs no re-ratification**,
+because Gate A's population is what 6% was always meant to describe.
+
+The one open item §5 left — Check B's threshold — is derived in **A1.2** below rather than chosen.
+
+## A1.1 The specified design
+
+| | Population | Slots | Rule | Verdict |
+|---|---|---|---|---|
+| **Gate A** — regression tripwire | parts 0/1 (AWGN), 60 trials each | **120** | ratified R&R-004: 95% CP UB ≤ 6% ⇒ **tolerates ≤ 2 events** | gated, counts toward the overall verdict |
+| **Check B** — coverage net | parts 2/3 (carrier, birdies), 30 trials each | **60** | **FAIL iff events ≥ 2** (A1.2) | gated **separately**, own row, own verdict |
+
+🔴 **The two are NEVER pooled into one rate, one denominator, or one verdict line.** Pooling is the
+defect this amendment exists to remove: the same 180 slots scored as one gate detect a problem at the
+current rate **21%** of the time; scored as two, Gate A detects it **77%** of the time. Same audio,
+same runtime, same recorded data — the difference is arithmetic alone.
+
+✅ **Gate A operating characteristics (confirmed):** tolerance 2 events; `P(FAIL)` = **0.77** at a 3.33%
+per-slot rate, **0.02** at 0.5%. Compare today's N=60 design: 0.26 false-alarm at 0.5%.
+
+⚠️ **Runtime ≈ 45 min/sweep** (180 slots at ~15 s). Check B is a coverage net, not a precision
+instrument — **its trial count is the dial** if the Captain wants that number down; trimming it
+degrades A1.2's power on a known curve and does not touch Gate A.
+
+## A1.2 Check B's threshold — derived, not chosen (HK-021, (o) and (u))
+
+**Base rate (HK-021(u)), from R&R-009's own attribution:** parts 2/3 produced **1 of 53** all-time FP
+events; `FP-COMPOSITION` (2026-09-04) measured 15/15 of recent events in parts 0/1 and **zero** in
+parts 2/3. **The failure Check B guards is a regression pushing narrowband slots toward AWGN-like
+rates**, not a subtle drift.
+
+At N=60, `FAIL iff events ≥ T`:
+
+| T | P(FAIL) at base ~0.3% | at 1% | at 3.33% (AWGN-like) | at 6% |
+|---|---|---|---|---|
+| 1 | **0.165** | 0.453 | 0.869 | 0.976 |
+| **2** | **0.014** | 0.121 | **0.598** | 0.882 |
+| 3 | 0.001 | 0.022 | 0.323 | 0.706 |
+
+🔴 **T = 2 is specified.** `T=1` reproduces the exact disease this document was written to fix — a
+16.5% false-alarm rate against a healthy decoder, i.e. an alarm that carries little information.
+`T=3` gives away half the detection power for a false-alarm improvement of 1.3pp. **T=2 costs 1.4%
+false alarm and returns ~60% power against the regression it exists to catch.**
+
+✅ **HK-021(o) discharged:** the threshold sits on the readout quantum — whole events — not on a
+bootstrap SE. ✅ Hard threshold, consequence stated as an assertion, mutually exclusive outcomes,
+metric identifiable from Check B's own slots.
+
+🔴 **ROW 0 PRECONDITION — QA must clear before A1.2's threshold is treated as final.** The base rate
+above is an **event share** (1 of 53), not a **rate per narrowband slot**: its denominator — how many
+carrier/birdie slots have actually been run across history — is **not stated anywhere I could find,
+and I did not compute it.** QA verifies that exposure count from the run history and reports it.
+**If the true per-slot base rate exceeds ~1%, T=2's false-alarm rate rises above 12% and the
+threshold must be re-derived before use** — the table above is the derivation, so re-running it at
+the measured rate is mechanical. 🛑 **Do not adopt T=2 on my arithmetic alone; it rests on a base
+rate whose denominator is unverified.**
+
+---
+
 ## §0 — The PO's last question, and the one form of it that must be refused
 
 The question was: *can we test both options to see what delivers the most progress?*
@@ -206,12 +269,16 @@ what it broke (coverage, and an N its threshold was never ratified for), and nee
 
 ## §6 — What QA is asked to do
 
-**Nothing until the Captain rules on §8.** When ratified:
+🟢 **The §8.1 ruling has landed (Amendment 1, Option 3). QA is clear to execute the following.**
 
-1. `scenarios/s5-noise.json` — restore parts 2/3 to the default battery; set parts 0/1 trials per the
-   ratified design.
-2. `harness/analyse.py` — emit the AWGN-only gated verdict and the parts 2/3 coverage check as
-   **two separate rows** with their own denominators; keep `MIN_N_FOR_FP_GATE` semantics intact.
+0. 🔴 **FIRST — clear A1.2's ROW 0 precondition** (verify the narrowband exposure denominator and
+   re-derive T if the measured per-slot base rate exceeds ~1%). **T=2 is not final until this clears.**
+1. `scenarios/s5-noise.json` — restore parts 2/3 to the default battery; **parts 0/1 at 60 trials
+   each (120 AWGN slots), parts 2/3 at 30 trials each (60 narrowband slots)** per A1.1.
+2. `harness/analyse.py` — emit **Gate A** (AWGN, ratified 6% UB) and **Check B** (narrowband,
+   `FAIL iff ≥ 2`) as **two separate verdict rows with their own denominators**; keep
+   `MIN_N_FOR_FP_GATE` semantics intact. 🔴 **No code path may pool them into a combined S5 rate,
+   and no report line may present one** — that pooling is the defect being removed.
 3. `STUDY-SPEC.md` — amend §10 and the R&R-009 section to record this revision and its rationale.
 4. **Section 6 footnote** — the `S5 FP` column spans **three** denominators (N=120 4-part, N=60
    2-part, and the new design). It needs the same class of footnote the table already carries for the
@@ -238,13 +305,12 @@ what it broke (coverage, and an N its threshold was never ratified for), and nee
 
 ## §8 — Decisions for the Captain
 
-1. 🔴 **The population question — to be settled on grounds, not verdicts (§0).** Should the S5 gate
-   measure *AWGN false-accept sensitivity* (recommended, §5) or *operational false-decode risk across
-   a representative interference mix*? The current state — the second population judged against the
-   first's threshold — is the one option that is not defensible.
-2. 🔴 **Threshold.** Under §5's recommendation, 6% carries over unchanged and needs no
-   re-ratification. Any AWGN-only design at N=60 would instead require a re-derived and re-ratified
-   threshold, since 6% was calibrated against the diluted denominator.
+1. ✅ **CLOSED 2026-09-06 20:29Z — the population question is RULED: Option 3, two gates.** See
+   **Amendment 1**. Gate A (AWGN, 120 slots, 6% as ratified) and Check B (narrowband, 60 slots,
+   `FAIL iff ≥ 2`), scored separately and never pooled.
+2. ✅ **CLOSED with it — threshold.** 6% carries over **unchanged, no re-ratification required**,
+   because Gate A's population is what it always described. Check B's threshold is derived in A1.2
+   and carries **one open ROW 0 precondition** (the base rate's denominator is unverified).
 3. ⚠️ **Runtime.** ~30 min/sweep for the gate, plus parts 2/3 coverage. R&R-006 accepted ~27 min for
    this same gate's validity; R&R-009 reclaimed ~15 min of it. The trade is being made explicitly
    this time.
