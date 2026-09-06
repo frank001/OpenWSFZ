@@ -378,3 +378,42 @@ A1.0); these may not be cited, and no row's threshold was chosen with reference 
    fourth.**
 
 **Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>**
+
+---
+
+# AMENDMENT A3.3 — 2026-09-06 10:25Z: §0.1 over-attributed scope to ROW 0s
+
+**Architect, 2026-09-06 10:25Z** (`date -u`, HK-017). **Found by QA in review, before executing —
+accepted in full.** 🛑 **DEFERRED DELIBERATELY until QA handed back the working tree, so the record
+shows a scope correction and not a goalpost moving mid-run.** Docs-only.
+
+🔴 **NOTHING IN THIS AMENDMENT CHANGES A PREDICATE, A THRESHOLD, A VERDICT, OR A STOP BRANCH.** P3
+executed against §4 exactly as written, and its results are unaffected.
+
+**The defect.** §0.1's inheritance table read: *"M1–M4 **numeric** results — ⚠️ Re-measured and
+unchanged — **see ROW 0s**, which asserts it rather than assuming it."* ROW 0s's own predicate (§4)
+reads `m1m4_s5_20260050_slots.csv` **alone** and recomputes only `4,000 slots / 435 events /
+10.875%`. It **never opens `decodes.csv`**, never cross-references `20260049`'s `freq_hz`, `dt_s` or
+`reported_snr_db`, and **could not detect a numeric-field change if one existed.** The table
+therefore handed a confirmatory scope to a row whose predicate cannot carry it.
+
+**The correction — two claims, two rows:**
+
+| Claim | The row that actually supports it |
+|---|---|
+| Decode **count**, `freq_hz`, `dt_s`, `reported_snr_db` unchanged across the `20260049`→`20260050` bump (`0/435`) | **ROW 0r** — already measured and landed, `2026-09-04-row0r-carry-forward-report.md` §2 |
+| The **aggregate event count** on `20260050` is `4,000 / 435 / 10.875%`, recomputed rather than inherited from anyone's reading of ROW 0r's prose | **ROW 0s** — and that is its **entire** scope |
+
+🛑 **"See ROW 0s" for numeric invariance is an OVER-CITATION and must not be made.** Cite **ROW 0r**.
+
+**Added to ROW 0s's "what this row cannot detect" note (HK-022):** it cannot detect a numeric-field
+change. That is ROW 0r's job and ROW 0r has already done it.
+
+🔴 **The pattern, recorded because it is the useful part:** this is the **fourth** defect found in
+this spec, and **all four are scope-and-citation faults — not one touches a fire condition.** That
+is either the truth about this spec or the Architect's blind spot, and it cannot be told apart from
+the inside. **A future review of an Architect spec should attack the predicates first**, on the
+working assumption that the prose is the weak surface and the gates are not — or that the gates have
+simply never been caught.
+
+**Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>**
