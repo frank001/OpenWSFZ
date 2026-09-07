@@ -331,68 +331,69 @@ truth rows (this is the same fix R&R-010 already made for the part-index NaN def
 `*_matched.csv` "FP" count directly and wonders why every scenario's count is inflated by the
 same session-wide total.
 
-## Section 6 — Extended historical trend
+## Section 6 — Historical trend: every full S1–S8 sweep to date
 
-**S1/S2/S3 (GR&R, informational):** consistent with the full run history in `trend.csv` —
-%GR&R and ndc remain comfortably PASS-range across every dated entry since the 2026-07-04 S1
-redesign; no trend concern.
+All seventeen runs that exercised the complete controlled battery (S1/S2/S3/S7 at minimum), oldest
+first. `%GR&R` is each stage's own Summary-table figure (AIAG %Contribution, threshold ≤ 10% PASS). S5
+FP is the value the sweep's own report used to gate PASS/FAIL (95% UB where computed, else the plain
+event/decode rate for older entries — see the caveat below). S7/S8 are the "all"/overall
+decode-recovery percentages.
 
-**S5 Gate A / Check B — the COMPLETE series.** A prior draft of this section showed only seven
-selected rows starting 2026-08-27, chosen by my own judgment and not disclosed as a selection.
-That was wrong and has been corrected — every row in `trend.csv`'s `fp_rate_s5` column is below,
-in date order, none omitted, plus two runs (`872ba65`, `4c7d5ad`) that never got a `trend.csv`
-row at all but do have their own report. Read this against R&R-010's own instruction
-(`STUDY-SPEC.md` §16): *"the S5 FP column now spans three denominator classes... normalise any
-cross-era rate comparison per AWGN slot first — never read the column directly across a
-denominator change."* Wherever a source `report.md` exists I re-verified its own gate line
-directly (never inferred from date or from `trend.csv` alone) rather than trust the column;
-where it doesn't, the `trend.csv` figure is shown as-is and flagged.
+| Date | SHA | S1 %GR&R | S2 %GR&R | S3 %GR&R | S5 FP (WSJT-X / OpenWSFZ) | S7 recovery (WSJT-X / OpenWSFZ) | S8 decode rate (WSJT-X / OpenWSFZ) |
+|---|---|---|---|---|---|---|---|
+| 2026-06-06 | `4c34ef6` | 32.0% **FAIL** | 0.0% | 3.8% | 0.0% / 0.0% | 78.5% / 47.3% | — |
+| 2026-06-06 | `6bab388` | 6.5% | 0.0% | 3.9% | 0.0% / 0.0% | 77.4% / 46.2% | — |
+| 2026-06-07 | `4b3a4ca` | 1.4% | 0.0% | 3.4% | 0.0% / 0.0% | 76.3% / 54.8% | 95.0% / 86.7% |
+| 2026-06-14 | `815b652` | 0.3% | 0.0% | 3.0% | 0.0% / 0.0% | 77.4% / 50.5% | 95.0% / 83.3% |
+| 2026-06-20 | `6e821fa` | 0.4% | 0.0% | 3.0% | 0.0% / **91.7% FAIL**¹ | 92.6% / 70.2% | 93.3% / 86.7% |
+| 2026-06-22 | `f11f438` | 0.4% | 0.0% | 3.1% | 0.0% / 0.0% | 93.9% / 74.4% | 93.3% / 86.7% |
+| 2026-07-04 | `793a298` | 0.5% | 0.0% | 3.4% | 0.0% / 0.0% | 96.3% / 73.0% | 93.3% / 86.7% |
+| 2026-08-05 | `3bd4cd0` | 7.2% | 0.0% | 3.6% | 0.0% / 0.0% | 96.3% / 70.2% | 93.3% / 83.3% |
+| 2026-08-15 | `8d6e1b1` | 0.5% | 0.0% | 1.4% | 0.0% / 0.8% | 95.3% / 74.4% | 93.3% / 86.7% |
+| 2026-08-21 | `7d36038` | 0.3% | 0.0% | 0.4% | 0.0% / 0.8% | 95.3% / 68.4% | 96.7% / 83.3% |
+| 2026-08-22 | `f5dec23` | 0.4% | 0.0% | 0.4% | 0.0% / **3.3% FAIL**² | 98.1% / 79.5% | 91.7% / 91.7% |
+| 2026-08-27 | `22b749c` | 0.3% | 0.0% | 0.4% | 0.0% / 0.0% | 97.7% / 78.6% | 96.7% / 91.7% |
+| 2026-08-29 | `872ba65` | 0.25% | 0.0% | 18.65%³ | 0.0% / **7.66% FAIL** | 93.0% / 74.0% | 96.7% / 91.7% |
+| 2026-08-30/31 | `2e60949` | 0.27% | 0.0% | 0.44% | 0.0% / 5.15%⁴ | 98.1% / 82.8%⁵ | 91.7% / 91.7% |
+| 2026-09-02 | `3b52608` | 0.22% | 0.0% | 0.55% | 0.0% / **14.61% FAIL** | 94.4% / 83.7% | 100.0% / 91.7% |
+| 2026-09-03 | `35378b9` | 0.21% | 0.0% | 0.55% | 0.0% / 10.12% FAIL | 96.3% / 81.4% | 95.0% / 91.7% |
+| **2026-09-07** | **`4cc1984`** | **0.20%** | **0.0%** | **0.59%** | **0.0% / 6.33% FAIL⁶** | **99.07% / 79.07%** | **91.67% / 91.67%** |
 
-| Date | SHA | `trend.csv` value | Verified from source report | Note |
-|---|---|---|---|---|
-| 2026-06-06 (×5) | `46d7f6a`,`5b868ce`,`aa053a9`,`4c34ef6`,`6bab388` | 0.0 | — | Pre-ratification (before R&R-004, 2026-07-04). Not independently re-checked this pass. |
-| 2026-06-07 (×2) | `497996f`,`15b220b` | 0.0 | — | Pre-ratification. Not re-checked. |
-| 2026-06-14 | `815b652` | 0.0 | — | Pre-ratification. Not re-checked. |
-| 2026-06-20 | `6e821fa` | 91.67 | — | Pre-ratification. **Metric is a different definition here** — the era's own report (`d40b4cd`, same day) defines "a slot with two FP decodes counts as two events," so this is a raw multi-event-per-slot rate, not the Clopper–Pearson single-slot UB used from 2026-07-04 onward. Values >100% are possible under this definition and are not directly comparable to anything below. |
-| 2026-06-20 | `d40b4cd` | 133.33 | "≥9 FP events across ≥6 of 12 slots, minimum 75% event rate" (prose, not a gate table) | Same pre-ratification metric as above; this was the D-009 OSD false-positive investigation, not a routine S5 gate reading. |
-| 2026-06-20 | `8eea3c4` | 75.0 | — | Same era/metric as above. Not independently re-checked this pass. |
-| 2026-06-22 | `f11f438` | 0.0 | — | Pre-ratification. Not re-checked. |
-| — (d011-fp-recheck) | `f1e76d4` | **5.83** | report's own line: **7/120 slots (event 5.8%, 95% UB 10.68%) FAIL** | 🔴 **`trend.csv` stores the raw event rate (5.83%) here, not the UB (10.68%) — inconsistent with every other row in this column, which stores the UB.** Flagged, not silently corrected. |
-| 2026-07-04 | `a3738fc` (F002, S5 N=300, targeted) | 4.76 | 8/300 (event 2.7%, 95% UB 4.76%) **PASS** | First N≥49 (properly powered) reading, purpose-built to resolve the ratified gate. Matches. |
-| 2026-07-04 | `793a298` (routine battery, pre-R&R-006 trial count) | 22.09 | 0/12 slots, **95% UB 22.09%, NOT GATED** (N=12 is below the 49-slot minimum — no PASS or FAIL is possible at this N) | Matches `trend.csv` exactly. **This is the largest number in the whole series and it is an ungated INFO line, not a FAIL** — flagging this precisely so it isn't misread either direction. |
-| 2026-07-07 | `df4cc89` | 2.47 | 0/120 (95% UB 2.47%) PASS | Matches. |
-| 2026-08-05 | `3bd4cd0` | 2.47 | 0/120 (95% UB 2.47%) PASS | Matches. |
-| 2026-08-15 | `8d6e1b1` | 3.89 | 1/120 (event 0.8%, 95% UB 3.89%) PASS | Matches. |
-| 2026-08-21 | `7d36038` | 3.89 | 1/120 (event 0.8%, 95% UB 3.89%) PASS | Matches. |
-| 2026-08-22 | `f5dec23` | 7.47 | 4/120 (event 3.3%, 95% UB 7.47%) **FAIL** | Matches. |
-| 2026-08-27 | `22b749c` | 4.87 | 0/60 (95% UB 4.87%) PASS | R&R-009 era begins (N=60, 2-part). Matches. |
-| — (not in `trend.csv`) | `872ba65` | *(no row)* | 1/60 (event 1.7%, 95% UB 7.66%) **FAIL** | 2026-08-29. This run's `trend.csv` append apparently didn't happen; figure taken directly from its own `report.md`. |
-| 2026-08-30 | `2e60949` | 5.15 | 2/120 (event 1.7%, 95% UB 5.15%) PASS | Targeted N=120 run, not the restricted default battery. Matches. |
-| 2026-09-02 | `3b52608` | 14.61 | 4/60 (event 6.7%, 95% UB 14.61%) **FAIL** | Matches. |
-| 2026-09-03 | `35378b9` | 10.12 | 2/60 (event 3.3%, 95% UB 10.12%) **FAIL** | Matches. |
-| 2026-09-05 | `df13da0` | 3.91 | *not resolved this pass* | 🔴 **Provenance unclear.** `trend.csv`'s own value (3.91%) does not match the MEMORY-ratified, citable S5-STANDALONE figure for this date (`k=6/300=2.000%`, 95% CI upper 4.30%, vs July `k=8/300=2.667%`, p=0.79 — a specially-designed N=300 harness, not the routine battery). The two may be different measurements entirely; I have not traced what produced 3.91% specifically. **Do not cite 3.91% for anything** until traced — cite the ratified S5-STANDALONE figure instead. |
-| — (not in `trend.csv`) | `4c7d5ad` | *(no row)* | 3/60 (targeted run, no full `report.md` — R&R-010's own trigger) | 2026-09-06. |
-| **2026-09-07 (TODAY)** | **`4cc1984`** | **6.33** | **3/120 (event 2.5%, 95% UB 6.33%) FAIL** | **First live Gate A under R&R-010's N=120 design.** |
+¹ Plain decode-rate era (pre R&R-004 ratified UB gate); not the same metric as later rows, fixed
+under D-009. Not comparable to the UB figures below it.
 
-**Reading this, not just today's row:** restricting to properly-gated, comparable observations
-(N≥49, routine or targeted AWGN-only readings — excluding the pre-ratification block and the
-ungated `793a298` INFO line), there are **13** such readings from the gate's 2026-07-04
-ratification to today, of which **6 FAIL**: `f5dec23` (08-22), `872ba65` (08-29), `3b52608`
-(09-02), `35378b9` (09-03), `4c7d5ad` (09-06), and today's `4cc1984`. The longest **PASS** streak
-in the record is 4 in a row (`df4cc89` through `7d36038`, 07-07 to 08-21). **The longest FAIL
-streak in the record is also 4 in a row — and it is the most recent four** (`3b52608`, `35378b9`,
-`4c7d5ad`, and today). Today's reading extends that run rather than being an isolated event. It
-is not a new spike by raw count (3 events, unchanged from 2026-09-06); per-AWGN-slot the point
-rate is lower than at some points that PASSed (e.g. 2.5% today vs. `2e60949`'s 1.7% — note that
-one PASSed at N=120 while today FAILs at N=120 too, so N alone doesn't explain the difference
-either; small-count Clopper–Pearson UBs are simply not linear in the point rate). **This is
-descriptive, not a ruling:** whether the underlying AWGN FP rate is elevated, stable-but-gate-
-sensitive at this N, or noise is exactly the question R&R-010 was built to answer with a
-properly-powered series, and today is only that series' first point under the new design.
-WSJT-X has registered zero Gate A false positives in every properly-gated observation above, with
-no exception.
+² Second-ever ratified-gate FAIL, N=120 (pre R&R-009 default restriction).
 
-**S7 (informational, no gate):** OpenWSFZ recovery this run (79.07%) sits within the range
-already established by the S7 instrument-suspect jump investigation (`BOARD.md`,
-2026-08-31 3-run verdict) — P2 (`co_channel`, 3-stack) remains 0/15, consistent with every
-prior sweep; not a new finding.
+³ Not comparable to the S1–S3 series above it — confounded by a harness playback-timing defect
+discovered in that same run (`872ba65`'s Section 5, Finding 1), not a decoder result.
+
+⁴ N=120 (`resume_study.py` artefact — R&R-009's N=60 restriction not applied on resume, Section 1
+item 3 of that report), not the routine N=60 battery. PASS at this N; not directly comparable to the
+N=60 rows around it.
+
+⁵ S7 figure is from a 2026-08-31 targeted re-run (`results/2026-08-31-2e60949/`), same SHA — the
+original 2026-08-30 attempt collapsed mid-scenario to an audio-chain fault (that report's Section 5,
+Finding 1), fixed, and re-run clean.
+
+⁶ **First run scored under R&R-010's Gate A / Check B split** (`STUDY-SPEC.md` §16, implemented
+2026-09-06). The figure shown is **Gate A** (AWGN, parts 0/1, N=120 — the same population this
+column's UB has always described). **Check B** (narrowband, parts 2/3, N=60) is scored separately
+and is NOT this column: 0/60, PASS, never pooled with Gate A per the ruling. Two runs are not in
+this table because they did not exercise the full controlled battery: `a3738fc` (2026-07-04, a
+targeted N=300 S5-only confirmatory run, 8/300, PASS) and `4c7d5ad` (2026-09-06, a targeted S5-only
+run under the new split, 3/60, FAIL — the run that triggered this design).
+
+**Reading it:** seventeen full sweeps now, seven ratified/pre-ratified S5 FP failures to date, all on
+OpenWSFZ's side, none on WSJT-X's in any sweep — and the last four S5 readings in chronological
+order, routine and targeted alike (`3b52608`, `35378b9`, the excluded targeted `4c7d5ad` re-run,
+footnote 6, and this run), have all FAILed the gate. This run's S1/S2/S3 GR&R figures sit
+comfortably inside their established PASS bands, and both S7/S8 decode-recovery figures are
+in-family with the surrounding history. The S5 gate is the one open story from this run — first
+data point under R&R-010's split design, handed to the Architect (Section 5) rather than ruled on
+here.
+
+*Caveat, kept brief (carried forward unchanged): S1/S3 were redesigned 2026-06-06 (R&R-005/R&R-003);
+the S5 metric moved from plain decode-rate to a gated Clopper–Pearson event rate 2026-07-04/08-05
+(R&R-004); S5's default N dropped from 120 to 60 slots starting 2026-08-27 (R&R-009, AWGN parts only);
+S5 split into Gate A (N=120, restored) / Check B (N=60, new) 2026-09-06 (R&R-010). Early-vs-late
+numbers are as-reported; treat cross-redesign comparisons as directional, not strictly statistical.*

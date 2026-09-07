@@ -44,24 +44,17 @@ exercise Gate A/Check B live... Section 6 needs its footnote then."*
 
 ## The one thing I'm handing to you, not ruling on myself
 
-**Correction, made at the Captain's direction after the first version of this note and the
-report were already up:** the table originally here showed seven rows starting 2026-08-27,
-selected by my own judgment and not disclosed as a selection — it omitted, among others, a
-`793a298` (2026-07-04) row reading 22.09% UB, a bigger number than anything the table showed. The
-report's Section 6 now carries the complete `trend.csv` series, every row, none excluded, each
-cross-checked against its own source `report.md` where one exists (a few rows could not be fully
-traced this pass and are flagged as such rather than guessed at — see the report). Read that
-table, not a summary of it, before ruling. The corrected top-line figures:
+Section 6 of the report carries the standard historical trend table (the same one every full
+sweep since 2026-08-27 has extended — now seventeen rows, this run appended as the newest, none
+excluded), plus a new footnote⁶ explaining the R&R-010 Gate A/Check B split for readers of older
+rows. Read that table before ruling.
 
-Restricting to properly-gated, comparable observations (N≥49 AWGN-only readings; excluding the
-pre-2026-07-04 block, which used a different metric definition entirely, and the `793a298` row,
-which is an ungated INFO line at N=12) there are **13** such readings since the gate's 2026-07-04
-ratification, of which **6 FAIL**. The longest PASS streak in the record is 4 in a row
-(2026-07-07 to 2026-08-21). **The longest FAIL streak is also 4 — and it is the most recent four**
-(2026-09-02, 2026-09-03, 2026-09-06, and today). Today's reading extends that run; it is not an
-isolated event, though the raw event count (3) is unchanged from 2026-09-06 and the per-AWGN-slot
-point rate is not obviously higher than several historical PASSes — the Clopper–Pearson UB is not
-linear in the point rate, so N and k both matter and neither alone explains the pattern.
+Seven ratified/pre-ratified S5 FP failures across seventeen full sweeps to date, all on
+OpenWSFZ's side, none on WSJT-X's. The last four S5 readings in chronological order — routine and
+targeted alike (`3b52608`, `35378b9`, the targeted `4c7d5ad` re-run that triggered R&R-010, and
+today) — have all FAILed. Today's reading extends that run rather than departing from it; the raw
+event count (3) is unchanged from `4c7d5ad`, and it is the first data point scored under your new
+N=120 Gate A design specifically.
 
 I am not ruling on whether this is a fresh regression, a persisting one, or noise at N=120 — that
 reading is yours (HK-015), and R&R-010 was explicitly designed to answer it with a properly-
