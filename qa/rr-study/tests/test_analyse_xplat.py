@@ -33,6 +33,7 @@ from harness.analyse_xplat import (
 from harness.analyse import (
     _cp_upper_95, _verdict_fp, _fp_rate, THRESH_FP_UB95,
     _min_n_for_fp_gate, MIN_N_FOR_FP_GATE, _collect_verdicts,
+    _verdict_s5_narrowband, THRESH_S5_NARROWBAND_FAIL,
     APPRAISERS as _ANALYSE_APPRAISERS,
 )
 
@@ -410,7 +411,13 @@ class TestFpGateUnderpoweredIsInfoNotFail:
             continuous_results={}, kappa_results={}, fp_results=fp_results,
             bias_results={},
         )
-        assert not any(row[0] == "FP event rate (95% UB)" for row in verdict_rows)
+        # Label renamed 2026-09-06 (S5-GATE-SIZING) to "..., Gate A" when Check
+        # B was added alongside it — assert against the CURRENT label, not a
+        # substring, so a future rename can't silently defang this the same
+        # way (caught in PR #144 review: the old exact-string check had gone
+        # quietly vacuous after the rename, still "passing" for the wrong
+        # reason).
+        assert not any(row[0] == "FP event rate (95% UB), Gate A" for row in verdict_rows)
         assert overall == "PASS"
         assert not fails
         assert len(notes) == 2
@@ -419,3 +426,83 @@ class TestFpGateUnderpoweredIsInfoNotFail:
     def test_min_n_helper_matches_module_constant(self):
         """_min_n_for_fp_gate() is deterministic and matches the cached constant."""
         assert _min_n_for_fp_gate() == MIN_N_FOR_FP_GATE
+
+
+class TestS5CheckBZeroSlotsIsInfoNotPass:
+    """S5-GATE-SIZING Amendment 1's Check B (narrowband, parts 2/3) must never
+    report PASS when zero narrowband slots were injected -- that would
+    reproduce EXACTLY the coverage blindness the amendment exists to remove
+    (Section 1.2 / HK-026: a control that never ran is not the same as a
+    control that ran clean). Regression coverage for a finding raised in
+    PR #144 review: the first implementation's NaN-branch returned a
+    "vacuous PASS", inverting _verdict_fp's actual INFO convention rather
+    than mirroring it as its own docstring claimed.
+    """
+
+    def test_zero_slots_is_info_not_pass(self):
+        """The exact _fp_rate `_NAN` shape (n_slots=0, no event count) must
+        read INFO, never PASS."""
+        info = {
+            "decode_rate": float("nan"), "event_rate": float("nan"),
+            "event_rate_ub95": float("nan"), "n_fp_events": float("nan"),
+            "n_fp_decodes": float("nan"), "n_slots": 0,
+        }
+        assert _verdict_s5_narrowband(info) == "INFO"
+
+    def test_bare_dict_without_n_slots_is_also_info(self):
+        """No 'n_slots' key at all (e.g. a hand-built probe dict) must not be
+        silently treated as 'adequately covered' -- absence of the key is
+        exactly as uninformative as n_slots == 0."""
+        assert _verdict_s5_narrowband({"n_fp_events": 0}) == "INFO"
+
+    def test_nonzero_slots_below_threshold_passes_for_real(self):
+        """0 or 1 events on a real (non-zero) slot count PASSes -- unlike
+        Gate A there is no statistical small-N regime here."""
+        assert _verdict_s5_narrowband({"n_fp_events": 0, "n_slots": 60}) == "PASS"
+        assert _verdict_s5_narrowband(
+            {"n_fp_events": THRESH_S5_NARROWBAND_FAIL - 1, "n_slots": 60}
+        ) == "PASS"
+
+    def test_threshold_boundary_fails_inclusive(self):
+        """FAIL iff events >= THRESH_S5_NARROWBAND_FAIL -- the boundary itself fails."""
+        assert _verdict_s5_narrowband(
+            {"n_fp_events": THRESH_S5_NARROWBAND_FAIL, "n_slots": 60}
+        ) == "FAIL"
+
+    def test_collect_verdicts_excludes_zero_slot_check_b_from_gate_table(self):
+        """A zero-narrowband-slot Check B result (e.g. a --parts 0,1 targeted
+        recheck) must not appear in verdict_rows, must not drive the overall
+        verdict to FAIL, and must be recorded in notes -- not silently
+        dropped and not silently passed."""
+        narrowband_results = {
+            "WSJT-X":   {"n_fp_events": float("nan"), "n_slots": 0},
+            "OpenWSFZ": {"n_fp_events": float("nan"), "n_slots": 0},
+        }
+        verdict_rows, overall, fails, notes = _collect_verdicts(
+            continuous_results={}, kappa_results={}, fp_results={},
+            bias_results={}, fp_narrowband_results=narrowband_results,
+        )
+        assert not any(row[0].startswith("FP events, Check B") for row in verdict_rows)
+        assert overall == "PASS"
+        assert not fails
+        assert len(notes) == 2
+        assert all("not evaluated" in note for note in notes)
+
+    def test_collect_verdicts_reports_real_check_b_failure(self):
+        """A real narrowband run with >= threshold events DOES reach the gate
+        table and DOES drive the overall verdict to FAIL -- the INFO fix must
+        not have collaterally silenced the check's actual purpose."""
+        narrowband_results = {
+            "WSJT-X":   {"n_fp_events": 0, "n_slots": 60},
+            "OpenWSFZ": {"n_fp_events": THRESH_S5_NARROWBAND_FAIL, "n_slots": 60},
+        }
+        verdict_rows, overall, fails, notes = _collect_verdicts(
+            continuous_results={}, kappa_results={}, fp_results={},
+            bias_results={}, fp_narrowband_results=narrowband_results,
+        )
+        assert any(
+            row[0].startswith("FP events, Check B") and row[3] == "FAIL"
+            for row in verdict_rows
+        )
+        assert overall == "FAIL"
+        assert any("Check B narrowband" in f for f in fails)
