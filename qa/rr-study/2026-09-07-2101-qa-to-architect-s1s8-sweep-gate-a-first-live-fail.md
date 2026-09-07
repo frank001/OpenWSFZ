@@ -44,26 +44,24 @@ exercise Gate A/Check B live... Section 6 needs its footnote then."*
 
 ## The one thing I'm handing to you, not ruling on myself
 
-Section 6 of the report quotes every dated Gate-A-population observation since the 2026-08-27
-sweep, verified from each historical report's own gate line (never inferred from date — the
-run report is the authority for which era it belongs to, per the standing warning in
-`STUDY-SPEC.md` §16):
+**Correction, made at the Captain's direction after the first version of this note and the
+report were already up:** the table originally here showed seven rows starting 2026-08-27,
+selected by my own judgment and not disclosed as a selection — it omitted, among others, a
+`793a298` (2026-07-04) row reading 22.09% UB, a bigger number than anything the table showed. The
+report's Section 6 now carries the complete `trend.csv` series, every row, none excluded, each
+cross-checked against its own source `report.md` where one exists (a few rows could not be fully
+traced this pass and are flagged as such rather than guessed at — see the report). Read that
+table, not a summary of it, before ruling. The corrected top-line figures:
 
-| Date | SHA | Design | OpenWSFZ Gate A | Verdict |
-|---|---|---|---|---|
-| 2026-08-27 | `22b749c` | R&R-009, N=60 | 0/60 (UB 4.87%) | PASS |
-| 2026-08-29 | `872ba65` | R&R-009, N=60 | 1/60 (UB 7.66%) | FAIL |
-| 2026-08-30 | `2e60949` | targeted, N=120 | 2/120 (UB 5.15%) | PASS |
-| 2026-09-02 | `3b52608` | R&R-009, N=60 | 4/60 (UB 14.61%) | FAIL |
-| 2026-09-03 | `35378b9` | R&R-009, N=60 | 2/60 (UB 10.12%) | FAIL |
-| 2026-09-06 | `4c7d5ad` | targeted, N=60 (R&R-010 trigger) | 3/60 (targeted, no full report) | FAIL |
-| **2026-09-07** | **`4cc1984`** | **R&R-010, N=120 (first live)** | **3/120 (UB 6.33%)** | **FAIL** |
-
-Four of the last five dated observations FAIL. Today's run is the first data point under your
-new N=120 design, so it has no same-era predecessor to compare against on the UB — but the raw
-event count is identical to the immediately preceding observation (3, on 2026-09-06, which was
-your own trigger for asking whether the increase persists), and per-AWGN-slot the point rate
-actually *halved* between those two (5.0% → 2.5%) even though both fail the same 6% ceiling.
+Restricting to properly-gated, comparable observations (N≥49 AWGN-only readings; excluding the
+pre-2026-07-04 block, which used a different metric definition entirely, and the `793a298` row,
+which is an ungated INFO line at N=12) there are **13** such readings since the gate's 2026-07-04
+ratification, of which **6 FAIL**. The longest PASS streak in the record is 4 in a row
+(2026-07-07 to 2026-08-21). **The longest FAIL streak is also 4 — and it is the most recent four**
+(2026-09-02, 2026-09-03, 2026-09-06, and today). Today's reading extends that run; it is not an
+isolated event, though the raw event count (3) is unchanged from 2026-09-06 and the per-AWGN-slot
+point rate is not obviously higher than several historical PASSes — the Clopper–Pearson UB is not
+linear in the point rate, so N and k both matter and neither alone explains the pattern.
 
 I am not ruling on whether this is a fresh regression, a persisting one, or noise at N=120 — that
 reading is yours (HK-015), and R&R-010 was explicitly designed to answer it with a properly-

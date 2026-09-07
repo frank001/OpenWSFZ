@@ -337,36 +337,60 @@ same session-wide total.
 %GR&R and ndc remain comfortably PASS-range across every dated entry since the 2026-07-04 S1
 redesign; no trend concern.
 
-**S5 Gate A / Check B — read this against R&R-010's own instruction (`STUDY-SPEC.md` §16):
-*"the S5 FP column now spans three denominator classes... normalise any cross-era rate
-comparison per AWGN slot first — never read the column directly across a denominator change."***
-Each row below is quoted from its own report's gate line (never inferred from date, per the
-standing warning that the run report is the sole authority for which era it belongs to):
+**S5 Gate A / Check B — the COMPLETE series.** A prior draft of this section showed only seven
+selected rows starting 2026-08-27, chosen by my own judgment and not disclosed as a selection.
+That was wrong and has been corrected — every row in `trend.csv`'s `fp_rate_s5` column is below,
+in date order, none omitted, plus two runs (`872ba65`, `4c7d5ad`) that never got a `trend.csv`
+row at all but do have their own report. Read this against R&R-010's own instruction
+(`STUDY-SPEC.md` §16): *"the S5 FP column now spans three denominator classes... normalise any
+cross-era rate comparison per AWGN slot first — never read the column directly across a
+denominator change."* Wherever a source `report.md` exists I re-verified its own gate line
+directly (never inferred from date or from `trend.csv` alone) rather than trust the column;
+where it doesn't, the `trend.csv` figure is shown as-is and flagged.
 
-| Date | SHA | Design | OpenWSFZ Gate A | Verdict |
+| Date | SHA | `trend.csv` value | Verified from source report | Note |
 |---|---|---|---|---|
-| 2026-08-27 | `22b749c` | R&R-009, N=60 | 0/60 (UB 4.87%) | PASS |
-| 2026-08-29 | `872ba65` | R&R-009, N=60 | 1/60 (UB 7.66%) | FAIL |
-| 2026-08-30 | `2e60949` | targeted, N=120 | 2/120 (UB 5.15%) | PASS |
-| 2026-09-02 | `3b52608` | R&R-009, N=60 | 4/60 (UB 14.61%) | FAIL |
-| 2026-09-03 | `35378b9` | R&R-009, N=60 | 2/60 (UB 10.12%) | FAIL |
-| 2026-09-06 | `4c7d5ad` | targeted, N=60 (R&R-010 trigger) | 3/60 (no full report — targeted run) | FAIL |
-| **2026-09-07** | **`4cc1984`** | **R&R-010, N=120 (first live Gate A)** | **3/120 (UB 6.33%)** | **FAIL** |
+| 2026-06-06 (×5) | `46d7f6a`,`5b868ce`,`aa053a9`,`4c34ef6`,`6bab388` | 0.0 | — | Pre-ratification (before R&R-004, 2026-07-04). Not independently re-checked this pass. |
+| 2026-06-07 (×2) | `497996f`,`15b220b` | 0.0 | — | Pre-ratification. Not re-checked. |
+| 2026-06-14 | `815b652` | 0.0 | — | Pre-ratification. Not re-checked. |
+| 2026-06-20 | `6e821fa` | 91.67 | — | Pre-ratification. **Metric is a different definition here** — the era's own report (`d40b4cd`, same day) defines "a slot with two FP decodes counts as two events," so this is a raw multi-event-per-slot rate, not the Clopper–Pearson single-slot UB used from 2026-07-04 onward. Values >100% are possible under this definition and are not directly comparable to anything below. |
+| 2026-06-20 | `d40b4cd` | 133.33 | "≥9 FP events across ≥6 of 12 slots, minimum 75% event rate" (prose, not a gate table) | Same pre-ratification metric as above; this was the D-009 OSD false-positive investigation, not a routine S5 gate reading. |
+| 2026-06-20 | `8eea3c4` | 75.0 | — | Same era/metric as above. Not independently re-checked this pass. |
+| 2026-06-22 | `f11f438` | 0.0 | — | Pre-ratification. Not re-checked. |
+| — (d011-fp-recheck) | `f1e76d4` | **5.83** | report's own line: **7/120 slots (event 5.8%, 95% UB 10.68%) FAIL** | 🔴 **`trend.csv` stores the raw event rate (5.83%) here, not the UB (10.68%) — inconsistent with every other row in this column, which stores the UB.** Flagged, not silently corrected. |
+| 2026-07-04 | `a3738fc` (F002, S5 N=300, targeted) | 4.76 | 8/300 (event 2.7%, 95% UB 4.76%) **PASS** | First N≥49 (properly powered) reading, purpose-built to resolve the ratified gate. Matches. |
+| 2026-07-04 | `793a298` (routine battery, pre-R&R-006 trial count) | 22.09 | 0/12 slots, **95% UB 22.09%, NOT GATED** (N=12 is below the 49-slot minimum — no PASS or FAIL is possible at this N) | Matches `trend.csv` exactly. **This is the largest number in the whole series and it is an ungated INFO line, not a FAIL** — flagging this precisely so it isn't misread either direction. |
+| 2026-07-07 | `df4cc89` | 2.47 | 0/120 (95% UB 2.47%) PASS | Matches. |
+| 2026-08-05 | `3bd4cd0` | 2.47 | 0/120 (95% UB 2.47%) PASS | Matches. |
+| 2026-08-15 | `8d6e1b1` | 3.89 | 1/120 (event 0.8%, 95% UB 3.89%) PASS | Matches. |
+| 2026-08-21 | `7d36038` | 3.89 | 1/120 (event 0.8%, 95% UB 3.89%) PASS | Matches. |
+| 2026-08-22 | `f5dec23` | 7.47 | 4/120 (event 3.3%, 95% UB 7.47%) **FAIL** | Matches. |
+| 2026-08-27 | `22b749c` | 4.87 | 0/60 (95% UB 4.87%) PASS | R&R-009 era begins (N=60, 2-part). Matches. |
+| — (not in `trend.csv`) | `872ba65` | *(no row)* | 1/60 (event 1.7%, 95% UB 7.66%) **FAIL** | 2026-08-29. This run's `trend.csv` append apparently didn't happen; figure taken directly from its own `report.md`. |
+| 2026-08-30 | `2e60949` | 5.15 | 2/120 (event 1.7%, 95% UB 5.15%) PASS | Targeted N=120 run, not the restricted default battery. Matches. |
+| 2026-09-02 | `3b52608` | 14.61 | 4/60 (event 6.7%, 95% UB 14.61%) **FAIL** | Matches. |
+| 2026-09-03 | `35378b9` | 10.12 | 2/60 (event 3.3%, 95% UB 10.12%) **FAIL** | Matches. |
+| 2026-09-05 | `df13da0` | 3.91 | *not resolved this pass* | 🔴 **Provenance unclear.** `trend.csv`'s own value (3.91%) does not match the MEMORY-ratified, citable S5-STANDALONE figure for this date (`k=6/300=2.000%`, 95% CI upper 4.30%, vs July `k=8/300=2.667%`, p=0.79 — a specially-designed N=300 harness, not the routine battery). The two may be different measurements entirely; I have not traced what produced 3.91% specifically. **Do not cite 3.91% for anything** until traced — cite the ratified S5-STANDALONE figure instead. |
+| — (not in `trend.csv`) | `4c7d5ad` | *(no row)* | 3/60 (targeted run, no full `report.md` — R&R-010's own trigger) | 2026-09-06. |
+| **2026-09-07 (TODAY)** | **`4cc1984`** | **6.33** | **3/120 (event 2.5%, 95% UB 6.33%) FAIL** | **First live Gate A under R&R-010's N=120 design.** |
 
-**Reading this series, not just this row:** Gate A (or its R&R-009-era predecessor scored on the
-same AWGN population) has now FAILED in **four of the last five dated observations**, the one
-PASS (2026-08-30) being a targeted N=120 run, not the routine battery. **This is the first
-observation scored under R&R-010's own N=120 design, so it has no same-era predecessor to compare
-against directly** — but it is not an isolated event either: the raw AWGN event count is
-identical to the immediately preceding observation (3 events, 2026-09-06 targeted run, which was
-itself R&R-010's own trigger for asking whether the increase is persistent). Per-AWGN-slot, the
-point rate actually **halved** between those two most recent observations (3/60 = 5.0% →
-3/120 = 2.5%) even though both FAIL the same 6% UB ceiling — the UB tightens with N, so a lower
-point rate at higher N can still fail where a higher point rate at lower N also failed. **This is
+**Reading this, not just today's row:** restricting to properly-gated, comparable observations
+(N≥49, routine or targeted AWGN-only readings — excluding the pre-ratification block and the
+ungated `793a298` INFO line), there are **13** such readings from the gate's 2026-07-04
+ratification to today, of which **6 FAIL**: `f5dec23` (08-22), `872ba65` (08-29), `3b52608`
+(09-02), `35378b9` (09-03), `4c7d5ad` (09-06), and today's `4cc1984`. The longest **PASS** streak
+in the record is 4 in a row (`df4cc89` through `7d36038`, 07-07 to 08-21). **The longest FAIL
+streak in the record is also 4 in a row — and it is the most recent four** (`3b52608`, `35378b9`,
+`4c7d5ad`, and today). Today's reading extends that run rather than being an isolated event. It
+is not a new spike by raw count (3 events, unchanged from 2026-09-06); per-AWGN-slot the point
+rate is lower than at some points that PASSed (e.g. 2.5% today vs. `2e60949`'s 1.7% — note that
+one PASSed at N=120 while today FAILs at N=120 too, so N alone doesn't explain the difference
+either; small-count Clopper–Pearson UBs are simply not linear in the point rate). **This is
 descriptive, not a ruling:** whether the underlying AWGN FP rate is elevated, stable-but-gate-
-sensitive, or noise at this N is exactly the question R&R-010 was designed to answer with a
-properly-powered series, and this is only that series' first point. WSJT-X has registered zero
-Gate A false positives in every observation above, with no exception.
+sensitive at this N, or noise is exactly the question R&R-010 was built to answer with a
+properly-powered series, and today is only that series' first point under the new design.
+WSJT-X has registered zero Gate A false positives in every properly-gated observation above, with
+no exception.
 
 **S7 (informational, no gate):** OpenWSFZ recovery this run (79.07%) sits within the range
 already established by the S7 instrument-suspect jump investigation (`BOARD.md`,
