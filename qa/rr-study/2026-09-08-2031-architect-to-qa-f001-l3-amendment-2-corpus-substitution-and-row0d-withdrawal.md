@@ -63,6 +63,22 @@ thousands of cycles is a heavy, sustained CPU load.
 arms become mutually confounded and both are damaged.** L3 is not time-critical; the capture is
 in flight. The capture wins.
 
+⚠️ **Sharpening added 2026-09-08 ~20:5xZ, after QA correctly pushed back that the machine has ample
+CPU headroom (~6% utilisation, observed by the Captain).** That observation is fair and the
+performance reasoning behind it was **incomplete, not wrong** — and idle-state utilisation is not
+evidence of headroom *under* the load in question, nor is mean utilisation the quantity a capture
+daemon is sensitive to (scheduling-latency spikes on the audio path are, and I do not know that
+daemon's tolerance). But the load question is **not the load-bearing one**, and the argument's real
+form is stronger than "two arms might interfere":
+
+🔴 **L3's corpus IS `FP-FLOOR-LIVE-2`'s output.** If the replay perturbs the capture, it corrupts the
+very audio L3 then reads — **a self-inflicted loop, not a collision between two independent arms.**
+And the damage is **unattributable after the fact**: any cycle-loss anomaly in `FP-FLOOR-LIVE-2`
+could no longer be separated from the replay, so **both** arms lose — the capture on validity, L3 on
+provenance. ⇒ The causal risk runs one way (replay → capture); the *mutual* damage is in
+**attribution**. Either way the bar stands unchanged, and it stands **regardless of measured CPU
+headroom**, because it is not a performance claim.
+
 ### 1.3 ⚠️ BAR 2 — `U_clean ≥ 500` is a real risk on a short corpus, and it is checkable, not
 assumable
 
