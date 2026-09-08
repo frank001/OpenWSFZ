@@ -31,6 +31,7 @@ if hasattr(sys.stderr, "reconfigure"):
 import numpy as np
 import pandas as pd
 from scipy.stats import beta as _beta_dist
+from scipy.stats import fisher_exact as _fisher_exact
 
 # Matplotlib in non-interactive mode
 import matplotlib
@@ -145,8 +146,11 @@ THRESH_BIAS_PASS = 2.0      # |bias| ≤ 2 dB → PASS; > 2 dB → FAIL
 # S5-GATE-SIZING, Amendment 1 (PO ruling Option 3, 2026-09-06 20:29 UTC): S5's
 # single gate is split into two, each scored on its OWN denominator and NEVER
 # pooled into one rate, one denominator, or one verdict line -- pooling is the
-# defect the amendment removes (the same 180 slots scored as one gate detect a
-# problem 21% of the time; scored as two, Gate A detects it 77%).
+# defect the amendment removes. CORRECTED 2026-09-08 (R&R-011 section 8 task 5):
+# the same 180 slots scored as one gate FAIL 21% of the time under no change;
+# scored as two, Gate A alone FAILs 77% of the time under no change. That 77%
+# is Gate A's OWN FALSE-ALARM RATE at N=120, not "detects a problem" -- see
+# STUDY-SPEC.md Sec.16 R&R-010 entry and the ruling this corrects.
 S5_AWGN_PARTS = (0, 1)          # Gate A — regression tripwire, ratified 6% UB (unchanged)
 S5_NARROWBAND_PARTS = (2, 3)    # Check B — coverage net, FAIL iff events >= THRESH_S5_NARROWBAND_FAIL
 THRESH_S5_NARROWBAND_FAIL = 2   # derived in A1.2 from the measured all-history per-slot narrowband
@@ -155,6 +159,36 @@ THRESH_S5_NARROWBAND_FAIL = 2   # derived in A1.2 from the measured all-history 
                                 # trigger. NOT a Clopper-Pearson UB gate: the readout quantum IS the
                                 # threshold (HK-021(o)), so MIN_N_FOR_FP_GATE's INFO demotion does
                                 # not apply to this check.
+
+# S5-GATE, R&R-011 (PO ruling Option A, 2026-09-08): supersedes R&R-010's
+# per-sweep scoring of Gate A. Per-sweep Gate A (N=120, THRESH_FP_UB95) becomes
+# INFO -- see `_verdict_fp` -- reported but never gating. In its place, TWO
+# separate rows, never pooled into one S5 verdict (R&R-010's prohibition,
+# carried forward): Gate A-W (compliance, trailing window) and Gate A-Delta
+# (change, newest sweep vs the rest of the window). Spec:
+# qa/rr-study/2026-09-08-1452-architect-to-qa-spec-rr-011-s5-trailing-window-gate.md
+S5_WINDOW_SLOTS = 480      # fixed at ratification (spec Sec.4.4) -- NEVER re-tuned off a verdict
+S5_WINDOW_ALPHA_CHANGE = 0.05  # Gate A-Delta one-sided Fisher significance level
+
+# The trailing window's seed (spec Sec.2), fixed at ratification and NOT to be
+# re-derived: the seven most recent runs contributing AWGN slots, NEWEST FIRST,
+# each count taken from that run's own Section 10 gate line (never back-computed
+# from a report's mixed Section 6 "S5 FP" column). Every entry reproduces
+# against its committed report via fp_composition_per_part.py (ROW C1, 18/18).
+S5_WINDOW_SEED: list[tuple[str, int, int]] = [
+    ("4cc1984", 3, 120),
+    ("4c7d5ad", 3, 60),
+    ("35378b9", 2, 60),
+    ("3b52608", 4, 60),
+    ("2e60949", 2, 60),
+    ("872ba65", 1, 60),
+    ("22b749c", 0, 60),
+]
+# Section 5's worked example is the reproduction test for the whole design --
+# assert the inherited seed totals in code rather than trust the prose (HK rule:
+# inherited constants belong in the code as assertions, not as reminders).
+assert sum(sl for _, _, sl in S5_WINDOW_SEED) == 480, "S5_WINDOW_SEED slot total drifted"
+assert sum(ev for _, ev, _ in S5_WINDOW_SEED) == 15, "S5_WINDOW_SEED event total drifted"
 
 # Decodable-SNR floor for the informational restricted-population attribute-Kappa
 # variant (rr-density-qrm-scenario / R&R-007).  Established by R&R-005 for the
@@ -247,30 +281,24 @@ MIN_N_FOR_FP_GATE = _min_n_for_fp_gate()
 
 
 def _verdict_fp(fp_info: dict) -> str:
-    """Gate on the one-sided 95% CP upper bound of the per-slot FP event rate.
+    """Per-sweep Gate A (S5 AWGN, N=120) — SUPERSEDED as a gate by R&R-011.
 
-    STUDY-SPEC §10 (ratified 2026-07-04, R&R-004): PASS iff UB₉₅ ≤ THRESH_FP_UB95.
-    This supersedes the retired interim zero-event gate (n_fp_events == 0), which
-    was never ratified into §10 and was ill-posed at the study's N (coincidental
-    CRC-14 passes on the AWGN noise floor make a nonzero observed rate expected).
+    Unconditionally "INFO": R&R-011 (PO ruling Option A, 2026-09-08) took this
+    row out of the gating path entirely because at N=120 it cannot separate
+    "unchanged" (P(FAIL)=0.739 at the established 3.182% rate) from "twice as
+    bad" (P(FAIL)=0.984) -- see the ruling
+    `2026-09-08-1429-architect-to-qa-ruling-s5-gate-a-first-point-and-gate-form.md`
+    Sec.3-4. It still runs every sweep and still feeds the trailing window (see
+    `_verdict_s5_window`/`S5_WINDOW_SEED`), which is the ratified compliance
+    gate now. Never resurrect a PASS/FAIL verdict from this row without a new
+    pre-registration (spec Sec.4.4 prohibition).
 
-    Below `MIN_N_FOR_FP_GATE` slots, even a perfectly clean run (0 events) cannot
-    clear the gate — the UB is a property of the sample size, not the decoder.
-    Rather than report a FAIL that no amount of correctness could avoid, such
-    runs are reported "INFO": informational data only, excluded from the
-    Section 4 gate table and from the overall verdict. Use a properly powered
-    run (N ≥ `MIN_N_FOR_FP_GATE`) for the ratified §10 verdict.
+    `MIN_N_FOR_FP_GATE`/`THRESH_FP_UB95` are retained only as the still-current
+    definitions of the underlying per-slot CP-upper-bound quantity this row
+    reports (and which Gate A-W now gates on at N=480), not as a threshold this
+    function evaluates any more.
     """
-    ub = fp_info.get("event_rate_ub95", float("nan"))
-    if isinstance(ub, float) and math.isnan(ub):
-        return "PASS"   # undefined (zero S5 slots injected) — treat as vacuously passing
-    # n_slots absent (e.g. a bare {"event_rate_ub95": ...} dict used to probe the
-    # threshold logic directly) is treated as "unknown, assume adequately powered"
-    # rather than "zero slots" — only a real, present n_slots demotes to INFO.
-    n_slots = fp_info.get("n_slots", float("inf"))
-    if n_slots < MIN_N_FOR_FP_GATE:
-        return "INFO"
-    return "PASS" if ub <= THRESH_FP_UB95 else "FAIL"
+    return "INFO"
 
 
 def _verdict_s5_narrowband(fp_info: dict) -> str:
@@ -304,6 +332,87 @@ def _verdict_s5_narrowband(fp_info: dict) -> str:
     if isinstance(n_events, float) and math.isnan(n_events):
         return "INFO"  # defensive -- should be unreachable once n_slots > 0
     return "FAIL" if n_events >= THRESH_S5_NARROWBAND_FAIL else "PASS"
+
+
+def _verdict_s5_window(window: list[tuple[str, int, int]]) -> tuple[str, int, int, list]:
+    """Gate A-W (R&R-011 Sec.3): compliance on the trailing S5_WINDOW_SLOTS AWGN
+    slots -- the ratified 6% UB, unchanged, evaluated at a sample size that can
+    actually discriminate (spec Sec.4).
+
+    ``window`` is [(sha, events, slots), ...], NEWEST FIRST -- the current
+    sweep's own AWGN reading MUST be window[0] (see `_s5_window_history`).
+    Accumulates newest-first until S5_WINDOW_SLOTS is reached; if the window
+    is exhausted first, returns "INFO" (ROW 0c -- not a PASS: "no outcome at
+    this N" is not the same claim as "a properly powered outcome"; contrast
+    `_verdict_fp`, whose superseded INFO now means something else).
+
+    Returns (verdict, k, n, used) where ``used`` is the (possibly truncated)
+    newest-first sub-list actually inside the compliance window -- pass this
+    same list to `_verdict_s5_change`/`_s5_window_loo` so all three questions
+    are asked of the identical population (spec Sec.4.7).
+    """
+    used: list[tuple[str, int, int]] = []
+    k = n = 0
+    for sha, ev, sl in window:
+        if n >= S5_WINDOW_SLOTS:
+            break
+        used.append((sha, ev, sl))
+        k += ev
+        n += sl
+    if n < S5_WINDOW_SLOTS:
+        return "INFO", k, n, used
+    ub = _cp_upper_95(k, n) * 100.0
+    return ("PASS" if ub <= THRESH_FP_UB95 else "FAIL"), k, n, used
+
+
+def _verdict_s5_change(used: list[tuple[str, int, int]]) -> tuple[str, float, tuple, tuple]:
+    """Gate A-Delta (R&R-011 Sec.3): is the newest sweep significantly WORSE
+    than the rest of the (already-windowed) population? One-sided Fisher,
+    alpha=S5_WINDOW_ALPHA_CHANGE. This is what covers the trailing window's
+    own lag (spec Sec.4.7) -- blind below ~2x by construction, never read a
+    PASS here as "nothing moved".
+
+    ``used`` MUST be `_verdict_s5_window`'s own returned ``used`` list (newest
+    first) so Gate A-W and Gate A-Delta are never asking about two different
+    populations. Returns (verdict, p, (k1, n1), (k0, n0)) -- newest sweep vs
+    the rest of the window. A window of a single sweep (nothing to compare
+    against) returns "INFO", not PASS -- there is no "rest" to test against.
+    """
+    if len(used) < 2:
+        return "INFO", float("nan"), (None, None), (None, None)
+    _, k1, n1 = used[0]
+    k0 = sum(ev for _, ev, _ in used[1:])
+    n0 = sum(sl for _, _, sl in used[1:])
+    _, p = _fisher_exact([[k1, n1 - k1], [k0, n0 - k0]], alternative="greater")
+    verdict = "FAIL" if p <= S5_WINDOW_ALPHA_CHANGE else "PASS"
+    return verdict, float(p), (k1, n1), (k0, n0)
+
+
+def _s5_window_loo(used: list[tuple[str, int, int]]) -> tuple[bool, list[dict]]:
+    """R&R-011 Sec.4.7: leave-one-sweep-out on Gate A-W's verdict, over the
+    same windowed population `_verdict_s5_window` returned as ``used``.
+    FRAGILE iff removing any single contributing sweep flips PASS<->FAIL --
+    the stated maximum for the cross-build confound (up to seven builds in one
+    window). A FRAGILE verdict must be reported alongside its value and never
+    stand alone as evidence about any one build (spec Sec.4.7, sibling (p)).
+    """
+    if not used:
+        return False, []
+    base_k = sum(ev for _, ev, _ in used)
+    base_n = sum(sl for _, _, sl in used)
+    base_ub = _cp_upper_95(base_k, base_n) * 100.0
+    base_verdict = "PASS" if base_ub <= THRESH_FP_UB95 else "FAIL"
+    deletions: list[dict] = []
+    fragile = False
+    for sha, ev, sl in used:
+        k, n = base_k - ev, base_n - sl
+        if n <= 0:
+            continue  # deleting the only sweep leaves nothing to gate
+        ub = _cp_upper_95(k, n) * 100.0
+        v = "PASS" if ub <= THRESH_FP_UB95 else "FAIL"
+        deletions.append({"sha": sha, "verdict": v, "ub": ub, "k": k, "n": n})
+        fragile = fragile or (v != base_verdict)
+    return fragile, deletions
 
 
 def _verdict_bias(bias: float) -> str:
@@ -690,6 +799,140 @@ def _bias_linearity(df_matched: pd.DataFrame, run_dir: Path) -> dict:
     plt.close(fig)
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Task 4.7b — S5 Gate A trailing-window gate (R&R-011)
+# ---------------------------------------------------------------------------
+# Orchestrates the ROW 0 preconditions (spec Sec.3) around `_verdict_s5_window`
+# / `_verdict_s5_change` / `_s5_window_loo` above, and persists the window via
+# trend.csv's `fp_events_s5`/`fp_slots_s5` columns (Sec.8 task 2: "seed it from
+# Sec.2 and let the window be DERIVED from it rather than hand-maintained").
+
+_TREND_S5_EVENTS_COL = "fp_events_s5"
+_TREND_S5_SLOTS_COL = "fp_slots_s5"
+
+
+def _s5_row0a_void(attr_results: dict | None) -> tuple[bool, str]:
+    """ROW 0a (spec Sec.3, sibling (n)): the positive control. S5 slots are
+    signal-free, so S5 has no true positives of its own -- a dead audio chain
+    yields 0 events and Gate A-W PASSES vacuously. The control has to sit
+    outside S5: S4 OpenWSFZ recall (TP/(TP+FN)) == 0 in the SAME session VOIDs
+    the S5 reading. A session that never ran S4 at all provides no positive
+    control either and is treated the same way -- a control that never ran is
+    not the same as a control that ran clean (HK-026), and this row must not
+    silently read as "does not fire" when it was simply never evaluated.
+
+    Returns (fires, detail).
+    """
+    if not attr_results:
+        return True, "S4 did not run this session -- no positive control available"
+    confusion = attr_results.get("confusion", {}).get("OpenWSFZ")
+    if not confusion:
+        return True, "S4/OpenWSFZ confusion counts unavailable -- no positive control"
+    tp, fn = confusion.get("TP", 0), confusion.get("FN", 0)
+    if (tp + fn) == 0:
+        return True, "S4 injected zero messages this session -- no positive control"
+    if tp == 0:
+        return True, f"S4 OpenWSFZ recall == 0 ({tp}/{tp + fn}) -- dead audio chain"
+    return False, f"S4 OpenWSFZ recall {tp}/{tp + fn} > 0"
+
+
+def _s5_row0b_scoping_ok(s5_df: pd.DataFrame, fp_info: dict) -> tuple[bool, int, int]:
+    """ROW 0b (spec Sec.3): re-derive the scoped AWGN FP event count
+    independently of `_fp_rate_for_parts`'s cached figure, straight from
+    ``s5_df``, and confirm it matches. Guards against a future code path
+    changing `_fp_rate_for_parts`'s scoping without this gate noticing --
+    HK-026: an instrument cannot certify its own blind spot by re-running the
+    exact same code path that produced the number in the first place.
+
+    Returns (ok, unscoped_n_events, scoped_n_events) for OpenWSFZ.
+    """
+    part_map = _s5_cycle_part_map(s5_df)
+    awgn_cycles = {c for c, p in part_map.items() if p in S5_AWGN_PARTS}
+    sub = s5_df[s5_df["appraiser"] == "OpenWSFZ"]
+    fp_sub = sub[sub["false_positive"] == True]
+    unscoped_n = int(fp_sub["cycle_utc"].nunique())
+    scoped_n = int(fp_sub[fp_sub["cycle_utc"].isin(awgn_cycles)]["cycle_utc"].nunique())
+    ok = scoped_n == fp_info.get("n_fp_events", -1)
+    return ok, unscoped_n, scoped_n
+
+
+def _s5_window_history(qa_rr_root: Path) -> list[tuple[str, int, int]]:
+    """Everything the window has learned SINCE the R&R-011 seed, newest first,
+    read from trend.csv's `fp_events_s5`/`fp_slots_s5` columns. Rows whose SHA
+    already appears in S5_WINDOW_SEED are skipped (the seed already covers
+    them at its own, separately-reconciled counts -- see the spec Sec.2 note
+    that these do NOT always match an era's raw trend.csv figure, e.g. a
+    resumed session's part-scoping anomaly; the seed is the reconciled truth
+    and is never re-derived from trend.csv).
+    """
+    trend_path = qa_rr_root / "trend.csv"
+    if not trend_path.exists():
+        return []
+    seed_shas = {sha for sha, _, _ in S5_WINDOW_SEED}
+    rows: list[tuple[str, int, int]] = []
+    with open(trend_path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            sha = (row.get("git_sha") or "")[:7]
+            ev_s = row.get(_TREND_S5_EVENTS_COL, "")
+            sl_s = row.get(_TREND_S5_SLOTS_COL, "")
+            if not sha or not ev_s or not sl_s or sha in seed_shas:
+                continue
+            try:
+                rows.append((sha, int(float(ev_s)), int(float(sl_s))))
+            except ValueError:
+                continue
+    rows.reverse()  # trend.csv is chronological (oldest first) -> newest first
+    return rows
+
+
+def _s5_window_gate(
+    qa_rr_root: Path,
+    git_sha: str,
+    fp_results: dict[str, dict],
+    attr_results: dict | None,
+    s5_df: pd.DataFrame,
+) -> dict:
+    """Full R&R-011 orchestration for one sweep. ROW 0 first, in strict order;
+    if any ROW 0 fires, neither Gate A-W nor Gate A-Delta is evaluated and no
+    S5 window verdict of any kind is reported (spec Sec.3) -- callers must
+    check ``status`` before reading ``window``/``change``/``loo``.
+    """
+    info = fp_results.get("OpenWSFZ")
+    if not info or (isinstance(info.get("n_fp_events"), float) and math.isnan(info["n_fp_events"])):
+        return {"status": "NOT_RUN"}
+
+    void0a, detail0a = _s5_row0a_void(attr_results)
+    if void0a:
+        return {"status": "VOID", "row": "0a", "detail": detail0a}
+
+    ok0b, unscoped_n, scoped_n = _s5_row0b_scoping_ok(s5_df, info)
+    if not ok0b:
+        return {
+            "status": "VOID", "row": "0b",
+            "detail": f"unscoped OpenWSFZ FP events {unscoped_n}, scoped (parts 0/1) "
+                      f"{scoped_n}, but Gate A's own count is {info.get('n_fp_events')} -- "
+                      f"scoping mismatch, do not trust this reading",
+        }
+
+    today = (git_sha[:7], int(info["n_fp_events"]), int(info["n_slots"]))
+    history = [t for t in _s5_window_history(qa_rr_root) if t[0] != today[0]]
+    window = [today] + history + list(S5_WINDOW_SEED)
+
+    verdict_w, k, n, used = _verdict_s5_window(window)
+    if verdict_w == "INFO":
+        return {"status": "INFO", "row": "0c", "k": k, "n": n, "used": used}
+
+    verdict_c, p, (k1, n1), (k0, n0) = _verdict_s5_change(used)
+    fragile, deletions = _s5_window_loo(used)
+    return {
+        "status": "SCORED",
+        "window": {"verdict": verdict_w, "k": k, "n": n,
+                   "ub": _cp_upper_95(k, n) * 100.0, "used": used},
+        "change": {"verdict": verdict_c, "p": p, "k1": k1, "n1": n1, "k0": k0, "n0": n0},
+        "loo": {"fragile": fragile, "deletions": deletions},
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1814,6 +2057,7 @@ def _collect_verdicts(
     fp_results: dict[str, dict],
     bias_results: dict[str, dict],
     fp_narrowband_results: dict[str, dict] | None = None,
+    s5_window_result: dict | None = None,
 ) -> tuple[list[tuple[str, str, float | str, str]], str, list[str], list[str]]:
     """Collect all metric verdicts and return (rows, overall_verdict, fails, notes)."""
     verdict_rows: list[tuple[str, str, float | str, str]] = []
@@ -1856,26 +2100,61 @@ def _collect_verdicts(
         v = _verdict_fp(info)
         value_str = (f"{int(n_events)}/{n_slots} slots "
                      f"(event {event_rate:.1f}%; 95% UB {ub95:.2f}%; decode {decode_rate:.1f}%)")
-        if v == "INFO":
-            # Underpowered at this N — the §10 gate cannot produce a PASS here
-            # regardless of decoder behaviour (see MIN_N_FOR_FP_GATE). Omit from
-            # the gate table and the overall verdict entirely rather than
-            # reporting a FAIL that no correctness could avoid; keep a note for
-            # traceability. Full data remains visible in the S5 results section.
+        # R&R-011 (PO ruling Option A, 2026-09-08): per-sweep Gate A is now
+        # UNCONDITIONALLY "INFO" -- superseded as a gate, not underpowered.
+        # It still feeds the trailing window (see the Gate A-W/A-Delta rows
+        # below, this same function) -- three separate lines, never combined
+        # into one S5 verdict (R&R-010's prohibition, carried forward).
+        assert v == "INFO", "_verdict_fp must be unconditionally INFO post-R&R-011"
+        notes.append(
+            f"FP event rate (S5/{appr}) not gated at N={n_slots}: {value_str} — "
+            f"per-sweep Gate A was superseded by R&R-011 (2026-09-08): at N=120 "
+            f"it cannot separate 'unchanged' from 'twice as bad'. See Gate A-W "
+            f"below for the ratified compliance verdict."
+        )
+
+    # Gate A-W / Gate A-Delta (R&R-011) — the trailing-window compliance and
+    # change gates that replace per-sweep Gate A above. Two separate rows,
+    # never pooled into each other or into the per-sweep INFO row above.
+    if s5_window_result:
+        status = s5_window_result.get("status")
+        if status == "VOID":
             notes.append(
-                f"FP event rate (S5/{appr}) not gated: {value_str} — N={n_slots} slots is "
-                f"below the {MIN_N_FOR_FP_GATE}-slot minimum required to clear the "
-                f"§10 gate at zero observed events. See a properly powered run "
-                f"(N ≥ {MIN_N_FOR_FP_GATE}) for the ratified verdict."
+                f"S5 window gate (Gate A-W/Gate A-Δ) VOID — ROW {s5_window_result['row']}: "
+                f"{s5_window_result['detail']}. Neither gate is evaluated; no S5 window "
+                f"verdict of any kind is reported this sweep (R&R-011 Sec.3)."
             )
-            continue
-        verdict_rows.append(("FP event rate (95% UB), Gate A", f"S5/{appr}", value_str, v))
-        if v == "FAIL":
-            fails.append(
-                f"FP event rate Gate A ({appr}) = {int(n_events)} events in {n_slots} slots "
-                f"(event rate {event_rate:.1f}%, 95% UB {ub95:.2f}%); "
-                f"gate requires 95% UB ≤ {THRESH_FP_UB95:.0f}%"
+        elif status == "INFO":
+            notes.append(
+                f"S5 window gate: INFO — trailing window not yet full "
+                f"({s5_window_result['k']}/{s5_window_result['n']} of "
+                f"{S5_WINDOW_SLOTS} AWGN slots accumulated). Not a PASS."
             )
+        elif status == "SCORED":
+            w = s5_window_result["window"]
+            c = s5_window_result["change"]
+            loo = s5_window_result["loo"]
+            fragile_tag = " [FRAGILE]" if loo["fragile"] else ""
+            w_value = (f"{w['k']}/{w['n']} slots (event {100.0*w['k']/w['n']:.3f}%; "
+                       f"95% UB {w['ub']:.3f}%){fragile_tag}")
+            verdict_rows.append(("FP event rate (95% UB), Gate A-W", "S5/OpenWSFZ", w_value, w["verdict"]))
+            if w["verdict"] == "FAIL":
+                fails.append(
+                    f"Gate A-W (S5 trailing {S5_WINDOW_SLOTS}-slot window) = {w['k']}/{w['n']} "
+                    f"events (95% UB {w['ub']:.3f}%); gate requires 95% UB ≤ {THRESH_FP_UB95:.0f}%"
+                )
+            if c["verdict"] == "INFO":
+                notes.append("Gate A-Δ: INFO — window holds a single sweep, nothing to compare against.")
+            else:
+                c_value = f"{c['k1']}/{c['n1']} vs {c['k0']}/{c['n0']} (Fisher p={c['p']:.4f}){fragile_tag}"
+                verdict_rows.append(("FP event rate change, Gate A-Δ", "S5/OpenWSFZ", c_value, c["verdict"]))
+                if c["verdict"] == "FAIL":
+                    fails.append(
+                        f"Gate A-Δ (S5 newest sweep vs trailing window) = {c['k1']}/{c['n1']} vs "
+                        f"{c['k0']}/{c['n0']}, Fisher(greater) p={c['p']:.4f} ≤ "
+                        f"{S5_WINDOW_ALPHA_CHANGE}; blind below ~2x, a PASS elsewhere is not "
+                        f"'nothing moved'"
+                    )
 
     # Check B — narrowband (S5 parts 2/3), S5-GATE-SIZING Amendment 1. Scored on
     # its OWN 60-slot denominator, its own row, its own line in `fails` — NEVER
@@ -1940,6 +2219,80 @@ def _fmt_num(v: Any, fmt: str = ".2f") -> str:
         return str(v)
 
 
+def _s5_window_report_lines(s5_window_result: dict | None) -> list[str]:
+    """Render Gate A-W (compliance) / Gate A-Delta (change) — R&R-011, the
+    trailing-window gates that replace per-sweep Gate A's PASS/FAIL. Renders
+    ROW 0's VOID/INFO outcomes distinctly from a scored verdict; never renders
+    a combined S5 line (R&R-010's prohibition, carried forward)."""
+    lines: list[str] = ["### False-positive rate (S5) — Gate A-W / Gate A-Δ (trailing window, R&R-011)", ""]
+    if not s5_window_result or s5_window_result.get("status") == "NOT_RUN":
+        lines += ["_Not evaluated — Gate A (S5 AWGN) did not run this sweep._", ""]
+        return lines
+
+    status = s5_window_result["status"]
+    if status == "VOID":
+        lines += [
+            f"**VOID — ROW {s5_window_result['row']}.** {s5_window_result['detail']}. "
+            f"Neither gate is evaluated; no S5 window verdict of any kind is reported this "
+            f"sweep (R&R-011 spec Sec.3). This is not a PASS and not a FAIL.",
+            "",
+        ]
+        return lines
+    if status == "INFO":
+        lines += [
+            f"**INFO — ROW 0c, window not yet full.** "
+            f"{s5_window_result['k']}/{s5_window_result['n']} of {S5_WINDOW_SLOTS} AWGN "
+            f"slots accumulated. Not a PASS.",
+            "",
+        ]
+        return lines
+
+    w, c, loo = s5_window_result["window"], s5_window_result["change"], s5_window_result["loo"]
+    lines += [
+        "| Gate | Value | Verdict |",
+        "|---|---|---|",
+        f"| **Gate A-W** (compliance) | {w['k']}/{w['n']} = {100.0*w['k']/w['n']:.3f}%, "
+        f"95% UB {w['ub']:.3f}% (PASS iff ≤ {THRESH_FP_UB95:.0f}%) | **{w['verdict']}** |",
+    ]
+    if c["verdict"] == "INFO":
+        lines.append("| Gate A-Δ (change) | window holds a single sweep | **INFO** |")
+    else:
+        lines.append(
+            f"| **Gate A-Δ** (change) | {c['k1']}/{c['n1']} (newest) vs {c['k0']}/{c['n0']} "
+            f"(rest of window), Fisher(greater) p={c['p']:.4f} (FAIL iff ≤ "
+            f"{S5_WINDOW_ALPHA_CHANGE}) | **{c['verdict']}** |"
+        )
+    lines += [
+        "",
+        f"_Gate A-W (R&R-011, PO ruling Option A, 2026-09-08) — the ratified 6% UB "
+        f"(STUDY-SPEC §10, unchanged, not re-ratified) read on a trailing **at least "
+        f"{S5_WINDOW_SLOTS}**-AWGN-slot window (unit is the slot, not the sweep; the fill "
+        f"loop admits whole runs, so actual N can overshoot up to the largest single run's "
+        f"slot count — reported above as {w['n']}, never quoted as a bare \"{S5_WINDOW_SLOTS}\". "
+        f"Amendment 1, §3: overshoot only adds power, never loosens the ceiling, since "
+        f"P(UB₉₅≤C\\|p=C)≤0.05 holds at every N). Gate A-Δ — "
+        f"newest sweep vs the rest of that same window, one-sided Fisher at "
+        f"{S5_WINDOW_ALPHA_CHANGE}. **Two separate rows, never pooled**: ROW 1 (Gate A-W "
+        f"FAIL) and ROW 2 (Gate A-Δ FAIL) can both fire independently. **Honest costs**: the "
+        f"window lags — a regression introduced this sweep is diluted 1:4 and takes up to "
+        f"four sweeps to reach full weight; Gate A-Δ is blind below ~2× (power 0.40 at 2×, "
+        f"0.82 at 3×). **A PASS may not be read as \"nothing moved\".**",
+        "",
+    ]
+    lines += [
+        f"_Leave-one-sweep-out (spec Sec.4.7): "
+        + ("**FRAGILE** — removing at least one contributing sweep flips Gate A-W's "
+           "verdict; this bounds the up-to-seven-build cross-build confound, do not read "
+           "the verdict as evidence about any single build."
+           if loo["fragile"] else
+           f"all {len(loo['deletions'])} single-sweep deletions leave Gate A-W's verdict "
+           f"unchanged — **not FRAGILE**.")
+        + "_",
+        "",
+    ]
+    return lines
+
+
 def _write_report(
     run_dir: Path,
     git_sha: str,
@@ -1957,6 +2310,7 @@ def _write_report(
     decode_rate_results: list[dict] | None = None,
     hcr_results: dict | None = None,
     fp_narrowband_results: dict | None = None,
+    s5_window_result: dict | None = None,
 ) -> Path:
     lines: list[str] = []
     run_date = run_dir.name.split("-")[0:3]
@@ -2079,20 +2433,21 @@ def _write_report(
             )
         lines += [
             "",
-            f"_Gate (STUDY-SPEC §10, ratified 2026-07-04, R&R-004; population re-affirmed "
-            f"S5-GATE-SIZING Amendment 1, 2026-09-06): the per-slot FP **event rate** on "
-            f"AWGN slots (parts 0/1) ONLY, gated on its one-sided 95% Clopper–Pearson "
-            f"**upper bound** (PASS iff 95% UB ≤ {THRESH_FP_UB95:.0f}%). The UB is defined "
-            f"for all event counts (≈ 3 / N_slots at 0 events) and bounds the true per-slot "
-            f"FP probability at 95% confidence rather than the Poisson-noisy point estimate. "
-            f"Decode rate is reported for reference only. **INFO** means the gate is not "
-            f"evaluated at this N: below {MIN_N_FOR_FP_GATE} slots, even zero observed "
-            f"events cannot clear the {THRESH_FP_UB95:.0f}% ceiling, so no outcome at this "
-            f"sample size can produce a PASS or a meaningful FAIL — see a properly powered "
-            f"run (N ≥ {MIN_N_FOR_FP_GATE}) for the ratified §10 verdict. **Never pooled "
-            f"with Check B below** — see that table's own note._",
+            f"_Per-sweep reading (STUDY-SPEC §10, ratified 2026-07-04, R&R-004; population "
+            f"re-affirmed S5-GATE-SIZING Amendment 1, 2026-09-06) of the per-slot FP **event "
+            f"rate** on AWGN slots (parts 0/1) ONLY, one-sided 95% Clopper–Pearson **upper "
+            f"bound** shown for reference. Decode rate is reported for reference only. "
+            f"**SUPERSEDED as a gate by R&R-011 (2026-09-08): always INFO.** At N=120 this "
+            f"reading cannot separate 'unchanged' (P(FAIL)=0.739 at the established 3.182% "
+            f"rate) from 'twice as bad' (P(FAIL)=0.984) — see the ratified compliance verdict "
+            f"in **Gate A-W** below, which reads this same quantity on a trailing "
+            f"{S5_WINDOW_SLOTS}-slot window instead. **Never pooled with Check B below, nor "
+            f"with Gate A-W/Gate A-Δ** — see those tables' own notes._",
             "",
         ]
+
+    if fp_results and fp_results.get("OpenWSFZ") is not None:
+        lines += _s5_window_report_lines(s5_window_result)
 
     if fp_narrowband_results:
         lines += ["### False-positive rate (S5) — Check B (narrowband, parts 2/3)", ""]
@@ -2120,9 +2475,10 @@ def _write_report(
             f"run this battery, e.g. a targeted `--parts 0,1` recheck). That is a coverage "
             f"gap, never a PASS — asserting PASS with no slots run would reproduce the exact "
             f"blindness this design exists to remove. **Never pooled with Gate A above into "
-            f"one S5 rate or one verdict line** — the same 180 slots scored as one gate detect "
-            f"a regression 21% of the time; scored as two, Gate A alone detects it 77% of the "
-            f"time._",
+            f"one S5 rate or one verdict line** — the same 180 slots FAIL under no change 21% "
+            f"of the time scored as one gate; scored as two, Gate A alone FAILs under no "
+            f"change 77% of the time (its own false-alarm rate at N=120, corrected 2026-09-08 "
+            f"— see R&R-011; not a detection rate)._",
             "",
         ]
 
@@ -2177,12 +2533,20 @@ def _write_report(
 _TREND_COLUMNS = [
     "run_date", "git_sha", "pct_grr_snr", "ndc_snr", "bias_snr_owsfz",
     "kappa_s4", "fp_rate_s5",
+    # R&R-011 (2026-09-08): the raw Gate A AWGN (parts 0/1) count/denominator
+    # feeding the trailing window (S5_WINDOW_SEED, `_s5_window_history`).
+    # `fp_rate_s5` above is the derived 95% UB, not sufficient on its own to
+    # reconstruct the window (it does not disambiguate N=60 vs N=120 eras).
+    # Header migration for the already-committed file: see the note this
+    # supersedes at STUDY-SPEC.md Sec.16, R&R-010 entry.
+    _TREND_S5_EVENTS_COL, _TREND_S5_SLOTS_COL,
 ]
 
 
 def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
                   continuous_results: dict, kappa_results: dict,
-                  fp_results: dict, bias_results: dict) -> None:
+                  fp_results: dict, bias_results: dict,
+                  s5_window_result: dict | None = None) -> None:
     trend_path = qa_rr_root / "trend.csv"
     write_header = not trend_path.exists()
 
@@ -2216,6 +2580,24 @@ def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
     if "OpenWSFZ" in fp_results:
         fp_rate_s5 = _safe(fp_results["OpenWSFZ"].get("event_rate_ub95"))
 
+    # R&R-011 Amendment 1 (2026-09-08): a VOIDed (ROW 0a/0b) or NOT_RUN sweep
+    # contributes ZERO slots to the trailing window -- write both S5 columns
+    # EMPTY, never its raw counts, or a dead audio chain (0 events) silently
+    # deflates the window that scores every OTHER sweep for up to four sweeps
+    # (sibling (n) one level up from the per-sweep positive control; the
+    # spec's own LOO would misread the deletion as the rate improving).
+    # INFO (ROW 0c, window not yet full) is NOT void -- its counts are good
+    # data and MUST persist, or the fill stalls permanently.
+    fp_events_s5 = ""
+    fp_slots_s5 = ""
+    status = (s5_window_result or {}).get("status")
+    if status in ("SCORED", "INFO") and "OpenWSFZ" in fp_results:
+        info = fp_results["OpenWSFZ"]
+        n_events = info.get("n_fp_events", float("nan"))
+        if not (isinstance(n_events, float) and math.isnan(n_events)):
+            fp_events_s5 = _safe(int(n_events))
+            fp_slots_s5 = _safe(int(info.get("n_slots", 0)))
+
     row = {
         "run_date": run_date_str,
         "git_sha": git_sha,
@@ -2224,6 +2606,8 @@ def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
         "bias_snr_owsfz": bias_snr_owsfz,
         "kappa_s4": kappa_s4,
         "fp_rate_s5": fp_rate_s5,
+        _TREND_S5_EVENTS_COL: fp_events_s5,
+        _TREND_S5_SLOTS_COL: fp_slots_s5,
     }
 
     with open(trend_path, "a", newline="", encoding="utf-8") as fh:
@@ -2407,6 +2791,31 @@ def main() -> None:
                 f"{_fmt_num(info.get('kappa', float('nan')), '.3f')} (informational)"
             )
 
+    # --- S5 Gate A trailing-window gate (R&R-011) ---
+    # Only for a full, unfiltered battery: the window is persisted via
+    # trend.csv, and a --scenario-filtered run must not touch that series
+    # (same reasoning as the trend-append guard below).
+    s5_window_result: dict | None = None
+    if "S5" in matched and not scenario_filter:
+        s5_window_result = _s5_window_gate(
+            _QA_ROOT, git_sha, fp_results, attr_results, matched["S5"],
+        )
+        status = s5_window_result.get("status")
+        if status == "VOID":
+            print(f"  S5 window gate: VOID (ROW {s5_window_result['row']}) — "
+                  f"{s5_window_result['detail']}")
+        elif status == "INFO":
+            print(f"  S5 window gate: INFO — window not yet full "
+                  f"({s5_window_result['k']}/{s5_window_result['n']} of "
+                  f"{S5_WINDOW_SLOTS} slots)")
+        elif status == "SCORED":
+            w, c, loo = s5_window_result["window"], s5_window_result["change"], s5_window_result["loo"]
+            print(f"  Gate A-W: {w['k']}/{w['n']} = {_fmt_num(100.0*w['k']/w['n'])}% "
+                  f"95% UB {_fmt_num(w['ub'])}% -> {w['verdict']}"
+                  f"{' [FRAGILE]' if loo['fragile'] else ''}")
+            print(f"  Gate A-Δ: {c['k1']}/{c['n1']} vs {c['k0']}/{c['n0']} "
+                  f"Fisher(greater) p={_fmt_num(c['p'], '.4f')} -> {c['verdict']}")
+
     # --- S7 compounding / co-channel overlap ---
     s7_results: dict | None = None
     if "S7" in matched:
@@ -2448,6 +2857,7 @@ def main() -> None:
     verdict_rows, overall, fails, notes = _collect_verdicts(
         continuous_results, kappa_results, fp_results, bias_results,
         fp_narrowband_results=fp_narrowband_results,
+        s5_window_result=s5_window_result,
     )
 
     # --- Write report ---
@@ -2461,6 +2871,7 @@ def main() -> None:
         decode_rate_results=decode_rate_results,
         hcr_results=hcr_results,
         fp_narrowband_results=fp_narrowband_results,
+        s5_window_result=s5_window_result,
     )
     print(f"\nReport written: {report_path}")
     print(f"Overall verdict: {overall}")
@@ -2485,7 +2896,8 @@ def main() -> None:
         )
     else:
         _append_trend(_QA_ROOT, run_dir, git_sha, continuous_results,
-                      kappa_results, fp_results, bias_results)
+                      kappa_results, fp_results, bias_results,
+                      s5_window_result=s5_window_result)
         print(f"Trend row appended: {_QA_ROOT / 'trend.csv'}")
 
 
