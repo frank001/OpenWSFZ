@@ -273,6 +273,25 @@ Captain diff review, and a repeat of the `AwgnFpReplayTests` pinned-SHA fallout 
 — all to harden a validity row on an arm whose result is **COST-ONLY and cannot license shipping L3
 either way**. Disproportionate. 🛑 **The ruling is the PO's; if they want the scalar, this arm waits.**
 
+### 4.6 ✅ PO RULING, 2026-09-08 ~21:0xZ — NO SCALAR. Binding on this arm.
+
+> **PO:** *"no scalar, skip it. we'll evaluate later"*
+
+**The scalar is not built. ROW 0d stays withdrawn, `20260050` stays pinned in ROW 0a, and the arm
+proceeds exactly as §6 sets out** — nothing is waiting on a build, and QA is unblocked on everything
+except §1.2's capture bar.
+
+⚠️ **"We'll evaluate later" is recorded literally: DECLINED FOR NOW, not closed.** This is **not** a
+standing prohibition and re-proposing the scalar later is legitimate — unlike the genuinely closed
+arms in `closed-arms-prohibitions.md`. **Do not harden this into "the scalar was ruled out."**
+
+🔴 **What must travel with any later evaluation, so it is not re-derived from scratch:** the scalar's
+only job was to make ROW 0d a real reconciliation. Skipping it means **§4.3's uncovered gap is now a
+PERMANENT property of this arm's result** — a mis-accumulation confined to
+`g_h12_unresolved_by_code` is caught only partially, by one-sided ROW 0b. 🛑 **That limitation must
+appear in the report's own statement of validity, not only here.** A reader who sees ROW 0b pass
+must not be able to infer a table-level reconciliation that was never performed.
+
 ---
 
 ## 5. What this amendment does NOT change
