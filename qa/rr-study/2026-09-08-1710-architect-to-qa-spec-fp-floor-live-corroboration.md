@@ -332,9 +332,81 @@ and the row call as close to a coin flip.
   mechanism for `K_removed` to be materially non-zero, and I cannot bound it without the join —
   which is the whole reason this arm exists rather than an argument in prose.
 
+### 6.1 🔴 AMENDMENT 2 (2026-09-08 17:24Z, pre-arming) — sibling (v): MY PREDICTION AND MY OWN BAR DISAGREE
+
+**Computed while drafting, as (v) requires, and it fires against me.** Script:
+`fp_floor_live_row_power.py`, committed with this amendment. At `n = 873` (primary corpus):
+
+```
+ROW 1 fires iff k <=  9   (observed rate <= 0.0103, CP95 hi = 0.0195)
+                k = 10 -> CP95 hi = 0.0210, ROW 1 does NOT fire
+ROW 2 fires iff k >= 58   (observed rate >= 0.0664, CP95 lo = 0.0508)
+
+true K    P(ROW 1)  P(ROW 2)  P(ROW 3)
+0.0025      1.000     0.000     0.000
+0.0050      0.986     0.000     0.014
+0.0100      0.623     0.000     0.377
+0.0150      0.158     0.000     0.842
+0.0200      0.020     0.000     0.980
+0.0300      0.000     0.000     1.000
+0.0400      0.000     0.000     1.000
+```
+
+🛑 **My §6 prediction was `K_removed` ∈ 0.005–0.04 with ROW 1 at ~55%. Across that very range
+P(ROW 1) runs from 0.986 down to 0.000, and is already 0.020 at the range's midpoint.** A 55%
+credence in ROW 1 is only coherent if I believe `K` sits at the extreme bottom of the interval I
+myself wrote. **The prediction and the bar contradict each other, in the same document, and I did
+not see it until I computed the curve** — the exact corollary HK-025 records (*"read your own
+predictions against your own bars"*), committed by the person who keeps citing it.
+
+**Three corrections, none of which touch the ratified bar:**
+
+1. 🔴 **ROW 3 is the MODAL outcome across most of my stated range** (0.84 at `K` = 0.015, 0.98 at
+   0.02, 1.00 at 0.03+). Per sibling (m) a straddle that is modal must be **predicted as such, not
+   ranked as a tail**. **Revised prediction: ROW 3 ~45%, ROW 1 ~50%, ROW 2 ~5%** — and the ROW 1
+   half rests entirely on my S1b reasoning (our sensitivity floor sits above the cut ⇒ `K` near
+   zero), so **a ROW 3 is evidence that reasoning was wrong**, not merely an inconclusive run.
+2. ⚠️ **ROW 2 is unreachable inside my predicted range** — it needs `K ≥ 0.066`, and P(ROW 2) = 0.000
+   everywhere I said the answer would be. **It is NOT decorative and must stay**: it is the row that
+   fires if the world is much worse than I think, which is precisely the case a gate exists for.
+   Disclosed so nobody reads its silence as evidence.
+3. 🔴 **The plain-English bar, which is what the PO should actually be holding me to: ROW 1 fires
+   only if AT MOST 9 OF THE 873 REMOVED DECODES TURN OUT TO BE REAL** — about **0.47 genuine decodes
+   lost per operating hour**, against the ~0.92/h that a *true* rate of 2% would imply.
+
+✅ **That asymmetry is not a drafting error, it is the bar working as designed, and it is the same
+structure `R&R-011` was built on: `P(UB₉₅ ≤ C | p = C) ≤ 0.05` by construction.** A decoder whose
+true loss rate *equals* 2% cannot pass a 2% upper-bound test. **ROW 1 therefore means "the loss is
+demonstrably below 2%", never "the loss is 2%"** — and the operator-facing label must say the former.
+
+🛑 **No resize is proposed and none should be.** The obvious lever — pool the replication corpora to
+raise `n` — is barred twice over: `-8080`/`-8081` are two daemons on **one shared audio path** and
+are not independent units (sibling (i)), and pooling *after* seeing a ROW 3 on the primary would be
+outcome-driven pooling. **The corpora stay reported separately, exactly as §5.4 already says.**
+
 ---
 
-## 7. 🔴 The one thing the PO must ratify BEFORE QA arms this
+## 7. ✅ RATIFIED BY THE PO 2026-09-08 17:24Z — `hi ≤ 0.02` STANDS. QA MAY ARM.
+
+**The PO ratified the ROW 1 bar as written, with the note *"for now, may change after tests."***
+That note is recorded verbatim and its scope is drawn here, once, so nobody has to reconstruct the
+intent later:
+
+- ✅ **LEGITIMATE, and the reading I take:** once the control exists and has been *operated*, the PO
+  may conclude that a different loss rate is the right price. **That is a new decision about a
+  future design, taken on operating experience** — and it earns its own pre-registration then.
+- 🛑 **PROHIBITED, and it is prohibited even with the PO's agreement: moving `0.02` after seeing
+  `k`.** A threshold revised in the light of the count it was written to judge is the re-read this
+  programme bars everywhere else (HK-021's founding rule; sibling (y) on splits, and the identical
+  logic for thresholds). **It would not make this arm's verdict weaker — it would make it VOID**,
+  and it would take `FP-PARITY`'s discipline down with it, since ROW 3 was held on exactly this
+  principle when it landed 0.6 dB short.
+
+⇒ 🔴 **`hi ≤ 0.02` is FIXED FOR THIS ARM'S READING and does not reach forward or backward.** A later
+revision governs later arms only. **QA: if anyone — the Architect included — proposes moving this
+bar after the count is known, refuse and escalate.**
+
+## 7.1 The reasoning behind the number, retained for whoever revisits it
 
 **The ROW 1 bar of `hi ≤ 0.02` is a product decision wearing statistical clothing, and it is not
 mine to set.** It says: *losing up to 2% of the decodes this filter removes — on the primary corpus,
