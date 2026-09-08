@@ -73,10 +73,66 @@ consequences, both binding:
 
 `excess < T` ⟺ `Snr < 2.622 − 26.5` = `Snr < −23.878`.
 
-✅ **Sibling (o), and it is a genuinely good property: the cut falls strictly between two integer
-readout values.** SNR is emitted as an integer, so **no decode can straddle the threshold** and the
-partition is exact — `−24` and below removed, `−23` and above kept. There is no quantum ambiguity
-to price. State this in the report; it is the one place this arm is better off than `FP-PARITY` was.
+✅ **Sibling (o), first half: the partition on the EMITTED field is exact.** The cut at `−23.878`
+falls strictly between two integer readout values, so **no decode can straddle it** — `−24` and
+below removed, `−23` and above kept, with no quantum ambiguity in the classification itself.
+
+### 1.1 🔴 AMENDMENT 1 (2026-09-08, pre-arming) — the emitted field is ROUNDED, so this arm measures a STRICTER filter than `T`
+
+**Raised by the PO's question "why is the SNR emitted as an integer?", answered from the code, and
+correcting a defect in this spec's own first draft.** The verdict is unchanged; what was missing is
+a bound direction, and an unstated bound direction is a defect by this programme's own standing rule.
+
+The chain, read not inferred:
+
+```c
+ft8_shim.c:1756   float snr = signal_db - local_noise_db - 26.5f;   /* the real value  */
+ft8_shim.c:1769   r->snr    = (int)roundf(snr);                     /* what is emitted */
+```
+
+`FT8Result.snr` is an `int` at offset 8 of a **frozen 48-byte P/Invoke layout**
+(`src/OpenWSFZ.Ft8/Interop/Ft8NativeResult.cs:32`; the header treats the layout as ABI-fixed across
+shim versions). ⚠️ **`dt` is a `float` in the same struct** — so this was never a blanket "no floats
+in the ABI" decision; SNR was specifically declared integral, matching WSJT-X's own reporting
+convention (integer dB, and — per §0.2 — clamped at −24), and it is consumed as a report by
+`QsoCallerService.FormatSnrReport(int snr)`.
+
+🔴 **`roundf` rounds half away from zero, so `snr ≤ −23.5` becomes `−24`.** In `excess` terms the
+emitted filter therefore removes **`excess ≤ 3.0`**, not `excess < 2.622`:
+
+| true `excess` | float `snr` | emitted | removed? | `T` would… |
+|---|---|---|---|---|
+| 2.3 | −24.2 | −24 | yes | remove ✅ |
+| 2.7 | −23.8 | −24 | yes | **keep** ❌ |
+| 3.0 | −23.5 | −24 | yes | **keep** ❌ |
+| 3.1 | −23.4 | −23 | no | keep ✅ |
+
+⇒ **The integer filter over-removes a 0.378 dB band (`excess` 2.622 → 3.0) that `T` itself would
+keep.** It is strictly **more aggressive** than the floor it stands in for.
+
+✅ **The direction is safe, and that is why the arm still stands as designed: whatever genuine loss
+this arm measures is an UPPER BOUND on the loss `T` would actually cause.** A ROW 1 obtained here
+holds *a fortiori* for `T`. 🛑 **But it must be reported as an upper bound, in the same sentence as
+the number** — never as "the loss `T` causes".
+
+### 1.2 ✅ The float is NOT lost, and this is the finding that matters for whatever gets built
+
+`ft8_get_last_snr_terms()` (shim 20260045) exposes `signal_db` and `local_noise_db` as **float**
+arrays, index-aligned with `results[]`, surfaced to managed code through
+`Ft8LibInterop.GetLastSnrTerms` / `IFt8NativeInterop`. **The exact float `excess` is available
+in-chain at runtime.** What is integral is only what reaches `ALL.TXT` and the decode panel.
+
+⇒ 🔴 **A filter implemented at the emit path can gate on the float at `ft8_shim.c:1756`, before the
+rounding, and thereby implement `T` EXACTLY — strictly less lossy than the integer proxy this arm
+measures.** 🛑 **Not a design instruction and not authorised here (HK-011 — the Architect neither
+designs nor builds `src/`);** recorded so that whoever specs the operator control does not inherit
+the integer approximation by accident, having never been told a better option exists one line
+upstream.
+
+⚠️ **This does NOT let the live arm gate on floats.** `ft8_get_last_snr_terms` was added at shim
+`20260045`; the corpora in §2.1 predate it and carry only `ALL.TXT`. **The integer proxy is the only
+thing measurable retrospectively** — which is precisely why its bound direction has to be stated
+rather than engineered away.
 
 ---
 
@@ -193,6 +249,11 @@ because "(t) does not apply" must be demonstrated, not assumed.
 ---
 
 ## 4. Reading rule — evaluate in strict order, exactly one row fires
+
+🔴 **Per Amendment 1 (§1.1), every quantity in this section is measured on the ROUNDED emitted field
+and therefore describes a filter STRICTLY MORE AGGRESSIVE than `T`** (it removes `excess ≤ 3.0`
+against `T`'s `< 2.622`). **Every loss figure below is an upper bound on `T`'s own loss and must be
+reported as one.**
 
 🔴 **`corroborated AND removed` is a LOWER bound on genuine loss**, not an estimate: the reference
 misses decodes too, so genuine decodes it did not corroborate are invisible here.
