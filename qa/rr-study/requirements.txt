@@ -2,6 +2,14 @@
 numpy>=2.0
 scipy>=1.13
 pytest>=8.0
-# Analysis layer (added when §9 reporting lands):
-# pandas>=2.0
-# matplotlib>=3.8
+# Analysis layer (2026-09-06: these are hard runtime deps of harness/analyse.py,
+# harness/run_scenario.py and harness/warmup.py -- discovered stale/commented-out here
+# when the rr-study venv had to be rebuilt from scratch after the 2026-09-06
+# persona-worktree split, which crashed the analyser mid-report on an undeclared
+# sklearn import after a full S1-S8 battery had already run to completion. See
+# qa/rr-study/results/2026-09-06-4c7d5ad/report.md Section 5, Recommendation 3.
+pandas>=2.0
+matplotlib>=3.8
+scikit-learn>=1.4
+sounddevice>=0.4
+markdown>=3.5
