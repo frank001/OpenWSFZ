@@ -1,3 +1,18 @@
+# 🛑 WITHDRAWN 2026-09-08 17:45Z — DO NOT RUN
+
+> **Every corpus in §2.1 predates `c3a9ea8` (`fix(ft8): negative time_offset SNR collapse`,
+> shim `20260046`, 2026-08-22).** This arm would have measured a decoder that no longer exists.
+> Withdrawal, evidence and the currency check:
+> `2026-09-08-1745-architect-WITHDRAWAL-fp-floor-live-every-corpus-predates-the-snr-collapse-fix.md`.
+>
+> **The gate design below survives intact and is reusable verbatim against a valid corpus** — ROW
+> structure, inherited `T`, wildcard matching, ROW 0b's control, Amendment 1's rounding bound,
+> Amendment 2's power disclosure, and the PO-ratified `hi ≤ 0.02`. **Only the population is invalid.**
+> 🛑 The text is left unedited below so the pre-registration record stays honest; do not read any
+> part of it as live.
+
+---
+
 # `FP-FLOOR-LIVE` — Architect → QA spec: does the emission floor `T` destroy genuine decodes on live audio?
 
 **Architect, 2026-09-08 17:10Z** (`date -u`, HK-017). Base `main`@`cf21ac5`, branch
