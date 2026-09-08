@@ -34,6 +34,7 @@ from harness.analyse import (
     _s5_window_gate,
     _verdict_fp,
     _collect_verdicts,
+    _append_trend,
     _cp_upper_95,
     _TREND_S5_EVENTS_COL,
     _TREND_S5_SLOTS_COL,
@@ -240,6 +241,76 @@ class TestWindowHistoryPersistence:
         # have aged out once a new 120-slot sweep pushed the trailing sum
         # past 480 -- that is the entire point of a TRAILING window.
         assert ("22b749c", 0, 60) not in used
+
+
+# ---------------------------------------------------------------------------
+# Amendment 1 (2026-09-08): a VOIDed/NOT_RUN sweep contributes ZERO slots to
+# the window; an INFO sweep's counts MUST still persist. One test per branch.
+# ---------------------------------------------------------------------------
+
+class TestAmendment1TrendWriteGatedOnStatus:
+    _COMMON_ARGS = dict(continuous_results={}, kappa_results={}, bias_results={})
+
+    def _fp_results(self, k=3, n=120):
+        return {"OpenWSFZ": {"n_fp_events": k, "n_slots": n, "event_rate_ub95": 6.0}}
+
+    def _read_s5_cols(self, trend_path):
+        with open(trend_path, newline="", encoding="utf-8") as fh:
+            row = list(csv.DictReader(fh))[0]
+        return row[_TREND_S5_EVENTS_COL], row[_TREND_S5_SLOTS_COL]
+
+    def test_void_run_writes_empty_s5_columns(self, tmp_path):
+        _append_trend(tmp_path, Path("2026-09-09-deadbeef"), "deadbeef",
+                      fp_results=self._fp_results(), s5_window_result={"status": "VOID", "row": "0a"},
+                      **self._COMMON_ARGS)
+        events, slots = self._read_s5_cols(tmp_path / "trend.csv")
+        assert (events, slots) == ("", "")
+
+    def test_not_run_writes_empty_s5_columns(self, tmp_path):
+        _append_trend(tmp_path, Path("2026-09-09-deadbeef"), "deadbeef",
+                      fp_results=self._fp_results(), s5_window_result={"status": "NOT_RUN"},
+                      **self._COMMON_ARGS)
+        events, slots = self._read_s5_cols(tmp_path / "trend.csv")
+        assert (events, slots) == ("", "")
+
+    def test_missing_window_result_writes_empty_s5_columns(self, tmp_path):
+        """No `s5_window_result` at all (e.g. a caller that never ran the
+        orchestration) must not be treated as license to write raw counts --
+        the same fail-closed default as NOT_RUN."""
+        _append_trend(tmp_path, Path("2026-09-09-deadbeef"), "deadbeef",
+                      fp_results=self._fp_results(), s5_window_result=None,
+                      **self._COMMON_ARGS)
+        events, slots = self._read_s5_cols(tmp_path / "trend.csv")
+        assert (events, slots) == ("", "")
+
+    def test_info_run_persists_its_counts(self, tmp_path):
+        """ROW 0c INFO means the WINDOW is short, not that the run is bad --
+        its counts must still land in trend.csv or the fill stalls forever."""
+        _append_trend(tmp_path, Path("2026-09-09-deadbeef"), "deadbeef",
+                      fp_results=self._fp_results(k=1, n=120),
+                      s5_window_result={"status": "INFO", "k": 1, "n": 120}, **self._COMMON_ARGS)
+        events, slots = self._read_s5_cols(tmp_path / "trend.csv")
+        assert (events, slots) == ("1", "120")
+
+    def test_scored_run_persists_its_counts(self, tmp_path):
+        _append_trend(tmp_path, Path("2026-09-09-deadbeef"), "deadbeef",
+                      fp_results=self._fp_results(k=3, n=120),
+                      s5_window_result={"status": "SCORED", "window": {}, "change": {}, "loo": {}},
+                      **self._COMMON_ARGS)
+        events, slots = self._read_s5_cols(tmp_path / "trend.csv")
+        assert (events, slots) == ("3", "120")
+
+    def test_void_run_does_not_appear_in_the_next_window(self, tmp_path):
+        _append_trend(tmp_path, Path("2026-09-09-deadvoid"), "deadv0i",
+                      fp_results=self._fp_results(k=0, n=120),
+                      s5_window_result={"status": "VOID", "row": "0a"}, **self._COMMON_ARGS)
+        assert _s5_window_history(tmp_path) == []
+
+    def test_info_run_does_appear_in_the_next_window(self, tmp_path):
+        _append_trend(tmp_path, Path("2026-09-09-goodinfo"), "600d1nf",
+                      fp_results=self._fp_results(k=1, n=120),
+                      s5_window_result={"status": "INFO", "k": 1, "n": 120}, **self._COMMON_ARGS)
+        assert _s5_window_history(tmp_path) == [("600d1nf", 1, 120)]
 
 
 # ---------------------------------------------------------------------------

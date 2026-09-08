@@ -2265,8 +2265,12 @@ def _s5_window_report_lines(s5_window_result: dict | None) -> list[str]:
     lines += [
         "",
         f"_Gate A-W (R&R-011, PO ruling Option A, 2026-09-08) — the ratified 6% UB "
-        f"(STUDY-SPEC §10, unchanged, not re-ratified) read on a trailing "
-        f"{S5_WINDOW_SLOTS}-AWGN-slot window (unit is the slot, not the sweep). Gate A-Δ — "
+        f"(STUDY-SPEC §10, unchanged, not re-ratified) read on a trailing **at least "
+        f"{S5_WINDOW_SLOTS}**-AWGN-slot window (unit is the slot, not the sweep; the fill "
+        f"loop admits whole runs, so actual N can overshoot up to the largest single run's "
+        f"slot count — reported above as {w['n']}, never quoted as a bare \"{S5_WINDOW_SLOTS}\". "
+        f"Amendment 1, §3: overshoot only adds power, never loosens the ceiling, since "
+        f"P(UB₉₅≤C\\|p=C)≤0.05 holds at every N). Gate A-Δ — "
         f"newest sweep vs the rest of that same window, one-sided Fisher at "
         f"{S5_WINDOW_ALPHA_CHANGE}. **Two separate rows, never pooled**: ROW 1 (Gate A-W "
         f"FAIL) and ROW 2 (Gate A-Δ FAIL) can both fire independently. **Honest costs**: the "
@@ -2541,7 +2545,8 @@ _TREND_COLUMNS = [
 
 def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
                   continuous_results: dict, kappa_results: dict,
-                  fp_results: dict, bias_results: dict) -> None:
+                  fp_results: dict, bias_results: dict,
+                  s5_window_result: dict | None = None) -> None:
     trend_path = qa_rr_root / "trend.csv"
     write_header = not trend_path.exists()
 
@@ -2572,15 +2577,22 @@ def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
     # Track the gate quantity (95% CP upper bound on per-slot FP event rate),
     # not the reference decode_rate, so trend regressions match the §10 gate.
     fp_rate_s5 = ""
+    if "OpenWSFZ" in fp_results:
+        fp_rate_s5 = _safe(fp_results["OpenWSFZ"].get("event_rate_ub95"))
+
+    # R&R-011 Amendment 1 (2026-09-08): a VOIDed (ROW 0a/0b) or NOT_RUN sweep
+    # contributes ZERO slots to the trailing window -- write both S5 columns
+    # EMPTY, never its raw counts, or a dead audio chain (0 events) silently
+    # deflates the window that scores every OTHER sweep for up to four sweeps
+    # (sibling (n) one level up from the per-sweep positive control; the
+    # spec's own LOO would misread the deletion as the rate improving).
+    # INFO (ROW 0c, window not yet full) is NOT void -- its counts are good
+    # data and MUST persist, or the fill stalls permanently.
     fp_events_s5 = ""
     fp_slots_s5 = ""
-    if "OpenWSFZ" in fp_results:
+    status = (s5_window_result or {}).get("status")
+    if status in ("SCORED", "INFO") and "OpenWSFZ" in fp_results:
         info = fp_results["OpenWSFZ"]
-        fp_rate_s5 = _safe(info.get("event_rate_ub95"))
-        # R&R-011: raw (events, slots) -- what `_s5_window_history` needs to
-        # rebuild the trailing window. `n_fp_events`/`n_slots` are NaN/absent
-        # when this run injected no AWGN slots at all (e.g. a --parts 2,3
-        # targeted recheck); leave both empty rather than write a false 0.
         n_events = info.get("n_fp_events", float("nan"))
         if not (isinstance(n_events, float) and math.isnan(n_events)):
             fp_events_s5 = _safe(int(n_events))
@@ -2884,7 +2896,8 @@ def main() -> None:
         )
     else:
         _append_trend(_QA_ROOT, run_dir, git_sha, continuous_results,
-                      kappa_results, fp_results, bias_results)
+                      kappa_results, fp_results, bias_results,
+                      s5_window_result=s5_window_result)
         print(f"Trend row appended: {_QA_ROOT / 'trend.csv'}")
 
 
