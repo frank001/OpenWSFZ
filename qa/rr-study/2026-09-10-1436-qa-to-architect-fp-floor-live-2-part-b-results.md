@@ -48,7 +48,7 @@ merely surviving it.**
 | Total decodes in span (OpenWSFZ) | **57,969** | MATCH against `contents.md`'s recorded `57,969` |
 | `n` (removed, `snr ≤ −24`) | **601** | MATCH against the arm's own stopping-rule count |
 | WSJT-X #1 (`A`, REF) qualifying lines in span | 91,076 | — |
-| WSJT-X #2 (`B`) qualifying lines in span | **0** | "no B coverage" confirmed (§4 below) |
+| WSJT-X #2 (`B`) qualifying lines in span | **0** | vacuous — `B`'s log was already empty before capture start (§4 below); "no B coverage" rests on the operational timeline, not this count |
 
 ## 2. ROW 0 — all five checks, evaluated in full (HK-025)
 
@@ -58,7 +58,7 @@ merely surviving it.**
 | 0b | Positive control, `K(s≥0) ≥ 0.90` pooled | **PASS** — `21250/21397 = 99.31%` |
 | 0c | `removed ≥ 300` | **PASS** — `n = 601` |
 | 0d | Wildcard matching ON, ≥1 decode matched only under wildcard | **PASS** — 1,535 such decodes |
-| 0e | `REF = A` only, asserted in code; combiner constant; no B coverage | **PASS** — `B`'s qualifying-line count in the analysed span is exactly 0 |
+| 0e | `REF = A` only, asserted in code; combiner constant; no B coverage | **PASS** — on the operational timeline (`B` stopped `18:52:45Z`, 44 min before the span opens), not on `B`'s qualifying-line count, which is vacuously 0 regardless (§4) |
 
 **ROW 0 CLEAR on all five checks.** `K_removed` is legitimate to read.
 
@@ -86,9 +86,19 @@ of junk (uncorroborated ≠ false).
 ## 4. "No B coverage" (spec §5 item 4)
 
 WSJT-X #2 (SDR Uno) was stopped by the Captain at `2026-09-08T18:52:45Z`. The analysed span begins
-`2026-09-08T19:36:45Z` — a 44-minute gap. Confirmed mechanically, not assumed: `B`'s `ALL.TXT` has
-**zero** qualifying lines (`Rx FT8`, dial `14.074`) at or after the boundary. This is the valid,
-non-weakening outcome the spec names in advance, not a gap in the work.
+`2026-09-08T19:36:45Z` — a 44-minute gap. ~~Confirmed mechanically, not assumed: `B`'s `ALL.TXT` has
+**zero** qualifying lines (`Rx FT8`, dial `14.074`) at or after the boundary.~~ 🔴 **STRUCK
+2026-09-10 (Architect's own catch, `bd337f2`): the file check above was VACUOUS, not a genuine
+mechanical confirmation.** `B`'s `ALL.TXT` was already empty and un-appended-to at
+`2026-09-08T18:16:31Z` — **before** the `18:33:11Z` capture start, let alone the analysed span. An
+already-frozen-empty file passes an "any qualifying lines in span" check trivially regardless of
+when the span starts; it cannot distinguish "B correctly logged nothing in-span" from "B's pipe was
+broken the whole time." **The load-bearing fact for "no B coverage" is the operational timeline
+recorded in `contents.md`** — the Captain stopped SDR Uno at `18:52:45Z`, 44 minutes before the span
+opens — not the file inspection. `K_removed` is unaffected either way: `REF = A` only, `B` was never
+read for corroboration. This is the valid, non-weakening outcome the spec names in advance, not a
+gap in the work. Snapshot + independent re-verification of both files' hashes and this mtime:
+`artefacts/20260908_live_run_1827-fp-floor-live-2/wsjtx-SNAPSHOT.md` and `contents.md`.
 
 ## 5. Full `K(s)` curve, `s = −38…+10` (the deliverable that outlives the verdict)
 

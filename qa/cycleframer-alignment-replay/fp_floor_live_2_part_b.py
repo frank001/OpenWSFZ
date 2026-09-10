@@ -210,12 +210,25 @@ def main():
 
     # 0e (Amendment 1 replacement): REF=A only asserted in code (trivial -- wsjtx_b
     # is never referenced above) + combiner constant across the whole span (single
-    # contiguous span, already established) + "no B coverage" verified mechanically.
-    b_has_rows_in_span = n_b_lines > 0
-    row0e = not b_has_rows_in_span
-    print("0e REF=A only, combiner constant: WSJT-X#2(B) qualifying lines in span=%d   %s"
-          % (n_b_lines, "PASS (no B coverage)" if row0e else "FAIL -- B has rows in the analysed span"))
-    print("   B stopped 18:52:45Z; corpus starts 19:36:45Z; no overlap (44 min gap) -- confirmed, not assumed.")
+    # contiguous span, already established) + "no B coverage".
+    #
+    # CORRECTED 2026-09-10 (Architect's catch, bd337f2): "B has 0 qualifying lines in
+    # span" is VACUOUS as a standalone check -- B's ALL.TXT was already empty and
+    # un-appended-to at 2026-09-08T18:16:31Z (see artefacts/.../wsjtx-SNAPSHOT.md +
+    # contents.md), BEFORE the 18:33:11Z capture start, let alone this span. An
+    # already-frozen-empty file passes an "any lines >= boundary" check trivially no
+    # matter when the boundary sits, so it cannot by itself distinguish "B correctly
+    # logged nothing in-span" from "B's pipe was broken the whole time". The
+    # LOAD-BEARING check is the operational timestamp comparison below; the line
+    # count is reported alongside it only as a (non-diagnostic) consistency note.
+    b_stopped_before_span = B_STOP_TS < BOUNDARY_TS
+    row0e = b_stopped_before_span
+    print("0e REF=A only, combiner constant, no B coverage: B stopped %s, span starts %s -> %s   %s"
+          % (B_STOP_TS, BOUNDARY_TS, "no overlap" if b_stopped_before_span else "OVERLAP",
+             "PASS" if row0e else "FAIL"))
+    print("   (B's qualifying-line count in span = %d -- consistent, but VACUOUS on its own: B's"
+          " ALL.TXT was already empty before capture start, so this count would read 0 regardless"
+          " of whether B ever overlapped the span.)" % n_b_lines)
 
     row0_all_pass = row0a and row0b and row0c and row0d and row0e
     print("\n>>> ROW 0: %s <<<" % ("CLEAR" if row0_all_pass else "FIRES -- ROW 4 VOID"))
@@ -277,7 +290,9 @@ def main():
 
     print("\n--- no B coverage (spec S5 item 4) ---")
     print("WSJT-X #2 (SDR Uno) stopped 2026-09-08T18:52:45Z; analysed span starts 2026-09-08T19:36:45Z;")
-    print("44-minute gap, zero overlap -- confirmed mechanically: %d qualifying B lines >= boundary." % n_b_lines)
+    print("44-minute gap, zero overlap -- basis is the OPERATIONAL TIMELINE (0e above), not the line")
+    print("count: B's ALL.TXT was already empty since 18:16:31Z, before capture even started, so its")
+    print("%d qualifying-lines-in-span figure is consistent but VACUOUS as independent confirmation." % n_b_lines)
 
     # --- reading rule, strict order, spec S2.5 ---------------------------------
     print("\n" + "=" * 78)
