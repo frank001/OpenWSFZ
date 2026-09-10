@@ -136,7 +136,9 @@ nothing may be re-tuned:
 - ROW 0a–0d, with **ROW 0b's positive control** (`K(s ≥ 0 dB) ≥ 0.90`) unchanged;
 - **wildcard message matching mandatory** (H1/H1a) — exact matching hides genuine loss;
 - **Amendment 1**: the emitted SNR is `roundf`'d, so the measured filter removes `excess ≤ 3.0`
-  against `T`'s `< 2.622` ⇒ **every loss figure is an UPPER bound on `T`'s own loss**;
+  against `T`'s `< 2.622` ⇒ ~~**every loss figure is an UPPER bound on `T`'s own loss**~~ ⛔ STRUCK
+  2026-09-10. It is an upper bound on `T`'s *corroborated* rate only, while corroboration bounds
+  genuine loss from below. See `2026-09-10-1443-…-acceptance-ruling.md` §2;
 - **Amendment 2**: the power disclosure, and the plain-English bar;
 - **ROW 1 `hi ≤ 0.02`, PO-ratified 17:24Z — FIXED. Not re-openable on this run's result.**
 

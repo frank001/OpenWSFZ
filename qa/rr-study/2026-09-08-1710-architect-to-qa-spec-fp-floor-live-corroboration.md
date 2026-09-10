@@ -125,10 +125,13 @@ emitted filter therefore removes **`excess ≤ 3.0`**, not `excess < 2.622`:
 ⇒ **The integer filter over-removes a 0.378 dB band (`excess` 2.622 → 3.0) that `T` itself would
 keep.** It is strictly **more aggressive** than the floor it stands in for.
 
-✅ **The direction is safe, and that is why the arm still stands as designed: whatever genuine loss
+⛔ **STRUCK 2026-09-10. Wrong: corroboration bounds genuine loss from BELOW, so the two biases
+oppose and the figure is neither bound. See
+`2026-09-10-1443-architect-fp-floor-live-2-part-b-acceptance-ruling.md` §2–§3.**
+~~✅ **The direction is safe, and that is why the arm still stands as designed: whatever genuine loss
 this arm measures is an UPPER BOUND on the loss `T` would actually cause.** A ROW 1 obtained here
 holds *a fortiori* for `T`. 🛑 **But it must be reported as an upper bound, in the same sentence as
-the number** — never as "the loss `T` causes".
+the number** — never as "the loss `T` causes".~~
 
 ### 1.2 ✅ The float is NOT lost, and this is the finding that matters for whatever gets built
 
@@ -267,14 +270,17 @@ because "(t) does not apply" must be demonstrated, not assumed.
 
 🔴 **Per Amendment 1 (§1.1), every quantity in this section is measured on the ROUNDED emitted field
 and therefore describes a filter STRICTLY MORE AGGRESSIVE than `T`** (it removes `excess ≤ 3.0`
-against `T`'s `< 2.622`). **Every loss figure below is an upper bound on `T`'s own loss and must be
-reported as one.**
+against `T`'s `< 2.622`). ~~**Every loss figure below is an upper bound on `T`'s own loss and must be
+reported as one.**~~ ⛔ **STRUCK 2026-09-10. It is an upper bound on `T`'s *corroborated* rate only.
+See the acceptance ruling `2026-09-10-1443-…` §2.**
 
 🔴 **`corroborated AND removed` is a LOWER bound on genuine loss**, not an estimate: the reference
 misses decodes too, so genuine decodes it did not corroborate are invisible here.
 🔴 **`removed AND NOT corroborated` is an UPPER bound on junk removed**, not a count of junk:
-uncorroborated ≠ false. **Both bounds point the same way — against the filter — which is the
-direction an operator-facing claim must err in.** Neither may be reported without its direction.
+uncorroborated ≠ false. ~~**Both bounds point the same way — against the filter — which is the
+direction an operator-facing claim must err in.**~~ ⛔ **STRUCK 2026-09-10. Both err in the
+filter's FAVOUR, so ROW 2 is conservative and ROW 1 was not identifiable. See `2026-09-10-1443-…`
+§3.** Neither may be reported without its direction.
 
 Let `k = corroborated AND removed`, `n = removed`, and `[lo, hi]` its Clopper-Pearson 95% interval.
 

@@ -73,8 +73,9 @@ SNR_CUT = 2.622 - 26.5              # -23.878
 removed = (snr < SNR_CUT)           # integer readout => snr <= -24
 
 # Amendment 1: this measures excess <= 3.0, STRICTER than T's < 2.622.
-# Every loss figure below is an UPPER BOUND on T's own loss. Report it as one,
-# in the same sentence as the number, every time it is cited.
+# [STRUCK 2026-09-10: "Every loss figure below is an UPPER BOUND on T's own loss" is WRONG.
+#  It bounds T's CORROBORATED rate from above; corroboration bounds genuine loss from below.
+#  The figure is neither bound on T's genuine loss. See 2026-09-10-1443-...-acceptance-ruling.md §2]
 ```
 
 Corroboration: same cycle, `|Δf| ≤ 3 Hz`, **wildcard message matching mandatory** (H1/H1a —
