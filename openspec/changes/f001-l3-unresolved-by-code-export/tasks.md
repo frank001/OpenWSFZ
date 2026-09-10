@@ -87,7 +87,7 @@ section states this; it is a separate, later QA arm reading the export this chan
 ## 5. Build and Test (Developer session)
 
 - [x] 5.1 Full solution build, Release, 0 warnings.
-- [ ] 5.2 Full test suite green (no new C# surface to test per task 4 — confirm no regressions).
+- [x] 5.2 Full test suite green (no new C# surface to test per task 4 — confirm no regressions).
 - [x] 5.3 `openspec validate --strict --all` passes with this change present.
 
 ## 6. The one required equality check before handoff (spec §5 ROW 0e)
