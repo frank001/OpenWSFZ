@@ -193,7 +193,12 @@ chosen with this outcome in view.
    sentence** (HK-021(u)); CP95 and cluster-bootstrap intervals **separately**; the number of
    clusters; `U`, `O`, `p_sign`. Also the censored-pair count.
 2. A histogram of `delta − c` over `uncensored`, in integer bins.
-3. **Descriptive:** `R_u` for `freq_ow < 600 Hz` and `≥ 600 Hz`. The 600 Hz boundary is taken from
+3. ~~**Descriptive:** `R_u` for `freq_ow < 600 Hz` and `≥ 600 Hz`.~~ ⛔ **STRUCK 2026-09-10 15:56Z
+   by the Architect (my error):** this asked for `R_u` per slice **without `R_o`**, which breaks
+   HK-021(u) as applied to the headline above. A slice's `R_u` alone measures disagreement, not
+   attribution. **Corrected: `R_u` AND `R_o`, plus cluster `U`/`O`, for each slice.** With the
+   mirror, the one-sidedness sits entirely below 600 Hz, and above 600 Hz `k_u < k_o`. See
+   `2026-09-10-1556-architect-d003-live-acceptance-ruling.md` §2. The 600 Hz boundary is taken from
    June mechanism 1's report, not from this data.
 4. **Descriptive, and it does NOT reopen Part B's ROW 2 (closed, accepted `3e997e0`):** the 313
    corroborated-removed pairs split into:
