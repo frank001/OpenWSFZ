@@ -6,8 +6,10 @@
 Answers: QA's `2026-09-09-1706-qa-to-architect-fp-floor-live-2-audio-as-s1-ladder-substrate.md`
 (`dee71da`, on `main` via #149).
 
-🛑 **HOLD. QA does not run §3 until the PO ratifies `R_STAR` (§5).** This is the same process the
-FP-FLOOR-LIVE ROW 1 bar went through.
+✅ **`R_STAR = 0.17%` RATIFIED by the PO on 2026-09-10 at 15:44Z. The HOLD is LIFTED, and QA may
+run §3.** ~~🛑 **HOLD. QA does not run §3 until the PO ratifies `R_STAR` (§5).**~~ The bar is now
+frozen. It does not move after `R_u` is known, and that applies to everyone, including the PO and
+me (§5).
 
 ---
 
@@ -112,7 +114,8 @@ REF_SHA256   = "dda9483aaee6295369f8b51cb8057fc6fef054be84772f2fd003fdc3f65b529d
 WSJTX_FLOOR  = -24          # reference clamp (§2.2)
 SIGMA2_REP   = 0.17         # S1 Repeatability sigma^2, dB^2: results/2026-09-07-4cc1984/report.md:41
 TAIL_DB      = 10           # D-003's field definition (June reports); >= 10x the 1 dB readout quantum
-R_STAR       = SIGMA2_REP / TAIL_DB**2      # = 0.0017. PENDING PO RATIFICATION (§5)
+R_STAR       = SIGMA2_REP / TAIL_DB**2      # = 0.0017. PO-RATIFIED 2026-09-10 15:44Z, FROZEN
+assert abs(R_STAR - 0.0017) < 1e-12
 
 assert sha256(REF_PATH) == REF_SHA256                        # harness STOPS on failure (not a row)
 assert min(wsjtx_snr_all_in_span) == WSJTX_FLOOR             # clamp model holds; STOP on failure
@@ -231,9 +234,9 @@ chosen with this outcome in view.
 
 ## 5. Decisions for the PO
 
-1. 🔴 **Ratify `R_STAR = 0.17%`, or set a different bar now.** Not after the run: once `R_u` is
-   known, the bar is frozen, and moving it is the prohibited re-read. QA holds §3 until this is
-   ratified.
+1. ✅ **`R_STAR = 0.17%` RATIFIED on 2026-09-10 at 15:44Z (PO: "0.17% is approved").** It is now
+   frozen. If anyone proposes moving it after `R_u` is known (the Captain, the PO or me), refuse and
+   escalate. That is the prohibited re-read, and it would VOID the arm.
 2. **Optional, and independent of §3:** whether to extend S1's rungs on the wideband-AWGN path now
    (§1.3).
 
