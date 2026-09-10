@@ -1,11 +1,13 @@
 # `FP-FLOOR-LIVE-2` Part B — results: **ROW 2 FIRES, cleanly**
 
-QA, 2026-09-10 14:36Z (`date -u`, HK-017). Spec:
-`qa/rr-study/2026-09-10-1426-architect-to-qa-fp-floor-live-2-part-b-authorised.md`
-(`arch/fp-floor-operator-setting`, commit `32375fb`). Harness:
-`qa/cycleframer-alignment-replay/fp_floor_live_2_part_b.py` (untracked — committing is the
-Captain's/Architect's call per standing practice on this arm). Matching logic imported from
-`h1_hash_token_contamination.wildcard_match`, not reimplemented, per spec §5 "Harness" note.
+QA, 2026-09-10 14:36Z (`date -u`, HK-017), corrected 2026-09-10 per the Architect's acceptance
+ruling. Spec: `qa/rr-study/2026-09-10-1426-architect-to-qa-fp-floor-live-2-part-b-authorised.md`
+(`arch/fp-floor-operator-setting`, commit `32375fb`). **Acceptance ruling (ROW 2 ACCEPTED, the
+"upper bound" correction, and §3 on 1710 ROW 1's identifiability):**
+`qa/rr-study/2026-09-10-1443-architect-fp-floor-live-2-part-b-acceptance-ruling.md`. Harness:
+`qa/cycleframer-alignment-replay/fp_floor_live_2_part_b.py`, committed alongside this file. Matching
+logic imported from `h1_hash_token_contamination.wildcard_match`, not reimplemented, per spec §5
+"Harness" note.
 
 **Headline: `K_removed = 313/601 = 52.08%` [CP95 48.00%, 56.14%] — ROW 2 fires on both bounds, not
 on a boundary.** The `≤ −24 dB` emission floor is corroborated by an independent, differently-routed
@@ -13,11 +15,28 @@ decoder on **just over half** of what it removes. `lo = 48.00%` sits nearly 10×
 bar. This is the **opposite** of the Architect's own recorded prediction (§6 of the withdrawn 1710
 spec: ROW 1 at ~55% credence, `K_removed` expected in 0.5–4%).
 
-Per Amendment 1 (v1 spec, `3afc362`): the emitted SNR is *rounded*, so this arm's predicate removes
-`excess ≤ 3.0` dB, strictly more than `T`'s `excess < 2.622`. **`52.08%` is therefore an UPPER bound
-on `T`'s own genuine-loss rate, not an estimate of it** — and `T`'s true rate could only be higher
-still, since a stricter cut removing 52% genuine decodes cannot correspond to a looser cut removing
-fewer.
+🔴 **CORRECTED 2026-09-10 (Architect's own catch, `arch/fp-floor-operator-setting`) — `52.08%` is
+NEITHER bound on `T`'s genuine-loss rate.** Per Amendment 1 (v1 spec, `3afc362`), the emitted SNR is
+*rounded*, so this arm's predicate removes `excess ≤ 3.0` dB, a strict superset of `T`'s
+`excess < 2.622`. Two biases apply, pulling in opposite directions, and the original framing above
+(now struck) named only the first and got its consequence backwards:
+
+1. **Predicate superset.** The extra slice this arm removes but `T` would keep sits entirely inside
+   the reported `−24` bin (`n=180, k=124`) and is closer to the boundary — plausibly *higher*
+   corroboration than `T`'s own narrower removed population. That makes the measured `52.08%` an
+   **upper bound on `T`'s own corroboration rate**, not a floor: `T`'s true rate could be *lower*.
+2. **Corroboration undercounts genuine decodes** (the reference decoder misses some too), which
+   makes any corroboration-based figure a **lower bound on true genuine loss** — unchanged from §4
+   below.
+
+**Why `ROW 2` still stands for `T` specifically, worst case for bias (1):** strip the entire `−24`
+bin's corroborated decodes from both `k` and `n` (assume every one of them belongs to the extra
+slice `T` would keep) — `k=313−124=189`, `n=601−124=477` → **39.62%**, CP95 `lo=35.20%`. Dropping
+the whole bin instead (`k=189, n=421`) gives **44.89%**, CP95 `lo=40.07%`. Both independently
+recomputed and confirmed. Either way `lo` clears the `≥5%` bar by **~7–8×** — chance collisions
+would need >30 pp of spurious corroboration to threaten it, far past this arm's own plausibility
+estimate (§9) and H1a's `V_null ≤ 0.10` bound. **The verdict is robust to the correction, not
+merely surviving it.**
 
 ---
 

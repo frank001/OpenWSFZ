@@ -5,9 +5,23 @@ Spec: qa/rr-study/2026-09-10-1426-architect-to-qa-fp-floor-live-2-part-b-authori
       (arch/fp-floor-operator-setting, commit 32375fb). Reuses the withdrawn
       FP-FLOOR-LIVE spec's (2026-09-08-1710-...) ROW 0 / predicate / gate
       VERBATIM, with Amendment 1's two changes layered on: the emitted SNR is
-      ROUNDED (3afc362) so every loss figure here is an UPPER BOUND on T's
-      own loss, and REF = A only (b1076bf) -- WSJT-X #2 (SDR Uno) is a
-      diagnostic-only, on its own span, never a corroborator.
+      ROUNDED (3afc362) -- this arm's predicate removes excess<=3.0, a strict
+      SUPERSET of T's excess<2.622 -- and REF = A only (b1076bf) -- WSJT-X #2
+      (SDR Uno) is diagnostic-only, on its own span, never a corroborator.
+
+      CORRECTED per the Architect's 2026-09-10 acceptance ruling
+      (qa/rr-study/2026-09-10-1443-architect-fp-floor-live-2-part-b-acceptance-ruling.md):
+      the measured K_removed is NEITHER an upper nor a lower bound on T's own
+      genuine-loss rate. The predicate superset above biases it as an UPPER
+      bound on T's own CORROBORATION rate (the extra slice T would keep sits
+      in the -24 bin and is closer to the boundary, plausibly higher-
+      corroboration); corroboration itself undercounts genuine decodes
+      (the reference misses some too), which is a LOWER bound on true
+      genuine loss. The two point in opposite directions. ROW 2 still holds
+      for T under the worst-case allocation of the -24 bin's corroborated
+      decodes (see the acceptance ruling for the derivation) -- report both
+      the measured rate on the rounded cut AND that worst-case floor for T;
+      never call either one "T's genuine-loss rate" alone.
 
 Population: the Amendment 3 boundary, a single contiguous span
 [2026-09-08T19:36:45Z, close). n = 601 (OpenWSFZ decodes at reported <=-24dB
@@ -212,11 +226,28 @@ def main():
     # --- headline --------------------------------------------------------------
     lo, hi = clopper_pearson(k_removed_corrob, n_removed)
     print("\n" + "=" * 78)
-    print("HEADLINE (upper bound on T's own loss -- Amendment 1, integer SNR is STRICTER than T)")
+    print("HEADLINE (measured on the ROUNDED/emitted cut -- Amendment 1, 3afc362)")
     print("=" * 78)
     print("k (corroborated AND removed) = %d" % k_removed_corrob)
     print("n (removed)                  = %d" % n_removed)
     print("K_removed = k/n = %.4f%%   CP95 = [%.4f%%, %.4f%%]" % (100 * K_removed_val, 100 * lo, 100 * hi))
+    print("NEITHER bound on T's own genuine-loss rate (Architect's 2026-09-10 acceptance ruling,")
+    print("qa/rr-study/2026-09-10-1443-architect-fp-floor-live-2-part-b-acceptance-ruling.md):")
+    print("predicate superset (this cut removes excess<=3.0, T removes excess<2.622) makes this an")
+    print("upper bound on T's own CORROBORATION rate; corroboration undercounting genuine decodes")
+    print("(the reference misses some too) makes any such figure a lower bound on true genuine loss.")
+
+    n_bin24, k_bin24 = by_snr.get(-24, [0, 0])
+    k_t1, n_t1 = k_removed_corrob - k_bin24, n_removed - k_bin24   # strip only the -24 bin's corroborated decodes
+    k_t2, n_t2 = k_removed_corrob - k_bin24, n_removed - n_bin24   # drop the whole -24 bin
+    lo_t1, hi_t1 = clopper_pearson(k_t1, n_t1) if n_t1 else (float("nan"), float("nan"))
+    lo_t2, hi_t2 = clopper_pearson(k_t2, n_t2) if n_t2 else (float("nan"), float("nan"))
+    print("\nT worst-case floor (strip -24 bin's corroborated decodes from k AND n, assuming they're")
+    print("all the extra slice T would keep): k=%d n=%d -> %.2f%%  CP95 lo=%.2f%%"
+          % (k_t1, n_t1, 100 * k_t1 / n_t1 if n_t1 else float("nan"), 100 * lo_t1))
+    print("T worst-case floor, alternative (drop the whole -24 bin): k=%d n=%d -> %.2f%%  CP95 lo=%.2f%%"
+          % (k_t2, n_t2, 100 * k_t2 / n_t2 if n_t2 else float("nan"), 100 * lo_t2))
+    print("Either way, ROW 2 holds for T too (lo far past the >=5% bar).")
 
     t0 = ts_to_dt(BOUNDARY_TS)
     last_ts = max(ts for (ts, _msg) in owsfz)
