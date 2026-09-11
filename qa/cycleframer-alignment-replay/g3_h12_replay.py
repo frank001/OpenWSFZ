@@ -96,6 +96,20 @@ def build_decoder(dll_path):
                                            ctypes.POINTER(ctypes.c_int),
                                            ctypes.c_int,
                                            ctypes.POINTER(ctypes.c_int)]
+    # F-001 L3 (spec qa/rr-study/2026-09-02-1631-...-f001-l3-own-hash-compare-sizing.md
+    # section 3, shim 20260050): the complement per-code table -- lookups that did NOT
+    # resolve, gated tls_h12_lookup_performed && !tls_h12_resolved (Amendment 1 A1.1).
+    # Same bind discipline as the h12_by_code block above: only when the loaded shim
+    # actually carries the symbol (20260049 and earlier do not export it), never inside
+    # a bare try/except (Amendment 2 Sec.C3.2's instruction, carried over verbatim --
+    # a silently-unbound getter must not make ROW 0 unevaluable while still looking
+    # green). Signature per proposal.md/tasks.md 1.3 and the 35378b9 pointer-count fix:
+    # two pointer args (counts, out_of_range), capacity is a plain int, not a pointer.
+    if dec.version >= 20260050:
+        d.ft8_get_h12_unresolved_by_code.restype = ctypes.c_int
+        d.ft8_get_h12_unresolved_by_code.argtypes = [ctypes.POINTER(ctypes.c_int),
+                                                       ctypes.c_int,
+                                                       ctypes.POINTER(ctypes.c_int)]
     return dec
 
 
@@ -201,6 +215,25 @@ def main():
                         "divergent": list(_div)}
         h12_code_out_of_range = _oor.value
 
+    # F-001 L3: the unresolved-side table, same once-at-end-of-run discipline as
+    # h12_by_code above (a 4,096-row copy every cycle buys nothing extra -- the three
+    # per-cycle scalars already carry the trajectory). None on shim < 20260050 (no
+    # export bound); populated on 20260050+.
+    h12_unresolved_by_code = None
+    h12_unresolved_out_of_range = None
+    if dec.version >= 20260050:
+        H12_CODE_SPACE = 4096
+        Buf = ctypes.c_int * H12_CODE_SPACE
+        _unres = Buf()
+        _uoor = ctypes.c_int(-1)  # not 0 -- see the h12_code_out_of_range comment above.
+        _un = dec.dll.ft8_get_h12_unresolved_by_code(_unres, H12_CODE_SPACE,
+                                                       ctypes.byref(_uoor))
+        if _un != H12_CODE_SPACE:
+            raise RuntimeError(
+                f"ft8_get_h12_unresolved_by_code returned {_un}, expected {H12_CODE_SPACE}")
+        h12_unresolved_by_code = list(_unres)
+        h12_unresolved_out_of_range = _uoor.value
+
     out = {
         "label": args.label,
         "dll_path": args.dll_path,
@@ -217,6 +250,8 @@ def main():
         "h12_divergent_count_final": dec.dll.ft8_get_h12_divergent_count(),
         "h12_by_code": h12_by_code,
         "h12_code_out_of_range": h12_code_out_of_range,
+        "h12_unresolved_by_code": h12_unresolved_by_code,
+        "h12_unresolved_out_of_range": h12_unresolved_out_of_range,
         "k_max_candidates": K_MAX_CANDIDATES,
         "k_max_candidates_pass2": K_MAX_CANDIDATES_PASS2,
         "per_file": per_file,
