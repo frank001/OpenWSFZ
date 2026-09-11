@@ -7,12 +7,19 @@ QA, 2026-09-10 18:14Z (`date -u`, HK-017). Spec:
 (`qa/rr-study/2026-09-08-2031-...-amendment-2-...md`) is NOT present in this worktree**, `arch/f001-l3`
 being a different worktree/branch, local-only. Reconstructed here **only** from `BOARD.md`'s own
 detailed paraphrase (2026-09-08 20:31Z entry) — flagged so this is read as second-hand, not as
-having read the source document. Harness: `qa/cycleframer-alignment-replay/g3_h12_replay.py`
+having read the source document. *(Addition, 2026-09-11, per the Architect's `arch/f001-l3`
+`317035a` ROW 3 ruling §8 item 3: Amendment 2's own spec file is now at `arch/f001-l3` `4fbaffe`
+— rebased there after this report was written, old SHA `20a8b72` — and any local branch can be
+read from any worktree with `git show <branch>:<path>`.)* Harness:
+`qa/cycleframer-alignment-replay/g3_h12_replay.py`
 (extended, additive-only, `g4` untouched), `l3_gate.py` (new), both committed alongside this file.
 
 **Headline, Sec.0.3/§8 verbatim: this arm sizes L3's COST ONLY. Efficacy remains structurally
 unmeasurable (zero `Tx` lines in every corpus held) — a cost-only result is NEVER a verdict on
-whether L3 should be built.** Within that constraint: ROW 0 clears in full (with two disclosed
+whether L3 should be built.** Within that constraint: ~~ROW 0 clears in full~~ ⛔ **STRUCK 2026-09-11, per the Architect's
+`arch/f001-l3` `317035a` ROW 3 ruling §8 item 2 (Amendment 2 §4.6): the L3 table's accumulation
+has no independent reconciliation anywhere in this arm — see the correction in §2.1 below (ruling
+§5).** ROW 0 clears on every row this arm could mechanically evaluate (with two disclosed
 deviations, §2 below). `U149 = 0` — **our own code drew zero unresolved 12-bit lookups** across the
 entire corpus, consistent with the spec's own prediction (`U149 ∈ {0,1}`). But the **occupancy
 check fails hard** (`z = −11.75`, nearly 4× outside the ±3σ band) — unresolved lookups are **not**
@@ -48,7 +55,13 @@ explicit bar).
 | 0f | re-derive `n12=149` a third time, from the DLL, in-run | 🔴 **NOT COMPLETED** — see §2.2 |
 | 0g | `U_clean < 500` | **clear** — `U_clean = 1,561` |
 
-**ROW 0 clear on every row this arm could mechanically evaluate.** Two disclosed deviations from the
+**ROW 0 clear on every row this arm could mechanically evaluate.** 🔴 **Limitation added 2026-09-11,
+per the Architect's `arch/f001-l3` `317035a` ROW 3 ruling §5/§8 item 2 (Amendment 2 §4.6 required
+this in the report's own validity statement):** with ROW 0d withdrawn (Amendment 2), ROW 0b refused
+(§2.1 below) and no unresolved-count scalar available, **the L3 table's own accumulation has no
+independent reconciliation anywhere in this arm.** 0c/0d′/0d″/0e all clear, but none of them
+reconciles the L3 table itself — 0d′/0d″ exercise the sibling tables, 0e shows non-perturbation
+only, and 0c shows no out-of-range masking. Two disclosed deviations from the
 letter of the spec, neither hidden:
 
 ### 2.1 ROW 0b — refused as a STOP, a genuine comparator defect found by the smoke test
@@ -62,8 +75,13 @@ export counts **only** the 12-bit (Type-4/nonstandard-call) branch. On the full 
 (12-bit) = 1,585` vs `4,199` total `<...>` renderings (12-bit + 22-bit combined) — and ordinary
 Type-1/2 traffic, the overwhelming majority of any real corpus, is exactly where 22-bit misses come
 from. The decode JSON this arm collects carries no message-type (`i3`) field to separate the two
-post-hoc. **This reflects a mismatched comparator, not a miswired 12-bit counter** — 0c/0d′/0d″/0e
-all independently confirm the 12-bit table itself is internally consistent and non-perturbing.
+post-hoc. **This reflects a mismatched comparator, not a miswired 12-bit counter** — ~~0c/0d′/0d″/0e
+all independently confirm the 12-bit table itself is internally consistent and non-perturbing~~ ⛔
+**STRUCK 2026-09-11, per the Architect's `arch/f001-l3` `317035a` ROW 3 ruling §8 item 1 (ruling
+§5): none of these rows reconciles the L3 table. 0d′/0d″ exercise the sibling tables, and 0e shows
+non-perturbation only (0c shows no out-of-range masking). With ROW 0d withdrawn (Amendment 2) and
+ROW 0b refused (this section), the L3 table's accumulation has no independent reconciliation
+anywhere in this arm.**
 Evaluated and printed every run; never allowed to stop the arm on its own (HK-025 — QA's authority
 to refuse a non-mechanical row, not authority to rewrite it). **The spec's own ROW 0b wording likely
 needs an amendment** (scope it to 12-bit renderings specifically) — flagged for the Architect, not
@@ -156,9 +174,13 @@ the situation it anticipated).
    (this one didn't — ROW 0 cleared regardless, since 0f's fire condition never gated the STOP path),
    the message-type dispatch in `ftx_message_decode_nonstd` this session didn't fully trace is the
    place to pick up.
-4. **The hash-saturation finding from FP-FLOOR-LIVE-2 (§3 above) is still undelivered to the
+4. ~~**The hash-saturation finding from FP-FLOOR-LIVE-2 (§3 above) is still undelivered to the
    Architect** — re-flag at the next opportunity a session is reachable; it bears directly on how to
-   read this arm's own occupancy failure.
+   read this arm's own occupancy failure.**~~ ⛔ **STRUCK 2026-09-11: delivered and answered.** The
+   Architect's `arch/f001-l3` `317035a` ROW 3 ruling §3 received this message and answers it: the
+   table's saturation is a standing fact, not a new finding; L3's cost grows with session length
+   once the table fills; and the `<...>`-rendering rate shift across the window is confounded, not
+   attributable to saturation alone.
 5. If the occupancy failure is judged worth attributing, that is new, unscoped work (a per-cycle
    saturation-horizon reconstruction against the unresolved-code table, correlating pre-/post-
    saturation code reuse) — not something this report recommends starting without the Architect's
