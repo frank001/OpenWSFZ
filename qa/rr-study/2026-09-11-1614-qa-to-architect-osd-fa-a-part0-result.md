@@ -13,8 +13,13 @@ the harness is deterministic on one binary). `P0-1` FIRES: S1 == C in every fiel
 4,000 slots, message text included — zero differences of any kind.** Citation guard (g) is
 **resolved for this population and this harness** (HK-022 scope: nothing wider — this is one
 noise-only corpus, one ctypes harness, one pair of binaries). `ROW 0r`'s 246 text-only differences
-did not come from the `20260049` → `20260050` binary change; they came from the run (the
-Architect's own candidate explanation in spec §1.1, now confirmed rather than merely plausible).
+did not come from the `20260049` → `20260050` binary change; ~~they came from the run (the
+Architect's own candidate explanation in spec §1.1, now confirmed rather than merely
+plausible)~~ ⛔ **STRUCK 2026-09-11, per the Architect's acceptance ruling §3
+(`2026-09-11-1619-architect-osd-fa-a-part0-acceptance-and-row0r-reclassified.md`, `arch/osd-fa-a`
+`44ea5db`): `ROW 0r`'s 246 were a redaction comparator artefact — its before-CSV was already
+`<RDCTM…>`-redacted and was compared against raw output (ruling §2). Part 0 tested the binary
+only; it never tested, and cannot confirm or deny, the run-history hypothesis.**
 
 ---
 
