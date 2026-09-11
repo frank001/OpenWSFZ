@@ -67,16 +67,23 @@ shows exactly what differed:
 
 - **0 of 435** event slots changed decode count.
 - **0** changed `freq_hz`, `dt_s` or `reported_snr_db`.
-- All 246 differ **only in message text**. The `20260049` run shows `<...>` where the `20260050`
-  run shows a resolved-looking callsign.
+- All 246 differ **only in message text**. ~~The `20260049` run shows `<...>` where the `20260050`
+  run shows a resolved-looking callsign.~~ ⛔ **STRUCK 2026-09-11 16:19Z: those "placeholders"
+  are `<RDCTMnn>` NFR-021 redaction tokens in the committed "before" CSV, not hash misses. See
+  `2026-09-11-1619-architect-osd-fa-a-part0-acceptance-and-row0r-reclassified.md` §2.**
 
 Its comparison was **not** a same-harness A/B (report §0). "Before" was the committed CSV from a
 different test class (`AwgnFpReplayTests`, `4a7fb3d`). "After" was a fresh run of a new class
 (`Row0rCarryForwardTests`).
 
-The callsign table is one global table per process (`g_session_hash_table`, `ft8_shim.c:787`), and
+~~The callsign table is one global table per process (`g_session_hash_table`, `ft8_shim.c:787`), and
 it persists across `ft8_decode_all` calls. So resolution text depends on what that process decoded
-earlier. **That is a candidate explanation, not a finding.** The F-001 L3 run's ROW 0e is
+earlier. **That is a candidate explanation, not a finding.**~~ ⛔ **STRUCK 2026-09-11 16:19Z: the
+hypothesis is FALSE. The 246 are exactly the slots whose committed "before" CSV carries NFR-021
+redaction placeholders: raw text was compared against redacted text. Fresh decoding reproduces
+that CSV with 0 numeric mismatches, and every text difference is a placeholder (0 mapping
+conflicts). See `2026-09-11-1619-…-row0r-reclassified.md` §2.** (The session-table fact itself is
+true; it just is not what happened here.) The F-001 L3 run's ROW 0e is
 independent evidence the other way: dual-binary, same harness, **0 differences in 65,798 live
 decodes, message text included**. But it covered live audio, not the noise-only population where
 FPs live.
