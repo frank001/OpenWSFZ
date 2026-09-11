@@ -27,6 +27,16 @@ finding of safety, per base §5.3/§6 and the standing `FP-FLOOR-LIVE-2` corrobo
 — the other of the two schemes the E1 acceptance ruling accepts. `ft8_set_decode_params` is called
 exactly once, before `select_files`'s first file is decoded.
 
+**Added 2026-09-11, per the E3 acceptance ruling §2 (`2026-09-11-2210-architect-osd-fa-a-e3-acceptance.md`,
+`arch/osd-fa-a` `8fe712a`): "same harness" was checked on COUNT only (`65,798` matching), which
+shows the reused `60`-leg file is the intended one — it does not by itself show the new `40`-leg
+harness behaves identically apart from `nhard`.** Checked, independently re-derived: since `nhard`
+gates only OSD accepts, a harness identical except for `nhard` should make the `40`-leg a
+(near-)**subset** of the `60`-leg. **`40`-leg decodes with no `60`-leg decode within `3Hz` in the
+same cycle: `14` of `58,438` (`0.024%`). Live decodes matched at `40` but not at `60`: `20`.** The
+`40`-leg is a frequency-subset of the `60`-leg to within `0.03%` — no harness difference beyond
+`nhard` is visible.
+
 ## 2. Method
 
 For every live-emitted decode in the span:
@@ -54,6 +64,36 @@ BAR_H = 0.05 (frozen)
 
 **Row: `lo = 0.364% < BAR_H(5%)` ⇒ `E3-N`.** The CI sits entirely below the bar by a wide margin
 (the upper bound, `1.30%`, is itself well under `5%`).
+
+**What the `1,509` removals actually are, per the E3 acceptance ruling §3 (independently
+re-derived, exact match):**
+
+| category | n | corroborated |
+|---|---:|---:|
+| No `40`-leg decode within `3Hz`: genuinely vanished | 994 | 1 |
+| A different message at the same frequency | 497 | 1 |
+| **Same decode, different hashed-callsign rendering** (`<X>` vs `<Y>`) | 18 | **9** |
+| **total** | **1,509** | **11** |
+
+**The `18` are not removals** — the two legs build different callsign-table histories once the
+`40`-leg drops decodes (exactly the confound Amendment 1 §5.3 named; wildcard matching covers only
+literal `<...>`, not two different resolved brackets). They carry `9` of the `11` "corroborated"
+removals. **Both branches evaluated (HK-025), same row either way:**
+
+| reading | k/n | CP95 | row |
+|---|---|---|---|
+| pre-registered (wildcard) | 11/1,509 | `[0.364%, 1.301%]` | `E3-N` |
+| true removals (drop the 18) | 2/1,491 | `[0.016%, 0.484%]` | `E3-N` |
+| frequency-only (vanished only) | 1/994 | `[0.003%, 0.559%]` | `E3-N` |
+
+`E3-N` is **accepted on the pre-registered figure** (§2 above); the "true removals" figure is
+**descriptive, not a re-read of the gate** — its direction shows the pre-registered `k` overstates
+corroborated removals about `5×`, biased **toward** `E3-H`, so `E3-N` is conservative.
+
+**Corrected citation:** *"`E3-N`: of `1,509` live decodes the `40`-leg failed to reproduce, `11`
+were corroborated by `WSJT-X #1` (`CP95 [0.36%, 1.30%]`). Descriptively: `18` of the `1,509`, and
+`9` of the `11`, are callsign-rendering differences, not removals. True removals are `1,491`, and
+`2` of them are corroborated (`≈0.09`/hour against `≈68.6` removed/hour)."*
 
 **Descriptive (base §5.3/Amendment 1 §5.3):**
 
@@ -99,12 +139,24 @@ it has no near-threshold genuine signal at all (`per_cycle_true = 11` in every o
 cycles). Without that leg, **no default change goes forward**, regardless of how `E1`/`E2`/`E3`
 read.
 
-**What the whole arc supports, read together, per the mandatory `D1`/`E1` pairing (E1 acceptance
+~~**What the whole arc supports, read together, per the mandatory `D1`/`E1` pairing (E1 acceptance
 ruling §4):** on noise, `nhard` in `(40,60]` accounts for `~97%` of false-decode events (`E1`); on
 live audio, `OSD`-path decodes are `≤~1.9%` of output (`D1`'s CI upper bound) — Option B's live
-reach is bounded by that `1.9%`, not the `97%`. `E3` adds: of what `60→40` actually removes live,
-**only `0.73%`** (`11/1,509`) is independently confirmed genuine, at this resolution, with the
-above caveat that this cannot be read as proof the rest was junk.
+reach is bounded by that `1.9%`, not the `97%`.~~ ⛔ **STRUCK 2026-09-11, per the E3 acceptance
+ruling §4: "Option B's live reach ≤~1.9%" is WRONG, and it is the Architect's own error (also
+struck by him in the `…1932…` and `…2048…` rulings, `BOARD.md`, and `MEMORY.md`) — repeated here
+only because he had made the `D1`/`E1` pairing mandatory; no fault attaches to QA.** `D1`'s `U`
+covers only decodes the Part D probe could **classify**, and OSD accepts are exactly the decodes
+that probe struggles to reproduce (`41%` of D3's unconfirmed decodes were ones the probe found
+nothing at all) — `U` therefore **undercounts** the OSD share; an instrument cannot bound its own
+blind spot (HK-026). **`E3` measures reach directly: true removals `1,491/57,594 = 2.59%`, `CP95
+[2.46%, 2.72%]` — above `D1`'s own `CI_hi` of `1.88%`.** Counting every D3-unclassifiable decode as
+OSD gives `≈5.7%` at worst (`(183+483)/11,615`, independently re-verified); both figures stay under
+`10%`, so `D1`'s own row and consequence stand unchanged. **Replacement citation:** *"OSD-path
+decodes are between `~2.6%` (`E3`, direct) and `~5.7%` (Part D3, worst case) of live output; `D1`'s
+`U=1.64%` undercounts them. Option B removes `~2.6%` of live output."* `E3` adds: of what `60→40`
+actually removes live, only `0.13%` (`2/1,491` true removals) is independently confirmed genuine at
+this resolution — not proof the rest was junk (§3 above).
 
 ## 6. NFR-021
 

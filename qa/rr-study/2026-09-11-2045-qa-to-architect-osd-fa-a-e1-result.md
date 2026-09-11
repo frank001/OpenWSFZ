@@ -95,9 +95,18 @@ show live harm, never safety. Continuing to `E2` next.
 
 🛑 **Mandatory citation pairing (E1 acceptance ruling §4): never cite `E1-1` alone when speaking
 about live FP — always pair it with `D1`.** On noise, OSD accepts with `nhard` in `(40, 60]`
-account for ~97% of false-decode events (this result). **On live audio, OSD-path decodes are `≤
-~1.9%` of output** (Part D3's CI upper bound). Option B's live reach is bounded by the `1.9%`, not
-by the `97%`.
+account for ~97% of false-decode events (this result).
+
+~~**On live audio, OSD-path decodes are `≤ ~1.9%` of output** (Part D3's CI upper bound). Option B's
+live reach is bounded by the `1.9%`, not by the `97%`.~~ ⛔ **STRUCK 2026-09-11, per the E3
+acceptance ruling §4 (`2026-09-11-2210-architect-osd-fa-a-e3-acceptance.md`, `arch/osd-fa-a`
+`8fe712a`): this "≤~1.9%" pairing was the Architect's own error, repeated here only because he made
+it mandatory — no fault attaches to QA. `D1`'s `U` undercounts the OSD share (it only covers
+decodes Part D's probe could classify, and OSD accepts are exactly what that probe struggles to
+reproduce — an instrument cannot bound its own blind spot, HK-026). `E3` measured live reach
+directly: `1,491/57,594 = 2.59%` `CP95 [2.46%,2.72%]` — above `D1`'s own `CI_hi` of `1.88%`.
+Replacement: OSD-path decodes are between `~2.6%` (`E3`, direct) and `~5.7%` (Part D3, worst case)
+of live output; both stay under `10%`, so `D1`'s own row and consequence still stand.**
 
 ## 5. NFR-021
 
