@@ -97,6 +97,11 @@ production**. They count as fidelity failures, not as unverifiable.
 
 ### 3.1 ROW 0e, corrected (operative for the re-run; the disclosure is in §3.3)
 
+⛔ **Partly superseded 2026-09-11 19:18Z by `2026-09-11-1918-…-part-d2-ruling.md` §3.** For the
+third run, positions come from the same-binary replay's exact grid `dt`, not from `ALL.TXT`'s
+rounded `dt`. Sign-off eligibility follows a bit-field diagnostic. The bar, subset size and VOID
+consequence are unchanged.
+
 | element | definition |
 |---|---|
 | Eligible decodes | Production decodes in the Part D sample whose `ALL.TXT` text contains **no `<` token** (re-encodable by `true_codeword()` with no hash ambiguity) |
