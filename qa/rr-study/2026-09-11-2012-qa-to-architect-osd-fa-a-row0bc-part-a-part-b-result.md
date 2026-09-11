@@ -59,6 +59,17 @@ resolution commentary flagged as too close to trust without saying so explicitly
 `A1` per the literal gate, with this tension disclosed in full rather than silently resolved either
 way.**
 
+✅ **RESOLVED 2026-09-11 20:21Z, per the Architect's acceptance ruling
+(`2026-09-11-2021-architect-osd-fa-a-part-a-b-acceptance.md`, `arch/osd-fa-a` `d905ac3`): the
+`§5.3` count boundary was tied to an assumed denominator ("with ≈11,000 decodes"), not the realised
+`12,143` (+10.4%). At the realised denominator both `A1`'s and `A2`'s own count thresholds shift
+(`≤1,151` / `≥1,277`), and `1,150` FALSE at this `n` is `9.47%`, not `10.45%`. **Read at the
+realised denominator, both predicates give `A1` — there was no tension**, only a stale
+sizing estimate. Architect's own fault, struck by him in base §5.3 (HK-022). Cite Part A as:
+`P_fa = 9.41% [8.89%, 9.93%], CI_hi 0.08pp under the 10% bar` — **never "negligible" or "small"**
+(≈1 S8HN decode in 11 is false at production settings), **never as a live rate** (synthetic scene,
+oracle truth only).
+
 **Determinism:** two independent processes, identical seeds — `decodes=12,143`, `false=1,143`,
 `P_fa`/CI identical to the displayed precision, and the full per-cycle arrays are byte-identical.
 
@@ -78,8 +89,14 @@ n_caught (junk correctly removed) = 437
 n_killed (genuine decode destroyed) = 0
 n_removed = 437  (>= 100, base §6.2 power floor -- resolvable)
 Q_gate = 0 / 437 = 0.0%
-95% CI (cycle-clustered bootstrap) = [0.0%, 0.0%]
 ```
+
+⛔ **STRUCK 2026-09-11, per the Architect's acceptance ruling §3: "95% CI (cycle-clustered
+bootstrap) = [0.0%, 0.0%]" — never cite a zero-width bootstrap interval as a confidence interval;
+it is only what resampling returns for a count that is zero everywhere. Cite instead: Clopper–Pearson
+95% upper bound `0/437 → 0.84%` (independently re-verified: `scipy.stats.beta` gives exactly
+`0.8406%`), or `1.07%` counted conservatively at the cluster level (`0/344` cycles carried a
+removal — independently confirmed, `beta` gives `1.0666%`). Both sit far below the `5%` `B1` bar.**
 
 **Row: `CI_hi = 0% < 5%` ⇒ `B1`.** The CI is degenerate at exactly `[0%, 0%]` because
 `per_cycle_killed` is `0` in **every one** of the 1,000 cycles — every bootstrap resample of
