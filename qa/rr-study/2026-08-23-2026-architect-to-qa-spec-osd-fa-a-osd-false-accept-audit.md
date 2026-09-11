@@ -313,9 +313,14 @@ half-width near `p = 0.03` is **≈ ±0.005** ⇒ `CI_hi ≈ 0.035`, which sits 
 ≈ 13 half-widths.** Decidable, and decidable at the far end too: `P_fa = 0.10` would produce
 ≈ 1,100 false decodes, unmistakable.
 
-**Decision boundary, stated now:** with ≈11,000 decodes, A1 requires roughly **≤ 1,050 FALSE
+~~**Decision boundary, stated now:** with ≈11,000 decodes, A1 requires roughly **≤ 1,050 FALSE
 decodes** and A2 roughly **≥ 1,150**. A count landing between those is A3 — **report it as A3
-and do not round it toward either row.**
+and do not round it toward either row.**~~
+
+> ⛔ **STRUCK 2026-09-11 20:21Z (Architect):** this gave one row a second predicate, a count tied
+> to an assumed denominator (HK-021(r)). **§5.2's CI gate is the only predicate.** At the realised
+> 12,143 decodes the equivalent boundaries were ≈ 1,151 / ≈ 1,277. See
+> `2026-09-11-2021-architect-osd-fa-a-part-a-b-acceptance.md` §2.
 
 ---
 
