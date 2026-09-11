@@ -178,7 +178,9 @@ moderate-high; L3's ROW 0e is the reason.
 - Sample **1,000 cycles**, seeded, **sorted at construction** (base §2.4 hazard 2).
 
 **Decodes and positions come from OpenWSFZ's own live `ALL.TXT` in that span** (production-emitted
-decodes), exactly as base §4.1 specifies, with the `+0.16 s` correction applied uniformly.
+decodes), exactly as base §4.1 specifies, ~~with the `+0.16 s` correction applied uniformly~~ ⛔
+**at the reported `dt` with NO offset. Live `dt` is already decoder-reported. My error, inherited
+from base §2.4; QA caught it (Part D ruling `2026-09-11-1652-…` §2).**
 
 ⚠️ **Not from a replay.** An offline replay of this span on this binary emitted **65,798** decodes
 over 5,222 cycles, against the live daemon's **57,969** (L3 result §1; `FP-FLOOR-LIVE-2` Part B).

@@ -139,7 +139,11 @@ token in an emitted decode is false **by construction**.
 
 ### 2.2 Live leg (Part D)
 
-**`artefacts/20260803_live_run_1713/`** — 4,614 `owsfz` cycles, confirmed in
+⛔ **SUPERSEDED 2026-09-11 by Amendment 1 §3 (`2026-09-11-1540-…-amendment-1-…md`): Part D's corpus
+is `FP-FLOOR-LIVE-2`, NOT the corpus below.** This note was added after Part D was once run on the
+old corpus by mistake (ruling `2026-09-11-1652-…-part-d-ruling.md`). The original text is kept for
+provenance:
+~~**`artefacts/20260803_live_run_1713/`** — 4,614 `owsfz` cycles, confirmed in~~
 `qa/ARTEFACT_INVENTORY.md:38`, which flags it **"D-001 replication corpus — DO NOT PROPOSE A
 CAPTURE RUN FOR D-001."** Both decoders on one verified audio path. **Sample 1000 cycles**,
 seeded.
@@ -165,9 +169,13 @@ recomputation (fact 7), and the leg differencing.
 ### 2.4 🔴 Three carried hazards — apply them, do not rediscover them
 
 1. **The +0.16 s waterfall-origin offset.** `ft8_extract_llrs_at` reads exactly one FT8 symbol
-   period ahead of raw-PCM time (B-orig-A, CONFIRMED 2026-08-21; F-NBR-A ROW 0c). Any
+   period ahead of raw-PCM time (B-orig-A, CONFIRMED 2026-08-21; F-NBR-A ROW 0c). ~~Any
    position-driven extraction in Part D **must** apply `dt + 0.16`, **uniformly**, never
-   selectively.
+   selectively.~~ ⛔ **CORRECTED 2026-09-11 (QA found it; Architect ruling `2026-09-11-1652-…` §2):
+   the `+0.16` converts a TRUE (encode-time) `dt` into the decoder-reported one. It applies to
+   synthetic truth positions (Parts A/B/C) only. Live `ALL.TXT` `dt` is ALREADY decoder-reported:
+   Part D extracts at the reported `dt` with NO offset (smoke test: 11/213 converged with the
+   offset, 193/213 without).**
 2. **Hash-randomised set iteration.** `set(a) & set(b)` over string keys iterates
    per-process-randomly, so a fixed seed still draws different indices. **Sort at
    construction**, everywhere a sample is drawn.
@@ -202,12 +210,12 @@ change a verdict is marked **DIAGNOSTIC** and must be reported, never gated on.
 
 | row | check | bar | consequence if it fails |
 |---|---|---|---|
-| **0a** | SHA256 of the DLL actually loaded by the probe process | `== bc8efcf148046f199c057b62c7987c4b69f2dc62d72509458a671305ab051d7f` | **VOID (all parts).** A different binary is a different instrument. |
+| **0a** | SHA256 of the DLL actually loaded by the probe process | ~~`== bc8efcf1…051d7f`~~ ⛔ **`== 6b2e16a6991ae953d18c85e5f0fea99d1e003c84b90ae5a69a8f1cfade34f85c` (shim `20260050`), per Amendment 1 §2** | **VOID (all parts).** A different binary is a different instrument. |
 | **0b** | `ft8_set_decode_params` takes effect: set `nhard=0`, re-run one fixture, confirm OSD-path accepts fall to zero; restore defaults and confirm the original count returns | exact: `n_osd_accepts(nhard=0) == 0` **and** `n_osd_accepts(restored) == n_osd_accepts(baseline)` | **VOID Part B.** If the setter is inert, the gate-off leg measures nothing. A/C/D unaffected. |
 | **0c** | Oracle labelling: on a clean high-SNR render (all stations ≥ +5 dB, no near neighbours), every emitted decode's payload is in truth | `n_false == 0` | **VOID Parts A/B.** False accepts at high SNR mean the render or the labeller is broken, not the decoder. |
 | **0d** | Determinism: two independent full runs, all result JSON **mechanically diffed** | byte-identical | **VOID (all parts).** Not asserted — diffed. |
-| **0e** | Part D probe fidelity: at live decode positions (with the +0.16 s correction), the probe reproduces production's own payload | `≥ 0.90` of a 200-decode control subset | **VOID Part D only.** Below this, `U` measures the probe, not the decoder. A/B/C unaffected. |
-| **0f** | Population reconciliation: derive ours-only, ours-total, and cycle counts on the Part D population; state the definition behind **56,202** and behind **64,417** | — | **DIAGNOSTIC.** Report it. It cannot change any row below and must not gate one. |
+| **0e** | Part D probe fidelity: at live decode positions ~~(with the +0.16 s correction)~~ ⛔ **(at the reported `dt` with NO offset, since live `dt` is already decoder-reported, and on the population re-defined by the Part D ruling §3, `2026-09-11-1652-…`)**, the probe reproduces production's own payload | `≥ 0.90` of a 200-decode control subset | **VOID Part D only.** Below this, `U` measures the probe, not the decoder. A/B/C unaffected. |
+| ~~**0f**~~ | ~~Population reconciliation … **56,202** … **64,417**~~ ⛔ **WITHDRAWN by Amendment 1 §2.2** (old corpus only) | — | — |
 
 ### 3.1 ⚠️ What ROW 0c cannot detect (HK-022 drafting question)
 
@@ -230,7 +238,8 @@ alike, never selectively. F-NBR-A's handling of ROW 0b/0c is the model.
 ### 4.1 Method
 
 Sample **1000 cycles** (seeded, sorted at construction) from the Part D population. For every
-OpenWSFZ decode in those cycles, extract LLRs at its reported `(freq, dt + 0.16)` via
+OpenWSFZ decode in those cycles, extract LLRs at its reported ~~`(freq, dt + 0.16)`~~ ⛔ **`(freq, dt)`,
+no offset (see §2.4 item 1's correction)** via
 `ft8_extract_llrs_at`, then call `ft8_ldpc_decode_llrs(max_iters=50, osd_depth=2)` and record
 `out_path`.
 
