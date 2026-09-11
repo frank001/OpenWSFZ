@@ -103,7 +103,21 @@ public sealed class CycleArchiveServiceTests : IDisposable
         var service = MakeService(CycleAudioArchiveMode.All);
         await service.StartAsync(CancellationToken.None);
 
-        var sameLabel = CycleAt(0);
+        // Pinned to hour 21 (in [20,23]), not CycleAt(0)/FixtureEpochUtc (which floats with real
+        // wall-clock time): the base filename's own literal underscore is immediately followed by
+        // the two-digit hour, so during hours 20-23 the unsuffixed stem already contains the
+        // substring "_2" (e.g. "260910_211745.wav" contains "_21"). That collided with a
+        // substring-based assertion below roughly 4 hours a day. CycleStart is a plain parameter
+        // with no clock dependency, so pinning the hour here is the only way to exercise that
+        // branch deterministically on every run rather than ~1-in-6 CI runs.
+        //
+        // Relative to DateTime.UtcNow, not an absolute calendar-date literal — same reasoning as
+        // FixtureEpochUtc's own derivation below (see its doc comment) and the exact anti-pattern
+        // FixtureCycleStamps_StayFarInsideTheDefaultAgeCap exists to catch
+        // (dev-tasks/2026-08-03-fix-time-bombed-cyclearchive-retention-sizecap-test.md): only the
+        // hour is pinned, the calendar date always floats to "yesterday".
+        // dev-tasks/2026-09-11-cyclearchiveservicetests-repeatedcyclelabel-hour-2x-timebomb.md
+        var sameLabel = DateTime.UtcNow.AddDays(-1).Date.AddHours(21).AddMinutes(17).AddSeconds(45);
         var pcmA = new float[FullWindowSamples];
         pcmA[0] = 0.5f;
         var pcmB = new float[FullWindowSamples];
@@ -116,9 +130,15 @@ public sealed class CycleArchiveServiceTests : IDisposable
 
         var files = Directory.GetFiles(_tempDir, "*.wav").Select(Path.GetFileName).ToList();
         files.Should().HaveCount(2);
-        files.Should().ContainSingle(f => f!.Contains("_2"),
+
+        // Exact-stem match, not an anywhere-substring check (the anywhere-substring check this
+        // replaced collided with the base filename's own "_HH" during hours 20-23 — see the
+        // comment on sameLabel above).
+        var expectedBase     = $"{sameLabel:yyMMdd_HHmmss}.wav";
+        var expectedSuffixed = $"{sameLabel:yyMMdd_HHmmss}_2.wav";
+        files.Should().ContainSingle(f => f == expectedSuffixed,
             "exactly one of the two colliding-label files must carry the collision suffix");
-        files.Should().ContainSingle(f => !f!.Contains("_2"),
+        files.Should().ContainSingle(f => f == expectedBase,
             "the other file must keep the unsuffixed base name — the first write is never renamed");
     }
 
