@@ -55,11 +55,17 @@ Recomputed independently from `artefacts/2026-09-11-osd-fa-a-part-d3/D3a.json` /
 **D1:** `CI_hi < 0.10`, about 5× inside the bar, with every precondition genuinely met.
 
 **Consequence (base §4.2 D1, unchanged):** OSD false accepts are **bounded out as an explanation of
-D-001** on live data. Junk arriving via the OSD path cannot exceed ~1.9% of live output. Parts A
+D-001** on live data. ~~Junk arriving via the OSD path cannot exceed ~1.9% of live output.~~ Parts A
 and B become characterisation of a minor path and may not be cited as explaining D-001.
 
-**What D1 means for the FP question, in the same breath:** Option B only touches OSD-path
-accepts, so **its reach is bounded by `U`**: at most ~1.9% of live output (CI upper bound).
+~~**What D1 means for the FP question, in the same breath:** Option B only touches OSD-path
+accepts, so **its reach is bounded by `U`**: at most ~1.9% of live output (CI upper bound).~~
+
+> ⛔ **STRUCK 2026-09-11 22:10Z (Architect), HK-026:** `U` counts only the decodes the probe could
+> classify, and it undercounts OSD. E3 measured Option B's live reach directly: **2.59%** [2.46, 2.72],
+> above this "ceiling". The OSD share is between ~2.6% (E3) and ~5.7% (worst case here). The D1
+> **row** and "bounded out of D-001" stand (both are under 10%). See
+> `2026-09-11-2210-architect-osd-fa-a-e3-acceptance.md` §4.
 
 **Prediction scoring:** suspended. My Part D prediction was de-blinded by the `…1918` ruling §4.
 

@@ -66,9 +66,12 @@ which one is used.** Never change settings while a decode is in flight.
 `nhard` 60 → 40 cuts slots with any false decode from 10.3% to 0.35% (399 of 413 events removed,
 0 added; p ≈ 1e-120)."*
 
-- 🛑 **Always pair it with D1 when speaking about live FP:** on noise, OSD accepts in the `nhard`
-  (40, 60] band account for ~97% of false-decode events. **On live audio, OSD-path decodes are ≤ ~1.9%
-  of output** (Part D, CI upper bound). Option B's live reach is bounded by that 1.9%, not by the 97%.
+- 🛑 **Always pair it with ~~D1~~ E3 when speaking about live FP:** on noise, OSD accepts in the `nhard`
+  (40, 60] band account for ~97% of false-decode events. ~~**On live audio, OSD-path decodes are ≤ ~1.9%
+  of output** (Part D, CI upper bound). Option B's live reach is bounded by that 1.9%, not by the 97%.~~
+  > ⛔ **STRUCK 2026-09-11 22:10Z (Architect):** "≤ 1.9%" was wrong (D1's `U` undercounts OSD,
+  > HK-026). **On live audio, Option B removes ~2.6% of output** (E3, measured), not 97%. See
+  > `2026-09-11-2210-architect-osd-fa-a-e3-acceptance.md` §4.
 - 🛑 **E1-1 alone licenses nothing.** Amendment 1 §5.4 clause 3 needs **E1-1 and E2-B1 and E3-N**.
   Clause 1 (E2-B2 or E3-H) is checked first and overrides.
 
