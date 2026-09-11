@@ -78,8 +78,9 @@ question `ROW 0r` asked**, on the same population.
 1. **Citation guard (g)** (`fp-regression-2026-09-04-citation-guards.md` §0.1). *"`ac6150d`'s
    'provably non-perturbing' claim stays contradicted"* and *"the decoder demonstrably changed"*
    rested entirely on `ROW 0r`. **Its basis is struck** in that file, where it lives.
-   🔴 **Guard (g) was PO-adopted on 2026-09-05, so retiring it needs the PO's ratification.** Until
-   then it reads "basis withdrawn, retirement pending PO".
+   🔴 **Guard (g) was PO-adopted on 2026-09-05, so retiring it needs the PO's ratification.**
+   ✅ **RATIFIED 2026-09-11 16:26Z. PO (verbatim): *"retire guard g"*. Guard (g) is RETIRED.**
+   Never cite it, `ROW 0r`'s "246", or "the `20260050` decoder changed".
 2. **A3.2's pre-registered VOIDs** (M1–M4 message text, ROW 0q, ROW 0m on `20260050`) followed
    from the false fire.
    - ROW 0q was already re-confirmed by QA on 2026-09-04.

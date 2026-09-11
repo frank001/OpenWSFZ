@@ -295,6 +295,12 @@ by that ruling's own terms "does not reach forward" to this arm, so it must be r
 not inherited. **E1, E2 and Parts A–D may run before ratification. E3's `k` may not be computed
 until `BAR_H` is recorded in this file.**
 
+> ✅ **PO RULING, 2026-09-11 16:26Z — `BAR_H = 0.05` RATIFIED.** PO (verbatim): *"5% ratified"*.
+> Recorded before any Part E datum exists: Part 0 has run, and no Part D/A/B/C/E leg has. It is
+> **FROZEN for this arm**, and does not reach forward or backward. 🛑 If anyone (the Captain, the
+> PO, me) proposes moving it after E3's `k` is known, refuse and escalate: that is the re-read
+> this programme bars, and it would VOID E3.
+
 ### 5.4 Part E consequence — strict order, first match wins
 
 1. **E2-B2 or E3-H** ⇒ **Option B is contraindicated as a default.** Record it with the per-hour
@@ -323,9 +329,9 @@ My last three predictions each missed in some respect (`FP-FLOOR-LIVE-2` Part B'
 
 | step | status |
 |---|---|
-| **Part 0** | ✅ **Cleared to run now** (Captain, 2026-09-11: "proceed with 1"). Standalone, three sequential legs over 4,000 WAVs. Report per HK-001, then stop. |
-| Base ROW 0 → D → A → B → C → E1 → E2 | ⏳ Takes `OSD-FA-A` off hold. **Needs the Captain's go.** Part 0's P0-R1 must have cleared before B and E2 (§1.3). |
-| **E3** | ⏳ Additionally needs **`BAR_H` ratified by the PO** and recorded here before `k` is computed. |
+| **Part 0** | ✅ **DONE and ACCEPTED**: P0-1 (`2026-09-11-1619-…-row0r-reclassified.md`). P0-R1 cleared. |
+| Base ROW 0 → D → A → B → C → E1 → E2 | ✅ **GO: Captain, 2026-09-11 16:26Z ("go ahead with OSD-FA-A"). `OSD-FA-A` is OFF HOLD.** Part 0's P0-R1 has cleared, so B and E2 are unblocked. Run in this order. Read ROW 0 first and Part D before A and B (base §10). |
+| **E3** | ✅ **GO: `BAR_H = 0.05` ratified and recorded in §5.3.** Runs after E1/E2. |
 
 ## 7. Unchanged
 
