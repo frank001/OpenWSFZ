@@ -103,15 +103,21 @@ public sealed class CycleArchiveServiceTests : IDisposable
         var service = MakeService(CycleAudioArchiveMode.All);
         await service.StartAsync(CancellationToken.None);
 
-        // Pinned to a fixed UTC stamp with hour 21 (in [20,23]), not CycleAt(0)/FixtureEpochUtc
-        // (real wall-clock time): the base filename's own literal underscore is immediately
-        // followed by the two-digit hour, so during hours 20-23 the unsuffixed stem already
-        // contains the substring "_2" (e.g. "260910_211745.wav" contains "_21"). That collided
-        // with a substring-based assertion below roughly 4 hours a day. CycleStart is a plain
-        // parameter with no clock dependency, so pinning it here is the only way to exercise that
+        // Pinned to hour 21 (in [20,23]), not CycleAt(0)/FixtureEpochUtc (which floats with real
+        // wall-clock time): the base filename's own literal underscore is immediately followed by
+        // the two-digit hour, so during hours 20-23 the unsuffixed stem already contains the
+        // substring "_2" (e.g. "260910_211745.wav" contains "_21"). That collided with a
+        // substring-based assertion below roughly 4 hours a day. CycleStart is a plain parameter
+        // with no clock dependency, so pinning the hour here is the only way to exercise that
         // branch deterministically on every run rather than ~1-in-6 CI runs.
+        //
+        // Relative to DateTime.UtcNow, not an absolute calendar-date literal — same reasoning as
+        // FixtureEpochUtc's own derivation below (see its doc comment) and the exact anti-pattern
+        // FixtureCycleStamps_StayFarInsideTheDefaultAgeCap exists to catch
+        // (dev-tasks/2026-08-03-fix-time-bombed-cyclearchive-retention-sizecap-test.md): only the
+        // hour is pinned, the calendar date always floats to "yesterday".
         // dev-tasks/2026-09-11-cyclearchiveservicetests-repeatedcyclelabel-hour-2x-timebomb.md
-        var sameLabel = new DateTime(2026, 9, 10, 21, 17, 45, DateTimeKind.Utc);
+        var sameLabel = DateTime.UtcNow.AddDays(-1).Date.AddHours(21).AddMinutes(17).AddSeconds(45);
         var pcmA = new float[FullWindowSamples];
         pcmA[0] = 0.5f;
         var pcmB = new float[FullWindowSamples];
