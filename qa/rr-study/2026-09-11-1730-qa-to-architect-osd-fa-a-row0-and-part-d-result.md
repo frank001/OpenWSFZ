@@ -1,4 +1,16 @@
-# `OSD-FA-A` ROW 0 + Part D — result: **D1 FIRES** (`U = 1.853%`, CI `[1.611%, 2.096%]`, ~8× inside the bar) — **ROW 0e REFUSED (HK-025)**, a genuine comparator defect found and diagnosed
+# `OSD-FA-A` ROW 0 + Part D — result on the WRONG CORPUS (⛔ see strike below): `U = 1.853%`, CI `[1.611%, 2.096%]` — ROW 0e refusal NOT UPHELD
+
+⛔ **STRUCK 2026-09-11, per the Architect's Part D ruling
+(`2026-09-11-1652-architect-osd-fa-a-part-d-ruling.md`, `arch/osd-fa-a` `4998b2a`): this run used
+the BASE spec's corpus (`artefacts/20260803_live_run_1713/`), not `FP-FLOOR-LIVE-2` — Amendment 1
+§3 replaced the corpus and the Captain's go message named it explicitly. Part D on the correct
+corpus is re-run in `qa/rr-study/2026-09-11-...-osd-fa-a-part-d2-result.md`. Additionally, the ROW
+0e refusal below is NOT UPHELD (ruling §3): ROW 0e changes the verdict (readable vs VOID), so it is
+not an HK-021(k) case, and the ruling's own recomputation from this run's own `D1.json` shows the
+margin argument does not bound the risk (`U` among fidelity-fail decodes `= 6.19%`, worst-case
+`18.16%`, above the 10% bar). The `+0.16s`-offset correction in §4 below IS accepted and carries
+forward unchanged. The numbers in §2 below stand only as a descriptive result on the wrong corpus —
+never as Part D, never as a bound on E3.**
 
 QA, 2026-09-11 17:30Z (`date -u`, HK-017). Spec: base
 `qa/rr-study/2026-08-23-2026-architect-to-qa-spec-osd-fa-a-osd-false-accept-audit.md` §3/§4, as
@@ -70,9 +82,11 @@ window the spec's own §4.3 resolution analysis flagged as genuinely undecidable
 why §3's refusal does not put the headline at risk: even a probe reliability materially worse than
 measured could not plausibly move `U` from `~2%` to anywhere near `10%`.
 
-**Consequence, per base §4.2:** the OSD mechanism for E2 is **bounded out** on this live population.
+~~**Consequence, per base §4.2:** the OSD mechanism for E2 is **bounded out** on this live population.
 Parts A/B, whenever run, characterise a minor path and **may not be cited as an explanation of
-D-001** — they become synthetic-only characterisation, per the spec's own D1 consequence.
+D-001** — they become synthetic-only characterisation, per the spec's own D1 consequence.~~ ⛔
+**STRUCK 2026-09-11, per the Part D ruling §1: wrong corpus, and ROW 0e's refusal is not upheld —
+no consequence may be drawn from this run. See the Part D2 re-run for the live result.**
 
 **Matches the Architect's blind prediction** (D1, `U ≈ 0.03–0.08`, moderate confidence) in row,
 though the measured point estimate sits below his named range.
