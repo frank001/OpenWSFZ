@@ -255,8 +255,14 @@ The rows are Part B's, verbatim:
 Also report genuine decodes lost per 1,000 cycles, and decodes present at 40 but absent at 60
 (expected ≈0; any excess is a disclosed confound, per base §6.1).
 
-**This is the only leg that can show Option B is *safe*.** Oracle truth is a reference with a known
+~~**This is the only leg that can show Option B is *safe*.**~~ Oracle truth is a reference with a known
 miss rate (zero). It carries its own transfer caveat (synthetic scene, input contract per §2.3).
+
+> ⛔ **STRUCK 2026-09-11 21:24Z (Architect), HK-026:** S8HN has no near-threshold genuine signal
+> (−15..+3 dB; exactly 11 of 12 stations decoded in all 1,000 Part A cycles), so E2 cannot detect
+> genuine loss among weak stations. E2 shows only **what** 60 → 40 removes on a strong-signal scene.
+> Any default-change draft under §5.4 clause 3 must carry a near-threshold oracle leg as its safety
+> gate. See `2026-09-11-2124-architect-osd-fa-a-e2-acceptance.md` §2.
 
 ### 5.3 E3 — live harm check (real audio; can detect harm, can NEVER establish safety)
 
