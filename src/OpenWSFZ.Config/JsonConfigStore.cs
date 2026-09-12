@@ -242,6 +242,37 @@ public sealed class JsonConfigStore : IConfigStore
                     config = config with { Tx = tx };
             }
 
+            // M2 migration (NHARD40-DEFAULT, 2026-09-12): a persisted exactly-60
+            // osdNhardMax becomes 40 once, with a marker (Nhard40MigrationApplied) that
+            // stops it re-applying after an operator deliberately sets 60 again. An
+            // absent "decoder" key, or a decoder object missing "osdNhardMax", already
+            // resolves to the new code default (40) via DecoderConfig's own
+            // [JsonConstructor] parameter default — nothing to migrate, no marker to set;
+            // the property pattern below only matches when config.Decoder is non-null.
+            if (config.Decoder is { OsdNhardMax: 60, Nhard40MigrationApplied: false })
+            {
+                config = config with
+                {
+                    Decoder = config.Decoder with
+                    {
+                        OsdNhardMax             = 40,
+                        Nhard40MigrationApplied = true,
+                    },
+                };
+                Console.Error.WriteLine(
+                    "[OpenWSFZ] osdNhardMax: migrated persisted default 60 -> 40 " +
+                    "(NHARD40-DEFAULT arm, 2026-09-12). Set decoder.osdNhardMax " +
+                    "explicitly to restore 60.");
+
+                // Written back immediately, unlike the legacy-rename guards above (which
+                // are idempotent and don't need to persist themselves every load): without
+                // a disk write, the marker never survives a restart and the "stops it
+                // re-applying after an operator deliberately sets 60 again" guarantee is
+                // not met. Same temp-file-then-rename crash-safety as an operator-triggered
+                // SaveAsync — see WriteAtomic's own remarks.
+                WriteAtomic(path, config);
+            }
+
             return config;
         }
         catch (Exception ex)
@@ -253,6 +284,47 @@ public sealed class JsonConfigStore : IConfigStore
                 $"[OpenWSFZ] WARNING: config file '{path}' could not be read ({ex.GetType().Name}: {ex.Message}). " +
                 "Using defaults — the file has NOT been overwritten.");
             return new AppConfig();
+        }
+    }
+
+    /// <summary>
+    /// Writes <paramref name="config"/> to <paramref name="path"/> atomically via
+    /// temp-file-then-rename — the same crash-safety discipline <see cref="SaveAsync"/>
+    /// uses for every other write to this file, factored out as a static helper so
+    /// <see cref="Load"/>'s own M2 migration write-back (which runs before the instance —
+    /// and its <see cref="_saveLock"/> — exists, at bootstrap, single-threaded, before any
+    /// concurrent caller is possible) is exactly as crash-safe as an operator-triggered
+    /// save.
+    /// </summary>
+    private static void WriteAtomic(string path, AppConfig config)
+    {
+        var dir = Path.GetDirectoryName(path)
+            ?? throw new InvalidOperationException($"Cannot determine directory for '{path}'.");
+
+        Directory.CreateDirectory(dir);
+
+        var tmp = Path.Combine(dir, Path.GetRandomFileName());
+        try
+        {
+            using (var stream = new FileStream(
+                tmp,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 4096,
+                useAsync: false))
+            {
+                JsonSerializer.Serialize(stream, config, ConfigJsonContext.Default.AppConfig);
+            }
+
+            File.Move(tmp, path, overwrite: true);
+        }
+        catch
+        {
+            // Clean up the temp file on failure; re-throw so the caller (Load(), at
+            // bootstrap) knows — matching SaveAsync's own failure handling.
+            try { File.Delete(tmp); } catch { /* best-effort */ }
+            throw;
         }
     }
 

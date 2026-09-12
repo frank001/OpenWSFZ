@@ -48,6 +48,16 @@ namespace OpenWSFZ.Ft8.Tests;
 /// (<c>src/OpenWSFZ.Ft8/AssemblyAttributes.cs:3</c>) — zero <c>src/</c>/<c>native/</c> diff, no
 /// Developer session needed for this file.
 /// </para>
+/// <para>
+/// <b>ROW 0o meaning change (<c>NHARD40-DEFAULT</c>, 2026-09-12, <c>dev-tasks/2026-09-12-
+/// nhard40-default-migration.md</c>):</b> ROW 0o now asserts parity against 40, not 60. It reads
+/// the config file directly via <see cref="ReadLiveEffectiveDecoderConfig"/>
+/// (<c>ConfigPathResolver.ResolvePath()</c>), bypassing <c>JsonConfigStore</c>'s migration
+/// entirely, so it will legitimately FIRE on any machine whose <c>config.json</c> still has an
+/// un-migrated explicit <c>osdNhardMax: 60</c> — that is not a test bug, it is ROW 0o doing its
+/// job. Re-run <c>pre_merge_check.py</c>'s own gate list is unaffected; this is a QA-owned
+/// measurement test, not a merge gate (HK-006).
+/// </para>
 /// </summary>
 [Trait("Category", "RequiresNativeBinary")]
 [Trait("Category", "AwgnFpReplay")]
@@ -116,8 +126,16 @@ public sealed class FpParityP3Tests
     }
 
     // ── ROW 0o — decode-param parity. No decode; compares config, not output. ─────────
+    //
+    // NHARD40-DEFAULT (2026-09-12): asserts parity against the new code default (40), not
+    // the retired 60. Reads the raw config file directly (ReadLiveEffectiveDecoderConfig),
+    // bypassing JsonConfigStore's migration, so it legitimately FIRES on any machine whose
+    // config.json still has an un-migrated explicit osdNhardMax: 60 — that is not a test
+    // bug, it is ROW 0o doing its job (see the class doc comment above for the full
+    // disclosure). Re-run pre_merge_check.py's own gate list is unaffected; this is a
+    // QA-owned measurement test, not a merge gate (HK-006).
 
-    [Fact(DisplayName = "ROW 0o: decode-param parity — offline seam configured identically to production's effective values")]
+    [Fact(DisplayName = "ROW 0o: decode-param parity — offline seam configured identically to production's effective values (nhard default 40, NHARD40-DEFAULT 2026-09-12)")]
     public void Row0o_DecodeParamParity()
     {
         var (k, corr, nhard, keyPresent) = ReadLiveEffectiveDecoderConfig(out string configPath);
@@ -136,8 +154,8 @@ public sealed class FpParityP3Tests
         _out.WriteLine($"ROW 0o: FIRES (any of the three differs) = {fires}");
         fires.Should().BeFalse(
             "ROW 0o FIRES -> every offline absolute rate this project holds is void until re-run " +
-            "at parity, including 10.875%, ROW 0s's baseline, and ROW 0n's. STOP; do not re-run " +
-            "first and report second.");
+            "at parity, including 10.875% (nhard=60, pre-NHARD40-DEFAULT), ROW 0s's baseline, and " +
+            "ROW 0n's. STOP; do not re-run first and report second.");
     }
 
     // ── ROW 0n + ROW 0n-C — the one paired, normalised re-decode. ───────────────────────
