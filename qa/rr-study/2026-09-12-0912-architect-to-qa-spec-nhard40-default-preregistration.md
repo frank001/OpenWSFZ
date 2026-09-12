@@ -254,6 +254,26 @@ only if near-threshold genuine loss is confidently under 5%.
 > It must be logged, and a marker must stop it re-applying after an operator deliberately sets 60.
 > The marker's name and shape are the dev-task's to specify (a new config field). §1.4's
 > `FpParityP3Tests` ROW 0o note applies in its M2 form: the live-effective value becomes 40.
+>
+> ✅ **PO RE-CONFIRMED M2, 2026-09-12 ~10:4xZ**, on the corrected basis (the settings page DOES
+> expose the setting; see the struck M2 row above).
+>
+> 🔴 **BINDING REQUIREMENT ADDED 2026-09-12 (Architect, HK-035): the marker must be SERVER-OWNED and
+> must survive a settings-page save.** `POST /api/v1/config` deserialises the body as the **whole**
+> new `AppConfig` (`WebApp.cs:349–372`, full replace, not a merge). The settings page sends only
+> `{kMinScorePass2, osdCorrThreshold, osdNhardMax}` (`web/js/settings.js:1328–1332`). A marker stored
+> in `DecoderConfig` and not carried forward would therefore be **reset to false by every settings
+> save**. An operator who sets 60 back on the settings page would then be **re-migrated to 40 on the
+> next restart**, breaking the exact guarantee the PO confirmed.
+>
+> ⇒ **The POST handler must carry the marker forward from the current config regardless of the
+> request body.** No client may clear it. **Required end-to-end test:**
+> 1. a migrated config (40, marker true);
+> 2. `POST /api/v1/config` with `decoder: {…, osdNhardMax: 60}` and no marker;
+> 3. the persisted file has 60 **and** marker true;
+> 4. reloading the store gives 60, not re-migrated.
+>
+> A marker test on a hand-edited file alone is insufficient.
 
 ---
 
