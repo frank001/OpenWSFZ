@@ -167,26 +167,49 @@ drift, Doppler, timing spread (E4) and any live corroborated-loss floor remain u
   `WebTestFactory` substitutes a genuinely **in-memory** `TestConfigStore` (`AudioConfigIntegrationTests.cs`
   — no file, no `JsonConfigStore` in the loop at all), so this suite cannot exercise "the persisted
   file has 60 and the marker" — that's what `JsonConfigStoreTests` items 1-2 above already cover, in
-  full, against real temp files. What this suite CAN and must cover, at the handler level: **a client
-  can never clear the marker by POSTing a body shaped like the real Settings-page payload.**
-  1. `POST` a `DecoderConfig` constructed directly (`kMinScorePass2:10, osdCorrThreshold:0.10f,
-     osdNhardMax:40, nhard40MigrationApplied:true`) via `client.PostAsJsonAsync(...,
-     AppJsonContext.Default.AppConfig)` — same technique 7.2a-l already use — to seed
-     `TestConfigStore.Current` as "already migrated." (Each test method must do this seeding step
-     itself, self-contained — `WebTestFactory` is `IClassFixture`-shared across the whole test class,
-     so relying on another test's leftover state is not safe and must not be done.)
-  2. `POST` again, this time with a **raw JSON body containing only the three keys the real
-     Settings-page JS actually sends** (`{"kMinScorePass2":10,"osdCorrThreshold":0.10,
-     "osdNhardMax":60}` — no `decoder` wrapper is wrong; check the exact `AppConfig`/`decoder` JSON
-     shape against `GetConfig_IncludesDecoderSection`'s own response first). Use raw
+  full, against real temp files. What this suite CAN and must cover, at the handler level: **a
+  client can neither clear nor set the marker by POSTing anything, in either direction — that is
+  the whole content of "server-owned."**
+  - 🔴 **Second correction, caught by the Architect reviewing this task's own first draft of this
+    test (do not reintroduce the mistake): do NOT seed the "already migrated" state via a POST.**
+    Under a *correctly*-fixed handler, a POST's own `decoder.nhard40MigrationApplied` value is
+    **always ignored** and overwritten with whatever `store.Current` already held — so a "seeding"
+    POST that sets the marker to `true` would, against correct code, silently produce `false`
+    (`store.Current` starts at the factory's default, marker `false`), and the test's own later
+    assertion would then fail even though the handler is right. A test built that way can only pass
+    against a **broken** handler that lets a client set the marker — exactly backwards from what a
+    regression test must do. **Seed by writing to the store directly, bypassing HTTP entirely:**
+    resolve `IConfigStore` from `_factory.Services` (`WebApplicationFactory<Program>.Services`) and
+    call `store.SaveAsync(new AppConfig() with { Decoder = new DecoderConfig(kMinScorePass2: 10,
+    osdCorrThreshold: 0.10f, osdNhardMax: 40, nhard40MigrationApplied: true) })` before the client
+    ever makes a request. This establishes "already migrated" as a fact the test controls directly,
+    not as something the handler is trusted to have accepted from a client (which is precisely the
+    thing under test, and must not also be the thing used to set up the test).
+  1. **Seed** `TestConfigStore.Current` directly (as above): `OsdNhardMax = 40`,
+     `Nhard40MigrationApplied = true`. (Each test method must do this itself, self-contained —
+     `WebTestFactory` is `IClassFixture`-shared across the whole test class, so relying on another
+     test's leftover state is not safe and must not be done.)
+  2. **POST**, with a **raw JSON body shaped exactly like the real Settings-page payload** — an
+     `AppConfig` whose `decoder` object carries only the three keys `settings.js` actually sends
+     (`{"decoder":{"kMinScorePass2":10,"osdCorrThreshold":0.10,"osdNhardMax":60}}`; check the exact
+     top-level shape against `GetConfig_IncludesDecoderSection`'s own response first). Use raw
      `StringContent`/`PostAsync`, not the typed `DecoderConfig`-object helper, so the marker key is
      genuinely **absent** from the wire payload, matching the real client exactly — constructing a
      full C# `DecoderConfig` and serialising it would always include every field and silently fail to
      reproduce the defect this test exists to catch.
   3. Assert the response's `Decoder.OsdNhardMax == 60` **and** `Decoder.Nhard40MigrationApplied ==
-     true` — proving the handler carried the marker forward rather than letting the partial body
-     reset it. This is the one assertion that fails on the unfixed handler and passes once §1.3's
-     server-owned-marker fix lands; write it first, watch it fail against the old handler, then fix.
+     true` — proving the handler carried the marker forward from the seeded store state rather than
+     letting the partial body reset it. This is the one assertion that fails on the unfixed handler
+     and passes once §1.3's server-owned-marker fix lands; write it first, watch it fail against the
+     old handler, then fix.
+  4. **Mirror assertion, the other half of "server-owned" (required — proves a client can't SET the
+     marker either, not just that it can't clear it):** a **fresh** test method, store seeded (or left
+     at the factory's own default) with `Nhard40MigrationApplied = false`; POST a body whose
+     `decoder` object explicitly includes `"nhard40MigrationApplied": true` (a client attempting to
+     set it directly — construct this one via the typed `DecoderConfig` object, since here the point
+     is that the marker key *is* present on the wire). Assert the resulting
+     `Decoder.Nhard40MigrationApplied` is still `false` — a client cannot turn the marker on any
+     more than it can turn it off.
 - **`FpParityP3Tests.cs` ROW 0o** (`tests/OpenWSFZ.Ft8.Tests/FpParityP3Tests.cs:118-141`): **this
   row's meaning changes and must say so explicitly in its own doc comment and `DisplayName`.**
   `ReadLiveEffectiveDecoderConfig` (`:258-276`) reads the **raw file** at
@@ -281,7 +304,8 @@ Three normative-spec files and one front-end file currently assert or default to
    `DecoderConfig` (§1.3), atomic write-back included.
 3. The `POST /api/v1/config` server-owned-marker fix (§1.3's blocking-defect correction).
 4. All test additions/changes in §2, passing: 3 `DecoderConfigTests` value updates, 4
-   `JsonConfigStoreTests` migration cases, 1 new `DecoderConfigApiTests` marker-preservation test,
+   `JsonConfigStoreTests` migration cases, 2 new `DecoderConfigApiTests` marker-preservation tests
+   (carried-forward + can't-be-set-directly),
    and the `FpParityP3Tests` ROW 0o doc-comment update.
 5. All spec-doc and `settings.js` edits in §3.
 6. A short PR description stating, verbatim, the citation guard from §0, and confirming (per §4
