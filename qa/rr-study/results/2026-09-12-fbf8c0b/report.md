@@ -9,27 +9,47 @@
 ## Section 1 — Study hypothesis
 
 **Purpose of this run.** Routine S1–S8 R&R battery (`--scenarios S1,S1b,S2,S3,S4,S5,S7,S8`)
-against `fbf8c0b5` (`origin/main`), the merge of PR #161 (`NHARD40-DEFAULT`: `osdNhardMax`
-default 60→40, PO-ratified `BAR_S = 0.05`, 2026-09-12), PR #162 (the M2 migration fix — the
-`Nhard40MigrationApplied` marker made server-owned) and PR #163 (the NFR-021 clobber-guard
-dev-task). This is the **standard post-merge regression net**, not a re-litigation of the
-`NHARD40-DEFAULT` licensing decision itself — that question was already answered earlier the
-same day by the dedicated near-threshold (`NT`) and co-channel (`CC`) legs, separately
-Architect-accepted (`NT-S1` 09:56Z, `CC-S1` 10:29Z, branch `nhard40-default-nt-result`). This
-run's job is to confirm the merged change did not disturb the broader S1–S8 series that every
-other change is checked against.
+against `fbf8c0b5` (`origin/main`), the merge of PR #161 (`NHARD40-DEFAULT`: the Architect's
+spec/ruling documents for the `osdNhardMax` 60→40 licensing question, PO-ratified `BAR_S = 0.05`,
+2026-09-12), PR #162 (the M2 migration dev-task document) and PR #163 (the NFR-021 clobber-guard
+dev-task document). **CORRECTED 2026-09-12, same day (HK-022, Architect-caught, Captain-directed)
+— struck and replaced in place: all three PRs are documents only** (`gh pr view --json files`
+confirms #161 = 4 `.md` spec/ruling files, #162 = one dev-task `.md`, #163 = one dev-task `.md`);
+`fbf8c0b5` carries **neither** the `osdNhardMax` code default change **nor** the M2 migration
+code — see the next paragraph for what actually put this sweep at nhard 40. This is the
+**standard post-merge regression net**, not a re-litigation of the `NHARD40-DEFAULT` licensing
+decision itself — that question was already answered earlier the same day by the dedicated
+near-threshold (`NT`) and co-channel (`CC`) legs, separately Architect-accepted (`NT-S1` 09:56Z,
+`CC-S1` 10:29Z, branch `nhard40-default-nt-result`). This run's job is to confirm the merged
+documents' ratified decision did not disturb the broader S1–S8 series that every other change is
+checked against.
 
-**What makes this run structurally different from every predecessor.** Two firsts: (1) the
-first full S1–S8 sweep run against a build whose **persisted config** carries `osdNhardMax: 40`
-(via the M2 migration, applied fresh — not merely a code default; the standing board note that
-"every `config.json` persists `osdNhardMax: 60`" does not apply to this run's config); (2) the
-first full sweep since **R&R-011** (2026-09-08) superseded the per-sweep S5 Gate A reading as
-the ratified gate — Gate A-W/Gate A-Δ (a trailing-window design) now carry that role, and the
-per-sweep reading is INFO only (see the S5 section below and Section 6 footnote 7).
+**What makes this run structurally different from every predecessor, and why it ran at nhard 40.**
+Two firsts: (1) the first full S1–S8 sweep run against a build whose **persisted config** carries
+`osdNhardMax: 40`; (2) the first full sweep since **R&R-011** (2026-09-08) superseded the
+per-sweep S5 Gate A reading as the ratified gate — Gate A-W/Gate A-Δ (a trailing-window design)
+now carry that role, and the per-sweep reading is INFO only (see the S5 section below and Section
+6 footnote 7). **CORRECTED 2026-09-12, same day (HK-022) — struck and replaced in place:** point
+(1) previously read "via the M2 migration, applied fresh — not merely a code default," implying
+`fbf8c0b5` itself carried the migration. It did not (see above). The persisted 40 came from the
+machine's shared operator config (`%APPDATA%\OpenWSFZ\config.json`: `osdNhardMax: 40`,
+`nhard40MigrationApplied: true`, mtime `2026-09-12T11:52:18Z`) — the `nhard40MigrationApplied`
+marker exists only in the Developer's **unmerged, unpushed** `f91b9b8f`
+(`dev/nhard40-default-migration`, committed `11:43:57Z`; confirmed present on no remote branch). A
+daemon built from that branch ran the M2 migration against the shared config roughly nine minutes
+after that commit; the `fbf8c0b5` daemon that ran this sweep then simply loaded the
+already-migrated value. Who ran that Developer build: unknown, not chased, no blame. The standing
+board note that "every `config.json` persists `osdNhardMax: 60`" does not apply to this machine's
+config as of this run — but that is a fact about this machine's persisted config, not about what
+`fbf8c0b5` merged. **The sweep's data stands as a valid "decoder at nhard 40" reading regardless**
+— the value reaches the native decoder the same way whether it arrived via a merged code default
+or a persisted config; only this section's original provenance narrative was wrong.
 
 **Null hypotheses in scope.**
 - H0(regression net): none of S1/S2/S3/S4/S7/S8's headline metrics move outside the historical
-  PASS band established in Section 6, in a way attributable to the 60→40 default change.
+  PASS band established in Section 6, in a way attributable to this sweep running at nhard 40
+  (**CORRECTED 2026-09-12, HK-022**: via a persisted operator config, not a code default in
+  `fbf8c0b5` itself — see Section 1).
 - H0(Gate A-W): OpenWSFZ's per-slot AWGN FP rate on the current ≥480-slot trailing window stays
   ≤6% (95% UB).
 - H0(Gate A-Δ): this sweep's FP rate is not a step-change vs. the rest of that window (Fisher
@@ -362,7 +382,8 @@ _Every appraiser decode whose message text + frequency matches no injected truth
 - ✅ **`NHARD40-DEFAULT` shows no OpenWSFZ-only signal in this general-purpose sweep.** The cell
   where this would show most directly, S1b's low-SNR ladder, is **unchanged**: OpenWSFZ has read
   0/3 at P1 (−21 dB) in every routine sweep on record (`3b52608`, `35378b9`, `4c7d5ad`,
-  `4cc1984`, and now `fbf8c0b5`) — the 60→40 default moved this cell in neither direction. The
+  `4cc1984`, and now `fbf8c0b5`) — nhard 40 (**CORRECTED 2026-09-12, HK-022**: via config in this
+  run, not a code default in `fbf8c0b5` — see Section 1) moved this cell in neither direction. The
   dedicated `NT`/`CC` legs remain the authority on the licensing question (Section 1); this
   sweep only confirms no collateral movement in the general-purpose battery.
 - ℹ️ **S7 "all" family moved on both appraisers, in opposite directions**, vs. the immediately
@@ -404,28 +425,36 @@ computed, else the plain event/decode rate for older entries — see the caveat 
 onward the ratified gate is Gate A-W/Gate A-Δ, not this per-sweep figure (footnote 7). S7/S8 are the
 "all"/overall decode-recovery percentages. **S4/κ is not a column in this table but is affected by
 a defect found and fixed 2026-09-12 across every sweep from `3bd4cd0` onward — see footnote ⁸.**
+**Final column added 2026-09-12, same day, Captain-requested:** OpenWSFZ's pooled S7+S8 matched-decode
+count as a percentage of WSJT-X's own matched-decode count over the same two stages — i.e. WSJT-X's
+count used as the reference/"oracle" denominator (the Captain's framing; not a claim that WSJT-X is
+ground truth). False positives are excluded by construction, not by a separate filter: both S7
+"recovery" and S8 "decode rate" are already `matched/injected` counts computed after dropping
+`false_positive == True` rows (`harness/analyse.py` `_analyse_compounding`/`_analyse_band_scene`), so
+this is a genuine TP-vs-TP comparison. See footnote ¹⁰ for the derivation (including the two rows with
+no S8) and its verification.
 
-| Date | SHA | S1 %GR&R | S2 %GR&R | S3 %GR&R | S5 FP (WSJT-X / OpenWSFZ) | S7 recovery (WSJT-X / OpenWSFZ) | S8 decode rate (WSJT-X / OpenWSFZ) |
-|---|---|---|---|---|---|---|---|
-| 2026-06-06 | `4c34ef6` | 32.0% **FAIL** | 0.0% | 3.8% | 0.0% / 0.0% | 78.5% / 47.3% | — |
-| 2026-06-06 | `6bab388` | 6.5% | 0.0% | 3.9% | 0.0% / 0.0% | 77.4% / 46.2% | — |
-| 2026-06-07 | `4b3a4ca` | 1.4% | 0.0% | 3.4% | 0.0% / 0.0% | 76.3% / 54.8% | 95.0% / 86.7% |
-| 2026-06-14 | `815b652` | 0.3% | 0.0% | 3.0% | 0.0% / 0.0% | 77.4% / 50.5% | 95.0% / 83.3% |
-| 2026-06-20 | `6e821fa` | 0.4% | 0.0% | 3.0% | 0.0% / **91.7% FAIL**¹ | 92.6% / 70.2% | 93.3% / 86.7% |
-| 2026-06-22 | `f11f438` | 0.4% | 0.0% | 3.1% | 0.0% / 0.0% | 93.9% / 74.4% | 93.3% / 86.7% |
-| 2026-07-04 | `793a298` | 0.5% | 0.0% | 3.4% | 0.0% / 0.0% | 96.3% / 73.0% | 93.3% / 86.7% |
-| 2026-08-05 | `3bd4cd0` | 7.2% | 0.0% | 3.6% | 0.0% / 0.0% | 96.3% / 70.2% | 93.3% / 83.3% |
-| 2026-08-15 | `8d6e1b1` | 0.5% | 0.0% | 1.4% | 0.0% / 0.8% | 95.3% / 74.4% | 93.3% / 86.7% |
-| 2026-08-21 | `7d36038` | 0.3% | 0.0% | 0.4% | 0.0% / 0.8% | 95.3% / 68.4% | 96.7% / 83.3% |
-| 2026-08-22 | `f5dec23` | 0.4% | 0.0% | 0.4% | 0.0% / **3.3% FAIL**² | 98.1% / 79.5% | 91.7% / 91.7% |
-| 2026-08-27 | `22b749c` | 0.3% | 0.0% | 0.4% | 0.0% / 0.0% | 97.7% / 78.6% | 96.7% / 91.7% |
-| 2026-08-29 | `872ba65` | 0.25% | 0.0% | 18.65%³ | 0.0% / **7.66% FAIL** | 93.0% / 74.0% | 96.7% / 91.7% |
-| 2026-08-30/31 | `2e60949` | 0.27% | 0.0% | 0.44% | 0.0% / 5.15%⁴ | 98.1% / 82.8%⁵ | 91.7% / 91.7% |
-| 2026-09-02 | `3b52608` | 0.22% | 0.0% | 0.55% | 0.0% / **14.61% FAIL** | 94.4% / 83.7% | 100.0% / 91.7% |
-| 2026-09-03 | `35378b9` | 0.21% | 0.0% | 0.55% | 0.0% / 10.12% FAIL | 96.3% / 81.4% | 95.0% / 91.7% |
-| 2026-09-06 | `4c7d5ad` | 0.24% | 0.00% | 0.40% | 0.0% / 12.42% FAIL⁹ | 98.14% / 79.07% | 100.00% / 88.33% |
-| 2026-09-07 | `4cc1984` | 0.20% | 0.0% | 0.59% | 0.0% / 6.33% FAIL⁶ | 99.07% / 79.07% | 91.67% / 91.67% |
-| **2026-09-12** | **`fbf8c0b5`** | **0.37%** | **0.0%** | **0.35%** | **0.0% / 0.0%⁷** | **87.44% / 82.79%** | **93.33% / 91.67%** |
+| Date | SHA | S1 %GR&R | S2 %GR&R | S3 %GR&R | S5 FP (WSJT-X / OpenWSFZ) | S7 recovery (WSJT-X / OpenWSFZ) | S8 decode rate (WSJT-X / OpenWSFZ) | OpenWSFZ, % of WSJT-X (S7+S8 pooled, excl. FP)¹⁰ |
+|---|---|---|---|---|---|---|---|---|
+| 2026-06-06 | `4c34ef6` | 32.0% **FAIL** | 0.0% | 3.8% | 0.0% / 0.0% | 78.5% / 47.3% | — | 60.27%¹¹ |
+| 2026-06-06 | `6bab388` | 6.5% | 0.0% | 3.9% | 0.0% / 0.0% | 77.4% / 46.2% | — | 59.72%¹¹ |
+| 2026-06-07 | `4b3a4ca` | 1.4% | 0.0% | 3.4% | 0.0% / 0.0% | 76.3% / 54.8% | 95.0% / 86.7% | 80.47% |
+| 2026-06-14 | `815b652` | 0.3% | 0.0% | 3.0% | 0.0% / 0.0% | 77.4% / 50.5% | 95.0% / 83.3% | 75.19% |
+| 2026-06-20 | `6e821fa` | 0.4% | 0.0% | 3.0% | 0.0% / **91.7% FAIL**¹ | 92.6% / 70.2% | 93.3% / 86.7% | 79.61% |
+| 2026-06-22 | `f11f438` | 0.4% | 0.0% | 3.1% | 0.0% / 0.0% | 94.0% / 74.4% | 93.3% / 86.7% | 82.17% |
+| 2026-07-04 | `793a298` | 0.5% | 0.0% | 3.4% | 0.0% / 0.0% | 96.3% / 73.0% | 93.3% / 86.7% | 79.47% |
+| 2026-08-05 | `3bd4cd0` | 7.2% | 0.0% | 3.6% | 0.0% / 0.0% | 96.3% / 70.2% | 93.3% / 83.3% | 76.43% |
+| 2026-08-15 | `8d6e1b1` | 0.5% | 0.0% | 1.4% | 0.0% / 0.8% | 95.3% / 74.4% | 93.3% / 86.7% | 81.23% |
+| 2026-08-21 | `7d36038` | 0.3% | 0.0% | 0.4% | 0.0% / 0.8% | 95.3% / 68.4% | 96.7% / 83.3% | 74.90% |
+| 2026-08-22 | `f5dec23` | 0.4% | 0.0% | 0.4% | 0.0% / **3.3% FAIL**² | 98.1% / 79.5% | 91.7% / 91.7% | 84.96% |
+| 2026-08-27 | `22b749c` | 0.3% | 0.0% | 0.4% | 0.0% / 0.0% | 97.7% / 78.6% | 96.7% / 91.7% | 83.58% |
+| 2026-08-29 | `872ba65` | 0.25% | 0.0% | 18.65%³ | 0.0% / **7.66% FAIL** | 93.0% / 74.0% | 96.7% / 91.7% | 82.95% |
+| 2026-08-30/31 | `2e60949` | 0.27% | 0.0% | 0.44% | 0.0% / 5.15%⁴ | 98.1% / 82.8%⁵ | 91.7% / 91.7% | 87.59% |
+| 2026-09-02 | `3b52608` | 0.22% | 0.0% | 0.55% | 0.0% / **14.61% FAIL** | 94.4% / 83.7% | 100.0% / 91.7% | 89.35% |
+| 2026-09-03 | `35378b9` | 0.21% | 0.0% | 0.55% | 0.0% / 10.12% FAIL | 96.3% / 81.4% | 95.0% / 91.7% | 87.12% |
+| 2026-09-06 | `4c7d5ad` | 0.24% | 0.00% | 0.40% | 0.0% / 12.42% FAIL⁹ | 98.14% / 79.07% | 100.00% / 88.33% | 82.29% |
+| 2026-09-07 | `4cc1984` | 0.20% | 0.0% | 0.59% | 0.0% / 6.33% FAIL⁶ | 99.07% / 79.07% | 91.67% / 91.67% | 83.96% |
+| **2026-09-12** | **`fbf8c0b5`** | **0.37%** | **0.0%** | **0.35%** | **0.0% / 0.0%⁷** | **87.44% / 82.79%** | **93.33% / 91.67%** | **95.49%** |
 
 ¹ Plain decode-rate era (pre R&R-004 ratified UB gate); not the same metric as later rows, fixed
 under D-009. Not comparable to the UB figures below it.
@@ -488,6 +517,38 @@ than silently rewritten — this footnote is the correction pointer a reader of 
 find. Whether the corrected κ changes the §10 attribute gate's pending ratification is the
 Captain's call.
 
+¹⁰ **New column, added 2026-09-12, same day, Captain-requested.** Value = pooled(OpenWSFZ S7+S8
+matched decodes) ÷ pooled(WSJT-X S7+S8 matched decodes) × 100. **CORRECTED 2026-09-12, same day
+(HK-022, Architect-caught, Captain-directed) — struck and replaced in place, twice now (see
+below).** This footnote originally stated that eleven rows' raw `S7_matched.csv`/`S8_matched.csv`
+were "no longer on disk" and their counts were therefore derived: S8's own report.md integers plus
+S7's fixed per-era N (93 through `815b652`, 215 from `6e821fa` onward), checked to reproduce the
+published percentage to 2dp. **The "no longer on disk" claim was false** — the files for all
+eleven (`6e821fa`, `f11f438`, `793a298`, `8d6e1b1`, `7d36038`, `f5dec23`, `22b749c`, `872ba65`,
+`2e60949`, `3b52608`, `35378b9`) are on disk, gitignored, in the Architect worktree's root
+(`D:\Projects\claude\OpenWSFZ\qa\rr-study\results\`) — simply not copied into the QA worktree at
+the 2026-09-06 worktree split (gitignored data does not travel with a worktree split; standing
+note). **The derivation itself, however, did genuinely occur and was the right method at the
+time**: the raw files were not present in the QA worktree when this column was first computed, so
+deriving from the published S8 integers and S7's fixed N — not "no derivation occurred, or was
+needed" as this footnote wrongly said in its first correction pass — was both necessary and
+correct. All eleven derived values have since been independently confirmed exact to 2dp against
+the raw CSVs (found in the Architect worktree root). `2e60949`'s S7 half uses its own 2026-08-31
+targeted re-run report (footnote 5), consistent with the S7 cell already in this table. **A
+second, unrelated pre-existing slip surfaced during this re-verification:** the `f11f438` row's
+WSJT-X S7 cell (table above) read "93.9%"; the source report
+(`2026-06-22-f11f438/report.md:200`) gives 93.95% = 202/215, which is 94.0% at this table's 1dp — no
+integer out of 215 rounds to 93.9%. Corrected in the table above; this slip predates this column and
+this run, and does not affect this footnote's own ratio (computed from the raw integer count, 202,
+not the table's rounded display value). **This is an INFO reading only — no threshold, no gate, no
+HK-021 pre-registration; it restates the existing S7/S8 recovery figures as one ratio, nothing new is
+measured.** Treat pre-/post- scenario-size change rows (see footnote ¹¹) and the S1/S3-redesign-era
+rows as directional only, per this table's own general caveat below.
+
+¹¹ `4c34ef6` and `6bab388` (2026-06-06) predate S8's introduction to the battery — this scenario
+version had no S8 section at all (see the "—" in that column). Their ¹⁰ figure is S7-only, pooling
+nothing; not comparable cell-for-cell to every row below it, which pools S7+S8.
+
 **Reading it:** nineteen full sweeps now (**CORRECTED 2026-09-12, HK-022 — was "eighteen"; see
 footnote ⁹**). This is the **second AWGN-clean OpenWSFZ reading (0/120)**
 in the post-R&R-009 (N=60-restricted) era — the other being the inaugural `22b749c` sweep
@@ -498,9 +559,18 @@ both PASS, though the window remains FRAGILE per leave-one-out (unchanged caveat
 GR&R figures sit comfortably inside their established PASS bands (S1's 0.37% is toward the upper
 end of the recent 0.20–0.34% run-to-run range but nowhere near the ≤10% AIAG threshold). S7/S8
 decode-recovery figures move within the historical envelope — see Section 5 for the S7
-instrument-suspect flag on this run's P2 movement. **No signal attributable to the
-`NHARD40-DEFAULT` 60→40 change was found in this general-purpose battery** — the dedicated `NT`/`CC`
-legs remain the authority on that question (Section 1).
+instrument-suspect flag on this run's P2 movement. This run's new pooled-ratio column (¹⁰) reads
+**95.49%, the series high** — driven mainly by WSJT-X's own S7 recovery dropping to 87.44% (**the
+N=215-era low for that appraiser, not the series low**: every prior sweep from `6e821fa` onward,
+when S7 moved to its current 215-message design (N=215, not a part count), sat ≥92.6%, but the
+earlier N=93-era sweeps ran
+76.3–78.5%, below this run's reading), not by an OpenWSFZ improvement (82.79%, **within its recent
+range**: O S7 170–180 of 215 since `2e60949`) — so read this series-high figure through the same S7
+instrument-suspect flag, not as a narrowing of the gap. **No signal attributable to running at
+nhard 40 was found in this general-purpose battery** (**CORRECTED 2026-09-12, HK-022**:
+`fbf8c0b5` carries neither the `osdNhardMax` code default change nor the M2 migration — the 40
+came from a persisted operator config, see Section 1) — the dedicated `NT`/`CC` legs remain the
+authority on that question (Section 1).
 
 *Caveat, kept brief (carried forward unchanged, R&R-011 appended): S1/S3 were redesigned 2026-06-06
 (R&R-005/R&R-003); the S5 metric moved from plain decode-rate to a gated Clopper–Pearson event rate
