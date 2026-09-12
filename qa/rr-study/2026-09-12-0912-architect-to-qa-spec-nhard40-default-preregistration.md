@@ -85,8 +85,12 @@ re-registered on the new binary.
    Option B's HOLD becomes CLOSED as a default change. The operator setting stays available.
 2. **`NT-S3`** ⇒ **unresolved.** Nothing changes. Report every figure. Any follow-up is a new
    proposal.
-3. **`NT-S1`** ⇒ **the Architect asks QA to author the dev-task per §1**, carrying the PO's Q2 answer.
-   A Developer session implements it (HK-011). Merge still needs the Captain's sign-off (HK-010).
+3. ~~**`NT-S1`** ⇒ **the Architect asks QA to author the dev-task per §1**, carrying the PO's Q2 answer.
+   A Developer session implements it (HK-011). Merge still needs the Captain's sign-off (HK-010).~~
+
+> ⛔ **AMENDED 2026-09-12 10:00Z (PO decision, after `NT-S1`, before any `CC` datum):** item 3 now
+> requires **`NT-S1` and `CC-S1`**. A co-channel oracle gate G4 is added. `NT`'s row is unchanged.
+> See `2026-09-12-1000-architect-to-qa-nhard40-default-amendment-1-cc-leg.md` §1.
 
 ---
 
