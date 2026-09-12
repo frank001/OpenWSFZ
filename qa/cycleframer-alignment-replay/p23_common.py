@@ -46,7 +46,13 @@ BUFFER_SAMPLES = 180_000          # 15 s @ 12 kHz
 SAMPLE_RATE = 12_000.0
 PROD_TARGET_RMS = 0.20            # Ft8Decoder.cs:52
 SILENCE_RMS_THRESHOLD = 1e-6      # Ft8Decoder.cs:51
-DECODE_PARAMS = (10, 0.10, 60)    # kMinScorePass2, osdCorrThreshold, osdNhardMax
+DECODE_PARAMS = (10, 0.10, 60)    # kMinScorePass2, osdCorrThreshold, osdNhardMax -- PRE-CHANGE
+                                   # DEFAULTS (osdNhardMax=60). NHARD40-DEFAULT arm, 2026-09-12
+                                   # (dev-tasks/2026-09-12-nhard40-default-migration.md): the
+                                   # code default is moving to 40. This harness constant is
+                                   # NOT changed here -- p23's own offline rates were measured
+                                   # at 60 and stay pinned to it; a future re-measurement at 40
+                                   # is a separate, explicit decision, not a silent constant edit.
 MAX_RESULTS = 200
 
 REF_EXPECTED = 69222
