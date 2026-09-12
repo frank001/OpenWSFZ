@@ -404,28 +404,36 @@ computed, else the plain event/decode rate for older entries — see the caveat 
 onward the ratified gate is Gate A-W/Gate A-Δ, not this per-sweep figure (footnote 7). S7/S8 are the
 "all"/overall decode-recovery percentages. **S4/κ is not a column in this table but is affected by
 a defect found and fixed 2026-09-12 across every sweep from `3bd4cd0` onward — see footnote ⁸.**
+**Final column added 2026-09-12, same day, Captain-requested:** OpenWSFZ's pooled S7+S8 matched-decode
+count as a percentage of WSJT-X's own matched-decode count over the same two stages — i.e. WSJT-X's
+count used as the reference/"oracle" denominator (the Captain's framing; not a claim that WSJT-X is
+ground truth). False positives are excluded by construction, not by a separate filter: both S7
+"recovery" and S8 "decode rate" are already `matched/injected` counts computed after dropping
+`false_positive == True` rows (`harness/analyse.py` `_analyse_compounding`/`_analyse_band_scene`), so
+this is a genuine TP-vs-TP comparison. See footnote ¹⁰ for the derivation (including the two rows with
+no S8) and its verification.
 
-| Date | SHA | S1 %GR&R | S2 %GR&R | S3 %GR&R | S5 FP (WSJT-X / OpenWSFZ) | S7 recovery (WSJT-X / OpenWSFZ) | S8 decode rate (WSJT-X / OpenWSFZ) |
-|---|---|---|---|---|---|---|---|
-| 2026-06-06 | `4c34ef6` | 32.0% **FAIL** | 0.0% | 3.8% | 0.0% / 0.0% | 78.5% / 47.3% | — |
-| 2026-06-06 | `6bab388` | 6.5% | 0.0% | 3.9% | 0.0% / 0.0% | 77.4% / 46.2% | — |
-| 2026-06-07 | `4b3a4ca` | 1.4% | 0.0% | 3.4% | 0.0% / 0.0% | 76.3% / 54.8% | 95.0% / 86.7% |
-| 2026-06-14 | `815b652` | 0.3% | 0.0% | 3.0% | 0.0% / 0.0% | 77.4% / 50.5% | 95.0% / 83.3% |
-| 2026-06-20 | `6e821fa` | 0.4% | 0.0% | 3.0% | 0.0% / **91.7% FAIL**¹ | 92.6% / 70.2% | 93.3% / 86.7% |
-| 2026-06-22 | `f11f438` | 0.4% | 0.0% | 3.1% | 0.0% / 0.0% | 93.9% / 74.4% | 93.3% / 86.7% |
-| 2026-07-04 | `793a298` | 0.5% | 0.0% | 3.4% | 0.0% / 0.0% | 96.3% / 73.0% | 93.3% / 86.7% |
-| 2026-08-05 | `3bd4cd0` | 7.2% | 0.0% | 3.6% | 0.0% / 0.0% | 96.3% / 70.2% | 93.3% / 83.3% |
-| 2026-08-15 | `8d6e1b1` | 0.5% | 0.0% | 1.4% | 0.0% / 0.8% | 95.3% / 74.4% | 93.3% / 86.7% |
-| 2026-08-21 | `7d36038` | 0.3% | 0.0% | 0.4% | 0.0% / 0.8% | 95.3% / 68.4% | 96.7% / 83.3% |
-| 2026-08-22 | `f5dec23` | 0.4% | 0.0% | 0.4% | 0.0% / **3.3% FAIL**² | 98.1% / 79.5% | 91.7% / 91.7% |
-| 2026-08-27 | `22b749c` | 0.3% | 0.0% | 0.4% | 0.0% / 0.0% | 97.7% / 78.6% | 96.7% / 91.7% |
-| 2026-08-29 | `872ba65` | 0.25% | 0.0% | 18.65%³ | 0.0% / **7.66% FAIL** | 93.0% / 74.0% | 96.7% / 91.7% |
-| 2026-08-30/31 | `2e60949` | 0.27% | 0.0% | 0.44% | 0.0% / 5.15%⁴ | 98.1% / 82.8%⁵ | 91.7% / 91.7% |
-| 2026-09-02 | `3b52608` | 0.22% | 0.0% | 0.55% | 0.0% / **14.61% FAIL** | 94.4% / 83.7% | 100.0% / 91.7% |
-| 2026-09-03 | `35378b9` | 0.21% | 0.0% | 0.55% | 0.0% / 10.12% FAIL | 96.3% / 81.4% | 95.0% / 91.7% |
-| 2026-09-06 | `4c7d5ad` | 0.24% | 0.00% | 0.40% | 0.0% / 12.42% FAIL⁹ | 98.14% / 79.07% | 100.00% / 88.33% |
-| 2026-09-07 | `4cc1984` | 0.20% | 0.0% | 0.59% | 0.0% / 6.33% FAIL⁶ | 99.07% / 79.07% | 91.67% / 91.67% |
-| **2026-09-12** | **`fbf8c0b5`** | **0.37%** | **0.0%** | **0.35%** | **0.0% / 0.0%⁷** | **87.44% / 82.79%** | **93.33% / 91.67%** |
+| Date | SHA | S1 %GR&R | S2 %GR&R | S3 %GR&R | S5 FP (WSJT-X / OpenWSFZ) | S7 recovery (WSJT-X / OpenWSFZ) | S8 decode rate (WSJT-X / OpenWSFZ) | OpenWSFZ, % of WSJT-X (S7+S8 pooled, excl. FP)¹⁰ |
+|---|---|---|---|---|---|---|---|---|
+| 2026-06-06 | `4c34ef6` | 32.0% **FAIL** | 0.0% | 3.8% | 0.0% / 0.0% | 78.5% / 47.3% | — | 60.27%¹¹ |
+| 2026-06-06 | `6bab388` | 6.5% | 0.0% | 3.9% | 0.0% / 0.0% | 77.4% / 46.2% | — | 59.72%¹¹ |
+| 2026-06-07 | `4b3a4ca` | 1.4% | 0.0% | 3.4% | 0.0% / 0.0% | 76.3% / 54.8% | 95.0% / 86.7% | 80.47% |
+| 2026-06-14 | `815b652` | 0.3% | 0.0% | 3.0% | 0.0% / 0.0% | 77.4% / 50.5% | 95.0% / 83.3% | 75.19% |
+| 2026-06-20 | `6e821fa` | 0.4% | 0.0% | 3.0% | 0.0% / **91.7% FAIL**¹ | 92.6% / 70.2% | 93.3% / 86.7% | 79.61% |
+| 2026-06-22 | `f11f438` | 0.4% | 0.0% | 3.1% | 0.0% / 0.0% | 93.9% / 74.4% | 93.3% / 86.7% | 82.17% |
+| 2026-07-04 | `793a298` | 0.5% | 0.0% | 3.4% | 0.0% / 0.0% | 96.3% / 73.0% | 93.3% / 86.7% | 79.47% |
+| 2026-08-05 | `3bd4cd0` | 7.2% | 0.0% | 3.6% | 0.0% / 0.0% | 96.3% / 70.2% | 93.3% / 83.3% | 76.43% |
+| 2026-08-15 | `8d6e1b1` | 0.5% | 0.0% | 1.4% | 0.0% / 0.8% | 95.3% / 74.4% | 93.3% / 86.7% | 81.23% |
+| 2026-08-21 | `7d36038` | 0.3% | 0.0% | 0.4% | 0.0% / 0.8% | 95.3% / 68.4% | 96.7% / 83.3% | 74.90% |
+| 2026-08-22 | `f5dec23` | 0.4% | 0.0% | 0.4% | 0.0% / **3.3% FAIL**² | 98.1% / 79.5% | 91.7% / 91.7% | 84.96% |
+| 2026-08-27 | `22b749c` | 0.3% | 0.0% | 0.4% | 0.0% / 0.0% | 97.7% / 78.6% | 96.7% / 91.7% | 83.58% |
+| 2026-08-29 | `872ba65` | 0.25% | 0.0% | 18.65%³ | 0.0% / **7.66% FAIL** | 93.0% / 74.0% | 96.7% / 91.7% | 82.95% |
+| 2026-08-30/31 | `2e60949` | 0.27% | 0.0% | 0.44% | 0.0% / 5.15%⁴ | 98.1% / 82.8%⁵ | 91.7% / 91.7% | 87.59% |
+| 2026-09-02 | `3b52608` | 0.22% | 0.0% | 0.55% | 0.0% / **14.61% FAIL** | 94.4% / 83.7% | 100.0% / 91.7% | 89.35% |
+| 2026-09-03 | `35378b9` | 0.21% | 0.0% | 0.55% | 0.0% / 10.12% FAIL | 96.3% / 81.4% | 95.0% / 91.7% | 87.12% |
+| 2026-09-06 | `4c7d5ad` | 0.24% | 0.00% | 0.40% | 0.0% / 12.42% FAIL⁹ | 98.14% / 79.07% | 100.00% / 88.33% | 82.29% |
+| 2026-09-07 | `4cc1984` | 0.20% | 0.0% | 0.59% | 0.0% / 6.33% FAIL⁶ | 99.07% / 79.07% | 91.67% / 91.67% | 83.96% |
+| **2026-09-12** | **`fbf8c0b5`** | **0.37%** | **0.0%** | **0.35%** | **0.0% / 0.0%⁷** | **87.44% / 82.79%** | **93.33% / 91.67%** | **95.49%** |
 
 ¹ Plain decode-rate era (pre R&R-004 ratified UB gate); not the same metric as later rows, fixed
 under D-009. Not comparable to the UB figures below it.
@@ -488,6 +496,28 @@ than silently rewritten — this footnote is the correction pointer a reader of 
 find. Whether the corrected κ changes the §10 attribute gate's pending ratification is the
 Captain's call.
 
+¹⁰ **New column, added 2026-09-12, same day, Captain-requested.** Value = pooled(OpenWSFZ S7+S8
+matched decodes) ÷ pooled(WSJT-X S7+S8 matched decodes) × 100. For rows whose raw `S7_matched.csv`/
+`S8_matched.csv` are still on disk (`3bd4cd0`, `4c7d5ad`, `4cc1984`, `fbf8c0b5`, plus the N=93-era
+`4c34ef6`/`6bab388`/`4b3a4ca`/`815b652`), counts were read directly from those files (`matched=True`
+rows, `false_positive=False`, per appraiser). For the rows whose raw matched CSVs are no longer on
+disk, counts were **derived**: S8's own report.md table already states exact `Decoded`/`Injected`
+integers, and S7's per-sweep N is one of two fixed scenario sizes (93 through `815b652`, 215 from
+`6e821fa` onward — confirmed against the retained raw CSVs spanning both eras) — the report's
+published "all" recovery % at that N rounds to exactly one integer decode count, which was checked to
+reproduce the published percentage to 2dp before use. Cross-checked against every retained raw CSV
+(`4c34ef6`, `6bab388`, `4b3a4ca`, `815b652`, `3bd4cd0`, `4c7d5ad`, `4cc1984`, `fbf8c0b5`): the derived
+count matched the raw count exactly in all eight cases, zero discrepancy. `2e60949`'s S7 half uses its
+own 2026-08-31 targeted re-run report (footnote 5), consistent with the S7 cell already in this table.
+**This is an INFO reading only — no threshold, no gate, no HK-021 pre-registration; it restates the
+existing S7/S8 recovery figures as one ratio, nothing new is measured.** Treat pre-/post- scenario-size
+change rows (see footnote ¹¹) and the S1/S3-redesign-era rows as directional only, per this table's own
+general caveat below.
+
+¹¹ `4c34ef6` and `6bab388` (2026-06-06) predate S8's introduction to the battery — this scenario
+version had no S8 section at all (see the "—" in that column). Their ¹⁰ figure is S7-only, pooling
+nothing; not comparable cell-for-cell to every row below it, which pools S7+S8.
+
 **Reading it:** nineteen full sweeps now (**CORRECTED 2026-09-12, HK-022 — was "eighteen"; see
 footnote ⁹**). This is the **second AWGN-clean OpenWSFZ reading (0/120)**
 in the post-R&R-009 (N=60-restricted) era — the other being the inaugural `22b749c` sweep
@@ -498,7 +528,11 @@ both PASS, though the window remains FRAGILE per leave-one-out (unchanged caveat
 GR&R figures sit comfortably inside their established PASS bands (S1's 0.37% is toward the upper
 end of the recent 0.20–0.34% run-to-run range but nowhere near the ≤10% AIAG threshold). S7/S8
 decode-recovery figures move within the historical envelope — see Section 5 for the S7
-instrument-suspect flag on this run's P2 movement. **No signal attributable to the
+instrument-suspect flag on this run's P2 movement. This run's new pooled-ratio column (¹⁰) reads
+**95.49%, the series high** — driven mainly by WSJT-X's own S7 recovery dropping to 87.44% (the
+series low for that appraiser; every prior sweep from `6e821fa` onward sat ≥92.6%), not by an
+OpenWSFZ improvement (82.79%, mid-pack) — so read this series-high figure through the same S7
+instrument-suspect flag, not as a narrowing of the gap. **No signal attributable to the
 `NHARD40-DEFAULT` 60→40 change was found in this general-purpose battery** — the dedicated `NT`/`CC`
 legs remain the authority on that question (Section 1).
 
