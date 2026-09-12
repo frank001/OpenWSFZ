@@ -43,7 +43,7 @@ re-registered on the new binary.
 ## §1. The product change (QA translates this into a dev-task, on `S1` only; HK-015, HK-011)
 
 1. **`src/OpenWSFZ.Abstractions/DecoderConfig.cs`: change the default from 60 to 40 in BOTH places,
-   the property initialiser (`:68`) and the `[JsonConstructor]` parameter default (`:37`).** Missing
+   the property initialiser (`:68`) and the `[JsonConstructor]` parameter default (`:36`).** Missing
    one gives a partial-JSON divergence (the file's own Lesson 6 / D-WFC-001 note). Update the doc
    comment's "Default: 60 (D-009 calibrated…)" to cite this arm.
 2. **The native default stays at 60** (`src/OpenWSFZ.Ft8/Native/ft8_shim.c` `s_osd_nhard_max`). No
