@@ -424,9 +424,23 @@ deliverable and SHALL be raised as a finding before the run results are consider
 > recovery, κ=0.669) — real, differentiated, non-degenerate figures. An
 > **informational** decodable-SNR-restricted κ (≥ −12 dB, per R&R-005's floor) is
 > now also reported alongside the full-population figures, operationalising this
-> note's SNR-restriction condition for evaluation: both appraisers show identical
-> 79.01% recovery in the restricted population, confirming sub-threshold-SNR misses
-> were contaminating the full-population figure with a decode-capability boundary.
+> note's SNR-restriction condition for evaluation:
+> 🛑 **CORRECTED 2026-09-12, struck not confirmed (HK-022) — do not cite "79.01%".**
+> A defect found and fixed 2026-09-12 (`_attribute_agreement` let the LAST of several
+> duplicate CSV rows sharing one `(part, trial, cycle, message_text)` key decide a
+> unit's call, instead of `any(matched)` across those rows — see the fbf8c0b5 report's
+> Attribute Agreement section and footnote ⁸ for the full root-cause and fix) directly
+> affected every sweep from `3bd4cd0` (2026-08-05) onward that S4_matched.csv could
+> still confirm it against. This `df4cc89` run predates all of those and was the run
+> that *introduced* the affected per-message design, and its restricted-population
+> claim — **both appraisers showing an identical 79.01%** — is exactly the signature
+> this defect produces (S4 P3/P4's duplicate-message structure is shared across
+> appraisers, so the same last-row artefact can coincidentally align them). Its
+> `S4_matched.csv` is no longer on disk, so the figure **cannot be independently
+> recomputed** to confirm or refute — treat "79.01% recovery, confirming sub-threshold
+> SNR misses were contaminating the full-population figure" as **UNVERIFIED**, not as
+> a ratified finding. Whether this sentence should be retracted outright, rather than
+> merely flagged, is the Captain's call.
 > **Neither finding ratifies the gate** — κ remains advisory; both conditions above
 > can now be evaluated with real data, but the ratification decision itself is
 > unchanged and remains the Captain's to make.

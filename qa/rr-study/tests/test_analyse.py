@@ -103,6 +103,33 @@ def test_restricted_population_never_reaches_the_verdict_engine():
     assert not any("Kappa" in f for f in fails_a)
 
 
+def test_duplicated_message_unit_calls_any_matched_not_last_row():
+    """R&R-007 regression (found 2026-09-12): S4 P3/P4 re-inject the same
+    10-message list 2x/3x per cycle, so a unit's rows can span multiple CSV
+    rows sharing one (part, trial, cycle, message_text) key. The unit's call
+    must be any(matched) across those rows -- a matcher crediting only one
+    copy must not turn a genuinely-decoded message into a false negative just
+    because a *later* duplicate row happened to be the unmatched one.
+
+    This message text is injected 3x in the same cycle (m1 in trial 0); only
+    the FIRST copy is matched, the second and third are not. Old code
+    (dict overwrite, `units[appr][key] = entry`) lets the LAST row win and
+    reports a miss. The fix must report a hit.
+    """
+    s4_rows = [
+        _s4_row("OpenWSFZ", 3, 0, "c1", "m1", True,  -6.0),   # matched copy (first)
+        _s4_row("OpenWSFZ", 3, 0, "c1", "m1", False, -6.0),   # duplicate, unmatched
+        _s4_row("OpenWSFZ", 3, 0, "c1", "m1", False, -6.0),   # duplicate, unmatched (last row)
+    ]
+    s4_df = pd.DataFrame(s4_rows)
+    result = _attribute_agreement({"S4": s4_df, "S5": None}, Path("/tmp"))
+    conf = result["confusion"]["OpenWSFZ"]
+    # Exactly one unit (one distinct key) -- must be scored as a hit (TP=1),
+    # not a miss (FN=1), regardless of which duplicate row physically sorts last.
+    assert conf["TP"] == 1, "any(matched) over duplicate rows must credit the unit"
+    assert conf["FN"] == 0
+
+
 def test_empty_s4_yields_nan_kappa_not_a_crash():
     result = _attribute_agreement({"S5": _matched_dfs()[1]}, Path("/tmp"))
     for label, info in result["kappa"].items():

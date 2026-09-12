@@ -146,40 +146,51 @@ _κ is computed over a pooled population: S4 injected messages (truth = present)
 
 ### Confusion vs truth
 
+**CORRECTED 2026-09-12 (post-merge, same-day)** — see the Section 6 correction note at the foot
+of this report. The figures below (WSJT-X TP=68/FN=40, OpenWSFZ TP=71/FN=37) were an
+`_attribute_agreement` defect: S4 P3/P4 re-inject the same 10-message list 2–3× per cycle, and
+the analyser's dict-keyed unit table let the LAST duplicate CSV row win, so a message decoded by
+an earlier duplicate scored as a miss whenever a later, unmatched duplicate row overwrote it.
+Fixed same-day (harness-only, zero `src/`/`native/` diff) to call a unit `any(matched)` across its
+rows — struck and replaced in place per HK-022, not appended as a footnote.
+
 | Appraiser | TP | FN | FP | TN | Recovery | Specificity |
 |---|---|---|---|---|---|---|
-| WSJT-X | 68 | 40 | 0 | 180 | 62.96% | 100.00% |
-| OpenWSFZ | 71 | 37 | 0 | 180 | 65.74% | 100.00% |
+| WSJT-X | 101 | 7 | 0 | 180 | 93.52% | 100.00% |
+| OpenWSFZ | 96 | 12 | 0 | 180 | 88.89% | 100.00% |
 
 ### Kappa (advisory)
 
 | Pair | κ | 95% CI | Verdict (advisory) |
 |---|---|---|---|
-| OpenWSFZ_vs_truth | 0.706 | [0.62, 0.79] | MARGINAL |
-| WSJT-X_vs_truth | 0.680 | [0.58, 0.76] | FAIL |
-| between_appraisers | 0.820 | — | MARGINAL |
+| OpenWSFZ_vs_truth | 0.909 | [0.86, 0.96] | PASS |
+| WSJT-X_vs_truth | 0.947 | [0.91, 0.98] | PASS |
+| between_appraisers | 0.961 | — | PASS |
 
 ### Within-app repeatability (decision consistency across trials)
 
 | Appraiser | Consistent groups |
 |---|---|
-| WSJT-X | 80.00% |
-| OpenWSFZ | 87.50% |
+| WSJT-X | 97.50% |
+| OpenWSFZ | 100.00% |
 
 ### Kappa — decodable-SNR-restricted positives (informational, floor -12 dB)
 
 _S4 positives below the decodable-SNR floor are excluded (S5 negatives unchanged); shown alongside the full-population figures above per STUDY-SPEC.md §9.3's second ratification condition. **Informational only — does not affect the §10 gate or the overall verdict.**
 
+**CORRECTED 2026-09-12** — same `_attribute_agreement` defect and fix as the full-population
+table above; struck and replaced in place per HK-022.
+
 | Appraiser | TP | FN | FP | TN | Recovery | Specificity |
 |---|---|---|---|---|---|---|
-| WSJT-X | 57 | 24 | 0 | 180 | 70.37% | 100.00% |
-| OpenWSFZ | 65 | 16 | 0 | 180 | 80.25% | 100.00% |
+| WSJT-X | 81 | 0 | 0 | 180 | 100.00% | 100.00% |
+| OpenWSFZ | 81 | 0 | 0 | 180 | 100.00% | 100.00% |
 
 | Pair | κ | 95% CI | Verdict (informational) |
 |---|---|---|---|
-| OpenWSFZ_vs_truth | 0.849 | [0.77, 0.91] | MARGINAL |
-| WSJT-X_vs_truth | 0.766 | [0.67, 0.84] | MARGINAL |
-| between_appraisers | 0.850 | — | MARGINAL |
+| OpenWSFZ_vs_truth | 1.000 | [1.00, 1.00] | PASS |
+| WSJT-X_vs_truth | 1.000 | [1.00, 1.00] | PASS |
+| between_appraisers | 1.000 | — | PASS |
 
 ### False-positive rate (S5) — Gate A (AWGN, parts 0/1)
 
@@ -304,9 +315,9 @@ _Holistic decode-rate benchmark: 12 simultaneous stations across 450–2550 Hz a
 | ndc | S2 | 1513 | PASS |
 | %GR&R | S3 | 0.3% | PASS |
 | ndc | S3 | 23 | PASS |
-| Kappa (advisory) | WSJT-X_vs_truth | 0.680 | FAIL |
-| Kappa (advisory) | OpenWSFZ_vs_truth | 0.706 | MARGINAL |
-| Kappa (advisory) | between_appraisers | 0.820 | MARGINAL |
+| Kappa (advisory) | WSJT-X_vs_truth | 0.947 | PASS |
+| Kappa (advisory) | OpenWSFZ_vs_truth | 0.909 | PASS |
+| Kappa (advisory) | between_appraisers | 0.961 | PASS |
 | FP event rate (95% UB), Gate A-W | S5/OpenWSFZ | 14/480 slots (event 2.917%; 95% UB 4.522%) [FRAGILE] | PASS |
 | FP event rate change, Gate A-Δ | S5/OpenWSFZ | 0/120 vs 14/360 (Fisher p=1.0000) [FRAGILE] | PASS |
 | FP events, Check B (narrowband) | S5/WSJT-X | 0/60 slots (FAIL iff >= 2) | PASS |
@@ -347,10 +358,23 @@ _Holistic decode-rate benchmark: 12 simultaneous stations across 450–2550 Hz a
   including the pre-`NHARD40-DEFAULT` `4cc1984` sweep) — not a new finding, not attributable to
   this merge. Station H's WSJT-X reading (1/5 this run) sits inside its own established
   noisy-cell pattern (0/5 or 1/5 across recent sweeps).
-- ℹ️ **Kappa `WSJT-X_vs_truth` FAIL (0.680)** is the standing, unresolved advisory-gate state —
-  every sweep in Section 6's era shows the same qualitative pattern. The §10 attribute gate
-  itself remains pending Captain ratification of the pooled S4/S5 method per the report's own
-  note above. Not new, not actionable from this run.
+- 🛑 **CORRECTED 2026-09-12 (struck, not appended — HK-022): the previously-reported "Kappa
+  `WSJT-X_vs_truth` FAIL (0.680)... standing, unresolved... every sweep in Section 6's era shows
+  the same qualitative pattern" was an artefact, not a finding.** Root cause: `_attribute_agreement`
+  keyed S4 units on `(part, trial, cycle, message_text)` and let the LAST duplicate CSV row win
+  when S4 P3/P4 re-inject the same message list 2–3× per cycle — a genuinely-decoded message
+  scored as a miss whenever a later, unmatched duplicate overwrote it. Fixed same-day
+  (harness-only, zero `src/`/`native/` diff; regression test added). Corrected this run: κ
+  WSJT-X_vs_truth **0.947 PASS**, OpenWSFZ_vs_truth **0.909 PASS**, between_appraisers **0.961
+  PASS** (see corrected tables above). The defect is confirmed present, by direct recomputation
+  against the matched CSVs still on disk, in every sweep since R&R-007 introduced the P3/P4
+  duplicate-message design: `3bd4cd0` (2026-08-05, OpenWSFZ 0.651 FAIL → 0.894), `4c7d5ad`
+  (2026-09-06, 0.560 FAIL → 0.812), `4cc1984` (2026-09-07, 0.701 MARGINAL → 0.887). Those three
+  older committed reports are left as-recorded per HK-022 (correcting the record where the reader
+  will look for THIS run, not silently rewriting history elsewhere) — see the Section 6 footnote
+  naming them. The §10 attribute gate remains pending Captain ratification of the pooled S4/S5
+  method regardless of this correction; whether the corrected κ changes that ratification's
+  substance is the Captain's call, not ours.
 
 ## Section 6 — Historical trend: every full S1–S8 sweep to date
 
@@ -359,7 +383,8 @@ first. `%GR&R` is each stage's own Summary-table figure (AIAG %Contribution, thr
 FP is the value the sweep's own report used to gate PASS/FAIL through `4cc1984` (95% UB where
 computed, else the plain event/decode rate for older entries — see the caveat below); from this run
 onward the ratified gate is Gate A-W/Gate A-Δ, not this per-sweep figure (footnote 7). S7/S8 are the
-"all"/overall decode-recovery percentages.
+"all"/overall decode-recovery percentages. **S4/κ is not a column in this table but is affected by
+a defect found and fixed 2026-09-12 across every sweep from `3bd4cd0` onward — see footnote ⁸.**
 
 | Date | SHA | S1 %GR&R | S2 %GR&R | S3 %GR&R | S5 FP (WSJT-X / OpenWSFZ) | S7 recovery (WSJT-X / OpenWSFZ) | S8 decode rate (WSJT-X / OpenWSFZ) |
 |---|---|---|---|---|---|---|---|
@@ -413,6 +438,22 @@ sweep alone (see this run's own Gate A-W/Gate A-Δ tables above). The per-sweep 
 verdict this run:** Gate A-W PASS (14/480 = 2.917%, 95% UB 4.522% ≤ 6%), Gate A-Δ PASS (0/120 vs
 14/360, Fisher p = 1.0000) — both **FRAGILE** per leave-one-out (a pre-existing R&R-011 caveat, see
 Section 5).
+
+⁸ **S4/κ duplicate-row attribution defect, found and fixed 2026-09-12** (this run's own Attribute
+Agreement section above carries the full root-cause and fix, HK-022-struck in place, not merely
+noted here). S4 P3/P4 re-inject the same 10-message list 2–3× per cycle; `_attribute_agreement`
+let the LAST duplicate CSV row decide a unit's call instead of `any(matched)` across its rows,
+so genuinely-decoded messages could score as false negatives. Confirmed by direct recomputation
+against the matched CSVs still on disk (not available for every historical sweep) for every run
+that used the P3/P4 duplicate-message design: `3bd4cd0` (2026-08-05, OpenWSFZ κ 0.651 FAIL →
+0.894), `4c7d5ad` (2026-09-06, 0.560 FAIL → 0.812), `4cc1984` (2026-09-07, 0.701 MARGINAL →
+0.887), and this run (`fbf8c0b5`, 0.706 MARGINAL → 0.909; WSJT-X 0.680 FAIL → 0.947). The four
+sweeps before `3bd4cd0` (`4c34ef6`, `6bab388`, `4b3a4ca`, `815b652`) predate the P3/P4 duplicate
+design and are unaffected (recomputation confirms identical figures either way). Per HK-022,
+those three older committed reports (`3bd4cd0`, `4c7d5ad`, `4cc1984`) are left as-recorded rather
+than silently rewritten — this footnote is the correction pointer a reader of this series will
+find. Whether the corrected κ changes the §10 attribute gate's pending ratification is the
+Captain's call.
 
 **Reading it:** eighteen full sweeps now. This is the **second AWGN-clean OpenWSFZ reading (0/120)**
 in the post-R&R-009 (N=60-restricted) era — the other being the inaugural `22b749c` sweep

@@ -1173,21 +1173,39 @@ def _attribute_agreement(matched: dict[str, pd.DataFrame], run_dir: Path) -> dic
     units: dict[str, dict[tuple, tuple]] = {a: {} for a in APPRAISERS}
     units_restricted: dict[str, dict[tuple, tuple]] = {a: {} for a in APPRAISERS}
 
-    # --- Positives (S4): truth present; call = decoded? ---
+    # --- Positives (S4): truth present; call = decoded ANY of its rows? ---
+    # S4 P3/P4 re-inject the same message list 2x/3x per cycle, so several CSV
+    # rows can share one (part, trial, cycle, message_text) unit key -- the
+    # matcher credits at most one copy per decode. A unit's call must be
+    # any(matched) across its rows, not whichever row happens to sort last
+    # (found 2026-09-12; the old dict-overwrite let the LAST duplicate row
+    # decide, silently turning genuinely-decoded messages into false
+    # negatives whenever the credited copy wasn't the last one).
     if pos_df is not None:
         d = pos_df[pos_df["false_positive"] == False]
+        snr_by_key: dict[tuple, float] = {}
+        group_by_key: dict[tuple, tuple] = {}
+        matched_by_key: dict[str, dict[tuple, bool]] = {a: {} for a in APPRAISERS}
         for _, r in d.iterrows():
             appr = r["appraiser"]
             if appr not in units:
                 continue
             key = ("S4", r["part_index"], r["trial_index"], r["cycle_utc"], r["message_text"])
-            group = ("S4", r["part_index"], r["message_text"])
-            entry = (True, bool(r["matched"]), group)
-            units[appr][key] = entry
+            group_by_key[key] = ("S4", r["part_index"], r["message_text"])
+            per_appr = matched_by_key[appr]
+            per_appr[key] = per_appr.get(key, False) or bool(r["matched"])
 
             snr = pd.to_numeric(r.get("true_snr_db"), errors="coerce")
-            if pd.notna(snr) and float(snr) >= S4_DECODABLE_SNR_FLOOR_DB:
-                units_restricted[appr][key] = entry
+            if pd.notna(snr):
+                snr_by_key[key] = float(snr)
+
+        for appr, per_appr in matched_by_key.items():
+            for key, matched in per_appr.items():
+                entry = (True, matched, group_by_key[key])
+                units[appr][key] = entry
+                snr = snr_by_key.get(key)
+                if snr is not None and snr >= S4_DECODABLE_SNR_FLOOR_DB:
+                    units_restricted[appr][key] = entry
 
     # --- Negatives (S5): truth absent; call = emitted a false positive in slot? ---
     # Included unfiltered in both the full and restricted populations — SNR is not
