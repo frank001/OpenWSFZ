@@ -420,7 +420,7 @@ no S8) and its verification.
 | 2026-06-07 | `4b3a4ca` | 1.4% | 0.0% | 3.4% | 0.0% / 0.0% | 76.3% / 54.8% | 95.0% / 86.7% | 80.47% |
 | 2026-06-14 | `815b652` | 0.3% | 0.0% | 3.0% | 0.0% / 0.0% | 77.4% / 50.5% | 95.0% / 83.3% | 75.19% |
 | 2026-06-20 | `6e821fa` | 0.4% | 0.0% | 3.0% | 0.0% / **91.7% FAIL**¹ | 92.6% / 70.2% | 93.3% / 86.7% | 79.61% |
-| 2026-06-22 | `f11f438` | 0.4% | 0.0% | 3.1% | 0.0% / 0.0% | 93.9% / 74.4% | 93.3% / 86.7% | 82.17% |
+| 2026-06-22 | `f11f438` | 0.4% | 0.0% | 3.1% | 0.0% / 0.0% | 94.0% / 74.4% | 93.3% / 86.7% | 82.17% |
 | 2026-07-04 | `793a298` | 0.5% | 0.0% | 3.4% | 0.0% / 0.0% | 96.3% / 73.0% | 93.3% / 86.7% | 79.47% |
 | 2026-08-05 | `3bd4cd0` | 7.2% | 0.0% | 3.6% | 0.0% / 0.0% | 96.3% / 70.2% | 93.3% / 83.3% | 76.43% |
 | 2026-08-15 | `8d6e1b1` | 0.5% | 0.0% | 1.4% | 0.0% / 0.8% | 95.3% / 74.4% | 93.3% / 86.7% | 81.23% |
@@ -497,22 +497,30 @@ find. Whether the corrected κ changes the §10 attribute gate's pending ratific
 Captain's call.
 
 ¹⁰ **New column, added 2026-09-12, same day, Captain-requested.** Value = pooled(OpenWSFZ S7+S8
-matched decodes) ÷ pooled(WSJT-X S7+S8 matched decodes) × 100. For rows whose raw `S7_matched.csv`/
-`S8_matched.csv` are still on disk (`3bd4cd0`, `4c7d5ad`, `4cc1984`, `fbf8c0b5`, plus the N=93-era
-`4c34ef6`/`6bab388`/`4b3a4ca`/`815b652`), counts were read directly from those files (`matched=True`
-rows, `false_positive=False`, per appraiser). For the rows whose raw matched CSVs are no longer on
-disk, counts were **derived**: S8's own report.md table already states exact `Decoded`/`Injected`
-integers, and S7's per-sweep N is one of two fixed scenario sizes (93 through `815b652`, 215 from
-`6e821fa` onward — confirmed against the retained raw CSVs spanning both eras) — the report's
-published "all" recovery % at that N rounds to exactly one integer decode count, which was checked to
-reproduce the published percentage to 2dp before use. Cross-checked against every retained raw CSV
-(`4c34ef6`, `6bab388`, `4b3a4ca`, `815b652`, `3bd4cd0`, `4c7d5ad`, `4cc1984`, `fbf8c0b5`): the derived
-count matched the raw count exactly in all eight cases, zero discrepancy. `2e60949`'s S7 half uses its
-own 2026-08-31 targeted re-run report (footnote 5), consistent with the S7 cell already in this table.
-**This is an INFO reading only — no threshold, no gate, no HK-021 pre-registration; it restates the
-existing S7/S8 recovery figures as one ratio, nothing new is measured.** Treat pre-/post- scenario-size
-change rows (see footnote ¹¹) and the S1/S3-redesign-era rows as directional only, per this table's own
-general caveat below.
+matched decodes) ÷ pooled(WSJT-X S7+S8 matched decodes) × 100. **CORRECTED 2026-09-12, same day
+(HK-022, Architect-caught, Captain-directed) — struck and replaced in place.** This footnote
+previously stated that eleven rows' raw `S7_matched.csv`/`S8_matched.csv` were "no longer on disk"
+and their counts were therefore derived from the published percentage plus the known fixed scenario
+size, checked to reproduce that percentage to 2dp. That premise was false: the files for all eleven
+(`6e821fa`, `f11f438`, `793a298`, `8d6e1b1`, `7d36038`, `f5dec23`, `22b749c`, `872ba65`, `2e60949`,
+`3b52608`, `35378b9`) are on disk, gitignored, in the Architect worktree's root
+(`D:\Projects\claude\OpenWSFZ\qa\rr-study\results\`) — not copied into the QA worktree at the
+2026-09-06 worktree split (gitignored data does not travel with a worktree split; standing note).
+All nineteen rows in this table's final column are in fact read directly from raw
+`S7_matched.csv`/`S8_matched.csv` (`matched=True` rows, `false_positive=False`, per appraiser) —
+no derivation occurred, or was needed. The eleven values were independently recomputed from these
+raw files and confirmed to match this column exactly to 2dp; the derivation this footnote
+originally described was correct in its result but false in its premise. `2e60949`'s S7 half uses
+its own 2026-08-31 targeted re-run report (footnote 5), consistent with the S7 cell already in this
+table. **A second, pre-existing slip surfaced during this re-verification:** the `f11f438` row's
+WSJT-X S7 cell (table above) read "93.9%"; the source report
+(`2026-06-22-f11f438/report.md:200`) gives 93.95% = 202/215, which is 94.0% at this table's 1dp — no
+integer out of 215 rounds to 93.9%. Corrected in the table above; this slip predates this column and
+this run, and does not affect this footnote's own ratio (computed from the raw integer count, 202,
+not the table's rounded display value). **This is an INFO reading only — no threshold, no gate, no
+HK-021 pre-registration; it restates the existing S7/S8 recovery figures as one ratio, nothing new is
+measured.** Treat pre-/post- scenario-size change rows (see footnote ¹¹) and the S1/S3-redesign-era
+rows as directional only, per this table's own general caveat below.
 
 ¹¹ `4c34ef6` and `6bab388` (2026-06-06) predate S8's introduction to the battery — this scenario
 version had no S8 section at all (see the "—" in that column). Their ¹⁰ figure is S7-only, pooling
@@ -529,9 +537,11 @@ GR&R figures sit comfortably inside their established PASS bands (S1's 0.37% is 
 end of the recent 0.20–0.34% run-to-run range but nowhere near the ≤10% AIAG threshold). S7/S8
 decode-recovery figures move within the historical envelope — see Section 5 for the S7
 instrument-suspect flag on this run's P2 movement. This run's new pooled-ratio column (¹⁰) reads
-**95.49%, the series high** — driven mainly by WSJT-X's own S7 recovery dropping to 87.44% (the
-series low for that appraiser; every prior sweep from `6e821fa` onward sat ≥92.6%), not by an
-OpenWSFZ improvement (82.79%, mid-pack) — so read this series-high figure through the same S7
+**95.49%, the series high** — driven mainly by WSJT-X's own S7 recovery dropping to 87.44% (**the
+N=215-era low for that appraiser, not the series low**: every prior sweep from `6e821fa` onward,
+when S7 moved to its current 215-part design, sat ≥92.6%, but the earlier N=93-era sweeps ran
+76.3–78.5%, below this run's reading), not by an OpenWSFZ improvement (82.79%, **within its recent
+range**: O S7 170–180 of 215 since `2e60949`) — so read this series-high figure through the same S7
 instrument-suspect flag, not as a narrowing of the gap. **No signal attributable to the
 `NHARD40-DEFAULT` 60→40 change was found in this general-purpose battery** — the dedicated `NT`/`CC`
 legs remain the authority on that question (Section 1).
