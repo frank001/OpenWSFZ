@@ -3,8 +3,10 @@
 **Architect, 2026-09-12 09:12Z** (`date -u`, HK-017). Branch `arch/osd-nhard40-default` (cut from
 `origin/main`). Docs-only; `git diff --stat origin/main -- src/ native/` empty.
 
-**Status: DRAFT, and not runnable yet.** `NT` may not produce a datum until the PO ratifies `BAR_S`
-(§5, Q1). The dev-task may not be written until the PO answers Q2.
+~~**Status: DRAFT, and not runnable yet.** `NT` may not produce a datum until the PO ratifies `BAR_S`
+(§5, Q1). The dev-task may not be written until the PO answers Q2.~~
+
+> ✅ **2026-09-12 09:15Z: `BAR_S = 0.05` ratified and Q2 = M2 (PO, §5). `NT` is cleared to run.**
 
 ---
 
@@ -231,6 +233,10 @@ only if near-threshold genuine loss is confidently under 5%.
 - 🛑 Once ratified it is **FROZEN** for this arm (the `BAR_H` precedent). If anyone, me included,
   proposes moving it after `K_B` is known, refuse: that VOIDs `NT`.
 
+> ✅ **PO RULING, 2026-09-12 09:15Z: `BAR_S = 0.05` RATIFIED** (the PO chose "5% (Recommended)"
+> over the stricter 2%). Recorded **before any `NT` datum exists**: no `NT` harness has been written
+> or run. **FROZEN for this arm**; it does not reach forward or backward.
+
 **Q2 (needed before the dev-task, NOT before `NT` runs): what happens to existing installs?**
 
 | option | what it does | trade-off |
@@ -238,6 +244,12 @@ only if near-threshold genuine loss is confidently under 5%.
 | **M1** | Code default only | New installs and configs with no `decoder` key get 40. **Every existing install, including yours, stays at 60** until the operator edits `config.json`. `FpParityP3Tests` ROW 0o fires on existing installs. |
 | **M2 (recommended)** | Code default **plus a one-time migration**: a persisted value of **exactly 60** becomes 40, once, logged, with a marker so it never re-applies after an operator deliberately sets 60 again | Reaches everyone. It would override a deliberate 60, but **the web UI does not expose this setting** (no `wwwroot` reference; API or hand-edit only), so a persisted 60 is, in practice, the old default. Needs one small new config field for the marker. |
 | **M3** | Code default plus a notice suggesting 40; no automatic change | Leaves the choice to the operator. Reaches only operators who read notices. |
+
+> ✅ **PO RULING, 2026-09-12 09:15Z: Q2 = M2, migrate once.** On S1, the dev-task carries the code
+> default 60 → 40 **plus** a one-time migration of a persisted `osdNhardMax` of **exactly 60** to 40.
+> It must be logged, and a marker must stop it re-applying after an operator deliberately sets 60.
+> The marker's name and shape are the dev-task's to specify (a new config field). §1.4's
+> `FpParityP3Tests` ROW 0o note applies in its M2 form: the live-effective value becomes 40.
 
 ---
 
@@ -261,9 +273,9 @@ only if near-threshold genuine loss is confidently under 5%.
 | step | status |
 |---|---|
 | This draft | ✅ Captain: *"1. yes"* |
-| **Q1 `BAR_S` ratification** | ⏳ **PO**. Must be recorded in this file before any `NT` datum. |
-| `NT` (ROW 0 → S-row) | ⏳ runs after Q1. Supervise it if long (HK-013 / HK-023); about 15,750 decode calls. |
-| Q2 migration answer | ⏳ **PO**, before the dev-task (§2 item 3) |
+| **Q1 `BAR_S` ratification** | ✅ **`BAR_S = 0.05`, PO 2026-09-12 09:15Z** (§5), recorded before any `NT` datum |
+| `NT` (ROW 0 → S-row) | ✅ **cleared to run.** Supervise it if long (HK-013 / HK-023); about 15,750 decode calls. |
+| Q2 migration answer | ✅ **M2, migrate once, PO 2026-09-12 09:15Z** (§5) |
 | Dev-task → Developer → CI → merge | on S1 only; HK-015 / HK-011 / HK-010 |
 
 🔴 **HK-025 is available in full.** If any row above is a diagnostic dressed as a gate, name it,
