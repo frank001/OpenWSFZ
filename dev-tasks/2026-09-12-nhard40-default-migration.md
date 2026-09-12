@@ -11,6 +11,13 @@ Both halves of the pre-registered gate fired (`NT-S1 ∧ CC-S1`); this task carr
 session implementing this does not run `pre_merge_check.py` or push/merge on its own initiative
 (QA verifies, Captain signs off the merge, HK-010).
 **Branch:** new branch off `main`, name at the Developer's/Captain's discretion.
+**Revision note (2026-09-12, same day, before any pickup):** the Architect found a BLOCKING defect
+in this task's first draft — §1.3's migration marker, as first specified, is silently cleared by
+every ordinary Settings-page save (HK-035-class: `POST /api/v1/config` full-replaces `AppConfig`;
+the client only ever sends 3 of the decoder's 4 fields). §1.3 and §2 below are corrected in place
+(marked 🔴) to make the marker server-owned and add the test that catches a regression of that fix.
+**No Developer session should have started on the pre-revision text; if one did, discard that work
+and restart from this version.**
 
 ---
 
@@ -90,12 +97,47 @@ drift, Doppler, timing spread (E4) and any live corroborated-loss floor remain u
      spells out `"osdNhardMax": 60` explicitly, because every `config.json` this project has ever
      written does exactly that (`CreateDefault()`, `JsonConfigStore.cs:259-281`, always includes a
      fully-populated `decoder` section).
-   - **Rollback (ruling §6 item 6):** an operator who wants 60 back sets
-     `"osdNhardMax": 60` explicitly in `config.json` (`Nhard40MigrationApplied` stays `true` from
-     the earlier migration, so this does **not** re-migrate — confirm this with a test, see §2 below).
-     Document this one line in the operator-facing decoder-settings docs if any exist alongside the
-     Settings-page UI (check `web/` for an existing decoder-settings help/tooltip string first,
-     HK-018).
+   - 🔴 **BLOCKING DEFECT, found by the Architect (HK-035 — verify an API's write semantics before
+     trusting a partial update) after this task's first draft — read this before implementing §1.3
+     at all:** `POST /api/v1/config` (`WebApp.cs:349-372`) deserialises the request body as a
+     **full-replace** `AppConfig`, not a merge against `store.Current`. `web/js/settings.js:1328-1332`
+     builds and sends the `decoder` object with **exactly three keys**
+     (`kMinScorePass2`/`osdCorrThreshold`/`osdNhardMax` — never the marker). Under `[JsonConstructor]`'s
+     own Lesson-6 semantics, a JSON `decoder` object that omits a key gets that field's *parameter*
+     default, not whatever `store.Current` already held. **The consequence: every ordinary
+     Settings-page save silently resets `Nhard40MigrationApplied` back to `false`.** An operator who
+     had deliberately set `60` back via the UI would then get **silently re-migrated to `40` on the
+     next restart** — exactly the outcome M2's marker exists to prevent, defeated by the one API path
+     operators actually use to change this setting. (The Settings page does expose the field —
+     `web/settings.html:359` — so this is the live, expected path, not a hypothetical one.)
+     - **Binding fix: the marker is SERVER-OWNED.** No request body, however constructed, may ever
+       set or clear it — only `JsonConfigStore.Load()`'s own migration logic (§1.3 above) may flip it
+       to `true`. In the `POST /api/v1/config` handler, **before** the existing "Decoder config
+       validation" clamp block (`WebApp.cs:586-622`), carry the marker forward from `store.Current`
+       regardless of what (if anything) the body's `decoder` object contains — mirroring the
+       `Ptt`/`CycleAudioArchive` "preserve what's already persisted" idiom immediately above it in
+       the same handler (`WebApp.cs:501,515-516`, `if (config.Ptt is null) config = config with
+       { Ptt = store.Current.Ptt ?? new PttConfig() };`):
+       - if the body's `decoder` is present (the normal case — the real UI always sends one), force
+         its `Nhard40MigrationApplied` to `store.Current.Decoder?.Nhard40MigrationApplied ?? false`
+         before the existing clamp block runs, so the clamp block's own `sanitisedDecoder` carries the
+         correct marker straight through;
+       - if the body's `decoder` is `null` (test 7.2m's case, or any future caller that omits it) AND
+         `store.Current.Decoder?.Nhard40MigrationApplied == true`, materialise `config.Decoder =
+         store.Current.Decoder` (the whole object, not just the marker — there is nothing else to
+         reconcile in this branch, since the client sent nothing at all for decoder). If
+         `store.Current.Decoder` is `null` or its marker is `false`, leave `config.Decoder` as `null`
+         — do **not** manufacture a `decoder` section out of nothing just to carry a `false` marker;
+         this preserves test 7.2m's existing "a null decoder is valid" behaviour exactly.
+   - **Rollback (ruling §6 item 6) — the Settings page IS the natural rollback path, not only
+     hand-editing `config.json`** (corrects this task's first draft, which mentioned only the file):
+     an operator sets `60` in the Settings page's decoder `nhard` field and saves. Because of the
+     server-owned-marker fix above, this reaches disk as `{"osdNhardMax": 60,
+     "nhard40MigrationApplied": true}` — the explicit `60` persists, and the `true` marker (correctly
+     carried forward, not reset) stops the next `Load()` from re-migrating it back to `40`. Hand-editing
+     `config.json` directly works too (same mechanism, same file), but is no longer the only path —
+     say so in whatever operator-facing decoder-settings docs exist alongside the Settings-page UI
+     (check `web/` for an existing help/tooltip string first, HK-018).
 
 ## 2. Tests (per the ruling, all four required; write them, do not just describe them)
 
@@ -119,6 +161,32 @@ drift, Doppler, timing spread (E4) and any live corroborated-loss floor remain u
   4. A config file with **no `decoder` key at all** → `Load()` yields the new code default (`40`)
      via the existing null-guard path, and no migration marker is written (there is nothing to
      migrate; confirm the guard added in item 1 above doesn't fire when `config.Decoder` is null).
+- 🔴 **New, required (§1.3's blocking-defect fix — this is the test that catches a regression of the
+  fix, not the migration itself):** `tests/OpenWSFZ.Web.Tests/DecoderConfigApiTests.cs`, the natural
+  home for `POST /api/v1/config` handler behaviour. **Correction to the ruling's own framing:**
+  `WebTestFactory` substitutes a genuinely **in-memory** `TestConfigStore` (`AudioConfigIntegrationTests.cs`
+  — no file, no `JsonConfigStore` in the loop at all), so this suite cannot exercise "the persisted
+  file has 60 and the marker" — that's what `JsonConfigStoreTests` items 1-2 above already cover, in
+  full, against real temp files. What this suite CAN and must cover, at the handler level: **a client
+  can never clear the marker by POSTing a body shaped like the real Settings-page payload.**
+  1. `POST` a `DecoderConfig` constructed directly (`kMinScorePass2:10, osdCorrThreshold:0.10f,
+     osdNhardMax:40, nhard40MigrationApplied:true`) via `client.PostAsJsonAsync(...,
+     AppJsonContext.Default.AppConfig)` — same technique 7.2a-l already use — to seed
+     `TestConfigStore.Current` as "already migrated." (Each test method must do this seeding step
+     itself, self-contained — `WebTestFactory` is `IClassFixture`-shared across the whole test class,
+     so relying on another test's leftover state is not safe and must not be done.)
+  2. `POST` again, this time with a **raw JSON body containing only the three keys the real
+     Settings-page JS actually sends** (`{"kMinScorePass2":10,"osdCorrThreshold":0.10,
+     "osdNhardMax":60}` — no `decoder` wrapper is wrong; check the exact `AppConfig`/`decoder` JSON
+     shape against `GetConfig_IncludesDecoderSection`'s own response first). Use raw
+     `StringContent`/`PostAsync`, not the typed `DecoderConfig`-object helper, so the marker key is
+     genuinely **absent** from the wire payload, matching the real client exactly — constructing a
+     full C# `DecoderConfig` and serialising it would always include every field and silently fail to
+     reproduce the defect this test exists to catch.
+  3. Assert the response's `Decoder.OsdNhardMax == 60` **and** `Decoder.Nhard40MigrationApplied ==
+     true` — proving the handler carried the marker forward rather than letting the partial body
+     reset it. This is the one assertion that fails on the unfixed handler and passes once §1.3's
+     server-owned-marker fix lands; write it first, watch it fail against the old handler, then fix.
 - **`FpParityP3Tests.cs` ROW 0o** (`tests/OpenWSFZ.Ft8.Tests/FpParityP3Tests.cs:118-141`): **this
   row's meaning changes and must say so explicitly in its own doc comment and `DisplayName`.**
   `ReadLiveEffectiveDecoderConfig` (`:258-276`) reads the **raw file** at
@@ -211,9 +279,12 @@ Three normative-spec files and one front-end file currently assert or default to
 1. `DecoderConfig.cs` default change (§1.1) + doc-comment update, both sites.
 2. `JsonConfigStore.Load()` M2 migration, with the new `Nhard40MigrationApplied` field on
    `DecoderConfig` (§1.3), atomic write-back included.
-3. All four test additions/changes in §2, passing.
-4. All spec-doc and `settings.js` edits in §3.
-5. A short PR description stating, verbatim, the citation guard from §0, and confirming (per §4
+3. The `POST /api/v1/config` server-owned-marker fix (§1.3's blocking-defect correction).
+4. All test additions/changes in §2, passing: 3 `DecoderConfigTests` value updates, 4
+   `JsonConfigStoreTests` migration cases, 1 new `DecoderConfigApiTests` marker-preservation test,
+   and the `FpParityP3Tests` ROW 0o doc-comment update.
+5. All spec-doc and `settings.js` edits in §3.
+6. A short PR description stating, verbatim, the citation guard from §0, and confirming (per §4
    item 1) that `git diff --stat main -- src/OpenWSFZ.Ft8/Native/ native/` is empty.
 
 QA verifies against this task before recommending merge (HK-002/HK-006); the Captain signs off the
@@ -230,6 +301,8 @@ merge itself (HK-010). Neither step is implied by this task's own authorship.
 | `src/OpenWSFZ.Abstractions/DecoderConfig.cs:16-69` | The record to edit — read the Lesson-6 comment at the top before touching either default |
 | `src/OpenWSFZ.Config/JsonConfigStore.cs:133-257` (`Load`), `:43-129` (`SaveAsync`) | Where the migration goes, and the write pattern to reuse for it |
 | `tests/OpenWSFZ.Config.Tests/DecoderConfigTests.cs`, `JsonConfigStoreTests.cs` | Existing + new tests |
+| `src/OpenWSFZ.Web/WebApp.cs:349-372` (POST body deserialisation, full-replace), `:497-516` (`Ptt`/`CycleAudioArchive` preserve-what's-persisted idiom to mirror), `:586-622` (existing decoder clamp block, the marker fix goes just before it) | The blocking-defect fix's exact location |
+| `tests/OpenWSFZ.Web.Tests/DecoderConfigApiTests.cs`, `AudioConfigIntegrationTests.cs` (`TestConfigStore`, in-memory, shared per test class — not file-backed) | Where the new marker-preservation test goes, and why it can't test the file round-trip (that's `JsonConfigStoreTests`' job) |
 | `tests/OpenWSFZ.Ft8.Tests/FpParityP3Tests.cs:118-141,258-276` | ROW 0o and its raw-file reader — document the meaning change here |
 | `openspec/specs/decoder-settings/spec.md`, `openspec/specs/configuration/spec.md` | Normative spec text asserting the old default — five-plus-four `SHALL` lines to update |
 | `web/js/settings.js:874,1116,1331` | Front-end hardcoded `60` fallbacks that duplicate the C# default |
