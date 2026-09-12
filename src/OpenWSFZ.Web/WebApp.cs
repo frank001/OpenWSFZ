@@ -583,6 +583,42 @@ public static class WebApp
                     config = config with { Tx = sanitisedTx };
             }
 
+            // osdNhardMax migration marker (NHARD40-DEFAULT M2, HK-035 fix): the marker
+            // is SERVER-OWNED. No request body, however constructed, may ever set or
+            // clear it — only JsonConfigStore.Load()'s own migration logic may flip it to
+            // true. web/js/settings.js's buildConfigPayload sends only 3 of the decoder's
+            // 4 fields (kMinScorePass2/osdCorrThreshold/osdNhardMax, never the marker), so
+            // without this guard STJ's [JsonConstructor] parameter default would silently
+            // reset Nhard40MigrationApplied to false on every ordinary Settings-page save
+            // — and an operator's deliberately-restored 60 would then get silently
+            // re-migrated back to 40 on the next restart. Same "preserve what's already
+            // persisted" idiom as the Ptt/CycleAudioArchive guards above.
+            if (config.Decoder is { } decoderForMarker)
+            {
+                // The normal case — the real UI always sends a decoder object. Force the
+                // marker to whatever is already persisted before the clamp block below
+                // runs, so its own sanitisedDecoder carries the correct marker straight
+                // through.
+                config = config with
+                {
+                    Decoder = decoderForMarker with
+                    {
+                        Nhard40MigrationApplied = store.Current.Decoder?.Nhard40MigrationApplied ?? false,
+                    },
+                };
+            }
+            else if (store.Current.Decoder is { Nhard40MigrationApplied: true })
+            {
+                // The body sent no "decoder" object at all (a non-UI caller, or test
+                // 7.2m's case) but the persisted config is already migrated. Materialise
+                // the whole persisted Decoder — there is nothing else in it to reconcile
+                // since the client sent nothing for decoder at all. If store.Current.Decoder
+                // is null or its marker is false, config.Decoder stays null here: do not
+                // manufacture a decoder section out of nothing just to carry a false
+                // marker — this preserves 7.2m's "a null decoder is valid" behaviour.
+                config = config with { Decoder = store.Current.Decoder };
+            }
+
             // ── Decoder config validation (decoder-settings-page) ───────────────
             if (config.Decoder is { } decoderIn)
             {

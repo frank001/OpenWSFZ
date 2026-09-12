@@ -630,4 +630,90 @@ public sealed class JsonConfigStoreTests
             "unchanged — this is the field two simultaneous instances must set differently to " +
             "avoid the GridTracker collision this change fixes");
     }
+
+    // ── NHARD40-DEFAULT M2: osdNhardMax 60→40 one-time migration ─────────────────────
+
+    [Fact(DisplayName = "NHARD40-DEFAULT M2: a persisted osdNhardMax=60 with no marker is migrated to 40, and the marker is written back to disk")]
+    public void Load_PersistedOsdNhardMax60_MigratesTo40_AndWritesMarkerToDisk()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath, """{"decoder":{"osdNhardMax":60}}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.Decoder.Should().NotBeNull();
+        store.Current.Decoder!.OsdNhardMax.Should().Be(40,
+            "a persisted exactly-60 osdNhardMax with no marker must be migrated to the new code default (40)");
+        store.Current.Decoder!.Nhard40MigrationApplied.Should().BeTrue(
+            "the migration must set the marker on the in-memory Current");
+
+        // Re-read the file after construction to confirm the write-back happened, not
+        // just the in-memory Current — a migration that dies before the write-back
+        // leaves the marker unset on disk and re-migrates on every restart.
+        var onDisk = JsonSerializer.Deserialize(
+            File.ReadAllText(configPath), ConfigJsonContext.Default.AppConfig)!;
+        onDisk.Decoder.Should().NotBeNull();
+        onDisk.Decoder!.OsdNhardMax.Should().Be(40,
+            "the migrated value must be persisted to disk, not just held in memory");
+        onDisk.Decoder!.Nhard40MigrationApplied.Should().BeTrue(
+            "the migration marker must be persisted to disk so a restart does not re-migrate");
+    }
+
+    [Fact(DisplayName = "NHARD40-DEFAULT M2: a persisted osdNhardMax=60 with the marker already true is left at 60 (rollback respected)")]
+    public void Load_PersistedOsdNhardMax60_WithMarkerTrue_IsNotReMigrated()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath,
+            """{"decoder":{"osdNhardMax":60,"nhard40MigrationApplied":true}}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.Decoder!.OsdNhardMax.Should().Be(60,
+            "an operator's explicit post-migration rollback to 60 must be respected, not silently undone");
+        store.Current.Decoder!.Nhard40MigrationApplied.Should().BeTrue(
+            "the marker stays true across a deliberate rollback");
+    }
+
+    [Theory(DisplayName = "NHARD40-DEFAULT M2: a persisted osdNhardMax outside {60} passes through unchanged — the migration is exact-60-only, never a range/clamp")]
+    [InlineData(55)]
+    [InlineData(70)]
+    public void Load_PersistedOsdNhardMax_NotExactly60_PassesThroughUnchanged(int nhard)
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath, $"{{\"decoder\":{{\"osdNhardMax\":{nhard}}}}}");
+
+        var store = new JsonConfigStore(configPath);
+
+        store.Current.Decoder!.OsdNhardMax.Should().Be(nhard,
+            $"osdNhardMax={nhard} is an operator's own deliberate choice within the valid range " +
+            "and must pass through untouched — the migration targets exactly 60, not a threshold");
+        store.Current.Decoder!.Nhard40MigrationApplied.Should().BeFalse(
+            "no migration means no marker set");
+    }
+
+    [Fact(DisplayName = "NHARD40-DEFAULT M2: a config file with no decoder key at all yields the new code default (40) and writes no migration marker")]
+    public void Load_NoDecoderKey_YieldsNewCodeDefault_NoMigrationMarkerWritten()
+    {
+        using var dir = new TempDirectory();
+        var configPath = System.IO.Path.Combine(dir.Path, "config.json");
+        File.WriteAllText(configPath, """{"port":8080}""");
+
+        var store = new JsonConfigStore(configPath);
+
+        // Absent "decoder" key → config.Decoder is null → DecoderConfig's own
+        // [JsonConstructor] parameter default (40) is what a consumer sees via
+        // (config.Decoder ?? new DecoderConfig()); there is nothing to migrate, so
+        // Decoder itself must stay null and no write-back must have occurred.
+        store.Current.Decoder.Should().BeNull(
+            "an absent decoder key must stay null — the migration guard must not fire when config.Decoder is null");
+        (store.Current.Decoder ?? new DecoderConfig()).OsdNhardMax.Should().Be(40,
+            "the effective value for an absent decoder key is the new code default (40)");
+
+        var onDiskText = File.ReadAllText(configPath);
+        onDiskText.Should().NotContain("nhard40MigrationApplied",
+            "no migration occurred (nothing to migrate), so no marker should have been written to disk");
+    }
 }

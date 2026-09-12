@@ -16,9 +16,9 @@ section of the settings UI that edits it.
 |---|---|---|---|---|
 | `KMinScorePass2` | int | `10` | [5, 30] | Pass-1 candidate score floor (D-009 calibrated). Controls how many pass-1 candidates are admitted to LDPC/OSD. Lower = more sensitivity (and more false positives). |
 | `OsdCorrThreshold` | float | `0.10f` | [0.05, 0.40] | OSD normalised correlation gate. Candidates below this threshold are rejected as likely noise CRC-14 coincidences. |
-| `OsdNhardMax` | int | `60` | [30, 100] | OSD maximum Hamming distance gate. Candidates with more than this many hard-decision bit errors are rejected. |
+| `OsdNhardMax` | int | `40` | [30, 100] | OSD maximum Hamming distance gate. Candidates with more than this many hard-decision bit errors are rejected. |
 
-All fields SHALL have defaults matching the D-009 R&R study calibrated values. The record SHALL use `[JsonConstructor]` with matching parameter defaults so that JSON objects with missing fields deserialise to the calibrated defaults rather than zero-values (per Lesson 6 — STJ source-gen ignores C# `init` property defaults for missing JSON fields).
+`KMinScorePass2` and `OsdCorrThreshold` SHALL have defaults matching the D-009 R&R study calibrated values; `OsdNhardMax` SHALL default to the `NHARD40-DEFAULT` arm's calibrated value (2026-09-12: 60→40 removes 95–98% of false decodes with zero measured genuine loss on AWGN near-threshold/co-channel — never cite as "safe"; fading, drift, Doppler, timing spread and any live corroborated-loss floor remain untested). The record SHALL use `[JsonConstructor]` with matching parameter defaults so that JSON objects with missing fields deserialise to the calibrated defaults rather than zero-values (per Lesson 6 — STJ source-gen ignores C# `init` property defaults for missing JSON fields).
 
 #### Scenario: DecoderConfig with all fields round-trips through JSON
 
@@ -28,7 +28,7 @@ All fields SHALL have defaults matching the D-009 R&R study calibrated values. T
 #### Scenario: Missing decoder key in app.json deserialises with calibrated defaults
 
 - **WHEN** a `DecoderConfig` is deserialised from a JSON object with no fields present (`{}`)
-- **THEN** `KMinScorePass2` SHALL be `10`, `OsdCorrThreshold` SHALL be `0.10f`, and `OsdNhardMax` SHALL be `60`
+- **THEN** `KMinScorePass2` SHALL be `10`, `OsdCorrThreshold` SHALL be `0.10f`, and `OsdNhardMax` SHALL be `40`
 
 ---
 
@@ -44,7 +44,7 @@ All fields SHALL have defaults matching the D-009 R&R study calibrated values. T
 #### Scenario: AppConfig with decoder key deserialises to DecoderConfig
 
 - **WHEN** an `AppConfig` is deserialised from a JSON object containing `{ "decoder": { "kMinScorePass2": 8 } }`
-- **THEN** `AppConfig.Decoder.KMinScorePass2` SHALL be `8`, `AppConfig.Decoder.OsdCorrThreshold` SHALL be `0.10f`, and `AppConfig.Decoder.OsdNhardMax` SHALL be `60`
+- **THEN** `AppConfig.Decoder.KMinScorePass2` SHALL be `8`, `AppConfig.Decoder.OsdCorrThreshold` SHALL be `0.10f`, and `AppConfig.Decoder.OsdNhardMax` SHALL be `40`
 
 ---
 
@@ -65,7 +65,7 @@ The daemon SHALL call `Ft8LibInterop.SetDecodeParams` with the effective decoder
 #### Scenario: Startup applies calibrated defaults when decoder key is absent
 
 - **WHEN** the daemon starts with an `app.json` that has no `decoder` key
-- **THEN** `Ft8LibInterop.SetDecodeParams` SHALL be called with `KMinScorePass2 = 10`, `OsdCorrThreshold = 0.10f`, and `OsdNhardMax = 60` before the first decode cycle
+- **THEN** `Ft8LibInterop.SetDecodeParams` SHALL be called with `KMinScorePass2 = 10`, `OsdCorrThreshold = 0.10f`, and `OsdNhardMax = 40` before the first decode cycle
 
 ---
 
@@ -77,7 +77,7 @@ The settings page (`settings.html`) SHALL include a collapsible "Advanced Decode
 - A numeric input for **Pass-1 Score Floor (K)** bound to `decoder.kMinScorePass2`, with `min="5"` and `max="30"`.
 - A numeric input (step `0.01`) for **OSD Correlation Threshold** bound to `decoder.osdCorrThreshold`, with `min="0.05"` and `max="0.40"`.
 - A numeric input for **OSD Max Hard Errors** bound to `decoder.osdNhardMax`, with `min="30"` and `max="100"`.
-- A **"Reset to defaults"** button that resets the three inputs to their calibrated values (`10`, `0.10`, `60`) without saving, requiring the operator to click the main save button to persist.
+- A **"Reset to defaults"** button that resets the three inputs to their calibrated values (`10`, `0.10`, `40`) without saving, requiring the operator to click the main save button to persist.
 
 Changes SHALL be included in the `POST /api/v1/config` payload sent by the existing settings save mechanism. A note SHALL inform the operator that changes take effect on the next decode cycle without a restart.
 
@@ -94,12 +94,12 @@ Changes SHALL be included in the `POST /api/v1/config` payload sent by the exist
 #### Scenario: Settings page applies calibrated defaults when decoder is null
 
 - **WHEN** `settings.js` initialises and `GET /api/v1/config` returns a response with no `decoder` key
-- **THEN** the three decoder inputs SHALL be pre-populated with the calibrated defaults: `10`, `0.10`, `60`
+- **THEN** the three decoder inputs SHALL be pre-populated with the calibrated defaults: `10`, `0.10`, `40`
 
 #### Scenario: Reset to defaults button restores calibrated values without saving
 
 - **WHEN** the operator clicks "Reset to defaults"
-- **THEN** the three inputs SHALL be set to `10`, `0.10`, `60` without sending any network request
+- **THEN** the three inputs SHALL be set to `10`, `0.10`, `40` without sending any network request
 
 #### Scenario: Decoder values are included in the save payload
 

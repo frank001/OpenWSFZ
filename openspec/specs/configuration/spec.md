@@ -413,18 +413,18 @@ Both enums SHALL be defined in `OpenWSFZ.Abstractions`.
 
 ### Requirement: Decoder configuration schema
 
-The `AppConfig` schema SHALL include an optional `decoder` object that controls the OSD gate parameters. If the `decoder` key is absent from the config file, the daemon SHALL behave as if `decoder` were `new DecoderConfig()` — the three OSD parameters take their D-009 calibrated defaults (`kMinScorePass2: 10`, `osdCorrThreshold: 0.10`, `osdNhardMax: 60`). All fields within the `decoder` object SHALL have defaults matching the calibrated values, so that a partial `decoder` object (e.g., only `kMinScorePass2` present) loads without error.
+The `AppConfig` schema SHALL include an optional `decoder` object that controls the OSD gate parameters. If the `decoder` key is absent from the config file, the daemon SHALL behave as if `decoder` were `new DecoderConfig()` — `kMinScorePass2: 10` and `osdCorrThreshold: 0.10` take their D-009 calibrated defaults, and `osdNhardMax: 40` takes the `NHARD40-DEFAULT` arm's calibrated value (2026-09-12; native binary default is unchanged at 60 — see `DecoderConfig.OsdNhardMax`'s own doc comment for the deliberate C#/native divergence). All fields within the `decoder` object SHALL have defaults matching the calibrated values, so that a partial `decoder` object (e.g., only `kMinScorePass2` present) loads without error.
 
 The `decoder` object SHALL contain:
 
 - `kMinScorePass2` (int, default `10`, valid range [5, 30]) — pass-1 candidate score floor.
 - `osdCorrThreshold` (float, default `0.10`, valid range [0.05, 0.40]) — OSD normalised correlation gate.
-- `osdNhardMax` (int, default `60`, valid range [30, 100]) — OSD maximum Hamming-distance gate.
+- `osdNhardMax` (int, default `40`, valid range [30, 100]) — OSD maximum Hamming-distance gate.
 
 #### Scenario: Missing decoder key uses calibrated defaults
 
 - **WHEN** the config file has no `decoder` key
-- **THEN** the effective decoder parameters SHALL be `kMinScorePass2 = 10`, `osdCorrThreshold = 0.10`, and `osdNhardMax = 60`
+- **THEN** the effective decoder parameters SHALL be `kMinScorePass2 = 10`, `osdCorrThreshold = 0.10`, and `osdNhardMax = 40`
 
 #### Scenario: decoder object round-trips correctly
 
@@ -434,7 +434,7 @@ The `decoder` object SHALL contain:
 #### Scenario: Partial decoder object uses defaults for missing fields
 
 - **WHEN** a config file contains `{ "decoder": { "kMinScorePass2": 8 } }` with no `osdCorrThreshold` or `osdNhardMax`
-- **THEN** `AppConfig.Decoder.OsdCorrThreshold` SHALL be `0.10f` and `AppConfig.Decoder.OsdNhardMax` SHALL be `60`
+- **THEN** `AppConfig.Decoder.OsdCorrThreshold` SHALL be `0.10f` and `AppConfig.Decoder.OsdNhardMax` SHALL be `40`
 
 ---
 

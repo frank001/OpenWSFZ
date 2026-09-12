@@ -366,7 +366,9 @@
               />
               <p class="field-hint">
                 Maximum Hamming distance for OSD candidates [30–100].
-                Default: 60 (D-009 calibrated).
+                Default: 40 (NHARD40-DEFAULT, 2026-09-12) — 95–98% fewer false decodes than 60,
+                with no genuine loss measured on AWGN near-threshold/co-channel; not tested under
+                fading/drift/Doppler. To restore 60, set it explicitly here and save.
               </p>
             </div>
 

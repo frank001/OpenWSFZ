@@ -73,8 +73,10 @@ public sealed record AppConfig(
     /// Runtime-configurable OSD gate parameters (decoder-settings-page, shim 20260030).
     /// Defaults to <c>null</c> so that existing config files without a <c>decoder</c>
     /// key deserialise without error.  A <c>null</c> value is treated by all consumers
-    /// as equivalent to <c>new DecoderConfig()</c> (D-009 calibrated defaults:
-    /// <c>kMinScorePass2=10</c>, <c>osdCorrThreshold=0.10</c>, <c>osdNhardMax=60</c>).
+    /// as equivalent to <c>new DecoderConfig()</c> — <c>kMinScorePass2=10</c> and
+    /// <c>osdCorrThreshold=0.10</c> are D-009 calibrated defaults, and
+    /// <c>osdNhardMax=40</c> is the <c>NHARD40-DEFAULT</c> arm's calibrated value
+    /// (2026-09-12; see <see cref="DecoderConfig.OsdNhardMax"/>'s own doc comment).
     /// </summary>
     public DecoderConfig?      Decoder      { get; init; } = null;
 
