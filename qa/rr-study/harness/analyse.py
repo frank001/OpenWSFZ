@@ -14,8 +14,10 @@ import argparse
 import csv
 import json
 import math
+import statistics
 import subprocess
 import sys
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -44,6 +46,7 @@ if str(_QA_ROOT) not in sys.path:
     sys.path.insert(0, str(_QA_ROOT))
 
 from harness.common import parse_all_txt
+from harness.matcher import _text_matches, _freq_matches, FREQ_TOLERANCE_HZ
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -1049,6 +1052,142 @@ def _fp_rate(df_matched: pd.DataFrame) -> dict[str, dict]:
             "n_slots":         n_slots,
         }
     return results
+
+
+# ---------------------------------------------------------------------------
+# Unexplained decodes — INFO only (Ask A, Architect -> QA, Captain-directed,
+# 2026-09-12: "I did notice a FP that was not even reported at all.")
+# ---------------------------------------------------------------------------
+#
+# `_fp_rate` above is scoped to S5's signal-free slots only. A decode in
+# S1-S4/S7/S8 that matches NO injected message in its own cycle was never
+# counted anywhere in the report. This is that whole-battery count.
+#
+# Deliberately reads truth.csv + the raw wsjt-all.txt/owsfz-all.txt logs
+# directly, in a single global pass, rather than unioning the per-scenario
+# *_matched.csv files' own false_positive==True rows: matcher.py's pass 2 has
+# no window of its own (see its module docstring) — every scenario's own
+# matcher invocation re-parses the SAME shared ALL.TXT, so one physical
+# unconsumed decode is re-flagged as an FP once per scenario re-run. That is
+# exactly the blind spot `_fp_rate` already works around for S5 alone (its
+# own docstring); reusing the per-scenario CSVs here would inherit the same
+# over-count for a whole-battery figure. A single pass keyed on the decode's
+# own cycle_utc, using the harness's OWN match predicates (`_text_matches` +
+# `_freq_matches` from matcher.py, not a freq-blind text check), counts each
+# physical decode line exactly once.
+#
+# NEVER a gate: no threshold, no verdict. Any future gate on this metric
+# needs its own HK-021 pre-registration.
+#
+# NFR-021: the return value and every renderer of it carry COUNTS and
+# frequency DISTANCES only — never message_text or any callsign-shaped
+# substring. Do not add either to this function's output.
+
+def _unexplained_decode_events(run_dir: Path) -> dict[str, dict] | None:
+    """Every appraiser decode whose (message, frequency) matches no truth row
+    in its own cycle_utc, using the harness's real matcher semantics.
+
+    Returns ``{appraiser: {"total": int, "by_scenario": {scen_id: {"count":
+    int, "distances_hz": [float | None, ...]}}}}``, or None if truth.csv (or
+    neither ALL.TXT log) is present in run_dir.
+
+    A decode's cycle_utc that does not appear in truth.csv AT ALL (e.g. a
+    pre-run warm-up line, outside every scenario's own injection window) is
+    excluded entirely — it cannot be attributed to a scenario and is not
+    itself in this metric's scope (matches the Architect's cross-check
+    script's treatment of the 11:54:00 preflight line). "Distance" is the
+    minimum |decode.freq_hz - true_freq_hz| over the truth rows sharing that
+    cycle that actually carry a frequency; None when the cycle's truth rows
+    are all signal-free (a pure S5 slot).
+    """
+    truth_path = run_dir / "truth.csv"
+    if not truth_path.exists():
+        return None
+
+    cycle_rows: dict[str, list[dict]] = defaultdict(list)
+    cycle_scenario: dict[str, str] = {}
+    with open(truth_path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            cyc = row["cycle_utc"]
+            cycle_rows[cyc].append(row)
+            cycle_scenario[cyc] = row["scenario_id"]
+
+    results: dict[str, dict] = {}
+    for appr, fname in (("WSJT-X", "wsjt-all.txt"), ("OpenWSFZ", "owsfz-all.txt")):
+        log_path = run_dir / fname
+        if not log_path.exists():
+            continue
+        records, _skipped = parse_all_txt(log_path)
+
+        by_scenario: dict[str, dict] = defaultdict(lambda: {"count": 0, "distances_hz": []})
+        total = 0
+        for rec in records:
+            cyc = rec.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            rows = cycle_rows.get(cyc)
+            if rows is None:
+                continue  # outside any scenario's truth window (e.g. warm-up)
+
+            explained = False
+            distances: list[float] = []
+            for r in rows:
+                freq_str = r.get("true_freq_hz", "")
+                if not freq_str:
+                    continue  # S5 signal-free row -- nothing expected here
+                true_freq = float(freq_str)
+                distances.append(abs(rec.freq_hz - true_freq))
+                if _text_matches(rec.message, r["message_text"]) and _freq_matches(rec.freq_hz, true_freq):
+                    explained = True
+                    break
+
+            if explained:
+                continue
+
+            scen = cycle_scenario[cyc]
+            total += 1
+            entry = by_scenario[scen]
+            entry["count"] += 1
+            entry["distances_hz"].append(min(distances) if distances else None)
+
+        results[appr] = {"total": total, "by_scenario": dict(by_scenario)}
+
+    return results or None
+
+
+def _unexplained_decodes_report_lines(results: dict | None) -> list[str]:
+    """Render the Ask-A INFO section. NFR-021: counts and frequency distances
+    only — never message_text or a callsign-shaped substring."""
+    if not results:
+        return []
+    lines = [
+        "## Unexplained decodes (informational — no gate)",
+        "",
+        "_Every appraiser decode whose message text + frequency matches no injected truth "
+        "row in its own cycle, across the **whole battery** — not just S5's signal-free "
+        f"slots (see False-positive rate above). Uses the harness's own match predicates "
+        f"(exact whitespace-normalised text AND ±{FREQ_TOLERANCE_HZ:g} Hz), not a "
+        "frequency-blind text check. **Not a gate — no threshold is pre-registered "
+        "(HK-021) for this metric.** Δf is the distance from the decode's reported "
+        "frequency to the nearest frequency-bearing truth row in the same cycle; "
+        "'—' means every truth row sharing that cycle was signal-free (e.g. a pure S5 "
+        "slot). Counts and distances only, per NFR-021 — never message text or "
+        "callsigns; see Section 6 for the historical series._",
+        "",
+        "| Appraiser | Scenario | Count | Min Δf (Hz) | Median Δf (Hz) |",
+        "|---|---|---|---|---|",
+    ]
+    for appr in APPRAISERS:
+        info = results.get(appr)
+        if not info:
+            continue
+        for scen in sorted(info["by_scenario"]):
+            sc = info["by_scenario"][scen]
+            dists = [d for d in sc["distances_hz"] if d is not None]
+            min_d = f"{min(dists):.1f}" if dists else "—"
+            med_d = f"{statistics.median(dists):.1f}" if dists else "—"
+            lines.append(f"| {appr} | {scen} | {sc['count']} | {min_d} | {med_d} |")
+        lines.append(f"| **{appr}** | **all** | **{info['total']}** | | |")
+    lines.append("")
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -2329,6 +2468,7 @@ def _write_report(
     hcr_results: dict | None = None,
     fp_narrowband_results: dict | None = None,
     s5_window_result: dict | None = None,
+    unexplained_results: dict | None = None,
 ) -> Path:
     lines: list[str] = []
     run_date = run_dir.name.split("-")[0:3]
@@ -2511,6 +2651,10 @@ def _write_report(
     # S9 — hashed-callsign cross-cycle resolution (informational; no PASS/FAIL verdict)
     if hcr_results:
         lines += _hashed_callsign_resolution_report_lines(hcr_results)
+
+    # Unexplained decodes — whole-battery INFO metric (Ask A, 2026-09-12)
+    if unexplained_results:
+        lines += _unexplained_decodes_report_lines(unexplained_results)
 
     # Summary
     lines += [
@@ -2871,6 +3015,16 @@ def main() -> None:
                 "(informational)"
             )
 
+    # --- Unexplained decodes (informational, whole battery — Ask A 2026-09-12) ---
+    # Full-battery only, same guard as the S5 trailing-window gate above: a
+    # --scenario-filtered run is not the whole battery this metric describes.
+    unexplained_results: dict | None = None
+    if not scenario_filter:
+        unexplained_results = _unexplained_decode_events(run_dir)
+        if unexplained_results:
+            for appr, info in unexplained_results.items():
+                print(f"  Unexplained decodes ({appr}): {info['total']} (informational, no gate)")
+
     # --- Verdicts ---
     verdict_rows, overall, fails, notes = _collect_verdicts(
         continuous_results, kappa_results, fp_results, bias_results,
@@ -2890,6 +3044,7 @@ def main() -> None:
         hcr_results=hcr_results,
         fp_narrowband_results=fp_narrowband_results,
         s5_window_result=s5_window_result,
+        unexplained_results=unexplained_results,
     )
     print(f"\nReport written: {report_path}")
     print(f"Overall verdict: {overall}")
