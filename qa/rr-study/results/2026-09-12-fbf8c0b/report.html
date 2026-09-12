@@ -1478,7 +1478,15 @@ FP is the value the sweep's own report used to gate PASS/FAIL through <code>4cc1
 computed, else the plain event/decode rate for older entries — see the caveat below); from this run
 onward the ratified gate is Gate A-W/Gate A-Δ, not this per-sweep figure (footnote 7). S7/S8 are the
 "all"/overall decode-recovery percentages. <strong>S4/κ is not a column in this table but is affected by
-a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code> onward — see footnote ⁸.</strong></p>
+a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code> onward — see footnote ⁸.</strong>
+<strong>Final column added 2026-09-12, same day, Captain-requested:</strong> OpenWSFZ's pooled S7+S8 matched-decode
+count as a percentage of WSJT-X's own matched-decode count over the same two stages — i.e. WSJT-X's
+count used as the reference/"oracle" denominator (the Captain's framing; not a claim that WSJT-X is
+ground truth). False positives are excluded by construction, not by a separate filter: both S7
+"recovery" and S8 "decode rate" are already <code>matched/injected</code> counts computed after dropping
+<code>false_positive == True</code> rows (<code>harness/analyse.py</code> <code>_analyse_compounding</code>/<code>_analyse_band_scene</code>), so
+this is a genuine TP-vs-TP comparison. See footnote ¹⁰ for the derivation (including the two rows with
+no S8) and its verification.</p>
 <table>
 <thead>
 <tr>
@@ -1490,6 +1498,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <th>S5 FP (WSJT-X / OpenWSFZ)</th>
 <th>S7 recovery (WSJT-X / OpenWSFZ)</th>
 <th>S8 decode rate (WSJT-X / OpenWSFZ)</th>
+<th>OpenWSFZ, % of WSJT-X (S7+S8 pooled, excl. FP)¹⁰</th>
 </tr>
 </thead>
 <tbody>
@@ -1502,6 +1511,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.0%</td>
 <td>78.5% / 47.3%</td>
 <td>—</td>
+<td>60.27%¹¹</td>
 </tr>
 <tr>
 <td>2026-06-06</td>
@@ -1512,6 +1522,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.0%</td>
 <td>77.4% / 46.2%</td>
 <td>—</td>
+<td>59.72%¹¹</td>
 </tr>
 <tr>
 <td>2026-06-07</td>
@@ -1522,6 +1533,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.0%</td>
 <td>76.3% / 54.8%</td>
 <td>95.0% / 86.7%</td>
+<td>80.47%</td>
 </tr>
 <tr>
 <td>2026-06-14</td>
@@ -1532,6 +1544,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.0%</td>
 <td>77.4% / 50.5%</td>
 <td>95.0% / 83.3%</td>
+<td>75.19%</td>
 </tr>
 <tr>
 <td>2026-06-20</td>
@@ -1542,6 +1555,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / <strong>91.7% FAIL</strong>¹</td>
 <td>92.6% / 70.2%</td>
 <td>93.3% / 86.7%</td>
+<td>79.61%</td>
 </tr>
 <tr>
 <td>2026-06-22</td>
@@ -1552,6 +1566,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.0%</td>
 <td>93.9% / 74.4%</td>
 <td>93.3% / 86.7%</td>
+<td>82.17%</td>
 </tr>
 <tr>
 <td>2026-07-04</td>
@@ -1562,6 +1577,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.0%</td>
 <td>96.3% / 73.0%</td>
 <td>93.3% / 86.7%</td>
+<td>79.47%</td>
 </tr>
 <tr>
 <td>2026-08-05</td>
@@ -1572,6 +1588,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.0%</td>
 <td>96.3% / 70.2%</td>
 <td>93.3% / 83.3%</td>
+<td>76.43%</td>
 </tr>
 <tr>
 <td>2026-08-15</td>
@@ -1582,6 +1599,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.8%</td>
 <td>95.3% / 74.4%</td>
 <td>93.3% / 86.7%</td>
+<td>81.23%</td>
 </tr>
 <tr>
 <td>2026-08-21</td>
@@ -1592,6 +1610,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.8%</td>
 <td>95.3% / 68.4%</td>
 <td>96.7% / 83.3%</td>
+<td>74.90%</td>
 </tr>
 <tr>
 <td>2026-08-22</td>
@@ -1602,6 +1621,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / <strong>3.3% FAIL</strong>²</td>
 <td>98.1% / 79.5%</td>
 <td>91.7% / 91.7%</td>
+<td>84.96%</td>
 </tr>
 <tr>
 <td>2026-08-27</td>
@@ -1612,6 +1632,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 0.0%</td>
 <td>97.7% / 78.6%</td>
 <td>96.7% / 91.7%</td>
+<td>83.58%</td>
 </tr>
 <tr>
 <td>2026-08-29</td>
@@ -1622,6 +1643,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / <strong>7.66% FAIL</strong></td>
 <td>93.0% / 74.0%</td>
 <td>96.7% / 91.7%</td>
+<td>82.95%</td>
 </tr>
 <tr>
 <td>2026-08-30/31</td>
@@ -1632,6 +1654,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 5.15%⁴</td>
 <td>98.1% / 82.8%⁵</td>
 <td>91.7% / 91.7%</td>
+<td>87.59%</td>
 </tr>
 <tr>
 <td>2026-09-02</td>
@@ -1642,6 +1665,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / <strong>14.61% FAIL</strong></td>
 <td>94.4% / 83.7%</td>
 <td>100.0% / 91.7%</td>
+<td>89.35%</td>
 </tr>
 <tr>
 <td>2026-09-03</td>
@@ -1652,6 +1676,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 10.12% FAIL</td>
 <td>96.3% / 81.4%</td>
 <td>95.0% / 91.7%</td>
+<td>87.12%</td>
 </tr>
 <tr>
 <td>2026-09-06</td>
@@ -1662,6 +1687,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 12.42% FAIL⁹</td>
 <td>98.14% / 79.07%</td>
 <td>100.00% / 88.33%</td>
+<td>82.29%</td>
 </tr>
 <tr>
 <td>2026-09-07</td>
@@ -1672,6 +1698,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td>0.0% / 6.33% FAIL⁶</td>
 <td>99.07% / 79.07%</td>
 <td>91.67% / 91.67%</td>
+<td>83.96%</td>
 </tr>
 <tr>
 <td><strong>2026-09-12</strong></td>
@@ -1682,6 +1709,7 @@ a defect found and fixed 2026-09-12 across every sweep from <code>3bd4cd0</code>
 <td><strong>0.0% / 0.0%⁷</strong></td>
 <td><strong>87.44% / 82.79%</strong></td>
 <td><strong>93.33% / 91.67%</strong></td>
+<td><strong>95.49%</strong></td>
 </tr>
 </tbody>
 </table>
@@ -1737,6 +1765,26 @@ those three older committed reports (<code>3bd4cd0</code>, <code>4c7d5ad</code>,
 than silently rewritten — this footnote is the correction pointer a reader of this series will
 find. Whether the corrected κ changes the §10 attribute gate's pending ratification is the
 Captain's call.</p>
+<p>¹⁰ <strong>New column, added 2026-09-12, same day, Captain-requested.</strong> Value = pooled(OpenWSFZ S7+S8
+matched decodes) ÷ pooled(WSJT-X S7+S8 matched decodes) × 100. For rows whose raw <code>S7_matched.csv</code>/
+<code>S8_matched.csv</code> are still on disk (<code>3bd4cd0</code>, <code>4c7d5ad</code>, <code>4cc1984</code>, <code>fbf8c0b5</code>, plus the N=93-era
+<code>4c34ef6</code>/<code>6bab388</code>/<code>4b3a4ca</code>/<code>815b652</code>), counts were read directly from those files (<code>matched=True</code>
+rows, <code>false_positive=False</code>, per appraiser). For the rows whose raw matched CSVs are no longer on
+disk, counts were <strong>derived</strong>: S8's own report.md table already states exact <code>Decoded</code>/<code>Injected</code>
+integers, and S7's per-sweep N is one of two fixed scenario sizes (93 through <code>815b652</code>, 215 from
+<code>6e821fa</code> onward — confirmed against the retained raw CSVs spanning both eras) — the report's
+published "all" recovery % at that N rounds to exactly one integer decode count, which was checked to
+reproduce the published percentage to 2dp before use. Cross-checked against every retained raw CSV
+(<code>4c34ef6</code>, <code>6bab388</code>, <code>4b3a4ca</code>, <code>815b652</code>, <code>3bd4cd0</code>, <code>4c7d5ad</code>, <code>4cc1984</code>, <code>fbf8c0b5</code>): the derived
+count matched the raw count exactly in all eight cases, zero discrepancy. <code>2e60949</code>'s S7 half uses its
+own 2026-08-31 targeted re-run report (footnote 5), consistent with the S7 cell already in this table.
+<strong>This is an INFO reading only — no threshold, no gate, no HK-021 pre-registration; it restates the
+existing S7/S8 recovery figures as one ratio, nothing new is measured.</strong> Treat pre-/post- scenario-size
+change rows (see footnote ¹¹) and the S1/S3-redesign-era rows as directional only, per this table's own
+general caveat below.</p>
+<p>¹¹ <code>4c34ef6</code> and <code>6bab388</code> (2026-06-06) predate S8's introduction to the battery — this scenario
+version had no S8 section at all (see the "—" in that column). Their ¹⁰ figure is S7-only, pooling
+nothing; not comparable cell-for-cell to every row below it, which pools S7+S8.</p>
 <p><strong>Reading it:</strong> nineteen full sweeps now (<strong>CORRECTED 2026-09-12, HK-022 — was "eighteen"; see
 footnote ⁹</strong>). This is the <strong>second AWGN-clean OpenWSFZ reading (0/120)</strong>
 in the post-R&amp;R-009 (N=60-restricted) era — the other being the inaugural <code>22b749c</code> sweep
@@ -1747,7 +1795,11 @@ both PASS, though the window remains FRAGILE per leave-one-out (unchanged caveat
 GR&amp;R figures sit comfortably inside their established PASS bands (S1's 0.37% is toward the upper
 end of the recent 0.20–0.34% run-to-run range but nowhere near the ≤10% AIAG threshold). S7/S8
 decode-recovery figures move within the historical envelope — see Section 5 for the S7
-instrument-suspect flag on this run's P2 movement. <strong>No signal attributable to the
+instrument-suspect flag on this run's P2 movement. This run's new pooled-ratio column (¹⁰) reads
+<strong>95.49%, the series high</strong> — driven mainly by WSJT-X's own S7 recovery dropping to 87.44% (the
+series low for that appraiser; every prior sweep from <code>6e821fa</code> onward sat ≥92.6%), not by an
+OpenWSFZ improvement (82.79%, mid-pack) — so read this series-high figure through the same S7
+instrument-suspect flag, not as a narrowing of the gap. <strong>No signal attributable to the
 <code>NHARD40-DEFAULT</code> 60→40 change was found in this general-purpose battery</strong> — the dedicated <code>NT</code>/<code>CC</code>
 legs remain the authority on that question (Section 1).</p>
 <p><em>Caveat, kept brief (carried forward unchanged, R&amp;R-011 appended): S1/S3 were redesigned 2026-06-06
