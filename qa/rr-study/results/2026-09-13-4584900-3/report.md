@@ -323,16 +323,25 @@ _Every appraiser decode whose message text + frequency matches no injected truth
 - 🛑 **CORRECTED (this run, HK-022) — H0(no OpenWSFZ-only signal) does NOT hold cleanly; sweeps
   2 and 3's own "no OpenWSFZ-only movement" readings were incomplete.** S7 P0 (co_channel 2-stack,
   equal 0 dB, Δ7 Hz) has now run four times at **WSJT-X 10/10 every single sweep**, while
-  **OpenWSFZ reads 5/10, 10/10, 9/10, 10/10** — a genuine OpenWSFZ-only movement on bit-identical
-  input, missed in sweeps 2–3's own Section 5 text because those reports only checked cells where
+  **OpenWSFZ reads 5/10, 10/10, 9/10, 10/10** — a genuine OpenWSFZ-only movement on ~~bit-identical
+  input~~ **the same synthesized scene, but NOT verified bit-identical at the decoder's own input:
+  each sweep is its own fresh real-time Voicemeeter capture pass, not a replay of one fixed WAV
+  (🛑 CORRECTED post-hoc, HK-022, 2026-09-13 — see `BOARD.md`)**, missed in sweeps 2–3's own
+  Section 5 text because those reports only checked cells where
   *this* sweep's own reading differed from the immediately preceding one, not the full
   four-sweep series. Given the unchanged binary across all four sweeps, this is evidence of
-  **real-time nondeterminism inside OpenWSFZ's own decode path** on a marginal co-channel part —
+  ~~**real-time nondeterminism inside OpenWSFZ's own decode path**~~ **real-time nondeterminism
+  somewhere in OpenWSFZ's capture-through-decode pipeline — the decode path itself is one candidate
+  locus, capture-pass timing/jitter (the input was never established identical, see above) is
+  another, and this run does not distinguish them (🛑 CORRECTED post-hoc, HK-022, 2026-09-13)**
+  on a marginal co-channel part —
   not a code regression (there is no code change to regress from), but a genuine, previously
-  under-reported repeatability finding about the decoder itself, distinct from the WASAPI/timing
+  under-reported repeatability finding about the decoder ~~itself~~ **or its capture path**,
+  distinct from the WASAPI/timing
   jitter explanation offered for WSJT-X-side movement elsewhere in this battery (that explanation
-  cannot apply here, since it would need to explain why *only* OpenWSFZ's reading of the identical
-  captured audio moves). **This does not fail the H0(repeatability) net for the sweep** (P0 sits
+  cannot rule this cell out either, since WSJT-X's own capture leg is a separate device instance
+  from OpenWSFZ's and could jitter independently while still reading a constant 10/10 by margin,
+  not by immunity). **This does not fail the H0(repeatability) net for the sweep** (P0 sits
   within a plausible binomial range at N=10 for a part near a decode margin, and nothing here
   crosses any pre-registered gate), but it is the one cell in four sweeps that behaves as the
   Section 1 "meaningful result" criterion described, and belongs on the record precisely because
@@ -437,14 +446,20 @@ numbering are independent. A same-SHA group is a **genuine repeatability replica
 independent build.
 
 **Reading it:** twenty-three full sweeps now, the last four a genuine same-build repeat
-quadruple (`4584900d #1`–`#4`). Four independent capture passes of bit-identical input confirm
+quadruple (`4584900d #1`–`#4`). Four independent ~~capture passes of bit-identical input~~
+**capture passes of the same synthesized scene (each its own fresh real-time Voicemeeter
+capture — never established bit-identical at the decoder's input; 🛑 CORRECTED post-hoc,
+HK-022, 2026-09-13, see `BOARD.md`)** confirm
 OpenWSFZ's S4/S5 pooled attribute reading (TP=96/FN=12, κ=0.909), S7 P2, and S8 station F as
 exactly reproducible every single time — the strongest repeatability evidence this study has
 produced for any cell. 🛑 **CORRECTED (this run, HK-022):** sweeps 2–3's own text claimed no
 OpenWSFZ-only movement had appeared in the batch; that was incomplete. **S7 P0 is an
 OpenWSFZ-only movement** — WSJT-X reads a constant 10/10 across all four sweeps while OpenWSFZ
-reads 5/10, 10/10, 9/10, 10/10 (Section 5) — real-time nondeterminism inside OpenWSFZ's own
-decode path on a marginal co-channel geometry, distinct from the WSJT-X-side jitter seen
+reads 5/10, 10/10, 9/10, 10/10 (Section 5) — ~~real-time nondeterminism inside OpenWSFZ's own
+decode path~~ **real-time nondeterminism somewhere in OpenWSFZ's capture-through-decode
+pipeline; the decode path is one candidate locus among others (capture-pass jitter is another),
+not yet distinguished (🛑 CORRECTED post-hoc, HK-022, 2026-09-13)** on a marginal co-channel
+geometry, distinct from the WSJT-X-side jitter seen
 elsewhere (S7 P3, S8 station H, both WSJT-X-only against a steady OpenWSFZ reading). This is not
 a regression (no code changed across the batch) and crosses no gate (S7 has no AIAG threshold),
 but it is the one genuine exception to an otherwise very clean same-build series, and is recorded

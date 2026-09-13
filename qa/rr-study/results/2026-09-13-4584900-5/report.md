@@ -327,12 +327,23 @@ required as a merge-blocking matter.**
   part in six sweeps (previously 10/10 on both, every time). Taken with S7 P0 (OpenWSFZ 5, 10, 9,
   10, 10, 6 across the six sweeps; WSJT-X a constant 10/10 throughout), the batch now shows
   **two** co_channel-family parts where OpenWSFZ's own reading fluctuates by one or two decodes
-  out of ten on bit-identical input while WSJT-X does not move at all. Neither trends toward
+  out of ten on ~~bit-identical input~~ **the same synthesized scene, each sweep its own fresh
+  real-time Voicemeeter capture pass — never established bit-identical at the decoder's own input
+  (🛑 CORRECTED post-hoc, HK-022, 2026-09-13, see `BOARD.md`)** while WSJT-X does not move at all.
+  Neither trends toward
   failure (both stay ≥50%, most sweeps ≥90%), and neither crosses any gate (S7 has no AIAG
-  threshold) — but across six sweeps this is now a **confirmed pattern, not a one-off**: OpenWSFZ
+  threshold) — but across six sweeps this is now a **confirmed pattern, not a one-off**: ~~OpenWSFZ
   has some genuine real-time decode-margin sensitivity on specific co-channel geometries that
-  WSJT-X's decode of the identical captured audio does not share. **Recommendation:** worth a
-  dedicated, non-blocking investigation by the Architect into what makes OpenWSFZ's OSD path
+  WSJT-X's decode of the identical captured audio does not share.~~ **OpenWSFZ is more sensitive
+  than WSJT-X to whatever varies between capture passes on specific co-channel geometries — a
+  measured asymmetry in variance, not (yet) a localised mechanism; "decode-margin sensitivity" and
+  "OpenWSFZ's OSD path" below both name a locus that was asserted, not measured, and P0's 0 dB
+  equal-power geometry is interference-limited rather than threshold-limited, which argues against
+  an OSD-margin story specifically (🛑 CORRECTED post-hoc, HK-022, 2026-09-13)**. **Recommendation:**
+  worth a
+  dedicated, non-blocking investigation by the Architect into what makes ~~OpenWSFZ's OSD path~~
+  **OpenWSFZ's real-time capture-and-decode pipeline (mechanism, including whether it is even
+  decoder-side rather than capture-side, unestablished — see correction above)**
   sensitive to sub-audible real-time jitter on these specific Δf/SNR combinations (P0: Δ7 Hz,
   0 dB; P1: Δ13 Hz, −5 dB) when WSJT-X's decode of the same captured samples does not move.
 - ℹ️ **S7 P3 and S8 station H remain the batch's WSJT-X-only jitter cells** (P3: WSJT-X 10, 10, 6,
@@ -445,12 +456,18 @@ reading (TP=96/FN=12, κ=0.909 exactly), S7 P2 (WSJT-X 15/15, OpenWSFZ 0/15), S8
 own S5 Gate A readings contributed a new AWGN event — all six read 0/120). S1/S2/S3 GR&R stayed
 comfortably inside their established PASS bands throughout (S1 0.18–0.30%, S2 0.00% flat, S3
 0.43–0.60%). **What moved, and on which side:** two co_channel-family parts (S7 P0, P1) showed
-OpenWSFZ-only single/double-decode fluctuation on bit-identical input across the six sweeps
+OpenWSFZ-only single/double-decode fluctuation on ~~bit-identical input~~ **the same synthesized
+scene, replayed via a fresh real-time capture pass each sweep — never established bit-identical at
+the decoder's own input (🛑 CORRECTED post-hoc, HK-022, 2026-09-13, see `BOARD.md`)** across the six
+sweeps
 (P0: 5,10,9,10,10,6/10; P1: 10,10,10,10,10,9/10 — WSJT-X a constant 10/10 on both, every sweep);
 two other cells (S7 P3, S8 station H) showed the mirror-image WSJT-X-only jitter with OpenWSFZ
 constant. Neither direction ever crossed a gate or trended toward failure — this battery has no
 AIAG threshold on S7/S8 — but the P0/P1 pattern is flagged in this run's own Section 5 as a
-genuine, batch-confirmed (not one-off) real-time decode-margin sensitivity in OpenWSFZ's OSD path
+genuine, batch-confirmed (not one-off) ~~real-time decode-margin sensitivity in OpenWSFZ's OSD
+path~~ **real-time sensitivity to something that varies between capture passes — locus (decode
+path vs. capture path) unestablished, and P0's interference-limited (0 dB equal-power) geometry
+argues against an OSD-margin mechanism specifically (🛑 CORRECTED post-hoc, HK-022, 2026-09-13)**
 on specific co-channel Δf/SNR combinations, worth the Architect's non-blocking attention. The
 oracle-ratio column ranged 83.33–88.93% across the six sweeps (mean ≈86.1%), settling well inside
 the broader recent 82–90% envelope and nowhere near `fbf8c0b5`'s flagged series-high (95.49%,
