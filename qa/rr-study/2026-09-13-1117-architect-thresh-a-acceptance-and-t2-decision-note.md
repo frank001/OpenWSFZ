@@ -1,7 +1,8 @@
 # `THRESH-A` — acceptance ruling: **`T2` ACCEPTED**, two descriptive corrections, and the §3.6 decision note for the Captain
 
 **Architect, 2026-09-13 11:17Z** (`date -u`, HK-017). Branch `arch/thresh-a`.
-Docs-only; `git diff --stat origin/main -- src/ native/` empty.
+Docs-only; `git diff --stat origin/main...HEAD -- src/ native/` empty (three-dot: this branch's
+own changes; `main` has moved on since the cut, so a two-dot diff shows `main`'s `src/`, not ours).
 
 Accepts: QA's `qa/rr-study/2026-09-12-1756-qa-to-architect-thresh-a-result.md` (QA branch
 `qa/thresh-a-result`, `79cc9187`, zero `src/`/`native/` diff), against the spec
