@@ -202,7 +202,8 @@ def main():
     ci = bootstrap_ci(c2)
 
     print()
-    print("=== Gate (BAR_G=%.2f, BAR_H=%.2f -- PROVISIONAL, Q1 not yet confirmed by the Captain) ===" %
+    print("=== Gate (BAR_G=%.2f, BAR_H=%.2f -- frozen, spec section 5 Q1: movable only before "
+          "D exists) ===" %
           (BAR_G, BAR_H))
     ci_lo_d, ci_hi_d = ci["D_ci"]
     ci_lo_d_in, ci_hi_d_in = ci["D_in_ci"]
