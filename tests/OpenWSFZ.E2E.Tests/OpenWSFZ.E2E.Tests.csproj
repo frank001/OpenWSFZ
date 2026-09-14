@@ -14,4 +14,43 @@
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="FluentAssertions" />
   </ItemGroup>
+
+  <!-- E2E precondition auto-publish (2026-09-12, QA). TESTING_STRATEGY.md section 8.2
+       bans [Fact(Skip = "...")] as a code smell, and this category is not the same
+       shape as the AwgnFpReplay measurement-arm exclusion in section 4.7: that
+       precondition (a gitignored, machine-local corpus) can never be satisfied in
+       CI, so it is deliberately excluded there too. This one (a self-contained
+       publish of OpenWSFZ.Daemon) is required to pass in CI (gate G1) and ci.yml
+       already satisfies it with its own explicit publish step before dotnet test;
+       a bare local "dotnet test" was simply the one path that never got it,
+       which is what made DaemonProcess.ResolveBinaryPath throw immediately on a
+       fresh checkout or worktree. Mirroring ci.yml's own two-step shape here
+       instead of excluding the category keeps this real regression coverage
+       (WASAPI COM-activation, background cold-start file duplication) actually
+       running, and passing, on every local run too, not just in CI.
+
+       RID mapping matches DaemonProcess.GetRid() and the ci.yml build matrix
+       (win-x64 / linux-x64 / osx-arm64) exactly. The Condition only publishes
+       when the expected exe is missing, so a CI leg that already published finds
+       it present and this target is a no-op; a fresh checkout (or a worktree that
+       never ran the publish step, per the Windows-junction/gitignore notes in
+       this project's own memory) publishes it once, automatically, on the first
+       "dotnet test" that touches this project. -->
+  <PropertyGroup>
+    <E2ERid Condition="'$([MSBuild]::IsOSPlatform(`Windows`))' == 'true'">win-x64</E2ERid>
+    <E2ERid Condition="'$([MSBuild]::IsOSPlatform(`OSX`))' == 'true'">osx-arm64</E2ERid>
+    <E2ERid Condition="'$(E2ERid)' == ''">linux-x64</E2ERid>
+    <E2EExeName Condition="'$([MSBuild]::IsOSPlatform(`Windows`))' == 'true'">OpenWSFZ.Daemon.exe</E2EExeName>
+    <E2EExeName Condition="'$(E2EExeName)' == ''">OpenWSFZ.Daemon</E2EExeName>
+    <E2ERepoRoot>$(MSBuildThisFileDirectory)..\..\</E2ERepoRoot>
+    <E2EPublishExe>$(E2ERepoRoot)src\OpenWSFZ.Daemon\bin\$(Configuration)\net10.0\$(E2ERid)\publish\$(E2EExeName)</E2EPublishExe>
+  </PropertyGroup>
+
+  <Target Name="EnsurePublishedDaemonForE2E" BeforeTargets="VSTest;Test"
+          Condition="!Exists('$(E2EPublishExe)')">
+    <Message Importance="high"
+             Text="E2E precondition: publishing self-contained Daemon ($(E2ERid)) before running OpenWSFZ.E2E.Tests -- see tools/publish_selfcontained.py and TESTING_STRATEGY.md." />
+    <Exec Command="python3 tools/publish_selfcontained.py --rid $(E2ERid)"
+          WorkingDirectory="$(E2ERepoRoot)" />
+  </Target>
 </Project>
