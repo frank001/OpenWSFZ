@@ -5,6 +5,16 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <!-- TESTING_STRATEGY.md §4.7: measurement-arm test classes (currently just
+         AwgnFpReplayTests) are excluded from "both the default local run and CI"
+         by convention. CI already enforces this via pre_merge_check.py's own
+         filter flag (Category!=AwgnFpReplay), but a bare "dotnet test" had no way
+         to know that and ran the real, roughly 9 minute decode payload anyway
+         (2026-09-12, QA). VSTestTestCaseFilter is dotnet test's project level
+         default filter, applied automatically and overridden by any filter flag
+         passed on the command line, so explicitly asking for Category=AwgnFpReplay
+         still runs the arm on demand, per §4.7's "runnable with one explicit flag". -->
+    <VSTestTestCaseFilter>Category!=AwgnFpReplay</VSTestTestCaseFilter>
   </PropertyGroup>
 
   <ItemGroup>
