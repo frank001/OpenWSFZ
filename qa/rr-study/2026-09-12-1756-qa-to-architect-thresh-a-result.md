@@ -86,7 +86,7 @@ path=-1 (no decode reached CRC at all)          = 529 / 546  (96.9%)   success=F
 path= 1 (OSD engaged; CRC-valid, WRONG payload) =  16 / 546  ( 2.9%)   success=False (all 16)
 path= 0 (BP succeeded)                          =   1 / 546  ( 0.2%)   success=True
 ```
-[Line 2 corrected post-hoc, HK-022, 2026-09-13 — originally read "OSD engaged, CRC/payload still
+[Line 2 corrected post-hoc, HK-022, 2026-09-14 — originally read "OSD engaged, CRC/payload still
 failed". Per the Architect's re-derivation from this run's own per-cycle JSON: `crc_ok=1` on all
 16 of these cycles. CRC did not fail — OSD produced a structurally valid, CRC-passing codeword
 whose payload does not match the true transmitted message. See `BOARD.md`.]
@@ -94,7 +94,7 @@ whose payload does not match the true transmitted message. See `BOARD.md`.]
 **`k_any == k_BP == 1`.** ~~The 16 cycles where OSD was engaged (i.e. BP alone did not converge, so
 the harness's `ldpc_decode_llrs` fell through to OSD at depth 2) **all failed** CRC or payload
 match — OSD is invoked but recovers nothing extra at this population.~~ **CORRECTED (post-hoc,
-HK-022, 2026-09-13): the 16 cycles where OSD was engaged (BP alone did not converge, so
+HK-022, 2026-09-14): the 16 cycles where OSD was engaged (BP alone did not converge, so
 `ldpc_decode_llrs` fell through to OSD at depth 2) all produced a CRC-valid, gate-passing decode
 whose payload is wrong — not a CRC failure. At the true cell, OSD's own record here is 0 right /
 16 wrong (2.93%): it is not idle and it does not "recover nothing extra," it is invoked and
@@ -106,7 +106,7 @@ generous than BP-only here: they are identical (`k_any == k_BP` — zero CRC-val
 decodes either way). Even under that reading, **96.9%** of `M`'s 546
 cycles produce no decode that reaches a CRC check at all, and ~~the LDPC error count for the 545
 failing cycles runs `mean 7.35`, `median 7`, up to `20` hard-decision errors against a `174`-bit
-codeword — nowhere near BP's convergence basin.~~ **CORRECTED (post-hoc, HK-022, 2026-09-13):
+codeword — nowhere near BP's convergence basin.~~ **CORRECTED (post-hoc, HK-022, 2026-09-14):
 `ldpc_errors` is the count of unsatisfied parity checks (`ldpc.c:130`ff) against this code's 83
 parity checks, not a hard-decision bit-error count against the 174-bit codeword, and it is only
 meaningful for the `path=-1` population — the 16 `path=1` cycles reached OSD via a different code
