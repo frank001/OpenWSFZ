@@ -18,13 +18,23 @@ dev-set cycles.
 """
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_HERE, "..", "live-gap-now"))
 
-import corpus as _live_gap_now_corpus  # noqa: E402  (reused for C2, verbatim)
+# Load live-gap-now/corpus.py under a DISTINCT module name (not "corpus") --
+# this directory's own module is also named corpus.py, and a plain
+# `sys.path.insert` + `import corpus` here would self-collide: Python
+# resolves the second "import corpus" to the module already mid-import
+# (this very file), producing infinite self-recursion the first time
+# c2_cycles() is called. importlib avoids the name collision entirely.
+_spec = importlib.util.spec_from_file_location(
+    "live_gap_now_corpus", os.path.join(_HERE, "..", "live-gap-now", "corpus.py"))
+_live_gap_now_corpus = importlib.util.module_from_spec(_spec)
+sys.modules["live_gap_now_corpus"] = _live_gap_now_corpus
+_spec.loader.exec_module(_live_gap_now_corpus)
 
 REPO_ROOT = os.path.abspath(os.path.join(_HERE, "..", "..", ".."))
 
