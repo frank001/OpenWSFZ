@@ -1,0 +1,58 @@
+# `PASSBAND-140` — ROW status (running record, QA)
+
+Spec: `qa/rr-study/2026-09-14-1542-architect-to-qa-spec-g2b-140-passband-rearm.md`
+(as amended by Amendment 1, `arch/g2b-passband-140` `4b7b9044`: `WIDE`'s `f_max` also
+moves 3000→3075, not just `f_min`).
+
+Updated as each row is checked. Not the final report — that comes after §3.2's full
+sequence and §3.5/§3.6.
+
+| row | check | result | detail |
+|---|---|---|---|
+| **0a** build | **PASS** | 2026-09-14 | Developer's diff (exactly two hunks, `.f_min`+`.f_max` per Amendment 1) independently cross-checked against `origin/main`'s live content — exact match. Both SHA-256s in manifest before any leg ran. `WIDE` independently re-loaded by QA (`p23_common.Decoder verify=True`): SHA and shim version (`20260050`, unchanged) both confirmed. |
+| **0b** BASE is what ships | **PASS (fallback)** | 2026-09-14 | `SHA(BASE)`=`db31d351...` ≠ pin `6b2e16a6...` (non-reproducible link, independently re-verified both hashes). Fallback: K60 (committed) vs B60 (this BASE), C2 first 500 cycles, `(10,0.10,60)` — 8782/8782 tuples, **0 differing**. Architect-confirmed: record `db31d351...` as `BASE`, not the pin. See `dll_manifest.json` `_row0b`. |
+| **0c** chain fidelity | **PASS** | 2026-09-14 | `PassbandChain row0c`, C2 window (`ts>=260908_193645`, dial `14.074`): `total_rows=57969` (matches spec's own drafted-in count exactly), `rejected=3` (0.0052%), threshold ≤58 (0.1%). `callsign-grammar.json` sha256=`7b581f31b7f0f65191da247eda6568e2f919d96c1414f9b268c39f4943bba37e`. |
+| **0d** seam | **PASS** | 2026-09-14 | `row0d_seam.py`: B60 through the chain vs C2 live `ALL.TXT`. `F_live=0.9843` (57061/57969, ≥0.97). `F_rep=0.9841` (not gated, reported only). Live cycles with no WAV: 0. Close to LIVE-GAP-NOW's own `F_live=0.9832` on the same corpus/binary/nhard — good cross-check. |
+| **0e** determinism | **PASS** | 2026-09-14 | `row0e_determinism.py`: B40r vs B40's first 300 cycles, 5287 tuples each side, **0 differing**. IDENTICAL. |
+| **0f** treatment moves | **PASS** | 2026-09-14 | `row0f_treatment_moves.py` (Amendment 1, both edges): B40 emits **0** decodes outside `[200,2959]` on C2; W40 emits **1232** below 200Hz and **104** above 2959Hz; outputs differ. Exhibits: low `ts=260908_193715 freq_hz=175 snr=-12`; high `ts=260909_061645 freq_hz=3016 snr=0` (no message text, NFR-021). |
+| **0g** truncation | **PASS** | 2026-09-14 | All six legs reported `0 truncated at MAX_RESULTS=200`. No re-run needed. |
+| **0h** C1′ cut | **PASS** | 2026-09-14 | 251st sorted `wsjt-x/wav/*.wav` = `260808_011045.wav`, exact match to spec. |
+
+## Build status
+
+- `BASE`: built, `db31d351484046e9f2430e2536d68850c13adba9c7e74f6c911f96345a85627a`, validated via ROW 0b fallback.
+- `WIDE`: built, `ae0c7c213da7c80d47a01b38f3a538ba279cb52bd48c150153b66c33918c00aa`, shim `20260050` (unchanged), independently re-verified by QA. Both DLLs sitting in `artefacts/passband-140/bin/`.
+
+## Tooling built so far
+
+- `qa/rr-study/passband-140/PassbandChain/` — C# managed-chain tool (§3.1), modes `row0c` and `chain`.
+- `qa/rr-study/passband-140/row0b_fallback.py` — K60/B60 tuple-identity check (§3.2 ROW 0b fallback).
+- `qa/rr-study/passband-140/dll_manifest.json` — binary identity record (§2.1 item 4).
+
+## Legs complete (launched 2026-09-14, background, one process each per spec §2.2)
+
+| leg | corpus | cycles | status |
+|---|---|---:|---|
+| B40 | C2 | 5222 | done, 0 truncated |
+| B40 | C1′ | 2418 | done, 0 truncated |
+| W40 | C2 | 5222 | done, 0 truncated |
+| W40 | C1′ | 2418 | done, 0 truncated |
+| B60 | C2 | 5222 | done, 0 truncated |
+| B40r | C2 | 300 | done, 0 truncated |
+
+K60 not run as a full leg — already resolved via the ROW 0b fallback (500 cycles, see above),
+which is the only purpose K60 serves per the spec's own leg table.
+
+## ROW 0 — ALL EIGHT ROWS PASS (2026-09-14)
+
+0a, 0b (fallback), 0c, 0d, 0e, 0f, 0g, 0h all closed, all PASS. Nothing VOID, nothing STOPs.
+The arm proceeds to §3.3-§3.7.
+
+## ARM COMPLETE — result filed 2026-09-14 17:07Z
+
+`qa/rr-study/2026-09-14-1707-qa-to-architect-passband-140-result.md`. Headline: `D(C2)=+1.41pp`
+CI `[0.42,2.78]`, `D(C1')=+0.60pp` same sign, `D_in(C2)≈0` (no material in-band cost), A3 clean
+(ratio 1.80, no flag). **GATE = G1 (ship-eligible)**, bars frozen per the spec's own Q1 rule (not
+provisional). Ship dev-task NOT authored — gated on the Captain's confirmation of §0.4 (Q2).
+Not computed: A4 (legacy readout, purely descriptive), A5 (isolated wall-time cost — legs ran
+concurrently, not cleanly isolable from this run).
