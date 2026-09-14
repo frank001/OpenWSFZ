@@ -14,7 +14,7 @@ sequence and §3.5/§3.6.
 | **0c** chain fidelity | **PASS** | 2026-09-14 | `PassbandChain row0c`, C2 window (`ts>=260908_193645`, dial `14.074`): `total_rows=57969` (matches spec's own drafted-in count exactly), `rejected=3` (0.0052%), threshold ≤58 (0.1%). `callsign-grammar.json` sha256=`7b581f31b7f0f65191da247eda6568e2f919d96c1414f9b268c39f4943bba37e`. |
 | **0d** seam | **PASS** | 2026-09-14 | `row0d_seam.py`: B60 through the chain vs C2 live `ALL.TXT`. `F_live=0.9843` (57061/57969, ≥0.97). `F_rep=0.9841` (not gated, reported only). Live cycles with no WAV: 0. Close to LIVE-GAP-NOW's own `F_live=0.9832` on the same corpus/binary/nhard — good cross-check. |
 | **0e** determinism | **PASS** | 2026-09-14 | `row0e_determinism.py`: B40r vs B40's first 300 cycles, 5287 tuples each side, **0 differing**. IDENTICAL. |
-| **0f** treatment moves | pending | — | needs W40 vs B40, post-chain, on C2 (both legs now decoded, not yet chained) |
+| **0f** treatment moves | **PASS** | 2026-09-14 | `row0f_treatment_moves.py` (Amendment 1, both edges): B40 emits **0** decodes outside `[200,2959]` on C2; W40 emits **1232** below 200Hz and **104** above 2959Hz; outputs differ. Exhibits: low `ts=260908_193715 freq_hz=175 snr=-12`; high `ts=260909_061645 freq_hz=3016 snr=0` (no message text, NFR-021). |
 | **0g** truncation | **PASS** | 2026-09-14 | All six legs reported `0 truncated at MAX_RESULTS=200`. No re-run needed. |
 | **0h** C1′ cut | **PASS** | 2026-09-14 | 251st sorted `wsjt-x/wav/*.wav` = `260808_011045.wav`, exact match to spec. |
 
@@ -43,10 +43,14 @@ sequence and §3.5/§3.6.
 K60 not run as a full leg — already resolved via the ROW 0b fallback (500 cycles, see above),
 which is the only purpose K60 serves per the spec's own leg table.
 
+## ROW 0 — ALL EIGHT ROWS PASS (2026-09-14)
+
+0a, 0b (fallback), 0c, 0d, 0e, 0f, 0g, 0h all closed, all PASS. Nothing VOID, nothing STOPs.
+The arm proceeds to §3.3-§3.7.
+
 ## Not yet built
 
-- `seam.py` application for ROW 0d (once B60/C2 lands, run through `PassbandChain chain`, compare
-  to C2 live `ALL.TXT`).
+- `matcher.recovery()` / `R` computation for B40/W40 × C2/C1′ against REF (§3.1 definitions).
 - Bootstrap/CI machinery for §3.1 (two cluster schemes, wider governs) — reuse
   `live-gap-now/bootstrap.py`, extend for the cycle-cluster scheme per spec.
-- §3.5/§3.6 descriptive + gate computation (needs B40+W40 both corpora).
+- §3.5/§3.6 descriptive + gate computation.
