@@ -79,7 +79,7 @@ suppression (the 12-bit unique-match mechanism, #138, mentioned in this arm's ow
 history accumulated **before** the corpus window even starts — the live daemon had been running for
 an unknown, likely much longer span before `19:36:45Z`; a replay process starting cold at the
 window boundary can never reconstruct that prior state, so it under-suppresses a small, roughly
-constant share of noise-triggered garbage throughout.~~ **CORRECTED (post-hoc, HK-022, 2026-09-13
+constant share of noise-triggered garbage throughout.~~ **CORRECTED (post-hoc, HK-022, 2026-09-14
 — see `BOARD.md`, Architect's 11:23Z acceptance ruling): this hypothesis was attached to the wrong
 symptom.** The dominant, now-*measured* mechanism for the `F_rep` shortfall is structural, not a
 hash-table timing effect: `ALL.TXT` is written **post** the managed `IsPlausibleMessage` (R4/R5)
@@ -112,7 +112,7 @@ Delta(C2) = R(NOW) - R(L08), same method, n_freq=2,734
 Both intervals exclude zero and are negative. ~~if this were a valid contrast (it is not, per §3),
 it would read as a small live recall *regression*, not the `+0.5..+2.5 pp` gain the Architect's own
 blind prediction favoured (§4 of the spec, `B1` at 30%).~~ **CORRECTED (post-hoc, HK-022,
-2026-09-13): even that conditional framing overstated it.** Per §4's correction above, the
+2026-09-14): even that conditional framing overstated it.** Per §4's correction above, the
 `F_rep` shortfall is now attributed, in dominant part, to the raw replay bypassing the managed
 R4/R5 filter chain — a structural artefact of *this arm's own harness*, not of either build. There
 is no basis, conditional or otherwise, for reading `Δ`'s sign as what "a valid contrast would show"
@@ -182,7 +182,7 @@ monitor-config level for signals actually reaching a candidate; the passband wid
 table cannot see that change directly — a finer-grained bin at the 140-200 Hz edge would be needed
 to, and is not computed here (out of this arm's scope). ~~The `200-3000 Hz` band shows the small
 negative `L08->NOW` shift consistent with `Δ(C1)`/`Δ(C2)`'s own sign, for the reasons in §5.~~
-**CORRECTED (post-hoc, HK-022, 2026-09-13): "consistent with" wrongly implied the sign is a
+**CORRECTED (post-hoc, HK-022, 2026-09-14): "consistent with" wrongly implied the sign is a
 meaningful, cross-checked reading.** Per §5's own correction, `Δ`'s sign is not attributed to the
 build in either direction — this band-level figure moving the same way is unsurprising precisely
 *because* it is pooled from the same VOID contrast, not independent corroboration of anything.
