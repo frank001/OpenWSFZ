@@ -1469,7 +1469,7 @@ int ft8_decode_all(
 
     /* ── 1. Build waterfall from PCM ─────────────────────────────────────── */
     monitor_config_t cfg = {
-        .f_min = 200.0f, .f_max = 3000.0f,
+        .f_min = 140.0f, .f_max = 3075.0f,
         .sample_rate = FT8_SAMPLE_RATE,
         .time_osr = K_TIME_OSR, .freq_osr = K_FREQ_OSR,
         .protocol = FTX_PROTOCOL_FT8
@@ -1869,7 +1869,7 @@ int ft8_extract_llrs_at(
 #endif
 
     monitor_config_t cfg = {
-        .f_min = 200.0f, .f_max = 3000.0f,
+        .f_min = 140.0f, .f_max = 3075.0f,
         .sample_rate = FT8_SAMPLE_RATE,
         .time_osr = K_TIME_OSR, .freq_osr = K_FREQ_OSR,
         .protocol = FTX_PROTOCOL_FT8

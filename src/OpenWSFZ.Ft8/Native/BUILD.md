@@ -51,8 +51,8 @@ No padding — fields are naturally aligned.
 
 ```c
 monitor_config_t cfg = {
-    .f_min       = 200.0f,
-    .f_max       = 3000.0f,
+    .f_min       = 140.0f,
+    .f_max       = 3075.0f,
     .sample_rate = 12000,
     .time_osr    = 2,        // half-symbol time resolution
     .freq_osr    = 2,        // half-bin frequency resolution
