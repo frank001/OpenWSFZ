@@ -145,7 +145,7 @@ text rendering.
 | Pass-1 suppression ramp | closed — over-suppression confirmed; duty cycle now measured (`Z = 0.6567`) but authorises no change |
 | Limb 1 (per-candidate complex-baseband refinement) | **−4.02 pp — active harm**, replicated at scale |
 | Candidate budget (caps, passes) | closed twice — and now confirmed from a third direction: **max 30 decodes in any cycle against caps of 340/540. The cap has never bound.** |
-| Upper passband ≥ 3000 Hz | **zero on both legs.** Raw WAV puts `[3000,3030)` at **−42.9 dB** — the radio's own filter. "Zero gains in `[3000,3030)`" is permanently uncitable. |
+| Upper passband ≥ 3000 Hz | ~~**zero on both legs.** Raw WAV puts `[3000,3030)` at **−42.9 dB** — the radio's own filter. "Zero gains in `[3000,3030)`" is permanently uncitable.~~ 🔴 **CORRECTED 2026-09-14 (Architect, HK-022/HK-026): measured at the wrong edge, NOT closed.** Our highest decodable base tone is **2959 Hz**, not 3000: all 8 tones must fit in the waterfall (`decode.c:292`), and live `ALL.TXT` tops out at 2959 on both the 08-08 and 09-08 corpora. `freq_hz` is the base tone, so with `f_max` = 3030 (top base tone 2984 Hz) a gain in `[3000,3030)` was impossible by construction. REF rows in 2960–2999 sat outside our aperture but were counted in-band (bucket C). The 09-08 corpus has 179 REF rows above 2959 Hz (0.20%). Re-armed as the top edge of `PASSBAND-140` (`qa/rr-study/2026-09-14-1542-…-g2b-140-passband-rearm.md`). |
 | Inward edge effect above `f_min` | **hypothesis killed this session.** Miss rate `[200,250)` = **19.9 %** against a `[700,3000)` baseline of **38.3 %** — *better* than average. The passband prize is the out-of-band census and no more. |
 
 ---

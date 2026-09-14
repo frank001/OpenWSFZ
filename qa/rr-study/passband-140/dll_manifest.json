@@ -1,0 +1,34 @@
+{
+  "_comment": "PASSBAND-140 DLL manifest. Spec section 2.1 item 4: both SHA-256s recorded before the first leg runs; never edit an entry after its leg has run.",
+  "_spec": "qa/rr-study/2026-09-14-1542-architect-to-qa-spec-g2b-140-passband-rearm.md",
+  "_row0b": {
+    "note": "SHA(BASE) did NOT match the shipped-DLL pin (6b2e16a6991ae953d18c85e5f0fea99d1e003c84b90ae5a69a8f1cfade34f85c). Fallback run: K60 (committed origin/main DLL) vs B60 (this BASE) over C2's first 500 cycles, params (10, 0.10, 60). Result: 500/500 cycles, 8782 decode tuples each side, 0 differing tuples (ts, freq_hz, dt, snr, message) -- IDENTICAL. ROW 0b PASSES via the fallback branch. Architect-confirmed: record the fresh-build SHA as BASE here, not the pin.",
+    "k60_sha256": "6b2e16a6991ae953d18c85e5f0fea99d1e003c84b90ae5a69a8f1cfade34f85c",
+    "k60_source": "git show origin/main:src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll",
+    "b60_cycles_compared": 500,
+    "b60_tuples_each_side": 8782,
+    "b60_differing_tuples": 0
+  },
+  "BASE": {
+    "filename": "libft8_PB140_BASE.dll",
+    "sha256": "db31d351484046e9f2430e2536d68850c13adba9c7e74f6c911f96345a85627a",
+    "shim_version": 20260050,
+    "f_min": 200.0,
+    "f_max": 3000.0,
+    "built_by": "Developer session (dev-b5), 2026-09-14, rebuild_shim.bat on an unedited tree cut from origin/main b4f67f42",
+    "note": "Byte-identity with the shipped DLL not achieved (non-reproducible link, no /Brepro in rebuild_shim.bat) but ROW 0b's fallback confirms behavioural identity -- see _row0b above."
+  },
+  "WIDE": {
+    "filename": "libft8_PB140_WIDE.dll",
+    "sha256": "ae0c7c213da7c80d47a01b38f3a538ba279cb52bd48c150153b66c33918c00aa",
+    "shim_version": 20260050,
+    "f_min": 140.0,
+    "f_max": 3075.0,
+    "built_by": "Developer session (dev-b5), 2026-09-14, same tree/session/toolchain as BASE, back to back, from origin/main b4f67f42449e78b004ff30b97a097302d978ce97",
+    "note": "SHA-256 and shim-version-unchanged (20260050) independently re-verified by QA by loading the file (p23_common.Decoder verify=True). Diff context (ft8_shim.c:1469-1475, :1869-1875) independently cross-checked against origin/main's actual current content -- exact match, exactly two lines each hunk, both .f_min AND .f_max per Amendment 1."
+  },
+  "_row0a": {
+    "note": "Build check (spec 3.2 ROW 0a). git diff origin/main -- ft8_shim.c, taken by the Developer while the WIDE edit was in place: exactly two hunks (lines ~1472, ~1872), each changing only `.f_min = 200.0f, .f_max = 3000.0f,` to `.f_min = 140.0f, .f_max = 3075.0f,`. Independently cross-checked by QA against origin/main's own current file content (exact match). Both SHA-256s recorded above before any leg ran. git status after the Developer's build: clean, both times (BASE and WIDE sessions). PASS.",
+    "pass": true
+  }
+}
