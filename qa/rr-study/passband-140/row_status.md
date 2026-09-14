@@ -29,11 +29,24 @@ sequence and §3.5/§3.6.
 - `qa/rr-study/passband-140/row0b_fallback.py` — K60/B60 tuple-identity check (§3.2 ROW 0b fallback).
 - `qa/rr-study/passband-140/dll_manifest.json` — binary identity record (§2.1 item 4).
 
+## Legs in progress (launched 2026-09-14, background, one process each per spec §2.2)
+
+| leg | corpus | cycles | status |
+|---|---|---:|---|
+| B40 | C2 | 5222 | running |
+| B40 | C1′ | 2418 | running |
+| W40 | C2 | 5222 | running |
+| W40 | C1′ | 2418 | running |
+| B60 | C2 | 5222 | running (for ROW 0d seam) |
+| B40r | C2 | 300 | running (for ROW 0e determinism) |
+
+K60 not run as a full leg — already resolved via the ROW 0b fallback (500 cycles, see above),
+which is the only purpose K60 serves per the spec's own leg table.
+
 ## Not yet built
 
-- Leg runner for §2.2 (B40/W40/B60/B40r/K60 on C2 and C1′, one process per (leg, corpus), params
-  asserted per leg — LIVE-GAP-NOW's `decode_leg.py`/`dll_pin.py` pattern, adapted).
-- `seam.py` application for ROW 0d.
+- `seam.py` application for ROW 0d (once B60/C2 lands, run through `PassbandChain chain`, compare
+  to C2 live `ALL.TXT`).
 - Bootstrap/CI machinery for §3.1 (two cluster schemes, wider governs) — reuse
   `live-gap-now/bootstrap.py`, extend for the cycle-cluster scheme per spec.
-- §3.5/§3.6 descriptive + gate computation.
+- §3.5/§3.6 descriptive + gate computation (needs B40+W40 both corpora).
