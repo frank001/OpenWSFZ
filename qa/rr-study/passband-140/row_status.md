@@ -48,9 +48,11 @@ which is the only purpose K60 serves per the spec's own leg table.
 0a, 0b (fallback), 0c, 0d, 0e, 0f, 0g, 0h all closed, all PASS. Nothing VOID, nothing STOPs.
 The arm proceeds to §3.3-§3.7.
 
-## Not yet built
+## ARM COMPLETE — result filed 2026-09-14 17:07Z
 
-- `matcher.recovery()` / `R` computation for B40/W40 × C2/C1′ against REF (§3.1 definitions).
-- Bootstrap/CI machinery for §3.1 (two cluster schemes, wider governs) — reuse
-  `live-gap-now/bootstrap.py`, extend for the cycle-cluster scheme per spec.
-- §3.5/§3.6 descriptive + gate computation.
+`qa/rr-study/2026-09-14-1707-qa-to-architect-passband-140-result.md`. Headline: `D(C2)=+1.41pp`
+CI `[0.42,2.78]`, `D(C1')=+0.60pp` same sign, `D_in(C2)≈0` (no material in-band cost), A3 clean
+(ratio 1.80, no flag). **GATE = G1 (ship-eligible)**, bars frozen per the spec's own Q1 rule (not
+provisional). Ship dev-task NOT authored — gated on the Captain's confirmation of §0.4 (Q2).
+Not computed: A4 (legacy readout, purely descriptive), A5 (isolated wall-time cost — legs ran
+concurrently, not cleanly isolable from this run).
